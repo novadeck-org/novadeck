@@ -6654,6 +6654,46 @@ describe("a prompt queued behind a running turn", () => {
     expect(prompt("A", claude).stdout).toContain("The news.")
   })
 
+  it("holds a prompt queued behind turns the screen saw its queue start, however deep", () => {
+    const { messaging, send, prompt, stop, claude } = create()
+    prompt("A", claude)
+    messaging.keys("A", ["content", "enter"], false)
+    prompt("A", claude)
+    stop("A", claude)
+    messaging.queueSeen("A", messaging.queueLook("A")!, true)
+    // Queued while the turn nothing told of runs, which the screen saw start.
+    prompt("A", claude)
+    stop("A", claude)
+    messaging.queueSeen("A", messaging.queueLook("A")!, true)
+    sent(send("B", "moth", "The news."))
+    expect(prompt("A", claude).leaseId).toBeNull()
+  })
+
+  it("lets go of what it counted where the screen saw nothing run on", () => {
+    const { messaging, send, prompt, stop, claude } = create()
+    prompt("A", claude)
+    messaging.keys("A", ["content", "enter"], false)
+    prompt("A", claude)
+    messaging.keys("A", ["content", "enter"], false)
+    prompt("A", claude)
+    // One Stop for all three, as the program took the messages into the turn.
+    stop("A", claude)
+    messaging.queueSeen("A", messaging.queueLook("A")!, false)
+    sent(send("B", "moth", "The news."))
+    expect(prompt("A", claude).stdout).toContain("The news.")
+  })
+
+  it("takes no word of the screen's for a Stop that a later one followed", () => {
+    const { messaging, prompt, stop, claude } = create()
+    prompt("A", claude)
+    stop("A", claude)
+    const early = messaging.queueLook("A")!
+    prompt("A", claude)
+    stop("A", claude)
+    messaging.queueSeen("A", early, true)
+    expect(messaging.queueLook("A")).toBe(early + 1)
+  })
+
   it("delivers on a prompt no turn ran before, as ever", () => {
     const { send, prompt, claude } = create()
     sent(send("B", "moth", "The news."))

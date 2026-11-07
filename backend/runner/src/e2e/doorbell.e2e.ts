@@ -325,6 +325,65 @@ for (const setup of setups) {
     )
 
     /* eslint-disable no-await-in-loop -- Each step waits for the one before. */
+    gated(slowQueue, setup.queueing ? undefined : "its queued prompts' hooks don't run early")(
+      "brings a message to an agent whose third queued prompt a Stop took back, behind two turns no hook told of",
+      async ({ e2e: run }) => {
+        const held = gate()
+        const betaHeld = gate()
+        const gammaHeld = gate()
+        run.model.use(
+          sends("Tell moth the news", "moth", "The build is green."),
+          own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
+          own((call) => (delivered(call, "fox") ? { text: "Noted the news." } : undefined)),
+          own(async (call) => {
+            if (asked(call, "Queued gamma")) {
+              await gammaHeld.opened
+              return { text: "Gamma done." }
+            }
+            if (asked(call, "Queued beta")) {
+              await betaHeld.opened
+              return { text: "Beta done." }
+            }
+            if (!asked(call, "Hold on")) return undefined
+            await held.opened
+            return { text: "Too late." }
+          }),
+        )
+        const t1 = await start(run, setup)
+        const t2 = await start(run, setup)
+        const mark = t1.mark()
+        await t1.prompt("Hold on")
+        await t1.reached("working", { after: mark })
+        // Each queued while the turn ahead of it runs, the last two behind turns no hook told of.
+        for (const [next, release] of [
+          ["Queued beta", held],
+          ["Queued gamma", betaHeld],
+        ] as const) {
+          await t1.prompt(next)
+          await t1.until(/Press up to edit queued messages/)
+          await sleep(1500)
+          const to = run.model.mark()
+          release.open()
+          await run.model.waitFor((call) => !call.side && latest(call).includes(next), {
+            after: to,
+          })
+          await sleep(1000)
+        }
+        await message(t2, t1)
+        await t1.prompt("Queued delta")
+        await t1.until(/Press up to edit queued messages/)
+        await sleep(1500)
+        const calls = run.model.mark()
+        const stopped = await t1.interrupt()
+        gammaHeld.open()
+        expect(stopped.returned).toBe("Queued delta")
+        await run.model.waitFor((call) => delivered(call, "fox"), {
+          after: calls,
+          timeoutMs: 60_000,
+        })
+      },
+    )
+
     // What the counting of queued turns rests on, on the harness's real screen: a change in how
     // it words its status row turns that off, so this says so out loud.
     gated(it, setup.queueing ? undefined : "its queued prompts' hooks don't run early")(

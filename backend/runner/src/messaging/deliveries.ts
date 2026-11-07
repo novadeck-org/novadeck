@@ -211,6 +211,31 @@ export class Deliveries {
    * again where a turn completed (`completedAt`), else Ready.
    * Not after a key of the person's since the read, whose text it may not have shown.
    */
+  /**
+   * The Stop the screen is yet to be looked at after, to say whether a turn runs from the
+   * queue now (`queueSeen`); undefined where there is none.
+   */
+  queueLook(terminalId: string): number | undefined {
+    const live = this.host.sessions.get(terminalId)
+    return live && live.stops > live.queueLooked ? live.stops : undefined
+  }
+
+  /**
+   * What the screen said after the Stop `stop`: a turn runs from the queue, or none does. A turn
+   * seen running is one no hook will tell of, and a prompt behind it is queued as surely as one
+   * behind a turn a hook told of. None running means nothing was left queued, as where the
+   * program took a queued prompt into the turn that just ended: the count goes. A look that said
+   * neither in time isn't given, and the count stands. A later Stop's look supersedes it.
+   */
+  queueSeen(terminalId: string, stop: number, runs: boolean): void {
+    const live = this.host.sessions.get(terminalId)
+    if (!live || live.stops !== stop) return
+    live.queueLooked = stop
+    live.queueRunning = runs
+    live.queueConfirmed = runs
+    if (!runs) live.promptsQueued = 0
+  }
+
   emptied(terminalId: string, epoch: number, readAt = this.host.now()): void {
     const live = this.host.sessions.get(terminalId)
     if (!live || live.keyedAt >= readAt) return
@@ -512,7 +537,7 @@ export class Deliveries {
     // counts only behind a turn known to run: what's a guess must not feed itself, or one Escape
     // would have every prompt after it taken for queued.
     if (event.type === "prompt" && (event.by === "prompt" || event.by === "doorbell")) {
-      const known = running(before) || before.box.queued
+      const known = running(before) || before.box.queued || live.queueConfirmed
       live.promptBehindTurn = known || before.state === "unknown" || live.queueRunning
       if (known) live.promptsQueued += 1
     }
@@ -524,6 +549,9 @@ export class Deliveries {
     if (event.type === "stop" && !event.continued) {
       live.queueRunning = live.promptsQueued > 0 || live.delivery.box.queued
       live.promptsQueued = Math.max(live.promptsQueued - 1, 0)
+      // Until the screen says what runs now (`queueSeen`), the count is all there is.
+      live.queueConfirmed = false
+      live.stops += 1
     }
     // A calm screen whose box reads empty with no queue shown (the doorbell's look) has nothing
     // queued, and no turn running unheard, whose spinner would keep it from calm.
@@ -535,6 +563,7 @@ export class Deliveries {
     ) {
       live.queueRunning = false
       live.promptsQueued = 0
+      live.queueConfirmed = false
     }
     if (live.delivery === before) return
     const { state } = live.delivery

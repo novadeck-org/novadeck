@@ -621,6 +621,7 @@ export class Terminals {
       if (record) {
         this.reporting.lapsed(record)
         this.typing.settleBox(record)
+        this.typing.watchQueue(record)
         this.bindings.publishReported(record)
       }
     })

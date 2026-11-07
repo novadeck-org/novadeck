@@ -21,7 +21,7 @@ import type {
   InterruptOptions,
   PromptOptions,
 } from "@novadeck/tui-input"
-import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
+import { isEmpty, newTurn, type BoxProfile, type TurnStatus } from "@novadeck/tui-input/box"
 
 import { DomainError } from "../errors.js"
 import { blocking, type Activity } from "../harnesses/activity.js"
@@ -95,6 +95,15 @@ const keyOf = (record: Record | undefined): string | null => {
 
 /** How long `settleBox` looks at a screen for an empty box, in milliseconds. */
 const boxSettleMs = 5_000
+
+/**
+ * How long after a Stop the screen is looked at for a turn the program starts from its queue,
+ * and how long none must show to say none runs. Its status row gave way to the next turn's
+ * within 0.4 s, and went within 0.6 s where none ran, starved of CPU (e2e/probes/queued-busy):
+ * a look that says neither by the end leaves the count as it was.
+ */
+const queueLookMs = 2_000
+const queueGoneMs = 200
 
 /** What `agents.prompt` gives: the text, and whether it is automatic, under which ref. */
 export type PromptInput = {
@@ -184,6 +193,11 @@ export class Typing {
   private readonly entered = new Map<string, number>()
   /** The terminals whose box `settleBox` is looking at. */
   private readonly settling = new Set<string>()
+  /**
+   * The Stop each terminal was last looked at after (see `watchQueue`), once only: a second look
+   * would take a queued turn already running for the ended one, and see none start.
+   */
+  private readonly queueLooks = new Map<string, number>()
   /** Which terminals' agents hold Novadeck's MCP tools, which the doorbell may wait for. */
   private readonly tools: McpTools
 
@@ -465,6 +479,44 @@ export class Typing {
     const record = this.host.live(terminalId)
     if (!record) return noHold
     return record.terminal.hold(budget)
+  }
+
+  /**
+   * After a Stop, looks at the screen for what runs now, where the program's queue starts its
+   * turns with no hook (a profile with `status`): its status row giving way to a new turn's
+   * says one runs from the queue, and none for `queueGoneMs` says none does. Told to messaging
+   * (`queueSeen`); a look that says neither within `queueLookMs` tells it nothing.
+   */
+  watchQueue(record: Record): void {
+    const id = record.summary.id
+    const messaging = this.host.messaging()
+    const stop = messaging.queueLook(id)
+    const profile = this.boxOf(record)
+    if (stop === undefined || !profile?.status || this.queueLooks.get(id) === stop) return
+    const status = profile.status
+    this.queueLooks.set(id, stop)
+    void (async () => {
+      const until = Date.now() + queueLookMs
+      let before: TurnStatus | undefined
+      let first = true
+      let gone: number | undefined
+      while (Date.now() < until && messaging.queueLook(id) === stop) {
+        // eslint-disable-next-line no-await-in-loop -- Each read waits for the one before.
+        const screen = await this.screenOf(id)
+        if (!screen || !this.host.live(id)) return
+        const now = status(screen)
+        // The ended turn's own row, as first seen, is what a new turn's is told from.
+        if (first) before = now
+        else if (newTurn(before, now)) return messaging.queueSeen(id, stop, true)
+        if (now?.ending) before = now
+        first = false
+        gone = now === undefined ? (gone ?? Date.now()) : undefined
+        if (gone !== undefined && Date.now() - gone >= queueGoneMs)
+          return messaging.queueSeen(id, stop, false)
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        await sleep(25)
+      }
+    })()
   }
 
   /**

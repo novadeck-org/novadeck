@@ -306,6 +306,16 @@ export class Messaging {
     return this.deliveries.stalled(terminalId)
   }
 
+  /** See `Deliveries.queueLook`. */
+  queueLook(terminalId: string): number | undefined {
+    return this.deliveries.queueLook(terminalId)
+  }
+
+  /** See `Deliveries.queueSeen`. */
+  queueSeen(terminalId: string, stop: number, runs: boolean): void {
+    this.deliveries.queueSeen(terminalId, stop, runs)
+  }
+
   queueBar(terminalId: string): number {
     return this.deliveries.queueBar(terminalId)
   }
