@@ -8,11 +8,12 @@ import {
   type Refused,
 } from "@novadeck/core/conversation/prompt-refusal"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { ArrowUp, Square, X } from "lucide-react"
+import { X } from "lucide-react"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
 import type { ComposerMode } from "./composer-mode"
 import { Hint } from "./Hint"
+import { Mark } from "./Mark"
 import { submitOnEnter } from "./submit-on-enter"
 import { useMounted } from "./use-mounted"
 
@@ -135,6 +136,8 @@ export const Composer = ({
   // A `!` still waiting for its command: nothing to send yet, nothing to warn about either.
   const awaitingCommand = command === ""
   const send = (): void => {
+    // Send is gone with the words, should it hold focus.
+    input.current?.focus({ preventScroll: true })
     if (passing) {
       onPress("\r")
       return
@@ -180,6 +183,7 @@ export const Composer = ({
   return (
     <form
       className="chat-composer nodrag nopan"
+      data-mode={mode}
       aria-label={`Message ${label}`}
       onSubmit={(event) => {
         event.preventDefault()
@@ -242,8 +246,8 @@ export const Composer = ({
         </div>
       )}
       {command !== undefined && (
-        <p className="chat-reply" id={shellNote}>
-          <span>Runs in {label}'s shell, as if typed in its terminal.</span>
+        <p className="sr-only" id={shellNote}>
+          Runs in {label}'s shell, as if typed in its terminal.
         </p>
       )}
       <Hint
@@ -260,6 +264,7 @@ export const Composer = ({
         }
       />
       <div className="chat-composer-box">
+        <Mark />
         <textarea
           ref={input}
           data-terminal-input
@@ -296,30 +301,31 @@ export const Composer = ({
           }}
         />
         <div className="chat-composer-actions">
+          {mode === "shell" && <span aria-hidden>shell</span>}
           {working && (
-            <Tooltip content="Stop">
+            <button
+              type="button"
+              className="chat-key"
+              aria-label="Stop"
+              aria-disabled={stopping || undefined}
+              onClick={stop}
+            >
+              stop
+            </button>
+          )}
+          {!empty && (
+            <Tooltip content="Send · Enter">
               <button
-                type="button"
-                className="chat-stop"
-                aria-label="Stop"
-                aria-disabled={stopping || undefined}
-                onClick={stop}
+                type="submit"
+                className="chat-key"
+                aria-label="Send"
+                disabled={sending || refused}
+                aria-busy={sending || undefined}
               >
-                <Square size={10} fill="currentColor" aria-hidden />
+                ⏎
               </button>
             </Tooltip>
           )}
-          <Tooltip content="Send · Enter">
-            <button
-              type="submit"
-              className="chat-send"
-              aria-label="Send"
-              disabled={empty || sending || refused}
-              aria-busy={sending || undefined}
-            >
-              <ArrowUp size={16} strokeWidth={2} aria-hidden />
-            </button>
-          </Tooltip>
         </div>
       </div>
     </form>

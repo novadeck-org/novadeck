@@ -5,6 +5,9 @@ import {
   WordsLost,
 } from "@novadeck/core/conversation"
 import { promptRefusal } from "@novadeck/core/conversation/prompt-refusal"
+import { noMessages, type MessagesState } from "@novadeck/core/messages"
+import { createStore } from "@novadeck/core/store"
+import { terminalKeyPath } from "@novadeck/core/types"
 import type { AgentDetail, SliceChange, TranscriptChange, TranscriptItem } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
 import { afterEach, beforeEach, vi } from "vitest"
@@ -54,6 +57,7 @@ const item = (index: number, text = `text ${index}`): TranscriptItem => ({
   outcome: null,
   scripted: false,
   interrupted: false,
+  ring: null,
 })
 
 const batch = (...items: TranscriptItem[]): TranscriptChange => ({ type: "items", items })
@@ -224,6 +228,7 @@ describe("the runner's conversations", () => {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       })
     })
 
@@ -795,6 +800,25 @@ describe("the runner's conversations", () => {
       expect(streams.putBox).toHaveBeenCalledWith("t", "draft")
       streams.putBox.mockRejectedValueOnce(new WireError("CONFLICT"))
       await expect(conversations.putBox?.(key, "draft")).resolves.toBe(false)
+    })
+
+    it("carries the terminal's doorbell, as its messages change, for as long as it's read", async () => {
+      const { streams } = setup()
+      const messages = createStore<MessagesState>(noMessages)
+      const conversations = createRunnerConversations(streams, undefined, messages)
+      const threads = (ringing: boolean) => ({
+        ...noMessages,
+        terminals: {
+          [terminalKeyPath(key)]: { handle: "moth", agent: true, ringing, threads: [] },
+        },
+      })
+      messages.update(() => threads(false))
+      const conversation = conversations.conversation(key)
+      const stop = conversation.subscribe(() => {})
+      expect(conversation.getSnapshot().doorbell.ringing).toBe(false)
+      messages.update(() => threads(true))
+      expect(conversation.getSnapshot().doorbell.ringing).toBe(true)
+      stop()
     })
 
     it("clears the agent's box, a failure telling why", async () => {

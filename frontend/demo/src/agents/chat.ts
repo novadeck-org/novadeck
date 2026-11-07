@@ -4,6 +4,7 @@ import {
   type ChatRequest,
   type Conversation,
   type Conversations,
+  noDoorbell,
 } from "@novadeck/core/conversation"
 import { promptRefusal, shellCommand } from "@novadeck/core/conversation/prompt-refusal"
 import type { TerminalKey } from "@novadeck/core/port"
@@ -16,7 +17,7 @@ import { chatAgent, chatAgents, terminalSlot } from "../samples"
 import { sessionOf } from "../workspace"
 import { promptRefused } from "./prompt-refusal"
 import { madeRequest, type DemoRequestOutcome } from "./requests"
-import type { DemoDraft, DemoTranscript } from "./transcripts"
+import { outcomeAmong, type DemoDraft, type DemoTranscript } from "./transcripts"
 import type { DemoTurns, TurnEvent } from "./turns"
 
 export type DemoChat = {
@@ -98,6 +99,7 @@ const draftOf = (draft: DemoDraft): Omit<ChatItem, "id" | "at" | "truncated"> =>
   outcome: null,
   scripted: false,
   interrupted: false,
+  ring: null,
 })
 
 const text = (role: ChatItem["role"], value: string) => ({
@@ -111,6 +113,7 @@ const text = (role: ChatItem["role"], value: string) => ({
   outcome: null,
   scripted: false,
   interrupted: false,
+  ring: null,
 })
 
 // The line the chat shows for that command, in every harness.
@@ -322,6 +325,7 @@ export const createDemoChat = (
       agent: found.terminal.process,
       session: `demo-${terminalKeyId(found.key)}`,
       slice: null,
+      doorbell: noDoorbell,
       loaded: true,
       items: transcript?.items ?? [],
       // An agent that reports nothing holds what its screen shows; one that does, what it
@@ -366,6 +370,7 @@ export const createDemoChat = (
         ...conversation.items,
         ...drafts.map((draft, index) => ({
           ...draft,
+          outcome: draft.outcome ?? outcomeAmong([...conversation.items, ...drafts], draft),
           id: `${terminalKeyId(key)}:${conversation.items.length + index + 1}`,
           at: Date.now(),
           truncated: draft.truncated ?? false,
@@ -398,6 +403,7 @@ export const createDemoChat = (
           outcome: null,
           scripted: false,
           interrupted: false,
+          ring: null,
         },
         {
           role: "tool",
@@ -410,6 +416,7 @@ export const createDemoChat = (
           outcome: null,
           scripted: false,
           interrupted: false,
+          ring: null,
         },
       )
   }
@@ -469,6 +476,7 @@ export const createDemoChat = (
           outcome: null,
           scripted: false,
           interrupted: false,
+          ring: null,
         },
         {
           role: "tool",
@@ -481,6 +489,7 @@ export const createDemoChat = (
           outcome: null,
           scripted: false,
           interrupted: false,
+          ring: null,
         },
       )
     } else if (event.type === "rest") {

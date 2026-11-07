@@ -131,6 +131,15 @@ for (const setup of setups) {
       await through(t1, ["ringing", "working", holds("fox", "moth", "delivered"), "settled"], {
         after: mark,
       })
+      // The record's item for the turn says the doorbell started it, and when, close enough to
+      // the message's delivery for the chat to tell what it brought.
+      const line = (await t1.transcript()).findLast((item) => item.ring !== null)
+      expect(line).toMatchObject({ role: "user", ring: { replies: false } })
+      const came = t1
+        .messages()
+        .threads.flatMap((thread) => thread.messages)
+        .find((one) => one.deliveredAt !== null)
+      expect(came!.deliveredAt).toBeGreaterThanOrEqual(line!.at! - 2_000)
     }
 
     // A guess that a prompt is queued costs that prompt its notices, and no more. What's asked

@@ -10,7 +10,6 @@ import {
 } from "@novadeck/core/conversation/turns"
 import type { Store } from "@novadeck/core/store"
 import type { AgentStatus } from "@novadeck/core/types"
-import { ArrowDown, Loader } from "lucide-react"
 import {
   useCallback,
   useEffect,
@@ -113,9 +112,13 @@ export const ChatView = ({
     unread,
     slice,
     box,
+    doorbell,
   } = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot)
   const name = agentName(harness ?? program)
-  const blocks = useMemo(() => groupItems(wentItems(items, prompts)), [items, prompts])
+  const blocks = useMemo(
+    () => groupItems(wentItems(items, prompts), doorbell.delivered),
+    [items, prompts, doorbell.delivered],
+  )
   const status = turnStatus(agent)
   const working = status?.working === true
 
@@ -331,7 +334,7 @@ export const ChatView = ({
                   data-working={working || undefined}
                   data-ended={!working || undefined}
                 >
-                  {working && <Loader size={12} aria-hidden className="chat-spinner" />}
+                  {working && <span className="chat-spin" aria-hidden />}
                   {status.text}
                 </p>
               )}
@@ -350,8 +353,7 @@ export const ChatView = ({
                 setAtEnd(true)
               }}
             >
-              <ArrowDown size={14} aria-hidden />
-              <span>Latest</span>
+              latest ↓
             </button>
           )}
         </div>

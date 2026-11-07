@@ -1,13 +1,22 @@
 import { sameBlock, type ChatBlock } from "@novadeck/core/conversation/turns"
+import { counted } from "@novadeck/core/units"
 import { Markdown } from "@novadeck/toolkit/Markdown"
 import { memo } from "react"
 
 import { withBubbles, type SentBubble } from "./bubbles"
+import { Mark } from "./Mark"
 import { ToolCalls } from "./ToolCalls"
 
 const Shortened = (): React.JSX.Element => (
   <p className="chat-shortened">Shortened here; the rest isn't carried over.</p>
 )
+
+// The line a turn the doorbell started stands as: `doorbell` alone where what it brought isn't
+// known, which is no saying that it brought nothing.
+const ringLabel = ({ messages, replies }: Extract<ChatBlock, { kind: "doorbell" }>): string => {
+  if (messages) return `doorbell · ${counted(messages.length, "message")}`
+  return replies ? "doorbell · your reply" : "doorbell"
+}
 
 const BlockView = memo(
   ({
@@ -25,10 +34,9 @@ const BlockView = memo(
       case "user":
         return (
           <article className="chat-message" data-role="user" aria-label="You">
-            <div className="chat-bubble">
-              <p className="chat-text">{block.text}</p>
-              {block.truncated && <Shortened />}
-            </div>
+            <Mark />
+            <p className="chat-text">{block.text}</p>
+            {block.truncated && <Shortened />}
           </article>
         )
       case "assistant":
@@ -54,6 +62,8 @@ const BlockView = memo(
         )
       case "note":
         return <p className="chat-note">{block.text}</p>
+      case "doorbell":
+        return <p className="chat-note">{ringLabel(block)}</p>
       case "tools":
         return <ToolCalls entries={block.entries} live={live} />
     }
@@ -92,9 +102,8 @@ const SentView = memo(
     const settled = bubble.state === "unrecorded" || bubble.state === "in-box"
     return (
       <article className="chat-message" data-role="user" data-sent={bubble.state} aria-label="You">
-        <div className="chat-bubble">
-          <p className="chat-text">{bubble.text}</p>
-        </div>
+        <Mark />
+        <p className="chat-text">{bubble.text}</p>
         <p className="chat-sent" role={settled ? "status" : undefined}>
           <span>{sentNote(bubble, agent)}</span>
           {settled && onShowTerminal && (

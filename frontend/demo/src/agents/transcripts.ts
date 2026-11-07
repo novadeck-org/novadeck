@@ -3,6 +3,8 @@ import type {
   ChatDialog,
   ChatItem,
   ChatRequest,
+  ToolChange,
+  ToolOutcome,
   ToolRun,
 } from "@novadeck/core/conversation"
 
@@ -31,7 +33,7 @@ export type DemoOutcome = (
 }
 
 export type DemoDraft = Pick<ChatItem, "role" | "kind" | "text"> &
-  Partial<Pick<ChatItem, "tool" | "call" | "author" | "truncated" | "run">>
+  Partial<Pick<ChatItem, "tool" | "call" | "author" | "truncated" | "run" | "scripted">>
 
 export const user = (text: string): DemoDraft => ({ role: "user", kind: "text", text })
 export const say = (text: string): DemoDraft => ({
@@ -63,7 +65,85 @@ const from = (author: string, text: string): DemoDraft => ({
   author,
 })
 
-// Numbers the drafts as one terminal's items, a half minute apart, the last just now.
+// A call's input as its fields, where they are JSON: a Codex patch is written as it is.
+const fieldsOf = (input: string): Readonly<Record<string, unknown>> => {
+  try {
+    return (JSON.parse(input) ?? {}) as Readonly<Record<string, unknown>>
+  } catch {
+    return {}
+  }
+}
+
+// The lines an edit's input changes, as a harness's decoder reads them: an `Edit`'s and a
+// `replace_file_content`'s old and new text, a `Write`'s content, a Codex patch's lines.
+const changeOf = (input: string): ToolChange | null => {
+  if (input.startsWith("*** Begin Patch")) {
+    const lines = input.split("\n").filter((line) => /^[+-]/.test(line))
+    return {
+      added: lines.filter((line) => line.startsWith("+")).length,
+      removed: lines.filter((line) => line.startsWith("-")).length,
+      lines: lines.map((line) => ({
+        sign: line.startsWith("+") ? ("+" as const) : ("-" as const),
+        text: line.slice(1),
+        line: null,
+      })),
+    }
+  }
+  const fields = fieldsOf(input)
+  const words = (...names: readonly string[]): string[] => {
+    const found = names.map((name) => fields[name]).find((value) => typeof value === "string")
+    return typeof found === "string" && found !== "" ? found.trimEnd().split("\n") : []
+  }
+  const removed = words("old_string", "TargetContent")
+  const added = words("new_string", "ReplacementContent", "content")
+  if (removed.length === 0 && added.length === 0) return null
+  return {
+    added: added.length,
+    removed: removed.length,
+    lines: [
+      ...removed.map((text) => ({ sign: "-" as const, text, line: null })),
+      ...added.map((text) => ({ sign: "+" as const, text, line: null })),
+    ],
+  }
+}
+
+// What a result says of its call, as a harness's decoder would: a command's exit code, in the
+// words each harness prints it, or that it runs on in the background; how much a read or a
+// search found; what an edit changed. Calls of other kinds say nothing.
+export const demoOutcome = (run: ToolRun, input: string, result: string): ToolOutcome | null => {
+  const said = { failed: false, exit: null, running: false, size: null, change: null }
+  const count = result.split("\n").filter((line) => line.trim() !== "").length
+  switch (run.kind) {
+    case "run": {
+      if (/running in background/i.test(result))
+        return { ...said, failed: null, running: true, opening: false }
+      const code = /(?:^Exit code:? |exited with code )(\d+)/m.exec(result)?.[1]
+      const exit = Number(code ?? 0)
+      return { ...said, failed: exit !== 0, exit, opening: false }
+    }
+    case "read":
+      return { ...said, size: { count, unit: "line" }, opening: false }
+    case "search":
+      return { ...said, size: { count, unit: "match" }, opening: false }
+    case "write":
+      return { ...said, change: changeOf(input), opening: false }
+    default:
+      return null
+  }
+}
+
+// What a record says of its call, among the records before and after it: only a result says.
+export const outcomeAmong = (
+  records: readonly DemoDraft[],
+  draft: DemoDraft,
+): ToolOutcome | null => {
+  if (draft.kind !== "tool-result") return null
+  const call = records.find((each) => each.kind === "tool-call" && each.call === draft.call)
+  return call?.run ? demoOutcome(call.run, call.text, draft.text) : null
+}
+
+// Numbers the drafts as one terminal's items, a half minute apart, the last just now, each
+// result with what it says of its call.
 export const written = (
   terminalId: string,
   now: number,
@@ -80,9 +160,10 @@ export const written = (
     call: draft.call ?? null,
     author: draft.author ?? null,
     run: draft.run ?? null,
-    outcome: null,
-    scripted: false,
+    outcome: outcomeAmong(drafts, draft),
+    scripted: draft.scripted ?? false,
     interrupted: false,
+    ring: null,
   }))
 
 // A file as Claude Code's Read returns it, a numbered line to each.
@@ -111,7 +192,7 @@ The cart lives in \`useCart\` and is already a store, so checkout can read it wi
 
 1. **Cart summary** in \`src/cart/CartSummary.tsx\`: lines, quantity steppers, the running total.
 2. **Address form** with the fields the shipping API needs:
-   - name and phone
+   - \`name\` and **phone**, both required
    - street, city, postcode, country
    - a "billing is the same" toggle
 3. **Payment step**, behind a provider interface so the choice stays open.
@@ -791,6 +872,28 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
         { kind: "run", title: "Ran", detail: "pnpm preview" },
       ),
       got("toolu_06d", "Command running in background with ID: p4m8c1d."),
+      say("Checking what went into the bundle."),
+      use(
+        "toolu_06e",
+        "Bash",
+        { command: "node scripts/bundle-report.mjs", description: "Report the bundle's size" },
+        { kind: "run", title: "Ran", detail: "node scripts/bundle-report.mjs" },
+      ),
+      got("toolu_06e", "index-9b2e77.js  214.06 kB\nindex-4f3a1c.css  18.40 kB"),
+      // What the script read, recorded after its own call.
+      {
+        ...use(
+          "toolu_06f",
+          "Read",
+          { file_path: "/Users/alex/projects/novadeck/dist/.vite/manifest.json" },
+          { kind: "read", title: "Read", detail: "…/dist/.vite/manifest.json" },
+        ),
+        scripted: true,
+      },
+      {
+        ...got("toolu_06f", '{\n  "index.html": { "file": "assets/index-9b2e77.js" }\n}'),
+        scripted: true,
+      },
       say(
         "## Build\n\nIt passes now. The failure was an import from the wrong module, fixed in `src/checkout/total.ts`.\n\n| Asset | Size |\n| --- | --- |\n| JavaScript | 214 kB (68 kB gzip) |\n| CSS | 18 kB |\n\nI left `pnpm preview` running in the background so you can open it at <http://localhost:4173>.",
       ),

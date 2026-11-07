@@ -621,6 +621,7 @@ describe("runner backend", () => {
           agent: false,
           waits: null,
           waitsSince: null,
+          ringing: false,
           threads: [],
         }),
       )

@@ -1,6 +1,7 @@
 import {
   WordsLost,
   noConversation,
+  noDoorbell,
   type ChatAnswer,
   type ChatItem,
   type ChatPrompt,
@@ -8,6 +9,7 @@ import {
   type Conversations,
   type SendResult,
 } from "@novadeck/core/conversation"
+import type { AgentMessage } from "@novadeck/core/messages"
 import { createStore, type Store } from "@novadeck/core/store"
 import { refusing } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
@@ -177,6 +179,7 @@ const userItem = (text: string): ChatItem => ({
   outcome: null,
   scripted: false,
   interrupted: false,
+  ring: null,
 })
 
 const box = (container: HTMLElement): HTMLTextAreaElement =>
@@ -392,6 +395,34 @@ describe("a chat sending a message", () => {
     expect(bubbles(container).map(([text]) => text)).toEqual(["second"])
   })
 
+  it("shows a turn the doorbell started as a dim line, how many it brought where known", async () => {
+    const ring = (id: string, at: number, replies = false): ChatItem => ({
+      ...userItem("[Novadeck: automatic notice, agent messages waiting, n7Q2]"),
+      id,
+      at,
+      ring: { nonce: "n7Q2", replies },
+    })
+    const message = { id: "m-1", deliveredAt: 10_000 } as unknown as AgentMessage
+    const conversation = createStore<Conversation>({
+      ...asking,
+      requests: [],
+      items: [
+        ring("a", 10_000),
+        { ...userItem("mine"), id: "m", at: 30_000 },
+        ring("b", 90_000),
+        ring("c", 120_000, true),
+      ],
+      doorbell: { ...noDoorbell, delivered: [message] },
+    })
+    const { container } = inApp(conversation)
+    expect([...container.querySelectorAll(".chat-note")].map((note) => note.textContent)).toEqual([
+      "doorbell · 1 message",
+      "doorbell",
+      "doorbell · your reply",
+    ])
+    expect(container.textContent).not.toContain("automatic notice")
+  })
+
   it("shows no message that a Stop handed back, though the record wrote it", async () => {
     const conversation = createStore<Conversation>({
       ...asking,
@@ -449,7 +480,7 @@ describe("a chat sending a message", () => {
     await act(async () => sends[0]!())
     chat.show(true)
     expect(box(chat.container).value).toBe("")
-    expect(sendButton(chat.container).getAttribute("aria-busy")).toBeNull()
+    expect(chat.container.querySelector('button[aria-label="Send"]')).toBeNull()
   })
 })
 
@@ -654,7 +685,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
     // Edited, it is a message again: here a shell command, said as one.
     set(box(container), "!important")
     expect(chat.replyTo()).toBeNull()
-    expect(container.querySelector(".chat-reply")?.textContent).toContain("Runs in")
+    expect(container.querySelector(".chat-composer .sr-only")?.textContent).toContain("Runs in")
     expect(sendButton(container).disabled).toBe(false)
   })
 
