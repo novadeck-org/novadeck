@@ -151,6 +151,8 @@ describe("what the agent's own box holds", () => {
 
   it("says what becomes of each kind of text", () => {
     expect(boxNote("Claude", box({ tail: true }))).toContain("ends with this")
+    // Its words known, but it may hold more, so it doesn't come back: nothing takes such a box.
+    expect(boxNote("Claude", box({ tail: true, known: true }))).toContain("ends with this")
     expect(boxNote("Claude", box({ known: true }))).toContain("comes back here")
     expect(boxNote("Claude", box({ mode: "shell" }))).toContain("shell mode")
     expect(boxNote("Claude", box({ text: "/model" }))).toContain("Clear it in the terminal")
