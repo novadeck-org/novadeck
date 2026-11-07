@@ -203,9 +203,19 @@ describe("the launch flags a session keeps", () => {
   it("are those of the process that started it, and stay as it reports again without them", () => {
     const flags = ["--permission-mode", "plan"]
     const first = observe(idle, seen({ launch: flags }), facts)!
-    expect(first.sessions.claude).toEqual({ sessionId: "a", seq: 2_000, launch: flags })
+    expect(first.sessions.claude).toEqual({
+      sessionId: "a",
+      seq: 2_000,
+      cwd: "/home",
+      launch: flags,
+    })
     const later = observe(first, seen({ startedAt: 3_000 }), facts)!
-    expect(later.sessions.claude).toEqual({ sessionId: "a", seq: 3_000, launch: flags })
+    expect(later.sessions.claude).toEqual({
+      sessionId: "a",
+      seq: 3_000,
+      cwd: "/home",
+      launch: flags,
+    })
     // The same process reporting again says what it has.
     const changed = observe(
       first,
@@ -255,7 +265,7 @@ describe("the launch flags a session keeps", () => {
       facts,
     )!
     const bare = observe(first, seen({ startedAt: 3_000, launch: [] }), facts)!
-    expect(bare.sessions.claude).toEqual({ sessionId: "a", seq: 3_000 })
+    expect(bare.sessions.claude).toEqual({ sessionId: "a", seq: 3_000, cwd: "/home" })
     // A process that doesn't tell its flags at all leaves the session's.
     const silent = observe(first, seen({ startedAt: 3_000 }), facts)!
     expect(silent.sessions.claude?.launch).toEqual(first.sessions.claude?.launch)
@@ -263,7 +273,11 @@ describe("the launch flags a session keeps", () => {
 
   it("can be forgotten for a session, so its next resume goes bare", () => {
     const first = observe(idle, seen({ launch: ["--effort", "high"] }), facts)!
-    expect(withoutLaunch(first.sessions, "claude").claude).toEqual({ sessionId: "a", seq: 2_000 })
+    expect(withoutLaunch(first.sessions, "claude").claude).toEqual({
+      sessionId: "a",
+      seq: 2_000,
+      cwd: "/home",
+    })
     expect(withoutLaunch(first.sessions, "codex")).toBe(first.sessions)
   })
 
@@ -274,9 +288,9 @@ describe("the launch flags a session keeps", () => {
       seen({ sessionId: "b", startedAt: 3_000, evidence: "native-switch" }),
       facts,
     )!
-    expect(next.sessions.claude).toEqual({ sessionId: "b", seq: 3_000 })
+    expect(next.sessions.claude).toEqual({ sessionId: "b", seq: 3_000, cwd: "/home" })
     const bare = observe(idle, seen({ launch: [] }), facts)!
-    expect(bare.sessions.claude).toEqual({ sessionId: "a", seq: 2_000 })
+    expect(bare.sessions.claude).toEqual({ sessionId: "a", seq: 2_000, cwd: "/home" })
   })
 })
 

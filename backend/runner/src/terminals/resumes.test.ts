@@ -81,11 +81,18 @@ describe("the session an agent asks to resume in a new terminal", () => {
     }
     expect(claims().judge({ id: "t1", resume: "codex" }, saved, true)).toMatchObject({
       ok: true,
-      argv: ["codex", "resume", "--dangerously-bypass-hook-trust", "s-1"],
+      argv: [
+        "codex",
+        "resume",
+        "--dangerously-bypass-hook-trust",
+        "-c",
+        "tui.resume_cwd=session",
+        "s-1",
+      ],
     })
     const old = { agents: { codex: { sessionId: "s-1", seq: 1 } } }
     expect(claims().judge({ id: "t1", resume: "codex" }, old, true)).toMatchObject({
-      argv: ["codex", "resume", "s-1"],
+      argv: ["codex", "resume", "-c", "tui.resume_cwd=session", "s-1"],
     })
   })
 
