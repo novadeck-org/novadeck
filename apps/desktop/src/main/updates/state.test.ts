@@ -38,7 +38,6 @@ describe("what the app remembers about updating", () => {
       whatsNewFrom: undefined,
       whatsNewSettled: undefined,
       whatsNewCheckedAt: undefined,
-      whatsNewHeadsUpSeen: undefined,
     })
   })
 
@@ -77,27 +76,14 @@ describe("what the app remembers about updating", () => {
         whatsNewFrom: undefined,
         whatsNewSettled: undefined,
         whatsNewCheckedAt: undefined,
-        whatsNewHeadsUpSeen: undefined,
       })
     })
 
-    it("keeps the newest version whose heads-ups were got, across settling, and reads an old file without one", () => {
-      const state = keepUpdateState(file)
-      expect(state.read().whatsNewHeadsUpSeen).toBeUndefined()
-      state.recordHeadsUpSeen("0.6.0", isNewerVersion)
-      state.recordHeadsUpSeen("0.5.0", isNewerVersion)
-      expect(state.read().whatsNewHeadsUpSeen).toBe("0.6.0")
-      state.recordLaunch("0.7.0", "0.7.0", "0.6.0")
-      state.settleWhatsNew("0.7.0", isNewerVersion)
-      state.recordHeadsUpSeen("0.7.0", isNewerVersion)
-      expect(state.read().whatsNewHeadsUpSeen).toBe("0.7.0")
-      expect(updateStateOf('{"channel":"stable","whatsNewSettled":"0.5.0"}')).toMatchObject({
-        whatsNewHeadsUpSeen: undefined,
-      })
-      for (const seen of ["x", 3, null, "1.2"])
-        expect(updateStateOf(JSON.stringify({ whatsNewHeadsUpSeen: seen }))).toMatchObject({
-          whatsNewHeadsUpSeen: undefined,
-        })
+    it("loads a file from before heads-ups were dropped, ignoring their mark", () => {
+      writeFileSync(file, JSON.stringify({ channel: "experimental", whatsNewHeadsUpSeen: "1.5.0" }))
+      const state = keepUpdateState(file).read()
+      expect(state.channel).toBe("experimental")
+      expect(state).not.toHaveProperty("whatsNewHeadsUpSeen")
     })
 
     it("keeps when a prerelease was last read, only for the notes still pending", () => {

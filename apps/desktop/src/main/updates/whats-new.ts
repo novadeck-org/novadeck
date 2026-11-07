@@ -2,7 +2,7 @@ import { parseWhatsNew, updateVersionPattern, type WhatsNew } from "@novadeck/pr
 import { readNotesBlock, type ReleaseNotes } from "@novadeck/protocol/release-notes"
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 
-import { dismissHeadsUpChannel, dismissWhatsNewChannel, whatsNewChannel } from "../../bridge.js"
+import { dismissWhatsNewChannel, whatsNewChannel } from "../../bridge.js"
 import type { ReleaseRepository } from "../releases/repository.js"
 
 /** How long reading the release waits; the card is optional, so a slow network gives it up. */
@@ -198,21 +198,18 @@ const distinct = (items: readonly NoteItem[]): NoteItem[] => {
 }
 
 /**
- * The highlights and heads-ups of `version` and of the releases skipped on the way to it,
- * newest first. A promotion's notes tell every change since the stable release before it, so
- * the notes of a release older than a promotion, with no stable release between, are left out:
- * that promotion tells them better. A stable release whose notes are not a promotion's, as
- * when writing them failed, still bounds the promotion after it. A highlight or heads-up two
- * releases share is told once. `from` is the version they are new since, when the launch
- * knows one. The heads-ups of a release at or below `headsUpSeen` were told already, and are
- * left out; a release with only heads-ups still has something to show.
+ * The highlights of `version` and of the releases skipped on the way to it, newest first. A
+ * promotion's notes tell every change since the stable release before it, so the notes of a
+ * release older than a promotion, with no stable release between, are left out: that
+ * promotion tells them better. A stable release whose notes are not a promotion's, as
+ * when writing them failed, still bounds the promotion after it. A highlight two releases
+ * share is told once. `from` is the version they are new since, when the launch knows one.
  */
 const gather = (
   version: string,
   from: string | undefined,
   releases: readonly Release[],
   newer: (a: string, b: string) => boolean,
-  headsUpSeen?: string,
 ): WhatsNew | undefined => {
   const promotions = releases.filter((release) => release.notes?.kind === "promote")
   const stable = releases.filter((release) => !release.prerelease)
@@ -227,12 +224,7 @@ const gather = (
     )
   const told = releases.filter((release) => release.notes?.kind === "promote" || !covered(release))
   const highlights = distinct(told.flatMap((release) => release.notes?.highlights ?? []))
-  const headsUp = distinct(
-    told
-      .filter((release) => headsUpSeen === undefined || newer(release.version, headsUpSeen))
-      .flatMap((release) => release.notes?.headsUp ?? []),
-  )
-  return parseWhatsNew({ version, from, highlights, headsUp })
+  return parseWhatsNew({ version, from, highlights })
 }
 
 /** What reading a release uses of the network: Electron's `net.fetch`, by default. */
@@ -250,10 +242,10 @@ export type ReleaseFetch = (
 }>
 
 /**
- * What is new in the version this launch runs, while `pending` names it: the highlights and
- * heads-ups of its release and of the releases skipped since `from`, newest first, with `from`
- * for the card to name (see `gather`). The releases are read once per launch, the first time it
- * is asked for, and the answer kept. When they are read and have neither, or the
+ * What is new in the version this launch runs, while `pending` names it: the highlights of its
+ * release and of the releases skipped since `from`, newest first, with `from` for the card to
+ * name (see `gather`). The releases are read once per launch, the first time it is asked for,
+ * and the answer kept. When they are read and have none, or the
  * version's release does not exist, there is nothing to show ever, so the pending mark is
  * cleared. A failure to read it, offline, timed out, rate limited or a server error, is
  * tried once more `readRetryMs` later, and when that fails too the mark is left for a later
@@ -269,8 +261,6 @@ export const keepWhatsNew = ({
   clear,
   checkedAt,
   recordCheck,
-  headsUpSeen,
-  seeHeadsUp,
   now,
   delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   repository,
@@ -288,10 +278,6 @@ export const keepWhatsNew = ({
   /** When a prerelease without highlights was last read, if it was. */
   readonly checkedAt: () => number | undefined
   readonly recordCheck: (time: number) => void
-  /** The newest version whose heads-ups the person got, if any; see `UpdateState`. */
-  readonly headsUpSeen: () => string | undefined
-  /** Marks that the person got the heads-ups of this version. */
-  readonly seeHeadsUp: (version: string) => void
   readonly now: () => number
   /** Waits `ms`; a timer by default. */
   readonly delay?: (ms: number) => Promise<void>
@@ -329,7 +315,7 @@ export const keepWhatsNew = ({
       const skipped =
         start === undefined ? [] : await readSkipped(fetch, source, start, version, newer)
       if (skipped === "later") return "retry"
-      const shown = gather(version, start, [own, ...skipped], newer, headsUpSeen())
+      const shown = gather(version, start, [own, ...skipped], newer)
       if (shown) return shown
       // A prerelease with no highlights may get some yet: promoting it writes them onto
       // this same tag before it turns stable, so a person on the experimental channel who
@@ -353,18 +339,6 @@ export const keepWhatsNew = ({
     const second = await attempt()
     return second === "retry" ? undefined : second
   }
-  // The heads-ups the person got since the read was made leave the kept answer; with no
-  // highlights under them, nothing is left to show.
-  const withoutSeen = (news: WhatsNew | undefined): WhatsNew | undefined => {
-    const seen = headsUpSeen()
-    if (!news?.headsUp || seen === undefined || newer(version, seen)) return news
-    if (news.highlights.length === 0) return undefined
-    return {
-      version: news.version,
-      ...(news.from === undefined ? {} : { from: news.from }),
-      highlights: news.highlights,
-    }
-  }
   return {
     whatsNew: async (): Promise<WhatsNew | undefined> => {
       // A page may ask before the launch has marked the version, so wait for it.
@@ -377,24 +351,17 @@ export const keepWhatsNew = ({
       const since = last === undefined ? undefined : now() - last
       if (since !== undefined && since >= 0 && since < prereleaseRecheckMs) return undefined
       reading ??= read()
-      return withoutSeen(await reading)
+      return reading
     },
     dismiss: forget,
-    dismissHeadsUp: (): void => {
-      try {
-        seeHeadsUp(version)
-      } catch (error) {
-        log("The heads-up was not marked as seen.", error)
-      }
-    },
   }
 }
 
 /**
- * What is new in the version a copy that cannot install it is offered: the highlights and
- * heads-ups of `offered` and of the releases between this copy's `version` and it, newest first, as
+ * What is new in the version a copy that cannot install it is offered: the highlights of
+ * `offered` and of the releases between this copy's `version` and it, newest first, as
  * `keepWhatsNew` tells them after an update, with `from` this version. Undefined when there
- * is no offer, when none of the releases names either, and when they can't be read;
+ * is no offer, when none of the releases names any, and when they can't be read;
  * nothing is thrown. A read is kept for the version it was made for, except one that failed
  * for a reason that may pass, or found a prerelease whose notes are not written yet, which
  * are tried again at the next ask.
@@ -455,8 +422,7 @@ type WhatsNewIpc = {
 }
 
 /**
- * Answers the app's own pages: the request for what is new, and the dismissal of it and of
- * its heads-ups. `window`
+ * Answers the app's own pages: the request for what is new, and the dismissal of it. `window`
  * names the window of a request from the main frame of the app's own page, or undefined for
  * any other sender, which is ignored (and told there is nothing new). The page names no
  * version or address.
@@ -467,12 +433,10 @@ export const registerWhatsNewIpc = <Window>(
     window,
     whatsNew,
     dismiss,
-    dismissHeadsUp,
   }: {
     readonly window: (event: IpcMainEvent | IpcMainInvokeEvent) => Window | undefined
     readonly whatsNew: () => Promise<WhatsNew | undefined>
     readonly dismiss: () => void
-    readonly dismissHeadsUp: () => void
   },
 ): void => {
   ipc.handle(whatsNewChannel, (event) =>
@@ -480,8 +444,5 @@ export const registerWhatsNewIpc = <Window>(
   )
   ipc.on(dismissWhatsNewChannel, (event) => {
     if (window(event) !== undefined) dismiss()
-  })
-  ipc.on(dismissHeadsUpChannel, (event) => {
-    if (window(event) !== undefined) dismissHeadsUp()
   })
 }

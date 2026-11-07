@@ -35,7 +35,8 @@ A build follows one channel, which the person picks with Preferences' Experiment
 (on is `experimental`, which also turns on the IS_EXPERIMENTAL flag) and the app keeps
 across launches in `update.json` in the data folder. The same file keeps what the card of what is
 new needs (see "What is new"): `lastRunVersion`, `whatsNewPending`, `whatsNewFrom`,
-`whatsNewSettled`, `whatsNewCheckedAt` and `whatsNewHeadsUpSeen`.
+`whatsNewSettled` and `whatsNewCheckedAt`. A file written by an older build may carry other keys
+(`whatsNewHeadsUpSeen`, from heads-ups the app no longer tells); they are ignored.
 
 | Channel        | Follows                                          |
 | -------------- | ------------------------------------------------ |
@@ -731,8 +732,7 @@ only from the main frame of the app's own page.
 
 The app tells of an update in one place, a card of highlights for the version it updated to and
 the releases it skipped on the way, shown at each launch until the person dismisses it or the
-releases turn out to have none. When something works differently for someone who used the app
-before, a Heads-up card comes first (see below). The notes come from the releases themselves: each prerelease, and
+releases turn out to have none. The notes come from the releases themselves: each prerelease, and
 again its promotion to stable, writes a hidden `<!-- novadeck:notes {json} -->` block in its body,
 before the "All commits" details (`scripts/release-notes`), and the app reads it with
 `readNotesBlock` from the release API (`/releases/tags/v{version}`, then `/releases` for the
@@ -748,23 +748,8 @@ would. The card names `whatsNewFrom` too, as the version its highlights are new 
 0.0.183" beside its ×), and names none when the launch doesn't know it, as on an install whose
 earlier builds never recorded the version they ran.
 
-A release's notes may also carry `headsUp`, up to three items in the highlights' shape (they come
-from a pull request's `## Heads-up` section), for what works differently now. The app gathers
-them across the same releases and the same promotion covering, told once by title and line, newest
-first, at most `whatsNewHeadsUps`. A release with only heads-ups has something to show: the read
-settles as nothing to show only when it has neither. While the answer has heads-ups, the corner
-shows them first, on a card of the same make as the highlights' with its tape reading "Heads up" in
-the warning colours and no From stamp. Its footer has "Got it", which the × does too, and, when the
-backend takes feedback, a quiet "Bad call? Tell us" that opens the footer's feedback card with
-the kind set to Idea, an "About the Heads-up in" line for the person and nothing written, sending
-nothing by itself. The Heads-up card waits while
-that card is open, and comes back after it. Got it records `whatsNewHeadsUpSeen` (the newest
-version whose heads-ups the person got) and the highlights take the corner at once; with no
-highlights it settles the version as dismissing the highlights does. Heads-ups of a release at or
-below `whatsNewHeadsUpSeen` are left out of every later answer, so quitting between Got it and
-the dismissal shows the highlights alone at the next launch, while a version not yet seen,
-even one an update skipped past, is still told. A portable copy's card lists the offered
-release's heads-ups above its highlights, under a small "Heads up" label, and no second card.
+Notes written while the app told heads-ups carry a `headsUp` list too. The reader drops it, so
+a release with only heads-ups has nothing to show and settles as such.
 
 Each highlight may name an icon, a Lucide name from the fixed `highlightIcons` set in
 `contract/protocol/src/release-notes.ts`, which the model picks from when it writes the notes.
@@ -777,12 +762,12 @@ that version `whatsNewPending` when it is newer than the one the last launch rec
 launch marks nothing; an install from before the version was kept counts as updated when the
 data folder holds the runner's `workspace.sqlite`. The mark is settled, and the version
 recorded as `whatsNewSettled`, when the person dismisses the card or the release is read and
-has nothing to show (no block, no highlights or heads-ups, or GitHub's own JSON 404); nothing at or below
+has nothing to show (no block, no highlights, or GitHub's own JSON 404); nothing at or below
 a settled version is offered again. A read that fails for a reason that may pass (offline,
 timeout, 403, 429, 5xx, or an answer that is not that release) is tried once more two minutes
 later in the same launch, and the page's one request waits for it; if that fails too, the mark
 stays for a later launch. A prerelease's own notes carry up to two highlights, so experimental builds
-show the card too. A prerelease whose notes are not written yet, or that gathers neither highlights nor heads-ups,
+show the card too. A prerelease whose notes are not written yet, or that gathers no highlights,
 is read at most once a day (`whatsNewCheckedAt`), as its notes or its promotion may still write
 some onto the same tag. Builds that look
 for no updates (version 0.0.0, no release repository) never offer a card.

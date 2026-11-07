@@ -17,7 +17,6 @@ const notes: ReleaseNotes = {
       prs: [181],
     },
   ],
-  headsUp: [],
   changes: [
     { area: "Inbox & notifications", line: "Answer agents from the Inbox.", prs: [195] },
     { area: "Fixes & speedups", line: "Off-screen Canvas nodes stop laying out.", prs: [261] },
@@ -56,6 +55,21 @@ describe("the notes block", () => {
       changes: [...notes.changes, { area: "Sharing", line: "A new area.", prs: [9] }],
     })
     expect(readNotesBlock(`<!-- novadeck:notes ${later} -->`)).toEqual(notes)
+  })
+
+  it("reads a block written while releases carried heads-ups, ignoring them", () => {
+    const old = JSON.stringify({
+      ...notes,
+      headsUp: [
+        {
+          title: "Ctrl+V pastes",
+          line: "Programs no longer get it.",
+          prs: [641],
+          icon: "keyboard",
+        },
+      ],
+    })
+    expect(readNotesBlock(`<!-- novadeck:notes ${old} -->`)).toEqual(notes)
   })
 
   it("clamps what would break the writer, so what it returns is always writable", () => {

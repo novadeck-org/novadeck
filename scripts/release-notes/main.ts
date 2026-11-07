@@ -13,14 +13,11 @@ const plural = (count: number, one: string, many: string): string =>
 
 /** The short account of a run that wrote notes, for the log and the job's summary. */
 export const summaryOf = (mode: string, tag: string, generated: Generated): string => {
-  const { notes, considered, outputTokens, model, dropped, lost } = generated
-  const lines = notes.highlights.length + notes.headsUp.length + notes.changes.length
+  const { notes, considered, outputTokens, model, dropped } = generated
+  const lines = notes.highlights.length + notes.changes.length
   return [
     `Release notes for ${tag} (${mode}): ${plural(lines, "line", "lines")} from ${plural(considered, "change", "changes")}, ${plural(notes.fixes, "smaller fix", "smaller fixes")} counted. Model ${model}, ${outputTokens} output tokens.`,
     ...droppedLines(dropped),
-    ...(lost.length > 0
-      ? [`No line tells the Heads-up of ${lost.map((pr) => `#${pr}`).join(", ")}.`]
-      : []),
     "",
   ].join("\n")
 }
@@ -96,11 +93,6 @@ export const main = async (
       writeFileSync(out!, body)
       log(summary)
     }
-    // A heads-up that went out with no line is a person left to be surprised: the run says so.
-    if (process.env.GITHUB_ACTIONS && generated.lost.length > 0)
-      log(
-        `::warning title=Release notes::No line tells the Heads-up of ${annotation(generated.lost.map((pr) => `#${pr}`).join(", "))}`,
-      )
   } catch (error) {
     if (!(error instanceof Skip)) throw error
     summary = skippedSummary(mode, tag, error)

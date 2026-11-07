@@ -101,9 +101,9 @@ jobs:
         # suite, the others for a change to what is system-specific, and all three on a
         # schedule or a dispatch. Each harness alone, and Mixed, which runs every harness at
         # once for the scenarios across harnesses (`*.mixed.e2e.ts`) the others skip, as they
-        # leave to it. Claude Code and Codex run in two halves on Windows and Linux, and
-        # Antigravity on Linux, where their suites take longest (scripts/e2e/plan/plan.ts,
-        # `shardedOn` and `firstShard`).
+        # leave to it. Claude Code runs in two halves on every system, Codex on Windows and
+        # Linux, and Antigravity on Linux, where their suites take longest
+        # (scripts/e2e/plan/plan.ts, `shardedOn` and `firstShard`).
         include: ${{ fromJSON(needs.plan.outputs.rows) }}
     env:
       NOVADECK_E2E_CACHE: ${{ github.workspace }}/.e2e-cache
@@ -247,7 +247,8 @@ jobs:
   # The probes (src/e2e/probes): how each harness behaves where Novadeck's design depends on
   # it, recorded rather than checked, so they run nightly against each harness's latest
   # release (or when a dispatch asks), never on a pull request (docs/e2e-testing.md,
-  # "Probes and CI"). A probe fails only on its setup or a timeout; what it saw is the
+  # "Probes and CI"). A probe fails only on its setup or a timeout, except launch-flags and
+  # cron-id, which fail when a release changes what sleeping agents rely on; what it saw is the
   # job's artifact, with the fixtures the probes rewrote in place as a diff, and the
   # summary says which changed. Linux only, in the e2e jobs' network namespace: macOS and
   # Windows runners queue longest, and the probes' findings are about the harness, not the

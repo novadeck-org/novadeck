@@ -11,7 +11,6 @@ import { context, describe, expect, it } from "../test"
 import {
   chatViewOn,
   createUiStore,
-  dismissHeadsUp,
   dismissWhatsNew,
   initialUi,
   keepProjectArrangement,
@@ -233,13 +232,12 @@ const notes: WhatsNew = {
 }
 
 const whatsNewApp = (answer: Promise<WhatsNew | undefined>) => {
-  const calls = { dismissed: 0, headsUp: 0, pages: 0 }
+  const calls = { dismissed: 0, pages: 0 }
   return {
     calls,
     whatsNew: {
       get: () => answer,
       dismiss: () => void (calls.dismissed += 1),
-      dismissHeadsUp: () => void (calls.headsUp += 1),
       openPage: () => void (calls.pages += 1),
     },
   }
@@ -279,33 +277,7 @@ describe("what's new", () => {
     const ui = createUiStore({ ...initial(), whatsNew: notes })
     dismissWhatsNew(whatsNew, ui)
     expect(ui.getSnapshot().whatsNew).toBeNull()
-    expect(calls).toEqual({ dismissed: 1, headsUp: 0, pages: 0 })
-  })
-
-  it("hands the corner to the highlights when the heads-ups are got", () => {
-    const { whatsNew, calls } = whatsNewApp(Promise.resolve(undefined))
-    const told = { ...notes, from: "0.1.0", headsUp: [{ title: "Pastes", line: "Ctrl+V pastes." }] }
-    const ui = createUiStore({ ...initial(), whatsNew: told })
-    dismissHeadsUp(whatsNew, ui)
-    expect(ui.getSnapshot().whatsNew).toEqual({ ...notes, from: "0.1.0" })
-    expect(calls).toEqual({ dismissed: 0, headsUp: 1, pages: 0 })
-  })
-
-  it("settles the version when heads-ups with no highlights are got", () => {
-    const { whatsNew, calls } = whatsNewApp(Promise.resolve(undefined))
-    const alone = { version: "0.2.0", highlights: [], headsUp: [{ title: "A", line: "b" }] }
-    const ui = createUiStore({ ...initial(), whatsNew: alone })
-    dismissHeadsUp(whatsNew, ui)
-    expect(ui.getSnapshot().whatsNew).toBeNull()
-    expect(calls).toEqual({ dismissed: 1, headsUp: 1, pages: 0 })
-  })
-
-  it("does nothing for notes with no heads-ups", () => {
-    const { whatsNew, calls } = whatsNewApp(Promise.resolve(undefined))
-    const ui = createUiStore({ ...initial(), whatsNew: notes })
-    dismissHeadsUp(whatsNew, ui)
-    expect(ui.getSnapshot().whatsNew).toEqual(notes)
-    expect(calls).toEqual({ dismissed: 0, headsUp: 0, pages: 0 })
+    expect(calls).toEqual({ dismissed: 1, pages: 0 })
   })
 })
 

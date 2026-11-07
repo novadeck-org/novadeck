@@ -21,7 +21,7 @@ const fixtures: Record<string, string> = {
   "e2e-claude-windows-interrupted-draft": "Claude Code (Windows)",
   "e2e-claude-windows-interrupt-draft": "Claude Code (Windows)",
   "e2e-claude-queued-turn-ends-in-hold": "Claude Code (Windows, 2/2)",
-  "e2e-claude-macos-continuation-stop": "Claude Code (macOS)",
+  "e2e-claude-macos-continuation-stop": "Claude Code (macOS, 2/2)",
   "release-quality-wait-window": "macOS",
   "runner-engines-server-port-picked-again": "Test (Linux, 3/3)",
   "sandbox-reap-macos-ps-timeout": "Test (macOS)",

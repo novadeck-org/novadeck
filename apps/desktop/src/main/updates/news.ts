@@ -61,8 +61,6 @@ export const updateNewsOf = ({ state, ranBefore, offeredVersion, warn }: NewsHos
       clear: () => state.settleWhatsNew(app.getVersion(), isNewerVersion),
       checkedAt: () => state.read().whatsNewCheckedAt,
       recordCheck: (time) => state.recordWhatsNewCheck(time),
-      headsUpSeen: () => state.read().whatsNewHeadsUpSeen,
-      seeHeadsUp: (seen) => state.recordHeadsUpSeen(seen, isNewerVersion),
       now: Date.now,
       repository: releaseRepository,
       fetch: (url, init) => net.fetch(url, init),

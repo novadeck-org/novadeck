@@ -6,32 +6,16 @@
 
    Hooks: on a row, data-state="ready" | "restoring" | "gone" | "disconnected" | "open".
 
-   Tokens: none of its own; it reads the palette's (soft, muted, strong, line). */
+   Tokens: none of its own; it reads the palette's (muted, strong, ink) and the item's. */
 .history-search {
   flex: none;
 }
 
-.history-row {
-  position: relative;
-  flex: none;
-  border-radius: var(--radius-control);
-  color: var(--color-ink);
-  transition: background-color var(--motion-feedback) ease-out;
-}
+/* The row, its select button, icon and title are a sidebar row's (SidebarItem.tsx's parts: the
+   item recipe and sidebar-item.css), so they read as the Terminals panel's. What follows is
+   the History row's own. */
 .history-row-select {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 100%;
-  min-width: 0;
-  padding: 6px 8px;
-  border-radius: inherit;
-  color: inherit;
-  text-align: left;
   cursor: pointer;
-}
-.history-row-select:focus-visible {
-  outline-offset: -2px;
 }
 .history-row-line {
   display: flex;
@@ -40,26 +24,8 @@
   min-width: 0;
   height: 18px;
 }
-.history-row-icon {
-  display: flex;
-  flex: none;
-  width: 14px;
-  justify-content: center;
-  color: var(--color-muted);
-}
-.history-row-name {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  font-size: var(--text-body);
-  font-weight: var(--font-weight-medium);
-  line-height: 18px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .history-row-folder {
   margin-left: 6px;
-  color: var(--color-muted);
   font-size: var(--text-caption);
   font-weight: 400;
 }
@@ -85,7 +51,6 @@
 }
 .history-row-summary {
   display: -webkit-box;
-  margin-left: 22px;
   overflow: hidden;
   color: var(--color-muted);
   font-size: var(--text-caption);
@@ -103,14 +68,11 @@
    screen with no pointer, where nothing hovers. */
 .history-row-actions {
   position: absolute;
-  top: 3px;
-  right: 4px;
+  top: 6px;
+  right: 8px;
   display: flex;
   align-items: center;
   opacity: 0;
-}
-.history-row:is(:hover, :focus-within) {
-  background: var(--color-soft);
 }
 .history-row:is(:hover, :focus-within) .history-row-actions {
   opacity: 1;

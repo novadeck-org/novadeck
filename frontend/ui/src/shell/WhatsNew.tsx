@@ -13,12 +13,6 @@ export type WhatsNewProps = {
   readonly blocked: boolean
   // The person dismissed it: it is gone for good, for this version.
   readonly onDismiss: () => void
-  // The person got the heads-ups (Got it, or the ×): they are gone for good, for this version,
-  // and the highlights, when there are any, take the corner at once.
-  readonly onGotIt: () => void
-  // Opens the footer's feedback card, kind Idea. Absent where the backend takes no feedback,
-  // and the heads-up card then has no hint to say so.
-  readonly onFeedback?: (() => void) | undefined
   // Puts typing focus back in the selected terminal; false when there is none.
   readonly returnFocus: () => boolean
 }
@@ -41,17 +35,14 @@ const keyed = (
 // tile. The portable copy's card (PortableInstall.tsx) lists its release's the same way.
 export const Highlights = ({
   highlights,
-  tone,
 }: {
   readonly highlights: Notes["highlights"]
-  // "heads-up" tints the tiles in the warning colours, for a list that sits among others.
-  readonly tone?: "heads-up"
 }): React.JSX.Element => (
   <>
     {keyed(highlights).map(({ key, title, line, icon }) => {
       const Icon = highlightIcon(icon)
       return (
-        <li key={key} className={tone}>
+        <li key={key}>
           <span className="whats-new-icon">
             <Icon size={15} strokeWidth={1.8} aria-hidden="true" />
           </span>
@@ -83,19 +74,10 @@ export const useOverflow = (): readonly [(list: HTMLUListElement | null) => void
   return [setList, scrolls]
 }
 
-// Whether the card tells heads-ups (what works differently) or the highlights: the heads-ups
-// come first, and once they are got the highlights follow on a card of their own.
-const headsUpOf = (notes: Notes): Notes["highlights"] | undefined =>
-  notes.headsUp && notes.headsUp.length > 0 ? notes.headsUp : undefined
-
 // What assistive technology hears when the card comes up, once: the version and the
 // titles, not their lines, which the card has for whoever goes to read it.
-const announcement = (notes: Notes): string => {
-  const headsUp = headsUpOf(notes)
-  return headsUp
-    ? `Heads up in Novadeck ${notes.version}: ${headsUp.map(({ title }) => title).join(", ")}`
-    : `New in Novadeck ${notes.version}: ${notes.highlights.map(({ title }) => title).join(", ")}`
-}
+const announcement = (notes: Notes): string =>
+  `New in Novadeck ${notes.version}: ${notes.highlights.map(({ title }) => title).join(", ")}`
 
 // The card that tells what is new after an update, in the corner the download's bar and
 // the install notices use, as a `.floating` surface: a strip of label tape across its top
@@ -111,12 +93,6 @@ const announcement = (notes: Notes): string => {
 // weeks, a download must not be hidden by it. The text is the desktop app's and is shown as text:
 // no Markdown, no markup, no links. In a short window the card keeps to the room between
 // the header and the footer and the highlights scroll inside it, the × in view.
-//
-// A release that changes how something works also names heads-ups, and the corner then shows
-// them first on a card of the same make: the tape reads "Heads up" in the warning tint, there
-// is no From stamp, and under the list a footer has a quiet "Bad call? Tell us" at its
-// start, which opens the feedback card, and the primary "Got it" at its end. Got it and the ×
-// do the same: the heads-ups are got, and the highlights, if any, follow on their own card.
 export const WhatsNew = ({
   card,
   hidden,
@@ -132,14 +108,7 @@ export const WhatsNew = ({
       <span role="status" aria-live="polite" className="sr-only">
         {said}
       </span>
-      {/* Keyed by what it tells, so the highlights following the heads-ups are a card of their
-          own: announced, and given the tape's entrance, again. */}
-      <WhatsNewCard
-        key={card && headsUpOf(card.notes) ? "heads-up" : "news"}
-        card={card}
-        hidden={hidden}
-        onSay={setSaid}
-      />
+      <WhatsNewCard card={card} hidden={hidden} onSay={setSaid} />
     </>
   )
 }
@@ -194,12 +163,11 @@ const WhatsNewCard = ({
   }, [shown])
   const [setList, scrolls] = useOverflow()
   const inside = (): boolean => panel.current?.contains(document.activeElement) === true
-  const headsUp = card ? headsUpOf(card.notes) : undefined
   // Focus on the button pressed would be lost with its card: the terminal gets it back.
-  const finish = (done: () => void): void => {
+  const dismiss = (): void => {
     if (!card) return
     const had = inside()
-    done()
+    card.onDismiss()
     if (had) card.returnFocus()
   }
   return (
@@ -209,7 +177,7 @@ const WhatsNewCard = ({
           ref={panel}
           data-workspace-notice
           aria-labelledby={titleId}
-          className={`floating update-card whats-new ${headsUp ? "heads-up" : ""}`}
+          className="floating update-card whats-new"
           tabIndex={-1}
           // A click anywhere on it leaves focus where it was, in a terminal.
           onMouseDown={(event) => event.preventDefault()}
@@ -222,20 +190,19 @@ const WhatsNewCard = ({
         >
           <KeepFocus lost={lost} selector=".whats-new" />
           <p className="whats-new-head">
-            {/* The tape shows "New in" or "Heads up" and the version; a screen reader hears the app's name too. */}
+            {/* The tape shows "New in" and the version; a screen reader hears the app's name too. */}
             <span id={titleId} className="whats-new-tape">
-              {headsUp ? "Heads up " : "New in "}
-              <span className="sr-only">{headsUp ? "in " : ""}Novadeck </span>
+              New in <span className="sr-only">Novadeck </span>
               {card.notes.version}
             </span>
-            {!headsUp && card.notes.from !== undefined && (
+            {card.notes.from !== undefined && (
               <span className="whats-new-from">From {card.notes.from}</span>
             )}
             <button
               type="button"
               className="icon-button small update-card-close"
               aria-label="Dismiss"
-              onClick={() => finish(headsUp ? card.onGotIt : card.onDismiss)}
+              onClick={dismiss}
             >
               <X size={14} />
             </button>
@@ -246,28 +213,8 @@ const WhatsNewCard = ({
             tabIndex={scrolls ? 0 : undefined}
             aria-labelledby={scrolls ? titleId : undefined}
           >
-            <Highlights highlights={headsUp ?? card.notes.highlights} />
+            <Highlights highlights={card.notes.highlights} />
           </ul>
-          {headsUp && (
-            <div className="update-card-foot">
-              {card.onFeedback && (
-                <button
-                  type="button"
-                  className="button link text-control"
-                  onClick={card.onFeedback}
-                >
-                  Bad call? Tell us
-                </button>
-              )}
-              <button
-                type="button"
-                className="button primary min-h-7 px-3"
-                onClick={() => finish(card.onGotIt)}
-              >
-                Got it
-              </button>
-            </div>
-          )}
         </section>
       )}
     </>

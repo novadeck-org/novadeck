@@ -1,6 +1,13 @@
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { ClosedTerminal } from "@novadeck/core/history"
 import type { AgentConnection } from "@novadeck/core/port"
+import {
+  sidebarListClasses,
+  sidebarRowClasses,
+  sidebarRowIconClasses,
+  sidebarRowNameClasses,
+  sidebarRowSelectClasses,
+} from "@novadeck/toolkit/SidebarItem"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { Plug, RotateCcw, Search } from "lucide-react"
 import { Fragment, useEffect, useId, useState, type ReactNode } from "react"
@@ -76,11 +83,16 @@ const HistoryRow = ({
     .filter(Boolean)
     .join(". ")
   return (
-    <div role="listitem" className="history-row" data-state={view.state} data-history-row={row.id}>
+    <div
+      role="listitem"
+      className={`${sidebarRowClasses} history-row`}
+      data-state={view.state}
+      data-history-row={row.id}
+    >
       <Tooltip content={rowTooltip(row, view, now)} placement="right-start">
         <button
           type="button"
-          className="history-row-select"
+          className={`${sidebarRowSelectClasses} history-row-select`}
           aria-label={labelOf(row, view)}
           aria-describedby={descriptionId}
           aria-disabled={view.inert || undefined}
@@ -90,30 +102,32 @@ const HistoryRow = ({
             else onRestore(row)
           }}
         >
-          <span className="history-row-line">
-            <span className="history-row-icon">{icon}</span>
-            <span className="history-row-name">
-              {row.title}
-              {folder && <span className="history-row-folder">{folder}</span>}
+          <span className={sidebarRowIconClasses}>{icon}</span>
+          <span className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="history-row-line">
+              <span className={`${sidebarRowNameClasses()} min-w-0 flex-1`}>
+                {row.title}
+                {folder && <span className="history-row-folder item-detail">{folder}</span>}
+              </span>
+              <span className="history-row-end" data-open={view.state === "open"}>
+                {view.end.kind === "restoring" ? (
+                  <span className="history-spinner" aria-hidden="true" />
+                ) : (
+                  <>
+                    <span className="history-row-end-text">{view.end.text}</span>
+                    {view.state === "ready" && (
+                      <RotateCcw className="history-row-restore" size={14} strokeWidth={1.6} />
+                    )}
+                  </>
+                )}
+              </span>
             </span>
-            <span className="history-row-end" data-open={view.state === "open"}>
-              {view.end.kind === "restoring" ? (
-                <span className="history-spinner" aria-hidden="true" />
-              ) : (
-                <>
-                  <span className="history-row-end-text">{view.end.text}</span>
-                  {view.state === "ready" && (
-                    <RotateCcw className="history-row-restore" size={14} strokeWidth={1.6} />
-                  )}
-                </>
-              )}
-            </span>
+            {foundBySummary(row, typed) && (
+              <span className="history-row-summary">
+                <Lit text={summaryExcerpt(row.summary!, typed)} typed={typed} />
+              </span>
+            )}
           </span>
-          {foundBySummary(row, typed) && (
-            <span className="history-row-summary">
-              <Lit text={summaryExcerpt(row.summary!, typed)} typed={typed} />
-            </span>
-          )}
         </button>
       </Tooltip>
       <span id={descriptionId} hidden>
@@ -221,7 +235,7 @@ export const HistoryPanel = ({
         </p>
       )}
       <div
-        className="sidebar-list history-list mt-2.5 flex min-h-0 flex-1 flex-col gap-px overflow-y-auto pb-3"
+        className={`history-list ${sidebarListClasses}`}
         role="list"
         aria-label="Closed terminals"
       >

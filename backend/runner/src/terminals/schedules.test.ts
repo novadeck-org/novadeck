@@ -50,6 +50,32 @@ describe("what an agent scheduled that dies with it", () => {
     expect(scheduleChange(created())).toMatchObject({ add: { until: null } })
   })
 
+  it("counts a cron whose id it cannot read as standing, which no delete ends", () => {
+    const record = {} as never
+    const call = (input: object, response: object) =>
+      report("claude", "PostToolUse", {
+        session_id: "s1",
+        tool_name: "CronCreate",
+        tool_input: input,
+        tool_response: response,
+      })
+    const add = scheduleChange(call({ cron: "0 * * * *" }, { cronId: "9284d66e", durable: false }))
+    expect(add).toMatchObject({ add: { until: null }, sessionId: "s1" })
+    trackSchedules(record, add!)
+    const gone = report("claude", "PostToolUse", {
+      session_id: "s1",
+      tool_name: "CronDelete",
+      tool_input: { id: "9284d66e" },
+    })
+    trackSchedules(record, scheduleChange(gone)!)
+    expect(scheduled(record, "s1", 5)).toBe(true)
+    // A durable one is still left alone, and a one-shot with a readable time still lapses.
+    expect(scheduleChange(call({ durable: true }, {}))).toBeUndefined()
+    expect(scheduleChange(call({}, { recurring: false, nextFireAt: 7 }))).toMatchObject({
+      add: { until: 7 },
+    })
+  })
+
   it("keeps a cron a delete it cannot match leaves standing", () => {
     const record = {} as never
     trackSchedules(record, scheduleChange(created())!)

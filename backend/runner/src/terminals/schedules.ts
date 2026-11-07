@@ -40,9 +40,11 @@ export const scheduleChange = (report: Report): ScheduleChange | undefined => {
     // `{ id, recurring, durable, nextFireAt }` and the delete's `tool_input` is `{ id }`.
     if (tool === "CronCreate") {
       const response = isFields(payload.tool_response) ? payload.tool_response : {}
-      const key = string(response.id)
       // Kept on disk and restored by a resume: nothing to lose.
-      if (!key || response.durable === true || input.durable === true) return undefined
+      if (response.durable === true || input.durable === true) return undefined
+      // An id it cannot read (a release renamed it) is a cron no delete can match: it
+      // stands for the session, so the agent stays awake rather than lose it.
+      const key = string(response.id) ?? `unread:${report.seq}`
       // A one-shot reminder is gone once it has fired.
       const at = response.recurring === false ? response.nextFireAt : undefined
       const until = typeof at === "number" ? Math.ceil(at) : null
