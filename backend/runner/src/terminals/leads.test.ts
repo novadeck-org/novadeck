@@ -23,13 +23,16 @@ const terminal = (handle: string, ledBy: string | null): Record =>
 
 // Leads over a runner of fakes: terminals with the agent each runs and who leads them
 // (`ledBy` is the lead's handle), and a record of what was sent, noticed and saved.
-const setup = (terminals: { [handle: string]: { agent: AgentName | null; ledBy?: string } }) => {
+const setup = (terminals: {
+  [handle: string]: { agent: AgentName | null; ledBy?: string; asleep?: true }
+}) => {
+  // A sleeper has no record: the sleepers hear of the wake it is asked for.
   const records = new Map(
-    Object.entries(terminals).map(([handle, { ledBy }]) => [
-      `id-${handle}`,
-      terminal(handle, ledBy ?? null),
-    ]),
+    Object.entries(terminals)
+      .filter(([, { asleep }]) => !asleep)
+      .map(([handle, { ledBy }]) => [`id-${handle}`, terminal(handle, ledBy ?? null)]),
   )
+  const woken: string[] = []
   const approvals = new Approvals()
   // The agent messages reach in each terminal, by handle, with its root session: what the
   // tests change to end or swap an agent while its shell stays open.
@@ -73,7 +76,17 @@ const setup = (terminals: { [handle: string]: { agent: AgentName | null; ledBy?:
     stopping: () => stopping,
     closingNow: () => false,
     approvals: () => approvals,
-    sleepers: () => ({ peer: () => undefined, ask: () => false }) as unknown as Sleepers,
+    sleepers: () =>
+      ({
+        peer: () => undefined,
+        ask: (id: string) => {
+          const asleep = Object.keys(terminals).some(
+            (handle) => `id-${handle}` === id && terminals[handle]?.asleep,
+          )
+          if (asleep) woken.push(id)
+          return asleep
+        },
+      }) as unknown as Sleepers,
     messaging: () =>
       ({
         leadOf,
@@ -109,11 +122,11 @@ const setup = (terminals: { [handle: string]: { agent: AgentName | null; ledBy?:
       }) as unknown as Messaging,
     peers: () => ({
       target: async (_caller: unknown, to: string): Promise<PeerAnswer> => {
-        const record = [...records.values()].find((each) => each.summary.handle === to)
-        return record
+        const known = to in terminals
+        return known
           ? {
               ok: true,
-              terminalId: record.summary.id,
+              terminalId: `id-${to}`,
               handle: to,
               agent: terminals[to]?.agent ?? null,
             }
@@ -147,6 +160,7 @@ const setup = (terminals: { [handle: string]: { agent: AgentName | null; ledBy?:
     sent,
     saved,
     dropped,
+    woken,
     agents,
     lead: (from: string, to: string, message = "Review the diff.") =>
       leads.lead(call("lead", from, { to, message })),
@@ -187,6 +201,32 @@ afterEach(() => {
 })
 
 const settle = () => vi.advanceTimersByTimeAsync(0)
+
+describe("an agent asking to lead or release a sleeper", () => {
+  it("is told it is asleep and being woken, and nothing changes", async () => {
+    const run = setup({
+      moth: { agent: "claude" },
+      fox: { agent: "codex", asleep: true },
+      owl: { agent: "claude", asleep: true, ledBy: "moth" },
+    })
+    const asked = person(run.approvals)
+    const lead = await run.lead("moth", "fox")
+    expect(lead).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/@fox is asleep.*waking/s),
+    })
+    const release = await run.release("moth", "owl")
+    expect(release).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/@owl is asleep.*waking/s),
+    })
+    await settle()
+    expect(run.woken).toEqual(["id-fox", "id-owl"])
+    expect(asked).toEqual([])
+    expect(run.sent).toEqual([])
+    expect(run.saved).toEqual([])
+  })
+})
 
 describe("an agent asking to lead another terminal's agent", () => {
   it("asks the person at once, carrying the brief, and links nothing yet", async () => {
