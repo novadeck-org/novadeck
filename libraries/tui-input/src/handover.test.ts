@@ -42,6 +42,10 @@ type Options = {
   readonly pasteKeys?: boolean
 }
 
+/** How long a test sits out what never comes, and how long what comes may take, in milliseconds. */
+const waitOutMs = 250
+const longMs = 4_000
+
 const fake = (options: Options = {}) => {
   let text = options.text ?? ""
   let shell = options.shell ?? false
@@ -151,15 +155,15 @@ const fake = (options: Options = {}) => {
         discard: () => {},
       }),
     }),
-    // Long enough for a slow runner where the keys take, as a confirm's reads count against it;
-    // short where they never do, which waits it out.
+    // A budget counts a slow runner's reads and timers against it, so it's long wherever what's
+    // waited for comes, and short only where it never does, which a test then sits out.
     {
       pollMs: 1,
       steadyMs: 2,
       emptyMs: 30,
-      keysMs: options.noErase || options.partialErase || options.noShell ? 40 : 5_000,
-      pasteMs: options.pasteLost ? 40 : 5_000,
-      ringMs: 20,
+      keysMs: options.noErase || options.partialErase || options.noShell ? waitOutMs : longMs,
+      pasteMs: options.pasteLost ? waitOutMs : longMs,
+      ringMs: options.ringing ? waitOutMs : longMs,
     },
   )
   return {
