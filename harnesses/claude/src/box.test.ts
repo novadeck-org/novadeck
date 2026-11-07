@@ -251,3 +251,37 @@ describe("its status row, as a turn ends and one its queue starts begins", () =>
     expect(newTurn(box.status!(running), box.status!(ending))).toBe(false)
   })
 })
+
+describe("its status row on the screens of the ring readings", () => {
+  // Idle screens real runs drew: replies holding words a view or a status row has, views, rows
+  // of rules (fixtures/ring-reading.probe.json). None has a turn running.
+  type Rows = Readonly<Record<string, string>>
+  type Recorded = {
+    readonly height: number
+    readonly columns: number
+    readonly cursor: { readonly row: number; readonly column: number }
+    readonly rows: Rows
+    readonly bright?: Rows
+  }
+  const { screens } = loadProbe<{ screens: Record<string, Recorded> }>(
+    import.meta.dirname,
+    "ring-reading.probe.json",
+  )
+  const all = (rows: Rows, height: number) =>
+    Array.from({ length: height }, (_, at) => rows[String(at)] ?? "")
+
+  it("reads no turn running on any of them", () => {
+    const running = Object.entries(screens).filter(([, shown]) =>
+      box.status!({
+        rows: all(shown.rows, shown.height),
+        bright: all(shown.bright ?? shown.rows, shown.height),
+        columns: shown.columns,
+        cursor: shown.cursor,
+        bracketedPaste: true,
+        alternate: false,
+      }),
+    )
+    expect(Object.keys(screens).length).toBeGreaterThan(100)
+    expect(running.map(([name]) => name)).toEqual([])
+  })
+})
