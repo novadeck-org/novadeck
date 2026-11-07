@@ -1,4 +1,5 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
+import type { SliceProfile } from "@novadeck/harness-core/slices"
 import {
   agreeing,
   eraseRows,
@@ -23,6 +24,9 @@ export const shellFooter = (rows: readonly string[]): boolean => {
   return last !== undefined && /(^|\s)Shell mode(\s|$)/.test(last.trim())
 }
 
+/** The last row it drew. */
+const lastDrawn = ({ rows }: ScreenText): string => rows.findLast((row) => row.trim() !== "") ?? ""
+
 /**
  * Whether it shows its history search (Ctrl-R: "reverse-i-search:" under its box, which
  * then takes the line as its query), its shortcuts panel (`?`: "? / esc close"), or a
@@ -32,13 +36,17 @@ export const shellFooter = (rows: readonly string[]): boolean => {
  * sandbox, 2026-10-16). Also its menus (`/model`, `/permissions`, `/config`), whose first row
  * leads with the box's marker and whose rows read as a box holding text: their hint row ends
  * "esc back", or "esc clear search/close" (probed 0.166.0, 2026-11-06, fixtures/leftover.probe.json).
+ * Its other lists end the screen in what Esc does there too, `/keymap` "esc close" and
+ * `/statusline` "esc cancel": only on the last row drawn, as `$` and `@` draw "esc close" over
+ * a box that is one (probed 0.167.0, 2026-11-06, fixtures/live-slice.probe.json). A prompt or a
+ * ring waits while any of these shows, as it would paste into the list.
  */
 const overlay = (screen: ScreenText): boolean =>
   footerRows(screen).some((row) =>
     /(^|\s)reverse-i-search:|\? \/ esc close|Side from main thread · (?:ctrl\+|\^|⌃)\/ to switch|· esc (?:back|clear search\/close)\s*$/.test(
       row,
     ),
-  )
+  ) || /\besc (to )?(back|close|cancel|clear search\/close)\s*$/.test(lastDrawn(screen))
 
 /**
  * Whether it shows a prompt given mid-turn as waiting. It draws one of two lists by when the
@@ -55,7 +63,17 @@ const queued = (screen: ScreenText): boolean =>
       row.trim() === "• Queued follow-up inputs",
   )
 
-const read = (screen: ScreenText) => agreeing(markedBox(screen, markers), shellFooter(screen.rows))
+/**
+ * Its box, marked as showing only a part where it draws its dim `↑` at the end of the first row
+ * (the `tall` states of fixtures/leftover.probe.json), which says so whatever the box's height.
+ */
+const read = (screen: ScreenText) => {
+  const box = agreeing(markedBox(screen, markers), shellFooter(screen.rows))
+  if (!box) return box
+  const lit = screen.bright[box.first]?.trimEnd() ?? ""
+  const drawn = screen.rows[box.first]?.trimEnd() ?? ""
+  return drawn.endsWith("↑") && !lit.endsWith("↑") ? { ...box, scrolled: true as const } : box
+}
 
 /**
  * The rows it keeps above its box whether or not a turn runs, so none of a turn's: the commands
@@ -103,6 +121,7 @@ const turnUnseen = (screen: ScreenText, prompt?: string): boolean => {
  */
 export const box: BoxProfile = {
   read,
+  cut: ({ scrolled }) => scrolled === true,
   // Enter runs a command shown as a placeholder as the text it stands for. Its commands run
   // without a session, as it binds none (`starts`).
   shell: { expands: true, starts: false, footer: shellFooter, leave: leaveShell },
@@ -136,4 +155,15 @@ export const box: BoxProfile = {
   // 2026-10-18, the `tall` states of fixtures/input-box.probe.json). Earlier versions grow
   // the box to `room` instead, so a box this tall shows the whole text there.
   viewport: (rows) => Math.floor((2 * (rows - 6)) / 3),
+}
+
+/**
+ * Where it draws its own: `/`, `$` and `@` above the box, a blank row between, and a view in
+ * the box's place to the screen's end, the transcript moved up (probed 0.167.0,
+ * fixtures/live-slice.probe.json). It asks for no secret in a session: `/logout` ends it.
+ */
+export const slice: SliceProfile = {
+  agent: "codex",
+  side: () => "above",
+  secret: () => false,
 }

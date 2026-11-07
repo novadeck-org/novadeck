@@ -129,12 +129,12 @@
     },
     {
       "id": "e2e-claude-macos-mixed-outlived-deck",
-      "jobs": ["^Mixed \\(macOS\\)$"],
-      "test": "src/e2e/team.mixed.e2e.ts > Claude Code leading Claude Code, Codex, Antigravity > sends one message to its whole team",
+      "jobs": ["^Mixed \\(macOS\\)$", "^Claude Code \\((?:macOS|[12]/2)\\)$"],
+      "test": "src/e2e/",
       "signature": "a process outlived the deck in the sandbox: claude \\(\\d+\\)",
-      "status": "known",
-      "cause": "Unknown: Claude Code 2.1.316 still ran more than 3 s after the deck closed, not stopped, so the fixture's reap ended it and failed a test whose own steps had passed. The trace: the worker @fox (`claude \"<line>\"`, pid 5029) ended its last turn at +12.5 s and drew its status line at +12.8 s; the deck's shutdown ran +17.357 to +17.374 s. On Linux and macOS the shutdown hangs up the terminal's foreground group and waits for its shell alone (libraries/terminal pty.ts `end`), and the reap (@novadeck/sandbox reap.ts) gives each process 3 s to end by itself. Not a hook holding the exit (Novadeck registers no SessionEnd for Claude Code) nor MCP readiness (its turns had Novadeck's tools); nothing after the shutdown is traced. A follow-up is to time Claude Code's exit after the hangup on Linux and macOS, a real app quit's too.",
-      "seen": ["#720 run 42084750623 job 127447038598"]
+      "status": "fixed",
+      "cause": "Unknown what holds it: an agent that heard the hangup and began to exit, then stalled. Claude Code 2.1.316 still ran more than 3 s after the deck closed, so the fixture's reap ended it and failed a test whose own steps had passed. Seen twice, idle, in tests with teammates. First: the worker @fox (pid 5029) ended its last turn at +12.5 s, and the deck's shutdown ran +17.357 to +17.374 s. Second, on Linux: moth (`claude`, pid 3692, the bound agent itself, no child) ended its turn at +14.538 s, shutdown began at +14.628 s, moth's and its sibling's titles went empty at +14.639 s, the agent's way out, and shutdown was done at +14.836 s with moth still running. Not a hook holding the exit (Novadeck registers no SessionEnd for Claude Code) nor a model call: none was outstanding. Nothing after the shutdown is traced, so what held it is not known, and the exit probe (src/e2e/probes/agent-exit.e2e.ts) never reproduced it: its worst ordinary exit is 861 ms. A quit now waits for an agent's processes, up to 2 s, and ends what is left (libraries/terminal pty/descendants.ts), so the deck no longer returns with it running. Seen again, that bound has failed.",
+      "seen": ["#720 run 42084750623 job 127447038598", "#739 run 42243441215 job 127979643027"]
     },
     {
       "id": "e2e-antigravity-macos-second-approval-unreported",

@@ -1160,11 +1160,14 @@ export const runnerBackend = (
   const conversations = createRunnerConversations(
     {
       detail: (terminalId) => runner.agents.detail(terminalId),
+      slice: (terminalId) => runner.agents.slice(terminalId),
       transcript: (terminalId, actor) => runner.agents.transcript(terminalId, actor),
       prompt: (terminalId, text, given) => runner.agents.prompt(terminalId, text, given),
       interrupt: (terminalId) => runner.agents.interrupt(terminalId),
+      keys: (terminalId, keys) => runner.agents.keys(terminalId, keys),
       takeBox: (terminalId) => runner.agents.takeBox(terminalId),
       putBox: (terminalId, text) => runner.agents.putBox(terminalId, text),
+      clearBox: (terminalId, seen) => runner.agents.clearBox(terminalId, seen),
       answer: (terminalId, request, answer) => runner.agents.answer(terminalId, request, answer),
     },
     track,

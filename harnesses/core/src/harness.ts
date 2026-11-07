@@ -12,6 +12,7 @@ import type { HarnessEvent, PlanSource, PromptShown } from "./events.js"
 import type { Dialect } from "./hook-command.js"
 import type { Report } from "./report.js"
 import type { Shape } from "./shapes.js"
+import type { SliceProfile } from "./slices.js"
 
 /** The reasoning efforts agents may ask for, the same words in every harness that has them. */
 export const efforts = ["low", "medium", "high", "xhigh", "max"] as const
@@ -193,6 +194,8 @@ export type Harness = {
   readonly messaging: MessagingProfile
   /** How its input box reads off its screen, which a prompt checks before and after it pastes. */
   readonly box: BoxProfile
+  /** Where it draws its own things at its input, for the chat's live slice. */
+  readonly slice: SliceProfile
   /**
    * The variable of its hooks' environment that names its own process, as Claude Code's
    * `CLAUDE_PID`, where it sets one: the hook names the agent that ran it by that, and

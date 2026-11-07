@@ -398,7 +398,7 @@ network:
 
 Messaging scenarios live in `messaging.e2e.ts`, a runner restart's in `restart.e2e.ts`,
 an agent starting another with a task, or closing another's terminal, in
-`tasks.e2e.ts`, an agent's look at a page it showed (the picture reaches each harness's model) in `look.e2e.ts`, the person typing around messages in `person.e2e.ts`, messages that come while the agent waits on the person (a
+`tasks.e2e.ts`, what a quit or a close leaves of an agent's tools in `quit.e2e.ts`, an agent's look at a page it showed (the picture reaches each harness's model) in `look.e2e.ts`, the person typing around messages in `person.e2e.ts`, messages that come while the agent waits on the person (a
 permission question, its own popup, a picker) in `requests.e2e.ts`, a nested run of the
 harness inside an agent's turn in `nested.e2e.ts`, the person forking a session in a new
 terminal or in place in `forks.e2e.ts`, the person clearing the conversation
@@ -665,6 +665,9 @@ for (const setup of setups) {
   - _Interrupt_: with the reply held, `interrupt()` ends the turn without a normal Stop
     (Unknown), the harness says it was interrupted before the held reply is let go,
     which never shows; the next prompt's turn settles.
+- **The live slice** (`slices.e2e.ts`): each real harness's `/` menu and `/permissions` view
+  show through `agents.slice` and clear with them, whichever side of its box it draws on. In
+  the nightly `NOVADECK_E2E_HARNESS=latest` run this tells of a harness that moved them.
 - **The transcripts' contract** (`transcripts.e2e.ts`), the latest half of the chat
   contract test: one conversation per harness, whose prompts have the fake model call the
   harness's own tools (Claude Code: Bash, Read, Write and Novadeck's `send`; Codex:

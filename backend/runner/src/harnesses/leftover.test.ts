@@ -22,6 +22,35 @@ const harnesses: readonly (readonly [string, BoxProfile])[] = [
   ["agy", agy],
 ]
 
+describe("what fails closed on a box that shows a part", () => {
+  const tall = loadProbe<Fixture>(adapterFolder("agy"), "leftover.probe.json").states["tall"]!
+  const first = agy.read(tall)!.first
+  const row = (over: readonly string[], text: string) =>
+    over.map((each, at) => (at === first ? text : each))
+
+  it("reads Antigravity's mark though it is drawn dim", () => {
+    const dim = { ...tall, bright: row(tall.bright, ">") }
+    expect(leftoverOf(agy, dim)).toMatchObject({ tail: true })
+    expect(agy.read(dim)!.text.split("\n")[0]).toBe("↑ 21 more lines")
+  })
+
+  it.each(["> ↑ 1,024 more lines", "> ↑ weitere Zeilen", "> ↑"])("takes %s for one", (mark) => {
+    const changed = { ...tall, rows: row(tall.rows, mark), bright: row(tall.bright, mark) }
+    expect(leftoverOf(agy, changed)).toMatchObject({ tail: true })
+    expect(agy.uncut?.(agy.read(changed)!.text)).not.toContain("↑")
+  })
+
+  it("tells Codex's dim ↑ from one the person typed", () => {
+    const high = loadProbe<Fixture>(adapterFolder("codex"), "leftover.probe.json").states["tall"]!
+    const at = codex.read(high)!.first
+    const typed = {
+      ...high,
+      bright: high.bright.map((each, index) => (index === at ? high.rows[index]! : each)),
+    }
+    expect(codex.read(typed)!.scrolled).toBeUndefined()
+  })
+})
+
 describe.each(harnesses)("what %s's box holds", (harness, profile) => {
   const { states } = loadProbe<Fixture>(adapterFolder(harness), "leftover.probe.json")
   const state = (name: string): ScreenText => states[name]!
@@ -48,6 +77,24 @@ describe.each(harnesses)("what %s's box holds", (harness, profile) => {
       expect(leftoverOf(profile, state(name)).kind).toBe("text")
     },
   )
+
+  it("reads a box taller than it shows as only its tail, its keys leaving it empty", () => {
+    expect(leftoverOf(profile, state("tall"))).toMatchObject({ kind: "text", tail: true })
+    expect(leftoverOf(profile, state("tall shell"))).toMatchObject({ kind: "shell", tail: true })
+    expect(leftoverOf(profile, state("tall cleared")).kind).toBe("empty")
+    expect(leftoverOf(profile, state("tall shell cleared")).kind).toBe("empty")
+  })
+
+  it("says a box is cut where its program draws that", () => {
+    expect(profile.cut?.(box("tall")) ?? false).toBe(harness !== "claude")
+    expect(profile.cut?.(box("draft")) ?? false).toBe(false)
+  })
+
+  it("takes a tall box with its cursor moved up as a tail too, with no end in sight", () => {
+    const moved = state("tall cursor up")
+    expect(leftoverOf(profile, moved)).toMatchObject({ tail: true })
+    expect(cursorAtEnd(profile, box("tall cursor up"), moved)).toBe(false)
+  })
 
   it("reads a leading / as a command", () => {
     expect(leftoverOf(profile, state("command")).kind).toBe("command")

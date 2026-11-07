@@ -127,7 +127,9 @@ whole app down. Now a kill inside a terminal's scope stays there. The scope's
 a scope; a terminal whose shell was killed for memory, as systemd-oomd kills the whole
 scope, ends as "Killed · out of memory". What stays in the app's scope can still take it
 down: the app's own processes, and anything a shell started in the few milliseconds
-before its move. Without a user bus (no systemd, a container, WSL without systemd),
+before its move. A startup command, as an agent opened in a terminal is, waits for the
+move, about a quarter of a second at most on a calm machine, then runs either way; what
+the person's own startup files start doesn't wait. Without a user bus (no systemd, a container, WSL without systemd),
 shells run in the app's scope as before. macOS and Windows are unchanged.
 
 While a program holds the foreground, its profile decides how the terminal looks.

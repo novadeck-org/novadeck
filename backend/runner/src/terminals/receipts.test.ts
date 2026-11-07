@@ -107,6 +107,24 @@ const setup = async (
 }
 
 describe("prompt receipts", () => {
+  it("tells of a prompt that may be in the box unseen, until none is", async ({ resources }) => {
+    const { host, receipts, state, give, pass } = await setup(resources)
+    expect(receipts.waiting(terminal)).toBe(false)
+    host.box = "check the logs"
+    await receipts.expect(terminal, "check the logs", "r1")
+    // Not yet typed: it can't have come back.
+    expect(receipts.waiting(terminal)).toBe(false)
+    receipts.sent(terminal, "r1")
+    expect(receipts.waiting(terminal)).toBe(true)
+    await pass()
+    await vi.waitFor(() => expect(state("r1")).toBe("in-box"))
+    expect(receipts.waiting(terminal)).toBe(true)
+    receipts.taken(terminal, "check the logs")
+    expect(receipts.waiting(terminal)).toBe(false)
+    await give("something else", "r2")
+    expect(receipts.waiting(terminal)).toBe(true)
+  })
+
   it("withdraws a prompt back in the agent's box once a Stop hands its words back", async ({
     resources,
   }) => {

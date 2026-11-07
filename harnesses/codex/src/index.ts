@@ -2,7 +2,7 @@ import { hookTranscript } from "@novadeck/harness-core/decode"
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
 
 import { bannerMarker, bannerVersion } from "./banner.js"
-import { box } from "./box.js"
+import { box, slice } from "./box.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { codexHome } from "./home.js"
@@ -163,6 +163,7 @@ export const codex = {
   launch,
   messaging,
   box,
+  slice,
   // The rollout records the session's tokens and the account's rate-limit windows, each
   // turn's mode and the plans it proposes.
   watch: followRollout,

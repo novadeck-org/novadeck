@@ -18,8 +18,10 @@ const show = (
     send = async (text: string) => void sent.push(text),
     onOpenTerminal = () => {},
     box = null,
+    clearBox = async () => {},
   }: {
     readonly send?: (text: string) => Promise<void>
+    readonly clearBox?: (seen: string) => Promise<void>
     readonly onOpenTerminal?: () => void
     readonly box?: ChatBox | null
   } = {},
@@ -28,6 +30,8 @@ const show = (
     createElement(Composer, {
       label: "Claude",
       box,
+      passing: false,
+      onPress: () => false,
       draft,
       onDraft: () => {},
       mode: composerMode(draft, null, [], true),
@@ -36,6 +40,7 @@ const show = (
       working: false,
       onSend: send,
       onStop: async () => {},
+      onClearBox: clearBox,
       focusInput: false,
       onInputFocused: () => {},
       onCancelReply: () => {},
@@ -147,10 +152,30 @@ describe("what the agent's own box holds", () => {
     expect(show("").querySelector(".chat-box")).toBeNull()
   })
 
+  it("clears the box as the person asks, and says where it didn't", async () => {
+    const asked: string[] = []
+    const shown = show("", [], {
+      box: box({ text: "/model" }),
+      clearBox: async (seen) => {
+        asked.push(seen)
+        throw new SettleInTerminal("That didn't clear the agent's input box.")
+      },
+    })
+    const clear = shown.querySelector<HTMLButtonElement>(
+      'button[aria-label="Clear Claude\'s terminal input"]',
+    )!
+    await act(async () => void clear.click())
+    expect(asked).toEqual(["/model"])
+    expect(shown.textContent).toContain("That didn't clear")
+    expect(clear.disabled).toBe(false)
+  })
+
   it("says what becomes of each kind of text", () => {
     expect(boxNote("Claude", box({ tail: true }))).toContain("ends with this")
+    // Its words known, but it may hold more, so it doesn't come back: nothing takes such a box.
+    expect(boxNote("Claude", box({ tail: true, known: true }))).toContain("ends with this")
     expect(boxNote("Claude", box({ known: true }))).toContain("comes back here")
     expect(boxNote("Claude", box({ mode: "shell" }))).toContain("shell mode")
-    expect(boxNote("Claude", box({ text: "/model" }))).toContain("Clear it in the terminal")
+    expect(boxNote("Claude", box({ text: "/model" }))).toContain("Clear it to send here")
   })
 })

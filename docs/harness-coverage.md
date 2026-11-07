@@ -304,6 +304,7 @@ It also carries the account's `email`, which must not leave the adapter.
 - Esc during a turn before any reply leaves the prompt, single or multi-line, echoed above the box with "⎿ Interrupted · What should Antigravity CLI do instead?" under it, and the box empty (probed 2026-10-06, 1.2.14, the e2e sandbox with the fake model).
 - Its input box is between two `─` rules, `> ` leading its first row and the rest indented, the cursor on the last row; its history above echoes the person's turns the same way, rules included, so only the lowest pair is the box. Empty it shows `>` alone. A paste of 15 lines shows whole (even of 100 characters each), 16 or more show `[Pasted text #3 +25 lines]`, and one line of over 1,000 characters (1,000 showed, 1,024 did not) `[Pasted text #4 1499 chars]`. Its box may take the screen's rows less 4. Mid-turn the box is below the spinner row, drawn the same (probed 2026-10-07, 1.2.14 and 1.3.1, `e2e/probes/input-box.e2e.ts`, fixtures/input-box.probe.json).
 - Queued messages and Escape (probed 2026-10-07, 1.2.14 and 1.3.1): a prompt given mid-turn shows above the box ("▸ Queued beta") with "Press up to edit queued messages" below it. One Escape stops the turn ("Interrupted · What should Antigravity CLI do instead?") and puts the queued messages in the box, one to a line (two queued: `Queued beta`, `Queued gamma`); a second or third Escape changes nothing. Ctrl-U clears the cursor's line and Backspace joins the line before it, so `Ctrl-U Backspace` per extra line, then Ctrl-U, clears them; Escape twice at once, after the turn has stopped, left the box empty as well.
+- A queue taller than the box (probed 2026-11-06, 1.5.2, 30 lines): its text scrolls under a `↑ 10 more lines` row, which reads as the first line of the box, over the last 20 lines on 40 rows (`↑ 18` over 12 on 24, `↑ 23` over 7 on 14); scrolled up, a `↓ 10 more lines` row stands last instead. There is no viewport to go by, so those rows are the only sign (`BoxProfile.cut`). The text read then isn't what keys act on: Novadeck's Stop leaves it and its chat takes nothing. A message goes along with it: it lands at the end, the row counting two more lines (a blank line between), so what shows is read without that row, whether it shows all of the message or only the end, and the model gets all 30 lines and the message, a placeholder's words too. Scrolled up, the cursor isn't at the end, and a send is refused (`draft`).
 - A hook for a queued message (probed 2026-11-06, 1.4.12, a prompt hook 1.3 s slow, `e2e/probes/queued-hooks.e2e.ts`): `PreInvocation` runs before a model call, not as a message is queued. One Escape gave both back about 90 ms later, a Stop at 300, 1000 and 3000 ms alike, so a Stop has no hook to wait for.
 - An interrupted long prompt (probed 2026-10-07, 1.2.14, `e2e/probes/interrupted-paste.e2e.ts`): after Escape the box reads empty for 3, 6, 20 and 40 lines and one line of 300, 1200 and 2000 characters, so no placeholder comes back.
 - Escape against a reply on its way (probed 2026-10-07, 1.2.14, `e2e/probes/interrupt-held-reply.e2e.ts`, 3 runs a case, each run's terminal left open, so later cases ran under more load): Antigravity takes the key a moment after it is written. A model reply let go the instant `interrupt` resolves wins the race in every shape (1, 3, 10, 25 and 40 lines, one line of 300 or 2000 characters; 3 of 3 each): the reply draws, and in nearly all of those runs (38 of 42; 19 of 21 where it was let go together with a raw Escape) no "Interrupted" line shows, the turn simply finished. Let go 100 ms or more after a raw Escape, it never drew (0 of 3 in every shape), and the screen shows "⎿ Interrupted · What should Antigravity CLI do instead?". A test that holds a reply lets it go only once that "Interrupted" line shows.
@@ -326,6 +327,7 @@ Probed 2026-11-06 on Claude Code 2.1.316 and 2.1.318, Codex 0.166.0 and 0.167.0,
 - Its menus: Claude Code's and Antigravity's read as no box or a view. Codex's `/model`, `/config` and `/permissions` read as a box holding text, its first row leading with the marker, unless its hint row says otherwise (`overlay`).
 - A word reaches `columns - 4` on a row on Claude Code and Antigravity, `columns - 3` on Codex (the same on 80 and 120 columns), the space at a wrap left out. One too long for a row starts a new row and breaks at `columns - 3` on Codex and Antigravity; on Claude Code it fills the row it starts on, to `columns - 4`.
 - Antigravity draws its cursor on the text's last cell, the others after it (`caret`).
+- A text taller than the box shows only a part. Claude Code says nothing of it: only the box's height tells (`viewport`), which goes by the screen's height alone, at 16 heights from 14 to 61 rows, with three background agents listed and with a status line of four rows (`e2e/probes/box-viewport.e2e.ts`; at 14 and 15 rows it shows one more than `viewport`, a box that full still reading as a tail). Codex 0.167.0 draws a dim `↑` at the end of the box's first row, at all 16 heights, and Antigravity 1.5.2 `↑ 21 more lines` as its first row and, with the cursor moved up, `↓ 14 more lines` as its last, at all 16: both are read as `BoxProfile.cut`, and on Antigravity any such row counts, drawn dim or not and whatever follows the arrow. With a panel of subagents up at 26 rows or fewer Antigravity's box doesn't read at all, which stops anything typing. With the cursor at the end, 256 pairs of the erase in one write empty 60 rows, in prompt and shell mode, on all three, and those past the text do nothing; with the cursor moved up they take only what's above it, so a clear refuses there.
 - Codex on Windows reads the console's keys, so a bracketed paste is typing to it, and a line break is an Enter unless it comes in what it takes for a burst of typing (Windows CI, 0.167.0, 2026-11-06). A paste of `\r\r` and a message over a draft submitted the draft alone, in every case, and left the message in the box. With a picker open the first Enter picked and the second submitted. Long first lines have always come through whole in CI; nothing shorter than 16 characters is relied on (`pastesWhole`). Claude Code and Antigravity took the same paste as text on Windows.
 
 ## Consequences for the design
@@ -444,6 +446,46 @@ Parity gap: Antigravity's only fallback end, an idle status line where its `Stop
 came, is `unknown`, which can't be told from an Escape or a refusal, so it never counts as
 a finish. A lost Antigravity `Stop` therefore gives no done signal, where Claude Code's
 transcript and Codex's rollout still give one.
+
+## What a harness draws at its input
+
+The chat's live slice (`agents.slice`, docs/backend-api.md) shows these rows as they are.
+Probed 2026-11-06: Claude Code 2.1.316 and 2.1.318, Codex 0.167.0, Antigravity 1.4.12 and
+1.5.2, 120x40 and smaller (`e2e/probes/live-slice.e2e.ts`, each harness's
+`fixtures/live-slice.probe.json`; held by `slices.e2e.ts` and the chat contract's `src/slices`).
+
+|             | Claude Code, fullscreen                                                                                                          | Claude Code, classic (`/tui default`)           | Codex                                                                                             | Antigravity                                                                         |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Screen      | alternate                                                                                                                        | normal                                          | alternate                                                                                         | normal, a tall view alternate                                                       |
+| `/`         | 5 rows right above the box, over the transcript                                                                                  | under the box, to the screen's end              | 8 rows above, a blank row between                                                                 | 5 rows, `↓ N more` and hints, under the box                                         |
+| `@`         | 5 rows above                                                                                                                     | under                                           | a 17-row panel above: title, tabs, query, list, hint                                              | 5 rows and hints, under                                                             |
+| `$`         | plain text                                                                                                                       | plain text                                      | up to 5 rows and a hint, above                                                                    | plain text                                                                          |
+| A view      | the box goes; a `▔` edge, then rows to the screen's end, the transcript moved up; `/config`, `/status`, `/usage` take the screen | the box goes, rows from the command's line down | the box goes, rows to the screen's end, the transcript moved up; `/diff` a full pager (`q close`) | the box stays, empty, the view under it; `/help`, `/skills` on the alternate screen |
+| Prints only | `/context`                                                                                                                       | `/context`                                      | `/status`, `/mcp`                                                                                 | none probed                                                                         |
+
+A menu overlays rows in place on the alternate screen; on the normal screen it scrolls the
+screen up. Up and Down move the mark, typing filters, and Backspacing the key closes it on all.
+Esc closes a menu and keeps the text, and more of them leave the text (Antigravity's toggles the
+menu); mid-turn it closes the menu alone, and a further one stops the turn. Enter runs the
+picked row on Claude Code and Codex; on Antigravity it completes it into the box, and a second
+runs it. Tab completes the picked row on Claude Code (`/ma` to `/marketplace`, and a menu of its
+own) and Antigravity (`/model [model]`, then its argument menu), does nothing on Codex's `/`, and
+inserts on its `@` and `$`; mid-turn its footer says Tab queues. Codex leaves an unknown command
+in the box, its cursor moved, so Ctrl-U clears nothing. A trap for keys passed through: on an
+empty box Codex's first Esc arms "esc again to edit previous message", its second opens
+"Browsing transcript", where the box misreads, and its third leaves it. Codex's list views (`/model`, `/permissions`,
+`/config`, `/keymap`, `/statusline`) lead the picked row with `›`, which `BoxProfile.read` takes
+for its box, so `BoxProfile.overlay` tells them by their last row, and a prompt or a doorbell ring
+waits while one shows rather than paste into the list. On 12 rows and fewer Claude Code draws no menu.
+
+The transcript records almost nothing of a command: Claude Code's `/compact` as a user item,
+its local commands (`/model`, `/context`) as a `system local_command` record the decoder drops;
+Antigravity's `/compact` as a user item; Codex none, not even `/compact`.
+
+Secret prompts: Claude Code's `/login` shows an OAuth URL and `Paste code here if prompted >`,
+and of what is typed there its last characters; its Bedrock key steps were not reached. Codex's
+`/logout` ends the process. No key entry was reached on Antigravity, whose session under an
+API key has no login. Only Claude Code's reader marks one (`SliceProfile.secret`).
 
 ## What a tool call came to
 

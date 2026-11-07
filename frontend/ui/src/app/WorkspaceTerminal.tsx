@@ -301,12 +301,16 @@ export const WorkspaceTerminal = memo(
                 // Words queued behind the stopped turn, the agent's and the chat's, come back
                 // to the box, to send again.
                 onInterrupt={() => commands.stopChat(terminalKey)}
+                onClearBox={(seen) => commands.clearBox(terminalKey, seen)}
                 onAnswer={(request, answer) => conversations!.answer(terminalKey, request, answer)}
                 onWordsLost={(words) => commands.appendChatDraft(chatContext, terminalId, words)}
                 onAnswerInTerminal={() => commands.showTerminal(terminalId)}
                 focusInput={wanted}
                 onInputFocused={onInputFocused}
                 refused={conversations!.refused}
+                onPassing={(on) => commands.setChatPassing(terminalId, on)}
+                onLeftMenu={() => commands.setChatDraft(terminalId, "", chatContext)}
+                onKeys={conversations!.keys && ((keys) => conversations!.keys!(terminalKey, keys))}
               />
             </div>
           )}

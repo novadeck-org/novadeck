@@ -6,7 +6,7 @@ import type { BoxProfile, InputBox } from "@novadeck/tui-input/box"
 import { vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
-import { boxView, BoxStates } from "./box-state.js"
+import { boxView, BoxStates, shownBox } from "./box-state.js"
 import { holdsRingLine } from "./leftover.js"
 
 const profile = (read: InputBox | undefined, over: Partial<BoxProfile> = {}): BoxProfile => ({
@@ -29,6 +29,38 @@ const box = (text: string, mode: InputBox["mode"] = "prompt"): InputBox => ({
   last: 1,
 })
 
+describe("whether a client was shown what a box holds", () => {
+  it("goes by its words, whitespace aside, the rows it says it hides among them", () => {
+    expect(shownBox(box("some words\n"), "some words")).toBe(true)
+    expect(shownBox(box("some words"), "other words")).toBe(false)
+    expect(shownBox(box("↑ 22 more lines\nthe end"), "↑ 21 more lines\nthe end")).toBe(false)
+  })
+
+  it("is no for words past what a client is shown", () => {
+    const long = "word ".repeat(4_000)
+    expect(shownBox(box(long), long.slice(0, 16_384))).toBe(false)
+  })
+})
+
+describe("telling a client what a box holds now", () => {
+  it("reads it at once, and changes the view before it resolves", async () => {
+    let read: AgentBox | null = null
+    const changed = vi.fn<() => void>()
+    const states = new BoxStates({
+      watched: () => true,
+      typing: () => true,
+      read: async () => read,
+      changed,
+    })
+    states.changed("t")
+    read = { text: "half typed", mode: "prompt", tail: false, known: false }
+    await states.refresh("t")
+    expect(states.view("t")).toEqual(read)
+    expect(changed).toHaveBeenCalledOnce()
+    states.close()
+  })
+})
+
 const shown = screen({ rows: Array<string>(10).fill("") })
 const never = () => false
 
@@ -47,6 +79,8 @@ describe("boxView", () => {
     const viewport = () => 1
     const tall = profile({ ...box("c"), last: 2 }, { viewport: () => 2 })
     expect(boxView(tall, shown, never, never)?.tail).toBe(true)
+    const cut = profile(box("↑ 10 more lines\nc"), { cut: () => true })
+    expect(boxView(cut, shown, never, never)?.tail).toBe(true)
     expect(boxView(profile(box("c"), { viewport }), shown, never, never)?.tail).toBe(false)
   })
 

@@ -173,12 +173,17 @@ export const createRouter = (options: {
       detail: api.agents.detail.handler(({ input, signal }) =>
         terminals.detail(input.terminalId, signal),
       ),
+      slice: api.agents.slice.handler(({ input, signal }) =>
+        terminals.slice(input.terminalId, signal),
+      ),
       transcript: api.agents.transcript.handler(({ input, signal }) =>
         terminals.transcript(input.terminalId, input.actor, signal),
       ),
       prompt: api.agents.prompt.handler(({ input }) => terminals.prompt(input)),
+      keys: api.agents.keys.handler(({ input }) => terminals.keys(input)),
       takeBox: api.agents.takeBox.handler(({ input }) => terminals.takeBox(input.terminalId)),
       putBox: api.agents.putBox.handler(({ input }) => terminals.putBox(input)),
+      clearBox: api.agents.clearBox.handler(({ input }) => terminals.clearBox(input)),
       answer: api.agents.answer.handler(({ input }) => terminals.answer(input)),
       interrupt: api.agents.interrupt.handler(({ input }) => terminals.interrupt(input)),
       set: api.agents.set.handler(async ({ input }) => {

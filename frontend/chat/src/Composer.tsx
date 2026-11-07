@@ -19,6 +19,15 @@ import { useMounted } from "./use-mounted"
 // The most a reply to the agent's question carries.
 const replyMax = 16_384
 
+// The keys of the box that go to a harness's menu rather than edit the text.
+const menuKeys: Readonly<Record<string, string>> = {
+  Enter: "\r",
+  Tab: "\t",
+  Escape: "\x1b",
+  ArrowUp: "\x1b[A",
+  ArrowDown: "\x1b[B",
+}
+
 // What a failure says, and whether the person settles it in the agent's terminal.
 type Failure = { readonly text: string; readonly terminal: boolean }
 
@@ -32,11 +41,11 @@ export const boxNote = (label: string, box: ChatBox): string => {
   if (box.mode === "shell")
     return `${label}'s terminal input is in shell mode, with this in it. Your next message leaves it.`
   if (/^\s*[/!]/.test(box.text))
-    return `${label}'s terminal input holds a command. Clear it in the terminal to send here.`
+    return `${label}'s terminal input holds a command. Clear it to send here.`
+  if (box.tail) return `${label}'s terminal input ends with this. There may be more above it.`
   if (box.known)
     return `${label}'s terminal input holds your message. It comes back here as you send.`
-  const holds = box.tail ? "ends with this" : "holds this"
-  return `${label}'s terminal input ${holds}. It goes with your next message.`
+  return `${label}'s terminal input holds this. It goes with your next message.`
 }
 
 // Where the person writes to the agent. Enter sends what's typed into the agent's own
@@ -55,12 +64,15 @@ export const Composer = ({
   working,
   onSend,
   onStop,
+  onClearBox,
   focusInput,
   onInputFocused,
   onCancelReply,
   onOpenTerminal,
   refused: refuses,
   box,
+  passing,
+  onPress,
 }: {
   // The agent it writes to, for the box's name.
   readonly label: string
@@ -76,6 +88,8 @@ export const Composer = ({
   // back on a failure, is the owner's, which may outlive this box.
   readonly onSend: (text: string) => Promise<void>
   readonly onStop: () => Promise<void>
+  // Empties the agent's own box of the text shown of it. Rejects where it didn't.
+  readonly onClearBox: (seen: string) => Promise<void>
   // Keyboard navigation asks for focus here; call `onInputFocused` once it's there.
   readonly focusInput: boolean
   readonly onInputFocused: () => void
@@ -86,9 +100,14 @@ export const Composer = ({
   readonly refused: Refused
   // What the agent's own box holds, which a message sent now goes out with.
   readonly box: ChatBox | null
+  // Whether what is typed goes to the agent's terminal, for a menu of its own, and the way a
+  // key of the box's goes there: true where it went.
+  readonly passing: boolean
+  readonly onPress: (keys: string) => boolean
 }): React.JSX.Element => {
   const input = useRef<HTMLTextAreaElement>(null)
   const [stopping, setStopping] = useState(false)
+  const [clearing, setClearing] = useState(false)
   const [error, setError] = useState<Failure | null>(null)
   const mounted = useMounted()
   useEffect(() => {
@@ -116,6 +135,10 @@ export const Composer = ({
   // A `!` still waiting for its command: nothing to send yet, nothing to warn about either.
   const awaitingCommand = command === ""
   const send = (): void => {
+    if (passing) {
+      onPress("\r")
+      return
+    }
     const text = draft.trim()
     // The draft is judged as the hint judges it, so Enter refuses what Send does.
     if (!text || sending || refused) return
@@ -132,6 +155,19 @@ export const Composer = ({
       (failure: unknown) => {
         if (!mounted.current) return
         setStopping(false)
+        setError(failed(failure))
+      },
+    )
+  }
+  const clearBox = (seen: string): void => {
+    if (clearing) return
+    setClearing(true)
+    setError(null)
+    onClearBox(seen).then(
+      () => mounted.current && setClearing(false),
+      (failure: unknown) => {
+        if (!mounted.current) return
+        setClearing(false)
         setError(failed(failure))
       },
     )
@@ -182,9 +218,26 @@ export const Composer = ({
           </span>
         </p>
       )}
-      {box && (
+      {passing && (
+        <p className="chat-reply" id={note}>
+          <span>What you type goes to {label}'s own menu.</span>
+        </p>
+      )}
+      {box && !passing && (
         <div className="chat-reply chat-box" id={boxNoteId}>
-          <span>{boxNote(label, box)}</span>
+          <div className="chat-box-head">
+            <span>{boxNote(label, box)}</span>
+            <button
+              type="button"
+              className="button quiet chat-reply-cancel"
+              aria-label={`Clear ${label}'s terminal input`}
+              disabled={clearing}
+              onClick={() => clearBox(box.text)}
+            >
+              <X size={12} aria-hidden />
+              Clear
+            </button>
+          </div>
           <pre className="chat-box-text">{box.tail ? `…${box.text}` : box.text}</pre>
         </div>
       )}
@@ -216,8 +269,8 @@ export const Composer = ({
           rows={1}
           value={draft}
           aria-describedby={[
-            ...(box ? [boxNoteId] : []),
-            ...(replying || held ? [note] : command !== undefined ? [shellNote] : []),
+            ...(box && !passing ? [boxNoteId] : []),
+            ...(replying || held || passing ? [note] : command !== undefined ? [shellNote] : []),
             hint,
           ].join(" ")}
           // What the agent's field takes, as the protocol carries it.
@@ -227,8 +280,20 @@ export const Composer = ({
             onDraft(event.target.value)
             if (error) setError(null)
           }}
-          // The agent's field takes one line.
-          onKeyDown={submitOnEnter(send, replying)}
+          onKeyDown={(event) => {
+            if (passing && !event.nativeEvent.isComposing) {
+              // A modified key stays the app's, and the field's; Shift+Enter has no line to start.
+              if (event.key === "Enter" && event.shiftKey) event.preventDefault()
+              if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return
+              const keys = menuKeys[event.key]
+              // Tab stays in the box with no menu to take it, as what is typed still goes.
+              if ((keys !== undefined && onPress(keys)) || event.key === "Tab")
+                event.preventDefault()
+              return
+            }
+            // The agent's field takes one line.
+            submitOnEnter(send, replying)(event)
+          }}
         />
         <div className="chat-composer-actions">
           {working && (

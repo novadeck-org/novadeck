@@ -1142,8 +1142,9 @@ activity says a turn runs; `queued`, the harness shows a prompt queued in it; `s
 box is in shell mode; `draft`, there is text in its box (or a paste placeholder); `dialog`, no input
 box reads, as under a menu, picker, trust or approval screen, or a view of the harness
 draws a field like its box (`BoxProfile.overlay`: Claude Code's agents view, which Left
-opens, prompt history search and transcript; Codex's history search, shortcuts panel and `/side` conversation;
-Antigravity's shortcuts and artifacts panels; probed 2026-10-16, where the empty box
+opens, prompt history search and transcript; Codex's history search, shortcuts panel, `/side` conversation
+and its list views, `/model`, `/permissions`, `/config`, `/keymap`, `/statusline`, whose rows read as a
+box holding text; Antigravity's shortcuts and artifacts panels; probed 2026-10-16, where the empty box
 read as the agent's own and a ring would have pasted the line into them); `asking`, a request waits
 on the person. The reason is in the answer to `send`'s `route` and in the terminal's
 `messages.list` as `waits`, and the screen is looked at again after 1 s, doubling to

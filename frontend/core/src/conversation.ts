@@ -221,6 +221,32 @@ export type ChatBox = {
   readonly known: boolean
 }
 
+// Cells side by side in one style, as the terminal draws them (`agents.slice`): `width` is
+// how many columns they take; a colour is a palette index or `#rrggbb`, null the default.
+export type ChatSliceRun = {
+  readonly text: string
+  readonly width: number
+  readonly fg: number | string | null
+  readonly bg: number | string | null
+  readonly bold: boolean
+  readonly dim: boolean
+  readonly italic: boolean
+  readonly underline: boolean
+  readonly inverse: boolean
+}
+
+// The rows of the terminal's screen that stand for something of the harness's own at its
+// input, live. `reason`: a menu at the box, a view of its own, a dialog no adapter read.
+// `secret`: rows a harness knows as a secret prompt, of which nothing keeps a copy. A slice
+// goes to its reader and nowhere else: never to a log, a trace or telemetry.
+export type ChatSlice = {
+  readonly reason: "menu" | "view" | "dialog"
+  readonly columns: number
+  readonly rows: readonly (readonly ChatSliceRun[])[]
+  readonly cursor: { readonly row: number; readonly column: number } | null
+  readonly secret: boolean
+}
+
 // A terminal's conversation now. `agent` and `session` name the agent's session bound to
 // the terminal whose transcript is read, its harness's name for the agent (`claude`,
 // `codex`, `agy`); both null while none is. `loaded` once the session's records so far
@@ -229,7 +255,8 @@ export type ChatBox = {
 // given through `send`, oldest first, as far as the backend follows them. `unread` once the
 // session's records hold a part of the conversation the backend can't read, which `items`
 // leave out and the terminal shows. `box` is what the agent's input box holds, null while there
-// is nothing to show.
+// is nothing to show. `slice` is the terminal's own rows while something of the harness's own
+// shows at its input.
 export type Conversation = {
   readonly agent: string | null
   readonly session: string | null
@@ -238,6 +265,7 @@ export type Conversation = {
   readonly requests: readonly ChatRequest[]
   readonly prompts: readonly ChatPrompt[]
   readonly unread: boolean
+  readonly slice: ChatSlice | null
   readonly box: ChatBox | null
 }
 
@@ -249,6 +277,7 @@ export const noConversation: Conversation = {
   requests: [],
   prompts: [],
   unread: false,
+  slice: null,
   box: null,
 }
 
@@ -281,6 +310,10 @@ export type Conversations = {
   // had queued behind the turn, which the agent gave back and the chat's box takes again,
   // or null. Rejects as `send` does.
   readonly interrupt: (key: TerminalKey) => Promise<string | null>
+  // Writes keys to the agent's terminal as the person's, for what shows in `slice`: a key or
+  // an edit a call, in order. Where the backend has none, the chat keeps to its own menus' rule
+  // (`refused`). Rejects as `send` does.
+  readonly keys?: (key: TerminalKey, keys: string) => Promise<void>
   // Takes what the agent's own box holds out of it for the chat's, where it can be read whole
   // and the backend has a box: the words, or null where nothing was taken, which `box` then
   // still shows.
@@ -288,6 +321,9 @@ export type Conversations = {
   // Puts the chat's draft in the agent's own box, with no Enter, as the person goes to its
   // terminal: whether it went. Where not, the draft stays the chat's.
   readonly putBox?: (key: TerminalKey, text: string) => Promise<boolean>
+  // Empties the agent's own box, as the person asked, of the text `box` showed them: whether
+  // it reads empty now. Words gone are gone. Rejects as `send` does.
+  readonly clearBox?: (key: TerminalKey, seen: string) => Promise<boolean>
   // Answers a request through its dialog in the agent's TUI, as the person would with its
   // keys, resolving once it took. Rejects as `send` does; a dialog that can't be answered
   // safely turns `raw`, for the person to answer in the terminal.
@@ -346,6 +382,12 @@ export class SettleInTerminal extends Error {
   }
 }
 
+// The agent's box didn't read empty after the clear the person asked for.
+export const boxNotCleared = (): SettleInTerminal =>
+  new SettleInTerminal(
+    "That didn't clear the agent's input box. Look at it above, or clear it in the terminal.",
+  )
+
 // A failure with the words the message took out of the agent's box before it failed, which the
 // chat's box takes all the same: they are in the agent's no longer.
 export const withReturned = <E extends Error>(failure: E, returned: string | undefined): E =>
@@ -357,11 +399,11 @@ export const returnedBy = (failure: unknown): string | undefined => {
   return typeof returned === "string" ? returned : undefined
 }
 
-// Stop took the turn's Escape, but the words queued behind it are still in the agent's box: the
-// next message sees to them.
+// Stop took the turn's Escape, but the words queued behind it are still in the agent's box, for
+// the terminal or the next message to see to.
 export const notCleared = (): Error =>
   new Error(
-    "Stopped. Your queued message is still in the agent's box, and comes back here or goes out with your next message.",
+    "Stopped. Your queued message is still in the agent's box: send it there, or try it with your next message here.",
   )
 
 // What the person is told when the agent couldn't take what the chat typed for them, by
@@ -388,16 +430,12 @@ export const conflictFailure = (reason: ConflictReason | undefined, action: Chat
         `The agent isn't ready for ${action === "send" ? "a message" : "that"} yet. ${retry} in a moment.`,
       )
     case "draft":
-      return new SettleInTerminal(
-        `The agent's input box already holds text. Clear it in the terminal, then ${again}.`,
-      )
+      return new Error(`The agent's input box already holds text. Clear it above, then ${again}.`)
     case "shell":
-      return new SettleInTerminal(
-        `The agent's input box is in shell mode. Leave it in the terminal, then ${again}.`,
-      )
+      return new Error(`The agent's input box is in shell mode. Clear it above, then ${again}.`)
     case "command":
-      return new SettleInTerminal(
-        `The agent's input box holds a command it hasn't run. Clear it in the terminal, then ${again}.`,
+      return new Error(
+        `The agent's input box holds a command it hasn't run. Clear it above, then ${again}.`,
       )
     case "too-tall":
       return new SettleInTerminal(
