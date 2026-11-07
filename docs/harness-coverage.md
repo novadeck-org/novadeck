@@ -445,6 +445,40 @@ came, is `unknown`, which can't be told from an Escape or a refusal, so it never
 a finish. A lost Antigravity `Stop` therefore gives no done signal, where Claude Code's
 transcript and Codex's rollout still give one.
 
+## What a harness draws at its input
+
+The chat's live slice (`agents.slice`, docs/backend-api.md) shows these rows as they are.
+Probed 2026-11-06: Claude Code 2.1.316 and 2.1.318, Codex 0.167.0, Antigravity 1.4.12 and
+1.5.2, 120x40 and smaller (`e2e/probes/live-slice.e2e.ts`, each harness's
+`fixtures/live-slice.probe.json`; held by `slices.e2e.ts` and the chat contract's `src/slices`).
+
+|             | Claude Code, fullscreen                                                                                                          | Claude Code, classic (`/tui default`)           | Codex                                                                                             | Antigravity                                                                         |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Screen      | alternate                                                                                                                        | normal                                          | alternate                                                                                         | normal, a tall view alternate                                                       |
+| `/`         | 5 rows right above the box, over the transcript                                                                                  | under the box, to the screen's end              | 8 rows above, a blank row between                                                                 | 5 rows, `↓ N more` and hints, under the box                                         |
+| `@`         | 5 rows above                                                                                                                     | under                                           | a 17-row panel above: title, tabs, query, list, hint                                              | 5 rows and hints, under                                                             |
+| `$`         | plain text                                                                                                                       | plain text                                      | up to 5 rows and a hint, above                                                                    | plain text                                                                          |
+| A view      | the box goes; a `▔` edge, then rows to the screen's end, the transcript moved up; `/config`, `/status`, `/usage` take the screen | the box goes, rows from the command's line down | the box goes, rows to the screen's end, the transcript moved up; `/diff` a full pager (`q close`) | the box stays, empty, the view under it; `/help`, `/skills` on the alternate screen |
+| Prints only | `/context`                                                                                                                       | `/context`                                      | `/status`, `/mcp`                                                                                 | none probed                                                                         |
+
+A menu overlays rows in place on the alternate screen; on the normal screen it scrolls the
+screen up. Keys are the same on all: Up and Down move the mark, typing filters, Enter runs, Esc
+closes and keeps the text. Tab completes the picked row in Claude Code and Antigravity
+(`/model [model]`, then its argument menu), and Codex's `@` inserts on Enter or Tab. A trap for
+keys passed through: in Codex a second Esc on an empty box arms "esc again to edit previous
+message", and a third opens the transcript pager. Codex's list views (`/model`, `/permissions`,
+`/config`) lead the picked row with `›`, which `BoxProfile.read` takes for its box, so
+`SliceProfile.view` tells them by their last row. On 12 rows and fewer Claude Code draws no menu.
+
+The transcript records almost nothing of a command: Claude Code's `/compact` as a user item,
+its local commands (`/model`, `/context`) as a `system local_command` record the decoder drops;
+Antigravity's `/compact` as a user item; Codex none, not even `/compact`.
+
+Secret prompts: Claude Code's `/login` shows an OAuth URL and `Paste code here if prompted >`,
+and of what is typed there its last characters; its Bedrock key steps were not reached. Codex's
+`/logout` ends the process. No key entry was reached on Antigravity, whose session under an
+API key has no login. Only Claude Code's reader marks one (`SliceProfile.secret`).
+
 ## What a tool call came to
 
 What the chat's tool lines rest on (`toolOutcome` in `contract/protocol/src/transcripts.ts`), all

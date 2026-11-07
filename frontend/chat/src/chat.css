@@ -699,6 +699,11 @@
 .chat[data-compact] .chat-raw {
   max-height: 8em;
 }
+.chat .chat-raw.chat-slice {
+  max-height: 24em;
+  background-color: var(--terminal-bg);
+  color: var(--terminal-fg);
+}
 
 /* The composer */
 .chat-composer {

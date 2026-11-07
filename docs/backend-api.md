@@ -813,6 +813,42 @@ one from an earlier runner.
   agent and ends when the terminal is closed; an unknown one is `TERMINAL_NOT_FOUND`.
   The client's `agents.detail(terminalId)` resubscribes across reconnections and ends
   once the terminal is gone.
+- `agents.slice({ terminalId })` streams the rows of the terminal's screen that stand for
+  something of its harness's own at its input, so the chat can show them live in place of a
+  dialog: a snapshot `{ slice }`, then another on each change, `slice` null while nothing
+  shows. A slice (`liveSlice`) is self-contained: `columns`, `rows` of style runs (`text`,
+  `width` in columns, `fg` and `bg` as a palette index or `#rrggbb`, null for the default, and
+  `bold`, `dim`, `italic`, `underline`, `inverse`), the `cursor` in its rows and columns or
+  null, `reason` and `secret`. `reason` says only what the readers tell: `menu`, the box holds
+  the harness's own key (`/`, `@`, Codex's `$`) and something was drawn for it; `view`, the box is gone, covered
+  (`BoxProfile.overlay`), or a view shows where it still reads (`SliceProfile.view`);
+  `dialog`, a request that holds the agent whose `dialog` is `raw`. Nothing reads what the rows mean, so it holds
+  for whatever a harness draws. A request whose dialog is read, or not yet, shows none: that
+  dialog is the chat's to draw. The harness's box rows are left out of a menu: the chat's
+  input holds that text.
+  Where a thing starts is found against the last screen seen at rest (`readSlice` in
+  `harnesses/core/src/slices.ts`): above the box, the rows are walked from the top while they
+  match the resting rows in order, as what is above stays or moves up whole, and the first
+  that doesn't is its top, and a menu there ends one row short of the box, so a row that
+  changed further up is no menu; under it, from the closing rule to the last row drawn, and
+  no more rows than the footer at rest is no menu. The side comes from the harness
+  (`SliceProfile.side`). Fail-safe: a menu above the box with no screen at rest of this size
+  shows nothing; past `sliceLimits` there is no slice, as rows cut short would be the wrong
+  rows; a view with no such screen is the whole screen, which holds the view. A view shows
+  only once it has stayed 120 ms, as a redraw between two frames has no box either. Mid-turn a
+  row that changed above a menu (Codex's `Working (2s)`, streamed text) can land at the
+  slice's top: it can't be told from a menu that grew without reading it. A request that
+  holds the agent keeps its dialog in the chat; a detached one leaves its prompt free, and
+  menus go on showing.
+  `secret` marks rows a harness's reader knows as a secret prompt (Claude Code's `Paste code
+  here`): they are shown, as the terminal's own stream shows them to the same person, but
+  nothing keeps a copy. A slice's rows go to its readers and nowhere else: never to a log, a
+  trace, telemetry or a saved state. The screen is looked at only while someone reads,
+  at most every 50 ms; a terminal nobody watches costs nothing. It is a stream of its own, not
+  part of `agents.detail`, because it changes on every key. It follows the terminal from
+  agent to agent, covers an agent shown at its prompt before a session binds (Antigravity
+  and Codex bind at a first prompt), and ends when the terminal is closed; an unknown one is
+  `TERMINAL_NOT_FOUND`.
 - `agents.transcript({ terminalId, actor })` streams an actor's conversation, by the ref
   `agents.detail` names it by, as its harness recorded it: batches of up to 256 items
   from the start of the record in the order the harness wrote them (Antigravity may

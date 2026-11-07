@@ -1,4 +1,5 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
+import type { SliceProfile } from "@novadeck/harness-core/slices"
 import {
   agreeing,
   eraseRows,
@@ -181,4 +182,19 @@ export const box: BoxProfile = {
   collapses: (text) => text.split("\n").length > 15 || (!text.includes("\n") && text.length > 1024),
   room: (rows) => rows - 4,
   still,
+}
+
+/**
+ * Where it draws its own: `/` and `@` under the box on the normal screen, which scrolls up to
+ * make room, and a view under the box as well, which stays, empty; one too tall for the rows
+ * left goes to the alternate screen. `$` is plain text (probed 1.4.12 and 1.5.2,
+ * fixtures/live-slice.probe.json). No prompt for a secret was reached: a session under an
+ * API key has no login.
+ */
+export const slice: SliceProfile = {
+  leading: ["/"],
+  words: ["@"],
+  side: () => "below",
+  viewsUnder: true,
+  secret: () => false,
 }

@@ -4,6 +4,7 @@ import { hookShellSlackMs } from "@novadeck/harness-core/hook-command"
 import type { AskAnswer, InboxEntry } from "@novadeck/protocol"
 import type {
   AgentDetail,
+  SliceChange,
   AgentName,
   InterruptResult,
   Approval,
@@ -74,6 +75,7 @@ import { Sampler, shellProcess } from "./sampling.js"
 import { hasRun, keptState, type TerminalRecords } from "./saved-terminals.js"
 import { Saves } from "./saving.js"
 import type { TranscriptSealer } from "./sealing.js"
+import { slicingOf } from "./slices.js"
 import { StartupWatch } from "./startup-watch.js"
 import { Streams } from "./streams.js"
 import { noAgent, savedSummaryOf, summaryOf, type AgentSummary } from "./summary.js"
@@ -485,6 +487,12 @@ export class Terminals {
         ),
       detailOpened: (terminalId) => this.typing.boxes.changed(terminalId),
       messages: (terminalId) => this.messages(terminalId),
+      slicing: (terminalId) =>
+        slicingOf(
+          this.records.get(terminalId),
+          this.typing.dialogs.view(terminalId),
+          this.messaging.shownAgent(terminalId),
+        ),
     })
     this.names = new Names<Record>(options, this.saves, this.streams, {
       stopping: () => this.stopping,
@@ -1362,6 +1370,12 @@ export class Terminals {
     yield* this.streams.watchDetail(record, signal)
   }
 
+  /** The terminal's live slice, then another on each change (see `slices.ts`). */
+  async *slice(terminalId: string, signal?: AbortSignal): AsyncGenerator<SliceChange> {
+    if (this.stopping) throw new DomainError("CLOSING")
+    yield* this.streams.watchSlice(this.record(terminalId).summary.id, signal)
+  }
+
   /** Closes another terminal of the caller's project and session (see `Calls.closePeer`). */
   closePeer(call: Call): Promise<CloseAnswer> {
     return this.calls.closePeer(call)
@@ -1620,6 +1634,7 @@ export class Terminals {
     terminal.on("drawn", () => {
       this.typing.doorbellChanged(record.summary.id)
       this.typing.dialogsChanged(record.summary.id)
+      this.streams.drawn(record.summary.id)
       // Once on the screen: a save while it was drawing may have taken the screen before.
       record.screenChanged = true
     })

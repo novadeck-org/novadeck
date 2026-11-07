@@ -1,4 +1,5 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
+import type { SliceProfile } from "@novadeck/harness-core/slices"
 import {
   agreeing,
   eraseRows,
@@ -118,4 +119,23 @@ export const box: BoxProfile = {
   // Never below 1 on a screen of 11 rows or fewer, which the formula takes to nothing.
   viewport: (rows) => Math.max(Math.floor(rows / 2) - 5, 1),
   still,
+}
+
+/**
+ * Where it draws its own: on the alternate screen (its fullscreen renderer) `/` and `@` show
+ * as five rows over the transcript, right above the box; on the normal screen (its classic
+ * renderer, `/tui default`) the list runs under the box to the screen's end. A view takes the
+ * box's place in both. Its `/login` asks for a code in the rows it draws, and shows the end of
+ * what is typed (probed 2.1.316 and 2.1.318, fixtures/live-slice.probe.json).
+ */
+export const slice: SliceProfile = {
+  leading: ["/"],
+  words: ["@"],
+  side: (screen) => (screen.alternate ? "above" : "below"),
+  // Whole across rows, as a narrow screen wraps it.
+  secret: (rows) =>
+    rows
+      .map((row) => row.trim())
+      .join(" ")
+      .includes("Paste code here"),
 }
