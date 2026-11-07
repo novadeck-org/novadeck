@@ -4,7 +4,7 @@ import { join } from "node:path"
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { fileIn, lister, presence, rulesOf, sessionName } from "./conversation.js"
+import { fileIn, lister, presence, reportedOr, rulesOf, sessionName } from "./conversation.js"
 
 let root = ""
 beforeEach(() => {
@@ -60,5 +60,38 @@ describe("looking for a conversation's file", () => {
       expect(sessionName.test(bad)).toBe(false)
     expect(rulesOf({ platform: "win32" }).join("C:\\Users\\a", "x")).toBe("C:\\Users\\a\\x")
     expect(rulesOf({ platform: "darwin" }).join("/Users/a", "x")).toBe("/Users/a/x")
+  })
+})
+
+describe("a reported transcript", () => {
+  it("is kept where its file is, or where none is found elsewhere, as one not written yet", async () => {
+    const reported = join(root, "reported.jsonl")
+    const away = join(root, "away.jsonl")
+    writeFileSync(away, "")
+    const nowhere = async () => undefined
+    await expect(reportedOr(reported, "kept-new", nowhere)).resolves.toBe(reported)
+    await expect(reportedOr(reported, "kept-same", async () => reported)).resolves.toBe(reported)
+    const failing = () => Promise.reject(new Error("unreadable"))
+    await expect(reportedOr(reported, "kept-failed", failing)).resolves.toBe(reported)
+    writeFileSync(reported, "")
+    let looked = false
+    const find = async () => ((looked = true), away)
+    await expect(reportedOr(reported, "kept-present", find)).resolves.toBe(reported)
+    expect(looked).toBe(false)
+  })
+
+  it("gives way to the session's file found elsewhere until one is written where reported", async () => {
+    mkdirSync(join(root, "began"))
+    mkdirSync(join(root, "elsewhere"))
+    const reported = join(root, "elsewhere", "s.jsonl")
+    const away = join(root, "began", "s.jsonl")
+    writeFileSync(away, "")
+    let looks = 0
+    const find = async () => ((looks += 1), away)
+    await expect(reportedOr(reported, "found-away", find)).resolves.toBe(away)
+    await expect(reportedOr(reported, "found-away", find)).resolves.toBe(away)
+    expect(looks).toBe(1)
+    writeFileSync(reported, "")
+    await expect(reportedOr(reported, "found-away", find)).resolves.toBe(reported)
   })
 })

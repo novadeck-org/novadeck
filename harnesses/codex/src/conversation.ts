@@ -23,12 +23,12 @@ const madeAt = (session: string): number | undefined => {
 }
 
 // The rollout of the session in a folder: `rollout-<time>-<session>.jsonl`, or `.zst` once
-// Codex compressed it.
-const holds = (files: readonly string[], session: string): boolean =>
-  files.some(
+// Codex compressed it, which only the check counts (`plain` false): no line of it can be read.
+const holds = (files: readonly string[], session: string, plain: boolean): string | undefined =>
+  files.find(
     (file) =>
       file.startsWith("rollout-") &&
-      (file.endsWith(`-${session}.jsonl`) || file.endsWith(`-${session}.jsonl.zst`)),
+      (file.endsWith(`-${session}.jsonl`) || (!plain && file.endsWith(`-${session}.jsonl.zst`))),
   )
 
 const pad = (value: number): string => String(value).padStart(2, "0")
@@ -50,7 +50,57 @@ const newest = (listing: Listing): string[] =>
 
 // What looking through one tree of rollouts came to: found, anything it could not read,
 // and how many day folders it read (a tree with none is no store to call anything gone by).
-type Looked = { found: boolean; unknown: boolean; days: number }
+type Looked = { found: string | undefined; unknown: boolean; days: number }
+
+type Rules = ReturnType<typeof rulesOf>
+
+/** Looks for the session's rollout in one tree of them, live or archived: its path where found. */
+const look = async (
+  rules: Rules,
+  list: (folder: string) => Promise<Listing>,
+  root: string,
+  session: string,
+  plain: boolean,
+): Promise<Looked> => {
+  const out: Looked = { found: undefined, unknown: false, days: 0 }
+  const top = await list(root)
+  if (top.kind === "unreadable" || top.kind === "file") out.unknown = true
+  if (top.kind !== "names") return out
+  // Archived threads may sit flat in their folder.
+  const flat = holds(top.names, session, plain)
+  if (flat !== undefined) return { ...out, found: rules.join(root, flat) }
+  const day = (folder: string, listing: Listing): string | undefined => {
+    if (listing.kind === "unreadable") out.unknown = true
+    if (listing.kind !== "names") return undefined
+    out.days += 1
+    const name = holds(listing.names, session, plain)
+    return name === undefined ? undefined : rules.join(folder, name)
+  }
+  const time = madeAt(session)
+  if (time !== undefined) {
+    const folders = dayFolders(time).map((parts) => rules.join(root, ...parts))
+    const found = await Promise.all(folders.map(async (folder) => day(folder, await list(folder))))
+    out.found = found.find((path) => path !== undefined)
+    return out
+  }
+  let budget = walkBudget
+  for (const year of newest(top)) {
+    // eslint-disable-next-line no-await-in-loop -- A bounded walk reads one folder at a time.
+    const months = await list(rules.join(root, year))
+    for (const month of newest(months)) {
+      // eslint-disable-next-line no-await-in-loop -- Same.
+      const days = await list(rules.join(root, year, month))
+      for (const name of newest(days)) {
+        if (budget-- <= 0) return { ...out, unknown: true }
+        const folder = rules.join(root, year, month, name)
+        // eslint-disable-next-line no-await-in-loop -- Same.
+        const found = day(folder, await list(folder))
+        if (found !== undefined) return { ...out, found }
+      }
+    }
+  }
+  return out
+}
 
 /**
  * Codex files a rollout as `<home>/sessions/YYYY/MM/DD/rollout-<time>-<session>.jsonl` (or
@@ -66,48 +116,10 @@ export const conversations: Harness["conversations"] = (install): ConversationSc
   const rules = rulesOf(install)
   const list = lister()
 
-  const look = async (root: string, session: string): Promise<Looked> => {
-    const out: Looked = { found: false, unknown: false, days: 0 }
-    const top = await list(root)
-    if (top.kind === "unreadable" || top.kind === "file") out.unknown = true
-    if (top.kind !== "names") return out
-    // Archived threads may sit flat in their folder.
-    if (holds(top.names, session)) return { ...out, found: true }
-    const day = (listing: Listing): boolean => {
-      if (listing.kind === "unreadable") out.unknown = true
-      if (listing.kind !== "names") return false
-      out.days += 1
-      return holds(listing.names, session)
-    }
-    const time = madeAt(session)
-    if (time !== undefined) {
-      const listings = await Promise.all(
-        dayFolders(time).map((parts) => list(rules.join(root, ...parts))),
-      )
-      if (listings.some(day)) out.found = true
-      return out
-    }
-    let budget = walkBudget
-    for (const year of newest(top)) {
-      // eslint-disable-next-line no-await-in-loop -- A bounded walk reads one folder at a time.
-      const months = await list(rules.join(root, year))
-      for (const month of newest(months)) {
-        // eslint-disable-next-line no-await-in-loop -- Same.
-        const days = await list(rules.join(root, year, month))
-        for (const name of newest(days)) {
-          if (budget-- <= 0) return { ...out, unknown: true }
-          // eslint-disable-next-line no-await-in-loop -- Same.
-          if (day(await list(rules.join(root, year, month, name)))) return { ...out, found: true }
-        }
-      }
-    }
-    return out
-  }
-
   const inHome = async (home: string, session: string): Promise<Conversation> => {
     const [live, archived] = await Promise.all([
-      look(rules.join(home, "sessions"), session),
-      look(rules.join(home, "archived_sessions"), session),
+      look(rules, list, rules.join(home, "sessions"), session, false),
+      look(rules, list, rules.join(home, "archived_sessions"), session, false),
     ])
     if (live.found || archived.found) return "found"
     if (live.unknown || archived.unknown) return "unknown"
@@ -133,3 +145,24 @@ export const conversations: Harness["conversations"] = (install): ConversationSc
 
 export const conversation: Harness["conversation"] = (install, session, known) =>
   conversations(install).conversation(session, known)
+
+/**
+ * The plain rollout of the session under the home the reported path names, live or
+ * archived, by the check's own walk: where `locate` is given a path that holds none. A
+ * compressed one is not found, as no line of it can be read.
+ */
+export const rolloutAway = async (
+  reported: string,
+  session: string,
+  rules: Rules,
+): Promise<string | undefined> => {
+  const home =
+    homeOfTranscript(reported, "sessions") ?? homeOfTranscript(reported, "archived_sessions")
+  if (!sessionName.test(session) || home === undefined) return undefined
+  const list = lister()
+  const [live, archived] = await Promise.all([
+    look(rules, list, rules.join(home, "sessions"), session, true),
+    look(rules, list, rules.join(home, "archived_sessions"), session, true),
+  ])
+  return live.found ?? archived.found
+}

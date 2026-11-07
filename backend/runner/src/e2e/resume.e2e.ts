@@ -173,4 +173,58 @@ for (const setup of setups) {
       )
     })
   })
+
+  // Claude Code resumed in another folder names that folder's project in its hooks, and goes
+  // on writing the transcript where the session began (2.1.319); Codex and Antigravity keep a
+  // conversation by its id alone. A folder inside the project, trusted with it.
+  const inside = "notes"
+  describe.skipIf(!supported)(
+    `resuming a conversation in ${setup.name} from another folder`,
+    () => {
+      const it = e2e.seeded({ trustedInside: [inside] }, setup)
+      const harness = harnesses[setup.agent]
+      const sep = process.platform === "win32" ? "&" : ";"
+
+      it("serves its chat from where it began, the turns before and after", async ({
+        e2e: run,
+      }) => {
+        run.model.use(
+          replies("Remember the word kestrel", "Kestrel noted."),
+          replies("Which bird", "The bird was kestrel."),
+        )
+        const first = await run.deck.open(setup.agent)
+        await first.reached("ready", { timeoutMs: 60_000 })
+        await prompted(first, setup)
+        await turn(first, "Remember the word kestrel", "Kestrel noted.")
+        const id = (await first.detail()).sessionId
+        if (!id) throw new Error("no session bound after the first prompt")
+        await first.submit("/exit")
+        await first.poll(
+          () => (first.summary().agent === null ? true : undefined),
+          "the agent to leave after /exit",
+          30_000,
+        )
+
+        const elsewhere = join(run.sandbox.project, inside)
+        mkdirSync(elsewhere, { recursive: true })
+        const resume = harness.launch.resume!(id).join(" ")
+        const moved = await run.deck.open(`cd "${elsewhere}" ${sep} ${resume}`)
+        await moved.reached("ready", { timeoutMs: 30_000 })
+        await prompted(moved, setup, 30_000)
+        await turn(moved, "Which bird", "The bird was kestrel.")
+        expect((await moved.detail()).sessionId).toBe(id)
+        await moved.poll(
+          async () => {
+            const texts = (await moved.transcript()).map((item) => item.text)
+            const said = (words: string) => texts.some((text) => text.includes(words))
+            return said("Remember the word kestrel") && said("The bird was kestrel.")
+              ? true
+              : undefined
+          },
+          "the chat to serve the turns before and after the resume",
+          30_000,
+        )
+      })
+    },
+  )
 }

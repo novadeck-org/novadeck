@@ -1,6 +1,7 @@
 import { readdir } from "node:fs/promises"
 import { dirname, join } from "node:path"
 
+import { reportedOr, rulesOf } from "@novadeck/harness-core/conversation"
 import { parseFields, type Fields } from "@novadeck/harness-core/fields"
 import type { TranscriptDecoder, TranscriptEntry } from "@novadeck/harness-core/harness"
 import { at, entry, joined, noteEntry, textOf } from "@novadeck/harness-core/items"
@@ -8,6 +9,7 @@ import { exited } from "@novadeck/harness-core/outcomes"
 import { fileList, shellCall } from "@novadeck/harness-core/tools"
 
 import { asyncReplyText } from "./async-question.js"
+import { rolloutAway } from "./conversation.js"
 import { callChange, commandOutcome, fileChangeOutcome, outputOutcome } from "./outcomes.js"
 import { describe, scriptOf } from "./tools.js"
 
@@ -206,7 +208,10 @@ const turnMode = (fields: Fields): readonly TranscriptEntry[] => {
 }
 
 export const transcripts: TranscriptDecoder = {
-  locate: async (root, _sessionId, subagent) => {
+  locate: async (reported, sessionId, subagent) => {
+    const root = await reportedOr(reported, sessionId, () =>
+      rolloutAway(reported, sessionId, rulesOf({ platform: process.platform })),
+    )
     if (subagent === null) return root
     const suffix = `-${subagent}.jsonl`
     for (const folder of dayFolders(dirname(root))) {

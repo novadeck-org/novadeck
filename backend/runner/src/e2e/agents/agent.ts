@@ -14,6 +14,11 @@ import type { FakeModel } from "../model/server.js"
 export type Seed = {
   /** False: the project folder is not trusted, so the harness asks first. */
   readonly folderTrusted?: boolean
+  /**
+   * Folders inside the project, by name, trusted with it where a harness trusts a folder
+   * alone and not those inside it (Antigravity's `trustedWorkspaces`).
+   */
+  readonly trustedInside?: readonly string[]
   /** False: Novadeck's hooks are not trusted (Codex's "Hooks need review"), so they don't run. */
   readonly hooksTrusted?: boolean
   /**

@@ -227,7 +227,13 @@ export const agy: AgentSetup = {
       join(home, "settings.json"),
       JSON.stringify({
         onboardingComplete: true,
-        trustedWorkspaces: seed?.folderTrusted === false ? [] : [sandbox.project],
+        trustedWorkspaces:
+          seed?.folderTrusted === false
+            ? []
+            : [
+                sandbox.project,
+                ...(seed?.trustedInside ?? []).map((name) => join(sandbox.project, name)),
+              ],
         modelProvider: "gemini",
         // Novadeck's MCP tools run without asking, so a `send` needs no approval (its
         // plugin's server is namespaced after the plugin).
