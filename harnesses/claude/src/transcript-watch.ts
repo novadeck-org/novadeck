@@ -155,10 +155,12 @@ export const transcriptVersion = (line: string): string | undefined =>
  * a request a timed-out prompt denied; and for the version of Claude Code writing it, told
  * when it first shows and whenever it changes (a session resumed by a newer release).
  */
-export const followTranscript: NonNullable<Harness["watch"]> = (run, signal, emit) => {
+export const followTranscript: NonNullable<Harness["watch"]> = async (run, signal, emit) => {
   const calls: Calls = new Map()
   let version: string | undefined
-  return followLines(run.transcript, signal, (line) => {
+  // Where the session writes it, which a resume in another folder doesn't report.
+  const path = await transcripts.locate(run.transcript, run.sessionId, null)
+  return followLines(path ?? run.transcript, signal, (line) => {
     const written = transcriptVersion(line)
     if (written !== undefined && written !== version) {
       version = written

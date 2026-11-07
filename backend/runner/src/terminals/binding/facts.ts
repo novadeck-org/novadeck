@@ -269,7 +269,9 @@ export class Bindings {
   follow(record: Record, event: SessionObserved): void {
     this.unwatch(record)
     record.transcript = event.transcript ?? null
-    if (event.transcript !== undefined) this.watch(record, event.transcript)
+    if (event.transcript === undefined) return
+    this.watch(record, event.transcript)
+    this.settle(record, event.transcript)
   }
 
   /**
@@ -282,8 +284,32 @@ export class Bindings {
     if (!binding || binding.sessionId !== sessionId || record.transcript !== null) return
     record.transcript = transcript
     this.watch(record, transcript)
+    this.settle(record, transcript)
     // No detail snapshot says so (it carries no transcript): a chat that waits on it asks
     // again by its own backoff, and at the next snapshot.
+  }
+
+  /**
+   * Takes the bound session's transcript where its harness finds it, when the path its
+   * hooks named holds no file and the session's own file is elsewhere (see `reportedOr`):
+   * what reads `record.transcript` itself, as a turn's reply, reads the file the agent
+   * writes. The watch and the chat find the same by `locate` themselves. Nothing changes
+   * once the terminal is bound to another session or its transcript has changed.
+   */
+  private settle(record: Record, reported: string): void {
+    const binding = record.bound?.binding
+    const locate = binding && harnesses[binding.agent].transcripts?.locate
+    if (!binding || !locate) return
+    const { agent, sessionId, instance } = binding
+    void locate(reported, sessionId, null)
+      .then((found) => {
+        const now = record.bound?.binding
+        const same =
+          now?.agent === agent && now.sessionId === sessionId && now.instance === instance
+        if (found === undefined || found === reported || !same) return
+        if (record.transcript === reported) record.transcript = found
+      })
+      .catch(failed.following)
   }
 
   private watch(record: Record, transcript: string): void {

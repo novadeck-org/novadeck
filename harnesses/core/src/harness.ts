@@ -151,7 +151,10 @@ export type Harness = {
   readonly transcripts?: {
     /**
      * The transcript of a session's root, or of one of its subagents by its own id, given
-     * the root's; undefined when it cannot be found.
+     * the root's as the session's hooks reported it; undefined when it cannot be found.
+     * The reported root is checked: where it holds no file, the session's own file is
+     * looked for by id in the store the path names (see `reportedOr`), and the reported
+     * path is kept only where none is found, as one not written yet.
      */
     readonly locate: (
       root: string,

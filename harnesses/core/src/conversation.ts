@@ -116,6 +116,37 @@ export const fileIn = async (folder: string, file: string): Promise<Conversation
   return (await folderState(folder)) === "folder" ? "gone" : "unknown"
 }
 
+// What `reportedOr` found away from a reported path, by that path and session, for the
+// runner's life: a file a harness writes stays where it is. Bounded, oldest out first.
+const foundAway = new Map<string, string>()
+const foundAwayCap = 256
+
+/**
+ * The transcript a session's hooks reported, unless that path holds no file and `find`
+ * finds the session's own file elsewhere in its harness's store: Claude Code resumed in
+ * another folder than it began in reports a path under that folder's project, and goes on
+ * writing the file where the session began. Where neither is there, the reported path, as
+ * a new session creates its file only after its first hooks. One `stat`, and `find`'s own
+ * reads only while the reported file is missing and nothing was found for it before.
+ */
+export const reportedOr = async (
+  reported: string,
+  sessionId: string,
+  find: () => Promise<string | undefined>,
+): Promise<string> => {
+  // The reported file first: one written there since is the one the harness writes now.
+  if ((await presence(reported)) !== "absent") return reported
+  const key = `${reported}\0${sessionId}`
+  const kept = foundAway.get(key)
+  if (kept !== undefined) return kept
+  const found = await find().catch(() => undefined)
+  if (found === undefined || found === reported) return reported
+  const oldest = foundAway.size >= foundAwayCap ? foundAway.keys().next() : undefined
+  if (oldest && !oldest.done) foundAway.delete(oldest.value)
+  foundAway.set(key, found)
+  return found
+}
+
 /** The home a transcript path names, above the folder `marker` it sits under; none if it sits under none. */
 export const homeOfTranscript = (
   transcript: string | undefined,
