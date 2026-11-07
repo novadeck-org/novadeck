@@ -136,6 +136,11 @@ const terminal = (
   let last: string | undefined
   // The input holds an entry took, and whether one is in force.
   const holds: { held: boolean; settled: boolean }[] = []
+  // The person's keys a hold kept back, which go out as it lets go and show a moment later.
+  const keptBack: string[] = []
+  const letGo = () => {
+    for (const text of keptBack.splice(0)) setTimeout(() => (box = text), 30).unref()
+  }
   const host: InterruptHost = {
     admit: () => options.admit?.(),
     working: () =>
@@ -213,8 +218,14 @@ const terminal = (
       const hold = { held: true, settled: false }
       holds.push(hold)
       return {
-        release: () => (hold.held = false),
-        settle: () => Object.assign(hold, { held: false, settled: true }),
+        release: () => {
+          hold.held = false
+          letGo()
+        },
+        settle: () => {
+          Object.assign(hold, { held: false, settled: true })
+          letGo()
+        },
         settleAfter: () => {},
         holding: () => hold.held,
         discard: () => {},
@@ -241,6 +252,13 @@ const terminal = (
     /** What the program puts in the box this long from now. */
     boxAfter: (ms: number, text: string) => {
       setTimeout(() => (box = text), ms).unref()
+    },
+    /** The person's keys, `ms` from now: at once, or kept back by a hold until it lets go. */
+    keysAfter: (ms: number, text: string) => {
+      setTimeout(() => {
+        if (holds.some((hold) => hold.held)) keptBack.push(text)
+        else box = text
+      }, ms).unref()
     },
   }
 }
@@ -617,8 +635,8 @@ describe("interrupts", () => {
 
     it("gives the screen time to show what the hold let go, and leaves that as a draft", async () => {
       const t = terminal({ queued: true, prompt: "Hold on", takes: () => undefined })
-      // Held while the keys took nothing, the person's words reach the box once let go.
-      t.boxAfter(700, "my own words")
+      // Typed while the keys took nothing, kept back, the person's words reach the box once let go.
+      t.keysAfter(300, "my own words")
       expect(await t.interruptIn()).toEqual({ returned: undefined })
       expect(t.written).toEqual([UP])
     })
