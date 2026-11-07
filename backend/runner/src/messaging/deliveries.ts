@@ -525,7 +525,14 @@ export class Deliveries {
       live.queueRunning = live.promptsQueued > 0 || live.delivery.box.queued
       live.promptsQueued = Math.max(live.promptsQueued - 1, 0)
     }
-    if (event.type === "ended" || event.type === "bound" || event.type === "unbound") {
+    // A calm screen whose box reads empty with no queue shown (the doorbell's look) has nothing
+    // queued, and no turn running unheard, whose spinner would keep it from calm.
+    if (
+      event.type === "ended" ||
+      event.type === "bound" ||
+      event.type === "unbound" ||
+      event.type === "emptied"
+    ) {
       live.queueRunning = false
       live.promptsQueued = 0
     }

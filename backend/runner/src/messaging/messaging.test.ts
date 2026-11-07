@@ -6640,6 +6640,20 @@ describe("a prompt queued behind a running turn", () => {
     expect(prompt("A", claude).leaseId).toBeNull()
   })
 
+  it("lets go of what it counted once the box reads empty with no queue shown", () => {
+    const { messaging, clock: time, send, prompt, stop, claude } = create()
+    prompt("A", claude)
+    messaging.keys("A", ["content", "enter"], false)
+    stop("A", claude)
+    // The doorbell's look, once its queue's bar is past: the screen calm, its box empty, no
+    // queued row.
+    time.now += 30_000
+    messaging.emptied("A", messaging.delivery("A")!.epoch, time.now)
+    expect(messaging.delivery("A")?.state).toBe("ready")
+    sent(send("B", "moth", "The news."))
+    expect(prompt("A", claude).stdout).toContain("The news.")
+  })
+
   it("delivers on a prompt no turn ran before, as ever", () => {
     const { send, prompt, claude } = create()
     sent(send("B", "moth", "The news."))
