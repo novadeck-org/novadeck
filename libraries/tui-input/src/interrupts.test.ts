@@ -1,7 +1,7 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { describe, expect, it, vi } from "vitest"
 
-import type { BoxProfile, InputBox } from "./box/box.js"
+import type { BoxProfile, InputBox, TurnStatus } from "./box/box.js"
 import { BoxNotCleared, Interrupts, type InterruptHost } from "./interrupts.js"
 import type { InputEntry } from "./queue.js"
 import { screen as screenOf } from "./testing/screens.js"
@@ -73,6 +73,8 @@ const terminal = (
     settleMs?: number
     /** Whether what Up takes puts the box in its shell mode. */
     shellOnceTaken?: boolean
+    /** The status row the screen shows, by how many Escapes have come. */
+    status?: (escapes: number) => TurnStatus | undefined
   } = {},
 ) => {
   const began = Date.now()
@@ -108,6 +110,7 @@ const terminal = (
           erase: () => ERASE,
         }),
     shell: { expands: true, starts: false, footer: () => false, leave: () => LEAVE },
+    ...(options.status ? { status: () => options.status!(typed.length) } : {}),
     queued: () =>
       typeof options.queued === "function" ? options.queued() : options.queued === true,
     ...(options.takes === undefined
@@ -646,6 +649,39 @@ describe("interrupts", () => {
       expect(t.written).not.toContain(UP)
       // Only the clear holds them, as ever, not the wait for the queued turn.
       expect(t.holds).toEqual([{ held: false, settled: true }])
+    })
+  })
+
+  describe("a turn its queue starts with no hook", () => {
+    // Escape stopped the turn, and the program sends what was queued as a turn no hook tells of.
+    const queuedTurn = (status?: (escapes: number) => TurnStatus | undefined) =>
+      terminal({
+        queued: () => true,
+        prompt: "Hold on",
+        takes: () => undefined,
+        working: (() => {
+          let looks = 0
+          return () => (looks += 1) < 3
+        })(),
+        ...(status && { status }),
+      })
+
+    it("stops it as soon as the screen shows it, not after the whole wait", async () => {
+      const t = queuedTurn((escapes) =>
+        escapes === 0
+          ? { words: "Noodling", ending: false }
+          : { words: "Marinating", ending: false },
+      )
+      await t.interruptIn()
+      expect(t.typed).toEqual([ESC, ESC])
+      // The settle, not the queued turn's whole wait (1 s here), between the two Escapes.
+      expect(t.typedAt[1]! - t.typedAt[0]!).toBeLessThan(600)
+    })
+
+    it("waits the whole wait where the screen shows only the stopped turn's row", async () => {
+      const t = queuedTurn(() => ({ words: "Noodling", ending: false }))
+      await t.interruptIn()
+      expect(t.typedAt[1]! - t.typedAt[0]!).toBeGreaterThanOrEqual(1_000)
     })
   })
 
