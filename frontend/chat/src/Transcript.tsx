@@ -1,4 +1,5 @@
 import { sameBlock, type ChatBlock } from "@novadeck/core/conversation/turns"
+import { counted } from "@novadeck/core/units"
 import { Markdown } from "@novadeck/toolkit/Markdown"
 import { memo, useMemo } from "react"
 
@@ -9,6 +10,13 @@ import { ToolCalls } from "./ToolCalls"
 const Shortened = (): React.JSX.Element => (
   <p className="chat-shortened">Shortened here; the rest isn't carried over.</p>
 )
+
+// The line a turn the doorbell started stands as: `doorbell` alone where what it brought isn't
+// known, which is no saying that it brought nothing.
+const ringLabel = ({ messages, replies }: Extract<ChatBlock, { kind: "doorbell" }>): string => {
+  if (messages) return `doorbell · ${counted(messages.length, "message")}`
+  return replies ? "doorbell · your reply" : "doorbell"
+}
 
 const BlockView = memo(
   ({
@@ -52,6 +60,8 @@ const BlockView = memo(
         )
       case "note":
         return <p className="chat-note">{block.text}</p>
+      case "doorbell":
+        return <p className="chat-note">{ringLabel(block)}</p>
       case "tools":
         return <ToolCalls entries={block.entries} live={live} />
     }

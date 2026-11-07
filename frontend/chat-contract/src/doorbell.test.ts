@@ -23,6 +23,7 @@ const user = (text: string, at: number): ChatItem => ({
   outcome: null,
   scripted: false,
   interrupted: false,
+  ring: null,
 })
 
 const said = (line: string) =>

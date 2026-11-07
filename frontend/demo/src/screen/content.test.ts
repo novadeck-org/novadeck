@@ -39,6 +39,7 @@ const item = (fields: Partial<ChatItem>): ChatItem => ({
   outcome: null,
   scripted: false,
   interrupted: false,
+  ring: null,
   ...fields,
 })
 

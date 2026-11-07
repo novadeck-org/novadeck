@@ -1,5 +1,6 @@
 import type { ChatItem, ChatPrompt, ToolChange, ToolOutcome, ToolRun } from "../conversation"
 import { harnesses } from "../harnesses"
+import type { AgentMessage } from "../messages"
 import type { AgentStatus } from "../types"
 import { counted } from "../units"
 
@@ -51,6 +52,16 @@ export type ChatBlock =
   // What the harness records of the person stopping the agent, and the like: a line, not a
   // message.
   | { readonly kind: "note"; readonly id: string; readonly text: string }
+  // A turn Novadeck's doorbell started, where a prompt of the person's would stand: the messages
+  // it brought (`messagesOfRing`), null where those aren't known, and `replies` where it carries
+  // the person's own Inbox replies.
+  | {
+      readonly kind: "doorbell"
+      readonly id: string
+      readonly at: number | null
+      readonly messages: readonly AgentMessage[] | null
+      readonly replies: boolean
+    }
   // Consecutive tool calls, which the chat folds into one run.
   | {
       readonly kind: "tools"
@@ -106,10 +117,39 @@ export const wentItems = (
   return back.size === 0 ? items : items.filter((_, at) => !back.has(at))
 }
 
+// How long before a ring's record a message it brought may be delivered, in milliseconds: its
+// prompt's hook runs as the record is written, and records keep whole seconds at the coarsest.
+const ringSlackMs = 2_000
+
+// The messages delivered from the ring at `at`, in `items`, up to the next prompt of anyone's: a
+// message taken at a tool call of that turn came in it, and each comes with one ring only. Null
+// where none can be told, which says nothing of how many there were: `delivered` holds only
+// what the backend still lists, and a harness may not date its record.
+const messagesOfRing = (
+  items: readonly ChatItem[],
+  index: number,
+  delivered: readonly AgentMessage[],
+): readonly AgentMessage[] | null => {
+  const { at } = items[index]!
+  if (at === null) return null
+  const next = items
+    .slice(index + 1)
+    .find((item) => item.role === "user" && item.kind === "text" && !item.interrupted)
+  const until = next?.at === null || next === undefined ? Infinity : next.at - ringSlackMs
+  const brought = delivered.filter(
+    ({ deliveredAt }) =>
+      deliveredAt !== null && deliveredAt >= at - ringSlackMs && deliveredAt < until,
+  )
+  return brought.length > 0 ? brought : null
+}
+
 // The items grouped in order. A result is paired by `call` with its call wherever it is
 // (it may come first); one with no `call` goes to the latest call still waiting. A result
 // whose call is not among the items stands alone.
-export const groupItems = (items: readonly ChatItem[]): readonly ChatBlock[] => {
+export const groupItems = (
+  items: readonly ChatItem[],
+  delivered: readonly AgentMessage[] = [],
+): readonly ChatBlock[] => {
   const calls = new Set<string>()
   const results = new Map<string, ChatItem>()
   for (const item of items) {
@@ -173,13 +213,21 @@ export const groupItems = (items: readonly ChatItem[]): readonly ChatBlock[] => 
       blocks.push(
         item.interrupted
           ? { kind: "note", id: item.id, text: "Interrupted" }
-          : {
-              kind: "user",
-              id: item.id,
-              text: item.text,
-              truncated: item.truncated,
-              at: item.at,
-            },
+          : item.ring
+            ? {
+                kind: "doorbell",
+                id: item.id,
+                at: item.at,
+                messages: messagesOfRing(items, items.indexOf(item), delivered),
+                replies: item.ring.replies,
+              }
+            : {
+                kind: "user",
+                id: item.id,
+                text: item.text,
+                truncated: item.truncated,
+                at: item.at,
+              },
       )
     } else if (item.role === "agent")
       blocks.push({
@@ -234,6 +282,14 @@ export const sameBlock = (a: ChatBlock, b: ChatBlock): boolean => {
     )
   if (a.kind === "note" || b.kind === "note")
     return a.kind === "note" && b.kind === "note" && a.id === b.id && a.text === b.text
+  if (a.kind === "doorbell" || b.kind === "doorbell")
+    return (
+      a.kind === "doorbell" &&
+      b.kind === "doorbell" &&
+      a.id === b.id &&
+      a.replies === b.replies &&
+      a.messages?.length === b.messages?.length
+    )
   return (
     a.kind === b.kind &&
     a.id === b.id &&

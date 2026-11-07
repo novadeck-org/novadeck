@@ -1,4 +1,5 @@
 import type { ChatItem, ChatPrompt, ToolOutcome } from "../conversation"
+import type { AgentMessage } from "../messages"
 import { describe, expect, it } from "../test"
 import {
   agentName,
@@ -25,6 +26,7 @@ const item = (fields: Partial<ChatItem>): ChatItem => ({
   outcome: null,
   scripted: false,
   interrupted: false,
+  ring: null,
   ...fields,
 })
 const call = (tool: string, id: string | null, text = "{}") =>
@@ -363,5 +365,60 @@ describe("the items of a conversation that went", () => {
     expect(wentItems(items, [])).toBe(items)
     expect(wentItems(items, [prompt("settled", 1)])).toEqual(items)
     expect(wentItems(items, [prompt("withdrawn", null)])).toEqual(items)
+  })
+})
+
+describe("a turn the doorbell started", () => {
+  const ring = (at: number | null, replies = false) =>
+    item({ role: "user", kind: "text", text: "[line]", at, ring: { nonce: "n7Q2", replies } })
+  const prompt = (at: number | null) => item({ role: "user", kind: "text", text: "mine", at })
+  const reply = (at: number) => item({ role: "assistant", kind: "text", text: "said", at })
+  const message = (deliveredAt: number | null) =>
+    ({ id: `m-${deliveredAt}`, deliveredAt }) as unknown as AgentMessage
+  const brought = (items: readonly ChatItem[], delivered: readonly AgentMessage[]) =>
+    groupItems(items, delivered).flatMap((block) =>
+      block.kind === "doorbell"
+        ? [block.messages?.map(({ deliveredAt }) => deliveredAt) ?? null]
+        : [],
+    )
+
+  it("stands as a doorbell, not the person's words", () => {
+    const [block] = groupItems([ring(10_000)])
+    expect(block).toMatchObject({ kind: "doorbell", messages: null, replies: false })
+    expect(block).not.toHaveProperty("text")
+  })
+
+  it("says it carries the person's replies", () => {
+    expect(groupItems([ring(10_000, true)])[0]).toMatchObject({ replies: true })
+  })
+
+  it("brings what was delivered from just before it up to the next prompt", () => {
+    const items = [ring(10_000), reply(11_000), prompt(30_000)]
+    expect(brought(items, [message(8_500), message(20_000)])).toEqual([[8_500, 20_000]])
+  })
+
+  it("leaves what came long before it, and what came with the next prompt", () => {
+    const items = [ring(10_000), prompt(30_000)]
+    expect(brought(items, [message(7_000), message(29_000), message(40_000)])).toEqual([null])
+  })
+
+  it("goes on to the end where no prompt follows, as the latest ring does", () => {
+    expect(brought([ring(10_000), reply(11_000)], [message(90_000)])).toEqual([[90_000]])
+  })
+
+  it("gives a message to one ring only, the rings close together", () => {
+    const items = [ring(10_000), ring(12_000)]
+    expect(brought(items, [message(9_000), message(11_000)])).toEqual([[9_000], [11_000]])
+  })
+
+  it("knows nothing of a record with no date, rather than bringing nothing", () => {
+    expect(brought([ring(null)], [message(10_000)])).toEqual([null])
+  })
+
+  it("is drawn again once what it brought is known", () => {
+    const rung = ring(10_000)
+    const before = groupItems([rung])[0]!
+    expect(sameBlock(before, groupItems([rung], [message(10_000)])[0]!)).toBe(false)
+    expect(sameBlock(before, groupItems([rung])[0]!)).toBe(true)
   })
 })

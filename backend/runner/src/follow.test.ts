@@ -25,6 +25,7 @@ const item = (text: string): TranscriptChange => ({
       outcome: null,
       scripted: false,
       interrupted: false,
+      ring: null,
     },
   ],
 })

@@ -38,6 +38,7 @@ const userItem = (index: number, text: string): ChatItem => ({
   outcome: null,
   scripted: false,
   interrupted: false,
+  ring: null,
 })
 
 // The chat's commands over a backend that follows prompts, whose conversation the test
