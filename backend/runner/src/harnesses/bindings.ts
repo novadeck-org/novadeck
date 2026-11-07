@@ -104,6 +104,21 @@ const replaces = (binding: Binding, event: SessionObserved, busy: boolean): bool
   return binding.sessionId === event.sessionId || event.evidence !== "startup"
 }
 
+const launchUnits = (words: readonly string[]): [string, string[]][] => {
+  const found: [string, string[]][] = []
+  for (const word of words) {
+    const last = found.at(-1)
+    if (word.startsWith("-") || last === undefined) {
+      found.push([word, [word]])
+    } else last[1].push(word)
+  }
+  // A config override is named by its key as well, as several differ by it.
+  return found.map(([flag, own]): [string, string[]] => [
+    flag === "-c" || flag === "--config" ? `${flag}:${own[1]?.split("=", 1)[0] ?? ""}` : flag,
+    own,
+  ])
+}
+
 /**
  * The flags a session was launched with after a process of it reports `told`: a resume gives
  * back only what the harness forgets, so the process that resumed it tells a part of what
@@ -115,22 +130,8 @@ export const mergeLaunch = (
   told: readonly string[] | undefined,
 ): readonly string[] | undefined => {
   if (told === undefined) return known
-  const units = (words: readonly string[]): [string, string[]][] => {
-    const found: [string, string[]][] = []
-    for (const word of words) {
-      const last = found.at(-1)
-      if (word.startsWith("-") || last === undefined) {
-        found.push([word, [word]])
-      } else last[1].push(word)
-    }
-    // A config override is named by its key as well, as several differ by it.
-    return found.map(([flag, own]): [string, string[]] => [
-      flag === "-c" || flag === "--config" ? `${flag}:${own[1]?.split("=", 1)[0] ?? ""}` : flag,
-      own,
-    ])
-  }
-  const merged = new Map(units(known ?? []))
-  for (const [flag, own] of units(told)) merged.set(flag, own)
+  const merged = new Map(launchUnits(known ?? []))
+  for (const [flag, own] of launchUnits(told)) merged.set(flag, own)
   return [...merged.values()].flat()
 }
 
