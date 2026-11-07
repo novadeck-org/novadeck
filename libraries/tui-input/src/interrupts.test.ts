@@ -11,6 +11,7 @@ const UP = "\x1b[A"
 const DOWN = "\x1b[B"
 const RECALLED = "history row"
 const CLEAR = "<clear>"
+const ERASE = "<erase>"
 const ONE = "<one>"
 const PENDING = "Esc again to clear"
 
@@ -69,6 +70,8 @@ const terminal = (
     steadyReads?: number
     /** How long after an interrupt the next one of the terminal waits, in milliseconds. */
     settleMs?: number
+    /** Whether what Up takes puts the box in its shell mode. */
+    shellOnceTaken?: boolean
   } = {},
 ) => {
   const began = Date.now()
@@ -89,7 +92,8 @@ const terminal = (
       let last = first
       while (screen.rows[last + 1]?.startsWith("  ")) last += 1
       const lines = screen.rows.slice(first, last + 1).map((row) => row.slice(2))
-      return { text: lines.join("\n").trimEnd(), mode: options.mode ?? "prompt", first, last }
+      const mode = options.shellOnceTaken && box !== "" ? "shell" : (options.mode ?? "prompt")
+      return { text: lines.join("\n").trimEnd(), mode, first, last }
     },
     stands: (text: string) => text.includes("[Image"),
     textWidth: (columns) => columns - 3,
@@ -100,8 +104,9 @@ const terminal = (
       : {
           clear: (_box: InputBox, screen?: ScreenText) =>
             screen?.rows.includes(PENDING) ? ONE : CLEAR,
+          erase: () => ERASE,
         }),
-    shell: { expands: true, starts: false, footer: () => false },
+    shell: { expands: true, starts: false, footer: () => false, leave: () => ERASE },
     queued: () =>
       typeof options.queued === "function" ? options.queued() : options.queued === true,
     ...(options.takes === undefined
@@ -182,7 +187,8 @@ const terminal = (
         box = ""
         return true
       }
-      if (data === CLEAR && options.clearBrings !== undefined && written.length === 1)
+      if (data === ERASE && options.clears !== false) box = ""
+      else if (data === CLEAR && options.clearBrings !== undefined && written.length === 1)
         box = options.clearBrings
       else if (data === CLEAR && options.slow) {
         if (options.hintAfterMs === undefined) pending = true
@@ -421,8 +427,31 @@ describe("interrupts", () => {
     it("takes it into the box before any Escape, stops the turn and gives it back", async () => {
       const t = taken()
       expect(await t.interruptIn()).toEqual({ returned: "Queued beta\nQueued gamma" })
-      expect(t.written).toEqual([UP, CLEAR])
+      expect(t.written).toEqual([UP, ERASE])
       expect(t.typed).toEqual([ESC])
+    })
+
+    it("clears with keys that open nothing, whenever they land, and only one Escape", async () => {
+      const t = taken()
+      await t.interruptIn()
+      expect(t.written).not.toContain(CLEAR)
+      expect(t.written).not.toContain(ONE)
+      expect(t.typed).toEqual([ESC])
+    })
+
+    it("leaves a shell mode a queued command took the box to, and gives that command back", async () => {
+      let took = false
+      const t = terminal({
+        queued: () => !took,
+        prompt: "Hold on",
+        shellOnceTaken: true,
+        takes: () => {
+          took = true
+          return "echo hi"
+        },
+      })
+      expect(await t.interruptIn()).toEqual({ returned: "!echo hi" })
+      expect(t.written).toEqual([UP, ERASE])
     })
 
     it("holds the person's keys from before it takes to the end of the clear, by one hold", async () => {
@@ -444,7 +473,7 @@ describe("interrupts", () => {
       })
       expect(await t.interruptIn()).toEqual({ returned: "Queued beta" })
       expect(t.typed).toEqual([])
-      expect(t.written).toEqual([UP, CLEAR])
+      expect(t.written).toEqual([UP, ERASE])
     })
 
     it("gives no hold to wait out where it took: the Escape needs none", async () => {
@@ -536,6 +565,21 @@ describe("interrupts", () => {
       expect(t.holds[0]?.settled).toBe(true)
     })
 
+    it("lets the person's keys go where the terminal refuses the keys", async () => {
+      let admits = 0
+      const t = terminal({
+        queued: true,
+        takes: () => "Queued beta",
+        admit: () => {
+          admits += 1
+          if (admits > 1) throw new Error("refused")
+        },
+      })
+      await expect(t.interruptIn()).rejects.toThrow("refused")
+      expect(t.written).toEqual([])
+      expect(t.holds.every(({ settled }) => settled)).toBe(true)
+    })
+
     it("leaves it in the box, and says so, where clearing would lose an image", async () => {
       let took = false
       const t = terminal({
@@ -600,6 +644,21 @@ describe("interrupts", () => {
       expect(await t.interruptIn()).toEqual({ returned: "Queued beta\nQueued gamma" })
       expect(t.typed).toEqual([ESC])
       expect(t.holds.every(({ settled }) => settled)).toBe(true)
+    })
+
+    it("stays in the box where clearing would lose what stands in it", async () => {
+      const t = terminal({
+        queued: () => true,
+        prompt: "Hold on",
+        takes: () => undefined,
+        working: (() => {
+          let looks = 0
+          return () => (looks += 1) < 3
+        })(),
+      })
+      t.boxAfter(1_100, "[Image #1] look at this")
+      await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
+      expect(t.written).not.toContain(CLEAR)
     })
 
     it("is left as the person's where nothing held their keys", async () => {

@@ -233,7 +233,9 @@ export class Interrupts {
         (sameText(box.text, prompt) || showsTail(profile, box, rows, prompt))
       // A placeholder stands for words that clearing would lose: they are left, and said. So
       // does a box that may hold more than it shows, where those words aren't known in full.
-      if (!profile.clear || (!restored && profile.collapsed(box))) throw new BoxNotCleared()
+      if (!profile.clear) throw new BoxNotCleared()
+      if (!restored && (profile.collapsed(box) || profile.stands(box.text)))
+        throw new BoxNotCleared()
       if (!restored && profile.cut?.(box) === true) throw new BoxNotCleared()
       if (queued && fillsViewport(profile, box, rows)) throw new BoxNotCleared()
       const gone = await this.cleared(terminalId, profile, box, entry, waiting)
@@ -271,7 +273,12 @@ export class Interrupts {
       hold?.settle()
       return { screen }
     }
-    host.admit(terminalId)
+    try {
+      host.admit(terminalId)
+    } catch (error) {
+      hold?.settle()
+      throw error
+    }
     host.write(terminalId, keys)
     const until = Date.now() + this.restoreMs
     while (Date.now() < until) {
@@ -319,14 +326,18 @@ export class Interrupts {
       if (isEmpty(box)) return { returned: undefined }
       const rows = (await host.screen(terminalId))?.rows.length ?? 0
       // Words it can't give back whole stay in the box, and are said.
+      const erase = box.mode === "shell" ? profile.shell.leave : profile.erase
       if (
-        !profile.clear ||
+        !erase ||
         profile.collapsed(box) ||
         profile.stands(box.text) ||
         hidesText(profile, box, rows)
       )
         throw new BoxNotCleared()
-      const gone = await this.cleared(terminalId, profile, box, undefined, hold)
+      // Not its clear keys, which may be Escapes: text in the box before the Escape, nothing says
+      // that Escape was taken, and a program slow to take it opens its rewind picker on a pair
+      // more. These keys stop nothing and open nothing, whenever they land.
+      const gone = await this.cleared(terminalId, profile, box, undefined, hold, erase)
       if (gone === undefined) throw new BoxNotCleared()
       return { returned: wordsOf(gone) }
     } finally {
@@ -400,6 +411,7 @@ export class Interrupts {
     box: InputBox,
     entry: InputEntry | undefined,
     held?: InputHold,
+    keys: (box: InputBox, screen?: ScreenText) => string = profile.clear!,
   ): Promise<InputBox | undefined> {
     const { host } = this
     const capMs = this.clearCapMs()
@@ -423,7 +435,7 @@ export class Interrupts {
       let gone = shown
       for (let attempt = 0; attempt < 3; attempt += 1) {
         if (!holding()) return undefined
-        host.write(terminalId, profile.clear!(now, seen))
+        host.write(terminalId, keys(now, seen))
         // The same keys are written again only once the screen has changed since they were
         // (something of them was taken, and says what is left), or `restoreMs` has passed with
         // no change at all (they were lost): a program slow to take them, as one was on a busy

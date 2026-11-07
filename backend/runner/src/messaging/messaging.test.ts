@@ -6561,6 +6561,60 @@ describe("a prompt queued behind a running turn", () => {
     expect(prompt("A", claude).leaseId).toBeNull()
   })
 
+  it("takes only the one prompt for queued after an Escape, not every one after it", () => {
+    const { messaging, send, prompt, stop, claude } = create()
+    prompt("A", claude)
+    messaging.keys("A", ["escape"], false)
+    expect(prompt("A", claude).leaseId).toBeNull()
+    stop("A", claude)
+    sent(send("B", "moth", "The news."))
+    expect(prompt("A", claude).stdout).toContain("The news.")
+  })
+
+  it("lets go of prompts a turn took in as it ran, one Stop after each", () => {
+    const { messaging, send, prompt, stop, claude } = create()
+    prompt("A", claude)
+    messaging.keys("A", ["content", "enter"], false)
+    prompt("A", claude)
+    messaging.keys("A", ["content", "enter"], false)
+    prompt("A", claude)
+    // One Stop for all three, as Claude Code takes a message in at a tool's end.
+    stop("A", claude)
+    expect(prompt("A", claude).leaseId).toBeNull()
+    stop("A", claude)
+    expect(prompt("A", claude).leaseId).toBeNull()
+    stop("A", claude)
+    sent(send("B", "moth", "The news."))
+    expect(prompt("A", claude).stdout).toContain("The news.")
+  })
+
+  it("counts no Stop that continued the turn, as nothing queued has run", () => {
+    const { messaging, send, prompt, stop, claude } = create()
+    prompt("A", claude)
+    messaging.keys("A", ["content", "enter"], false)
+    prompt("A", claude)
+    sent(send("B", "moth", "First."))
+    const first = stop("A", claude)
+    expect(first.stdout).toContain("First.")
+    messaging.acknowledge("A", first.leaseId!)
+    stop("A", claude)
+    // The queued prompt runs now, unheard.
+    sent(send("B", "moth", "Second."))
+    expect(prompt("A", claude).leaseId).toBeNull()
+  })
+
+  it("forgets what was queued as a new session starts", () => {
+    const { messaging, send, prompt, stop, observe, claude } = create()
+    prompt("A", claude)
+    messaging.keys("A", ["content", "enter"], false)
+    prompt("A", claude)
+    stop("A", claude)
+    const cleared = binding("claude", "s-cleared", "1")
+    observe("A", cleared, sessionStarted(cleared, "clear"))
+    sent(send("B", "moth", "The news."))
+    expect(prompt("A", cleared).stdout).toContain("The news.")
+  })
+
   it("delivers on a prompt no turn ran before, as ever", () => {
     const { send, prompt, claude } = create()
     sent(send("B", "moth", "The news."))
