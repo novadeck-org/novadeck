@@ -163,6 +163,7 @@ export const written = (
     outcome: outcomeAmong(drafts, draft),
     scripted: draft.scripted ?? false,
     interrupted: false,
+    ring: null,
   }))
 
 // A file as Claude Code's Read returns it, a numbered line to each.

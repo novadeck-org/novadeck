@@ -92,6 +92,10 @@ export const transcriptItem = z
     scripted: z.boolean(),
     // A `user` item that records a stopped turn.
     interrupted: z.boolean(),
+    // A `user` item that is the line Novadeck's doorbell typed, not the person's words: the
+    // ring's nonce, and whether the line carries the person's Inbox replies (see
+    // docs/agent-messaging.md, "The reply line"); null on every other item.
+    ring: z.strictObject({ nonce: z.string().max(64), replies: z.boolean() }).nullable(),
   })
   .refine((item) => (item.run !== null) === (item.kind === "tool-call"), {
     message: "A tool call has a run, and no other item does",

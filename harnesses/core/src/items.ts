@@ -7,6 +7,7 @@ import {
 
 import { cutText, ref } from "./decode.js"
 import type { TranscriptEntry } from "./harness.js"
+import { ringOf } from "./prompts.js"
 
 /** When a record was written, from its ISO timestamp. */
 export const at = (value: unknown): number | null => {
@@ -87,6 +88,7 @@ export function entry(
     outcome: kind === "text" ? null : (fields.outcome ?? null),
     scripted: kind !== "text" && fields.scripted === true,
     interrupted: role === "user" && kind === "text" && fields.interrupted === true,
+    ring: role === "user" && kind === "text" ? ringOf(cut) : null,
   }
 }
 
@@ -108,4 +110,5 @@ export const interruptionEntry = (when: number): TranscriptEntry => ({
   outcome: null,
   scripted: false,
   interrupted: true,
+  ring: null,
 })

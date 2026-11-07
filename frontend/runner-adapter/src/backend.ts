@@ -1171,6 +1171,7 @@ export const runnerBackend = (
       answer: (terminalId, request, answer) => runner.agents.answer(terminalId, request, answer),
     },
     track,
+    messages.state,
   )
   // The Inbox: built from the terminals' statuses, the messages and the requests of the
   // agents that ask, once the app binds it to its workspace. Every runner backend has it.

@@ -1,4 +1,6 @@
+import { noDoorbell } from "./conversation"
 import {
+  doorbellOf,
   hasMessages,
   messageBadge,
   messageBadgeLabel,
@@ -62,6 +64,54 @@ describe("messages waiting for a terminal's agent", () => {
     expect(
       waitingFor(terminalMessages([...inbound, held, ...outbound])).map(({ id }) => id),
     ).toEqual(["queued", "leased", "held"])
+  })
+})
+
+describe("what the chat has of a terminal's doorbell", () => {
+  const delivered = (id: string, at: number) =>
+    message(id, { from: agent("fox"), to: agent("moth"), state: "delivered", deliveredAt: at })
+
+  it("is nothing where no messages are known", () => {
+    expect(doorbellOf(undefined)).toBe(noDoorbell)
+  })
+
+  it("has what's on its way, oldest first, and what came, as they came", () => {
+    const first = message("first", {
+      from: agent("fox"),
+      to: agent("moth"),
+      state: "queued",
+      sentAt: 1,
+    })
+    const second = message("second", {
+      from: agent("fox"),
+      to: agent("moth"),
+      state: "queued",
+      sentAt: 2,
+    })
+    const terminal = terminalMessages([second, first, delivered("b", 9), delivered("a", 3)])
+    const { waiting, delivered: came } = doorbellOf(terminal)
+    expect(waiting.map(({ id }) => id)).toEqual(["first", "second"])
+    expect(came.map(({ id }) => id)).toEqual(["a", "b"])
+  })
+
+  it("leaves out what its agent sent", () => {
+    const sent = message("sent", {
+      from: agent("moth"),
+      to: agent("fox"),
+      state: "delivered",
+      deliveredAt: 3,
+    })
+    expect(doorbellOf(terminalMessages([sent]))).toMatchObject({ waiting: [], delivered: [] })
+  })
+
+  it("says why it waits, and that a ring is under way", () => {
+    const terminal = {
+      ...terminalMessages([]),
+      waits: "draft",
+      waitsSince: 5,
+      ringing: true,
+    } as const
+    expect(doorbellOf(terminal)).toMatchObject({ waits: "draft", waitsSince: 5, ringing: true })
   })
 })
 

@@ -1,4 +1,5 @@
 import type { Refused } from "./conversation/prompt-refusal"
+import type { AgentMessage, MessageWaits } from "./messages"
 import type { Store } from "./store"
 import type { TerminalKey } from "./types"
 
@@ -76,6 +77,9 @@ export type ChatItem = {
   readonly scripted: boolean
   // A user item that records the person stopping the agent.
   readonly interrupted: boolean
+  // A user item that is the line Novadeck's doorbell typed rather than the person's words:
+  // `replies` where it carries their Inbox replies. Null on every other item.
+  readonly ring: { readonly nonce: string; readonly replies: boolean } | null
 }
 
 // What a request's dialog in the agent's TUI offers, as the backend read it, so the chat
@@ -267,6 +271,26 @@ export type Conversation = {
   readonly unread: boolean
   readonly slice: ChatSlice | null
   readonly box: ChatBox | null
+  readonly doorbell: ChatDoorbell
+}
+
+// What the doorbell has for the terminal's agent, as the Messages pane has it: the messages on
+// their way to it, oldest first, those it was delivered, why the doorbell can't wake it now
+// (`waits`, null where it can, or it needn't) and since when, and whether a ring is under way.
+export type ChatDoorbell = {
+  readonly waiting: readonly AgentMessage[]
+  readonly delivered: readonly AgentMessage[]
+  readonly waits: MessageWaits | null
+  readonly waitsSince: number | null
+  readonly ringing: boolean
+}
+
+export const noDoorbell: ChatDoorbell = {
+  waiting: [],
+  delivered: [],
+  waits: null,
+  waitsSince: null,
+  ringing: false,
 }
 
 export const noConversation: Conversation = {
@@ -279,6 +303,7 @@ export const noConversation: Conversation = {
   unread: false,
   slice: null,
   box: null,
+  doorbell: noDoorbell,
 }
 
 // What `Conversations.send` resolves with, where its backend follows prompts: whether a

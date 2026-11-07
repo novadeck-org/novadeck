@@ -34,6 +34,7 @@ describe("Claude Code's transcript, as captured", () => {
       scripted: false,
       // Claude Code's marker for a stopped turn.
       interrupted: true,
+      ring: null,
     })
   })
 })
