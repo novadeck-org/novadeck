@@ -641,6 +641,15 @@ describe("a terminal's events", () => {
     expect(seen).toEqual([true])
   })
 
+  it("send an attached window the note of a print on a Windows pseudoconsole", async () => {
+    const { terminal } = terminalOf({ platform: "win32" })
+    const attachment = terminal.attach("viewer", { mode: "observe" })
+    await terminal.print("noted\r\n")
+    const events = await drain(terminal, "viewer", attachment, 2)
+    expect(events.map((event) => event.type)).toEqual(["snapshot", "output"])
+    expect((events[1] as { data: string }).data).toContain("noted")
+  })
+
   it("carry what is printed, which a replay's draw does not", async () => {
     const { terminal } = terminalOf()
     const attachment = terminal.attach("viewer", { mode: "observe" })

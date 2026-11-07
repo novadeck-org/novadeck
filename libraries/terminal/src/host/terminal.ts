@@ -750,7 +750,13 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
       enqueue(async () => {
         const text = typeof what === "string" ? what : what(run.screen, conpty)
         if (!text) return
-        if (conpty) return replayOn(run.screen, text, undefined, conpty)
+        if (conpty) {
+          await replayOn(run.screen, text, undefined, conpty)
+          // The host's screen took it into its scrollback; a window's own screen draws it plainly,
+          // on a line under the prompt.
+          emitOutput(`\r\n${text}`)
+          return
+        }
         await written(run.screen, text)
         fire("drawn")
         emitOutput(text)
