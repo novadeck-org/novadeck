@@ -114,7 +114,11 @@ export const terminalActivity = (
 ): TerminalActivity => {
   if (summary.exit) return { status: exitStatus(summary.exit, quickExitMs) }
   const startup = summary.agent ? null : summary.startup
-  const named = runningProgram(summary.process, summary.agent ?? startup?.agent ?? null)
+  // `ready` names an agent at its prompt before a session, where no process can, as on Windows.
+  const named = runningProgram(
+    summary.process,
+    summary.agent ?? summary.ready ?? startup?.agent ?? null,
+  )
   // A launcher script of the shell's own may hold the foreground over the agent it started.
   const program = startup && isShellProcess(named) ? startup.agent : named
   if (!program || isShellProcess(program)) return { status: { state: "idle" }, process: program }

@@ -430,6 +430,10 @@ describe("terminal activity", () => {
     })
 
     it("says nothing for another program that holds the foreground", () => {
+      // Windows reports no process: `ready` alone names the agent, so its chat can show.
+      expect(terminalActivity(summary({ process: null, ready: "agy" }))).toMatchObject({
+        process: "agy",
+      })
       const other = summary({ process: { name: "vim", argv: null }, ready: "codex" })
       expect(terminalActivity(other).status).toEqual({ state: "running" })
     })
