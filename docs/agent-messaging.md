@@ -1181,10 +1181,11 @@ prompt draws says nothing (`starting`) until it has shown none for 5 s, then `di
 (a trust, update or login screen waits for the person). The agent's activity is checked
 in the gate and again right before the paste. An overlay is read under the box where one
 reads (on Codex, in its footer, the last rows drawn under a blank row), else from the rows from
-the cursor down and the last four: never the box's own rows, as a line or a draft may say a
+the cursor down, or the last four where fewer: never the box's own rows, as a line or a draft may say a
 view's words, nor the conversation above. A row of `─` in the box's text is text, as a frame's
 rule starts at the row's first column, and on Codex a draft's lines under blank rows are the
-box's down to its footer, the cursor moved up above them or not. The screen read
+box's down to its footer, the cursor moved up above them or not, and its dim `↓` under blank
+rows says words lie out of sight. The screen read
 settles any idle Drafting, Unknown or Fresh terminal: Settled since its completion where
 #184's late-prompt recovery recorded one (its settle window long passed), else Ready
 from the look (6 s of settle), without the first-screen logo allowance, which only a

@@ -437,6 +437,7 @@ for (const setup of setups) {
       ["Esc to cancel · ctrl+s to scope", 120, 24],
       ["reverse-i-search: merge", 40, 12],
       ["? / esc close", 80, 24],
+      ["Side from main thread · ctrl+/ to switch", 120, 24],
       ["Keyboard: ctrl+k esc Close", 40, 12],
     ] as const)
       it(`rings a reply that says "${words}" at ${columns}x${rows}`, async ({ e2e: run }) => {

@@ -120,7 +120,7 @@ const scenarios: readonly Scenario[] = [
       [80, 24],
     ] as const
   ).flatMap(([columns, rows]): Scenario[] =>
-    [1, 2, 3].map((blanks): Scenario => ({
+    [1, 2, 3, 4, 5, 12].map((blanks): Scenario => ({
       name: `blanks ${blanks} ${columns}x${rows}`,
       steps: (agent) => [
         { label: "size", resize: [columns, rows] },

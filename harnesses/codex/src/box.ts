@@ -87,7 +87,9 @@ const queued = (screen: ScreenText): boolean =>
  * e2e/probes/reply-overflow.e2e.ts). Text under the cursor is the cursor elsewhere in a draft,
  * which reads as no box as it did. Marked as showing only a part where it draws its dim `↑` at
  * the end of the first row (the `tall` states of fixtures/leftover.probe.json), which says so
- * whatever the box's height.
+ * whatever the box's height, or its dim `↓` at the end of the last, as it does over the rest of a
+ * draft with the cursor moved up: blank rows the box shows then read as holding nothing, the
+ * words under them out of sight (0.167.0, 2026-11-07, `blanks` of fixtures/ring-reading.probe.json).
  */
 const read = (screen: ScreenText) => {
   const { row, column } = screen.cursor
@@ -102,9 +104,10 @@ const read = (screen: ScreenText) => {
     : markedBox(screen, markers)
   const box = agreeing(parked && found ? { ...found, last: row } : found, shellFooter(screen.rows))
   if (!box) return box
-  const lit = screen.bright[box.first]?.trimEnd() ?? ""
-  const drawn = screen.rows[box.first]?.trimEnd() ?? ""
-  return drawn.endsWith("↑") && !lit.endsWith("↑") ? { ...box, scrolled: true as const } : box
+  const dim = (at: number, arrow: string) =>
+    (screen.rows[at]?.trimEnd() ?? "").endsWith(arrow) &&
+    !(screen.bright[at]?.trimEnd() ?? "").endsWith(arrow)
+  return dim(box.first, "↑") || dim(box.last, "↓") ? { ...box, scrolled: true as const } : box
 }
 
 /**

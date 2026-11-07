@@ -972,7 +972,7 @@ describe.each([
     }
     // With the cursor back on its first row, Codex reads the words themselves, down to its footer.
     if (harness === "codex")
-      for (const [name, shown] of named(/^blanks (\d) .*: up \1$/))
+      for (const [name, shown] of named(/^blanks ([123]) .*: up \1$/))
         expect(profile.read(shown)?.text, name).toContain("MY DRAFT BELOW")
   })
 
