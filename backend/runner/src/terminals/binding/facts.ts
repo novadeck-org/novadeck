@@ -21,7 +21,7 @@ import { standingDone } from "../../messaging/peers.js"
 import type { Companion } from "../companion.js"
 import { afterTyped } from "../exits.js"
 import { failed } from "../failures.js"
-import { markTurn } from "../interrupted.js"
+import { markEnd, markTurn } from "../interrupted.js"
 import type { Record } from "../record.js"
 import { whenEndCounts } from "../sampling.js"
 import { hasRun } from "../saved-terminals.js"
@@ -574,8 +574,11 @@ export class Bindings {
     const activity = bound ? activitySummary(bound.activity) : null
     // Before the early return below: an Escape that settles changes nothing the summary shows.
     this.ends.sight(record, activity)
-    // What the turn was doing is kept for a restart of Novadeck (`markTurn`), saved at once.
-    if (markTurn(record, activity)) {
+    // What the turn was doing is kept for a restart of Novadeck (`markTurn`), and when it ended
+    // for the age of a sleeper (`markEnd`), saved at once.
+    const turned = markTurn(record, activity)
+    const ended = markEnd(record, activity)
+    if (turned || ended) {
       record.changed = true
       this.host.save(record)
     }

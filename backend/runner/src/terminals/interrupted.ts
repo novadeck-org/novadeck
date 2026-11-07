@@ -67,6 +67,25 @@ export const markTurn = (
 }
 
 /**
+ * Keeps when the bound session's last turn ended (`AgentReport.endedAt`), a completed or
+ * failed one not cut off by a usage limit, as the Inbox stores turns. Where no session is
+ * bound, or the report is another session's, nothing. Whether it changed.
+ */
+export const markEnd = (
+  record: Pick<Record, "agents" | "bound">,
+  activity: AgentActivity | null,
+): boolean => {
+  const last = record.bound?.activity.lastTurn
+  const binding = record.bound?.binding
+  if (!binding || !last || !activity || activity.state === "working") return false
+  if ((last.outcome !== "completed" && last.outcome !== "failed") || last.limited) return false
+  const report = record.agents[binding.agent]
+  if (report?.sessionId !== binding.sessionId || (report.endedAt ?? 0) >= last.at) return false
+  record.agents = { ...record.agents, [binding.agent]: { ...report, endedAt: last.at } }
+  return true
+}
+
+/**
  * The sessions a restored terminal starts with: the same object where it was not saved or
  * held no turn. A session carries nothing of this run over, so every saved turn is dropped
  * (the terminal then differs from its row, to be saved); what the resumed agent was doing

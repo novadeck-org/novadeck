@@ -23,15 +23,20 @@ export type Told = {
 }
 
 /**
- * An agent's latest reported session in a terminal; a larger `seq` is a later report. `turn`
- * and `told` are kept in the saved row's JSON, so rows saved without them read as having
- * none, and both stay with the session only while it is the same one.
+ * An agent's latest reported session in a terminal; a larger `seq` is a later report. `turn`,
+ * `told` and `endedAt` are kept in the saved row's JSON, so rows saved without them read as
+ * having none, and all stay with the session only while it is the same one.
  */
 export type AgentReport = {
   readonly sessionId: string
   readonly seq: number
   readonly turn?: AgentTurn
   readonly told?: Told
+  /**
+   * When the session's last completed or failed turn ended, in epoch milliseconds: kept with
+   * the session, as the Inbox's stored turns go once read, so a sleeper's tab keeps its age.
+   */
+  readonly endedAt?: number
 }
 
 /**

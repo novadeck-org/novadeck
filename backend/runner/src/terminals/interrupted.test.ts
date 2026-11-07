@@ -8,7 +8,7 @@ import type { Binding } from "../harnesses/bindings.js"
 import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
-import { interruptedFor, markTurn, restored, tellInterrupted, turnOf } from "./interrupted.js"
+import { interruptedFor, markEnd, markTurn, restored, tellInterrupted, turnOf } from "./interrupted.js"
 import type { Record } from "./record.js"
 import type { AgentReport } from "./saved-terminals.js"
 
@@ -137,6 +137,42 @@ describe("keeping the turn in a terminal's sessions", () => {
     expect(gone.agents.claude).toEqual({ sessionId: "s1", seq: 1 })
   })
 
+  it("keeps when the bound session's last turn ended, once, with the session it belongs to", () => {
+    const ended = (at: number, extra: Partial<NonNullable<Activity["lastTurn"]>> = {}) =>
+      ({
+        ...started(0),
+        lastTurn: {
+          outcome: "completed",
+          reply: null,
+          at,
+          recorded: true,
+          files: [],
+          from: 0,
+          ...extra,
+        },
+      }) satisfies Activity
+    const record = terminal({ claude: { sessionId: "s1", seq: 1 } })
+    const bind = (activity: Activity) => {
+      record.bound = { binding, activity, telemetry: null }
+      return markEnd(record, summary(activity))
+    }
+    expect(bind(ended(7))).toBe(true)
+    expect(record.agents.claude).toEqual({ sessionId: "s1", seq: 1, endedAt: 7 })
+    expect(bind(ended(7))).toBe(false)
+    expect(bind(ended(9, { outcome: "failed" }))).toBe(true)
+    expect(record.agents.claude).toMatchObject({ endedAt: 9 })
+    // Not an end that was interrupted, or hit a usage limit, nor a turn that works.
+    expect(bind(ended(12, { outcome: "interrupted" }))).toBe(false)
+    expect(bind(ended(12, { limited: true }))).toBe(false)
+    expect(markEnd(record, { ...summary(ended(12)), state: "working" })).toBe(false)
+    expect(record.agents.claude).toMatchObject({ endedAt: 9 })
+    // A session that is not the report's keeps none of it.
+    const other = terminal({ claude: { sessionId: "older", seq: 1 } })
+    other.bound = record.bound
+    expect(markEnd(other, summary(ended(12)))).toBe(false)
+    expect(other.agents.claude).toEqual({ sessionId: "older", seq: 1 })
+  })
+
   it("keeps the turn of a woken shell until its session binds, whatever shows meanwhile", () => {
     const woken: Pick<Record, "agents" | "bound" | "woken"> = {
       agents: { claude: { sessionId: "s1", seq: 1, turn: "running" } },
@@ -152,11 +188,12 @@ describe("keeping the turn in a terminal's sessions", () => {
     const event = (sessionId: string, startedAt: number) =>
       ({ type: "session-observed", agent: "claude", sessionId, startedAt, instance: "1" }) as never
     const facts = { connected: true, shellInForeground: false, platform: "linux" } as never
-    const kept = { claude: { sessionId: "s1", seq: 1, turn: "running" as const } }
+    const kept = { claude: { sessionId: "s1", seq: 1, turn: "running" as const, endedAt: 4 } }
     expect(observe(state(kept), event("s1", 2), facts)?.sessions.claude).toEqual({
       sessionId: "s1",
       seq: 2,
       turn: "running",
+      endedAt: 4,
     })
     expect(observe(state(kept), event("s2", 2), facts)?.sessions.claude).toEqual({
       sessionId: "s2",
@@ -166,14 +203,15 @@ describe("keeping the turn in a terminal's sessions", () => {
 
   it("is dropped on restore, and kept apart only for the agent that resumes", () => {
     const saved: Record["agents"] = {
-      claude: { sessionId: "s1", seq: 1, turn: "waking" },
+      claude: { sessionId: "s1", seq: 1, turn: "waking", endedAt: 5 },
       codex: { sessionId: "c1", seq: 1, turn: "running" },
     }
     const launch: Pick<Held, "resumeTurn"> = {}
     const agents = restored(saved, "claude", launch)
     expect(launch.resumeTurn).toBe("waking")
+    // When a turn ended outlives the restart, as the age of a sleeper does.
     expect(agents).toEqual({
-      claude: { sessionId: "s1", seq: 1 },
+      claude: { sessionId: "s1", seq: 1, endedAt: 5 },
       codex: { sessionId: "c1", seq: 1 },
     })
     expect(saved.claude?.turn).toBe("waking")

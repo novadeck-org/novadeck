@@ -268,6 +268,23 @@ describe("sleepers", () => {
     expect(both.sleepers.summaryOf(sleeping).lastTurnAt).toBe(5)
   })
 
+  it("keeps a sleeper's age once its turn is read, from the end its row kept", () => {
+    const kept = row("a", "claude", { claude: { sessionId: "one", seq: 1, endedAt: 7 } })
+    // The Inbox's stored turn is gone once read: the row's own end stands.
+    const read = setup([kept])
+    read.sleepers.start()
+    expect(read.sleepers.summaryOf(kept).lastTurnAt).toBe(7)
+    // It is read first, before a stored turn, and the later of it and the done wins.
+    const both = setup([kept], { turnAt: 3, done: true })
+    both.sleepers.start()
+    expect(both.sleepers.summaryOf(kept).lastTurnAt).toBe(7)
+    // Another session's end is no age of this one.
+    const stale = row("b", "claude", { claude: { sessionId: "one", seq: 1, endedAt: 7 } })
+    const other = setup([{ ...stale, agents: { claude: { sessionId: "two", seq: 1, endedAt: 7 } } }])
+    other.sleepers.start()
+    expect(other.sleepers.summaryOf(stale).lastTurnAt).toBeNull()
+  })
+
   it("reads the deliveries once for every sleeper with a done mark in a listing", () => {
     const rows = [
       row("a", "claude", { claude: { sessionId: "one", seq: 1 } }),

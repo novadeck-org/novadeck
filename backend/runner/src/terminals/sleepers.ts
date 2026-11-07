@@ -370,7 +370,7 @@ export class Sleepers {
       agent: resting.agent,
       waking: this.wakes.has(row.id),
       reported,
-      lastTurnAt: this.lastTurnAt(row.id, reported),
+      lastTurnAt: this.lastTurnAt(row, resting, reported),
     })
   }
 
@@ -383,9 +383,18 @@ export class Sleepers {
     return () => (all ??= this.host.messaging().deliveredAt())
   }
 
-  /** When the sleeper's agent last ended a turn: its stored finished turn, or its standing done. */
-  private lastTurnAt(id: string, reported: TerminalSummary["reported"]): number | null {
-    const turn = this.host.inbox().lastTurnAt(id)
+  /**
+   * When the sleeper's agent last ended a turn: the end its row kept with the session, else
+   * its stored finished turn, or its standing done, the later.
+   */
+  private lastTurnAt(
+    row: ListedTerminal,
+    resting: { agent: AgentName; sessionId: string },
+    reported: TerminalSummary["reported"],
+  ): number | null {
+    const report = row.agents[resting.agent]
+    const kept = report?.sessionId === resting.sessionId ? report.endedAt : undefined
+    const turn = kept ?? this.host.inbox().lastTurnAt(row.id)
     return turn === null ? (reported?.at ?? null) : Math.max(turn, reported?.at ?? 0)
   }
 
