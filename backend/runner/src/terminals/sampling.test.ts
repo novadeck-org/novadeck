@@ -1,10 +1,18 @@
 import { afterEach, beforeEach, onTestFinished, vi } from "vitest"
 
-const fresh = vi.hoisted(() => ({ group: undefined as number | undefined }))
-vi.mock("@novadeck/terminal/pty", async (original) => ({
-  ...(await original<typeof import("@novadeck/terminal/pty")>()),
-  terminalForeground: async () => fresh.group,
+const fresh = vi.hoisted(() => ({
+  group: undefined as number | undefined,
+  sampled: undefined as { process: { name: string; argv: string[] | null } | null } | undefined,
 }))
+vi.mock("@novadeck/terminal/pty", async (original) => {
+  const real = await original<typeof import("@novadeck/terminal/pty")>()
+  return {
+    ...real,
+    terminalForeground: async () => fresh.group,
+    sampleForeground: ((...args: Parameters<typeof real.sampleForeground>) =>
+      fresh.sampled ?? real.sampleForeground(...args)) as typeof real.sampleForeground,
+  }
+})
 
 import { describe, expect, it } from "../test.js"
 import type { Record } from "./record.js"
@@ -139,6 +147,58 @@ describe("the program a fresh shell resumes where no sample names it", () => {
     sampler().prompted(record)
     vi.advanceTimersByTime(pollMs)
     expect(record.summary.lastProgram).toBe("claude")
+  })
+})
+
+describe("a woken shell whose agent has not shown", () => {
+  it("keeps the program it resumes when its prompt shows, on Windows", () => {
+    on("win32")
+    const record = { ...running("claude"), woken: Date.now() }
+    sampler().prompted(record)
+    vi.advanceTimersByTime(graceSamples * pollMs)
+    expect(record.summary.lastProgram).toBe("claude")
+    expect(record.changed).toBe(false)
+  })
+
+  it("keeps it when the wake came while the prompt's wait was running, on Windows", () => {
+    on("win32")
+    const record: SampledRecord = running("claude")
+    sampler().prompted(record)
+    record.woken = Date.now()
+    vi.advanceTimersByTime(graceSamples * pollMs)
+    expect(record.summary.lastProgram).toBe("claude")
+  })
+
+  it("lets it go once the person typed a line there, on Windows", () => {
+    on("win32")
+    const record = { ...running("claude"), woken: Date.now() }
+    record.woken = undefined
+    sampler().prompted(record)
+    vi.advanceTimersByTime(graceSamples * pollMs)
+    expect(record.summary.lastProgram).toBeNull()
+  })
+
+  it("keeps the program it resumes when a sample names the shell, where the platform names the foreground", () => {
+    on("linux")
+    fresh.sampled = { process: { name: "bash", argv: null } }
+    onTestFinished(() => void (fresh.sampled = undefined))
+    const shelled = (): SampledRecord => {
+      const record = running("claude")
+      record.summary = { ...record.summary, process: null }
+      return record
+    }
+    const woken = { ...shelled(), woken: Date.now() }
+    const typed = shelled()
+    const started = new Sampler<SampledRecord>(pollMs, {
+      stopping: () => false,
+      records: () => [woken, typed],
+      sampled: () => {},
+    })
+    started.start()
+    vi.advanceTimersByTime(pollMs)
+    started.stop()
+    expect(woken.summary).toMatchObject({ process: { name: "bash" }, lastProgram: "claude" })
+    expect(typed.summary).toMatchObject({ process: { name: "bash" }, lastProgram: "bash" })
   })
 })
 
