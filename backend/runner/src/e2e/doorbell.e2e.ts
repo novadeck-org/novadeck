@@ -6,6 +6,7 @@ import type { Question } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import { occurrences, type DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
+import { losesLineBreakKeys } from "./known-gaps.js"
 import { asked, gate, latest } from "./model/script.js"
 import {
   answers,
@@ -33,6 +34,7 @@ import {
 // the rule on parity).
 
 const down = "\x1b[B"
+const up = "\x1b[A"
 const backspace = "\x7f"
 
 const colour: Question = {
@@ -243,6 +245,72 @@ for (const setup of setups) {
       await t1.reached("ringing", { after: drafting.index, timeoutMs: 60_000 })
       await t1.until("Noted the news.")
       expect(t1.messages().waits).toBeNull()
+    })
+
+    // Blank lines typed, words under them, and the cursor moved up over the blank rows to the
+    // box's first row: on Codex that row read as an empty box, and a ring went out with the words
+    // after it; with four, its box shows blank rows alone over a dim `↓`. Every harness holds the
+    // message for the draft.
+    for (const lines of [3, 4])
+      it(`never rings over a draft under ${lines} blank rows, the cursor moved back up over them`, async ({
+        e2e: run,
+      }) => {
+        run.model.use(replies("Warm up", "Warmed up."), ...news)
+        const t1 = await start(run, setup)
+        const t2 = await start(run, setup)
+        await turn(t1, "Warm up", "Warmed up.")
+        t1.resize(80, 12)
+        await sleep(1_200)
+        const mark = t1.mark()
+        const write = (data: string) => run.deck.terminals.write({ terminalId: t1.id, data }, "e2e")
+        if (losesLineBreakKeys(setup))
+          write(`\x1b[200~${"\n".repeat(lines)}MY DRAFT BELOW\x1b[201~`)
+        else {
+          for (let line = 0; line < lines; line += 1) {
+            write(setup.agent === "agy" ? "\x1b\r" : "\n")
+            // eslint-disable-next-line no-await-in-loop -- One key after another.
+            await sleep(150)
+          }
+          write("MY DRAFT BELOW")
+        }
+        await t1.until("MY DRAFT BELOW")
+        for (let line = 0; line < lines; line += 1) {
+          t1.press(up)
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await sleep(200)
+        }
+        await t1.settled()
+        await message(t2, t1)
+        await sleep(unrung)
+        expect(states(t1, mark)).not.toContain("ringing")
+        expect(messages(t1).findLast((one) => one.from === "fox")?.state).toBe("queued")
+        expect(t1.messages().waits).toBe("draft")
+        expect(await t1.screen()).not.toContain("[Novadeck")
+        // The words are where they were, out of sight on Claude Code's box until scrolled back to.
+        t1.press(down.repeat(lines))
+        await t1.until("MY DRAFT BELOW")
+      })
+
+    // A row of `─` in a draft read as the box's top rule, so the draft as a dialog, on Claude Code
+    // and Antigravity: it waits as a draft, and says so.
+    it("holds the message for a draft with a row of ─ in it, as a draft", async ({ e2e: run }) => {
+      run.model.use(replies("Warm up", "Warmed up."), ...news)
+      const t1 = await start(run, setup)
+      const t2 = await start(run, setup)
+      await turn(t1, "Warm up", "Warmed up.")
+      t1.resize(40, 14)
+      await sleep(1_200)
+      const mark = t1.mark()
+      run.deck.terminals.write(
+        { terminalId: t1.id, data: `\x1b[200~first line\n${"─".repeat(30)}\nlast line\x1b[201~` },
+        "e2e",
+      )
+      await t1.until("last line")
+      await message(t2, t1)
+      await sleep(unrung)
+      expect(states(t1, mark)).not.toContain("ringing")
+      expect(t1.messages().waits).toBe("draft")
+      expect(await t1.screen()).not.toContain("[Novadeck")
     })
 
     it("rings an agent whose screen has a row ticking by itself, a status line's clock", async ({

@@ -96,6 +96,17 @@ describe("ruledBox", () => {
     expect(ruledBox(screen([line, "plain", line], 1, 3), markers)).toBeUndefined()
     expect(ruledBox(screen([line, line], 0, 0), markers)).toBeUndefined()
   })
+
+  it("takes a row of ─ in the text, indented under the marker, for text, not the top rule", () => {
+    const framed = ["history", line, "❯ first", `  ${line}`, "  last", line, "footer"]
+    for (const row of [2, 4])
+      expect(ruledBox(screen(framed, row, 4), markers)).toEqual({
+        text: `first\n${line}\nlast`,
+        mode: "prompt",
+        first: 2,
+        last: 4,
+      })
+  })
 })
 
 describe("markedBox", () => {
@@ -133,6 +144,15 @@ describe("markedBox", () => {
     // An empty box, its footer under a blank row, reads empty.
     const empty = markedBox(screen(["› ", "", "  model · /work/project"], 0, 2), marked)
     expect(empty).toEqual({ text: "", mode: "prompt", first: 0, last: 0 })
+  })
+
+  it("reads lines of a draft under blank rows as its own, the cursor above them", () => {
+    const marked: Markers = { prompt: "›", shell: "!" }
+    const footer = ["", "  model · /work/project", "  ? for shortcuts"]
+    const box = markedBox(screen(["› ", "", "", "  MY DRAFT", ...footer], 0, 2), marked)
+    expect(box).toEqual({ text: "\n\n\nMY DRAFT", mode: "prompt", first: 0, last: 3 })
+    // A row there that is no line of a body can't be told: no box, nothing rung over it.
+    expect(markedBox(screen(["› ", "", "", "stray", ...footer], 0, 2), marked)).toBeUndefined()
   })
 })
 
