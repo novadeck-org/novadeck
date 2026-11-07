@@ -4,7 +4,14 @@ import { appearance, terminalFixture, workspaceWithWindow } from "@novadeck/core
 import type { PreferencesValue, Workspace } from "@novadeck/core/types"
 import { describe, expect, it } from "vitest"
 
-import { availablePanels, resolveRoute, routeUrl, sourceShown, workspaceRoute } from "./routing"
+import {
+  availablePanels,
+  historyShown,
+  resolveRoute,
+  routeUrl,
+  sourceShown,
+  workspaceRoute,
+} from "./routing"
 
 const preferences: PreferencesValue = {
   fontSize: 13,
@@ -112,6 +119,29 @@ describe("route reconciliation", () => {
 
     expect(without.route.panel).toBe("terminals")
     expect(withSource.route.panel).toBe("source")
+  })
+
+  it("shows the History panel only where the backend keeps closed terminals", () => {
+    const pathname = "/projects/project/sessions/initial/grid"
+    const location = { pathname, search: "?terminal=01&panel=history" }
+
+    const without = resolveRoute(fixture(), location, preferences, 1, availablePanels(true))
+    const withHistory = resolveRoute(
+      fixture(),
+      location,
+      preferences,
+      1,
+      availablePanels(true, true),
+    )
+
+    expect(without.route.panel).toBe("terminals")
+    expect(withHistory.route.panel).toBe("history")
+    expect(historyShown({})).toBe(false)
+    expect(
+      historyShown({
+        history: { state: createStore({ rows: [] }), list: () => Promise.resolve([]) },
+      }),
+    ).toBe(true)
   })
 
   describe("deciding whether the app shows the Source panel", () => {

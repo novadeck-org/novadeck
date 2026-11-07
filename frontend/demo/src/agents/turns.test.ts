@@ -515,6 +515,8 @@ describe("demo turns", () => {
   describe("an agent Novadeck hears nothing from", () => {
     it("takes a prompt as a line and a reply, with no turn to report", async () => {
       const { agent, chat, requests, held } = open()
+      // Once the demo has said what closing it would lose, which it does as it starts.
+      await vi.advanceTimersByTimeAsync(0)
       const terminal = held(key("05"))
       expect(agent(key("05"))).toBeUndefined()
       expect(requests(key("05")).length).toBeGreaterThan(0)

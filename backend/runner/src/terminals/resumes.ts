@@ -76,6 +76,8 @@ export const resumeRefusal = (agent: AgentName, reason: UnavailableReason): stri
         `That ${label} session is already open in a terminal, or given to one that is starting: ` +
         "one session runs in one terminal. Close that terminal first, or start a new agent."
       )
+    case "conversation-gone":
+      return `That ${label} conversation is gone: ${label} no longer has it.`
   }
 }
 
@@ -101,12 +103,13 @@ export const resumeNote = (
         "no-session": `Novadeck has no ${label} session saved for this terminal`,
         "invalid-session": `the ${label} session saved for this terminal isn't one it can run`,
         "in-use": `that ${label} session is already open in another terminal`,
+        "conversation-gone": `${label} no longer has that conversation`,
       }[checked.reason]
   return why && `${label} was running here, but wasn't resumed: ${why}.`
 }
 
 /** Whether a session may resume now: its command and claim, or why not. */
-type ResumeCheck =
+export type ResumeCheck =
   | {
       readonly ok: true
       readonly argv: readonly string[]
@@ -208,6 +211,11 @@ export class Claims {
     const found = this.check(terminalId, resume.agent, resume.session, true)
     if (!found.ok) throw new DomainError("CONFLICT", resumeRefusal(resume.agent, found.reason))
     return found.key
+  }
+
+  /** The terminal that claimed the session `key` for a resume, if one did. */
+  claimant(key: string): string | undefined {
+    return this.claims.get(key)
   }
 
   /** Records the session `key` as the terminal's, once its shell runs the resume. */

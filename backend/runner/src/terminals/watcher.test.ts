@@ -15,6 +15,8 @@ const terminal = (id: string, changes: Partial<TerminalSummary> = {}): TerminalS
   agentRan: false,
   command: null,
   lastProgram: null,
+  restorable: true,
+  busy: false,
   cwd: "/tmp",
   cols: 80,
   rows: 24,

@@ -541,17 +541,23 @@ not command completion.
   but not processes, live terminal records, or replay cursors. There is no persistent
   process supervisor.
 - `terminals.close({ terminalId })`, or `runner.terminals.close(id)` without an
-  attachment, closes the terminal for good from any connection, whoever controls it. The
+  attachment, closes the terminal from any connection, whoever controls it. The
   runner forgets it as the close begins: `list` omits it, watchers receive `removed`,
-  what restores it is deleted, and nothing saves it again, so a runner that stops before
-  the shell has exited does not bring it back. It then ends the shell; attached viewers
-  still receive `exited`, and later calls report `TERMINAL_NOT_FOUND`. A close reaches a
-  runner that is shutting down too; only a stopped one refuses it, with
-  `CLOSING`. A shell that exits on its own keeps its record until eviction, and
-  the terminal itself until it is closed. A terminal kept only as saved closes the same
-  way. The runner refuses to create a terminal closed in its lifetime again, restoring
-  or not, even one a `create` was restoring as it closed, with `TERMINAL_NOT_FOUND`: a
-  client takes that as the terminal closed elsewhere.
+  what restores it is deleted from the session, and nothing saves it again, so a runner that
+  stops before the shell has exited does not bring it back. It then ends the shell; attached
+  viewers still receive `exited`, and later calls report `TERMINAL_NOT_FOUND`. A close reaches
+  a runner that is shutting down too; only a stopped one refuses it, with `CLOSING`.
+  A close is no longer final: unless nothing ever ran in the terminal (no line entered, no
+  agent session) or its project is being removed, the runner first keeps a row of it in
+  History for 30 days, built from the terminal in memory (an agent's sessions without their
+  turns; a plain terminal's last screen, masked and sealed like any transcript, which the
+  runner's shutdown waits for). Every route does: the person's, an agent's (the row names its
+  handle in `closedBy`), and a terminal kept only as saved. A shell that exits on its own
+  keeps its record until eviction, and the terminal itself until it is closed. The runner
+  refuses to create a terminal closed in its lifetime again under the same id, restoring or
+  not, even one a `create` was restoring as it closed, with `TERMINAL_NOT_FOUND`: a client
+  takes that as the terminal closed elsewhere. Bringing it back is a `create` with
+  `closed` and a new id (see `history.*`).
 - `terminals.restart({ terminalId, cols, rows, resume? })`, or
   `runner.terminals.restart(id, { cols, rows, resume })`, starts a fresh shell in a
   retained exited terminal: the same ID and session, in the shell's last reported
@@ -1328,6 +1334,30 @@ one from an earlier runner.
   `returned` leaves out Novadeck's own doorbell and reply lines. The call takes up to about half a
   second longer where nothing comes back, and a few seconds more with queued messages. The
   client's `agents.interrupt(terminalId)` is that call, and resolves with the result.
+
+- `history.*` lists the terminals closed in the last 30 days, per project, which
+  `terminals.create({ closed })` restores. A row has the id its terminal had, its project,
+  title, summary, handle (null if none), `agent` (the program's icon; null for a plain
+  terminal, whose last `program` stands in), `cwd`, `closedAt`, `closedBy` (the handle of
+  the agent that closed it; null when the person did, or an agent closed its own terminal) and its `availability`: `ready`,
+  `restoring`, `gone` (`conversation` or `folder`), `disconnected` (the agent) or `open` (the
+  handle of the terminal the conversation is bound in). The runner keeps rows in
+  `closed_terminals`; a plain terminal's saved output is the one heavy column, which neither
+  call carries. A row is kept 30 days from `closedAt`: the runner deletes older ones as it
+  starts and every hour after, through the store's `forget` (so `secure_delete` and the scrub
+  apply), and watchers receive `removed`. A plain terminal's row reads `restoring` until its
+  saved output is written. One conversation has one row: closing a terminal replaces an
+  older row of the same agent session.
+  - `history.list({ projectId })` answers the project's rows, newest first; a project with
+    none, or one the runner doesn't have, answers none.
+  - `history.watch()` streams every row across projects, `synced`, then `changed` (a close, or a
+    change of availability) and `removed` (a restored or pruned row). The client's
+    `history.watch()` yields `reset` before each fresh sequence, as `terminals.watch()` does.
+  - `terminals.create({ id, sessionId, cols, rows, closed })` restores row `closed` as the
+    new terminal `id`, with nothing else to say. An unknown row is `NOT_FOUND`; one that can't
+    be restored now is `CONFLICT`.
+  - `TerminalSummary` carries `restorable` (closing it can be undone) and `busy` (a program runs
+    in its shell besides the prompt); an absent one reads as false.
 
 - `companions.*` keeps what agents show and the person attaches beside terminals: items,
   each a pointer to a file, a page or a plan, never a copy of it, held by exactly one
