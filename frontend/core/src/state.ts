@@ -143,6 +143,8 @@ export type WorkspaceAction =
       ledBy?: string | null
       openedBy?: string | null
       agentRan?: boolean
+      restorable?: boolean
+      busy?: boolean
       titleSource?: TitleSource
     }
   | { type: "terminal/close"; target: WorkspaceTarget; terminalId: string }
@@ -541,6 +543,8 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
           ...(action.ledBy !== undefined && { ledBy: action.ledBy }),
           ...(action.openedBy !== undefined && { openedBy: action.openedBy }),
           ...(action.agentRan !== undefined && { agentRan: action.agentRan }),
+          ...(action.restorable !== undefined && { restorable: action.restorable }),
+          ...(action.busy !== undefined && { busy: action.busy }),
           ...(action.titleSource !== undefined && { titleSource: action.titleSource }),
         })
         return roster === state.roster

@@ -67,6 +67,8 @@ export type SleepersHost = {
   readonly watched: () => boolean
   /** Starts the terminal's shell resuming its agent, as a client's restore does. */
   readonly create: (row: ListedTerminal, agent: AgentName) => Promise<unknown>
+  /** Whether an agent's session could be restored from History if its terminal closed (`ClosedTerminals.restorable`). */
+  readonly restorable: (agent: AgentName, sessionId: string, settled: boolean) => Promise<boolean>
   /** Tells every watcher of a terminal kept only as saved. */
   readonly changed: (row: ListedTerminal) => void
   /** The terminal is not a sleeper any more and was not started: its message watchers end. */
@@ -107,6 +109,8 @@ export class Sleepers {
   private readonly gaps = new Set<{ readonly timer: NodeJS.Timeout; readonly end: () => void }>()
   /** The terminals a `create` is under way for, a wake's or a restore's, so none is doubled. */
   private readonly creating = new Set<string>()
+  /** Whether each sleeper's session could be restored if its terminal closed, as History judged it. */
+  private readonly restorables = new Map<string, boolean>()
   /** The session of each terminal rested here, to find its row. */
   private readonly sessions = new Map<string, string>()
   /** The runner's own creates under way, and those waiting for a place among them. */
@@ -151,7 +155,32 @@ export class Sleepers {
     this.host
       .messaging()
       .rest(id, { projectId, sessionId: row.sessionId }, row.handle, row.ledBy, resting)
+    this.judgeRestorable(row, resting)
     return resting
+  }
+
+  /**
+   * Judges whether the sleeper's session could be restored, as History does for a running
+   * agent; watchers hear of it once known. Unknown, it counts as not restorable, so a close
+   * asks rather than loses a session.
+   */
+  private judgeRestorable(
+    row: ListedTerminal,
+    resting: { agent: AgentName; sessionId: string },
+  ): void {
+    const { id } = row
+    const settled = row.agents[resting.agent]?.endedAt !== undefined
+    void this.host
+      .restorable(resting.agent, resting.sessionId, settled)
+      .then((value) => {
+        if (this.stopped || this.sessions.get(id) !== row.sessionId) return
+        if (this.host.messaging().resting(id)?.sessionId !== resting.sessionId) return
+        if (this.restorables.get(id) === value) return
+        this.restorables.set(id, value)
+        const current = this.row(id, row.sessionId)
+        if (current) this.host.changed(current)
+      })
+      .catch(() => undefined)
   }
 
   /** The shell integration did not come up: no shell can run a resume, so none rests. */
@@ -204,6 +233,16 @@ export class Sleepers {
   resting(terminalId: string): { agent: AgentName; sessionId: string } | undefined {
     if (this.host.held(terminalId)) return undefined
     return this.host.messaging().resting(terminalId)
+  }
+
+  /** The terminal resting on that session, asleep or waking, with its handle, for History to say who holds it. */
+  holder(
+    agent: AgentName,
+    sessionId: string,
+  ): { readonly handle: string; readonly terminalId: string } | undefined {
+    const terminalId = this.host.messaging().holder(agent, sessionId)
+    const handle = terminalId && this.host.saves().saved(terminalId)?.handle
+    return terminalId && handle ? { handle, terminalId } : undefined
   }
 
   /** Whether the terminal's agent sleeps: resting with no record, not being woken. */
@@ -392,6 +431,7 @@ export class Sleepers {
     this.judging.delete(terminalId)
     this.disarm(terminalId)
     this.sessions.delete(terminalId)
+    this.restorables.delete(terminalId)
   }
 
   /** A saved terminal's summary: with its agent's sleep, wake and standing report. */
@@ -404,6 +444,7 @@ export class Sleepers {
       waking: this.wakes.has(row.id),
       reported,
       lastTurnAt: this.lastTurnAt(row, resting, reported),
+      restorable: this.restorables.get(row.id) ?? false,
     })
   }
 

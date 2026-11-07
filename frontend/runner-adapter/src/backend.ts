@@ -53,6 +53,7 @@ import { createRunnerMessages } from "./agents/messages"
 import { createRunnerCompanions } from "./companions/content"
 import { createRunnerItems } from "./companions/items"
 import { answerLook, type Looks } from "./companions/looks"
+import { createRunnerHistory } from "./history"
 import { createSessionSaves } from "./sessions/saves"
 import {
   cleanlyExited,
@@ -100,6 +101,7 @@ export type RunnerApi = Pick<
   | "murmur"
   | "settings"
   | "companions"
+  | "history"
 >
 
 export type RunnerBackendOptions = {
@@ -169,6 +171,8 @@ type Launch = {
   readonly command?: string
   /** The agent's request it opens for, which names it as that agent asked. */
   readonly requestId?: string
+  /** The History row it restores, which sets its directory, title and handle. */
+  readonly closed?: string
   failure?: unknown
 }
 
@@ -858,13 +862,19 @@ export const runnerBackend = (
     const ledBy = (current.ledBy ?? null) !== summary.ledBy ? summary.ledBy : undefined
     const openedBy = (current.openedBy ?? null) !== summary.openedBy ? summary.openedBy : undefined
     const agentRan = (current.agentRan ?? false) !== summary.agentRan ? summary.agentRan : undefined
+    const restorable =
+      (current.restorable ?? false) !== (summary.restorable ?? false)
+        ? (summary.restorable ?? false)
+        : undefined
+    const busy =
+      (current.busy ?? false) !== (summary.busy ?? false) ? (summary.busy ?? false) : undefined
     // While the person's name is on its way, it is theirs, whatever the runner said before.
     const titleSource =
       unconfirmed === undefined && !sameTitleSource(current.titleSource, summary.titleSource)
         ? summary.titleSource
         : undefined
     if (
-      [name, directory, handle, ledBy, openedBy, agentRan, titleSource].every(
+      [name, directory, handle, ledBy, openedBy, agentRan, restorable, busy, titleSource].every(
         (fact) => fact === undefined,
       )
     )
@@ -880,6 +890,8 @@ export const runnerBackend = (
         ...(ledBy !== undefined && { ledBy }),
         ...(openedBy !== undefined && { openedBy }),
         ...(agentRan !== undefined && { agentRan }),
+        ...(restorable !== undefined && { restorable }),
+        ...(busy !== undefined && { busy }),
         ...(titleSource !== undefined && { titleSource }),
       },
     ]
@@ -959,13 +971,16 @@ export const runnerBackend = (
     launch = launches.get(entry.key.terminalId),
   ): Promise<boolean> => {
     const { terminalId, workspaceSessionId } = entry.key
-    const started = launch
-      ? {
-          cwd: launch.cwd,
-          ...(launch.command !== undefined && { command: launch.command }),
-          ...(launch.requestId !== undefined && { requestId: launch.requestId }),
-        }
-      : {}
+    // A restore says nothing else about the terminal: the row has it all.
+    const started = launch?.closed
+      ? { closed: launch.closed }
+      : launch
+        ? {
+            cwd: launch.cwd,
+            ...(launch.command !== undefined && { command: launch.command }),
+            ...(launch.requestId !== undefined && { requestId: launch.requestId }),
+          }
+        : {}
     return track(
       sessionThere(workspaceSessionId).then(async () => {
         const summary = await untilAnswered(
@@ -975,13 +990,15 @@ export const runnerBackend = (
               id: terminalId,
               sessionId: workspaceSessionId,
               ...started,
-              ...titled(entry.key),
+              ...(launch?.closed === undefined && titled(entry.key)),
               cols: 80,
               rows: 24,
             })
           },
           {
-            done: ["CONFLICT"],
+            // A refused restore must fail visibly; the runner answers a retried create of
+            // the same id with the terminal it has, not CONFLICT.
+            done: launch?.closed === undefined ? ["CONFLICT"] : [],
             stillWanted,
             cancelled: () => entry.closed,
           },
@@ -1290,6 +1307,8 @@ export const runnerBackend = (
   const voice = createRunnerVoice(runner.voice, track)
   // Murmur, followed the same way.
   const murmur = createRunnerMurmur(runner.murmur, track)
+  // History, followed the same way.
+  const history = createRunnerHistory(runner.history, track)
   let following = false
   // Follows a terminal's messages once the runner has it: it answers "not found" before
   // then. Called whenever a shell is created or started afresh.
@@ -1676,6 +1695,7 @@ export const runnerBackend = (
     for (const entry of entries.values()) if (!entry.closed) followWhenReady(entry)
     voice.follow()
     murmur.follow()
+    history.follow()
     inbox.follow()
     window.addEventListener("pagehide", flush)
     // The app waits for these saves, removals and closes before a close or quit can end
@@ -1699,6 +1719,7 @@ export const runnerBackend = (
       inbox.end()
       voice.stop()
       murmur.stop()
+      history.stop()
       // The last changes are saved; nothing retries after this.
       flush()
       halted = true
@@ -1709,10 +1730,11 @@ export const runnerBackend = (
   const screens = createTerminalScreens(screenOptions)
   const backend: Backend = {
     seed,
-    newTerminal: ({ directory, launch, title }) => {
+    newTerminal: ({ directory, launch, title, closed }) => {
       const terminal = startingTerminal(newId(), directory, title)
       if (title !== undefined) titles.set(terminal.id, title)
-      if (launch)
+      if (closed !== undefined) launches.set(terminal.id, { cwd: directory, closed })
+      else if (launch)
         launches.set(terminal.id, {
           cwd: directory,
           ...(launch.command !== undefined && { command: launch.command }),
@@ -1787,6 +1809,7 @@ export const runnerBackend = (
         }),
       ),
     source: createRunnerSource(runner.projects),
+    history: history.history,
     resetTitle: (key) => {
       const { terminalId } = key
       if (items.holdsWindow(target(key), terminalId))

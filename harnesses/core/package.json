@@ -8,6 +8,11 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./conversation": {
+      "development": "./src/conversation.ts",
+      "types": "./dist/conversation.d.ts",
+      "default": "./dist/conversation.js"
+    },
     "./decode": {
       "development": "./src/decode.ts",
       "types": "./dist/decode.d.ts",

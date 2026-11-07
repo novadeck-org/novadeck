@@ -98,12 +98,20 @@ export const listUnderOpener = (
 
 type TerminalFacts = Pick<
   TerminalMetadata,
-  "name" | "directory" | "handle" | "titleSource" | "ledBy" | "openedBy" | "agentRan"
+  | "name"
+  | "directory"
+  | "handle"
+  | "titleSource"
+  | "ledBy"
+  | "openedBy"
+  | "agentRan"
+  | "restorable"
+  | "busy"
 >
 
 // What the backend says of a terminal now: its name or directory, its handle, and who
 // its name is from, its lead (null once it has none), who opened it and whether an agent
-// has run there.
+// has run there, and whether closing it can be undone and a program runs in its shell.
 export const updateTerminal = (
   roster: TerminalRoster,
   terminalId: string,
@@ -111,7 +119,8 @@ export const updateTerminal = (
 ): TerminalRoster => {
   const current = roster.terminals.find((terminal) => terminal.id === terminalId)
   if (!current) return roster
-  const { name, directory, handle, titleSource, ledBy, openedBy, agentRan } = change
+  const { name, directory, handle, titleSource, ledBy, openedBy, agentRan, restorable, busy } =
+    change
   const facts: Partial<TerminalFacts> = {
     ...(name !== undefined && name !== current.name && { name }),
     ...(directory !== undefined && directory !== current.directory && { directory }),
@@ -121,6 +130,8 @@ export const updateTerminal = (
     ...(ledBy !== undefined && ledBy !== (current.ledBy ?? null) && { ledBy }),
     ...(openedBy !== undefined && openedBy !== (current.openedBy ?? null) && { openedBy }),
     ...(agentRan !== undefined && agentRan !== (current.agentRan ?? false) && { agentRan }),
+    ...(restorable !== undefined && restorable !== (current.restorable ?? false) && { restorable }),
+    ...(busy !== undefined && busy !== (current.busy ?? false) && { busy }),
   }
   if (!Object.keys(facts).length) return roster
   return {
@@ -284,6 +295,8 @@ const withStatus = (terminal: TerminalMetadata, status: TerminalStatus): Termina
     ...(terminal.ledBy ? { ledBy: terminal.ledBy } : {}),
     ...(terminal.openedBy ? { openedBy: terminal.openedBy } : {}),
     ...(terminal.agentRan ? { agentRan: terminal.agentRan } : {}),
+    ...(terminal.restorable ? { restorable: true } : {}),
+    ...(terminal.busy ? { busy: true } : {}),
     ...(terminal.titleSource ? { titleSource: terminal.titleSource } : {}),
     ...statusFields(status),
   }

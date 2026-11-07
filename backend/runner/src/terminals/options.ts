@@ -12,6 +12,7 @@ import type { InstalledShell } from "../shell/install.js"
 import type { AnswersOptions } from "./answers.js"
 import type { MurmurTimes } from "./descriptions.js"
 import type { DialogsOptions } from "./dialogs.js"
+import type { HistoryRecords, HistoryTimes } from "./history.js"
 import type { TranscriptRedactor } from "./redaction.js"
 import type { TerminalRecords } from "./saved-terminals.js"
 import type { TranscriptSealer } from "./sealing.js"
@@ -46,6 +47,12 @@ export type TerminalOptions = {
   shellFiles?: Promise<InstalledShell | undefined>
   /** Where terminals are saved for restoring; unsaved when omitted. */
   records?: TerminalRecords
+  /** Where closed terminals are kept for History; none is kept when omitted. */
+  closed?: HistoryRecords
+  /** Every project's id, for History's list of all closed terminals. */
+  projects?: () => readonly string[]
+  /** How long History waits, as in some tests. */
+  historyTimes?: Partial<HistoryTimes>
   /** The order each session gives handle words in: its own shuffle when omitted (see `handleOrder`). */
   handleOrder?: (sessionId: string) => readonly string[]
   /** The connected harnesses whose shims new shells put first on PATH. */

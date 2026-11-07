@@ -199,12 +199,14 @@ describe("keeping the turn in a terminal's sessions", () => {
     expect(observe(state(kept), event("s1", 2), facts)?.sessions.claude).toEqual({
       sessionId: "s1",
       seq: 2,
+      cwd: "/",
       turn: "running",
       endedAt: 4,
     })
     expect(observe(state(kept), event("s2", 2), facts)?.sessions.claude).toEqual({
       sessionId: "s2",
       seq: 2,
+      cwd: "/",
     })
   })
 

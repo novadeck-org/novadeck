@@ -135,11 +135,18 @@ export const observe = (
   const turn = same ? known.turn : undefined
   const told = same ? known.told : undefined
   const endedAt = same ? known.endedAt : undefined
+  // Where it bound stays its folder: a harness looks a conversation up by it, so a resume
+  // must run there, whatever directory a later report names.
+  const cwd = (same && known.cwd) || event.cwd || state.cwd
+  // Where its harness keeps the conversation, as it named it: a hint for finding it again.
+  const transcript = event.transcript ?? (same ? known.transcript : undefined)
   const sessions = {
     ...state.sessions,
     [event.agent]: {
       sessionId: event.sessionId,
       seq: event.startedAt,
+      cwd,
+      ...(transcript && { transcript }),
       ...(turn && { turn }),
       ...(told && { told }),
       ...(endedAt !== undefined && { endedAt }),

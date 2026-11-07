@@ -21,6 +21,8 @@ describe("a terminal's status", () => {
       ledBy: "fox",
       openedBy: "owl",
       agentRan: true,
+      restorable: true,
+      busy: true,
       titleSource: { kind: "agent", by: "fox" },
     } satisfies Required<Pick<TerminalMetadata, IdentityKey>>
     const roster = createRoster([

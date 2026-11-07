@@ -84,6 +84,8 @@ export const runnerTerminal = (
     ...(summary.ledBy ? { ledBy: summary.ledBy } : {}),
     ...(summary.openedBy ? { openedBy: summary.openedBy } : {}),
     ...(summary.agentRan ? { agentRan: true } : {}),
+    ...(summary.restorable ? { restorable: true } : {}),
+    ...(summary.busy ? { busy: true } : {}),
     titleSource: summary.titleSource,
   }
   if (!summary.started) {

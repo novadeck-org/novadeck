@@ -38,6 +38,7 @@ import {
 import { requestAnswer } from "./dialogs.js"
 import { feedbackDraft, maxFeedbackText } from "./feedback.js"
 import { directory, id, name } from "./fields.js"
+import { closedTerminal, historyChange } from "./history.js"
 import { askAnswer, inboxEntry } from "./inbox.js"
 import { terminalMessages, threadId } from "./messages.js"
 import { clientState, folderListing, project, workspaceSession } from "./projects.js"
@@ -183,10 +184,25 @@ export const contract = {
             // why; unseen (as for a message or a turn the stop cut short), it fails with
             // SPAWN_FAILED and the terminal stays asleep as it was.
             seen: z.boolean().optional(),
+            // The History row to restore as this new terminal (`history.list`): in the
+            // row's own directory, with its agent resumed or its saved output above a
+            // fresh shell; the terminal takes the row's title and, unless the session has
+            // taken it, handle. The row goes once the restore is confirmed. A row the runner
+            // doesn't have is NOT_FOUND; one that is `restoring` or `gone`, or whose agent
+            // isn't connected, a CONFLICT. It goes with none of the above but `sessionId`,
+            // `cols` and `rows`. A create repeated with the same new id answers with the
+            // terminal the first made, never CONFLICT, so a CONFLICT is always a refusal.
+            closed: id.optional(),
           })
           .refine(({ command, restore, resume }) => !command || (!restore && !resume), {
             message: "A terminal either starts a command or restores what it ran, not both.",
-          }),
+          })
+          .refine(
+            ({ closed, command, restore, resume, cwd, title, requestId }) =>
+              closed === undefined ||
+              (!command && !restore && !resume && !cwd && !title && !requestId),
+            { message: "A closed terminal is restored as it was, with nothing else to say." },
+          ),
       )
       .output(terminalSummary),
     // Agents' requests for a new terminal, made through Novadeck's MCP server, for the
@@ -371,6 +387,17 @@ export const contract = {
     set: procedure
       .input(z.strictObject({ agent: agentName, connected: z.boolean() }))
       .output(agentIntegration),
+  },
+  // Terminals closed in the last 30 days, per project, to restore (`terminals.create`
+  // with `closed`).
+  history: {
+    // A project's closed terminals, newest first, each with whether it can be restored now.
+    // A project with none, or that the runner doesn't have, lists none.
+    list: procedure.input(z.strictObject({ projectId: id })).output(z.array(closedTerminal)),
+    // Every project's closed terminals: each `changed`, `synced`, then later changes
+    // (a close, a restore's progress and outcome, a prune), as `terminals.watch` reports
+    // terminals. An availability found by checking files is only as of when the list was read.
+    watch: procedure.input(z.void()).output(eventIterator(historyChange)),
   },
   // What agents show and the person attaches beside terminals: items held by a terminal's
   // bar or an undocked window, kept across restarts as pointers to files, pages and plans.

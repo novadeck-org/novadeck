@@ -53,6 +53,7 @@ const setup = (
     done?: boolean
     watched?: boolean
     turnAt?: number
+    restorable?: () => Promise<boolean>
     create?: (row: ListedTerminal) => Promise<unknown>
   } = {},
 ) => {
@@ -88,6 +89,7 @@ const setup = (
     }),
     claims: () => new Claims({ boundElsewhere: () => false }),
     connected: () => Promise.resolve(options.connected ?? true),
+    restorable: options.restorable ?? (() => Promise.resolve(true)),
     resumes: () => true,
     projectOf: () => "p",
     held: (id: string) => held.has(id),
@@ -285,6 +287,20 @@ describe("sleepers", () => {
     ])
     other.sleepers.start()
     expect(other.sleepers.summaryOf(stale).lastTurnAt).toBeNull()
+  })
+
+  it("says a sleeper is restorable only once History judged its session so, and tells watchers", async () => {
+    const sleeping = row("a", "claude", { claude: { sessionId: "one", seq: 1 } })
+    const answers = [false, true]
+    const { sleepers, calls } = setup([sleeping], {
+      restorable: () => Promise.resolve(answers.shift()!),
+    })
+    sleepers.start()
+    // Unknown counts as not restorable, so a close asks rather than loses the session.
+    expect(sleepers.summaryOf(sleeping)).toMatchObject({ restorable: false, busy: false })
+    await vi.waitFor(() => expect(calls).toContain("changed a"))
+    sleepers.rest(sleeping)
+    await vi.waitFor(() => expect(sleepers.summaryOf(sleeping).restorable).toBe(true))
   })
 
   it("reads the deliveries once for every sleeper with a done mark in a listing", () => {

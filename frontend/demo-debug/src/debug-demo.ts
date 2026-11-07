@@ -32,6 +32,7 @@ import { createDemoUninstall, type DemoUninstall } from "./desktop/uninstall"
 import { updatesGroup, type DemoUpdates } from "./desktop/updates"
 import { doorbellGroups } from "./doorbell"
 import { feedbackGroups } from "./feedback"
+import { historyGroups } from "./history"
 import { inboxGroups } from "./inbox"
 import { launchGroups } from "./launch"
 import { messageGroups } from "./messages"
@@ -258,6 +259,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           ...messageGroups(inner.messages),
           ...murmurGroups(isDemoMurmur(inner.murmur) ? inner.murmur : undefined),
           ...voiceGroups(isDemoVoice(inner.voice) ? inner.voice : undefined),
+          ...historyGroups(inner.history),
           ...sourceGroups(isDemoSource(inner.source) ? inner.source : undefined),
         ],
       },

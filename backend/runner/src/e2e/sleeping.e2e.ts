@@ -10,7 +10,7 @@ for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
     const it = e2e(setup)
 
-    it("sleeps after a restart, and a message wakes the same session and is answered", async ({
+    it("sleeps after a restart, and a message wakes the same session, whose model call carries its earlier conversation", async ({
       e2e: run,
     }) => {
       run.model.use(

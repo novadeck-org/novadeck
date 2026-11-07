@@ -6,7 +6,7 @@ import { Terminals } from "../terminals/index.js"
 import { barDigest } from "../terminals/nudges.js"
 import { describe, expect } from "../test.js"
 import { FakeDescriber } from "../testing/describer.js"
-import { bash, it, create } from "./integration.test-support.js"
+import { bash, it, create, type Fixture } from "./integration.test-support.js"
 import {
   standIn,
   driver,
@@ -18,6 +18,15 @@ import {
 
 // Murmur's waits, short for the tests.
 const murmurTimes = { settleMs: 30, shellRunMs: 400, shellSettleMs: 60 }
+
+// A stand-in agent is not its shell's foreground program as a real one is, so the row it left
+// would rest on its session after a restart. These tests restore plain shells the agent binds in.
+const plain = (shell: Fixture, ...ids: string[]): void => {
+  for (const id of ids) {
+    const row = shell.store.terminal(id)!
+    shell.store.saveTerminal({ ...row, lastProgram: "bash" })
+  }
+}
 
 describe.skipIf(process.platform === "win32" || !existsSync(bash))(
   "murmur naming terminals in bash terminals",
@@ -203,6 +212,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           told: { bar: barDigest, notes: { peer: expect.any(String) } },
         })
       await first.shutdown()
+      plain(shell, terminal.id, peer.id)
 
       // The same session again under a new runner, as a restart resumes it: it holds the
       // notices and the note still, so it hears none of them again.
@@ -573,6 +583,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         .poll(() => first.get(terminal.id).titleSource, { timeout: 30_000 })
         .toEqual({ kind: "murmur" })
       await first.shutdown()
+      plain(shell, terminal.id)
       expect(shell.store.terminalIdentity(terminal.id)?.naming.murmur).not.toBeNull()
 
       // The runner restarts, and the same session binds again: it is no new conversation.

@@ -33,6 +33,12 @@ const sleeper = (
   return id
 }
 
+// Where closed terminals are kept, as the runner is given them.
+const history = (shell: Fixture) => ({
+  closed: shell.store,
+  projects: () => shell.store.projects().map(({ id }) => id),
+})
+
 describe.skipIf(process.platform === "win32" || !existsSync(bash))(
   "bash shell integration: sleeping agents",
   () => {
@@ -160,6 +166,86 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const ended = stream.next()
       await manager.close({ terminalId: id })
       await expect(ended).resolves.toMatchObject({ done: true })
+    })
+
+    it("closes a sleeper into History with its agent session, and restoring it is a new terminal on that session", async ({
+      shell,
+    }) => {
+      writeFileSync(join(shell.home, ".bashrc"), 'export PATH="$HOME/bin:$PATH"\n')
+      fakeAgent(shell.home, "claude")
+      const id = sleeper(shell, "claude", "abc-1")
+      const manager = shell.manager(history(shell))
+      const project = shell.store.session(shell.sessionId).projectId
+      // Judged restorable (the stand-in install has no files to find gone).
+      await vi.waitFor(() =>
+        expect(manager.list().find((each) => each.id === id)).toMatchObject({
+          sleeping: true,
+          restorable: true,
+          busy: false,
+        }),
+      )
+      const stream = manager.watchMessages(id)
+      await stream.next()
+      const ended = stream.next()
+      await manager.close({ terminalId: id }, "moth")
+      // Gone from the live list, its stream ended, its resting presence dropped...
+      expect(manager.list().find((each) => each.id === id)).toBeUndefined()
+      await expect(ended).resolves.toMatchObject({ done: true })
+      expect(() => manager.get(id)).toThrow(expect.objectContaining({ code: "TERMINAL_NOT_FOUND" }))
+      // ...and kept as a History row with the session, as any closed agent is.
+      const [row] = shell.store.closed(project)
+      expect(row).toMatchObject({ id, agent: "claude", closedBy: "moth" })
+      expect(row?.agents.claude).toMatchObject({ sessionId: "abc-1" })
+      expect((await manager.history.list(project))[0]?.availability).toEqual({ state: "ready" })
+
+      const restored = randomUUID()
+      const made = await manager.create(
+        {
+          id: restored,
+          sessionId: shell.sessionId,
+          cwd: shell.home,
+          cols: 100,
+          rows: 20,
+          closed: id,
+        },
+        "owner",
+      )
+      expect(made.id).toBe(restored)
+      expect(restored).not.toBe(id)
+      expect(made).toMatchObject({ sleeping: false, started: true })
+      await shell.until(manager, restored, "claude args: --resume abc-1")
+      // The closed terminal never comes back as a sleeper beside the new one.
+      expect(manager.list().filter((each) => each.sleeping)).toEqual([])
+    })
+
+    it("holds a session for a sleeper, not for a row closed from another terminal", async ({
+      shell,
+    }) => {
+      const closing = sleeper(shell, "claude", "same-1")
+      const other = sleeper(shell, "claude", "same-1")
+      const manager = shell.manager(history(shell))
+      const project = shell.store.session(shell.sessionId).projectId
+      await manager.close({ terminalId: closing })
+      const [row] = await manager.history.list(project)
+      // The other sleeper rests on the session: restoring the row would run it twice.
+      expect(row?.availability).toMatchObject({ state: "open", terminalId: other })
+      await expect(
+        manager.create(
+          {
+            id: randomUUID(),
+            sessionId: shell.sessionId,
+            cwd: shell.home,
+            cols: 100,
+            rows: 20,
+            closed: closing,
+          },
+          "owner",
+        ),
+      ).rejects.toMatchObject({ code: "CONFLICT" })
+      // Once that sleeper is closed too, nothing holds it.
+      await manager.close({ terminalId: other })
+      const rows = await manager.history.list(project)
+      expect(rows.map((each) => each.availability.state)).toEqual(["ready"])
     })
 
     it("takes the person's feedback request for a terminal that is waking", async ({ shell }) => {

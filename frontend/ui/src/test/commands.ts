@@ -42,6 +42,8 @@ export type CommandsOptions = {
   readonly conversations?: CommandContext["conversations"]
   // Murmur, when the backend has it.
   readonly murmur?: CommandContext["murmur"]
+  // The backend's closed terminals, when it keeps them.
+  readonly history?: CommandContext["history"]
 }
 
 // Real stores, navigator, commands and store subscriptions over a fixture workspace, with effects that
@@ -71,6 +73,7 @@ export const openCommands = ({
   companions,
   conversations,
   murmur,
+  history,
 }: CommandsOptions = {}) => {
   const [pathname = "", query = ""] = url.split("?")
   const resolved = resolveRoute(
@@ -78,7 +81,7 @@ export const openCommands = ({
     { pathname, search: `?${query}` },
     preferences,
     0,
-    availablePanels(true),
+    availablePanels(true, history !== undefined),
   )
   const store = createWorkspaceStore(resolved.workspace)
   const ui = createUiStore(
@@ -132,7 +135,7 @@ export const openCommands = ({
     workspace: store,
     ui,
     now: () => 1,
-    panels: availablePanels(true),
+    panels: availablePanels(true, history !== undefined),
   })
   const urls: (string | number)[] = []
   // What each new terminal was asked for, as the backend received it.
@@ -174,6 +177,7 @@ export const openCommands = ({
     companions,
     conversations,
     murmur,
+    history,
   }
   const commands = createWorkspaceCommands(context)
   // The subscriptions the provider attaches; nothing persists to storage here.

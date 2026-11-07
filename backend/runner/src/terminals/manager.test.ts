@@ -1854,6 +1854,8 @@ describe("a woken shell whose agent has not shown", () => {
     record.startupRuns = true
     record.woken = Date.now()
     inside.prompted(record, record.terminal.pty, cwd)
+    // Past the wait a Windows end of a lead is delayed by (150 ms), so a delayed end is seen too.
+    await new Promise((resolve) => setTimeout(resolve, 400))
     expect(record.summary.ledBy).toBe("moth")
     record.startupRuns = true
     record.woken = undefined

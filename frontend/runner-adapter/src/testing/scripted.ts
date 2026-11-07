@@ -19,6 +19,12 @@ import { channel } from "./channel"
 
 // Test support: a runner adapter over a runner the test scripts step by step.
 
+// A runner whose History holds nothing and never changes.
+export const noHistory = {
+  list: async () => [],
+  watch: () => channel<never>().iterator,
+}
+
 // A runner whose terminals' companions hold nothing and never change.
 export const noCompanions = {
   watch: () => channel<never>().iterator,
@@ -66,6 +72,8 @@ export const keptSummary = (
   ledBy: null,
   openedBy: null,
   agentRan: false,
+  restorable: false,
+  busy: false,
   started: false,
   sleeping: false,
   restingAgent: null,
@@ -132,7 +140,7 @@ export const scripted = ({
   background?: readonly Saved[]
   listed?: readonly TerminalSummary[]
   restart?: () => Promise<TerminalSummary>
-  // How the runner answers creating a terminal: never, by default, so a fresh shell stays starting.
+  // How the runner answers a create; by default it never does, and a fresh shell stays starting.
   create?: () => Promise<TerminalSummary>
   saveSettings?: () => Promise<void>
   connect?: (agent: string, connected: boolean) => Promise<unknown>
@@ -234,6 +242,7 @@ export const scripted = ({
         return channel<never>().iterator
       },
     },
+    history: noHistory,
     feedback: {
       watch: () => {
         const next = channel<FeedbackDraft[]>()

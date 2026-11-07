@@ -33,6 +33,7 @@ export type SavedRecord = Pick<
   | "goneSession"
   | "screenChanged"
   | "savedAt"
+  | "ran"
 >
 
 export type SavesOptions = {
@@ -90,6 +91,8 @@ type Job = {
   readonly abort: AbortController
   /** Taken for the last pass as the runner shuts down, which may write while it stops. */
   last: boolean
+  /** When the screen was taken. */
+  readonly at: number
 }
 
 /**
@@ -136,6 +139,12 @@ export class Saves {
   private readonly read = new WeakMap<SavedTerminal, number>()
   private flight: { readonly job: Job; readonly done: Promise<void> } | undefined
   private finishing: Promise<void> | undefined
+  // The screens of closed terminals on their way to History, each ending when it is written
+  // or given up; the redactor takes them before any other, one at a time.
+  private readonly archives = new Set<Promise<void>>()
+  // What waits for a terminal's next saved transcript, from a screen taken after it asked.
+  private readonly landings = new WeakMap<SavedRecord, { at: number; done: () => void }>()
+  private archiveTail: Promise<void> = Promise.resolve()
 
   constructor(
     private readonly options: SavesOptions,
@@ -277,6 +286,16 @@ export class Saves {
     this.pump()
   }
 
+  /**
+   * Saves the terminal's screen at once and calls `done` when a transcript of it, taken from
+   * now on, is written: the output it shows is then kept in its own saved copy. Never, if
+   * none is written before it closes or transcripts are off.
+   */
+  afterSaved(record: SavedRecord, done: () => void): void {
+    this.landings.set(record, { at: performance.now(), done })
+    this.save(record, true)
+  }
+
   /** Saves a terminal's restoring state alone, leaving its transcript as it is; whether it was saved. */
   private saveRow(record: SavedRecord): boolean {
     // A closed terminal is forgotten for good: work still suspended for it, as an agent's
@@ -285,9 +304,82 @@ export class Saves {
     return this.persisting(() => this.options.records?.saveTerminal(this.row(record)))
   }
 
+  /**
+   * Keeps a closing terminal's screen for History: taken now, before it is closed, then
+   * masked and sealed as any transcript is, and handed to `write` as the sealed text. A
+   * terminal's own saves stop at its close, so this is the only way its last output is
+   * kept. Nothing is written when transcripts are off, there is no key, or it cannot be
+   * masked; `finish` waits for it. `settled` runs once it is written or given up.
+   */
+  archive(
+    record: Pick<SavedRecord, "summary" | "terminal">,
+    write: (sealed: string) => void,
+    settled: () => void,
+  ): void {
+    const { redactor, sealer } = this.options
+    const text =
+      this.kept && redactor && sealer && !this.host.stopped()
+        ? transcriptOf(record.terminal.screen, Number.POSITIVE_INFINITY)
+        : undefined
+    if (!text || !redactor || !sealer) return settled()
+    const { screen } = record.terminal
+    const input: TranscriptInput = {
+      text,
+      cols: screen.cols,
+      rows: screen.rows,
+      lines: screen.buffer.normal.length,
+      maxChars: this.options.transcriptChars,
+    }
+    const { id } = record.summary
+    const epoch = this.epoch
+    const abort = new AbortController()
+    const run = async (): Promise<void> => {
+      // The redactor takes one transcript at a time: the one in flight finishes first.
+      await this.flight?.done
+      const key = await Promise.race([
+        sealer.ready,
+        new Promise<false>((resolve) =>
+          setTimeout(() => resolve(false), this.options.keyMs).unref(),
+        ),
+      ])
+      if (!key || epoch !== this.epoch || !this.kept) return
+      let masked: string | null | undefined
+      try {
+        masked = await redactor.redact(input, abort.signal)
+      } catch (error) {
+        log.error("terminals.redact-failed", "Novadeck could not redact a transcript", {
+          err: error,
+        })
+        return
+      }
+      if (!masked || epoch !== this.epoch || !this.kept) return
+      const sealed = sealer.seal(masked, id, Date.now())
+      if (sealed !== null) this.persisting(() => write(sealed), "always")
+    }
+    const done = this.archiveTail
+      .then(run)
+      .catch((error: unknown) =>
+        log.error(
+          "terminals.archive-failed",
+          "Novadeck could not keep a closed terminal's screen",
+          {
+            err: error,
+          },
+        ),
+      )
+      .finally(() => {
+        this.archives.delete(done)
+        settled()
+        this.pump()
+      })
+    this.archiveTail = done
+    this.archives.add(done)
+  }
+
   /** Takes the next waiting terminal's screen to redact, unless one is in flight already. */
   private pump(): void {
-    if (this.flight || this.finishing || !this.kept || !this.key || !this.options.redactor) return
+    if (this.flight || this.finishing || this.archives.size > 0) return
+    if (!this.kept || !this.key || !this.options.redactor) return
     if (this.host.stopping() || this.host.stopped()) return
     let next: SavedRecord | undefined
     for (const [record, urgent] of this.waiting) {
@@ -324,7 +416,8 @@ export class Saves {
   private take(record: SavedRecord, last: boolean): Job {
     const screen = record.terminal.screen
     record.screenChanged = false
-    this.state(record).taken = performance.now()
+    const at = performance.now()
+    this.state(record).taken = at
     const text = transcriptOf(screen, Number.POSITIVE_INFINITY)
     const job: Job = {
       record,
@@ -340,6 +433,7 @@ export class Saves {
       epoch: this.epoch,
       abort: new AbortController(),
       last,
+      at,
     }
     this.taken.add(job)
     return job
@@ -403,6 +497,11 @@ export class Saves {
       job.last ? "always" : "untilStopped",
     )
     if (!saved) record.screenChanged = true
+    const landing = this.landings.get(record)
+    if (saved && transcript && landing && job.at >= landing.at) {
+      this.landings.delete(record)
+      landing.done()
+    }
   }
 
   /** Whether a result is still wanted: nothing closed, turned off or stopped since it was taken. */
@@ -423,11 +522,26 @@ export class Saves {
    * during a pass share it.
    */
   finish(): Promise<void> {
-    this.finishing ??= this.last().finally(() => {
+    this.finishing ??= (
+      this.archives.size === 0 ? this.last() : this.archived().then(() => this.last())
+    ).finally(() => {
       this.finishing = undefined
       this.pump()
     })
     return this.finishing
+  }
+
+  /** Waits for the closed terminals' screens on their way to History, for `shutdownMs` at most. */
+  private async archived(): Promise<void> {
+    if (this.archives.size === 0) return
+    let timer: NodeJS.Timeout | undefined
+    await Promise.race([
+      Promise.all(this.archives),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, this.options.shutdownMs)
+      }),
+    ])
+    clearTimeout(timer)
   }
 
   private async last(): Promise<void> {
@@ -483,6 +597,7 @@ export class Saves {
       agents: record.agents,
       promptedAt: record.promptedAt,
       interruptions: record.interruptions ?? [],
+      ran: record.ran,
     }
   }
 

@@ -103,13 +103,14 @@ export type CallsHost = LeadsHost & {
   /** The terminals whose agents sleep. */
   readonly sleepers: () => Sleepers
   /** Closes a terminal for good, the person's close: one with no shell is forgotten as its row. */
-  readonly close: (terminalId: string) => Promise<void>
+  readonly close: (terminalId: string, closedBy: string | null) => Promise<void>
   /** Where a harness lives on this machine, which says how it may start with a task. */
   readonly install: (agent: AgentName) => Promise<Install | undefined>
   /** The models a harness can start with here, none where that can't be told. */
   readonly models: (agent: AgentName) => Promise<readonly Model[]>
   // A close, in the manager's steps: `closePeer` checks the runner's stop between them.
-  readonly closeForGood: (record: Record) => void
+  /** Starts closing a terminal for good; `closedBy` is the handle of the agent that closed it, null when the person did or the agent closed its own. */
+  readonly closeForGood: (record: Record, closedBy?: string | null) => void
   readonly terminate: (record: Record) => Promise<void>
   readonly remove: (record: Record) => void
   readonly forget: (terminalId: string) => void
@@ -550,7 +551,7 @@ export class Calls {
     const coming = onTheWay(this.host.messaging().onTheWay(target.terminalId, call.terminalId))
     // The runner began to stop meanwhile: the terminal is closed all the same, but the
     // caller is going too.
-    if (!(await this.end(closing))) return unansweredCalls.close
+    if (!(await this.end(closing, record.summary.handle))) return unansweredCalls.close
     const gone = this.host.messaging().goneFrom(call.terminalId)
     return {
       ok: true,
@@ -567,13 +568,13 @@ export class Calls {
    * The close steps the person's close takes: the shell ends, then the terminal is
    * forgotten. False when the runner began to stop meanwhile, the terminal closed all the same.
    */
-  private async end(record: Record | Sleeper): Promise<boolean> {
+  private async end(record: Record | Sleeper, closedBy: string | null): Promise<boolean> {
     // A sleeper has no shell to end: its row is all there is to forget.
     if (!("terminal" in record)) {
-      await this.host.close(record.summary.id)
+      await this.host.close(record.summary.id, closedBy)
       return !this.host.stopping()
     }
-    this.host.closeForGood(record)
+    this.host.closeForGood(record, closedBy)
     await this.host.terminate(record)
     if (this.host.stopping()) return false
     this.host.remove(record)
@@ -596,7 +597,8 @@ export class Calls {
       this.selfClosing.delete(id)
       if (this.host.stopping() || this.host.records().get(id) !== record) return
       if (record.closed || this.host.closingNow(id)) return
-      void this.end(record).catch(() => undefined)
+      // Its own agent closing it is no other's doing: the row names nobody.
+      void this.end(record, null).catch(() => undefined)
     }, selfCloseMs).unref()
     return { ok: true, self: true, handle, title }
   }
@@ -618,7 +620,13 @@ export class Calls {
       .request(
         { from: caller.summary.id, terminalId: id, sessionId, action: { type: "close" } },
         (outcome) => {
-          void this.closeRequested(caller.summary.id, closing, ran, outcome).catch(() => undefined)
+          void this.closeRequested(
+            caller.summary.id,
+            caller.summary.handle,
+            closing,
+            ran,
+            outcome,
+          ).catch(() => undefined)
         },
       )
     return { ok: true, asked: true, handle, title, ...(ran !== undefined && { ran }) }
@@ -635,6 +643,7 @@ export class Calls {
   /** The caller hears how its request to close a terminal went. */
   private async closeRequested(
     callerId: string,
+    callerHandle: string,
     closing: Record | Sleeper,
     ran: string | undefined,
     outcome: ApprovalOutcome,
@@ -651,7 +660,7 @@ export class Calls {
     else {
       // Told before the close, so the notice names what still comes after it.
       const coming = onTheWay(this.host.messaging().onTheWay(id, callerId))
-      if (await this.end(closing))
+      if (await this.end(closing, callerHandle))
         tell(closeNotice.confirmed(handle, closing.summary.title, ran, coming))
     }
   }

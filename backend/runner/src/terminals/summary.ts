@@ -40,6 +40,8 @@ export type Resting = {
   readonly reported: TerminalSummary["reported"]
   /** When its agent last ended a turn, where the runner kept it. */
   readonly lastTurnAt: number | null
+  /** Whether its conversation could be restored from History if it closed (see `restorable`). */
+  readonly restorable: boolean
 }
 
 /** A terminal kept only as saved, as clients see it: no shell, its last facts. */
@@ -54,6 +56,10 @@ export const savedSummaryOf = (terminal: ListedTerminal, resting?: Resting): Ter
   started: false,
   command: terminal.command,
   lastProgram: terminal.lastProgram,
+  // Nothing runs in it, so nothing is lost by closing it; a sleeper keeps what History
+  // judged of its session, and a plain saved terminal keeps what it showed.
+  restorable: resting ? resting.restorable : true,
+  busy: false,
   cwd: terminal.cwd,
   cols: 80,
   rows: 24,

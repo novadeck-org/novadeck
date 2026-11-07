@@ -1,9 +1,11 @@
 import { resetAnswering } from "@novadeck/chat/state"
+import type { AgentName } from "@novadeck/core/harnesses"
+import type { ClosedTerminal } from "@novadeck/core/history"
 import { addCompactGridTerminal } from "@novadeck/core/layout/grid-placement"
 import type { TerminalRequest } from "@novadeck/core/port"
 import { tilesOf } from "@novadeck/core/roster"
 import { activeProject, type WorkspaceAction } from "@novadeck/core/state"
-import { terminalPhase } from "@novadeck/core/terminals/ending"
+import { closeReasons } from "@novadeck/core/terminals/closing"
 import type {
   PreferencesValue,
   Project,
@@ -94,7 +96,17 @@ export type WorkspaceCommands = ShellCommands &
     // selected, and on Canvas the camera flown in to it. A panel given turns the sidebar to
     // it in the same step.
     readonly reveal: (terminalId: string, panel?: SidebarPanel) => void
-    // Closes the terminal, or asks first while a program runs in it.
+    // Brings a closed terminal back from History as a new terminal in the session on
+    // screen, selected; its row leaves the list when the backend says it is restored.
+    readonly restoreClosed: (row: ClosedTerminal) => void
+    // Brings the open terminal with this id into view, if it is in this project: the session
+    // on screen first, then its others.
+    readonly revealTerminal: (terminalId: string, projectId: string) => void
+    // Opens Preferences where the agents are connected.
+    readonly openAgentSettings: (agent: AgentName) => void
+    // Closes the terminal, or asks first while closing would lose something: a program
+    // running in it, or, where the backend keeps History, an agent mid-turn, one waiting on
+    // background work, one leading running agents, or one that couldn't be restored.
     readonly close: (terminalId: string) => void
     // Answers the pending close confirmation.
     readonly confirmClose: () => void
@@ -133,6 +145,7 @@ const holding = (
 
 export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands => {
   const { workspace, ui, chat, navigation, newTerminal, pickDirectory, crashLoop, effects } = ctx
+  const { history } = ctx
   const { murmur } = ctx
   const { go, navigateWorkspace } = navigation
   const { set, pulse } = shellEdits(ctx)
@@ -223,6 +236,67 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         enabledViews: preferences().enabledViews,
       },
     ])
+  }
+
+  // Rows being restored, by the terminal made for each, from the click until the runner says
+  // the row changed (it is restoring, or gone) or the new terminal failed or went. A second
+  // click in between would make a second terminal from the same row.
+  const restoring = new Map<string, string>()
+  const settleRestoring = (): void => {
+    if (restoring.size === 0) return
+    const rows = history?.state.getSnapshot().rows ?? []
+    const terminals = new Map(
+      workspace
+        .getSnapshot()
+        .projects.flatMap((project) =>
+          project.history.flatMap((session) =>
+            session.state.roster.terminals.map((terminal) => [terminal.id, terminal] as const),
+          ),
+        ),
+    )
+    for (const [rowId, terminalId] of restoring) {
+      const row = rows.find((each) => each.id === rowId)
+      const made = terminals.get(terminalId)
+      if (row?.availability.state !== "ready" || !made || made.state === "failed")
+        restoring.delete(rowId)
+    }
+  }
+  history?.state.subscribe(settleRestoring)
+  workspace.subscribe(settleRestoring)
+
+  const reveal = (terminalId: string, panel?: SidebarPanel): void => {
+    const snapshot = workspace.getSnapshot()
+    const found = holding(snapshot, terminalId)
+    if (!found) return
+    const { project, session } = found
+    const target = { projectId: project.id, workspaceSessionId: session.id }
+    recent.setSwitcher(null)
+    // Out from behind any dialog, as the session's front comes from another one.
+    if (sameTarget(target, currentTarget(snapshot))) {
+      go({ terminal: terminalId, dialog: null, ...(panel && { panel }) })
+      pulse("fly")
+      set("sidebar", false)
+      return
+    }
+    const { enabledViews } = preferences()
+    const now = effects.now()
+    navigateWorkspace(
+      [
+        {
+          type: "session/select",
+          projectId: project.id,
+          workspaceSessionId: session.id,
+          now,
+          enabledViews,
+        },
+        ...(project.id === snapshot.activeProjectId
+          ? []
+          : [{ type: "project/select" as const, projectId: project.id, now, enabledViews }]),
+      ],
+      { terminal: terminalId, dialog: null, ...(panel && { panel }) },
+    )
+    pulse("fly")
+    set("sidebar", false)
   }
 
   return {
@@ -464,52 +538,65 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         markCreated({ context: `${project.id}/${session.id}`, id: terminal.id })
       request.answer({ terminalId: terminal.id })
     },
-    reveal: (terminalId, panel) => {
-      const snapshot = workspace.getSnapshot()
-      const found = holding(snapshot, terminalId)
-      if (!found) return
-      const { project, session } = found
-      const target = { projectId: project.id, workspaceSessionId: session.id }
+    restoreClosed: (row) => {
+      if (restoring.has(row.id)) return
       recent.setSwitcher(null)
-      // Out from behind any dialog, as the session's front comes from another one.
-      if (sameTarget(target, currentTarget(snapshot))) {
-        go({ terminal: terminalId, dialog: null, ...(panel && { panel }) })
-        pulse("fly")
-        set("sidebar", false)
-        return
-      }
-      const { enabledViews } = preferences()
-      const now = effects.now()
-      navigateWorkspace(
-        [
-          {
-            type: "session/select",
-            projectId: project.id,
-            workspaceSessionId: session.id,
-            now,
-            enabledViews,
-          },
-          ...(project.id === snapshot.activeProjectId
-            ? []
-            : [{ type: "project/select" as const, projectId: project.id, now, enabledViews }]),
-        ],
-        { terminal: terminalId, dialog: null, ...(panel && { panel }) },
-      )
-      pulse("fly")
+      const snapshot = workspace.getSnapshot()
+      const { roster, layout, view } = currentState(snapshot)
+      const target = currentTarget(snapshot)
+      // The backend names and starts it from the row; until it says more the terminal shows
+      // the row's folder. No `title`: that would make the row's name the person's own.
+      const terminal = newTerminal({ target, directory: row.cwd, closed: row.id })
+      restoring.set(row.id, terminal.id)
+      const active = rename.activeRename()
+      if (active) rename.finishRename(active, true)
+      markCreated({ context: currentContext(snapshot), id: terminal.id })
+      shell.setKeyboardFocus({ id: terminal.id, view })
+      // The sidebar stays on History, where the person is working down the list.
+      navigateWorkspace([
+        {
+          type: "terminal/add",
+          target,
+          terminal,
+          gridLayouts: addCompactGridTerminal(tilesOf(roster), layout.grid, terminal),
+          canvasSize: ui.getSnapshot().canvasWindowSize,
+        },
+      ])
+      pulse()
       set("sidebar", false)
     },
+    revealTerminal: (terminalId, projectId) => {
+      // The row's project holds the one meant, in the session on screen first.
+      const snapshot = workspace.getSnapshot()
+      const sessions = snapshot.projects.find((project) => project.id === projectId)?.history ?? []
+      const current = currentTarget(snapshot).workspaceSessionId
+      const ordered = [
+        ...sessions.filter((session) => session.id === current),
+        ...sessions.filter((session) => session.id !== current),
+      ]
+      for (const session of ordered) {
+        const found = session.state.roster.terminals.find((terminal) => terminal.id === terminalId)
+        if (found) return reveal(found.id)
+      }
+    },
+    openAgentSettings: (agent) => {
+      recent.setSwitcher(null)
+      ui.update((state) => ({ ...state, agentFocus: agent }))
+      go({ dialog: "preferences", section: "general" })
+    },
+    reveal,
     close: (terminalId) => {
       const snapshot = workspace.getSnapshot()
       const closing = currentState(snapshot).roster.terminals.find(
         (terminal) => terminal.id === terminalId,
       )
-      // Closing ends the shell, so ask first while a program still runs in it, or an agent
-      // sleeps or wakes in it with its session saved; the confirmation dialog renders from this and
-      // answers with confirmClose or cancelClose.
+      // Closing ends the shell, so ask first while it would lose something (see
+      // `closeReasons`); the confirmation dialog renders from this and answers with
+      // confirmClose or cancelClose.
       if (
-        closing?.state === "running" ||
-        closing?.state === "sleeping" ||
-        (closing && terminalPhase(closing) === "waking")
+        closing &&
+        closeReasons(closing, history !== undefined, currentState(snapshot).roster.terminals)
+          .length > 0
       )
         return void ui.update((state) => ({
           ...state,

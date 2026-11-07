@@ -11,7 +11,7 @@ import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable, useSortable } from "@dnd-kit/react/sortable"
 import { sidebarPanels, type SidebarPanel } from "@novadeck/core/types"
 import { ToggleGroup, ToggleGroupItem } from "@novadeck/toolkit/ToggleGroup"
-import { FolderGit2, History, Inbox, Terminal as TerminalIcon } from "lucide-react"
+import { FolderGit2, History, Inbox, Layers2, Terminal as TerminalIcon } from "lucide-react"
 import { useCallback, useLayoutEffect, useRef, useState, type ComponentProps } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
@@ -22,7 +22,8 @@ import { movedPanel } from "./rail-order"
 const panels = {
   terminals: { label: "Terminals", icon: TerminalIcon },
   source: { label: "Source", icon: FolderGit2 },
-  sessions: { label: "Sessions", icon: History },
+  sessions: { label: "Sessions", icon: Layers2 },
+  history: { label: "History", icon: History },
   inbox: { label: "Inbox", icon: Inbox },
 } as const satisfies Record<SidebarPanel, { label: string; icon: unknown }>
 
@@ -62,6 +63,7 @@ export const SidebarRail = ({
   badge,
   bellRings,
   hasSource = false,
+  hasHistory = false,
   order = sidebarPanels,
   onOrder,
   toggleSidebar,
@@ -76,13 +78,17 @@ export const SidebarRail = ({
   bellRings: number
   // Whether the backend has a Source panel to toggle.
   hasSource?: boolean
+  // Whether the backend keeps closed terminals, which the History panel lists.
+  hasHistory?: boolean
   // Every panel, the ones this backend doesn't show included, in the person's order.
   order?: readonly SidebarPanel[]
   onOrder?: (order: readonly SidebarPanel[]) => void
   toggleSidebar: (panel: SidebarPanel) => void
   hideSidebar: () => void
 }): React.JSX.Element => {
-  const shown = order.filter((id) => hasSource || id !== "source")
+  const shown = order.filter(
+    (id) => (hasSource || id !== "source") && (hasHistory || id !== "history"),
+  )
   const toggleId = (id: SidebarPanel): string => `${mobile ? "mobile-" : ""}${id}-toggle`
   const [dragging, setDragging] = useState(false)
   // The toggle that takes the focus after a keyboard move or a drag, as moving its button

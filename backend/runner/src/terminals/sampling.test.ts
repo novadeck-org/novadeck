@@ -20,6 +20,7 @@ import {
   boundProgram,
   exitKeysMs,
   programOf,
+  programRuns,
   Sampler,
   shellBusy,
   endingSamples,
@@ -210,6 +211,30 @@ describe("a woken shell whose agent has not shown", () => {
   })
 })
 
+describe("the first sample of a plain shell", () => {
+  it("names the shell the program to resume even where it equals the summary's starting value, as on macOS", () => {
+    on("darwin")
+    // macOS reports a plain shell without its arguments, as the summary starts with it.
+    fresh.sampled = { process: { name: "bash", argv: null } }
+    onTestFinished(() => void (fresh.sampled = undefined))
+    const record = running(null)
+    record.summary = { ...record.summary, process: { name: "bash", argv: null } }
+    // An agent bound before the first sample and left within it.
+    expect(boundProgram(record, "claude")).toBe(true)
+    expect(record.summary.lastProgram).toBe("claude")
+    const started = new Sampler<SampledRecord>(pollMs, {
+      stopping: () => false,
+      records: () => [record],
+      sampled: () => {},
+    })
+    started.start()
+    vi.advanceTimersByTime(pollMs)
+    started.stop()
+    expect(record.summary.lastProgram).toBe("bash")
+    expect(record.changed).toBe(true)
+  })
+})
+
 describe("whether a shell may be running a program", () => {
   const shell = (fields: object = {}) =>
     ({
@@ -265,5 +290,28 @@ describe("the program a foreground process is", () => {
     expect(programOf({ name: "node", argv: ["node", "/home/me/.local/bin/codex"] })).toBe("codex")
     expect(programOf({ name: "node", argv: ["node", "server.js"] })).toBe("node")
     expect(programOf({ name: "node", argv: null })).toBe("node")
+  })
+})
+
+describe("whether a program runs in a shell, for the summary", () => {
+  const shell = (fields: object = {}) =>
+    ({
+      foreground: undefined,
+      terminal: { pty: { pid: undefined }, exit: null, exiting: false },
+      summary: { process: { name: "bash", argv: null } },
+      shellName: "bash",
+      prompts: [],
+      submitted: false,
+      startupRuns: false,
+      ...fields,
+    }) as unknown as Parameters<typeof programRuns>[0]
+
+  it("counts a startup command that has not ended, before any prompt was reported, as on Windows", () => {
+    expect(programRuns(shell())).toBe(false)
+    expect(programRuns(shell({ startupRuns: true }))).toBe(true)
+  })
+
+  it("stops counting it once the shell's prompt came back", () => {
+    expect(programRuns(shell({ startupRuns: false, submitted: true }))).toBe(false)
   })
 })
