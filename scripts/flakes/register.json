@@ -129,7 +129,7 @@
     },
     {
       "id": "e2e-claude-macos-mixed-outlived-deck",
-      "jobs": ["^Mixed \\(macOS\\)$", "^Claude Code \\((?:macOS|[12]/2)\\)$"],
+      "jobs": ["^Mixed \\(macOS\\)$", "^Claude Code \\((?:macOS(?:, [12]/2)?|[12]/2)\\)$"],
       "test": "src/e2e/",
       "signature": "a process outlived the deck in the sandbox: claude \\(\\d+\\)",
       "status": "fixed",
@@ -196,7 +196,7 @@
     },
     {
       "id": "e2e-claude-macos-continuation-stop",
-      "jobs": ["^Claude Code \\(macOS\\)$"],
+      "jobs": ["^Claude Code \\(macOS(?:, [12]/2)?\\)$"],
       "test": "src/e2e/messaging.e2e.ts > Claude Code > ends a continuation whose own Stop hook's report never came",
       "signature": "moth can't reach working: timed out after \\d+ ms\\. moth: ready → drafting → unbound",
       "status": "known",
