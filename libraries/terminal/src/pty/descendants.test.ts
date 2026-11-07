@@ -48,7 +48,6 @@ describe("a process's listing", () => {
       foreground: 9,
       started: "987654",
       zombie: false,
-      tty: "34816",
     })
     expect(parseStat(`42 (node) Z ${fields.slice(2)}`)?.zombie).toBe(true)
     expect(parseStat("42 node")).toBeUndefined()
@@ -57,8 +56,8 @@ describe("a process's listing", () => {
 
   it("reads ps's rows, keeping a start as it is written", () => {
     const output = [
-      "  101     1   101   101 Ss   ttys003 Fri Nov  6 15:20:11 2026",
-      "  102   101   102    -1 Z+   ?? Fri Nov  6 15:20:12 2026",
+      "  101     1   101   101 Ss   Fri Nov  6 15:20:11 2026",
+      "  102   101   102    -1 Z+   Fri Nov  6 15:20:12 2026",
       "not a row",
     ].join("\n")
     expect(parsePs(output)).toEqual([
@@ -69,7 +68,6 @@ describe("a process's listing", () => {
         foreground: 101,
         started: "Fri Nov  6 15:20:11 2026",
         zombie: false,
-        tty: "ttys003",
       },
       {
         pid: 102,
@@ -78,7 +76,6 @@ describe("a process's listing", () => {
         foreground: -1,
         started: "Fri Nov  6 15:20:12 2026",
         zombie: true,
-        tty: "??",
       },
     ])
   })
@@ -340,23 +337,6 @@ describe("an agent's place in its terminal", () => {
     expect(found?.lineage.get("31:at 31")).toBe("30:at 30")
     // The agent itself is no member of what is under it.
     expect(found?.lineage.get("30:at 30")).toBeUndefined()
-  })
-
-  it("finds what holds the shell's terminal after its parent left, and nothing else", () => {
-    const on = (pid: number, parent: number, tty: string) => row(pid, parent, pid, { tty })
-    const rows = [
-      on(10, 1, "5"),
-      on(20, 10, "5"),
-      // A server re-parented to init, still on the terminal; a daemon with none; another terminal's.
-      on(60, 1, "5"),
-      on(61, 60, "5"),
-      on(70, 1, "0"),
-      on(80, 1, "6"),
-    ]
-    const found = placement(rows, 10, 20)
-    expect(pids(found?.orphans)).toEqual([60, 61])
-    // The terminal is not told, so nothing is claimed.
-    expect(placement([row(10, 1, 10, { foreground: 20 }), agent], 10, 20)?.orphans).toEqual([])
   })
 
   it("leaves out what has ended but not been reaped", () => {

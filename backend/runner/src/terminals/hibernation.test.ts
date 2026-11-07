@@ -54,7 +54,6 @@ const quiet = (): Facts => ({
       foreground: true,
       below: new Set(["20:1", "21:1"]),
       lineage: new Map(),
-      orphans: new Set(),
       beside: false,
     },
     baseline: new Set(["20:1", "21:1", "22:1"]),
@@ -122,7 +121,6 @@ describe("when an agent may be stopped to rest", () => {
     ["unbaselined", { processes: { tree: quiet().processes!.tree, baseline: undefined } }],
     ["stray", { processes: processes({ below: new Set(["20:1", "99:5"]) }) }],
     ["beside", { processes: processes({ beside: true }) }],
-    ["stray", { processes: processes({ orphans: new Set(["70:3"]) }) }],
   ]
 
   for (const [veto, change] of vetoes)
@@ -267,7 +265,6 @@ const resting = (
     foreground: true,
     below: new Set(),
     lineage: new Map(),
-    orphans: new Set(),
     beside: false,
   }
   const rest = () =>

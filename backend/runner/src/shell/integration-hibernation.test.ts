@@ -14,8 +14,6 @@ type Options = {
   readonly before?: boolean
   /** A process it starts after it is recorded, as a tool does. */
   readonly after?: boolean
-  /** A job a tool's shell started and left behind, re-parented, still on the terminal, after it is recorded. */
-  readonly orphan?: boolean
   /** How long it takes to end once hung up, in milliseconds. */
   readonly slow?: number
 }
@@ -45,7 +43,6 @@ const standIn = (home: string, session: string, options: Options = {}): string =
       "}",
       'if (options.before) child("before")',
       'if (options.after) setTimeout(() => child("after"), 350)',
-      'if (options.orphan) setTimeout(() => { spawn("sh", ["-c", "sleep 600 & echo $! > " + home + "/orphan.pid"], { stdio: "inherit" }) }, 350)',
       'if (options.slow) process.on("SIGHUP", () => setTimeout(() => process.exit(0), options.slow))',
       "const base = Date.now()",
       'const events = [["SessionStart", "startup"], ["UserPromptSubmit", ""], ["Stop", ""]]',
@@ -249,21 +246,6 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await new Promise((resolve) => setTimeout(resolve, 1_500))
       expect(awake(manager, shell, id)).toBe(true)
       process.kill(pidOf(shell, "after"))
-      await vi.waitFor(() => expect(listed(manager, shell, id)?.sleeping).toBe(true), {
-        timeout: 15_000,
-      })
-    })
-
-    it("keeps an agent awake while a job its tool's shell left behind holds the terminal", async ({
-      shell,
-    }) => {
-      const bin = standIn(shell.home, "hib-session-10", { orphan: true })
-      const manager = hibernating(shell, bin)
-      const id = await started(shell, manager)
-      await vi.waitFor(() => expect(existsSync(join(shell.home, "orphan.pid"))).toBe(true))
-      await new Promise((resolve) => setTimeout(resolve, 1_500))
-      expect(awake(manager, shell, id)).toBe(true)
-      process.kill(pidOf(shell, "orphan"))
       await vi.waitFor(() => expect(listed(manager, shell, id)?.sleeping).toBe(true), {
         timeout: 15_000,
       })

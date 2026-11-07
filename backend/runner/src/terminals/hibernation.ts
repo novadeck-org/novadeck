@@ -46,8 +46,6 @@ export type Tree = {
   readonly below: ReadonlySet<string>
   /** Each of them that has a parent among them, with that parent's key. */
   readonly lineage: ReadonlyMap<string, string>
-  /** The live processes on its terminal that no parent joins to the shell: a tool's leftovers. */
-  readonly orphans: ReadonlySet<string>
   /** The shell started something besides the agent's own chain: a job, a server. */
   readonly beside: boolean
 }
@@ -167,7 +165,7 @@ export const vetoOf = (facts: Facts, now: number): Veto | undefined => {
 }
 
 /**
- * A live process under the agent or on its terminal that the baseline does not hold, nor
+ * A live process under the agent that the baseline does not hold, nor
  * descends from one it holds: what `npx` starts late, a real server under its launcher.
  */
 export const stray = (tree: Tree, baseline: ReadonlySet<string>): string | undefined => {
@@ -178,7 +176,7 @@ export const stray = (tree: Tree, baseline: ReadonlySet<string>): string | undef
     }
     return false
   }
-  return [...tree.below, ...tree.orphans].find((key) => !held(key))
+  return [...tree.below].find((key) => !held(key))
 }
 
 /** Whether an agent may be stopped to rest at `now`; see `vetoOf`. */
@@ -210,7 +208,6 @@ export const windowsTree = (
     foreground: true,
     below: new Set(below.map(keyOf)),
     lineage,
-    orphans: new Set(),
     beside: hasJobUnder(all, shell, new Set([...own.map((member) => member.pid), ...chain])),
   }
 }
@@ -334,7 +331,7 @@ export class Hibernation {
     baseline.begun = true
     void this.read(record)
       .then((tree) => {
-        if (tree?.placed) baseline.taken = new Set([...tree.below, ...tree.orphans])
+        if (tree?.placed) baseline.taken = tree.below
       })
       .catch(() => undefined)
   }
@@ -467,12 +464,7 @@ export class Hibernation {
       const trees = this.host.trees()
       const [all, own] = await Promise.all([trees.read(shell), trees.read(agent)])
       if (!all || !own) return undefined
-      const tree = windowsTree(all, own, shell, agent)
-      // What the tree misses: a process whose parent ended, still in the console. Where the
-      // relay can't list the console, whatever else is there is not known not to be one.
-      const console = await trees.console?.(shell)
-      const loose = console === undefined || console.some((pid) => !all.some((m) => m.pid === pid))
-      return loose ? { ...tree, beside: true } : tree
+      return windowsTree(all, own, shell, agent)
     }
     const rows = await (this.sweeping ? (this.rows ??= this.listing()) : this.listing())
     if (!rows) return undefined
@@ -483,7 +475,6 @@ export class Hibernation {
         foreground: false,
         below: new Set(),
         lineage: new Map(),
-        orphans: new Set(),
         beside: true,
       }
     // Anything else on the shell's terminal: `npm run dev &` before the agent started.
@@ -493,7 +484,6 @@ export class Hibernation {
       foreground: found.foreground,
       below: new Set(found.below.map(processKey)),
       lineage: found.lineage,
-      orphans: new Set(found.orphans.map(processKey)),
       // Where the system can't tell, nothing is assumed gone.
       beside: jobs !== false,
     }

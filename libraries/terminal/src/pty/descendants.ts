@@ -15,11 +15,6 @@ export type Listed = {
    */
   readonly started: string
   readonly zombie: boolean
-  /**
-   * The terminal it is on: Linux's `tty_nr`, "0" for none, macOS's `ps` name, "?" or "??"
-   * for none; compared only with another row's. Absent where a listing does not tell.
-   */
-  readonly tty?: string
 }
 
 /** A process followed past a hangup. */
@@ -50,23 +45,15 @@ export const parseStat = (stat: string): Listed | undefined => {
   const numbers = [stat, fields[1], fields[2], fields[5]].map((field) => Number.parseInt(field!))
   if (started === undefined || !numbers.every(Number.isSafeInteger)) return undefined
   const [pid, parent, group, foreground] = numbers as [number, number, number, number]
-  return {
-    pid,
-    parent,
-    group,
-    foreground,
-    started,
-    zombie: /^[ZX]/.test(fields[0]!),
-    tty: fields[4]!,
-  }
+  return { pid, parent, group, foreground, started, zombie: /^[ZX]/.test(fields[0]!) }
 }
 
-/** `ps -o pid=,ppid=,pgid=,tpgid=,stat=,tty=,lstart=` rows; a line that isn't one is left out. */
+/** `ps -o pid=,ppid=,pgid=,tpgid=,stat=,lstart=` rows; a line that isn't one is left out. */
 export const parsePs = (output: string): Listed[] =>
   output.split("\n").flatMap((line) => {
-    const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(-?\d+)\s+(\S+)\s+(\S+)\s+(\S.*?)\s*$/.exec(line)
+    const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(-?\d+)\s+(\S+)\s+(\S.*?)\s*$/.exec(line)
     if (!match) return []
-    const [, pid, parent, group, foreground, state, tty, started] = match
+    const [, pid, parent, group, foreground, state, started] = match
     return [
       {
         pid: Number(pid),
@@ -75,7 +62,6 @@ export const parsePs = (output: string): Listed[] =>
         foreground: Number(foreground),
         started: started!,
         zombie: state!.startsWith("Z"),
-        tty: tty!,
       },
     ]
   })
@@ -97,7 +83,7 @@ const listPs =
   async () => {
     const { stdout } = await promisify(execFile)(
       "ps",
-      ["-axo", "pid=,ppid=,pgid=,tpgid=,stat=,tty=,lstart="],
+      ["-axo", "pid=,ppid=,pgid=,tpgid=,stat=,lstart="],
       {
         encoding: "utf8",
         env: { ...process.env, LC_ALL: "C" },
@@ -208,12 +194,6 @@ export type Placement = {
   readonly chain: readonly number[]
   readonly foreground: boolean
   readonly below: readonly Followed[]
-  /**
-   * Live processes on the shell's terminal that no parent chain joins to the shell: what a
-   * tool's shell left behind when it exited (`npm run dev &`), re-parented to init, which the
-   * pty's end still kills. Empty where the listing names no terminal.
-   */
-  readonly orphans: readonly Followed[]
   /** Each process of `below` that has a parent in it, by `processKey`, with its parent's. */
   readonly lineage: ReadonlyMap<string, string>
 }
@@ -240,11 +220,6 @@ export const placement = (
       const foreground =
         root.foreground > 1 && root.foreground !== shell && lead.group === root.foreground
       const below = live(withBelow(rows, [lead])).filter((row) => row.pid !== agent)
-      const kin = new Set(withBelow(rows, [root]).map((one) => one.pid))
-      const none = root.tty === undefined || root.tty === "0" || /^\?+$/.test(root.tty)
-      const orphans = none
-        ? []
-        : live(rows).filter((one) => one.tty === root.tty && !kin.has(one.pid))
       const inside = new Map(below.map((one) => [one.pid, one]))
       const lineage = new Map<string, string>()
       for (const one of below) {
@@ -256,7 +231,6 @@ export const placement = (
         foreground,
         lineage,
         below: below.map(({ pid, started }) => ({ pid, started })),
-        orphans: orphans.map(({ pid, started }) => ({ pid, started })),
       }
     }
     if (at.pid <= 1) return undefined

@@ -22,6 +22,6 @@ export {
   type Listing,
   type Placement,
 } from "./pty/descendants.js"
-export { anyRunning, chainTo, parseConsole, relayMs, Trees, type Member } from "./pty/trees.js"
+export { anyRunning, chainTo, relayMs, Trees, type Member } from "./pty/trees.js"
 export type { ProcessTrees, Pty, PtyOptions } from "./pty/pty.js"
 export { userScopes } from "./pty/scopes.js"

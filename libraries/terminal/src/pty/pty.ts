@@ -57,8 +57,6 @@ export type PtyOptions = {
 export type ProcessTrees = {
   read(root: number | Member, timeoutMs?: number): Promise<readonly Member[] | undefined>
   end(members: readonly Member[], timeoutMs?: number): Promise<void>
-  /** Every process attached to the console of the terminal whose shell is `shell`; see `Trees.console`. */
-  console?(shell: number, timeoutMs?: number): Promise<readonly number[] | undefined>
 }
 
 /**
