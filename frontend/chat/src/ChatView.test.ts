@@ -407,7 +407,12 @@ describe("a chat sending a message", () => {
       at,
       ring: { nonce: "n7Q2", replies },
     })
-    const message = { id: "m-1", deliveredAt: 10_000 } as unknown as AgentMessage
+    const message = {
+      id: "m-1",
+      deliveredAt: 10_000,
+      from: { kind: "agent", handle: "moth", agent: "claude" },
+      text: "Check the export job.",
+    } as unknown as AgentMessage
     const conversation = createStore<Conversation>({
       ...asking,
       requests: [],
@@ -426,6 +431,20 @@ describe("a chat sending a message", () => {
       "doorbell · your reply",
     ])
     expect(container.textContent).not.toContain("automatic notice")
+    // Where a prompt would stand, with the mark hollow: a prompt, and not the person's.
+    const rings = [...container.querySelectorAll('[data-role="doorbell"]')]
+    expect(rings.map((ring) => ring.getAttribute("aria-label"))).toEqual([
+      "Doorbell: doorbell · 1 message",
+      "Doorbell: doorbell",
+      "Doorbell: doorbell · your reply",
+    ])
+    expect(rings.every((ring) => ring.querySelector(".chat-mark[data-hollow]"))).toBe(true)
+    // What it brought follows in ink, under the handle that sent it.
+    const brought = rings[0]!.querySelector('[data-role="agent"]')
+    expect(brought?.getAttribute("aria-label")).toBe("Message from @moth")
+    expect(brought?.querySelector(".chat-author")?.textContent).toBe("@moth")
+    expect(brought?.querySelector(".markdown")?.textContent).toBe("Check the export job.")
+    expect(rings[1]!.querySelector('[data-role="agent"]')).toBeNull()
   })
 
   it("shows no message that a Stop handed back, though the record wrote it", async () => {

@@ -129,6 +129,11 @@
   background-color: currentColor;
   color: var(--_accent);
 }
+.chat-mark[data-hollow] {
+  background-color: transparent;
+  box-shadow: inset 0 0 0 1px currentColor;
+  color: var(--_muted);
+}
 .chat-message > .chat-mark,
 .chat-spin {
   position: absolute;
@@ -176,7 +181,8 @@
 .chat-message[data-role="user"] {
   font-weight: 600;
 }
-/* A turn starts after a wider gap. */
+/* A turn starts after a wider gap, the person's or the doorbell's. */
+.chat-ring:not(:first-child),
 .chat-message[data-role="user"]:not(:first-child, [data-sent]) {
   margin-top: var(--_lh);
 }
@@ -232,6 +238,10 @@
 .chat-note {
   margin: 0;
   color: var(--_muted);
+}
+/* What the doorbell brought, in ink, under its line. */
+.chat-ring > .chat-message[data-role="agent"] {
+  max-width: none;
 }
 
 /* The agent's formatted text: the terminal's, flat. The rest of it is the toolkit's

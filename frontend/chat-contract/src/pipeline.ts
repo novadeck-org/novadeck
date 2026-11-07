@@ -129,6 +129,15 @@ const lineOf = (block: Element): { line: string; rows: number } => {
     return { line: `tools: ${folded}${rows.join("; ")}`, rows: rows.length }
   }
   if (block.matches(".chat-note")) return { line: `note: ${textOf(block)}`, rows: 0 }
+  if (block.getAttribute("data-role") === "doorbell") {
+    const brought = [...block.querySelectorAll('[data-role="agent"]')].map((message) => {
+      const words = message.cloneNode(true) as Element
+      words.querySelector(".chat-author")?.remove()
+      return `${message.querySelector(".chat-author")?.textContent ?? ""}: ${textOf(words)}`
+    })
+    const line = textOf(block.querySelector(":scope > .chat-note")!)
+    return { line: `doorbell: ${[line, ...brought].join(" | ")}`, rows: 0 }
+  }
   const sent = block.getAttribute("data-sent")
   if (sent) {
     const prompt = block.querySelector(".chat-text")

@@ -1,4 +1,5 @@
 import { sameBlock, type ChatBlock } from "@novadeck/core/conversation/turns"
+import type { MessageParty } from "@novadeck/core/messages"
 import { counted } from "@novadeck/core/units"
 import { Markdown } from "@novadeck/toolkit/Markdown"
 import { memo, useMemo } from "react"
@@ -17,6 +18,11 @@ const ringLabel = ({ messages, replies }: Extract<ChatBlock, { kind: "doorbell" 
   if (messages) return `doorbell · ${counted(messages.length, "message")}`
   return replies ? "doorbell · your reply" : "doorbell"
 }
+
+// Who a message the doorbell brought is from: another agent by its handle, or the person's own
+// answer through the Inbox.
+const partyName = (party: MessageParty): string =>
+  party.kind === "agent" ? `@${party.handle}` : "you"
 
 const BlockView = memo(
   ({
@@ -61,7 +67,28 @@ const BlockView = memo(
       case "note":
         return <p className="chat-note">{block.text}</p>
       case "doorbell":
-        return <p className="chat-note">{ringLabel(block)}</p>
+        return (
+          <article
+            className="chat-message chat-ring"
+            data-role="doorbell"
+            aria-label={`Doorbell: ${ringLabel(block)}`}
+          >
+            {/* The block hollow: a prompt, and not the person's. */}
+            <Mark hollow />
+            <p className="chat-note">{ringLabel(block)}</p>
+            {block.messages?.map((message) => (
+              <div
+                key={message.id}
+                className="chat-message"
+                data-role="agent"
+                aria-label={`Message from ${partyName(message.from)}`}
+              >
+                <p className="chat-author">{partyName(message.from)}</p>
+                <Markdown text={message.text} />
+              </div>
+            ))}
+          </article>
+        )
       case "tools":
         return <ToolCalls entries={block.entries} live={live} />
     }
