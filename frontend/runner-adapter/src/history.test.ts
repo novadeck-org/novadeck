@@ -1,11 +1,15 @@
 import type { ClosedTerminal } from "@novadeck/core/history"
+import type { BackendAction } from "@novadeck/core/port"
 import type { HistoryWatchItem } from "@novadeck/runner-client"
+import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
 import { createRunnerHistory } from "./history"
 import { describe, expect, it } from "./test"
 import { channel } from "./testing/channel"
 import { id, scripted } from "./testing/scripted"
+
+type TerminalStatusAction = Extract<BackendAction, { type: "terminal/status" }>
 
 const closed = (n: number, change: Partial<ClosedTerminal> = {}): ClosedTerminal => ({
   id: id(n),
@@ -133,5 +137,31 @@ describe("restoring a closed terminal", () => {
     await vi.waitFor(() => expect(app.of("create")).toHaveLength(1))
     expect(app.of("create")).toEqual([expect.not.objectContaining({ closed: expect.anything() })])
     app.stop()
+  })
+
+  it("fails when the runner refuses it as a CONFLICT, which a plain create counts as done", async () => {
+    const refuse = async (closedRow?: string): Promise<TerminalStatusAction | undefined> => {
+      const app = scripted({
+        shown: [],
+        create: async () => {
+          throw new WireError("CONFLICT")
+        },
+      })
+      const target = { projectId: "p", workspaceSessionId: id(8) }
+      const terminal = app.backend.newTerminal({
+        target,
+        directory: "/tmp",
+        ...(closedRow && { closed: closedRow }),
+      })
+      app.commit({ type: "terminal/add", target, terminal })
+      await vi.waitFor(() => expect(app.of("create")).not.toEqual([]))
+      await app.idle()
+      app.stop()
+      return app.received.find(
+        (action) => action.type === "terminal/status" && action.terminalId === terminal.id,
+      ) as TerminalStatusAction | undefined
+    }
+    expect(await refuse(id(40))).toMatchObject({ status: { state: "failed" } })
+    expect(await refuse()).toBeUndefined()
   })
 })
