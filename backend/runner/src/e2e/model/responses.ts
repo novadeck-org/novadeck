@@ -99,6 +99,9 @@ const callOf = (one: Item): ToolCall | undefined => {
 
 const outputs = new Set(["function_call_output", "custom_tool_call_output"])
 
+/** A message that is nothing but Codex's environment context. */
+const dateOnly = /^\s*<environment_context>[\s\S]*<\/environment_context>\s*$/
+
 /**
  * The input as the conversation: the developer and system messages before it starts join
  * the instructions; after that, every user, developer and system message until the next
@@ -134,6 +137,9 @@ const conversation = (input: readonly Item[]): { system: string[]; turns: Turn[]
     }
     if (one.type !== "message") continue
     const text = textOf(one.content)
+    // Past midnight UTC Codex puts the new date behind a tool's output, mid-turn: no turn of the
+    // person's, and what follows the output is what a rule reads (seen on #764, 2026-11-07).
+    if (last?.role === "tool" && dateOnly.test(text)) continue
     if (one.role !== "user" && turns.length === 0) system.push(text)
     else if (last?.role === "user")
       turns[turns.length - 1] = { role: "user", text: [last.text, text].join("\n") }
