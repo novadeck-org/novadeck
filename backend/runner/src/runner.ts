@@ -240,6 +240,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   const sealer = createTranscriptSealer(options.transcriptKey)
   const terminals = new Terminals({
     records: store,
+    closed: store,
+    projects: () => store.projects().map(({ id }) => id),
     sealer,
     shellFiles,
     ...relay,
@@ -334,6 +336,7 @@ const startRunner = (options: RunnerOptions): Runner => {
         store,
         terminals,
         feedback: terminals.feedback,
+        history: terminals.history,
         projects,
         items,
         agents,

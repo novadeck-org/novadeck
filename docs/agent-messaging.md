@@ -187,8 +187,8 @@ The rules that keep this safe:
   `/clear` or a new session of the same running agent, a restart of the lead's agent,
   and a runner restart or restore that resumes the worker's agent (within the same
   Novadeck session); the worker's own agent ending ends it (below). If the lead's terminal is closed, the worker has no
-  running lead: it finishes its work, and later messages from that handle (which is
-  never reused) are peer messages. A kept, not-running terminal leads no one for new
+  running lead: it finishes its work, and later messages from that handle (which no other terminal is
+  given; a restore gives it back only to its own terminal, which regains no workers) are peer messages. A kept, not-running terminal leads no one for new
   sends; what it sent while it led keeps its `fromLead` mark.
 - **A worker keeps its lead only while it is, or resumes, the agent the lead started or
   the person let it lead.**
@@ -279,8 +279,10 @@ eight colours, as in the list's own order. Each pick prefers a word whose first 
 no open terminal of the session starts with, so a jump by letter lands in one key. The
 session records every handle it gives (`session_handles`), because terminal rows are deleted on close, and `(session_id, handle)` is unique on
 terminals. Terminals sort by creation order, never by their handle. A handle never
-changes, not when the terminal is renamed, and is never given again in that session: a
-closed terminal's handle stays unanswered rather than reaching another terminal. Once a
+changes, not when the terminal is renamed, and is never given to another terminal in that
+session: a closed terminal's handle stays unanswered rather than reaching another terminal.
+Only restoring it from History gives its own handle back, to the terminal it becomes, and
+only when no terminal there has it or leads under it (else it draws a new one). Once a
 session has given every word, they come again with a letter from the end of the alphabet
 (`mothz`, then `mothy`), skipping one that reads badly after the word (`fizzz`, `foxz`). Agents
 tell the person about a terminal as `@fox · api-server`: its handle and its title. Handles exist because a title is text a person, or an agent through

@@ -197,3 +197,45 @@ describe("an attached terminal", () => {
     })
   })
 })
+
+describe("History", () => {
+  const row = {
+    id: "11111111-1111-4111-8111-111111111111",
+    projectId: "22222222-2222-4222-8222-222222222222",
+    title: "Fix login",
+    summary: null,
+    handle: "moth",
+    agent: "claude" as const,
+    program: null,
+    cwd: "/shop",
+    closedAt: 1_000,
+    closedBy: null,
+    availability: { state: "ready" as const },
+  }
+
+  it("lists a project's closed terminals and follows them from a reset to synced", async () => {
+    const { runner } = await fakeRunner({
+      history: {
+        list: api.history.list.handler(({ input }) =>
+          input.projectId === row.projectId ? [row] : [],
+        ),
+        watch: api.history.watch.handler(async function* () {
+          yield { type: "changed" as const, closed: row }
+          yield { type: "synced" as const }
+          yield { type: "removed" as const, id: row.id, projectId: row.projectId }
+        }),
+      },
+    })
+    expect(await runner.history.list({ projectId: row.projectId })).toEqual([row])
+    expect(await runner.history.list({ projectId: row.id })).toEqual([])
+    const watch = runner.history.watch()
+    onTestFinished(() => void watch.return?.())
+    const seen: string[] = []
+    for (let step = 0; step < 4; step += 1) {
+      // eslint-disable-next-line no-await-in-loop -- Events arrive in order.
+      const { value } = await watch.next()
+      seen.push(value!.type)
+    }
+    expect(seen).toEqual(["reset", "changed", "synced", "removed"])
+  })
+})

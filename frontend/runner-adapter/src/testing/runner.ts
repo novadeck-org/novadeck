@@ -245,6 +245,10 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       answerLook: (answer) =>
         note(`answer look ${answer.lookId}`, () => runner.companions.answerLook(answer)),
     },
+    history: {
+      list: (input) => runner.history.list(input),
+      watch: () => runner.history.watch(),
+    },
     settings: {
       get: () => runner.settings.get(),
       set: (settings) =>

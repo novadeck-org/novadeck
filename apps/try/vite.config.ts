@@ -36,10 +36,11 @@ export default defineConfig({
       // What the page loads first, and the demo, which loads with its connection; the
       // website's hero waits on both. The first load's was set at 1.1 MB from the first build
       // with the demo drawn as terminals (1,058 kB, 663 kB of it the eleven fonts declared),
-      // and raised to 1.3 MB in #439, when main sat about 100 bytes under it.
+      // and raised to 1.3 MB in #439, when main sat about 100 bytes under it. The demo's was
+      // raised to 195 kB for History's rows, which the demo keeps (190,171 bytes then).
       budgets: {
         first: 1_300_000,
-        demo: 190_000,
+        demo: 195_000,
         demoModule: "/frontend/demo/src/visitor/connect.ts",
       },
     }),

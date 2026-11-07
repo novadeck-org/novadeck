@@ -330,7 +330,7 @@ describe("the open call", () => {
     await run.open({ agent: "codex", resume: "t-1", lead: false })
     await run.open({ agent: "agy", resume: "c-1" })
     expect(run.asked.map(({ command }) => command)).toEqual([
-      "codex resume t-1",
+      `codex resume -c "tui.resume_cwd=session" t-1`,
       "agy --conversation c-1",
     ])
     expect(run.sent).toEqual([])

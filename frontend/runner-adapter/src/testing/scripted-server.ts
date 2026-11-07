@@ -76,6 +76,8 @@ export const scriptedRunner = ({
         started: true,
         run: 1,
         agentRan: true,
+        restorable: false,
+        busy: false,
         process: { name: "claude", argv: null },
         agent: "claude",
         activity: {
@@ -268,6 +270,10 @@ export const scriptedRunner = ({
       putBox: api.agents.putBox.handler(unplayed("agents.putBox")),
       clearBox: api.agents.clearBox.handler(unplayed("agents.clearBox")),
       set: api.agents.set.handler(unplayed("agents.set")),
+    },
+    history: {
+      list: api.history.list.handler(() => []),
+      watch: api.history.watch.handler(idle),
     },
     companions: {
       list: api.companions.list.handler(() => ({ items: [], windows: [] })),

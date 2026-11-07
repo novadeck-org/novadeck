@@ -8,6 +8,7 @@ import type { Activity } from "../harnesses/activity.js"
 import type { Binding } from "../harnesses/bindings.js"
 import type { Root } from "../harnesses/roots.js"
 import type { Telemetry } from "../harnesses/telemetry.js"
+import type { Restoring } from "./history.js"
 import type { Nudges } from "./nudges.js"
 import type { AgentReport, AgentTurn, KeptInterruption } from "./saved-terminals.js"
 import type { AgentSummary } from "./summary.js"
@@ -194,6 +195,17 @@ export type Record = {
   boxDoubtEpoch?: number
   /** `performance.now()` at the last save of its screen, so saves take turns. */
   savedAt: number
+  /**
+   * Whether a line was ever entered in it, or an agent ran there: closing one where none
+   * did leaves no row in History. Sticky: a save never lowers it.
+   */
+  ran: boolean
+  /** The History row it was restored from, which a repeated create answers with this terminal. */
+  restoredFrom?: string
+  /** The restore of an agent's conversation still to be confirmed; undefined once it is or failed. */
+  restoring?: Restoring | undefined
+  /** What `restorable` was last judged for (the bound session and its ended turns, or none), so it is judged again only when that moves. */
+  restorableFor?: string
 } & Started
 
 /**

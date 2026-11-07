@@ -172,7 +172,13 @@ const shimmed = (platform: NodeJS.Platform) =>
 describe("the harness registry", () => {
   it("resumes each harness's session by its own command", () => {
     expect(harnesses.claude.launch.resume?.("s")).toEqual(["claude", "--resume", "s"])
-    expect(harnesses.codex.launch.resume?.("s")).toEqual(["codex", "resume", "s"])
+    expect(harnesses.codex.launch.resume?.("s")).toEqual([
+      "codex",
+      "resume",
+      "-c",
+      "tui.resume_cwd=session",
+      "s",
+    ])
     expect(harnesses.agy.launch.resume?.("s")).toEqual(["agy", "--conversation", "s"])
   })
 
@@ -194,6 +200,8 @@ describe("the harness registry", () => {
       "m",
       "-c",
       "model_reasoning_effort=high",
+      "-c",
+      "tui.resume_cwd=session",
       "s",
     ])
     expect(harnesses.agy.launch.resume?.("s", { effort: "low" })).toEqual([
@@ -203,7 +211,39 @@ describe("the harness registry", () => {
       "--conversation",
       "s",
     ])
-    expect(harnesses.codex.launch.resume?.("s", {})).toEqual(["codex", "resume", "s"])
+    expect(harnesses.codex.launch.resume?.("s", {})).toEqual([
+      "codex",
+      "resume",
+      "-c",
+      "tui.resume_cwd=session",
+      "s",
+    ])
+  })
+
+  it("tells a resume that worked by each harness's own sign", () => {
+    const seen = (sessionId: string | null, ready: boolean, readyMs = ready ? 10_000 : 0) => ({
+      sessionId,
+      ready,
+      readyMs,
+    })
+    for (const id of ["claude", "agy"] as const) {
+      const { resumed } = harnesses[id].launch
+      expect(resumed("a", seen("a", false))).toBe("worked")
+      expect(resumed("a", seen("b", true))).toBe("failed")
+    }
+    expect(harnesses.claude.launch.resumed("a", seen(null, true))).toBe("waiting")
+    expect(harnesses.agy.launch.resumed("a", seen(null, false))).toBe("waiting")
+    // It starts a new conversation without an error, so a prompt with no id is a failure, but
+    // only after a grace: a good resume reports its id a moment after its prompt shows.
+    expect(harnesses.agy.launch.resumed("a", seen(null, true, 500))).toBe("waiting")
+    expect(harnesses.agy.launch.resumed("a", seen("a", true, 500))).toBe("worked")
+    expect(harnesses.agy.launch.resumed("a", seen(null, true, 3_000))).toBe("failed")
+    expect(harnesses.agy.launch.resumed("a", seen("b", true, 0))).toBe("failed")
+    // Codex has no id before its first prompt: ready is its sign, whatever else shows.
+    expect(harnesses.codex.launch.resumed("a", seen(null, false))).toBe("waiting")
+    expect(harnesses.codex.launch.resumed("a", seen(null, true))).toBe("worked")
+    // Binding clears ready, so the claimed id counts too.
+    expect(harnesses.codex.launch.resumed("a", seen("a", false))).toBe("worked")
   })
 
   it("gives Claude Code and Codex a shim everywhere", () => {

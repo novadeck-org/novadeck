@@ -34,7 +34,7 @@ import { announceShown, EmbeddedContext, heldInput, holdInputUntilEngaged } from
 import { FooterSection } from "./FooterSection"
 import { HeaderSection } from "./HeaderSection"
 import { InboxHost } from "./InboxHost"
-import { sourceShown } from "./routing"
+import { historyShown, sourceShown } from "./routing"
 import { currentContext, currentState, currentTarget, sameItems, shallowEqual } from "./selectors"
 import { SidebarSection } from "./SidebarSection"
 import { previewTeamFold, toggleTeamFold, useFoldedLeads } from "./team-fold"
@@ -251,6 +251,7 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
       sidebarPanel={sidebarPanel}
       zen={zen}
       hasSource={sourceShown(services.backend)}
+      hasHistory={historyShown(services.backend)}
       order={railOrder}
       onOrder={(order) => {
         setRailOrder(order)

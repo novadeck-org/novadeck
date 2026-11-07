@@ -176,6 +176,11 @@ export type Deck = {
     options?: { readonly resume?: AgentName },
   ) => Promise<DeckTerminal>
   /**
+   * Restores a terminal closed in History as a new one, as the app does: `terminals.create`
+   * with a new id and the row's `closed`. A refusal throws.
+   */
+  readonly restoreClosed: (closed: string) => Promise<DeckTerminal>
+  /**
    * Answers agents' requests for a new terminal (`open_terminal`, `open_agent`) as the app does: opens
    * one in the request's folder, starting its command, created for the request, and
    * answers with it once its shell has started. It answers every request from the call
@@ -957,6 +962,16 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
           cwd: options.project,
           restore: true,
           ...(resume !== undefined && { resume }),
+        }),
+      ),
+    restoreClosed: async (closed) =>
+      terminal(
+        runner,
+        await created(runner, {
+          id: randomUUID(),
+          sessionId: session.id,
+          cwd: options.project,
+          closed,
         }),
       ),
     answerRequests: () => {

@@ -1,4 +1,5 @@
 import { isWindow } from "@novadeck/core/roster"
+import { matchesQuery } from "@novadeck/core/terminals/find"
 import type { Tile } from "@novadeck/core/types"
 import { Dialog } from "@novadeck/toolkit/Dialog"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
@@ -34,11 +35,7 @@ export const TerminalSearch = ({
     if (open) chosen.current = null
   }, [open])
   const matches = terminals.filter((terminal) =>
-    [handleOf(terminal), terminal.name, detail(terminal).directory]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase()
-      .includes(query.trim().replace(/^@/, "").toLowerCase()),
+    matchesQuery([handleOf(terminal), terminal.name, detail(terminal).directory], query),
   )
   const select = (id: string): void => {
     chosen.current = id
