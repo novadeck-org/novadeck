@@ -153,8 +153,11 @@ for (const setup of setups) {
     it("holds a compaction between turns, with its summary", async ({ e2e: run }) => {
       run.model.use(() => ({ text: "Noted." }))
       const t1 = await start(run, setup)
+      const first = t1.mark()
       await t1.submit("First words")
       await t1.until("Noted.")
+      // Its turn over first: Codex turns a command away while one runs (Windows CI).
+      await through(t1, ["working", "settled"], { after: first })
       await t1.submit("/compact")
       const compacted = await t1.poll(
         async () => (await t1.transcript()).find((each) => each.note?.type === "compaction"),
@@ -170,8 +173,11 @@ for (const setup of setups) {
     }) => {
       run.model.use(() => ({ text: "Noted." }))
       const t1 = await start(run, setup)
+      const first = t1.mark()
       await t1.submit("First words")
       await t1.until("Noted.")
+      // Its turn over first: Codex turns a command away while one runs (Windows CI).
+      await through(t1, ["working", "settled"], { after: first })
       const shiftTab = "\x1b[Z"
       const write = (data: string) => run.deck.terminals.write({ terminalId: t1.id, data }, "e2e")
       // Its plan mode, or Claude Code's accept-edits, the first Shift+Tab takes it to.
