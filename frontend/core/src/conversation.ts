@@ -58,7 +58,7 @@ export type ChatItem = {
   readonly id: string
   // Epoch milliseconds, where the harness recorded when.
   readonly at: number | null
-  readonly role: "user" | "assistant" | "agent" | "tool"
+  readonly role: "user" | "assistant" | "agent" | "tool" | "note"
   readonly kind: "text" | "tool-call" | "tool-result"
   readonly text: string
   readonly truncated: boolean
@@ -80,6 +80,15 @@ export type ChatItem = {
   // A user item that is the line Novadeck's doorbell typed rather than the person's words:
   // `replies` where it carries their Inbox replies. Null on every other item.
   readonly ring: { readonly nonce: string; readonly replies: boolean } | null
+  // On a `note` item, what its harness recorded between turns: the mode it says it's in, each
+  // time it says so, a plan approved, or a compaction, whose summary is the item's text; or a
+  // gap, a part of the record the backend can't read, the line as written its text, if any.
+  readonly note?:
+    | { readonly type: "mode"; readonly mode: string }
+    | { readonly type: "plan-approved" }
+    | { readonly type: "compaction" }
+    | { readonly type: "gap" }
+    | undefined
 }
 
 // What a request's dialog in the agent's TUI offers, as the backend read it, so the chat
@@ -256,9 +265,7 @@ export type ChatSlice = {
 // `codex`, `agy`); both null while none is. `loaded` once the session's records so far
 // have started arriving. `items` are its root agent's, oldest first; subagents keep their
 // own. `requests` wait on the person, oldest first. `prompts` are the session's prompts
-// given through `send`, oldest first, as far as the backend follows them. `unread` once the
-// session's records hold a part of the conversation the backend can't read, which `items`
-// leave out and the terminal shows. `box` is what the agent's input box holds, null while there
+// given through `send`, oldest first, as far as the backend follows them. `box` is what the agent's input box holds, null while there
 // is nothing to show. `slice` is the terminal's own rows while something of the harness's own
 // shows at its input.
 export type Conversation = {
@@ -268,7 +275,6 @@ export type Conversation = {
   readonly items: readonly ChatItem[]
   readonly requests: readonly ChatRequest[]
   readonly prompts: readonly ChatPrompt[]
-  readonly unread: boolean
   readonly slice: ChatSlice | null
   readonly box: ChatBox | null
   readonly doorbell: ChatDoorbell
@@ -300,7 +306,6 @@ export const noConversation: Conversation = {
   items: [],
   requests: [],
   prompts: [],
-  unread: false,
   slice: null,
   box: null,
   doorbell: noDoorbell,

@@ -1,9 +1,10 @@
+import { finishGraceMs } from "@novadeck/core/agents/finish"
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
-import { inboxType, type Inbox, type InboxRow } from "@novadeck/core/inbox"
+import { inboxType, type Inbox, type InboxRow, type InboxTurn } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { workspaceReducer } from "@novadeck/core/state"
-import { createWorkspaceStore } from "@novadeck/core/store"
+import { createStore, createWorkspaceStore, type Store } from "@novadeck/core/store"
 import { terminalNote, terminalPhase } from "@novadeck/core/terminals/ending"
 import { isAgentProgram } from "@novadeck/core/terminals/process"
 import type { AgentStatus, AgentUsage, TerminalMetadata, Workspace } from "@novadeck/core/types"
@@ -148,7 +149,10 @@ const verbs = (
 // A panel over a real workspace, with the terminal on screen as given. It records what the
 // panel does that the app would take for a person's move: adding a terminal the way "+"
 // does (which selects it and shows the Terminals panel), and the verbs it calls on the agents.
-const panel = (selected: string | undefined, { keeping }: { keeping?: number } = {}) => {
+const panel = (
+  selected: string | undefined,
+  { keeping, turns }: { keeping?: number; turns?: Store<readonly InboxTurn[] | undefined> } = {},
+) => {
   // `keeping` shrinks the workspace to that many terminals besides the selected one.
   const kept =
     keeping === undefined
@@ -214,7 +218,7 @@ const panel = (selected: string | undefined, { keeping }: { keeping?: number } =
   const read = vi.fn<NonNullable<Inbox["readFinishes"]>>()
   const states = createDemoStates(
     verbs(calls, released, workspace),
-    () => ({ readFinishes: read }) as unknown as Inbox,
+    () => ({ readFinishes: read, ...(turns ? { turns } : {}) }) as unknown as Inbox,
   )
   const find = (label: string) =>
     states.groups.flatMap((group) => group.actions).find((action) => action.label === label)!
@@ -290,8 +294,90 @@ describe("demo states", () => {
     })
     // A dialog is no phase: the need mark shows it, the glyph that the agent rests.
     expect(new Set(shown.map((each) => terminalPhase(each)))).toEqual(
-      new Set(["idle", "running", "waiting", "paused", "unheard", "starting", "ended"]),
+      new Set([
+        "idle",
+        "running",
+        "waiting",
+        "paused",
+        "unheard",
+        "starting",
+        "sleeping",
+        "waking",
+        "ended",
+      ]),
     )
+  })
+
+  it("lets the agents that end a turn and then sleep go, leaving their turns to the Inbox", async () => {
+    const { run, added, terminal, released } = panel("04")
+    await run("Every state at once")
+    // Not before the completed turn's row is stored: that waits out the finish's grace while
+    // the terminal still runs its agent.
+    vi.advanceTimersByTime(3000 + finishGraceMs)
+    const early = added.find(
+      (one) => terminal(terminalSlot(one.terminalId))?.name === "Asleep, reply unread",
+    )!
+    expect(terminal(terminalSlot(early.terminalId))).not.toMatchObject({ state: "sleeping" })
+    vi.advanceTimersByTime(500)
+    const asleep = ["Asleep, reply unread", "Asleep, stopped with an error"].map((name) => {
+      const found = added.find((one) => terminal(terminalSlot(one.terminalId))?.name === name)!
+      expect(released).toContainEqual(found)
+      return terminal(terminalSlot(found.terminalId))
+    })
+    for (const each of asleep) expect(each).toMatchObject({ state: "sleeping" })
+  })
+
+  it("sleeps a reply's tile only once the Inbox has stored its turn, however long that takes", async () => {
+    const turns = createStore<readonly InboxTurn[] | undefined>([])
+    const { run, added, terminal } = panel("04", { turns })
+    await run("Every state at once")
+    const tile = added.find(
+      (one) => terminal(terminalSlot(one.terminalId))?.name === "Asleep, reply unread",
+    )!
+    const row = (at: number): InboxTurn => ({
+      id: `turn:${tile.terminalId}:${at}`,
+      projectId: tile.projectId,
+      workspaceSessionId: tile.workspaceSessionId,
+      terminalId: tile.terminalId,
+      handle: "fox",
+      agent: "claude",
+      at,
+      outcome: "completed",
+      reply: "All green.",
+      error: null,
+      files: [],
+    })
+    // Well past when the timers alone would have put it to sleep: the row is not stored yet.
+    vi.advanceTimersByTime(8000)
+    expect(terminal(terminalSlot(tile.terminalId))).not.toMatchObject({ state: "sleeping" })
+    turns.update(() => [row(Date.now())])
+    vi.advanceTimersByTime(1)
+    expect(terminal(terminalSlot(tile.terminalId))).toMatchObject({ state: "sleeping" })
+  })
+
+  it("sleeps the selected terminal's reply only once the Inbox has stored its turn", () => {
+    const turns = createStore<readonly InboxTurn[] | undefined>([])
+    const { run, terminal } = panel("04", { turns })
+    run("Asleep, reply unread")
+    vi.advanceTimersByTime(8000)
+    expect(terminal("04")).not.toMatchObject({ state: "sleeping" })
+    turns.update(() => [
+      {
+        id: "turn:04",
+        projectId: project.id,
+        workspaceSessionId: session.id,
+        terminalId: id("04"),
+        handle: "fox",
+        agent: "claude",
+        at: Date.now(),
+        outcome: "completed",
+        reply: null,
+        error: null,
+        files: [],
+      },
+    ])
+    vi.advanceTimersByTime(1)
+    expect(terminal("04")).toMatchObject({ state: "sleeping" })
   })
 
   it("gives the agent tiles their states through the verbs, not the terminal's metadata", async () => {
@@ -301,7 +387,7 @@ describe("demo states", () => {
       [
         ...Array<string>(3).fill("ask"),
         ...Array<string>(1).fill("ask"),
-        ...Array<string>(6).fill("finish"),
+        ...Array<string>(8).fill("finish"),
         ...Array<string>(4).fill("work"),
       ].toSorted(),
     )
@@ -348,6 +434,33 @@ describe("demo states", () => {
   })
 
   context("with a terminal selected", () => {
+    it("holds the sleeper it set asleep", () => {
+      const { run, terminal, states } = panel("04")
+      run("Asleep")
+      expect(terminal("04")).toMatchObject({ state: "sleeping" })
+      expect(states.holds(key("04"))).toBe(true)
+      expect(states.holds(key("05"))).toBe(false)
+    })
+
+    it("holds every sleeper the gallery sets, not the waking ones", async () => {
+      const { run, added, terminal, states } = panel("04")
+      await run("Every state at once")
+      vi.advanceTimersByTime(6000)
+      const held = (name: string) => {
+        const found = added.find((one) => terminal(terminalSlot(one.terminalId))?.name === name)!
+        return states.holds(found)
+      }
+      for (const name of [
+        "Asleep",
+        "Asleep, done",
+        "Asleep, asks (MCP)",
+        "Asleep, reply unread",
+        "Asleep, stopped with an error",
+      ])
+        expect(held(name), name).toBe(true)
+      expect(held("Waking")).toBe(false)
+    })
+
     it("ends its shell as the action says", () => {
       const { run, terminal } = panel("04")
       run("Killed (SIGKILL)")
@@ -450,12 +563,13 @@ describe("demo states", () => {
     it("lets go of the terminals of the gallery's metadata tiles, not its agents'", async () => {
       const { run, released, added } = panel("04")
       await run("Every state at once")
-      // The eleven that set no agent verb: two that ask through MCP (their Inbox rows are the
+      // The sixteen that set no agent verb: four that ask through MCP (their Inbox rows are the
       // demo's own), unheard, at its startup screen, program, a shell an agent opened, one an
-      // agent exited from, starting, and the three ways to end.
-      expect(released).toHaveLength(11)
+      // agent exited from, starting, asleep (twice more with a done report and an ask), waking
+      // (twice, one with an ask), and the three ways to end.
+      expect(released).toHaveLength(16)
       for (const each of released) expect(added).toContainEqual(each)
-      expect(new Set(released.map((each) => each.terminalId)).size).toBe(11)
+      expect(new Set(released.map((each) => each.terminalId)).size).toBe(16)
     })
 
     it("calls its verbs without letting go", () => {
@@ -848,7 +962,9 @@ describe("demo states over the real agents", () => {
       const asks = rows().filter((row) => row.kind === "ask")
       expect(asks.map((row) => row.source.title).toSorted()).toEqual([
         "Asks (MCP)",
+        "Asleep, asks (MCP)",
         "Needs a sign-in",
+        "Waking, asks (MCP)",
         "Working, a side question",
       ])
       expect(new Set(asks.map((row) => row.source.agent))).toEqual(new Set([harness]))

@@ -49,7 +49,7 @@ describe("the models call", () => {
 describe("the open call", () => {
   // Calls over a runner of fakes: a caller `moth` in /work, a client that opens every
   // terminal it is asked for as `t2`, and a record of what was asked, sent and noticed.
-  const setup = (bound: string[] = []) => {
+  const setup = (bound: string[] = [], resting: string[] = []) => {
     const records = new Map<string, unknown>([
       [
         "t1",
@@ -102,6 +102,8 @@ describe("the open call", () => {
       }),
       messaging: () => ({
         refusal: () => undefined,
+        holder: (agent: string, session: string) =>
+          resting.includes(`${agent}:${session}`) ? "t9" : undefined,
         send: (_from: string, request: { to: string; text: string }) => {
           sent.push(request)
           plain += 1
@@ -348,6 +350,16 @@ describe("the open call", () => {
     expect(await run.open({ agent: "agy", resume: "s-1" })).toMatchObject({
       ok: true,
     })
+    expect(run.asked).toHaveLength(1)
+  })
+
+  it("refuses a session a sleeping agent rests on, saying it is asleep, and opens nothing", async () => {
+    const run = setup([], ["claude:s-4"])
+    expect(await run.open({ agent: "claude", resume: "s-4" })).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("where the agent is asleep"),
+    })
+    expect(await run.open({ agent: "codex", resume: "s-4" })).toMatchObject({ ok: true })
     expect(run.asked).toHaveLength(1)
   })
 

@@ -42,6 +42,9 @@ export const lists: ShapeLists = {
     "tag:command-message",
     "tag:local-command-stdout",
     "tag:local-command-stderr",
+    // A compaction's summary and the permission mode, notes between turns.
+    "record:compact-summary",
+    "record:permission-mode",
     // A paste Claude Code wrapped, which the decoder unwraps.
     "tag:pasted_content",
     "wrap:pasted_content",
@@ -62,13 +65,12 @@ export const lists: ShapeLists = {
     "attachment:queued_command/none/task-notification",
     "attachment:queued_command/peer/prompt/meta",
     "attachment:queued_command/coordinator/none/meta",
-    // What Claude Code writes for itself, and its compaction's summary.
+    // What Claude Code writes for itself.
     "meta:user",
     "meta:user/tag:system-reminder",
     "meta:user/tag:local-command-caveat",
     "meta:assistant",
     "meta:system",
-    "record:compact-summary",
     // Records of its own state, which carry none of the conversation.
     "record:system",
     "record:summary",
@@ -77,7 +79,6 @@ export const lists: ShapeLists = {
     "record:agent-name",
     "record:tag",
     "record:mode",
-    "record:permission-mode",
     "record:last-prompt",
     "record:queue-operation/enqueue",
     "record:queue-operation/dequeue",

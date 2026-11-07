@@ -76,7 +76,7 @@ export const FooterSection = memo((): React.JSX.Element => {
   )
   const zen = useUiState((state) => Boolean(state.shell.zen))
   const navigate = useUiState((state) => state.shell.navigate)
-  const { count, running, waiting, waitingChange } = useWorkspaceState((workspace) => {
+  const { count, running, waiting, asleep, waitingChange } = useWorkspaceState((workspace) => {
     const { terminals } = currentState(workspace).roster
     const now = Date.now()
     // Agents that ended their turn to wait on something count apart, never as running; a
@@ -84,6 +84,7 @@ export const FooterSection = memo((): React.JSX.Element => {
     const waits = waitingAgents(terminals, now)
     return {
       waiting: waits.length,
+      asleep: terminals.filter((terminal) => terminal.state === "sleeping").length,
       waitingChange: waits.reduce<number | undefined>((soonest, terminal) => {
         const next = nextWaitingChange(terminal, now)
         return next === undefined || (soonest !== undefined && soonest < next) ? soonest : next
@@ -126,6 +127,7 @@ export const FooterSection = memo((): React.JSX.Element => {
       count={count}
       running={running}
       waiting={waiting}
+      asleep={asleep}
       navigate={navigate}
       onRetry={crashes > 0 && backend.crashLoop ? commands.retryAfterCrashLoop : undefined}
       // A copy that updates itself shows only its downloads; a portable one, which can't,

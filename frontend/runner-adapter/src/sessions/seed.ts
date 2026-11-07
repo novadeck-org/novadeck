@@ -1,7 +1,7 @@
 import { noTelemetry, setUsage, type Telemetry } from "@novadeck/core/agents/telemetry"
 import type { SessionSeed, WorkspaceSeed } from "@novadeck/core/seed"
 import { isShellProcess } from "@novadeck/core/terminals/process"
-import type { TerminalMetadata } from "@novadeck/core/types"
+import type { TerminalMetadata, TerminalStatus } from "@novadeck/core/types"
 import type {
   CompanionItem,
   CompanionWindow,
@@ -56,6 +56,18 @@ const restored = (summary: TerminalSummary): Pick<TerminalMetadata, "restoredPro
     ? { restoredProcess: summary.lastProgram }
     : {}
 
+// The status of a terminal the runner keeps asleep: no shell, its agent's session saved. Only
+// one that is not already waking (a `create` for it is coming) sleeps.
+export const sleeper = (summary: TerminalSummary): TerminalStatus | undefined =>
+  !summary.started && summary.sleeping && summary.restingAgent
+    ? {
+        state: "sleeping",
+        agent: summary.restingAgent,
+        ...(summary.reported ? { reported: true as const } : {}),
+        ...(summary.lastTurnAt !== null ? { endedAt: summary.lastTurnAt } : {}),
+      }
+    : undefined
+
 // A terminal as the runner keeps it, or undefined once its shell exited cleanly, which
 // closes it. One the runner has no shell for, as after it restarted, needs a fresh one.
 // A shell that exited sooner than `quickExitMs` after starting failed to start.
@@ -76,7 +88,12 @@ export const runnerTerminal = (
     ...(summary.busy ? { busy: true } : {}),
     titleSource: summary.titleSource,
   }
-  if (!summary.started) return { ...identity, ...restored(summary), process: "", state: "starting" }
+  if (!summary.started) {
+    const asleep = sleeper(summary)
+    return asleep
+      ? { ...identity, ...restored(summary), process: "", ...asleep }
+      : { ...identity, ...restored(summary), process: "", state: "starting" }
+  }
   const { status, process } = terminalActivity(summary, quickExitMs)
   if (status === "clean") return undefined
   return {

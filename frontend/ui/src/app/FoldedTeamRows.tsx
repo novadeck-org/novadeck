@@ -63,7 +63,9 @@ const FoldedRow = ({
         {...(phase === "done" && failed ? { "data-failed": true } : {})}
         style={markDelay(index)}
       />
-      <span className="truncate">{tile.name}</span>
+      <span className="truncate" {...(tile.state === "sleeping" ? { "data-sleeping": true } : {})}>
+        {tile.name}
+      </span>
       {below.length > 0 && <span className="team-fold-count shrink-0">+{below.length}</span>}
       {/* What it, or any terminal it folds away with it, needs of the person: the strongest. */}
       <span className="team-fold-needs">

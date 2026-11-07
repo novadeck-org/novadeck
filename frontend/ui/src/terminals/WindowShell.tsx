@@ -35,6 +35,8 @@ export type TerminalLayoutControls = {
   readonly onReveal?: (extent: { readonly right: number; readonly height: number }) => void
   // False while the layout holds the terminal out of the person's sight. Absent means in sight.
   readonly onScreen?: boolean
+  // False while Canvas is zoomed out too far to read a node. Absent means legible.
+  readonly legible?: boolean
 }
 
 // The bar's words on what a waiting agent waits on load when one does.
@@ -449,6 +451,7 @@ export const WindowShell = ({
       aria-label={`${label} terminal`}
       data-terminal={terminal.id}
       data-terminal-phase={phase}
+      {...(shell?.state === "sleeping" ? { "data-terminal-sleeping": true } : {})}
       {...(phase === "done" && failed ? { "data-terminal-failed": true } : {})}
       {...(need ? { "data-terminal-need": need } : {})}
       {...(snoozed ? { "data-terminal-snoozed": true } : {})}

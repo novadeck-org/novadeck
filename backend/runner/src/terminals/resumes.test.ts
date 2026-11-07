@@ -1,5 +1,17 @@
+import { mkdtempSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
 import { describe, expect, it } from "../test.js"
-import { Claims, restartedTask, resumeNote, resumeRefusal } from "./resumes.js"
+import { savedSession } from "./binding/standing.js"
+import {
+  cancelResume,
+  Claims,
+  restartedTask,
+  resumeNote,
+  resumeRefusal,
+  sessionHeldElsewhere,
+} from "./resumes.js"
 
 describe("the task a restored worker starts again", () => {
   const command = 'codex "[Novadeck: automatic notice, agent messages waiting, k3f9q2]"'
@@ -129,5 +141,45 @@ describe("the session a restore asks to resume", () => {
       "this shell can't run the command",
     )
     expect(resumeNote(undefined, undefined, false)).toBeUndefined()
+  })
+})
+
+describe("a session another terminal holds", () => {
+  const other = (id: string, held: { bound?: string; root?: string }) =>
+    ({
+      summary: { id },
+      bound: held.bound ? { binding: { agent: "agy", sessionId: held.bound } } : null,
+      root: held.root ? { agent: "agy", sessionId: held.root } : null,
+    }) as never
+
+  it("is held by a binding, or by the root conversation a status line names", () => {
+    const records = [other("b", { bound: "first", root: "convo" })]
+    expect(sessionHeldElsewhere(records, "a", "agy", "first")).toBe(true)
+    expect(sessionHeldElsewhere(records, "a", "agy", "convo")).toBe(true)
+    expect(sessionHeldElsewhere(records, "a", "agy", "else")).toBe(false)
+    expect(sessionHeldElsewhere(records, "a", "claude", "convo")).toBe(false)
+  })
+
+  it("is not held by the terminal itself", () => {
+    expect(sessionHeldElsewhere([other("a", { root: "convo" })], "a", "agy", "convo")).toBe(false)
+  })
+})
+
+describe("cancelling a resume", () => {
+  it("removes the command, keeping the claim its standing reports are read through", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "resume-")), "cmd")
+    writeFileSync(file, "claude --resume c")
+    const record = { resumeFile: file, resumeClaim: "claude:c" as string | undefined }
+    expect(cancelResume(record)).toBe(true)
+    expect(record.resumeClaim).toBe("claude:c")
+    expect(cancelResume(record)).toBe(false)
+  })
+
+  it("leaves the session's standing reports readable, so its done mark stands", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "resume-")), "cmd")
+    writeFileSync(file, "claude --resume c")
+    const record = { resumeFile: file, resumeClaim: "claude:c", bound: null }
+    cancelResume(record)
+    expect(savedSession(record)).toEqual({ agent: "claude", sessionId: "c" })
   })
 })

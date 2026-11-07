@@ -23,6 +23,12 @@ describe("showsHandle", () => {
       expect(showsHandle({ ...idle, agentRan: true })).toBe(true)
     })
 
+    it("shows it while an agent is being woken, whether or not its summary says it ran", () => {
+      expect(showsHandle({ state: "starting", restoredProcess: "claude" })).toBe(true)
+      expect(showsHandle({ state: "starting", restoredProcess: "vim" })).toBe(false)
+      expect(showsHandle({ state: "starting" })).toBe(false)
+    })
+
     it("shows it on a shell an agent opened, or one an agent leads", () => {
       expect(showsHandle({ ...idle, openedBy: "moth" })).toBe(true)
       expect(showsHandle({ ...idle, ledBy: "moth" })).toBe(true)

@@ -52,6 +52,7 @@ import {
   type DemoTerminals,
   type DemoTerminalSetup,
 } from "./terminals/screens"
+import { demoWakes } from "./terminals/wakes"
 import { babciaIntroOf, createBabcia } from "./videos/babcia"
 import { chirpIntroOf, chirpSeed, chirpTranscripts } from "./videos/chirp"
 import { createLaunch } from "./videos/launch"
@@ -313,11 +314,24 @@ export const withConversations = (
   const terminals = terminalsOf.get(backend.mountTerminal)
   if (!terminals) throw new Error("withConversations wraps a backend demoBackend made")
   terminals.link(link)
+  // Sleepers wake as they are seen: against the sink the backend starts with, and the
+  // workspace it last committed.
+  let sink: BackendSink | undefined
+  let latest: Workspace | undefined
+  terminals.wakeWith(
+    demoWakes({
+      dispatch: (actions) => sink?.dispatch(actions),
+      terminal: (key) => terminalOf(latest, key),
+      held: terminals.holds,
+      turns,
+    }),
+  )
   const linked: Backend = {
     ...backend,
     conversations,
     telemetry: turns.telemetry,
     commit: (workspace, actions) => {
+      latest = workspace
       backend.commit(workspace, actions)
       chat.observe(workspace)
       // A closed terminal's agent says no more, nor those of a removed project.
@@ -338,12 +352,14 @@ export const withConversations = (
           turns.telemetry.update((held) => dropProject(held, action.projectId))
       }
     },
-    start: (sink) => {
-      const stopTurns = turns.start(sink)
-      const stop = backend.start?.(sink)
+    start: (next) => {
+      sink = next
+      const stopTurns = turns.start(next)
+      const stop = backend.start?.(next)
       return () => {
         stop?.()
         stopTurns()
+        if (sink === next) sink = undefined
       }
     },
   }

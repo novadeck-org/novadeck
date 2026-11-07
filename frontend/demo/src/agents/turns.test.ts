@@ -102,6 +102,14 @@ describe("demo turns", () => {
       turns.work(key("01"), held(key("01")), { planning: true })
       expect(reported(turns, "01")).toBe(usage)
     })
+
+    it("keeps a done report standing where it is told to, as a woken sleeper's does", () => {
+      const { turns, held, agent } = open()
+      turns.rest(key("06"), held(key("06")), { reported: true })
+      expect(agent(key("06"))).toEqual({ working: false, reported: true })
+      turns.rest(key("06"), held(key("06")))
+      expect(agent(key("06"))).toEqual({ working: false })
+    })
   })
 
   describe("finish", () => {

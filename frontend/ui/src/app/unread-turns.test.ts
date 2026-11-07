@@ -202,6 +202,29 @@ describe("unread turns", () => {
       stop()
     })
 
+    it("stay while the terminal's agent sleeps, whether its reply completed or failed", () => {
+      const completed = setup({ rows: [row("a", 10)] })
+      const stop = completed.watch()
+      completed.workspace.dispatch({
+        type: "terminal/status",
+        target,
+        terminalId: "02",
+        status: { state: "sleeping", agent: "claude" },
+      })
+      expect(completed.unread()).toEqual(done)
+      stop()
+      const errored = setup({ rows: [row("a", 10, "failed")] })
+      const stopErrored = errored.watch()
+      errored.workspace.dispatch({
+        type: "terminal/status",
+        target,
+        terminalId: "02",
+        status: { state: "sleeping", agent: "claude" },
+      })
+      expect(errored.unread()).toEqual(failed)
+      stopErrored()
+    })
+
     it("also say the rows hidden under a running lead", () => {
       const app = setup({ rows: [row("a", 10)] })
       app.workspace.dispatch({ type: "terminal/update", target, terminalId: "01", handle: "moth" })

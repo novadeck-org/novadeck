@@ -1787,7 +1787,7 @@ describe("saved terminals", () => {
     expect(second.terminals("s").find(({ id }) => id === "a")).not.toHaveProperty("interruptions")
   })
 
-  it("keep what a session was doing in its agent's report, and read a row saved without it as having none", async ({
+  it("keep what a session was doing and when its turn ended in its agent's report, and read a row saved without them as having none", async ({
     directory,
     kept,
   }) => {
@@ -1795,7 +1795,7 @@ describe("saved terminals", () => {
     const first = kept(path)
     first.saveTerminal({
       ...numbered("a", "moth"),
-      agents: { claude: { sessionId: "abc", seq: 2, turn: "running" } },
+      agents: { claude: { sessionId: "abc", seq: 2, turn: "running", endedAt: 1234 } },
     })
     first.saveTerminal({
       ...numbered("b", "owl"),
@@ -1814,7 +1814,7 @@ describe("saved terminals", () => {
     raw.close()
     const reopened = kept(path)
     expect(reopened.terminal("a")?.agents).toEqual({
-      claude: { sessionId: "abc", seq: 2, turn: "running" },
+      claude: { sessionId: "abc", seq: 2, turn: "running", endedAt: 1234 },
     })
     expect(reopened.terminal("b")?.agents).toEqual({
       claude: { sessionId: "def", seq: 3, turn: "waking" },

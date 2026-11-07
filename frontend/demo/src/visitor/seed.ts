@@ -49,7 +49,8 @@ const placed = (
       ...(agent ? { state: "running" as const, agent } : {}),
       id: demoTerminalId({ projectId, workspaceSessionId: session }, Number(slot)),
       handle: demoHandle(Number(slot)),
-    }
+      // As in the samples: the compiler can't tell a spread's status from the sleeping one.
+    } as Placed
   })
 
 // Claude Code in plan mode: asking to have its plan reviewed, or, `reading`, still on its

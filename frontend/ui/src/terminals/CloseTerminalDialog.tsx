@@ -16,6 +16,14 @@ type CloseTerminalDialogProps = {
   readonly returnFocus: (terminalId: string) => HTMLElement | null
 }
 
+// What a sleeping or waking agent's terminal says: where the agent is, with its session saved.
+const restingWords = (terminal: TerminalMetadata, then: string): string | undefined =>
+  terminal.state === "sleeping"
+    ? `${terminal.agent} is asleep in it, with its session saved, but ${then}`
+    : terminal.state === "starting" && terminal.restoredProcess
+      ? `${terminal.restoredProcess} is waking in it, with its session saved, but ${then}`
+      : undefined
+
 const sentences = (terminal: TerminalMetadata): Readonly<Record<CloseReason, string>> => ({
   program: `${terminal.process || "A program"} is still running in it.`,
   working: "Its agent is working on a turn, and closing it stops the turn.",
@@ -23,7 +31,10 @@ const sentences = (terminal: TerminalMetadata): Readonly<Record<CloseReason, str
     "Its agent is waiting on a job or a wake-up it set, or has tasks running in the background. Closing it ends them, and restoring it doesn't start them again.",
   leads:
     "It leads other agents that are still running. Closing it leaves them without a lead, and restoring it doesn't give the lead back.",
-  unrestorable: "It can't be restored from History once it is closed.",
+  unrestorable:
+    restingWords(terminal, "its session can't be restored from History once it is closed.") ??
+    "It can't be restored from History once it is closed.",
+  asleep: restingWords(terminal, "closing it ends that session.") ?? "",
 })
 
 // What the dialog says, from the terminal as it is now: an agent's turn may end, or a program

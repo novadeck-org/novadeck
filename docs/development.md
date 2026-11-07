@@ -258,7 +258,10 @@ this tab. A ↺ beside an action marks one that boots the demo again.
 
 Terminals:
 
-- **Selected terminal:** put the selected terminal in each of its states: starting, loading
+- **Selected terminal:** put the selected terminal in each of its states: starting, asleep (an
+  agent with a saved session and no process; a showcase sleeper, once seen for a moment, in Focus or
+  in sight in Grid and Canvas, wakes by itself: waking, then its agent resting; one the panel set,
+  from here or the gallery, stays asleep), waking (that agent on its way back), loading
   output, back at the prompt, running a long program, Claude Code, Codex or Antigravity, a failed
   paste, and each way to end (clean exit, exit code, killed, killed for memory, failed to
   start). Each one that changes the state calls off what the terminal's agent had
@@ -270,8 +273,8 @@ Terminals:
   Canvas wire side by side (on neighbours, the teams chain through the middle one).
 - **New terminals:** "Every state at once" adds one terminal per state, named after it, so
   the tabs and the windows in Grid and Canvas show done, replied (unread), failed, working,
-  planning, subagents, asking, waiting, paused at its limit, ended and the rest side by
-  side. Its agents are of the harness the group's switch chose (see Agent). "Asks (MCP)" and
+  planning, subagents, asking, waiting, paused at its limit, asleep (plain, done, asking),
+  waking (plain, asking), ended and the rest side by side. Its agents are of the harness the group's switch chose (see Agent). "Asks (MCP)" and
   "Needs a sign-in" are agents with an `ask` open in the Inbox (a
   question, and an action ask), so their "?" and "!" show beside "Working, a side question",
   an agent that works on with a question open. You stay on one that needs permission, and the

@@ -30,6 +30,7 @@ import {
 
 import { workspaceOverlayOpen, workspaceShortcutTarget } from "../../interaction/shortcuts"
 import { backgroundPointerHandlers } from "../background"
+import { legibleZoom } from "../useSeen"
 import { useTerminalVisibility } from "../useTerminalVisibility"
 import { CanvasTeamWire } from "./CanvasTeamWire"
 import {
@@ -111,6 +112,8 @@ const TerminalCanvas = ({
   const fitZoom = useStore(
     (state) => Math.floor(Math.min(state.width / 320, state.height / 200) * 2) / 2,
   )
+  // Whether a node's text can be read at the zoom; the selector changes only as it crosses.
+  const legible = useStore((state) => state.transform[2] >= legibleZoom)
   const maxZoom = Math.max(1.5, layout.viewport?.zoom ?? 1, fitZoom)
   const container = useRef<HTMLDivElement>(null)
   const [visibility] = useState(createNodeVisibility)
@@ -371,6 +374,7 @@ const TerminalCanvas = ({
       if (!terminal) return null
       return render(terminal, {
         onScreen,
+        legible,
         onFlyTo: () => flyTo(terminal),
         onReveal: ({ right, height }) => {
           // On entry every open sheet reveals itself in turn: the selected window's own
@@ -412,7 +416,7 @@ const TerminalCanvas = ({
         },
       })
     },
-    [fitBounds, flyTo, getNode, render, setNodes, terminals],
+    [fitBounds, flyTo, getNode, legible, render, setNodes, terminals],
   )
 
   // XYFlow owns pointer-time geometry so dragging does not rerender the application or terminals.

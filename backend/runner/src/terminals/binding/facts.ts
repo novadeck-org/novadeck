@@ -21,7 +21,7 @@ import { standingDone } from "../../messaging/peers.js"
 import type { Companion } from "../companion.js"
 import { afterTyped } from "../exits.js"
 import { failed } from "../failures.js"
-import { markTurn } from "../interrupted.js"
+import { markEnd, markTurn } from "../interrupted.js"
 import type { Record } from "../record.js"
 import { whenEndCounts } from "../sampling.js"
 import { hasRun } from "../saved-terminals.js"
@@ -574,8 +574,11 @@ export class Bindings {
     const activity = bound ? activitySummary(bound.activity) : null
     // Before the early return below: an Escape that settles changes nothing the summary shows.
     this.ends.sight(record, activity)
-    // What the turn was doing is kept for a restart of Novadeck (`markTurn`), saved at once.
-    if (markTurn(record, activity)) {
+    // What the turn was doing is kept for a restart of Novadeck (`markTurn`), and when it ended
+    // for the age of a sleeper (`markEnd`), saved at once.
+    const turned = markTurn(record, activity)
+    const ended = markEnd(record, activity)
+    if (turned || ended) {
       record.changed = true
       this.host.save(record)
     }
@@ -598,6 +601,21 @@ export class Bindings {
     this.host.announce(record)
   }
 
+  /** Forgets every session `agent` reported in the terminals, as once it is disconnected. */
+  forgetAgent(records: Iterable<Record>, agent: AgentName): void {
+    for (const record of records) {
+      const { [agent]: _forgotten, ...rest } = record.agents
+      record.agents = rest
+      const agentRan = hasRun(rest)
+      // Its binding ends too: a disconnected harness holds no terminal's foreground.
+      if (record.bound?.binding.agent === agent) this.forgotten(record)
+      else if (record.summary.agentRan !== agentRan) {
+        record.summary = { ...record.summary, agentRan }
+        this.host.announce(record)
+      }
+    }
+  }
+
   /**
    * The agent's `done` that still stands (`standingDone`), as the summary shows it: what
    * the person's prompt, a delivered message, another session or the agent's end can undo,
@@ -610,7 +628,7 @@ export class Bindings {
     const done = standingDone(
       this.host.turns().inbox.reports(id, saved),
       record.work?.personAt,
-      this.host.messaging().deliveredAt(id),
+      this.host.messaging().deliveredAt().get(id) ?? null,
     )
     return done && { subject: done.subject, at: done.at }
   }

@@ -88,6 +88,17 @@ describe("workspace footer", () => {
     })
   })
 
+  context("with sleeping agents", () => {
+    it("counts them with the divider the other counts have", () => {
+      const page = render(
+        createElement(WorkspaceFooter, { hidden: false, count: 5, running: 1, asleep: 4 }),
+      )
+      mounted.push(page)
+      expect(page.container.querySelector(".footer-sleeping")?.textContent).toBe("4 asleep")
+      expect(show().bar().querySelector(".footer-sleeping")).toBeNull()
+    })
+  })
+
   context("while a crash loop offers to try again", () => {
     it("carries a Restart terminals chip that starts over", () => {
       const onRetry = vi.fn<() => void>()

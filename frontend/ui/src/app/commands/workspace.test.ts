@@ -29,8 +29,12 @@ const three = async () => {
 const running = () => {
   const workspace = workspaceFixture()
   const state = workspace.projects[0]!.history[0]!.state
+  const { id, name, directory, command } = state.roster.terminals[0]!
   state.roster.terminals[0] = {
-    ...state.roster.terminals[0]!,
+    id,
+    name,
+    directory,
+    command,
     state: "running",
     process: "vim",
   }
@@ -306,6 +310,44 @@ describe("workspace commands", () => {
       const app = openCommands({ workspace: running() })
       app.commands.close("01")
       expect(keyState(app.context, app.commands)).toMatchObject({ dialog: true, alert: true })
+    })
+
+    it("asks first for a sleeping agent too, since closing ends its saved session", () => {
+      const workspace = running()
+      const state = workspace.projects[0]!.history[0]!.state
+      const { id, name, directory, command } = state.roster.terminals[0]!
+      state.roster.terminals[0] = {
+        id,
+        name,
+        directory,
+        command,
+        process: "",
+        state: "sleeping",
+        agent: "claude",
+      }
+      const app = openCommands({ workspace })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toMatchObject({ id: "01" })
+      expect(terminal(app, "01")).toBeDefined()
+    })
+
+    it("asks first while an agent wakes, since closing ends its saved session", () => {
+      const workspace = running()
+      const state = workspace.projects[0]!.history[0]!.state
+      const { id, name, directory, command } = state.roster.terminals[0]!
+      state.roster.terminals[0] = {
+        id,
+        name,
+        directory,
+        command,
+        process: "",
+        state: "starting",
+        restoredProcess: "claude",
+      }
+      const app = openCommands({ workspace })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toMatchObject({ id: "01" })
+      expect(terminal(app, "01")).toBeDefined()
     })
 
     it("closes an idle terminal without asking", () => {

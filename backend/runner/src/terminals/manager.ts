@@ -22,28 +22,23 @@ import type {
 import { relayPath } from "@novadeck/relay"
 import { createTerminalHost, type Terminal, type TerminalHost } from "@novadeck/terminal/host"
 import { Trees, type ProcessTrees, type Pty, type PtyOptions } from "@novadeck/terminal/pty"
-import { afterKeys, emptyLine, withLocale } from "@novadeck/terminal/shell"
-import { keysOf, type InterruptOptions, type PromptOptions } from "@novadeck/tui-input"
+import { afterKeys, emptyLine, startsCommands, withLocale } from "@novadeck/terminal/shell"
+import { keysOf } from "@novadeck/tui-input"
 
 import type { PlanText } from "../companions/content.js"
 import type { CompanionItems, TerminalPlace } from "../companions/items.js"
 import type { ItemRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
 import { blocking } from "../harnesses/activity.js"
-import { actorOf, agentDetail } from "../harnesses/detail.js"
+import { agentDetail } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
-import { type DoorbellOptions } from "../messaging/doorbell.js"
 import { Feedback } from "../messaging/feedback.js"
-import { Inbox, type InboxRecords } from "../messaging/inbox.js"
+import { Inbox } from "../messaging/inbox.js"
 import { Messaging } from "../messaging/messaging.js"
-import type { MessageRecords } from "../messaging/records.js"
 import type { AgentsAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.js"
-import type { Describer } from "../murmur/describer.js"
 import { stripInherited } from "../shell/inherited.js"
-import type { InstalledShell } from "../shell/install.js"
 import { type Ack, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
-import { type AnswersOptions } from "./answers.js"
 import { Approvals } from "./approvals.js"
 import { Bindings } from "./binding/facts.js"
 import { Reports } from "./binding/reports.js"
@@ -55,162 +50,43 @@ import { type CloseAnswer } from "./closes.js"
 import { coalesced } from "./coalesce.js"
 import { expectedAgent } from "./commands.js"
 import { Companion } from "./companion.js"
-import { Murmur, type MurmurTimes } from "./descriptions.js"
-import { type DialogsOptions } from "./dialogs.js"
+import { Murmur } from "./descriptions.js"
 import { agentWorking } from "./doorbell-host.js"
 import { agentProcess, shutdownTreeGraceMs, shutdownTreesMs, treeGraceMs } from "./ending.js"
 import { failed } from "./failures.js"
 import { historyHost } from "./history-host.js"
-import { ClosedTerminals, type HistoryRecords, type HistoryTimes, type Plan } from "./history.js"
+import { ClosedTerminals, type Plan } from "./history.js"
 import { restored } from "./interrupted.js"
 import { Launcher, startedIn, startFailed } from "./launching.js"
+import { listTerminals } from "./listing.js"
 import { forgetPrompts, markPrompt, murmurHost } from "./murmur-host.js"
 import { Names } from "./names.js"
 import { noNudges } from "./nudges.js"
 import { OpenRequests } from "./opens.js"
+import type { TerminalOptions } from "./options.js"
 import { TerminalPeers } from "./peers-host.js"
 import type { Record } from "./record.js"
-import { createTranscriptRedactor, type TranscriptRedactor } from "./redaction.js"
+import { createTranscriptRedactor } from "./redaction.js"
 import { showRestored } from "./restored.js"
-import { cancelResume, Claims, endExpecting, restartedTask, resumeNote } from "./resumes.js"
+import {
+  cancelResume,
+  Claims,
+  endExpecting,
+  restartedTask,
+  resumeNote,
+  sessionHeldElsewhere,
+} from "./resumes.js"
 import { markBusy, Sampler, shellProcess } from "./sampling.js"
 import { hasRun, keptState, type TerminalRecords } from "./saved-terminals.js"
 import { Saves } from "./saving.js"
-import type { TranscriptSealer } from "./sealing.js"
+import { Sleepers } from "./sleepers.js"
 import { slicingOf } from "./slices.js"
 import { StartupWatch } from "./startup-watch.js"
 import { Streams } from "./streams.js"
-import { noAgent, savedSummaryOf, summaryOf, type AgentSummary } from "./summary.js"
+import { noAgent, summaryOf, type AgentSummary } from "./summary.js"
 import { openedWith, renamed as renamedTo, summaryTitle, unnamed, type Naming } from "./titles.js"
-import { readingOf, transcriptChanges } from "./transcripts.js"
+import { followTranscript } from "./transcripts.js"
 import { Typing, type Prompted, type PromptInput } from "./typing.js"
-
-export type TerminalOptions = {
-  shell?: string
-  shellArgs?: readonly string[]
-  /** Variables shells get on top of `baseEnv`. */
-  env?: NodeJS.ProcessEnv
-  /** The environment shells start from: the runner's own when omitted. */
-  baseEnv?: NodeJS.ProcessEnv
-  /**
-   * Whether each new shell's PATH is read anew, as Windows keeps it, so a program
-   * installed since the app started is on it (see `refreshPath`). On unless `baseEnv`
-   * sets the environment exactly.
-   */
-  freshPath?: boolean
-  /** Running and retained terminals together; unlimited when omitted. */
-  maxTerminals?: number
-  /** Exited, unattached records kept for viewing or restart; the oldest go first. */
-  maxRetained?: number
-  historyBytes?: number
-  subscriberBytes?: number
-  snapshotBytes?: number
-  ackWindowBytes?: number
-  /** How often running terminals' foreground processes are sampled, in milliseconds. */
-  processPollMs?: number
-  /**
-   * The shell integration and hook, once written (see `installShellFiles`). Without
-   * them, shells start as they are and no agent session is reported.
-   */
-  shellFiles?: Promise<InstalledShell | undefined>
-  /** Where terminals are saved for restoring; unsaved when omitted. */
-  records?: TerminalRecords
-  /** Where closed terminals are kept for History; none is kept when omitted. */
-  closed?: HistoryRecords
-  /** Every project's id, for History's list of all closed terminals. */
-  projects?: () => readonly string[]
-  /** How long History waits, as in some tests. */
-  historyTimes?: Partial<HistoryTimes>
-  /** The order each session gives handle words in: its own shuffle when omitted (see `handleOrder`). */
-  handleOrder?: (sessionId: string) => readonly string[]
-  /** The connected harnesses whose shims new shells put first on PATH. */
-  shims?: () => Promise<readonly AgentName[]>
-  /**
-   * Whether Novadeck's plugin is installed into the harness: a disconnected one resumes
-   * nothing and its reports are ignored. Every harness counts as connected when omitted.
-   */
-  connected?: (agent: AgentName) => Promise<boolean>
-  /** Whether terminals' transcripts are kept, until `keepTranscripts` changes it. */
-  transcripts?: boolean
-  /** How often changed terminals are saved, in milliseconds. */
-  saveMs?: number
-  /** How often a changed terminal's transcript is saved, in milliseconds. */
-  transcriptMs?: number
-  /** How long the last transcripts get as the runner shuts down, in milliseconds. */
-  transcriptShutdownMs?: number
-  /** Masks secrets in transcripts before they are saved; a worker thread by default. */
-  redactor?: TranscriptRedactor
-  /** Seals transcripts to save and opens them; none is saved or shown without it. */
-  sealer?: TranscriptSealer
-  /** How long a restored terminal waits for the sealer's key, in milliseconds. */
-  transcriptKeyMs?: number
-  /** The longest transcript kept per terminal, in characters. */
-  transcriptChars?: number
-  /**
-   * What agents show beside terminals, and the plans each terminal's agent keeps there;
-   * agents show nothing without it.
-   */
-  items?: CompanionItems
-  /** The folder of the project a session belongs to, which names the files its agents show. */
-  projectFolder?: (sessionId: string) => string | undefined
-  /** How long an agent's request for a new terminal waits for the client's answer, in milliseconds. */
-  openMs?: number
-  /** Where agents' messages, their threads and the messaging pause are kept; in memory when omitted. */
-  messages?: MessageRecords
-  inbox?: InboxRecords
-  /**
-   * The project a session belongs to, whose terminals' agents message each other; each
-   * session counts as its own when omitted, or when that cannot be told.
-   */
-  projectOf?: (sessionId: string) => string | undefined
-  /**
-   * Writes terminals' titles and summaries (see `Murmur`); nothing is described without it.
-   * `murmurTimes` shortens its waits, as in some tests.
-   */
-  describer?: Describer
-  murmurTimes?: Partial<MurmurTimes>
-  /** How the doorbell rings idle agents; it never rings with `false`, as in some tests. */
-  doorbell?: DoorbellOptions | false
-  /** How prompts the chat gives agents are typed, with its waits, as in some tests. */
-  prompts?: PromptOptions
-  /** How interrupts wait, as in some tests. */
-  interrupts?: InterruptOptions
-  /** How answers the chat gives agents' dialogs are pressed, and how dialogs are read, with their waits, as in some tests. */
-  answers?: AnswersOptions & DialogsOptions
-  /**
-   * Where a harness lives on this machine, which says how it may start with a task; a
-   * harness counts as having none when omitted.
-   */
-  install?: (agent: AgentName) => Promise<Install | undefined>
-  /**
-   * The models a harness can start with on this machine, which an agent's request for a
-   * model is checked against; none when omitted.
-   */
-  models?: (agent: AgentName) => Promise<readonly Model[]>
-  /**
-   * Whether Novadeck's hooks run for the harness in a folder, where it runs them only
-   * once the person trusts them (`Harness.hooksTrusted`); asked of the harness itself when
-   * omitted. Undefined, or a failure, is unknown.
-   */
-  hooksTrusted?: (agent: AgentName, cwd: string) => Promise<boolean | undefined>
-  /**
-   * The platform harnesses run their hooks on, which sets how long a hook may take to come
-   * (see `hookShellSlackMs`); the runner's own when omitted.
-   */
-  platform?: NodeJS.Platform
-  /**
-   * The runner's own relay, which on Windows reads the registry's PATH and terminals'
-   * process trees; the one `@novadeck/relay` built when omitted. Never the copy installed
-   * for agents, which may be another build's, and waits on the shell files being written.
-   */
-  relay?: string
-  /**
-   * The pty: where its program is kept, and as a test plays it, node-pty's `spawn`, the
-   * platform its ending follows (this system's when omitted, whatever `platform` says, as
-   * real shells run here), and the process trees a Windows terminal's programs end by.
-   */
-  pty?: PtyOptions & { readonly trees?: ProcessTrees }
-}
 
 type Create = {
   id: string
@@ -226,6 +102,8 @@ type Create = {
   title?: string | undefined
   /** The agent's request it answers, whose opener it is opened for, with the title asked for. */
   requestId?: string | undefined
+  /** The person is looking at it: a wake that can't resume its agent starts a plain shell. */
+  seen?: boolean | undefined
   /** The History row it restores (see `ClosedTerminals.restore`); with nothing else but the session and size. */
   closed?: string | undefined
 }
@@ -287,6 +165,8 @@ export class Terminals {
   private readonly launcher: Launcher
   /** Sessions given out to resume, and the terminal each went to. */
   private readonly claims: Claims
+  /** Terminals whose agents sleep, saved with no shell until someone needs them. */
+  private readonly sleepers: Sleepers
   private readonly options: Required<
     Omit<
       TerminalOptions,
@@ -440,12 +320,7 @@ export class Terminals {
     })
     this.claims = new Claims({
       boundElsewhere: (terminalId, agent, session) =>
-        [...this.records.values()].some(
-          (other) =>
-            other.summary.id !== terminalId &&
-            other.bound?.binding.agent === agent &&
-            other.bound.binding.sessionId === session,
-        ),
+        sessionHeldElsewhere(this.records.values(), terminalId, agent, session),
     })
     // Read once now, so the first terminal doesn't wait for it; see `Launcher.environment`.
     // After the deletes, as the relay, or PowerShell, that reads it gets this environment.
@@ -488,7 +363,7 @@ export class Terminals {
     })
     this.streams = new Streams<Record>({
       stopping: () => this.stopping,
-      holds: (terminalId) => this.records.has(terminalId),
+      holds: (terminalId) => this.records.has(terminalId) || !!this.sleepers.resting(terminalId),
       detail: (record) =>
         agentDetail(
           record.summary.id,
@@ -502,6 +377,7 @@ export class Terminals {
         ),
       detailOpened: (terminalId) => this.typing.boxes.changed(terminalId),
       messages: (terminalId) => this.messages(terminalId),
+      saved: (row) => this.sleepers.summaryOf(row),
       slicing: (terminalId) =>
         slicingOf(
           this.records.get(terminalId),
@@ -529,6 +405,7 @@ export class Terminals {
         install: (agent) => this.options.install(agent),
         connected: (agent) => this.launcher.connected(agent),
         drawHandle: (sessionId) => this.names.next(sessionId),
+        resting: (agent, sessionId) => this.sleepers.holder(agent, sessionId),
         announce: (record) => this.announce(record),
       }),
       options.historyTimes,
@@ -592,6 +469,7 @@ export class Terminals {
         if (record) this.typing.watchQueue(record)
       },
       held: (id, root, held) => this.reporting.held(id, root, held),
+      onWake: (id) => this.sleepers.ask(id),
     })
     this.inbox = new Inbox(
       {
@@ -604,6 +482,7 @@ export class Terminals {
           this.streams.messagesChanged(id)
           const record = this.records.get(id)
           if (record) this.bindings.publishReported(record)
+          else this.sleepers.publish(id)
         },
         exists: (id) =>
           !this.closedIds.has(id) &&
@@ -611,9 +490,47 @@ export class Terminals {
       },
       options.inbox,
     )
+    this.sleepers = new Sleepers({
+      messaging: () => this.messaging,
+      saves: () => this.saves,
+      inbox: () => this.inbox,
+      claims: () => this.claims,
+      connected: (agent) => this.launcher.connected(agent),
+      resumes: () =>
+        this.options.shellArgs === undefined &&
+        options.shellFiles !== undefined &&
+        startsCommands(this.options.shell),
+      projectOf: (sessionId) => {
+        try {
+          return options.projectOf?.(sessionId) ?? sessionId
+        } catch {
+          return undefined
+        }
+      },
+      held: (id) => this.records.has(id),
+      closed: (id) => this.closedIds.has(id),
+      record: (id) => this.records.get(id),
+      stopping: () => this.stopping,
+      create: async (row, resume) => {
+        const owner = `wake:${row.id}`
+        const { id, sessionId, cwd } = row
+        try {
+          await this.create(
+            { id, sessionId, cwd, cols: 80, rows: 24, restore: true, resume },
+            owner,
+          )
+        } finally {
+          this.release(owner)
+        }
+      },
+      restorable: (agent, sessionId, settled) => this.history.restorable(agent, sessionId, settled),
+      changed: (row) => this.streams.savedChanged(row),
+      ended: (id) => this.streams.end(id),
+    })
     this.feedback = new Feedback({
       owner: (id) => this.messaging.inboxOwner(id),
-      exists: (id) => !this.closedIds.has(id) && this.records.has(id),
+      exists: (id) =>
+        !this.closedIds.has(id) && (this.records.has(id) || !!this.sleepers.resting(id)),
       replyState: (id) => this.messaging.inboxReply(id),
       request: (id, request, hint) => this.messaging.personFeedbackRequest(id, request, hint),
     })
@@ -678,11 +595,13 @@ export class Terminals {
           ? record
           : undefined
       },
-      terminal: (terminalId) => this.records.get(terminalId),
-      running: (sessionId) =>
-        [...this.records.values()].filter(
+      terminal: (terminalId) => this.records.get(terminalId) ?? this.sleepers.peer(terminalId),
+      running: (sessionId) => [
+        ...[...this.records.values()].filter(
           (record) => record.summary.sessionId === sessionId && record.terminal.exit === null,
         ),
+        ...this.sleepers.sleepersOf(sessionId),
+      ],
       projectFolder: (sessionId) => this.projectFolder(sessionId),
       reports: (id) => this.inbox.reports(id, savedSession(this.records.get(id))),
       stopping: () => this.stopping,
@@ -716,6 +635,8 @@ export class Terminals {
       launcher: () => this.launcher,
       trees: () => this.trees,
       claims: () => this.claims,
+      sleepers: () => this.sleepers,
+      close: (terminalId, closedBy) => this.close({ terminalId }, closedBy),
       install: (agent) => this.options.install(agent),
       models: (agent) => this.options.models(agent),
       closingNow: (terminalId) => this.host.closing(terminalId),
@@ -730,6 +651,8 @@ export class Terminals {
       agents: (call) => this.agents(call),
     })
     this.launcher.integrate(options.shellFiles)
+    this.sleepers.start()
+    void this.launcher.integrated().then((found) => !found && this.sleepers.integrationFailed())
   }
 
   /**
@@ -748,9 +671,12 @@ export class Terminals {
     if (this.stopping) throw new DomainError("CLOSING")
     // A closed terminal stays closed, even while its shell is still ending.
     if (this.closedIds.has(input.id)) throw new DomainError("TERMINAL_NOT_FOUND")
+    const woken = this.sleepers.metAlone(input.id)
+    if (woken) return summaryOf(woken)
     // Checked before eviction, so a retained exited record keeps its id taken.
     this.available(input.id)
     const place = this.host.reserve(input.id)
+    const created = this.sleepers.creates(input.id)
     const pending = this.pending(ownerId)
     // An agent's request this answers: read now, as it may stop waiting meanwhile.
     const opener =
@@ -804,6 +730,14 @@ export class Terminals {
       const titled = summaryTitle(naming, { handle, command, openedBy })
       const judged = this.claims.judge(input, saved, connected)
       const resume = judged?.ok ? judged : undefined
+      // Its agent sleeps: this create is its wake, and a plain shell it ends in keeps its lead.
+      // Unseen, a wake that can't resume leaves it asleep, as it was.
+      const asleep = this.sleepers.resting(input.id) !== undefined
+      if (asleep && !resume && !input.seen)
+        throw new DomainError(
+          "SPAWN_FAILED",
+          resumeNote(judged, input.resume, false) ?? "No resume.",
+        )
       // The session an agent asked to resume, judged again: another terminal may have taken it.
       const asked = this.claims.recheck(input.id, opener?.resume)
       // A worker lost before its agent's first session starts that agent again, still led.
@@ -820,6 +754,9 @@ export class Terminals {
         env,
         startup || undefined,
       )
+      // A shell that can't take the resume leaves an unseen wake asleep, not a plain shell.
+      if (asleep && !input.seen && !started.resumes)
+        throw new DomainError("SPAWN_FAILED", "This terminal's shell can't resume an agent.")
       const terminal = startedIn(started, () =>
         place.open(spec, pending.released ? undefined : ownerId),
       )
@@ -829,7 +766,12 @@ export class Terminals {
         this.claims.claim(claim, input.id)
         started.resumeClaim = claim
       }
-      const agents = restored(saved?.agents, resume && started.resumes && input.resume, started)
+      const agents = restored(
+        saved?.agents,
+        resume && started.resumes && input.resume,
+        started,
+        asleep,
+      )
       const record: Record = {
         summary: {
           id: input.id,
@@ -891,11 +833,15 @@ export class Terminals {
       }
       this.records.set(record.summary.id, record)
       // Restored as a shell that resumes nothing, there is no agent left to lead.
-      const unled = record.summary.ledBy !== null && !started.resumes
+      const unled = record.summary.ledBy !== null && !started.resumes && !asleep
       if (unled) record.summary = { ...record.summary, ledBy: null }
       const expected = expectedAgent(input.command ?? task?.command, input.resume)
       this.register(record, started.resumes ? expected : null)
       if (unled) this.messaging.endLead(record.summary.id)
+      if (asleep) {
+        const woke = resume && started.resumes ? input.resume : undefined
+        this.sleepers.started(record, woke, resumeNote(judged, input.resume, false) ?? "no resume")
+      }
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
       const note = resumeNote(judged, input.resume, started.resumes)
       let shown = Promise.resolve()
@@ -910,40 +856,31 @@ export class Terminals {
       this.saves.start()
       plan?.started(record, started.resumes, opened !== null, shown)
       return summaryOf(record)
+    } catch (error) {
+      // A wake that failed before any shell stays asleep, its messages gone.
+      if (!this.records.has(input.id))
+        this.sleepers.failedStart(input.id, error instanceof Error ? error.message : "start failed")
+      throw error
     } finally {
       place.done()
+      created()
       this.complete(ownerId, pending)
     }
   }
 
-  /**
-   * Every terminal of a session, or of all: those running, and those kept only as saved,
-   * which have no shell in this runner's lifetime until a client restores them.
-   */
+  /** Every terminal of a session, or of all: running, and kept only as saved (see `listTerminals`). */
   list(sessionId?: string): TerminalSummary[] {
-    const live = new Map(
-      [...this.records.values()]
-        .filter(
-          (record) =>
-            !record.closed && (sessionId === undefined || record.summary.sessionId === sessionId),
-        )
-        .map((record) => [record.summary.id, summaryOf(record)] as const),
+    const delivered = this.sleepers.deliveries()
+    return listTerminals(
+      {
+        records: () => this.records.values(),
+        kept: (id) => this.saves.terminals(id),
+        draining: (id) => this.host.draining(id),
+        saved: (row) => this.sleepers.summaryOf(row, delivered),
+        order: (id, handle) => this.names.order(id, handle),
+      },
+      sessionId,
     )
-    const kept = this.saves.terminals(sessionId)
-    // In the order they were asked for, as the records keep them; a running one they don't
-    // keep, as without records, follows.
-    const listed = kept.flatMap((terminal) => {
-      const running = live.get(terminal.id)
-      if (running) return [running]
-      return this.host.draining(terminal.id) ? [] : [savedSummaryOf(terminal)]
-    })
-    const recorded = new Set(kept.map(({ id }) => id))
-    // Those the records don't keep, in the order their handles were given.
-    const given = (summary: TerminalSummary) => this.names.order(summary.sessionId, summary.handle)
-    const unrecorded = [...live.values()]
-      .filter(({ id }) => !recorded.has(id))
-      .toSorted((a, b) => given(a) - given(b))
-    return [...listed, ...unrecorded]
   }
 
   /**
@@ -992,6 +929,8 @@ export class Terminals {
   write(input: { terminalId: string; data: string }, ownerId: string): void {
     const record = this.control(input.terminalId, ownerId)
     this.running(record)
+    // A woken shell has yet to read its resume command: keys would take its place.
+    if (this.sleepers.holdsKeys(record)) return
     // While the doorbell's test paste, or an answer's keys, are on screen, the person's
     // keys wait their turn (see `keyed`, which they reach when they count).
     record.terminal.input(input.data)
@@ -1074,8 +1013,9 @@ export class Terminals {
     // Typing before the shell resumes its agent cancels the resume, so the shell gets
     // what was typed. A cancelled resume leaves its session free for another terminal.
     const claim = record.resumeClaim
-    if (cancelResume(record)) {
+    if (!this.sleepers.holdsKeys(record) && cancelResume(record)) {
       record.startupRuns = false
+      record.woken = undefined
       endExpecting(record, this.messaging, this.murmur)
       // The person took the terminal over before its agent ever ran: nothing to lead.
       this.bindings.endLead(record)
@@ -1089,6 +1029,7 @@ export class Terminals {
     record.line = line.line
     if (line.entered) {
       record.lineEntered = true
+      record.woken = undefined
       record.ran = record.changed = true
     }
     if (markBusy(record)) this.announce(record)
@@ -1232,20 +1173,22 @@ export class Terminals {
    * window controls it, and what restores it goes first, so a runner that stops before
    * the shell has ended, as the app quits, keeps nothing of it to bring back.
    */
-  async close(input: { terminalId: string }): Promise<void> {
+  async close(input: { terminalId: string }, closedBy: string | null = null): Promise<void> {
     if (this.stopped) throw new DomainError("CLOSING")
     this.closedIds.add(input.terminalId)
     const record = this.records.get(input.terminalId)
     if (!record) {
       // A terminal kept only as saved closes by forgetting it.
       const saved = this.saves.saved(input.terminalId)
-      if (saved) this.history.closingSaved(saved, null)
+      if (saved)
+        this.history.closingSaved(saved, closedBy, this.sleepers.resting(input.terminalId)?.agent)
       this.forget(input.terminalId)
       if (!saved) throw new DomainError("TERMINAL_NOT_FOUND")
       this.streams.removed(saved)
+      this.streams.end(input.terminalId)
       return
     }
-    this.closeForGood(record)
+    this.closeForGood(record, closedBy)
     await this.terminate(record)
     this.remove(record)
     // What its programs left on their way out, as an agent registering again, goes too.
@@ -1316,6 +1259,7 @@ export class Terminals {
         this.closedIds.add(terminal.id)
         this.forget(terminal.id)
         this.streams.removed(terminal)
+        this.streams.end(terminal.id)
       }
       this.names.forgetSession(sessionId)
     }
@@ -1326,6 +1270,7 @@ export class Terminals {
     // Its items go first, so watchers hear of each before its record cascades them away.
     this.companion.closed(terminalId)
     this.messaging.unregister(terminalId, true)
+    this.sleepers.forget(terminalId)
     this.inbox.reconcile(terminalId)
     this.typing.forget(terminalId)
     this.murmur?.gone(terminalId)
@@ -1373,20 +1318,10 @@ export class Terminals {
   /** Forgets every session `agent` reported, as once it is disconnected. */
   forgetAgent(agent: AgentName): void {
     this.reporting.disconnected(agent)
-    for (const record of this.records.values()) {
-      const { [agent]: _forgotten, ...rest } = record.agents
-      record.agents = rest
-      const agentRan = hasRun(rest)
-      // Its binding ends too: a disconnected harness holds no terminal's foreground.
-      if (record.bound?.binding.agent === agent) this.bindings.forgotten(record)
-      else if (record.summary.agentRan !== agentRan) {
-        record.summary = { ...record.summary, agentRan }
-        this.announce(record)
-      }
-      this.history.judge(record, true)
-    }
+    this.bindings.forgetAgent(this.records.values(), agent)
+    for (const record of this.records.values()) this.history.judge(record, true)
     this.claims.forgetAgent(agent)
-    this.saves.forgetAgent(agent)
+    this.sleepers.forgetAgent(agent, () => this.saves.forgetAgent(agent))
   }
 
   /** Turning transcripts off forgets every saved one; turning them on saves each anew. */
@@ -1508,8 +1443,8 @@ export class Terminals {
    */
   async *watchMessages(terminalId: string, signal?: AbortSignal): AsyncGenerator<TerminalMessages> {
     if (this.stopping) throw new DomainError("CLOSING")
-    // Only for a terminal the runner holds: closing or evicting it ends the stream.
-    this.record(terminalId)
+    // Only for a terminal the runner holds, or whose agent sleeps: closing it ends the stream.
+    if (!this.sleepers.resting(terminalId)) this.record(terminalId)
     yield* this.streams.watchMessages(terminalId, signal)
   }
 
@@ -1589,25 +1524,7 @@ export class Terminals {
     signal?: AbortSignal,
   ): AsyncGenerator<TranscriptChange> {
     if (this.stopping) throw new DomainError("CLOSING")
-    const record = this.record(terminalId)
-    const { bound, transcript: root } = record
-    const source = bound && harnesses[bound.binding.agent].transcripts
-    const native = bound && actorOf(bound.binding, bound.activity, actor)
-    if (!bound || !source || !root || native === undefined) throw new DomainError("NOT_FOUND")
-    const path = await source.locate(root, bound.binding.sessionId, native)
-    if (!path || record.bound?.binding !== bound.binding) throw new DomainError("NOT_FOUND")
-    const reader = new AbortController()
-    record.sourceReaders.add(reader)
-    const abort = () => reader.abort()
-    signal?.addEventListener("abort", abort, { once: true })
-    if (signal?.aborted) reader.abort()
-    try {
-      yield* transcriptChanges(path, source, reader.signal, readingOf(record, native))
-    } finally {
-      signal?.removeEventListener("abort", abort)
-      reader.abort()
-      record.sourceReaders.delete(reader)
-    }
+    yield* followTranscript(this.record(terminalId), actor, signal)
   }
 
   ack(input: { terminalId: string; sequence: number }, ownerId: string): void {
@@ -1634,6 +1551,7 @@ export class Terminals {
     // what they print on the way out cannot replace it. Transcripts get a short pass (`Saves.finish`).
     const last = this.saves.shutdown()
     this.stopping = true
+    this.sleepers.stop()
     this.sampler.stop()
     this.startups.stop()
     this.saves.stop()
@@ -1774,8 +1692,10 @@ export class Terminals {
     // ends the lead only once its process is gone; suspended with Ctrl+Z it still runs,
     // and comes back with `fg`. A process Novadeck can't name can't be told suspended.
     if (binding === null) {
+      // A woken agent that failed leaves the row resumable and its lead standing (`Record.woken`).
+      if (record.woken !== undefined) this.sleepers.failed(record, "its agent did not start")
       // Or the agent a Ctrl+Z left suspended, found gone with no session bound since.
-      if (ran || (record.suspended !== null && !alive(record.suspended)))
+      else if (ran || (record.suspended !== null && !alive(record.suspended)))
         this.bindings.endLeadGone(record)
     } else if (binding.instance && alive(binding.instance)) {
       record.suspended = binding.instance
@@ -1832,8 +1752,10 @@ export class Terminals {
     this.typing.forget(id)
     // Its record is let go, but the terminal is kept, saved, until it is closed.
     const saved = this.saves.saved(id)
-    if (saved) this.streams.changed(() => savedSummaryOf(saved))
-    else this.streams.removed(record.summary)
+    if (saved) {
+      this.sleepers.rest(saved)
+      this.streams.savedChanged(saved)
+    } else this.streams.removed(record.summary)
     this.streams.end(id)
     // Which chain it belongs to, as `forget` drops it on close; the chain's own times stay
     // until they pass out of the window.

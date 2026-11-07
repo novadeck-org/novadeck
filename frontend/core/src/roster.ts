@@ -234,6 +234,13 @@ const sameStatus = (terminal: TerminalMetadata, status: TerminalStatus): boolean
       terminal.state === "running" &&
       JSON.stringify(terminal.agent) === JSON.stringify(status.agent)
     )
+  if (status.state === "sleeping")
+    return (
+      terminal.state === "sleeping" &&
+      terminal.agent === status.agent &&
+      terminal.reported === status.reported &&
+      terminal.endedAt === status.endedAt
+    )
   return terminal.state === status.state
 }
 
@@ -249,6 +256,13 @@ const statusFields = (status: TerminalStatus): TerminalStatus => {
   if (status.state === "failed") return { state: status.state, message: status.message }
   if (status.state === "running")
     return { state: status.state, ...(status.agent ? { agent: status.agent } : {}) }
+  if (status.state === "sleeping")
+    return {
+      state: status.state,
+      agent: status.agent,
+      ...(status.reported ? { reported: status.reported } : {}),
+      ...(status.endedAt !== undefined ? { endedAt: status.endedAt } : {}),
+    }
   return { state: status.state }
 }
 
@@ -261,6 +275,8 @@ const restoredAfter = (terminal: TerminalMetadata, status: TerminalStatus): stri
   const lost = status.state === "starting" || status.state === "exited" || status.state === "failed"
   if (lost && terminal.state === "running" && !isShellProcess(terminal.process))
     return terminal.process || undefined
+  // A sleeper that wakes resumes its agent, which the terminal then names until it draws.
+  if (lost && terminal.state === "sleeping") return terminal.agent
   return terminal.restoredProcess
 }
 

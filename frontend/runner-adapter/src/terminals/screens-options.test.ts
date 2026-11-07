@@ -65,6 +65,7 @@ const runtimeOf = (attached: AttachedTerminal) => {
   const noted: AttachedTerminal[] = []
   const released = vi.fn<() => void>()
   const runtime: SurfaceRuntime = {
+    seen: () => () => {},
     entry: () => undefined,
     attach: async () => attached,
     upload: async () => "",
@@ -201,6 +202,7 @@ describe("the runner's terminal screens over a runtime", () => {
     const connection = createStore<BackendConnectionState>("connected")
     let shown = false
     const runtime: SurfaceRuntime = {
+      seen: () => () => {},
       entry: (asking) => {
         asked.push(`entry ${asking.terminalId}`)
         return {

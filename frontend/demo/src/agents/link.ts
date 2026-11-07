@@ -60,8 +60,14 @@ export type DemoAgentVerbs = {
       readonly limit?: { readonly minutes: number; readonly resetsAt: number }
     },
   ) => void
-  // Back at its prompt with no turn behind it: nothing works, waits or reads unread.
-  readonly rest: (key: TerminalKey, terminal: TerminalMetadata | undefined) => void
+  // Back at its prompt with no turn behind it: nothing works, waits or reads unread. A `done`
+  // that stood before, as a sleeper's does when a resume of the same session wakes it, goes
+  // on standing where `keeps` says so.
+  readonly rest: (
+    key: TerminalKey,
+    terminal: TerminalMetadata | undefined,
+    keeps?: { readonly reported: true },
+  ) => void
   // Sets the agent's context and limits in the telemetry: its status stays as it was, a
   // turn or request included, and later turns keep them. A terminal that runs no agent
   // becomes one first (see `as`).

@@ -613,6 +613,19 @@ for (const setup of setups) {
 
       await run.model.waitFor((call) => planning!.approved.test(text(call)), { after: calls })
       await unrequested(t1)
+      // Its record says so, or, in Codex's, that the next turn left plan mode.
+      await t1.poll(
+        async () => {
+          const notes = (await t1.transcript()).flatMap(({ note }) => (note ? [note] : []))
+          return (
+            (setup.agent === "codex"
+              ? notes.some((note) => note.type === "mode" && note.mode === "default")
+              : notes.some((note) => note.type === "plan-approved")) || undefined
+          )
+        },
+        "the plan's approval in its transcript",
+        30_000,
+      )
     })
 
     gated(it, lacking(setup, "plan"))(

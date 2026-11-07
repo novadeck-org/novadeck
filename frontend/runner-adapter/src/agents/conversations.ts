@@ -111,6 +111,7 @@ const itemOf = (session: string, item: TranscriptItem): ChatItem => ({
   scripted: item.scripted,
   interrupted: item.interrupted,
   ring: item.ring,
+  note: item.note,
 })
 
 // The items once a batch arrived: each item at an index replaces everything from there on.
@@ -363,11 +364,6 @@ const read = (
       try {
         for await (const change of stream) {
           if (!alive || transcript !== stream) return
-          // Kept through a rewrite: the session is the same, and so is what it holds.
-          if (change.type === "unread") {
-            store.update((current) => (current.unread ? current : { ...current, unread: true }))
-            continue
-          }
           if (change.type === "reset") {
             clearTimeout(settling)
             settling = undefined
@@ -443,8 +439,8 @@ const read = (
         requests: sameRequests(current.requests, requests) ? current.requests : requests,
         prompts: samePrompts(current.prompts, prompts) ? current.prompts : prompts,
         ...(changed
-          ? { loaded: false, items: [], unread: false }
-          : { loaded: current.loaded, items: current.items, unread: current.unread }),
+          ? { loaded: false, items: [] }
+          : { loaded: current.loaded, items: current.items }),
       }
     })
     if (session === null || root === null) return

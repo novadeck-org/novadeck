@@ -46,8 +46,9 @@ export const SidebarItem = ({
   readonly tag?: ReactNode
   // Beside the name, as a count of what waits there.
   readonly badge?: ReactNode
-  // Its name in bold, as for something the person hasn't seen yet.
-  readonly emphasized?: boolean
+  // Its name in bold, as for something the person hasn't seen yet; "soft" in semibold, for
+  // an item that is dimmed.
+  readonly emphasized?: boolean | "soft"
   // What describes the row to a screen reader, by id, such as how to reorder it.
   readonly describedBy?: string
   readonly onSelect: () => void
@@ -62,7 +63,7 @@ export const SidebarItem = ({
   const descriptionId = useId()
   const describers =
     describedBy && [description && descriptionId, describedBy].filter(Boolean).join(" ")
-  const nameClasses = `truncate text-body leading-[18px] ${emphasized ? "font-bold" : "font-medium"}`
+  const nameClasses = `truncate text-body leading-[18px] ${emphasized === "soft" ? "font-semibold" : emphasized ? "font-bold" : "font-medium"}`
   const select = (
     <button
       ref={handleRef}

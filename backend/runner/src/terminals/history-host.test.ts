@@ -9,8 +9,13 @@ const terminal = (handle: string, closed: boolean): Record =>
     bound: null,
   }) as unknown as Record
 
-const hostOf = (records: Record[], claimant: string | undefined) =>
+const hostOf = (
+  records: Record[],
+  claimant: string | undefined,
+  resting?: { handle: string; terminalId: string },
+) =>
   historyHost({
+    resting: () => resting,
     records: new Map(records.map((record) => [record.summary.id, record])),
     claims: { claimant: () => claimant },
     saves: { terminals: () => [] },
@@ -25,6 +30,13 @@ describe("who holds a session for History", () => {
   it("does not name a closed terminal, whose claim lasts until its shell ends", () => {
     const host = hostOf([terminal("moth", true)], "t-moth")
     expect(host.holder("claude", "c1")).toBeUndefined()
+  })
+})
+
+describe("a sleeper holding a session for History", () => {
+  it("is named, though it has no record, and before any claim", () => {
+    const sleeper = { handle: "fox", terminalId: "t-fox" }
+    expect(hostOf([], "t-moth", sleeper).holder("claude", "c1")).toEqual(sleeper)
   })
 })
 

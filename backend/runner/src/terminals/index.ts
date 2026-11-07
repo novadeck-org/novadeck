@@ -1,1 +1,2 @@
-export { Terminals, type TerminalOptions } from "./manager.js"
+export { Terminals } from "./manager.js"
+export type { TerminalOptions } from "./options.js"

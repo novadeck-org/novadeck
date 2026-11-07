@@ -60,6 +60,42 @@ describe("a terminal's mount", () => {
     ])
   })
 
+  context("when its terminal is seen", () => {
+    it("holds the terminal seen while the prop says so, once, and lets it go on dispose", () => {
+      const { screens } = recorded()
+      const held: string[] = []
+      const seen = (seenKey: TerminalKey) => {
+        held.push(`see ${seenKey.terminalId}`)
+        return () => void held.push("unsee")
+      }
+      const sleeping = (wanted?: boolean): TerminalMountProps => ({
+        ...props("grid"),
+        status: "sleeping",
+        ...(wanted ? { seen: true } : {}),
+      })
+      const mount = createTerminalMount(screens, seen)(
+        document.createElement("div"),
+        key,
+        sleeping(),
+      )
+      mount.update(sleeping(true))
+      mount.update(sleeping(true))
+      mount.update(sleeping())
+      mount.update(sleeping(true))
+      mount.dispose()
+      expect(held).toEqual(["see t", "unsee", "see t", "unsee"])
+    })
+
+    it("treats a sleeper as a shell that is starting, so typing is held back", () => {
+      const { asked, screens } = recorded()
+      createTerminalMount(screens)(document.createElement("div"), key, {
+        ...props("grid"),
+        status: "sleeping",
+      })
+      expect(asked[0]?.phase).toBe("starting")
+    })
+  })
+
   context("when it goes out of sight and back", () => {
     it("lets its screen go and takes it again, one release for each acquire", () => {
       const { calls, screens } = recorded()

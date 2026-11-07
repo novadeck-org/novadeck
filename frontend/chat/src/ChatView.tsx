@@ -20,9 +20,10 @@ import {
   useSyncExternalStore,
 } from "react"
 
-import { sentBubbles } from "./bubbles"
+import { sentBubbles, type SentBubble } from "./bubbles"
 import { Composer } from "./Composer"
 import { composerMode } from "./composer-mode"
+import { joinDraft } from "./drafts"
 import { useEchoes } from "./echoes"
 import { Mark } from "./Mark"
 import { otherMenu } from "./other-menu"
@@ -30,9 +31,9 @@ import { usePassing } from "./passing"
 import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
 import { Requests } from "./Requests"
 import type { ChatSend } from "./sends"
+import { settledSent, settleSent } from "./settled"
 import { LiveSlice, Slice, SliceKeys } from "./Slice"
 import { Transcript } from "./Transcript"
-import { dismissUnread, unreadDismissed } from "./unread"
 
 // How many blocks of a long conversation show, and how many more "Show earlier" adds.
 const windowSize = 60
@@ -111,7 +112,6 @@ export const ChatView = ({
     items,
     requests,
     prompts,
-    unread,
     slice,
     box,
     doorbell,
@@ -133,10 +133,14 @@ export const ChatView = ({
   const shownFrom = Math.max(0, blocks.length - windowSize - extra)
   const shown = shownFrom === 0 ? blocks : blocks.slice(shownFrom)
 
+  // What the person dealt with on the page, a notice dismissed or a prompt sent again, draws the
+  // chat again.
+  const [, setSettlements] = useState(0)
+  const settled = settledSent()
   // The person's prompts the agent's record doesn't show yet.
   const bubbles = useMemo(
-    () => sentBubbles(sending, prompts, items.length),
-    [sending, prompts, items.length],
+    () => sentBubbles(sending, prompts, items.length).filter(({ ref }) => !settled.has(ref)),
+    [sending, prompts, items.length, settled],
   )
 
   const scroller = useRef<HTMLDivElement>(null)
@@ -173,13 +177,11 @@ export const ChatView = ({
   // The person's words that were to follow an answer and didn't reach the agent, handed
   // back to the draft whether or not the card they were typed in is still on screen.
   const [lost, setLost] = useState(false)
+  // Why a prompt sent again from its line didn't go, its words back in the box.
+  const [resent, setResent] = useState<string | null>(null)
   // A shell command went to an agent that keeps no record of it in its conversation, as its
   // harness says: its output shows only in the terminal.
   const [unrecorded, setUnrecorded] = useState(false)
-  // The agent's record holds parts of the conversation the chat can't read: once a session,
-  // until the person dismisses it.
-  const [, setDismissed] = useState(0)
-  const unreadShown = unread && session !== null && !unreadDismissed(session)
   const answer = useCallback(
     (request: string, reply: ChatAnswer): Promise<void> =>
       onAnswer(request, reply).catch((failure: unknown) => {
@@ -228,6 +230,48 @@ export const ChatView = ({
     ...(onPassing && { onPassing }),
     ...(onLeftMenu && { onLeft: onLeftMenu }),
   })
+  // The person's draft as it changes, from the box or from a prompt taken back to edit.
+  const draftChanged = (text: string): void => {
+    setLost(false)
+    setResent(null)
+    setUnrecorded(false)
+    // Words held as a reply whose question went are the person's message once edited,
+    // as the hold is written or not yet; not while that reply is on its way, whose
+    // words, should it fail, come back held.
+    if (mode === "held" && replyTo !== "held" && !replyGoing) onReplyTo(null)
+    passing.edit(text)
+  }
+  // A prompt the record never got, dealt with: sent again, whose words come back to the box should
+  // they not go, or back in the box, ahead of what's written there.
+  const settle = (bubble: SentBubble): void => {
+    settleSent(bubble.ref)
+    setSettlements((count) => count + 1)
+  }
+  // Only a plain message takes either: a reply, a held reply, a shell command or a harness's menu
+  // in the box would turn the words into something else.
+  const plain = mode === "message" && !passing.on
+  const resend = (bubble: SentBubble): void => {
+    settle(bubble)
+    setResent(null)
+    focusBox()
+    onSend(bubble.text, null).then(
+      (went) => {
+        if (!went) setResent("Your words didn't go again. They're in the box below.")
+      },
+      (failure: unknown) =>
+        setResent(
+          failure instanceof Error && failure.message
+            ? `${failure.message} Your words are in the box below.`
+            : "Your words didn't go again. They're in the box below.",
+        ),
+    )
+  }
+  const edit = (bubble: SentBubble): void => {
+    settle(bubble)
+    draftChanged(joinDraft(bubble.text, draft))
+    focusBox()
+  }
+
   const sliceKeys = useMemo(
     () => onKeys && ((keys: string) => void onKeys(keys).catch(() => {})),
     [onKeys],
@@ -250,35 +294,6 @@ export const ChatView = ({
         data-compact={compact || undefined}
         aria-label={`${terminalName} chat`}
       >
-        {/* Mounted while empty, so a screen reader announces the line as it comes. */}
-        <div className="chat-unread-region" role="status">
-          {unreadShown && (
-            <p className="chat-unread">
-              <span>
-                This chat may be missing parts of the conversation. The terminal has all of it.
-              </span>
-              <span className="chat-unread-actions">
-                <button
-                  type="button"
-                  className="button quiet nodrag nopan"
-                  onClick={onAnswerInTerminal}
-                >
-                  Show terminal
-                </button>
-                <button
-                  type="button"
-                  className="button quiet nodrag nopan"
-                  onClick={() => {
-                    dismissUnread(session)
-                    setDismissed((count) => count + 1)
-                  }}
-                >
-                  Dismiss
-                </button>
-              </span>
-            </p>
-          )}
-        </div>
         <div className="chat-main">
           <div
             ref={scroller}
@@ -321,6 +336,8 @@ export const ChatView = ({
                 agent={name}
                 working={working}
                 sent={bubbles}
+                {...(plain && draft.trim() === "" && { onResend: resend })}
+                {...(plain && { onEdit: edit })}
                 onShowTerminal={onAnswerInTerminal}
               />
               {echoes.shown.map((echo) => (
@@ -400,14 +417,20 @@ export const ChatView = ({
               </span>
               <button
                 type="button"
-                className="button quiet nodrag nopan"
+                className="chat-key nodrag nopan"
+                aria-label="Show terminal"
                 onClick={onAnswerInTerminal}
               >
-                Show terminal
+                terminal
               </button>
             </p>
           )}
         </div>
+        {resent && (
+          <p className="chat-lost" role="alert">
+            {resent}
+          </p>
+        )}
         {lost && (
           <p className="chat-lost" role="alert">
             Your words didn't reach the agent. They're in the box below. The agent's own input box
@@ -418,15 +441,7 @@ export const ChatView = ({
           label={name}
           box={box}
           draft={draft}
-          onDraft={(text) => {
-            setLost(false)
-            setUnrecorded(false)
-            // Words held as a reply whose question went are the person's message once edited,
-            // as the hold is written or not yet; not while that reply is on its way, whose
-            // words, should it fail, come back held.
-            if (mode === "held" && replyTo !== "held" && !replyGoing) onReplyTo(null)
-            passing.edit(text)
-          }}
+          onDraft={draftChanged}
           mode={mode}
           sending={sending.some((send) => send.to !== null)}
           replySending={replyGoing}

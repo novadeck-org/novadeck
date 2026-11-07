@@ -27,15 +27,18 @@ export const terminalOrigins = (workspace: Workspace): Readonly<Record<string, s
 
 type RunningLead = { readonly handle: string; readonly name: string }
 
-// The terminals that can lead, by handle: the first live terminal with each handle. One
-// closed, exited or not yet started leads no one.
+// The terminals that can lead, by handle: the first live terminal with each handle, a sleeping
+// agent included. One closed, exited or not yet started leads no one.
 const liveHandles = remembered((roster): ReadonlyMap<string, TerminalMetadata> => {
   const live = new Map<string, TerminalMetadata>()
   for (const each of roster.terminals)
     if (
       each.handle !== undefined &&
       !live.has(each.handle) &&
-      (each.state === "idle" || each.state === "running" || each.state === "finished")
+      (each.state === "idle" ||
+        each.state === "running" ||
+        each.state === "sleeping" ||
+        each.state === "finished")
     )
       live.set(each.handle, each)
   return live
@@ -72,11 +75,13 @@ const peersOf = remembered((roster): Readonly<Record<string, MessagePeer>> =>
                 terminalId: each.id,
                 program: each.state === "running" ? each.process : undefined,
                 live:
-                  each.state !== "running" || !(each.agent || isAgentProgram(each.process))
-                    ? "gone"
-                    : each.agent?.working
-                      ? "working"
-                      : "idle",
+                  each.state === "sleeping"
+                    ? "idle"
+                    : each.state !== "running" || !(each.agent || isAgentProgram(each.process))
+                      ? "gone"
+                      : each.agent?.working
+                        ? "working"
+                        : "idle",
               },
             ],
           ]

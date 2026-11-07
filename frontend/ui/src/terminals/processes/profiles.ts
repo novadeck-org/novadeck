@@ -23,10 +23,20 @@ const profiles: ReadonlyMap<string, ProcessProfile> = new Map([
   ["agy", { icon: AntigravityIcon }],
 ])
 
-// The program a terminal presents as, which names its window: one with a profile, only
-// while it holds the foreground. A shell, a fresh start, or an ending presents none.
-export const presentedProgram = (terminal: TerminalMetadata): string | undefined =>
-  terminal.state === "running" && profiles.has(terminal.process) ? terminal.process : undefined
+// The program a terminal presents as, which names its window: one with a profile, while it
+// holds the foreground, or, where no process runs, the agent that sleeps there or is being
+// woken (its tab and window dim it). A shell, a fresh start, or an ending presents none.
+export const presentedProgram = (terminal: TerminalMetadata): string | undefined => {
+  const program =
+    terminal.state === "running"
+      ? terminal.process
+      : terminal.state === "sleeping"
+        ? terminal.agent
+        : terminal.state === "starting"
+          ? terminal.restoredProcess
+          : undefined
+  return program !== undefined && profiles.has(program) ? program : undefined
+}
 
 // A window undocked from a terminal's companion presents as what it shows: a plan, or an
 // image, file or page.

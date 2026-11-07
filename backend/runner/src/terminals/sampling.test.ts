@@ -1,16 +1,25 @@
 import { afterEach, beforeEach, onTestFinished, vi } from "vitest"
 
-const fresh = vi.hoisted(() => ({ group: undefined as number | undefined }))
-vi.mock("@novadeck/terminal/pty", async (original) => ({
-  ...(await original<typeof import("@novadeck/terminal/pty")>()),
-  terminalForeground: async () => fresh.group,
+const fresh = vi.hoisted(() => ({
+  group: undefined as number | undefined,
+  sampled: undefined as { process: { name: string; argv: string[] | null } | null } | undefined,
 }))
+vi.mock("@novadeck/terminal/pty", async (original) => {
+  const real = await original<typeof import("@novadeck/terminal/pty")>()
+  return {
+    ...real,
+    terminalForeground: async () => fresh.group,
+    sampleForeground: ((...args: Parameters<typeof real.sampleForeground>) =>
+      fresh.sampled ?? real.sampleForeground(...args)) as typeof real.sampleForeground,
+  }
+})
 
 import { describe, expect, it } from "../test.js"
 import type { Record } from "./record.js"
 import {
   boundProgram,
   exitKeysMs,
+  programOf,
   programRuns,
   Sampler,
   shellBusy,
@@ -35,6 +44,7 @@ const running = (lastProgram: string | null, endKeyAt?: number): SampledRecord =
     changed: false,
     bound: null,
     foreground: undefined,
+    shellName: "bash",
     terminal: { pty, exit: null, exiting: false } as unknown as SampledRecord["terminal"],
   }
 }
@@ -62,11 +72,19 @@ describe("the program a fresh shell resumes where no sample names it", () => {
     expect(record.changed).toBe(false)
   })
 
-  it("is left to the sampler where the platform names the foreground", () => {
+  it("is left to the sampler once it has named a program, where the platform names the foreground", () => {
+    on("linux")
+    const record = running("bash")
+    expect(boundProgram(record, "claude")).toBe(false)
+    expect(record.summary.lastProgram).toBe("bash")
+  })
+
+  it("is the agent that binds before the first sample, as Antigravity does within a second of starting", () => {
     on("linux")
     const record = running(null)
-    expect(boundProgram(record, "claude")).toBe(false)
-    expect(record.summary.lastProgram).toBeNull()
+    expect(boundProgram(record, "agy")).toBe(true)
+    expect(record.summary.lastProgram).toBe("agy")
+    expect(record.changed).toBe(true)
   })
 
   it("is let go a sample's time after the person's Ctrl+C or Ctrl+D", () => {
@@ -142,6 +160,159 @@ describe("the program a fresh shell resumes where no sample names it", () => {
   })
 })
 
+describe("a woken shell whose agent has not shown", () => {
+  it("keeps the program it resumes when its prompt shows, on Windows", () => {
+    on("win32")
+    const record = { ...running("claude"), woken: Date.now() }
+    sampler().prompted(record)
+    vi.advanceTimersByTime(graceSamples * pollMs)
+    expect(record.summary.lastProgram).toBe("claude")
+    expect(record.changed).toBe(false)
+  })
+
+  it("keeps it when the wake came while the prompt's wait was running, on Windows", () => {
+    on("win32")
+    const record: SampledRecord = running("claude")
+    sampler().prompted(record)
+    record.woken = Date.now()
+    vi.advanceTimersByTime(graceSamples * pollMs)
+    expect(record.summary.lastProgram).toBe("claude")
+  })
+
+  it("lets it go once the person typed a line there, on Windows", () => {
+    on("win32")
+    const record: SampledRecord = { ...running("claude"), woken: Date.now() }
+    record.woken = undefined
+    sampler().prompted(record)
+    vi.advanceTimersByTime(graceSamples * pollMs)
+    expect(record.summary.lastProgram).toBeNull()
+  })
+
+  it("keeps the program it resumes when a sample names the shell, where the platform names the foreground", () => {
+    on("linux")
+    fresh.sampled = { process: { name: "bash", argv: null } }
+    onTestFinished(() => void (fresh.sampled = undefined))
+    const shelled = (): SampledRecord => {
+      const record = running("claude")
+      record.summary = { ...record.summary, process: null }
+      return record
+    }
+    const woken = { ...shelled(), woken: Date.now() }
+    const typed = shelled()
+    const started = new Sampler<SampledRecord>(pollMs, {
+      stopping: () => false,
+      records: () => [woken, typed],
+      sampled: () => {},
+    })
+    started.start()
+    vi.advanceTimersByTime(pollMs)
+    started.stop()
+    expect(woken.summary).toMatchObject({ process: { name: "bash" }, lastProgram: "claude" })
+    expect(typed.summary).toMatchObject({ process: { name: "bash" }, lastProgram: "bash" })
+  })
+})
+
+describe("the first sample of a plain shell", () => {
+  it("names the shell the program to resume even where it equals the summary's starting value, as on macOS", () => {
+    on("darwin")
+    // macOS reports a plain shell without its arguments, as the summary starts with it.
+    fresh.sampled = { process: { name: "bash", argv: null } }
+    onTestFinished(() => void (fresh.sampled = undefined))
+    const record = running(null)
+    record.summary = { ...record.summary, process: { name: "bash", argv: null } }
+    // An agent bound before the first sample and left within it.
+    expect(boundProgram(record, "claude")).toBe(true)
+    expect(record.summary.lastProgram).toBe("claude")
+    const started = new Sampler<SampledRecord>(pollMs, {
+      stopping: () => false,
+      records: () => [record],
+      sampled: () => {},
+    })
+    started.start()
+    vi.advanceTimersByTime(pollMs)
+    started.stop()
+    expect(record.summary.lastProgram).toBe("bash")
+    expect(record.changed).toBe(true)
+  })
+})
+
+describe("a node process sampled in a terminal", () => {
+  const sampleNode = (bindingOf: Record["bound"], argv: string[] | null) => {
+    on("darwin")
+    fresh.sampled = { process: { name: "node", argv } }
+    onTestFinished(() => void (fresh.sampled = undefined))
+    const record = running(null)
+    record.summary = { ...record.summary, process: null }
+    record.bound = bindingOf
+    const started = new Sampler<SampledRecord>(pollMs, {
+      stopping: () => false,
+      records: () => [record],
+      sampled: () => {},
+    })
+    started.start()
+    vi.advanceTimersByTime(pollMs)
+    return { record, started }
+  }
+
+  const sampleAs = (name: string, bindingOf: Record["bound"]) => {
+    on("darwin")
+    fresh.sampled = { process: { name, argv: null } }
+    onTestFinished(() => void (fresh.sampled = undefined))
+    const record = running(null)
+    record.summary = { ...record.summary, process: null }
+    record.bound = bindingOf
+    const started = new Sampler<SampledRecord>(pollMs, {
+      stopping: () => false,
+      records: () => [record],
+      sampled: () => {},
+    })
+    started.start()
+    vi.advanceTimersByTime(pollMs)
+    return { record, started }
+  }
+
+  it("is the agent bound right now, though macOS names no script", () => {
+    const { record, started } = sampleNode(bound, null)
+    started.stop()
+    expect(record.summary.lastProgram).toBe("claude")
+  })
+
+  it("takes the agent that binds after the process was first sampled", () => {
+    const { record, started } = sampleNode(null, null)
+    expect(record.summary.lastProgram).toBe("node")
+    record.bound = bound
+    vi.advanceTimersByTime(pollMs)
+    started.stop()
+    expect(record.summary.lastProgram).toBe("claude")
+  })
+
+  it("stays node with no agent bound, and by its script where argv tells it", () => {
+    const first = sampleNode(null, null)
+    first.started.stop()
+    expect(first.record.summary.lastProgram).toBe("node")
+    const second = sampleNode(null, ["node", "/home/me/.local/bin/codex"])
+    second.started.stop()
+    expect(second.record.summary.lastProgram).toBe("codex")
+  })
+
+  it("is the agent bound right now for any program macOS names by its file, but the shell", () => {
+    for (const name of ["claude.exe", "2.1.319"]) {
+      const { record, started } = sampleAs(name, bound)
+      started.stop()
+      expect(record.summary.lastProgram).toBe("claude")
+    }
+    const shell = sampleAs("-bash", bound)
+    shell.started.stop()
+    expect(shell.record.summary.lastProgram).toBe("-bash")
+  })
+
+  it("stays node where argv tells another script, though an agent is bound", () => {
+    const { record, started } = sampleNode(bound, ["node", "server.js"])
+    started.stop()
+    expect(record.summary.lastProgram).toBe("node")
+  })
+})
+
 describe("whether a shell may be running a program", () => {
   const shell = (fields: object = {}) =>
     ({
@@ -181,6 +352,23 @@ describe("whether a shell may be running a program", () => {
 
   it("ignores a line entered where the integration never reported a prompt", async () => {
     expect(await shellBusy(shell({ submitted: true, prompts: [] }))).toBe(false)
+  })
+})
+
+describe("the program a foreground process is", () => {
+  it("is its name, and for node the agent whose script it runs", () => {
+    expect(programOf({ name: "claude", argv: null })).toBe("claude")
+    expect(programOf({ name: "claude.exe", argv: null })).toBe("claude")
+    expect(programOf({ name: "bash", argv: ["bash"] })).toBe("bash")
+    expect(
+      programOf({
+        name: "node",
+        argv: ["node", "/usr/lib/node_modules/@openai/codex/bin/codex.js"],
+      }),
+    ).toBe("codex")
+    expect(programOf({ name: "node", argv: ["node", "/home/me/.local/bin/codex"] })).toBe("codex")
+    expect(programOf({ name: "node", argv: ["node", "server.js"] })).toBe("node")
+    expect(programOf({ name: "node", argv: null })).toBe("node")
   })
 })
 

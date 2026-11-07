@@ -23,4 +23,7 @@ export type DemoTerminalRuntime = {
   readonly restart: (key: TerminalKey) => void
   // Whether this paste is to fail, once each time the panel asks.
   readonly failPaste?: (key: TerminalKey) => boolean
+  // Whether the panel set this terminal asleep: it stays so, whoever looks, until the panel
+  // wakes it.
+  readonly holds?: (key: TerminalKey) => boolean
 }

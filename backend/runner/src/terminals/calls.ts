@@ -54,6 +54,7 @@ import type { Record } from "./record.js"
 import { resumeRefusal, type Claims } from "./resumes.js"
 import { nobodyToRun, runNotice, waitingToRun } from "./runs.js"
 import { shellBusy } from "./sampling.js"
+import type { Sleeper, Sleepers } from "./sleepers.js"
 import { cleanSummary, described, summaryRefusal, titleRefusal } from "./titles.js"
 
 // A command line for the words: every word but a quoted line is a plain word, and a line
@@ -99,6 +100,10 @@ export type CallsHost = LeadsHost & {
   readonly trees: () => Pick<Trees, "read">
   /** The sessions given out to resume, one to a terminal. */
   readonly claims: () => Claims
+  /** The terminals whose agents sleep. */
+  readonly sleepers: () => Sleepers
+  /** Closes a terminal for good, the person's close: one with no shell is forgotten as its row. */
+  readonly close: (terminalId: string, closedBy: string | null) => Promise<void>
   /** Where a harness lives on this machine, which says how it may start with a task. */
   readonly install: (agent: AgentName) => Promise<Install | undefined>
   /** The models a harness can start with here, none where that can't be told. */
@@ -223,6 +228,11 @@ export class Calls {
         : undefined
     if (request.agent !== undefined && resuming && !resuming.ok)
       return refused(resumeRefusal(request.agent, resuming.reason))
+    // A session a sleeping agent rests on is as taken as one running.
+    if (request.agent !== undefined && request.resume !== undefined) {
+      const holder = this.host.messaging().holder(request.agent, request.resume)
+      if (holder !== undefined) return refused(resumeRefusal(request.agent, "in-use", true))
+    }
     const { briefOnly, leads } = openedLead(request)
     if (starts && !(await this.host.launcher().startsCommands()))
       return refused(
@@ -509,11 +519,12 @@ export class Calls {
         ? await shellBusy(closingRecord, this.host.trees())
         : false
     // Closed, or the runner stopped, while the terminals were described.
-    const closing = this.host.records().get(target.terminalId)
+    const closing =
+      this.host.records().get(target.terminalId) ?? this.host.sleepers().peer(target.terminalId)
     if (this.host.stopping() || this.host.records().get(call.terminalId) !== record || !closing)
       return unansweredCalls.close
     // Already on its way out, as another close ended its shell: nothing more to charge.
-    if (this.host.closingNow(closing.summary.id) || closing.closed)
+    if (this.host.closingNow(closing.summary.id) || ("closed" in closing && closing.closed))
       return refused(`${mention(target.handle)} is already closing.`)
     const leadsIt = this.host.messaging().leadOf(target.terminalId) === record.summary.handle
     const way = closeWay({ leads: leadsIt, agent: target.agent, busy })
@@ -557,7 +568,12 @@ export class Calls {
    * The close steps the person's close takes: the shell ends, then the terminal is
    * forgotten. False when the runner began to stop meanwhile, the terminal closed all the same.
    */
-  private async end(record: Record, closedBy: string | null): Promise<boolean> {
+  private async end(record: Record | Sleeper, closedBy: string | null): Promise<boolean> {
+    // A sleeper has no shell to end: its row is all there is to forget.
+    if (!("terminal" in record)) {
+      await this.host.close(record.summary.id, closedBy)
+      return !this.host.stopping()
+    }
     this.host.closeForGood(record, closedBy)
     await this.host.terminate(record)
     if (this.host.stopping()) return false
@@ -592,7 +608,11 @@ export class Calls {
    * terminal that runs an agent the caller doesn't lead. The call doesn't wait for them:
    * it answers `asked` at once, and the caller hears the outcome as a notice.
    */
-  private requestClose(caller: Record, closing: Record, agent: AgentName | null): CloseAnswer {
+  private requestClose(
+    caller: Record,
+    closing: Record | Sleeper,
+    agent: AgentName | null,
+  ): CloseAnswer {
     const { id, handle, title, sessionId } = closing.summary
     const ran = agent === null ? undefined : agentLabel(agent)
     this.host
@@ -612,11 +632,19 @@ export class Calls {
     return { ok: true, asked: true, handle, title, ...(ran !== undefined && { ran }) }
   }
 
+  /** Whether the terminal is still the one that was asked about, and not closed. */
+  private present(closing: Record | Sleeper): boolean {
+    const { id } = closing.summary
+    return "terminal" in closing
+      ? this.host.records().get(id) === closing && !closing.closed
+      : this.host.records().get(id) === undefined && this.host.sleepers().resting(id) !== undefined
+  }
+
   /** The caller hears how its request to close a terminal went. */
   private async closeRequested(
     callerId: string,
     callerHandle: string,
-    closing: Record,
+    closing: Record | Sleeper,
     ran: string | undefined,
     outcome: ApprovalOutcome,
   ): Promise<void> {
@@ -628,8 +656,7 @@ export class Calls {
     else if (outcome === "gone") tell(closeNotice.gone(handle))
     else if (outcome === "withdrawn") tell(closeNotice.vanished(handle))
     // Confirmed: closed as the person's close does, unless it closed meanwhile.
-    else if (this.host.records().get(id) !== closing || closing.closed || this.host.closingNow(id))
-      tell(closeNotice.vanished(handle))
+    else if (!this.present(closing) || this.host.closingNow(id)) tell(closeNotice.vanished(handle))
     else {
       // Told before the close, so the notice names what still comes after it.
       const coming = onTheWay(this.host.messaging().onTheWay(id, callerId))

@@ -657,6 +657,14 @@ export class Saves {
     return changed
   }
 
+  /** Ends the lead of a kept terminal, its screen and the rest as they were. */
+  endLead(terminalId: string): void {
+    const saved = this.saved(terminalId)
+    if (!saved) return
+    const { transcript: _transcript, savedAt: _savedAt, ...row } = saved
+    this.persisting(() => this.options.records?.saveTerminal({ ...row, ledBy: null }))
+  }
+
   /** Forgets every session the agent reported, as once it is disconnected. */
   forgetAgent(agent: AgentName): void {
     this.persisting(() => this.options.records?.forgetAgent(agent))
