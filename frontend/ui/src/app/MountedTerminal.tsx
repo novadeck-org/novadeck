@@ -42,34 +42,6 @@ const ignore = (): (() => void) => () => {}
 const agentOf = (terminal: TerminalMetadata): string | undefined =>
   terminal.state === "sleeping" ? terminal.agent : terminal.restoredProcess
 
-// The rows xterm draws, once it has opened; the screen holding them before then.
-const measured = (host: HTMLElement): Element | null =>
-  host.querySelector(".xterm-rows") ?? host.querySelector(".xterm-screen")
-
-// Where the first terminal row starts inside the screen's slot, so the words stand where the
-// agent will draw. Falls back to the stylesheet's padding while there is no emulator to measure.
-const alignWithRows = (screen: HTMLElement): void => {
-  const host = screen.parentElement
-  const rows = host && measured(host)
-  if (!host || !rows) return
-  const outer = host.getBoundingClientRect()
-  const inner = rows.getBoundingClientRect()
-  if (inner.width === 0 || inner.height === 0) return
-  // A canvas node scales its content: measure in the node's own pixels.
-  const scale = outer.width / host.offsetWidth || 1
-  screen.style.setProperty(
-    "--wake-pad",
-    `${(inner.top - outer.top) / scale}px 0 0 ${(inner.left - outer.left) / scale}px`,
-  )
-}
-
-// A blink of its own per terminal, so a grid of waking tiles does not blink as one.
-const blinkDelay = (id: string): string => {
-  let hash = 0
-  for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) % 1060
-  return `${-hash}ms`
-}
-
 // What stands where the agent will draw: while it sleeps a bare `z`, nothing of its last screen
 // (replaying that would write into the emulator the resuming agent draws in); while it wakes,
 // the words and a blinking cursor, in place of "Starting shell…". The terminal stays locked and
@@ -80,49 +52,13 @@ const SleepingScreen = ({
   phase,
   agent,
   legible,
-  id,
 }: {
   readonly phase: "sleeping" | "waking"
   readonly agent: string | undefined
   readonly legible: boolean
-  readonly id: string
 }): React.JSX.Element => {
-  const ref = useRef<HTMLDivElement>(null)
-  useLayoutEffect(() => {
-    const screen = ref.current
-    if (!screen) return
-    alignWithRows(screen)
-    if (typeof ResizeObserver === "undefined" || !screen.parentElement) return
-    const host = screen.parentElement
-    const observer = new ResizeObserver(() => alignWithRows(screen))
-    // What is measured is observed too, and again when xterm opens after the first measure.
-    let watched: Element | null = null
-    const watch = (): void => {
-      const rows = measured(host)
-      if (rows === watched) return
-      if (watched) observer.unobserve(watched)
-      watched = rows
-      if (rows) observer.observe(rows)
-      alignWithRows(screen)
-    }
-    observer.observe(host)
-    watch()
-    const appearing = new MutationObserver(watch)
-    appearing.observe(host, { childList: true, subtree: true })
-    return () => {
-      observer.disconnect()
-      appearing.disconnect()
-    }
-  }, [])
   return (
-    <div
-      ref={ref}
-      aria-hidden
-      className="wake-screen"
-      data-phase={phase}
-      data-legible={legible}
-      style={{ "--wake-delay": blinkDelay(id) } as React.CSSProperties}
-    >
+    <div aria-hidden className="wake-screen" data-phase={phase} data-legible={legible}>
       {phase === "sleeping" ? (
         <span className="wake-z">z</span>
       ) : (
@@ -283,12 +219,7 @@ export const MountedTerminal = ({
             </div>
           )}
           {phase === "sleeping" || phase === "waking" ? (
-            <SleepingScreen
-              phase={phase}
-              agent={agentOf(terminal)}
-              legible={legible}
-              id={terminal.id}
-            />
+            <SleepingScreen phase={phase} agent={agentOf(terminal)} legible={legible} />
           ) : (
             lock && <TerminalLock notice={lockNotices[lock]} />
           )}

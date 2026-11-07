@@ -9,7 +9,6 @@ import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 import type { DemoAgentVerbs, DemoWaiting } from "@novadeck/demo/agents/link"
 import { isDemoInbox } from "@novadeck/demo/inbox"
 import type { DemoScreenState } from "@novadeck/demo/terminals/runtime"
-import { demoWakes } from "@novadeck/demo/terminals/wakes"
 import { terminalOf } from "@novadeck/demo/workspace"
 
 import { createDemoAgents } from "./agents"
@@ -506,7 +505,7 @@ export const createDemoStates = (
   const screens = createStore<ReadonlyMap<string, DemoScreenState>>(new Map())
   // The terminals whose next pasted file fails to save.
   const pasteFails = new Set<string>()
-  // The sleepers the panel set, which stay asleep, whoever looks, until its Wake action.
+  // The sleepers the panel set, which stay asleep, whoever looks.
   const held = new Set<string>()
   const hold: Hold = (key, actions) => {
     // Where the actions leave it: `waking` passes through sleeping on its way.
@@ -559,19 +558,6 @@ export const createDemoStates = (
           "Asleep",
           "The agent has a saved session and no process",
           (key, { dispatch, harness }) => dispatch(hold(key, sleeping(key, harness))),
-        ),
-        onSelected(
-          "Wake",
-          "A sleeper the panel set wakes, then rests with its agent back",
-          (key, { dispatch, workspace, note }) => {
-            if (terminalOf(workspace(), key)?.state !== "sleeping") return note("It isn't asleep.")
-            held.delete(terminalKeyId(key))
-            demoWakes({
-              dispatch,
-              terminal: (each) => terminalOf(workspace(), each),
-              turns: verbs,
-            })(key)
-          },
         ),
         setting("Waking", "Its agent is on the way back", (key, { dispatch, harness }) =>
           dispatch(waking(key, harness)),

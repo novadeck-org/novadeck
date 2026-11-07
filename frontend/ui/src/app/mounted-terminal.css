@@ -44,7 +44,7 @@
     position: absolute;
     inset: 0;
     z-index: 3;
-    padding: var(--wake-pad, 12px 16px);
+    padding: 12px 16px;
     overflow: hidden;
     pointer-events: none;
     font-family: var(--tab-process-font, var(--font-glyphs));
@@ -64,7 +64,6 @@
   .wake-cursor {
     color: var(--color-ink);
     animation: wake-blink 1.06s steps(1) infinite;
-    animation-delay: var(--wake-delay, 0ms);
   }
   @media (prefers-reduced-motion: reduce) {
     .wake-cursor {

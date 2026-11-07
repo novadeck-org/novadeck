@@ -11,7 +11,6 @@ import type { AgentStatus, AgentUsage, TerminalMetadata, Workspace } from "@nova
 import type { DemoAgentVerbs } from "@novadeck/demo/agents/link"
 import { demoTurns } from "@novadeck/demo/agents/turns"
 import { createMockTerminal, demoSeed, demoTerminalId, terminalSlot } from "@novadeck/demo/samples"
-import { dwellMs, wakingMs } from "@novadeck/demo/terminals/wakes"
 import { createDemo } from "@novadeck/demo/variants"
 import { terminalOf } from "@novadeck/demo/workspace"
 import { afterEach, beforeEach, vi } from "vitest"
@@ -435,20 +434,12 @@ describe("demo states", () => {
   })
 
   context("with a terminal selected", () => {
-    it("holds the sleeper it set asleep, until the Wake action wakes it", () => {
-      const { run, terminal, states, notes } = panel("04")
-      run("Wake")
-      expect(notes).toEqual(["It isn't asleep."])
+    it("holds the sleeper it set asleep", () => {
+      const { run, terminal, states } = panel("04")
       run("Asleep")
       expect(terminal("04")).toMatchObject({ state: "sleeping" })
       expect(states.holds(key("04"))).toBe(true)
       expect(states.holds(key("05"))).toBe(false)
-      run("Wake")
-      expect(states.holds(key("04"))).toBe(false)
-      vi.advanceTimersByTime(dwellMs)
-      expect(terminal("04")).toMatchObject({ state: "starting" })
-      vi.advanceTimersByTime(wakingMs)
-      expect(terminal("04")).toMatchObject({ state: "running", agent: { working: false } })
     })
 
     it("holds every sleeper the gallery sets, not the waking ones", async () => {
