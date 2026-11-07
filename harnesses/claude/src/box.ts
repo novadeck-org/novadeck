@@ -36,8 +36,8 @@ export const clearPending = (rows: readonly string[]): boolean =>
  * line in a box would, so only that tells them apart. Without text the field shows its
  * placeholder, which reads as a draft, whatever the footer. All of it is read under the box (the
  * field), as `footerRows` holds the box too and a line or a draft in it may say these words; the
- * transcript and the history search show no box, and have `footerRows` read (from the cursor down, or the last few)
- * (2.1.316, 2026-11-07, fixtures/ring-reading.probe.json).
+ * transcript and the history search show no box, and have `footerRows` read (from the cursor
+ * down, or the last few rows) (2.1.316, 2026-11-07, fixtures/ring-reading.probe.json).
  */
 const overlay = (screen: ScreenText): boolean => {
   const shown = read(screen)

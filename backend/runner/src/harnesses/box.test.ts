@@ -976,6 +976,19 @@ describe.each([
         expect(profile.read(shown)?.text, name).toContain("MY DRAFT BELOW")
   })
 
+  it("takes only a dim arrow at the box's end for one saying words are out of sight", () => {
+    const ending = (last: string, lit: string) =>
+      screenWith({
+        rows: ["history", "", "› hello", `  ${last}`, "", "  model · /work/project"],
+        bright: ["history", "", "› hello", `  ${lit}`, "", ""],
+        columns: 80,
+        cursor: { row: 2, column: 7 },
+      })
+    const arrow = `${" ".repeat(75)}↓`
+    if (harness === "codex") expect(profile.read(ending(arrow, ""))?.scrolled).toBe(true)
+    expect(profile.read(ending("look ↓", "look ↓"))?.scrolled).toBeUndefined()
+  })
+
   it("still takes each view for one, and its prompt for none once it closes", () => {
     for (const [name, shown] of named(/views/)) {
       const read = profile.read(shown)

@@ -89,7 +89,8 @@ const queued = (screen: ScreenText): boolean =>
  * the end of the first row (the `tall` states of fixtures/leftover.probe.json), which says so
  * whatever the box's height, or its dim `↓` at the end of the last, as it does over the rest of a
  * draft with the cursor moved up: blank rows the box shows then read as holding nothing, the
- * words under them out of sight (0.167.0, 2026-11-07, `blanks` of fixtures/ring-reading.probe.json).
+ * words under them out of sight (0.167.0, 2026-11-07, the `blanks` screens of
+ * fixtures/ring-reading.probe.json). A bright `↓` is the text's own.
  */
 const read = (screen: ScreenText) => {
   const { row, column } = screen.cursor
