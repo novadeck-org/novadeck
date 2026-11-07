@@ -55,3 +55,26 @@ const settingsRaced: Gap = { agents: ["agy"], platforms: ["win32"] }
 
 /** Whether two of the harness starting together may race on its own settings. */
 export const racesOwnSettings = (setup: AgentSetup): boolean => has(settingsRaced, setup)
+
+/**
+ * Codex on Windows reads the console's keys, and a line break written as a key of its own adds no
+ * line to its box (seen on Windows CI, 0.167.0, 2026-11-07): only one in what it takes for a burst
+ * of typing does (`pastesWhole`). Pinned by inbox.e2e's "rings nothing over a draft scrolled out
+ * of sight", which pastes the draft there; once such a key adds a line, it types it as elsewhere.
+ */
+const lineBreakKeysLost: Gap = { agents: ["codex"], platforms: ["win32"] }
+
+/** Whether a line break typed as a key of its own adds no line to the harness's box. */
+export const losesLineBreakKeys = (setup: AgentSetup): boolean => has(lineBreakKeysLost, setup)
+
+/**
+ * Claude Code on Windows leaves a process of its own running once its agents view opens: a
+ * `claude.exe` under `WmiPrvSE`, so started apart from the terminal, which outlived the deck (seen
+ * on Windows CI, 2.1.316, 2026-11-07; that the view starts it is read from it being the one test
+ * that opens the view). inbox.e2e's view test runs on the others; what it reads doesn't differ.
+ */
+const agentsViewStaysBehind: Gap = { agents: ["claude"], platforms: ["win32"] }
+
+/** Whether opening the harness's agents view leaves a process behind that outlives the deck. */
+export const agentsViewOutlivesDeck = (setup: AgentSetup): boolean =>
+  has(agentsViewStaysBehind, setup)

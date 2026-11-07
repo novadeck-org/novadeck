@@ -1,4 +1,5 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
+import { cells } from "@novadeck/emulator/width"
 import type { SliceProfile } from "@novadeck/harness-core/slices"
 import {
   agreeing,
@@ -64,11 +65,27 @@ const queued = (screen: ScreenText): boolean =>
   )
 
 /**
- * Its box, marked as showing only a part where it draws its dim `↑` at the end of the first row
- * (the `tall` states of fixtures/leftover.probe.json), which says so whatever the box's height.
+ * Its box, read from the row above where text that fills its last row left the cursor: Codex
+ * parks it on the blank row under that text, at its indent, which reads as a cursor out of the
+ * box. That row is still the box's, as its viewport counts it, so it stays the box's last. Every
+ * 37th length of a line at 40 columns did so (0.167.0, 2026-11-07,
+ * e2e/probes/reply-overflow.e2e.ts). Text under the cursor is the cursor elsewhere in a draft,
+ * which reads as no box as it did. Marked as showing only a part where it draws its dim `↑` at
+ * the end of the first row (the `tall` states of fixtures/leftover.probe.json), which says so
+ * whatever the box's height.
  */
 const read = (screen: ScreenText) => {
-  const box = agreeing(markedBox(screen, markers), shellFooter(screen.rows))
+  const { row, column } = screen.cursor
+  const above = screen.bright[row - 1]?.trimEnd() ?? ""
+  const parked =
+    column === 2 &&
+    screen.rows[row]?.trim() === "" &&
+    screen.rows[row + 1]?.trim() === "" &&
+    cells(above) === screen.columns - 1
+  const found = parked
+    ? markedBox({ ...screen, cursor: { row: row - 1, column: above.length } }, markers)
+    : markedBox(screen, markers)
+  const box = agreeing(parked && found ? { ...found, last: row } : found, shellFooter(screen.rows))
   if (!box) return box
   const lit = screen.bright[box.first]?.trimEnd() ?? ""
   const drawn = screen.rows[box.first]?.trimEnd() ?? ""
@@ -153,8 +170,10 @@ export const box: BoxProfile = {
   // From 0.163.0 a text taller than this shows only its tail, an `↑` drawn dim at the end of
   // the box's first row: 12, 16, 22 and 29 rows on screens of 24, 30, 40 and 50 rows (probed
   // 2026-10-18, the `tall` states of fixtures/input-box.probe.json). Earlier versions grow
-  // the box to `room` instead, so a box this tall shows the whole text there.
-  viewport: (rows) => Math.floor((2 * (rows - 6)) / 3),
+  // the box to `room` instead, so a box this tall shows the whole text there. Below 14 rows it
+  // keeps 4 where it can: 2, 3 and 4 on 6, 7 and 8 rows, 4 from there to 13 (0.167.0, 2026-11-07,
+  // e2e/probes/reply-overflow.e2e.ts).
+  viewport: (rows) => Math.max(Math.floor((2 * (rows - 6)) / 3), Math.min(rows - 4, 4)),
 }
 
 /**

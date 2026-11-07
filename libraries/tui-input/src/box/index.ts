@@ -11,6 +11,7 @@ export {
   rule,
   ruledBox,
   showsTail,
+  tailOf,
 } from "./box.js"
 export type { BoxProfile, InputBox, Markers } from "./box.js"
 export { cursorAtEnd, leftoverOf, menuRow, toEnd } from "./leftover.js"
