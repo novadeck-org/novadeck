@@ -9,7 +9,7 @@ export const SubjectBar = ({
   children,
 }: {
   readonly terminal?: boolean
-  readonly children: ReactNode
+  readonly children?: ReactNode
 }): React.JSX.Element => (
   <div className="modal-subject" {...(terminal ? { "data-terminal": true } : {})}>
     {children}

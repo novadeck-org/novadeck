@@ -55,8 +55,7 @@ const mount = (overrides: Partial<Props> = {}) => {
   const answers: string[] = []
   const props = (subject: Asked | null, more: Partial<Props> = {}): Props => ({
     subject,
-    bar: (shown) =>
-      createElement(SubjectBar, { terminal: true, children: `terminal ${shown.name}` }),
+    bar: (shown) => createElement(SubjectBar, { terminal: true }, `terminal ${shown.name}`),
     title: (shown) => `Close ${shown.name}?`,
     description: (shown) => `${shown.name} is running.`,
     confirmLabel: "Close",
