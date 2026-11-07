@@ -18,7 +18,7 @@ import { relayPath } from "@novadeck/relay"
 
 import { agents, harnesses } from "../harnesses/registry.js"
 import { describe, expect, it as base } from "../test.js"
-import { hookVariables, prune, relayHook } from "./hook.js"
+import { hookVariables, prune, relayHook, windowsWords } from "./hook.js"
 import { installShellFiles } from "./install.js"
 import { listenForReports, unanswered, unheard, type Ack, type HookAnswer } from "./reports.js"
 import { relayConfig } from "./scripts.js"
@@ -178,7 +178,9 @@ describe("agent hook", () => {
     fixture,
   }) => {
     expect(await fixture.hook("claude", start(), {}, "SessionStart")).toBe(0)
-    expect(fixture.reports).toEqual([
+    // The words of the agent process that ran it, if one of its ancestors is (`launch`), are
+    // whatever this machine's are.
+    expect(fixture.reports.map((report) => ({ ...report, launch: undefined }))).toEqual([
       {
         terminalId,
         token,
@@ -668,6 +670,21 @@ const shell = (startedAt?: number) => [
   { pid: 30, name: "codex", startedAt: 0 },
 ]
 
+describe("the words of a Windows command line", () => {
+  it("part at spaces outside quotes, and keep backslashes but before a quote", () => {
+    expect(windowsWords('a  "b c"\td')).toEqual(["a", "b c", "d"])
+    expect(windowsWords('x C:\\dir\\file "C:\\dir with\\\\"')).toEqual([
+      "x",
+      "C:\\dir\\file",
+      "C:\\dir with\\",
+    ])
+    expect(windowsWords('say \\"hi\\" ""')).toEqual(["say", '"hi"', ""])
+    expect(windowsWords('"a ""b"" c"')).toEqual(['a "b" c'])
+    expect(windowsWords("")).toEqual([])
+    expect(windowsWords('"unclosed one')).toEqual(["unclosed one"])
+  })
+})
+
 describe("reading a relay's hook", () => {
   const hook = (given: object = {}) => ({
     agent: "codex",
@@ -693,6 +710,51 @@ describe("reading a relay's hook", () => {
       env: { CLAUDE_PID: "4242" },
     })
     expect(relayHook(claude)?.report.instance).toBe("4242")
+  })
+
+  it("reports the words its agent process was started with, as the relay read them", () => {
+    const ancestors = [
+      { pid: 10, name: "sh", args: ["-c", "hook"] },
+      { pid: 20, name: "codex", args: ["--model", "gpt-5", "-a", "never"] },
+    ]
+    expect(relayHook(hook({ ancestors }))?.report.launch).toEqual([
+      "--model",
+      "gpt-5",
+      "-a",
+      "never",
+    ])
+    // Claude Code's own pid names its process, whatever it is called.
+    const claude = hook({ agent: "claude", env: { CLAUDE_PID: "10" }, ancestors })
+    expect(relayHook(claude)?.report.launch).toEqual(["-c", "hook"])
+    expect(relayHook(hook({ ancestors: [{ pid: 20, name: "codex" }] }))?.report).not.toHaveProperty(
+      "launch",
+    )
+    expect(relayHook(hook())?.report).not.toHaveProperty("launch")
+  })
+
+  it("reads the line Windows keeps of its agent process as that platform's programs do", () => {
+    const line =
+      '"C:\\Program Files\\codex.exe" --model gpt-5 -c "title=a b" --add-dir "C:\\x y\\\\"'
+    const ancestors = [{ pid: 20, name: "codex", commandLine: line }]
+    expect(relayHook(hook({ ancestors }), "win32")?.report.launch).toEqual([
+      "--model",
+      "gpt-5",
+      "-c",
+      "title=a b",
+      "--add-dir",
+      "C:\\x y\\",
+    ])
+  })
+
+  it("drops what an ancestor was started with when it is too long to be whole, keeping the ancestor", () => {
+    const long = "x".repeat(5000)
+    const ancestors = [
+      { pid: 20, name: "codex", args: ["--model", long] },
+      { pid: 30, name: "sh", commandLine: long },
+    ]
+    const found = relayHook(hook({ ancestors }))
+    expect(found?.report.instance).toBe("20")
+    expect(found?.report).not.toHaveProperty("launch")
   })
 
   it("takes only an event its harness asks on for an ask, never a name objects carry", () => {

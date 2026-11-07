@@ -1,7 +1,8 @@
 import { join } from "node:path"
 
-import { hookTranscript } from "@novadeck/harness-core/decode"
+import { hookTranscript, withLaunch } from "@novadeck/harness-core/decode"
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
+import { keptFlags, resumeFlags, type KeptFlags } from "@novadeck/harness-core/kept-flags"
 import { beside } from "@novadeck/harness-core/paths"
 import type { Report } from "@novadeck/harness-core/report"
 
@@ -63,13 +64,38 @@ const messaging: MessagingProfile = {
   toolsAtTurnStart: false,
 }
 
+// What a resume carries over: the permission mode, however it was asked for, the model and
+// the effort, which `--resume` doesn't bring back with the session (see `LaunchProfile.kept`).
+const kept: KeptFlags = {
+  valued: {
+    "--model": "--model",
+    "--effort": "--effort",
+    "--permission-mode": "--permission-mode",
+  },
+  bare: {
+    "--dangerously-skip-permissions": "--dangerously-skip-permissions",
+    "--allow-dangerously-skip-permissions": "--allow-dangerously-skip-permissions",
+  },
+  takesValue: valued,
+  takesMany: many,
+  print: ["-p", "--print"],
+  sets: (flag) => (flag === "--model" ? "model" : flag === "--effort" ? "effort" : undefined),
+}
+
 const launch: LaunchProfile = {
   start: ["claude"],
   // It holds a command-line prompt behind its trust and startup screens.
   initialPrompt: (line) => Promise.resolve(["claude", line]),
-  resume: (session, choice = {}) => ["claude", ...launch.choose(choice), "--resume", session],
   resumed: (claim, { sessionId }) =>
     sessionId === null ? "waiting" : sessionId === claim ? "worked" : "failed",
+  resume: (session, choice = {}, carried = []) => [
+    "claude",
+    ...launch.choose(choice),
+    ...resumeFlags(carried, choice, kept),
+    "--resume",
+    session,
+  ],
+  kept: (argv) => keptFlags(argv, kept),
   models: () => Promise.resolve(models),
   choose: ({ model, effort }) => [
     ...(model !== undefined ? ["--model", model] : []),
@@ -132,7 +158,7 @@ export const claude = {
   },
   // Its hooks run with its own process's id in their environment.
   pidVariable: "CLAUDE_PID",
-  decode,
+  decode: (report) => withLaunch(decode(report), report, launch.kept),
   transcriptOf: hookTranscript,
   dialogs,
   commandFields: ["command"],

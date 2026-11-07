@@ -42,6 +42,41 @@ describe("the session an agent asks to resume in a new terminal", () => {
       boundElsewhere: (_terminal, agent, session) => bound.includes(`${agent}:${session}`),
     })
 
+  it("resumes with the flags the session was launched with, the model asked for replacing theirs", () => {
+    const launch = ["--permission-mode", "plan", "--model", "opus"]
+    expect(claims().check("t1", "claude", "s-1", true, undefined, launch)).toEqual({
+      ok: true,
+      argv: ["claude", "--permission-mode", "plan", "--model", "opus", "--resume", "s-1"],
+      key: "claude:s-1",
+    })
+    expect(claims().check("t1", "claude", "s-1", true, { model: "sonnet" }, launch)).toMatchObject({
+      argv: ["claude", "--model", "sonnet", "--permission-mode", "plan", "--resume", "s-1"],
+    })
+    expect(claims().resumable("t1", "claude", "s-1", true, launch)?.argv).toEqual([
+      "claude",
+      "--permission-mode",
+      "plan",
+      "--model",
+      "opus",
+      "--resume",
+      "s-1",
+    ])
+  })
+
+  it("judges a restored terminal's resume with the flags its saved row kept", () => {
+    const saved = {
+      agents: { codex: { sessionId: "s-1", seq: 1, launch: ["--sandbox", "read-only"] } },
+    }
+    expect(claims().judge({ id: "t1", resume: "codex" }, saved, true)).toMatchObject({
+      ok: true,
+      argv: ["codex", "resume", "--sandbox", "read-only", "s-1"],
+    })
+    const old = { agents: { codex: { sessionId: "s-1", seq: 1 } } }
+    expect(claims().judge({ id: "t1", resume: "codex" }, old, true)).toMatchObject({
+      argv: ["codex", "resume", "s-1"],
+    })
+  })
+
   it("resumes in each harness with the model and effort, in the place its CLI takes them", () => {
     const choice = { model: "m1", effort: "high" as const }
     expect(claims().check("", "claude", "s-1", true, choice)).toEqual({

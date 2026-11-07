@@ -88,7 +88,80 @@ const maxReportWhole = maxReport + 8 * maxCommand
  * A process the hook runs under, nearest first, where the platform tells: its pid, name,
  * and when it started, in epoch milliseconds, where the relay could read it.
  */
-type Ancestor = { readonly pid: number; readonly name: string; readonly startedAt?: number }
+type Ancestor = {
+  readonly pid: number
+  readonly name: string
+  readonly startedAt?: number
+  /** What it was started with, after its program: its words, or on Windows its one line. */
+  readonly args?: readonly string[]
+  readonly commandLine?: string
+}
+
+// The most of an ancestor's arguments the relay sends (`ancestors.rs`), as the runner takes them.
+const maxLaunchWords = 128
+const maxLaunchLength = 4096
+
+/**
+ * The words a command line holds, its program first, as the C runtime of a Windows program
+ * reads them: spaces and tabs part words outside quotes, a quote toggles that, and
+ * backslashes count only before a quote (two make one, an odd last one makes the quote
+ * literal).
+ */
+export const windowsWords = (line: string): string[] => {
+  const words: string[] = []
+  let word = ""
+  let started = false
+  let quoted = false
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index]!
+    if (char === "\\") {
+      let slashes = 1
+      while (line[index + 1] === "\\") {
+        slashes += 1
+        index += 1
+      }
+      if (line[index + 1] === '"') {
+        word += "\\".repeat(Math.floor(slashes / 2))
+        if (slashes % 2 === 1) {
+          word += '"'
+          index += 1
+        }
+      } else word += "\\".repeat(slashes)
+      started = true
+    } else if (char === '"') {
+      // A doubled quote inside quotes is a literal one.
+      if (quoted && line[index + 1] === '"') {
+        word += '"'
+        index += 1
+      } else quoted = !quoted
+      started = true
+    } else if ((char === " " || char === "\t") && !quoted) {
+      if (started) words.push(word)
+      word = ""
+      started = false
+    } else {
+      word += char
+      started = true
+    }
+  }
+  if (started) words.push(word)
+  return words
+}
+
+/**
+ * The words the agent process that ran the hook was started with, after its program, where
+ * the relay read them (`instance` names it): its words as the platform keeps them, or the
+ * one line Windows keeps, split as that platform's programs do. Undefined where they weren't.
+ */
+const launchOf = (
+  instance: string | null,
+  ancestors: readonly Ancestor[],
+): string[] | undefined => {
+  const found = ancestors.find((each) => String(each.pid) === instance)
+  if (found?.args !== undefined) return [...found.args]
+  if (found?.commandLine !== undefined) return windowsWords(found.commandLine).slice(1)
+  return undefined
+}
 
 const ancestorsOf = (value: unknown): Ancestor[] =>
   (Array.isArray(value) ? value : [])
@@ -103,6 +176,17 @@ const ancestorsOf = (value: unknown): Ancestor[] =>
         (each.startedAt === undefined ||
           (typeof each.startedAt === "number" && Number.isFinite(each.startedAt))),
     )
+    // What it was started with is told only whole, never cut here, or a flag could lose its value.
+    .map(({ args, commandLine, ...rest }) => ({
+      ...rest,
+      ...(Array.isArray(args) &&
+        args.length <= maxLaunchWords &&
+        args.every((word) => typeof word === "string" && word.length <= maxLaunchLength) && {
+          args: args as readonly string[],
+        }),
+      ...(typeof commandLine === "string" &&
+        commandLine.length <= maxLaunchLength && { commandLine }),
+    }))
 
 // The longest a hook's shell may take to start its relay, past which a start read as its
 // own is someone else's: well past any cold start.
@@ -189,6 +273,7 @@ export const relayHook = (
   const codexThread = text(env.CODEX_THREAD_ID, 128)
   const shells = dialectPrograms[harnesses[agent.data].hookDialect(platform, event)]
   const firedAt = firedAtOf(instance, seq, ancestors, shells, platform)
+  const launch = launchOf(instance, ancestors)
   const whole = harnesses[agent.data].commandFields
   const report = {
     agent: agent.data,
@@ -196,6 +281,7 @@ export const relayHook = (
     seq,
     ...(firedAt !== undefined && { firedAt }),
     instance,
+    ...(launch !== undefined && { launch }),
     // Only what tells nested agents apart; nothing else of the environment is kept.
     env: {
       cursor: text(env.CURSOR_VERSION, 128) !== undefined,

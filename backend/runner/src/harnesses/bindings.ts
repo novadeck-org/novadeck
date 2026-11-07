@@ -140,6 +140,9 @@ export const observe = (
   const cwd = (same && known.cwd) || event.cwd || state.cwd
   // Where its harness keeps the conversation, as it named it: a hint for finding it again.
   const transcript = event.transcript ?? (same ? known.transcript : undefined)
+  // The flags its process was launched with, as that process tells them; a report that can't
+  // (the relay couldn't read them) leaves what the session had.
+  const launch = event.launch ?? (same ? known.launch : undefined)
   const sessions = {
     ...state.sessions,
     [event.agent]: {
@@ -150,6 +153,7 @@ export const observe = (
       ...(turn && { turn }),
       ...(told && { told }),
       ...(endedAt !== undefined && { endedAt }),
+      ...(launch !== undefined && launch.length > 0 && { launch }),
     },
   }
   return event.startedAt > (facts.promptedAt ?? 0)

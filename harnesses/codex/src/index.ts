@@ -1,5 +1,6 @@
-import { hookTranscript } from "@novadeck/harness-core/decode"
+import { hookTranscript, withLaunch } from "@novadeck/harness-core/decode"
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
+import { keptFlags, resumeFlags, type KeptFlags } from "@novadeck/harness-core/kept-flags"
 
 import { bannerMarker, bannerVersion } from "./banner.js"
 import { box, slice } from "./box.js"
@@ -46,27 +47,113 @@ const messaging: MessagingProfile = {
   toolsAtTurnStart: false,
 }
 
+const nonSession = {
+  commands: [
+    "agents",
+    "login",
+    "logout",
+    "mcp",
+    "plugin",
+    "app-server",
+    "remote-control",
+    "completion",
+    "update",
+    "doctor",
+    "sandbox",
+    "debug",
+    "apply",
+    "a",
+    "archive",
+    "delete",
+    "migrate-rollouts",
+    "migrate-nfs-db",
+    "unarchive",
+    "exec-server",
+    "features",
+    "help",
+  ],
+  flags: ["-h", "--help", "-V", "--version"],
+  // Its `exec` runs it on a prompt, but that is a command; its `-p` is `--profile`.
+  print: [],
+  takesValue: [
+    "-c",
+    "--config",
+    "--enable",
+    "--disable",
+    "--remote",
+    "--remote-auth-token-env",
+    "-i",
+    "--image",
+    "-m",
+    "--model",
+    "--local-provider",
+    "-p",
+    "--profile",
+    "-s",
+    "--sandbox",
+    "-C",
+    "--cd",
+    "--add-dir",
+    "-a",
+    "--ask-for-approval",
+  ],
+  takesMany: ["-i", "--image"],
+}
+
+// What a resume carries over: the approval policy and sandbox, however they were asked for
+// (a flag, its bypass or a config override of the same key), the model and the effort, which
+// `codex resume` doesn't bring back with the session (see `LaunchProfile.kept`).
+const configKeys = ["model", "model_reasoning_effort", "approval_policy", "sandbox_mode"]
+const kept: KeptFlags = {
+  valued: {
+    "-m": "--model",
+    "--model": "--model",
+    "-s": "--sandbox",
+    "--sandbox": "--sandbox",
+    "-a": "--ask-for-approval",
+    "--ask-for-approval": "--ask-for-approval",
+  },
+  bare: {
+    "--dangerously-bypass-approvals-and-sandbox": "--dangerously-bypass-approvals-and-sandbox",
+    "--dangerously-bypass-hook-trust": "--dangerously-bypass-hook-trust",
+    "--approve-for-me": "--approve-for-me",
+    "--full-auto": "--full-auto",
+  },
+  config: { options: ["-c", "--config"], keys: configKeys },
+  takesValue: nonSession.takesValue,
+  takesMany: nonSession.takesMany,
+  print: nonSession.print,
+  sets: (flag, value) =>
+    flag === "--model" || value?.startsWith("model=")
+      ? "model"
+      : value?.startsWith("model_reasoning_effort=")
+        ? "effort"
+        : undefined,
+}
+
 const launch: LaunchProfile = {
   start: ["codex"],
   // It holds a command-line prompt behind its trust and startup screens.
   initialPrompt: (line) => Promise.resolve(["codex", line]),
+  // It has no id before its first prompt: reaching ready with the resume running is its
+  // sign (an id it never had exits with the shell prompt back instead), and binding clears
+  // ready, so an id that is the claim counts as well.
+  resumed: (claim, { sessionId, ready }) => (sessionId === claim || ready ? "worked" : "waiting"),
   // `tui.resume_cwd=session` keeps the working-directory question from blocking the resume
   // when the shell's folder is not the session's, as after a `cd` (probed 2026-11-07, 0.167.0,
   // on Linux, macOS and Windows; `-C <dir>` does the same). It is one plain word, as `choose`'s
   // `-c` values are, so every shell and the shims' `%*` and `"$@"` pass it whole. The session's
   // folder, if deleted, still blocks: its availability check says so first.
-  resume: (session, choice = {}) => [
+  resume: (session, choice = {}, carried = []) => [
     "codex",
     "resume",
     ...launch.choose(choice),
+    ...resumeFlags(carried, choice, kept),
     "-c",
     "tui.resume_cwd=session",
     session,
   ],
-  // It has no id before its first prompt: reaching ready with the resume running is its
-  // sign (an id it never had exits with the shell prompt back instead), and binding clears
-  // ready, so an id that is the claim counts as well.
-  resumed: (claim, { sessionId, ready }) => (sessionId === claim || ready ? "worked" : "waiting"),
+  kept: (argv) => keptFlags(argv, kept),
   // Its cache of the models it lists, in its home; the effort is a config override, left
   // bare (codex reads a value that isn't TOML as a string), so it has no quotes of its own.
   models: (install) => readModels(codexHome(install)),
@@ -97,58 +184,7 @@ export const codex = {
   // Its subcommands other than a session (`codex --help`, 0.164.0), with help and version.
   // Its `exec` and `review` run it on the caller's text, as `queue` (a message into a
   // session) and `cloud` (`cloud exec` submits a task) do, so they are a session's use.
-  nonSession: {
-    commands: [
-      "agents",
-      "login",
-      "logout",
-      "mcp",
-      "plugin",
-      "app-server",
-      "remote-control",
-      "completion",
-      "update",
-      "doctor",
-      "sandbox",
-      "debug",
-      "apply",
-      "a",
-      "archive",
-      "delete",
-      "migrate-rollouts",
-      "migrate-nfs-db",
-      "unarchive",
-      "exec-server",
-      "features",
-      "help",
-    ],
-    flags: ["-h", "--help", "-V", "--version"],
-    // Its `exec` runs it on a prompt, but that is a command; its `-p` is `--profile`.
-    print: [],
-    takesValue: [
-      "-c",
-      "--config",
-      "--enable",
-      "--disable",
-      "--remote",
-      "--remote-auth-token-env",
-      "-i",
-      "--image",
-      "-m",
-      "--model",
-      "--local-provider",
-      "-p",
-      "--profile",
-      "-s",
-      "--sandbox",
-      "-C",
-      "--cd",
-      "--add-dir",
-      "-a",
-      "--ask-for-approval",
-    ],
-    takesMany: ["-i", "--image"],
-  },
+  nonSession,
   transcripts: { ...transcripts, shapes, conversational },
   plans: rolloutPlans,
   // Its hooks and rollout; see docs/harness-coverage.md.
@@ -167,7 +203,7 @@ export const codex = {
     limits: "complete",
     context: "partial",
   },
-  decode,
+  decode: (report) => withLaunch(decode(report), report, launch.kept),
   transcriptOf: hookTranscript,
   dialogs,
   commandFields: ["command"],

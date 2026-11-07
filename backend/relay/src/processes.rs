@@ -41,6 +41,24 @@ struct FileTime {
     high: u32,
 }
 
+#[link(name = "ntdll")]
+unsafe extern "system" {
+    fn NtQueryInformationProcess(
+        process: *mut c_void,
+        class: u32,
+        information: *mut c_void,
+        length: u32,
+        returned: *mut u32,
+    ) -> i32;
+}
+
+/// NtQueryInformationProcess' class for a process's command line (Windows 8.1 and later),
+/// answered with a UNICODE_STRING followed by its text.
+const COMMAND_LINE_INFORMATION: u32 = 60;
+/// Room for the answer: the string's header and a command line of most of the 32,767
+/// characters Windows allows. A longer one is not read.
+const COMMAND_LINE_ROOM: usize = 1 << 16;
+
 #[link(name = "kernel32")]
 unsafe extern "system" {
     fn CreateToolhelp32Snapshot(flags: u32, pid: u32) -> *mut c_void;
@@ -143,6 +161,38 @@ pub fn started(pid: u32) -> Option<u64> {
         return None;
     }
     handle.started()
+}
+
+/// The command line process `pid` was started with, program first, as Windows keeps it;
+/// None where the process is gone, another user's, or Windows won't say.
+pub fn command_line(pid: u32) -> Option<String> {
+    let handle = Handle::open(pid, QUERY_LIMITED_INFORMATION)?;
+    // Eight-byte units, for the string's pointer to sit aligned.
+    let mut room = vec![0u64; COMMAND_LINE_ROOM / 8];
+    let mut returned = 0u32;
+    let status = unsafe {
+        NtQueryInformationProcess(
+            handle.0,
+            COMMAND_LINE_INFORMATION,
+            room.as_mut_ptr().cast(),
+            COMMAND_LINE_ROOM as u32,
+            &mut returned,
+        )
+    };
+    if status < 0 {
+        return None;
+    }
+    // A UNICODE_STRING: its length in bytes, its capacity, then (after padding to the
+    // pointer) the pointer to its text, which sits in the same room.
+    let base = room.as_ptr() as usize;
+    let bytes = unsafe { *room.as_ptr().cast::<u16>() } as usize;
+    let text = unsafe { *room.as_ptr().add(1).cast::<usize>() };
+    let at = text.checked_sub(base)?;
+    if bytes % 2 != 0 || at.checked_add(bytes)? > COMMAND_LINE_ROOM {
+        return None;
+    }
+    let units = unsafe { std::slice::from_raw_parts((base + at) as *const u16, bytes / 2) };
+    Some(String::from_utf16_lossy(units))
 }
 
 /// A process of a tree: its pid and when it started, which together name it alone.

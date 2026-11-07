@@ -192,6 +192,31 @@ describe("observing a harness session", () => {
   })
 })
 
+describe("the launch flags a session keeps", () => {
+  it("are those of the process that started it, and stay as it reports again without them", () => {
+    const flags = ["--permission-mode", "plan"]
+    const first = observe(idle, seen({ launch: flags }), facts)!
+    expect(first.sessions.claude).toEqual({ sessionId: "a", seq: 2_000, launch: flags })
+    const later = observe(first, seen({ startedAt: 3_000 }), facts)!
+    expect(later.sessions.claude).toEqual({ sessionId: "a", seq: 3_000, launch: flags })
+    // The same process reporting again says what it has.
+    const changed = observe(first, seen({ startedAt: 3_000, launch: ["--model", "opus"] }), facts)!
+    expect(changed.sessions.claude?.launch).toEqual(["--model", "opus"])
+  })
+
+  it("are none for a new session whose process didn't say, and none when it has no flags", () => {
+    const first = observe(idle, seen({ launch: ["--model", "opus"] }), facts)!
+    const next = observe(
+      first,
+      seen({ sessionId: "b", startedAt: 3_000, evidence: "native-switch" }),
+      facts,
+    )!
+    expect(next.sessions.claude).toEqual({ sessionId: "b", seq: 3_000 })
+    const bare = observe(first, seen({ startedAt: 3_000, launch: [] }), facts)!
+    expect(bare.sessions.claude).toEqual({ sessionId: "a", seq: 3_000 })
+  })
+})
+
 describe("the harness version a binding carries", () => {
   const told = (fields: Partial<TelemetryObserved> = {}): TelemetryObserved => ({
     type: "telemetry-observed",
