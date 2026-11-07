@@ -49,9 +49,11 @@ const withTurn = (
  * Where no session is bound there is none. Whether it changed.
  */
 export const markTurn = (
-  record: Pick<Record, "agents" | "bound">,
+  record: Pick<Record, "agents" | "bound" | "woken">,
   activity: AgentActivity | null,
 ): boolean => {
+  // A woken shell keeps the turn it resumes until its session binds, whatever shows meanwhile.
+  if (!record.bound && record.woken !== undefined) return false
   const binding = record.bound?.binding
   const next = withTurn(
     record.agents,

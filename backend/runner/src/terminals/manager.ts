@@ -477,7 +477,6 @@ export class Terminals {
       closed: (id) => this.closedIds.has(id),
       record: (id) => this.records.get(id),
       stopping: () => this.stopping,
-      watched: () => this.streams.watched(),
       create: async (row, resume) => {
         const owner = `wake:${row.id}`
         const { id, sessionId, cwd } = row
@@ -491,10 +490,12 @@ export class Terminals {
         }
       },
       changed: (row) => this.streams.savedChanged(row),
+      ended: (id) => this.streams.end(id),
     })
     this.feedback = new Feedback({
       owner: (id) => this.messaging.inboxOwner(id),
-      exists: (id) => !this.closedIds.has(id) && (this.records.has(id) || this.sleepers.asleep(id)),
+      exists: (id) =>
+        !this.closedIds.has(id) && (this.records.has(id) || !!this.sleepers.resting(id)),
       replyState: (id) => this.messaging.inboxReply(id),
       request: (id, request, hint) => this.messaging.personFeedbackRequest(id, request, hint),
     })
@@ -632,6 +633,7 @@ export class Terminals {
     // Checked before eviction, so a retained exited record keeps its id taken.
     this.available(input.id)
     const place = this.host.reserve(input.id)
+    const created = this.sleepers.creates(input.id)
     const pending = this.pending(ownerId)
     // An agent's request this answers: read now, as it may stop waiting meanwhile.
     const opener =
@@ -704,6 +706,9 @@ export class Terminals {
         env,
         startup || undefined,
       )
+      // A shell that can't take the resume leaves an unseen wake asleep, not a plain shell.
+      if (asleep && !input.seen && !started.resumes)
+        throw new DomainError("SPAWN_FAILED", "This terminal's shell can't resume an agent.")
       const terminal = startedIn(started, () =>
         place.open(spec, pending.released ? undefined : ownerId),
       )
@@ -802,18 +807,20 @@ export class Terminals {
       throw error
     } finally {
       place.done()
+      created()
       this.complete(ownerId, pending)
     }
   }
 
   /** Every terminal of a session, or of all: running, and kept only as saved (see `listTerminals`). */
   list(sessionId?: string): TerminalSummary[] {
+    const delivered = this.sleepers.deliveries()
     return listTerminals(
       {
         records: () => this.records.values(),
         kept: (id) => this.saves.terminals(id),
         draining: (id) => this.host.draining(id),
-        saved: (row) => this.sleepers.summaryOf(row),
+        saved: (row) => this.sleepers.summaryOf(row, delivered),
         order: (id, handle) => this.names.order(id, handle),
       },
       sessionId,
@@ -1115,6 +1122,7 @@ export class Terminals {
       this.forget(input.terminalId)
       if (!saved) throw new DomainError("TERMINAL_NOT_FOUND")
       this.streams.removed(saved)
+      this.streams.end(input.terminalId)
       return
     }
     this.closeForGood(record)
@@ -1186,6 +1194,7 @@ export class Terminals {
         this.closedIds.add(terminal.id)
         this.forget(terminal.id)
         this.streams.removed(terminal)
+        this.streams.end(terminal.id)
       }
       this.names.forgetSession(sessionId)
     }
@@ -1460,7 +1469,6 @@ export class Terminals {
     for (const pending of this.pendingOwners.get(ownerId) ?? []) pending.released = true
     this.host.release(ownerId)
     this.streams.release(ownerId)
-    if (!this.streams.watched()) this.sleepers.unwatched()
     this.opens.release(ownerId)
     this.confirms.release(ownerId)
     this.companion.release(ownerId)

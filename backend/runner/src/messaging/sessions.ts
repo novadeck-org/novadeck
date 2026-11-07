@@ -127,11 +127,12 @@ export class Sessions {
    * longer rests on the session, so nothing is addressed to it and its Inbox asks lapse,
    * and reopen should that session bind there after all. A terminal still asleep rests on.
    */
-  endRest(terminalId: string): void {
+  endRest(terminalId: string): boolean {
     const live = this.live.get(terminalId)
-    if (!live?.resting || this.asleepIds.has(terminalId)) return
+    if (!live?.resting || this.asleepIds.has(terminalId)) return false
     live.resting = null
     this.host.store.changed(terminalId)
+    return true
   }
 
   /** The record turns into `next` in place, as others hold it by identity. */
@@ -145,7 +146,7 @@ export class Sessions {
    * as it closes, the brief its lead waits on is let go too; otherwise it is kept, as the
    * terminal may be restored with its lead.
    */
-  unregister(terminalId: string, forGood = false): void {
+  unregister(terminalId: string, forGood = false, reason = "terminal-closed"): void {
     const { store } = this.host
     // Told to those waiting on it, which stop.
     if (forGood && this.host.letBriefGo(terminalId)) store.changed(terminalId)
@@ -154,8 +155,7 @@ export class Sessions {
     if (!live) return
     this.applyRoot(live, [{ type: "ended" }])
     for (const message of store.messages())
-      if (message.to.terminalId === terminalId && undelivered(message))
-        store.gone(message, "terminal-closed")
+      if (message.to.terminalId === terminalId && undelivered(message)) store.gone(message, reason)
     this.live.delete(terminalId)
     this.asleepIds.delete(terminalId)
     this.host.loops.forget(terminalId)

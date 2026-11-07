@@ -113,7 +113,7 @@ describe("keeping the turn in a terminal's sessions", () => {
   const terminal = (agents: Record["agents"]) =>
     ({ agents, bound: { binding, activity: started(0), telemetry: null } }) as Pick<
       Record,
-      "agents" | "bound"
+      "agents" | "bound" | "woken"
     >
 
   it("sets it on the bound session, only when it changes, and clears it with the turn", () => {
@@ -128,12 +128,23 @@ describe("keeping the turn in a terminal's sessions", () => {
   it("sets it on no session the bound one is not, and clears it when none is bound", () => {
     const other = terminal({ claude: { sessionId: "older", seq: 1 } })
     expect(markTurn(other, running)).toBe(false)
-    const gone: Pick<Record, "agents" | "bound"> = {
+    const gone: Pick<Record, "agents" | "bound" | "woken"> = {
       agents: { claude: { sessionId: "s1", seq: 1, turn: "running" } },
       bound: null,
+      woken: undefined,
     }
     expect(markTurn(gone, null)).toBe(true)
     expect(gone.agents.claude).toEqual({ sessionId: "s1", seq: 1 })
+  })
+
+  it("keeps the turn of a woken shell until its session binds, whatever shows meanwhile", () => {
+    const woken: Pick<Record, "agents" | "bound" | "woken"> = {
+      agents: { claude: { sessionId: "s1", seq: 1, turn: "running" } },
+      bound: null,
+      woken: Date.now(),
+    }
+    expect(markTurn(woken, null)).toBe(false)
+    expect(woken.agents.claude).toEqual({ sessionId: "s1", seq: 1, turn: "running" })
   })
 
   it("stays with a session as it reports again, and starts over with another", () => {

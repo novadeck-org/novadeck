@@ -289,6 +289,18 @@ describe("a wake that ended with a shell and no agent", () => {
     expect(inbox.list().map((entry) => entry.id)).toEqual([created.id])
   })
 
+  it("makes the messages a pause held for it gone too, as nothing stands for their session", ({
+    resources,
+  }) => {
+    const run = setup()
+    resources.defer(closing(run))
+    run.messaging.pause(true)
+    const held = run.send("later")
+    run.messaging.register("B", here, "fox", null)
+    run.messaging.wakeEnded("B", "its agent did not start")
+    expect(run.messaging.stateOf(held.id)).toBe("gone")
+  })
+
   it("leaves a sleeper that stays asleep resting", ({ resources }) => {
     const run = setup()
     resources.defer(closing(run))
@@ -391,6 +403,17 @@ describe("finding the sleepers that want a wake", () => {
     expect([...wanted].toSorted()).toEqual(
       Array.from({ length: 17 }, (_, at) => `T${at * 10}`).toSorted(),
     )
+  })
+})
+
+describe("a sleeper that stops being one for a reason", () => {
+  it("makes its waiting messages gone and frees its session", ({ resources }) => {
+    const run = setup()
+    resources.defer(closing(run))
+    const sent = run.send("never read")
+    run.messaging.unregister("B", false, "Novadeck was disconnected from Claude.")
+    expect(run.messaging.stateOf(sent.id)).toBe("gone")
+    expect(run.messaging.resting("B")).toBeUndefined()
   })
 })
 

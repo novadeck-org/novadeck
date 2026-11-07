@@ -153,6 +153,17 @@ export const deliveredTo = (messages: Iterable<Message>, terminalId: string): nu
   return last
 }
 
+/** `deliveredTo` for every terminal, in one pass over the messages. */
+export const deliveredToAll = (messages: Iterable<Message>): ReadonlyMap<string, number> => {
+  const last = new Map<string, number>()
+  for (const message of messages) {
+    const { to, deliveredAt } = message
+    if (deliveredAt === null || isNotice(message)) continue
+    if ((last.get(to.terminalId) ?? -Infinity) < deliveredAt) last.set(to.terminalId, deliveredAt)
+  }
+  return last
+}
+
 /**
  * The latest message between the caller and a peer, either way, shortened: one the caller
  * sent, or one delivered to it. A message still on its way to the caller (queued, held

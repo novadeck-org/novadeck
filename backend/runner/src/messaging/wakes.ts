@@ -1,6 +1,6 @@
 import type { Live } from "./live.js"
 import type { MessageStore } from "./message-store.js"
-import type { Message } from "./messages.js"
+import { undelivered, type Message } from "./messages.js"
 import type { Sessions } from "./sessions.js"
 
 /** What wakes ask of the rest of messaging. */
@@ -55,6 +55,21 @@ export class Wakes {
     const { store } = this.host
     for (const message of store.messages())
       if (message.to.terminalId === terminalId && this.wants(message)) store.gone(message, reason)
+  }
+
+  /**
+   * The wake ended and nothing rests on the session any more: the messages still held for
+   * it (by a pause or a lead's hold) are gone too, for `reason`. One in flight is not.
+   */
+  failedHeld(terminalId: string, reason: string): void {
+    const { store } = this.host
+    for (const message of store.messages())
+      if (
+        message.to.terminalId === terminalId &&
+        undelivered(message) &&
+        message.state !== "leased"
+      )
+        store.gone(message, reason)
   }
 
   /** Asks for the wake of an asleep terminal that gained a message to deliver, once. */

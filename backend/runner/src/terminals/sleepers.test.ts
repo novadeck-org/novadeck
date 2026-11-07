@@ -39,7 +39,7 @@ type Calls = string[]
 
 const setup = (
   rows: ListedTerminal[],
-  options: { watched?: boolean; wanted?: Set<string>; connected?: boolean } = {},
+  options: { wanted?: Set<string>; connected?: boolean; done?: boolean } = {},
 ) => {
   const calls: Calls = []
   const resting = new Map<string, { agent: AgentName; sessionId: string }>()
@@ -57,11 +57,19 @@ const setup = (
       wakeFailed: (id: string, why: string) => calls.push(`failed ${id}: ${why}`),
       wakeEnded: (id: string, why: string) => calls.push(`ended ${id}: ${why}`),
       shownAgent: () => undefined,
-      unregister: (id: string) => resting.delete(id),
-      deliveredAt: () => null,
+      unregister: (id: string, _good: boolean, why?: string) => {
+        calls.push(`unregister ${id}: ${why}`)
+        resting.delete(id)
+      },
+      deliveredAt: () => {
+        calls.push("deliveries")
+        return new Map<string, number>()
+      },
     }),
     saves: () => ({ terminals: () => rows }),
-    inbox: () => ({ reports: () => ({ tell: null, done: null }) }),
+    inbox: () => ({
+      reports: () => ({ tell: null, done: options.done ? { subject: "x", at: 5 } : null }),
+    }),
     claims: () => new Claims({ boundElsewhere: () => false }),
     connected: () => Promise.resolve(options.connected ?? true),
     resumes: () => true,
@@ -70,12 +78,12 @@ const setup = (
     closed: () => false,
     record: () => undefined,
     stopping: () => false,
-    watched: () => options.watched ?? true,
     create: (each: ListedTerminal) => {
       calls.push(`create ${each.id}`)
       return Promise.resolve()
     },
     changed: (each: ListedTerminal) => calls.push(`changed ${each.id}`),
+    ended: (id: string) => calls.push(`ended stream ${id}`),
   } as unknown as SleepersHost
   return { sleepers: new Sleepers(host), calls, resting, held }
 }
@@ -125,12 +133,12 @@ describe("sleepers", () => {
     expect(sleepers.asleep("a")).toBe(true)
   })
 
-  it("creates the terminal itself after a grace when no client watches", async () => {
+  const waking = () =>
+    setup([row("a", "claude", { claude: { sessionId: "one", seq: 1, turn: "waking" } })])
+
+  it("creates the terminal itself after a grace, whether or not a client watches", async () => {
     vi.useFakeTimers()
-    const { sleepers, calls } = setup(
-      [row("a", "claude", { claude: { sessionId: "one", seq: 1, turn: "waking" } })],
-      { watched: false },
-    )
+    const { sleepers, calls } = waking()
     sleepers.start()
     await vi.advanceTimersByTimeAsync(10)
     expect(calls).not.toContain("create a")
@@ -138,15 +146,91 @@ describe("sleepers", () => {
     expect(calls).toContain("create a")
   })
 
-  it("does not create the terminal itself while a client watches", async () => {
+  it("creates a terminal a client first listed as waking, which only the runner now starts", async () => {
     vi.useFakeTimers()
-    const { sleepers, calls } = setup(
-      [row("a", "claude", { claude: { sessionId: "one", seq: 1, turn: "waking" } })],
-      { watched: true },
-    )
+    const { sleepers, calls } = waking()
     sleepers.start()
+    await vi.advanceTimersByTimeAsync(10)
+    // A client lists it now: waking, with the agent to resume.
+    expect(sleepers.summaryOf(row("a", "claude", {}))).toMatchObject({
+      sleeping: false,
+      started: false,
+      restingAgent: "claude",
+    })
+    await vi.advanceTimersByTimeAsync(graceMs)
+    expect(calls.filter((call) => call === "create a")).toHaveLength(1)
+  })
+
+  it("starts no second create while one is under way, and again only if the wake still stands", async () => {
+    vi.useFakeTimers()
+    const { sleepers, calls } = waking()
+    sleepers.start()
+    await vi.advanceTimersByTimeAsync(10)
+    const done = sleepers.creates("a")
     await vi.advanceTimersByTimeAsync(graceMs * 3)
     expect(calls).not.toContain("create a")
+    done()
+    await vi.advanceTimersByTimeAsync(graceMs)
+    expect(calls.filter((call) => call === "create a")).toHaveLength(1)
+  })
+
+  it("makes no create of its own once a client's has started the shell", async () => {
+    vi.useFakeTimers()
+    const { sleepers, calls, resting } = waking()
+    sleepers.start()
+    await vi.advanceTimersByTimeAsync(10)
+    const done = sleepers.creates("a")
+    sleepers.started({ summary: { id: "a" } } as unknown as Record, "claude", "x")
+    done()
+    resting.delete("a")
+    await vi.advanceTimersByTimeAsync(graceMs * 3)
+    expect(calls).not.toContain("create a")
+  })
+
+  it("says why a wake can't happen, and that it is waking when it can", async () => {
+    const refused = setup([row("a", "claude", { claude: { sessionId: "one", seq: 1 } })], {
+      connected: false,
+    })
+    refused.sleepers.start()
+    await expect(refused.sleepers.verdict("a")).resolves.toEqual({
+      why: expect.stringContaining("isn't connected"),
+    })
+    const fine = setup([row("a", "claude", { claude: { sessionId: "one", seq: 1 } })])
+    fine.sleepers.start()
+    await expect(fine.sleepers.verdict("a")).resolves.toEqual({ waking: true })
+    await expect(fine.sleepers.verdict("none")).resolves.toBeUndefined()
+  })
+
+  it("reads the deliveries once for every sleeper with a done mark in a listing", () => {
+    const rows = [
+      row("a", "claude", { claude: { sessionId: "one", seq: 1 } }),
+      row("b", "claude", { claude: { sessionId: "two", seq: 1 } }),
+    ]
+    const { sleepers, calls } = setup(rows, { done: true })
+    sleepers.start()
+    const delivered = sleepers.deliveries()
+    for (const each of rows) sleepers.summaryOf(each, delivered)
+    expect(calls.filter((call) => call === "deliveries")).toHaveLength(1)
+  })
+
+  it("ends the message streams and says why when the integration fails", () => {
+    const { sleepers, calls } = setup([
+      row("a", "claude", { claude: { sessionId: "one", seq: 1 } }),
+    ])
+    sleepers.start()
+    sleepers.integrationFailed()
+    expect(calls).toContain("ended stream a")
+    expect(calls.find((call) => call.startsWith("unregister a"))).toMatch(/integration/)
+  })
+
+  it("ends the message streams and says why when its agent is disconnected", () => {
+    const { sleepers, calls } = setup([
+      row("a", "claude", { claude: { sessionId: "one", seq: 1 } }),
+    ])
+    sleepers.start()
+    sleepers.forgetAgent("claude", () => {})
+    expect(calls).toContain("ended stream a")
+    expect(calls.find((call) => call.startsWith("unregister a"))).toMatch(/disconnected/)
   })
 
   it("ends the wake of a started terminal whose agent never shows, after the wait", () => {
@@ -176,7 +260,7 @@ describe("sleepers", () => {
     const { sleepers } = setup([])
     const file = join(folder(), "resume")
     writeFileSync(file, "claude --resume one")
-    const record = { woken: Date.now(), resumeFile: file }
+    const record = { woken: Date.now(), resumeFile: file, resumeClaim: undefined }
     expect(sleepers.holdsKeys(record)).toBe(true)
     // Taken by the shell.
     rmSync(file)
@@ -189,5 +273,22 @@ describe("sleepers", () => {
     writeFileSync(file, "claude --resume one")
     expect(sleepers.holdsKeys({ woken: Date.now() - keysHeldMs - 1, resumeFile: file })).toBe(false)
     expect(sleepers.holdsKeys({ woken: undefined, resumeFile: file })).toBe(false)
+  })
+
+  it("holds keys for the window where the resume went as an argument, as on Windows cmd", () => {
+    const { sleepers } = setup([])
+    const claim = "claude:one"
+    expect(
+      sleepers.holdsKeys({ woken: Date.now(), resumeFile: undefined, resumeClaim: claim }),
+    ).toBe(true)
+    expect(
+      sleepers.holdsKeys({
+        woken: Date.now() - keysHeldMs - 1,
+        resumeFile: undefined,
+        resumeClaim: claim,
+      }),
+    ).toBe(false)
+    // A plain shell resumed nothing.
+    expect(sleepers.holdsKeys({ woken: Date.now(), resumeFile: undefined })).toBe(false)
   })
 })

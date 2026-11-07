@@ -242,8 +242,8 @@ export class Messaging {
     this.sessions.register(terminalId, scope, handle, ledBy)
   }
 
-  unregister(terminalId: string, forGood = false): void {
-    this.sessions.unregister(terminalId, forGood)
+  unregister(terminalId: string, forGood = false, reason?: string): void {
+    this.sessions.unregister(terminalId, forGood, reason)
   }
 
   /**
@@ -291,7 +291,7 @@ export class Messaging {
    */
   wakeEnded(terminalId: string, reason: string): void {
     this.wakes.failed(terminalId, reason)
-    this.sessions.endRest(terminalId)
+    if (this.sessions.endRest(terminalId)) this.wakes.failedHeld(terminalId, reason)
   }
 
   rooted(terminalId: string, changes: readonly RootChange[], held?: Held): void {
@@ -547,8 +547,8 @@ export class Messaging {
     return this.sending.list(terminalId, handle)
   }
 
-  deliveredAt(terminalId: string): number | null {
-    return this.sending.deliveredAt(terminalId)
+  deliveredAt(): ReadonlyMap<string, number> {
+    return this.sending.deliveredAt()
   }
 
   // The person's replies and Novadeck's notices: see `Relays`.

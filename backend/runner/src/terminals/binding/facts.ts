@@ -625,7 +625,7 @@ export class Bindings {
     const done = standingDone(
       this.host.turns().inbox.reports(id, saved),
       record.work?.personAt,
-      this.host.messaging().deliveredAt(id),
+      this.host.messaging().deliveredAt().get(id) ?? null,
     )
     return done && { subject: done.subject, at: done.at }
   }

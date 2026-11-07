@@ -24,7 +24,7 @@ const terminal = (handle: string, ledBy: string | null): Record =>
 // Leads over a runner of fakes: terminals with the agent each runs and who leads them
 // (`ledBy` is the lead's handle), and a record of what was sent, noticed and saved.
 const setup = (terminals: {
-  [handle: string]: { agent: AgentName | null; ledBy?: string; asleep?: true }
+  [handle: string]: { agent: AgentName | null; ledBy?: string; asleep?: true; refused?: string }
 }) => {
   // A sleeper has no record: the sleepers hear of the wake it is asked for.
   const records = new Map(
@@ -79,12 +79,12 @@ const setup = (terminals: {
     sleepers: () =>
       ({
         peer: () => undefined,
-        ask: (id: string) => {
-          const asleep = Object.keys(terminals).some(
-            (handle) => `id-${handle}` === id && terminals[handle]?.asleep,
-          )
-          if (asleep) woken.push(id)
-          return asleep
+        verdict: async (id: string) => {
+          const handle = Object.keys(terminals).find((each) => `id-${each}` === id)
+          const sleeper = handle ? terminals[handle] : undefined
+          if (!sleeper?.asleep) return undefined
+          woken.push(id)
+          return sleeper.refused === undefined ? { waking: true } : { why: sleeper.refused }
         },
       }) as unknown as Sleepers,
     messaging: () =>
@@ -225,6 +225,26 @@ describe("an agent asking to lead or release a sleeper", () => {
     expect(asked).toEqual([])
     expect(run.sent).toEqual([])
     expect(run.saved).toEqual([])
+  })
+})
+
+describe("an agent asking to lead or release a sleeper that cannot be woken", () => {
+  it("is told why, not that it is waking", async () => {
+    const run = setup({
+      moth: { agent: "claude" },
+      fox: {
+        agent: "codex",
+        asleep: true,
+        refused:
+          "Codex was asleep there and could not be woken: Novadeck isn't connected to Codex.",
+      },
+    })
+    for (const result of [await run.lead("moth", "fox"), await run.release("moth", "fox")])
+      expect(result).toMatchObject({
+        ok: false,
+        reason: expect.stringMatching(/@fox is asleep.*isn't connected to Codex/s),
+      })
+    expect(JSON.stringify(await run.lead("moth", "fox"))).not.toMatch(/waking it now/)
   })
 })
 

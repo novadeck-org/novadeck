@@ -43,6 +43,7 @@ import {
 import {
   defaultView,
   deliveredTo,
+  deliveredToAll,
   lastBetween,
   peerOf,
   renderAgents,
@@ -816,9 +817,9 @@ export class Sending {
     }
   }
 
-  /** When the latest message was delivered to the terminal: see `deliveredTo`. */
-  deliveredAt(terminalId: string): number | null {
-    return deliveredTo(this.host.store.messages(), terminalId)
+  /** When the latest message was delivered to each terminal: see `deliveredToAll`. */
+  deliveredAt(): ReadonlyMap<string, number> {
+    return deliveredToAll(this.host.store.messages())
   }
 
   /** The caller's peers, described. */

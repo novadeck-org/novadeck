@@ -139,5 +139,29 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       )
       await shell.until(manager, id, "claude args: --resume abc-1")
     })
+
+    it("ends a sleeper's message stream when it is closed", async ({ shell }) => {
+      const id = sleeper(shell, "claude", "abc-1")
+      const manager = shell.manager()
+      const stream = manager.watchMessages(id)
+      await stream.next()
+      const ended = stream.next()
+      await manager.close({ terminalId: id })
+      await expect(ended).resolves.toMatchObject({ done: true })
+    })
+
+    it("takes the person's feedback request for a terminal that is waking", async ({ shell }) => {
+      const id = sleeper(shell, "claude", "abc-1", { turn: "running" })
+      const manager = shell.manager()
+      await vi.waitFor(() =>
+        expect(manager.list().find((each) => each.id === id)).toMatchObject({
+          sleeping: false,
+          started: false,
+        }),
+      )
+      expect(() => manager.feedback.ask(id, "how was it")).not.toThrow(
+        expect.objectContaining({ code: "TERMINAL_NOT_FOUND" }),
+      )
+    })
   },
 )
