@@ -141,18 +141,21 @@ export const shellBusy = async (
 export const programRuns = (
   record: Pick<
     Record,
-    "foreground" | "terminal" | "summary" | "shellName" | "prompts" | "submitted"
+    "foreground" | "terminal" | "summary" | "shellName" | "prompts" | "submitted" | "startupRuns"
   >,
 ): boolean =>
   record.terminal.exit === null &&
   !record.terminal.exiting &&
-  (!shellAtPrompt(record) || (record.prompts.length > 0 && record.submitted))
+  (!shellAtPrompt(record) ||
+    // A command the shell was started with, which runs before its first prompt.
+    record.startupRuns ||
+    (record.prompts.length > 0 && record.submitted))
 
 /** Keeps `programRuns` in the terminal's summary; whether that changed it. */
 export const markBusy = (
   record: Pick<
     Record,
-    "foreground" | "terminal" | "summary" | "shellName" | "prompts" | "submitted"
+    "foreground" | "terminal" | "summary" | "shellName" | "prompts" | "submitted" | "startupRuns"
   >,
 ): boolean => {
   const busy = programRuns(record)

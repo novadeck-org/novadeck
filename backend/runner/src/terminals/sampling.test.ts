@@ -11,6 +11,7 @@ import type { Record } from "./record.js"
 import {
   boundProgram,
   exitKeysMs,
+  programRuns,
   Sampler,
   shellBusy,
   endingSamples,
@@ -180,5 +181,28 @@ describe("whether a shell may be running a program", () => {
 
   it("ignores a line entered where the integration never reported a prompt", async () => {
     expect(await shellBusy(shell({ submitted: true, prompts: [] }))).toBe(false)
+  })
+})
+
+describe("whether a program runs in a shell, for the summary", () => {
+  const shell = (fields: object = {}) =>
+    ({
+      foreground: undefined,
+      terminal: { pty: { pid: undefined }, exit: null, exiting: false },
+      summary: { process: { name: "bash", argv: null } },
+      shellName: "bash",
+      prompts: [],
+      submitted: false,
+      startupRuns: false,
+      ...fields,
+    }) as unknown as Parameters<typeof programRuns>[0]
+
+  it("counts a startup command that has not ended, before any prompt was reported, as on Windows", () => {
+    expect(programRuns(shell())).toBe(false)
+    expect(programRuns(shell({ startupRuns: true }))).toBe(true)
+  })
+
+  it("stops counting it once the shell's prompt came back", () => {
+    expect(programRuns(shell({ startupRuns: false, submitted: true }))).toBe(false)
   })
 })

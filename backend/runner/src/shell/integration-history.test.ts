@@ -87,6 +87,16 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         .toContain("kept-output")
     })
 
+    it("shows a startup command as running from the terminal's creation, until its prompt returns", async ({
+      shell,
+    }) => {
+      const manager = shell.manager(options(shell))
+      const server = await create(manager, shell, { command: "sleep 1" })
+      expect(server.busy).toBe(true)
+      expect(manager.get(server.id).busy).toBe(true)
+      await expect.poll(() => manager.get(server.id).busy, { timeout: 8000 }).toBe(false)
+    })
+
     it("keeps nothing of a project that is being removed", async ({ shell }) => {
       const manager = shell.manager(options(shell))
       const terminal = await create(manager, shell)
@@ -158,10 +168,21 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         { id, sessionId: shell.sessionId, cwd: shell.home, cols: 100, rows: 20, closed: old.id },
         "owner",
       )
+      // A window that is open as the note is drawn sees it without attaching again.
+      const live = new AbortController()
+      let seen = ""
+      void (async () => {
+        for await (const event of manager.attach({ terminalId: id, mode: "observe" }, "live", live.signal))
+          if (event.type === "snapshot" || event.type === "output") seen += event.data
+      })()
+      await expect.poll(() => seen, { timeout: 8000 }).toContain("conversation didn't open")
+      live.abort()
       const shown = await shell.until(manager, id, /conversation didn't open/)
-      // On a line of its own, not glued to the prompt it was written after.
+      // Above the prompt, which stays as the shell drew it, not glued to it or erasing it.
       expect(shown).toContain("Claude Code was running here, but its conversation didn't open.")
       expect(shown).not.toMatch(/\$ \S*Claude Code was running/)
+      // eslint-disable-next-line no-control-regex -- Strips the screen's escape sequences.
+      expect(shown.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").trimEnd().split("\n").at(-1)).toMatch(/\$$/)
       expect(manager.get(id).agent).toBeNull()
       expect(rows(shell).map(({ id: row }) => row)).toEqual([old.id])
       // The claim is given back: the row can be restored again.

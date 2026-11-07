@@ -625,6 +625,16 @@ describe("a terminal's restart", () => {
 })
 
 describe("a terminal's events", () => {
+  it("carry what is printed, which a replay's draw does not", async () => {
+    const { terminal } = terminalOf()
+    const attachment = terminal.attach("viewer", { mode: "observe" })
+    await terminal.print("noted\r\n")
+    await terminal.replay("quiet")
+    expect((await terminal.readScreen()).rows[0]?.trimEnd()).toBe("noted")
+    const events = await drain(terminal, "viewer", attachment, 2)
+    expect(events.at(-1)).toMatchObject({ type: "output", data: "noted\r\n" })
+  })
+
   it("are sequenced, and replayed after a cursor the ring still holds", async () => {
     const { terminal, program, settled } = terminalOf()
     program.draw("one")

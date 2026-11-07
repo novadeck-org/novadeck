@@ -3,7 +3,7 @@ import type { AgentName } from "@novadeck/protocol"
 
 import type { HistoryHost } from "./history.js"
 import type { Record } from "./record.js"
-import { showRestored } from "./restored.js"
+import { showNote } from "./restored.js"
 import type { Claims } from "./resumes.js"
 import type { TerminalRecords } from "./saved-terminals.js"
 import type { Saves } from "./saving.js"
@@ -67,7 +67,6 @@ export const historyHost = (parts: HistoryParts): HistoryHost => ({
   },
   ran: (terminalId) => parts.kept?.terminalRan?.(terminalId) ?? true,
   announce: parts.announce,
-  // Over the prompt line the shell just drew, so the note stands on a line of its own.
-  say: (record, text) =>
-    void showRestored(record.terminal, "", null, record.summary.id, `\r\x1b[2K${text}`),
+  // Above the prompt the shell just drew, drawn and sent to every window that shows it.
+  say: (record, text) => void showNote(record.terminal, text, record.summary.id),
 })

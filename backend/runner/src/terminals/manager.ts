@@ -899,6 +899,7 @@ export class Terminals {
         const [text, at] = [opened?.text ?? "", opened && new Date(opened.at)]
         void showRestored(record.terminal, text, at, input.id, note)
       }
+      markBusy(record)
       this.listen(record)
       this.announce(record)
       this.sampler.start()
@@ -1210,6 +1211,7 @@ export class Terminals {
             } catch (error) {
               throw startFailed(started, error)
             }
+            markBusy(record)
             this.announce(record)
             this.sampler.start()
             // Saved at once, once the earlier screen is on it.
@@ -1749,13 +1751,13 @@ export class Terminals {
     record.line = emptyLine
     record.submitted = false
     markPrompt(record, entered)
-    if (markBusy(record)) this.announce(record)
     record.readyEntered = false
     // Whether the startup command (an agent opened or resumed there) ran, so this prompt
     // is the first after it ended.
     const cancelled = record.startupRuns && cancelResume(record)
     const ran = record.startupRuns && !cancelled
     record.startupRuns = false
+    if (markBusy(record)) this.announce(record)
     record.changed = true
     const moved = cwd !== record.summary.cwd
     const binding = record.bound?.binding ?? null

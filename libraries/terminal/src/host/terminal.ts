@@ -194,6 +194,12 @@ export type Terminal = {
    */
   replay(text: string, separator?: string): Promise<void>
   /**
+   * Draws `text` on the screen behind the draws queued before it, as the terminal's own
+   * output: attached windows see it too, as they do not a replay. A function chooses the
+   * text from the screen as it stands then, in the same step.
+   */
+  print(text: string | ((screen: Screen) => string)): Promise<void>
+  /**
    * Resizes the pty now, and the screen once the draws queued before are on it. While a
    * hold is in force, the latest size from `owner` waits until it settles.
    */
@@ -340,6 +346,17 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
     for (const subscription of subscribers.values()) subscription.push(event)
   }
 
+  // Output on the screen, told to attachments in events of at most `outputChars`.
+  const emitOutput = (text: string) => {
+    for (let start = 0; start < text.length;) {
+      let end = Math.min(start + outputChars, text.length)
+      const last = text.charCodeAt(end - 1)
+      if (end < text.length && last >= 0xd800 && last <= 0xdbff) end -= 1
+      emit({ type: "output", data: text.slice(start, end) })
+      start = end
+    }
+  }
+
   const spawn = (spec: RunSpec): Run => {
     const screen = createScreen({
       cols: spec.cols,
@@ -404,13 +421,7 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
       if (text === "") return
       await written(run.screen, text)
       fire("drawn")
-      for (let start = 0; start < text.length;) {
-        let end = Math.min(start + outputChars, text.length)
-        const last = text.charCodeAt(end - 1)
-        if (end < text.length && last >= 0xd800 && last <= 0xdbff) end -= 1
-        emit({ type: "output", data: text.slice(start, end) })
-        start = end
-      }
+      emitOutput(text)
     }).finally(() => {
       pendingReads -= 1
       pendingOutput -= drawn
@@ -733,6 +744,13 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
     // from the top, so the transcript leaves the screen for the scrollback. The screen is
     // the one in force as the step runs, as a restart queued before swaps it.
     replay: (text, separator) => enqueue(() => replayOn(run.screen, text, separator, conpty)),
+    print: (what) =>
+      enqueue(async () => {
+        const text = typeof what === "string" ? what : what(run.screen)
+        await written(run.screen, text)
+        fire("drawn")
+        emitOutput(text)
+      }),
     gone: () => {
       gone = true
     },
