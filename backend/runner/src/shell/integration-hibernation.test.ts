@@ -42,7 +42,8 @@ const standIn = (home: string, session: string, options: Options = {}): string =
       '  fs.writeFileSync(home + "/" + name + ".pid", String(started.pid))',
       "}",
       'if (options.before) child("before")',
-      'if (options.after) setTimeout(() => child("after"), 350)',
+      // Started when the test says so, once its baseline has been taken.
+      'if (options.after) process.on("SIGUSR1", () => child("after"))',
       'if (options.slow) process.on("SIGHUP", () => setTimeout(() => process.exit(0), options.slow))',
       "const base = Date.now()",
       'const events = [["SessionStart", "startup"], ["UserPromptSubmit", ""], ["Stop", ""]]',
@@ -72,12 +73,12 @@ const standIn = (home: string, session: string, options: Options = {}): string =
   return bin
 }
 
-/** A manager that looks for idle agents every 100 ms and stops those quiet for 300 ms. */
-const hibernating = (shell: Fixture, bin: string): Terminals =>
+/** A manager that looks for idle agents every 100 ms and stops those quiet for `windowMs`. */
+const hibernating = (shell: Fixture, bin: string, windowMs = 300): Terminals =>
   shell.manager({
     env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
     hibernateAfterMinutes: () => 1,
-    hibernation: { windowMs: 300, sweepMs: 100, baselineMs: 200 },
+    hibernation: { windowMs, sweepMs: 100, baselineMs: 200 },
   })
 
 const pidOf = (shell: Fixture, name: string): number =>
@@ -240,10 +241,16 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       shell,
     }) => {
       const bin = standIn(shell.home, "hib-session-6", { after: true })
-      const manager = hibernating(shell, bin)
+      // Quiet for 2 s before it may stop, time enough to start its work once baselined.
+      const manager = hibernating(shell, bin, 2_000)
       const id = await started(shell, manager)
+      // Its turn has started and ended, so its baseline is read (one process listing, well
+      // under a second): what it starts now is the agent's own work.
+      await new Promise((resolve) => setTimeout(resolve, 1_000))
+      process.kill(pidOf(shell, "agent"), "SIGUSR1")
       await vi.waitFor(() => expect(existsSync(join(shell.home, "after.pid"))).toBe(true))
-      await new Promise((resolve) => setTimeout(resolve, 1_500))
+      // Past its quiet window, it stays awake only for that process.
+      await new Promise((resolve) => setTimeout(resolve, 2_500))
       expect(awake(manager, shell, id)).toBe(true)
       process.kill(pidOf(shell, "after"))
       await vi.waitFor(() => expect(listed(manager, shell, id)?.sleeping).toBe(true), {
