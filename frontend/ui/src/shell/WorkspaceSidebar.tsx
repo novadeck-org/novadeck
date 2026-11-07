@@ -128,7 +128,7 @@ export const WorkspaceSidebar = ({
     </SidebarPanel>
     {history && (
       <HistoryPanel
-        key={projectId}
+        key={`history/${projectId}`}
         {...history}
         iconOf={historyIcon}
         active={sidebarPanel === "history"}
