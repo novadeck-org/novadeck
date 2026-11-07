@@ -67,6 +67,8 @@ export const keptSummary = (
   openedBy: null,
   agentRan: false,
   started: false,
+  sleeping: false,
+  restingAgent: null,
   command: null,
   lastProgram: null,
   cwd: "/tmp",
@@ -107,6 +109,7 @@ export const scripted = ({
   background = [],
   listed = [],
   restart = () => new Promise<TerminalSummary>(() => {}),
+  create = () => new Promise<TerminalSummary>(() => {}),
   saveSettings = async () => {},
   connect = async (agent: string, connected: boolean) => ({ agent, available: true, connected }),
   companions = { items: [], windows: [] },
@@ -128,6 +131,8 @@ export const scripted = ({
   background?: readonly Saved[]
   listed?: readonly TerminalSummary[]
   restart?: () => Promise<TerminalSummary>
+  // How the runner answers creating a terminal: never, by default, so a fresh shell stays starting.
+  create?: () => Promise<TerminalSummary>
   saveSettings?: () => Promise<void>
   connect?: (agent: string, connected: boolean) => Promise<unknown>
   // What the shown session's terminals hold as the runner lists it.
@@ -213,8 +218,7 @@ export const scripted = ({
       requests: () => requests,
       answerRequest: note("answer request", answerRequest),
       approvals: () => channel<never>().iterator,
-      // Never answers: a fresh shell stays starting.
-      create: note("create", () => new Promise(() => {})),
+      create: note("create", create),
       close: async () => {},
       rename: note("rename", async () => {}),
       restart: note("restart", restart),

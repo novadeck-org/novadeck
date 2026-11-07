@@ -1209,6 +1209,8 @@ describe("runner backend", () => {
                   openedBy: null,
                   agentRan: false,
                   started: true,
+                  sleeping: false,
+                  restingAgent: null,
                   command: null,
                   lastProgram: null,
                   cwd: home!.project.cwd,

@@ -11,7 +11,7 @@ const starting = () => {
   const ready = new Promise<boolean>((resolve) => {
     shell.start = resolve
   })
-  const entry: BootEntry = { ready, closed: false, settled: false }
+  const entry: BootEntry = { ready, closed: false, settled: false, status: { state: "starting" } }
   return { entry, start: () => shell.start?.(true) }
 }
 

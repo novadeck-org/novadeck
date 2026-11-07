@@ -17,6 +17,8 @@ const exited = (terminalId: string): TerminalSummary => ({
   openedBy: null,
   agentRan: false,
   started: true,
+  sleeping: false,
+  restingAgent: null,
   command: null,
   lastProgram: "claude",
   cwd: "/tmp",

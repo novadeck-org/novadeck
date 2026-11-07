@@ -36,6 +36,8 @@ const summary = (
   openedBy: null,
   agentRan: false,
   started: true,
+  sleeping: false,
+  restingAgent: null,
   command: null,
   lastProgram: null,
   cwd: "/work/1",
