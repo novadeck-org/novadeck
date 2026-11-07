@@ -483,6 +483,23 @@
       "status": "known",
       "cause": "Unknown, seen once on Linux: murmur's description held the prompt line with the full-screen program's command, read before the program had entered its alternate screen; passes 5/5 locally, in code the failing pull request didn't touch.",
       "seen": ["#783 run 42390794494 job 128457913000 (Linux, 3/3)"]
+    },
+    {
+      "id": "e2e-macos-job-timeout",
+      "jobs": ["^(Claude Code|Codex|Antigravity|Mixed) \\(macOS\\)$"],
+      "signature": "##\\[error\\]The operation was canceled\\.",
+      "status": "known",
+      "cause": "Not a test: the macOS E2E jobs take 27 to 30 minutes on recent pull requests against their 30-minute limit (.github/workflows/e2e.yml), so a slow runner is cancelled with no test failing.",
+      "seen": ["#785 run 42405023656 job 128500846735 (Claude Code, macOS)"]
+    },
+    {
+      "id": "e2e-inbox-agy-tall-box-reply-windows",
+      "jobs": ["^Antigravity \\(Windows\\)$"],
+      "test": "src/e2e/inbox.e2e.ts > Antigravity > rings a reply a box of 14 rows shows only the end of, and it comes as its prompt",
+      "signature": "No matching model call from call \\d+ on in \\d+ ms",
+      "status": "known",
+      "cause": "Unknown, seen once on Windows: the reply rung into a 14-row box never reached Antigravity's model within 60 s; in code the failing pull request didn't touch.",
+      "seen": ["#785 run 42405023656 job 128500846782 (Antigravity, Windows)"]
     }
   ]
 }
