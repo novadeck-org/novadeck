@@ -182,6 +182,8 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
         note(`takeBox ${terminalId}`, () => runner.agents.takeBox(terminalId)),
       putBox: (terminalId, text) =>
         note(`putBox ${terminalId}`, () => runner.agents.putBox(terminalId, text)),
+      clearBox: (terminalId, seen) =>
+        note(`clearBox ${terminalId}`, () => runner.agents.clearBox(terminalId, seen)),
       answer: (terminalId, request, answer) =>
         note(`answer ${terminalId} ${request}`, () =>
           runner.agents.answer(terminalId, request, answer),

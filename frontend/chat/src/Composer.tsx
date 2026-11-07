@@ -41,7 +41,7 @@ export const boxNote = (label: string, box: ChatBox): string => {
   if (box.mode === "shell")
     return `${label}'s terminal input is in shell mode, with this in it. Your next message leaves it.`
   if (/^\s*[/!]/.test(box.text))
-    return `${label}'s terminal input holds a command. Clear it in the terminal to send here.`
+    return `${label}'s terminal input holds a command. Clear it to send here.`
   if (box.tail) return `${label}'s terminal input ends with this. There may be more above it.`
   if (box.known)
     return `${label}'s terminal input holds your message. It comes back here as you send.`
@@ -64,6 +64,7 @@ export const Composer = ({
   working,
   onSend,
   onStop,
+  onClearBox,
   focusInput,
   onInputFocused,
   onCancelReply,
@@ -87,6 +88,8 @@ export const Composer = ({
   // back on a failure, is the owner's, which may outlive this box.
   readonly onSend: (text: string) => Promise<void>
   readonly onStop: () => Promise<void>
+  // Empties the agent's own box of the text shown of it. Rejects where it didn't.
+  readonly onClearBox: (seen: string) => Promise<void>
   // Keyboard navigation asks for focus here; call `onInputFocused` once it's there.
   readonly focusInput: boolean
   readonly onInputFocused: () => void
@@ -104,6 +107,7 @@ export const Composer = ({
 }): React.JSX.Element => {
   const input = useRef<HTMLTextAreaElement>(null)
   const [stopping, setStopping] = useState(false)
+  const [clearing, setClearing] = useState(false)
   const [error, setError] = useState<Failure | null>(null)
   const mounted = useMounted()
   useEffect(() => {
@@ -151,6 +155,19 @@ export const Composer = ({
       (failure: unknown) => {
         if (!mounted.current) return
         setStopping(false)
+        setError(failed(failure))
+      },
+    )
+  }
+  const clearBox = (seen: string): void => {
+    if (clearing) return
+    setClearing(true)
+    setError(null)
+    onClearBox(seen).then(
+      () => mounted.current && setClearing(false),
+      (failure: unknown) => {
+        if (!mounted.current) return
+        setClearing(false)
         setError(failed(failure))
       },
     )
@@ -208,7 +225,19 @@ export const Composer = ({
       )}
       {box && !passing && (
         <div className="chat-reply chat-box" id={boxNoteId}>
-          <span>{boxNote(label, box)}</span>
+          <div className="chat-box-head">
+            <span>{boxNote(label, box)}</span>
+            <button
+              type="button"
+              className="button quiet chat-reply-cancel"
+              aria-label={`Clear ${label}'s terminal input`}
+              disabled={clearing}
+              onClick={() => clearBox(box.text)}
+            >
+              <X size={12} aria-hidden />
+              Clear
+            </button>
+          </div>
           <pre className="chat-box-text">{box.tail ? `…${box.text}` : box.text}</pre>
         </div>
       )}

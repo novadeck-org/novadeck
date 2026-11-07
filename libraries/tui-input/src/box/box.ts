@@ -22,6 +22,8 @@ export type InputBox = {
   /** The rows of the screen it spans, first to last. */
   readonly first: number
   readonly last: number
+  /** Whether it draws, apart from the text, that it shows only part of what it holds. */
+  readonly scrolled?: true
 }
 
 /** The markers leading a box's first row: in its prompt mode, and in its shell mode. */

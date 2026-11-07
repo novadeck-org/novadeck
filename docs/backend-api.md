@@ -1082,7 +1082,8 @@ one from an earlier runner.
     Backspace leaves it; holding a command, the same keys as erasing and a Backspace, and the
     command goes back as `returned`, with its `!`. One that shows only as a placeholder or a
     tail can't go back, so it stays, and the call is a `CONFLICT` (`shell`).
-  - **What stays refused**, writing nothing: a box leading with `/` or `!`, which its program
+  - **What stays refused**, writing nothing, until the person clears it (`agents.clearBox`, under
+    "One input"): a box leading with `/` or `!`, which its program
     would run with the prompt as arguments (`command`); no box, or something over it (`no-box`);
     a shell command over text that isn't Novadeck's, which can't go along (`draft`); and a
     line a ring left, which is the doorbell's to finish (`ringing`, to try again). A first line
@@ -1116,7 +1117,23 @@ one from an earlier runner.
     text (Antigravity), or text whose first line break would be an Enter (above). It is false too where the words never showed, a `!` that was typed taken
     back out. The client keeps its draft unless it is true.
 
-  Both hold the person's keys for as long as they take: 0.3 s, as long as what a prompt just sent
+  - `agents.clearBox({ terminalId, seen })` resolves with `{ cleared }`. It is the person's own
+    call, from a button on the box's note, for what the two above leave: a command, a placeholder,
+    a tail, a shell mode's command. It empties the box of any of it, leaves the shell mode, and
+    the words are gone for good. `seen` is the `text` of `box` they were shown: a box that reads
+    otherwise is left, with nothing written. The adapter's `erase` (or `shell.leave`) goes once,
+    with the cursor after the text, and the box is read once. On a tail the keys go for 256 rows
+    in that one write, as what it hides can't be counted, and a longer text shows a tail again,
+    for another click. `cleared` is false where it didn't read empty, or there was no box, and
+    the box stays as it was or as the keys left it, as it does for a tail with the cursor moved
+    up, whose end can't be told, or a box longer than `box.text` can show. Of a tail only what
+    shows can be compared, with any row saying how much it hides, so one stays while a prompt
+    waits on the record or is back in the box, as a Stop can put prompts back over it. Prompts
+    whose words went, all of them or as far as the keys got, are withdrawn. A
+    doorbell line beside the person's text goes with it, seen in the note, and the doorbell rings
+    again once the box is empty.
+
+  All of them hold the person's keys for as long as they take: 0.3 s, as long as what a prompt just sent
   may still show (3 s), and up to 2 s for each of two keys that don't confirm, within a safety
   cap of 16 s. A take waits up to 10 s for a ring under way first, outside the queue. There is
   no per-client guard: a second client on one runner, as two `dev:web` tabs, could take what the

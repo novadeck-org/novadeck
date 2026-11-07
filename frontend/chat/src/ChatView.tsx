@@ -49,6 +49,7 @@ export const ChatView = ({
   sending,
   onSend,
   onInterrupt,
+  onClearBox,
   onAnswer,
   onAnswerInTerminal,
   onWordsLost,
@@ -79,6 +80,8 @@ export const ChatView = ({
   // back to the box unsent.
   readonly onSend: (text: string, to: ChatReply | null) => Promise<boolean>
   readonly onInterrupt: () => Promise<void>
+  // Empties the agent's own input box of the text the chat showed it holds.
+  readonly onClearBox: (seen: string) => Promise<void>
   readonly onAnswer: (request: string, answer: ChatAnswer) => Promise<void>
   readonly onAnswerInTerminal: () => void
   // Words that were to follow an answer and didn't reach the agent, for the person's box.
@@ -426,6 +429,7 @@ export const ChatView = ({
             await passing.leave()
             await onInterrupt()
           }}
+          onClearBox={onClearBox}
           focusInput={focusInput}
           onInputFocused={onInputFocused}
           onCancelReply={() => {

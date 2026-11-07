@@ -80,6 +80,7 @@ const setup = () => {
     })),
     interrupt: vi.fn<ConversationStreams["interrupt"]>(async () => ({ returned: null })),
     takeBox: vi.fn<ConversationStreams["takeBox"]>(async () => ({ returned: null })),
+    clearBox: vi.fn<ConversationStreams["clearBox"]>(async () => ({ cleared: true })),
     putBox: vi.fn<ConversationStreams["putBox"]>(async () => ({ placed: false })),
     answer: vi.fn<ConversationStreams["answer"]>(async () => {}),
   }
@@ -796,6 +797,21 @@ describe("the runner's conversations", () => {
       await expect(conversations.putBox?.(key, "draft")).resolves.toBe(false)
     })
 
+    it("clears the agent's box, a failure telling why", async () => {
+      const { conversations, streams } = setup()
+      streams.clearBox.mockResolvedValueOnce({ cleared: true })
+      await expect(conversations.clearBox?.(key, "/model")).resolves.toBe(true)
+      expect(streams.clearBox).toHaveBeenCalledWith("t", "/model")
+      streams.clearBox.mockResolvedValueOnce({ cleared: false })
+      await expect(conversations.clearBox?.(key, "/model")).resolves.toBe(false)
+      streams.clearBox.mockRejectedValueOnce(
+        new WireError("CONFLICT", "The runner's own words", { data: { reason: "pending" } }),
+      )
+      await expect(conversations.clearBox?.(key, "/model")).rejects.toThrow(
+        "waiting for your answer",
+      )
+    })
+
     it("hands on the words a prompt took out of the agent's box", async () => {
       const { conversations, streams } = setup()
       streams.prompt.mockResolvedValueOnce({ ref: "r", tracked: true, returned: "came back" })
@@ -910,9 +926,18 @@ describe("the runner's conversations", () => {
         )
         return conversations.send(key, "hi").catch((failure: unknown) => failure)
       }
-      const draft = await failing({ reason: "draft" })
-      expect(draft).toBeInstanceOf(SettleInTerminal)
-      expect(draft).toHaveProperty("message", expect.stringContaining("already holds text"))
+      // The chat clears the box itself: none of these sends the person to the terminal.
+      for (const [reason, words] of [
+        ["draft", "already holds text"],
+        ["shell", "shell mode"],
+        ["command", "a command it hasn't run"],
+      ] as const) {
+        // eslint-disable-next-line no-await-in-loop -- Each arms the next send's failure.
+        const box = await failing({ reason })
+        expect(box).not.toBeInstanceOf(SettleInTerminal)
+        expect(box).toHaveProperty("message", expect.stringContaining(words))
+        expect(box).toHaveProperty("message", expect.stringContaining("Clear it above"))
+      }
       const ringing = await failing({ reason: "ringing" })
       expect(ringing).not.toBeInstanceOf(SettleInTerminal)
       expect(ringing).toHaveProperty("message", expect.stringContaining("in a moment"))

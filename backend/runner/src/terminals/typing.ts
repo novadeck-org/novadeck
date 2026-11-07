@@ -33,7 +33,7 @@ import { confirmMs, Doorbell, type DoorbellOptions } from "../messaging/doorbell
 import type { Messaging } from "../messaging/messaging.js"
 import { Answers, type AnswersOptions } from "./answers.js"
 import { bannerDrawn } from "./binding/banners.js"
-import { boxView, BoxStates } from "./box-state.js"
+import { boxView, BoxStates, shownBox } from "./box-state.js"
 import { Dialogs, type DialogsOptions } from "./dialogs.js"
 import { agentWorking, doorbellHost, profileOf } from "./doorbell-host.js"
 import { holdsRingLine, leftoverNonce } from "./leftover.js"
@@ -83,6 +83,9 @@ export const requestFacts = (
   ...(request.answered && { answered: request.answered }),
   ...(request.detached && state !== "working" && { turnEnded: true as const }),
 })
+
+/** The prompts' refusals that have the person clear the box, whose note must be there for it. */
+const lookAtBox: ReadonlySet<string> = new Set(["draft", "shell", "command"])
 
 /** What tells a terminal's bound session apart, for its prompts' receipts; null for none. */
 const keyOf = (record: Record | undefined): string | null => {
@@ -269,6 +272,9 @@ export class Typing {
       // Words it took out of the box go back with the failure: they wait on no record now.
       const taken = error instanceof DomainError && promptFailure.safeParse(error.data).data
       if (taken) this.receipts.taken(terminalId, taken.returned, claimed)
+      // A failure that says to look at the box comes after what the box holds.
+      if (error instanceof DomainError && lookAtBox.has(error.reason ?? ""))
+        await this.boxes.refresh(terminalId)
       throw error
     }
     const receipt = await following.catch(() => ({ ref: claimed, tracked: false }))
@@ -321,6 +327,21 @@ export class Typing {
   async putBox(terminalId: string, text: string): Promise<{ placed: boolean }> {
     this.promptable(terminalId)
     return { placed: await this.handovers.put(terminalId, text) }
+  }
+
+  /**
+   * Empties the agent's box, as the person asked to, of the text `seen` they were shown (see
+   * `Handovers.clear`). That's all that can be told of a tail, so one is left while a prompt may
+   * have come back over it. Prompts whose words went no longer wait.
+   */
+  async clearBox(terminalId: string, seen: string): Promise<{ cleared: boolean }> {
+    this.promptable(terminalId)
+    const { cleared, went } = await this.handovers.clear(
+      terminalId,
+      (box, tail) => shownBox(box, seen) && !(tail && this.receipts.waiting(terminalId)),
+    )
+    if (went !== undefined) this.receipts.taken(terminalId, went)
+    return { cleared }
   }
 
   /** Answers a request waiting on the person through its dialog (see `Terminals.answer`). */

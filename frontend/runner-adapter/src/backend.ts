@@ -1167,6 +1167,7 @@ export const runnerBackend = (
       keys: (terminalId, keys) => runner.agents.keys(terminalId, keys),
       takeBox: (terminalId) => runner.agents.takeBox(terminalId),
       putBox: (terminalId, text) => runner.agents.putBox(terminalId, text),
+      clearBox: (terminalId, seen) => runner.agents.clearBox(terminalId, seen),
       answer: (terminalId, request, answer) => runner.agents.answer(terminalId, request, answer),
     },
     track,

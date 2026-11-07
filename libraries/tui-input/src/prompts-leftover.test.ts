@@ -29,6 +29,8 @@ type Options = {
   readonly placeholder?: boolean
   /** Whether a paste goes nowhere. */
   readonly pasteLost?: boolean
+  /** Whether what lands doesn't follow what the box held, so the paste never confirms. */
+  readonly notFollowed?: boolean
   /** The keys of the profile; none where false. */
   readonly keys?: boolean
   readonly viewport?: number
@@ -47,6 +49,10 @@ type Options = {
   readonly known?: string
   readonly ringLine?: boolean
 }
+
+/** How long a test sits out what never comes, and how long what comes may take, in milliseconds. */
+const waitOutMs = 250
+const longMs = 4_000
 
 const fake = (options: Options = {}) => {
   let text = options.text ?? ""
@@ -212,7 +218,19 @@ const fake = (options: Options = {}) => {
         discard: () => {},
       }),
     }),
-    { pollMs: 1, emptyMs: 10, pasteMs: 150, keysMs: 60, settleMs: 0, bindMs: 0 },
+    // A budget counts a slow runner's reads and timers against it, so it's long wherever what's
+    // waited for comes, and short only where it never does, which a test then sits out.
+    {
+      pollMs: 1,
+      emptyMs: 10,
+      pasteMs: options.pasteLost || options.notFollowed ? waitOutMs : longMs,
+      keysMs:
+        options.stuck || options.noErase || options.partialErase || options.staysInShell
+          ? waitOutMs
+          : longMs,
+      settleMs: 0,
+      bindMs: 0,
+    },
   )
   const give = (
     words: string,
@@ -311,7 +329,7 @@ describe("a prompt over text in the box", () => {
     })
 
     it("is refused where the box moved on but doesn't show the message", async () => {
-      const tui = over({ landsAs: "\n\nsomething else" })
+      const tui = over({ landsAs: "\n\nsomething else", notFollowed: true })
       await refused(tui.give("the message"), "not-shown")
       expect(tui.sent).toEqual([])
     })
@@ -323,7 +341,7 @@ describe("a prompt over text in the box", () => {
     })
 
     it("is refused where a placeholder doesn't follow what the box held", async () => {
-      const tui = over({ landsAs: "\n\nsomething else\n\n[Pasted #1]" })
+      const tui = over({ landsAs: "\n\nsomething else\n\n[Pasted #1]", notFollowed: true })
       await refused(tui.give("x".repeat(2_000)), "not-shown")
       expect(tui.sent).toEqual([])
     })

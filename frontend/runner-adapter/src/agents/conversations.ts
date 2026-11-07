@@ -55,6 +55,7 @@ export type ConversationStreams = {
   readonly keys: (terminalId: string, keys: string) => Promise<void>
   readonly takeBox: (terminalId: string) => Promise<{ readonly returned: string | null }>
   readonly putBox: (terminalId: string, text: string) => Promise<{ readonly placed: boolean }>
+  readonly clearBox: (terminalId: string, seen: string) => Promise<{ readonly cleared: boolean }>
   readonly answer: (terminalId: string, request: string, answer: RequestAnswer) => Promise<void>
 }
 
@@ -602,6 +603,13 @@ export const createRunnerConversations = (
       track(streams.putBox(terminalId, text)).then(
         ({ placed }) => placed,
         () => false,
+      ),
+    clearBox: ({ terminalId }, seen) =>
+      track(streams.clearBox(terminalId, seen)).then(
+        ({ cleared }) => cleared,
+        (error: unknown) => {
+          throw failure(error, "reach", "send")
+        },
       ),
     interrupt: ({ terminalId }) =>
       track(streams.interrupt(terminalId)).then(

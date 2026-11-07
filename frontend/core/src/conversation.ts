@@ -320,6 +320,9 @@ export type Conversations = {
   // Puts the chat's draft in the agent's own box, with no Enter, as the person goes to its
   // terminal: whether it went. Where not, the draft stays the chat's.
   readonly putBox?: (key: TerminalKey, text: string) => Promise<boolean>
+  // Empties the agent's own box, as the person asked, of the text `box` showed them: whether
+  // it reads empty now. Words gone are gone. Rejects as `send` does.
+  readonly clearBox?: (key: TerminalKey, seen: string) => Promise<boolean>
   // Answers a request through its dialog in the agent's TUI, as the person would with its
   // keys, resolving once it took. Rejects as `send` does; a dialog that can't be answered
   // safely turns `raw`, for the person to answer in the terminal.
@@ -378,6 +381,12 @@ export class SettleInTerminal extends Error {
   }
 }
 
+// The agent's box didn't read empty after the clear the person asked for.
+export const boxNotCleared = (): SettleInTerminal =>
+  new SettleInTerminal(
+    "That didn't clear the agent's input box. Look at it above, or clear it in the terminal.",
+  )
+
 // A failure with the words the message took out of the agent's box before it failed, which the
 // chat's box takes all the same: they are in the agent's no longer.
 export const withReturned = <E extends Error>(failure: E, returned: string | undefined): E =>
@@ -420,16 +429,12 @@ export const conflictFailure = (reason: ConflictReason | undefined, action: Chat
         `The agent isn't ready for ${action === "send" ? "a message" : "that"} yet. ${retry} in a moment.`,
       )
     case "draft":
-      return new SettleInTerminal(
-        `The agent's input box already holds text. Clear it in the terminal, then ${again}.`,
-      )
+      return new Error(`The agent's input box already holds text. Clear it above, then ${again}.`)
     case "shell":
-      return new SettleInTerminal(
-        `The agent's input box is in shell mode. Leave it in the terminal, then ${again}.`,
-      )
+      return new Error(`The agent's input box is in shell mode. Clear it above, then ${again}.`)
     case "command":
-      return new SettleInTerminal(
-        `The agent's input box holds a command it hasn't run. Clear it in the terminal, then ${again}.`,
+      return new Error(
+        `The agent's input box holds a command it hasn't run. Clear it above, then ${again}.`,
       )
     case "too-tall":
       return new SettleInTerminal(

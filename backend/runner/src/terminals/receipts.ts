@@ -320,6 +320,16 @@ export class Receipts {
   }
 
   /**
+   * Whether a prompt was sent that the record has yet to tell of, or that is back in the box:
+   * it may be above what a box full of text shows, as a Stop puts prompts back before it.
+   */
+  waiting(terminalId: string): boolean {
+    return (this.tracks.get(terminalId)?.entries ?? []).some(
+      ({ state, sentAt }) => state === "in-box" || (state === "pending" && sentAt !== null),
+    )
+  }
+
+  /**
    * The words of the prompts back in the agent's box, where they are all the box's `text`, as
    * they were given; undefined where any of it is not theirs, or none is back.
    */

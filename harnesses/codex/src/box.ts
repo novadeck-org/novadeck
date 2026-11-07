@@ -63,7 +63,17 @@ const queued = (screen: ScreenText): boolean =>
       row.trim() === "• Queued follow-up inputs",
   )
 
-const read = (screen: ScreenText) => agreeing(markedBox(screen, markers), shellFooter(screen.rows))
+/**
+ * Its box, marked as showing only a part where it draws its dim `↑` at the end of the first row
+ * (the `tall` states of fixtures/leftover.probe.json), which says so whatever the box's height.
+ */
+const read = (screen: ScreenText) => {
+  const box = agreeing(markedBox(screen, markers), shellFooter(screen.rows))
+  if (!box) return box
+  const lit = screen.bright[box.first]?.trimEnd() ?? ""
+  const drawn = screen.rows[box.first]?.trimEnd() ?? ""
+  return drawn.endsWith("↑") && !lit.endsWith("↑") ? { ...box, scrolled: true as const } : box
+}
 
 /**
  * The rows it keeps above its box whether or not a turn runs, so none of a turn's: the commands
@@ -111,6 +121,7 @@ const turnUnseen = (screen: ScreenText, prompt?: string): boolean => {
  */
 export const box: BoxProfile = {
   read,
+  cut: ({ scrolled }) => scrolled === true,
   // Enter runs a command shown as a placeholder as the text it stands for. Its commands run
   // without a session, as it binds none (`starts`).
   shell: { expands: true, starts: false, footer: shellFooter, leave: leaveShell },

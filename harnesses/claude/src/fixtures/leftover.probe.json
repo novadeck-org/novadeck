@@ -648,6 +648,196 @@
       "bright": {
         "36": "  xxxxxxxxxxxxxxxxxxxxxxxx and after"
       }
+    },
+    "tall": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 15
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-gZyBYW/project",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "22": "❯ its last linePart 13 of it                                                                        ",
+        "23": "  its next line",
+        "24": "  its last linePart 14 of it",
+        "25": "  its next line",
+        "26": "  its last linePart 15 of it",
+        "27": "  its next line",
+        "28": "  its last linePart 16 of it",
+        "29": "  its next line",
+        "30": "  its last linePart 17 of it",
+        "31": "  its next line",
+        "32": "  its last linePart 18 of it",
+        "33": "  its next line",
+        "34": "  its last linePart 19 of it",
+        "35": "  its next line",
+        "36": "  its last line ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "22": "❯ its last linePart 13 of it",
+        "36": "  its last line"
+      }
+    },
+    "tall cleared": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-gZyBYW/project",
+        "23": "  ",
+        "24": "  ",
+        "25": "  ",
+        "26": "  ",
+        "27": "  ",
+        "28": "  ",
+        "29": "  ",
+        "30": "  ",
+        "31": "  ",
+        "32": "  ",
+        "33": "  ",
+        "34": "                                                                                          Ctrl+Y to paste deleted text",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯  ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "23": "",
+        "24": "",
+        "25": "",
+        "26": "",
+        "27": "",
+        "28": "",
+        "29": "",
+        "30": "",
+        "31": "",
+        "32": "",
+        "33": "",
+        "36": "❯"
+      }
+    },
+    "tall shell": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 37,
+        "column": 15
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-SOJxdu/project",
+        "22": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "23": "! its last linePart 13 of it",
+        "24": "  its next line",
+        "25": "  its last linePart 14 of it                                                                        ",
+        "26": "  its next line",
+        "27": "  its last linePart 15 of it",
+        "28": "  its next line",
+        "29": "  its last linePart 16 of it",
+        "30": "  its next line",
+        "31": "  its last linePart 17 of it",
+        "32": "  its next line",
+        "33": "  its last linePart 18 of it",
+        "34": "  its next line",
+        "35": "  its last linePart 19 of it                                                                        ",
+        "36": "  its next line",
+        "37": "  its last line ",
+        "38": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ! for shell mode"
+      },
+      "bright": {
+        "25": "  its last linePart 14 of it",
+        "35": "  its last linePart 19 of it",
+        "37": "  its last line"
+      }
+    },
+    "tall shell cleared": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-SOJxdu/project",
+        "24": "  ",
+        "25": "  ",
+        "26": "  ",
+        "27": "  ",
+        "28": "  ",
+        "29": "  ",
+        "30": "  ",
+        "31": "  ",
+        "32": "  ",
+        "33": "  ",
+        "34": "                                                                                          Ctrl+Y to paste deleted text",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯  ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "24": "",
+        "25": "",
+        "26": "",
+        "27": "",
+        "28": "",
+        "29": "",
+        "30": "",
+        "31": "",
+        "32": "",
+        "33": "",
+        "36": "❯"
+      }
+    },
+    "tall cursor up": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 29,
+        "column": 15
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-jSNbpM/project",
+        "20": "                                                          Scroll wheel is sending arrow keys · use PgUp/PgDn to scroll",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "22": "❯ Part 0 of it",
+        "23": "  its next line",
+        "24": "  its last linePart 1 of it",
+        "25": "  its next line",
+        "26": "  its last linePart 2 of it",
+        "27": "  its next line",
+        "28": "  its last linePart 3 of it",
+        "29": "  its next line ",
+        "30": "  its last linePart 4 of it",
+        "31": "  its next line",
+        "32": "  its last linePart 5 of it",
+        "33": "  its next line",
+        "34": "  its last linePart 6 of it",
+        "35": "  its next line",
+        "36": "  its last linePart 7 of it",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "29": "  its next line"
+      }
     }
   }
 }
