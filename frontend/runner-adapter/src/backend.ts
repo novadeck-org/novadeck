@@ -1110,11 +1110,11 @@ export const runnerBackend = (
         if (error instanceof Cancelled) return false
         if (hasCode(error, "TERMINAL_NOT_FOUND")) return closedElsewhere(entry)
         // The runner left the sleeper as it was, if the wake was not looked at: so does the
-        // terminal, as the runner's latest summary says. A seen wake that fails is failed.
+        // terminal, as the runner's kept summary says. A seen wake that fails is failed.
         if (hasCode(error, "SPAWN_FAILED") && !seen) {
           // The runner's word may still be on its way: what it rests as is enough.
-          const latest = runnerSummaries.get(terminalId)
-          const asleep = latest && sleeper({ ...latest, started: false, sleeping: true })
+          const kept = runnerSummaries.get(terminalId)
+          const asleep = kept && sleeper({ ...kept, started: false, sleeping: true })
           if (asleep) {
             sleep(entry, asleep)
             return false
