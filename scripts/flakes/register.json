@@ -453,7 +453,7 @@
       "test": "src/pty/follow.test.ts > a hangup followed through an agent > wakes an agent stopped on its way out as soon as the shell has gone",
       "signature": "ENOENT: no such file or directory, open '[^']*terminal-follow-[^']*/saved'",
       "status": "fixed",
-      "cause": "The test read the woken agent's 'saved' file the moment `end()` returned, which on a slow macOS runner can come before the agent has written it (ENOENT at about 5.4 s). Fixed by task/ci-flakes: the test waits up to 3 s for the file, then checks it and the 4 s bound, and runs on macOS again (the skip from #785 is gone). If it returns, the agent was really stopped and never woken.",
+      "cause": "Both failing runs ran `end()` to its 5 s follow bound (5195 and 5213 ms; passing runs take 1.2 to 1.8 s): the agent stayed stopped and the bound's SIGTERM ended it unsaved. The pty sent one SIGCONT to the group as the shell went, and a program that stops itself in user space (finishing its hangup handler) just after that resume stays stopped, as a SIGCONT to a running process is lost; on macOS node-pty reports the exit only once the pty closes (or 200 ms on), which moves that resume later. Reproduced on Linux. Fixed by task/ci-flakes: the pty resumes the group as the shell goes and every 100 ms for a second more, and the test's stand-in saves only on a resume after its own stop; the macOS skip from #785 is gone. Inferred for macOS, not seen there: if it returns, the agent stopped later than that second.",
       "seen": [
         "#777 run 42374813227 job 128410227863 (macOS)",
         "#785 run 42401124763 job 128492030130 (macOS), and its rerun"
