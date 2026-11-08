@@ -263,6 +263,7 @@ export class Typing {
     // the record was is looked at long before any key of it lands.
     const claimed = ref ?? freshRef()
     this.receipts.claim(terminalId, claimed)
+    this.givenBack.sent(terminalId, text)
     const following = this.receipts.expect(terminalId, text, claimed)
     // A fixed line from an Inbox button: the turn it starts withdraws no ask (see `automatic`).
     if (automatic) this.host.messaging().automatic(terminalId, text)
@@ -854,7 +855,7 @@ export class Typing {
         return {
           key: keyOf(record)!,
           agent: binding.agent,
-          version: versionOf(binding),
+          version: versionOf(record.bound!.binding),
           path,
           items: source.items,
           ...(source.step && { step: source.step }),

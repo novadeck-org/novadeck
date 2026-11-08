@@ -25,11 +25,24 @@ type Given = {
   readonly used: Set<string>
 }
 
-/** Whether `lines` hold all of `message`'s lines, whole and in a row. */
-const holds = (lines: readonly string[], message: string): boolean => {
-  const own = message.split("\n").map((line) => line.trim())
-  if (own.every((line) => line === "")) return false
-  return lines.some((_, at) => own.every((line, index) => lines[at + index] === line))
+/** A text with its white space made single spaces: a box wraps rows where a message does not. */
+const flat = (text: string): string => text.replace(/\s+/g, " ").trim()
+
+/**
+ * Whether `rows` of the box hold `message` whole: from a row's start to a row's end, however the
+ * box wrapped it over rows.
+ */
+const holds = (rows: readonly string[], message: string): boolean => {
+  const want = flat(message)
+  if (want === "") return false
+  return rows.some((_, from) => {
+    let have = ""
+    for (let row = from; row < rows.length && have.length <= want.length; row += 1) {
+      have = flat(`${have} ${rows[row]}`)
+      if (have === want) return true
+    }
+    return false
+  })
 }
 
 /**
@@ -70,6 +83,11 @@ export class GivenBack {
     }
   }
 
+  /** Novadeck sent `text` to the terminal's agent: a hook of it is the send's, not a message given back. */
+  sent(terminalId: string, text: string): void {
+    this.given.get(terminalId)?.used.add(flat(text))
+  }
+
   /** The terminal is gone: what it was given back goes with it. */
   forget(terminalId: string): void {
     this.given.delete(terminalId)
@@ -89,9 +107,14 @@ export class GivenBack {
         event.type === "turn-started" && (event.cause === "prompt" || event.cause === "doorbell"),
     )
     if (starts.length === 0) return false
-    const firedAt = (event: (typeof starts)[number]) => event.firedAt ?? event.startedAt
+    // Reported after the Stop began (a hook's shell may fire it long before, as it is queued),
+    // and fired no later than its end: a resend fires after.
+    const reportedAfter = (since: number, event: (typeof starts)[number]) =>
+      event.startedAt >= since
+    const firedBy = (until: number, event: (typeof starts)[number]) =>
+      (event.firedAt ?? event.startedAt) <= until
     const stop = this.stopping.get(terminalId)
-    if (stop && starts.some((event) => firedAt(event) >= stop.since))
+    if (stop && starts.some((event) => reportedAfter(stop.since, event)))
       await Promise.race([
         stop.ended,
         new Promise((resolve) => setTimeout(resolve, waitMs).unref()),
@@ -104,16 +127,15 @@ export class GivenBack {
     }
     let late = false
     for (const event of starts) {
-      const at = firedAt(event)
-      if (at < given.since || at > given.endedAt + graceMs) continue
+      if (!reportedAfter(given.since, event) || !firedBy(given.endedAt + graceMs, event)) continue
       const key = event.cause === "doorbell" ? event.nonce : event.prompt
-      if (key === undefined || given.used.has(key)) continue
+      if (key === undefined || given.used.has(flat(key))) continue
       const told =
         event.cause === "doorbell"
           ? given.lines.some((line) => line.includes(key))
           : holds(given.lines, key)
       if (!told) continue
-      given.used.add(key)
+      given.used.add(flat(key))
       late = true
     }
     return late

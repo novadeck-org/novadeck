@@ -52,7 +52,30 @@ describe("given-back messages", () => {
     expect(await given.late("t", [prompt(5_000, "fix the tests", 150)])).toBe(true)
   })
 
-  it("keeps a hook fired before the Stop, other words, a part of a line, or another terminal", async () => {
+  it("drops a hook its shell fired before the Stop, as the message was queued, reported during it", async () => {
+    const given = stopped("Queued beta")
+    expect(await given.late("t", [prompt(150, "Queued beta", 50)])).toBe(true)
+  })
+
+  it("keeps a resend fired after the Stop ended, though its prompt matches", async () => {
+    const given = stopped("fix the tests")
+    expect(await given.late("t", [prompt(1_900, "fix the tests", 1_850)])).toBe(false)
+  })
+
+  it("keeps what Novadeck sent after the Stop, fired at once", async () => {
+    const given = stopped("fix the tests")
+    given.sent("t", "fix the tests")
+    expect(await given.late("t", [prompt(210, "fix the tests")])).toBe(false)
+  })
+
+  it("matches a message the box wrapped over rows, whole", async () => {
+    const given = stopped("look into the\nbuild and push\nCarry on")
+    expect(await given.late("t", [prompt(150, "look into the build and push")])).toBe(true)
+    expect(await given.late("t", [prompt(150, "and push")])).toBe(false)
+    expect(await given.late("t", [prompt(150, "Carry on")])).toBe(true)
+  })
+
+  it("keeps a hook reported before the Stop, other words, a part of a line, or another terminal", async () => {
     const given = stopped("look into the build and push")
     expect(await given.late("t", [prompt(99, "look into the build and push")])).toBe(false)
     expect(await given.late("t", [prompt(150, "Carry on")])).toBe(false)

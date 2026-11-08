@@ -149,8 +149,9 @@ export class Reports {
               : undefined,
           )
     // A queued message's hook that outlived the Stop that took the message back: no turn began.
-    // Claude Code's alone: it runs a queued message's hook as the message is queued, and Codex's
-    // hooks for a message a Stop left queued are the turn it goes on with.
+    // Claude Code's alone: it runs a queued message's hook as the message is queued. Antigravity's
+    // don't run then either, and Codex's hooks for a message a Stop left queued are the turn it
+    // goes on with.
     if (
       report.agent === "claude" &&
       events.some((event) => event.type === "turn-started") &&
