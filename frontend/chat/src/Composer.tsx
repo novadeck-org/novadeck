@@ -12,6 +12,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
 import type { ComposerMode } from "./composer-mode"
 import { Hint } from "./Hint"
+import { recall, walksAt, type Walk } from "./history"
 import { Mark } from "./Mark"
 import { submitOnEnter } from "./submit-on-enter"
 import { useMounted } from "./use-mounted"
@@ -76,6 +77,7 @@ export const Composer = ({
   box,
   passing,
   onPress,
+  history,
 }: {
   // The agent it writes to, for the box's name.
   readonly label: string
@@ -107,8 +109,14 @@ export const Composer = ({
   // key of the box's goes there: true where it went.
   readonly passing: boolean
   readonly onPress: (keys: string) => boolean
+  // The prompts the person gave this agent, oldest first, which Up and Down walk through.
+  readonly history: readonly string[]
 }): React.JSX.Element => {
   const input = useRef<HTMLTextAreaElement>(null)
+  // Where Up and Down are in the history, and whether the caret is due at the end of the words
+  // they put in the box once it shows them.
+  const walk = useRef<Walk | null>(null)
+  const caretAtEnd = useRef(false)
   const [stopping, setStopping] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [error, setError] = useState<Failure | null>(null)
@@ -124,6 +132,10 @@ export const Composer = ({
     if (!field) return
     field.style.height = "auto"
     field.style.height = `${field.scrollHeight}px`
+    if (caretAtEnd.current) {
+      caretAtEnd.current = false
+      field.setSelectionRange(draft.length, draft.length)
+    }
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Sized to the text it holds.
   }, [draft])
   // Sending answers the agent's question with the words, until the person cancels.
@@ -148,6 +160,7 @@ export const Composer = ({
     // The draft is judged as the hint judges it, so Enter refuses what Send does.
     if (!text || sending || refused) return
     setError(null)
+    walk.current = null
     onSend(text).catch((failure: unknown) => {
       if (mounted.current) setError(failed(failure))
     })
@@ -303,6 +316,31 @@ export const Composer = ({
               // Tab stays in the box with no menu to take it, as what is typed still goes.
               if ((keys !== undefined && onPress(keys)) || event.key === "Tab")
                 event.preventDefault()
+              return
+            }
+            // Up and Down walk the person's earlier prompts, from the start of the box and then
+            // wherever the caret is; the agent's question has its own field, and a held reply
+            // its own words.
+            if (
+              (event.key === "ArrowUp" || event.key === "ArrowDown") &&
+              !replying &&
+              !held &&
+              !event.nativeEvent.isComposing &&
+              !(event.shiftKey || event.ctrlKey || event.metaKey || event.altKey)
+            ) {
+              const field = event.currentTarget
+              if (
+                walksAt(walk.current, event.key, draft, field.selectionStart, field.selectionEnd)
+              ) {
+                const step = recall(history, walk.current, draft, event.key)
+                if (step) {
+                  event.preventDefault()
+                  walk.current = step.walk
+                  caretAtEnd.current = step.draft !== draft
+                  onDraft(step.draft)
+                  if (error) setError(null)
+                }
+              }
               return
             }
             // The agent's field takes one line.

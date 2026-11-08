@@ -1,4 +1,4 @@
 // The agent harnesses' data table, as the protocol keeps it, read through its data-only
 // entry so the entry point loads no schemas.
-export { harnesses, isAgentName, opensMenu } from "@novadeck/protocol/harnesses"
+export { harnesses, isAgentName, isCodexAnswer, opensMenu } from "@novadeck/protocol/harnesses"
 export type { AgentName } from "@novadeck/protocol/harnesses"

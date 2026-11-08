@@ -1,7 +1,7 @@
 import { SettleInTerminal, type ChatBox } from "@novadeck/core/conversation"
 import { refusing } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
-import { act, createElement } from "react"
+import { act, createElement, useState } from "react"
 import { afterEach } from "vitest"
 
 import { boxNote, Composer } from "./Composer"
@@ -48,6 +48,7 @@ const show = (
       onCancelReply: () => {},
       onOpenTerminal,
       // As the backend says of each text these cases give.
+      history: [],
       refused: refusing("ask @alice ", "!", "!echo $", "hi\f"),
     }),
   )
@@ -232,5 +233,122 @@ describe("the prompt", () => {
     const shown = show("hello", [], { send: async () => {} })
     await act(async () => key(shown, "Send")!.click())
     expect(document.activeElement).toBe(shown.querySelector("textarea"))
+  })
+})
+
+// A composer whose draft is kept as the app keeps it, with the history Up and Down walk.
+const walking = (history: readonly string[], start = ""): HTMLTextAreaElement => {
+  const Kept = (): React.JSX.Element => {
+    const [draft, setDraft] = useState(start)
+    return createElement(Composer, {
+      label: "Claude",
+      box: null,
+      passing: false,
+      onPress: () => false,
+      draft,
+      onDraft: setDraft,
+      mode: composerMode(draft, null, [], true),
+      sending: false,
+      replySending: false,
+      working: false,
+      onSend: async () => {},
+      onStop: async () => {},
+      onClearBox: async () => {},
+      focusInput: false,
+      onInputFocused: () => {},
+      onCancelReply: () => {},
+      onOpenTerminal: () => {},
+      refused: () => false,
+      history,
+    })
+  }
+  const { container, unmount } = render(createElement(Kept))
+  unmounts.push(unmount)
+  return container.querySelector("textarea")!
+}
+
+const press = async (
+  field: HTMLTextAreaElement,
+  key: string,
+  init: KeyboardEventInit = {},
+): Promise<KeyboardEvent> => {
+  const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init })
+  await act(async () => void field.dispatchEvent(event))
+  return event
+}
+
+describe("the composer's history", () => {
+  it("recalls earlier prompts with Up, newest first, the caret at the end", async () => {
+    const field = walking(["first", "second"])
+    const event = await press(field, "ArrowUp")
+    expect(event.defaultPrevented).toBe(true)
+    expect(field.value).toBe("second")
+    expect(field.selectionStart).toBe(6)
+    await press(field, "ArrowUp")
+    expect(field.value).toBe("first")
+    expect((await press(field, "ArrowUp")).defaultPrevented).toBe(false)
+    expect(field.value).toBe("first")
+  })
+
+  it("walks back with Down and ends on the words that were being typed", async () => {
+    const field = walking(["first", "second"], "draft so far")
+    field.setSelectionRange(0, 0)
+    await press(field, "ArrowUp")
+    await press(field, "ArrowUp")
+    await press(field, "ArrowDown")
+    expect(field.value).toBe("second")
+    await press(field, "ArrowDown")
+    expect(field.value).toBe("draft so far")
+    expect((await press(field, "ArrowDown")).defaultPrevented).toBe(false)
+  })
+
+  it("keeps walking from a caret anywhere while the recalled prompt is unedited", async () => {
+    const field = walking(["old", "a long\nrecalled prompt"])
+    await press(field, "ArrowUp")
+    field.setSelectionRange(9, 9)
+    await press(field, "ArrowUp")
+    expect(field.value).toBe("old")
+    field.setSelectionRange(1, 1)
+    await press(field, "ArrowDown")
+    expect(field.value).toBe("a long\nrecalled prompt")
+  })
+
+  it("starts only from the start of the box, so a long draft's rows keep their Up", async () => {
+    const field = walking(["old"], "a long draft that wraps onto a second row of the box")
+    field.setSelectionRange(30, 30)
+    expect((await press(field, "ArrowUp")).defaultPrevented).toBe(false)
+    expect(field.value).toBe("a long draft that wraps onto a second row of the box")
+    field.setSelectionRange(0, 4)
+    expect((await press(field, "ArrowUp")).defaultPrevented).toBe(false)
+    field.setSelectionRange(0, 0)
+    expect((await press(field, "ArrowUp")).defaultPrevented).toBe(true)
+    expect(field.value).toBe("old")
+  })
+
+  it("ends the walk with an edit, which the next Up then starts from", async () => {
+    const field = walking(["old", "newer"])
+    await press(field, "ArrowUp")
+    await act(async () => {
+      const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!
+      set.call(field, "newer!")
+      field.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    field.setSelectionRange(3, 3)
+    expect((await press(field, "ArrowUp")).defaultPrevented).toBe(false)
+    expect((await press(field, "ArrowDown")).defaultPrevented).toBe(false)
+    expect(field.value).toBe("newer!")
+  })
+
+  it("leaves a modified Up, and Up during IME composition, alone", async () => {
+    const field = walking(["old"])
+    await press(field, "ArrowUp", { shiftKey: true })
+    await press(field, "ArrowUp", { altKey: true })
+    await press(field, "ArrowUp", { isComposing: true })
+    expect(field.value).toBe("")
+  })
+
+  it("does nothing with no history", async () => {
+    const field = walking([])
+    expect((await press(field, "ArrowUp")).defaultPrevented).toBe(false)
   })
 })

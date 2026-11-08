@@ -1,6 +1,7 @@
 import type { KeyStep, RequestFacts } from "@novadeck/harness-core/dialogs"
 import { fieldsOf } from "@novadeck/harness-core/fields"
 import type { RequestAnswer } from "@novadeck/protocol"
+import { codexAnswerPrompt } from "@novadeck/protocol/harnesses"
 
 import { asyncTool } from "./async-question.js"
 import {
@@ -309,7 +310,7 @@ export const asyncQuestions = (
           .map((each, k) => {
             const one = given[k]!
             const said = one.option === undefined ? one.text : each.options[one.option]!
-            return `> ${each.title.trim()}\n\n${said.trim()}`
+            return codexAnswerPrompt(each.title.trim(), said.trim())
           })
           .join("\n\n")
       },

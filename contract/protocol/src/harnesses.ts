@@ -109,3 +109,18 @@ export const opensMenu = (text: string, agent: AgentName): boolean => {
  */
 export const isAgentName = (name: unknown): name is AgentName =>
   (agentNames as readonly unknown[]).includes(name)
+
+/**
+ * How Codex's answers to async questions read as the person's words, in two shapes: as its
+ * record shows an answer given while the turn ran (`Re: question`, then the answer), and as
+ * the prompt sent once the turn had dropped its questions (`> question`, a blank line, then
+ * the answer). The makers and `isCodexAnswer` live together so the chat can tell either from
+ * a prompt the person wrote.
+ */
+export const codexAnswerRecord = (question: string, answer: string): string =>
+  `Re: ${question}\n${answer}`
+
+export const codexAnswerPrompt = (question: string, answer: string): string =>
+  `> ${question}\n\n${answer}`
+
+export const isCodexAnswer = (text: string): boolean => /^(?:Re: [^\n]+\n|> [^\n]+\n\n)/.test(text)

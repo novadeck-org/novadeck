@@ -1,5 +1,6 @@
 import { callId } from "@novadeck/harness-core/decode"
 import { agentLimits } from "@novadeck/protocol"
+import { codexAnswerRecord } from "@novadeck/protocol/harnesses"
 
 /**
  * The tool Codex offers to ask without waiting (0.162.1 on, to a model that lists it; see
@@ -107,7 +108,7 @@ export const asyncReplyText = (prompt: string): string | undefined => {
   return answers
     .map(({ question, answer }) => {
       const said = answer || noAnswer
-      return question ? `Re: ${question}\n${said}` : said
+      return question ? codexAnswerRecord(question, said) : said
     })
     .join("\n\n")
 }
