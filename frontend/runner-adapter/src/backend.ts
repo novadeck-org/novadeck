@@ -1302,7 +1302,7 @@ export const runnerBackend = (
       detail: (terminalId) => runner.agents.detail(terminalId),
       answer: (key, request, answer) => conversations.answer(key, request, answer),
       send: (key, text, sending) => conversations.send(key, text, sending),
-      interrupt: (key) => conversations.interrupt(key),
+      interrupt: async (key) => (await conversations.interrupt(key)).words,
       release: messages.release,
       stop: messages.stop,
     },

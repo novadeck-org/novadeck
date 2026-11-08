@@ -37,6 +37,7 @@ const show = (
       draft,
       onDraft: () => {},
       attachments: [],
+      imagesAlone: true,
       onDetach: () => {},
       mode: composerMode(draft, null, [], true),
       sending: false,

@@ -284,7 +284,7 @@ export const createDemoTerminalScreen = ({
     if (!terminal || !agent || terminal.state !== "running" || !terminal.agent?.working) return
     agent.conversations
       .interrupt(key)
-      .then((words) => {
+      .then(({ words }) => {
         if (words) engine.setLine(key, withReturnedWords(engine.getSnapshot(key).line, words))
       })
       .catch(failing(asked().request?.id))

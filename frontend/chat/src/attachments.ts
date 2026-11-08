@@ -1,8 +1,5 @@
 import { valueOf, withValue, type ByTerminal } from "./by-terminal"
 
-// The most images one message carries.
-export const maxAttachments = 8
-
 // An image the person pasted into a terminal's chat, to go with their next message:
 // - `id`: what names it while it is here;
 // - `name`: what it is called, for its label;
@@ -72,14 +69,6 @@ export const attachmentsHold = (list: readonly Attachment[]): string | null => {
   return null
 }
 
-// What the runner takes of a pasted image.
-export const imageTypes: ReadonlySet<string> = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/gif",
-  "image/webp",
-])
-
 // Lets go of the thumbnails' object URLs.
 export const releaseImages = (images: readonly Attachment[]): void => {
   if (typeof URL.revokeObjectURL !== "function") return
@@ -103,9 +92,10 @@ export const droppedImages = (
 export const withBack = (
   back: readonly Attachment[],
   current: readonly Attachment[],
+  max: number,
 ): { readonly kept: readonly Attachment[]; readonly over: readonly Attachment[] } => {
   const all = [...back, ...current]
-  return { kept: all.slice(0, maxAttachments), over: all.slice(maxAttachments) }
+  return { kept: all.slice(0, max), over: all.slice(max) }
 }
 
 // The label for a new image among those held: its own name, numbered where another has it.

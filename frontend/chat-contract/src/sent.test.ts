@@ -83,7 +83,14 @@ const prompts: readonly ChatPrompt[] = [
   receipt("going00000000000", "Then sum it up", 12, "pending"),
 ]
 const sends: readonly ChatSend[] = [
-  { ref: "queued0000000000", draft: "thanks", text: "thanks", to: null, phase: "queued" },
+  {
+    ref: "queued0000000000",
+    draft: "thanks",
+    text: "thanks",
+    images: [],
+    to: null,
+    phase: "queued",
+  },
 ]
 
 describe("the person's prompts not in the agent's record yet", () => {

@@ -471,6 +471,8 @@ export const ChatView = ({
           working={working}
           attachments={attachments}
           imageNote={imageNote}
+          // Antigravity refuses a message of images alone, so an agent not known yet might.
+          imagesAlone={harness === "claude" || harness === "codex"}
           onAttach={onAttach}
           onDetach={onDetach}
           onSend={async (text) => {

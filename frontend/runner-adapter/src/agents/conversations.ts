@@ -21,8 +21,10 @@ import { createStore, type MutableStore, type Store } from "@novadeck/core/store
 import { terminalKeyPath, type TerminalKey } from "@novadeck/core/types"
 import {
   conflictReason,
+  maxPromptImages,
   maxUploadBytes,
   normalisedText,
+  promptImageTypes,
   promptFailure,
   promptRefusal as protocolRefusal,
   type AgentDetail,
@@ -64,9 +66,15 @@ export type ConversationStreams = {
     terminalId: string,
     file: { readonly name: string; readonly data: Uint8Array },
   ) => Promise<string>
-  readonly interrupt: (terminalId: string) => Promise<{ readonly returned: string | null }>
+  readonly interrupt: (terminalId: string) => Promise<{
+    readonly returned: string | null
+    readonly images?: readonly string[] | undefined
+  }>
   readonly keys: (terminalId: string, keys: string) => Promise<void>
-  readonly takeBox: (terminalId: string) => Promise<{ readonly returned: string | null }>
+  readonly takeBox: (terminalId: string) => Promise<{
+    readonly returned: string | null
+    readonly images?: readonly string[] | undefined
+  }>
   readonly putBox: (terminalId: string, text: string) => Promise<{ readonly placed: boolean }>
   readonly clearBox: (terminalId: string, seen: string) => Promise<{ readonly cleared: boolean }>
   readonly answer: (terminalId: string, request: string, answer: RequestAnswer) => Promise<void>
@@ -232,8 +240,25 @@ const wordsOf = (error: { readonly data: unknown }) =>
   promptFailure.safeParse(error.data).data?.returned
 
 // What the person is told when the agent can't take what they sent.
-const failure = (error: unknown, what: string, action: ChatAction): Error => {
+const failure = (
+  error: unknown,
+  what: string,
+  action: ChatAction,
+  // Whether the prompt carried images, whose refusal is about them.
+  images = false,
+): Error => {
   if (hasCode(error, "DISCONNECTED", "CLOSED")) return new Error("The runner is offline.")
+  if (images && hasCode(error, "PROMPT_REFUSED"))
+    return new Error("An image couldn't go. Remove it and paste it again.")
+  // The agent never showed an image in its box: it came back out, with the words.
+  if (
+    hasCode(error, "PROMPT_FAILED") &&
+    said(error)?.startsWith("The agent did not take the image")
+  )
+    return withReturned(
+      new Error("The agent didn't take the image. It is back in the box."),
+      wordsOf(error),
+    )
   // Refused before anything was written: the text has a shape the agent reads as more than
   // a message, or the agent can't take one now, for the reason the runner gives.
   if (hasCode(error, "PROMPT_REFUSED")) return new Error(said(error) ?? promptRefusal)
@@ -609,11 +634,13 @@ export const createRunnerConversations = (
         throw new Error("The runner couldn't save it.")
       }),
     imageMaxBytes: maxUploadBytes,
+    imageTypes: promptImageTypes,
+    maxImages: maxPromptImages,
     send: ({ terminalId }, text, options) =>
       track(streams.prompt(terminalId, text, options)).then(
         ({ tracked, returned }) => ({ tracked, returned: returned ?? null }),
         (error: unknown) => {
-          throw failure(error, "reach", "send")
+          throw failure(error, "reach", "send", (options?.images?.length ?? 0) > 0)
         },
       ),
     // Nothing here is the person's to act on: words not moved stay where they are.
@@ -636,8 +663,8 @@ export const createRunnerConversations = (
     },
     takeBox: ({ terminalId }) =>
       track(streams.takeBox(terminalId)).then(
-        ({ returned }) => returned,
-        () => null,
+        ({ returned, images }) => ({ words: returned, ...(images && { images }) }),
+        () => ({ words: null }),
       ),
     putBox: ({ terminalId }, text) =>
       track(streams.putBox(terminalId, text)).then(
@@ -653,7 +680,7 @@ export const createRunnerConversations = (
       ),
     interrupt: ({ terminalId }) =>
       track(streams.interrupt(terminalId)).then(
-        ({ returned }) => returned,
+        ({ returned, images }) => ({ words: returned, ...(images && { images }) }),
         (error: unknown) => {
           throw failure(error, "stop", "stop")
         },

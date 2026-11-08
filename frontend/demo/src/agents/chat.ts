@@ -525,6 +525,8 @@ export const createDemoChat = (
       // Pasted images are kept nowhere: the demo answers a path, after the moment a save takes.
       // The page refuses the larger ones itself, so a chip that failed shows with a big image.
       imageMaxBytes: demoImageMaxBytes,
+      imageTypes: ["image/png", "image/jpeg", "image/gif", "image/webp"],
+      maxImages: 8,
       uploadImage: async (_key, file) => {
         await new Promise((resolve) => setTimeout(resolve, 600))
         return `/tmp/novadeck-demo/${file.name}`
@@ -568,7 +570,7 @@ export const createDemoChat = (
         queues.delete(id)
         turns.interrupt(found.key, agentOf(found.terminal))
         // What waited behind the turn comes back, for the person to send again.
-        return queued ? queued.prompts.map(({ text: line }) => line).join("\n") : null
+        return { words: queued ? queued.prompts.map(({ text: line }) => line).join("\n") : null }
       },
       answer: async (key, id, answer) => {
         const found = agentFor(key)

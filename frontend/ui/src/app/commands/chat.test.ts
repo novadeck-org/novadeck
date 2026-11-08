@@ -248,7 +248,7 @@ describe("chat commands", () => {
         {
           conversation: () => ({ getSnapshot: () => noConversation, subscribe: () => () => {} }),
           send: (_key, text) => (sent.push(text), wait()),
-          interrupt: async () => returned.shift() ?? null,
+          interrupt: async () => ({ words: returned.shift() ?? null }),
           answer: (_key, request, answer) => (answers.push([request, answer]), wait()),
           refused: () => false,
         },

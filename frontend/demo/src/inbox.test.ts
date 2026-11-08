@@ -338,7 +338,7 @@ describe("the agents demo's Inbox", () => {
     expect(turns.prompt("Get on with it.", found.terminal, key)).toBe(true)
     await vi.advanceTimersByTimeAsync(1)
     await backend.conversations!.send(key, "continue", { automatic: true })
-    expect(await backend.conversations!.interrupt(key)).toBe("continue")
+    expect(await backend.conversations!.interrupt(key)).toEqual({ words: "continue" })
     inbox.add({ ...question, id: "ask-here", source: { ...question.source, ...key } })
     // Sent again as their own words, the line still matches the mark, which waited.
     await vi.advanceTimersByTimeAsync(5_000)

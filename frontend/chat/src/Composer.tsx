@@ -67,6 +67,7 @@ export const Composer = ({
   onDraft,
   attachments,
   imageNote,
+  imagesAlone,
   onAttach,
   onDetach,
   mode,
@@ -94,6 +95,9 @@ export const Composer = ({
   readonly attachments: readonly Attachment[]
   // What the person is told of the images, as that some went for want of room.
   readonly imageNote?: string | undefined
+  // Whether the agent takes a message of images and no words; Antigravity refuses one, and an
+  // agent not known yet is not trusted to take it.
+  readonly imagesAlone: boolean
   readonly onAttach?: ((files: readonly File[]) => string | null) | undefined
   readonly onDetach: (id: string) => void
   readonly mode: ComposerMode
@@ -147,11 +151,14 @@ export const Composer = ({
   const held = mode === "held"
   // The agent's field takes what a prompt can't start with; only control characters stop it.
   const long = replying && oneLine(draft).trim().length > replyMax
-  const refused =
-    held || (replying ? hasControlCharacters(draft) || long : refuses(draft, { shell: true }))
-  const command = mode === "shell" ? shellCommand(draft) : undefined
   // Whether the images pasted go with what is sent now: only a plain message takes them.
   const carries = mode === "message" && !passing
+  const bare = carries && attachments.length > 0 && draft.trim() === "" && !imagesAlone
+  const refused =
+    held ||
+    bare ||
+    (replying ? hasControlCharacters(draft) || long : refuses(draft, { shell: true }))
+  const command = mode === "shell" ? shellCommand(draft) : undefined
   const uploading = attachments.some((each) => each.state === "uploading")
   const imaged = carries && attachments.length > 0
   // A `!` still waiting for its command: nothing to send yet, nothing to warn about either.
@@ -314,11 +321,13 @@ export const Composer = ({
         className="chat-error"
         text={
           refused && !awaitingCommand && !held
-            ? replying
-              ? long
-                ? "A reply takes at most 16,384 characters."
-                : controlHint
-              : messageHint(draft)
+            ? bare
+              ? `${label} needs a few words with the images.`
+              : replying
+                ? long
+                  ? "A reply takes at most 16,384 characters."
+                  : controlHint
+                : messageHint(draft)
             : ""
         }
       />

@@ -4,6 +4,7 @@ import {
   noDoorbell,
   type ChatAnswer,
   type ChatItem,
+  type BoxReturn,
   type ChatPrompt,
   type Conversation,
   type Conversations,
@@ -48,10 +49,14 @@ const inApp = (
     onRef = () => {},
     onKeys,
     upload,
+    interrupt,
+    takeBox,
   }: {
     readonly draft?: string
     readonly program?: string
     readonly onKeys?: (keys: string) => Promise<void>
+    readonly interrupt?: () => Promise<BoxReturn>
+    readonly takeBox?: () => Promise<BoxReturn>
     // Saves a pasted image, as the backend would; without it the backend takes no images.
     readonly upload?: (file: { name: string; data: Uint8Array }) => Promise<string>
     readonly send?: (text: string) => Promise<SendResult | void>
@@ -73,8 +78,11 @@ const inApp = (
     ...(upload && {
       uploadImage: (_key: unknown, file: { name: string; data: Uint8Array }) => upload(file),
       imageMaxBytes: 1024,
+      imageTypes: ["image/png", "image/jpeg", "image/gif", "image/webp"],
+      maxImages: 8,
     }),
-    interrupt: async () => null,
+    interrupt: interrupt ?? (async () => ({ words: null })),
+    ...(takeBox && { takeBox }),
     answer: (_key, request, reply) => answered(request, reply),
     refused: refusing(),
   }
@@ -133,6 +141,7 @@ const inApp = (
     attachments: () => chatAttachmentsOf(chat.store.getSnapshot().attachments, context, "01"),
     replyTo: () => chatReplyOf(chat.store.getSnapshot().replies, context, "01"),
     stop: () => act(() => commands.stopChat(key)),
+    take: () => act(() => commands.takeBox(key)),
   }
 }
 
@@ -1271,6 +1280,61 @@ describe("a chat with images pasted into its box", () => {
     paste(container, { files: Array.from({ length: 3 }, (_, i) => png(`n${i}.png`)) })
     await settle()
     expect(chat.attachments().length).toBeLessThanOrEqual(8)
+  })
+
+  it("asks Antigravity, which refuses images alone, for a few words with them", async () => {
+    const chat = inApp(createStore<Conversation>({ ...live, agent: "agy" }), {
+      upload: async () => "/runner/a.png",
+    })
+    const { container } = chat
+    paste(container, { files: [png()] })
+    await settle()
+    expect(sendButton(container).disabled).toBe(true)
+    expect(container.textContent).toContain("needs a few words with the images")
+    set(box(container), "look")
+    expect(sendButton(container).disabled).toBe(false)
+    await send(container)
+    expect(chat.sentImages).toEqual([["/runner/a.png"]])
+  })
+
+  it("asks for words too while the agent is not known yet", async () => {
+    const chat = inApp(createStore<Conversation>({ ...live, agent: null }), {
+      upload: async () => "/runner/a.png",
+    })
+    paste(chat.container, { files: [png()] })
+    await settle()
+    expect(sendButton(chat.container).disabled).toBe(true)
+  })
+
+  it("puts the images that came back out of the agent's box on a Stop in the box with the words", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+      draft: "look",
+      send: async () => ({ tracked: true }),
+      interrupt: async () => ({ words: "boxed", images: ["/runner/a.png", "/runner/other.png"] }),
+    })
+    paste(chat.container, { files: [png()] })
+    await settle()
+    await send(chat.container)
+    await chat.stop()
+    expect(chat.draft()).toBe("boxed")
+    expect(chat.attachments().map(({ path }) => path)).toEqual([
+      "/runner/a.png",
+      "/runner/other.png",
+    ])
+    // The one this window sent keeps its thumbnail; the other has none.
+    expect(chips(chat.container)).toHaveLength(2)
+  })
+
+  it("takes the images of the agent's own box with its words, and no more than eight", async () => {
+    const paths = Array.from({ length: 10 }, (_, i) => `/runner/${i}.png`)
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/x.png",
+      takeBox: async () => ({ words: null, images: paths }),
+    })
+    await chat.take()
+    expect(chat.attachments()).toHaveLength(8)
+    expect(chat.container.textContent).toContain("8 images at most, so 2 went")
   })
 
   it("goes with the words, and leaves a text paste to the box", async () => {

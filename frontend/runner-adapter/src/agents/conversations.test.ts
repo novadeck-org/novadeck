@@ -767,9 +767,14 @@ describe("the runner's conversations", () => {
     it("takes the agent's box, and puts in it, leaving words where they are on a failure", async () => {
       const { conversations, streams } = setup()
       streams.takeBox.mockResolvedValueOnce({ returned: "words" })
-      await expect(conversations.takeBox?.(key)).resolves.toBe("words")
+      await expect(conversations.takeBox?.(key)).resolves.toEqual({ words: "words" })
       streams.takeBox.mockRejectedValueOnce(new WireError("CONFLICT"))
-      await expect(conversations.takeBox?.(key)).resolves.toBeNull()
+      await expect(conversations.takeBox?.(key)).resolves.toEqual({ words: null })
+      streams.takeBox.mockResolvedValueOnce({ returned: null, images: ["/runner/a.png"] })
+      await expect(conversations.takeBox?.(key)).resolves.toEqual({
+        words: null,
+        images: ["/runner/a.png"],
+      })
       streams.putBox.mockResolvedValueOnce({ placed: true })
       await expect(conversations.putBox?.(key, "draft")).resolves.toBe(true)
       expect(streams.putBox).toHaveBeenCalledWith("t", "draft")
@@ -840,6 +845,34 @@ describe("the runner's conversations", () => {
       expect(streams.prompt).toHaveBeenCalledWith("t", "", {
         ref: "r",
         images: ["/runner/shot.png"],
+      })
+    })
+
+    it("says an image couldn't go when the runner refuses one, and that the agent didn't take it", async () => {
+      const { conversations, streams } = setup()
+      streams.prompt.mockRejectedValueOnce(
+        new WireError("PROMPT_REFUSED", "An image of the prompt is gone."),
+      )
+      await expect(conversations.send(key, "", { images: ["/runner/a.png"] })).rejects.toThrow(
+        "An image couldn't go. Remove it and paste it again.",
+      )
+      // Without images, a refusal is the text's own.
+      streams.prompt.mockRejectedValueOnce(new WireError("PROMPT_REFUSED", "Nope."))
+      await expect(conversations.send(key, "hi")).rejects.toThrow("Nope.")
+      streams.prompt.mockRejectedValueOnce(
+        new WireError(
+          "PROMPT_FAILED",
+          "The agent did not take the image: it never showed it in its input box.",
+          {
+            data: { returned: "words" },
+          },
+        ),
+      )
+      await expect(
+        conversations.send(key, "hi", { images: ["/runner/a.png"] }),
+      ).rejects.toMatchObject({
+        message: "The agent didn't take the image. It is back in the box.",
+        returned: "words",
       })
     })
 
@@ -998,9 +1031,15 @@ describe("the runner's conversations", () => {
 
     it("gives back the words the agent returned from its queue, or null", async () => {
       const { conversations, streams } = setup()
-      expect(await conversations.interrupt(key)).toBeNull()
-      streams.interrupt.mockResolvedValueOnce({ returned: "Queued beta" })
-      expect(await conversations.interrupt(key)).toBe("Queued beta")
+      expect(await conversations.interrupt(key)).toEqual({ words: null })
+      streams.interrupt.mockResolvedValueOnce({
+        returned: "Queued beta",
+        images: ["/runner/a.png"],
+      })
+      expect(await conversations.interrupt(key)).toEqual({
+        words: "Queued beta",
+        images: ["/runner/a.png"],
+      })
       streams.interrupt.mockRejectedValueOnce(new WireError("BOX_NOT_CLEARED"))
       await expect(conversations.interrupt(key)).rejects.toThrow("still in the agent's box")
     })

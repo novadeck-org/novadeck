@@ -317,6 +317,11 @@ export const noConversation: Conversation = {
 // agent's box to go (see `ChatBox`), are those words, for the chat's box.
 export type SendResult = { readonly tracked: boolean; readonly returned?: string | null }
 
+// What came back out of the agent's box, for the chat's: the `words` (null where none came, and
+// for a message of images alone) and the `images`, as the paths `Conversations.uploadImage`
+// answered, of the prompt images that came with them.
+export type BoxReturn = { readonly words: string | null; readonly images?: readonly string[] }
+
 // Where a backend's conversations come from, and how the chat talks back to the agent.
 export type Conversations = {
   // The conversation of the agent in a terminal, following the terminal from session to
@@ -349,12 +354,15 @@ export type Conversations = {
     key: TerminalKey,
     file: { readonly name: string; readonly data: Uint8Array },
   ) => Promise<string>
-  // The most bytes of an image `uploadImage` takes; a larger one is never read.
+  // What `uploadImage` takes, which the backend's protocol says: the most bytes of an image (a
+  // larger one is never read), the media types, and how many images one message carries.
   readonly imageMaxBytes?: number
+  readonly imageTypes?: readonly string[]
+  readonly maxImages?: number
   // Stops the agent's turn, as Escape in its TUI does. Resolves with the words the person
-  // had queued behind the turn, which the agent gave back and the chat's box takes again,
-  // or null. Rejects as `send` does.
-  readonly interrupt: (key: TerminalKey) => Promise<string | null>
+  // had queued behind the turn, with the images that were in the box with them, which the
+  // agent gave back and the chat's box takes again. Rejects as `send` does.
+  readonly interrupt: (key: TerminalKey) => Promise<BoxReturn>
   // Writes keys to the agent's terminal as the person's, for what shows in `slice`: a key or
   // an edit a call, in order. Where the backend has none, the chat keeps to its own menus' rule
   // (`refused`). Rejects as `send` does.
@@ -362,7 +370,7 @@ export type Conversations = {
   // Takes what the agent's own box holds out of it for the chat's, where it can be read whole
   // and the backend has a box: the words, or null where nothing was taken, which `box` then
   // still shows.
-  readonly takeBox?: (key: TerminalKey) => Promise<string | null>
+  readonly takeBox?: (key: TerminalKey) => Promise<BoxReturn>
   // Puts the chat's draft in the agent's own box, with no Enter, as the person goes to its
   // terminal: whether it went. Where not, the draft stays the chat's.
   readonly putBox?: (key: TerminalKey, text: string) => Promise<boolean>

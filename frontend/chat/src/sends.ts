@@ -79,6 +79,10 @@ export const keepSentImages = (ref: string, images: readonly Attachment[]): void
 // The images kept for a line, left kept.
 export const keptImagesOf = (ref: string): readonly Attachment[] | undefined => kept.get(ref)
 
+// The kept image saved at `path`, if one is.
+export const keptImageAt = (path: string): Attachment | undefined =>
+  [...kept.values()].flat().find((image) => image.path === path)
+
 // Takes a line's kept images out, to go on with them.
 export const takeSentImages = (ref: string): readonly Attachment[] => {
   const images = kept.get(ref) ?? []

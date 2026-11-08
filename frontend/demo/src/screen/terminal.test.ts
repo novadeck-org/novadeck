@@ -81,7 +81,7 @@ const agentLink = (conversation: Conversation) => {
   const conversations = {
     conversation: () => store,
     send: vi.fn<Conversations["send"]>(() => Promise.resolve()),
-    interrupt: vi.fn<Conversations["interrupt"]>(() => Promise.resolve(null)),
+    interrupt: vi.fn<Conversations["interrupt"]>(() => Promise.resolve({ words: null })),
     answer: vi.fn<Conversations["answer"]>(() => Promise.resolve()),
     refused: () => undefined,
   } as unknown as Conversations & {
@@ -340,7 +340,7 @@ describe("a demo terminal's screen", () => {
 
     it("interrupts on Escape while the agent works, and takes its words back", async () => {
       const { link, conversations } = agentLink(conversationOf())
-      conversations.interrupt.mockResolvedValue("and the docs")
+      conversations.interrupt.mockResolvedValue({ words: "and the docs" })
       const { type, engine } = await open(slot(1), { link, change: withAgent(slot(1), working) })
       await type("also")
       await type("\x1b")
