@@ -1,5 +1,6 @@
 import { vi } from "vitest"
 import { page, userEvent } from "vitest/browser"
+import type { Locator } from "vitest/browser"
 
 import {
   chatOf,
@@ -134,6 +135,12 @@ describe("A chat's conversation", () => {
   })
 })
 
+// The caret at the start of the box, as Ctrl+Home puts it on Linux and Windows and Cmd+Up on macOS.
+const caretToStart = (chat: Locator): void => {
+  const box = composer(chat).element() as HTMLTextAreaElement
+  box.setSelectionRange(0, 0)
+}
+
 describe("Recalling earlier prompts in the chat's box", () => {
   const first = "Build the app and tell me how big the bundle is."
 
@@ -144,7 +151,8 @@ describe("Recalling earlier prompts in the chat's box", () => {
     await userEvent.keyboard("{Enter}")
     await expect.element(composer(chat)).toHaveValue("")
     await userEvent.type(composer(chat), "half a thought")
-    await userEvent.keyboard("{Control>}{Home}{/Control}{ArrowUp}")
+    caretToStart(chat)
+    await userEvent.keyboard("{ArrowUp}")
     await expect.element(composer(chat)).toHaveValue("Run the linter")
     await userEvent.keyboard("{ArrowUp}")
     await expect.element(composer(chat)).toHaveValue(first)
@@ -188,7 +196,8 @@ describe("Recalling earlier prompts in the chat's box", () => {
     await userEvent.fill(composer(chat), long)
     await userEvent.keyboard("{ArrowUp}")
     await expect.element(composer(chat)).toHaveValue(long)
-    await userEvent.keyboard("{Control>}{Home}{/Control}{ArrowUp}")
+    caretToStart(chat)
+    await userEvent.keyboard("{ArrowUp}")
     await expect.element(composer(chat)).toHaveValue(first)
     await userEvent.keyboard("{ArrowDown}")
     await expect.element(composer(chat)).toHaveValue(long)
