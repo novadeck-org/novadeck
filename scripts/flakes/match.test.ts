@@ -28,6 +28,7 @@ const fixtures: Record<string, string> = {
   "adapter-restore-macos-shell-exited": "Test (macOS)",
   "secrets-macos-hex-group-timeout": "Test (macOS)",
   "viewers-macos-diff-update-budget": "Test (macOS)",
+  "relay-status-line-windows-no-output": "Test (Windows, 1/3)",
 }
 
 describe("the known-flake register", () => {
