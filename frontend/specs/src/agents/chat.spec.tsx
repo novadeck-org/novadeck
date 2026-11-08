@@ -134,6 +134,53 @@ describe("A chat's conversation", () => {
   })
 })
 
+describe("Recalling earlier prompts in the chat's box", () => {
+  const first = "Build the app and tell me how big the bundle is."
+
+  it("walks back through the prompts with Up and returns to the draft with Down", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    await userEvent.type(composer(chat), "Run the linter")
+    await userEvent.keyboard("{Enter}")
+    await expect.element(composer(chat)).toHaveValue("")
+    await userEvent.type(composer(chat), "half a thought")
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue("Run the linter")
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue(first)
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue(first)
+    await userEvent.keyboard("{ArrowDown}")
+    await expect.element(composer(chat)).toHaveValue("Run the linter")
+    await userEvent.keyboard("{ArrowDown}")
+    await expect.element(composer(chat)).toHaveValue("half a thought")
+  })
+
+  it("recalls a shell command as it was typed", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    await userEvent.type(composer(chat), "!")
+    await userEvent.keyboard("ls -la{Enter}")
+    await expect.element(conversation(chat).getByText("!ls -la")).toBeVisible()
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue("!ls -la")
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue(first)
+  })
+
+  it("leaves Up to a multi-line draft's lines", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    await userEvent.type(composer(chat), "one")
+    await userEvent.keyboard("{Shift>}{Enter}{/Shift}")
+    await userEvent.type(composer(chat), "two")
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue("one\ntwo")
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue(first)
+  })
+})
+
 describe("Sending a prompt from the chat", () => {
   it("shows it at once and then the agent's reply", async () => {
     await openChatDemo()

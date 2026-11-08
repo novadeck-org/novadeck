@@ -8,6 +8,7 @@ import {
   turnStatus,
   wentItems,
 } from "@novadeck/core/conversation/turns"
+import { isAgentName, opensMenu } from "@novadeck/core/harnesses"
 import type { Store } from "@novadeck/core/store"
 import type { AgentStatus } from "@novadeck/core/types"
 import {
@@ -25,6 +26,7 @@ import { Composer } from "./Composer"
 import { composerMode } from "./composer-mode"
 import { joinDraft } from "./drafts"
 import { useEchoes } from "./echoes"
+import { promptsOf } from "./history"
 import { Mark } from "./Mark"
 import { otherMenu } from "./other-menu"
 import { usePassing } from "./passing"
@@ -141,6 +143,15 @@ export const ChatView = ({
   const bubbles = useMemo(
     () => sentBubbles(sending, prompts, items.length).filter(({ ref }) => !settled.has(ref)),
     [sending, prompts, items.length, settled],
+  )
+
+  // What Up in the box recalls: the person's prompts to this agent.
+  const history = useMemo(
+    () =>
+      promptsOf(wentItems(items, prompts), bubbles, harness, (text) =>
+        isAgentName(harness) ? opensMenu(text, harness) : false,
+      ),
+    [items, prompts, bubbles, harness],
   )
 
   const scroller = useRef<HTMLDivElement>(null)
@@ -471,6 +482,7 @@ export const ChatView = ({
           onOpenTerminal={onAnswerInTerminal}
           refused={(text, options) => !passing.on && refused(text, options)}
           passing={passing.on}
+          history={history}
           onPress={(keys) => {
             const went = passing.press(keys)
             if (went && keys === "\r" && draft.startsWith("/")) echoes.echo(draft.trim())
