@@ -212,6 +212,25 @@ describe("the canvas's arrangement", () => {
     })
   })
 
+  context("as the block grows beside wrapped islands", () => {
+    it("leaves an island that wrapped where it is", () => {
+      // A wide canvas: a block three windows tall, and three teams beside it, wrapped to a
+      // second column where they would pass the block. A fourth block window makes the
+      // block taller, which would let an island back into the first column.
+      const wide = { width: 2560, height: 900 }
+      const block = ["a", "b", "c"].map(solo)
+      const teams = ["L1", "L2", "L3"].flatMap((lead) => [solo(lead), led(`${lead}w`, lead)])
+      const before = arrangeCanvas([...block, ...teams], wide)
+      expect(before.beside).toBe(true)
+      const columns = new Set(["L1", "L2", "L3"].map((lead) => at(before, lead)?.x))
+      expect(columns.size).toBe(2)
+      const after = growCanvas(before, [...block, solo("d"), ...teams])
+      for (const id of ["a", "b", "c", "L1", "L2", "L3"])
+        expect(at(after, id)).toEqual(at(before, id))
+      expect(at(after, "d")).toBeDefined()
+    })
+  })
+
   context("as it shrinks", () => {
     const before = arrangeCanvas(
       [solo("a"), solo("b"), solo("lead"), led("one", "lead"), led("two", "lead"), solo("c")],

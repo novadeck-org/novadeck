@@ -29,10 +29,12 @@ export type CanvasArrangement = {
   // Each lead's team as it was placed, in order.
   readonly teams: Readonly<Record<string, readonly Cell[]>>
   // How it is packed: the block's width in windows, the islands beside the block or below
-  // it, and whether they wrap where they would pass the block or the largest island.
+  // it, and how far they run before they wrap to another column or row: as far as the
+  // block or the largest island ran when it was arranged afresh, or without end. Set then
+  // and kept, so that what grows later never undoes a wrap.
   readonly columns: number
   readonly beside: boolean
-  readonly wrap: boolean
+  readonly limit: number
 }
 
 // Between windows, as Canvas has always kept them.
@@ -101,29 +103,37 @@ const blockBox = (slots: number, columns: number): { w: number; h: number } | un
       }
     : undefined
 
+const along = (box: { w: number; h: number }, beside: boolean): number => (beside ? box.h : box.w)
+
+// How far the islands may run: as far as the block or the largest island does.
+const reach = (
+  block: { w: number; h: number } | undefined,
+  islands: readonly Box[],
+  beside: boolean,
+): number =>
+  Math.max(block ? along(block, beside) : 0, ...islands.map((each) => along(each, beside)))
+
 // Where each island goes: down beside the block, or across below it, starting a new column
-// or row where the next would pass the block or the largest island (`wrap`).
+// or row where the next would pass `limit`.
 const pack = (
   block: { w: number; h: number } | undefined,
   islands: readonly Box[],
   beside: boolean,
-  wrap: boolean,
+  limit: number,
 ): { readonly places: readonly Point[]; readonly w: number; readonly h: number } => {
-  const along = (box: { w: number; h: number }): number => (beside ? box.h : box.w)
   const across = (box: { w: number; h: number }): number => (beside ? box.w : box.h)
-  const limit = wrap ? Math.max(block ? along(block) : 0, ...islands.map(along)) : Infinity
   const places: Point[] = []
   let run = 0
   let offset = block ? across(block) + apart : 0
   let thick = 0
   for (const each of islands) {
-    if (run > 0 && run + along(each) > limit + 1) {
+    if (run > 0 && run + along(each, beside) > limit + 1) {
       run = 0
       offset += thick + apart
       thick = 0
     }
     places.push(beside ? { x: offset, y: run } : { x: run, y: offset })
-    run += along(each) + apart
+    run += along(each, beside) + apart
     thick = Math.max(thick, across(each))
   }
   return {
@@ -133,7 +143,7 @@ const pack = (
   }
 }
 
-type Packing = Pick<CanvasArrangement, "columns" | "beside" | "wrap">
+type Packing = Pick<CanvasArrangement, "columns" | "beside" | "limit">
 
 const packed = (
   arrangement: Pick<CanvasArrangement, "block" | "islands" | "teams"> & Packing,
@@ -145,7 +155,7 @@ const packed = (
       blockBox(arrangement.block.length, arrangement.columns),
       boxes,
       arrangement.beside,
-      arrangement.wrap,
+      arrangement.limit,
     ),
   }
 }
@@ -174,7 +184,9 @@ export const arrangeCanvas = (tiles: readonly Arranged[], room: Room): CanvasArr
   for (let columns = 1; columns <= Math.max(1, Math.min(placed.block.length, widest)); columns++)
     for (const beside of [true, false])
       for (const wrap of [true, false]) {
-        const packing = { columns, beside, wrap }
+        const boxes = placed.islands.map((lead) => island(placed.teams, lead))
+        const limit = wrap ? reach(blockBox(placed.block.length, columns), boxes, beside) : Infinity
+        const packing = { columns, beside, limit }
         const { w, h } = packed({ ...placed, ...packing })
         const zoom = Math.min(room.width / Math.max(w, 1), room.height / Math.max(h, 1))
         if (!best || zoom > best.zoom * 1.03) best = { zoom, packing }
