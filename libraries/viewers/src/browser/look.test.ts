@@ -214,7 +214,7 @@ describe("a look at a page", () => {
       picture: `data:image/jpeg;base64,${Buffer.alloc(10, 1).toString("base64")}`,
       url: `${url}home`,
       title: "A page",
-      size: { width: 1280, height: 800 },
+      size: lookSizes.desktop,
       troubles: [],
     })
     expect(contents.url).toBe(`${url}home`)

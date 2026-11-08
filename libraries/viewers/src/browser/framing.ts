@@ -11,7 +11,7 @@ import { phoneScreen } from "./phone.js"
  */
 export type PageSize = "desktop" | "phone"
 
-export const desktopWidth = 1280
+export const desktopWidth = 1024
 
 /**
  * The room a phone's screen keeps on each side of it, in CSS pixels: its frame's bezel,
