@@ -10,6 +10,7 @@ import {
   requestCard,
 } from "../support/chat"
 import { expectStaysTrue } from "../support/layouts"
+import { closeToasts } from "../support/toasts"
 import {
   chooseView,
   commandInput,
@@ -27,6 +28,7 @@ const answeredMs = 500
 
 // Turns the chat view on or off in Preferences → Experimental, and closes Preferences.
 const setChatView = async (on: boolean): Promise<void> => {
+  await closeToasts()
   await page.getByRole("button", { name: "Workspace preferences" }).click()
   const dialog = page.getByRole("dialog", { name: "Preferences" })
   await dialog.getByRole("tab", { name: "Experimental" }).click()

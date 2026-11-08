@@ -83,7 +83,7 @@ export type Toasts<T> = {
 
 // Every toast leaves after `duration` ms, its timer paused while the pointer is over the
 // stack or the page is hidden.
-export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}): Toasts<T> => {
+export const createToasts = <T,>({ duration = 30_000 }: { duration?: number } = {}): Toasts<T> => {
   const store = createToaster({
     placement: "top-end",
     overlap: true,
