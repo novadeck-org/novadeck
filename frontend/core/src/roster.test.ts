@@ -1,4 +1,4 @@
-import { createRoster, setTerminalStatus } from "./roster"
+import { createRoster, setTerminalProcess, setTerminalStatus } from "./roster"
 import { describe, expect, it } from "./test"
 import type { TerminalMetadata, TerminalStatus } from "./types"
 
@@ -16,6 +16,7 @@ describe("a terminal's status", () => {
       directory: "/work/app",
       command: "bash",
       process: "bash",
+      argv: ["bash", "build.sh"],
       restoredProcess: "claude",
       handle: "moth",
       ledBy: "fox",
@@ -51,5 +52,19 @@ describe("a terminal's status", () => {
     expect(waking.terminals[0]).toMatchObject({ state: "starting", restoredProcess: "claude" })
     const awake = setTerminalStatus(waking, "01", { state: "idle" })
     expect(awake.terminals[0]).not.toHaveProperty("restoredProcess")
+  })
+
+  it("takes a program's command line with it, and drops it with the program", () => {
+    const roster = createRoster([
+      { id: "01", name: "Dev", directory: "/work", command: "", process: "zsh", state: "idle" },
+    ])
+    const running = setTerminalProcess(roster, "01", "node", ["node", "pnpm.cjs", "dev"])
+    expect(running.terminals[0]).toMatchObject({
+      process: "node",
+      argv: ["node", "pnpm.cjs", "dev"],
+    })
+    expect(setTerminalProcess(running, "01", "node", ["node", "pnpm.cjs", "dev"])).toBe(running)
+    const back = setTerminalProcess(running, "01", "zsh")
+    expect(back.terminals[0]).not.toHaveProperty("argv")
   })
 })

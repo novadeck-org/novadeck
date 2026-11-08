@@ -4,6 +4,8 @@
  * the app so that "a plain quit never restarts" is pinned by tests.
  */
 
+import type { Quitting } from "../quitting.js"
+
 /**
  * Whether the quit that begins now swaps the AppImage at once: on Linux, for the person's
  * quit (closing the last window, the menu's Quit) and only as it begins. A signal's quit
@@ -39,3 +41,85 @@ export const opensAfterQuit = ({
   readonly placed: boolean
   readonly wanted: boolean
 }): boolean => placed && wanted
+
+/**
+ * Whether the person's restart into the waiting update is carried out: only when the last
+ * offer is `ready`, this copy installs updates itself (a portable or telling copy never
+ * has a `ready` offer, and is turned away here all the same), and no quit is under way.
+ */
+export const restartAllowed = ({
+  offer,
+  mode,
+  stopping,
+}: {
+  readonly offer: string | undefined
+  readonly mode: "install" | "tell" | undefined
+  readonly stopping: boolean
+}): boolean => offer === "ready" && mode === "install" && !stopping
+
+/**
+ * Asks for the restart: when `restartAllowed` says so, marks the quit the person's own,
+ * orderly and with a reopen wanted, and only then quits. Returns whether it did; a refused
+ * call touches nothing.
+ */
+export const requestRestart = ({
+  offer,
+  mode,
+  quitting,
+  quit,
+}: {
+  readonly offer: string | undefined
+  readonly mode: "install" | "tell" | undefined
+  readonly quitting: Quitting
+  readonly quit: () => void
+}): boolean => {
+  if (!restartAllowed({ offer, mode, stopping: quitting.stopping })) return false
+  quitting.orderly = true
+  quitting.restart = true
+  quitting.reopenWanted = true
+  quit()
+  return true
+}
+
+/**
+ * Takes a restart back, for a quit that must not open anything: the system ending the
+ * session, which installs nothing either.
+ */
+export const dropRestart = (quitting: Quitting): void => {
+  quitting.restart = false
+  quitting.reopenWanted = false
+}
+
+/**
+ * Whether the update was put in place by this quit, as the system's own step tells it:
+ * the AppImage swapped (Linux), the bundle installed (macOS), the installer started
+ * (Windows: the install call returned true, which does not say the installer then succeeds).
+ */
+export const placedBy = ({
+  platform,
+  appImageSwapped,
+  macPlaced,
+  installerRan,
+}: {
+  readonly platform: NodeJS.Platform
+  readonly appImageSwapped: boolean
+  readonly macPlaced: boolean
+  readonly installerRan: boolean
+}): boolean =>
+  platform === "darwin" ? macPlaced : platform === "win32" ? installerRan : appImageSwapped
+
+/**
+ * Whether the quitting app opens its current version once it is gone: the person asked to
+ * restart and the update was not put in place, so the quit did not open the new one. On
+ * Windows an installer that was started owns the reopening (`--force-run`), and when it
+ * fails after the app has exited, or its spawn fails or UAC is declined (electron-updater
+ * reports those after the process is gone), nothing opens; the cases that do open are a
+ * download that vanished or an install that never began.
+ */
+export const opensCurrentAfterQuit = ({
+  restart,
+  placed,
+}: {
+  readonly restart: boolean
+  readonly placed: boolean
+}): boolean => restart && !placed

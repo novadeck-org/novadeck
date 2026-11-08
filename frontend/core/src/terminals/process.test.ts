@@ -1,5 +1,5 @@
 import { context, describe, expect, it } from "../test"
-import { isShellProcess, programName, runningProgram } from "./process"
+import { isShellProcess, programName, runningProgram, runsAgentCommand } from "./process"
 
 const named = (name: string, ...argv: string[]) =>
   programName({ name, argv: argv.length ? argv : null })
@@ -62,5 +62,52 @@ describe("shell processes", () => {
   it("tells shells from programs by name", () => {
     expect(["bash", "zsh", "pwsh", "cmd"].every(isShellProcess)).toBe(true)
     expect(["vim", "claude", "node", ""].some(isShellProcess)).toBe(false)
+  })
+})
+
+describe("a command line that runs an agent", () => {
+  it("is a harness's script, as npm installs it, on any OS", () => {
+    expect(runsAgentCommand(["node", "/lib/node_modules/@anthropic-ai/claude-code/cli.js"])).toBe(
+      true,
+    )
+    expect(runsAgentCommand(["node", "/lib/node_modules/@openai/codex/bin/codex.js"])).toBe(true)
+    expect(runsAgentCommand(["C:\\nodejs\\node.exe", "C:\\n\\@openai\\codex\\bin\\codex.js"])).toBe(
+      true,
+    )
+  })
+
+  it("is a package handed to npx, pnpm dlx or bunx, versioned or not", () => {
+    expect(runsAgentCommand(["node", "/npm/npx-cli.js", "@anthropic-ai/claude-code"])).toBe(true)
+    expect(runsAgentCommand(["node", "/p/pnpm.cjs", "dlx", "@openai/codex@latest"])).toBe(true)
+    expect(runsAgentCommand(["bun", "x", "@anthropic-ai/claude-code@2.1.0"])).toBe(true)
+  })
+
+  it("is the package after a runner's options and subcommand, whichever runner", () => {
+    expect(runsAgentCommand(["npx", "-y", "@openai/codex"])).toBe(true)
+    expect(runsAgentCommand(["bunx", "@anthropic-ai/claude-code"])).toBe(true)
+    expect(runsAgentCommand(["node", "/y/yarn.js", "dlx", "@openai/codex"])).toBe(true)
+    expect(runsAgentCommand(["node", "/n/npm-cli.js", "exec", "@openai/codex"])).toBe(true)
+    expect(runsAgentCommand(["pnpm", "dlx", "@anthropic-ai/claude-code"])).toBe(true)
+  })
+
+  it("is not a command that only installs, edits or names one in its arguments", () => {
+    expect(
+      runsAgentCommand(["node", "/n/npm-cli.js", "install", "-g", "@anthropic-ai/claude-code"]),
+    ).toBe(false)
+    expect(runsAgentCommand(["node", "/p/pnpm.cjs", "add", "@openai/codex"])).toBe(false)
+    expect(runsAgentCommand(["node", "/y/yarn.js", "add", "@openai/codex"])).toBe(false)
+    expect(runsAgentCommand(["vim", "/lib/node_modules/@openai/codex/bin/codex.js"])).toBe(false)
+    expect(runsAgentCommand(["cat", "/lib/node_modules/@anthropic-ai/claude-code/cli.js"])).toBe(
+      false,
+    )
+    expect(runsAgentCommand(["node", "/srv/app.js", "@openai/codex"])).toBe(false)
+  })
+
+  it("is not a program that only mentions one, nor any other script", () => {
+    expect(runsAgentCommand(["node", "/p/pnpm.cjs", "dev"])).toBe(false)
+    expect(runsAgentCommand(["vim", "notes-on-codex.md"])).toBe(false)
+    expect(runsAgentCommand(["npx", "@anthropic-ai/other"])).toBe(false)
+    expect(runsAgentCommand(undefined)).toBe(false)
+    expect(runsAgentCommand([])).toBe(false)
   })
 })

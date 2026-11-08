@@ -151,6 +151,7 @@ export const createRouter = (options: {
       release: api.terminals.release.handler(({ input }) =>
         terminals.releaseLead(input.terminalId),
       ),
+      busy: api.terminals.busy.handler(({ input }) => terminals.busyShells(input?.fresh === true)),
       watch: api.terminals.watch.handler(({ context, signal }) =>
         terminals.watch(context.session.id, signal),
       ),

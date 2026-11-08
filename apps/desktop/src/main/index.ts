@@ -545,6 +545,12 @@ const launch = async (): Promise<void> => {
         )
     },
     allow: () => void updates.allow(),
+    restart: () =>
+      void updates
+        .restart()
+        .catch((error: unknown) =>
+          log.warn("update.restart-failed", "The restart into the update failed.", { err: error }),
+        ),
     channel: updates.channel,
     setChannel: (next) =>
       updates.setChannel(next, (error) =>
@@ -780,6 +786,7 @@ const quitSteps: QuitSteps = {
   shutDown,
   installMacUpdate: updates.installMacUpdateOnQuit,
   reopenAppImage: updates.openAppImageAfterQuit,
+  reopenCurrent: updates.openCurrentAfterQuit,
   keepUpdate: updates.keepUpdateOnQuit,
   quit: () => app.quit(),
 }

@@ -345,6 +345,20 @@ export type BackendFields = {
   // again: the name the person gave it goes, and the backend reports the one it takes
   // with `terminal/update`. Absent where names are only the person's.
   readonly resetTitle?: (key: TerminalKey) => void
+  // Optional. Asks which terminals hold work a restart would end: a program in a plain shell, a
+  // line not finished, a job in the background or suspended; for an agent, whose own process
+  // resumes, only work beside or under it (a Codex background terminal, a job of its shell's), by
+  // terminal id, across every session. Read from the system when asked, so ask when it is
+  // needed: while someone looks at the answer, and as they act on it. `unknown` are those it couldn't read, never to be taken for
+  // idle. Answers nothing (undefined) where it can't tell at all, as from a runner that came
+  // before it. Absent where the backend has no shells to look at.
+  // With `fresh`, the answer comes from a read that starts after the call, as one about to act
+  // on it needs; without, a read already under way may answer.
+  readonly busyTerminals?: (options?: {
+    readonly fresh?: true
+  }) => Promise<
+    { readonly busy: readonly string[]; readonly unknown: readonly string[] } | undefined
+  >
   // Optional. Asks the person for a folder to open as a project; null when cancelled.
   // Absent where the backend cannot offer one.
   readonly pickDirectory?: () => Promise<string | null>
@@ -383,13 +397,19 @@ export type BackendFields = {
   // stop. A `ready` offer is downloaded and installs when the app next quits. An
   // `available` one the app can't install itself, so the person gets it from its release
   // page, which `openPage` opens; one with `allow` can instead be let install itself by an
-  // administrator, which `allow` asks for (macOS only; absent elsewhere). `channel`, where the app
+  // administrator, which `allow` asks for (macOS only; absent elsewhere). `restart` is the
+  // person's own choice to restart into a `ready` update now: the app quits as their quit
+  // does, installing it, and opens again once it is in place (the current version again if
+  // it could not be put in place). It does nothing unless the last offer is `ready` and the
+  // copy installs its own updates, and nothing while a quit is already under way; it is
+  // absent from apps that came before it. `channel`, where the app
   // lets the person choose, reads which releases it follows and switches them. Absent
   // where the app does not update itself, as in a browser.
   readonly updates?: {
     readonly onOffer: (listener: (offer: UpdateOffer) => void) => () => void
     readonly openPage: () => void
     readonly allow?: () => void
+    readonly restart?: () => void
     readonly channel?: {
       readonly get: () => Promise<UpdateChannel>
       readonly set: (channel: UpdateChannel) => void

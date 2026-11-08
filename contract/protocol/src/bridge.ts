@@ -103,6 +103,16 @@ export type DesktopBridge = {
    * update as usual, offering `downloading` and then `ready`.
    */
   allowUpdates?(): void
+  /**
+   * Quits the app and opens it again as the update waiting to install, now: the person's own
+   * choice, never the app's. Does nothing while a quit is already under way, and
+   * nothing unless the last offer is `ready` and the copy installs updates itself. Absent
+   * from apps that came before it. Should the update not go in, the current version opens again,
+   * except where the app is already gone, its runner may still be running, or a logout or
+   * shutdown came during the restart; see
+   * docs/auto-update.md, "Restart now".
+   */
+  restartToUpdate?(): void
   /** Which releases this build follows; see `UpdateChannel`. */
   updateChannel?(): Promise<UpdateChannel>
   /**

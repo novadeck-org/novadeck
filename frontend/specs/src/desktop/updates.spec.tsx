@@ -1,6 +1,7 @@
 import { onTestFinished } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
+import { restartsAsked } from "../support/backend"
 import { closePreferences, openPreferencesOn, preferencesDialog } from "../support/keyboard"
 import {
   commandInput,
@@ -134,8 +135,37 @@ describe("the update progress bar", () => {
       await openWorkspace("/?update=ready")
       await expectStaysAbsent(finished())
       expect(bar()).toBeNull()
-      expect(page.getByRole("button", { name: /update/i }).query()).toBeNull()
+      // No chip to fetch it either: the update is downloaded, and has its own chip.
+      expect(availableChip().query()).toBeNull()
     })
+  })
+})
+
+const restartChip = (): Locator =>
+  page.getByRole("button", { name: "Restart to update: Novadeck 0.0.80" })
+
+describe("restarting to update", () => {
+  it("has no chip where no update is downloaded", async () => {
+    await openWorkspace()
+    await expectStaysAbsent(restartChip())
+  })
+
+  it("has no chip while one downloads", async () => {
+    await openWorkspace("/?update=held")
+    await expect.element(updating()).toBeVisible()
+    expect(restartChip().query()).toBeNull()
+  })
+
+  it("leaves a quiet chip once an update is downloaded, which opens its card and restarts on a press", async () => {
+    await openWorkspace("/?update=ready")
+    await expect.element(restartChip()).toBeVisible()
+    expect(page.getByText("Restart · 0.0.80").query()).toBeNull()
+    const before = restartsAsked()
+    await restartChip().click()
+    await expect.element(page.getByText("Restart · 0.0.80")).toBeVisible()
+    await page.getByRole("button", { name: "Restart now" }).click()
+    await expect.element(page.getByRole("button", { name: "Restarting…" })).toBeDisabled()
+    expect(restartsAsked()).toBe(before + 1)
   })
 })
 

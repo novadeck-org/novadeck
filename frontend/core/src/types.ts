@@ -162,6 +162,9 @@ export type TerminalMetadata = {
   command: string
   // The foreground program's name, as `programName` resolves it.
   process: string
+  // The foreground process's command line, where the platform tells it: the program, then its
+  // arguments. Absent where it can't, and while no program but the shell runs.
+  argv?: readonly string[]
   // The program to resume in the terminal's next shell: one that was running when its
   // shell was lost or ended, or when the app last closed. Present only while the
   // terminal has no live shell.

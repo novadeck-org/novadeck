@@ -508,3 +508,18 @@ describe("terminal activity", () => {
     })
   })
 })
+
+describe("a program's command line", () => {
+  it("comes with the program the runner names, and not with a shell or an agent's name", () => {
+    expect(terminalActivity(named("node", ["node", "pnpm.cjs", "dev"])).argv).toEqual([
+      "node",
+      "pnpm.cjs",
+      "dev",
+    ])
+    expect(terminalActivity(named("zsh", ["zsh"])).argv).toBeUndefined()
+    expect(terminalActivity(named("vite")).argv).toBeUndefined()
+    expect(
+      terminalActivity(summary({ process: { name: "node", argv: null }, agent: "claude" })).argv,
+    ).toBeUndefined()
+  })
+})

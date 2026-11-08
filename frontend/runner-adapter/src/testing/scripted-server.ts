@@ -252,6 +252,7 @@ export const scriptedRunner = ({
       }),
       rename: api.terminals.rename.handler(unplayed("terminals.rename")),
       resetTitle: api.terminals.resetTitle.handler(unplayed("terminals.resetTitle")),
+      busy: api.terminals.busy.handler(() => ({ busy: [], unknown: [] })),
       upload: api.terminals.upload.handler(unplayed("terminals.upload")),
       restart: api.terminals.restart.handler(unplayed("terminals.restart")),
     },

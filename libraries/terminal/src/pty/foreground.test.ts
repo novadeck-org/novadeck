@@ -8,10 +8,13 @@ import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from "v
 
 import {
   hasChildProcess,
+  tableForeground,
   hasTerminalChild,
+  processTable,
   parseCommandLine,
   parseProcessStat,
   parsePsRows,
+  parseProcessTable,
   sampleForeground,
   statName,
 } from "./foreground.js"
@@ -159,6 +162,30 @@ describe.skipIf(process.platform === "win32")("a process's children", () => {
     },
     2 * startsMs + 5_000,
   )
+
+  it(
+    "reads every shell's foreground group and jobs from one listing",
+    async () => {
+      const job = spawn("sh", ["-c", "sleep 30 & wait"], { cols: 80, rows: 24 })
+      onTestFinished(() => job.kill())
+      const idle = spawn("sh", [], { cols: 80, rows: 24 })
+      onTestFinished(() => idle.kill())
+      await vi.waitFor(
+        async () => {
+          const rows = (await processTable())!
+          expect(rows).toBeDefined()
+          // The idle shell holds its own terminal; the job's shell has a child on it.
+          expect(tableForeground(rows, idle.pid)).toBe(idle.pid)
+          expect(hasTerminalChild(rows, idle.pid)).toBe(false)
+          expect(hasTerminalChild(rows, job.pid)).toBe(true)
+          // The group a program holds, never one for a pid the listing lacks.
+          expect(tableForeground(rows, 2 ** 22 + 12345)).toBeUndefined()
+        },
+        { timeout: startsMs },
+      )
+    },
+    startsMs + 5_000,
+  )
 })
 
 describe("children on a Unix shell's terminal", () => {
@@ -260,5 +287,18 @@ describe("a Windows shell's children, from the relay's tree", () => {
     onWindows()
     await expect(hasChildProcess(10, tree(undefined))).resolves.toBeUndefined()
     await expect(hasChildProcess(10)).resolves.toBeUndefined()
+  })
+})
+
+describe("the process table", () => {
+  it("reads rows with their groups and terminal, program names with spaces included", () => {
+    expect(
+      parseProcessTable(
+        "  10     1    10    42 pts/3    zsh\n  11    10    11    -1 ??    /usr/bin/my prog\nbad\n",
+      ),
+    ).toEqual([
+      { pid: 10, ppid: 1, pgid: 10, tpgid: 42, tty: "pts/3", comm: "zsh" },
+      { pid: 11, ppid: 10, pgid: 11, tpgid: -1, tty: "??", comm: "/usr/bin/my prog" },
+    ])
   })
 })

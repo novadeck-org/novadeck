@@ -401,6 +401,58 @@ describe("runner backend", () => {
     })
   })
 
+  context("when asked which terminals hold work", () => {
+    it("answers the runner's list, and nothing for a terminal at its prompt", async () => {
+      const app = open()
+      app.addTerminal()
+      await app.idle()
+      const answer = await app.backend.busyTerminals!()
+      expect(answer?.busy).toEqual([])
+      // Windows reads a shell's processes through the relay, which tests run without, so
+      // there the shells are ones it can't read: never taken for idle.
+      if (process.platform === "win32") expect(answer?.unknown.length).toBeGreaterThan(0)
+      else expect(answer?.unknown).toEqual([])
+      app.stop()
+    })
+
+    it("answers nothing where the runner can't, as one that came before the call", async () => {
+      const app = open()
+      await app.idle()
+      const busy = vi.spyOn(runner.client.terminals, "busy").mockRejectedValue(new Error("gone"))
+      await expect(app.backend.busyTerminals!()).resolves.toBeUndefined()
+      busy.mockRestore()
+      app.stop()
+    })
+  })
+
+  context("when the runner answers a busy question in another shape", () => {
+    it("takes it for no answer, never for nothing busy", async () => {
+      const app = open()
+      await app.idle()
+      for (const wrong of [[], ["01"], { busy: ["01"] }, { busy: [1], unknown: [] }, null]) {
+        const busy = vi
+          .spyOn(runner.client.terminals, "busy")
+          .mockResolvedValue(
+            wrong as unknown as Awaited<ReturnType<typeof runner.client.terminals.busy>>,
+          )
+        // eslint-disable-next-line no-await-in-loop -- Each answer is tried alone.
+        await expect(app.backend.busyTerminals!()).resolves.toBeUndefined()
+        busy.mockRestore()
+      }
+      app.stop()
+    })
+
+    it("asks for a fresh read when told to", async () => {
+      const app = open()
+      await app.idle()
+      const busy = vi.spyOn(runner.client.terminals, "busy")
+      await app.backend.busyTerminals!({ fresh: true })
+      expect(busy).toHaveBeenCalledWith({ fresh: true })
+      busy.mockRestore()
+      app.stop()
+    })
+  })
+
   context("when another window closes a terminal while this one is away", () => {
     it("closes it here too once back, rather than start it again", async () => {
       const app = open()

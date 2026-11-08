@@ -179,6 +179,8 @@ export type QuitSteps = {
   readonly shutDown: () => Promise<RunnerEnd>
   readonly installMacUpdate: () => Promise<void>
   readonly reopenAppImage: () => Promise<void>
+  /** Opens the current version when a restart's update did not go in. */
+  readonly reopenCurrent: () => Promise<void>
   /** Leaves a waiting update for a later quit, and installs and opens nothing on this one. */
   readonly keepUpdate: () => void
   /** Quits again, which comes back here with nothing left to do and lets the app end. */
@@ -216,6 +218,7 @@ export const beforeQuit = (
       if (ended === "abandoned") return steps.keepUpdate()
       await steps.installMacUpdate()
       await steps.reopenAppImage()
+      await steps.reopenCurrent()
     })
     .finally(steps.quit)
 }

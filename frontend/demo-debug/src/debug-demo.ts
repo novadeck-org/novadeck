@@ -232,6 +232,17 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     agents: states.agents,
     notices: states.notices,
     updates: states.updates,
+    // The idle shells the runner may say hold a job, as the Updates group sets it.
+    busyTerminals: () =>
+      states.updateControls.busy.answer(
+        (latest?.projects ?? []).flatMap((project) =>
+          project.history.flatMap((session) =>
+            session.state.roster.terminals
+              .filter((terminal) => terminal.state === "idle")
+              .map((terminal) => terminal.id),
+          ),
+        ),
+      ),
     whatsNew: states.whatsNew,
     ...(launch.sandbox ? { sandbox: createDemoSandbox(launch.sandbox) } : {}),
     ...(launch.portable ? { portable: createDemoPortable(launch.portable).portable } : {}),

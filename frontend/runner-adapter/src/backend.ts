@@ -9,6 +9,7 @@ import type {
   TerminalKey,
   ThemeSource,
 } from "@novadeck/core/port"
+import { sameArgv } from "@novadeck/core/roster"
 import { createStore } from "@novadeck/core/store"
 import { handleText } from "@novadeck/core/terminals/handle"
 import { createTerminalRegistry } from "@novadeck/core/terminals/registry"
@@ -23,6 +24,7 @@ import type {
   WorkspaceSession,
 } from "@novadeck/core/types"
 import {
+  busyShells,
   maxInboxOrder,
   maxInboxRowIdLength,
   type AgentName,
@@ -219,6 +221,7 @@ type RunnerEntry = {
   // What the adapter last reported, so each change reaches the store once.
   status: TerminalStatus
   process: string
+  argv: readonly string[] | undefined
 }
 
 // What a mounted surface needs from the adapter. The surface only reads the entry;
@@ -454,12 +457,20 @@ export const runnerBackend = (
     if (restartable(activity.status)) entry.settled = true
     const actions = statusAction(entry, activity.status)
     if (activity.status.state === "running") noteUsage(entry, activity.usage)
-    const { process } = activity
-    if (process === undefined || entry.process === process) return actions
+    const { process, argv } = activity
+    if (process === undefined || (entry.process === process && sameArgv(entry.argv, argv)))
+      return actions
     entry.process = process
+    entry.argv = argv
     return [
       ...actions,
-      { type: "terminal/process", target: target(entry.key), terminalId, process },
+      {
+        type: "terminal/process",
+        target: target(entry.key),
+        terminalId,
+        process,
+        ...(argv ? { argv } : {}),
+      },
     ]
   }
 
@@ -1349,6 +1360,7 @@ export const runnerBackend = (
         attachment: undefined,
         status: terminal,
         process: terminal.process,
+        argv: terminal.argv,
       }
       if (isNew) entry.ready = createTerminal(entry)
       entries.set(key.terminalId, entry)
@@ -1827,6 +1839,16 @@ export const runnerBackend = (
         }),
       ).catch(() => {})
     },
+    // An answer of another shape, from a runner that means something else by the call, is none:
+    // unavailable, never "nothing busy".
+    busyTerminals: (only) =>
+      runner.terminals.busy(only).then(
+        (answer) => {
+          const read = busyShells.safeParse(answer)
+          return read.success ? read.data : undefined
+        },
+        () => undefined,
+      ),
     connection,
     crashLoop: { crashes: crashLooping, retry: retryAfterCrashLoop },
     boot: boot.store,

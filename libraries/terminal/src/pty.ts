@@ -3,6 +3,10 @@
 export {
   foregroundProcess,
   hasChildProcess,
+  tableForeground,
+  hasTerminalChild,
+  processTable,
+  type TableRow,
   hasJobUnder,
   foregroundRuns,
   openFiles,
