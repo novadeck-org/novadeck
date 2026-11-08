@@ -68,7 +68,7 @@ export const TerminalTabs = ({
   // order if a drop saved another than the drag showed (a drag past a folded lead).
   // `focus` is the tab whose button held focus as the drag ended (a keyboard drag), which the
   // new tabs give it back to.
-  const [{ generation, focus }, setDrag] = useState<{ generation: number; focus: string | null }>({
+  const [drag, setDrag] = useState<{ generation: number; focus: string | null }>({
     generation: 0,
     focus: null,
   })
@@ -85,13 +85,16 @@ export const TerminalTabs = ({
     },
     [tabList],
   )
+  // After each remount (each drag is a new state), as one tab dragged twice running is focused
+  // twice.
   useLayoutEffect(() => {
+    const { focus } = drag
     if (focus === null) return
     const tab = [...(list?.querySelectorAll<HTMLElement>("[data-terminal-tab-id]") ?? [])].find(
       (each) => each.dataset.terminalTabId === focus,
     )
     tab?.querySelector<HTMLElement>("button")?.focus()
-  }, [focus, list])
+  }, [drag, list])
   const modifiers = useMemo(() => [RestrictToElement.configure({ element: list })], [list])
   return (
     <DragDropProvider
@@ -117,7 +120,7 @@ export const TerminalTabs = ({
       }}
     >
       <div className={`terminal-tab-list ${sidebarListClasses}`} ref={attach}>
-        <Fragment key={generation}>
+        <Fragment key={drag.generation}>
           {terminals.map((terminal, index) => renderTab(terminal, index))}
         </Fragment>
         {!terminals.length && (

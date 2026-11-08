@@ -902,4 +902,27 @@ describe("reordering terminal tabs", () => {
       expect(document.querySelectorAll(".terminal-tab-list [data-terminal-tab-id]")).toHaveLength(5)
     })
   })
+
+  context("when picking up and dropping a tab with the keyboard twice", () => {
+    it("keeps focus on that tab", async () => {
+      await openWorkspace()
+      await focusTab("Tests")
+      const dragging = () => document.querySelector(".terminal-tab.dragging") !== null
+      const focused = () =>
+        document.activeElement?.closest<HTMLElement>("[data-terminal-tab-id]")?.textContent ?? ""
+
+      const pickUpAndDrop = async (round: number): Promise<void> => {
+        await press(" ")
+        await expect.poll(dragging, { message: `picked up, round ${round}` }).toBe(true)
+        await press(" ")
+        await expect.poll(dragging, { message: `dropped, round ${round}` }).toBe(false)
+        // The drop's remount and focus have settled.
+        await new Promise((resolve) => setTimeout(resolve, 300))
+        expect(focused(), `round ${round}`).toContain("Tests")
+      }
+
+      await pickUpAndDrop(1)
+      await pickUpAndDrop(2)
+    })
+  })
 })
