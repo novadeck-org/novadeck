@@ -465,10 +465,13 @@
       "id": "claude-conversation-many-rows-windows",
       "jobs": ["^Test \\(Windows(, [1-3][/-]3)?\\)$"],
       "test": "src/conversation.test.ts > Claude Code's conversation > reads each project once for a pass over many rows, without stalling the loop",
-      "signature": "AssertionError: expected \\d+ to be less than 8000",
-      "status": "known",
-      "cause": "A time budget: the pass over many rows took 8.7 s on a Windows runner against the test's 8 s limit; a slow runner, not a stall.",
-      "seen": ["#777 run 42380485557 job 128426867982 (Windows)"]
+      "signature": "AssertionError: expected \\d+ to be less than (?:8000|400)",
+      "status": "fixed",
+      "cause": "A time budget: the pass over many rows took 8.7 s on a Windows runner against the test's 8 s limit, and up to 17 s on others, with a second bound of 400 ms on the event loop's worst gap; a slow runner, not a stall. Fixed by bounding the test by what it reads (each project once, at most 32 folders open) rather than by seconds; the lister's own pool and memory are tested in harness-core.",
+      "seen": [
+        "#777 run 42380485557 job 128426867982 (Windows)",
+        "#775, #779, #781, #782 (twice), #785, #787, #788, #790 on 2026-11-07 (Windows, 1/3)"
+      ]
     },
     {
       "id": "test-macos-job-timeout",
