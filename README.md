@@ -72,19 +72,6 @@ A lead and the three teammates it opened, wired together on the Canvas.
 
 Claude Code and Codex side by side in Grid, each in its own real terminal.
 
-## How it's different
-
-Already using something like it? The short version:
-
-- **Orca:** both run Claude Code, Codex and Antigravity on your own plans. In Orca you go to each
-  agent to answer it; in Novadeck their questions come to one Inbox.
-  [Novadeck vs Orca](https://novadeck.dev/vs/orca?utm_source=readme)
-- **Herdr:** Herdr shows which agent needs you; Novadeck shows what it's asking, with the
-  answers as buttons. [Novadeck vs Herdr](https://novadeck.dev/vs/herdr?utm_source=readme)
-- **T3 Code:** T3 Code runs agents headless, behind its own chat; Novadeck runs them in real
-  terminals, as their makers ship them.
-  [Novadeck vs T3 Code](https://novadeck.dev/vs/t3code?utm_source=readme)
-
 ## Install
 
 ```sh
