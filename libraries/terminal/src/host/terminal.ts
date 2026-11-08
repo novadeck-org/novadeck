@@ -25,6 +25,10 @@ type Event<T extends TerminalEvent["type"]> = Omit<Extract<TerminalEvent, { type
 /** An event the terminal sequences: what its program drew, a resize, its exit. */
 type Emitted = Event<"output"> | Event<"resized"> | Event<"exited">
 
+// A mode report: `ESC [ ? Ps ; Pm $ y` (DEC) or `ESC [ Ps ; Pm $ y` (ANSI), whole.
+// eslint-disable-next-line no-control-regex -- Escape sequences are what it reads.
+const modeReport = /^\x1b\[\??\d+;\d+\$y$/
+
 // One output event's characters at most.
 const outputChars = 4096
 // How much read output may wait to be drawn before the program is paused, in characters.
@@ -459,7 +463,12 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
       pty.onExit((ended) => exited(current, ended)),
       // Device-status queries are answered by the host's screen, even with no viewer.
       screen.onData((data) => {
-        if (!exiting) pty.write(data)
+        if (exiting) return
+        // A mode report (DECRPM) is one ConPTY's input does not know: it drops the ESC and the
+        // program reads `[?2027;0$y` as typed text (Antigravity's input box held it, so the
+        // doorbell saw no box). No answer is better than a reply read as keys.
+        if (conpty && modeReport.test(data)) return
+        pty.write(data)
       }),
       screen.onTitleChange((title) => fire("title", title, pty)),
       // A shell's integration reports the directory at each prompt: OSC 7 from bash, zsh and
