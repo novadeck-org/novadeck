@@ -36,6 +36,7 @@ import { bannerDrawn } from "./binding/banners.js"
 import { boxView, BoxStates, shownBox } from "./box-state.js"
 import { Dialogs, type DialogsOptions } from "./dialogs.js"
 import { agentWorking, doorbellHost, profileOf } from "./doorbell-host.js"
+import { GivenBack } from "./given-back.js"
 import { holdsRingLine, leftoverNonce } from "./leftover.js"
 import { McpTools } from "./mcp-tools.js"
 import { Interrupts, Prompts } from "./prompting.js"
@@ -166,6 +167,9 @@ export type TypingHost = {
   readonly messaging: () => Messaging
 }
 
+/** The end of a Stop that has not begun. */
+const noStop = (_words: string | null): void => {}
+
 /**
  * Everything that types into terminals' agents, through one input queue per terminal so
  * none types at once: the doorbell's rings, prompts the chat gives, interrupts, and the
@@ -185,6 +189,8 @@ export class Typing {
   readonly dialogs: Dialogs
   /** Whether each prompt given reached its agent's record, as `agents.detail` shows it. */
   readonly receipts: Receipts
+  /** The messages a Stop took back, whose prompt hooks may still report. */
+  readonly givenBack = new GivenBack()
   /** What each terminal's agent's box holds, for those a client reads. */
   readonly boxes: BoxStates
   /** Moves what the person is writing between an agent's box and a client's draft. */
@@ -367,10 +373,14 @@ export class Typing {
   async interrupt(terminalId: string): Promise<InterruptResult> {
     this.promptable(terminalId)
     let since = Date.now()
+    let ended = noStop
+    // The words as the agent's box held them, with any doorbell line a hook may still tell of.
+    let boxed: string | null = null
     const result = await this.inputs
       .run(terminalId, (entry) => {
         since = Date.now()
-        return this.interrupts.interrupt(terminalId, entry)
+        ended = this.givenBack.begin(terminalId, since)
+        return this.interrupts.interrupt(terminalId, entry, (words) => (boxed = words))
       })
       .catch(async (error: unknown) => {
         // Words it couldn't take out are back in the box, which the next prompt sees to.
@@ -378,6 +388,16 @@ export class Typing {
           await this.receipts.putBack(terminalId)
         throw error
       })
+      .then(
+        (one) => {
+          ended(boxed)
+          return one
+        },
+        (error: unknown) => {
+          ended(null)
+          throw error
+        },
+      )
     // The words handed back are the person's draft again: their prompts no longer wait.
     if (result.returned !== null) this.receipts.withdraw(terminalId, result.returned, since)
     return result

@@ -174,9 +174,17 @@ export class Interrupts {
     this.interrupts = new Interrupter(host, options)
   }
 
-  /** `entry`, its turn in the terminal's input queue, holds the person's keys as the box is cleared. */
-  async interrupt(terminalId: string, entry?: InputEntry): Promise<InterruptResult> {
+  /**
+   * `entry`, its turn in the terminal's input queue, holds the person's keys as the box is
+   * cleared. `gave` hears the words as the box held them, doorbell lines and all.
+   */
+  async interrupt(
+    terminalId: string,
+    entry?: InputEntry,
+    gave?: (words: string) => void,
+  ): Promise<InterruptResult> {
     const { returned } = await asDomain(this.interrupts.interrupt(terminalId, entry))
+    if (returned) gave?.(returned)
     return { returned: (returned && withoutDoorbellLines(returned)) || null }
   }
 }

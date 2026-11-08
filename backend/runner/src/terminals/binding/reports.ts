@@ -148,6 +148,12 @@ export class Reports {
               ? { sessionId: record.bound.binding.sessionId, transcript: record.transcript }
               : undefined,
           )
+    // A queued message's hook that outlived the Stop that took the message back: no turn began.
+    if (
+      events.some((event) => event.type === "turn-started") &&
+      (await this.host.typing().givenBack.late(report.terminalId, events))
+    )
+      return silent
     // Its prompt shows before any session of its binds, as Antigravity's status line says.
     const promptShown = harnesses[report.agent].shown?.(report)
     // Which of its screens the agent expected there says it is at, not a job of its shell. A
