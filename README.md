@@ -26,51 +26,67 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/inbox.webp" alt="Three agents ask at once: a command to run, a plan to approve and a question. The Inbox lists all three, and each is answered from its sheet until nothing needs you." width="100%" />
-</p>
-
-<p align="center">
-  Three agents ask at once. Each answer is a click in the Inbox, without opening their terminals.<br />
   <a href="https://youtu.be/m3utO-zBN-k">▶ Watch the 2-minute tour</a>
 </p>
 
-## Why
+No more tabbing through agents to find the one that's been stuck on a `[y/N]` for twenty
+minutes. Novadeck runs them all in one window. When one needs you, it asks in your Inbox, so
+there's no hunting for its terminal, and you can answer most questions right there. Free, open
+source, no account.
 
-Run a few agents and you spend the day tabbing between terminals, looking for the one that's
-been sitting on a `[y/N]` for twenty minutes. Novadeck keeps them all in one window and brings
-their questions to you instead. It's free, open source, and needs no account.
-
-## What you get
-
-- **One Inbox for every agent.** Permission prompts, plans and questions from Claude Code,
-  Codex and Antigravity land in one list. Most you can answer right there, with the
-  agent's own options as buttons.
-- **Bring your own harness (BYOH).** Novadeck runs the real CLIs on your machine, signed in to
-  your own accounts and plans, set up the way you already have them. Nothing is wrapped or
-  rebuilt: each agent runs as its maker ships it.
-- **Agents that work as a team.** Agents message each other by handle (`@moth`), a lead can
-  open teammates and brief them, and Canvas draws who leads whom.
-- **Focus, Grid and Canvas.** One terminal at a time, all of them side by side, or arranged
-  freely on a board.
-- **Back where you were after a reboot.** Every terminal reopens in its folder with its output,
-  and Claude Code, Codex and Antigravity resume the session they were in.
-- **Closing isn't final.** Closed terminals wait in History for 30 days.
-- **Done means done.** An agent that finishes reports it: a mark on its tab, a notification,
-  and its short report in the Inbox.
-
-## A closer look
+## Answer them where you are
 
 <p align="center">
-  <img src="docs/assets/team-canvas.webp" alt="Canvas view: the lead Orders API, marked leads 3, joined by lit wires to its teammates Cart endpoint, Pricing endpoint and Stock endpoint, each marked led by @lynx." width="100%" />
+  <img src="docs/assets/highlights/inbox.webp" alt="In the Grid, Checkout tests, a Claude Code agent, asks to run pnpm test:e2e. The ask opens in the Inbox under what the agent did first, with Allow, always allow and Deny. Allow is picked, and the agent's tests run and pass." width="100%" />
 </p>
 
-A lead and the three teammates it opened, wired together on the Canvas.
+Kick off four agents and go do your own thing. When one has a question or wants your OK to run
+something, you get a ping, and the question waits in your Inbox with the answers as buttons.
+Pick one and the agent carries on, no terminal needed. For the odd prompt Novadeck can't answer,
+there's a button to its terminal. The other agents just keep working.
+
+## Stop being the meat proxy
 
 <p align="center">
-  <img src="docs/assets/grid.webp" alt="Grid view: Claude Code and Codex agents side by side, each in its real terminal, with the sidebar listing every agent and its handle." width="100%" />
+  <img src="docs/assets/highlights/teams.webp" alt="Orders API, a Claude Code lead, with its teammates wired to it in the terminal list, Pricing endpoint on Codex and Stock endpoint on Antigravity among them. Its Messages pane opens Cart endpoint's conversation: the brief, the teammate's question about which API version to call, and the lead's answer." width="100%" />
 </p>
 
-Claude Code and Codex side by side in Grid, each in its own real terminal.
+Tell Claude _"get Codex to review this"_ or _"split this across three more agents"_ and they sort
+it out between themselves. Claude, Codex and Antigravity can work in one team, each with its own
+handle, and a line on screen shows who leads whom. Open an agent's Messages pane to read its
+conversations, and check what they agreed before you trust the result.
+
+## Run one, a few, or the whole crew
+
+<p align="center">
+  <img src="docs/assets/highlights/views.webp" alt="One project's terminals in Focus, one big; then tiled in the Grid; then all ten at once on the Canvas." width="100%" />
+</p>
+
+Zoom in on one, tile a few in a grid or spread them all across a canvas. Same terminals in every
+view, so switching never kills a run.
+
+## Where'd it save that?
+
+<p align="center">
+  <img src="docs/assets/highlights/companion.webp" alt="Order status page, a Claude Code agent, shows its order page in the pane beside its terminal, then a screenshot of three takes on the page's Track package button." width="100%" />
+</p>
+
+When an agent shows you a page, a screenshot or its changes, it lands right next to its
+terminal. You read it there, and then you get back to work.
+
+## Back where you left off
+
+<p align="center">
+  <img src="docs/assets/highlights/restore.webp" alt="Novadeck starts again. Its splash counts the terminals as it attaches them, says Deck online, and cuts back to the deck as it was, in Focus on Cart drawer, its Claude Code session where it left off." width="100%" />
+</p>
+
+Restart Novadeck or your computer and every terminal comes back where it was, with Claude Code,
+Codex and Antigravity back in the session they were in.
+
+## Bring your own harness
+
+Novadeck runs the real Claude Code, Codex and Antigravity, the CLIs on your machine, set up
+exactly how you like them and signed in to your own accounts. Nothing gets rebuilt or wrapped.
 
 ## Install
 

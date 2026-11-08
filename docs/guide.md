@@ -47,7 +47,7 @@ Codex may ask you to trust Novadeck's hooks. Do it with `/hooks`, or messages wo
 
 ## The Inbox
 
-![Three agents ask at once, and each is answered from the Inbox.](assets/inbox.webp)
+![Claude Code asks to run its tests. The ask opens in the Inbox, Allow is picked, and the tests run.](assets/highlights/inbox.webp)
 
 When an agent wants a permission, a plan approved or an answer, it lands in the Inbox. Most of
 the time you answer with a button, right there.
@@ -83,6 +83,8 @@ Click **Messages** on a terminal to read its conversations with other agents.
 An agent can open a page, an image, a plan or its changes in a pane right next to its terminal.
 
 ## After a restart
+
+![Novadeck starts again and its terminals come back as they were, Claude Code's session where it left off.](assets/highlights/restore.webp)
 
 Terminals reopen where they were, and agents pick up their sessions. Closed terminals stay in
 History for 30 days.
