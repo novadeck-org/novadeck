@@ -9,7 +9,8 @@
 
 <p align="center">
   <strong>A desktop terminal for Claude Code, Codex and Antigravity.</strong><br />
-  When an agent needs you, its question comes to one Inbox, and you answer it right there.
+  When an agent needs you, its question comes to one Inbox, and you answer it right there.<br />
+  Free and open source, no account.
 </p>
 
 <p align="center">
@@ -29,64 +30,49 @@
   <a href="https://youtu.be/m3utO-zBN-k">▶ Watch the 2-minute tour</a>
 </p>
 
-Novadeck is a desktop app for running several coding agents at once. Each agent runs as its
-own CLI in a real terminal. When one stops to ask you something, the question shows up in an
-Inbox, so you don't have to go looking for its terminal. It's free, open source and needs no
-account.
-
-## Inbox
+## Answer them where you are
 
 <p align="center">
   <img src="docs/assets/highlights/inbox.webp" alt="In the Grid, Checkout tests, a Claude Code agent, asks to run pnpm test:e2e. The ask opens in the Inbox under what the agent did first, with Allow, always allow and Deny. Allow is picked, and the agent's tests run and pass." width="100%" />
 </p>
 
-Permission prompts, plans and questions from all your agents land in one list, with the
-agent's own options as buttons. Pick one and the agent continues. When Novadeck can't offer a
-prompt's options, it takes you to the terminal instead. New items show up as a toast, or as a
-system notification when Novadeck isn't in front.
+Every agent's permission prompts, plans and questions land in one Inbox. Most you answer with a click.
 
-## Teams
+## Stop being the meat proxy
 
 <p align="center">
   <img src="docs/assets/highlights/teams.webp" alt="Orders API, a Claude Code lead, with its teammates wired to it in the terminal list, Pricing endpoint on Codex and Stock endpoint on Antigravity among them. Its Messages pane opens Cart endpoint's conversation: the brief, the teammate's question about which API version to call, and the lead's answer." width="100%" />
 </p>
 
-Every terminal has a handle, like `@lynx`. Agents can message each other by handle and start
-new agents with a brief, so you can ask Claude to get Codex to review its change. Claude Code,
-Codex and Antigravity can be on the same team. A line connects a lead to its teammates, and
-each agent's Messages pane shows its conversations.
+Agents message each other by handle and start their own teammates. Claude Code, Codex and Antigravity can share a team.
 
-## Focus, Grid and Canvas
+## Run one, a few, or the whole crew
 
 <p align="center">
   <img src="docs/assets/highlights/views.webp" alt="One project's terminals in Focus, one big; then tiled in the Grid; then all ten at once on the Canvas." width="100%" />
 </p>
 
-Focus shows one terminal, Grid tiles them, and Canvas lets you place them anywhere. They're the
-same terminals in every view, so switching doesn't interrupt anything.
+Focus, Grid and Canvas: the same terminals, three ways to look at them.
 
-## Companion pane
+## Where'd it save that?
 
 <p align="center">
   <img src="docs/assets/highlights/companion.webp" alt="Order status page, a Claude Code agent, shows its order page in the pane beside its terminal, then a screenshot of three takes on the page's Track package button." width="100%" />
 </p>
 
-An agent can open a web page, an image or its changes in a pane next to its terminal.
+Pages, screenshots and diffs an agent shows you open right next to its terminal.
 
-## Restore
+## Back where you left off
 
 <p align="center">
   <img src="docs/assets/highlights/restore.webp" alt="Novadeck starts again. Its splash counts the terminals as it attaches them, says Deck online, and cuts back to the deck as it was, in Focus on Cart drawer, its Claude Code session where it left off." width="100%" />
 </p>
 
-After a restart, terminals reopen in the same folders with their recent output, and Claude
-Code, Codex and Antigravity resume their sessions.
+After a restart, terminals reopen where they were and agents pick up their sessions.
 
 ## Bring your own harness
 
-Novadeck doesn't wrap or reimplement the agents. It starts the CLIs you already have
-installed, with your config, signed in to your own accounts. It adds a small plugin to each
-agent to follow its sessions and pass messages, and removes it when you turn the agent off.
+Novadeck runs the CLIs you already have, with your config and your own accounts. Nothing is wrapped or rebuilt.
 
 ## Install
 
