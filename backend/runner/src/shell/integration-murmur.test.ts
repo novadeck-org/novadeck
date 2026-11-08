@@ -513,11 +513,14 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await shell.until(manager, terminal.id, "$ ")
       // A program that, as full-screen ones do, draws a secret on the alternate screen and leaves
       // it before it exits. Not a shell's own: where only the foreground's name is told (macOS),
-      // `sh -c` runs as bash, and a program with the shell's name is read as its prompt.
+      // `sh -c` runs as bash, and a program with the shell's name is read as its prompt. The
+      // shell enters the alternate screen itself just before, so that the screen is the program's
+      // however late it starts: murmur looks `shellRunMs` after the program shows as the
+      // foreground, and a loaded runner's perl has not drawn anything by then.
       manager.write(
         {
           terminalId: terminal.id,
-          data: `perl -e '$| = 1; print "\\e[?1049h", "ALT", 1, "SECRET\\n"; sleep 3; print "\\e[?1049l", "BACK", 1, "ON\\n"'\r`,
+          data: `printf '\\e[?1049h'; perl -e '$| = 1; print "ALT", 1, "SECRET\\n"; sleep 3; print "\\e[?1049l", "BACK", 1, "ON\\n"'\r`,
         },
         "owner",
       )

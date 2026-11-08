@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -142,27 +142,27 @@ describe.skipIf(process.platform === "win32")("a hangup followed through an agen
   })
 
   // A program's own exit can stop it: the shell it asks to take the terminal back has gone.
-  // Skipped on macOS: there its stand-in often isn't saved within the bound (three of four
-  // runs on 2026-11-07, scripts/flakes/register.json `terminal-follow-hangup-saved-macos`).
-  // Whether that is the bound on a loaded runner or an agent really killed unsaved at quit
-  // or hibernation on a Mac is open: architecture/record.md, "Sleeping agents".
-  it.skipIf(process.platform === "darwin")(
-    "wakes an agent stopped on its way out as soon as the shell has gone",
-    async () => {
-      const { root, run, said, end } = await shell()
-      // A shell that outlasts the hangup, until its forced end a second on, by when the agent has
-      // long stopped: Node runs its handler a moment after the signal, which the order would hang on.
-      run(`trap '' HUP`)
-      run(`${process.execPath} stopping.mjs`)
-      const pid = Number((await said(/STOPPING=(\d+)=/))[1])
-      endAfter(pid)
-      const began = Date.now()
-      await end(pid, 5_000)
-      expect(readFileSync(join(root, "saved"), "utf8")).toBe("saved")
-      // Short of the 5 s bound it would otherwise be killed at, unsaved.
-      expect(Date.now() - began).toBeLessThan(4_000)
-    },
-  )
+  it("wakes an agent stopped on its way out as soon as the shell has gone", async () => {
+    const { root, run, said, end } = await shell()
+    // A shell that outlasts the hangup, until its forced end a second on, by when the agent has
+    // long stopped: Node runs its handler a moment after the signal, which the order would hang on.
+    run(`trap '' HUP`)
+    run(`${process.execPath} stopping.mjs`)
+    const pid = Number((await said(/STOPPING=(\d+)=/))[1])
+    endAfter(pid)
+    const began = Date.now()
+    await end(pid, 5_000)
+    // Its save follows the wake by a moment, which on a loaded runner can outlast the end
+    // when the agent isn't followed to its exit; killed at the bound, it never comes.
+    await eventually(
+      () => Promise.resolve(existsSync(join(root, "saved"))),
+      "the agent to save",
+      3_000,
+    )
+    expect(readFileSync(join(root, "saved"), "utf8")).toBe("saved")
+    // Short of the 5 s bound it would otherwise be killed at, unsaved.
+    expect(Date.now() - began).toBeLessThan(4_000)
+  })
 
   it("leaves a nohup started before the agent", async () => {
     const { run, said, end } = await shell()
