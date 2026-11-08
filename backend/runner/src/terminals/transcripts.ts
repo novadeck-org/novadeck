@@ -6,6 +6,7 @@ import { interruptionEntry, noteEntry } from "@novadeck/harness-core/items"
 import { transcriptLimits, type TranscriptChange } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
+import type { Binding } from "../harnesses/bindings.js"
 import { actorOf } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
 import { logs } from "../log.js"
@@ -271,6 +272,17 @@ export const transcriptChanges = async function* (
 }
 
 /**
+ * Whether a record still holds the session it held, through the new binding object each hook
+ * report makes of it (a version learned, a status line): a read that waits on the disk would
+ * otherwise find the session gone when a report landed meanwhile.
+ */
+export const holds = (now: Binding | undefined, then: Binding): boolean =>
+  now !== undefined &&
+  now.agent === then.agent &&
+  now.sessionId === then.sessionId &&
+  now.instance === then.instance
+
+/**
  * An actor's conversation in the terminal, as its harness recorded it: every item so far,
  * then each later one, until the terminal's agent leaves the session it belongs to or
  * `signal` aborts. An actor the bound session does not have, or whose harness keeps no
@@ -286,7 +298,7 @@ export const followTranscript = async function* (
   const native = bound && actorOf(bound.binding, bound.activity, actor)
   if (!bound || !source || !root || native === undefined) throw new DomainError("NOT_FOUND")
   const path = await source.locate(root, bound.binding.sessionId, native)
-  if (!path || record.bound?.binding !== bound.binding) throw new DomainError("NOT_FOUND")
+  if (!path || !holds(record.bound?.binding, bound.binding)) throw new DomainError("NOT_FOUND")
   const reader = new AbortController()
   record.sourceReaders.add(reader)
   const abort = () => reader.abort()

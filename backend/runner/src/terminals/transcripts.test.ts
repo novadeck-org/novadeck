@@ -10,6 +10,7 @@ import { logs, useLogger } from "../log.js"
 import { describe, expect, it as base } from "../test.js"
 import {
   type Interruption,
+  holds,
   lastStep,
   type Reading,
   transcriptChanges,
@@ -428,5 +429,19 @@ describe("a shape its harness's decoder has never seen", () => {
     // A conversational shape past them still is, as the chat's notice came from it.
     unknownShape(many, "item:hologram_call", true)
     expect(logged.at(-1)).toEqual(shape(many.version, "item:hologram_call", true))
+  })
+})
+
+describe("a record's hold on its session", () => {
+  const binding = { agent: "agy", sessionId: "s1", instance: "7" } as const
+
+  it("outlasts the new binding object a hook report makes of it", () => {
+    expect(holds({ ...binding, version: "1.5.3" }, binding)).toBe(true)
+  })
+
+  it("ends with another session, another process, or none", () => {
+    expect(holds({ ...binding, sessionId: "s2" }, binding)).toBe(false)
+    expect(holds({ ...binding, instance: "8" }, binding)).toBe(false)
+    expect(holds(undefined, binding)).toBe(false)
   })
 })

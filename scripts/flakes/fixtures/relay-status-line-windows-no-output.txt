@@ -1,0 +1,178 @@
+2026-11-07T20:38:00.5663970Z @novadeck/wire:test:  [32m✓[39m src/page.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+2026-11-07T20:38:00.7241609Z @novadeck/emulator:test:  [32m✓[39m src/view.test.ts [2m([22m[2m31 tests[22m[2m)[22m[33m 1477[2mms[22m[39m
+2026-11-07T20:38:01.2234812Z @novadeck/terminal:test: $ vitest run
+2026-11-07T20:38:01.4257774Z @novadeck/wire:test:  [32m✓[39m src/keyed.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+2026-11-07T20:38:01.4458373Z @novadeck/wire:test:  [32m✓[39m src/versioned.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+2026-11-07T20:38:01.5295704Z @novadeck/emulator:test:  [32m✓[39m src/ligatures.test.ts [2m([22m[2m43 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+2026-11-07T20:38:01.6275192Z @novadeck/relay:test: test status_line::tests::keeps_at_most_sixty_four_kibibytes ... FAILED
+2026-11-07T20:38:01.7016520Z @novadeck/relay:test: test tests::passes_over_options_it_doesnt_know_rather_than_read_them_as_the_agent ... ok
+2026-11-07T20:38:01.7071586Z @novadeck/emulator:test:  [32m✓[39m src/ligature-font.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 1744[2mms[22m[39m
+2026-11-07T20:38:01.7233058Z @novadeck/emulator:test:    [32m✓[39m the ligature table and the bundled font [2m(9)[22m
+2026-11-07T20:38:01.7378258Z @novadeck/emulator:test:      [33m[2m✓[22m[39m covers every cell the font joins, in every line of two or three of its glyphs[33m 604[2mms[22m[39m
+2026-11-07T20:38:01.7447376Z @novadeck/emulator:test:      [33m[2m✓[22m[39m holds in random code-like lines and long repeated runs[33m 307[2mms[22m[39m
+2026-11-07T20:38:01.7568440Z @novadeck/emulator:test:      [33m[2m✓[22m[39m draws long random mixes of stretches and sequences as it draws them whole[33m 468[2mms[22m[39m
+2026-11-07T20:38:01.7679591Z @novadeck/relay:test: test tests::reads_processes_by_pid_or_by_pid_and_start_and_refuses_anything_else ... ok
+2026-11-07T20:38:01.7925139Z @novadeck/wire:test:  [32m✓[39m src/watched.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+2026-11-07T20:38:01.8306700Z @novadeck/wire:test:  [32m✓[39m src/until.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+2026-11-07T20:38:01.9770991Z @novadeck/wire:test:  [32m✓[39m src/port.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 418[2mms[22m[39m
+2026-11-07T20:38:02.0411755Z @novadeck/tui-input:test: $ vitest run
+2026-11-07T20:38:02.1244789Z @novadeck/log:test: $ vitest run
+2026-11-07T20:38:02.3629093Z @novadeck/wire:test:  [32m✓[39m src/errors.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+2026-11-07T20:38:02.3838883Z @novadeck/wire:test:  [32m✓[39m src/latest.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+2026-11-07T20:38:02.4046737Z @novadeck/wire:test: 
+2026-11-07T20:38:02.4318410Z @novadeck/wire:test: [2m Test Files [22m [1m[32m16 passed[39m[22m[90m (16)[39m
+2026-11-07T20:38:02.4389914Z @novadeck/wire:test: [2m      Tests [22m [1m[32m140 passed[39m[22m[90m (140)[39m
+2026-11-07T20:38:02.4589148Z @novadeck/wire:test: [2m   Start at [22m 20:37:53
+2026-11-07T20:38:02.4681870Z @novadeck/wire:test: [2m   Duration [22m 9.30s[2m (transform 50%, tests 40%, import 10%, worker 1%)[22m
+2026-11-07T20:38:02.5054555Z @novadeck/wire:test: 
+2026-11-07T20:38:02.5111538Z @novadeck/wire:test: [2m    Isolate [22m [33m16 workers spawned[39m[2m · ~698ms startup each (spawn + environment, per file)[22m
+2026-11-07T20:38:02.5173103Z @novadeck/wire:test: [2m            [22m [2mat least ~3.02s faster with [22m[33misolate: false[39m[2m — reuses workers across files instead of one per file[22m
+2026-11-07T20:38:02.5496093Z @novadeck/wire:test: 
+2026-11-07T20:38:02.5636808Z @novadeck/relay:test: test status_line::tests::prints_what_the_command_printed_from_the_same_input ... FAILED
+2026-11-07T20:38:02.5792647Z @novadeck/emulator:test:  [32m✓[39m src/screen.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 213[2mms[22m[39m
+2026-11-07T20:38:02.8601179Z @novadeck/whisper:test: cache miss, executing 6bd1ae7e85ab8f1e
+2026-11-07T20:38:03.4868226Z @novadeck/emulator:test:  [32m✓[39m src/snapshot.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 161[2mms[22m[39m
+2026-11-07T20:38:03.8238476Z @novadeck/terminal:test: 
+2026-11-07T20:38:03.8588587Z @novadeck/terminal:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90mD:/a/novadeck/novadeck/libraries/terminal[39m
+2026-11-07T20:38:03.8748537Z @novadeck/terminal:test: 
+2026-11-07T20:38:03.8986326Z @novadeck/emulator:test:  [32m✓[39m src/width-cache.test.ts [2m([22m[2m20 tests[22m[2m)[22m[33m 5057[2mms[22m[39m
+2026-11-07T20:38:03.9129951Z @novadeck/emulator:test:    [32m✓[39m the DOM renderer's width measurements in lib/xterm.js [2m(10)[22m
+2026-11-07T20:38:03.9405642Z @novadeck/emulator:test:      [33m[2m✓[22m[39m are shared: a screen opened after another has drawn measures next to nothing[33m 824[2mms[22m[39m
+2026-11-07T20:38:03.9511521Z @novadeck/emulator:test:      [33m[2m✓[22m[39m keep what screens still draw, however many screens there are[33m 540[2mms[22m[39m
+2026-11-07T20:38:03.9640959Z @novadeck/emulator:test:      [33m[2m✓[22m[39m keep a string in use across the table's turning over, and stay bounded[33m 598[2mms[22m[39m
+2026-11-07T20:38:03.9975062Z @novadeck/emulator:test:      [33m[2m✓[22m[39m keep the fonts used last, and let go of the rest[33m 415[2mms[22m[39m
+2026-11-07T20:38:04.0063323Z @novadeck/emulator:test:    [32m✓[39m the DOM renderer's width measurements in lib/xterm.mjs [2m(10)[22m
+2026-11-07T20:38:04.0173984Z @novadeck/emulator:test:      [33m[2m✓[22m[39m keep a string in use across the table's turning over, and stay bounded[33m 580[2mms[22m[39m
+2026-11-07T20:38:04.0449044Z @novadeck/emulator:test:      [33m[2m✓[22m[39m keep the fonts used last, and let go of the rest[33m 411[2mms[22m[39m
+2026-11-07T20:38:04.0823436Z @novadeck/terminal:build: cache miss, executing 092448162ca74826
+2026-11-07T20:38:04.3167189Z @novadeck/emulator:test:  [32m✓[39m src/mouse.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 258[2mms[22m[39m
+2026-11-07T20:38:04.3528430Z @novadeck/sandbox:test:  [32m✓[39m src/reap.test.ts [2m([22m[2m8 tests[22m[2m | [22m[33m7 skipped[39m[2m)[22m[33m 10056[2mms[22m[39m
+2026-11-07T20:38:04.3838136Z @novadeck/sandbox:test:    [32m✓[39m reap on Windows [2m(1)[22m
+2026-11-07T20:38:04.4226094Z @novadeck/sandbox:test:      [33m[2m✓[22m[39m ends what runs in the sandbox or has its home, naming it, and nothing else[33m 10054[2mms[22m[39m
+2026-11-07T20:38:04.4397525Z @novadeck/sandbox:test: 
+2026-11-07T20:38:04.4603950Z @novadeck/sandbox:test: [2m Test Files [22m [1m[32m9 passed[39m[22m[90m (9)[39m
+2026-11-07T20:38:04.4800757Z @novadeck/sandbox:test: [2m      Tests [22m [1m[32m35 passed[39m[22m[2m | [22m[33m9 skipped[39m[90m (44)[39m
+2026-11-07T20:38:04.4854460Z @novadeck/sandbox:test: [2m   Start at [22m 20:37:52
+2026-11-07T20:38:04.4928462Z @novadeck/sandbox:test: [2m   Duration [22m 11.60s[2m (tests 82%, transform 17%, import 1%)[22m
+2026-11-07T20:38:04.5049176Z @novadeck/sandbox:test: 
+2026-11-07T20:38:04.5328591Z @novadeck/sandbox:test: [2m    Isolate [22m [33m9 workers spawned[39m[2m · ~800ms startup each (spawn + environment, per file)[22m
+2026-11-07T20:38:04.5420160Z @novadeck/sandbox:test: [2m            [22m [2mat least ~1.60s faster with [22m[33misolate: false[39m[2m — reuses workers across files instead of one per file[22m
+2026-11-07T20:38:04.5528531Z @novadeck/sandbox:test: 
+2026-11-07T20:38:04.5528938Z @novadeck/tui-input:test: 
+2026-11-07T20:38:04.5997737Z @novadeck/tui-input:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90mD:/a/novadeck/novadeck/libraries/tui-input[39m
+2026-11-07T20:38:04.6459066Z @novadeck/tui-input:test: 
+2026-11-07T20:38:04.6956657Z @novadeck/emulator:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-11-07T20:38:04.7597406Z @novadeck/emulator:test:  [32m✓[39m src/write.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 94[2mms[22m[39m
+2026-11-07T20:38:04.8216957Z @novadeck/log:test: 
+2026-11-07T20:38:04.8570447Z @novadeck/log:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90mD:/a/novadeck/novadeck/libraries/log[39m
+2026-11-07T20:38:04.8872293Z @novadeck/log:test: 
+2026-11-07T20:38:05.0063743Z @novadeck/protocol:test: cache miss, executing 9fcd133c5550ad59
+2026-11-07T20:38:05.2397220Z @novadeck/emulator:test:  [32m✓[39m src/transcript.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 141[2mms[22m[39m
+2026-11-07T20:38:06.0264065Z @novadeck/whisper:test: $ vitest run
+2026-11-07T20:38:06.3606198Z @novadeck/log:test:  [32m✓[39m src/paths.test.ts [2m([22m[2m59 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+2026-11-07T20:38:06.6329238Z @novadeck/emulator:test:  [32m✓[39m src/runs.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 61[2mms[22m[39m
+2026-11-07T20:38:06.8781475Z @novadeck/log:test:  [32m✓[39m src/file.test.ts [2m([22m[2m21 tests[22m[2m | [22m[33m3 skipped[39m[2m)[22m[33m 637[2mms[22m[39m
+2026-11-07T20:38:07.2604047Z @novadeck/terminal:test:  [32m✓[39m [30m[43m node [49m[39m src/pty/scopes.test.ts [2m([22m[2m26 tests[22m[2m)[22m[33m 398[2mms[22m[39m
+2026-11-07T20:38:07.4819345Z @novadeck/terminal:test:  [32m✓[39m [30m[43m node [49m[39m src/host/host.test.ts [2m([22m[2m22 tests[22m[2m | [22m[33m2 skipped[39m[2m)[22m[32m 55[2mms[22m[39m
+2026-11-07T20:38:07.7346553Z @novadeck/emulator:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-11-07T20:38:07.9128127Z @novadeck/emulator:test:  [32m✓[39m src/width.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+2026-11-07T20:38:08.2061201Z @novadeck/emulator:test:  [32m✓[39m src/report.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+2026-11-07T20:38:08.2678416Z @novadeck/log:test:  [32m✓[39m src/session.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+2026-11-07T20:38:08.3279442Z @novadeck/tui-input:test:  [32m✓[39m src/typist.test.ts [2m([22m[2m50 tests[22m[2m)[22m[32m 195[2mms[22m[39m
+2026-11-07T20:38:08.3621545Z @novadeck/terminal:test:  [32m✓[39m [30m[43m node [49m[39m src/pty/descendants.test.ts [2m([22m[2m29 tests[22m[2m | [22m[33m7 skipped[39m[2m)[22m[32m 17[2mms[22m[39m
+2026-11-07T20:38:08.3782228Z @novadeck/log:test:  [32m✓[39m src/logger.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 394[2mms[22m[39m
+2026-11-07T20:38:08.4112839Z @novadeck/terminal:build: $ tsc -p tsconfig.build.json && tsc -p tsconfig.view.build.json && node --input-type=module -e "import { cpSync } from 'node:fs'; cpSync('src/testing/child.mjs', 'dist/testing/child.mjs')"
+2026-11-07T20:38:08.7743889Z @novadeck/terminal:test:  [2m[90m↓[39m[22m [30m[43m node [49m[39m src/pty/follow.test.ts [2m([22m[2m8 tests[22m[2m | [22m[33m8 skipped[39m[2m)[22m
+2026-11-07T20:38:08.8307504Z @novadeck/emulator:test:  [32m✓[39m src/cell.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+2026-11-07T20:38:09.0299008Z @novadeck/log:test:  [32m✓[39m src/envelope.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+2026-11-07T20:38:09.1029110Z @novadeck/terminal:test:  [32m✓[39m [30m[43m node [49m[39m src/host/terminal.test.ts [2m([22m[2m53 tests[22m[2m)[22m[33m 1663[2mms[22m[39m
+2026-11-07T20:38:09.1290657Z @novadeck/terminal:test:    [32m✓[39m a terminal's snapshot [2m(5)[22m
+2026-11-07T20:38:09.1473510Z @novadeck/terminal:test:      [33m[2m✓[22m[39m recovers a fully colored ordinary terminal whose retained screen exceeds the live queue budget[33m 1183[2mms[22m[39m
+2026-11-07T20:38:09.1623640Z @novadeck/emulator:test:  [32m✓[39m src/pointer.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+2026-11-07T20:38:09.1815650Z @novadeck/emulator:test: Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+2026-11-07T20:38:09.2030583Z @novadeck/emulator:test:  [32m✓[39m src/alt-buffer.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+2026-11-07T20:38:09.2392233Z @novadeck/emulator:test: 
+2026-11-07T20:38:09.2647215Z @novadeck/emulator:test: [2m Test Files [22m [1m[32m16 passed[39m[22m[90m (16)[39m
+2026-11-07T20:38:09.3089123Z @novadeck/emulator:test: [2m      Tests [22m [1m[32m223 passed[39m[22m[2m | [22m[36m3 expected fail[39m[90m (226)[39m
+2026-11-07T20:38:09.3166756Z @novadeck/emulator:test: [2m   Start at [22m 20:37:53
+2026-11-07T20:38:09.3690467Z @novadeck/emulator:test: [2m   Duration [22m 15.89s[2m (environment 57%, tests 26%, transform 13%, import 2%, worker 1%)[22m
+2026-11-07T20:38:09.3772922Z @novadeck/emulator:test: 
+2026-11-07T20:38:09.4128053Z @novadeck/emulator:test: [2m    Isolate [22m [33m16 workers spawned[39m[2m · ~1.92s startup each (spawn + environment, per file)[22m
+2026-11-07T20:38:09.4277856Z @novadeck/emulator:test: [2m            [22m [2mat least ~8.32s faster with [22m[33misolate: false[39m[2m — reuses workers across files instead of one per file[22m
+2026-11-07T20:38:09.4469227Z @novadeck/emulator:test: 
+2026-11-07T20:38:09.4634421Z @novadeck/log:test:  [32m✓[39m src/urls.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+2026-11-07T20:38:09.5251845Z @novadeck/whisper:test: 
+2026-11-07T20:38:09.5298657Z @novadeck/whisper:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90mD:/a/novadeck/novadeck/engines/whisper[39m
+2026-11-07T20:38:09.5628231Z @novadeck/whisper:test: 
+2026-11-07T20:38:09.5930434Z @novadeck/log:test:  [32m✓[39m src/collapse.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+2026-11-07T20:38:09.6342766Z @novadeck/terminal:test:  [32m✓[39m [30m[43m node [49m[39m src/pty/foreground.test.ts [2m([22m[2m20 tests[22m[2m | [22m[33m4 skipped[39m[2m)[22m[32m 13[2mms[22m[39m
+2026-11-07T20:38:09.6959439Z @novadeck/protocol:test: $ vitest run
+2026-11-07T20:38:09.8287276Z @novadeck/harness-core:test: cache miss, executing 4e77b200f53dc688
+2026-11-07T20:38:10.0039158Z @novadeck/log:test:  [32m✓[39m src/salt.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+2026-11-07T20:38:10.1071093Z @novadeck/whisper:test:  [32m✓[39m test/reviewed.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 58[2mms[22m[39m
+2026-11-07T20:38:10.1258808Z @novadeck/whisper:test: 
+2026-11-07T20:38:10.1552981Z @novadeck/whisper:test: [2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+2026-11-07T20:38:10.1625020Z @novadeck/whisper:test: [2m      Tests [22m [1m[32m8 passed[39m[22m[90m (8)[39m
+2026-11-07T20:38:10.1950858Z @novadeck/whisper:test: [2m   Start at [22m 20:38:09
+2026-11-07T20:38:10.2124117Z @novadeck/whisper:test: [2m   Duration [22m 604ms[2m (transform 65%, tests 26%, import 8%, worker 2%)[22m
+2026-11-07T20:38:10.2211863Z @novadeck/whisper:test: 
+2026-11-07T20:38:10.4027259Z @novadeck/runner-client:test: cache miss, executing ec6ec25f19a8ac63
+2026-11-07T20:38:10.8739861Z @novadeck/relay:test: test status_line::tests::ends_a_command_still_running_at_the_deadline_and_shows_what_it_printed ... FAILED
+2026-11-07T20:38:11.2371153Z @novadeck/relay:test: test status_line::tests::ends_a_command_that_ignores_being_asked_to ... FAILED
+2026-11-07T20:38:11.2808734Z @novadeck/relay:test: 
+2026-11-07T20:38:11.2986038Z @novadeck/relay:test: failures:
+2026-11-07T20:38:11.3070111Z @novadeck/relay:test: 
+2026-11-07T20:38:11.3374769Z @novadeck/relay:test: ---- status_line::tests::keeps_at_most_sixty_four_kibibytes stdout ----
+2026-11-07T20:38:11.3476959Z @novadeck/relay:test: 
+2026-11-07T20:38:11.3513744Z @novadeck/relay:test: thread 'status_line::tests::keeps_at_most_sixty_four_kibibytes' (9324) panicked at src\status_line.rs:553:9:
+2026-11-07T20:38:11.3635437Z @novadeck/relay:test: assertion `left == right` failed
+2026-11-07T20:38:11.3715133Z @novadeck/relay:test:   left: 0
+2026-11-07T20:38:11.3721276Z @novadeck/relay:test:  right: 65536
+2026-11-07T20:38:11.3846662Z @novadeck/relay:test: note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-11-07T20:38:11.3911112Z @novadeck/relay:test: 
+2026-11-07T20:38:11.4177401Z @novadeck/relay:test: ---- status_line::tests::prints_what_the_command_printed_from_the_same_input stdout ----
+2026-11-07T20:38:11.4304235Z @novadeck/relay:test: 
+2026-11-07T20:38:11.4381259Z @novadeck/relay:test: thread 'status_line::tests::prints_what_the_command_printed_from_the_same_input' (9700) panicked at src\status_line.rs:428:9:
+2026-11-07T20:38:11.4405920Z @novadeck/relay:test: assertion `left == right` failed
+2026-11-07T20:38:11.4430835Z @novadeck/relay:test:   left: ""
+2026-11-07T20:38:11.4575974Z @novadeck/relay:test:  right: "{\"model\":1} done"
+2026-11-07T20:38:11.4627544Z @novadeck/relay:test: 
+2026-11-07T20:38:11.4677949Z @novadeck/relay:test: ---- status_line::tests::ends_a_command_still_running_at_the_deadline_and_shows_what_it_printed stdout ----
+2026-11-07T20:38:11.4759292Z @novadeck/relay:test: 
+2026-11-07T20:38:11.5081098Z @novadeck/relay:test: thread 'status_line::tests::ends_a_command_still_running_at_the_deadline_and_shows_what_it_printed' (7028) panicked at src\status_line.rs:530:9:
+2026-11-07T20:38:11.5225178Z @novadeck/relay:test: the command printed nothing by any deadline
+2026-11-07T20:38:11.5384687Z @novadeck/relay:test: 
+2026-11-07T20:38:11.5487489Z @novadeck/relay:test: ---- status_line::tests::ends_a_command_that_ignores_being_asked_to stdout ----
+2026-11-07T20:38:11.5625078Z @novadeck/relay:test: 
+2026-11-07T20:38:11.5718901Z @novadeck/relay:test: thread 'status_line::tests::ends_a_command_that_ignores_being_asked_to' (8452) panicked at src\status_line.rs:530:9:
+2026-11-07T20:38:11.5859614Z @novadeck/relay:test: the command printed nothing by any deadline
+2026-11-07T20:38:11.6021933Z @novadeck/relay:test: 
+2026-11-07T20:38:11.6041738Z @novadeck/relay:test: 
+2026-11-07T20:38:11.6138054Z @novadeck/relay:test: failures:
+2026-11-07T20:38:11.6138882Z @novadeck/relay:test:     status_line::tests::ends_a_command_still_running_at_the_deadline_and_shows_what_it_printed
+2026-11-07T20:38:11.6246613Z @novadeck/relay:test:     status_line::tests::ends_a_command_that_ignores_being_asked_to
+2026-11-07T20:38:11.6287855Z @novadeck/relay:test:     status_line::tests::keeps_at_most_sixty_four_kibibytes
+2026-11-07T20:38:11.6332400Z @novadeck/relay:test:     status_line::tests::prints_what_the_command_printed_from_the_same_input
+2026-11-07T20:38:11.6460876Z @novadeck/relay:test: 
+2026-11-07T20:38:11.6523058Z @novadeck/relay:test: test result: FAILED. 46 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.94s
+2026-11-07T20:38:11.6736431Z @novadeck/relay:test: 
+2026-11-07T20:38:11.6965750Z @novadeck/relay:test: error: test failed, to rerun pass `--bin novadeck-relay`
+2026-11-07T20:38:11.7020003Z @novadeck/relay:test: cargo test --locked failed
+2026-11-07T20:38:11.7155250Z @novadeck/relay:test: [ELIFECYCLE] Test failed. See above for more details.
+2026-11-07T20:38:11.7341953Z @novadeck/protocol:test: 
+2026-11-07T20:38:11.7391187Z @novadeck/protocol:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90mD:/a/novadeck/novadeck/contract/protocol[39m
+2026-11-07T20:38:11.7438018Z @novadeck/protocol:test: 
+2026-11-07T20:38:11.7468243Z @novadeck/harness-codex:test: cache miss, executing 3fb8b4f97b65904e
+2026-11-07T20:38:11.7631202Z @novadeck/harness-agy:test: cache miss, executing c51de7e84c307859
+2026-11-07T20:38:11.7893139Z @novadeck/harness-claude:test: cache miss, executing 5a1bbe6a6c5038f4
+2026-11-07T20:38:11.9254899Z @novadeck/harness-core:test: $ vitest run
+2026-11-07T20:38:12.3149094Z ##[error]command (D:\a\novadeck\novadeck\backend\relay) C:\Users\runneradmin\setup-pnpm\pnpm.exe run test exited (1)
+2026-11-07T20:38:12.3155834Z 
+2026-11-07T20:38:12.3157146Z @novadeck/relay#test:  ERROR  command (D:\a\novadeck\novadeck\backend\relay) C:\Users\runneradmin\setup-pnpm\pnpm.exe run test exited (1)
+2026-11-07T20:38:12.3158814Z  Tasks:    8 successful, 21 total
+2026-11-07T20:38:12.3160486Z Cached:    0 cached, 21 total
+2026-11-07T20:38:12.3164719Z  ERROR  run failed: command  exited (1)
+2026-11-07T20:38:12.3165104Z   Time:    23.665s 
+2026-11-07T20:38:12.3179157Z Failed:    @novadeck/relay#test
+2026-11-07T20:38:12.3181859Z 
+2026-11-07T20:38:12.6617328Z ##[error]Process completed with exit code 1.

@@ -1,3 +1,5 @@
+import { writeFileSync } from "node:fs"
+import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import { doorbellLine } from "@novadeck/harness-core/prompts"
@@ -217,8 +219,12 @@ for (const setup of setups) {
         )
         const t1 = await start(run, setup)
         const mark = t1.mark()
+        const first = run.model.mark()
         await t1.prompt("Hold on")
         await t1.reached("working", { after: mark })
+        // The first prompt's model call may leave after the hook told of it, and a prompt typed
+        // before it leaves goes in that call: not queued behind a turn, but part of the first.
+        await run.model.waitFor((one) => !one.side && asked(one, "Hold on"), { after: first })
         const calls = run.model.mark()
         await t1.prompt("Queued")
         await t1.until(setup.queued!("Queued"))
@@ -238,10 +244,16 @@ for (const setup of setups) {
 
     // A queued prompt's hook runs as it is queued, and a Stop takes the prompt back out: a
     // message printed there would go with it, unseen, though held as delivered.
-    const slowQueue = e2e.seeded({}, setup)
+    // Its prompt hooks as slow as Claude Code's on Windows (over a second each), where a queued
+    // prompt's hook reports only after the Stop that took the prompt back.
+    const slowHook = "slow-hook.cjs"
+    const seedSlowHook = ({ sandbox }: E2E) =>
+      writeFileSync(join(sandbox.project, slowHook), `setTimeout(() => console.log("{}"), 1300)\n`)
+    const slowQueue = e2e.seeded({ promptHook: slowHook }, setup)
     gated(slowQueue, setup.queueing ? undefined : "its queued prompts' hooks don't run early")(
       "brings a message to an agent whose queued prompt a Stop took back, and no doorbell line back to the person",
       async ({ e2e: run }) => {
+        seedSlowHook(run)
         const held = gate()
         run.model.use(
           sends("Tell moth the news", "moth", "The build is green."),
@@ -283,6 +295,7 @@ for (const setup of setups) {
     gated(slowQueue, setup.queueing ? undefined : "its queued prompts' hooks don't run early")(
       "brings a message to an agent whose second queued prompt a Stop took back from a turn no hook told of",
       async ({ e2e: run }) => {
+        seedSlowHook(run)
         const held = gate()
         const betaHeld = gate()
         run.model.use(
@@ -588,7 +601,9 @@ for (const setup of setups) {
         await sleep(unrung)
         expect(states(t1, mark)).not.toContain("ringing")
         expect(messages(t1).findLast((one) => one.from === "fox")?.state).toBe("queued")
-        expect(t1.messages().waits).toBe("draft")
+        // Said with the screen: a box that reads as a dialog (seen once on Windows, 2026-11-08,
+        // with nothing recorded of the screen) shows what it held.
+        expect(t1.messages().waits, await t1.screen()).toBe("draft")
         expect(await t1.screen()).not.toContain("[Novadeck")
         // The words are where they were, out of sight on Claude Code's box until scrolled back to.
         t1.press(down.repeat(lines))

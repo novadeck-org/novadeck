@@ -28,6 +28,7 @@ const fixtures: Record<string, string> = {
   "adapter-restore-macos-shell-exited": "Test (macOS)",
   "secrets-macos-hex-group-timeout": "Test (macOS)",
   "viewers-macos-diff-update-budget": "Test (macOS)",
+  "relay-status-line-windows-no-output": "Test (Windows, 1/3)",
 }
 
 describe("the known-flake register", () => {
@@ -53,6 +54,17 @@ describe("the known-flake register", () => {
       const log = fixture("e2e-codex-windows-patch-never-returns")
       const other = log.replaceAll("Finished Transcript step 2.", "Finished Transcript step 1.")
       expect(judgeJob(register, job, other).flakes).toEqual([])
+    })
+  })
+
+  context("when the relay's job fails on more than its status line tests", () => {
+    it("takes it for no flake, as only status line tests printing nothing are excused", () => {
+      const job = "Test (Windows, 1/3)"
+      const log = fixture("relay-status-line-windows-no-output").replace(
+        "    status_line::tests::prints_what_the_command_printed_from_the_same_input",
+        "    status_line::tests::prints_what_the_command_printed_from_the_same_input\n    hook::tests::reports_a_prompt",
+      )
+      expect(judgeJob(register, job, log).flakes).toEqual([])
     })
   })
 

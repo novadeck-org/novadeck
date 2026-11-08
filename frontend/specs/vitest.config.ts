@@ -23,6 +23,9 @@ const optimizedUpFront = [
   "@novadeck/emulator > @xterm/addon-web-links",
   "@novadeck/emulator > @xterm/addon-webgl",
   "@novadeck/emulator > @xterm/xterm",
+  // The scripted runner some specs connect to, over a message port.
+  "@novadeck/runner-adapter > @orpc/server",
+  "@novadeck/runner-adapter > @orpc/server/message-port",
   "@novadeck/wire > @orpc/client",
   "@novadeck/wire > @orpc/client/standard",
   "@novadeck/wire > @orpc/standard-server-peer",

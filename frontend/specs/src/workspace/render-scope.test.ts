@@ -142,8 +142,10 @@ const Grab = ({ found }: { readonly found: (services: WorkspaceServices) => void
 
 // The whole workspace page over the default backend, or the one given, with its services
 // in reach.
-const open = async (createBackend = createSpecBackend) => {
-  const phase = testPhases("workspace render scope", () => Object.fromEntries(renders))
+const open = async (
+  createBackend = createSpecBackend,
+  phase = testPhases("workspace render scope", () => Object.fromEntries(renders)),
+) => {
   window.location.hash = `#/projects/storefront/sessions/initial/canvas?terminal=${first}`
   let found!: (services: WorkspaceServices) => void
   const handedOver = new Promise<WorkspaceServices>((resolve) => {
@@ -184,6 +186,18 @@ const open = async (createBackend = createSpecBackend) => {
   phase("after async act")
   return { page, services }
 }
+
+// The first render of the page loads the rest of its code on demand, and a Windows runner
+// spent 34 s on it (8 s rendering, then 23 s with little CPU in the act that waits for the
+// code to arrive), past the first test's 30 s. One render here, in a hook with a budget of
+// its own, leaves the tests only the work they mean to time.
+beforeAll(async () => {
+  const page = await open(createSpecBackend, () => {})
+  page.page.unmount()
+  mounted.delete(page.page)
+  renders.clear()
+  // The cold cost is paid once, here, so this hook may take what three tests' budgets would.
+}, 90_000)
 
 // What rendered while `change` ran, by component.
 const rendersDuring = (change: () => void): Record<string, number> => {

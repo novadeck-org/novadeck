@@ -76,4 +76,18 @@ describe("latestRelease", () => {
       expect(again.asked.count).toBe(1)
     }
   })
+
+  it("keeps an old record when the lookup fails, as a run without the network does", async () => {
+    const file = record()
+    await latestRelease(file, version, lookup("2.2.0").look, 1000)
+    const failing = async () => {
+      throw new Error("getaddrinfo EAI_AGAIN")
+    }
+
+    await expect(latestRelease(file, version, failing, 1000 + latestMs * 80)).resolves.toEqual({
+      version: "2.2.0",
+    })
+    // With no record to keep, the failure stands.
+    await expect(latestRelease(record(), version, failing, 1000)).rejects.toThrow("EAI_AGAIN")
+  })
 })

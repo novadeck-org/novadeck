@@ -148,6 +148,16 @@ export class Reports {
               ? { sessionId: record.bound.binding.sessionId, transcript: record.transcript }
               : undefined,
           )
+    // A queued message's hook that outlived the Stop that took the message back: no turn began.
+    // Claude Code's alone: it runs a queued message's hook as the message is queued. Antigravity's
+    // don't run then either, and Codex's hooks for a message a Stop left queued are the turn it
+    // goes on with.
+    if (
+      report.agent === "claude" &&
+      events.some((event) => event.type === "turn-started") &&
+      (await this.host.typing().givenBack.late(report.terminalId, events))
+    )
+      return silent
     // Its prompt shows before any session of its binds, as Antigravity's status line says.
     const promptShown = harnesses[report.agent].shown?.(report)
     // Which of its screens the agent expected there says it is at, not a job of its shell. A

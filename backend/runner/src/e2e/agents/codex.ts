@@ -529,9 +529,12 @@ export const appServer = (
     },
     request,
     // On Windows with the codex cmd started, which ending cmd alone leaves running.
-    close: () => {
+    // Settles once the tree is killed, as a start again must not meet its sqlite files held.
+    close: async (): Promise<void> => {
       if (process.platform === "win32" && child.pid !== undefined)
-        execFile("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true })
+        await promisify(execFile)("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+          windowsHide: true,
+        }).catch(() => undefined)
       else child.kill()
     },
   }
@@ -560,6 +563,21 @@ type Listed = {
  * them leaves them.
  */
 const trustHooks = async (
+  sandbox: Sandbox,
+  options: { readonly hooks?: boolean } = {},
+): Promise<void> => {
+  // An app-server that never answers `initialize` (not one that is slow: `answerMs` waits
+  // that out) is started afresh once, the files its first start made kept in CODEX_HOME;
+  // a Windows runner's cold start was seen to outlast even 60 s (2026-11-08, #763).
+  try {
+    await trustHooksOnce(sandbox, options)
+  } catch (error) {
+    if (!String(error).includes("didn't answer initialize")) throw error
+    await trustHooksOnce(sandbox, options)
+  }
+}
+
+const trustHooksOnce = async (
   sandbox: Sandbox,
   { hooks = true }: { readonly hooks?: boolean } = {},
 ): Promise<void> => {
@@ -598,6 +616,6 @@ const trustHooks = async (
         `Codex ${hooks ? "still doesn't trust" : "trusts"} Novadeck's hooks: ${JSON.stringify(after)}`,
       )
   } finally {
-    server.close()
+    await server.close()
   }
 }

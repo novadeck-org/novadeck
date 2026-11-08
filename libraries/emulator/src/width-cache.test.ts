@@ -10,6 +10,10 @@ type Terminal = XTerminal
 let Terminal: typeof XTerminal
 const bundles = ["xterm.js", "xterm.mjs"]
 
+// Each test opens several screens in jsdom, which vitest's 5 s would cut short on a loaded macOS
+// runner (6.4 s once); what they assert is counted reads, never time.
+vi.setConfig({ testTimeout: 20_000 })
+
 // jsdom has no canvas or media queries; xterm opens without them.
 vi.hoisted(() => {
   HTMLCanvasElement.prototype.getContext = () => null

@@ -813,7 +813,31 @@ for (const setup of setups) {
             // stop for 60 ms (paste_burst.rs, 0.163): the path pasted right after the words
             // would join them as one paste, words and not a path, so the words land first.
             await t1.until(given[0]!)
-            await t1.confirm(setup.image!.shows, async () => t1.press(`\x1b[200~${path}\x1b[201~`))
+            // On Windows the paste is keys, and a pause inside them (a loaded runner, seen
+            // 2026-11-07, 0.167.0) ends the burst early: the rest lands as text, the path
+            // stays words and no image attaches (the trace shows the paste and the screen
+            // the path as typed). The path is erased and pasted again, up to three times.
+            for (let attempt = 1; ; attempt += 1)
+              try {
+                // eslint-disable-next-line no-await-in-loop -- One paste after another.
+                await t1.confirm(
+                  setup.image!.shows,
+                  async () => t1.press(`\x1b[200~${path}\x1b[201~`),
+                  { timeoutMs: attempt === 1 ? 15_000 : 5_000 },
+                )
+                break
+              } catch (error) {
+                // Erased only where the screen shows the path as text: with no path shown the
+                // placeholder may be drawn late, and erasing would eat the placeholder and words.
+                // eslint-disable-next-line no-await-in-loop -- Read before erasing.
+                if (attempt === 3 || !(await t1.screen()).includes("picture.png")) throw error
+                t1.press("\x7f".repeat(path.length))
+                // eslint-disable-next-line no-await-in-loop -- Erased before the next paste.
+                await t1.poll(
+                  async () => ((await t1.screen()).includes("picture.png") ? undefined : true),
+                  "the pasted path to be erased",
+                )
+              }
           }
           // Each followed until the record has it, as the chat shows it pending until then.
           const settles = image

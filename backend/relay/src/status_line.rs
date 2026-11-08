@@ -418,12 +418,31 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
+    static ALONE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// `run`, one at a time: Git Bash (MSYS) shells starting together on a busy Windows
+    /// runner have printed nothing in any of four tests at once, for as long as 15 s, and
+    /// each is run again, once more, should it print nothing.
+    fn run_alone(command: &str, input: &[u8], wait: Duration) -> String {
+        let mut printed = String::new();
+        for _ in 0..2 {
+            let _alone = ALONE
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            printed = run(command, input, Instant::now() + wait);
+            if !printed.is_empty() {
+                break;
+            }
+        }
+        printed
+    }
+
     #[test]
     fn prints_what_the_command_printed_from_the_same_input() {
-        let printed = run(
+        let printed = run_alone(
             "cat; printf ' done'",
             b"{\"model\":1}",
-            Instant::now() + Duration::from_secs(5),
+            Duration::from_secs(5),
         );
         assert_eq!(printed, "{\"model\":1} done");
     }
@@ -482,14 +501,18 @@ mod tests {
     }
 
     /// Runs `command`, given its mark's path, quoted, and the time after which a process it
-    /// started leaves it, twice the deadline, and checks the deadline ended it all and kept
+    /// started leaves it, two seconds past the deadline, and checks the deadline ended it all and kept
     /// what it printed, "partly", by then. Gives the mark's path, of the run that printed.
     fn ends_at_the_deadline(name: &str, command: impl Fn(&str, &str) -> String) -> PathBuf {
         // A shell can be slow to start (Git Bash on a busy Windows runner took over 300 ms),
         // and a deadline that comes before it printed shows nothing: each such run is tried
-        // again with a longer deadline. A process the command started leaves a mark at twice
-        // the deadline, which it never reaches if the deadline ended everything the command
-        // started, not the shell alone (the `:` keeps the shell from becoming that process).
+        // again with a longer deadline. A process the command started leaves a mark two
+        // seconds past the deadline, which it never reaches if the deadline ended everything
+        // the command started, not the shell alone (the `:` keeps the shell from becoming
+        // that process). The margin is in time, not a multiple of the deadline: the 300 ms
+        // one left the ending 300 ms, which a macOS runner's slow timers spent (`run`
+        // returned after 720 to 740 ms, the SIGKILLs it repeats each taking three times
+        // their 10 ms), and the mark came before that ending, not after.
         for (round, wait) in [300, 1_000, 3_000, 10_000]
             .map(Duration::from_millis)
             .into_iter()
@@ -500,16 +523,22 @@ mod tests {
                 std::process::id()
             ));
             let _ = std::fs::remove_file(&mark);
-            let command = command(&quoted(&mark), &format!("{:.1}", (wait * 2).as_secs_f64()));
-            let began = Instant::now();
-            let printed = run(&command, b"", began + wait);
-            let ended = began.elapsed();
+            let later = wait + Duration::from_secs(2);
+            let command = command(&quoted(&mark), &format!("{:.1}", later.as_secs_f64()));
+            let (began, printed, ended) = {
+                let _alone = ALONE
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                let began = Instant::now();
+                let printed = run(&command, b"", began + wait);
+                (began, printed, began.elapsed())
+            };
             assert!(ended < wait + Duration::from_secs(5));
             if printed == "partly" {
                 // It printed by the time it was ended, so had it lived it would have left
-                // the mark soon after three times the deadline.
+                // the mark `later` after its shell started, which was as late as the deadline.
                 std::thread::sleep(
-                    (began + wait * 3 + Duration::from_secs(1))
+                    (began + wait + later + Duration::from_secs(1))
                         .saturating_duration_since(Instant::now()),
                 );
                 let left = std::fs::read_to_string(&mark);
@@ -545,10 +574,10 @@ mod tests {
 
     #[test]
     fn keeps_at_most_sixty_four_kibibytes() {
-        let printed = run(
+        let printed = run_alone(
             "head -c 200000 /dev/zero | tr '\\0' x",
             b"",
-            Instant::now() + Duration::from_secs(5),
+            Duration::from_secs(5),
         );
         assert_eq!(printed.len(), MOST);
     }

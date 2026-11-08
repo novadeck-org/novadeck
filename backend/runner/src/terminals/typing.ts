@@ -36,13 +36,14 @@ import { bannerDrawn } from "./binding/banners.js"
 import { boxView, BoxStates, shownBox } from "./box-state.js"
 import { Dialogs, type DialogsOptions } from "./dialogs.js"
 import { agentWorking, doorbellHost, profileOf } from "./doorbell-host.js"
+import { GivenBack } from "./given-back.js"
 import { holdsRingLine, leftoverNonce } from "./leftover.js"
 import { McpTools } from "./mcp-tools.js"
 import { Interrupts, Prompts } from "./prompting.js"
 import { freshRef, Receipts, type ReceiptsOptions } from "./receipts.js"
 import type { Record } from "./record.js"
 import { slicingOf } from "./slices.js"
-import { interruptionsOf } from "./transcripts.js"
+import { holds, interruptionsOf } from "./transcripts.js"
 
 const log = logs.for("chat")
 
@@ -166,6 +167,9 @@ export type TypingHost = {
   readonly messaging: () => Messaging
 }
 
+/** The end of a Stop that has not begun. */
+const noStop = (_words: string | null): void => {}
+
 /**
  * Everything that types into terminals' agents, through one input queue per terminal so
  * none types at once: the doorbell's rings, prompts the chat gives, interrupts, and the
@@ -185,6 +189,8 @@ export class Typing {
   readonly dialogs: Dialogs
   /** Whether each prompt given reached its agent's record, as `agents.detail` shows it. */
   readonly receipts: Receipts
+  /** The messages a Stop took back, whose prompt hooks may still report. */
+  readonly givenBack = new GivenBack()
   /** What each terminal's agent's box holds, for those a client reads. */
   readonly boxes: BoxStates
   /** Moves what the person is writing between an agent's box and a client's draft. */
@@ -257,6 +263,7 @@ export class Typing {
     // the record was is looked at long before any key of it lands.
     const claimed = ref ?? freshRef()
     this.receipts.claim(terminalId, claimed)
+    this.givenBack.sent(terminalId, text)
     const following = this.receipts.expect(terminalId, text, claimed)
     // A fixed line from an Inbox button: the turn it starts withdraws no ask (see `automatic`).
     if (automatic) this.host.messaging().automatic(terminalId, text)
@@ -367,10 +374,14 @@ export class Typing {
   async interrupt(terminalId: string): Promise<InterruptResult> {
     this.promptable(terminalId)
     let since = Date.now()
+    let ended = noStop
+    // The words as the agent's box held them, with any doorbell line a hook may still tell of.
+    let boxed: string | null = null
     const result = await this.inputs
       .run(terminalId, (entry) => {
         since = Date.now()
-        return this.interrupts.interrupt(terminalId, entry)
+        ended = this.givenBack.begin(terminalId, since)
+        return this.interrupts.interrupt(terminalId, entry, (words) => (boxed = words))
       })
       .catch(async (error: unknown) => {
         // Words it couldn't take out are back in the box, which the next prompt sees to.
@@ -378,6 +389,16 @@ export class Typing {
           await this.receipts.putBack(terminalId)
         throw error
       })
+      .then(
+        (one) => {
+          ended(boxed)
+          return one
+        },
+        (error: unknown) => {
+          ended(null)
+          throw error
+        },
+      )
     // The words handed back are the person's draft again: their prompts no longer wait.
     if (result.returned !== null) this.receipts.withdraw(terminalId, result.returned, since)
     return result
@@ -416,6 +437,7 @@ export class Typing {
     this.tools.forget(terminalId)
     this.dialogs.forget(terminalId)
     this.receipts.forget(terminalId)
+    this.givenBack.forget(terminalId)
     this.boxes.forget(terminalId)
     this.entered.delete(terminalId)
     this.queueLooks.delete(terminalId)
@@ -827,11 +849,13 @@ export class Typing {
         const source = binding && harnesses[binding.agent].transcripts
         if (!record || !binding || !root || !source) return undefined
         const path = await source.locate(root, binding.sessionId, null)
-        if (!path || record.bound?.binding !== binding) return undefined
+        // The same session: a status line telling its version meanwhile makes a binding of its own,
+        // which the prompt would otherwise go unfollowed for.
+        if (!path || !holds(record.bound?.binding, binding)) return undefined
         return {
           key: keyOf(record)!,
           agent: binding.agent,
-          version: versionOf(binding),
+          version: versionOf(record.bound!.binding),
           path,
           items: source.items,
           ...(source.step && { step: source.step }),

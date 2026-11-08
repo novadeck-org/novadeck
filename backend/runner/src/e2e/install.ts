@@ -148,7 +148,9 @@ export const latestMs = 60 * 60 * 1000
  * The newest release, as `lookup` finds it, remembered in `file` with when it was looked
  * up: a later call within `latestMs`, as from another process, reads it there instead of
  * looking again. A record that is missing, old, unreadable or not one, or whose version
- * isn't safe in a path, is looked up again and replaced.
+ * isn't safe in a path, is looked up again and replaced. Should the lookup fail, a record
+ * that is only old stands: the run that installed it may have had the network, and this one
+ * (a nightly's probes outlast the hour, and run under `scripts/e2e/isolated`) has none.
  */
 export const latestRelease = async <T extends { readonly version: string }>(
   file: string,
@@ -157,16 +159,22 @@ export const latestRelease = async <T extends { readonly version: string }>(
   now = Date.now(),
 ): Promise<T> => {
   const record = z.strictObject({ at: z.number(), release })
+  let old: T | undefined
   try {
     const read = record.parse(JSON.parse(await readFile(file, "utf8")))
-    if (now - read.at >= 0 && now - read.at < latestMs) {
-      safeVersion(read.release.version, file)
-      return read.release
-    }
+    safeVersion(read.release.version, file)
+    if (now - read.at >= 0 && now - read.at < latestMs) return read.release
+    old = read.release
   } catch {
     // None yet, or none to trust: looked up again.
   }
-  const found = await lookup()
+  let found: T
+  try {
+    found = await lookup()
+  } catch (error) {
+    if (old) return old
+    throw error
+  }
   // Written beside it, then moved into place, so no reader finds half a record.
   await mkdir(dirname(file), { recursive: true })
   const staging = `${file}.${randomBytes(6).toString("hex")}.tmp`

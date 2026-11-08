@@ -7,6 +7,8 @@ import { basename, join } from "node:path"
 import { describe, expect, it, onTestFinished, vi } from "vitest"
 
 import { reap } from "./reap.js"
+import { darwin } from "./reap/darwin.js"
+import { reapTable } from "./reap/rounds.js"
 import { list } from "./reap/windows.js"
 import { createSandbox } from "./sandbox.js"
 
@@ -204,6 +206,10 @@ describe.skipIf(process.platform !== "win32")("reap on Windows", () => {
 })
 
 describe.skipIf(process.platform !== "darwin")("reap on macOS", () => {
+  // `reap` with its 15 s allowance widened: a loaded runner's `ps` and `lsof` take seconds
+  // each, and what these tests mean is who is ended, not how soon.
+  const reapWide = (sandbox: { root: string; home: string; started: number }) =>
+    reapTable(darwin, sandbox, 60_000)
   it("ends what runs in the sandbox or has its home, naming it, and nothing else", async () => {
     const root = realpathSync.native(mkdtempSync(join(tmpdir(), "sandbox-reaped-")))
     const elsewhere = realpathSync.native(mkdtempSync(join(tmpdir(), "sandbox-reaped-elsewhere-")))
@@ -235,7 +241,7 @@ describe.skipIf(process.platform !== "darwin")("reap on macOS", () => {
     // Each has started, so ps and lsof see it.
     await new Promise((resolve) => setTimeout(resolve, 500))
 
-    const leftovers = await reap(sandbox)
+    const leftovers = await reapWide(sandbox)
 
     expect(leftovers.toSorted()).toEqual(
       [
@@ -245,8 +251,8 @@ describe.skipIf(process.platform !== "darwin")("reap on macOS", () => {
       ].toSorted(),
     )
     expect(other.exitCode).toBeNull()
-    expect(await reap(sandbox)).toEqual([])
-  }, 30_000)
+    expect(await reapWide(sandbox)).toEqual([])
+  }, 90_000)
 
   it("ends a system program one of them started elsewhere, which shows no environment", async () => {
     const root = realpathSync.native(mkdtempSync(join(tmpdir(), "sandbox-reaped-")))
@@ -271,7 +277,7 @@ describe.skipIf(process.platform !== "darwin")("reap on macOS", () => {
     })
     await new Promise((resolve) => setTimeout(resolve, 500))
 
-    const leftovers = await reap(sandbox)
+    const leftovers = await reapWide(sandbox)
 
     // The shell, the subshell it runs the backgrounded line in, and sleep.
     expect(leftovers.map((one) => one.replace(/ \(.*/, "")).toSorted()).toEqual([
@@ -279,8 +285,8 @@ describe.skipIf(process.platform !== "darwin")("reap on macOS", () => {
       "sh",
       "sleep",
     ])
-    expect(await reap(sandbox)).toEqual([])
-  }, 30_000)
+    expect(await reapWide(sandbox)).toEqual([])
+  }, 90_000)
 
   it("ends one found through its parent though that parent has gone since, and it ignores SIGTERM", async () => {
     const root = realpathSync.native(mkdtempSync(join(tmpdir(), "sandbox-reaped-")))
@@ -288,13 +294,13 @@ describe.skipIf(process.platform !== "darwin")("reap on macOS", () => {
     onTestFinished(() => rmSync(root, { recursive: true, force: true }))
     onTestFinished(() => rmSync(elsewhere, { recursive: true, force: true }))
     const sandbox = { root, home: join(root, "home"), started: Date.now() }
-    // A shell of the sandbox's starts sleep elsewhere, deaf to SIGTERM, and leaves within
-    // the reaper's 3 s grace, 2 s in, long enough for a slow first look to find it: sleep is
-    // the sandbox's only through the shell, found before it went.
+    // A shell of the sandbox's starts sleep elsewhere, deaf to SIGTERM, and leaves once the
+    // reaper has looked (its stdin closes): sleep is the sandbox's only through the shell,
+    // found before it went.
     const shell = spawn(
       "/bin/sh",
-      ["-c", `(trap '' TERM; cd '${elsewhere}' && exec /bin/sleep 60) & /bin/sleep 2`],
-      { cwd: root, env: {}, stdio: "ignore", detached: true },
+      ["-c", `(trap '' TERM; cd '${elsewhere}' && exec /bin/sleep 60) & read _`],
+      { cwd: root, env: {}, stdio: ["pipe", "ignore", "ignore"], detached: true },
     )
     onTestFinished(() => {
       try {
@@ -303,15 +309,38 @@ describe.skipIf(process.platform !== "darwin")("reap on macOS", () => {
         // Ended by the reaping, as it should be.
       }
     })
-    await new Promise((resolve) => setTimeout(resolve, 500))
-
-    const leftovers = await reap(sandbox)
+    // Until sleep is there to find, through the shell.
+    await vi.waitFor(
+      async () => {
+        expect((await darwin.list(sandbox)).map((one) => one.comm)).toContain("sleep")
+      },
+      { timeout: 60_000, interval: 200 },
+    )
+    let looked = false
+    const leftovers = await reapTable(
+      {
+        ...darwin,
+        list: async (scope) => {
+          const found = await darwin.list(scope)
+          if (!looked) {
+            looked = true
+            const gone = once(shell, "exit")
+            shell.stdin!.end()
+            // Gone before the round goes on, so sleep is found only as it was before.
+            await gone
+          }
+          return found
+        },
+      },
+      sandbox,
+      60_000,
+    )
 
     const sleeping = leftovers.filter((one) => one.startsWith("sleep ("))
     expect(sleeping).toHaveLength(1)
     const pid = Number(/\((\d+)/.exec(sleeping[0]!)![1])
     // Gone once launchd has reaped it, which may take a moment after the SIGKILL.
     await vi.waitFor(() => expect(() => process.kill(pid, 0)).toThrow(/ESRCH/), { timeout: 2_000 })
-    expect(await reap(sandbox)).toEqual([])
-  }, 30_000)
+    expect(await reapWide(sandbox)).toEqual([])
+  }, 90_000)
 })

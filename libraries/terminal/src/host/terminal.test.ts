@@ -291,6 +291,27 @@ describe("a terminal's output", () => {
   })
 })
 
+describe("a terminal's mode reports", () => {
+  const answered = async (platform: NodeJS.Platform) => {
+    const { program, settled } = terminalOf({ platform })
+    program.draw("\u001b[?2027$p\u001b[?2026$p\u001b[6n")
+    await settled()
+    return program.calls.filter((call) => call.startsWith("write"))
+  }
+
+  it("are answered on a pty, other reports with them", async () => {
+    expect(await answered("linux")).toEqual([
+      "write \u001b[?2027;0$y",
+      "write \u001b[?2026;2$y",
+      "write \u001b[1;1R",
+    ])
+  })
+
+  it("are not written to a Windows pseudoconsole, which would give its program the text of them", async () => {
+    expect(await answered("win32")).toEqual(["write \u001b[1;1R"])
+  })
+})
+
 describe("a terminal's hold", () => {
   const budget = { inputMs: 5_000, sizeMs: 10_000 }
   // A hold's caps and deadlines, on a clock the test moves, whatever the machine's load.

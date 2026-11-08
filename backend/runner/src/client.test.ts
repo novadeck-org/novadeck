@@ -306,11 +306,13 @@ describe("runner client over WebSocket", () => {
     await slow.next()
     // The controller keeps reading; the viewer stops, so it acknowledges nothing.
     const writing = writer.until("SLOW_DONE")
-    for (let index = 0; index < 20; index++) {
-      // eslint-disable-next-line no-await-in-loop -- Produce ordered output beyond the viewer budget.
-      await print(terminal, `LINE_${index}_${"x".repeat(200)}`)
-    }
-    await print(terminal, "SLOW_DONE")
+    // Should the test end early, its read ends with the terminal: that is not a second failure.
+    writing.catch(() => {})
+    // One write, so the controller sends nothing while it reads: the tight budget that cuts
+    // the viewer off can cut it off too on a loaded runner, and a controller being resynchronized
+    // has no control until it reattaches (a write then fails CONTROL_REQUIRED).
+    const lines = Array.from({ length: 20 }, (_, index) => `LINE_${index}_${"x".repeat(200)}`)
+    await print(terminal, [...lines, "SLOW_DONE"].join("\r\n"))
     await writing
     await slow.until("SLOW_DONE")
     expect(slow.events.filter((event) => event.type === "snapshot").length).toBeGreaterThan(1)
