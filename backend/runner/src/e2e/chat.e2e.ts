@@ -823,13 +823,14 @@ for (const setup of setups) {
                 await t1.confirm(
                   setup.image!.shows,
                   async () => t1.press(`\x1b[200~${path}\x1b[201~`),
-                  {
-                    timeoutMs: 5_000,
-                  },
+                  { timeoutMs: attempt === 1 ? 15_000 : 5_000 },
                 )
                 break
               } catch (error) {
-                if (attempt === 3) throw error
+                // Erased only where the screen shows the path as text: with no path shown the
+                // placeholder may be drawn late, and erasing would eat the placeholder and words.
+                // eslint-disable-next-line no-await-in-loop -- Read before erasing.
+                if (attempt === 3 || !(await t1.screen()).includes("picture.png")) throw error
                 t1.press("\x7f".repeat(path.length))
                 // eslint-disable-next-line no-await-in-loop -- Erased before the next paste.
                 await t1.poll(

@@ -529,9 +529,12 @@ export const appServer = (
     },
     request,
     // On Windows with the codex cmd started, which ending cmd alone leaves running.
-    close: () => {
+    // Settles once the tree is killed, as a start again must not meet its sqlite files held.
+    close: async (): Promise<void> => {
       if (process.platform === "win32" && child.pid !== undefined)
-        execFile("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true })
+        await promisify(execFile)("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+          windowsHide: true,
+        }).catch(() => undefined)
       else child.kill()
     },
   }
@@ -613,6 +616,6 @@ const trustHooksOnce = async (
         `Codex ${hooks ? "still doesn't trust" : "trusts"} Novadeck's hooks: ${JSON.stringify(after)}`,
       )
   } finally {
-    server.close()
+    await server.close()
   }
 }
