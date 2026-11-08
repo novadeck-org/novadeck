@@ -86,6 +86,8 @@ type Entry = {
   readonly ref: string
   readonly text: string
   readonly lines: readonly string[]
+  /** The image files it carried, which are in the agent's box as placeholders while it is. */
+  readonly files: readonly string[]
   /** How long the record was as the prompt was given: a line ending past it is new to it. */
   readonly bytes: number
   /**
@@ -203,6 +205,7 @@ export class Receipts {
     terminalId: string,
     text: string,
     ref: string = freshRef(),
+    images: readonly string[] = [],
   ): Promise<{ readonly ref: string; readonly tracked: boolean }> {
     this.claim(terminalId, ref)
     const givenAt = this.now()
@@ -219,7 +222,8 @@ export class Receipts {
     // takes, with no turn to tell it runs; Antigravity keeps no record of one.
     const shell = shellCommand(text) !== undefined
     const lines = promptLines(text)
-    if (!agent || shell || lines.length === 0) return { ref, tracked: false }
+    if (!agent || shell || (lines.length === 0 && images.length === 0))
+      return { ref, tracked: false }
     if (source && this.host.bound(terminalId) !== source.key) return { ref, tracked: false }
     if (!source && this.host.bound(terminalId) !== null) return { ref, tracked: false }
     const bytes = source
@@ -235,6 +239,7 @@ export class Receipts {
       ref,
       text,
       lines,
+      files: images,
       bytes,
       since: source ? null : givenAt,
       items: bytes === 0 ? 0 : undefined,
@@ -286,15 +291,19 @@ export class Receipts {
    * its turn starts, and once that turn is stopped takes it out of the conversation, the model
    * never seeing it, so that item is no message that went (see docs/harness-coverage.md).
    */
-  withdraw(terminalId: string, returned: string, since: number): void {
+  withdraw(terminalId: string, returned: string, since: number, marks = 0): void {
     const track = this.tracks.get(terminalId)
     if (!track) return
     let changed = false
+    const withImages = this.queuedImages(track, marks, returned)
     for (const entry of track.entries) {
       // One back in the agent's box, too: the Stop took the words out of it.
       const waiting = entry.state === "pending" || entry.state === "in-box"
       const stopped = entry.state === "settled" && (entry.settledAt ?? 0) >= since
-      if ((waiting || stopped) && inBox(returned, entry.lines)) {
+      if (
+        ((waiting || stopped) && inBox(returned, entry.lines)) ||
+        (waiting && withImages.includes(entry))
+      ) {
         done(entry, "withdrawn", entry.item ?? undefined)
         changed = true
       }
@@ -309,23 +318,55 @@ export class Receipts {
    * words and nothing else, as one on its way may just say what they hold; `except`, the prompt
    * that took them out, never does.
    */
-  taken(terminalId: string, returned: string, except?: string): void {
+  taken(terminalId: string, returned: string, except?: string, marks = 0): void {
     const track = this.tracks.get(terminalId)
     if (!track) return
     let changed = false
+    const withImages = this.queuedImages(track, marks, returned)
     for (const entry of track.entries)
       if (
         entry.ref !== except &&
         ((entry.state === "in-box" && inBox(returned, entry.lines)) ||
           (entry.state === "pending" &&
             entry.sentAt !== null &&
-            knownWords([entry], returned) !== undefined))
+            knownWords([entry], returned) !== undefined) ||
+          withImages.includes(entry))
       ) {
         done(entry, "withdrawn")
         changed = true
       }
     if (changed) this.host.changed(terminalId)
     this.idle(terminalId, track)
+  }
+
+  /**
+   * The prompts with images that came back out of the agent's box. Where it showed `marks`
+   * placeholders (Claude Code, Codex): the latest queued ones whose images add up to that
+   * many, as a turn takes the earliest queued message first; empty where no run adds up, and
+   * nothing is known of which images the box held. Where it showed none (Antigravity keeps a
+   * queued message's media apart, and loses it as a Stop takes the words back): the queued
+   * ones whose words are in `returned`.
+   */
+  private queuedImages(track: Track, marks: number, returned: string): readonly Entry[] {
+    const queued = track.entries.filter(
+      (entry) =>
+        entry.files.length > 0 &&
+        (entry.state === "in-box" || (entry.state === "pending" && entry.sentAt !== null)),
+    )
+    if (marks <= 0) return queued.filter((entry) => inBox(returned, entry.lines))
+    let sum = 0
+    for (let from = queued.length - 1; from >= 0; from -= 1) {
+      sum += queued[from]!.files.length
+      if (sum === marks) return queued.slice(from)
+      if (sum > marks) break
+    }
+    return []
+  }
+
+  /** The image files of the prompts that came back out of the agent's box (see `queuedImages`). */
+  boxFiles(terminalId: string, marks: number, returned = ""): readonly string[] {
+    const track = this.tracks.get(terminalId)
+    return track ? this.queuedImages(track, marks, returned).flatMap((entry) => entry.files) : []
   }
 
   /**
@@ -357,7 +398,11 @@ export class Receipts {
     if (!track || box === undefined) return
     let changed = false
     for (const entry of track.entries)
-      if (entry.state === "pending" && entry.sentAt !== null && inBox(box, entry.lines)) {
+      if (
+        entry.state === "pending" &&
+        entry.sentAt !== null &&
+        inBox(box, entry.lines, entry.files.length)
+      ) {
         this.missed(terminalId, track, entry)
         entry.state = "in-box"
         changed = true
@@ -537,7 +582,13 @@ export class Receipts {
             (entry) => this.open(entry) && fresh(entry, end, index, item.at),
           )
           if (waiting.length === 0) continue
-          for (const ref of settledBy(waiting, item.text)) {
+          const asked = waiting.map(({ ref, lines, joined: together, files }) => ({
+            ref,
+            lines,
+            ...(together && { joined: together }),
+            images: files.length,
+          }))
+          for (const ref of settledBy(asked, item.text)) {
             const entry = track.entries.find((each) => each.ref === ref)!
             done(entry, "settled", index + joined)
             entry.settledAt = this.now()
@@ -628,7 +679,7 @@ export class Receipts {
     entry.checking = false
     if (this.tracks.get(terminalId) !== track || entry.state !== "pending") return
     this.missed(terminalId, track, entry)
-    if (box !== undefined && inBox(box, entry.lines)) entry.state = "in-box"
+    if (box !== undefined && inBox(box, entry.lines, entry.files.length)) entry.state = "in-box"
     else {
       entry.state = "unrecorded"
       // Once per prompt whose record was read, with no content: what it tells is that a

@@ -5,7 +5,7 @@ import type { ScreenText } from "@novadeck/emulator/headless"
 import { isEmpty, pastesWhole, showsTail, type BoxProfile, type InputBox } from "./box/box.js"
 import { cursorEnded, pressKeys, type BoxKeysHost } from "./box/keys.js"
 import { leftoverOf } from "./box/leftover.js"
-import { sameText, unwrapped, wentFrom, wrappedRows } from "./box/text.js"
+import { sameText, unwrapped, wentFrom, withoutImages, wrappedRows } from "./box/text.js"
 import { collapsible, type BoxNote } from "./prompts.js"
 import type { HoldBudget, InputEntry, InputQueue } from "./queue.js"
 import { bracketedPaste } from "./typing.js"
@@ -219,7 +219,7 @@ export class Handovers {
         return undefined
       }
       const keys = box.mode === "shell" ? profile.shell.leave?.(box) : profile.erase?.(box)
-      if (tail || profile.stands(box.text) || keys === undefined) {
+      if (tail || profile.stands(withoutImages(box.text)) || keys === undefined) {
         this.host.note(terminalId, "unreadable")
         return undefined
       }

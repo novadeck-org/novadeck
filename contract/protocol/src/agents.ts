@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import { requestDialog } from "./dialogs.js"
-import { id } from "./fields.js"
+import { directory, id } from "./fields.js"
 import { agentNames } from "./harnesses.js"
 
 // Agents whose sessions Novadeck identifies and can resume once connected: Claude Code,
@@ -326,9 +326,15 @@ export const promptFailure = z.object({ returned: z.string() })
  * the agent's input box took back as the turn was stopped (Claude Code and Antigravity
  * hand queued messages back for editing), now cleared out of the box, which the chat puts
  * back in the person's draft; null when there were none, and always for Codex, whose
- * queued message goes to the agent as a steer.
+ * queued message goes to the agent as a steer. `images` are the files, of those given to
+ * `agents.prompt`, that were in the box with them (Claude Code and Codex put a queued message's
+ * images back as `[Image #N]` placeholders, which `returned` leaves out); absent where none.
+ * `returned` may be null with `images` given, for a message of images alone.
  */
-export const interruptResult = z.strictObject({ returned: z.string().nullable() })
+export const interruptResult = z.strictObject({
+  returned: z.string().nullable(),
+  images: z.array(directory).optional(),
+})
 
 /**
  * What `agents.prompt` gives: the prompt's receipt's `ref`, whether one follows, and the words

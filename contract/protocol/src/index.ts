@@ -135,6 +135,8 @@ export {
   handle,
   maxStartupCommand,
   maxTerminalTitle,
+  maxPromptImages,
+  promptImageTypes,
   maxUploadBytes,
   maxUploadPartLength,
   startupCommand,

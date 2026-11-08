@@ -44,11 +44,26 @@ const runAt = (
   return -1
 }
 
-/** A prompt still waiting for its record: its ref, its lines (`promptLines`), and `Receipts.joined`. */
+/**
+ * The placeholders a harness records for the images of a prompt, ahead of its words
+ * (`[Image #1] [Image #2] words`; the numbers run on through the session): how many lead
+ * the text, and the text after them.
+ */
+const imageMarks = (text: string): { readonly count: number; readonly rest: string } => {
+  const marks = /^(?:\s*\[Image #\d+\])+/.exec(text)?.[0] ?? ""
+  return { count: marks.match(/\[Image #/g)?.length ?? 0, rest: text.slice(marks.length) }
+}
+
+/**
+ * A prompt still waiting for its record: its ref, its lines (`promptLines`), `Receipts.joined`,
+ * and how many images it carried, which Claude Code and Codex record as placeholders ahead of
+ * the words and Antigravity keeps apart from the text.
+ */
 export type Waiting = {
   readonly ref: string
   readonly lines: readonly string[]
   readonly joined?: boolean
+  readonly images?: number
 }
 
 /**
@@ -61,10 +76,27 @@ export type Waiting = {
  */
 export const settledBy = (waiting: readonly Waiting[], item: string): readonly string[] => {
   const lines = promptLines(item)
+  const marked = imageMarks(item)
   const settled: string[] = []
   let cursor = 0
   for (const prompt of waiting) {
-    const at = runAt(lines, prompt.lines, cursor, prompt.joined)
+    if (!prompt.images) {
+      const at = runAt(lines, prompt.lines, cursor, prompt.joined)
+      if (at < 0) continue
+      settled.push(prompt.ref)
+      cursor = at + prompt.lines.length
+      continue
+    }
+    // A prompt with images: the item's placeholders are its images (none where the harness
+    // keeps them apart), and the words follow them.
+    if (marked.count !== 0 && marked.count !== prompt.images) continue
+    const own = marked.count === 0 ? lines : promptLines(marked.rest)
+    if (prompt.lines.length === 0) {
+      // Images alone: an item of nothing but their placeholders.
+      if (marked.count === prompt.images && own.length === 0) settled.push(prompt.ref)
+      continue
+    }
+    const at = runAt(own, prompt.lines, marked.count === 0 ? cursor : 0)
     if (at < 0) continue
     settled.push(prompt.ref)
     cursor = at + prompt.lines.length
@@ -79,9 +111,11 @@ const compact = (text: string): string => text.replace(/\s+/g, "")
  * Whether the agent's input box holds a prompt's words, as its screen shows them: all its
  * text, white space aside, as a box wraps long lines and draws its own indent.
  */
-export const inBox = (box: string, lines: readonly string[]): boolean => {
+export const inBox = (box: string, lines: readonly string[], images = 0): boolean => {
   const words = compact(lines.join(""))
-  return words !== "" && compact(box).includes(words)
+  // Images alone are there when the box holds that many placeholders.
+  if (words === "") return images > 0 && (box.match(/\[Image #\d+\]/g)?.length ?? 0) >= images
+  return compact(box).includes(words)
 }
 
 /** A prompt whose words may be in the box: as given, and its lines (`promptLines`). */

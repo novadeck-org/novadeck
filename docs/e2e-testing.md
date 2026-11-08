@@ -658,6 +658,11 @@ for (const setup of setups) {
   - _One line_ and _several lines_: the transcript holds the user item with that text,
     each line whole, one user turn, and the fake model's reply; the turn goes working,
     then settled. A _long_ prompt (40 lines), which a TUI may show as a placeholder, too.
+  - _Images_: a prompt with one image, one whose name has a space, and two, each saved with
+    `t.prompt(text, images)` as the router does and pasted ahead of the words; the model's
+    call holds that many pictures with the words, the receipt settles and the record keeps
+    `[Image #N]` where the harness does. Images alone are sent, except to Antigravity, whose
+    Enter does nothing then: refused, `PROMPT_REFUSED`, nothing written.
   - _Named alike_: a terminal given its first prompt this way is named as one typed in
     another terminal is, whatever that is for the harness.
   - _Mid-turn_: with the reply held, a second prompt (several lines) queues, or steers,

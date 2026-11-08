@@ -143,8 +143,12 @@ const conversation = (input: readonly Item[]): { system: string[]; turns: Turn[]
     if (last?.role === "tool" && one.role === "user" && dateOnly.test(text)) continue
     if (one.role !== "user" && turns.length === 0) system.push(text)
     else if (last?.role === "user")
-      turns[turns.length - 1] = { role: "user", text: [last.text, text].join("\n") }
-    else turns.push({ role: "user", text })
+      turns[turns.length - 1] = {
+        ...last,
+        text: [last.text, text].join("\n"),
+        ...withImages((last.images ?? 0) + imagesIn(one.content)),
+      }
+    else turns.push({ role: "user", text, ...withImages(imagesIn(one.content)) })
   }
   return { system, turns }
 }

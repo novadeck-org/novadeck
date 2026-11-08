@@ -285,3 +285,24 @@ describe("its status row on the screens of the ring readings", () => {
     expect(running.map(([name]) => name)).toEqual([])
   })
 })
+
+describe("Claude Code's images", () => {
+  const screenOf = (...rows: string[]): ScreenText => ({
+    rows,
+    bright: rows,
+    bracketedPaste: true,
+    alternate: false,
+    columns: 60,
+    cursor: { row: 1, column: 2 },
+  })
+
+  it("counts the placeholders its box shows for pasted image paths, ahead of the words", () => {
+    const screen = screenOf(rule, "❯ [Image #1] [Image #2] Compare them", rule, "  ? for shortcuts")
+    expect(box.images!.attached(screen)).toBe(2)
+    expect(box.images!.discard(screen)).toBe("\x15")
+  })
+
+  it("counts none in an empty box", () => {
+    expect(box.images!.attached(screenOf(rule, "❯ ", rule, "  ? for shortcuts"))).toBe(0)
+  })
+})

@@ -12,13 +12,14 @@ import {
 } from "./box/box.js"
 import { cursorEnded, pressKeys, type BoxKeysHost } from "./box/keys.js"
 import { leftoverOf } from "./box/leftover.js"
-import { endsText, sameText, unwrapped, wentFrom, wrappedRows } from "./box/text.js"
+import { endsText, sameText, unwrapped, wentFrom, withoutImages, wrappedRows } from "./box/text.js"
 import type { HoldBudget, InputEntry, InputQueue } from "./queue.js"
 import { bracketedPaste, pasteable } from "./typing.js"
 
 /**
- * Why a prompt was not given. All but `not-switched`, `not-shown` and `unexpanded` write
- * nothing; those three leave what landed of the text as a draft.
+ * Why a prompt was not given. All but `not-switched`, `not-shown`, `unexpanded` and
+ * `image-not-shown` write nothing; the first three leave what landed of the text as a draft,
+ * the last takes back what landed of the images.
  * - `refused`: the caller's `refuse` rule judged the text, and said why in the message, or
  *   the text holds a control character (but a tab or line break) that would press keys;
  * - `gone`: the terminal ended, or the hold on the person's input lapsed, while it waited;
@@ -33,6 +34,8 @@ import { bracketedPaste, pasteable } from "./typing.js"
  * - `unrunnable`: a shell command that its shell mode can't run as written;
  * - `not-switched`: the box did not switch to its shell mode at a typed `!`;
  * - `not-shown`: the paste never showed in the box as exactly the text;
+ * - `image-not-shown`: the program never showed an image's path as an image, and what
+ *   landed of the images was taken back out (where its keys didn't, it stays);
  * - `unexpanded`: the box showed a shell command only as a placeholder its shell would run
  *   as text.
  */
@@ -49,6 +52,7 @@ export type PromptRefusalReason =
   | "unrunnable"
   | "not-switched"
   | "not-shown"
+  | "image-not-shown"
   | "unexpanded"
 
 /** A prompt that was not given, with why. What the host's `admit` throws passes as it is. */
@@ -107,6 +111,8 @@ export type BoxNote =
   | "ringing"
   /** The text has no room beside what the box holds. */
   | "too-tall"
+  /** The images a failed prompt put in the box could not be taken back out. */
+  | "images-kept"
 
 /** What prompts need of the terminal and its owner, by terminal. */
 export type PromptHost = {
@@ -275,16 +281,23 @@ export class Prompts {
    * typed `!`), leaving what landed of it as a draft. All but the last write nothing.
    * `joined` is told, before its paste, that this prompt goes on the same line as what the box
    * holds, not on lines of its own.
+   *
+   * `images` are what to paste for each image, one paste each, before the text: a path as the
+   * program reads one pasted (see `ProfileImages`). Each must show as an image in the box
+   * before the next goes in, within `pasteMs`, or the prompt fails as `image-not-shown`. The
+   * box must be empty (`mode` is no use with them), and a shell command takes none; the text
+   * may be empty where the program submits with only images. The text follows on the same line.
    */
   async prompt(
     terminalId: string,
     text: string,
     mode: PromptMode = "alone",
     joined?: () => void,
+    images: readonly string[] = [],
   ): Promise<PromptGiven> {
-    this.refuse(text)
+    this.refuse(text, images.length > 0)
     return await this.queue.run(terminalId, (entry) =>
-      this.give(entry, terminalId, text, mode, joined),
+      this.give(entry, terminalId, text, mode, joined, images),
     )
   }
 
@@ -302,8 +315,9 @@ export class Prompts {
    * control character but a tab or line break is refused whatever the rule, as it would end
    * the paste and press keys.
    */
-  private refuse(text: string): void {
-    const refusal = this.rule?.(text)
+  private refuse(text: string, withImages = false): void {
+    // Images are a message, so text of nothing but white space is none to judge beside them.
+    const refusal = withImages && text.trim() === "" ? undefined : this.rule?.(text)
     if (refusal !== undefined) throw new PromptRefusal("refused", refusal)
     if (!pasteable(text))
       throw new PromptRefusal(
@@ -318,12 +332,17 @@ export class Prompts {
     text: string,
     mode: PromptMode = "alone",
     joined?: () => void,
+    images: readonly string[] = [],
   ): Promise<PromptGiven> {
     // A message's edges are no part of it, and no TUI shows them: the cursor of a trailing
     // line break would sit below its box.
     const command = shellCommand(text)
+    if (command !== undefined && images.length > 0)
+      throw new PromptRefusal("refused", "A shell command takes no images.")
+    // Beside a draft the images would land in the middle of it: they go into an empty box only.
+    const taking = images.length > 0 ? "alone" : mode
     return command === undefined
-      ? await this.send(entry, terminalId, normalised(text).trim(), false, mode, joined)
+      ? await this.send(entry, terminalId, normalised(text).trim(), false, taking, joined, images)
       : await this.send(entry, terminalId, command, true, mode, joined)
   }
 
@@ -335,9 +354,19 @@ export class Prompts {
     shell: boolean,
     mode: PromptMode,
     joined: (() => void) | undefined,
+    images: readonly string[] = [],
   ): Promise<PromptGiven> {
     await this.ringDone(terminalId)
     const profile = this.host.admit(terminalId)
+    if (images.length > 0) {
+      if (!profile.images)
+        throw new PromptRefusal("refused", "This program takes no images in a prompt.")
+      if (text === "" && !profile.images.alone)
+        throw new PromptRefusal(
+          "refused",
+          "This program sends nothing for images alone: they need words with them.",
+        )
+    }
     // A command as its TUI's shell mode runs it the way sh runs what was written; one its
     // shell can't run as written means is refused before any key.
     const given = shell && profile.shell.command ? profile.shell.command(text) : text
@@ -351,7 +380,7 @@ export class Prompts {
     // shell command does only where its TUI starts one for it.
     const starts = !this.host.bound(terminalId) && (!shell || profile.shell.starts)
     // The person's keys are held from before the box is looked at, so none comes between.
-    const hold = entry.hold(this.budget)
+    const hold = entry.hold(this.budgetFor(images.length))
     if (!hold.holding()) throw this.gone()
     let pressed = false
     // Whether the box showed the command only as a placeholder its shell would run as text.
@@ -359,6 +388,9 @@ export class Prompts {
     let returned: string | undefined
     let left: InputBox | undefined
     let along: string | undefined
+    // How many images the box showed so far, which a failure takes back out.
+    let attached = 0
+    let textTyped = false
     const taken = (error: unknown): unknown => {
       if (error instanceof PromptRefusal) this.host.refused?.(terminalId, error.reason)
       return returned === undefined ? error : new WordsTaken(error, returned)
@@ -396,6 +428,17 @@ export class Prompts {
       }
       // A request may have come while the hold was taken: no paste into its dialog.
       this.host.admit(terminalId)
+      // Each image is a paste of its own, as a program reads a path pasted alone as an image;
+      // it must show as one before the next goes in, or the paths would run together.
+      for (const image of images) {
+        if (!this.host.type(terminalId, bracketedPaste(image))) throw this.notShown()
+        // Counted as soon as written: a path that showed late is still in the box.
+        attached += 1
+        // eslint-disable-next-line no-await-in-loop -- Each image shows before the next goes in.
+        if (!(await this.imageShown(terminalId, profile, attached, hold.holding)))
+          throw new PromptRefusal("image-not-shown", "The program did not show an image.")
+        this.host.admit(terminalId)
+      }
       if (shell) {
         // The `!` as a key: pasted whole, some TUIs send it to the model as text.
         if (!this.host.type(terminalId, "!")) throw this.notShown()
@@ -426,16 +469,30 @@ export class Prompts {
         throw this.draft()
       }
       if (keys) joined?.()
-      const pasted = left ? `${keys ? " " : "\n\n"}${typed}` : typed
-      if (!this.host.type(terminalId, bracketedPaste(inPaste(pasted)))) throw this.notShown()
-      const landed = await this.landed(
-        terminalId,
-        typed,
-        profile,
-        shell ? "shell" : "prompt",
-        hold.holding,
-        left,
-      )
+      // After the images, the text goes on their line; a space keeps its first word apart from
+      // the last placeholder, as the record then holds it (see `Receipts.joined`).
+      if (images.length > 0 && typed !== "") joined?.()
+      const pasted = left
+        ? `${keys ? " " : "\n\n"}${typed}`
+        : images.length > 0 && typed !== ""
+          ? ` ${typed}`
+          : typed
+      textTyped = true
+      if (typed !== "" && !this.host.type(terminalId, bracketedPaste(inPaste(pasted))))
+        throw this.notShown()
+      // Images alone were seen in the box, steady, as each went in.
+      const landed =
+        typed === "" && images.length > 0
+          ? true
+          : await this.landed(
+              terminalId,
+              typed,
+              profile,
+              shell ? "shell" : "prompt",
+              hold.holding,
+              left,
+              images.length > 0,
+            )
       unexpanded = landed === "unexpanded"
       pressed = landed === true
       // A request may have come while the paste landed, its dialog taking the Enter as an
@@ -451,6 +508,9 @@ export class Prompts {
       // An Enter that can't be written leaves the text as a draft of a terminal gone.
       if (pressed && !this.host.type(terminalId, "\r")) throw this.gone()
     } catch (error) {
+      // What of the images landed goes back out, while the person's keys are still held.
+      if (attached > 0 && !textTyped && !(await this.discard(terminalId, profile, hold.holding)))
+        this.host.note?.(terminalId, "images-kept")
       hold.settle()
       throw taken(error)
     } finally {
@@ -479,6 +539,67 @@ export class Prompts {
     // next entry there takes this hold over, with the resizes it holds.
     hold.settleAfter(this.settleMs)
     return { returned, along }
+  }
+
+  /**
+   * Whether the box shows `count` images, steady on two reads running within `pasteMs`, in its
+   * prompt mode with no view of the program over it: an image's path pasted alone becomes one.
+   */
+  private async imageShown(
+    terminalId: string,
+    profile: BoxProfile,
+    count: number,
+    holding: () => boolean,
+  ): Promise<boolean> {
+    const until = Date.now() + this.pasteMs
+    let seen = false
+    while (Date.now() < until && holding()) {
+      // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
+      await sleep(this.pollMs)
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      const after = await this.host.screen(terminalId)
+      if (!after) return false
+      const box = profile.read(after)
+      const shown =
+        box !== undefined &&
+        box.mode === "prompt" &&
+        !profile.overlay(after) &&
+        (profile.images?.attached(after) ?? 0) === count
+      if (shown && seen) return holding()
+      seen = shown
+    }
+    return false
+  }
+
+  /**
+   * Takes the images back out of the box with the program's keys for it, once, read back: true
+   * where the screen then shows none. Not pressed where the program says no keys are safe now.
+   */
+  private async discard(
+    terminalId: string,
+    profile: BoxProfile,
+    holding: () => boolean,
+  ): Promise<boolean> {
+    try {
+      const now = await this.host.screen(terminalId)
+      const keys = now && profile.images?.discard(now)
+      if (!keys) return false
+      const cleared = await this.keyed(
+        terminalId,
+        keys,
+        holding,
+        (after) => (profile.images?.attached(after) ?? 0) === 0,
+      )
+      return cleared !== undefined
+    } catch {
+      return false
+    }
+  }
+
+  /** The held time of a prompt with `images`: each takes a paste's wait more. */
+  private budgetFor(images: number): HoldBudget {
+    const more = images * this.pasteMs
+    return { inputMs: this.budget.inputMs + more, sizeMs: this.budget.sizeMs + more }
   }
 
   /**
@@ -810,6 +931,7 @@ export class Prompts {
     mode: "prompt" | "shell",
     holding: () => boolean,
     left?: InputBox,
+    images = false,
   ): Promise<boolean | "unexpanded"> {
     const until = Date.now() + this.pasteMs
     let last: string | undefined
@@ -820,7 +942,9 @@ export class Prompts {
       // eslint-disable-next-line no-await-in-loop -- As above.
       const after = await this.host.screen(terminalId)
       if (!after) return false
-      const box = profile.read(after)
+      const read = profile.read(after)
+      // Placeholders of images lead the text of a box that took them: they are no part of it.
+      const box = images && read ? { ...read, text: withoutImages(read.text) } : read
       // A view opened over the box as the text landed would take the Enter.
       const right = box !== undefined && box.mode === mode && !profile.overlay(after)
       // A text taller than the box's viewport shows only its tail, the box then full.

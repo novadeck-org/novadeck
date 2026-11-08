@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { endsText, sameText, wrappedRows } from "./text.js"
+import { endsText, sameText, withoutImages, wrappedRows } from "./text.js"
 
 describe("sameText and endsText", () => {
   it("ignore whitespace the program wrapped or indented anywhere", () => {
@@ -30,5 +30,14 @@ describe("wrappedRows", () => {
     expect(wrappedRows("aaaa bbbb", 8)).toBe(2)
     expect(wrappedRows("aaaa\nbbbb", 40)).toBe(2)
     expect(wrappedRows("a".repeat(13), 8)).toBe(3)
+  })
+})
+
+describe("withoutImages", () => {
+  it("takes off the placeholders that lead a box's text, and only those", () => {
+    expect(withoutImages("[Image #1] [Image #2] Compare them")).toBe("Compare them")
+    expect(withoutImages("[Image #1][Pasted text #2 +16 lines]")).toBe("[Pasted text #2 +16 lines]")
+    expect(withoutImages("[Image #1]")).toBe("")
+    expect(withoutImages("Look at [Image #1]")).toBe("Look at [Image #1]")
   })
 })

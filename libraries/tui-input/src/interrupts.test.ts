@@ -620,7 +620,20 @@ describe("interrupts", () => {
       expect(t.written).toEqual([UP])
     })
 
-    it("leaves it in the box, and says so, where clearing would lose an image", async () => {
+    it("leaves it in the box, and says so, where clearing would lose an image beside its words", async () => {
+      let took = false
+      const t = terminal({
+        queued: () => !took,
+        takes: () => {
+          took = true
+          return "look at [Image #1] this"
+        },
+      })
+      await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
+      expect(t.written).toEqual([UP])
+    })
+
+    it("gives back a message led by the placeholders of its images, which the caller knows", async () => {
       let took = false
       const t = terminal({
         queued: () => !took,
@@ -629,8 +642,7 @@ describe("interrupts", () => {
           return "[Image #1] look at this"
         },
       })
-      await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
-      expect(t.written).toEqual([UP])
+      expect(await t.interruptIn()).toEqual({ returned: "[Image #1] look at this" })
     })
 
     it("gives the screen time to show what the hold let go, and leaves that as a draft", async () => {
@@ -696,7 +708,7 @@ describe("interrupts", () => {
           return () => (looks += 1) < 3
         })(),
       })
-      t.boxAfter(1_100, "[Image #1] look at this")
+      t.boxAfter(1_100, "look at [Image #1] this")
       await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
       expect(t.written).not.toContain(CLEAR)
     })

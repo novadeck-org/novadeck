@@ -324,7 +324,13 @@ export type Runner = {
     prompt(
       terminalId: string,
       text: string,
-      options?: { readonly automatic?: true; readonly along?: true; readonly ref?: string },
+      options?: {
+        readonly automatic?: true
+        readonly along?: true
+        readonly ref?: string
+        /** Paths `terminals.upload` answered, pasted in as images ahead of the text, which may then be empty. */
+        readonly images?: readonly string[]
+      },
     ): Promise<{ readonly ref: string; readonly tracked: boolean }>
     /**
      * Answers a request waiting on the person through its dialog in the agent's TUI, by the
@@ -692,7 +698,7 @@ export const connectRunner = async (
           (client, signal) => client.agents.transcript({ terminalId, actor }, { signal }),
           { type: "reset" },
         ),
-      prompt: (terminalId, text, { automatic, along, ref } = {}) =>
+      prompt: (terminalId, text, { automatic, along, ref, images } = {}) =>
         call((client) =>
           client.agents.prompt({
             terminalId,
@@ -700,6 +706,7 @@ export const connectRunner = async (
             ...(automatic && { automatic }),
             ...(along && { along }),
             ...(ref !== undefined && { ref }),
+            ...(images && images.length > 0 && { images: [...images] }),
           }),
         ),
       answer: (terminalId, request, answer) =>

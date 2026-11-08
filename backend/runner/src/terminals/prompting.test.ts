@@ -406,22 +406,41 @@ describe("interrupts", () => {
   it("answer returned: null where nothing is given back", async () => {
     expect(await stopped("the turn's own", { clear: true }).interrupt("t")).toEqual({
       returned: null,
+      marks: 0,
     })
   })
 
   it("gives no doorbell or reply line back as the person's words", async () => {
     const reply = replyLine([{ subject: "Merge it?", option: "Merge it", text: "Yes" }])!("Ab12")
     const line = doorbellLine("Ab12")
-    expect(await stopped(line, { clear: true }).interrupt("t")).toEqual({ returned: null })
-    expect(await stopped(reply, { clear: true }).interrupt("t")).toEqual({ returned: null })
+    expect(await stopped(line, { clear: true }).interrupt("t")).toEqual({
+      returned: null,
+      marks: 0,
+    })
+    expect(await stopped(reply, { clear: true }).interrupt("t")).toEqual({
+      returned: null,
+      marks: 0,
+    })
     expect(await stopped(`queued words\n${line}`, { clear: true }).interrupt("t")).toEqual({
       returned: "queued words",
+      marks: 0,
     })
   })
 
   it("pass on the words given back, where there are some", async () => {
     expect(await stopped("queued words", { clear: true }).interrupt("t")).toEqual({
       returned: "queued words",
+      marks: 0,
+    })
+  })
+
+  it("counts the images that led the words, and leaves their placeholders out", async () => {
+    expect(
+      await stopped("[Image #1] [Image #2] queued words", { clear: true }).interrupt("t"),
+    ).toEqual({ returned: "queued words", marks: 2 })
+    expect(await stopped("[Image #3]", { clear: true }).interrupt("t")).toEqual({
+      returned: null,
+      marks: 1,
     })
   })
 })

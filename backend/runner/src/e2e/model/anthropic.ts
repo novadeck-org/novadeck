@@ -68,7 +68,9 @@ const turnsOf = (message: z.infer<typeof messages>["messages"][number]): Turn[] 
       ...withImages(imagesIn(content.catch("").parse(one.content ?? ""))),
     }))
   const text = textOf(message.content)
-  return text || results.length === 0 ? [...results, { role: "user", text }] : results
+  return text || results.length === 0
+    ? [...results, { role: "user", text, ...withImages(imagesIn(message.content)) }]
+    : results
 }
 
 // Claude Code's tool that loads the schemas of the tools it names only (`deferredOf`).
@@ -105,7 +107,7 @@ const unsearched = (turns: readonly Turn[]): Turn[] => {
     const text = after ? turn.text.replace(/^Tool loaded\.\n?/, "") : turn.text
     if (!text) return kept
     if (last?.role === "user")
-      return [...kept.slice(0, -1), { role: "user", text: `${last.text}\n${text}` }]
+      return [...kept.slice(0, -1), { ...last, text: `${last.text}\n${text}` }]
     if (last?.role === "tool")
       return [...kept.slice(0, -1), { ...last, text: `${last.text}\n${text}` }]
     return [...kept, { role: "user", text }]
@@ -125,7 +127,7 @@ const conversation = (request: z.infer<typeof messages>): { turns: Turn[]; syste
       const last = turns.at(-1)
       return last?.role === "user"
         ? {
-            turns: [...turns.slice(0, -1), { role: "user", text: `${last.text}\n${text}` }],
+            turns: [...turns.slice(0, -1), { ...last, text: `${last.text}\n${text}` }],
             system,
           }
         : { turns, system: [...system, text] }

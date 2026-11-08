@@ -187,3 +187,60 @@ describe("uploads", () => {
     }
   })
 })
+
+describe("the images a prompt names", () => {
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0])
+
+  const saved = async (resources: Resources, name = "shot.png", bytes: Buffer = png) => {
+    const uploads = new Uploads(await folder(resources))
+    const path = await uploads.save({ name, data: bytes.toString("base64") })
+    return { uploads, path }
+  }
+
+  it("accepts a file this runner saved, one of the formats agents take", async ({ resources }) => {
+    const { uploads, path } = await saved(resources)
+    await expect(uploads.checkImages([path])).resolves.toBeUndefined()
+    const jpeg = await uploads.save({
+      name: "a b.jpg",
+      data: Buffer.from([0xff, 0xd8, 0xff, 0xe0]).toString("base64"),
+    })
+    await expect(uploads.checkImages([path, jpeg])).resolves.toBeUndefined()
+  })
+
+  it("refuses a path the runner did not save, as when nothing was saved yet", async ({
+    resources,
+  }) => {
+    const { uploads, path } = await saved(resources)
+    const foreign = join(dirname(dirname(dirname(path))), "elsewhere.png")
+    await writeFile(foreign, png)
+    await expect(uploads.checkImages([foreign])).rejects.toMatchObject({ code: "PROMPT_REFUSED" })
+    await expect(uploads.checkImages(["/etc/passwd"])).rejects.toMatchObject({
+      code: "PROMPT_REFUSED",
+    })
+    await expect(new Uploads(await folder(resources)).checkImages([path])).rejects.toMatchObject({
+      code: "PROMPT_REFUSED",
+    })
+  })
+
+  it("refuses a path out of an upload's folder, or a folder of the upload's own", async ({
+    resources,
+  }) => {
+    const { uploads, path } = await saved(resources)
+    await expect(
+      uploads.checkImages([join(dirname(path), "..", "..", "x.png")]),
+    ).rejects.toMatchObject({
+      code: "PROMPT_REFUSED",
+    })
+    await expect(uploads.checkImages([dirname(path)])).rejects.toMatchObject({
+      code: "PROMPT_REFUSED",
+    })
+  })
+
+  it("refuses a file that is not an image, and one that is gone", async ({ resources }) => {
+    const { uploads, path } = await saved(resources, "notes.png", Buffer.from("not an image"))
+    await expect(uploads.checkImages([path])).rejects.toMatchObject({ code: "PROMPT_REFUSED" })
+    const image = await uploads.save({ name: "a.png", data: png.toString("base64") })
+    await rm(dirname(image), { recursive: true })
+    await expect(uploads.checkImages([image])).rejects.toMatchObject({ code: "PROMPT_REFUSED" })
+  })
+})

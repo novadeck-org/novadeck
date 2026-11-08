@@ -208,6 +208,11 @@ export type BoxProfile = {
    */
   readonly viewport?: (rows: number) => number
   /**
+   * How the program takes an image file's path pasted alone, as an image in its prompt;
+   * omitted where it takes none (a prompt with images is refused).
+   */
+  readonly images?: ProfileImages
+  /**
    * The rows as the screen's calm reads them, without what the program redraws by itself
    * while idle at its prompt, as an elapsed time it counts up each second; omitted where it
    * redraws nothing so. Only what ticks while no turn runs: a running turn's spinner still
@@ -215,6 +220,34 @@ export type BoxProfile = {
    */
   readonly still?: (rows: readonly string[]) => readonly string[]
 }
+
+/** How a program shows and takes back the images pasted into its prompt (see `BoxProfile.images`). */
+export type ProfileImages = {
+  /** How many images the screen shows in the prompt about to be sent. */
+  readonly attached: (screen: ScreenText) => number
+  /** Whether Enter sends a prompt of images with no words; false where it does nothing. */
+  readonly alone: boolean
+  /**
+   * The keys that take every image back out of the prompt on `screen`, as a person would;
+   * undefined where none are safe on it (a key that would stop a turn that runs).
+   */
+  readonly discard: (screen: ScreenText) => string | undefined
+}
+
+/**
+ * The images of a program that shows each in its box as a placeholder (`[Image #1]`), after the
+ * words and taking up the box's rows: a Ctrl-U per row empties it, placeholders and all.
+ */
+export const placeholderImages = (
+  read: (screen: ScreenText) => InputBox | undefined,
+): ProfileImages => ({
+  attached: (screen) => read(screen)?.text.match(/\[Image #\d+\]/g)?.length ?? 0,
+  alone: true,
+  discard: (screen) => {
+    const box = read(screen)
+    return box && eraseRows(box)
+  },
+})
 
 /** The fewest rows a profile's viewport can be and say a box is full by its height. */
 const minViewport = 2

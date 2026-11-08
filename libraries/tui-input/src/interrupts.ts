@@ -11,7 +11,7 @@ import {
   type BoxProfile,
   type InputBox,
 } from "./box/box.js"
-import { sameText } from "./box/text.js"
+import { sameText, withoutImages } from "./box/text.js"
 import type { InputEntry, InputHold } from "./queue.js"
 
 /** The waits of an interrupt, in milliseconds. */
@@ -230,11 +230,11 @@ export class Interrupts {
       const restored =
         !queued &&
         prompt !== undefined &&
-        (sameText(box.text, prompt) || showsTail(profile, box, rows, prompt))
+        (sameText(withoutImages(box.text), prompt) || showsTail(profile, box, rows, prompt))
       // A placeholder stands for words that clearing would lose: they are left, and said. So
       // does a box that may hold more than it shows, where those words aren't known in full.
       if (!profile.clear) throw new BoxNotCleared()
-      if (!restored && (profile.collapsed(box) || profile.stands(box.text)))
+      if (!restored && (profile.collapsed(box) || profile.stands(withoutImages(box.text))))
         throw new BoxNotCleared()
       if (!restored && profile.cut?.(box) === true) throw new BoxNotCleared()
       if (queued && fillsViewport(profile, box, rows)) throw new BoxNotCleared()
@@ -330,7 +330,7 @@ export class Interrupts {
       if (
         !erase ||
         profile.collapsed(box) ||
-        profile.stands(box.text) ||
+        profile.stands(withoutImages(box.text)) ||
         hidesText(profile, box, rows)
       )
         throw new BoxNotCleared()

@@ -7,6 +7,7 @@ import {
   footerRows,
   leaveShell,
   markedBox,
+  placeholderImages,
   sameText,
   type BoxProfile,
   type Markers,
@@ -165,6 +166,9 @@ export const box: BoxProfile = {
   // row and breaks at the same column (fixtures/leftover.probe.json).
   textWidth: (columns) => columns - 3,
   stands: (text) => /\[(?:Pasted Content \d+|Image #\d+|image\b)/.test(text),
+  // A pasted image file's path alone becomes `[Image #N]` in its box, ahead of the words (probed
+  // 2026-11-08, 0.165.0, e2e/probes/image-box.e2e.ts); Ctrl-U empties the box.
+  images: placeholderImages(read),
   collapsed: ({ text }) => /^\[Pasted Content \d+ chars?\]$/.test(text.trim()),
   erase: eraseRows,
   // On Windows it reads the console's keys, and a line break is an Enter unless it comes in what
