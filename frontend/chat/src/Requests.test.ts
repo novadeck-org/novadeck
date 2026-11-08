@@ -652,11 +652,11 @@ describe("a dialog of questions", () => {
     expect(tabs(container)[0]?.getAttribute("aria-selected")).toBe("true")
   })
 
-  it("asks each question once, on its page, and not again as the request's subject", () => {
-    // Every harness's question request takes its first question as its subject.
+  // Every harness's question request takes its first question as its subject.
+  const asked = (answered: boolean) => {
     const { container, unmount } = render(
       createElement(Requests, {
-        requests: [{ ...request(dialog), kind: "question", subject: "Keep the grace?" }],
+        requests: [{ ...request(dialog, answered), kind: "question", subject: "Keep the grace?" }],
         slice: null,
         agent: "Claude",
         onAnswer: async () => {},
@@ -670,8 +670,18 @@ describe("a dialog of questions", () => {
       }),
     )
     unmounts.push(unmount)
+    return container
+  }
+
+  it("asks each question once, on its page, and not again as the request's subject", () => {
+    const container = asked(false)
     expect(container.querySelector(".chat-request-subject")).toBeNull()
     expect(container.textContent?.split("Keep the grace?")).toHaveLength(2)
+  })
+
+  it("names what was asked once it's answered and the pages have gone", () => {
+    const container = asked(true)
+    expect(container.querySelector(".chat-request-subject")?.textContent).toBe("Keep the grace?")
   })
 
   it("keeps every page in its cell, one of them shown, so turning one moves nothing", () => {
