@@ -27,7 +27,7 @@ When you first open Novadeck, tick the agents you use. Novadeck adds a small plu
 it can resume them after a restart and pass messages between them. Then start them in any
 terminal, the same way you always do.
 
-Codex may ask you to trust Novadeck's hooks. Do it with `/hooks`, or messages won't reach it.
+Codex may ask you to trust Novadeck's hooks. Do it with `/hooks`, or messages won't reach it and it won't resume after a restart.
 
 ## Three views
 
@@ -80,7 +80,7 @@ start others and lead them. The wires show who leads whom.
 
 ![The Messages pane of Orders API, with a conversation per teammate.](assets/guide/messages.webp)
 
-Click **Messages** on a terminal to read its conversations with other agents.
+Once a terminal has messages, click its **Messages** icon to read its conversations with other agents.
 
 ## Agents show you their work
 
