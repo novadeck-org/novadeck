@@ -146,7 +146,11 @@ describe("An Inbox entry's sheet", () => {
       await openInbox()
       await row("Run pnpm add").click()
       await expect.element(sheet("Checkout review")).toBeVisible()
-      await page.getByRole("region", { name: "focus view" }).click({ position: { x: 600, y: 700 } })
+      // Right of the sheet, which sits beside its row and so lies lower while the list is
+      // still filling in: a point under it would be a click on the sheet.
+      await page
+        .getByRole("region", { name: "focus view" })
+        .click({ position: { x: 1000, y: 600 } })
 
       await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
     })
@@ -385,6 +389,10 @@ describe("An Inbox entry's sheet", () => {
 
     it("keeps a reply it has not sent as a draft on the row", async () => {
       await openInbox()
+      // The list is still filling in, and a row that lands above this one moves its sheet
+      // under the pointer partway through; typing waits for it to have settled.
+      await lookAway()
+      await expect.element(rows()).toHaveLength(settledRows)
       await row("How should failed payment webhooks retry").click()
       const open = sheet("Dev server")
       await answer(open, "Reply in your own words").click()
