@@ -500,9 +500,9 @@
     {
       "id": "relay-status-line-windows-no-output",
       "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
-      "signature": "panicked at src.status_line\\.rs:\\d+:\\d+:\\n(?:assertion .left == right. failed\\n\\s*left: (?:0|\\\"\\\")\\n|the command printed nothing by any deadline)",
+      "signature": "panicked at src.status_line\\.rs:\\d+:\\d+:\\n(?:assertion .left == right. failed\\n\\s*left: (?:0|\\\"\\\")\\n|the command printed nothing by any deadline)[\\s\\S]*\\nfailures:\\n(?:\\s+status_line::tests::\\w+\\n)+\\s*\\ntest result: FAILED\\.",
       "status": "known",
-      "cause": "Windows only, a Rust test whose log has no Vitest FAIL line, so it's matched by the job's log, cause unknown: four relay status_line tests failed together because every Git Bash child printed nothing, the deadline tests through 10 s; they ran at once beside the sandbox reap test on a loaded runner. Mitigated by task/ci-flakes (those tests run one at a time, and a plain one that printed nothing runs once more); the child's stderr goes to NUL, so a return needs it seen to find the cause.",
+      "cause": "Windows only, a Rust test whose log has no Vitest FAIL line, so it's matched by the job's log, and only where cargo's list of failures names status_line tests alone, cause unknown: four relay status_line tests failed together because every Git Bash child printed nothing, the deadline tests through 10 s; they ran at once beside the sandbox reap test on a loaded runner. Mitigated by task/ci-flakes (those tests run one at a time, and a plain one that printed nothing runs once more); the child's stderr goes to NUL, so a return needs it seen to find the cause.",
       "seen": ["#785 run 42411833861 job 128521430789 (Windows, 1/3)"]
     }
   ]

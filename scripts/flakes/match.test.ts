@@ -57,6 +57,17 @@ describe("the known-flake register", () => {
     })
   })
 
+  context("when the relay's job fails on more than its status line tests", () => {
+    it("takes it for no flake, as only status line tests printing nothing are excused", () => {
+      const job = "Test (Windows, 1/3)"
+      const log = fixture("relay-status-line-windows-no-output").replace(
+        "    status_line::tests::prints_what_the_command_printed_from_the_same_input",
+        "    status_line::tests::prints_what_the_command_printed_from_the_same_input\n    hook::tests::reports_a_prompt",
+      )
+      expect(judgeJob(register, job, log).flakes).toEqual([])
+    })
+  })
+
   context("when its job runs in halves", () => {
     it("knows a flake by any part's job, as it knew the whole one", () => {
       const log = fixture("ui-agents-pinned-drag-top")
