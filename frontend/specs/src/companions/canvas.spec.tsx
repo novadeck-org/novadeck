@@ -4,18 +4,10 @@ import { agentShowsPage } from "../support/backend"
 import { boxOf, canvasView, scrollCanvas, settled } from "../support/canvas"
 import { companionPane, openShowcase, taskbarIcon } from "../support/companions"
 import {
-  currentSessionName,
-  emptyWorkspace,
-  expectCurrentSession,
-  pressNewSession,
-  savedSession,
-} from "../support/sessions"
-import {
   chooseView,
   expectStaysAbsent,
   layoutSettled,
   openWorkspace,
-  sidebarPanel,
   terminal,
   terminalTab,
 } from "../support/workspace"
@@ -37,8 +29,7 @@ const paneInView = (): boolean => {
 }
 
 describe("Canvas with a companion pane open on arrival", () => {
-  // The showcase's terminals stand in one column, whose fit is limited by its height, so the
-  // pane fits beside them however the camera is chosen: this guards the switch itself.
+  // This guards the switch itself: the first camera takes in the pane open on a window.
   it("frames the pane when switched to from Grid", async () => {
     await openShowcase("grid")
     await terminalTab("Build Studio").click()
@@ -59,7 +50,7 @@ describe("Canvas with a companion pane open on arrival", () => {
   })
 })
 
-describe("Canvas returned to with its camera as it was left", () => {
+describe("Canvas zoomed in on a window", () => {
   it("frames a pane opened afterwards", async () => {
     await openShowcase("canvas")
     await companionPane("Build Studio")
@@ -78,17 +69,6 @@ describe("Canvas returned to with its camera as it was left", () => {
     }
     await expect.poll(overflows).toBe(true)
     await settled(() => boxOf(terminal("Build Studio")))
-
-    // A session left and returned to keeps its camera, rather than framing anything.
-    await sidebarPanel("Sessions").click()
-    const original = await currentSessionName()
-    await pressNewSession()
-    await expect.element(emptyWorkspace()).toBeVisible()
-    await sidebarPanel("Sessions").click()
-    await savedSession(original).click()
-    await expectCurrentSession(original)
-    await expect.element(terminal("Build Studio")).toBeVisible()
-    await layoutSettled()
 
     // From the keyboard: zoomed in, the taskbar may lie past the view's bottom.
     taskbarIcon("Build Studio", "Plan: A home for Studio").element().focus()

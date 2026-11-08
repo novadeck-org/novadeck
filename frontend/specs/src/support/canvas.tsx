@@ -22,8 +22,6 @@ export const canvasView = (): Locator => page.getByRole("region", { name: "canva
 /** The Canvas surface behind the terminals, which receives background gestures. */
 export const canvasBackground = (): Locator => page.getByLabelText("Terminal canvas")
 
-export const canvasMenu = (): Locator => page.getByRole("menu", { name: "Canvas actions" })
-
 const screenBox = (locator: Locator): DOMRect => locator.element().getBoundingClientRect()
 
 /** Where a terminal (or any element) appears on screen, relative to the Canvas view. */
@@ -134,15 +132,6 @@ export const doubleClickHeader = async (name: string): Promise<void> => {
 
 export const dragHeader = async (name: string, by: Point): Promise<void> => {
   await dragBy(terminal(name), by, besideName(name))
-}
-
-/** Drags a terminal's resize corner, at its bottom right, by `by`. */
-export const dragCorner = async (name: string, by: Point): Promise<void> => {
-  const grip = terminal(name)
-    .element()
-    .closest("[data-workspace-canvas-node]")!
-    .querySelector(".terminal-resize-grip")!
-  await dragBy(page.elementLocator(grip), by)
 }
 
 /** Scrolls the mouse wheel with the pointer over the middle of `target`. */

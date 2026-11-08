@@ -816,7 +816,6 @@ describe("workspace commands", () => {
       ])
       const added = terminal(app, "new-3")
       expect(added).toMatchObject({ directory: "/work/app" })
-      expect(app.state().layout.canvas.geometry["new-3"]).toBeDefined()
       expect(app.state().layout.grid.desktop?.some((item) => item.i === "new-3")).toBe(true)
       // The selection, the URL and any rename stay as they were.
       expect(app.state().selected).toBe("01")
@@ -825,19 +824,13 @@ describe("workspace commands", () => {
       expect(answers).toEqual([{ terminalId: "new-3" }])
     })
 
-    it("places it beside the asking terminal on the canvas, not the selected one", () => {
-      // The first terminal, selected, at the top; 02, which asks, far below it.
-      const workspace = workspaceFixture()
-      workspace.projects[0]!.history[0]!.state.layout.canvas.geometry = {
-        "01": { position: { x: 0, y: 0 }, width: 600, height: 400 },
-        "02": { position: { x: 0, y: 2000 }, width: 600, height: 400 },
-      }
+    it("lists it under the asking terminal, not the selected one", () => {
       const app = openCommands({
-        workspace,
-        url: "/projects/project/sessions/initial/canvas?terminal=01",
+        workspace: workspaceFixture(),
+        url: "/projects/project/sessions/initial/canvas?terminal=02",
       })
-      app.commands.openRequested(asking({ from: "02" }).asked)
-      expect(app.state().layout.canvas.geometry["new-3"]?.position.y).toBe(2000)
+      app.commands.openRequested(asking({ from: "01" }).asked)
+      expect(orderedTiles(app.state().roster).map((tile) => tile.id)).toEqual(["01", "new-3", "02"])
     })
 
     it("lists it under the asking terminal, after the ones it opened before", () => {

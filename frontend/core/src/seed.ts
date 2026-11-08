@@ -94,7 +94,6 @@ const appendTile = (state: WorkspaceState, tile: Tile): WorkspaceState => {
     layout: placeTerminal(state.layout, {
       terminal: tile,
       terminals: tiles,
-      anchor: tiles.at(-1),
       gridLayouts: addCompactGridTerminal(tiles, state.layout.grid, tile),
     }),
   }

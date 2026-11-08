@@ -338,8 +338,8 @@ const cells: Readonly<Record<number, readonly [number, number, number, number]>>
   10: [1, 3, 0, 0],
 }
 const windowSize = { width: 660, height: 280 }
-// The space between windows' corners, wide enough that the Canvas finds free places in the
-// middle of the deck (it keeps 60 clear of a window and snaps to 24).
+// The space between windows' corners in the deck's saved layout, which Canvas, arranging
+// its windows itself, no longer reads.
 const columnPitch = 730
 const rowPitch = 380
 const place = (number: number) => {
@@ -350,7 +350,6 @@ const place = (number: number) => {
   }
 }
 const deskLayout = (): CanvasLayout => ({
-  viewport: { x: 120, y: 60, zoom: 0.5 },
   geometry: Object.fromEntries(
     jobs.flatMap((_, index) =>
       onDeck(index + 1)
@@ -1087,11 +1086,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
             lead,
             true,
           ),
-          // Placed by the Canvas itself: the free place most in view, nearest the middle of
-          // the viewport, not beside its anchor. They land by the lead because the layout
-          // leaves room there, at the size the person last gave a window, which the app passes
-          // as `canvasWindowSize`; here the deck's size (at the default 864x576 they don't).
-          canvasSize: windowSize,
+          // Placed by the Canvas itself, in their lead's team.
           anchor: keyOf(launch.lead).terminalId,
           select: false,
         })),

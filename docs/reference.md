@@ -78,9 +78,19 @@ prereleases, the experimental channel, are on the
 
 ## Working in Novadeck
 
+Canvas arranges its windows itself, from the Terminals list. Terminals on no team sit
+together in one block, in the list's order. Each team is a group of its own: the lead on
+the left and its team to the right, a teammate that leads others one step further right
+with its own team. Reorder the list and Canvas follows. While Canvas is open, a new
+terminal or a growing team moves only the windows that have to make room, and closing a
+terminal moves nothing. Opening Canvas again arranges everything afresh and frames it all;
+coming back to it from Focus by a terminal's minimize button finds it as you left it.
+Every window is the same size, 864×576.
+
 In Canvas, scroll to zoom in or out, and drag the background or an inactive terminal
 to pan. Click a terminal to activate it, then select its text, scroll its output,
-or drag its header to move it. Activating a terminal brings it in front of the
+or drag its header to move it out of the way: it stays where you leave it until Canvas
+next arranges its windows afresh. Activating a terminal brings it in front of the
 others; Canvas retains that stacking order until you leave the view.
 Double-click or double-tap a terminal header outside its name to smoothly center and zoom that terminal
 to fit the canvas viewport. Repeat the gesture on the same terminal to return to the
@@ -97,12 +107,10 @@ minimize button opens Grid or Canvas.
 Click **New terminal** or use its keyboard shortcut to create and select a terminal
 immediately in any view, with or without Zen, ready to type in; F2 renames it. Focus
 shows it right away. Grid uses
-an available slot and scrolls it into view. Canvas chooses a nearby free position,
-preferring the current viewport, and pans only as needed to reveal it without changing
-zoom. Terminals can be moved or resized immediately; there is no placement step.
-Right-click the Grid or Canvas background and choose **Terminal** to create one without entering
-rename mode. In Canvas, its top-left corner is placed at that canvas point without moving the
-camera. Terminals created with the New terminal control open in rename mode with their name
+an available slot and scrolls it into view. Canvas puts it last in its block, as the
+Terminals list does, and pans only as needed to reveal it without changing zoom.
+Right-click the Grid background and choose **Terminal** to create one without entering
+rename mode. Terminals created with the New terminal control open in rename mode with their name
 selected: in the sidebar when visible, or in the terminal header otherwise. Enter or clicking
 away saves the name; Escape keeps the original name. In any
 view, double-click or double-tap a terminal's name in its header to rename it
@@ -219,9 +227,7 @@ shells `LANG` for the system's language and country in UTF-8 (`AppleLocale`, its
 region override left out), as Terminal.app does (`en_US.UTF-8` when the system has no such
 locale), so typing a character such as "ż" works in bash.
 
-In Canvas, resize a terminal by dragging its bottom-right corner. New terminals open at
-864×576 until you resize one; from then on they open at the size you last gave a terminal,
-in every project and session. In Grid, the terminal header's resize control alternates
+In Grid, the terminal header's resize control alternates
 between two widths: **Make full width** fills the available columns; **Restore width**
 returns to the width at each breakpoint from before that click, preserving terminal height.
 That choice is remembered per terminal and session. New Grid terminals start at compact

@@ -30,7 +30,7 @@ const sessionState = (workspace: Workspace, target: WorkspaceTarget): WorkspaceS
     ?.history.find((session) => session.id === target.workspaceSessionId)?.state
 
 export const createSourceCommands = (
-  { workspace, ui, navigation, effects, companions }: CommandContext,
+  { workspace, navigation, effects, companions }: CommandContext,
   { markCreated, pulse }: SourceDependencies,
 ): SourceCommands => ({
   openSourceFile: async (path) => {
@@ -71,7 +71,6 @@ export const createSourceCommands = (
         item,
         window,
         made,
-        canvasSize: ui.getSnapshot().canvasWindowSize,
       })
       return
     }
@@ -85,7 +84,6 @@ export const createSourceCommands = (
         item,
         window,
         made,
-        canvasSize: ui.getSnapshot().canvasWindowSize,
       },
     ])
     pulse()

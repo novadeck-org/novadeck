@@ -41,7 +41,7 @@ Codex may ask you to trust Novadeck's hooks. Do it with `/hooks`, or messages wo
 
 ![Canvas: eleven terminals arranged on a board.](assets/guide/canvas.webp)
 
-**Canvas**: put terminals wherever you like. Scroll to zoom, drag to pan.
+**Canvas**: every terminal on one board, laid out for you: each team beside its lead, the rest in a block in the sidebar's order. Scroll to zoom, drag to pan.
 
 ![Zen mode: only the terminals and a small dock.](assets/guide/zen.webp)
 

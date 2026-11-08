@@ -2,7 +2,7 @@ import { afterEach } from "vitest"
 import { page, userEvent } from "vitest/browser"
 
 import { watchBarDrag } from "../support/bar-drag"
-import { boxOf, canvasView, dragBackground, settled, viewBox } from "../support/canvas"
+import { settled } from "../support/canvas"
 import {
   cancelPointerOver,
   chooseFromIconMenu,
@@ -11,7 +11,6 @@ import {
   dragCardToBar,
   dragIconToBar,
   dragIconToFreeSpace,
-  freeSpaceIn,
   iconMenu,
   openShowcase,
   taskbar,
@@ -720,12 +719,13 @@ describe("Placing an item on another terminal's taskbar", () => {
   context("when an image is dragged onto it in Canvas", () => {
     it("shows there, from its terminal", async () => {
       await openShowcase("canvas")
-      // The terminals stand in one column: pan until Refactor auth's taskbar is in view.
-      const bar = boxOf(taskbar("Refactor auth"))
-      await dragBackground(freeSpaceIn(canvasView()), {
-        x: 0,
-        y: viewBox().height - 40 - (bar.top + bar.height),
-      })
+      // Build Studio's open pane hangs over its teammate's window, which Canvas sets beside
+      // it: put it away so Refactor auth's taskbar is bare.
+      await companionPane("Build Studio")
+        .getByRole("button", { name: "Minimize to the taskbar" })
+        .click()
+      await expect.poll(() => companionPane("Build Studio").query()).toBeNull()
+      await expect.element(taskbar("Refactor auth")).toBeVisible()
       await dragCardToBar("Build Studio", "2 images", "about.png", "Refactor auth")
       await expect
         .element(taskbarIcon("Refactor auth", "about.png, from @moth · Build Studio"))

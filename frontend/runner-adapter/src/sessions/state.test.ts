@@ -13,7 +13,6 @@ const session = (): WorkspaceSession => {
     "canvas",
     {
       canvasLayout: {
-        viewport: { x: 1, y: 2, zoom: 0.5 },
         geometry: {
           "01": { position: { x: 10, y: 20 }, width: 400, height: 300, dragging: true },
         },
@@ -36,7 +35,14 @@ describe("saved session state", () => {
       expect(saved).toMatchObject({
         state: { order: ["02", "01"], view: "canvas", windowedView: "canvas", selected: "02" },
       })
-      expect(saved?.state.layout.canvas.viewport).toEqual({ x: 1, y: 2, zoom: 0.5 })
+    })
+
+    it("leaves out the camera an older build saved", () => {
+      const before = session()
+      const canvas = { ...before.state.layout.canvas, viewport: { x: 1, y: 2, zoom: 0.5 } }
+      const layout = { ...before.state.layout, canvas }
+      const text = encodeSession({ ...before, state: { ...before.state, layout } })
+      expect(text).not.toContain("viewport")
     })
 
     it("leaves out the terminals, which the runner keeps, and gestures in progress", () => {

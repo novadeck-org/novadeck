@@ -246,7 +246,6 @@ describe("runner backend", () => {
           target,
           layout: (layout) => ({
             ...layout,
-            viewport: { x: -120, y: 40, zoom: 0.8 },
             geometry: {
               ...layout.geometry,
               [first.id]: { position: { x: 310, y: 95 }, width: 640, height: 420 },

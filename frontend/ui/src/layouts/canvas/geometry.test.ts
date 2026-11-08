@@ -1,5 +1,5 @@
 import { describe, expect, it } from "../../test"
-import { fallbackSize, minimumSize, onScreen, sizeOr } from "./geometry"
+import { inSight, onScreen } from "./geometry"
 
 const viewport = { x: 0, y: 0, zoom: 1 }
 const screen = { width: 1000, height: 800 }
@@ -18,20 +18,11 @@ describe("a window on screen", () => {
   })
 })
 
-describe("a window's size", () => {
-  it("is the fallback's where the canvas doesn't know it yet, as everywhere on Canvas", () => {
-    expect(sizeOr(undefined, undefined)).toEqual({ width: 550, height: 400 })
-    expect(sizeOr(700, undefined)).toEqual({ width: 700, height: fallbackSize.height })
-    expect(sizeOr(undefined, 300)).toEqual({ width: fallbackSize.width, height: 300 })
-  })
-
-  it("snaps up to Canvas's minimum on the grid when resized", () => {
-    expect(minimumSize).toEqual({ width: 336, height: 216 })
-  })
-
-  it("decides whether a window with no width yet is on screen", () => {
-    const x = screen.width - 24 - fallbackSize.width
-    expect(onScreen({ x, y: 24 }, sizeOr(undefined, 100), viewport, screen)).toBe(true)
-    expect(onScreen({ x: x + 1, y: 24 }, sizeOr(undefined, 100), viewport, screen)).toBe(false)
+describe("a window in sight", () => {
+  it("shows any of itself on screen", () => {
+    expect(inSight({ x: 990, y: 790 }, viewport, screen)).toBe(true)
+    expect(inSight({ x: -863, y: -575 }, viewport, screen)).toBe(true)
+    expect(inSight({ x: 1000, y: 0 }, viewport, screen)).toBe(false)
+    expect(inSight({ x: 0, y: -576 }, viewport, screen)).toBe(false)
   })
 })

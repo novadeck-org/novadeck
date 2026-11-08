@@ -353,14 +353,13 @@ describe("items in the workspace", () => {
       target,
       itemId: hero.id,
       window: windowFor(hero),
-      anchor: "01",
     })
 
-    it("opens it in a window beside its terminal, selected", () => {
+    it("opens it in a window, selected, which Canvas arranges itself", () => {
       const state = stateOf(undocked)
       expect(state.roster.windows).toEqual([windowFor(hero)])
       expect(state.selected).toBe("w1")
-      expect(state.layout.canvas.geometry).toHaveProperty("w1")
+      expect(state.layout.canvas.geometry).not.toHaveProperty("w1")
       expect(state.items[1]!.holder).toEqual({ windowId: "w1" })
       expect(state.bars["01"]!.order).toEqual([notes.id])
       expect(state.fresh).not.toHaveProperty(hero.id)
@@ -468,7 +467,7 @@ describe("items in the workspace", () => {
       const state = run(empty, open(opened("a.ts")))
       expect(state.roster.windows).toEqual([windowOf(opened("a.ts"))])
       expect(state.selected).toBe("pw")
-      expect(state.layout.canvas.geometry).toHaveProperty("pw")
+      expect(state.layout.canvas.geometry).not.toHaveProperty("pw")
       expect(state.items).toEqual([opened("a.ts")])
       expect(orderedTiles(state.roster).map((tile) => tile.id)).toEqual(["pw"])
     })
@@ -560,7 +559,7 @@ describe("items in the workspace", () => {
         window: windowFor(hero),
       })
       expect(state.roster.windows).toEqual([windowFor(hero)])
-      expect(state.layout.canvas.geometry).toHaveProperty("w1")
+      expect(state.layout.grid.desktop!.map((item) => item.i)).toContain("w1")
       expect(state.selected).toBe("01")
     })
 
