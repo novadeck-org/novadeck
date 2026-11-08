@@ -257,7 +257,7 @@ the wire: only `agents()` lists it. A terminal the client creates for an
 agent's request (`terminals.requests`) passes that request's `requestId` to
 `terminals.create`, and takes the title the agent asked for as the agent's.
 `terminals.resetTitle({ terminalId })` takes the person's name away, so it is automatic
-again (see [Agent messaging](agent-messaging.md#naming)). `handle` is its
+again (see [Agent messaging](agent-messaging.md#naming)). `terminals.busy()` answers `{ busy, unknown }`: the ids of the terminals, in every session, whose shell holds work a close would end (with no agent, a program in the foreground, an unfinished line, a background or suspended job; with one, a job of the shell's own beside it), and those it could not read, which a client must not take for idle. It reads the system's processes when called, once for all terminals, calls that overlap share one read, and nothing samples it, so a client asks when it needs the answer, as before a restart, and not on a timer. `handle` is its
 handle for agents' messages, a word such as `moth` that its session gives it (people read
 it as `@moth`); every terminal takes one, even one created with its own title, and keeps
 it across renames. A session never gives a word twice, even once its terminal closes;

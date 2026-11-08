@@ -235,6 +235,7 @@ const updater = (channel: unknown = "stable") => {
   let report: ((offer: unknown) => void) | undefined
   let pages = 0
   let allowed = 0
+  let restarted = 0
   const set: unknown[] = []
   const bridge = {
     onUpdate: (listener: (offer: unknown) => void) => {
@@ -245,6 +246,7 @@ const updater = (channel: unknown = "stable") => {
     },
     openUpdatePage: () => void (pages += 1),
     allowUpdates: () => void (allowed += 1),
+    restartToUpdate: () => void (restarted += 1),
     updateChannel: () => Promise.resolve(channel),
     setUpdateChannel: (next: unknown) => void set.push(next),
   } as unknown as DesktopApp
@@ -253,6 +255,7 @@ const updater = (channel: unknown = "stable") => {
     report: (offer: unknown) => report?.(offer),
     pages: () => pages,
     allowed: () => allowed,
+    restarted: () => restarted,
     set,
   }
 }
@@ -343,6 +346,14 @@ describe("desktop updates", () => {
         { kind: "available", version: "0.0.82" },
         { kind: "ready", version: "0.0.83" },
       ])
+    })
+
+    it("asks the app to restart into the update, where it can", () => {
+      const { bridge, restarted } = updater()
+      desktopUpdates(bridge)!.restart!()
+      expect(restarted()).toBe(1)
+      delete (bridge as { restartToUpdate?: unknown }).restartToUpdate
+      expect(desktopUpdates(bridge)!.restart).toBeUndefined()
     })
 
     it("asks the app to allow updates, where it can", () => {

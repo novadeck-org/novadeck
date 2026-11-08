@@ -2,9 +2,10 @@
 
 Every Novadeck build either updates itself or tells the person that a newer release
 exists and where to get it. Installed apps look for one through novadeck.dev, falling back to GitHub Releases,
-shortly after launch and every hour. The app never restarts on its own, and the page has no restart
-button: a downloaded update installs when the app next quits, and the page shows only a
-progress bar while it downloads.
+shortly after launch and every hour. The app never restarts on its own: a downloaded update installs when the app next quits,
+unless the person presses **Restart now** on the footer chip's card, which quits and opens
+the app again as the new version (see "Restart now"). The page shows a progress bar while
+it downloads.
 
 Every system follows one rule: a normal quit puts the new version in place, and a
 Novadeck the person opens meanwhile opens once it is there, as the new version, however
@@ -325,6 +326,56 @@ from signals by marking them before they begin:
 
 The app has no tray and no page command that quits. A `before-quit` without the mark, which
 is what a signal gives, switches installing on quit off.
+
+### Restart now
+
+A `ready` update installs at the next quit, and the footer chip's card has a **Restart now**
+button for the person who does not want to wait. Pressing it is the only way Novadeck
+restarts: the app never does it by itself, and a plain quit still never reopens.
+
+The button calls `restartToUpdate` on the desktop bridge (`updates.restart` in the page's
+port), which the main process takes as `updating().restart`. It is ignored unless the last
+offer is `ready`, the copy installs updates itself (`updatePlan` says `install`, so a portable
+copy, a copy that only tells and a Linux build that is not an AppImage are turned away), and
+no quit is under way (`restartAllowed` in `updates/quit-install.ts`). Otherwise it is the
+person's orderly quit (`quitting.orderly`) with a reopen wanted (`reopenWanted`) and
+`quitting.restart` set, so everything in "Opening Novadeck while it quits into an update"
+applies: the same quit-time install, and the same refusal to install or open anything when
+the runner may still be running (see "A runner that does not exit"; then the app just
+closes, and the update waits for a later quit).
+
+- **Linux (AppImage)** swaps the file as the quit begins and opens the new one after the
+  shutdown. Should the swap fail, `openCurrentAfterQuit` starts the AppImage as it is,
+  still the running version. There is no deb or rpm updater: those builds never offer
+  `ready`, so the button never shows and a call is ignored.
+- **macOS** puts the prepared bundle in place once the app has shut down and relaunches into
+  it. Should the update not go in (the bundle changed, can't be written, fails its check),
+  `openCurrentAfterQuit` starts the bundle that was left whole.
+- **Windows** runs the installer with `--force-run` after the app exits, so the installer
+  starts the new version. electron-updater installs from its own `quit` handler, added when
+  the download finished, so it runs before the one the restart adds (`restart` in
+  `updates/updating.ts`). That handler opens the current version with `app.relaunch()` unless
+  the install call returned true (`installReturned` in `checkForUpdates`; `placedBy` and
+  `opensCurrentAfterQuit` decide). It does open it when the downloaded file was gone at quit,
+  when electron-updater had no file to run or `doInstall` threw and answered false, and when
+  nothing installed. It does not when the runner may still be running, and it must not when
+  the call returned true, as the installer's `--force-run` then opens the app and a second
+  copy would run beside it. These cases leave the app closed: an installer that starts and
+  then fails; a spawn that fails or an elevation (UAC) that is declined, which electron-updater
+  reports after the app has gone, as the install call has already returned true. The old
+  version stays installed and the next launch marks a failed install as usual (see "Install
+  failures").
+- **A logout or shutdown** during a restart takes the restart back (`dropRestart`): the
+  session's quit installs nothing and opens nothing. One that lands after the reopen was
+  decided (the relaunch, the AppImage start or the bundle start already issued) cannot undo
+  it. `dropRestart` clears `reopenWanted` too, so a logout during any quit opens nothing,
+  including the launch remembered by "Opening Novadeck while it quits into an update": that is
+  deliberate, as the session is ending.
+
+`opensCurrentAfterQuit` (a restart whose update was not placed, which Linux and macOS act
+on in the quit and Windows in its `quit` handler) is the one decision that is new; the
+tests in `updates/quit-install.test.ts` and `updates/updating.test.ts` pin it, and that a
+quit without `restart` opens nothing.
 
 ### A runner that does not exit
 

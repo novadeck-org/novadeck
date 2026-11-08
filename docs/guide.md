@@ -63,7 +63,11 @@ curl -fsSL https://github.com/novadeck-org/novadeck/releases/latest/download/ins
 ```
 
 An installed build keeps itself up to date; an unsigned macOS build only tells you when a
-newer release is out until signing lands. An AppImage run from anywhere other than the
+newer release is out until signing lands. Once an update has downloaded it installs when you
+next quit, and a "Restart to update" chip in the footer waits for you: its card says what a restart
+would do to your workspace (agents mid-turn carry on, other agents and terminals reopen in their
+folders, and a program running in a plain shell stops, which the card names) and has Restart now.
+Novadeck never restarts by itself. An AppImage run from anywhere other than the
 install path (`~/.local/share/novadeck/novadeck.AppImage`, or Homebrew's
 `~/Applications/novadeck.AppImage`), a macOS app run from outside an Applications
 folder, and the Windows ZIP (`novadeck-win-x64.zip`, unpacked anywhere), is portable: it only looks for new releases and offers to install Novadeck (from itself on Linux and macOS,

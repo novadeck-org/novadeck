@@ -258,6 +258,7 @@ const quit = ({
           }),
         installMacUpdate: waited("install"),
         reopenAppImage: waited("reopen"),
+        reopenCurrent: waited("reopen current"),
         keepUpdate: () => {
           calls.push("keep update")
           if (fails.includes("keep update")) throw new Error("keep update failed")
@@ -281,6 +282,7 @@ describe("the app's quit", () => {
       "close server",
       "install",
       "reopen",
+      "reopen current",
       "quit",
     ])
   })
@@ -355,7 +357,13 @@ describe("the app's quit", () => {
     it("closes the server and goes on to the update", async () => {
       const { calls, run } = quit({ closeRunner: () => undefined })
       await run()
-      expect(calls.slice(-4)).toEqual(["close server", "install", "reopen", "quit"])
+      expect(calls.slice(-5)).toEqual([
+        "close server",
+        "install",
+        "reopen",
+        "reopen current",
+        "quit",
+      ])
     })
   })
 
@@ -399,7 +407,7 @@ describe("the app's quit", () => {
     it("installs and reopens as usual", async () => {
       const { calls, run } = quit({ ended: "killed" })
       await run()
-      expect(calls.slice(-3)).toEqual(["install", "reopen", "quit"])
+      expect(calls.slice(-4)).toEqual(["install", "reopen", "reopen current", "quit"])
       expect(calls).not.toContain("keep update")
     })
   })
@@ -411,6 +419,7 @@ describe("the app's quit", () => {
       expect(calls.slice(-4)).toEqual(["close runner", "close server", "keep update", "quit"])
       expect(calls).not.toContain("install")
       expect(calls).not.toContain("reopen")
+      expect(calls).not.toContain("reopen current")
     })
 
     it("lets the app end when the quit comes back", async () => {
@@ -451,6 +460,10 @@ describe("the app's quit", () => {
       ["save", ["save", "quit"]],
       ["install", ["save", "close runner", "close server", "install", "quit"]],
       ["reopen", ["save", "close runner", "close server", "install", "reopen", "quit"]],
+      [
+        "reopen current",
+        ["save", "close runner", "close server", "install", "reopen", "reopen current", "quit"],
+      ],
     ])("still quits after %s fails", async (name, ran) => {
       const { calls, run } = quit({ fails: [name] })
       await expect(run()).rejects.toThrow(`${name} failed`)
@@ -467,7 +480,7 @@ describe("the app's quit", () => {
       const { calls, run } = quit({ fails: ["close server"] })
       await run()
       expect(calls).toContain("close runner")
-      expect(calls.slice(-3)).toEqual(["install", "reopen", "quit"])
+      expect(calls.slice(-4)).toEqual(["install", "reopen", "reopen current", "quit"])
     })
 
     it("keeps the update when the runner's close fails, which says nothing of its end", async () => {

@@ -289,6 +289,7 @@ const withStatus = (terminal: TerminalMetadata, status: TerminalStatus): Termina
     directory: terminal.directory,
     command: terminal.command,
     process: terminal.process,
+    ...(terminal.argv ? { argv: terminal.argv } : {}),
     ...(restoredProcess ? { restoredProcess } : {}),
     // Who it is and who named it outlive any status.
     ...(terminal.handle !== undefined ? { handle: terminal.handle } : {}),
@@ -317,18 +318,29 @@ export const setTerminalStatus = (
   }
 }
 
-// The program now in the foreground.
+// Whether two command lines read the same; absent is none.
+export const sameArgv = (
+  a: readonly string[] | undefined,
+  b: readonly string[] | undefined,
+): boolean =>
+  a === b ||
+  (a !== undefined && b !== undefined && a.length === b.length && a.every((x, i) => x === b[i]))
+
+// The program now in the foreground, with its command line where the platform tells it.
 export const setTerminalProcess = (
   roster: TerminalRoster,
   terminalId: string,
   process: string,
+  argv?: readonly string[],
 ): TerminalRoster => {
   const current = roster.terminals.find((terminal) => terminal.id === terminalId)
-  if (!current || current.process === process) return roster
+  if (!current || (current.process === process && sameArgv(current.argv, argv))) return roster
   return {
     ...roster,
-    terminals: roster.terminals.map((terminal) =>
-      terminal === current ? { ...terminal, process } : terminal,
-    ),
+    terminals: roster.terminals.map((terminal) => {
+      if (terminal !== current) return terminal
+      const { argv: _before, ...rest } = terminal
+      return { ...rest, process, ...(argv ? { argv } : {}) } as TerminalMetadata
+    }),
   }
 }

@@ -221,6 +221,7 @@ export type WorkspaceAction =
       target: WorkspaceTarget
       terminalId: string
       process: string
+      argv?: readonly string[]
     }
   | { type: "terminal/select"; target: WorkspaceTarget; terminalId: string }
   | { type: "terminal/visibility"; target: WorkspaceTarget; terminalId: string; hidden: boolean }
@@ -638,7 +639,12 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
       })
     case "terminal/process":
       return updateTarget(workspace, action.target, (state) => {
-        const roster = setTerminalProcess(state.roster, action.terminalId, action.process)
+        const roster = setTerminalProcess(
+          state.roster,
+          action.terminalId,
+          action.process,
+          action.argv,
+        )
         return roster === state.roster ? state : { ...state, roster }
       })
     case "terminal/select":

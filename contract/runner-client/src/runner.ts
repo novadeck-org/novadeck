@@ -250,6 +250,15 @@ export type Runner = {
      */
     resetTitle(terminalId: string): Promise<void>
     /**
+     * The ids of the terminals, in every session, whose shell holds work a close would end (a
+     * program, an unfinished line, a background or suspended job, an agent's shell's own
+     * job), read from the system now (with `fresh`, by a read that starts after the call), and those the runner couldn't read (`unknown`, never
+     * idle). Ask when it is needed, never on a timer.
+     */
+    busy(options?: {
+      readonly fresh?: true
+    }): Promise<{ readonly busy: string[]; readonly unknown: string[] }>
+    /**
      * Saves a file pasted into a terminal on the runner's machine, sending it in
      * parts that each fit a message, and resolves with its absolute path there. Rejects
      * with `UPLOAD_TOO_LARGE` past `maxUploadBytes`, before sending anything, and as
@@ -644,6 +653,7 @@ export const connectRunner = async (
       rename: (terminalId, title) =>
         call((client) => client.terminals.rename({ terminalId, title })),
       resetTitle: (terminalId) => call((client) => client.terminals.resetTitle({ terminalId })),
+      busy: (only) => call((client) => client.terminals.busy(only)),
       async upload(terminalId, { name, data }) {
         if (data.length > maxUploadBytes) throw new WireError<RunnerErrorCode>("UPLOAD_TOO_LARGE")
         const [first, ...rest] = base64Parts(data, maxUploadPartLength)

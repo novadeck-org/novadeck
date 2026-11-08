@@ -54,6 +54,7 @@ import {
   terminalEvent,
   terminalRequest,
   terminalRequestAnswer,
+  busyShells,
   terminalSummary,
   terminalTitle,
 } from "./terminals.js"
@@ -228,6 +229,19 @@ export const contract = {
     // later changes (creation, title, size, foreground process, exit, restart, and its
     // shell's record let go, when it is saved again) and `removed` once it is closed.
     watch: procedure.input(z.void()).output(eventIterator(terminalChange)),
+    // The terminals, in every session and project, whose shell holds work a close would end,
+    // as `terminals.close` judges it for an agent's request: with no agent, a program in the
+    // foreground, a line entered whose prompt hasn't come back, or a job in the background
+    // or suspended; with an agent, a job of the shell's own beside it. `unknown` are the
+    // terminals the runner could not read (the system's process list failed or was too slow),
+    // which a client must not take for idle. Read from the system when asked, once for all
+    // terminals, and never sampled, so a client asks when it needs it (before a restart) and
+    // not on a timer; calls that overlap share one read, except that `fresh` waits for a read
+    // that starts after the call, so what began before it is never taken for now (a client
+    // about to act on the answer asks so). CLOSING while the runner stops.
+    busy: procedure
+      .input(z.strictObject({ fresh: z.literal(true).optional() }).optional())
+      .output(busyShells),
     attach: procedure
       .input(
         z.strictObject({

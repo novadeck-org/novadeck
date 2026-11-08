@@ -3,25 +3,31 @@ import { afterEach, beforeEach, onTestFinished, vi } from "vitest"
 const fresh = vi.hoisted(() => ({
   group: undefined as number | undefined,
   sampled: undefined as { process: { name: string; argv: string[] | null } | null } | undefined,
+  table: undefined as import("@novadeck/terminal/pty").TableRow[] | undefined,
 }))
 vi.mock("@novadeck/terminal/pty", async (original) => {
   const real = await original<typeof import("@novadeck/terminal/pty")>()
   return {
     ...real,
     terminalForeground: async () => fresh.group,
+    processTable: async () => fresh.table,
     sampleForeground: ((...args: Parameters<typeof real.sampleForeground>) =>
       fresh.sampled ?? real.sampleForeground(...args)) as typeof real.sampleForeground,
   }
 })
 
+import type { Member } from "@novadeck/terminal/pty"
+
 import { describe, expect, it } from "../test.js"
 import type { Record } from "./record.js"
 import {
   boundProgram,
+  busyTerminals,
   exitKeysMs,
   programOf,
   programRuns,
   Sampler,
+  shared,
   shellBusy,
   endingSamples,
   graceSamples,
@@ -392,5 +398,215 @@ describe("whether a program runs in a shell, for the summary", () => {
 
   it("stops counting it once the shell's prompt came back", () => {
     expect(programRuns(shell({ startupRuns: false, submitted: true }))).toBe(false)
+  })
+})
+
+describe("which terminals hold work a close would end", () => {
+  type Table = NonNullable<typeof fresh.table>
+  const row = (pid: number, ppid: number, tpgid: number, tty = "pts/1", comm = "sh") => ({
+    pid,
+    ppid,
+    pgid: pid,
+    tpgid,
+    tty,
+    comm,
+  })
+  const shell = (id: string, pid: number, fields: { [key: string]: unknown } = {}) =>
+    ({
+      foreground: undefined,
+      terminal: { pty: { pid }, exit: null, exiting: false },
+      summary: {
+        id,
+        agent: null,
+        ready: null,
+        startup: null,
+        process: { name: "bash", argv: null },
+      },
+      bound: null,
+      shellName: "bash",
+      prompts: [{}],
+      submitted: false,
+      ...fields,
+    }) as unknown as Parameters<typeof busyTerminals>[0] extends Iterable<infer R> ? R : never
+  const withAgent = (id: string, pid: number, fields: { [key: string]: unknown } = {}) =>
+    shell(id, pid, {
+      summary: { id, agent: "claude", ready: null, startup: null },
+      bound: {},
+      ...fields,
+    })
+  const set = (table: Table | undefined) => {
+    fresh.table = table
+    onTestFinished(() => void (fresh.table = undefined))
+  }
+
+  it("names the shells with a program, a job or a line entered, and leaves an idle one out", async () => {
+    set([
+      row(100, 1, 100),
+      row(101, 1, 555),
+      row(102, 1, 102),
+      row(120, 102, 102),
+      row(103, 1, 103),
+    ])
+    const records = [
+      shell("at-prompt", 100),
+      shell("program", 101),
+      shell("job", 102),
+      shell("typed", 103, { submitted: true }),
+    ]
+    expect(await busyTerminals(records)).toEqual({
+      busy: ["program", "job", "typed"],
+      unknown: [],
+    })
+  })
+
+  it("names a suspended program, which the shell's prompt has taken the terminal back from", async () => {
+    set([row(100, 1, 100), row(130, 100, 100)])
+    expect(await busyTerminals([shell("stopped", 100)])).toEqual({ busy: ["stopped"], unknown: [] })
+  })
+
+  it("leaves an agent's own process out, and names a job of its shell's beside it", async () => {
+    // The agent leads the foreground group, 300; a job the shell started is another child.
+    set([
+      row(200, 1, 300),
+      row(300, 200, 300),
+      row(210, 1, 310),
+      row(310, 210, 310),
+      row(311, 210, 210),
+    ])
+    expect(await busyTerminals([withAgent("alone", 200), withAgent("beside", 210)])).toEqual({
+      busy: ["beside"],
+      unknown: [],
+    })
+  })
+
+  it("names a suspended agent, once the shell holds the terminal again", async () => {
+    set([row(200, 1, 200), row(300, 200, 200)])
+    expect(await busyTerminals([withAgent("suspended", 200)])).toEqual({
+      busy: ["suspended"],
+      unknown: [],
+    })
+  })
+
+  it("holds an agent expected or ready to the same, whichever harness", async () => {
+    set([
+      row(200, 1, 300),
+      row(300, 200, 300),
+      row(201, 1, 301),
+      row(301, 201, 301),
+      row(302, 201, 201),
+    ])
+    const ready = (id: string, pid: number, agent: string) =>
+      shell(id, pid, { summary: { id, agent: null, ready: agent, startup: null } })
+    expect(await busyTerminals([ready("codex", 200, "codex"), ready("agy", 201, "agy")])).toEqual({
+      busy: ["agy"],
+      unknown: [],
+    })
+  })
+
+  it("calls every shell unknown where the process list can't be read, never idle", async () => {
+    set(undefined)
+    expect(await busyTerminals([shell("a", 100), withAgent("b", 200)])).toEqual({
+      busy: [],
+      unknown: ["a", "b"],
+    })
+  })
+
+  it("calls a shell unknown that the list doesn't hold, and leaves out ended and unstarted ones", async () => {
+    set([row(100, 1, 100)])
+    const records = [
+      shell("gone", 999),
+      shell("ended", 100, { terminal: { pty: { pid: 100 }, exit: { code: 0 }, exiting: false } }),
+      shell("unstarted", 0, { terminal: { pty: { pid: undefined }, exit: null, exiting: false } }),
+    ]
+    expect(await busyTerminals(records)).toEqual({ busy: [], unknown: ["gone"] })
+  })
+
+  it("calls an agent's shell unknown when the list lacks it or names no foreground group", async () => {
+    set([row(200, 1, -1)])
+    expect(await busyTerminals([withAgent("nogroup", 200), withAgent("missing", 999)])).toEqual({
+      busy: [],
+      unknown: ["nogroup", "missing"],
+    })
+  })
+
+  describe("on Windows, where an agent not yet bound has no process to leave out", () => {
+    const member = (pid: number, name: string, parent?: number): Member => ({
+      pid,
+      startedAt: pid,
+      name,
+      ...(parent === undefined ? {} : { parent }),
+    })
+    const trees = (members: Member[] | undefined) => ({ read: async () => members })
+    const unbound = (id: string, agent: string) =>
+      shell(id, 10, { summary: { id, agent: null, ready: agent, startup: null } })
+
+    it("leaves a harness's own program and what it runs out, whichever harness, and names a job", async () => {
+      on("win32")
+      for (const agent of ["claude", "codex", "agy"]) {
+        const quiet = trees([
+          member(10, "cmd.exe"),
+          member(11, `${agent}.exe`, 10),
+          member(12, "node.exe", 11),
+        ])
+        // eslint-disable-next-line no-await-in-loop -- Each harness is read alone.
+        expect(await busyTerminals([unbound(agent, agent)], quiet)).toEqual({
+          busy: [],
+          unknown: [],
+        })
+        // `start /b npm run dev` before it: another child of the shell.
+        const job = trees([
+          member(10, "cmd.exe"),
+          member(11, `${agent}.exe`, 10),
+          member(13, "node.exe", 10),
+        ])
+        // eslint-disable-next-line no-await-in-loop -- Each harness is read alone.
+        expect(await busyTerminals([unbound(agent, agent)], job)).toEqual({
+          busy: [agent],
+          unknown: [],
+        })
+      }
+    })
+
+    it("is unknown where the tree can't be read", async () => {
+      on("win32")
+      expect(await busyTerminals([unbound("codex", "codex")], trees(undefined))).toEqual({
+        busy: [],
+        unknown: ["codex"],
+      })
+    })
+  })
+
+  it("lets overlapping asks share one read, and reads again for a later one", async () => {
+    let reads = 0
+    const { read } = shared(async () => {
+      reads += 1
+      await Promise.resolve()
+      return reads
+    })
+    expect(await Promise.all([read(), read()])).toEqual([1, 1])
+    expect(await read()).toBe(2)
+  })
+
+  it("gives a fresh ask a read that starts after it, which later fresh asks share", async () => {
+    // What the system holds when a read starts, as a program started during the read before.
+    let programs = 0
+    let started = 0
+    const { read, fresh: again } = shared(async () => {
+      started += 1
+      const seen = programs
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      return seen
+    })
+    const inFlight = read()
+    programs = 1
+    const later = [again(), again()]
+    await vi.advanceTimersByTimeAsync(20)
+    expect(await inFlight).toBe(0)
+    expect(await Promise.all(later)).toEqual([1, 1])
+    expect(started).toBe(2)
+    // With none in flight it starts at once.
+    const now = again()
+    await vi.advanceTimersByTimeAsync(20)
+    expect(await now).toBe(1)
   })
 })

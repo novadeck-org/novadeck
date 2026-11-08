@@ -94,12 +94,13 @@ export const runnerTerminal = (
       ? { ...identity, ...restored(summary), process: "", ...asleep }
       : { ...identity, ...restored(summary), process: "", state: "starting" }
   }
-  const { status, process } = terminalActivity(summary, quickExitMs)
+  const { status, process, argv } = terminalActivity(summary, quickExitMs)
   if (status === "clean") return undefined
   return {
     ...identity,
     ...(restartable(status) ? restored(summary) : {}),
     process: process ?? "",
+    ...(argv ? { argv } : {}),
     ...status,
   }
 }

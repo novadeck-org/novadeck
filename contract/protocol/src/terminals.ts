@@ -252,3 +252,8 @@ export type Approval = z.infer<typeof approval>
 export type ApprovalAnswer = z.infer<typeof approvalAnswer>
 export type TerminalEvent = z.infer<typeof terminalEvent>
 export type TerminalAttached = z.infer<typeof terminalAttached>
+
+// What `terminals.busy` answers: the terminals whose shell holds work a close would end, and
+// those the runner could not read, which a client must not take for idle.
+export const busyShells = z.strictObject({ busy: z.array(id), unknown: z.array(id) })
+export type BusyShells = z.infer<typeof busyShells>

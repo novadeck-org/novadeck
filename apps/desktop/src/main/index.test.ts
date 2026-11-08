@@ -105,7 +105,7 @@ describe("the compiled desktop app", () => {
       expect(main).toContain("closeServer: () => server?.close()")
       expect(main).toContain("installMacUpdate: updates.installMacUpdateOnQuit")
       expect(main).toMatch(
-        /reopenAppImage: updates\.openAppImageAfterQuit,\s*keepUpdate: updates\.keepUpdateOnQuit,\s*quit: \(\) => app\.quit\(\)/u,
+        /reopenAppImage: updates\.openAppImageAfterQuit,\s*reopenCurrent: updates\.openCurrentAfterQuit,\s*keepUpdate: updates\.keepUpdateOnQuit,\s*quit: \(\) => app\.quit\(\)/u,
       )
       // The runner's end reaches the quit, and an abandoned runner's quit turns off both of
       // the installs; what that does is covered in ./updates/updater.test.ts.
@@ -113,7 +113,7 @@ describe("the compiled desktop app", () => {
         /const shutDown = \(\) => shutDownInOrder\(\{[^;]*closeServer: \(\) => server\?\.close\(\)\s*\}\);/u,
       )
       expect(main).toMatch(
-        /keepUpdateOnQuit: \(\) => keepUpdateOnQuit\(\[updater, macQuitInstall\], \{\s*swapped: appImageSwapped,\s*log: \(\w+\) => log\w*\.warn\(\w+\)/u,
+        /keepUpdateOnQuit: \(\) => \{\s*runnerKept = true;\s*keepUpdateOnQuit\(\[updater, macQuitInstall\], \{\s*swapped: appImageSwapped,\s*log: \(\w+\) => log\w*\.warn\(\w+\)/u,
       )
       expect(main).toMatch(/hosting: \(\) => Boolean\(server \|\| runner\),\s*shutDown,/u)
       expect(main).toContain("saveBeforeQuitChannel")
@@ -162,9 +162,10 @@ describe("the compiled desktop app", () => {
         /releaseLock\(\);[\s\S]*?spawn\d*\(file, args, \{\s*detached: true,\s*stdio: "ignore"[\s\S]*?child\.unref\(\);\s*exit\(\);/u,
       )
       // Electron's relaunch hands the child no-new-privileges, which stops an AppImage from
-      // mounting; only macOS still uses it, and with the executable alone.
+      // mounting; only macOS and Windows use it, with the executable alone.
       expect(main).not.toContain("args: []")
-      expect(main.match(/app\.relaunch\(/gu)).toHaveLength(1)
+      // A restart on Windows opens itself that way when its installer never began.
+      expect(main.match(/app\.relaunch\(/gu)).toHaveLength(2)
     })
 
     it("opens a window for a second launch when the app has none, as on macOS", async () => {

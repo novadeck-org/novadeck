@@ -91,3 +91,22 @@ export const writeFoldedChip = (subject: string): void => {
     /* The chip folds for this session when storage is unavailable. */
   }
 }
+
+// The release whose "Restart to update" chip the person folded to its icon, by closing its
+// card: its own, so folding the "Update available" chip of the same release leaves this one.
+const foldedRestartStorageKey = "novadeck.restart-chip-folded"
+export const readFoldedRestart = (): string | null => {
+  try {
+    return localStorage.getItem(foldedRestartStorageKey)
+  } catch {
+    return null
+  }
+}
+
+export const writeFoldedRestart = (version: string): void => {
+  try {
+    localStorage.setItem(foldedRestartStorageKey, version)
+  } catch {
+    /* The chip folds for this session when storage is unavailable. */
+  }
+}
