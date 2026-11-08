@@ -83,7 +83,7 @@ curl -fsSL https://novadeck.dev/install.sh | sh
 On macOS and x86_64 Linux. For Windows and portable builds, see
 [novadeck.dev/download](https://novadeck.dev/download?utm_source=readme).
 
-Closing the tab? Leave a ⭐ first. It's your bookmark back here, and it helps other runners find the deck.
+Leave a ⭐ on your way out. It's your way back here, and someone else's way in.
 
 ## Docs
 
