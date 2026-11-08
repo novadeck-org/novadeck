@@ -2,6 +2,7 @@ import { afterEach, beforeEach, onTestFailed, onTestFinished, vi } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
 import { preferencesDialog, pressShortcut } from "../support/keyboard"
+import { closeToasts } from "../support/toasts"
 import {
   chooseView,
   clickInto,
@@ -312,6 +313,7 @@ describe("dictation", () => {
     it("keeps its offer on the terminal whose mic is clicked in Grid, though the click selects it", async () => {
       await openWithoutVoice("/?demo=agents&voice=uninstalled")
       await chooseView("Grid")
+      await closeToasts()
       await terminal("Tests")
         .getByRole("button", { name: labelled("Set up voice input for ", "Tests") })
         .click()
@@ -396,6 +398,7 @@ describe("dictation", () => {
       const offered = terminal("Checkout implementation").getByRole("button", {
         name: labelled("Set up voice input for ", "Checkout implementation"),
       })
+      await closeToasts()
       await offered.click()
       await offer().getByRole("button", { name: "No thanks" }).click()
       await expect.element(offered).not.toBeInTheDocument()
