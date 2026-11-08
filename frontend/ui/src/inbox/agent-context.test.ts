@@ -4,6 +4,7 @@ import {
   type ChatItem,
   type Conversation,
   type Conversations,
+  noDoorbell,
 } from "@novadeck/core/conversation"
 import type { InboxRow } from "@novadeck/core/inbox"
 import { noMessages, type MessageParty, type MessagesState } from "@novadeck/core/messages"
@@ -48,7 +49,10 @@ const item = (fields: Partial<ChatItem>): ChatItem => ({
   call: null,
   author: null,
   run: null,
+  outcome: null,
+  scripted: false,
   interrupted: false,
+  ring: null,
   ...fields,
 })
 
@@ -163,13 +167,15 @@ describe("an Inbox row's agent context", () => {
     expect(seen.at(-1)).toBeUndefined()
     act(() => {
       conversation.update(() => ({
+        slice: null,
+        doorbell: noDoorbell,
         agent: "claude",
         session: "x",
         loaded: true,
         items: transcript,
         requests: [],
         prompts: [],
-        unread: false,
+        box: null,
       }))
     })
     expect(seen.at(-1)).toEqual({

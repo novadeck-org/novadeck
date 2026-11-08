@@ -47,6 +47,10 @@ describe("releasing a terminal from its lead", () => {
     expect(offered({ ...led, state: "starting" })).toBeUndefined()
   })
 
+  it("is offered for a sleeping agent, as ending its lead needs no shell", () => {
+    expect(offered({ ...led, state: "sleeping", agent: "claude" })).toMatchObject({ lead: "moth" })
+  })
+
   it("isn't offered once the shell ended", () => {
     const exited = { ...led, state: "exited", exitCode: 0, signal: null }
     expect(offered(exited)).toBeUndefined()

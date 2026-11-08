@@ -2,9 +2,13 @@ import { stat } from "node:fs/promises"
 
 import { followLines, tailLines } from "@novadeck/harness-core/follow"
 import type { Harness, TranscriptEntry } from "@novadeck/harness-core/harness"
-import { interruptionEntry } from "@novadeck/harness-core/items"
+import { interruptionEntry, noteEntry } from "@novadeck/harness-core/items"
 import { transcriptLimits, type TranscriptChange } from "@novadeck/protocol"
 
+import { DomainError } from "../errors.js"
+import type { Binding } from "../harnesses/bindings.js"
+import { actorOf } from "../harnesses/detail.js"
+import { harnesses } from "../harnesses/registry.js"
 import { logs } from "../log.js"
 import type { Record } from "./record.js"
 
@@ -108,6 +112,9 @@ export const unknownShape = (
   })
 }
 
+// A shape that holds the agent's reasoning, by its key, in any harness.
+const reasoning = /thinking|reasoning/i
+
 /** What a reading of a transcript tells beside its items. */
 export type Reading = {
   /** The interruptions it doesn't record (see `Interruption`). */
@@ -133,9 +140,10 @@ export const readingOf = (
  * harness writes just after the key (Antigravity's, up to 0.1 s on), before the next prompt.
  * One told only after the next prompt was read joins at the end, and in its place once the
  * transcript is read again. Where its harness gives lines no `step`, none joins.
- * A line holding a shape its harness's decoder has never seen is told to `unknown`, and the
- * first inside the conversation (its harness's `conversational`) sends `unread` once, as
- * the chat may be missing words the terminal shows.
+ * A line holding a shape its harness's decoder has never seen is told to `unknown`, and one
+ * inside the conversation (its harness's `conversational`) leaves a gap among the items, where
+ * the chat may be missing words the terminal shows, its text the line as written. Reasoning
+ * stays private, so a line that holds some gives no text.
  */
 export const transcriptChanges = async function* (
   path: string,
@@ -163,8 +171,6 @@ export const transcriptChanges = async function* (
   // step order, and the interruptions told since the file was read from its start.
   let reached = -1
   const told = new Set<string>()
-  // Whether `unread` was sent; a rewrite keeps it, as the chat does.
-  let unread = false
   let wake: (() => void) | undefined
   let resume: (() => void) | undefined
   const notify = () => {
@@ -198,19 +204,22 @@ export const transcriptChanges = async function* (
     path,
     signal,
     (line) => {
-      for (const shape of shapes?.(line) ?? []) {
+      const found = shapes?.(line) ?? []
+      let gap = false
+      for (const shape of found) {
         if (shape.verdict !== "unknown") continue
         const inside = conversational?.(shape.key) ?? false
         unknown?.(shape.key, inside)
-        if (!inside || unread) continue
-        unread = true
-        queue.push({ type: "unread" })
-        notify()
+        gap ||= inside
       }
       const read = items(line)
       if (read.some((item) => item.role === "user")) interrupted(reached)
       reached = Math.max(reached, step?.(line) ?? reached)
       for (const item of read) collect(item)
+      if (gap) {
+        const reasons = found.some(({ key }) => reasoning.test(key))
+        collect(noteEntry({ type: "gap" }, null, reasons ? "" : line))
+      }
     },
     {
       fromStart: true,
@@ -259,5 +268,47 @@ export const transcriptChanges = async function* (
     controller.abort()
     signal.removeEventListener("abort", abort)
     await reading
+  }
+}
+
+/**
+ * Whether a record still holds the session it held, through the new binding object each hook
+ * report makes of it (a version learned, a status line): a read that waits on the disk would
+ * otherwise find the session gone when a report landed meanwhile.
+ */
+export const holds = (now: Binding | undefined, then: Binding): boolean =>
+  now !== undefined &&
+  now.agent === then.agent &&
+  now.sessionId === then.sessionId &&
+  now.instance === then.instance
+
+/**
+ * An actor's conversation in the terminal, as its harness recorded it: every item so far,
+ * then each later one, until the terminal's agent leaves the session it belongs to or
+ * `signal` aborts. An actor the bound session does not have, or whose harness keeps no
+ * transcript Novadeck reads, is NOT_FOUND.
+ */
+export const followTranscript = async function* (
+  record: Record,
+  actor: string,
+  signal?: AbortSignal,
+): AsyncGenerator<TranscriptChange> {
+  const { bound, transcript: root } = record
+  const source = bound && harnesses[bound.binding.agent].transcripts
+  const native = bound && actorOf(bound.binding, bound.activity, actor)
+  if (!bound || !source || !root || native === undefined) throw new DomainError("NOT_FOUND")
+  const path = await source.locate(root, bound.binding.sessionId, native)
+  if (!path || !holds(record.bound?.binding, bound.binding)) throw new DomainError("NOT_FOUND")
+  const reader = new AbortController()
+  record.sourceReaders.add(reader)
+  const abort = () => reader.abort()
+  signal?.addEventListener("abort", abort, { once: true })
+  if (signal?.aborted) reader.abort()
+  try {
+    yield* transcriptChanges(path, source, reader.signal, readingOf(record, native))
+  } finally {
+    signal?.removeEventListener("abort", abort)
+    reader.abort()
+    record.sourceReaders.delete(reader)
   }
 }

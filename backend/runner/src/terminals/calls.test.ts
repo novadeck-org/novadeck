@@ -49,7 +49,7 @@ describe("the models call", () => {
 describe("the open call", () => {
   // Calls over a runner of fakes: a caller `moth` in /work, a client that opens every
   // terminal it is asked for as `t2`, and a record of what was asked, sent and noticed.
-  const setup = (bound: string[] = []) => {
+  const setup = (bound: string[] = [], resting: string[] = [], rows: { agents: object }[] = []) => {
     const records = new Map<string, unknown>([
       [
         "t1",
@@ -78,6 +78,7 @@ describe("the open call", () => {
     const approvals = new Approvals()
     const host = {
       records: () => records,
+      rows: () => rows,
       stopping: () => false,
       closingNow: () => false,
       approvals: () => approvals,
@@ -102,6 +103,8 @@ describe("the open call", () => {
       }),
       messaging: () => ({
         refusal: () => undefined,
+        holder: (agent: string, session: string) =>
+          resting.includes(`${agent}:${session}`) ? "t9" : undefined,
         send: (_from: string, request: { to: string; text: string }) => {
           sent.push(request)
           plain += 1
@@ -325,12 +328,26 @@ describe("the open call", () => {
     expect(run.opened.startedWith).toBeUndefined()
   })
 
+  it("resumes with the flags the session was launched with, from a saved row or a live one", async () => {
+    const launch = ["--dangerously-skip-permissions"]
+    const row = (seq: number, flags?: string[]) => ({
+      agents: { claude: { sessionId: "s-1", seq, ...(flags && { launch: flags }) } },
+    })
+    const saved = setup([], [], [row(1, launch)])
+    await saved.open({ agent: "claude", resume: "s-1" })
+    expect(saved.asked[0]!.command).toBe("claude --dangerously-skip-permissions --resume s-1")
+    // Another session's flags are not its own.
+    const other = setup([], [], [{ agents: { claude: { sessionId: "s-9", seq: 1, launch } } }])
+    await other.open({ agent: "claude", resume: "s-1" })
+    expect(other.asked[0]!.command).toBe("claude --resume s-1")
+  })
+
   it("resumes with no brief, and with Codex's and Antigravity's own words", async () => {
     const run = setup()
     await run.open({ agent: "codex", resume: "t-1", lead: false })
     await run.open({ agent: "agy", resume: "c-1" })
     expect(run.asked.map(({ command }) => command)).toEqual([
-      "codex resume t-1",
+      `codex resume -c "tui.resume_cwd=session" t-1`,
       "agy --conversation c-1",
     ])
     expect(run.sent).toEqual([])
@@ -348,6 +365,16 @@ describe("the open call", () => {
     expect(await run.open({ agent: "agy", resume: "s-1" })).toMatchObject({
       ok: true,
     })
+    expect(run.asked).toHaveLength(1)
+  })
+
+  it("refuses a session a sleeping agent rests on, saying it is asleep, and opens nothing", async () => {
+    const run = setup([], ["claude:s-4"])
+    expect(await run.open({ agent: "claude", resume: "s-4" })).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("where the agent is asleep"),
+    })
+    expect(await run.open({ agent: "codex", resume: "s-4" })).toMatchObject({ ok: true })
     expect(run.asked).toHaveLength(1)
   })
 

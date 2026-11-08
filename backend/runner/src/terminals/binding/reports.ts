@@ -35,6 +35,7 @@ import {
 import { peerOf, type TerminalPeers } from "../peers-host.js"
 import type { Record } from "../record.js"
 import { boundProgram } from "../sampling.js"
+import { scheduleChange, trackSchedules } from "../schedules.js"
 import { retold, toldOf } from "../told.js"
 import type { Typing } from "../typing.js"
 import { judgedFirst, personPrompted, workAfter } from "../work.js"
@@ -132,6 +133,8 @@ export class Reports {
     const named = harnesses[report.agent].transcriptOf?.(report)
     if (named && record.bound?.binding.agent === report.agent)
       this.host.bindings().learnTranscript(record, named.sessionId, named.transcript)
+    const scheduling = scheduleChange(report)
+    if (scheduling) trackSchedules(record, scheduling)
     const decoded = firedFacts(harnesses[report.agent].decode(report), report)
     // A turn's end its hook named no reply for reads the reply from the agent's
     // transcript; any other report goes on at once.
@@ -145,8 +148,26 @@ export class Reports {
               ? { sessionId: record.bound.binding.sessionId, transcript: record.transcript }
               : undefined,
           )
+    // A queued message's hook that outlived the Stop that took the message back: no turn began.
+    // Claude Code's alone: it runs a queued message's hook as the message is queued. Antigravity's
+    // don't run then either, and Codex's hooks for a message a Stop left queued are the turn it
+    // goes on with.
+    if (
+      report.agent === "claude" &&
+      events.some((event) => event.type === "turn-started") &&
+      (await this.host.typing().givenBack.late(report.terminalId, events))
+    )
+      return silent
     // Its prompt shows before any session of its binds, as Antigravity's status line says.
     const promptShown = harnesses[report.agent].shown?.(report)
+    // Which of its screens the agent expected there says it is at, not a job of its shell. A
+    // snapshot's hook may run after the next one's, so the newest says.
+    const screen =
+      report.agent === record.expecting
+        ? harnesses[report.agent].startupScreen?.(report)
+        : undefined
+    if (screen && report.seq >= (record.startupScreen?.seq ?? 0))
+      record.startupScreen = { screen, seq: report.seq }
     const shown = promptShown && firedFacts([promptShown], report)[0]
     if (events.length === 0 && !shown) return silent
     const child = record.terminal.pty
@@ -244,6 +265,8 @@ export class Reports {
                 telemetry: null,
               }
       if (next.binding !== null) {
+        // A woken agent came up: the wake worked (see `Record.woken`).
+        record.woken = undefined
         // After a suspended agent, a binding is that agent back from `fg`, or another the
         // person started at the prompt, which its lead never directed.
         if (record.suspended !== null && next.binding.instance !== record.suspended)

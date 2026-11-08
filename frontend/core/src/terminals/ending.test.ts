@@ -1,4 +1,4 @@
-import { describe, expect, it } from "../test"
+import { context, describe, expect, it } from "../test"
 import { terminalFixture } from "../testing"
 import type { AgentStatus, TerminalMetadata } from "../types"
 import {
@@ -227,6 +227,12 @@ describe("terminal need mark", () => {
     ["a permission over an ask row", running("permission"), "ask", "unblock"],
     ["a question over an ask row", running("question"), "ask", "ask"],
     ["nothing", running(), undefined, undefined],
+    [
+      "a startup screen",
+      { ...running(), agent: { working: false, startup: "startup" } },
+      undefined,
+      "unblock",
+    ],
     ["a dialog of an ended terminal", { ...running("plan"), state: "idle" }, undefined, undefined],
   ] as const)("reads %s", (_, metadata, inbox, need) => {
     expect(terminalNeedMark(metadata as TerminalMetadata, inbox)).toBe(need)
@@ -337,6 +343,17 @@ describe("a terminal's note", () => {
     agent: { working: false, ...fields },
   })
   const quiet = { need: undefined } as const
+
+  it("says which screen holds an agent before its first session, marked as needing the person", () => {
+    expect(terminalNote(agent({ startup: "startup" }), quiet, undefined, now)).toMatchObject({
+      phase: "idle",
+      need: "unblock",
+      text: "Waiting at its startup screen",
+    })
+    expect(terminalNote(agent({ startup: "sign-in" }), quiet, undefined, now).text).toBe(
+      "Waiting at its sign-in screen",
+    )
+  })
 
   it("is a bare idle terminal with nothing to say", () => {
     expect(terminalNote(agent(), quiet, undefined, now)).toEqual({
@@ -456,5 +473,46 @@ describe("a terminal's note", () => {
     const marks = { need: "ask" } as const
     const { text: _, ...glance } = terminalNote(agent({ reported: true }), marks, "failed", now)
     expect(terminalGlance(agent({ reported: true }), marks, "failed", now)).toEqual(glance)
+  })
+
+  context("when its agent sleeps", () => {
+    const asleep: TerminalMetadata = { ...terminal, state: "sleeping", agent: "claude" }
+    const marks = { need: undefined }
+
+    it("reads as asleep, never as starting, and waking once its shell starts to resume it", () => {
+      expect(terminalPhase(asleep)).toBe("sleeping")
+      expect(terminalPhase({ ...terminal, state: "starting" })).toBe("starting")
+      expect(terminalPhase({ ...terminal, state: "starting", restoredProcess: "claude" })).toBe(
+        "waking",
+      )
+      expect(terminalPhase({ ...terminal, state: "starting", restoredProcess: "vim" })).toBe(
+        "starting",
+      )
+    })
+
+    it("says it is waking after its ask, set apart by a dot", () => {
+      const waking: TerminalMetadata = { ...terminal, state: "starting", restoredProcess: "claude" }
+      expect(terminalNote(waking, { need: "ask", subject: "Which one?" }, undefined).text).toBe(
+        "Asks: Which one? · Waking…",
+      )
+      expect(terminalNote(waking, { need: undefined }, undefined).text).toBe("Waking…")
+    })
+
+    it("keeps its done report and its ask, saying it is asleep after them", () => {
+      expect(terminalNote(asleep, marks, undefined).text).toBe("Asleep · wakes when you open it")
+      expect(terminalNote(asleep, marks, "unread").text).toBe("Asleep · reply unread")
+      const reported: TerminalMetadata = { ...asleep, reported: true }
+      expect(terminalNote(reported, marks, undefined)).toMatchObject({
+        phase: "done",
+        text: "Done · reported · asleep",
+      })
+      expect(terminalNote(asleep, { need: "ask", subject: "Which one?" }, undefined)).toMatchObject(
+        {
+          phase: "sleeping",
+          need: "ask",
+          text: "Asks: Which one? · asleep",
+        },
+      )
+    })
   })
 })

@@ -112,6 +112,28 @@ export const starting = (key: TerminalKey): BackendAction[] => [
   setStatus(key, { state: "starting" }),
 ]
 
+// An agent with its session saved and no process, resumed when someone needs it; `reported`
+// when its `done` still stands, `endedAt` when its last turn ended.
+export const sleeping = (
+  key: TerminalKey,
+  agent: AgentName,
+  reported = false,
+  endedAt?: number,
+): BackendAction[] => [
+  setStatus(key, {
+    state: "sleeping",
+    agent,
+    ...(reported ? { reported: true as const } : {}),
+    ...(endedAt !== undefined ? { endedAt } : {}),
+  }),
+]
+
+// A sleeper whose agent is on its way back: it was asleep, and its shell starts to resume it.
+export const waking = (key: TerminalKey, agent: AgentName): BackendAction[] => [
+  ...sleeping(key, agent),
+  ...starting(key),
+]
+
 // A program in the foreground of a running terminal.
 export const runProgram = (key: TerminalKey, program: string): BackendAction[] => [
   setProcess(key, program),
@@ -225,6 +247,17 @@ export const mcpAsk = (
 export const unheardAgent = (key: TerminalKey, program: string): BackendAction[] => [
   setProcess(key, program),
   setStatus(key, { state: "running" }),
+]
+
+// An agent one of whose own screens holds it for the person before its first session, as a
+// folder-trust or sign-in screen.
+export const atStartupScreen = (
+  key: TerminalKey,
+  program: string,
+  screen: NonNullable<AgentStatus["startup"]> = "startup",
+): BackendAction[] => [
+  setProcess(key, program),
+  setStatus(key, { state: "running", agent: { working: false, startup: screen } }),
 ]
 
 export const resting: AgentStatus = { working: false }

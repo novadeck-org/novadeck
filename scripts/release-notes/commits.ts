@@ -125,7 +125,8 @@ export const parseCommit = (raw: RawCommit): Commit | undefined => {
   const { type, scope, subject, pr } = found
   if (type !== "feat" && type !== "fix" && type !== "perf") return undefined
   if (unannounced(subject!)) return undefined
-  if (scope?.split(",").some((part) => excludedScopes.has(part.trim()))) return undefined
+  const scopes = scope?.split(",").map((part) => part.trim()) ?? []
+  if (scopes.some((part) => excludedScopes.has(part))) return undefined
   return {
     sha: raw.sha,
     type,

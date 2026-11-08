@@ -47,12 +47,11 @@ export const renderBody = (
           : ""
       }`,
   )
-  const highlights = notes.highlights
-    .map(
-      (highlight) =>
-        `- **${plain(highlight.title)}**: ${plain(highlight.line)}${links(highlight.prs, repo)}`,
-    )
-    .join("\n")
+  const titled = (items: ReleaseNotes["highlights"]): string =>
+    items
+      .map((item) => `- **${plain(item.title)}**: ${plain(item.line)}${links(item.prs, repo)}`)
+      .join("\n")
+  const highlights = titled(notes.highlights)
   if (notes.kind === "promote") {
     if (notes.highlights.length > 0) sections.push(`## Highlights\n\n${highlights}`)
     if (areas.length > 0) sections.push(`## What's new\n\n${areas.join("\n\n")}`)

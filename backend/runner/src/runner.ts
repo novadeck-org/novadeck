@@ -240,6 +240,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   const sealer = createTranscriptSealer(options.transcriptKey)
   const terminals = new Terminals({
     records: store,
+    closed: store,
+    projects: () => store.projects().map(({ id }) => id),
     sealer,
     shellFiles,
     ...relay,
@@ -250,6 +252,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     install: (agent) => agents.install(agent),
     models: (agent) => agents.models(agent),
     transcripts: store.settings.runner().transcripts,
+    // Read each time idle agents are looked at, so a change in Preferences counts at once.
+    hibernateAfterMinutes: () => store.settings.runner().hibernateAfterMinutes,
     projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
     // Agents message each other within a project, and their messages are kept with it.
     messages: store,
@@ -334,6 +338,7 @@ const startRunner = (options: RunnerOptions): Runner => {
         store,
         terminals,
         feedback: terminals.feedback,
+        history: terminals.history,
         projects,
         items,
         agents,

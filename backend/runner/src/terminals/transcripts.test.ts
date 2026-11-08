@@ -10,6 +10,7 @@ import { logs, useLogger } from "../log.js"
 import { describe, expect, it as base } from "../test.js"
 import {
   type Interruption,
+  holds,
   lastStep,
   type Reading,
   transcriptChanges,
@@ -29,7 +30,10 @@ const items = (line: string): TranscriptEntry[] => [
     call: null,
     author: null,
     run: null,
+    outcome: null,
+    scripted: false,
     interrupted: false,
+    ring: null,
   },
 ]
 
@@ -332,13 +336,17 @@ describe("a shape its harness's decoder has never seen", () => {
         }))
           changes.push(change)
       })()
-      await expect.poll(() => flat(changes)).toEqual([expect.stringMatching(/^0:.*hi/)])
+      await expect.poll(() => flat(changes).at(-1)).toEqual(expect.stringMatching(/^\d+:.*hi/))
       await new Promise((resolve) => setTimeout(resolve, 300))
-      expect(changes.map((change) => change.type)).toEqual(["items"])
+      const notes = () =>
+        changes.flatMap((change) =>
+          change.type === "items" ? change.items.filter(({ note }) => note?.type === "gap") : [],
+        )
+      expect(notes()).toEqual([])
       appendFileSync(file.path, line(conversation) + line(conversation))
       await expect.poll(() => told).toHaveLength(3)
-      await new Promise((resolve) => setTimeout(resolve, 300))
-      expect(changes.map((change) => change.type)).toEqual(["items", "unread"])
+      await expect.poll(notes).toHaveLength(2)
+      expect(notes()[0]).toMatchObject({ role: "note", text: line(conversation).trim() })
       expect(told).toEqual([
         [keys[0], false],
         [keys[1], true],
@@ -347,6 +355,33 @@ describe("a shape its harness's decoder has never seen", () => {
       reader.abort()
       await reading
     })
+
+  it("gives no text for a line that holds the agent's reasoning too", async ({ file }) => {
+    const hidden = {
+      type: "assistant",
+      message: {
+        content: [
+          { type: "thinking", thinking: "private" },
+          { type: "hologram", text: "x" },
+        ],
+      },
+    }
+    writeFileSync(file.path, line(hidden))
+    const reader = new AbortController()
+    const changes: TranscriptChange[] = []
+    const reading = (async () => {
+      for await (const change of transcriptChanges(
+        file.path,
+        harnesses.claude.transcripts!,
+        reader.signal,
+      ))
+        changes.push(change)
+    })()
+    const gaps = () => changes.flatMap((change) => (change.type === "items" ? change.items : []))
+    await expect.poll(gaps).toMatchObject([{ role: "note", note: { type: "gap" }, text: "" }])
+    reader.abort()
+    await reading
+  })
 
   it("is logged once per shape and harness version, a tag by no name, a version's few", ({
     resources,
@@ -394,5 +429,19 @@ describe("a shape its harness's decoder has never seen", () => {
     // A conversational shape past them still is, as the chat's notice came from it.
     unknownShape(many, "item:hologram_call", true)
     expect(logged.at(-1)).toEqual(shape(many.version, "item:hologram_call", true))
+  })
+})
+
+describe("a record's hold on its session", () => {
+  const binding = { agent: "agy", sessionId: "s1", instance: "7" } as const
+
+  it("outlasts the new binding object a hook report makes of it", () => {
+    expect(holds({ ...binding, version: "1.5.3" }, binding)).toBe(true)
+  })
+
+  it("ends with another session, another process, or none", () => {
+    expect(holds({ ...binding, sessionId: "s2" }, binding)).toBe(false)
+    expect(holds({ ...binding, instance: "8" }, binding)).toBe(false)
+    expect(holds(undefined, binding)).toBe(false)
   })
 })

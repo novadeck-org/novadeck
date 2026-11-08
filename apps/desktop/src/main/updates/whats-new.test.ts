@@ -828,3 +828,56 @@ describe("what is new in the version a portable copy is offered", () => {
     expect(logged).toEqual(["The release notes of the offered version were not read."])
   })
 })
+
+describe("release notes that still carry heads-ups", () => {
+  // A release of `version` as an older build wrote it: its notes block has a `headsUp` list.
+  const listed = (version: string, highlights: readonly string[], prerelease: boolean) => {
+    const block = notesBlock({
+      version,
+      kind: "promote",
+      highlights: highlights.map((title) => ({ title, line: `${title} line.`, prs: [1] })),
+      changes: [],
+      fixes: 0,
+    }).replace(
+      '"highlights"',
+      '"headsUp":[{"title":"Canvas","line":"Arranges itself.","prs":[1]}],"highlights"',
+    )
+    return { tag_name: `v${version}`, prerelease, body: block }
+  }
+  const json = (answer: unknown) => ({
+    status: 200,
+    ok: true,
+    headers: jsonType,
+    json: async () => answer,
+  })
+  const answering =
+    (own: unknown) =>
+    async (url: string): ReturnType<ReleaseFetch> =>
+      json(url.includes("/releases/tags/") ? own : [])
+
+  it("ignores them beside the highlights", async () => {
+    const { whatsNew } = kept(answering(listed("0.5.0", ["Faster"], false)))
+    expect(await whatsNew()).toEqual({
+      version: "0.5.0",
+      highlights: [{ title: "Faster", line: "Faster line." }],
+    })
+  })
+
+  it("settles a stable release with only heads-ups as nothing to show", async () => {
+    const { whatsNew, state } = kept(answering(listed("0.5.0", [], false)))
+    expect(await whatsNew()).toBeUndefined()
+    expect(state.pending).toBeUndefined()
+  })
+
+  it("tells a portable copy nothing for a release with only heads-ups", async () => {
+    const news = keepUpdateNews({
+      version: "0.4.2",
+      offered: () => "0.6.0",
+      repository: async () => repository,
+      fetch: answering(listed("0.6.0", [], false)),
+      newer: isNewerVersion,
+      log: () => {},
+    })
+    expect(await news()).toBeUndefined()
+  })
+})

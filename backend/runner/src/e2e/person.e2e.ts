@@ -113,7 +113,7 @@ for (const setup of setups) {
       expect(states(t1, mark)).not.toContain("ringing")
     })
 
-    it("delivers through the prompt the person queued during the turn, never its Stop", async ({
+    it("delivers through the prompt the person queued during the turn, or at the Stop where that prompt may be taken back", async ({
       e2e: run,
     }) => {
       // The turn's reply is held, so the message and the person's queued prompt both come
@@ -150,14 +150,24 @@ for (const setup of setups) {
       await t1.submit("Then sum it up")
       held.open()
 
-      // Their prompt's hook delivers the message; no Stop continues the turn with it.
       const prompt = await run.model.waitFor((call) => holding(call, "Then sum it up"), {
         after: calls,
       })
-      expect(deliveries(prompt)).toEqual([{ from: "fox", text: "The plan is ready." }])
+      if (setup.queueing) {
+        // Its hook runs as it is queued, and a Stop could take the prompt back with all it
+        // printed: the turn's Stop gives the message, and the prompt carries none.
+        expect(deliveries(prompt)).toEqual([])
+        expect(carried(run, calls).flatMap((call) => deliveries(call))).toEqual([
+          { from: "fox", text: "The plan is ready." },
+        ])
+        expect(carried(run, calls).some((call) => holding(call, "Then sum it up"))).toBe(false)
+      } else {
+        // Their prompt's hook delivers the message; no Stop continues the turn with it.
+        expect(deliveries(prompt)).toEqual([{ from: "fox", text: "The plan is ready." }])
+        expect(carried(run, calls).every((call) => holding(call, "Then sum it up"))).toBe(true)
+      }
       await t1.until("Summed up.")
       await through(t1, [holds("fox", "moth", "delivered"), "settled"], { after: mark })
-      expect(carried(run, calls).every((call) => holding(call, "Then sum it up"))).toBe(true)
       expect(states(t1, mark)).not.toContain("ringing")
     })
 

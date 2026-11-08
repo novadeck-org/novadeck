@@ -21,6 +21,7 @@ import { wire } from "../runner.js"
 import { shellPaths, type ShellPaths } from "../shell/scripts.js"
 import { handleWords } from "../terminals/handles.js"
 import type { Terminals } from "../terminals/index.js"
+import type { Prompted } from "../terminals/typing.js"
 import type { WorkspaceStore } from "../workspaces/store.js"
 import { createHistory, type Reach, type ReachOptions, type Snapshot } from "./history.js"
 
@@ -112,7 +113,7 @@ export type DeckTerminal = {
    * Enter once it shows; resolves once that Enter is out, with the ref of its receipt in
    * `detail` and whether one follows, and rejects as the call would.
    */
-  readonly prompt: (text: string) => Promise<{ readonly ref: string; readonly tracked: boolean }>
+  readonly prompt: (text: string) => Promise<Prompted>
   /** Presses Escape in its agent as the chat does, `agents.interrupt`. */
   readonly interrupt: () => Promise<InterruptResult>
   /**
@@ -174,6 +175,11 @@ export type Deck = {
     terminal: Pick<DeckTerminal, "id">,
     options?: { readonly resume?: AgentName },
   ) => Promise<DeckTerminal>
+  /**
+   * Restores a terminal closed in History as a new one, as the app does: `terminals.create`
+   * with a new id and the row's `closed`. A refusal throws.
+   */
+  readonly restoreClosed: (closed: string) => Promise<DeckTerminal>
   /**
    * Answers agents' requests for a new terminal (`open_terminal`, `open_agent`) as the app does: opens
    * one in the request's folder, starting its command, created for the request, and
@@ -636,6 +642,9 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         freshPath: options.freshPath ?? false,
         // The list's order, not each session's shuffle, so scenarios know the handles given.
         handleOrder: () => handleWords,
+        // Seconds, not the setting's minutes, once a scenario turns stopping idle agents on
+        // (`hibernated`); off until then, so no other scenario's agent is stopped mid-test.
+        hibernation: { windowMs: 5_000, sweepMs: 1_000 },
       },
     })
     // The runner carries on without its shell files; a test can't, as no agent would report.
@@ -648,6 +657,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
   }
 
   let runner = await start()
+  runner.store.settings.saveRunner({ hibernateAfterMinutes: null })
   // The terminals opened, for `report`.
   const watched: {
     readonly on: Runner
@@ -791,7 +801,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       messages: () => terminals.messages(id),
       prompt: async (text) => {
         prompted = undefined
-        return await terminals.prompt({ terminalId: id, text })
+        return await terminals.prompt({ terminalId: id, text, along: true })
       },
       interrupt: async () => {
         prompted = undefined
@@ -956,6 +966,16 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
           cwd: options.project,
           restore: true,
           ...(resume !== undefined && { resume }),
+        }),
+      ),
+    restoreClosed: async (closed) =>
+      terminal(
+        runner,
+        await created(runner, {
+          id: randomUUID(),
+          sessionId: session.id,
+          cwd: options.project,
+          closed,
         }),
       ),
     answerRequests: () => {

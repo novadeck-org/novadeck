@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
 import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { hookReport } from "@novadeck/harness-core/testing/reports"
@@ -13,7 +17,9 @@ const { transcript, parallel, hooks } = loadProbe(import.meta.dirname, "transcri
   parallel: object[]
   hooks: { event: string; payload: Report["payload"] }[]
 }
-const items = transcript.flatMap((step) => transcripts.items(JSON.stringify(step)))
+const items = transcript
+  .flatMap((step) => transcripts.items(JSON.stringify(step)))
+  .filter(({ role }) => role !== "note")
 
 describe("a call's arguments", () => {
   it("reach the chat as the transcript holds them, a string in quotes keeping its quotes", () => {
@@ -27,6 +33,46 @@ describe("a call's arguments", () => {
       }),
     )
     expect(JSON.parse(call!.text)).toEqual(args)
+  })
+})
+
+describe("what Antigravity says between turns", () => {
+  const prompt = (words: string, wraps = "") => ({
+    step_index: 1,
+    source: "USER_EXPLICIT",
+    type: "USER_INPUT",
+    content: `<USER_REQUEST>\n${words}\n</USER_REQUEST>\n<ADDITIONAL_METADATA>${wraps}</ADDITIONAL_METADATA>`,
+  })
+  const decoded = (step: object) => transcripts.items(JSON.stringify(step))
+
+  it("says a prompt went in plan mode, or out of it", () => {
+    expect(decoded(prompt("/plan Go on", "<PLAN>the rules</PLAN>"))[0]).toMatchObject({
+      note: { type: "mode", mode: "plan" },
+    })
+    expect(decoded(prompt("Go on"))[0]).toMatchObject({ note: { type: "mode", mode: "not-plan" } })
+  })
+
+  it("says a plan was approved in place of the line its review typed", () => {
+    expect(decoded(prompt("[Approved] implementation_plan.md"))).toMatchObject([
+      { role: "note", note: { type: "plan-approved" } },
+    ])
+  })
+
+  it("leaves a person's own words that start the same way as theirs", () => {
+    const [, words] = decoded(prompt("[Approved] by whom?"))
+    expect(words).toMatchObject({ role: "user", text: "[Approved] by whom?" })
+  })
+
+  it("says a compaction, its summary its text", () => {
+    const step = {
+      step_index: 2,
+      source: "SYSTEM",
+      type: "CHECKPOINT",
+      content: "# Resuming from a compaction",
+    }
+    expect(decoded(step)).toMatchObject([
+      { role: "note", note: { type: "compaction" }, text: "# Resuming from a compaction" },
+    ])
   })
 })
 
@@ -108,6 +154,23 @@ describe("Antigravity's transcript, as captured", () => {
     const root = "/home/user/t.jsonl"
     await expect(transcripts.locate(root, "c", null)).resolves.toBe(root)
     await expect(transcripts.locate(root, "c", "a")).resolves.toBeUndefined()
+  })
+
+  it("is in the conversation's own folder of brain when the named one holds none", async () => {
+    const home = mkdtempSync(join(tmpdir(), "novadeck-agy-brain-"))
+    try {
+      const id = "3f3ad215-48e4-45b6-b33f-73fd3f378d74"
+      const logs = (session: string) => join(home, "brain", session, ".system_generated", "logs")
+      const reported = join(logs("9ac3ebb4-90ce-4bd1-9611-5183926f1c52"), "transcript.jsonl")
+      await expect(transcripts.locate(reported, id, null)).resolves.toBe(reported)
+      mkdirSync(logs(id), { recursive: true })
+      writeFileSync(join(logs(id), "transcript.jsonl"), "")
+      await expect(transcripts.locate(reported, id, null)).resolves.toBe(
+        join(logs(id), "transcript.jsonl"),
+      )
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
   })
 })
 

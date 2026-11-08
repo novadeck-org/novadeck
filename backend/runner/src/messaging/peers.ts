@@ -1,4 +1,4 @@
-import type { AgentActivity, AgentName, TitleSource } from "@novadeck/protocol"
+import type { AgentActivity, AgentName, StartupScreen, TitleSource } from "@novadeck/protocol"
 
 import { bareHandle, mention } from "../terminals/handles.js"
 import { busiestFolders, firstFrom, plainPrompt, type Work } from "../terminals/work.js"
@@ -31,6 +31,8 @@ export type Whereabouts = {
   readonly waiting: Waiting | null
   /** What its idle agent waits on to wake it, if anything: see `Peer.waitsOn`. */
   readonly waitsOn: string | null
+  /** Which of its screens holds the agent expected there for the person, if one does. */
+  readonly startup: StartupScreen | null
   /** The latest reports its agent session gave the person. */
   readonly reports: Reports
   readonly place: (path: string) => string
@@ -76,6 +78,8 @@ export type Peer = {
    * can't run there until the person trusts them (Codex's `/hooks`): nothing can deliver.
    */
   readonly untrusted: AgentName | null
+  /** Which of its screens holds the expected agent for the person; its work waits on them. */
+  readonly startup: StartupScreen | null
   readonly title: string | null
   readonly titleSource: TitleSource | null
   /** What its own agent said it works on, through `describe`. */
@@ -96,7 +100,7 @@ export type Peer = {
   readonly worksIn: readonly { readonly folder: string; readonly edits: number }[]
   /** Who sent the latest message between it and the caller (`you`, or its handle), and when. */
   readonly withYou: { readonly from: string; readonly text: string; readonly at: number } | null
-  readonly state: "busy" | "idle" | null
+  readonly state: "busy" | "idle" | "asleep" | null
   /** What its agent waits on the person for; its work is blocked until they answer. */
   readonly waiting: Waiting | null
   /**
@@ -149,6 +153,17 @@ export const deliveredTo = (messages: Iterable<Message>, terminalId: string): nu
   return last
 }
 
+/** `deliveredTo` for every terminal, in one pass over the messages. */
+export const deliveredToAll = (messages: Iterable<Message>): ReadonlyMap<string, number> => {
+  const last = new Map<string, number>()
+  for (const message of messages) {
+    const { to, deliveredAt } = message
+    if (deliveredAt === null || isNotice(message)) continue
+    if ((last.get(to.terminalId) ?? -Infinity) < deliveredAt) last.set(to.terminalId, deliveredAt)
+  }
+  return last
+}
+
 /**
  * The latest message between the caller and a peer, either way, shortened: one the caller
  * sent, or one delivered to it. A message still on its way to the caller (queued, held
@@ -186,6 +201,8 @@ export const peerOf = (input: {
   readonly agent: AgentName | null
   readonly expecting: AgentName | null
   readonly untrusted?: AgentName | null
+  /** Whether no process runs there: its agent's session rests, and a message wakes it. */
+  readonly asleep?: boolean
   readonly busy: boolean
   readonly where: Whereabouts | undefined
   readonly withYou: Peer["withYou"]
@@ -209,6 +226,7 @@ export const peerOf = (input: {
     agent,
     expecting: agent || input.untrusted ? null : input.expecting,
     untrusted: agent ? null : (input.untrusted ?? null),
+    startup: agent || input.untrusted ? null : (where?.startup ?? null),
     title: where?.title ?? null,
     titleSource: where?.title ? where.titleSource : null,
     summary: where?.summary ?? null,
@@ -229,9 +247,9 @@ export const peerOf = (input: {
         }))
       : [],
     withYou: input.withYou && { ...input.withYou, text: plainPrompt(input.withYou.text) },
-    state: agent ? (input.busy ? "busy" : "idle") : null,
-    waiting: agent ? (where?.waiting ?? null) : null,
-    waitsOn: agent && !input.busy ? (where?.waitsOn ?? null) : null,
+    state: agent ? (input.asleep ? "asleep" : input.busy ? "busy" : "idle") : null,
+    waiting: agent && !input.asleep ? (where?.waiting ?? null) : null,
+    waitsOn: agent && !input.busy && !input.asleep ? (where?.waitsOn ?? null) : null,
     done: done && cutShort(done),
     update: latest && latest !== done ? cutShort(latest) : null,
     activeAt: work?.activeAt ?? null,
@@ -334,11 +352,11 @@ export const waitsOnNote = (
  */
 const statusOf = (peer: Peer): string =>
   peer.agent
-    ? `${agentLabel(peer.agent)}, ${peer.waiting ? waitingNote(peer.waiting) : peer.waitsOn ? `waiting on ${peer.waitsOn}, will wake by itself` : peer.state}`
+    ? `${agentLabel(peer.agent)}, ${peer.state === "asleep" ? "asleep, no process running; a message wakes it" : peer.waiting ? waitingNote(peer.waiting) : peer.waitsOn ? `waiting on ${peer.waitsOn}, will wake by itself` : peer.state}`
     : peer.untrusted
       ? `no agent Novadeck can deliver to: ${untrustedNote(peer.untrusted)}`
       : peer.expecting
-        ? `expecting ${agentLabel(peer.expecting)}, not started yet`
+        ? `expecting ${agentLabel(peer.expecting)}, ${peer.startup ? `waiting on the user: its ${peer.startup} screen` : "not started yet"}`
         : "no agent Novadeck can deliver to"
 
 /** One peer as agents read it: a short block, each fact left out when unknown. */

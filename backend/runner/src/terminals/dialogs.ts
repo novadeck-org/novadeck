@@ -69,6 +69,13 @@ export type DialogsOptions = {
    */
   readonly rawStillMs?: number
   readonly rawAgeMs?: number
+  /**
+   * How long a screen may go without reading a dialog before it is shown raw whether or not
+   * it is still, in milliseconds: a dialog may tick (Claude Code counts down to blocking the
+   * request in one), and a screen that never rests must not leave the person with no prompt
+   * to read.
+   */
+  readonly rawLatestMs?: number
 }
 
 /**
@@ -161,6 +168,8 @@ export const rawText = (rows: readonly string[]): string => {
 
 type Entry = {
   readonly dialog: RequestDialog | null
+  /** When its raw text was taken from the screen. */
+  readonly taken?: number
   /** Why it is raw for good: nothing is pressed for the request again, nor its dialog read. */
   readonly locked?: "unrecognized" | "failed"
   /** Answered: its last dialog stays as it was. */
@@ -183,6 +192,8 @@ type State = {
   answering: number
   /** Whether its adapter threw reading it yet, logged only the first time while it waits. */
   failed: boolean
+  /** Since when a request waits and none reads; undefined where one does, or none waits. */
+  unread: number | undefined
 }
 
 /**
@@ -219,6 +230,7 @@ export class Dialogs {
   private readonly settleMs: number
   private readonly rawStillMs: number
   private readonly rawAgeMs: number
+  private readonly rawLatestMs: number
 
   constructor(
     private readonly host: DialogsHost,
@@ -229,6 +241,7 @@ export class Dialogs {
     this.settleMs = options.settleMs ?? 500
     this.rawStillMs = options.rawStillMs ?? 1_500
     this.rawAgeMs = options.rawAgeMs ?? 2_000
+    this.rawLatestMs = options.rawLatestMs ?? 6_000
   }
 
   /** The terminal's screen or requests changed: its dialogs are looked at again soon. */
@@ -332,6 +345,7 @@ export class Dialogs {
         again: false,
         answering: 0,
         failed: false,
+        unread: undefined,
       }
       this.states.set(terminalId, state)
     }
@@ -446,6 +460,7 @@ export class Dialogs {
       }
     }
     const recognised = reads.length > 0
+    state.unread = recognised || unread.length === 0 ? undefined : (state.unread ?? now)
     // Twins read the same dialog, which is either's to answer; any other pair can't be told
     // apart on one screen, so neither is answerable. Dialogs answered as prompts never
     // clash with each other, each prompt naming its own, but do with one answered by keys.
@@ -469,10 +484,21 @@ export class Dialogs {
         if (entry?.dialog) state.entries.set(request.ref, { dialog: null })
         continue
       }
-      // Not before the screen has been still, and the request pending, for a while.
-      const ready = Math.max(state.since + this.rawStillMs, request.askedAt + this.rawAgeMs)
+      // Not before the screen has been still, and the request pending, for a while; nor
+      // later than a screen that keeps moving allows.
+      const still = state.since + this.rawStillMs
+      const ready = Math.min(
+        Math.max(still, request.askedAt + this.rawAgeMs),
+        Math.max(state.unread ?? now, request.askedAt) + this.rawLatestMs,
+      )
       if (now < ready) {
         wake = Math.max(wake, ready)
+        continue
+      }
+      // Raw already, it follows a moving screen only now and then, never each of its frames.
+      const stale = (entry?.taken ?? 0) + this.rawLatestMs
+      if (entry?.dialog?.type === "raw" && now < Math.min(still, stale)) {
+        wake = Math.max(wake, Math.min(still, stale))
         continue
       }
       state.entries.set(request.ref, {
@@ -481,6 +507,7 @@ export class Dialogs {
           text: rawText(rows),
           reason: adapter ? "unrecognized" : "unsupported",
         },
+        taken: now,
       })
     }
     this.announce(terminalId, state)

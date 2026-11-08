@@ -11,6 +11,7 @@ import { afterEach, beforeEach, vi } from "vitest"
 
 import {
   allowUpdatesChannel,
+  restartToUpdateChannel,
   openUpdatePageChannel,
   setUpdateChannelChannel,
   updateChannelChannel,
@@ -389,6 +390,7 @@ const registered = (own: boolean, channel: UpdateChannel = "stable") => {
       request: (window) => void calls.push(`request ${window}`),
       openPage: () => void calls.push("open page"),
       allow: () => void calls.push("allow"),
+      restart: () => void calls.push("restart"),
       channel: () => channel,
       setChannel: (next) => void calls.push(`channel ${next}`),
     },
@@ -417,6 +419,12 @@ describe("taking the page's requests about updates", () => {
     expect(calls).toEqual(["allow"])
   })
 
+  it("restarts into the update when asked", () => {
+    const { send, calls } = registered(true)
+    send(restartToUpdateChannel)
+    expect(calls).toEqual(["restart"])
+  })
+
   it("answers the channel the build follows", () => {
     expect(registered(true, "experimental").send(updateChannelChannel)).toBe("experimental")
   })
@@ -435,6 +443,7 @@ describe("taking the page's requests about updates", () => {
     send(updateRequestChannel)
     send(openUpdatePageChannel)
     send(allowUpdatesChannel)
+    send(restartToUpdateChannel)
     send(setUpdateChannelChannel, "experimental")
     expect(send(updateChannelChannel)).toBe("stable")
     expect(calls).toEqual([])
@@ -623,6 +632,7 @@ describe("checking for updates", () => {
     const offered: [string, string, number?][] = []
     const failed: string[] = []
     const started: string[] = []
+    const returned: boolean[] = []
     const logged: string[] = []
     const allowed: boolean[] = []
     const checks = checkForUpdates(updater as unknown as Updater, {
@@ -642,12 +652,13 @@ describe("checking for updates", () => {
         )
       },
       installStarted: (version) => void started.push(version),
+      installReturned: (ran) => void returned.push(ran),
       runAfterInstall: options.runAfterInstall,
       installFailed: (version) => void failed.push(version),
       log: (message) => void logged.push(message),
       exists: options.exists,
     })
-    return { updater, offered, failed, started, logged, allowed, ...checks }
+    return { updater, offered, failed, started, returned, logged, allowed, ...checks }
   }
 
   // A macOS `prepare` the test settles, which hears each download it is given.
@@ -1128,6 +1139,26 @@ describe("checking for updates", () => {
       updater.install()
       expect(started).toEqual(["1.2.3"])
       expect(updater.installed).toBe(1)
+    })
+
+    it("tells whether the install call began, as the Windows restart reads it", () => {
+      const ran = checking()
+      ran.updater.emit("update-downloaded", { version: "1.2.3" })
+      expect(ran.updater.install(true, false)).toBe(true)
+      expect(ran.returned).toEqual([true])
+
+      // As when downloadedFileInfo is missing, or doInstall throws and answers false.
+      const refused = checking()
+      refused.updater.emit("update-downloaded", { version: "1.2.3" })
+      refused.updater.installError = new Error("no file")
+      expect(refused.updater.install(true, false)).toBe(false)
+      expect(refused.returned).toEqual([false])
+
+      // A file gone never reaches the install: no answer is given at all.
+      const gone = checking({ exists: () => false })
+      gone.updater.emit("update-downloaded", { version: "1.2.3", downloadedFile: "/x" })
+      expect(gone.updater.install(true, false)).toBe(false)
+      expect(gone.returned).toEqual([])
     })
 
     context("a download whose file is gone by the time it installs", () => {

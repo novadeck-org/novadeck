@@ -57,6 +57,21 @@ describe("the notes block", () => {
     expect(readNotesBlock(`<!-- novadeck:notes ${later} -->`)).toEqual(notes)
   })
 
+  it("reads a block written while releases carried heads-ups, ignoring them", () => {
+    const old = JSON.stringify({
+      ...notes,
+      headsUp: [
+        {
+          title: "Ctrl+V pastes",
+          line: "Programs no longer get it.",
+          prs: [641],
+          icon: "keyboard",
+        },
+      ],
+    })
+    expect(readNotesBlock(`<!-- novadeck:notes ${old} -->`)).toEqual(notes)
+  })
+
   it("clamps what would break the writer, so what it returns is always writable", () => {
     const wild = {
       ...notes,

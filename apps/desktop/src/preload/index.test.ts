@@ -21,6 +21,7 @@ import {
   dismissWhatsNewChannel,
   whatsNewChannel,
   openUpdatePageChannel,
+  restartToUpdateChannel,
   pageLookChannel,
   pagePictureChannel,
   pagePhoneChannel,
@@ -509,6 +510,11 @@ describe("an update offer", () => {
     electron.exposed.openUpdatePage!()
     expect(electron.sent).toEqual([openUpdatePageChannel])
     expect(electron.messages).toEqual([])
+  })
+
+  it("asks the main process to restart into the update", () => {
+    electron.exposed.restartToUpdate!()
+    expect(electron.sent).toEqual([restartToUpdateChannel])
   })
 })
 

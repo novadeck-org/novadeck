@@ -98,12 +98,20 @@ export const listUnderOpener = (
 
 type TerminalFacts = Pick<
   TerminalMetadata,
-  "name" | "directory" | "handle" | "titleSource" | "ledBy" | "openedBy" | "agentRan"
+  | "name"
+  | "directory"
+  | "handle"
+  | "titleSource"
+  | "ledBy"
+  | "openedBy"
+  | "agentRan"
+  | "restorable"
+  | "busy"
 >
 
 // What the backend says of a terminal now: its name or directory, its handle, and who
 // its name is from, its lead (null once it has none), who opened it and whether an agent
-// has run there.
+// has run there, and whether closing it can be undone and a program runs in its shell.
 export const updateTerminal = (
   roster: TerminalRoster,
   terminalId: string,
@@ -111,7 +119,8 @@ export const updateTerminal = (
 ): TerminalRoster => {
   const current = roster.terminals.find((terminal) => terminal.id === terminalId)
   if (!current) return roster
-  const { name, directory, handle, titleSource, ledBy, openedBy, agentRan } = change
+  const { name, directory, handle, titleSource, ledBy, openedBy, agentRan, restorable, busy } =
+    change
   const facts: Partial<TerminalFacts> = {
     ...(name !== undefined && name !== current.name && { name }),
     ...(directory !== undefined && directory !== current.directory && { directory }),
@@ -121,6 +130,8 @@ export const updateTerminal = (
     ...(ledBy !== undefined && ledBy !== (current.ledBy ?? null) && { ledBy }),
     ...(openedBy !== undefined && openedBy !== (current.openedBy ?? null) && { openedBy }),
     ...(agentRan !== undefined && agentRan !== (current.agentRan ?? false) && { agentRan }),
+    ...(restorable !== undefined && restorable !== (current.restorable ?? false) && { restorable }),
+    ...(busy !== undefined && busy !== (current.busy ?? false) && { busy }),
   }
   if (!Object.keys(facts).length) return roster
   return {
@@ -223,6 +234,13 @@ const sameStatus = (terminal: TerminalMetadata, status: TerminalStatus): boolean
       terminal.state === "running" &&
       JSON.stringify(terminal.agent) === JSON.stringify(status.agent)
     )
+  if (status.state === "sleeping")
+    return (
+      terminal.state === "sleeping" &&
+      terminal.agent === status.agent &&
+      terminal.reported === status.reported &&
+      terminal.endedAt === status.endedAt
+    )
   return terminal.state === status.state
 }
 
@@ -238,6 +256,13 @@ const statusFields = (status: TerminalStatus): TerminalStatus => {
   if (status.state === "failed") return { state: status.state, message: status.message }
   if (status.state === "running")
     return { state: status.state, ...(status.agent ? { agent: status.agent } : {}) }
+  if (status.state === "sleeping")
+    return {
+      state: status.state,
+      agent: status.agent,
+      ...(status.reported ? { reported: status.reported } : {}),
+      ...(status.endedAt !== undefined ? { endedAt: status.endedAt } : {}),
+    }
   return { state: status.state }
 }
 
@@ -250,6 +275,8 @@ const restoredAfter = (terminal: TerminalMetadata, status: TerminalStatus): stri
   const lost = status.state === "starting" || status.state === "exited" || status.state === "failed"
   if (lost && terminal.state === "running" && !isShellProcess(terminal.process))
     return terminal.process || undefined
+  // A sleeper that wakes resumes its agent, which the terminal then names until it draws.
+  if (lost && terminal.state === "sleeping") return terminal.agent
   return terminal.restoredProcess
 }
 
@@ -262,12 +289,15 @@ const withStatus = (terminal: TerminalMetadata, status: TerminalStatus): Termina
     directory: terminal.directory,
     command: terminal.command,
     process: terminal.process,
+    ...(terminal.argv ? { argv: terminal.argv } : {}),
     ...(restoredProcess ? { restoredProcess } : {}),
     // Who it is and who named it outlive any status.
     ...(terminal.handle !== undefined ? { handle: terminal.handle } : {}),
     ...(terminal.ledBy ? { ledBy: terminal.ledBy } : {}),
     ...(terminal.openedBy ? { openedBy: terminal.openedBy } : {}),
     ...(terminal.agentRan ? { agentRan: terminal.agentRan } : {}),
+    ...(terminal.restorable ? { restorable: true } : {}),
+    ...(terminal.busy ? { busy: true } : {}),
     ...(terminal.titleSource ? { titleSource: terminal.titleSource } : {}),
     ...statusFields(status),
   }
@@ -288,18 +318,29 @@ export const setTerminalStatus = (
   }
 }
 
-// The program now in the foreground.
+// Whether two command lines read the same; absent is none.
+export const sameArgv = (
+  a: readonly string[] | undefined,
+  b: readonly string[] | undefined,
+): boolean =>
+  a === b ||
+  (a !== undefined && b !== undefined && a.length === b.length && a.every((x, i) => x === b[i]))
+
+// The program now in the foreground, with its command line where the platform tells it.
 export const setTerminalProcess = (
   roster: TerminalRoster,
   terminalId: string,
   process: string,
+  argv?: readonly string[],
 ): TerminalRoster => {
   const current = roster.terminals.find((terminal) => terminal.id === terminalId)
-  if (!current || current.process === process) return roster
+  if (!current || (current.process === process && sameArgv(current.argv, argv))) return roster
   return {
     ...roster,
-    terminals: roster.terminals.map((terminal) =>
-      terminal === current ? { ...terminal, process } : terminal,
-    ),
+    terminals: roster.terminals.map((terminal) => {
+      if (terminal !== current) return terminal
+      const { argv: _before, ...rest } = terminal
+      return { ...rest, process, ...(argv ? { argv } : {}) } as TerminalMetadata
+    }),
   }
 }

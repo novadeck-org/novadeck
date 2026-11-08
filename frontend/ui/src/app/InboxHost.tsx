@@ -62,10 +62,10 @@ export const InboxHost = ({
   const { inbox } = landing
   // Whether an agent is at work in any project, for the empty Inbox to say.
   const working = useWorkspaceState((state) => anyAgentWorking(state.projects))
-  const { hideSidebar, toggleSidebar, reveal, select, showInbox, peekInbox } = commands
+  const { hideSidebar, reveal, select, showInbox, peekInbox } = commands
   const phone = useMemo(
-    () => (desktop ? undefined : { hideList: hideSidebar, showList: () => toggleSidebar("inbox") }),
-    [desktop, hideSidebar, toggleSidebar],
+    () => (desktop ? undefined : { hideList: hideSidebar, showList: showInbox }),
+    [desktop, hideSidebar, showInbox],
   )
   // Only a backend that shows notices has a ping to take a row held as the person leaves.
   const pings = backend.notices !== undefined

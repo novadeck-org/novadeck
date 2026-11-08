@@ -5,6 +5,7 @@ import {
 } from "@novadeck/core/desktop/portable-card-raised"
 import type { SandboxState } from "@novadeck/core/desktop/sandbox"
 import type { UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
+import type { AgentName } from "@novadeck/core/harnesses"
 import type { Backend } from "@novadeck/core/port"
 import { orderedTiles } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
@@ -44,6 +45,8 @@ export type UiState = {
   readonly created: { readonly context: string; readonly id: string } | null
   // A close waiting for the person to confirm it, since a program runs in the terminal.
   readonly closing: { readonly context: string; readonly id: string } | null
+  // The agent whose switch Preferences should bring into view when it opens, until it has.
+  readonly agentFocus: AgentName | null
   // The person chose "Not now" for this crash loop; it asks again only after the next one.
   readonly crashLoopDismissed: boolean
   // Which addon's offer (voice input or murmur) came up in this run of the app: each run
@@ -128,6 +131,7 @@ export const initialUi = ({
   recent: { switcher: null, byContext: {} },
   created: null,
   closing: null,
+  agentFocus: null,
   crashLoopDismissed: false,
   addonOffer: null,
   nameOffer: null,

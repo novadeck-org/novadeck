@@ -162,6 +162,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       close: (id) => note(`close ${id}`, () => runner.terminals.close(id)),
       rename: (id, title) => note(`rename ${id}`, () => runner.terminals.rename(id, title)),
       resetTitle: (id) => note(`reset title ${id}`, () => runner.terminals.resetTitle(id)),
+      busy: () => runner.terminals.busy(),
       upload: (id, file) => note(`upload ${id}`, () => runner.terminals.upload(id, file)),
       restart: (id, size) => note(`restart ${id}`, () => runner.terminals.restart(id, size)),
       attach: async (id, options) =>
@@ -170,11 +171,20 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
     agents: {
       list: () => runner.agents.list(),
       detail: (terminalId) => runner.agents.detail(terminalId),
+      slice: (terminalId) => runner.agents.slice(terminalId),
       transcript: (terminalId, actor) => runner.agents.transcript(terminalId, actor),
       prompt: (terminalId, text, options) =>
         note(`prompt ${terminalId}`, () => runner.agents.prompt(terminalId, text, options)),
       interrupt: (terminalId) =>
         note(`interrupt ${terminalId}`, () => runner.agents.interrupt(terminalId)),
+      keys: (terminalId, keys) =>
+        note(`keys ${terminalId}`, () => runner.agents.keys(terminalId, keys)),
+      takeBox: (terminalId) =>
+        note(`takeBox ${terminalId}`, () => runner.agents.takeBox(terminalId)),
+      putBox: (terminalId, text) =>
+        note(`putBox ${terminalId}`, () => runner.agents.putBox(terminalId, text)),
+      clearBox: (terminalId, seen) =>
+        note(`clearBox ${terminalId}`, () => runner.agents.clearBox(terminalId, seen)),
       answer: (terminalId, request, answer) =>
         note(`answer ${terminalId} ${request}`, () =>
           runner.agents.answer(terminalId, request, answer),
@@ -235,6 +245,10 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       looks: () => runner.companions.looks(),
       answerLook: (answer) =>
         note(`answer look ${answer.lookId}`, () => runner.companions.answerLook(answer)),
+    },
+    history: {
+      list: (input) => runner.history.list(input),
+      watch: () => runner.history.watch(),
     },
     settings: {
       get: () => runner.settings.get(),

@@ -25,6 +25,10 @@ type Event<T extends TerminalEvent["type"]> = Omit<Extract<TerminalEvent, { type
 /** An event the terminal sequences: what its program drew, a resize, its exit. */
 type Emitted = Event<"output"> | Event<"resized"> | Event<"exited">
 
+// A mode report: `ESC [ ? Ps ; Pm $ y` (DEC) or `ESC [ Ps ; Pm $ y` (ANSI), whole.
+// eslint-disable-next-line no-control-regex -- Escape sequences are what it reads.
+const modeReport = /^\x1b\[\??\d+;\d+\$y$/
+
 // One output event's characters at most.
 const outputChars = 4096
 // How much read output may wait to be drawn before the program is paused, in characters.
@@ -194,6 +198,14 @@ export type Terminal = {
    */
   replay(text: string, separator?: string): Promise<void>
   /**
+   * Draws `text` on the screen behind the draws queued before it, as the terminal's own
+   * output: attached windows see it too, as they do not a replay. A function chooses the
+   * text from the screen as it stands then, in the same step, or null to draw nothing;
+   * `scrolled` says the platform is a Windows pseudoconsole, which takes the draw into the
+   * scrollback as a replay does, for the cursor moves of a live screen are not its own.
+   */
+  print(text: string | ((screen: Screen, scrolled: boolean) => string | null)): Promise<void>
+  /**
    * Resizes the pty now, and the screen once the draws queued before are on it. While a
    * hold is in force, the latest size from `owner` waits until it settles.
    */
@@ -340,6 +352,17 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
     for (const subscription of subscribers.values()) subscription.push(event)
   }
 
+  // Output on the screen, told to attachments in events of at most `outputChars`.
+  const emitOutput = (text: string) => {
+    for (let start = 0; start < text.length;) {
+      let end = Math.min(start + outputChars, text.length)
+      const last = text.charCodeAt(end - 1)
+      if (end < text.length && last >= 0xd800 && last <= 0xdbff) end -= 1
+      emit({ type: "output", data: text.slice(start, end) })
+      start = end
+    }
+  }
+
   const spawn = (spec: RunSpec): Run => {
     const screen = createScreen({
       cols: spec.cols,
@@ -404,13 +427,7 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
       if (text === "") return
       await written(run.screen, text)
       fire("drawn")
-      for (let start = 0; start < text.length;) {
-        let end = Math.min(start + outputChars, text.length)
-        const last = text.charCodeAt(end - 1)
-        if (end < text.length && last >= 0xd800 && last <= 0xdbff) end -= 1
-        emit({ type: "output", data: text.slice(start, end) })
-        start = end
-      }
+      emitOutput(text)
     }).finally(() => {
       pendingReads -= 1
       pendingOutput -= drawn
@@ -446,7 +463,12 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
       pty.onExit((ended) => exited(current, ended)),
       // Device-status queries are answered by the host's screen, even with no viewer.
       screen.onData((data) => {
-        if (!exiting) pty.write(data)
+        if (exiting) return
+        // A mode report (DECRPM) is one ConPTY's input does not know: it drops the ESC and the
+        // program reads `[?2027;0$y` as typed text (Antigravity's input box held it, so the
+        // doorbell saw no box). No answer is better than a reply read as keys.
+        if (conpty && modeReport.test(data)) return
+        pty.write(data)
       }),
       screen.onTitleChange((title) => fire("title", title, pty)),
       // A shell's integration reports the directory at each prompt: OSC 7 from bash, zsh and
@@ -733,6 +755,21 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
     // from the top, so the transcript leaves the screen for the scrollback. The screen is
     // the one in force as the step runs, as a restart queued before swaps it.
     replay: (text, separator) => enqueue(() => replayOn(run.screen, text, separator, conpty)),
+    print: (what) =>
+      enqueue(async () => {
+        const text = typeof what === "string" ? what : what(run.screen, conpty)
+        if (!text) return
+        if (conpty) {
+          await replayOn(run.screen, text, undefined, conpty)
+          // The host's screen took it into its scrollback; a window's own screen draws it plainly,
+          // on a line under the prompt.
+          emitOutput(`\r\n${text}`)
+          return
+        }
+        await written(run.screen, text)
+        fire("drawn")
+        emitOutput(text)
+      }),
     gone: () => {
       gone = true
     },

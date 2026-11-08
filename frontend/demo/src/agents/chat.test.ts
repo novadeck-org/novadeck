@@ -195,6 +195,7 @@ describe("demo conversations", () => {
     expect(chat.conversation(key("06")).getSnapshot().items.at(-1)).toMatchObject({
       role: "user",
       interrupted: true,
+      ring: null,
     })
   })
 

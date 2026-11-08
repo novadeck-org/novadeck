@@ -1,11 +1,15 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
+import type { SliceProfile } from "@novadeck/harness-core/slices"
 import {
   agreeing,
+  eraseRows,
   footerRows,
+  leaveShell,
   rule,
   ruledBox,
   type BoxProfile,
   type Markers,
+  type TurnStatus,
 } from "@novadeck/tui-input/box"
 
 /** The markers leading its box's first row: `❯` as a prompt, `!` in its shell mode. */
@@ -28,14 +32,25 @@ export const clearPending = (rows: readonly string[]): boolean =>
  * Whether it shows a view over its conversation: the agents view Left opens, whose "describe
  * a task for a new session" field reads as an empty box and whose Enter starts a session;
  * the prompt history search Ctrl-R opens; the detailed transcript Ctrl-O toggles (probed
- * 2.1.287 in the e2e sandbox, 2026-10-16).
+ * 2.1.287 in the e2e sandbox, 2026-10-16). With text in that field its footer says Enter creates
+ * a session, or on a narrow screen returns or opens (2.1.316, 2026-11-07), and the text ends as a
+ * line in a box would, so only that tells them apart. Without text the field shows its
+ * placeholder, which reads as a draft, whatever the footer. All of it is read under the box (the
+ * field), as `footerRows` holds the box too and a line or a draft in it may say these words; the
+ * transcript and the history search show no box, and have `footerRows` read (from the cursor
+ * down, or the last few rows) (2.1.316, 2026-11-07, fixtures/ring-reading.probe.json).
  */
-const overlay = (screen: ScreenText): boolean =>
-  footerRows(screen).some((row) =>
-    /enter to return · space to reply|Esc to cancel · ctrl\+s to scope|Showing detailed transcript/.test(
-      row,
-    ),
+const overlay = (screen: ScreenText): boolean => {
+  const shown = read(screen)
+  const under = shown ? screen.rows.slice(shown.last + 1) : footerRows(screen)
+  return under.some(
+    (row) =>
+      /enter to return · space to reply|Esc to cancel · ctrl\+s to scope|Showing detailed transcript/.test(
+        row,
+      ) ||
+      /^\s*enter to (?:create · esc to clear|(?:return|open|resume) · \? for shortcuts)/.test(row),
   )
+}
 
 /**
  * A row of its agents list under the footer, of a background agent (`◯`, selected or not):
@@ -49,6 +64,76 @@ const agentRow = /^(\s*(?:❯ )?◯ .*?)\s+(?:\d+d )?(?:\d+h )?(?:\d+m )?\d+(?:\
 const still = (rows: readonly string[]): readonly string[] =>
   rows.map((row) => row.replace(agentRow, "$1"))
 
+/** How its box reads off a screen. */
+const read = (screen: ScreenText) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows))
+
+/** Whether the screen shows messages queued behind the running turn. */
+const queued = (screen: ScreenText): boolean => {
+  // In its box or under it: the same words may stand in the conversation above.
+  const first = read(screen)?.first
+  return (
+    first !== undefined &&
+    screen.rows.slice(first).some((row) => row.includes("Press up to edit queued messages"))
+  )
+}
+
+/**
+ * Its status row, while a turn runs: one of its spinner's marks, its words for the turn ending in
+ * `…`, and in brackets its clock and what the turn is doing. It stands last over the box, but
+ * for the effort row and a tip under it: a reply above may hold what reads the same, and an idle
+ * screen has the turn's summary there. Its Stop hook shows as `running Stop hook`, and then the
+ * row goes, or gives way to the next turn's, with its clock at `0s`, where the turn's end started
+ * one from its queue. A turn it took a queued message into goes on as one. Its words may change
+ * as a turn starts, and may be the person's own (`spinnerVerbs`) or a task's (2.1.316, 2026-11-07,
+ * e2e/probes/queued-busy.e2e.ts).
+ */
+const status = (screen: ScreenText): TurnStatus | undefined => {
+  const first = read(screen)?.first
+  if (first === undefined) return undefined
+  // Above the box's top rule, where it stands at the row's start: what stands under it is set
+  // in, its effort row, a tip, a task list's rows, a hint.
+  const row = screen.rows
+    .slice(0, Math.max(first - 1, 0))
+    .findLast((each) => each.trim() !== "" && !/^\s/.test(each))
+  const found = row === undefined ? null : statusRow.exec(row)
+  if (!found) return undefined
+  const clock = /\((?:[^)]*· )?(?:(\d+)h )?(?:(\d+)m )?(\d+)s\b/.exec(row!)
+  const seconds = clock
+    ? Number(clock[1] ?? 0) * 3600 + Number(clock[2] ?? 0) * 60 + Number(clock[3])
+    : undefined
+  return {
+    words: found[1]!.trim(),
+    ending: /running Stop hook/.test(row!),
+    ...(seconds !== undefined && { seconds }),
+  }
+}
+
+/** A status row: one of its spinner's marks, then its words for the turn up to `…`. */
+const statusRow = /^\s*[·✢✳✶✻✽*]\s+([^…]+?)…/
+
+/**
+ * Whether messages queued behind the turn may still be in their `UserPromptSubmit` hooks:
+ * its spinner, under the latest of them, says "running UserPromptSubmit hooks… 1/2" (hooks
+ * of the event, not messages), and "ctrl+x ctrl+s to send now" stands under that message
+ * once they are through (fixtures/queued-hooks.probe.json, 2.1.316). The spinner names only
+ * the latest event, so a tool's hook takes it over while theirs still run: any hook's words
+ * count. The hooks of two messages overlap. Escape meanwhile kills them and runs them again
+ * one message at a time, so that the second Escape gives back only the first, or both with
+ * the chat left reading `working` (probed 2026-11-06, 2.1.316).
+ * The hint beside a hook's words is that hook's alone: the messages are through, or, beside
+ * the turn's own hook, run theirs only as they are sent, whenever Escape comes, so there is
+ * nothing to wait for. Only the hint's last words are read, as its keys can be rebound.
+ */
+const queueing = (screen: ScreenText): boolean => {
+  if (!queued(screen)) return false
+  const above = screen.rows.slice(0, read(screen)?.first ?? 0)
+  const under = above.slice(above.findLastIndex((row) => row.startsWith("❯ ")) + 1)
+  return (
+    under.some((row) => /running \w+ hook/.test(row)) &&
+    !under.some((row) => row.includes("to send now"))
+  )
+}
+
 /**
  * Claude Code's input box: between two `─` rules, `❯ ` leading its first row and the rest
  * indented (probed 2.1.287 and 2.1.292, fixtures/input-box.probe.json). It sits at the
@@ -59,10 +144,31 @@ const still = (rows: readonly string[]): readonly string[] =>
  * background agents run.
  */
 export const box: BoxProfile = {
-  read: (screen) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows)),
+  read,
+  takeQueued: {
+    // Up, which its box offers: it moves everything queued to the box at once, a message
+    // still in its prompt hook too (whose hook runs out harmlessly), before any Escape. An
+    // Escape instead races the queue's drain as the turn ends: a message in the real queue,
+    // there once its hook has ended, then starts a turn of its own, which fires no hook
+    // (probed 2026-11-06, 2.1.316, cursor keys in normal mode, `e2e/probes/queued-stop-cause.e2e.ts`).
+    keys: "\x1b[A",
+    // With nothing queued Up recalls the latest prompt, under this rule, which Down leaves.
+    recalled: (screen) => screen.rows.some((row) => /^─+ History \d+\/\d+ ─+$/.test(row.trim())),
+    leave: "\x1b[B",
+    // Its shortcuts panel, `?`, shows under an empty box, the queued row still up; this row of
+    // it stays whole however narrow the screen wraps the rest (fixtures/queued-box.probe.json).
+    blocked: (screen) =>
+      screen.rows
+        .slice(screen.rows.findLastIndex(rule) + 1)
+        .some((row) => row.includes("/ for commands")),
+  },
   // Enter runs a command shown as a placeholder as the text it stands for. It binds its session
   // before any command, so none starts one (`starts`).
-  shell: { expands: true, starts: false, footer: shellFooter },
+  shell: { expands: true, starts: false, footer: shellFooter, leave: leaveShell },
+  // On 80 and 120 columns a word reaches 76 and 116, and one too long for a row fills the rest
+  // of the row it starts on, to the same column (fixtures/leftover.probe.json).
+  textWidth: (columns) => columns - 4,
+  stands: (text) => /\[(?:Pasted text #\d+|Image #\d+)/.test(text),
   collapsed: ({ text }) => /^\[Pasted text #\d+(?: \+\d+ lines?)?\]$/.test(text.trim()),
   // Escape twice, over text seen in the box only; it clears a restored prompt or the queued
   // messages an Escape put back, of any number of lines (probed 2026-10-07). Where its footer
@@ -70,12 +176,36 @@ export const box: BoxProfile = {
   // more clears it: a second would land on the empty box and open the rewind picker (seen on
   // Windows CI, when the first pair was still being taken after half a second).
   clear: (_box, screen) => (clearPending(screen?.rows ?? []) ? "\x1b" : "\x1b\x1b"),
+  erase: eraseRows,
   overlay,
-  queued: (screen) => screen.rows.some((row) => row.includes("Press up to edit queued messages")),
+  queued,
+  status,
+  // Hooks overlap, so this is a slow hook's time however many messages are queued (probed
+  // 2026-11-06, a hook 1.3 s slow; one on Windows CI took about 1.25 s to start).
+  escapeHold: { holds: queueing, ms: 5_000 },
   collapses: (text) => text.split("\n").length > 3 || text.length > 900,
   room: (rows) => rows - 4,
-  // Probed on 24, 40 and 60 rows: 7, 15 and 25 (2.1.287, `e2e/probes/interrupted-paste.e2e.ts`).
-  // Never below 1 on a screen of 11 rows or fewer, which the formula takes to nothing.
-  viewport: (rows) => Math.max(Math.floor(rows / 2) - 5, 1),
+  // Probed on 24, 40 and 60 rows: 7, 15 and 25 (2.1.287, `e2e/probes/interrupted-paste.e2e.ts`);
+  // 3 from 12 to 17 rows (2026-11-07, `e2e/probes/reply-overflow.e2e.ts`). Below 12 a text of
+  // three rows pushes the box's frame off the screen, and it reads as no box.
+  viewport: (rows) => Math.max(Math.floor(rows / 2) - 5, 3),
   still,
+}
+
+/**
+ * Where it draws its own: on the alternate screen (its fullscreen renderer) `/` and `@` show
+ * as five rows over the transcript, right above the box; on the normal screen (its classic
+ * renderer, `/tui default`) the list runs under the box to the screen's end. A view takes the
+ * box's place in both. Its `/login` asks for a code in the rows it draws, and shows the end of
+ * what is typed (probed 2.1.316 and 2.1.318, fixtures/live-slice.probe.json).
+ */
+export const slice: SliceProfile = {
+  agent: "claude",
+  side: (screen) => (screen.alternate ? "above" : "below"),
+  // Whole across rows, as a narrow screen wraps it.
+  secret: (rows) =>
+    rows
+      .map((row) => row.trim())
+      .join(" ")
+      .includes("Paste code here"),
 }

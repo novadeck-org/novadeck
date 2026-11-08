@@ -1,7 +1,14 @@
-import { transcriptLimits, type ToolRun, type TranscriptItem } from "@novadeck/protocol"
+import {
+  transcriptLimits,
+  type ToolOutcome,
+  type ToolRun,
+  type TranscriptItem,
+  type TranscriptNote,
+} from "@novadeck/protocol"
 
 import { cutText, ref } from "./decode.js"
 import type { TranscriptEntry } from "./harness.js"
+import { ringOf } from "./prompts.js"
 
 /** When a record was written, from its ISO timestamp. */
 export const at = (value: unknown): number | null => {
@@ -33,6 +40,10 @@ type EntryFields = {
    * tells by its own record of it; the chat shows it as a note.
    */
   readonly interrupted?: boolean
+  /** On a tool call or its result, what came of it, as the decoder read it from the record. */
+  readonly outcome?: ToolOutcome | null
+  /** On a tool call and its result, that the harness made the call inside an agent's script. */
+  readonly scripted?: boolean
 }
 
 /**
@@ -75,9 +86,22 @@ export function entry(
         ? cutText(fields.author, transcriptLimits.name)
         : null,
     run: kind === "tool-call" ? (fields.describe?.(tool ?? "tool", cut) ?? null) : null,
+    outcome: kind === "text" ? null : (fields.outcome ?? null),
+    scripted: kind !== "text" && fields.scripted === true,
     interrupted: role === "user" && kind === "text" && fields.interrupted === true,
+    ring: role === "user" && kind === "text" ? ringOf(cut) : null,
   }
 }
+
+/** What a harness recorded between turns, as an item: `text` is a compaction's summary. */
+export const noteEntry = (
+  note: TranscriptNote,
+  when: number | null,
+  text = "",
+): TranscriptEntry => ({
+  ...entry("note", "text", text, { at: when }),
+  note,
+})
 
 /**
  * The item that shows where the person interrupted a turn, for a harness whose records hold
@@ -94,5 +118,8 @@ export const interruptionEntry = (when: number): TranscriptEntry => ({
   call: null,
   author: null,
   run: null,
+  outcome: null,
+  scripted: false,
   interrupted: true,
+  ring: null,
 })

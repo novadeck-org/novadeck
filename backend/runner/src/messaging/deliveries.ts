@@ -55,6 +55,8 @@ export type DeliveriesHost = {
   readonly slackMs: number
   /** A turn ended, or a new one began: the last one's delivery is left behind. */
   readonly leftBehind: (terminalId: string) => void
+  /** A Stop ended a turn, whatever it changed (see `MessagingOptions.stopped`). */
+  readonly stopped?: (terminalId: string) => void
 }
 
 /**
@@ -81,6 +83,12 @@ export class Deliveries {
   expect(terminalId: string, agent: AgentName | null): void {
     const live = this.host.sessions.get(terminalId)
     if (live) live.expecting = agent
+  }
+
+  /** The agent expected in the terminal, while no session bound and its prompt never showed. */
+  expected(terminalId: string): AgentName | null {
+    const live = this.host.sessions.get(terminalId)
+    return live && !live.root && !live.shown && !live.untrusted ? live.expecting : null
   }
 
   /**
@@ -200,6 +208,31 @@ export class Deliveries {
   }
 
   /**
+   * The Stop the screen is yet to be looked at after, to say whether a turn runs from the
+   * queue now (`queueSeen`); undefined where there is none.
+   */
+  queueLook(terminalId: string): number | undefined {
+    const live = this.host.sessions.get(terminalId)
+    return live && live.stops > live.queueLooked ? live.stops : undefined
+  }
+
+  /**
+   * What the screen said after the Stop `stop`: a turn runs from the queue, or none does. A turn
+   * seen running is one no hook will tell of, and a prompt behind it is queued as surely as one
+   * behind a turn a hook told of. None running means nothing was left queued, as where the
+   * program took a queued prompt into the turn that just ended: the count goes. A look that said
+   * neither in time isn't given, and the count stands. A later Stop's look supersedes it.
+   */
+  queueSeen(terminalId: string, stop: number, runs: boolean): void {
+    const live = this.host.sessions.get(terminalId)
+    if (!live || live.stops !== stop) return
+    live.queueLooked = stop
+    live.queueRunning = runs
+    live.queueConfirmed = runs
+    if (!runs) live.promptsQueued = 0
+  }
+
+  /**
    * The terminal's screen shows its agent's own box empty and calm, read from `readAt` on, in
    * the `epoch` it was read in, where its delivery is Drafting, Unknown or Fresh: Settled
    * again where a turn completed (`completedAt`), else Ready.
@@ -283,24 +316,56 @@ export class Deliveries {
   }
 
   /**
-   * The doorbell's line, by its nonce, where the person's Inbox replies wait for the
-   * terminal's root session (`replyLine`), oldest first; undefined for none. A request for
-   * feedback is none.
+   * The doorbell's line, by its nonce, where the person's Inbox replies no line has said yet
+   * wait for the terminal's root session (`replyLine`), oldest first; undefined for none. A
+   * request for feedback is none.
    */
   replyLine(terminalId: string): ((nonce: string) => string) | undefined {
     const live = this.host.sessions.get(terminalId)
     if (!live) return undefined
     return replyLine(
-      [...this.waitingFor(live)]
-        .filter((message) => message.response !== undefined && !message.response.feedback)
-        .toSorted((a, b) => a.sentAt - b.sentAt)
-        .map(({ text, response }) => ({
-          subject: cleanInboxText(response!.subject),
-          ...(response!.option !== undefined && { option: cleanInboxText(response!.option) }),
-          ...(response!.action !== undefined && { action: cleanInboxText(response!.action) }),
-          text,
-        })),
+      this.repliesFor(live).map(({ text, response }) => ({
+        subject: cleanInboxText(response!.subject),
+        ...(response!.option !== undefined && { option: cleanInboxText(response!.option) }),
+        ...(response!.action !== undefined && { action: cleanInboxText(response!.action) }),
+        text,
+      })),
     )
+  }
+
+  /**
+   * The person's Inbox replies waiting there that no line has said, oldest first: one said
+   * already (its turn's hook had no time, or older messages filled its delivery) comes with a
+   * delivery alone, as saying it again could have the agent act on it twice.
+   */
+  private repliesFor(live: Live): readonly Message[] {
+    const said = live.lineAt ?? Number.NEGATIVE_INFINITY
+    return [...this.waitingFor(live)]
+      .filter(
+        ({ response, sentAt }) => response !== undefined && !response.feedback && sentAt > said,
+      )
+      .toSorted((a, b) => a.sentAt - b.sentAt)
+  }
+
+  /**
+   * Whether the turn ending in the terminal should end, for the doorbell to ring the
+   * person's waiting replies as its next prompt, rather than go on with them as context
+   * from its Stop: they fit the line, and nothing known keeps a ring off: a draft in the box,
+   * work the turn leaves in the background (`background`), or the doorbell ringing plain
+   * after a failed ring, as its rings end at their cap and no later hook could carry the
+   * replies then.
+   */
+  ridesLine(terminalId: string, background: boolean): boolean {
+    const live = this.host.sessions.get(terminalId)
+    if (!live || background || live.ringsPlain) return false
+    const { box } = live.delivery
+    return box.empty && !box.draftWhileAsked && this.replyLine(terminalId) !== undefined
+  }
+
+  /** Whether the doorbell rings the terminal with the plain line now, as it tells. */
+  ringsPlain(terminalId: string, plain: boolean): void {
+    const live = this.host.sessions.get(terminalId)
+    if (live) live.ringsPlain = plain
   }
 
   /**
@@ -417,6 +482,7 @@ export class Deliveries {
     switch (event.type) {
       case "turn-started": {
         const { epoch } = live.delivery
+        if (event.replies) live.lineAt = this.host.now()
         // Whose turn it is, and what it did to the box, delivery alone decides.
         this.step(live, {
           type: "prompt",
@@ -468,7 +534,41 @@ export class Deliveries {
     const confirmed = event.type === "prompt" && event.by === "doorbell" ? event.nonce : undefined
     if (confirmed !== undefined)
       live.unconfirmed = live.unconfirmed.filter((each) => each !== confirmed)
+    // As far as told: a turn may run that no hook told of, as what was queued, or that an
+    // Escape didn't stop. Taken so in error, the prompt's messages wait for the next hook. It
+    // counts only behind a turn known to run: what's a guess must not feed itself, or one Escape
+    // would have every prompt after it taken for queued.
+    if (event.type === "prompt" && (event.by === "prompt" || event.by === "doorbell")) {
+      const known = running(before) || before.box.queued || live.queueConfirmed
+      live.promptBehindTurn = known || before.state === "unknown" || live.queueRunning
+      if (known) live.promptsQueued += 1
+    }
     live.delivery = transition(before, event, this.host.slackMs)
+    // At the turn's Stop with a prompt queued, that prompt runs as a turn no prompt hook tells
+    // of, the host idle and the person's keys free to say Drafting, until its own Stop. A Stop
+    // that continued ended no turn, so nothing queued has run. Counted high, as where the harness
+    // joins prompts in one turn, it keeps messages from a prompt's hook for that many Stops more.
+    if (event.type === "stop" && !event.continued) {
+      live.queueRunning = live.promptsQueued > 0 || live.delivery.box.queued
+      live.promptsQueued = Math.max(live.promptsQueued - 1, 0)
+      // Until the screen says what runs now (`queueSeen`), the count is all there is.
+      live.queueConfirmed = false
+      live.stops += 1
+      // Told whether or not the delivery changes: a turn the queue started ends in Settled.
+      this.host.stopped?.(live.terminalId)
+    }
+    // A calm screen whose box reads empty with no queue shown (the doorbell's look) has nothing
+    // queued, and no turn running unheard, whose spinner would keep it from calm.
+    if (
+      event.type === "ended" ||
+      event.type === "bound" ||
+      event.type === "unbound" ||
+      event.type === "emptied"
+    ) {
+      live.queueRunning = false
+      live.promptsQueued = 0
+      live.queueConfirmed = false
+    }
     if (live.delivery === before) return
     const { state } = live.delivery
     live.viaScreen =

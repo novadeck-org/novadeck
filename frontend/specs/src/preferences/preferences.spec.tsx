@@ -144,6 +144,25 @@ describe("Preferences", () => {
     })
   })
 
+  context("when choosing how long idle agents run", () => {
+    it("stops them after half an hour by default, and keeps another choice, or never", async () => {
+      await openWorkspace()
+      await openPreferences()
+      const idle = () =>
+        preferencesDialog().getByRole("combobox", { name: "Stop idle agents after" })
+      await expect.element(idle()).toHaveTextContent("30 minutes")
+      await idle().click()
+      await preferencesDialog().getByRole("option", { name: "4 hours" }).click()
+      await expect.element(idle()).toHaveTextContent("4 hours")
+      await closePreferences()
+      await openPreferences()
+      await expect.element(idle()).toHaveTextContent("4 hours")
+      await idle().click()
+      await preferencesDialog().getByRole("option", { name: "Off" }).click()
+      await expect.element(idle()).toHaveTextContent("Off")
+    })
+  })
+
   context("when the app cannot keep transcripts encrypted", () => {
     it("shows the switch off and disabled, and says why", async () => {
       await openWorkspace("/?transcripts=unavailable")
@@ -298,7 +317,7 @@ describe("Preferences Addons", () => {
         .toHaveAttribute("aria-checked", "false")
 
       await voiceCard().getByRole("button", { name: "Uninstall" }).click()
-      const confirm = page.getByRole("alertdialog", { name: "Uninstall voice input?" })
+      const confirm = page.getByRole("alertdialog", { name: "Uninstall this add-on?" })
       await expect.element(confirm.getByText(/freeing 602 MB/)).toBeVisible()
       await confirm.getByRole("button", { name: "Cancel" }).click()
       await expect.element(confirm).not.toBeInTheDocument()
@@ -410,7 +429,7 @@ describe("Preferences Addons", () => {
       await expect.element(enabled).toHaveAttribute("aria-checked", "false")
 
       await murmurCard().getByRole("button", { name: "Uninstall" }).click()
-      const confirm = page.getByRole("alertdialog", { name: "Uninstall Murmur?" })
+      const confirm = page.getByRole("alertdialog", { name: "Uninstall this add-on?" })
       await expect.element(confirm.getByText(/freeing 1\.2 GB/)).toBeVisible()
       await confirm.getByRole("button", { name: "Cancel" }).click()
       await expect.element(confirm).not.toBeInTheDocument()
@@ -452,6 +471,7 @@ describe("Shortcut list", () => {
         "New session: CtrlShiftN",
         "Toggle terminal sidebar: CtrlShiftE",
         "Toggle session sidebar: CtrlShiftS",
+        "Toggle Inbox: CtrlShiftB",
         "Open preferences: Ctrl,",
         "Navigate the workspace: ShiftEsc",
         "Hold to dictate: CtrlShiftM",
@@ -502,6 +522,7 @@ describe("Shortcut list", () => {
         "New session: ⌘ShiftN",
         "Toggle terminal sidebar: ⌘ShiftE",
         "Toggle session sidebar: ⌘ShiftS",
+        "Toggle Inbox: ⌘ShiftB",
         "Open preferences: ⌘,",
         "Navigate the workspace: ShiftEsc",
         "Hold to dictate: CtrlShiftM",

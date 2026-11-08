@@ -7,7 +7,6 @@ import type { Record } from "./record.js"
 import { shellAtPrompt } from "./sampling.js"
 import type { Saves } from "./saving.js"
 import type { Streams } from "./streams.js"
-import { savedSummaryOf } from "./summary.js"
 import { murmured } from "./titles.js"
 
 /** What murmur reads of a running terminal's record. */
@@ -139,7 +138,7 @@ export const murmurHost = (host: DescribingHost): MurmurHost => ({
     // Kept terminals no longer running still show to clients as saved summaries.
     for (const id of host.saves().clearMurmurTitles()) {
       const saved = host.holds(id) ? undefined : host.saves().saved(id)
-      if (saved) host.streams().changed(() => savedSummaryOf(saved))
+      if (saved) host.streams().savedChanged(saved)
     }
   },
 })

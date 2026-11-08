@@ -23,15 +23,34 @@ export type Told = {
 }
 
 /**
- * An agent's latest reported session in a terminal; a larger `seq` is a later report. `turn`
- * and `told` are kept in the saved row's JSON, so rows saved without them read as having
- * none, and both stay with the session only while it is the same one.
+ * An agent's latest reported session in a terminal; a larger `seq` is a later report. `turn`,
+ * `told` and `endedAt` are kept in the saved row's JSON, so rows saved without them read as
+ * having none, and all stay with the session only while it is the same one.
  */
 export type AgentReport = {
   readonly sessionId: string
   readonly seq: number
+  /**
+   * The session's own folder, as its harness named it when it bound (the terminal's, where
+   * it didn't): where a resume must run, since a harness looks a conversation up by it.
+   */
+  readonly cwd?: string
+  /** The conversation's file as its harness named it at bind, a hint for finding it again. */
+  readonly transcript?: string
   readonly turn?: AgentTurn
   readonly told?: Told
+  /**
+   * When the session's last completed or failed turn ended, in epoch milliseconds: kept with
+   * the session, as the Inbox's stored turns go once read, so a sleeper's tab keeps its age.
+   */
+  readonly endedAt?: number
+  /**
+   * The flags the agent was launched with that a resume carries over (`launch.kept`: its
+   * permission mode, sandbox, model and effort), as its hooks reported them; rows saved
+   * without them read as none, and a new session has the flags of the process that
+   * started it.
+   */
+  readonly launch?: readonly string[]
 }
 
 /**
@@ -111,6 +130,8 @@ export type TerminalIdentity = Pick<SavedTerminal, "handle" | "naming" | "opened
 /** Where the runner saves terminals: its metadata store. */
 export type TerminalRecords = {
   terminal(terminalId: string): SavedTerminal | undefined
+  /** Whether a line was ever entered in the terminal; true for one kept before it was told. */
+  terminalRan?(terminalId: string): boolean
   /** Every terminal kept, of one session or all, in the order they were created, without transcripts. */
   terminals(sessionId?: string): readonly ListedTerminal[]
   /**
@@ -148,4 +169,6 @@ export type TerminalRecords = {
 export type TerminalToSave = Omit<SavedTerminal, "transcript" | "savedAt" | "interruptions"> & {
   transcript?: string | null
   interruptions?: SavedTerminal["interruptions"]
+  /** Whether a line was ever entered in it; the records never lower it. */
+  ran?: boolean
 }

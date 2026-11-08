@@ -78,11 +78,13 @@ const isArea = (area: string): area is NoteArea => (noteAreas as readonly string
 // and a generic icon is a small loss next to a lost highlight.
 const fallbackIcon: HighlightIcon = "sparkles"
 
+type Titled = { title: string; line: string; prs: number[]; icon: HighlightIcon }
+
 export type Checked =
   | {
       readonly ok: true
       readonly output: {
-        readonly highlights: { title: string; line: string; prs: number[]; icon: HighlightIcon }[]
+        readonly highlights: Titled[]
         readonly changes: { area: NoteArea; line: string; prs: number[] }[]
       }
       /** Why each dropped line was dropped, never the line: logs and summaries are public. */
@@ -99,10 +101,10 @@ const fail = (reason: string): Checked => ({ ok: false, reason })
  * hold or a pull request that was not given, too long, markup, an excluded topic, a line mostly
  * in another script, an unknown area, a release's highlight past `releaseHighlights` or citing
  * no feature) is dropped, and `dropped` says why. A highlight whose icon is missing or not in
- * the set keeps its place with "sparkles". `allowed` holds the pull requests the model was
- * given, and `features` those of them that are `feat` changes: a cheap model can make a
- * highlight of nearly any change, fixes too, whatever it is told (DeepSeek v4 Pro did), so a
- * release's highlight has to tell a feature.
+ * the set keeps its place with "sparkles". `allowed`
+ * holds the pull requests the model was given, and `features` those of them that are `feat`
+ * changes: a cheap model can make a highlight of nearly any change, fixes too, whatever it is
+ * told (DeepSeek v4 Pro did), so a release's highlight has to tell a feature.
  */
 export const checkOutput = (
   output: ModelOutput,
@@ -125,7 +127,7 @@ export const checkOutput = (
   const alienChanges = [...told.values()].filter(Boolean).length
   if (alienChanges * 2 > told.size) return fail("The answer is not written in English")
   const dropped: string[] = []
-  const highlights: { title: string; line: string; prs: number[]; icon: HighlightIcon }[] = []
+  const highlights: Titled[] = []
   const changes: { area: NoteArea; line: string; prs: number[] }[] = []
   for (const item of [...output.highlights, ...output.changes]) {
     const title = "title" in item ? item.title.trim() : undefined
@@ -168,7 +170,8 @@ export const checkOutput = (
       dropped.push(`a highlight past the ${releaseHighlights} a release leads with`)
     else if (title !== undefined) {
       const icon = highlightIcon.safeParse("icon" in item ? item.icon : undefined)
-      highlights.push({ title, line, prs: item.prs, icon: icon.success ? icon.data : fallbackIcon })
+      const kept = { title, line, prs: item.prs, icon: icon.success ? icon.data : fallbackIcon }
+      highlights.push(kept)
     } else changes.push({ area: (item as { area: NoteArea }).area, line, prs: item.prs })
   }
   return { ok: true, output: { highlights, changes }, dropped }

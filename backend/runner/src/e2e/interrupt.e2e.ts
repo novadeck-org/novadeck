@@ -1,15 +1,17 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { AgentSetup } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
-import { describe, e2e, expect, supported } from "./fixture.js"
+import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
 import { asked, gate, latest } from "./model/script.js"
 import { own, replies, start, through } from "./scenarios.js"
 
 // The chat's Stop, `agents.interrupt`, never leaves the agent's TUI in a state the chat
-// can't recover from: it presses Escape once, only while a turn works, so no second Escape
-// opens a rewind picker over an empty box (docs/backend-api.md).
+// can't recover from: it presses Escape once, while a turn works or its queued messages go
+// on, so no second Escape opens a rewind picker over an empty box (docs/backend-api.md).
 
 // Waits until the message queued last is through what its harness runs before it can send
 // it, where its screen says (Claude Code's UserPromptSubmit hooks, over a second each on
@@ -19,9 +21,46 @@ const queuedUp = async (terminal: DeckTerminal, setup: AgentSetup, prompt: strin
   await sleep(1000)
 }
 
+// A prompt hook as slow as Claude Code's on Windows (over a second each), whose log in the
+// project says it ran.
+const slowHook = "slow-hook.cjs"
+const slowHookLog = "slow-hook.log"
+const seedSlowHook = ({ sandbox }: E2E, ms = 1300) =>
+  writeFileSync(
+    join(sandbox.project, slowHook),
+    `const { appendFileSync } = require("node:fs")
+const { join } = require("node:path")
+appendFileSync(join(__dirname, ${JSON.stringify(slowHookLog)}), "ran\\n")
+setTimeout(() => console.log("{}"), ${ms})
+`,
+  )
+
+// A Stop hook as slow as a hook's shell can be on Windows, in the project's own settings,
+// beside Novadeck's.
+const seedSlowStopHook = ({ sandbox }: E2E) => {
+  writeFileSync(
+    join(sandbox.project, "slow-stop-hook.cjs"),
+    `setTimeout(() => console.log("{}"), 1000)\n`,
+  )
+  mkdirSync(join(sandbox.project, ".claude"), { recursive: true })
+  writeFileSync(
+    join(sandbox.project, ".claude", "settings.local.json"),
+    JSON.stringify({
+      hooks: { Stop: [{ hooks: [{ type: "command", command: "node slow-stop-hook.cjs" }] }] },
+    }),
+  )
+}
+
+// A hook after each tool, long enough to stay on the spinner through the Stop.
+const slowToolHook = "slow-tool-hook.cjs"
+const seedSlowToolHook = ({ sandbox }: E2E) =>
+  writeFileSync(join(sandbox.project, slowToolHook), `setTimeout(() => console.log("{}"), 6000)\n`)
+
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
     const it = e2e(setup)
+    const slow = e2e.seeded({ promptHook: slowHook }, setup)
+    const slowTool = e2e.seeded({ promptHook: slowHook, toolHook: slowToolHook }, setup)
 
     it("presses one Escape for a double Stop, leaving an empty prompt with no picker, and takes the next prompt", async ({
       e2e: run,
@@ -111,17 +150,38 @@ for (const setup of setups) {
       await through(t1, ["working", "settled"], { after: next })
     })
 
-    it("gives back both of two queued messages, or what was left of them", async ({ e2e: run }) => {
+    // Two prompts queued behind a held turn, a Stop once `ready` says it may come: both come
+    // back, or as a steer stop (Codex), and neither runs as a turn of its own.
+    const twoQueued = async (
+      run: E2E,
+      ready: (terminal: DeckTerminal) => Promise<unknown>,
+      {
+        replyMidStop = false,
+        inTool = false,
+        enqueued = false,
+        stopped: onStopped,
+      }: {
+        replyMidStop?: boolean
+        inTool?: boolean
+        /** Whether the first is through its hook, and so in the real queue, before the second. */
+        enqueued?: boolean
+        stopped?: () => void | Promise<void>
+      } = {},
+    ) => {
       const held = gate()
       const queuedHeld = gate()
+      let queuedCalls = 0
       run.model.use(
         replies("Carry on", "Carried on."),
         own(async (call) => {
           if (asked(call, "Queued")) {
+            queuedCalls += 1
             await queuedHeld.opened
             return { text: "Queued late." }
           }
           if (!asked(call, "Hold on")) return undefined
+          if (inTool && !call.turns.some((turn) => turn.role === "tool"))
+            return { calls: [{ name: "Bash", input: { command: "sleep 2", description: "Wait" } }] }
           await held.opened
           return { text: "Too late." }
         }),
@@ -135,24 +195,209 @@ for (const setup of setups) {
         after: calls,
       })
       await t1.reached("working", { after: mark })
-      await t1.prompt("Queued beta")
-      await t1.prompt("Queued gamma")
-      await queuedUp(t1, setup, "Queued gamma")
-      const stopped = await t1.interrupt()
+      if (inTool) await t1.until("sleep 2")
+      const beta = await t1.prompt("Queued beta")
+      if (enqueued) await t1.until(setup.queued!("Queued beta"))
+      const gamma = await t1.prompt("Queued gamma")
+      await ready(t1)
+      const stopping = t1.interrupt()
+      if (replyMidStop) {
+        await sleep(100)
+        held.open()
+      }
+      const stopped = await stopping
       held.open()
       queuedHeld.open()
       await sleep(2500)
+      await onStopped?.()
 
       expect(stopped.returned).toBe(setup.agent === "codex" ? null : "Queued beta\nQueued gamma")
+      // Words given back are the person's draft again, and none went: Claude Code's record
+      // holds them, written as the queued turn started, which the chat shows no more.
+      if (stopped.returned !== null) {
+        const { prompts = [] } = await t1.detail()
+        const left = prompts.filter(({ ref }) => ref === beta.ref || ref === gamma.ref)
+        expect(left.map(({ state }) => state)).toEqual(["withdrawn", "withdrawn"])
+        const items = await t1.transcript()
+        for (const { item } of left)
+          if (item !== null)
+            expect(items.find((each) => each.index === item)?.text).toContain("Queued")
+      }
       const shown = await t1.screen()
-      expect(shown).not.toContain("Too late.")
+      if (!replyMidStop) expect(shown).not.toContain("Too late.")
       expect(shown).not.toContain("Queued late.")
+      if (setup.rewind) expect(shown).not.toMatch(setup.rewind.shows)
+      if (setup.queueing) expect(queuedCalls).toBe(0)
 
       const next = t1.mark()
       await t1.prompt("Carry on")
       await t1.until("Carried on.")
       await through(t1, ["working", "settled"], { after: next })
-    })
+      // What the chat leaves out rests on this: a harness that starts to send them breaks it.
+      if (stopped.returned !== null) {
+        const last = run.model.calls.findLast((call) => !call.side)!
+        expect(JSON.stringify(last.turns)).not.toContain("Queued")
+      }
+    }
+
+    it("gives back both of two queued messages, or what was left of them", ({ e2e: run }) =>
+      twoQueued(run, (terminal) => queuedUp(terminal, setup, "Queued gamma")))
+
+    // The Stop lands with the hooks' screen up, where its harness has one: its words changed,
+    // this fails rather than the hold going quietly. Elsewhere it lands as soon after.
+    const midHook = (run: E2E) => async (terminal: DeckTerminal) => {
+      expect(existsSync(join(run.sandbox.project, slowHookLog))).toBe(true)
+      if (setup.queueing) await terminal.until(setup.queueing)
+      else await sleep(300)
+    }
+
+    slow(
+      "gives back both of two queued messages with their slow prompt hooks still running",
+      ({ e2e: run }) => {
+        seedSlowHook(run)
+        return twoQueued(run, midHook(run))
+      },
+    )
+
+    gated(slow, setup.queueing ? undefined : "it holds no Stop for queued messages")(
+      "gives back both of two queued messages where the turn ends as the Stop waits on their hooks",
+      ({ e2e: run }) => {
+        seedSlowHook(run)
+        return twoQueued(run, midHook(run), { replyMidStop: true })
+      },
+    )
+
+    // A message in the real queue goes as the turn ends, whatever Escape comes then: what is
+    // queued has to be out of the queue first. Each fails 5 of 5 where only Escape stops it
+    // (#757, Linux, no CPU starved): the hook's time is what opens the race.
+    gated(slow, setup.queueing ? undefined : "it holds no Stop for queued messages")(
+      "gives back both of two queued messages where the first is through its hook and the turn ends as the Stop comes",
+      ({ e2e: run }) => {
+        seedSlowHook(run)
+        return twoQueued(run, midHook(run), { replyMidStop: true, enqueued: true })
+      },
+    )
+
+    gated(slow, setup.queueing ? undefined : "it holds no Stop for queued messages")(
+      "gives back both of them where a slow Stop hook runs as the Stop comes",
+      ({ e2e: run }) => {
+        seedSlowHook(run)
+        seedSlowStopHook(run)
+        return twoQueued(run, midHook(run), { replyMidStop: true, enqueued: true })
+      },
+    )
+
+    gated(slow, setup.queueing ? undefined : "its queue has no row a draft hides")(
+      "leaves a draft in the box as it is, however much is queued",
+      async ({ e2e: run }) => {
+        seedSlowHook(run)
+        const held = gate()
+        run.model.use(
+          own(async (call) => {
+            if (!asked(call, "Hold on")) return undefined
+            await held.opened
+            return { text: "Too late." }
+          }),
+        )
+        const t1 = await start(run, setup)
+        const calls = run.model.mark()
+        const mark = t1.mark()
+        await t1.prompt("Hold on")
+        await run.model.waitFor((call) => !call.side && latest(call).includes("Hold on"), {
+          after: calls,
+        })
+        await t1.reached("working", { after: mark })
+        await t1.prompt("Queued beta")
+        await t1.until(setup.queued!("Queued beta"))
+        t1.press("my own draft")
+        await t1.until("my own draft")
+        const stopped = await t1.interrupt()
+        held.open()
+        await sleep(2500)
+        // Nothing was given back, and no queued words came into the box beside the draft.
+        expect(stopped.returned).toBeNull()
+        const box = (await t1.screen()).split("\n").filter((row) => row.includes("my own draft"))
+        expect(box).toHaveLength(1)
+        expect(box[0]).not.toContain("Queued")
+      },
+    )
+
+    // The tool ends while the queued messages' hooks run, which outlast it, and its hook takes
+    // over the spinner. A Stop that went at once would kill theirs, which run again: the own
+    // prompt's hook and the two queued ones' are all the log may hold. A Stop that takes the
+    // queue back first lets them run out, maybe after it.
+    gated(slowTool, setup.toolHooking ? undefined : "its spinner tells of no tool's hook")(
+      "gives back both of two queued messages where a tool's hook has taken over their spinner",
+      async ({ e2e: run }) => {
+        seedSlowHook(run, 3500)
+        seedSlowToolHook(run)
+        const ran = () => readFileSync(join(run.sandbox.project, slowHookLog), "utf8")
+        const onSpinner = (terminal: DeckTerminal) => terminal.until(setup.toolHooking!)
+        await twoQueued(run, onSpinner, {
+          inTool: true,
+          // Before the next prompt, whose own hook runs too.
+          stopped: async () => {
+            await expect.poll(ran, { timeout: 10_000 }).toBe("ran\nran\nran\n")
+            await sleep(4_000)
+            expect(ran()).toBe("ran\nran\nran\n")
+          },
+        })
+      },
+    )
+
+    // Its words can't all be read, so they stay: nothing here may take them, not the Stop, not
+    // the chat's own take of what the box holds. The next message goes along with them.
+    for (const [what, message] of [
+      ["a line", "Carry on"],
+      ["a message that shows as a placeholder", `Carry on\n${"and on\n".repeat(40)}and on`],
+      // Antigravity shows long paragraphs whole, taller than it has room for.
+      [
+        "a message taller than the box",
+        `Carry on\n\n${`${"and on ".repeat(150)}\n\n`.repeat(3)}done`,
+      ],
+    ] as const)
+      gated(it, setup.agent === "codex" ? "it steers what is queued into the turn" : undefined)(
+        `leaves a queue taller than the box in it, for nothing to take, and ${what} takes it along`,
+        async ({ e2e: run }) => {
+          const held = gate()
+          run.model.use(
+            own((call) => (asked(call, "Carry on") ? { text: "Carried on." } : undefined)),
+            own(async (call) => {
+              if (!asked(call, "Hold on")) return undefined
+              await held.opened
+              return { text: "Too late." }
+            }),
+          )
+          const t1 = await start(run, setup)
+          const calls = run.model.mark()
+          const mark = t1.mark()
+          const lines = Array.from({ length: 30 }, (_, i) => `queued line ${i + 1}`)
+          await t1.prompt("Hold on")
+          await run.model.waitFor((call) => !call.side && latest(call).includes("Hold on"), {
+            after: calls,
+          })
+          await t1.reached("working", { after: mark })
+          await t1.prompt(lines.join("\n"))
+          await t1.until(/Press up to edit queued messages/)
+          await sleep(1500)
+          await expect(t1.interrupt()).rejects.toMatchObject({ code: "BOX_NOT_CLEARED" })
+          held.open()
+          await sleep(1000)
+          expect((await run.deck.terminals.takeBox(t1.id)).returned).toBeNull()
+          expect(await t1.screen()).toContain("queued line 30")
+
+          const next = run.model.mark()
+          await t1.prompt(message)
+          const carried = await run.model.waitFor(
+            (call) => !call.side && latest(call).includes("queued line 30"),
+            { after: next },
+          )
+          for (const line of [lines[0]!, lines[9]!, lines[29]!]) {
+            expect(latest(carried)).toContain(line)
+          }
+          expect(latest(carried)).toContain("Carry on")
+        },
+      )
 
     it("clears a long prompt put back in the box, though it shows only its tail, and gives nothing back", async ({
       e2e: run,

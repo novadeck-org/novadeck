@@ -11,7 +11,13 @@ import type {
 import type { Project, TerminalSummary, WorkspaceSession } from "@novadeck/protocol"
 
 import { context, describe, expect, it } from "../test"
-import { cleanlyExited, lostTerminals, runnerSeed, type RunnerListing } from "./seed"
+import {
+  cleanlyExited,
+  lostTerminals,
+  runnerSeed,
+  runnerTerminal,
+  type RunnerListing,
+} from "./seed"
 import { encodeSession } from "./state"
 
 const uuid = (n: number): string => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`
@@ -35,7 +41,12 @@ const summary = (
   ledBy: null,
   openedBy: null,
   agentRan: false,
+  restorable: false,
+  busy: false,
   started: true,
+  sleeping: false,
+  restingAgent: null,
+  lastTurnAt: null,
   command: null,
   lastProgram: null,
   cwd: "/work/1",
@@ -46,6 +57,7 @@ const summary = (
   process: { name: "zsh", argv: null },
   agent: null,
   ready: null,
+  startup: null,
   activity: null,
   telemetry: null,
   reported: null,
@@ -199,6 +211,34 @@ describe("runner seed", () => {
       expect(state.layout.canvas.geometry[uuid(24)]).toBeUndefined()
       expect(state.layout.grid.desktop?.some((item) => item.i === uuid(24))).toBe(false)
       expect(state.selected).toBe(uuid(20))
+    })
+  })
+
+  context("with terminals the runner says can be restored or run a program", () => {
+    const listing: RunnerListing = [
+      {
+        project: project(1),
+        sessions: [
+          {
+            session: fresh(10),
+            terminals: [
+              summary(40, 10, { restorable: true, busy: true }),
+              summary(41, 10, { restorable: false, busy: false }),
+              summary(42, 10),
+            ],
+          },
+        ],
+      },
+    ]
+    const { terminals } = workspaceFromSeed(runnerSeed(listing), defaults).projects[0]!.history[0]!
+      .state.roster
+
+    it("keeps both where they are true, and nothing where they are false or absent", () => {
+      expect(terminals[0]).toMatchObject({ restorable: true, busy: true })
+      for (const terminal of terminals.slice(1)) {
+        expect(terminal).not.toHaveProperty("restorable")
+        expect(terminal).not.toHaveProperty("busy")
+      }
     })
   })
 
@@ -414,5 +454,22 @@ describe("runner seed", () => {
         "Terminal",
       ])
     })
+  })
+})
+
+describe("a sleeper the runner keeps", () => {
+  it("carries when its agent's last turn ended", () => {
+    const asleep = summary(1, 1, {
+      started: false,
+      sleeping: true,
+      restingAgent: "claude",
+      lastTurnAt: 1234,
+    })
+    expect(runnerTerminal(asleep)).toMatchObject({
+      state: "sleeping",
+      agent: "claude",
+      endedAt: 1234,
+    })
+    expect(runnerTerminal({ ...asleep, lastTurnAt: null })).not.toHaveProperty("endedAt")
   })
 })

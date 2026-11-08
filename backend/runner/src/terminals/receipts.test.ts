@@ -107,6 +107,24 @@ const setup = async (
 }
 
 describe("prompt receipts", () => {
+  it("tells of a prompt that may be in the box unseen, until none is", async ({ resources }) => {
+    const { host, receipts, state, give, pass } = await setup(resources)
+    expect(receipts.waiting(terminal)).toBe(false)
+    host.box = "check the logs"
+    await receipts.expect(terminal, "check the logs", "r1")
+    // Not yet typed: it can't have come back.
+    expect(receipts.waiting(terminal)).toBe(false)
+    receipts.sent(terminal, "r1")
+    expect(receipts.waiting(terminal)).toBe(true)
+    await pass()
+    await vi.waitFor(() => expect(state("r1")).toBe("in-box"))
+    expect(receipts.waiting(terminal)).toBe(true)
+    receipts.taken(terminal, "check the logs")
+    expect(receipts.waiting(terminal)).toBe(false)
+    await give("something else", "r2")
+    expect(receipts.waiting(terminal)).toBe(true)
+  })
+
   it("withdraws a prompt back in the agent's box once a Stop hands its words back", async ({
     resources,
   }) => {
@@ -115,8 +133,94 @@ describe("prompt receipts", () => {
     await give("check the logs", "r1")
     await pass()
     await vi.waitFor(() => expect(state("r1")).toBe("in-box"))
-    receipts.withdraw(terminal, "check the logs")
+    receipts.withdraw(terminal, "check the logs", 0)
     expect(state("r1")).toBe("withdrawn")
+  })
+
+  it("withdraws a prompt settled during a Stop that hands its words back, keeping its item", async ({
+    resources,
+  }) => {
+    const { clock, path, receipts, give, state } = await setup(resources)
+    const itemOf = (ref: string) => receipts.view(terminal).find((each) => each.ref === ref)?.item
+    await give("continue", "r1")
+    await appendFile(path, row("continue"))
+    await vi.waitFor(() => expect(state("r1")).toBe("settled"))
+    clock.now += 1_000
+    const since = clock.now
+    clock.now += 1_000
+    await give("continue", "r2")
+    await appendFile(path, row("continue"))
+    await vi.waitFor(() => expect(state("r2")).toBe("settled"))
+    const item = itemOf("r2")
+
+    receipts.withdraw(terminal, "continue", since)
+    // The same words settled before it are a message that went.
+    expect(state("r1")).toBe("settled")
+    expect(state("r2")).toBe("withdrawn")
+    expect(itemOf("r2")).toBe(item)
+    expect(item).toEqual(expect.any(Number))
+  })
+
+  it("leaves the prompt that took words out, and any still on its way, whatever they say", async ({
+    resources,
+  }) => {
+    const { host, receipts, state, give, pass } = await setup(resources)
+    host.box = "continue"
+    await give("continue", "r1")
+    await pass()
+    await vi.waitFor(() => expect(state("r1")).toBe("in-box"))
+    await give("continue", "r2")
+    await give("ok", "r3")
+    receipts.taken(terminal, "continue and ok", "r2")
+    expect(state("r1")).toBe("withdrawn")
+    expect(state("r2")).toBe("pending")
+    expect(state("r3")).toBe("pending")
+  })
+
+  it("settles a prompt that went on the same line as the box's text", async ({ resources }) => {
+    const { path, receipts, state, give } = await setup(resources)
+    await give("the message", "r1")
+    receipts.joined(terminal, "r1")
+    await appendFile(path, row("half typed the message"))
+    await vi.waitFor(() => expect(state("r1")).toBe("settled"))
+  })
+
+  it("takes a prompt not yet known to be back for words that are exactly its own", async ({
+    resources,
+  }) => {
+    const { receipts, state, give } = await setup(resources)
+    await give("came right back", "r1")
+    receipts.taken(terminal, "came right back")
+    expect(state("r1")).toBe("withdrawn")
+  })
+
+  it("knows the words of prompts back in the box, only where they are all it holds", async ({
+    resources,
+  }) => {
+    const { host, receipts, state, give, pass } = await setup(resources)
+    host.box = "check the logs\nand the disk"
+    await give("check the logs", "r1")
+    await give("and the disk", "r2")
+    expect(receipts.known(terminal, "check the logs")).toBeUndefined()
+    await pass()
+    await vi.waitFor(() => expect(state("r2")).toBe("in-box"))
+    expect(receipts.known(terminal, "check the logs\nand the disk")).toBe(
+      "check the logs\nand the disk",
+    )
+    expect(receipts.known(terminal, "check the logs")).toBe("check the logs")
+    expect(receipts.known(terminal, "check the logs and my words")).toBeUndefined()
+    expect(receipts.known("no such terminal", "check the logs")).toBeUndefined()
+  })
+
+  it("calls prompts a Stop left in the box in-box at once, and no other", async ({ resources }) => {
+    const { host, receipts, state, give } = await setup(resources)
+    host.box = "queued words"
+    await give("queued words", "r1")
+    await give("gone to the record", "r2")
+    await receipts.putBack(terminal)
+    expect(state("r1")).toBe("in-box")
+    expect(state("r2")).toBe("pending")
+    expect(host.changes).toBeGreaterThan(0)
   })
 
   it("lets a late record settle a missing prompt only within the cap", async ({ resources }) => {
@@ -369,7 +473,7 @@ describe("prompt receipts", () => {
     const { receipts, state, give } = await setup(resources)
     await give("take this back", "r1")
     await give("keep this", "r2")
-    receipts.withdraw(terminal, "> take this back")
+    receipts.withdraw(terminal, "> take this back", 0)
     expect(state("r1")).toBe("withdrawn")
     expect(receipts.view(terminal)[0]).toMatchObject({ ref: "r1", text: null })
     expect(state("r2")).toBe("pending")

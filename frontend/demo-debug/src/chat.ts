@@ -20,12 +20,12 @@ const failures: readonly {
   {
     reason: "draft",
     label: "Draft in the box",
-    hint: "Words back in the box · Open terminal",
+    hint: "Words back in the box · Clear it above",
   },
   {
     reason: "shell",
     label: "Box in shell mode",
-    hint: "Offers Open terminal",
+    hint: "Clear it above",
   },
   {
     reason: "too-tall",
@@ -55,7 +55,7 @@ const failures: readonly {
   {
     reason: "ringing",
     label: "Doorbell ringing",
-    hint: "Says to retry in a moment",
+    hint: "Waits behind the ring, then goes",
   },
   {
     reason: null,

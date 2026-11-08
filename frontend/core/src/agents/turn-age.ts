@@ -1,9 +1,14 @@
 import type { TerminalMetadata } from "../types"
 import { day, hour, minute } from "../units"
 
-// When the agent's latest turn ended, where its harness tells it.
+// When the agent's latest turn ended, where its harness tells it, or, for a sleeper, the
+// runner kept it.
 const endedAt = (terminal: TerminalMetadata): number | undefined =>
-  terminal.state === "running" ? terminal.agent?.lastTurn?.at : undefined
+  terminal.state === "running"
+    ? terminal.agent?.lastTurn?.at
+    : terminal.state === "sleeping"
+      ? terminal.endedAt
+      : undefined
 
 // The unit an age counts in at `elapsed`: minutes for the first hour, hours for the first
 // day, days after.

@@ -1,4 +1,4 @@
-import type { TerminalSummary } from "@novadeck/protocol"
+import type { AgentName, TerminalSummary } from "@novadeck/protocol"
 import type { Terminal } from "@novadeck/terminal/host"
 
 import { hasRun, type ListedTerminal } from "./saved-terminals.js"
@@ -6,6 +6,19 @@ import { summaryTitle } from "./titles.js"
 
 /** A terminal's summary without what its host keeps: its size, its exit and its run. */
 export type AgentSummary = Omit<TerminalSummary, "cols" | "rows" | "exit" | "run">
+
+/** What a summary says of an agent where none is known: a new shell's, or an ended one's. */
+export const noAgent = {
+  agent: null,
+  ready: null,
+  startup: null,
+  activity: null,
+  telemetry: null,
+  reported: null,
+  sleeping: false,
+  restingAgent: null,
+  lastTurnAt: null,
+} as const
 
 /** A terminal's whole summary: its record's half and its host's. */
 export const summaryOf = (record: {
@@ -18,8 +31,21 @@ export const summaryOf = (record: {
   run: record.terminal.run,
 })
 
+/** What a saved terminal says of its sleeping agent, if one rests there (see `Sleepers`). */
+export type Resting = {
+  readonly agent: AgentName
+  /** Whether its wake is wanted already: a `create` is coming, so it is not asleep. */
+  readonly waking: boolean
+  /** The standing report of the agent's session, so a done mark survives its sleep. */
+  readonly reported: TerminalSummary["reported"]
+  /** When its agent last ended a turn, where the runner kept it. */
+  readonly lastTurnAt: number | null
+  /** Whether its conversation could be restored from History if it closed (see `restorable`). */
+  readonly restorable: boolean
+}
+
 /** A terminal kept only as saved, as clients see it: no shell, its last facts. */
-export const savedSummaryOf = (terminal: ListedTerminal): TerminalSummary => ({
+export const savedSummaryOf = (terminal: ListedTerminal, resting?: Resting): TerminalSummary => ({
   id: terminal.id,
   sessionId: terminal.sessionId,
   ...summaryTitle(terminal.naming, terminal),
@@ -30,15 +56,21 @@ export const savedSummaryOf = (terminal: ListedTerminal): TerminalSummary => ({
   started: false,
   command: terminal.command,
   lastProgram: terminal.lastProgram,
+  // Nothing runs in it, so nothing is lost by closing it; a sleeper keeps what History
+  // judged of its session, and a plain saved terminal keeps what it showed.
+  restorable: resting ? resting.restorable : true,
+  busy: false,
   cwd: terminal.cwd,
   cols: 80,
   rows: 24,
   run: 0,
   exit: null,
   process: null,
-  agent: null,
-  ready: null,
-  activity: null,
-  telemetry: null,
-  reported: null,
+  ...noAgent,
+  ...(resting && {
+    sleeping: !resting.waking,
+    restingAgent: resting.agent,
+    reported: resting.reported,
+    lastTurnAt: resting.lastTurnAt,
+  }),
 })

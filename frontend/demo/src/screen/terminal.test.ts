@@ -1,3 +1,4 @@
+import { noDoorbell } from "@novadeck/core/conversation"
 import type {
   ChatItem,
   ChatRequest,
@@ -93,13 +94,15 @@ const agentLink = (conversation: Conversation) => {
 }
 
 const conversationOf = (fields: Partial<Conversation> = {}): Conversation => ({
+  slice: null,
+  doorbell: noDoorbell,
   agent: "claude",
   session: "s1",
   loaded: true,
   items: [],
   requests: [],
   prompts: [],
-  unread: false,
+  box: null,
   ...fields,
 })
 
@@ -114,7 +117,10 @@ const item = (id: string, fields: Partial<ChatItem>): ChatItem => ({
   call: null,
   author: null,
   run: null,
+  outcome: null,
+  scripted: false,
   interrupted: false,
+  ring: null,
   ...fields,
 })
 

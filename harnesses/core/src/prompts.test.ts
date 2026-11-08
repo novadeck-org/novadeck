@@ -6,10 +6,12 @@ import {
   doorbellNonce,
   maxReplyLine,
   promptStart,
+  ringOf,
   quotedLine,
   replyDoorbell,
   replyLine,
   withoutDoorbell,
+  withoutDoorbellLines,
 } from "./prompts.js"
 
 describe("the reply line", () => {
@@ -172,5 +174,58 @@ describe("quotedLine", () => {
       "*",
     ])
       expect(() => quotedLine(bad), bad).toThrow(RangeError)
+  })
+})
+
+describe("words given back from the box", () => {
+  const ring = doorbellLine("Ab12")
+  const reply = replyLine([{ subject: "Merge it?", option: "Merge it", text: "Yes" }])!("Ab12")
+
+  it("leaves out a doorbell line and a reply line, each on a line of its own", () => {
+    expect(withoutDoorbellLines(`Queued beta\n${ring}\nQueued gamma`)).toBe(
+      "Queued beta\nQueued gamma",
+    )
+    expect(withoutDoorbellLines(`${reply}\nQueued beta`)).toBe("Queued beta")
+  })
+
+  it("leaves out a reply line a box wrapped over rows", () => {
+    const wrapped = reply.replace(/ ([^ ]+ [^ ]+)$/, "\n$1").replace(" ", "\n")
+    expect(wrapped.split("\n").length).toBeGreaterThan(2)
+    expect(withoutDoorbellLines(`Queued beta\n${wrapped}\nQueued gamma`)).toBe(
+      "Queued beta\nQueued gamma",
+    )
+  })
+
+  it("leaves nothing where nothing else was queued", () => {
+    expect(withoutDoorbellLines(ring)).toBe("")
+    expect(withoutDoorbellLines(reply)).toBe("")
+  })
+
+  it("keeps the person's words as they are, spaces and all", () => {
+    const words = "two  spaces\n\n  and an indent"
+    expect(withoutDoorbellLines(words)).toBe(words.trim())
+  })
+
+  it("keeps a line that only speaks of a doorbell, the person's", () => {
+    const words = `what does ${ring} mean?`
+    expect(withoutDoorbellLines(words)).toBe(words)
+  })
+})
+
+describe("what a prompt says of its ring", () => {
+  it("names the doorbell line's nonce", () => {
+    expect(ringOf(doorbellLine("n7Q2"))).toEqual({ nonce: "n7Q2", replies: false })
+  })
+
+  it("names a reply line's, which carries the person's replies", () => {
+    expect(ringOf("[Novadeck Inbox reply, n7Q2] Re your ask: yes [n7Q2]")).toEqual({
+      nonce: "n7Q2",
+      replies: true,
+    })
+  })
+
+  it("leaves the person's words with a line stuck in them as theirs", () => {
+    expect(ringOf(`Fix it ${doorbellLine("n7Q2")}`)).toBeNull()
+    expect(ringOf("Fix it")).toBeNull()
   })
 })

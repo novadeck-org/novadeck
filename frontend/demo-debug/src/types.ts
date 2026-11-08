@@ -94,6 +94,8 @@ export type DemoStates = {
   readonly screens: DemoScreenStates
   // Whether this paste of the terminal's fails, as the panel armed it for its next one.
   readonly failPaste: (key: TerminalKey) => boolean
+  // Whether the panel set this terminal asleep, so it stays so.
+  readonly holds: (key: TerminalKey) => boolean
   // A fresh shell in place of an ended one, through the backend's sink.
   readonly restart: (key: TerminalKey, dispatch: BackendSink["dispatch"]) => void
   // Always mounted while the demo runs: where `notices.show` puts its notifications.

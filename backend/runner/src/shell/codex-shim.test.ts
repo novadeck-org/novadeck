@@ -1,16 +1,25 @@
-import { spawnSync } from "node:child_process"
+import { spawnSync, type SpawnSyncReturns } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
 
 import { describe, expect, it as base } from "../test.js"
 import { installShellFiles } from "./install.js"
+import { pipedPrompt, quotedPrompts, splitPrompt } from "./shim-prompts.test-support.js"
 
 const windows = process.platform === "win32"
 
 type Fixture = {
   readonly root: string
   readonly run: (args: string[], env?: NodeJS.ProcessEnv, cwd?: string) => string[]
+  readonly launch: (
+    program: string,
+    args: string[],
+    env?: NodeJS.ProcessEnv,
+    cwd?: string,
+  ) => { result: SpawnSyncReturns<string>; received: string[] | undefined }
+  readonly bin: string
+  readonly real: string
 }
 
 // The real codex is a stand-in that records the arguments it received.
@@ -37,9 +46,8 @@ const it = base.extend<{ shim: Fixture }>({
           mode: 0o755,
         },
       )
-    const run: Fixture["run"] = (args, env = {}, cwd) => {
+    const launch: Fixture["launch"] = (program, args, env = {}, cwd) => {
       rmSync(log, { force: true })
-      const shim = join(paths.bin, windows ? "codex.cmd" : "codex")
       const options = {
         env: {
           ...process.env,
@@ -49,15 +57,28 @@ const it = base.extend<{ shim: Fixture }>({
           ...env,
         },
         encoding: "utf8" as const,
+        timeout: 30_000,
         ...(cwd !== undefined && { cwd }),
       }
       const result = windows
-        ? spawnSync(process.env.COMSPEC ?? "cmd.exe", ["/d", "/c", shim, ...args], options)
-        : spawnSync(shim, args, options)
-      if (result.status !== 0) throw new Error(`codex failed: ${result.stderr}`)
-      return JSON.parse(readFileSync(log, "utf8")) as string[]
+        ? spawnSync(process.env.COMSPEC ?? "cmd.exe", ["/d", "/c", program, ...args], options)
+        : spawnSync(program, args, options)
+      return {
+        result,
+        received: existsSync(log) ? (JSON.parse(readFileSync(log, "utf8")) as string[]) : undefined,
+      }
     }
-    await use({ root, run })
+    const run: Fixture["run"] = (args, env = {}, cwd) => {
+      const shim = join(paths.bin, windows ? "codex.cmd" : "codex")
+      const { result, received } = launch(shim, args, env, cwd)
+      if (result.status !== 0) throw new Error(`codex failed: ${result.stderr}`)
+      // cmd only says so here when a shim's label is missing, and goes on.
+      expect(result.stderr).toBe("")
+      expect(result.stdout).toBe("")
+      if (received === undefined) throw new Error(`codex never ran: ${result.stderr}`)
+      return received
+    }
+    await use({ root, run, launch, bin: paths.bin, real })
   },
 })
 
@@ -87,10 +108,71 @@ describe("codex shim", { timeout: 60_000 }, () => {
     expect(shim.run(["exec", "hi"], { NOVADECK_TERMINAL_ID: "" })).toEqual(["exec", "hi"])
   })
 
+  it("reads each word of a line with quotes in it", ({ shim }) => {
+    const title = ["-c", "tui.terminal_title=['status','thread-id']"]
+    expect(shim.run(["", "agents"])).toEqual(["", "agents"])
+    expect(shim.run(["agents", "/?"])).toEqual(["agents", "/?"])
+    expect(shim.run(["agents", 'he said "hi'])).toEqual(["agents", 'he said "hi'])
+    expect(shim.run(['say "hi there" now', "--remote", "x"])).toEqual([
+      'say "hi there" now',
+      "--remote",
+      "x",
+    ])
+    expect(shim.run(["--no-daemon", 'he said "hi'])).toEqual([
+      ...title,
+      "--no-daemon",
+      'he said "hi',
+    ])
+  })
+
+  it.for(quotedPrompts)("passes on whole the quoted prompt %j", (prompt, { shim }) => {
+    expect(shim.run([prompt])).toEqual([
+      "--no-daemon",
+      "-c",
+      "tui.terminal_title=['status','thread-id']",
+      prompt,
+    ])
+  })
+
   it("leaves codex alone while Codex is not connected", ({ shim }) => {
     // Another harness's shim put this folder on PATH.
     expect(shim.run(["exec", "hi"], { NOVADECK_SHIMS: "claude" })).toEqual(["exec", "hi"])
   })
+
+  // Help that printed would also page at a console, and wait there for a key.
+  it("hands on a word that cmd's own commands take as a request for their help", ({ shim }) => {
+    expect(shim.run(["/?"])).toEqual([
+      "--no-daemon",
+      "-c",
+      "tui.terminal_title=['status','thread-id']",
+      "/?",
+    ])
+  })
+
+  it.runIf(windows)("takes a prompt cmd splits first as the real codex does alone", ({ shim }) => {
+    const alone = shim.launch(join(shim.real, "codex.cmd"), [splitPrompt])
+    const through = shim.launch(join(shim.bin, "codex.cmd"), [splitPrompt])
+    expect(alone.received).toBeDefined()
+    expect(through.received).toEqual([
+      "--no-daemon",
+      "-c",
+      "tui.terminal_title=['status','thread-id']",
+      ...(alone.received ?? []),
+    ])
+    expect(through.result.status).toBe(alone.result.status)
+    expect(through.result.stderr).toBe(alone.result.stderr)
+  })
+
+  it.runIf(windows)(
+    "starts nothing at a pipe cmd splits first, as the real codex alone",
+    ({ shim }) => {
+      const alone = shim.launch(join(shim.real, "codex.cmd"), [pipedPrompt])
+      const through = shim.launch(join(shim.bin, "codex.cmd"), [pipedPrompt])
+      expect(alone.received).toBeUndefined()
+      expect(through.received).toBeUndefined()
+      expect(through.result.status).toBe(alone.result.status)
+    },
+  )
 
   it.runIf(windows)(
     "runs the real codex, never a codex.cmd in the current folder, where a plain where looks first",

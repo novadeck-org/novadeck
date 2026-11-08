@@ -9,13 +9,13 @@ import { releaseVersions, updateScenarios } from "./scenarios"
 // for the app coming back on the new version, a reload that forgets the offer, while one
 // waits. `download` offers a version as downloading, its percent climbing until it is
 // offered ready; any later offer, or a failed download, calls a running one off.
-// `openPage` does nothing, since a browser has no release page to open. `allow`, on an
+// `restart` is `finish` for the person's own press, once an offer is ready. `openPage` does nothing, since a browser has no release page to open. `allow`, on an
 // offer that has it, stands for the administrator's step succeeding: the update downloads.
 // The channel is kept in `memory`: the page's (`pageUpdateChannel`) lasts across the demo's
 // boots until the page reloads. `showWhatsNew` has the app answer, when
 // asked, that the app updated to `version`, from `from` when given, whose release names the
-// highlights below, until they are dismissed; `whatsNewCalls` counts what the page asked of
-// the app since.
+// highlights below, until they are dismissed; `whatsNewCalls` counts what the page asked of the
+// app since.
 export const createDemoUpdates = (
   restart: () => void = () => window.location.reload(),
   memory: { channel: UpdateChannel } = { channel: "stable" },
@@ -31,12 +31,23 @@ export const createDemoUpdates = (
   readonly whatsNew: DemoStates["whatsNew"]
   readonly showWhatsNew: (
     version: string,
-    notes?: { readonly highlights?: WhatsNew["highlights"]; readonly from?: string },
+    notes?: {
+      readonly highlights?: WhatsNew["highlights"]
+      readonly from?: string
+    },
   ) => void
   readonly whatsNewCalls: { dismissed: number; asked: number }
   // Has the app take this long to answer what is new.
   readonly delayWhatsNew: (ms: number) => void
+  // The runner's word on shells that hold work, which the restart card asks for when it opens:
+  // `quiet` none, `jobs` the first of `shells`, `slow` none after a pause, `unavailable` no
+  // answer, as from a runner that came before the call.
+  readonly busy: {
+    readonly mode: (mode: BusyMode) => void
+    readonly answer: (shells: readonly string[]) => Promise<BusyAnswer | undefined>
+  }
 } => {
+  let busyMode: BusyMode = "quiet"
   let notes: WhatsNew | undefined
   const whatsNewCalls = { dismissed: 0, asked: 0 }
   let answerAfterMs = 0
@@ -77,6 +88,10 @@ export const createDemoUpdates = (
       allow: () => {
         if (waiting?.kind === "available" && waiting.allow === true) download(waiting.version)
       },
+      // The person's own restart into a ready update, which comes back on the new version.
+      restart: () => {
+        if (waiting?.kind === "ready") restart()
+      },
       channel: {
         get: () => Promise.resolve(memory.channel),
         set: (next) => void (memory.channel = next),
@@ -116,9 +131,26 @@ export const createDemoUpdates = (
       },
     },
     showWhatsNew: (version, { highlights = sampleHighlights, from } = {}) =>
-      void (notes = from === undefined ? { version, highlights } : { version, from, highlights }),
+      void (notes = {
+        version,
+        ...(from === undefined ? {} : { from }),
+        highlights,
+      }),
     whatsNewCalls,
     delayWhatsNew: (ms) => void (answerAfterMs = ms),
+    busy: {
+      mode: (mode) => void (busyMode = mode),
+      answer: (shells) =>
+        busyMode === "unavailable"
+          ? Promise.resolve(undefined)
+          : busyMode === "jobs"
+            ? Promise.resolve({ busy: shells.slice(0, 1), unknown: [] })
+            : busyMode === "slow"
+              ? new Promise((resolve) =>
+                  setTimeout(() => resolve({ busy: [], unknown: [] }), slowAnswerMs),
+                )
+              : Promise.resolve({ busy: [], unknown: [] }),
+    },
   }
 }
 
@@ -140,6 +172,11 @@ const sampleHighlights: WhatsNew["highlights"] = [
     icon: "inbox",
   },
 ]
+
+// How the demo answers the restart card's question about shells (see `busy`).
+export type BusyMode = "quiet" | "jobs" | "slow" | "unavailable"
+type BusyAnswer = { readonly busy: readonly string[]; readonly unknown: readonly string[] }
+export const slowAnswerMs = 4000
 
 // How often a demo download advances, and by how many percent.
 export const downloadMs = 300
@@ -194,6 +231,26 @@ export const updatesGroup = (launch: DemoLaunch, controls: DemoUpdates): DemoAct
         label: "Experimental off",
         hint: "Takes effect once Preferences is reopened",
         run: () => controls.updates.channel?.set("stable"),
+      },
+      {
+        label: "Restart check: a shell has a job",
+        hint: "Open the card on a ready update: the first idle shell may stop",
+        run: () => controls.busy.mode("jobs"),
+      },
+      {
+        label: "Restart check: slow answer",
+        hint: "The card says it is checking for a few seconds, then everything comes back",
+        run: () => controls.busy.mode("slow"),
+      },
+      {
+        label: "Restart check: no answer",
+        hint: "The card says it couldn't check what runs in shells",
+        run: () => controls.busy.mode("unavailable"),
+      },
+      {
+        label: "Restart check: all quiet",
+        hint: "The runner finds nothing held in any shell",
+        run: () => controls.busy.mode("quiet"),
       },
       {
         label: "Finish restart",

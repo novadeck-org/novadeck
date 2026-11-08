@@ -4,28 +4,68 @@ import { setTimeout as sleep } from "node:timers/promises"
 import type { ScreenText } from "@novadeck/emulator/headless"
 import type { RequestFacts } from "@novadeck/harness-core/dialogs"
 import type { ActivityEvent } from "@novadeck/harness-core/events"
-import type { InterruptResult, RequestAnswer } from "@novadeck/protocol"
+import {
+  promptFailure,
+  promptRefusal,
+  type AgentBox,
+  type InterruptResult,
+  type RequestAnswer,
+} from "@novadeck/protocol"
 import { noHold } from "@novadeck/terminal/host"
-import { InputQueue } from "@novadeck/tui-input"
-import type { HoldBudget, InputHold, InterruptOptions, PromptOptions } from "@novadeck/tui-input"
-import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
+import { Handovers, InputQueue } from "@novadeck/tui-input"
+import type {
+  BoxNote,
+  HandoverNote,
+  HoldBudget,
+  InputHold,
+  InterruptOptions,
+  PromptOptions,
+} from "@novadeck/tui-input"
+import { isEmpty, newTurn, type BoxProfile, type TurnStatus } from "@novadeck/tui-input/box"
 
 import { DomainError } from "../errors.js"
 import { blocking, type Activity } from "../harnesses/activity.js"
 import { versionOf } from "../harnesses/bindings.js"
 import { requestRef } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
+import { logs } from "../log.js"
 import { confirmMs, Doorbell, type DoorbellOptions } from "../messaging/doorbell.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { Answers, type AnswersOptions } from "./answers.js"
 import { bannerDrawn } from "./binding/banners.js"
+import { boxView, BoxStates, shownBox } from "./box-state.js"
 import { Dialogs, type DialogsOptions } from "./dialogs.js"
 import { agentWorking, doorbellHost, profileOf } from "./doorbell-host.js"
+import { GivenBack } from "./given-back.js"
+import { holdsRingLine, leftoverNonce } from "./leftover.js"
 import { McpTools } from "./mcp-tools.js"
 import { Interrupts, Prompts } from "./prompting.js"
 import { freshRef, Receipts, type ReceiptsOptions } from "./receipts.js"
 import type { Record } from "./record.js"
-import { interruptionsOf } from "./transcripts.js"
+import { slicingOf } from "./slices.js"
+import { holds, interruptionsOf } from "./transcripts.js"
+
+const log = logs.for("chat")
+
+/** What a prompt did about a box that held something, that says a harness may have changed. */
+const fallbacks: ReadonlySet<BoxNote | HandoverNote> = new Set([
+  "unsteady",
+  "unreadable",
+  "shape",
+  "not-empty",
+  "ringing",
+  "ring-line",
+  "too-tall",
+  "no-paste",
+  "clear-unconfirmed",
+  "shell-unconfirmed",
+  "cursor-unconfirmed",
+  "command",
+  "shell-kept",
+  "draft-kept",
+  "no-box",
+  "not-shown",
+])
 
 /**
  * What the dialog adapters need of a pending request: what it asks, where (its hook's
@@ -45,6 +85,9 @@ export const requestFacts = (
   ...(request.detached && state !== "working" && { turnEnded: true as const }),
 })
 
+/** The prompts' refusals that have the person clear the box, whose note must be there for it. */
+const lookAtBox: ReadonlySet<string> = new Set(["draft", "shell", "command"])
+
 /** What tells a terminal's bound session apart, for its prompts' receipts; null for none. */
 const keyOf = (record: Record | undefined): string | null => {
   const binding = record?.bound?.binding
@@ -54,16 +97,33 @@ const keyOf = (record: Record | undefined): string | null => {
 /** How long `settleBox` looks at a screen for an empty box, in milliseconds. */
 const boxSettleMs = 5_000
 
+/**
+ * How long after a Stop the screen is looked at for a turn the program starts from its queue,
+ * and how long none must show to say none runs. Its status row gave way to the next turn's
+ * within 0.4 s, and went within 0.6 s where none ran, starved of CPU (e2e/probes/queued-busy):
+ * a look that says neither by the end leaves the count as it was.
+ */
+const queueLookMs = 2_000
+const queueGoneMs = 200
+
 /** What `agents.prompt` gives: the text, and whether it is automatic, under which ref. */
 export type PromptInput = {
   readonly terminalId: string
   readonly text: string
   readonly automatic?: true | undefined
+  readonly along?: true | undefined
   readonly ref?: string | undefined
 }
 
-/** What a prompt given resolves with: its receipt's ref, and whether one follows. */
-export type Prompted = { readonly ref: string; readonly tracked: boolean }
+/**
+ * What a prompt given resolves with: its receipt's ref, whether one follows, and the words it
+ * took out of the agent's box to go, null for none.
+ */
+export type Prompted = {
+  readonly ref: string
+  readonly tracked: boolean
+  readonly returned: string | null
+}
 
 export type TypingOptions = {
   readonly platform: NodeJS.Platform
@@ -96,6 +156,8 @@ export type TypingHost = {
   readonly publishAgent: (record: Record, moved: boolean) => void
   /** Tells the terminal's detail readers of a change. */
   readonly detailed: (record: Record) => void
+  /** Whether a client reads the terminal's detail. */
+  readonly detailWatched: (terminalId: string) => boolean
   /** Ends the binding of an agent known to have exited. */
   readonly endExited: (record: Record) => void
   /** Runs `work` in the terminal's turn of reports, after what is queued there. */
@@ -104,6 +166,9 @@ export type TypingHost = {
   readonly alive: (pid: string) => boolean
   readonly messaging: () => Messaging
 }
+
+/** The end of a Stop that has not begun. */
+const noStop = (_words: string | null): void => {}
 
 /**
  * Everything that types into terminals' agents, through one input queue per terminal so
@@ -124,8 +189,21 @@ export class Typing {
   readonly dialogs: Dialogs
   /** Whether each prompt given reached its agent's record, as `agents.detail` shows it. */
   readonly receipts: Receipts
+  /** The messages a Stop took back, whose prompt hooks may still report. */
+  readonly givenBack = new GivenBack()
+  /** What each terminal's agent's box holds, for those a client reads. */
+  readonly boxes: BoxStates
+  /** Moves what the person is writing between an agent's box and a client's draft. */
+  readonly handovers: Handovers
+  /** When each terminal's last prompt had its Enter, whose text its box may still show. */
+  private readonly entered = new Map<string, number>()
   /** The terminals whose box `settleBox` is looking at. */
   private readonly settling = new Set<string>()
+  /**
+   * The Stop each terminal was last looked at after (see `watchQueue`), once only: a second look
+   * would take a queued turn already running for the ended one, and see none start.
+   */
+  private readonly queueLooks = new Map<string, number>()
   /** Which terminals' agents hold Novadeck's MCP tools, which the doorbell may wait for. */
   private readonly tools: McpTools
 
@@ -157,6 +235,8 @@ export class Typing {
       slackMs: confirmMs(options.platform),
       ...options.receipts,
     })
+    this.boxes = new BoxStates(this.boxHost())
+    this.handovers = new Handovers(this.handoverHost(), this.inputs)
     const doorbell = this.doorbell
     if (doorbell)
       messaging.subscribe((change) => {
@@ -167,24 +247,42 @@ export class Typing {
   /**
    * Gives the terminal's agent a prompt as the person would paste and submit it (see
    * `Prompts`), once those before it in the terminal's input queue are done, followed under
-   * `ref` until the agent's record has it (see `Receipts`).
+   * `ref` until the agent's record has it (see `Receipts`). With `along`, which only a client
+   * showing the box asks for, what the box holds doesn't stop it, where the screen shows that's
+   * safe: it goes along, or out, the words handed back. Without it, it goes into an empty box.
    */
   async prompt(
     terminalId: string,
     text: string,
     automatic?: true | undefined,
     ref?: string | undefined,
+    along?: true | undefined,
   ): Promise<Prompted> {
     // Its ref is held at once, and it joins the input queue in this same tick, as it always
     // has, so nothing given after it goes before it. Its receipt is set up beside it: what
     // the record was is looked at long before any key of it lands.
     const claimed = ref ?? freshRef()
     this.receipts.claim(terminalId, claimed)
+    this.givenBack.sent(terminalId, text)
     const following = this.receipts.expect(terminalId, text, claimed)
     // A fixed line from an Inbox button: the turn it starts withdraws no ask (see `automatic`).
     if (automatic) this.host.messaging().automatic(terminalId, text)
+    let returned: string | null = null
+    let went: string | undefined
     try {
-      await this.prompts.prompt(terminalId, text)
+      const given = await this.prompts.prompt(
+        terminalId,
+        text,
+        along && !automatic ? "freed" : "alone",
+        // Its receipt is set up by then, or as soon as it is: before its Enter, in either case.
+        () =>
+          void following.then(
+            () => this.receipts.joined(terminalId, claimed),
+            () => undefined,
+          ),
+      )
+      returned = given?.returned ?? null
+      went = given?.along
     } catch (error) {
       // Refused, failed or never given: no turn comes of it, so the mark would catch another.
       if (automatic) this.host.messaging().automaticFailed(terminalId, text)
@@ -192,11 +290,79 @@ export class Typing {
         () => this.receipts.failed(terminalId, claimed),
         () => undefined,
       )
+      // Words it took out of the box go back with the failure: they wait on no record now.
+      const taken = error instanceof DomainError && promptFailure.safeParse(error.data).data
+      if (taken) this.receipts.taken(terminalId, taken.returned, claimed)
+      // A failure that says to look at the box comes after what the box holds.
+      if (error instanceof DomainError && lookAtBox.has(error.reason ?? ""))
+        await this.boxes.refresh(terminalId)
       throw error
     }
     const receipt = await following.catch(() => ({ ref: claimed, tracked: false }))
+    // Words that came out are the person's draft again, and those that went along with it are
+    // in the record as part of it: either way their prompts no longer wait.
+    const out = returned ?? went
+    if (out !== undefined) this.receipts.taken(terminalId, out, receipt.ref)
+    this.entered.set(terminalId, Date.now())
     this.receipts.sent(terminalId, receipt.ref)
-    return receipt
+    return { ...receipt, returned }
+  }
+
+  /**
+   * Takes what the agent's box holds out of it for the client's draft (see `Handovers.take`):
+   * prompts of the person's back there no longer wait on the record.
+   */
+  async takeBox(terminalId: string): Promise<{ returned: string | null }> {
+    this.promptable(terminalId)
+    const returned = (await this.handovers.take(terminalId)) ?? null
+    if (returned !== null) this.receipts.taken(terminalId, returned)
+    return { returned }
+  }
+
+  /** Writes keys as the person's, as a chat passes them on (see `agents.keys`). */
+  keys(terminalId: string, keys: string): void {
+    if (this.host.stopping()) throw new DomainError("CLOSING")
+    const record = this.host.record(terminalId)
+    this.host.running(record)
+    const shown = this.host.messaging().shownAgent(terminalId)
+    const slicing = slicingOf(record, this.dialogs.view(terminalId), shown)
+    if (!slicing)
+      throw new DomainError(
+        "CONFLICT",
+        "No agent is running in this terminal.",
+        undefined,
+        "no-agent",
+      )
+    // A request's dialog takes keys only where the chat can't answer it: it shows as rows.
+    if (slicing.waiting && !slicing.unread)
+      throw new DomainError(
+        "CONFLICT",
+        "A request waits on the person there.",
+        undefined,
+        "pending",
+      )
+    record.terminal.input(keys)
+  }
+
+  /** Puts a client's draft in the agent's box, with no Enter (see `Handovers.put`). */
+  async putBox(terminalId: string, text: string): Promise<{ placed: boolean }> {
+    this.promptable(terminalId)
+    return { placed: await this.handovers.put(terminalId, text) }
+  }
+
+  /**
+   * Empties the agent's box, as the person asked to, of the text `seen` they were shown (see
+   * `Handovers.clear`). That's all that can be told of a tail, so one is left while a prompt may
+   * have come back over it. Prompts whose words went no longer wait.
+   */
+  async clearBox(terminalId: string, seen: string): Promise<{ cleared: boolean }> {
+    this.promptable(terminalId)
+    const { cleared, went } = await this.handovers.clear(
+      terminalId,
+      (box, tail) => shownBox(box, seen) && !(tail && this.receipts.waiting(terminalId)),
+    )
+    if (went !== undefined) this.receipts.taken(terminalId, went)
+    return { cleared }
   }
 
   /** Answers a request waiting on the person through its dialog (see `Terminals.answer`). */
@@ -207,11 +373,34 @@ export class Typing {
   /** Presses Escape in the terminal's agent as the person would (see `Terminals.interrupt`). */
   async interrupt(terminalId: string): Promise<InterruptResult> {
     this.promptable(terminalId)
-    const result = await this.inputs.run(terminalId, (entry) =>
-      this.interrupts.interrupt(terminalId, entry),
-    )
+    let since = Date.now()
+    let ended = noStop
+    // The words as the agent's box held them, with any doorbell line a hook may still tell of.
+    let boxed: string | null = null
+    const result = await this.inputs
+      .run(terminalId, (entry) => {
+        since = Date.now()
+        ended = this.givenBack.begin(terminalId, since)
+        return this.interrupts.interrupt(terminalId, entry, (words) => (boxed = words))
+      })
+      .catch(async (error: unknown) => {
+        // Words it couldn't take out are back in the box, which the next prompt sees to.
+        if (error instanceof DomainError && error.code === "BOX_NOT_CLEARED")
+          await this.receipts.putBack(terminalId)
+        throw error
+      })
+      .then(
+        (one) => {
+          ended(boxed)
+          return one
+        },
+        (error: unknown) => {
+          ended(null)
+          throw error
+        },
+      )
     // The words handed back are the person's draft again: their prompts no longer wait.
-    if (result.returned !== null) this.receipts.withdraw(terminalId, result.returned)
+    if (result.returned !== null) this.receipts.withdraw(terminalId, result.returned, since)
     return result
   }
 
@@ -234,6 +423,7 @@ export class Typing {
     // A starting agent's banner, drawn before it binds, names the version running.
     const record = this.host.live(terminalId)
     if (record) bannerDrawn(record)
+    this.boxes.changed(terminalId)
   }
 
   /** The terminal's agent changed what it does, or its session: its receipts look again. */
@@ -247,12 +437,17 @@ export class Typing {
     this.tools.forget(terminalId)
     this.dialogs.forget(terminalId)
     this.receipts.forget(terminalId)
+    this.givenBack.forget(terminalId)
+    this.boxes.forget(terminalId)
+    this.entered.delete(terminalId)
+    this.queueLooks.delete(terminalId)
   }
 
   /** Stops the doorbell and the receipts, as the runner shuts down. */
   close(): void {
     this.doorbell?.close()
     this.receipts.close()
+    this.boxes.close()
   }
 
   /** The harness of the agent bound to the terminal, or shown at its prompt, as its box reads. */
@@ -307,6 +502,44 @@ export class Typing {
     const record = this.host.live(terminalId)
     if (!record) return noHold
     return record.terminal.hold(budget)
+  }
+
+  /**
+   * After a Stop, looks at the screen for what runs now, where the program's queue starts its
+   * turns with no hook (a profile with `status`): its status row giving way to a new turn's
+   * says one runs from the queue, and none for `queueGoneMs` says none does. Told to messaging
+   * (`queueSeen`); a look that says neither within `queueLookMs` tells it nothing.
+   */
+  watchQueue(record: Record): void {
+    const id = record.summary.id
+    const messaging = this.host.messaging()
+    const stop = messaging.queueLook(id)
+    const profile = this.boxOf(record)
+    if (stop === undefined || !profile?.status || this.queueLooks.get(id) === stop) return
+    const status = profile.status
+    this.queueLooks.set(id, stop)
+    void (async () => {
+      const until = Date.now() + queueLookMs
+      let before: TurnStatus | undefined
+      let first = true
+      let gone: number | undefined
+      while (Date.now() < until && messaging.queueLook(id) === stop) {
+        // eslint-disable-next-line no-await-in-loop -- Each read waits for the one before.
+        const screen = await this.screenOf(id)
+        if (!screen || !this.host.live(id)) return
+        const now = status(screen)
+        // The ended turn's own row, as first seen, is what a new turn's is told from.
+        if (first) before = now
+        else if (newTurn(before, now)) return messaging.queueSeen(id, stop, true)
+        if (now?.ending) before = now
+        first = false
+        gone = now === undefined ? (gone ?? Date.now()) : undefined
+        if (gone !== undefined && Date.now() - gone >= queueGoneMs)
+          return messaging.queueSeen(id, stop, false)
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        await sleep(25)
+      }
+    })()
   }
 
   /**
@@ -424,6 +657,97 @@ export class Typing {
       ringing: (terminalId) => this.host.messaging().ringing(terminalId),
       screen: (terminalId) => this.screenOf(terminalId),
       type: (terminalId, data) => this.typed(terminalId, data),
+      write: (terminalId, data) => this.written(terminalId, data),
+      known: (terminalId, text) => this.receipts.known(terminalId, text),
+      ringLine: (_terminalId, text) => leftoverNonce(text) !== undefined,
+      note: (terminalId, note) => this.noted(terminalId, note),
+      refused: (terminalId, reason) => {
+        const binding = this.host.live(terminalId)?.bound?.binding
+        const version = binding ? versionOf(binding) : null
+        const data = { reason, agent: binding?.agent ?? null, version }
+        log.warn("chat.box", "A prompt was refused.", { data })
+      },
+    }
+  }
+
+  /** Writes keys to a running terminal as they are, with none of what watches the person's. */
+  private written(terminalId: string, data: string): boolean {
+    const record = this.host.live(terminalId)
+    if (!record) return false
+    record.terminal.type(data)
+    return true
+  }
+
+  /** What handing words over asks of the terminals. */
+  private handoverHost(): ConstructorParameters<typeof Handovers>[0] {
+    return {
+      admit: (terminalId) => {
+        const profile = this.boxOf(this.promptable(terminalId))
+        if (!profile)
+          throw new DomainError(
+            "CONFLICT",
+            "No agent is running in this terminal.",
+            undefined,
+            "no-agent",
+          )
+        return profile
+      },
+      ringing: (terminalId) => this.host.messaging().ringing(terminalId),
+      screen: (terminalId) => this.screenOf(terminalId),
+      type: (terminalId, data) => this.typed(terminalId, data),
+      write: (terminalId, data) => this.written(terminalId, data),
+      known: (terminalId, text) => this.receipts.known(terminalId, text),
+      ringLine: (_terminalId, text) => holdsRingLine(text),
+      enteredAt: (terminalId) => this.entered.get(terminalId),
+      refuse: (text) => promptRefusal(text, { shell: true }),
+      note: (terminalId, note) => this.noted(terminalId, note),
+    }
+  }
+
+  /** Logs what a prompt or a handover did about a box, with no words of it. */
+  private noted(terminalId: string, note: BoxNote | HandoverNote): void {
+    const binding = this.host.live(terminalId)?.bound?.binding
+    const data = {
+      note,
+      agent: binding?.agent ?? null,
+      version: binding ? versionOf(binding) : null,
+    }
+    if (fallbacks.has(note))
+      log.warn("chat.box", "A prompt or handover left the agent's box undone, or was refused.", {
+        data,
+      })
+    else
+      log.info("chat.box", "A prompt or handover dealt with what the agent's box held.", { data })
+  }
+
+  /** Whether the agent's box holds text on its screen; undefined when the screen can't be read. */
+  async boxHolds(terminalId: string): Promise<boolean | undefined> {
+    const view = await this.boxHost().read(terminalId)
+    return view === undefined ? undefined : view !== null
+  }
+
+  /** What following the agents' boxes asks of the terminals. */
+  private boxHost(): ConstructorParameters<typeof BoxStates>[0] {
+    return {
+      watched: (terminalId) => this.host.detailWatched(terminalId),
+      typing: (terminalId) =>
+        this.inputs.busy(terminalId) || this.host.messaging().ringing(terminalId) !== undefined,
+      read: async (terminalId): Promise<AgentBox | null | undefined> => {
+        const screen = await this.screenOf(terminalId)
+        const record = this.host.live(terminalId)
+        const profile = record && this.boxOf(record)
+        if (!screen || !profile) return undefined
+        return boxView(
+          profile,
+          screen,
+          (text) => this.receipts.known(terminalId, text) !== undefined,
+          (text) => leftoverNonce(text) !== undefined,
+        )
+      },
+      changed: (terminalId) => {
+        const record = this.host.held(terminalId)
+        if (record) this.host.detailed(record)
+      },
     }
   }
 
@@ -439,12 +763,7 @@ export class Typing {
       prompt: (terminalId) => this.host.messaging().personPrompt(terminalId),
       screen: (terminalId) => this.screenOf(terminalId),
       type: (terminalId, data) => this.typed(terminalId, data),
-      write: (terminalId, data) => {
-        const record = this.host.live(terminalId)
-        if (!record) return false
-        record.terminal.type(data)
-        return true
-      },
+      write: (terminalId, data) => this.written(terminalId, data),
     }
   }
 
@@ -530,11 +849,13 @@ export class Typing {
         const source = binding && harnesses[binding.agent].transcripts
         if (!record || !binding || !root || !source) return undefined
         const path = await source.locate(root, binding.sessionId, null)
-        if (!path || record.bound?.binding !== binding) return undefined
+        // The same session: a status line telling its version meanwhile makes a binding of its own,
+        // which the prompt would otherwise go unfollowed for.
+        if (!path || !holds(record.bound?.binding, binding)) return undefined
         return {
           key: keyOf(record)!,
           agent: binding.agent,
-          version: versionOf(binding),
+          version: versionOf(record.bound!.binding),
           path,
           items: source.items,
           ...(source.step && { step: source.step }),
@@ -561,6 +882,8 @@ export class Typing {
       changed: (terminalId) => {
         const record = this.host.held(terminalId)
         if (record) this.host.detailed(record)
+        // Whether the box's words are known may have changed with a receipt.
+        this.boxes.changed(terminalId)
       },
     }
   }

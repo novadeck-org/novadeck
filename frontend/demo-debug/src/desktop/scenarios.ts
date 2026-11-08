@@ -64,7 +64,7 @@ export const updateScenarios = {
   },
   ready: {
     label: "Ready at launch",
-    hint: "No bar: downloaded before this run",
+    hint: "No bar: downloaded before this run; footer chip, Restart to update",
     play: ({ offer }, version) => offer({ kind: "ready", version }),
   },
   whatsNew: {

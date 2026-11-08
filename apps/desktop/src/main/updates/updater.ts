@@ -13,6 +13,7 @@ import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 import {
   allowUpdatesChannel,
   openUpdatePageChannel,
+  restartToUpdateChannel,
   setUpdateChannelChannel,
   updateChannelChannel,
   updateOfferChannel,
@@ -320,7 +321,7 @@ type UpdateIpc = {
 
 /**
  * Answers the app's own pages: a request for the last offer, the request to open its
- * release page or, on macOS, to let this copy install updates itself (`allow`; see
+ * release page, to restart into a waiting update or, on macOS, to let this copy install updates itself (`allow`; see
  * `UpdatePlan`), and those about the update channel. `window` names the
  * window of a request from the main frame of the app's own page, or undefined for any
  * other sender, which is ignored; the page is then told the default channel, which is
@@ -334,6 +335,7 @@ export const registerUpdateIpc = <Window>(
     request,
     openPage,
     allow,
+    restart,
     channel,
     setChannel,
   }: {
@@ -341,6 +343,7 @@ export const registerUpdateIpc = <Window>(
     readonly request: (window: Window) => void
     readonly openPage: () => void
     readonly allow: () => void
+    readonly restart: () => void
     readonly channel: () => UpdateChannel
     readonly setChannel: (channel: UpdateChannel) => void
   },
@@ -354,6 +357,9 @@ export const registerUpdateIpc = <Window>(
   })
   ipc.on(allowUpdatesChannel, (event) => {
     if (window(event) !== undefined) allow()
+  })
+  ipc.on(restartToUpdateChannel, (event) => {
+    if (window(event) !== undefined) restart()
   })
   ipc.handle(updateChannelChannel, (event) =>
     window(event) === undefined ? defaultChannel : channel(),
@@ -547,6 +553,7 @@ export const checkForUpdates = (
     rejected = () => true,
     offer,
     installStarted,
+    installReturned,
     runAfterInstall,
     installFailed,
     log,
@@ -570,6 +577,8 @@ export const checkForUpdates = (
     readonly offer: (offer: UpdateOffer) => void
     /** Hears the version an install on quitting is about to put in place. */
     readonly installStarted?: ((version: string) => void) | undefined
+    /** Told whether the install call returned true, which it does only when it began. */
+    readonly installReturned?: ((ran: boolean) => void) | undefined
     /**
      * Asked as the quit-time install starts whether the installer should start the app
      * once it is done, because the person opened Novadeck while it was quitting. Asked only
@@ -656,11 +665,13 @@ export const checkForUpdates = (
         if (downloaded !== undefined) installStarted?.(downloaded.version)
         // (silent, force run): the installer starts the app when it is done only if asked.
         const [silent, forceRun] = args
-        return Reflect.apply(
+        const ran: unknown = Reflect.apply(
           original,
           updater,
           runAfterInstall?.() ? [silent ?? false, true] : [silent, forceRun],
         )
+        installReturned?.(ran === true)
+        return ran
       },
     })
   updater.on("error", (error) => {

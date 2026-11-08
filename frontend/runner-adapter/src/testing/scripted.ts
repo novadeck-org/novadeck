@@ -19,6 +19,12 @@ import { channel } from "./channel"
 
 // Test support: a runner adapter over a runner the test scripts step by step.
 
+// A runner whose History holds nothing and never changes.
+export const noHistory = {
+  list: async () => [],
+  watch: () => channel<never>().iterator,
+}
+
 // A runner whose terminals' companions hold nothing and never change.
 export const noCompanions = {
   watch: () => channel<never>().iterator,
@@ -66,7 +72,12 @@ export const keptSummary = (
   ledBy: null,
   openedBy: null,
   agentRan: false,
+  restorable: false,
+  busy: false,
   started: false,
+  sleeping: false,
+  restingAgent: null,
+  lastTurnAt: null,
   command: null,
   lastProgram: null,
   cwd: "/tmp",
@@ -77,6 +88,7 @@ export const keptSummary = (
   process: null,
   agent: null,
   ready: null,
+  startup: null,
   activity: null,
   telemetry: null,
   reported: null,
@@ -106,6 +118,7 @@ export const scripted = ({
   background = [],
   listed = [],
   restart = () => new Promise<TerminalSummary>(() => {}),
+  create = () => new Promise<TerminalSummary>(() => {}),
   saveSettings = async () => {},
   connect = async (agent: string, connected: boolean) => ({ agent, available: true, connected }),
   companions = { items: [], windows: [] },
@@ -127,6 +140,8 @@ export const scripted = ({
   background?: readonly Saved[]
   listed?: readonly TerminalSummary[]
   restart?: () => Promise<TerminalSummary>
+  // How the runner answers a create; by default it never does, and a fresh shell stays starting.
+  create?: () => Promise<TerminalSummary>
   saveSettings?: () => Promise<void>
   connect?: (agent: string, connected: boolean) => Promise<unknown>
   // What the shown session's terminals hold as the runner lists it.
@@ -163,6 +178,8 @@ export const scripted = ({
   const received: BackendAction[] = []
   const statuses = channel<WireStatus>()
   const calls: Call[] = []
+  // The terminals whose messages are followed, in order.
+  const followed: string[] = []
   const note =
     <T>(call: string, answer: (input: unknown) => Promise<T>) =>
     (...input: unknown[]) => {
@@ -212,13 +229,20 @@ export const scripted = ({
       requests: () => requests,
       answerRequest: note("answer request", answerRequest),
       approvals: () => channel<never>().iterator,
-      // Never answers: a fresh shell stays starting.
-      create: note("create", () => new Promise(() => {})),
+      create: note("create", create),
       close: async () => {},
       rename: note("rename", async () => {}),
       restart: note("restart", restart),
       attach: () => new Promise(() => {}),
     },
+    // Each terminal's messages are followed with a stream that says nothing.
+    messages: {
+      watch: (terminalId: string) => {
+        followed.push(terminalId)
+        return channel<never>().iterator
+      },
+    },
+    history: noHistory,
     feedback: {
       watch: () => {
         const next = channel<FeedbackDraft[]>()
@@ -282,6 +306,7 @@ export const scripted = ({
     saveDelay: 10,
     transcripts: true,
     transcriptsAvailable,
+    hibernateAfterMinutes: 30,
     agents: [
       { agent: "claude", available: true, connected: false },
       { agent: "agy", available: false, connected: false },
@@ -322,6 +347,7 @@ export const scripted = ({
     watches,
     received,
     calls,
+    followed,
     of,
     stop,
     key,

@@ -129,12 +129,12 @@
     },
     {
       "id": "e2e-claude-macos-mixed-outlived-deck",
-      "jobs": ["^Mixed \\(macOS\\)$"],
-      "test": "src/e2e/team.mixed.e2e.ts > Claude Code leading Claude Code, Codex, Antigravity > sends one message to its whole team",
+      "jobs": ["^Mixed \\(macOS\\)$", "^Claude Code \\((?:macOS(?:, [12]/2)?|[12]/2)\\)$"],
+      "test": "src/e2e/",
       "signature": "a process outlived the deck in the sandbox: claude \\(\\d+\\)",
-      "status": "known",
-      "cause": "Unknown: Claude Code 2.1.316 still ran more than 3 s after the deck closed, not stopped, so the fixture's reap ended it and failed a test whose own steps had passed. The trace: the worker @fox (`claude \"<line>\"`, pid 5029) ended its last turn at +12.5 s and drew its status line at +12.8 s; the deck's shutdown ran +17.357 to +17.374 s. On Linux and macOS the shutdown hangs up the terminal's foreground group and waits for its shell alone (libraries/terminal pty.ts `end`), and the reap (@novadeck/sandbox reap.ts) gives each process 3 s to end by itself. Not a hook holding the exit (Novadeck registers no SessionEnd for Claude Code) nor MCP readiness (its turns had Novadeck's tools); nothing after the shutdown is traced. A follow-up is to time Claude Code's exit after the hangup on Linux and macOS, a real app quit's too.",
-      "seen": ["#720 run 42084750623 job 127447038598"]
+      "status": "fixed",
+      "cause": "Unknown what holds it: an agent that heard the hangup and began to exit, then stalled. Claude Code 2.1.316 still ran more than 3 s after the deck closed, so the fixture's reap ended it and failed a test whose own steps had passed. Seen twice, idle, in tests with teammates. First: the worker @fox (pid 5029) ended its last turn at +12.5 s, and the deck's shutdown ran +17.357 to +17.374 s. Second, on Linux: moth (`claude`, pid 3692, the bound agent itself, no child) ended its turn at +14.538 s, shutdown began at +14.628 s, moth's and its sibling's titles went empty at +14.639 s, the agent's way out, and shutdown was done at +14.836 s with moth still running. Not a hook holding the exit (Novadeck registers no SessionEnd for Claude Code) nor a model call: none was outstanding. Nothing after the shutdown is traced, so what held it is not known, and the exit probe (src/e2e/probes/agent-exit.e2e.ts) never reproduced it: its worst ordinary exit is 861 ms. A quit now waits for an agent's processes, up to 2 s, and ends what is left (libraries/terminal pty/descendants.ts), so the deck no longer returns with it running. Seen again, that bound has failed.",
+      "seen": ["#720 run 42084750623 job 127447038598", "#739 run 42243441215 job 127979643027"]
     },
     {
       "id": "e2e-antigravity-macos-second-approval-unreported",
@@ -167,8 +167,36 @@
       "seen": ["#220 run 39029735013 job 117387752693"]
     },
     {
+      "id": "e2e-claude-queued-turn-ends-in-hold",
+      "jobs": [
+        "^Claude Code \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$",
+        "^Claude Code \\(macOS\\)$",
+        "^Claude Code( \\((?:[12][/-]2|[1-3][/-]3)\\))?$"
+      ],
+      "test": "src/e2e/interrupt.e2e.ts > Claude Code > gives back both of two queued messages where the turn ends as the Stop waits on their hooks",
+      "signature": "expected null to be 'Queued beta\\\\nQueued gamma'",
+      "status": "fixed",
+      "cause": "A real gap, not the test: at a turn's end Claude Code drains its queue at once, and a Stop's Escape raced that, so on a slow machine queued work ran though the person pressed Stop. Fixed by #779 (#757): the Stop takes what is queued to the box with Up before any Escape. The same test failing this way again is news. Both shapes are forced at normal speed by the tests beside it. The Windows runs are the path where the Escape killed the prompt hooks, which enqueued the messages, and the drain took them, inferred from their times, as those traces hold no hook ends.",
+      "seen": [
+        "#738 run 42254380158 job 128017862149 (Windows)",
+        "#739 run 42281974993 job 128113289850 (Windows)"
+      ]
+    },
+    {
+      "id": "e2e-codex-windows-patch-never-returns",
+      "jobs": ["^Codex \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/e2e/transcripts.e2e.ts > Codex > serves every tool call its harness made as a classified call paired with its result",
+      "signature": "Timed out after 60000 ms waiting for \\S+: its turn to end with \"Finished Transcript step 2\\.\"",
+      "status": "known",
+      "cause": "Codex on Windows sometimes never finishes the test's `apply_patch` heredoc. In both sightings its rollout ends on that `exec_command` with no output, and nothing more happens until shutdown 60 s later: no PostToolUse, no model call, the screen at `Working (30s)`. Two processes, parent and child, started about 0.5 s after the call and were still under Codex at shutdown; the trace doesn't name them. Step 1's plain `echo` passed in both. `yield_time_ms` doesn't apply, as Codex intercepts the patch before unified exec. Read from its source, not seen: on Windows a patch goes through a sandboxed fs helper, and Codex waits for that helper's response with no timeout (`read_helper_response`), so a stuck helper would hang the turn for good; that the helper is what stuck is inferred. That code is identical in 0.166.0 and 0.167.0, so why it starts now isn't known. Seen only on 0.167.0: this test appears in none of the 12 other failed Codex Windows jobs since 2026-11-01. No Novadeck code is on that path, so this looks like Codex's, and an agent can hang this way for a person too. Both sightings are on unrelated branches.",
+      "seen": [
+        "#752 run 42260465596 job 128039010311 (Windows)",
+        "#738 run 42273575092 job 128084330754 (Windows)"
+      ]
+    },
+    {
       "id": "e2e-claude-macos-continuation-stop",
-      "jobs": ["^Claude Code \\(macOS\\)$"],
+      "jobs": ["^Claude Code \\(macOS(?:, [12]/2)?\\)$"],
       "test": "src/e2e/messaging.e2e.ts > Claude Code > ends a continuation whose own Stop hook's report never came",
       "signature": "moth can't reach working: timed out after \\d+ ms\\. moth: ready → drafting → unbound",
       "status": "known",
@@ -206,9 +234,13 @@
       "jobs": ["^Antigravity \\(Windows\\)$"],
       "test": "src/e2e/escape-race.e2e.ts > Antigravity > reads a turn that finished despite the Escape as completed with its reply, and one the Escape stopped as interrupted",
       "signature": "input box holds text already: a draft the prompt would merge into",
-      "status": "known",
-      "cause": "A freshly started Antigravity on Windows showed the runner screen's own mode-2026 report (a DECRQM reply with its ESC dropped, '[[?2026;2$y') as typed text in its input box, there at the first read after the banner and still there 3 s later (the run's trace), so that terminal's first prompt was refused as a draft. The runner's headless screen writes the reply to the pty (libraries/terminal host/terminal.ts, screen.onData). That the reply is the cause is inferred from the match, not probed on Windows ConPTY; fixing it is a product choice (not answering mode queries for Antigravity, or holding replies until its input is in VT mode) that needs a Windows probe. The signature is the generic draft refusal, which the log shows without the box's text, so a real regression of this test (an Escape leaving text in the box) reads as this flake once; its second failure is triaged.",
-      "seen": ["#285 E2E run 39122015715 job 117659615675 (Windows)"]
+      "status": "fixed",
+      "cause": "The runner's headless screen answers programs' DECRQM queries and wrote the reply (DECRPM, `ESC [ ? Ps ; Pm $ y`) to the pty; Windows ConPTY's input doesn't know it, drops the ESC, and the program reads `[?2026;2$y` or `[?2027;0$y` as typed text, so Antigravity's box held it: a first prompt was refused as a draft, and the doorbell saw no input box (`gate no-input-box`) and never rang. Fixed by task/ci-flakes: libraries/terminal's host doesn't send mode reports to a ConPTY.",
+      "seen": [
+        "#285 E2E run 39122015715 job 117659615675 (Windows)",
+        "#776 messaging.e2e.ts 'rings an idle agent for a message' (Windows), the 2027 variant",
+        "#785 run 42411833609 job 128521548942 sleeping.e2e.ts (Windows), the 2027 variant"
+      ]
     },
     {
       "id": "terminal-native-pty-final-output",
@@ -251,8 +283,11 @@
       "test": "src/workspace/render-scope.test.ts > workspace render scope > when the page first renders > renders every section",
       "signature": "Test timed out in \\d+ms",
       "status": "known",
-      "cause": "Windows only: the App rendered over the spec backend in jsdom (the integration project) runs past its timeout. Since 3.2d (#285) mounted the demo's terminals through the terminal views these tests are slower locally too (WorkspaceTerminal 0.35 to 1.0 s, render-scope 1.8 to 3.1 s, WorkspaceOverlays 0.52 to 0.70 s), and Windows runners stretch them roughly tenfold, with 2.5x between runs (render-scope 12.6 s on #278, 34 s after #285). Not opening xterm (36 opens, 150 ms in all) nor writing to it (no change with attach held); where the rest goes is not yet found.",
-      "seen": ["click-into run 39148797754 job 117738016740 (Windows)"]
+      "cause": "Windows only: the App rendered over the spec backend in jsdom (the integration project) runs past its timeout. Since 3.2d (#285) mounted the demo's terminals through the terminal views these tests are slower locally too (WorkspaceTerminal 0.35 to 1.0 s, render-scope 1.8 to 3.1 s, WorkspaceOverlays 0.52 to 0.70 s), and Windows runners stretch them roughly tenfold, with 2.5x between runs (render-scope 12.6 s on #278, 34 s after #285). Not opening xterm (36 opens, 150 ms in all) nor writing to it (no change with attach held); where the rest goes is not yet found. task/ci-flakes: #773's Windows log (job 128404919156) showed the first test paying cold on-demand code loading (sync render 8.5 s, Canvas import 2 s, closing act 23 s at little CPU); a beforeAll now renders the page once first. Kept known until CI shows the timeout gone.",
+      "seen": [
+        "click-into run 39148797754 job 117738016740 (Windows)",
+        "#773 job 128404919156 (Windows, 2/3)"
+      ]
     },
     {
       "id": "e2e-antigravity-macos-raw-mode",
@@ -411,6 +446,64 @@
       "status": "known",
       "cause": "Unknown, seen once: an update took 1,481 ms against the 750 ms budget, where the test's comment says 60 to 160 ms on a slow shared machine. Many jobs were running at the time, so a slow runner is likely but unproven. A failure here stops Test (macOS) before later packages, such as the runner, have run.",
       "seen": ["#737 run 42212834625 job 127875434063 (macOS)"]
+    },
+    {
+      "id": "terminal-follow-hangup-saved-macos",
+      "jobs": ["^Test \\(macOS\\)$"],
+      "test": "src/pty/follow.test.ts > a hangup followed through an agent > wakes an agent stopped on its way out as soon as the shell has gone",
+      "signature": "ENOENT: no such file or directory, open '[^']*terminal-follow-[^']*/saved'",
+      "status": "fixed",
+      "cause": "Both failing runs ran `end()` to its 5 s follow bound (5195 and 5213 ms; passing runs take 1.2 to 1.8 s): the agent stayed stopped and the bound's SIGTERM ended it unsaved. The pty sent one SIGCONT to the group as the shell went, and a program that stops itself in user space (finishing its hangup handler) just after that resume stays stopped, as a SIGCONT to a running process is lost; on macOS node-pty reports the exit only once the pty closes (or 200 ms on), which moves that resume later. Reproduced on Linux. Fixed by task/ci-flakes: the pty resumes the group as the shell goes and every 100 ms for a second more, and the test's stand-in saves only on a resume after its own stop; the macOS skip from #785 is gone. Inferred for macOS, not seen there: if it returns, the agent stopped later than that second.",
+      "seen": [
+        "#777 run 42374813227 job 128410227863 (macOS)",
+        "#785 run 42401124763 job 128492030130 (macOS), and its rerun"
+      ]
+    },
+    {
+      "id": "runner-client-slow-viewer-resync-macos",
+      "jobs": ["^Test \\(macOS\\)$"],
+      "test": "src/client.test.ts > runner client over WebSocket > resynchronizes a slow viewer with a fresh snapshot instead of failing",
+      "signature": "WireError: CONTROL_REQUIRED",
+      "status": "fixed",
+      "cause": "The test wrote 21 lines through the controller with a 2 KB subscriber budget, so on a loaded runner the controller itself fell behind (SLOW_CONSUMER) and lost control until it reattached; its next write met CONTROL_REQUIRED, and the un-awaited reader rejected with 'Terminal ended' after teardown. Fixed by task/ci-flakes: the controller writes the lines at once, and the reader's rejection is caught until it's awaited.",
+      "seen": ["#777 run 42374813227 job 128418882670 (macOS, rerun)"]
+    },
+    {
+      "id": "claude-conversation-many-rows-windows",
+      "jobs": ["^Test \\(Windows(, [1-3][/-]3)?\\)$"],
+      "test": "src/conversation.test.ts > Claude Code's conversation > reads each project once for a pass over many rows, without stalling the loop",
+      "signature": "AssertionError: expected \\d+ to be less than (?:8000|400)",
+      "status": "fixed",
+      "cause": "A time budget: the pass over many rows took 8.7 s on a Windows runner against the test's 8 s limit, and up to 17 s on others, with a second bound of 400 ms on the event loop's worst gap; a slow runner, not a stall. Fixed by bounding the test by what it reads (each project once, at most 32 folders open) rather than by seconds; the lister's own pool and memory are tested in harness-core.",
+      "seen": [
+        "#777 run 42380485557 job 128426867982 (Windows)",
+        "#775, #779, #781, #782 (twice), #785, #787, #788, #790 on 2026-11-07 (Windows, 1/3)"
+      ]
+    },
+    {
+      "id": "test-macos-job-timeout",
+      "jobs": ["^Test \\(macOS\\)$"],
+      "signature": "##\\[error\\]The action 'Run Test \\(macOS\\)' has timed out after \\d+ minutes",
+      "status": "known",
+      "cause": "Not a test: the unsharded macOS test job takes 27 to 33 minutes on other pull requests against its 37-minute step limit, so a slow runner runs out of time with no test failing.",
+      "seen": ["#777 run 42380485557 job 128426868098 (macOS)"]
+    },
+    {
+      "id": "murmur-full-screen-screen-linux",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/shell/integration-murmur.test.ts > murmur naming terminals in bash terminals > shows murmur no screen of a full-screen program, and its screen again once the program quits",
+      "signature": "AssertionError: expected \\{ kind: 'shell'",
+      "status": "fixed",
+      "cause": "Murmur takes its digest 400 ms after perl shows as the foreground program, and on a loaded runner perl hadn't yet printed its switch to the alternate screen, so the digest held the typed command. Fixed by task/ci-flakes: the shell enters the alternate screen before perl starts.",
+      "seen": ["#783 run 42390794494 job 128457913000 (Linux, 3/3)"]
+    },
+    {
+      "id": "relay-status-line-windows-no-output",
+      "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "signature": "panicked at src.status_line\\.rs:\\d+:\\d+:\\n(?:assertion .left == right. failed\\n\\s*left: (?:0|\\\"\\\")\\n|the command printed nothing by any deadline)[\\s\\S]*\\nfailures:\\n(?:\\s+status_line::tests::\\w+\\n)+\\s*\\ntest result: FAILED\\.",
+      "status": "known",
+      "cause": "Windows only, a Rust test whose log has no Vitest FAIL line, so it's matched by the job's log, and only where cargo's list of failures names status_line tests alone, cause unknown: four relay status_line tests failed together because every Git Bash child printed nothing, the deadline tests through 10 s; they ran at once beside the sandbox reap test on a loaded runner. Mitigated by task/ci-flakes (those tests run one at a time, and a plain one that printed nothing runs once more); the child's stderr goes to NUL, so a return needs it seen to find the cause.",
+      "seen": ["#785 run 42411833861 job 128521430789 (Windows, 1/3)"]
     }
   ]
 }

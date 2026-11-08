@@ -1,4 +1,5 @@
 import type { TerminalMetadata, TerminalStatus } from "../types"
+import { isAgentProgram } from "./process"
 
 // A handle as people see and say it: the word the runner gave a terminal, led by `@`.
 // Stored and sent bare, so only what is shown goes through here.
@@ -14,11 +15,17 @@ export const terminalLabel = (name: string, handle?: string): string =>
 // notices name by handle. A shell the person opened that no agent touched keeps it out
 // of the way, in its label, the switcher and search.
 export const showsHandle = (
-  terminal: Pick<TerminalMetadata, "agentRan" | "openedBy" | "ledBy"> & TerminalStatus,
+  terminal: Pick<TerminalMetadata, "agentRan" | "openedBy" | "ledBy" | "restoredProcess"> &
+    TerminalStatus,
 ): boolean =>
   Boolean(
     terminal.agentRan ||
     terminal.openedBy ||
     terminal.ledBy ||
+    terminal.state === "sleeping" ||
+    // Waking: the shell that resumes an agent, which the runner's summary may not yet say ran.
+    (terminal.state === "starting" &&
+      terminal.restoredProcess !== undefined &&
+      isAgentProgram(terminal.restoredProcess)) ||
     (terminal.state === "running" && terminal.agent),
   )

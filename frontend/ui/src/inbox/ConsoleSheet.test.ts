@@ -5,6 +5,7 @@ import {
   type ChatQuestion,
   type Conversation,
   type Conversations,
+  noDoorbell,
 } from "@novadeck/core/conversation"
 import {
   emptyInbox,
@@ -935,7 +936,10 @@ describe("The Console sheet", () => {
       call: null,
       author: null,
       run: null,
+      outcome: null,
+      scripted: false,
       interrupted: false,
+      ring: null,
       ...fields,
     })
 
@@ -948,13 +952,15 @@ describe("The Console sheet", () => {
 
       act(() =>
         transcript.update(() => ({
+          slice: null,
+          doorbell: noDoorbell,
           agent: "codex",
           session: "x",
           loaded: true,
           items: [turn({ text: "run the suite and report back please", at: 10 })],
           requests: [],
           prompts: [],
-          unread: false,
+          box: null,
         })),
       )
       expect(text(".console-you")).toContain("run the suite")

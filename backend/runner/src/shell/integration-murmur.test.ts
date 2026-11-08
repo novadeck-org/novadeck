@@ -6,7 +6,7 @@ import { Terminals } from "../terminals/index.js"
 import { barDigest } from "../terminals/nudges.js"
 import { describe, expect } from "../test.js"
 import { FakeDescriber } from "../testing/describer.js"
-import { bash, it, create } from "./integration.test-support.js"
+import { bash, it, create, type Fixture } from "./integration.test-support.js"
 import {
   standIn,
   driver,
@@ -18,6 +18,15 @@ import {
 
 // Murmur's waits, short for the tests.
 const murmurTimes = { settleMs: 30, shellRunMs: 400, shellSettleMs: 60 }
+
+// A stand-in agent is not its shell's foreground program as a real one is, so the row it left
+// would rest on its session after a restart. These tests restore plain shells the agent binds in.
+const plain = (shell: Fixture, ...ids: string[]): void => {
+  for (const id of ids) {
+    const row = shell.store.terminal(id)!
+    shell.store.saveTerminal({ ...row, lastProgram: "bash" })
+  }
+}
 
 describe.skipIf(process.platform === "win32" || !existsSync(bash))(
   "murmur naming terminals in bash terminals",
@@ -203,6 +212,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           told: { bar: barDigest, notes: { peer: expect.any(String) } },
         })
       await first.shutdown()
+      plain(shell, terminal.id, peer.id)
 
       // The same session again under a new runner, as a restart resumes it: it holds the
       // notices and the note still, so it hears none of them again.
@@ -503,11 +513,14 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await shell.until(manager, terminal.id, "$ ")
       // A program that, as full-screen ones do, draws a secret on the alternate screen and leaves
       // it before it exits. Not a shell's own: where only the foreground's name is told (macOS),
-      // `sh -c` runs as bash, and a program with the shell's name is read as its prompt.
+      // `sh -c` runs as bash, and a program with the shell's name is read as its prompt. The
+      // shell enters the alternate screen itself just before, so that the screen is the program's
+      // however late it starts: murmur looks `shellRunMs` after the program shows as the
+      // foreground, and a loaded runner's perl has not drawn anything by then.
       manager.write(
         {
           terminalId: terminal.id,
-          data: `perl -e '$| = 1; print "\\e[?1049h", "ALT", 1, "SECRET\\n"; sleep 3; print "\\e[?1049l", "BACK", 1, "ON\\n"'\r`,
+          data: `printf '\\e[?1049h'; perl -e '$| = 1; print "ALT", 1, "SECRET\\n"; sleep 3; print "\\e[?1049l", "BACK", 1, "ON\\n"'\r`,
         },
         "owner",
       )
@@ -573,6 +586,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         .poll(() => first.get(terminal.id).titleSource, { timeout: 30_000 })
         .toEqual({ kind: "murmur" })
       await first.shutdown()
+      plain(shell, terminal.id)
       expect(shell.store.terminalIdentity(terminal.id)?.naming.murmur).not.toBeNull()
 
       // The runner restarts, and the same session binds again: it is no new conversation.
@@ -979,19 +993,19 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         ) as Told
         expect(told.ok).toBe(true)
         await expect.poll(() => created.length).toBe(2)
-        const plain = { terminalId: created[1]! }
-        symlinkSync(generic, join(shell.home, `steps-${plain.terminalId}`))
-        await shell.until(manager, plain.terminalId, /^fix-the-docs$/m)
+        const bare = { terminalId: created[1]! }
+        symlinkSync(generic, join(shell.home, `steps-${bare.terminalId}`))
+        await shell.until(manager, bare.terminalId, /^fix-the-docs$/m)
         manager.write(
-          { terminalId: plain.terminalId, data: `agent claude s-mine ${generic}\r` },
+          { terminalId: bare.terminalId, data: `agent claude s-mine ${generic}\r` },
           "client",
         )
-        await shell.until(manager, plain.terminalId, "claude ready")
-        await step(plain.terminalId, {
+        await shell.until(manager, bare.terminalId, "claude ready")
+        await step(bare.terminalId, {
           hook: "UserPromptSubmit",
           payload: { prompt: "fix-the-docs" },
         })
-        expect(manager.get(plain.terminalId)).toMatchObject({
+        expect(manager.get(bare.terminalId)).toMatchObject({
           titleSource: { kind: "default" },
         })
         expect(await listed()).toContain("  started with: fix-the-docs")
@@ -1101,13 +1115,16 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const terminal = await create(manager, shell)
       const { start, step } = driver(shell, manager)
       await start(terminal.id, "claude", "s-1")
-      const prompt = async (session: string, text: string) =>
-        context(
+      // Each its own turn: a second prompt with no Stop before it is one queued behind a turn.
+      const prompt = async (session: string, text: string) => {
+        await step(terminal.id, { hook: "Stop", payload: { session_id: session } })
+        return context(
           await step(terminal.id, {
             hook: "UserPromptSubmit",
             payload: { session_id: session, prompt: text },
           }),
         )
+      }
       const clear = (session: string) =>
         step(terminal.id, {
           hook: "SessionStart",
@@ -1163,13 +1180,16 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const terminal = await create(manager, shell)
       const { start, step } = driver(shell, manager)
       await start(terminal.id, "claude", "s-1")
-      const prompt = async (text: string) =>
-        context(
+      // Each its own turn: a second prompt with no Stop before it is one queued behind a turn.
+      const prompt = async (text: string) => {
+        await step(terminal.id, { hook: "Stop", payload: { session_id: "s-1" } })
+        return context(
           await step(terminal.id, {
             hook: "UserPromptSubmit",
             payload: { session_id: "s-1", prompt: text },
           }),
         )
+      }
       // The first prompt of the session carries the bar's notice and the summary's.
       await prompt("Build the page")
       // Described, so the prompts below are told of pages alone.
@@ -1216,13 +1236,16 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const terminal = await create(manager, shell)
       const { start, step } = driver(shell, manager)
       await start(terminal.id, "claude", "s-1")
-      const prompt = async (session: string, text: string) =>
-        context(
+      // Each its own turn: a second prompt with no Stop before it is one queued behind a turn.
+      const prompt = async (session: string, text: string) => {
+        await step(terminal.id, { hook: "Stop", payload: { session_id: session } })
+        return context(
           await step(terminal.id, {
             hook: "UserPromptSubmit",
             payload: { session_id: session, prompt: text },
           }),
         )
+      }
       await prompt("s-1", "Build the page")
       // Described, so the prompts below are told of pages alone.
       await step(terminal.id, {

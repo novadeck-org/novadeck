@@ -27,12 +27,19 @@ export const tabAction = (label: string): Locator =>
 export const headerAction = (name: string, label: string): Locator =>
   terminal(name).getByRole("button", { name: labelled(label, "") })
 
-/** The question asked before closing a terminal a program still runs in. */
+/** The question asked before closing a terminal that would lose something: a program still running in it, an agent mid-turn, one waiting on background work, or one that leads a team. */
 export const closeConfirmation = (): Locator => page.getByRole("alertdialog")
 
 /** Answers that question with "Close terminal", as closing a running demo terminal asks. */
 export const confirmClose = async (): Promise<void> => {
   await closeConfirmation().getByRole("button", { name: "Close terminal" }).click()
+}
+
+/** Answers a lead's question with "Close <handle> only", leaving its team running. */
+export const closeLeadOnly = async (handle: string): Promise<void> => {
+  await closeConfirmation()
+    .getByRole("button", { name: `Close @${handle} only` })
+    .click()
 }
 
 export const hiddenTerminalTab = (name: string): Locator =>

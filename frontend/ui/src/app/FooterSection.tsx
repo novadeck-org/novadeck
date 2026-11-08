@@ -7,9 +7,19 @@ import {
 import type { TerminalKey } from "@novadeck/core/port"
 import { waitingAgents } from "@novadeck/core/terminals/ending"
 import { nextWaitingChange } from "@novadeck/core/terminals/waiting"
-import { memo, useCallback, useEffect, useState, useSyncExternalStore } from "react"
+import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
 
 import { FeedbackButton } from "../feedback/FeedbackButton"
+import { nothingToCheck, restartCheck, riskKey } from "../shell/restart-check"
 import { readSubscriptionOrder, writeSubscriptionOrder } from "../shell/shell-storage"
 import { SubscriptionUsage } from "../shell/SubscriptionUsage"
 import { WorkspaceFooter } from "../shell/WorkspaceFooter"
@@ -19,7 +29,19 @@ import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controlle
 import { useAccounts } from "./controller/footer-accounts"
 import { crashLoopQuestion, currentState, shallowEqual } from "./selectors"
 import { dismissWhatsNew } from "./ui-store"
+import { useBusyTerminals } from "./use-busy-terminals"
 import { useOfferNews } from "./use-offer-news"
+
+// Every terminal of every session of every project, in their order: the same array while none
+// has changed, so a workspace change elsewhere costs nothing.
+const allTerminals = (workspace: Workspace): readonly TerminalMetadata[] =>
+  workspace.projects.flatMap((project) =>
+    project.history.flatMap((session) => session.state.roster.terminals),
+  )
+const noTerminals = (): readonly TerminalMetadata[] => none
+const none: readonly TerminalMetadata[] = []
+const sameTerminals = (a: readonly TerminalMetadata[], b: readonly TerminalMetadata[]): boolean =>
+  a.length === b.length && a.every((terminal, index) => terminal === b[index])
 
 const always = (): (() => void) => () => {}
 
@@ -73,9 +95,58 @@ export const FooterSection = memo((): React.JSX.Element => {
   const murmurState = useSyncExternalStore(backend.murmur?.state.subscribe ?? always, () =>
     backend.murmur?.state.getSnapshot(),
   )
+  // A downloaded update the person can restart into now: not a portable copy, which has its
+  // own chip, and only from a desktop app that can.
+  const restartable = !!updates?.restart && !portable && !portablePending && offer?.kind === "ready"
+  // Every terminal of every session, which a restart would do something to; none watched
+  // while no update waits, so the footer isn't redrawn for terminals nobody asks about.
+  const everyTerminal = useWorkspaceState(restartable ? allTerminals : noTerminals, sameTerminals)
+  // The card is up: the runner is asked about shells only then.
+  const [restartShown, setRestartShown] = useState(false)
+  const { busy, answer, refresh } = useBusyTerminals(
+    backend.busyTerminals,
+    restartable && restartShown,
+  )
+  const restartPlan = useMemo(
+    () => (restartable ? restartCheck(everyTerminal, busy) : nothingToCheck),
+    [restartable, everyTerminal, busy],
+  )
+  // What the card shows now, for Restart now to compare a fresh read with.
+  const shown = useRef({ everyTerminal, restartPlan, answer })
+  useEffect(() => {
+    shown.current = { everyTerminal, restartPlan, answer }
+  })
+  // Whether the restart may go on after a fresh read: not when it names work the card did not
+  // show, which it then shows, nor when the read failed while the card had no answer yet, which
+  // it then says. Anything the card already showed, or could not show, holds nothing back.
+  const mayRestart = useCallback(async (): Promise<boolean> => {
+    const before = shown.current
+    const told = await refresh()
+    if (told === undefined) return before.answer !== "pending"
+    const after = restartCheck(shown.current.everyTerminal, {
+      busy: new Set(told.busy),
+      unknown: new Set(told.unknown),
+    })
+    const seen = new Set(before.restartPlan.risks.map(riskKey))
+    return after.risks.every((risk) => seen.has(riskKey(risk)))
+  }, [refresh])
+  const [appVersion, setAppVersion] = useState<string>()
+  useEffect(() => {
+    if (!restartable || !backend.version) return undefined
+    let current = true
+    backend.version().then(
+      (known) => {
+        if (current) setAppVersion(known)
+      },
+      () => {},
+    )
+    return () => {
+      current = false
+    }
+  }, [restartable, backend])
   const zen = useUiState((state) => Boolean(state.shell.zen))
   const navigate = useUiState((state) => state.shell.navigate)
-  const { count, running, waiting, waitingChange } = useWorkspaceState((workspace) => {
+  const { count, running, waiting, asleep, waitingChange } = useWorkspaceState((workspace) => {
     const { terminals } = currentState(workspace).roster
     const now = Date.now()
     // Agents that ended their turn to wait on something count apart, never as running; a
@@ -83,6 +154,7 @@ export const FooterSection = memo((): React.JSX.Element => {
     const waits = waitingAgents(terminals, now)
     return {
       waiting: waits.length,
+      asleep: terminals.filter((terminal) => terminal.state === "sleeping").length,
       waitingChange: waits.reduce<number | undefined>((soonest, terminal) => {
         const next = nextWaitingChange(terminal, now)
         return next === undefined || (soonest !== undefined && soonest < next) ? soonest : next
@@ -125,11 +197,34 @@ export const FooterSection = memo((): React.JSX.Element => {
       count={count}
       running={running}
       waiting={waiting}
+      asleep={asleep}
       navigate={navigate}
       onRetry={crashes > 0 && backend.crashLoop ? commands.retryAfterCrashLoop : undefined}
       // A copy that updates itself shows only its downloads; a portable one, which can't,
       // has its install entry, with the release it is missing.
       progress={updates && !portable ? offer : null}
+      restart={
+        restartable && updates.restart
+          ? {
+              offer,
+              from: appVersion,
+              check: restartPlan,
+              answer,
+              recheck: mayRestart,
+              onShownChange: setRestartShown,
+              onRestart: updates.restart,
+              onGoTo: (terminalId) => {
+                commands.reveal(terminalId)
+                // After the move has been through, as the name chip does.
+                requestAnimationFrame(() => {
+                  const { view } = currentState(store.getSnapshot())
+                  commands.setKeyboardFocus({ id: terminalId, view })
+                })
+              },
+              blocked: asking || welcome || sandboxOpen,
+            }
+          : undefined
+      }
       noticeOpen={sandboxOpen}
       // It takes turns with the other notices in its corner: a dialog, the sandbox notice or
       // a portable copy's card (which an installed copy that was updated never has) goes first.

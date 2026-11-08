@@ -21,6 +21,12 @@ export type Quitting = {
    * do nothing: the quitting app holds the data folder.
    */
   reopenWanted: boolean
+  /**
+   * Whether the person chose to restart into a waiting update, which opens Novadeck again
+   * whatever comes of the update: the new version once it is in place, the current one if
+   * it could not be. Implies `orderly` and `reopenWanted`.
+   */
+  restart: boolean
 }
 
 /** A run that is not quitting. */
@@ -28,4 +34,5 @@ export const notQuitting = (): Quitting => ({
   stopping: false,
   orderly: false,
   reopenWanted: false,
+  restart: false,
 })

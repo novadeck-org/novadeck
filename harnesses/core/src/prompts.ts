@@ -153,6 +153,18 @@ export const doorbellNonce = (prompt: string): string | undefined => {
 }
 
 /**
+ * What a prompt that is exactly a doorbell line or a reply line says of its ring: its nonce, and
+ * whether it carries the person's Inbox replies; null for any other prompt. A person's words
+ * with a line stuck in them are theirs.
+ */
+export const ringOf = (
+  prompt: string,
+): { readonly nonce: string; readonly replies: boolean } | null => {
+  const nonce = doorbellNonce(prompt)
+  return nonce === undefined ? null : { nonce, replies: replyOnly.test(prompt.trim()) }
+}
+
+/**
  * The person's prompt without any doorbell or reply line left in it, as a line a failed
  * ring left in the box that they then submitted with their own text.
  */
@@ -162,6 +174,24 @@ export const withoutDoorbell = (prompt: string): string =>
     .replace(replyDoorbell, "")
     .replace(/[ \t]{2,}/g, " ")
     .trim()
+
+/**
+ * Words given back from the box without the doorbell and reply lines among them: a line of
+ * Novadeck's that was queued comes back with the person's, and isn't theirs to get.
+ */
+export const withoutDoorbellLines = (words: string): string => {
+  const kept: string[] = []
+  const lines = words.split("\n")
+  for (let at = 0; at < lines.length;) {
+    // A box wraps a long reply line over rows, which come back as lines.
+    const span = [1, 2, 3, 4, 5, 6].find(
+      (rows) => doorbellNonce(lines.slice(at, at + rows).join(" ")) !== undefined,
+    )
+    if (span === undefined) kept.push(lines[at]!)
+    at += span ?? 1
+  }
+  return kept.join("\n").trim()
+}
 
 /**
  * The characters a quoted line may hold: none that sh, zsh, fish, PowerShell or cmd expand

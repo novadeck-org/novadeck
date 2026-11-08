@@ -32,6 +32,7 @@ import { createDemoUninstall, type DemoUninstall } from "./desktop/uninstall"
 import { updatesGroup, type DemoUpdates } from "./desktop/updates"
 import { doorbellGroups } from "./doorbell"
 import { feedbackGroups } from "./feedback"
+import { historyGroups } from "./history"
 import { inboxGroups } from "./inbox"
 import { launchGroups } from "./launch"
 import { messageGroups } from "./messages"
@@ -127,7 +128,13 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     launch.variant,
     {
       theme: launch.theme,
-      runtime: { connection, screens: states.screens, restart, failPaste: states.failPaste },
+      runtime: {
+        connection,
+        screens: states.screens,
+        restart,
+        failPaste: states.failPaste,
+        holds: states.holds,
+      },
     },
     turns,
   )
@@ -225,6 +232,17 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     agents: states.agents,
     notices: states.notices,
     updates: states.updates,
+    // The idle shells the runner may say hold a job, as the Updates group sets it.
+    busyTerminals: () =>
+      states.updateControls.busy.answer(
+        (latest?.projects ?? []).flatMap((project) =>
+          project.history.flatMap((session) =>
+            session.state.roster.terminals
+              .filter((terminal) => terminal.state === "idle")
+              .map((terminal) => terminal.id),
+          ),
+        ),
+      ),
     whatsNew: states.whatsNew,
     ...(launch.sandbox ? { sandbox: createDemoSandbox(launch.sandbox) } : {}),
     ...(launch.portable ? { portable: createDemoPortable(launch.portable).portable } : {}),
@@ -252,6 +270,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           ...messageGroups(inner.messages),
           ...murmurGroups(isDemoMurmur(inner.murmur) ? inner.murmur : undefined),
           ...voiceGroups(isDemoVoice(inner.voice) ? inner.voice : undefined),
+          ...historyGroups(inner.history),
           ...sourceGroups(isDemoSource(inner.source) ? inner.source : undefined),
         ],
       },

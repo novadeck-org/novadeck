@@ -9,6 +9,7 @@ import type { DeckTerminal } from "../deck.js"
 import type { Sandbox } from "../keychain.js"
 import { responses } from "../model/responses.js"
 import { asked } from "../model/script.js"
+import { runningProcesses } from "../processes.js"
 import { own } from "../scenarios.js"
 import type { AgentSetup } from "./agent.js"
 
@@ -255,6 +256,17 @@ export const codex: AgentSetup = {
       join(home, "config.toml"),
       config(sandbox, model.url, seed?.folderTrusted !== false, catalogFile),
     )
+    if (seed?.promptHook !== undefined)
+      await writeFile(
+        join(home, "hooks.json"),
+        JSON.stringify({
+          hooks: {
+            UserPromptSubmit: [
+              { hooks: [{ type: "command", command: `node ${seed.promptHook}`, timeout: 30 }] },
+            ],
+          },
+        }),
+      )
     // It asks about a folder only if a git repository, since 0.160.1 (probed 2026-10-08):
     // 0.159.3 asked about any folder. Without the repository, a newer Codex shows its
     // prompt at once, and a test of the question waits for one that never comes.
@@ -338,39 +350,8 @@ const scene = async (
   pid: number | undefined,
   began: number,
 ): Promise<string> => {
-  const run = promisify(execFile)
   const processes = async (): Promise<string[]> => {
-    const rows: { pid: number; parent: number; command: string }[] =
-      process.platform === "win32"
-        ? [
-            JSON.parse(
-              (
-                await run(
-                  "powershell.exe",
-                  [
-                    "-NoProfile",
-                    "-NonInteractive",
-                    "-Command",
-                    "Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,CommandLine,Name | ForEach-Object { [pscustomobject]@{ pid = $_.ProcessId; parent = $_.ParentProcessId; command = $(if ($_.CommandLine) { $_.CommandLine } else { $_.Name }) } } | ConvertTo-Json -Compress",
-                  ],
-                  // As long as the sandbox's own lister gets: CIM is slow to start on a busy runner.
-                  { windowsHide: true, timeout: 60_000, maxBuffer: 16 * 1024 * 1024 },
-                )
-              ).stdout,
-            ) as { pid: number; parent: number; command: string }[],
-          ]
-            // One object, not an array, where it lists one process.
-            .flat()
-            .map((row) => ({ ...row, command: String(row.command) }))
-        : (await run("ps", ["-eo", "pid=,ppid=,args="], { timeout: 10_000 })).stdout
-            .split("\n")
-            .map((line) => /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line))
-            .filter((match) => match !== null)
-            .map((match) => ({
-              pid: Number(match[1]),
-              parent: Number(match[2]),
-              command: match[3]!,
-            }))
+    const rows = await runningProcesses()
     const tree = new Set(pid === undefined ? [] : [pid])
     for (let grew = true; grew;) {
       grew = false
@@ -548,9 +529,12 @@ export const appServer = (
     },
     request,
     // On Windows with the codex cmd started, which ending cmd alone leaves running.
-    close: () => {
+    // Settles once the tree is killed, as a start again must not meet its sqlite files held.
+    close: async (): Promise<void> => {
       if (process.platform === "win32" && child.pid !== undefined)
-        execFile("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true })
+        await promisify(execFile)("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+          windowsHide: true,
+        }).catch(() => undefined)
       else child.kill()
     },
   }
@@ -568,7 +552,8 @@ type Listed = {
 }
 
 /**
- * Trusts Novadeck's hooks in the project as a person does in Codex's "Hooks need review"
+ * Trusts its hooks in the project, Novadeck's and any a seed registered, as a person does in
+ * Codex's "Hooks need review"
  * screen, and lets its MCP tools run without asking, through the same app-server calls
  * that screen makes: `hooks/list` for each hook's current hash, then `config/batchWrite`
  * recording it as trusted. Codex runs a plugin's hooks only once trusted, and Novadeck
@@ -579,6 +564,21 @@ type Listed = {
  */
 const trustHooks = async (
   sandbox: Sandbox,
+  options: { readonly hooks?: boolean } = {},
+): Promise<void> => {
+  // An app-server that never answers `initialize` (not one that is slow: `answerMs` waits
+  // that out) is started afresh once, the files its first start made kept in CODEX_HOME;
+  // a Windows runner's cold start was seen to outlast even 60 s (2026-11-08, #763).
+  try {
+    await trustHooksOnce(sandbox, options)
+  } catch (error) {
+    if (!String(error).includes("didn't answer initialize")) throw error
+    await trustHooksOnce(sandbox, options)
+  }
+}
+
+const trustHooksOnce = async (
+  sandbox: Sandbox,
   { hooks = true }: { readonly hooks?: boolean } = {},
 ): Promise<void> => {
   const server = appServer(sandbox.env)
@@ -586,10 +586,10 @@ const trustHooks = async (
     await server.start()
     const list = () => server.request("hooks/list", { cwds: [sandbox.project] })
     const listed = (await list()) as Listed
-    const ours = (listed.data ?? [])
-      .flatMap((entry) => entry.hooks ?? [])
-      .filter((hook) => hook.pluginId === "novadeck@novadeck")
-    if (ours.length === 0) throw new Error("Codex lists none of Novadeck's hooks")
+    // Novadeck's, and any a seed registered.
+    const all = (listed.data ?? []).flatMap((entry) => entry.hooks ?? [])
+    if (!all.some((hook) => hook.pluginId === "novadeck@novadeck"))
+      throw new Error("Codex lists none of Novadeck's hooks")
     await server.request("config/batchWrite", {
       edits: [
         ...(hooks
@@ -597,7 +597,7 @@ const trustHooks = async (
               {
                 keyPath: "hooks.state",
                 value: Object.fromEntries(
-                  ours.map((hook) => [hook.key, { trusted_hash: hook.currentHash }]),
+                  all.map((hook) => [hook.key, { trusted_hash: hook.currentHash }]),
                 ),
                 mergeStrategy: "upsert",
               },
@@ -616,6 +616,6 @@ const trustHooks = async (
         `Codex ${hooks ? "still doesn't trust" : "trusts"} Novadeck's hooks: ${JSON.stringify(after)}`,
       )
   } finally {
-    server.close()
+    await server.close()
   }
 }

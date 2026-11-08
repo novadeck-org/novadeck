@@ -30,7 +30,7 @@ describe("the debug panel's chat failures", () => {
     const conversations = chat.wrap(inner(sent))
     const draft = chat.actions.find((action) => action.label.includes("Draft"))!
     await draft.run({} as never)
-    await expect(conversations.send(key, "one")).rejects.toBeInstanceOf(SettleInTerminal)
+    await expect(conversations.send(key, "one")).rejects.toThrow("Clear it above")
     await conversations.send(key, "two")
     expect(sent).toEqual(["two"])
     const ringing = chat.actions.find((action) => action.label.includes("Doorbell"))!
@@ -66,7 +66,8 @@ describe("the debug panel's chat failures", () => {
     const conversations = chat.wrap(inner())
     await chat.actions.find((action) => action.label.includes("Stop"))!.run({} as never)
     const failure = await conversations.interrupt(key).catch((error: unknown) => error)
-    expect(failure).toBeInstanceOf(SettleInTerminal)
+    // The next message sees to them: nothing to settle in the terminal.
+    expect(failure).not.toBeInstanceOf(SettleInTerminal)
     expect(failure).toHaveProperty("message", expect.stringContaining("still in the agent's box"))
     expect(await conversations.interrupt(key)).toBeNull()
   })

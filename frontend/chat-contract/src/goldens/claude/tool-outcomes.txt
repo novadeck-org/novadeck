@@ -1,0 +1,44 @@
+# read
+tools: read [read] · …/user/project/sample.txt · 6 lines | Call: 1 line: /home/user/project/sample.txt → 7 lines: 1	alpha
+
+# read-part
+tools: read [read] · …/user/project/sample.txt · 2 lines | Call: 3 lines: file_path: /home/user/project/sample.txt → 2 lines: 2	beta
+
+# tool-error
+tools: read [read] · …/user/project/missing.txt · failed | Call: 1 line: /home/user/project/missing.txt → 1 line: File does not exist. Note: your current working…
+
+# command-passes
+tools: ran [run] · echo hello → 1 line: hello
+
+# command-fails
+tools: ran [run] · echo boom >&2; exit 3 · exit 3 → 2 lines: Exit code 3
+
+# no-match
+tools: ran [run] · grep -n zzz sample.txt → 1 line: (Bash completed with no output)
+
+# timeout
+tools: ran [run] · sleep 5; echo late · exit 143 | Call: Bash: 1 line: timeout: 1000 → 2 lines: Exit code 143
+
+# background
+tools: ran [run] · echo done · in the background | Call: Bash: 1 line: run_in_background: true → 1 line: Command running in background with ID: bc4x20s7…
+
+# search
+tools: ran [run] · grep -rn beta . → 1 line: sample.txt:2:beta
+
+# edit
+tools: edited [write] · …/project/src/auth.ts +2 −1 → 5 lines: 1   const a = 1
+
+# edit-no-match
+tools: edited [write] · …/project/src/auth.ts · failed | Call: Edit: 4 lines: replace_all: false → 2 lines: <tool_use_error>String to replace not found in …
+
+# new-file
+tools: wrote [write] · …/user/project/new.txt +2 −0 → 2 lines: 1 + one
+
+# overwrite
+tools: wrote [write] · …/user/project/sample.txt +1 −5 → 7 lines: 1   alpha
+
+# long-edit
+tools: edited [write] +2 −2 | Call: Edit: 1 line, shortened: {"replace_all":false,"file_path":"/home/user/pr… → 16 lines: 98   line 97 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+
+# long-write
+tools: wrote [write] +400 −0 | Call: Write: 1 line, shortened: {"file_path":"/home/user/project/huge.txt","con… → 41 lines: 1 + line 0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…

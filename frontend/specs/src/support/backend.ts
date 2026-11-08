@@ -1,4 +1,4 @@
-import type { Conversation, Conversations } from "@novadeck/core/conversation"
+import type { ChatItem, Conversation, Conversations } from "@novadeck/core/conversation"
 import type { PortableInstall } from "@novadeck/core/desktop/portable"
 import type { SandboxState } from "@novadeck/core/desktop/sandbox"
 import type { InboxRow, InboxSource } from "@novadeck/core/inbox"
@@ -62,7 +62,8 @@ const demoWithUpdate = (
 ): ReturnType<typeof createDemoBackend> => {
   const experimental = experimentalRequested()
   if (!scenario && !portable?.offer && !experimental) return demo
-  const controls = createDemoUpdates()
+  // A restart is counted, not done: it would reload the page the spec is looking at.
+  const controls = createDemoUpdates(() => void (restarts += 1))
   if (experimental) controls.updates?.channel?.set("experimental")
   if (scenario) scenario.play(controls, "0.0.80")
   else if (portable?.offer) controls.offer(portable.offer)
@@ -74,6 +75,10 @@ const demoWithUpdate = (
 // one, so what the spec does reaches each, and what the page asked of the app is counted
 // across them.
 const made: ReturnType<typeof createDemoUpdates>[] = []
+
+// How many times the page has asked the app to restart into an update since it opened.
+let restarts = 0
+export const restartsAsked = (): number => restarts
 
 /** Has the app's update download begin, in the backend the page uses (and its twin). */
 export const startDownload = (version: string): void =>
@@ -170,19 +175,36 @@ const requestedTranscripts = (
     : backend
 }
 
-// `&unread=on` makes every agent's record hold a part of the conversation the runner can't
-// read, as one a harness release added inside a message: the runner tells the chat, which
-// the demo's own transcripts never need. Without it, as for a record's new metadata, which
-// the runner only logs, the chat is told nothing.
-const requestedUnread = (
+// `&gap=on` makes every agent's record hold a part of the conversation the runner can't read,
+// as one a harness release added inside a message: the runner gives the chat a gap there, which
+// the demo's own transcripts never need.
+const requestedGap = (
   backend: ReturnType<typeof createDemoBackend>,
 ): ReturnType<typeof createDemoBackend> => {
   const { conversations } = backend
-  if (addressParams().get("unread") !== "on" || !conversations) return backend
-  return { ...backend, conversations: unreadConversations(conversations) }
+  if (addressParams().get("gap") !== "on" || !conversations) return backend
+  return { ...backend, conversations: gappedConversations(conversations) }
 }
 
-const unreadConversations = (conversations: Conversations): Conversations => ({
+const gapItem: ChatItem = {
+  id: "gap",
+  at: null,
+  role: "note",
+  kind: "text",
+  text: '{"type":"hologram"}',
+  truncated: false,
+  tool: null,
+  call: null,
+  author: null,
+  run: null,
+  outcome: null,
+  scripted: false,
+  interrupted: false,
+  ring: null,
+  note: { type: "gap" },
+}
+
+const gappedConversations = (conversations: Conversations): Conversations => ({
   ...conversations,
   conversation: (key) => {
     const store = conversations.conversation(key)
@@ -193,12 +215,12 @@ const unreadConversations = (conversations: Conversations): Conversations => ({
       const next = store.getSnapshot()
       if (next !== from || !shown) {
         from = next
-        shown = next.session === null ? next : { ...next, unread: true }
+        shown = next.session === null ? next : { ...next, items: [...next.items, gapItem] }
       }
       return shown
     }
-    const unread: Store<Conversation> = { subscribe: store.subscribe, getSnapshot: snapshot }
-    return unread
+    const gapped: Store<Conversation> = { subscribe: store.subscribe, getSnapshot: snapshot }
+    return gapped
   },
 })
 
@@ -408,6 +430,17 @@ export const approvals = {
     approvalBackends.flatMap((each) => each.answered),
 }
 
+// Specs open the demo as a backend that takes no feedback with `&feedback=off`, so the footer
+// has no feedback button.
+const withoutFeedback = (
+  demo: ReturnType<typeof createDemoBackend>,
+): ReturnType<typeof createDemoBackend> => {
+  if (addressParams().get("feedback") !== "off") return demo
+  const { feedback, ...rest } = demo
+  void feedback
+  return rest
+}
+
 const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   if (babciaRequested()) {
     const demo = createDemo("babcia", { theme: pageTheme }, demoTurns())
@@ -420,9 +453,11 @@ const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   const update = requestedUpdate()
   const sandbox = requestedSandbox()
   const portable = requestedPortable()
-  const demo = requestedUnread(
+  const demo = requestedGap(
     requestedTranscripts(
-      requestedVersion(demoWithUpdate(update, portable, createDemoBackend({ theme: pageTheme }))),
+      requestedVersion(
+        withoutFeedback(demoWithUpdate(update, portable, createDemoBackend({ theme: pageTheme }))),
+      ),
     ),
   )
   const uninstall = requestedUninstall()

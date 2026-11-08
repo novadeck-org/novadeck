@@ -108,6 +108,9 @@ export const dismissWhatsNewChannel = "novadeck:dismiss-whats-new"
 /** Renderer-to-main request to let this copy install updates itself, by an administrator's password. */
 export const allowUpdatesChannel = "novadeck:allow-updates"
 
+/** Renderer-to-main request to quit and open again as the waiting update; nothing is answered. */
+export const restartToUpdateChannel = "novadeck:restart-to-update"
+
 /** Renderer-to-main request for the update channel the build follows; answers it. */
 export const updateChannelChannel = "novadeck:update-channel"
 

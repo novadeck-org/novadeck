@@ -27,13 +27,14 @@ describe("crash loop dialog", () => {
   context("when the guard trips", () => {
     // Initial focus and Escape come from Ark's focus trap and dismissal, which need a
     // real browser; the desktop smoke run covers them.
-    it("says how often the runner crashed", async () => {
+    it("names the runner and says how often it crashed", async () => {
       show(4)
       await settle()
-      expect(dialog()?.textContent).toContain("The runner keeps crashing")
-      expect(dialog()?.textContent).toContain(
-        "Novadeck stopped restarting your terminals after 4 crashes in a minute.",
+      expect(dialog()?.querySelector(".modal-subject")?.textContent).toBe(
+        "Runner4 crashes in a minute",
       )
+      expect(dialog()?.textContent).toContain("It keeps crashing")
+      expect(dialog()?.textContent).toContain("Novadeck stopped restarting your terminals.")
     })
   })
 

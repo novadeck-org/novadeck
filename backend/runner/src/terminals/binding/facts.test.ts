@@ -21,12 +21,13 @@ const bindings = (shown?: AgentName) => {
     messaging: () => ({
       shownAgent: () => shown,
       inboxOwner: () => undefined,
-      deliveredAt: () => null,
+      deliveredAt: () => new Map(),
     }),
     turns: () => ({ inbox: noReports, redactor: undefined }),
     typing: () => ({ dialogsChanged: () => {}, receiptsChanged: () => {} }),
     murmurChanged: () => {},
     rebound: () => {},
+    looked: () => {},
     announce,
     detailed,
   } as unknown as BindingsHost
@@ -40,6 +41,7 @@ const record = (summary: Partial<Record["summary"]> = {}) =>
       id: "t1",
       agent: null,
       ready: null,
+      startup: null,
       activity: null,
       telemetry: null,
       reported: null,
@@ -125,6 +127,8 @@ describe("the ends of a session", () => {
     const { bound: session, suspended, root, seenEntry } = ends.restarted()
     expect(bound).toMatchObject({ bound: session, suspended, root })
     expect(bound.seenEntry).toBe(seenEntry)
+    // A screen its agent named is the old shell's, so a resume starts with none.
+    expect(ends.restarted()).toHaveProperty("startupScreen", undefined)
   })
 })
 
@@ -170,11 +174,12 @@ describe("a turn that ends within its grace as its session does", () => {
       messaging: () => ({
         shownAgent: () => undefined,
         inboxOwner: () => owner,
-        deliveredAt: () => null,
+        deliveredAt: () => new Map(),
       }),
       typing: () => ({ dialogsChanged: () => {}, receiptsChanged: () => {} }),
       murmurChanged: () => {},
       rebound: () => {},
+      looked: () => {},
       announce: () => {},
       detailed: () => {},
       turns: () => ({ inbox, redactor: undefined }),
@@ -251,7 +256,7 @@ describe("the lead of an agent found gone", () => {
         escaped: () => undefined,
         shownAgent: () => undefined,
         inboxOwner: () => undefined,
-        deliveredAt: () => null,
+        deliveredAt: () => new Map(),
       }),
       turns: () => ({ inbox: noReports, redactor: undefined }),
       typing: () => ({ dialogsChanged: () => {}, receiptsChanged: () => {} }),
@@ -260,6 +265,7 @@ describe("the lead of an agent found gone", () => {
       detailed: () => {},
       save,
       announce: () => {},
+      looked: () => {},
       // Its agent's process is gone.
       alive: () => false,
       stopping,
@@ -466,7 +472,10 @@ describe("the done report that stands", () => {
     const announce = vi.fn<(record: Record) => void>()
     const bound = record({ reported: null })
     const host = {
-      messaging: () => ({ shownAgent: () => undefined, deliveredAt: () => run.deliveredAt }),
+      messaging: () => ({
+        shownAgent: () => undefined,
+        deliveredAt: () => new Map(run.deliveredAt === null ? [] : [["t1", run.deliveredAt]]),
+      }),
       turns: () => ({
         inbox: {
           // As the Inbox answers: for the session bound now, or the saved one asked for.
@@ -478,6 +487,7 @@ describe("the done report that stands", () => {
       }),
       typing: () => ({ dialogsChanged: () => {}, receiptsChanged: () => {} }),
       rebound: () => {},
+      looked: () => {},
       announce,
       detailed: () => {},
     } as unknown as BindingsHost
@@ -560,6 +570,16 @@ describe("learning the bound session's transcript", () => {
     const bound = unknown()
     learner.learnTranscript(bound, "s1", "/new.jsonl")
     expect(bound.transcript).toBe("/new.jsonl")
+  })
+
+  it("starts Antigravity's own watch, which its session's end stops", () => {
+    const { bindings: learner } = bindings()
+    const bound = unknown()
+    bound.bound = { ...bound.bound!, binding: { agent: "agy", sessionId: "s1", instance: "41" } }
+    learner.learnTranscript(bound, "s1", "/new.jsonl")
+    const { signal } = bound.watching!
+    learner.endBinding(bound)
+    expect(signal.aborted).toBe(true)
   })
 
   it("keeps the one known", () => {

@@ -13,6 +13,7 @@
     "./sends": "./src/sends.ts",
     "./state": "./src/state.ts",
     "./Transcript": "./src/Transcript.tsx",
+    "./use-box-handover": "./src/use-box-handover.ts",
     "./use-chat": "./src/use-chat.ts"
   },
   "scripts": {

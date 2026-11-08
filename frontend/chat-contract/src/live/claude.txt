@@ -1,9 +1,9 @@
 # long-run
 user: Check it all.
-tools: [4 tool calls · Ran, Read, Searched] Ran [run] · ls | Call: Bash: 1 line: ls → 2 lines: a; Read [read] · …/user/project/a.ts | Call: 1 line: /home/user/project/a.ts → 1 line: a; Read [read] · …/user/project/b.ts | Call: 1 line: /home/user/project/b.ts → 1 line: b; Searched [search] · TODO | Call: Grep: 1 line: TODO → 1 line: a.ts:1
+tools: [4 tool calls · ran, read ×2, searched] ran [run] · ls → 2 lines: a; read [read] · …/user/project/a.ts | Call: 1 line: /home/user/project/a.ts → 1 line: a; read [read] · …/user/project/b.ts | Call: 1 line: /home/user/project/b.ts → 1 line: b; searched [search] · TODO → 1 line: a.ts:1
 user: And the tests.
-tools: [open: 4 tool calls · Ran, Read, Searched] Ran [run] · npm run build | Call: Bash: 1 line: npm run build → 1 line: built; Read [read] · …/user/project/c.ts | Call: 1 line: /home/user/project/c.ts → 1 line: c; Searched [search] · FIXME | Call: Grep: 1 line: FIXME → 1 line: none; Ran [run] · npm test | Call: Bash: 1 line: npm test → running
+tools: [open: 4 tool calls · ran ×2, read, searched] ran [run] · npm run build → 1 line: built; read [read] · …/user/project/c.ts | Call: 1 line: /home/user/project/c.ts → 1 line: c; searched [search] · FIXME → 1 line: none; running [run] · npm test …(running) → running
 
 # short-run
 user: Run it.
-tools: Read [read] · …/user/project/a.ts | Call: 1 line: /home/user/project/a.ts → 1 line: a; Ran [run] · npm test | Call: Bash: 1 line: npm test → running
+tools: read [read] · …/user/project/a.ts | Call: 1 line: /home/user/project/a.ts → 1 line: a; running [run] · npm test …(running) → running

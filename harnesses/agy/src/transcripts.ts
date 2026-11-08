@@ -1,11 +1,17 @@
+import { presence, reportedOr, sessionName } from "@novadeck/harness-core/conversation"
 import { parseFields, type Fields } from "@novadeck/harness-core/fields"
 import type { TranscriptDecoder, UserEntry } from "@novadeck/harness-core/harness"
-import { at, entry, textOf } from "@novadeck/harness-core/items"
+import { at, entry, noteEntry, textOf } from "@novadeck/harness-core/items"
+import { flavourOf } from "@novadeck/harness-core/paths"
 
+import { callChange, stepOutcome } from "./outcomes.js"
 import { describe } from "./tools.js"
 
 // The person's words within the context Antigravity wraps a prompt in.
 const request = /<USER_REQUEST>\n?([\s\S]*?)\n?<\/USER_REQUEST>/
+
+// How the plan review's Approve goes in, as a prompt (probed 2026-11-07, 1.5.2).
+const planApproved = /^\[Approved\] \S+$/
 
 const contentOf = (fields: Fields): string =>
   typeof fields.content === "string" ? fields.content : ""
@@ -19,13 +25,35 @@ const typed = (fields: Fields): string | undefined => {
 }
 
 /**
+ * The session's transcript in its own folder of the `brain` the reported path sits under,
+ * where the reported one names another folder: Antigravity keeps each conversation's logs
+ * under `brain/<session>`, whatever folder it runs in. One `stat`.
+ */
+const inOwnFolder = async (reported: string, sessionId: string): Promise<string | undefined> => {
+  if (!sessionName.test(sessionId)) return undefined
+  const rules = flavourOf(reported)
+  for (let dir = rules.dirname(reported); rules.dirname(dir) !== dir; dir = rules.dirname(dir)) {
+    const brain = rules.dirname(dir)
+    if (rules.basename(brain) !== "brain") continue
+    if (rules.basename(dir) === sessionId) return undefined
+    const own = rules.join(brain, sessionId, rules.relative(dir, reported))
+    // eslint-disable-next-line no-await-in-loop -- The nearest brain answers, and ends the loop.
+    return (await presence(own)) === "present" ? own : undefined
+  }
+  return undefined
+}
+
+/**
  * Antigravity's transcript: a JSONL of the conversation's steps, which hooks name. The
  * person's input, the model's responses with their tool calls, and each call's result
  * as the next step, as many steps on as it came in its call's list; its reasoning and
  * its own system steps stay out. It names no subagents.
  */
 export const transcripts: TranscriptDecoder = {
-  locate: (root, _sessionId, subagent) => Promise.resolve(subagent === null ? root : undefined),
+  locate: async (reported, sessionId, subagent) =>
+    subagent === null
+      ? reportedOr(reported, sessionId, () => inOwnFolder(reported, sessionId))
+      : undefined,
   step: (line) => {
     const index = parseFields(line)?.step_index
     return typeof index === "number" ? index : undefined
@@ -37,13 +65,25 @@ export const transcripts: TranscriptDecoder = {
     const time = at(fields.created_at)
     const content = contentOf(fields)
     const text = typed(fields)
-    if (text !== undefined) return text ? [entry("user", "text", text, { at: time })] : []
+    if (text !== undefined) {
+      if (planApproved.test(text)) return [noteEntry({ type: "plan-approved" }, time)]
+      // A prompt says whether it goes in plan mode, by a <PLAN> in what wraps it; of any other
+      // mode, as accept-edits, the record says nothing, so only leaving the plan shows.
+      const mode = content.includes("<PLAN>") ? "plan" : "not-plan"
+      return [
+        noteEntry({ type: "mode", mode }, time),
+        ...(text ? [entry("user", "text", text, { at: time })] : []),
+      ]
+    }
+    if (fields.source === "SYSTEM" && fields.type === "CHECKPOINT")
+      return [noteEntry({ type: "compaction" }, time, content)]
     if (fields.source !== "MODEL") return []
     if (fields.type === "GENERIC")
       return [
         entry("tool", "tool-result", content, {
           at: time,
           call: step === undefined ? undefined : `step:${step}`,
+          outcome: stepOutcome(fields.status, fields.error, content),
         }),
       ]
     if (fields.type !== "PLANNER_RESPONSE") return []
@@ -53,6 +93,7 @@ export const transcripts: TranscriptDecoder = {
         at: time,
         tool: name,
         call: step === undefined ? undefined : `step:${step + 1 + index}`,
+        outcome: callChange(name, args),
         describe,
       })
     })

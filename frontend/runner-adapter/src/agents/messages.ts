@@ -44,6 +44,7 @@ export const messagesOf = (listing: TerminalMessages): TerminalThreads => ({
   agent: listing.delivery !== "unbound",
   waits: listing.waits,
   waitsSince: listing.waitsSince,
+  ringing: listing.delivery === "ringing",
   threads: listing.threads.map((thread) => ({
     id: thread.id,
     peer: partyOf(thread.peer),

@@ -8,6 +8,7 @@ import type { UninstallPlan, UninstallResult } from "./desktop/uninstall"
 import type { UpdateChannel, UpdateOffer, WhatsNew } from "./desktop/update"
 import type { Feedback } from "./feedback"
 import type { AgentName } from "./harnesses"
+import type { History } from "./history"
 import type { Inbox } from "./inbox"
 import type { Companions } from "./items"
 import type { Messages } from "./messages"
@@ -65,6 +66,10 @@ export type TerminalMountProps = {
   // go, and takes it again when it is back; the element keeps the last drawing. A mount
   // created off screen takes none until it is on screen. Absent means on screen.
   readonly onScreen?: boolean
+  // Whether the person is looking at it: really in sight and legible, in the view that shows
+  // it. A backend whose terminals can sleep wakes one it is told is seen for a moment; any
+  // other ignores it. Absent means not seen.
+  readonly seen?: boolean
 }
 
 export type TerminalMount = {
@@ -205,6 +210,11 @@ export type BackendFields = {
     directory: string
     title?: string
     launch?: { readonly command?: string }
+    // The History row (`history`) to restore as this terminal, in the row's own directory:
+    // it takes the row's title and handle, and the row goes once the restore is confirmed.
+    // `directory` is the row's, for the terminal to show until the backend says more; it
+    // goes with no `title` or `launch`.
+    closed?: string
   }) => TerminalMetadata
   // Called inside every workspace store commit, before listeners, and once with []
   // for the initial workspace. That initial call runs during a render (a useState
@@ -250,6 +260,14 @@ export type BackendFields = {
     // `enabled` says.
     readonly available: boolean
     readonly set: (enabled: boolean) => void
+  }
+  // Optional. How long an idle agent runs before the backend stops it: its session rests,
+  // and the next message to it, or a look at it, starts it again where it left off. Absent
+  // where the backend stops none.
+  readonly hibernation?: {
+    // The idle minutes before an agent is stopped; null for never.
+    readonly after: Store<number | null>
+    readonly set: (minutes: number | null) => void
   }
   // Optional. The agents whose sessions resume after a restart once connected: each
   // connection installs a small plugin into the agent, and disconnecting removes it.
@@ -311,6 +329,9 @@ export type BackendFields = {
   // change in them, for the sidebar's Source panel (see core's `source`). Absent where the
   // backend can't read the projects' folders: the panel isn't drawn.
   readonly source?: Source
+  // Optional. The terminals closed in the last 30 days, per project, to list and restore
+  // (see core's `history`). Absent where the backend keeps none: closing is then final.
+  readonly history?: History
   // Optional. Feedback for the people building Novadeck (see core's `feedback`): the
   // footer's card, and an agent window's "Ask @handle to write feedback…". Absent where
   // the backend can't send it: neither is drawn. The desktop app has it where it sends notes,
@@ -324,6 +345,20 @@ export type BackendFields = {
   // again: the name the person gave it goes, and the backend reports the one it takes
   // with `terminal/update`. Absent where names are only the person's.
   readonly resetTitle?: (key: TerminalKey) => void
+  // Optional. Asks which terminals hold work a restart would end: a program in a plain shell, a
+  // line not finished, a job in the background or suspended; for an agent, whose own process
+  // resumes, only work beside or under it (a Codex background terminal, a job of its shell's), by
+  // terminal id, across every session. Read from the system when asked, so ask when it is
+  // needed: while someone looks at the answer, and as they act on it. `unknown` are those it couldn't read, never to be taken for
+  // idle. Answers nothing (undefined) where it can't tell at all, as from a runner that came
+  // before it. Absent where the backend has no shells to look at.
+  // With `fresh`, the answer comes from a read that starts after the call, as one about to act
+  // on it needs; without, a read already under way may answer.
+  readonly busyTerminals?: (options?: {
+    readonly fresh?: true
+  }) => Promise<
+    { readonly busy: readonly string[]; readonly unknown: readonly string[] } | undefined
+  >
   // Optional. Asks the person for a folder to open as a project; null when cancelled.
   // Absent where the backend cannot offer one.
   readonly pickDirectory?: () => Promise<string | null>
@@ -362,13 +397,19 @@ export type BackendFields = {
   // stop. A `ready` offer is downloaded and installs when the app next quits. An
   // `available` one the app can't install itself, so the person gets it from its release
   // page, which `openPage` opens; one with `allow` can instead be let install itself by an
-  // administrator, which `allow` asks for (macOS only; absent elsewhere). `channel`, where the app
+  // administrator, which `allow` asks for (macOS only; absent elsewhere). `restart` is the
+  // person's own choice to restart into a `ready` update now: the app quits as their quit
+  // does, installing it, and opens again once it is in place (the current version again if
+  // it could not be put in place). It does nothing unless the last offer is `ready` and the
+  // copy installs its own updates, and nothing while a quit is already under way; it is
+  // absent from apps that came before it. `channel`, where the app
   // lets the person choose, reads which releases it follows and switches them. Absent
   // where the app does not update itself, as in a browser.
   readonly updates?: {
     readonly onOffer: (listener: (offer: UpdateOffer) => void) => () => void
     readonly openPage: () => void
     readonly allow?: () => void
+    readonly restart?: () => void
     readonly channel?: {
       readonly get: () => Promise<UpdateChannel>
       readonly set: (channel: UpdateChannel) => void
@@ -378,9 +419,8 @@ export type BackendFields = {
   // after the workspace is up, and answers the release's highlights while the person has
   // not dismissed them, else undefined (also when the notes can't be read, which the desktop app
   // tries once more a couple of minutes later in the same launch, then on a later one); it
-  // can take a couple of minutes. `dismiss` marks them seen,
-  // so no later launch offers them again. Absent where
-  // the app does not say, as in a browser.
+  // can take a couple of minutes. `dismiss` marks them seen, so no later launch offers them
+  // again. Absent where the app does not say, as in a browser.
   readonly whatsNew?: {
     readonly get: () => Promise<WhatsNew | undefined>
     readonly dismiss: () => void

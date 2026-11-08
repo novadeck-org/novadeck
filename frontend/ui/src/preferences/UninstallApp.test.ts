@@ -66,7 +66,7 @@ describe("the uninstall dialog of a copy the app removes", () => {
     expect(container.textContent).toMatch(/Uninstall Novadeck/)
     expect(container.textContent).toMatch(/Removes the app from this computer\./)
     await open(container)
-    expect(dialog()?.textContent).toMatch(/Uninstall Novadeck\?/)
+    expect(dialog()?.textContent).toMatch(/Uninstall this app\?/)
     expect(dialog()?.textContent).toMatch(
       /removed from this computer and disconnected from Claude Code and Codex\./,
     )

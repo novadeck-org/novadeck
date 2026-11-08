@@ -165,7 +165,8 @@ ${silentCases(
 esac
 `
 
-// cmd reads a batch file's blocks reliably only with CRLF line endings.
+// cmd reads a batch file's blocks reliably only with CRLF line endings: with LF alone it can miss
+// a label at the edge of a 512-byte block, which an edit anywhere above the label can put there.
 const crlf = (text: string): string => text.replaceAll("\n", "\r\n")
 
 const cmdLauncher = (paths: ShellPaths, mode: Mode, what: string) =>
@@ -245,7 +246,13 @@ export const shellFiles = (
   ]
   // Every harness's shims, which the shells put first on PATH only while one is connected.
   const shims = agents.flatMap((agent) => harnesses[agent].shims?.(platform, machine) ?? [])
-  const bin = shims.map((each) => file(join(paths.bin, each.path), each.content, each.mode))
+  const bin = shims.map((each) =>
+    file(
+      join(paths.bin, each.path),
+      each.path.endsWith(".cmd") ? crlf(each.content) : each.content,
+      each.mode,
+    ),
+  )
   return platform === "win32"
     ? [
         ...common,

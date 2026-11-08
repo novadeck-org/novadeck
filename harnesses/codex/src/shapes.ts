@@ -35,6 +35,11 @@ export const lists: ShapeLists = {
     "item:agent_message",
     // The person's Esc, which only an interrupted abort reads as.
     "event:turn_aborted",
+    // What a script ran: its commands and patches, which only such items read as.
+    "event:item_completed",
+    // What a turn runs under, and a compaction: notes between turns.
+    "record:turn_context",
+    "record:compacted",
     // Shell mode (`!`), and the person's answer to an async question.
     "tag:user_shell_command",
     "tag:send_user_message_question_reply",
@@ -42,8 +47,6 @@ export const lists: ShapeLists = {
   skipped: [
     // The rollout's own bookkeeping.
     "record:session_meta",
-    "record:turn_context",
-    "record:compacted",
     "record:world_state",
     "record:inter_agent_communication_metadata",
     "record:token_usage_record",
@@ -82,7 +85,6 @@ export const lists: ShapeLists = {
     "event:exec_command_begin",
     "event:exec_command_end",
     "event:exited_review_mode",
-    "event:item_completed",
     "event:item_started",
     "event:mcp_tool_call_begin",
     "event:mcp_tool_call_end",

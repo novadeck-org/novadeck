@@ -3,11 +3,12 @@ import type { MountTerminal, TerminalKey, TerminalMountProps, ViewState } from "
 import type { ViewMode } from "@novadeck/core/types"
 import type { Hold, ShowOptions, TerminalScreens, ViewPhase } from "@novadeck/terminal/view"
 
-// The shell's stage for a terminal's status: an exited or failed one waits for Enter.
+// The shell's stage for a terminal's status: an exited or failed one waits for Enter. A
+// sleeping agent has no shell to type into yet, so it locks as one that is starting.
 const phaseOf = (status: TerminalMountProps["status"]): ViewPhase =>
   status === "exited" || status === "failed"
     ? "ended"
-    : status === "starting"
+    : status === "starting" || status === "sleeping"
       ? "starting"
       : "running"
 
@@ -44,9 +45,23 @@ const opening: ViewState = { live: false, resuming: false, waits: false, lock: n
 // mounts: a view switch disposes one mount and creates the next, which takes the same
 // emulator and attachment instead of opening them again.
 export const createTerminalMount =
-  (screens: Screens): MountTerminal =>
+  (
+    screens: Screens,
+    // Says the terminal is seen until the returned release; for a backend with sleepers.
+    seen?: (key: TerminalKey) => () => void,
+  ): MountTerminal =>
   (element, key, initial) => {
     let props = initial
+    let unsee: (() => void) | undefined
+    const follow = (): void => {
+      if (!seen) return
+      if (props.seen === true && !unsee) unsee = seen(key)
+      else if (props.seen !== true && unsee) {
+        unsee()
+        unsee = undefined
+      }
+    }
+    follow()
     let hold: Hold | undefined
     let disposed = false
     // What the UI sees while no screen is held: the last state the screen had.
@@ -90,6 +105,7 @@ export const createTerminalMount =
         const before = props
         props = next
         if (disposed) return
+        follow()
         const was = before.onScreen !== false
         const is = next.onScreen !== false
         if (was && !is) {
@@ -108,6 +124,8 @@ export const createTerminalMount =
       dispose: () => {
         if (disposed) return
         disposed = true
+        unsee?.()
+        unsee = undefined
         const released = hold
         // The screen's last state stays for whatever still reads it.
         holdScreen(undefined)

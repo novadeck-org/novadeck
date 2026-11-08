@@ -76,6 +76,10 @@ export const titleSource = z.discriminatedUnion("kind", [
 
 // The runner owns every terminal's identity and facts: which terminals a session has, their
 // titles, directories, what they run and ran. Clients keep only how they show them.
+// The kind of screen that holds an agent for the person before its first session.
+export const startupScreen = z.enum(["startup", "sign-in"])
+export type StartupScreen = z.infer<typeof startupScreen>
+
 export const terminalSummary = z.strictObject({
   id,
   sessionId: id,
@@ -102,6 +106,13 @@ export const terminalSummary = z.strictObject({
   // exited. It stays true, so what names the terminal by its handle keeps a terminal to
   // find, until the person disconnects that agent's harness.
   agentRan: z.boolean(),
+  // Whether the runner can bring it back as it is if it is closed: an agent with a
+  // session to resume, or a terminal that is not running one. False for an agent running
+  // without a session, and until the runner knows.
+  restorable: z.boolean(),
+  // Whether a program runs in its shell besides the prompt, known on every OS, as an
+  // agent does. False at the prompt.
+  busy: z.boolean(),
   // The command it was opened to run at its first prompt; null for a plain shell.
   command: startupCommand.nullable(),
   // The program in its foreground when its shell was last seen, which a fresh shell
@@ -127,6 +138,10 @@ export const terminalSummary = z.strictObject({
   // before it reported a session, as Codex and Antigravity do only with their first
   // prompt. Null otherwise, and once a session is reported.
   ready: agentName.nullable(),
+  // The agent expected there, held at one of its own screens that wait for the person, a
+  // folder-trust, update, sign-in or onboarding screen, before it reported a session. Null
+  // otherwise, and once a session is reported or its prompt shows.
+  startup: z.strictObject({ agent: agentName, screen: startupScreen }).nullable(),
   // What that agent is doing; null without one.
   activity: agentActivity.nullable(),
   // Its tokens and quotas, once its records named any; null otherwise.
@@ -135,6 +150,18 @@ export const terminalSummary = z.strictObject({
   // or a message delivered to it came after. The terminal's done mark follows it, not
   // the person looking; null without one.
   reported: z.strictObject({ subject: z.string().max(256), at: z.number() }).nullable(),
+  // Whether the terminal is asleep: saved, with no shell, its agent's session to resume
+  // when someone needs it. A client that sees it wanted creates the terminal as a restore
+  // of that agent; one whose wake the runner already asked for is not asleep, as a `create`
+  // is coming. False for any terminal with a shell.
+  sleeping: z.boolean(),
+  // The agent that sleeps there or is waking there, whose session a `create` resumes;
+  // null for a terminal with a shell or nothing to resume.
+  restingAgent: agentName.nullable(),
+  // When a sleeping terminal's agent last ended a turn, in epoch milliseconds, as its
+  // standing `done` or its stored finished turns tell; null for any other terminal, or when
+  // none is kept. A terminal with a shell says it by its agent's activity.
+  lastTurnAt: z.number().nullable(),
 })
 
 // `terminals.requests` items: an agent in terminal `from` asked, through Novadeck's MCP
@@ -225,3 +252,8 @@ export type Approval = z.infer<typeof approval>
 export type ApprovalAnswer = z.infer<typeof approvalAnswer>
 export type TerminalEvent = z.infer<typeof terminalEvent>
 export type TerminalAttached = z.infer<typeof terminalAttached>
+
+// What `terminals.busy` answers: the terminals whose shell holds work a restart would end, and
+// those the runner could not read, which a client must not take for idle.
+export const busyShells = z.strictObject({ busy: z.array(id), unknown: z.array(id) })
+export type BusyShells = z.infer<typeof busyShells>

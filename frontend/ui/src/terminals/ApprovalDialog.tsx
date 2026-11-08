@@ -4,11 +4,20 @@ import { handleText } from "@novadeck/core/terminals/handle"
 import { isAgentProgram } from "@novadeck/core/terminals/process"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
+import {
+  SubjectArrow,
+  SubjectBar,
+  SubjectName,
+  SubjectNew,
+  SubjectSide,
+} from "@novadeck/toolkit/SubjectBar"
+import { Terminal } from "lucide-react"
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 
+import { TerminalSubject } from "./TerminalSubject"
 import { clipped, visibleText } from "./visible-text"
 
-type Party = Pick<TerminalMetadata, "name" | "process" | "handle">
+type Party = TerminalMetadata
 
 // What the person is asked: what an agent wants done, to which terminal, and who asks.
 // Either terminal is missing while the app doesn't know it yet.
@@ -49,32 +58,55 @@ const agentOf = (terminal: Party): string | undefined =>
     ? harnesses.find(({ id }) => id === terminal.process)?.name
     : undefined
 
-// A terminal's name is its own text: shown whole in one clipped line, with nothing invisible,
-// so it can't pose as Novadeck's.
-const named = (terminal: Party): string =>
-  `${terminal.handle ? `${handleText(terminal.handle)} · ` : ""}“${clipped(terminal.name, 40)}”`
-
-// A terminal by its handle where it has one, as the title of a short question reads.
+// A terminal by its handle where it has one, as the title of a short question reads. A name is
+// the terminal's own text: shown whole in one clipped line, with nothing invisible, so it
+// can't pose as Novadeck's.
 const short = (terminal: Party): string =>
   terminal.handle ? handleText(terminal.handle) : `“${clipped(terminal.name, 40)}”`
 
-const askerOf = (asker: Party | undefined): string => {
-  const agent = asker && agentOf(asker)
-  return asker ? `${named(asker)}${agent ? ` (${agent})` : ""}` : "An agent"
-}
-
 const titleOf = ({ action, asker, target }: ApprovalView): string =>
   action.type === "run"
-    ? asker
-      ? `Let ${short(asker)} run a command?`
-      : "Let an agent run a command?"
-    : action.type === "lead"
-      ? asker && target
-        ? `Let ${short(asker)} lead ${short(target)}?`
-        : "Let an agent lead a terminal?"
-      : target
-        ? `Close ${named(target)}?`
-        : "Close a terminal?"
+    ? "Run this in a new terminal?"
+    : asker && target
+      ? `Let ${short(asker)} ${action.type === "lead" ? "lead" : "close"} ${short(target)}?`
+      : action.type === "lead"
+        ? "Let an agent lead a terminal?"
+        : target
+          ? `Close ${short(target)}?`
+          : "Close a terminal?"
+
+// A terminal in the bar, or where the app doesn't know it yet, what it would be.
+const Side = ({
+  terminal,
+  unknown,
+}: {
+  readonly terminal: Party | undefined
+  readonly unknown: string
+}): React.JSX.Element =>
+  terminal ? (
+    <TerminalSubject terminal={terminal} />
+  ) : (
+    <SubjectSide>
+      <Terminal size={14} strokeWidth={1.5} aria-hidden="true" />
+      <SubjectName>{unknown}</SubjectName>
+    </SubjectSide>
+  )
+
+// The asking agent, then what it acts on: a terminal, or one that doesn't exist yet.
+const barOf = ({ action, asker, target }: ApprovalView): React.JSX.Element => (
+  <SubjectBar terminal>
+    <Side terminal={asker} unknown="An agent" />
+    <SubjectArrow />
+    {action.type === "run" ? (
+      <SubjectSide>
+        <Terminal size={14} strokeWidth={1.5} aria-hidden="true" />
+        <SubjectNew>new terminal</SubjectNew>
+      </SubjectSide>
+    ) : (
+      <Side terminal={target} unknown="A terminal" />
+    )}
+  </SubjectBar>
+)
 
 // The command exactly as the shell would be given it, with what draws as nothing written out,
 // its size, and a note until the person has scrolled to its end: the answer waits for that.
@@ -106,19 +138,20 @@ const CommandView = ({
   const lines = command.split("\n").length
   return (
     <>
-      {"This is a request to open a terminal in "}
-      <code className="mt-1 block max-h-16 overflow-auto break-all">{visibleText(cwd)}</code>
-      {" that runs, exactly as written:"}
       <pre
         ref={pre}
         tabIndex={0}
         aria-label="The command"
         onScroll={check}
-        className="approval-brief mt-2 mb-0 max-h-[min(240px,40vh)] overflow-auto whitespace-pre-wrap break-all text-caption"
+        className="approval-brief m-0 max-h-[min(240px,40vh)] overflow-auto whitespace-pre-wrap break-all text-caption"
       >
         {visibleText(command)}
       </pre>
-      <div className="mt-1 text-caption">
+      <div className="max-h-16 overflow-auto text-caption break-all">
+        {"In "}
+        <code>{visibleText(cwd)}</code>
+      </div>
+      <div className="text-caption">
         {`${command.length} characters, ${lines} line${lines === 1 ? "" : "s"}.`}
         {seen ? "" : " Scroll to the end of it to be able to run it."}
       </div>
@@ -126,41 +159,41 @@ const CommandView = ({
   )
 }
 
-const descriptionOf = (
-  { action, asker, target, requestId }: ApprovalView,
-  seen: { readonly id: string; readonly mark: (id: string) => void } = {
-    id: "",
-    mark: () => {},
-  },
+// The words under the title: none for a command, whose body says it.
+const descriptionOf = ({ action, target }: ApprovalView): string | null => {
+  if (action.type === "run") return null
+  if (action.type === "lead")
+    return `It would direct ${target ? short(target) : "it"} from now on, and could close it too. The brief it would send:`
+  const agent = target && agentOf(target)
+  const running = agent ?? (target?.process ? clipped(target.process, 40) : undefined)
+  return running ? `${running} is running there.` : null
+}
+
+// What shows under the words: the command and where it runs, or the brief.
+const bodyOf = (
+  { action, requestId }: ApprovalView,
+  seen: { readonly id: string; readonly mark: (id: string) => void },
 ): React.ReactNode => {
   if (action.type === "run")
     return (
-      <>
-        {`${askerOf(asker)} asks to run a command. `}
-        <CommandView
-          command={action.command}
-          cwd={action.cwd}
-          seen={seen.id === requestId}
-          onSeen={() => seen.mark(requestId)}
-        />
-      </>
+      <CommandView
+        command={action.command}
+        cwd={action.cwd}
+        seen={seen.id === requestId}
+        onSeen={() => seen.mark(requestId)}
+      />
     )
-  const agent = target && agentOf(target)
-  const running = agent ?? (target?.process ? clipped(target.process, 40) : undefined)
-  if (action.type === "close")
-    return `${askerOf(asker)} asks to close ${target ? "it" : "a terminal"}.${running ? ` ${running} is running there.` : ""}`
-  return (
-    <>
-      {`${askerOf(asker)} asks to direct ${target ? `${named(target)}${running ? ` (${running})` : ""}` : "a terminal"} from now on, and could then close it too. This is the brief it would send:`}
+  if (action.type === "lead")
+    return (
       <pre
         tabIndex={0}
         aria-label="The brief"
-        className="approval-brief mt-2 mb-0 max-h-[min(240px,40vh)] overflow-auto whitespace-pre-wrap break-words text-caption"
+        className="approval-brief m-0 max-h-[min(240px,40vh)] overflow-auto whitespace-pre-wrap break-words text-caption"
       >
         {action.brief}
       </pre>
-    </>
-  )
+    )
+  return null
 }
 
 // How long after a request shows that answering yes is held back, so keys typed ahead can't take it.
@@ -191,8 +224,10 @@ export const ApprovalDialog = ({ approval, onAnswer }: ApprovalDialogProps): Rea
     <ConfirmDialog
       key={generation.count}
       subject={approval}
+      bar={barOf}
       title={titleOf}
-      description={(view) => descriptionOf(view, { id: seen, mark: setSeen })}
+      description={descriptionOf}
+      body={(view) => bodyOf(view, { id: seen, mark: setSeen })}
       confirmDisabled={
         (lead && !(approval?.asker && approval.target)) || (run && approval?.requestId !== seen)
       }

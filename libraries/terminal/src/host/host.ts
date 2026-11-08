@@ -1,4 +1,5 @@
 import { TerminalError, type TerminalEvent } from "../contract.js"
+import { processListing, type Listing } from "../pty/descendants.js"
 import type { Disposable, EndBudget, ProcessTrees, PtyOptions } from "../pty/pty.js"
 import {
   createTerminal,
@@ -21,7 +22,7 @@ export type TerminalHostOptions = {
   readonly kill: {
     /** How long a program has to end after its kill before it is forced, in milliseconds. */
     readonly graceMs: number
-    /** On Windows, how long what a closed terminal's tree left running has to end by itself. */
+    /** How long what a closed terminal's program started has to end by itself. */
     readonly treeGraceMs: number
     /** How long ending every terminal may take in all as the host shuts down. */
     readonly shutdownTreesMs: number
@@ -30,6 +31,10 @@ export type TerminalHostOptions = {
   }
   /** Windows' process trees, which a closed terminal's programs are ended by. */
   readonly trees: ProcessTrees
+  /** The pid of the agent terminal `id` runs, whose processes its end follows; if any. */
+  readonly follows?: ((id: string) => number | undefined) | undefined
+  /** The processes, for `follows`: this system's unless a test plays them. */
+  readonly listing?: Listing | undefined
   /** How its ptys start: as a test plays them, and where their programs are kept. */
   readonly pty?: PtyOptions
   /**
@@ -79,6 +84,12 @@ export type TerminalHost = {
    * Nothing once the host is shutting down.
    */
   remove(id: string): void
+  /**
+   * Lets ended terminal `id` go at once, as eviction does but for the caller's own reason,
+   * with no listener told and its viewers, if any, not drained: its screen is gone with it.
+   * Nothing for one whose program still runs, or once the host is shutting down.
+   */
+  discard(id: string): void
   /** Ends `owner`'s attachments and control, on every terminal, closed ones too. */
   release(owner: string): void
   /**
@@ -119,8 +130,11 @@ export type TerminalHost = {
 }
 
 type Entry = {
+  readonly id: string
   readonly terminal: HostedTerminal
   closing?: Promise<void>
+  /** Its shell may have exited while what it left is still ended, which a shutdown waits for. */
+  ending?: boolean
   /** In exit order across terminals; eviction goes oldest first. */
   exitOrder: number
   /** Work under way that the terminal must outlast. */
@@ -129,6 +143,7 @@ type Entry = {
 }
 
 export const createTerminalHost = (options: TerminalHostOptions): TerminalHost => {
+  const listing = options.listing ?? processListing(options.pty?.platform)
   const { limits, kill } = options
   const open = new Map<string, Entry>()
   const drained = new Map<string, Entry>()
@@ -147,7 +162,10 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
     const idle = [...open.entries()]
       .filter(
         ([, entry]) =>
-          entry.terminal.exit !== null && entry.terminal.attached === 0 && entry.kept === 0,
+          entry.terminal.exit !== null &&
+          entry.terminal.attached === 0 &&
+          entry.kept === 0 &&
+          !entry.ending,
       )
       .toSorted(([, a], [, b]) => a.exitOrder - b.exitOrder)
     let excess = idle.length - limits.maxRetained
@@ -172,10 +190,11 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
   /**
    * Ends a terminal's program and what it started (see the pty's `end`), once its exit is
    * handled. A close already waiting as shutdown begins takes no more than shutdown's own
-   * time: each relay or taskkill run within what is left of it, and what a Windows tree left
+   * time: each relay or taskkill run within what is left of it, and what its program left
    * running ends by shutdown's shorter grace.
    */
-  const end = async ({ terminal }: Entry) => {
+  const end = async ({ id, terminal }: Entry) => {
+    const agent = options.follows?.(id)
     const budget: EndBudget = {
       run: runMs,
       graceEnds: (began) =>
@@ -192,6 +211,7 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
         treeGraceMs: kill.treeGraceMs,
         trees: options.trees,
         budget,
+        follow: agent === undefined ? undefined : { agent, listing },
       }),
       terminal.exited,
     ])
@@ -215,7 +235,12 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
   const terminate = (entry: Entry): Promise<void> => {
     if (entry.closing) return entry.closing
     if (entry.terminal.exit !== null) return entry.terminal.exited
+    entry.ending = true
+    const ended = () => {
+      entry.ending = false
+    }
     entry.closing = end(entry)
+    entry.closing.then(ended, ended)
     return entry.closing
   }
 
@@ -242,7 +267,7 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
               failed: (error: unknown, event: string) => options.failed!(error, event, id),
             }),
           })
-          const entry: Entry = { terminal, exitOrder: 0, kept: 0, restarting: false }
+          const entry: Entry = { id, terminal, exitOrder: 0, kept: 0, restarting: false }
           open.set(id, entry)
           terminal.on("exit", () => {
             exits += 1
@@ -270,6 +295,13 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
       open.delete(id)
       drained.set(id, entry)
       settle(id)
+    },
+    discard: (id) => {
+      const entry = open.get(id)
+      if (!entry || stopping || entry.terminal.exit === null) return
+      entry.terminal.gone()
+      entry.terminal.dispose()
+      open.delete(id)
     },
     release: (owner) => {
       for (const [id, entry] of [...open, ...drained]) {

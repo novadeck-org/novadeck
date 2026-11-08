@@ -1,6 +1,7 @@
 import type { Project } from "@novadeck/core/types"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 import { Popover } from "@novadeck/toolkit/Popover"
+import { SubjectBar, SubjectDetail, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { ChevronDown, Folder, FolderOpen } from "lucide-react"
 import { useRef, useState } from "react"
@@ -8,6 +9,17 @@ import { useRef, useState } from "react"
 import type { ProjectArrangement } from "./project-arrangement"
 import { elsewhereStatus, statusText, type ProjectStatus } from "./project-status"
 import { ProjectList } from "./ProjectList"
+
+// The project a removal asks about, as a window header names it: its folder and where it is.
+const removeBar = (shown: Project): React.JSX.Element => (
+  <SubjectBar>
+    <SubjectSide>
+      <Folder size={14} strokeWidth={1.5} aria-hidden="true" />
+      <SubjectName>{shown.name}</SubjectName>
+    </SubjectSide>
+    <SubjectDetail end>{shown.directory}</SubjectDetail>
+  </SubjectBar>
+)
 
 type WorkspaceSwitcherProps = {
   projects: Project[]
@@ -125,7 +137,8 @@ export const WorkspaceSwitcher = ({
       </Popover>
       <ConfirmDialog
         subject={removing}
-        title={(shown) => `Remove “${shown.name}”?`}
+        bar={removeBar}
+        title={() => "Remove this project?"}
         description={() => "Its terminals close. The folder on disk stays as it is."}
         confirmLabel="Remove project"
         cancelLabel="Cancel"

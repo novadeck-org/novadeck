@@ -44,6 +44,7 @@
     "./shown": "./src/shown.ts",
     "./sidebar-item.css": "./src/sidebar-item.css",
     "./SidebarItem": "./src/SidebarItem.tsx",
+    "./SubjectBar": "./src/SubjectBar.tsx",
     "./surface.css": "./src/surface.css",
     "./Switch": "./src/Switch.tsx",
     "./Tabs": "./src/Tabs.tsx",

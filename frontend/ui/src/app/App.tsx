@@ -1,5 +1,6 @@
 import { allTeams, leadChain, litTeams, sameLitTeams, sameTeams } from "@novadeck/core/derivations"
 import type { Backend, BackendSelection, CreateBackend, TerminalKey } from "@novadeck/core/port"
+import { activeProject } from "@novadeck/core/state"
 import {
   useCallback,
   useEffect,
@@ -14,6 +15,7 @@ import { HashRouter, MemoryRouter } from "react-router"
 import { sidebarToggle } from "../interaction/dom"
 import { dictationKeys } from "../interaction/shortcuts"
 import { cancelTerminalTransition } from "../layouts/transition"
+import { elsewhereSessionsText } from "../projects/session-marks"
 import { useDesktop } from "../shell/desktop"
 import { panelLabels } from "../shell/panels"
 import { sidebarVisible } from "../shell/shell-state"
@@ -34,11 +36,12 @@ import { announceShown, EmbeddedContext, heldInput, holdInputUntilEngaged } from
 import { FooterSection } from "./FooterSection"
 import { HeaderSection } from "./HeaderSection"
 import { InboxHost } from "./InboxHost"
-import { sourceShown } from "./routing"
+import { historyShown, sourceShown } from "./routing"
 import { currentContext, currentState, currentTarget, sameItems, shallowEqual } from "./selectors"
 import { SidebarSection } from "./SidebarSection"
 import { previewTeamFold, toggleTeamFold, useFoldedLeads } from "./team-fold"
 import { useInboxBadge } from "./useInboxBadge"
+import { useSessionMarks } from "./useSessionMarks"
 import { VisitorBar, VisitorCover } from "./Visitor"
 import { WorkspaceOverlays } from "./WorkspaceOverlays"
 import { WorkspaceProvider } from "./WorkspaceProvider"
@@ -198,14 +201,19 @@ const TeamWireSection = ({
 // The rail and the Zen dock read the bell's badge and rings themselves, so an unread change that
 // leaves them as they were re-renders neither them nor the app around them.
 const RailWithBadge = (
-  props: Omit<ComponentProps<typeof SidebarRail>, "badge" | "bellRings">,
-): React.JSX.Element => (
-  <SidebarRail
-    {...props}
-    badge={useInboxBadge()}
-    bellRings={useUiState((state) => state.bellRings)}
-  />
-)
+  props: Omit<ComponentProps<typeof SidebarRail>, "badge" | "bellRings" | "sessionsAsk">,
+): React.JSX.Element => {
+  const marks = useSessionMarks()
+  const openId = useWorkspaceState((workspace) => activeProject(workspace)!.activeSessionId)
+  return (
+    <SidebarRail
+      {...props}
+      badge={useInboxBadge()}
+      bellRings={useUiState((state) => state.bellRings)}
+      sessionsAsk={elsewhereSessionsText(marks, openId)}
+    />
+  )
+}
 
 const ZenDockWithBadge = (
   props: Omit<ComponentProps<typeof ZenDock>, "badge" | "bellRings">,
@@ -226,6 +234,7 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
       sidebarCollapsed,
       sidebarVisible: sidebarVisible(state.shell, desktop),
       sidebarPanel: state.location.route.panel,
+      sidebarBack: state.shell.sidebarBack,
       fontSize: state.preferences.fontSize,
       enabledViews: state.preferences.enabledViews,
     }
@@ -249,15 +258,16 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
       mobile={mobile}
       sidebarVisible={shell.sidebarVisible}
       sidebarPanel={sidebarPanel}
+      sidebarBack={shell.sidebarBack}
       zen={zen}
       hasSource={sourceShown(services.backend)}
+      hasHistory={historyShown(services.backend)}
       order={railOrder}
       onOrder={(order) => {
         setRailOrder(order)
         writeSidebarOrder(order)
       }}
       toggleSidebar={toggleSidebar}
-      hideSidebar={hideSidebar}
     />
   )
   return (

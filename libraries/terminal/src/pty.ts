@@ -3,6 +3,11 @@
 export {
   foregroundProcess,
   hasChildProcess,
+  tableForeground,
+  hasTerminalChild,
+  processTable,
+  type TableRow,
+  hasJobUnder,
   foregroundRuns,
   openFiles,
   processGroup,
@@ -12,6 +17,15 @@ export {
   terminalForeground,
   type Foreground,
 } from "./pty/foreground.js"
-export { anyRunning, relayMs, Trees, type Member } from "./pty/trees.js"
+export {
+  placement,
+  processKey,
+  processListing,
+  type Followed,
+  type Listed,
+  type Listing,
+  type Placement,
+} from "./pty/descendants.js"
+export { anyRunning, chainTo, relayMs, Trees, type Member } from "./pty/trees.js"
 export type { ProcessTrees, Pty, PtyOptions } from "./pty/pty.js"
 export { userScopes } from "./pty/scopes.js"

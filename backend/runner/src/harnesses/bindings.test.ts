@@ -1,7 +1,14 @@
 import type { SessionObserved, TelemetryObserved } from "@novadeck/harness-core/events"
 
 import { describe, expect, it } from "../test.js"
-import { observe, versionOf, withVersion, type Facts, type Sessions } from "./bindings.js"
+import {
+  observe,
+  versionOf,
+  withoutLaunch,
+  withVersion,
+  type Facts,
+  type Sessions,
+} from "./bindings.js"
 
 const idle: Sessions = { sessions: {}, binding: null, cwd: "/home" }
 const facts: Facts = {
@@ -21,7 +28,7 @@ const seen = (fields: Partial<SessionObserved> = {}): SessionObserved => ({
   ...fields,
 })
 const running: Sessions = {
-  sessions: { claude: { sessionId: "a", seq: 2_000 } },
+  sessions: { claude: { sessionId: "a", seq: 2_000, cwd: "/work" } },
   binding: { agent: "claude", sessionId: "a", instance: null },
   cwd: "/work",
 }
@@ -29,7 +36,7 @@ const running: Sessions = {
 describe("observing a harness session", () => {
   it("binds the session now holding the foreground, in its directory", () => {
     expect(observe(idle, seen({ cwd: "/work" }), facts)).toEqual({
-      sessions: { claude: { sessionId: "a", seq: 2_000 } },
+      sessions: { claude: { sessionId: "a", seq: 2_000, cwd: "/work" } },
       binding: { agent: "claude", sessionId: "a", instance: null },
       cwd: "/work",
     })
@@ -37,7 +44,7 @@ describe("observing a harness session", () => {
 
   it("keeps a session from a hook started before the prompt without binding it", () => {
     expect(observe(idle, seen({ startedAt: 500, cwd: "/work" }), facts)).toEqual({
-      sessions: { claude: { sessionId: "a", seq: 500 } },
+      sessions: { claude: { sessionId: "a", seq: 500, cwd: "/work" } },
       binding: null,
       cwd: "/home",
     })
@@ -189,6 +196,101 @@ describe("observing a harness session", () => {
     expect(observe(running, seen({ startedAt: 3_000, cwd: "/elsewhere" }), facts)?.cwd).toBe(
       "/elsewhere",
     )
+  })
+})
+
+describe("the launch flags a session keeps", () => {
+  it("are those of the process that started it, and stay as it reports again without them", () => {
+    const flags = ["--permission-mode", "plan"]
+    const first = observe(idle, seen({ launch: flags }), facts)!
+    expect(first.sessions.claude).toEqual({
+      sessionId: "a",
+      seq: 2_000,
+      cwd: "/home",
+      launch: flags,
+    })
+    const later = observe(first, seen({ startedAt: 3_000 }), facts)!
+    expect(later.sessions.claude).toEqual({
+      sessionId: "a",
+      seq: 3_000,
+      cwd: "/home",
+      launch: flags,
+    })
+    // The same process reporting again says what it has.
+    const changed = observe(
+      first,
+      seen({ startedAt: 3_000, launch: ["--permission-mode", "auto"] }),
+      facts,
+    )!
+    expect(changed.sessions.claude?.launch).toEqual(["--permission-mode", "auto"])
+  })
+
+  it("keep what a resumed process, given back only the flags its harness forgets, doesn't tell", () => {
+    const flags = ["--permission-mode", "plan", "--effort", "high", "-c", "a=1", "-c", "b=2"]
+    const first = observe(idle, seen({ launch: flags }), facts)!
+    const resumed = observe(
+      first,
+      seen({ startedAt: 3_000, launch: ["--effort", "low", "-c", "b=3"] }),
+      facts,
+    )!
+    expect(resumed.sessions.claude?.launch).toEqual([
+      "--permission-mode",
+      "plan",
+      "-c",
+      "a=1",
+      "-c",
+      "b=3",
+      "--effort",
+      "low",
+    ])
+    // The flags the harness remembers stay with the session, those it forgets are gone
+    // once the process doesn't tell them: it was resumed without on purpose.
+    const bare = observe(first, seen({ startedAt: 3_000, launch: [] }), facts)!
+    expect(bare.sessions.claude?.launch).toEqual([
+      "--permission-mode",
+      "plan",
+      "-c",
+      "a=1",
+      "-c",
+      "b=2",
+    ])
+  })
+
+  it("lose a bypass the person resumed the session without", () => {
+    const first = observe(
+      idle,
+      seen({
+        launch: ["--dangerously-skip-permissions", "--permission-mode", "bypassPermissions"],
+      }),
+      facts,
+    )!
+    const bare = observe(first, seen({ startedAt: 3_000, launch: [] }), facts)!
+    expect(bare.sessions.claude).toEqual({ sessionId: "a", seq: 3_000, cwd: "/home" })
+    // A process that doesn't tell its flags at all leaves the session's.
+    const silent = observe(first, seen({ startedAt: 3_000 }), facts)!
+    expect(silent.sessions.claude?.launch).toEqual(first.sessions.claude?.launch)
+  })
+
+  it("can be forgotten for a session, so its next resume goes bare", () => {
+    const first = observe(idle, seen({ launch: ["--effort", "high"] }), facts)!
+    expect(withoutLaunch(first.sessions, "claude").claude).toEqual({
+      sessionId: "a",
+      seq: 2_000,
+      cwd: "/home",
+    })
+    expect(withoutLaunch(first.sessions, "codex")).toBe(first.sessions)
+  })
+
+  it("are none for a new session whose process didn't say, and none when it has no flags", () => {
+    const first = observe(idle, seen({ launch: ["--model", "opus"] }), facts)!
+    const next = observe(
+      first,
+      seen({ sessionId: "b", startedAt: 3_000, evidence: "native-switch" }),
+      facts,
+    )!
+    expect(next.sessions.claude).toEqual({ sessionId: "b", seq: 3_000, cwd: "/home" })
+    const bare = observe(idle, seen({ launch: [] }), facts)!
+    expect(bare.sessions.claude).toEqual({ sessionId: "a", seq: 2_000, cwd: "/home" })
   })
 })
 

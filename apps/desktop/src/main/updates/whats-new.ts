@@ -86,6 +86,12 @@ type Release = {
   readonly notes: ReleaseNotes | undefined
 }
 
+type NoteItem = {
+  readonly title: string
+  readonly line: string
+  readonly icon?: string | undefined
+}
+
 /** A release as GitHub answers it, or undefined for an answer that is not one. */
 const releaseOf = (answer: unknown): Release | undefined => {
   if (typeof answer !== "object" || answer === null) return undefined
@@ -180,13 +186,24 @@ const readSkipped = async (
   return found.toSorted((a, b) => (newer(a.version, b.version) ? -1 : 1))
 }
 
+// A list with each title and line once, the first copy kept.
+const distinct = (items: readonly NoteItem[]): NoteItem[] => {
+  const seen = new Set<string>()
+  return items.flatMap(({ title, line, icon }) => {
+    const key = `${title}\n${line}`
+    if (seen.has(key)) return []
+    seen.add(key)
+    return [icon ? { title, line, icon } : { title, line }]
+  })
+}
+
 /**
- * The highlights of `version` and of the releases skipped on the way to it, newest first.
- * A promotion's notes tell every change since the stable release before it, so the notes of
- * a release older than a promotion, with no stable release between, are left out: that
- * promotion tells them better. A stable release whose notes are not a promotion's, as when
- * writing them failed, still bounds the promotion after it. A highlight two releases share
- * is told once. `from` is the version they are new since, when the launch knows one.
+ * The highlights of `version` and of the releases skipped on the way to it, newest first. A
+ * promotion's notes tell every change since the stable release before it, so the notes of a
+ * release older than a promotion, with no stable release between, are left out: that
+ * promotion tells them better. A stable release whose notes are not a promotion's, as
+ * when writing them failed, still bounds the promotion after it. A highlight two releases
+ * share is told once. `from` is the version they are new since, when the launch knows one.
  */
 const gather = (
   version: string,
@@ -206,15 +223,7 @@ const gather = (
         ),
     )
   const told = releases.filter((release) => release.notes?.kind === "promote" || !covered(release))
-  const seen = new Set<string>()
-  const highlights = told
-    .flatMap((release) => release.notes?.highlights ?? [])
-    .flatMap(({ title, line, icon }) => {
-      const key = `${title}\n${line}`
-      if (seen.has(key)) return []
-      seen.add(key)
-      return [icon ? { title, line, icon } : { title, line }]
-    })
+  const highlights = distinct(told.flatMap((release) => release.notes?.highlights ?? []))
   return parseWhatsNew({ version, from, highlights })
 }
 
@@ -233,10 +242,10 @@ export type ReleaseFetch = (
 }>
 
 /**
- * What is new in the version this launch runs, while `pending` names it: the highlights of
- * its release and of the releases skipped since `from`, newest first, with `from` for the
- * card to name (see `gather`). The releases are read once per launch, the first time it is
- * asked for, and the answer kept. When they are read and have no highlights, or the
+ * What is new in the version this launch runs, while `pending` names it: the highlights of its
+ * release and of the releases skipped since `from`, newest first, with `from` for the card to
+ * name (see `gather`). The releases are read once per launch, the first time it is asked for,
+ * and the answer kept. When they are read and have none, or the
  * version's release does not exist, there is nothing to show ever, so the pending mark is
  * cleared. A failure to read it, offline, timed out, rate limited or a server error, is
  * tried once more `readRetryMs` later, and when that fails too the mark is left for a later
@@ -352,7 +361,7 @@ export const keepWhatsNew = ({
  * What is new in the version a copy that cannot install it is offered: the highlights of
  * `offered` and of the releases between this copy's `version` and it, newest first, as
  * `keepWhatsNew` tells them after an update, with `from` this version. Undefined when there
- * is no offer, when none of the releases names highlights, and when they can't be read;
+ * is no offer, when none of the releases names any, and when they can't be read;
  * nothing is thrown. A read is kept for the version it was made for, except one that failed
  * for a reason that may pass, or found a prerelease whose notes are not written yet, which
  * are tried again at the next ask.
@@ -413,7 +422,7 @@ type WhatsNewIpc = {
 }
 
 /**
- * Answers the app's own pages: the request for what is new, and its dismissal. `window`
+ * Answers the app's own pages: the request for what is new, and the dismissal of it. `window`
  * names the window of a request from the main frame of the app's own page, or undefined for
  * any other sender, which is ignored (and told there is nothing new). The page names no
  * version or address.

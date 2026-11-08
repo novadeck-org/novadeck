@@ -1,0 +1,2896 @@
+{
+  "screens": {
+    "words 80x24: Showing detailed transcript of it": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 20,
+        "column": 36
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Cooked for 0s · done 2:35 PM",
+        "17": "                                                            ◐ medium · /effort",
+        "18": "────────────────────────────────────────────────────────────────────────────────",
+        "19": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": Showing",
+        "20": "  detailed transcript of it [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "  detailed transcript of it [n7Q2kx]"
+      }
+    },
+    "words 80x24: enter to return · space to reply": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 20,
+        "column": 34
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Cooked for 0s · done 2:35 PM",
+        "17": "                                                  Ctrl+Y to paste deleted text",
+        "18": "────────────────────────────────────────────────────────────────────────────────",
+        "19": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": enter to",
+        "20": "  return · space to reply [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "  return · space to reply [n7Q2kx]"
+      }
+    },
+    "words 80x24: Esc to cancel · ctrl+s to scope": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 20,
+        "column": 35
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Cooked for 0s · done 2:35 PM",
+        "17": "                                                  Ctrl+Y to paste deleted text",
+        "18": "────────────────────────────────────────────────────────────────────────────────",
+        "19": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": Esc to",
+        "20": "  cancel · ctrl+s to scope [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "  cancel · ctrl+s to scope [n7Q2kx]"
+      }
+    },
+    "words 80x24: reverse-i-search: merge": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 20,
+        "column": 34
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Cooked for 0s · done 2:35 PM",
+        "17": "                                                  Ctrl+Y to paste deleted text",
+        "18": "────────────────────────────────────────────────────────────────────────────────",
+        "19": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\":",
+        "20": "  reverse-i-search: merge [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "  reverse-i-search: merge [n7Q2kx]"
+      }
+    },
+    "words 80x24: ? / esc close": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 20,
+        "column": 16
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Cooked for 0s · done 2:35 PM",
+        "17": "                                                  Ctrl+Y to paste deleted text",
+        "18": "────────────────────────────────────────────────────────────────────────────────",
+        "19": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": ? / esc",
+        "20": "  close [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "  close [n7Q2kx]"
+      }
+    },
+    "words 80x24: Side from main thread · ctrl+/ to switch": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 20,
+        "column": 41
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Cooked for 0s · done 2:35 PM",
+        "17": "                                                  Ctrl+Y to paste deleted text",
+        "18": "────────────────────────────────────────────────────────────────────────────────",
+        "19": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": Side from",
+        "20": "  main thread · ctrl+/ to switch [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "  main thread · ctrl+/ to switch [n7Q2kx]"
+      }
+    },
+    "words 80x24: enter to create · esc to clear": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 20,
+        "column": 32
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Cooked for 0s · done 2:35 PM",
+        "17": "                                                  Ctrl+Y to paste deleted text",
+        "18": "────────────────────────────────────────────────────────────────────────────────",
+        "19": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": enter to",
+        "20": "  create · esc to clear [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "  create · esc to clear [n7Q2kx]"
+      }
+    },
+    "words 80x24: then merge it · esc back": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 20,
+        "column": 24
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Cooked for 0s · done 2:35 PM",
+        "17": "                                                  Ctrl+Y to paste deleted text",
+        "18": "────────────────────────────────────────────────────────────────────────────────",
+        "19": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": then merge",
+        "20": "  it · esc back [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "  it · esc back [n7Q2kx]"
+      }
+    },
+    "words 80x24: Keyboard: ctrl+k esc Close": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 20,
+        "column": 27
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Cooked for 0s · done 2:35 PM",
+        "17": "                                                  Ctrl+Y to paste deleted text",
+        "18": "────────────────────────────────────────────────────────────────────────────────",
+        "19": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": Keyboard:",
+        "20": "  ctrl+k esc Close [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "  ctrl+k esc Close [n7Q2kx]"
+      }
+    },
+    "words 40x12: Showing detailed transcript of it": {
+      "height": 12,
+      "columns": 40,
+      "cursor": {
+        "row": 10,
+        "column": 9
+      },
+      "rows": {
+        "1": "❯ Warm up                               ",
+        "3": "● Warmed up.",
+        "5": "✻ Brewed for 0s · done 2:36 PM",
+        "6": "                    ◐ medium · /effort",
+        "7": "────────────────────────────────────────",
+        "8": "❯ your ask \"Merge the branch?\":",
+        "9": "  Showing detailed transcript of it",
+        "10": "  [n7Q2kx] ",
+        "11": "────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "10": "  [n7Q2kx]"
+      }
+    },
+    "words 40x12: enter to return · space to reply": {
+      "height": 12,
+      "columns": 40,
+      "cursor": {
+        "row": 10,
+        "column": 36
+      },
+      "rows": {
+        "1": "❯ Warm up                               ",
+        "3": "● Warmed up.",
+        "5": "✻ Brewed for 0s · done 2:36 PM",
+        "6": "          Ctrl+Y to paste deleted text",
+        "7": "────────────────────────────────────────",
+        "8": "❯ [Novadeck Inbox reply, n7Q2kx] Re",
+        "9": "  your ask \"Merge the branch?\": enter",
+        "10": "  to return · space to reply [n7Q2kx] ",
+        "11": "────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "10": "  to return · space to reply [n7Q2kx]"
+      }
+    },
+    "words 40x12: Esc to cancel · ctrl+s to scope": {
+      "height": 12,
+      "columns": 40,
+      "cursor": {
+        "row": 10,
+        "column": 34
+      },
+      "rows": {
+        "1": "❯ Warm up                               ",
+        "3": "● Warmed up.",
+        "5": "✻ Brewed for 0s · done 2:36 PM",
+        "6": "          Ctrl+Y to paste deleted text",
+        "7": "────────────────────────────────────────",
+        "8": "❯ [Novadeck Inbox reply, n7Q2kx] Re",
+        "9": "  your ask \"Merge the branch?\": Esc to",
+        "10": "  cancel · ctrl+s to scope [n7Q2kx] ",
+        "11": "────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "10": "  cancel · ctrl+s to scope [n7Q2kx]"
+      }
+    },
+    "words 40x12: reverse-i-search: merge": {
+      "height": 12,
+      "columns": 40,
+      "cursor": {
+        "row": 10,
+        "column": 33
+      },
+      "rows": {
+        "1": "❯ Warm up                               ",
+        "3": "● Warmed up.",
+        "5": "✻ Brewed for 0s · done 2:36 PM",
+        "6": "          Ctrl+Y to paste deleted text",
+        "7": "────────────────────────────────────────",
+        "8": "❯ [Novadeck Inbox reply, n7Q2kx] Re",
+        "9": "  your ask \"Merge the branch?\":",
+        "10": "  reverse-i-search: merge [n7Q2kx] ",
+        "11": "────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "10": "  reverse-i-search: merge [n7Q2kx]"
+      }
+    },
+    "words 40x12: ? / esc close": {
+      "height": 12,
+      "columns": 40,
+      "cursor": {
+        "row": 10,
+        "column": 19
+      },
+      "rows": {
+        "1": "❯ Warm up                               ",
+        "3": "● Warmed up.",
+        "5": "✻ Brewed for 0s · done 2:36 PM",
+        "6": "          Ctrl+Y to paste deleted text",
+        "7": "────────────────────────────────────────",
+        "8": "❯ [Novadeck Inbox reply, n7Q2kx] Re",
+        "9": "  your ask \"Merge the branch?\": ? /",
+        "10": "  esc close [n7Q2kx] ",
+        "11": "────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "10": "  esc close [n7Q2kx]"
+      }
+    },
+    "words 40x12: Side from main thread · ctrl+/ to switch": {
+      "height": 12,
+      "columns": 40,
+      "cursor": {
+        "row": 10,
+        "column": 9
+      },
+      "rows": {
+        "1": "❯ Warm up                               ",
+        "3": "● Warmed up.",
+        "5": "✻ Brewed for 0s · done 2:36 PM",
+        "6": "          Ctrl+Y to paste deleted text",
+        "7": "────────────────────────────────────────",
+        "8": "❯ your ask \"Merge the branch?\": Side",
+        "9": "  from main thread · ctrl+/ to switch",
+        "10": "  [n7Q2kx] ",
+        "11": "────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "10": "  [n7Q2kx]"
+      }
+    },
+    "words 40x12: enter to create · esc to clear": {
+      "height": 12,
+      "columns": 40,
+      "cursor": {
+        "row": 10,
+        "column": 34
+      },
+      "rows": {
+        "1": "❯ Warm up                               ",
+        "3": "● Warmed up.",
+        "5": "✻ Brewed for 0s · done 2:36 PM",
+        "6": "          Ctrl+Y to paste deleted text",
+        "7": "────────────────────────────────────────",
+        "8": "❯ [Novadeck Inbox reply, n7Q2kx] Re",
+        "9": "  your ask \"Merge the branch?\": enter",
+        "10": "  to create · esc to clear [n7Q2kx] ",
+        "11": "────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "10": "  to create · esc to clear [n7Q2kx]"
+      }
+    },
+    "words 40x12: then merge it · esc back": {
+      "height": 12,
+      "columns": 40,
+      "cursor": {
+        "row": 10,
+        "column": 29
+      },
+      "rows": {
+        "1": "❯ Warm up                               ",
+        "3": "● Warmed up.",
+        "5": "✻ Brewed for 0s · done 2:36 PM",
+        "6": "          Ctrl+Y to paste deleted text",
+        "7": "────────────────────────────────────────",
+        "8": "❯ [Novadeck Inbox reply, n7Q2kx] Re",
+        "9": "  your ask \"Merge the branch?\": then",
+        "10": "  merge it · esc back [n7Q2kx] ",
+        "11": "────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "10": "  merge it · esc back [n7Q2kx]"
+      }
+    },
+    "words 40x12: Keyboard: ctrl+k esc Close": {
+      "height": 12,
+      "columns": 40,
+      "cursor": {
+        "row": 10,
+        "column": 36
+      },
+      "rows": {
+        "1": "❯ Warm up                               ",
+        "3": "● Warmed up.",
+        "5": "✻ Brewed for 0s · done 2:36 PM",
+        "6": "          Ctrl+Y to paste deleted text",
+        "7": "────────────────────────────────────────",
+        "8": "❯ [Novadeck Inbox reply, n7Q2kx] Re",
+        "9": "  your ask \"Merge the branch?\":",
+        "10": "  Keyboard: ctrl+k esc Close [n7Q2kx] ",
+        "11": "────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "10": "  Keyboard: ctrl+k esc Close [n7Q2kx]"
+      }
+    },
+    "words 120x24: Showing detailed transcript of it": {
+      "height": 24,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 108
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                                                               ",
+        "8": "● Warmed up.",
+        "10": "✻ Churned for 0s · done 2:38 PM",
+        "18": "                                                                                                    ◐ medium · /effort",
+        "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "20": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": Showing detailed transcript of it [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": Showing detailed transcript of it [n7Q2kx]"
+      }
+    },
+    "words 120x24: enter to return · space to reply": {
+      "height": 24,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 107
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                                                               ",
+        "8": "● Warmed up.",
+        "10": "✻ Churned for 0s · done 2:38 PM",
+        "18": "                                                                                          Ctrl+Y to paste deleted text",
+        "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "20": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": enter to return · space to reply [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": enter to return · space to reply [n7Q2kx]"
+      }
+    },
+    "words 120x24: Esc to cancel · ctrl+s to scope": {
+      "height": 24,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 106
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                                                               ",
+        "8": "● Warmed up.",
+        "10": "✻ Churned for 0s · done 2:38 PM",
+        "18": "                                                                                          Ctrl+Y to paste deleted text",
+        "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "20": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": Esc to cancel · ctrl+s to scope [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": Esc to cancel · ctrl+s to scope [n7Q2kx]"
+      }
+    },
+    "words 120x24: reverse-i-search: merge": {
+      "height": 24,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 98
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                                                               ",
+        "8": "● Warmed up.",
+        "10": "✻ Churned for 0s · done 2:38 PM",
+        "18": "                                                                                          Ctrl+Y to paste deleted text",
+        "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "20": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": reverse-i-search: merge [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": reverse-i-search: merge [n7Q2kx]"
+      }
+    },
+    "words 120x24: ? / esc close": {
+      "height": 24,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 88
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                                                               ",
+        "8": "● Warmed up.",
+        "10": "✻ Churned for 0s · done 2:38 PM",
+        "18": "                                                                                          Ctrl+Y to paste deleted text",
+        "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "20": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": ? / esc close [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": ? / esc close [n7Q2kx]"
+      }
+    },
+    "words 120x24: Side from main thread · ctrl+/ to switch": {
+      "height": 24,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 115
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                                                               ",
+        "8": "● Warmed up.",
+        "10": "✻ Churned for 0s · done 2:38 PM",
+        "18": "                                                                                          Ctrl+Y to paste deleted text",
+        "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "20": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": Side from main thread · ctrl+/ to switch [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": Side from main thread · ctrl+/ to switch [n7Q2kx]"
+      }
+    },
+    "words 120x24: enter to create · esc to clear": {
+      "height": 24,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 105
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                                                               ",
+        "8": "● Warmed up.",
+        "10": "✻ Churned for 0s · done 2:38 PM",
+        "18": "                                                                                          Ctrl+Y to paste deleted text",
+        "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "20": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": enter to create · esc to clear [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": enter to create · esc to clear [n7Q2kx]"
+      }
+    },
+    "words 120x24: then merge it · esc back": {
+      "height": 24,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 99
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                                                               ",
+        "8": "● Warmed up.",
+        "10": "✻ Churned for 0s · done 2:38 PM",
+        "18": "                                                                                          Ctrl+Y to paste deleted text",
+        "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "20": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": then merge it · esc back [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": then merge it · esc back [n7Q2kx]"
+      }
+    },
+    "words 120x24: Keyboard: ctrl+k esc Close": {
+      "height": 24,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 101
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                                                               ",
+        "8": "● Warmed up.",
+        "10": "✻ Churned for 0s · done 2:38 PM",
+        "18": "                                                                                          Ctrl+Y to paste deleted text",
+        "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "20": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": Keyboard: ctrl+k esc Close [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": Keyboard: ctrl+k esc Close [n7Q2kx]"
+      }
+    },
+    "claude views 80x24: transcript": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 23,
+        "column": 0
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "                                                02:40 PM claude-opus-5-5",
+        "9": "● Warmed up.",
+        "11": "✻ Sautéed for 0s · done 2:40 PM",
+        "22": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  Showing detailed transcript · ctrl+o to toggle · ? for shortcuts      verbose "
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "22": "",
+        "23": "  Showing detailed transcript · ctrl+o to toggle · ? for shortcuts      verbose"
+      }
+    },
+    "claude views 80x24: transcript closed": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 20,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Sautéed for 0s · done 2:40 PM",
+        "18": "                                                            ◐ medium · /effort",
+        "19": "────────────────────────────────────────────────────────────────────────────────",
+        "20": "❯  ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on · ← for agents"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "❯"
+      }
+    },
+    "claude views 80x24: history search": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 22,
+        "column": 6
+      },
+      "rows": {
+        "1": "✻ Sautéed for 0s · done 2:40 PM",
+        "3": "────────────────────────────────────────────────────────────────────────────────",
+        "4": "  Search prompts · everywhere",
+        "12": "  ❯ 5s ago   Warm up",
+        "13": "  ╭──────────────────────────────────────────────────────────────────────────╮",
+        "14": "  │ Warm up                                                                  │",
+        "15": "  │                                                                          │",
+        "16": "  │                                                                          │",
+        "17": "  │                                                                          │",
+        "18": "  │                                                                          │",
+        "19": "  │                                                                          │",
+        "20": "  ╰──────────────────────────────────────────────────────────────────────────╯",
+        "21": "  ╭──────────────────────────────────────────────────────────────────────────╮",
+        "22": "  │ ⌕ Filter history…                                                        │",
+        "23": "  ╰──────────────────────────────────────────────────────────────────────────╯"
+      },
+      "bright": {
+        "13": "",
+        "14": "    Warm up",
+        "15": "",
+        "16": "",
+        "17": "",
+        "18": "",
+        "19": "",
+        "20": ""
+      }
+    },
+    "claude views 80x24: history search typed": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 22,
+        "column": 10
+      },
+      "rows": {
+        "1": "✻ Sautéed for 0s · done 2:40 PM",
+        "3": "────────────────────────────────────────────────────────────────────────────────",
+        "4": "  Search prompts · everywhere",
+        "12": "  ❯ 6s ago   Warm up",
+        "13": "  ╭──────────────────────────────────────────────────────────────────────────╮",
+        "14": "  │ Warm up                                                                  │",
+        "15": "  │                                                                          │",
+        "16": "  │                                                                          │",
+        "17": "  │                                                                          │",
+        "18": "  │                                                                          │",
+        "19": "  │                                                                          │",
+        "20": "  ╰──────────────────────────────────────────────────────────────────────────╯",
+        "21": "  ╭──────────────────────────────────────────────────────────────────────────╮",
+        "22": "  │ ⌕ Warm                                                                   │",
+        "23": "  ╰──────────────────────────────────────────────────────────────────────────╯"
+      },
+      "bright": {
+        "13": "",
+        "14": "    Warm up",
+        "15": "",
+        "16": "",
+        "17": "",
+        "18": "",
+        "19": "",
+        "20": ""
+      }
+    },
+    "claude views 80x24: history search closed": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 20,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "4": "  ",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Sautéed for 0s · done 2:40 PM",
+        "18": "                                                            ◐ medium · /effort",
+        "19": "────────────────────────────────────────────────────────────────────────────────",
+        "20": "❯  ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "4": "",
+        "6": "❯ Warm up",
+        "20": "❯"
+      }
+    },
+    "claude views 80x24: agents view": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 21,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  New sessions: Opus 5.5 · medium effort",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "4": "           1 awaiting input · 0 working · 0 completed",
+        "6": "Your conversation moved to the background — enter opens it · esc returns to it ·",
+        "7": "ctrl+c twice quits",
+        "9": "Needs input",
+        "10": " Sessions that have a question or need your decision land here",
+        "11": "✻ Warm up       Warmed up.                                                    1s",
+        "13": "Working",
+        "14": " Sessions Claude is actively working on — they keep running even if you close ",
+        "16": " A different way to work with Claude: hand off a bigger task than you would chat",
+        "17": " through, and Claude organizes it in the sections above so you know when it ",
+        "18": " needs you.",
+        "20": "────────────────────────────────────────────────────────────────────────────────",
+        "21": "❯ describe a task for a new session",
+        "22": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  enter to return · space to reply · ctrl+x to delete · ? for shortcuts"
+      },
+      "bright": {
+        "14": " Sessions Claude is actively working on — they keep running even if you close",
+        "17": " through, and Claude organizes it in the sections above so you know when it",
+        "20": "",
+        "22": ""
+      }
+    },
+    "claude views 80x24: agents view typed": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 21,
+        "column": 14
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  New sessions: Opus 5.5 · medium effort",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "4": "           1 awaiting input · 0 working · 0 completed",
+        "6": "Your conversation moved to the background — enter opens it · esc returns to it ·",
+        "7": "ctrl+c twice quits",
+        "9": "Needs input",
+        "10": "✻ Warm up       Warmed up.                                                    2s",
+        "20": "────────────────────────────────────────────────────────────────────────────────",
+        "21": "❯ and merge it ",
+        "22": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  enter to create · esc to clear · ctrl+f to find"
+      },
+      "bright": {
+        "20": "",
+        "21": "❯ and merge it",
+        "22": ""
+      }
+    },
+    "claude views 80x24: agents view cleared": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 21,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  New sessions: Opus 5.5 · medium effort",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "4": "           1 awaiting input · 0 working · 0 completed",
+        "6": "Your conversation moved to the background — enter opens it · esc returns to it ·",
+        "7": "ctrl+c twice quits",
+        "9": "Needs input",
+        "10": " Sessions that have a question or need your decision land here",
+        "11": "✻ Warm up       Warmed up.                                                    3s",
+        "13": "Working",
+        "14": " Sessions Claude is actively working on — they keep running even if you close ",
+        "16": " A different way to work with Claude: hand off a bigger task than you would chat",
+        "17": " through, and Claude organizes it in the sections above so you know when it ",
+        "18": " needs you.",
+        "20": "────────────────────────────────────────────────────────────────────────────────",
+        "21": "❯ describe a task for a new session",
+        "22": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  enter to return · space to reply · ctrl+x to delete · ? for shortcuts"
+      },
+      "bright": {
+        "14": " Sessions Claude is actively working on — they keep running even if you close",
+        "17": " through, and Claude organizes it in the sections above so you know when it",
+        "20": "",
+        "22": ""
+      }
+    },
+    "claude views 80x24: agents view closed": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 20,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Sautéed for 0s · done 2:40 PM",
+        "18": "                                                            ◐ medium · /effort",
+        "19": "────────────────────────────────────────────────────────────────────────────────",
+        "20": "❯  ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on · ← for agents"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "❯"
+      }
+    },
+    "claude views 40x12: transcript": {
+      "height": 12,
+      "columns": 40,
+      "cursor": {
+        "row": 11,
+        "column": 0
+      },
+      "rows": {
+        "2": "❯ Warm up                               ",
+        "4": "        02:40 PM claude-opus-5-5",
+        "5": "● Warmed up.",
+        "7": "✻ Cogitated for 0s · done 2:40 PM",
+        "9": "────────────────────────────────────────",
+        "10": "  Showing detailed transcript · …verbose",
+        "11": "                                  "
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "",
+        "11": ""
+      }
+    },
+    "claude views 40x12: transcript closed": {
+      "height": 12,
+      "columns": 40,
+      "cursor": {
+        "row": 8,
+        "column": 2
+      },
+      "rows": {
+        "1": "❯ Warm up                               ",
+        "3": "● Warmed up.",
+        "5": "✻ Cogitated for 0s · done 2:40 PM",
+        "6": "                    ◐ medium · /effort",
+        "7": "────────────────────────────────────────",
+        "8": "❯  ",
+        "9": "────────────────────────────────────────",
+        "11": "  ⏸ manual mode on · ← for agents"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯"
+      }
+    },
+    "claude views 40x12: history search": {
+      "height": 12,
+      "columns": 40,
+      "cursor": {
+        "row": 11,
+        "column": 6
+      },
+      "rows": {
+        "1": "✻ Cogitated for 0s · done 2:40 PM",
+        "3": "────────────────────────────────────────",
+        "4": "  Search prompts · everywhere",
+        "5": " ",
+        "6": "  ❯ 5s ago   Warm up",
+        "7": "  ╭──────────────────────────────────╮",
+        "8": "  │ Warm up                          │",
+        "9": "  │                                  │",
+        "10": "  │                                  │",
+        "11": "  │                                  │"
+      },
+      "bright": {
+        "5": "",
+        "7": "",
+        "8": "    Warm up",
+        "9": "",
+        "10": "",
+        "11": ""
+      }
+    },
+    "claude views 40x12: history search typed": {
+      "height": 12,
+      "columns": 40,
+      "cursor": {
+        "row": 11,
+        "column": 10
+      },
+      "rows": {
+        "1": "✻ Cogitated for 0s · done 2:40 PM",
+        "3": "────────────────────────────────────────",
+        "4": "  Search prompts · everywhere",
+        "5": " ",
+        "6": "  ❯ 6s ago   Warm up",
+        "7": "  ╭──────────────────────────────────╮",
+        "8": "  │ Warm up                          │",
+        "9": "  │                                  │",
+        "10": "  │                                  │",
+        "11": "  │                                  │"
+      },
+      "bright": {
+        "5": "",
+        "7": "",
+        "8": "    Warm up",
+        "9": "",
+        "10": "",
+        "11": ""
+      }
+    },
+    "claude views 40x12: history search closed": {
+      "height": 12,
+      "columns": 40,
+      "cursor": {
+        "row": 8,
+        "column": 2
+      },
+      "rows": {
+        "1": "❯ Warm up                               ",
+        "3": "● Warmed up.",
+        "5": "✻ Cogitated for 0s · done 2:40 PM",
+        "6": "                    ◐ medium · /effort",
+        "7": "────────────────────────────────────────",
+        "8": "❯  ",
+        "9": "────────────────────────────────────────",
+        "11": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯"
+      }
+    },
+    "claude views 40x12: agents view": {
+      "height": 12,
+      "columns": 40,
+      "cursor": {
+        "row": 9,
+        "column": 2
+      },
+      "rows": {
+        "2": " A different way to work with Claude: ",
+        "3": " hand off a bigger task than you would ",
+        "4": " chat through, and Claude organizes it ",
+        "5": " in the sections above so you know when ",
+        "6": " it needs you.",
+        "8": "────────────────────────────────────────",
+        "9": "❯ describe a task for a new session",
+        "10": "────────────────────────────────────────",
+        "11": "  enter to return · ? for shortcuts"
+      },
+      "bright": {
+        "2": " A different way to work with Claude:",
+        "3": " hand off a bigger task than you would",
+        "4": " chat through, and Claude organizes it",
+        "5": " in the sections above so you know when",
+        "8": "",
+        "10": ""
+      }
+    },
+    "claude views 40x12: agents view typed": {
+      "height": 12,
+      "columns": 40,
+      "cursor": {
+        "row": 9,
+        "column": 14
+      },
+      "rows": {
+        "1": "Your conversation moved to the ",
+        "2": "background — enter opens it · esc ",
+        "3": "returns to it · ctrl+c twice quits",
+        "5": "Needs input",
+        "6": "✻ Warm up       Warmed up.            2s",
+        "8": "────────────────────────────────────────",
+        "9": "❯ and merge it ",
+        "10": "────────────────────────────────────────",
+        "11": "  enter to create · esc to clear"
+      },
+      "bright": {
+        "1": "Your conversation moved to the",
+        "2": "background — enter opens it · esc",
+        "8": "",
+        "9": "❯ and merge it",
+        "10": ""
+      }
+    },
+    "claude views 40x12: agents view cleared": {
+      "height": 12,
+      "columns": 40,
+      "cursor": {
+        "row": 9,
+        "column": 2
+      },
+      "rows": {
+        "2": " A different way to work with Claude: ",
+        "3": " hand off a bigger task than you would ",
+        "4": " chat through, and Claude organizes it ",
+        "5": " in the sections above so you know when ",
+        "6": " it needs you.",
+        "8": "────────────────────────────────────────",
+        "9": "❯ describe a task for a new session",
+        "10": "────────────────────────────────────────",
+        "11": "  enter to return · ? for shortcuts"
+      },
+      "bright": {
+        "2": " A different way to work with Claude:",
+        "3": " hand off a bigger task than you would",
+        "4": " chat through, and Claude organizes it",
+        "5": " in the sections above so you know when",
+        "8": "",
+        "10": ""
+      }
+    },
+    "claude views 40x12: agents view closed": {
+      "height": 12,
+      "columns": 40,
+      "cursor": {
+        "row": 8,
+        "column": 2
+      },
+      "rows": {
+        "1": "❯ Warm up                               ",
+        "3": "● Warmed up.",
+        "5": "✻ Cogitated for 0s · done 2:40 PM",
+        "6": "                    ◐ medium · /effort",
+        "7": "────────────────────────────────────────",
+        "8": "❯  ",
+        "9": "────────────────────────────────────────",
+        "11": "  ⏸ manual mode on · ← for agents"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯"
+      }
+    },
+    "rule 40x14: reply": {
+      "height": 14,
+      "columns": 40,
+      "cursor": {
+        "row": 11,
+        "column": 27
+      },
+      "rows": {
+        "2": "❯ Warm up                               ",
+        "4": "● Warmed up.",
+        "6": "✻ Churned for 0s · done 2:43 PM",
+        "7": "                    ◐ medium · /effort",
+        "8": "────────────────────────────────────────",
+        "9": "❯ ────────────────────────────────────",
+        "10": "  ────────────────────────────────────",
+        "11": "  ──────── merge it [n7Q2kx] ",
+        "12": "────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "11": "  ──────── merge it [n7Q2kx]"
+      }
+    },
+    "rule 40x14: draft": {
+      "height": 14,
+      "columns": 40,
+      "cursor": {
+        "row": 11,
+        "column": 10
+      },
+      "rows": {
+        "2": "❯ Warm up                               ",
+        "4": "● Warmed up.",
+        "6": "✻ Churned for 0s · done 2:43 PM",
+        "7": "                 ctrl+g to edit in Vim",
+        "8": "────────────────────────────────────────",
+        "9": "❯ first line",
+        "10": "  ──────────────────────────────",
+        "11": "  last line ",
+        "12": "────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "11": "  last line"
+      }
+    },
+    "rule 40x14: up 1": {
+      "height": 14,
+      "columns": 40,
+      "cursor": {
+        "row": 10,
+        "column": 10
+      },
+      "rows": {
+        "2": "❯ Warm up                               ",
+        "4": "● Warmed up.",
+        "6": "✻ Churned for 0s · done 2:43 PM",
+        "7": "                 ctrl+g to edit in Vim",
+        "8": "────────────────────────────────────────",
+        "9": "❯ first line",
+        "10": "  ──────────────────────────────",
+        "11": "  last line",
+        "12": "────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up"
+      }
+    },
+    "rule 40x14: up 2": {
+      "height": 14,
+      "columns": 40,
+      "cursor": {
+        "row": 9,
+        "column": 10
+      },
+      "rows": {
+        "2": "❯ Warm up                               ",
+        "4": "● Warmed up.",
+        "6": "✻ Churned for 0s · done 2:43 PM",
+        "7": "                 ctrl+g to edit in Vim",
+        "8": "────────────────────────────────────────",
+        "9": "❯ first line",
+        "10": "  ──────────────────────────────",
+        "11": "  last line",
+        "12": "────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up"
+      }
+    },
+    "rule 40x14: typed rule": {
+      "height": 14,
+      "columns": 40,
+      "cursor": {
+        "row": 10,
+        "column": 22
+      },
+      "rows": {
+        "2": "❯ Warm up                               ",
+        "4": "● Warmed up.",
+        "6": "✻ Churned for 0s · done 2:43 PM",
+        "7": "                 ctrl+g to edit in Vim",
+        "8": "────────────────────────────────────────",
+        "9": "❯ top",
+        "10": "  ──────────────────── ",
+        "11": "────────────────────────────────────────",
+        "13": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "10": "  ────────────────────"
+      }
+    },
+    "rule 80x12: reply": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 10,
+        "column": 18
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Churned for 0s · done 2:43 PM",
+        "6": "                                                            ◐ medium · /effort",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯ ────────────────────────────────────────────────────────────────────────────",
+        "9": "  ────────────────────────────────────────────────────────────────────────────",
+        "10": "  merge it [n7Q2kx] ",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "10": "  merge it [n7Q2kx]"
+      }
+    },
+    "rule 80x12: draft": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 10,
+        "column": 10
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Churned for 0s · done 2:43 PM",
+        "6": "                                                         ctrl+g to edit in Vim",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯ first line",
+        "9": "  ──────────────────────────────",
+        "10": "  last line ",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "10": "  last line"
+      }
+    },
+    "rule 80x12: up 1": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 10
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Churned for 0s · done 2:43 PM",
+        "6": "                                                         ctrl+g to edit in Vim",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯ first line",
+        "9": "  ──────────────────────────────",
+        "10": "  last line",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up"
+      }
+    },
+    "rule 80x12: up 2": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 8,
+        "column": 10
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Churned for 0s · done 2:43 PM",
+        "6": "                                                         ctrl+g to edit in Vim",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯ first line",
+        "9": "  ──────────────────────────────",
+        "10": "  last line",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up"
+      }
+    },
+    "rule 80x12: typed rule": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 22
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Churned for 0s · done 2:43 PM",
+        "6": "                                                         ctrl+g to edit in Vim",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯ top",
+        "9": "  ──────────────────── ",
+        "10": "────────────────────────────────────────────────────────────────────────────────",
+        "11": "  "
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "9": "  ────────────────────",
+        "11": ""
+      }
+    },
+    "blanks 1 80x12: draft": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 15
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Brewed for 0s · done 2:43 PM",
+        "6": "                                                         ctrl+g to edit in Vim",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯ ",
+        "9": "  MY DRAFT BELOW ",
+        "10": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯",
+        "9": "  MY DRAFT BELOW"
+      }
+    },
+    "blanks 1 80x12: up 1": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 8,
+        "column": 1
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Brewed for 0s · done 2:43 PM",
+        "6": "                                                         ctrl+g to edit in Vim",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯  ",
+        "9": "  MY DRAFT BELOW",
+        "10": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯"
+      }
+    },
+    "blanks 2 80x12: draft": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 10,
+        "column": 15
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Worked for 0s · done 2:43 PM",
+        "6": "                                                         ctrl+g to edit in Vim",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯ ",
+        "9": "  ",
+        "10": "  MY DRAFT BELOW ",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯",
+        "9": "",
+        "10": "  MY DRAFT BELOW"
+      }
+    },
+    "blanks 2 80x12: up 1": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 1
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Worked for 0s · done 2:43 PM",
+        "6": "                                                         ctrl+g to edit in Vim",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯ ",
+        "9": "   ",
+        "10": "  MY DRAFT BELOW",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯",
+        "9": ""
+      }
+    },
+    "blanks 2 80x12: up 2": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 8,
+        "column": 1
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Worked for 0s · done 2:43 PM",
+        "6": "                                                         ctrl+g to edit in Vim",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯  ",
+        "9": "  ",
+        "10": "  MY DRAFT BELOW",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯",
+        "9": ""
+      }
+    },
+    "blanks 3 80x12: draft": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 10,
+        "column": 15
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Sautéed for 0s · done 2:43 PM",
+        "6": "                                                         ctrl+g to edit in Vim",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯ ",
+        "9": "  ",
+        "10": "  MY DRAFT BELOW ",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯",
+        "9": "",
+        "10": "  MY DRAFT BELOW"
+      }
+    },
+    "blanks 3 80x12: up 1": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 1
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Sautéed for 0s · done 2:43 PM",
+        "6": "                                                         ctrl+g to edit in Vim",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯ ",
+        "9": "   ",
+        "10": "  MY DRAFT BELOW",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯",
+        "9": ""
+      }
+    },
+    "blanks 3 80x12: up 2": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 1
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Sautéed for 0s · done 2:43 PM",
+        "6": "                                                         ctrl+g to edit in Vim",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯ ",
+        "9": "   ",
+        "10": "  ",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯",
+        "9": "",
+        "10": ""
+      }
+    },
+    "blanks 3 80x12: up 3": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 8,
+        "column": 1
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Sautéed for 0s · done 2:43 PM",
+        "6": "                                                         ctrl+g to edit in Vim",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯  ",
+        "9": "  ",
+        "10": "  ",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯",
+        "9": "",
+        "10": ""
+      }
+    },
+    "blanks 1 80x14: draft": {
+      "height": 14,
+      "columns": 80,
+      "cursor": {
+        "row": 10,
+        "column": 16
+      },
+      "rows": {
+        "2": "❯ Warm up                                                                       ",
+        "4": "● Warmed up.",
+        "6": "✻ Cooked for 0s · done 2:43 PM",
+        "7": "                                                         ctrl+g to edit in Vim",
+        "8": "────────────────────────────────────────────────────────────────────────────────",
+        "9": "❯ ",
+        "10": "  MY DRAFT BELOW ",
+        "11": "────────────────────────────────────────────────────────────────────────────────",
+        "13": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "❯",
+        "10": "  MY DRAFT BELOW"
+      }
+    },
+    "blanks 1 80x14: up 1": {
+      "height": 14,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 2
+      },
+      "rows": {
+        "2": "❯ Warm up                                                                       ",
+        "4": "● Warmed up.",
+        "6": "✻ Cooked for 0s · done 2:43 PM",
+        "7": "                                                         ctrl+g to edit in Vim",
+        "8": "────────────────────────────────────────────────────────────────────────────────",
+        "9": "❯  ",
+        "10": "  MY DRAFT BELOW",
+        "11": "────────────────────────────────────────────────────────────────────────────────",
+        "13": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "❯"
+      }
+    },
+    "blanks 2 80x14: draft": {
+      "height": 14,
+      "columns": 80,
+      "cursor": {
+        "row": 11,
+        "column": 15
+      },
+      "rows": {
+        "2": "❯ Warm up                                                                       ",
+        "4": "● Warmed up.",
+        "6": "✻ Worked for 0s · done 2:44 PM",
+        "7": "                                                         ctrl+g to edit in Vim",
+        "8": "────────────────────────────────────────────────────────────────────────────────",
+        "9": "❯ ",
+        "10": "  ",
+        "11": "  MY DRAFT BELOW ",
+        "12": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "❯",
+        "10": "",
+        "11": "  MY DRAFT BELOW"
+      }
+    },
+    "blanks 2 80x14: up 1": {
+      "height": 14,
+      "columns": 80,
+      "cursor": {
+        "row": 10,
+        "column": 1
+      },
+      "rows": {
+        "2": "❯ Warm up                                                                       ",
+        "4": "● Warmed up.",
+        "6": "✻ Worked for 0s · done 2:44 PM",
+        "7": "                                                         ctrl+g to edit in Vim",
+        "8": "────────────────────────────────────────────────────────────────────────────────",
+        "9": "❯ ",
+        "10": "   ",
+        "11": "  MY DRAFT BELOW",
+        "12": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "❯",
+        "10": ""
+      }
+    },
+    "blanks 2 80x14: up 2": {
+      "height": 14,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 1
+      },
+      "rows": {
+        "2": "❯ Warm up                                                                       ",
+        "4": "● Warmed up.",
+        "6": "✻ Worked for 0s · done 2:44 PM",
+        "7": "                                                         ctrl+g to edit in Vim",
+        "8": "────────────────────────────────────────────────────────────────────────────────",
+        "9": "❯  ",
+        "10": "  ",
+        "11": "  MY DRAFT BELOW",
+        "12": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "❯",
+        "10": ""
+      }
+    },
+    "blanks 3 80x14: draft": {
+      "height": 14,
+      "columns": 80,
+      "cursor": {
+        "row": 11,
+        "column": 15
+      },
+      "rows": {
+        "2": "❯ Warm up                                                                       ",
+        "4": "● Warmed up.",
+        "6": "✻ Cooked for 0s · done 2:44 PM",
+        "7": "                                                         ctrl+g to edit in Vim",
+        "8": "────────────────────────────────────────────────────────────────────────────────",
+        "9": "❯ ",
+        "10": "  ",
+        "11": "  MY DRAFT BELOW ",
+        "12": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "❯",
+        "10": "",
+        "11": "  MY DRAFT BELOW"
+      }
+    },
+    "blanks 3 80x14: up 1": {
+      "height": 14,
+      "columns": 80,
+      "cursor": {
+        "row": 10,
+        "column": 1
+      },
+      "rows": {
+        "2": "❯ Warm up                                                                       ",
+        "4": "● Warmed up.",
+        "6": "✻ Cooked for 0s · done 2:44 PM",
+        "7": "                                                         ctrl+g to edit in Vim",
+        "8": "────────────────────────────────────────────────────────────────────────────────",
+        "9": "❯ ",
+        "10": "   ",
+        "11": "  MY DRAFT BELOW",
+        "12": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "❯",
+        "10": ""
+      }
+    },
+    "blanks 3 80x14: up 2": {
+      "height": 14,
+      "columns": 80,
+      "cursor": {
+        "row": 10,
+        "column": 1
+      },
+      "rows": {
+        "2": "❯ Warm up                                                                       ",
+        "4": "● Warmed up.",
+        "6": "✻ Cooked for 0s · done 2:44 PM",
+        "7": "                                                         ctrl+g to edit in Vim",
+        "8": "────────────────────────────────────────────────────────────────────────────────",
+        "9": "❯ ",
+        "10": "   ",
+        "11": "  ",
+        "12": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "❯",
+        "10": "",
+        "11": ""
+      }
+    },
+    "blanks 3 80x14: up 3": {
+      "height": 14,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 1
+      },
+      "rows": {
+        "2": "❯ Warm up                                                                       ",
+        "4": "● Warmed up.",
+        "6": "✻ Cooked for 0s · done 2:44 PM",
+        "7": "                                                         ctrl+g to edit in Vim",
+        "8": "────────────────────────────────────────────────────────────────────────────────",
+        "9": "❯  ",
+        "10": "  ",
+        "11": "  ",
+        "12": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "❯",
+        "10": "",
+        "11": ""
+      }
+    },
+    "blanks 1 80x24: draft": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 20,
+        "column": 16
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Crunched for 0s · done 2:44 PM",
+        "17": "                                                         ctrl+g to edit in Vim",
+        "18": "────────────────────────────────────────────────────────────────────────────────",
+        "19": "❯ ",
+        "20": "  MY DRAFT BELOW ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "19": "❯",
+        "20": "  MY DRAFT BELOW"
+      }
+    },
+    "blanks 1 80x24: up 1": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 19,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Crunched for 0s · done 2:44 PM",
+        "17": "                                                         ctrl+g to edit in Vim",
+        "18": "────────────────────────────────────────────────────────────────────────────────",
+        "19": "❯  ",
+        "20": "  MY DRAFT BELOW",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "19": "❯"
+      }
+    },
+    "blanks 2 80x24: draft": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 20,
+        "column": 16
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Baked for 0s · done 2:44 PM",
+        "16": "                                                         ctrl+g to edit in Vim",
+        "17": "────────────────────────────────────────────────────────────────────────────────",
+        "18": "❯ ",
+        "20": "  MY DRAFT BELOW ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "18": "❯",
+        "20": "  MY DRAFT BELOW"
+      }
+    },
+    "blanks 2 80x24: up 1": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 19,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Baked for 0s · done 2:44 PM",
+        "16": "                                                         ctrl+g to edit in Vim",
+        "17": "────────────────────────────────────────────────────────────────────────────────",
+        "18": "❯ ",
+        "19": "   ",
+        "20": "  MY DRAFT BELOW",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "18": "❯",
+        "19": ""
+      }
+    },
+    "blanks 2 80x24: up 2": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 18,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Baked for 0s · done 2:44 PM",
+        "16": "                                                         ctrl+g to edit in Vim",
+        "17": "────────────────────────────────────────────────────────────────────────────────",
+        "18": "❯  ",
+        "20": "  MY DRAFT BELOW",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "18": "❯"
+      }
+    },
+    "blanks 3 80x24: draft": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 20,
+        "column": 16
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Sautéed for 0s · done 2:44 PM",
+        "15": "                                                         ctrl+g to edit in Vim",
+        "16": "────────────────────────────────────────────────────────────────────────────────",
+        "17": "❯ ",
+        "20": "  MY DRAFT BELOW ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "17": "❯",
+        "20": "  MY DRAFT BELOW"
+      }
+    },
+    "blanks 3 80x24: up 1": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 19,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Sautéed for 0s · done 2:44 PM",
+        "15": "                                                         ctrl+g to edit in Vim",
+        "16": "────────────────────────────────────────────────────────────────────────────────",
+        "17": "❯ ",
+        "19": "   ",
+        "20": "  MY DRAFT BELOW",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "17": "❯",
+        "19": ""
+      }
+    },
+    "blanks 3 80x24: up 2": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 18,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Sautéed for 0s · done 2:44 PM",
+        "15": "                                                         ctrl+g to edit in Vim",
+        "16": "────────────────────────────────────────────────────────────────────────────────",
+        "17": "❯ ",
+        "18": "   ",
+        "20": "  MY DRAFT BELOW",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "17": "❯",
+        "18": ""
+      }
+    },
+    "blanks 3 80x24: up 3": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 17,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Sautéed for 0s · done 2:44 PM",
+        "15": "                                                         ctrl+g to edit in Vim",
+        "16": "────────────────────────────────────────────────────────────────────────────────",
+        "17": "❯  ",
+        "20": "  MY DRAFT BELOW",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "17": "❯"
+      }
+    },
+    "rule 120x24: reply": {
+      "height": 24,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 19
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                                                               ",
+        "8": "● Warmed up.",
+        "10": "✻ Brewed for 0s · done 2:50 PM",
+        "16": "                                                                                                    ◐ medium · /effort",
+        "17": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "18": "❯ [Novadeck Inbox reply, n7Q2kx] Re your ask \"Merge the branch?\": see ────────────────────────────────────────────────",
+        "19": "  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "20": "  merge it [n7Q2kx] ",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "  merge it [n7Q2kx]"
+      }
+    },
+    "rule 120x24: draft": {
+      "height": 24,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 11
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                                                               ",
+        "8": "● Warmed up.",
+        "10": "✻ Brewed for 0s · done 2:50 PM",
+        "16": "                                                                                                 ctrl+g to edit in Vim",
+        "17": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "18": "❯ first line                                                                              ",
+        "19": "  ──────────────────────────────",
+        "20": "  last line ",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "18": "❯ first line",
+        "20": "  last line"
+      }
+    },
+    "rule 120x24: up 1": {
+      "height": 24,
+      "columns": 120,
+      "cursor": {
+        "row": 19,
+        "column": 11
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                                                               ",
+        "8": "● Warmed up.",
+        "10": "✻ Brewed for 0s · done 2:50 PM",
+        "16": "                                                                                                 ctrl+g to edit in Vim",
+        "17": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "18": "❯ first line                                                                              ",
+        "19": "  ──────────────────────────────",
+        "20": "  last line",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "18": "❯ first line"
+      }
+    },
+    "rule 120x24: up 2": {
+      "height": 24,
+      "columns": 120,
+      "cursor": {
+        "row": 18,
+        "column": 11
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                                                               ",
+        "8": "● Warmed up.",
+        "10": "✻ Brewed for 0s · done 2:50 PM",
+        "16": "                                                                                                 ctrl+g to edit in Vim",
+        "17": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "18": "❯ first line                                                                              ",
+        "19": "  ──────────────────────────────",
+        "20": "  last line",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "18": "❯ first line"
+      }
+    },
+    "rule 120x24: typed rule": {
+      "height": 24,
+      "columns": 120,
+      "cursor": {
+        "row": 20,
+        "column": 22
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                                                               ",
+        "8": "● Warmed up.",
+        "10": "✻ Brewed for 0s · done 2:50 PM",
+        "17": "                                                                                                 ctrl+g to edit in Vim",
+        "18": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "19": "❯ top",
+        "20": "  ──────────────────── ",
+        "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "20": "  ────────────────────"
+      }
+    },
+    "blanks 4 80x12: draft": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 10,
+        "column": 15
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Churned for 0s · done 3:38 PM",
+        "6": "                                                         ctrl+g to edit in Vim",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯ ",
+        "9": "  ",
+        "10": "  MY DRAFT BELOW ",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯",
+        "9": "",
+        "10": "  MY DRAFT BELOW"
+      }
+    },
+    "blanks 4 80x12: up 3": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 1
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Churned for 0s · done 3:38 PM",
+        "6": "                                                         ctrl+g to edit in Vim",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯ ",
+        "9": "   ",
+        "10": "  ",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯",
+        "9": "",
+        "10": ""
+      }
+    },
+    "blanks 4 80x12: up 4": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 8,
+        "column": 1
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Churned for 0s · done 3:38 PM",
+        "6": "                                                            ◐ medium · /effort",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯  ",
+        "9": "  ",
+        "10": "  ",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯",
+        "9": "",
+        "10": ""
+      }
+    },
+    "blanks 5 80x12: draft": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 10,
+        "column": 15
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Brewed for 0s · done 3:38 PM",
+        "6": "                                                         ctrl+g to edit in Vim",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯ ",
+        "9": "  ",
+        "10": "  MY DRAFT BELOW ",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯",
+        "9": "",
+        "10": "  MY DRAFT BELOW"
+      }
+    },
+    "blanks 5 80x12: up 4": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 1
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Brewed for 0s · done 3:38 PM",
+        "6": "                                                            ◐ medium · /effort",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯ ",
+        "9": "   ",
+        "10": "  ",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯",
+        "9": "",
+        "10": ""
+      }
+    },
+    "blanks 5 80x12: up 5": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 8,
+        "column": 1
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Brewed for 0s · done 3:38 PM",
+        "6": "                                                            ◐ medium · /effort",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯  ",
+        "9": "  ",
+        "10": "  ",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯",
+        "9": "",
+        "10": ""
+      }
+    },
+    "blanks 12 80x12: draft": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 10,
+        "column": 15
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Cogitated for 0s · done 3:38 PM",
+        "6": "                                                            ◐ medium · /effort",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯ ",
+        "9": "  ",
+        "10": "  MY DRAFT BELOW ",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯",
+        "9": "",
+        "10": "  MY DRAFT BELOW"
+      }
+    },
+    "blanks 12 80x12: up 11": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 1
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Cogitated for 0s · done 3:38 PM",
+        "6": "                                                            ◐ medium · /effort",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯ ",
+        "9": "   ",
+        "10": "  ",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯",
+        "9": "",
+        "10": ""
+      }
+    },
+    "blanks 12 80x12: up 12": {
+      "height": 12,
+      "columns": 80,
+      "cursor": {
+        "row": 8,
+        "column": 1
+      },
+      "rows": {
+        "1": "❯ Warm up                                                                       ",
+        "3": "● Warmed up.",
+        "5": "✻ Cogitated for 0s · done 3:38 PM",
+        "6": "                                                            ◐ medium · /effort",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "❯  ",
+        "9": "  ",
+        "10": "  ",
+        "11": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "1": "❯ Warm up",
+        "8": "❯",
+        "9": "",
+        "10": ""
+      }
+    },
+    "blanks 4 80x14: draft": {
+      "height": 14,
+      "columns": 80,
+      "cursor": {
+        "row": 11,
+        "column": 15
+      },
+      "rows": {
+        "2": "❯ Warm up                                                                       ",
+        "4": "● Warmed up.",
+        "6": "✻ Worked for 0s · done 3:38 PM",
+        "7": "                                                         ctrl+g to edit in Vim",
+        "8": "────────────────────────────────────────────────────────────────────────────────",
+        "9": "❯ ",
+        "10": "  ",
+        "11": "  MY DRAFT BELOW ",
+        "12": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "❯",
+        "10": "",
+        "11": "  MY DRAFT BELOW"
+      }
+    },
+    "blanks 4 80x14: up 3": {
+      "height": 14,
+      "columns": 80,
+      "cursor": {
+        "row": 10,
+        "column": 1
+      },
+      "rows": {
+        "2": "❯ Warm up                                                                       ",
+        "4": "● Warmed up.",
+        "6": "✻ Worked for 0s · done 3:38 PM",
+        "7": "                                                         ctrl+g to edit in Vim",
+        "8": "────────────────────────────────────────────────────────────────────────────────",
+        "9": "❯ ",
+        "10": "   ",
+        "11": "  ",
+        "12": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "❯",
+        "10": "",
+        "11": ""
+      }
+    },
+    "blanks 4 80x14: up 4": {
+      "height": 14,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 1
+      },
+      "rows": {
+        "2": "❯ Warm up                                                                       ",
+        "4": "● Warmed up.",
+        "6": "✻ Worked for 0s · done 3:38 PM",
+        "7": "                                                            ◐ medium · /effort",
+        "8": "────────────────────────────────────────────────────────────────────────────────",
+        "9": "❯  ",
+        "10": "  ",
+        "11": "  ",
+        "12": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "❯",
+        "10": "",
+        "11": ""
+      }
+    },
+    "blanks 5 80x14: draft": {
+      "height": 14,
+      "columns": 80,
+      "cursor": {
+        "row": 11,
+        "column": 15
+      },
+      "rows": {
+        "2": "❯ Warm up                                                                       ",
+        "4": "● Warmed up.",
+        "6": "✻ Baked for 0s · done 3:38 PM",
+        "7": "                                                         ctrl+g to edit in Vim",
+        "8": "────────────────────────────────────────────────────────────────────────────────",
+        "9": "❯ ",
+        "10": "  ",
+        "11": "  MY DRAFT BELOW ",
+        "12": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "❯",
+        "10": "",
+        "11": "  MY DRAFT BELOW"
+      }
+    },
+    "blanks 5 80x14: up 4": {
+      "height": 14,
+      "columns": 80,
+      "cursor": {
+        "row": 10,
+        "column": 1
+      },
+      "rows": {
+        "2": "❯ Warm up                                                                       ",
+        "4": "● Warmed up.",
+        "6": "✻ Baked for 0s · done 3:38 PM",
+        "7": "                                                            ◐ medium · /effort",
+        "8": "────────────────────────────────────────────────────────────────────────────────",
+        "9": "❯ ",
+        "10": "   ",
+        "11": "  ",
+        "12": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "❯",
+        "10": "",
+        "11": ""
+      }
+    },
+    "blanks 5 80x14: up 5": {
+      "height": 14,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 1
+      },
+      "rows": {
+        "2": "❯ Warm up                                                                       ",
+        "4": "● Warmed up.",
+        "6": "✻ Baked for 0s · done 3:38 PM",
+        "7": "                                                            ◐ medium · /effort",
+        "8": "────────────────────────────────────────────────────────────────────────────────",
+        "9": "❯  ",
+        "10": "  ",
+        "11": "  ",
+        "12": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "❯",
+        "10": "",
+        "11": ""
+      }
+    },
+    "blanks 12 80x14: draft": {
+      "height": 14,
+      "columns": 80,
+      "cursor": {
+        "row": 11,
+        "column": 15
+      },
+      "rows": {
+        "2": "❯ Warm up                                                                       ",
+        "4": "● Warmed up.",
+        "6": "✻ Worked for 0s · done 3:39 PM",
+        "7": "                                                            ◐ medium · /effort",
+        "8": "────────────────────────────────────────────────────────────────────────────────",
+        "9": "❯ ",
+        "10": "  ",
+        "11": "  MY DRAFT BELOW ",
+        "12": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "❯",
+        "10": "",
+        "11": "  MY DRAFT BELOW"
+      }
+    },
+    "blanks 12 80x14: up 11": {
+      "height": 14,
+      "columns": 80,
+      "cursor": {
+        "row": 10,
+        "column": 1
+      },
+      "rows": {
+        "2": "❯ Warm up                                                                       ",
+        "4": "● Warmed up.",
+        "6": "✻ Worked for 0s · done 3:39 PM",
+        "7": "                                                            ◐ medium · /effort",
+        "8": "────────────────────────────────────────────────────────────────────────────────",
+        "9": "❯ ",
+        "10": "   ",
+        "11": "  ",
+        "12": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "❯",
+        "10": "",
+        "11": ""
+      }
+    },
+    "blanks 12 80x14: up 12": {
+      "height": 14,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 1
+      },
+      "rows": {
+        "2": "❯ Warm up                                                                       ",
+        "4": "● Warmed up.",
+        "6": "✻ Worked for 0s · done 3:39 PM",
+        "7": "                                                            ◐ medium · /effort",
+        "8": "────────────────────────────────────────────────────────────────────────────────",
+        "9": "❯  ",
+        "10": "  ",
+        "11": "  ",
+        "12": "────────────────────────────────────────────────────────────────────────────────"
+      },
+      "bright": {
+        "2": "❯ Warm up",
+        "9": "❯",
+        "10": "",
+        "11": ""
+      }
+    },
+    "blanks 4 80x24: draft": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 20,
+        "column": 16
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Churned for 0s · done 3:39 PM",
+        "14": "                                                         ctrl+g to edit in Vim",
+        "15": "────────────────────────────────────────────────────────────────────────────────",
+        "16": "❯ ",
+        "20": "  MY DRAFT BELOW ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "16": "❯",
+        "20": "  MY DRAFT BELOW"
+      }
+    },
+    "blanks 4 80x24: up 3": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 17,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Churned for 0s · done 3:39 PM",
+        "14": "                                                         ctrl+g to edit in Vim",
+        "15": "────────────────────────────────────────────────────────────────────────────────",
+        "16": "❯ ",
+        "17": "   ",
+        "20": "  MY DRAFT BELOW",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "16": "❯",
+        "17": ""
+      }
+    },
+    "blanks 4 80x24: up 4": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 16,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Churned for 0s · done 3:39 PM",
+        "14": "                                                            ◐ medium · /effort",
+        "15": "────────────────────────────────────────────────────────────────────────────────",
+        "16": "❯  ",
+        "20": "  MY DRAFT BELOW",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "16": "❯"
+      }
+    },
+    "blanks 5 80x24: draft": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 20,
+        "column": 16
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Cooked for 0s · done 3:39 PM",
+        "13": "                                                         ctrl+g to edit in Vim",
+        "14": "────────────────────────────────────────────────────────────────────────────────",
+        "15": "❯ ",
+        "20": "  MY DRAFT BELOW ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "15": "❯",
+        "20": "  MY DRAFT BELOW"
+      }
+    },
+    "blanks 5 80x24: up 4": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 16,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Cooked for 0s · done 3:39 PM",
+        "13": "                                                            ◐ medium · /effort",
+        "14": "────────────────────────────────────────────────────────────────────────────────",
+        "15": "❯ ",
+        "16": "   ",
+        "20": "  MY DRAFT BELOW",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "15": "❯",
+        "16": ""
+      }
+    },
+    "blanks 5 80x24: up 5": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 15,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Cooked for 0s · done 3:39 PM",
+        "13": "                                                            ◐ medium · /effort",
+        "14": "────────────────────────────────────────────────────────────────────────────────",
+        "15": "❯  ",
+        "20": "  MY DRAFT BELOW",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "15": "❯"
+      }
+    },
+    "blanks 12 80x24: draft": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 20,
+        "column": 16
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Cooked for 0s · done 3:39 PM",
+        "12": "                                                            ◐ medium · /effort",
+        "13": "────────────────────────────────────────────────────────────────────────────────",
+        "14": "❯ ",
+        "20": "  MY DRAFT BELOW ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "14": "❯",
+        "20": "  MY DRAFT BELOW"
+      }
+    },
+    "blanks 12 80x24: up 11": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 15,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Cooked for 0s · done 3:39 PM",
+        "12": "                                                            ◐ medium · /effort",
+        "13": "────────────────────────────────────────────────────────────────────────────────",
+        "14": "❯ ",
+        "15": "   ",
+        "20": "  ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "14": "❯",
+        "15": "",
+        "20": ""
+      }
+    },
+    "blanks 12 80x24: up 12": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 14,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-XXXXXX/project",
+        "6": "❯ Warm up                                                                       ",
+        "8": "● Warmed up.",
+        "10": "✻ Cooked for 0s · done 3:39 PM",
+        "12": "                                                            ◐ medium · /effort",
+        "13": "────────────────────────────────────────────────────────────────────────────────",
+        "14": "❯  ",
+        "20": "  ",
+        "21": "────────────────────────────────────────────────────────────────────────────────",
+        "23": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Warm up",
+        "14": "❯",
+        "20": ""
+      }
+    }
+  }
+}

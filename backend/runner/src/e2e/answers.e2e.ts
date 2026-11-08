@@ -18,6 +18,7 @@ import {
   lacking,
   own,
   result,
+  running,
   sends,
   sent,
   start,
@@ -122,6 +123,17 @@ const features: Question = {
     { label: "Search", description: "Full text." },
   ],
 }
+
+// A script far taller than any screen, whose first and last rows name what it writes, with
+// what a script holds: blank lines, indents, tabs, quotes and more than ASCII.
+const tallScript = [
+  "cat <<'E' > tall.txt",
+  ...Array.from({ length: 170 }, (_, n) =>
+    n % 25 === 24 ? "" : `${n % 3 === 0 ? "    " : ""}("row ${n}", 'tall', "… more")\tend`,
+  ),
+  "E",
+  "echo wrote the tall file",
+].join("\n")
 
 /** The model's ending of a turn once a tool's result came. */
 const noted: Rule = own((call) => (result(call) !== undefined ? { text: "Noted." } : undefined))
@@ -245,6 +257,45 @@ for (const setup of setups) {
         const rung = await run.model.waitFor((call) => delivered(call, "fox"), { after: calls })
         expect(deliveries(rung)).toEqual([{ from: "fox", text: "The build is green." }])
         await t1.until("Got the news.")
+      },
+    )
+
+    gated(it, lacking(setup, "approval"))(
+      "answers a command taller than its screen from the chat, showing all of it",
+      async ({ e2e: run }) => {
+        run.model.use(
+          answers("Make the file", (call) => running(approval!.request(call), tallScript)),
+          noted,
+        )
+        const t1 = await start(run, setup)
+
+        await t1.prompt("Make the file")
+        const request = await dialogOf(t1, "choices")
+        expect(choices(request).detail).toBe(tallScript)
+        const yes = option(choices(request), /^Yes/, false)
+        await t1.answer(request.ref, { dialog: idOf(request), type: "choice", option: yes.id })
+
+        await t1.until("Noted.")
+        await unrequested(t1)
+      },
+    )
+
+    gated(it, lacking(setup, "approval"))(
+      "refuses a command taller than its screen from the chat",
+      async ({ e2e: run }) => {
+        run.model.use(
+          answers("Make the file", (call) => running(approval!.request(call), tallScript)),
+          noted,
+        )
+        const t1 = await start(run, setup)
+
+        await t1.prompt("Make the file")
+        const request = await dialogOf(t1, "choices")
+        const no = option(choices(request), /^No/)
+        await t1.answer(request.ref, { dialog: idOf(request), type: "choice", option: no.id })
+
+        await t1.until(approval!.denied)
+        await unrequested(t1)
       },
     )
 
@@ -562,6 +613,19 @@ for (const setup of setups) {
 
       await run.model.waitFor((call) => planning!.approved.test(text(call)), { after: calls })
       await unrequested(t1)
+      // Its record says so, or, in Codex's, that the next turn left plan mode.
+      await t1.poll(
+        async () => {
+          const notes = (await t1.transcript()).flatMap(({ note }) => (note ? [note] : []))
+          return (
+            (setup.agent === "codex"
+              ? notes.some((note) => note.type === "mode" && note.mode === "default")
+              : notes.some((note) => note.type === "plan-approved")) || undefined
+          )
+        },
+        "the plan's approval in its transcript",
+        30_000,
+      )
     })
 
     gated(it, lacking(setup, "plan"))(

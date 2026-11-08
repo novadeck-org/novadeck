@@ -15,7 +15,7 @@ import { encodeSession } from "./sessions/state"
 import { context, describe, expect, it } from "./test"
 import { channel } from "./testing/channel"
 import { startTestRunner } from "./testing/runner"
-import { noCompanions } from "./testing/scripted"
+import { noCompanions, noHistory } from "./testing/scripted"
 
 const unused = (): never => {
   throw new Error("not used here")
@@ -31,7 +31,12 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   ledBy: null,
   openedBy: null,
   agentRan: false,
+  restorable: false,
+  busy: false,
   started: true,
+  sleeping: false,
+  restingAgent: null,
+  lastTurnAt: null,
   command: null,
   lastProgram: null,
   cwd: "/tmp",
@@ -42,6 +47,7 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   process: { name: "zsh", argv: null },
   agent: null,
   ready: null,
+  startup: null,
   activity: null,
   telemetry: null,
   reported: null,
@@ -72,6 +78,7 @@ const scripted = (reported: TerminalSummary, lastProgram = "") => {
       attach: () => new Promise(() => {}),
     },
     companions: noCompanions,
+    history: noHistory,
   } as unknown as RunnerApi
   const session = {
     id: "s",

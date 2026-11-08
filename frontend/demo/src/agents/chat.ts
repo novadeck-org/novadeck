@@ -4,6 +4,7 @@ import {
   type ChatRequest,
   type Conversation,
   type Conversations,
+  noDoorbell,
 } from "@novadeck/core/conversation"
 import { promptRefusal, shellCommand } from "@novadeck/core/conversation/prompt-refusal"
 import type { TerminalKey } from "@novadeck/core/port"
@@ -16,7 +17,7 @@ import { chatAgent, chatAgents, terminalSlot } from "../samples"
 import { sessionOf } from "../workspace"
 import { promptRefused } from "./prompt-refusal"
 import { madeRequest, type DemoRequestOutcome } from "./requests"
-import type { DemoDraft, DemoTranscript } from "./transcripts"
+import { outcomeAmong, type DemoDraft, type DemoTranscript } from "./transcripts"
 import type { DemoTurns, TurnEvent } from "./turns"
 
 export type DemoChat = {
@@ -95,7 +96,10 @@ const draftOf = (draft: DemoDraft): Omit<ChatItem, "id" | "at" | "truncated"> =>
   call: draft.call ?? null,
   author: draft.author ?? null,
   run: draft.run ?? null,
+  outcome: null,
+  scripted: false,
   interrupted: false,
+  ring: null,
 })
 
 const text = (role: ChatItem["role"], value: string) => ({
@@ -106,7 +110,10 @@ const text = (role: ChatItem["role"], value: string) => ({
   call: null,
   author: null,
   run: null,
+  outcome: null,
+  scripted: false,
   interrupted: false,
+  ring: null,
 })
 
 // The line the chat shows for that command, in every harness.
@@ -317,6 +324,11 @@ export const createDemoChat = (
     return {
       agent: found.terminal.process,
       session: `demo-${terminalKeyId(found.key)}`,
+      slice: transcript?.slice ?? null,
+      box: transcript?.box ?? null,
+      doorbell: transcript?.delivered
+        ? { ...noDoorbell, delivered: transcript.delivered }
+        : noDoorbell,
       loaded: true,
       items: transcript?.items ?? [],
       // An agent that reports nothing holds what its screen shows; one that does, what it
@@ -328,8 +340,6 @@ export const createDemoChat = (
           : [],
       // The demo follows no prompts: what it sends shows as its transcript's own item.
       prompts: [],
-      // Its transcripts hold nothing the chat can't read.
-      unread: false,
     }
   }
   const entryOf = (key: TerminalKey) => {
@@ -360,6 +370,7 @@ export const createDemoChat = (
         ...conversation.items,
         ...drafts.map((draft, index) => ({
           ...draft,
+          outcome: draft.outcome ?? outcomeAmong([...conversation.items, ...drafts], draft),
           id: `${terminalKeyId(key)}:${conversation.items.length + index + 1}`,
           at: Date.now(),
           truncated: draft.truncated ?? false,
@@ -389,7 +400,10 @@ export const createDemoChat = (
           tool: "Bash",
           call: null,
           author: null,
+          outcome: null,
+          scripted: false,
           interrupted: false,
+          ring: null,
         },
         {
           role: "tool",
@@ -399,7 +413,10 @@ export const createDemoChat = (
           call: null,
           author: null,
           run: null,
+          outcome: null,
+          scripted: false,
           interrupted: false,
+          ring: null,
         },
       )
   }
@@ -456,7 +473,10 @@ export const createDemoChat = (
           call: run.call,
           author: null,
           run: run.run,
+          outcome: null,
+          scripted: false,
           interrupted: false,
+          ring: null,
         },
         {
           role: "tool",
@@ -466,7 +486,10 @@ export const createDemoChat = (
           call: run.call,
           author: null,
           run: null,
+          outcome: null,
+          scripted: false,
           interrupted: false,
+          ring: null,
         },
       )
     } else if (event.type === "rest") {
@@ -491,6 +514,11 @@ export const createDemoChat = (
     conversations: {
       conversation: storeOf,
       refused: promptRefused,
+      // The person empties the agent's box from the chat.
+      clearBox: async (key) => {
+        storeOf(key).update((conversation) => ({ ...conversation, box: null }))
+        return true
+      },
       send: async (key, prompt, options) => {
         const found = agentFor(key)
         const name = chatAgents[chatAgent(found.terminal)!]

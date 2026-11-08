@@ -13,11 +13,12 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { type Report } from "@novadeck/harness-core/report"
+import { dialogTextLimits } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
 
 import { agents, harnesses } from "../harnesses/registry.js"
 import { describe, expect, it as base } from "../test.js"
-import { hookVariables, prune, relayHook } from "./hook.js"
+import { hookVariables, prune, relayHook, windowsWords } from "./hook.js"
 import { installShellFiles } from "./install.js"
 import { listenForReports, unanswered, unheard, type Ack, type HookAnswer } from "./reports.js"
 import { relayConfig } from "./scripts.js"
@@ -177,7 +178,9 @@ describe("agent hook", () => {
     fixture,
   }) => {
     expect(await fixture.hook("claude", start(), {}, "SessionStart")).toBe(0)
-    expect(fixture.reports).toEqual([
+    // The words of the agent process that ran it, if one of its ancestors is (`launch`), are
+    // whatever this machine's are.
+    expect(fixture.reports.map((report) => ({ ...report, launch: undefined }))).toEqual([
       {
         terminalId,
         token,
@@ -667,6 +670,21 @@ const shell = (startedAt?: number) => [
   { pid: 30, name: "codex", startedAt: 0 },
 ]
 
+describe("the words of a Windows command line", () => {
+  it("part at spaces outside quotes, and keep backslashes but before a quote", () => {
+    expect(windowsWords('a  "b c"\td')).toEqual(["a", "b c", "d"])
+    expect(windowsWords('x C:\\dir\\file "C:\\dir with\\\\"')).toEqual([
+      "x",
+      "C:\\dir\\file",
+      "C:\\dir with\\",
+    ])
+    expect(windowsWords('say \\"hi\\" ""')).toEqual(["say", '"hi"', ""])
+    expect(windowsWords('"a ""b"" c"')).toEqual(['a "b" c'])
+    expect(windowsWords("")).toEqual([])
+    expect(windowsWords('"unclosed one')).toEqual(["unclosed one"])
+  })
+})
+
 describe("reading a relay's hook", () => {
   const hook = (given: object = {}) => ({
     agent: "codex",
@@ -692,6 +710,69 @@ describe("reading a relay's hook", () => {
       env: { CLAUDE_PID: "4242" },
     })
     expect(relayHook(claude)?.report.instance).toBe("4242")
+  })
+
+  it("reports the words its agent process was started with, as the relay read them", () => {
+    const ancestors = [
+      { pid: 10, name: "sh", args: ["-c", "hook"] },
+      { pid: 20, name: "codex", args: ["--model", "gpt-5", "-a", "never"] },
+    ]
+    expect(relayHook(hook({ ancestors }))?.report.launch).toEqual([
+      "--model",
+      "gpt-5",
+      "-a",
+      "never",
+    ])
+    // Claude Code's own pid names its process, whatever it is called.
+    const claude = hook({ agent: "claude", env: { CLAUDE_PID: "10" }, ancestors })
+    expect(relayHook(claude)?.report.launch).toEqual(["-c", "hook"])
+    expect(relayHook(hook({ ancestors: [{ pid: 20, name: "codex" }] }))?.report).not.toHaveProperty(
+      "launch",
+    )
+    expect(relayHook(hook())?.report).not.toHaveProperty("launch")
+  })
+
+  it("reads the line Windows keeps of its agent process as that platform's programs do", () => {
+    const line =
+      '"C:\\Program Files\\codex.exe" --model gpt-5 -c "title=a b" --add-dir "C:\\x y\\\\"'
+    const ancestors = [{ pid: 20, name: "codex", commandLine: line }]
+    expect(relayHook(hook({ ancestors }), "win32")?.report.launch).toEqual([
+      "--model",
+      "gpt-5",
+      "-c",
+      "title=a b",
+      "--add-dir",
+      "C:\\x y\\",
+    ])
+  })
+
+  it("drops the last word of a Windows line the relay cut, which may be partial", () => {
+    const line = "codex.exe --model gpt-5 --ask-for-approval nev"
+    const told = (commandLineCut: boolean) => [
+      { pid: 20, name: "codex", commandLine: line, commandLineCut },
+    ]
+    expect(relayHook(hook({ ancestors: told(true) }), "win32")?.report.launch).toEqual([
+      "--model",
+      "gpt-5",
+      "--ask-for-approval",
+    ])
+    expect(relayHook(hook({ ancestors: told(false) }), "win32")?.report.launch).toEqual([
+      "--model",
+      "gpt-5",
+      "--ask-for-approval",
+      "nev",
+    ])
+  })
+
+  it("drops what an ancestor was started with when it is too long to be whole, keeping the ancestor", () => {
+    const long = "x".repeat(5000)
+    const ancestors = [
+      { pid: 20, name: "codex", args: ["--model", long] },
+      { pid: 30, name: "sh", commandLine: long },
+    ]
+    const found = relayHook(hook({ ancestors }))
+    expect(found?.report.instance).toBe("20")
+    expect(found?.report).not.toHaveProperty("launch")
   })
 
   it("takes only an event its harness asks on for an ask, never a name objects carry", () => {
@@ -841,5 +922,73 @@ describe("a pruned copy of a hook's payload", () => {
     expect(prune("abc😀", 0, 4)).toBe("abc")
     expect(prune("abc😀", 0, 5)).toBe("abc😀")
     expect(prune({ list: ["ab😀"] }, 0, 3)).toEqual({ list: ["ab"] })
+  })
+
+  it("keeps the fields named whole, at any depth, and cuts the rest", () => {
+    const long = "x".repeat(20_000)
+    expect(prune({ tool_input: { command: long, description: long } }, 0, 10, ["command"])).toEqual(
+      { tool_input: { command: long, description: "x".repeat(10) } },
+    )
+  })
+
+  it("keeps a command only one past what a dialog shows, so one longer reads as nothing", () => {
+    const pruned = prune({ command: "x".repeat(200_000) }, 0, 10, ["command"]) as {
+      command: string
+    }
+    expect(pruned.command.length).toBeGreaterThan(dialogTextLimits.detail)
+  })
+
+  it("keeps a command too long past the limit, whatever emoji the cut falls in", () => {
+    const at = dialogTextLimits.detail
+    const command = `${"x".repeat(at)}😀 and the rest`
+    const shifted = `${"x".repeat(at + 1)}😀 and the rest`
+    for (const each of [command, shifted]) {
+      const pruned = prune({ command: each }, 0, 10, ["command"]) as { command: string }
+      expect(pruned.command.length).toBeGreaterThan(at)
+    }
+  })
+
+  it("keeps only text right at a field named whole, as what's under one is no command", () => {
+    const long = "x".repeat(20_000)
+    expect(prune({ command: { nested: long } }, 0, 10, ["command"])).toEqual({
+      command: { nested: "x".repeat(10) },
+    })
+  })
+})
+
+describe("a hook's report", () => {
+  const hook = (agent: string, payload: unknown) => ({
+    agent,
+    event: "PermissionRequest",
+    seq: 1_000,
+    ancestors: [],
+    env: {},
+    payload: JSON.stringify(payload),
+  })
+
+  it.each([
+    ["claude", { tool_input: { command: "x".repeat(50_000) } }],
+    ["codex", { tool_input: { command: "x".repeat(50_000) } }],
+    ["agy", { toolCall: { args: { CommandLine: "x".repeat(50_000) } } }],
+  ])("keeps the command %s asks about whole", (agent, payload) => {
+    expect(relayHook(hook(agent, payload), "linux")?.report.payload).toEqual(payload)
+  })
+
+  it("keeps a long script of line breaks whole, however it grows as JSON", () => {
+    const command = `${"\n".repeat(30_000)}done`
+    const report = relayHook(hook("claude", { tool_input: { command } }), "linux")?.report
+    expect(report?.payload).toEqual({ tool_input: { command } })
+  })
+
+  it("cuts the commands too of a report with more of them than it can hold", () => {
+    const tasks = Array.from({ length: 12 }, () => ({ command: "x".repeat(60_000) }))
+    const report = relayHook(hook("claude", { background_tasks: tasks }), "linux")?.report
+    expect(JSON.stringify(report).length).toBeLessThan(60_000)
+  })
+
+  it("keeps the command when the rest of a report runs past what it holds", () => {
+    const payload = { tool_input: { command: "run it" }, rest: Array(50).fill("y".repeat(4096)) }
+    const report = relayHook(hook("claude", payload), "linux")?.report
+    expect(report?.payload).toMatchObject({ tool_input: { command: "run it" } })
   })
 })

@@ -12,9 +12,11 @@ import {
   type AskAnswer,
   type CompanionChange,
   type CompanionItem,
+  type ClosedTerminal,
   type CompanionWindow,
   type FeedbackDraft,
   type FolderListing,
+  type HistoryChange,
   type InboxEntry,
   type InterruptResult,
   type ItemContent,
@@ -28,6 +30,7 @@ import {
   type RequestAnswer,
   type RunnerSettings,
   type RunnerSettingsState,
+  type SliceChange,
   type TerminalChange,
   type TerminalMessages,
   type TerminalRequest,
@@ -68,6 +71,12 @@ export type TerminalWatchItem = TerminalChange | Reset
  * yields before each fresh sequence of items and windows ending in `synced`.
  */
 export type CompanionWatchItem = CompanionChange | Reset
+
+/**
+ * An item of `runner.history.watch()`: a runner change, or `reset`, which the client
+ * yields before each fresh sequence of closed terminals ending in `synced`.
+ */
+export type HistoryWatchItem = HistoryChange | Reset
 
 export type Runner = {
   readonly status: WireStatus
@@ -171,6 +180,14 @@ export type Runner = {
        * for, as the agent's.
        */
       readonly requestId?: string
+      /**
+       * The History row (`history.list`) to restore as this new terminal, in the row's own
+       * directory: an agent resumes, a plain terminal gets a fresh shell with its saved
+       * output above. Goes with nothing else but `sessionId`, `cols` and `rows`. Rejects
+       * with `NOT_FOUND` for a row the runner doesn't have and `CONFLICT` for one that
+       * can't be restored now.
+       */
+      readonly closed?: string
     }): Promise<TerminalSummary>
     /**
      * Follows agents' requests for a new terminal, made through Novadeck's MCP server,
@@ -233,6 +250,16 @@ export type Runner = {
      */
     resetTitle(terminalId: string): Promise<void>
     /**
+     * The ids of the terminals, in every session, whose shell holds work a restart would end (a
+     * program, an unfinished line, a background or suspended job; for an agent, whose own
+     * process resumes, only work beside or under it, as the rule that keeps an idle agent from
+     * resting sees it), read from the system now (with `fresh`, by a read that starts after the call), and those the runner couldn't read (`unknown`, never
+     * idle). Ask only while someone looks at the answer, or is about to act on it.
+     */
+    busy(options?: {
+      readonly fresh?: true
+    }): Promise<{ readonly busy: string[]; readonly unknown: string[] }>
+    /**
      * Saves a file pasted into a terminal on the runner's machine, sending it in
      * parts that each fit a message, and resolves with its absolute path there. Rejects
      * with `UPLOAD_TOO_LARGE` past `maxUploadBytes`, before sending anything, and as
@@ -268,6 +295,12 @@ export type Runner = {
      */
     detail(terminalId: string): AsyncIterableIterator<AgentDetail, undefined>
     /**
+     * Follows the terminal's live slice: a snapshot, then another on each change, across
+     * reconnections, with a fresh one when the stream is opened again; `slice` is null while
+     * nothing shows. Iteration ends as `detail`'s does.
+     */
+    slice(terminalId: string): AsyncIterableIterator<SliceChange, undefined>
+    /**
      * Follows an actor's conversation, by the ref `detail` names it by: every item its
      * harness recorded, then each later one. After a reconnection the items follow again
      * from the start, after a `reset`. Iteration ends once the terminal's agent has left
@@ -291,7 +324,7 @@ export type Runner = {
     prompt(
       terminalId: string,
       text: string,
-      options?: { readonly automatic?: true; readonly ref?: string },
+      options?: { readonly automatic?: true; readonly along?: true; readonly ref?: string },
     ): Promise<{ readonly ref: string; readonly tracked: boolean }>
     /**
      * Answers a request waiting on the person through its dialog in the agent's TUI, by the
@@ -313,11 +346,29 @@ export type Runner = {
      * the person is to clear the box in the terminal.
      */
     interrupt(terminalId: string): Promise<InterruptResult>
+    /** Writes keys to the terminal's agent as the person's. */
+    keys(terminalId: string, keys: string): Promise<void>
+    takeBox(terminalId: string): Promise<{ readonly returned: string | null }>
+    putBox(terminalId: string, text: string): Promise<{ readonly placed: boolean }>
+    clearBox(terminalId: string, seen: string): Promise<{ readonly cleared: boolean }>
     /**
      * Installs or removes Novadeck's plugin in the agent through its own commands;
      * rejects with `AGENT_SETUP_FAILED` saying why when that did not work.
      */
     set(agent: AgentName, connected: boolean): Promise<AgentIntegration>
+  }
+  /** Terminals closed in the last 30 days, per project, to restore. */
+  readonly history: {
+    /** A project's closed terminals, newest first, each with whether it can be restored now. */
+    list(input: { readonly projectId: string }): Promise<ClosedTerminal[]>
+    /**
+     * Follows every closed terminal on the runner, across projects, as `terminals.watch()`
+     * follows terminals: each time the stream opens it yields `reset`, every closed
+     * terminal as `changed`, then `synced`; at `synced`, forget any not reported since.
+     * Later events report a close, a change of availability and `removed` for a restored
+     * or pruned row. Iteration ends only when the runner closes or on `return()`.
+     */
+    watch(): AsyncIterableIterator<HistoryWatchItem, undefined>
   }
   /**
    * What agents show and the person attaches beside terminals: items, each held by a
@@ -603,6 +654,7 @@ export const connectRunner = async (
       rename: (terminalId, title) =>
         call((client) => client.terminals.rename({ terminalId, title })),
       resetTitle: (terminalId) => call((client) => client.terminals.resetTitle({ terminalId })),
+      busy: (only) => call((client) => client.terminals.busy(only)),
       async upload(terminalId, { name, data }) {
         if (data.length > maxUploadBytes) throw new WireError<RunnerErrorCode>("UPLOAD_TOO_LARGE")
         const [first, ...rest] = base64Parts(data, maxUploadPartLength)
@@ -630,25 +682,40 @@ export const connectRunner = async (
         followRestarting(connection, (client, signal) =>
           client.agents.detail({ terminalId }, { signal }),
         ),
+      slice: (terminalId) =>
+        followRestarting(connection, (client, signal) =>
+          client.agents.slice({ terminalId }, { signal }),
+        ),
       transcript: (terminalId, actor) =>
         followRestarting<TranscriptChange>(
           connection,
           (client, signal) => client.agents.transcript({ terminalId, actor }, { signal }),
           { type: "reset" },
         ),
-      prompt: (terminalId, text, { automatic, ref } = {}) =>
+      prompt: (terminalId, text, { automatic, along, ref } = {}) =>
         call((client) =>
           client.agents.prompt({
             terminalId,
             text,
             ...(automatic && { automatic }),
+            ...(along && { along }),
             ...(ref !== undefined && { ref }),
           }),
         ),
       answer: (terminalId, request, answer) =>
         call((client) => client.agents.answer({ terminalId, request, answer })),
       interrupt: (terminalId) => call((client) => client.agents.interrupt({ terminalId })),
+      keys: (terminalId, keys) => call((client) => client.agents.keys({ terminalId, keys })),
+      takeBox: (terminalId) => call((client) => client.agents.takeBox({ terminalId })),
+      putBox: (terminalId, text) => call((client) => client.agents.putBox({ terminalId, text })),
+      clearBox: (terminalId, seen) =>
+        call((client) => client.agents.clearBox({ terminalId, seen })),
       set: (agent, connected) => call((client) => client.agents.set({ agent, connected })),
+    },
+    history: {
+      list: (input) => call((client) => client.history.list(input)),
+      watch: () =>
+        followAll(connection, (client, signal) => client.history.watch(undefined, { signal })),
     },
     companions: {
       list: (input) => call((client) => client.companions.list(input)),

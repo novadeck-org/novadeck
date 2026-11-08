@@ -1,7 +1,9 @@
+import type { ClosedTerminal } from "@novadeck/core/history"
 import type { TerminalRequest } from "@novadeck/core/port"
 import { orderedTiles } from "@novadeck/core/roster"
 import { createStore } from "@novadeck/core/store"
 import { appearance, itemFixture, terminalFixture, workspaceFixture } from "@novadeck/core/testing"
+import type { TerminalMetadata } from "@novadeck/core/types"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
@@ -27,11 +29,31 @@ const three = async () => {
 const running = () => {
   const workspace = workspaceFixture()
   const state = workspace.projects[0]!.history[0]!.state
+  const { id, name, directory, command } = state.roster.terminals[0]!
   state.roster.terminals[0] = {
-    ...state.roster.terminals[0]!,
+    id,
+    name,
+    directory,
+    command,
     state: "running",
     process: "vim",
   }
+  return workspace
+}
+
+// Four idle terminals: 01 (@lynx) leads 02 (@glint) and 04; 02 leads 03.
+const withTeam = () => {
+  const workspace = workspaceFixture({ terminals: 4 })
+  const state = workspace.projects[0]!.history[0]!.state
+  const parts: Partial<TerminalMetadata>[] = [
+    { handle: "lynx" },
+    { handle: "glint", ledBy: "lynx" },
+    { ledBy: "glint" },
+    { ledBy: "lynx" },
+  ] as never
+  state.roster.terminals.forEach((each, index) => {
+    state.roster.terminals[index] = { ...each, state: "idle", ...parts[index] } as TerminalMetadata
+  })
   return workspace
 }
 
@@ -306,11 +328,265 @@ describe("workspace commands", () => {
       expect(keyState(app.context, app.commands)).toMatchObject({ dialog: true, alert: true })
     })
 
+    it("asks first for a sleeping agent too, since closing ends its saved session", () => {
+      const workspace = running()
+      const state = workspace.projects[0]!.history[0]!.state
+      const { id, name, directory, command } = state.roster.terminals[0]!
+      state.roster.terminals[0] = {
+        id,
+        name,
+        directory,
+        command,
+        process: "",
+        state: "sleeping",
+        agent: "claude",
+      }
+      const app = openCommands({ workspace })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toMatchObject({ id: "01" })
+      expect(terminal(app, "01")).toBeDefined()
+    })
+
+    it("asks first while an agent wakes, since closing ends its saved session", () => {
+      const workspace = running()
+      const state = workspace.projects[0]!.history[0]!.state
+      const { id, name, directory, command } = state.roster.terminals[0]!
+      state.roster.terminals[0] = {
+        id,
+        name,
+        directory,
+        command,
+        process: "",
+        state: "starting",
+        restoredProcess: "claude",
+      }
+      const app = openCommands({ workspace })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toMatchObject({ id: "01" })
+      expect(terminal(app, "01")).toBeDefined()
+    })
+
     it("closes an idle terminal without asking", () => {
       const app = openCommands()
       app.commands.close("01")
       expect(app.ui.getSnapshot().closing).toBeNull()
       expect(app.state().roster.terminals.map((item) => item.id)).not.toContain("01")
+    })
+  })
+
+  context("when closing a terminal that leads a team", () => {
+    const remaining = (app: ReturnType<typeof openCommands>) =>
+      app.state().roster.terminals.map((item) => item.id)
+
+    it("asks first, though nothing runs in it and its team is not running", () => {
+      const app = openCommands({ workspace: withTeam() })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toMatchObject({ id: "01" })
+      expect(remaining(app)).toContain("01")
+    })
+
+    it("asks first where the backend keeps History too", () => {
+      const history = { state: createStore({ rows: [] }), list: () => Promise.resolve([]) }
+      const app = openCommands({ workspace: withTeam(), history })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toMatchObject({ id: "01" })
+    })
+
+    it("asks of a sub-lead, and closes a teammate that leads no one without asking", () => {
+      const app = openCommands({ workspace: withTeam() })
+      app.commands.close("04")
+      expect(app.ui.getSnapshot().closing).toBeNull()
+      app.commands.close("02")
+      expect(app.ui.getSnapshot().closing).toMatchObject({ id: "02" })
+    })
+
+    it("closes the lead and everyone below it, at any depth, when the person closes all", () => {
+      const app = openCommands({ workspace: withTeam() })
+      app.commands.close("01")
+      app.commands.confirmClose("team")
+      expect(remaining(app)).toEqual([])
+    })
+
+    it("closes only the lead when the person closes it alone", () => {
+      const app = openCommands({ workspace: withTeam() })
+      app.commands.close("01")
+      app.commands.confirmClose("terminal")
+      expect(remaining(app)).toEqual(["02", "03", "04"])
+    })
+
+    it("closes a sub-lead with its own team and leaves the rest", () => {
+      const app = openCommands({ workspace: withTeam() })
+      app.commands.close("02")
+      app.commands.confirmClose("team")
+      expect(remaining(app)).toEqual(["01", "04"])
+    })
+  })
+
+  context("when the backend keeps closed terminals", () => {
+    const history = { state: createStore({ rows: [] }), list: () => Promise.resolve([]) }
+    // The first terminal, with what the runner says of it.
+    const asBackendSays = (parts: Partial<TerminalMetadata>) => {
+      const workspace = workspaceFixture()
+      const state = workspace.projects[0]!.history[0]!.state
+      state.roster.terminals[0] = { ...state.roster.terminals[0]!, ...parts } as TerminalMetadata
+      return openCommands({ workspace, history })
+    }
+
+    it("asks while a program runs in the shell, which Windows says only as busy", () => {
+      const app = asBackendSays({ state: "idle", busy: true })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toMatchObject({ id: "01" })
+    })
+
+    it("asks while its agent is mid-turn, though it could be restored", () => {
+      const app = asBackendSays({
+        state: "running",
+        agent: { working: true },
+        restorable: true,
+        busy: true,
+      })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toMatchObject({ id: "01" })
+    })
+
+    it("asks about a running agent that can't be restored, as one with no session yet", () => {
+      const app = asBackendSays({ state: "running", agent: { working: false } })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toMatchObject({ id: "01" })
+    })
+
+    it("closes an idle agent that can be restored without asking", () => {
+      const app = asBackendSays({
+        state: "running",
+        process: "claude",
+        agent: { working: false },
+        restorable: true,
+        busy: true,
+      })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toBeNull()
+      expect(app.state().roster.terminals.map((item) => item.id)).not.toContain("01")
+    })
+
+    it("remembers which agent's switch Preferences should show, when a plug opens it", () => {
+      const app = asBackendSays({ state: "idle" })
+      app.commands.openAgentSettings("codex")
+      expect(app.ui.getSnapshot().agentFocus).toBe("codex")
+      expect(app.ui.getSnapshot().location.route.dialog).toBe("preferences")
+    })
+
+    it("does not take an agent that ran and left for one that runs", () => {
+      const app = asBackendSays({ state: "idle", agentRan: true })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toBeNull()
+    })
+
+    it("restores a row as a new terminal in the session on screen, selected, in its folder", () => {
+      const app = openCommands({
+        history,
+        url: "/projects/project/sessions/initial/grid?terminal=01&panel=history",
+      })
+      const row = {
+        id: "closed-7",
+        projectId: "project",
+        title: "Coupon codes",
+        summary: null,
+        handle: "wren",
+        agent: "claude",
+        program: "claude",
+        cwd: "/work/storefront",
+        closedAt: 1,
+        closedBy: null,
+        availability: { state: "ready" },
+      } as const
+      app.commands.restoreClosed(row)
+      expect(app.allocated.at(-1)).toEqual({
+        target: { projectId: "project", workspaceSessionId: "initial" },
+        directory: "/work/storefront",
+        closed: "closed-7",
+      })
+      // It leaves the title to the backend, and the sidebar on the panel it was on.
+      expect(app.allocated.at(-1)).not.toHaveProperty("title")
+      expect(app.state().selected).toBe(app.state().roster.terminals.at(-1)!.id)
+      expect(app.state().selected).toMatch(/^new-/)
+      expect(app.ui.getSnapshot().location.route.panel).toBe("history")
+    })
+
+    it("makes one terminal from a row clicked twice before the runner says it is restoring", () => {
+      const row = {
+        id: "closed-7",
+        projectId: "project",
+        title: "Coupon codes",
+        summary: null,
+        handle: "wren",
+        agent: "claude",
+        program: "claude",
+        cwd: "/work/storefront",
+        closedAt: 1,
+        closedBy: null,
+        availability: { state: "ready" },
+      } as const
+      const rows = createStore({ rows: [row] as readonly ClosedTerminal[] })
+      const app = openCommands({ history: { state: rows, list: () => Promise.resolve([row]) } })
+      app.commands.restoreClosed(row)
+      app.commands.restoreClosed(row)
+      expect(app.allocated).toHaveLength(1)
+      // Once the runner says the row is restoring, and then it is gone, it is not held.
+      rows.update(() => ({ rows: [{ ...row, availability: { state: "restoring" } }] }))
+      rows.update(() => ({ rows: [row] }))
+      app.commands.restoreClosed(row)
+      expect(app.allocated).toHaveLength(2)
+    })
+
+    it("holds a second click on a row whose terminal failed no longer", () => {
+      const row = {
+        id: "closed-8",
+        projectId: "project",
+        title: "Tax rounding",
+        summary: null,
+        handle: null,
+        agent: null,
+        program: "zsh",
+        cwd: "/work",
+        closedAt: 1,
+        closedBy: null,
+        availability: { state: "ready" },
+      } as const
+      const rows = createStore({ rows: [row] as readonly ClosedTerminal[] })
+      const app = openCommands({ history: { state: rows, list: () => Promise.resolve([row]) } })
+      app.commands.restoreClosed(row)
+      const made = app.state().selected
+      app.workspace.dispatch({
+        type: "terminal/status",
+        target: { projectId: "project", workspaceSessionId: "initial" },
+        terminalId: made,
+        status: { state: "failed", message: "refused" },
+      })
+      app.commands.restoreClosed(row)
+      expect(app.allocated).toHaveLength(2)
+    })
+
+    it("reveals a terminal by its id in the row's project, the session on screen first", () => {
+      const workspace = twoSessions()
+      const [initial, other] = workspace.projects[0]!.history
+      // Handles are unique only per session: two sessions can both hold a @kite.
+      initial!.state.roster.terminals[0]!.handle = "kite"
+      other!.state.roster.terminals.at(-1)!.handle = "kite"
+      const app = openCommands({ workspace, history })
+      app.commands.revealTerminal(other!.state.roster.terminals.at(-1)!.id, "project")
+      expect(app.ui.getSnapshot().location.route).toMatchObject({
+        sessionId: "other",
+        terminal: other!.state.roster.terminals.at(-1)!.id,
+      })
+      app.commands.revealTerminal(initial!.state.roster.terminals[0]!.id, "project")
+      expect(app.ui.getSnapshot().location.route).toMatchObject({
+        sessionId: "initial",
+        terminal: initial!.state.roster.terminals[0]!.id,
+      })
+      // Another project's terminals are not this row's.
+      app.commands.revealTerminal(other!.state.roster.terminals.at(-1)!.id, "elsewhere")
+      expect(app.ui.getSnapshot().location.route.sessionId).toBe("initial")
+      expect(() => app.commands.revealTerminal("nobody", "project")).not.toThrow()
     })
   })
 
@@ -392,6 +668,55 @@ describe("workspace commands", () => {
     })
   })
 
+  context("when pressing the open panel's toggle", () => {
+    const panel = (app: ReturnType<typeof openCommands>) =>
+      app.ui.getSnapshot().location.route.panel
+
+    it("goes back one step, to the panel shown before it, then hides from there", () => {
+      const app = openCommands()
+      app.commands.hideSidebar()
+      app.commands.toggleSidebar("terminals")
+      app.commands.toggleSidebar("inbox")
+      app.commands.toggleSidebar("sessions")
+      // Sessions after the Inbox goes back to the Inbox, the panel just before it.
+      app.commands.toggleSidebar("sessions")
+      expect(panel(app)).toBe("inbox")
+      expect(app.shell().sidebarCollapsed).toBe(false)
+      // The step is spent: from the Inbox the same press hides, rather than going on.
+      app.commands.toggleSidebar("inbox")
+      expect(app.shell().sidebarCollapsed).toBe(true)
+    })
+
+    it("hides the sidebar where it has no step to go back, as on the panel it opened on", () => {
+      const app = openCommands()
+      app.commands.hideSidebar()
+      app.commands.toggleSidebar("inbox")
+      expect(app.shell().sidebarBack).toBeNull()
+      app.commands.toggleSidebar("inbox")
+      expect(app.shell().sidebarCollapsed).toBe(true)
+    })
+
+    it("has no step to go back on a panel the app moved to, as for a new session", () => {
+      const app = openCommands()
+      app.commands.toggleSidebar("inbox")
+      app.commands.toggleSidebar("sessions")
+      app.commands.startFresh()
+      expect(panel(app)).toBe("terminals")
+      app.commands.toggleSidebar("terminals")
+      expect(app.shell().sidebarCollapsed).toBe(true)
+    })
+
+    it("goes back from a panel switched to on a sidebar left open", () => {
+      const app = openCommands()
+      expect(app.shell().sidebarBack).toBeNull()
+      app.commands.toggleSidebar("sessions")
+      app.commands.toggleSidebar("sessions")
+      expect(panel(app)).toBe("terminals")
+      app.commands.toggleSidebar("terminals")
+      expect(app.shell().sidebarCollapsed).toBe(true)
+    })
+  })
+
   context("when the Inbox shows for one row, as a click on a toast shows it", () => {
     const panel = (app: ReturnType<typeof openCommands>) =>
       app.ui.getSnapshot().location.route.panel
@@ -424,14 +749,25 @@ describe("workspace commands", () => {
       expect(app.shell().zen).toEqual(zen)
     })
 
-    it("puts nothing back once the person has moved the sidebar on", () => {
+    it("goes back to the panel it showed over, and then has nothing to put back", () => {
       const app = openCommands()
       app.commands.showSessions()
       const back = app.commands.peekInbox()
       app.commands.toggleSidebar("inbox")
+      expect(panel(app)).toBe("sessions")
       back!()
-      expect(app.shell().sidebarCollapsed).toBe(true)
-      expect(panel(app)).toBe("inbox")
+      expect(app.shell().sidebarCollapsed).toBe(false)
+      expect(panel(app)).toBe("sessions")
+    })
+
+    it("puts back where the open panel's toggle went back to", () => {
+      const app = openCommands()
+      app.commands.toggleSidebar("sessions")
+      app.commands.peekInbox()!()
+      expect(panel(app)).toBe("sessions")
+      app.commands.toggleSidebar("sessions")
+      expect(panel(app)).toBe("terminals")
+      expect(app.shell().sidebarCollapsed).toBe(false)
     })
 
     it("has nothing to put back where the Inbox showed already", () => {

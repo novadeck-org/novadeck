@@ -1,0 +1,156 @@
+/* The History panel's rows (HistoryPanel.tsx): one line each, a `.history-row` holding a
+   `.history-row-select` button: an icon, the title (with a plain terminal's folder after it)
+   and, at the end, the day or time it closed. Under the pointer or the keyboard's focus the
+   end gives its place to the restore icon. A row that can't restore is hatched and quiet,
+   and says a word where the date was; one that is restoring shows a spinner there.
+
+   Hooks: on a row, data-state="ready" | "restoring" | "gone" | "disconnected" | "open".
+
+   Tokens: none of its own; it reads the palette's (muted, strong, ink) and the item's. */
+.history-search {
+  flex: none;
+}
+
+/* The row, its select button, icon and title are a sidebar row's (SidebarItem.tsx's parts: the
+   item recipe and sidebar-item.css), so they read as the Terminals panel's. What follows is
+   the History row's own. */
+.history-row-select {
+  cursor: pointer;
+}
+.history-row-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 18px;
+}
+.history-row-folder {
+  margin-left: 6px;
+  font-size: var(--text-caption);
+  font-weight: 400;
+}
+.history-row-end {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  color: var(--color-muted);
+  font-size: var(--text-caption);
+  line-height: 18px;
+  white-space: nowrap;
+}
+.history-row-end[data-open="true"] {
+  color: var(--color-strong);
+}
+.history-row-restore {
+  position: absolute;
+  right: 0;
+  display: none;
+  color: var(--color-ink);
+}
+.history-row-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: var(--text-caption);
+  line-height: 16px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.history-row-summary mark {
+  background: transparent;
+  color: var(--color-strong);
+}
+
+/* Beside the select button, pinned to the title line: what a row that can't restore offers
+   instead. Hidden until the row is under the pointer or holds focus, and always there on a
+   screen with no pointer, where nothing hovers. */
+.history-row-actions {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+}
+.history-row:is(:hover, :focus-within) .history-row-actions {
+  opacity: 1;
+}
+/* Under the pointer or focus the restore icon takes the date's place, which keeps its room
+   so the title does not move. */
+.history-row[data-state="ready"]:is(:hover, :focus-within) .history-row-end-text {
+  visibility: hidden;
+}
+.history-row[data-state="ready"]:is(:hover, :focus-within) .history-row-restore {
+  display: block;
+}
+/* Not connected is wider than a date, so with its plug showing it gives its room back to
+   the title. */
+.history-row[data-state="disconnected"]:has(.history-row-actions):is(:hover, :focus-within)
+  .history-row-end {
+  display: none;
+}
+.history-row[data-state="disconnected"]:has(.history-row-actions):is(:hover, :focus-within)
+  .history-row-line {
+  padding-right: 24px;
+}
+@media (hover: none) {
+  .history-row-actions {
+    opacity: 1;
+  }
+  .history-row[data-state="disconnected"]:has(.history-row-actions) .history-row-end {
+    display: none;
+  }
+  .history-row[data-state="disconnected"]:has(.history-row-actions) .history-row-line {
+    padding-right: 24px;
+  }
+}
+
+/* A row that can't restore now: hatched and quiet, as an ended terminal's tab. */
+.history-row[data-state="gone"],
+.history-row[data-state="disconnected"] {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 6px,
+    color-mix(in srgb, var(--color-ink) 3.5%, transparent) 6px 7px
+  );
+  color: var(--color-muted);
+}
+.history-row[data-state="gone"] .history-row-select,
+.history-row[data-state="disconnected"] .history-row-select,
+.history-row[data-state="restoring"] .history-row-select {
+  cursor: default;
+}
+
+/* The spinner is a column of frames with one line showing, stepped up by a transform, as
+   a tab's is (tabs.css). */
+.history-spinner {
+  display: block;
+  width: 1ch;
+  height: 1lh;
+  overflow: hidden;
+  color: var(--color-strong);
+  font-family: var(--font-glyphs, var(--font-mono));
+  text-align: center;
+}
+.history-spinner::before {
+  display: block;
+  white-space: pre;
+  content: "⠋\A⠙\A⠹\A⠸\A⠼\A⠴\A⠦\A⠧\A⠇\A⠏";
+  animation: terminal-spin 800ms steps(10) infinite;
+}
+
+.history-empty {
+  margin: 0;
+  padding: 12px 8px;
+  color: var(--color-muted);
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
+}
+
+/* The search's own clear button is a bright cross the quiet field doesn't want. */
+.history-search input::-webkit-search-cancel-button {
+  appearance: none;
+  display: none;
+}

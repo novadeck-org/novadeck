@@ -291,6 +291,27 @@ describe("a terminal's output", () => {
   })
 })
 
+describe("a terminal's mode reports", () => {
+  const answered = async (platform: NodeJS.Platform) => {
+    const { program, settled } = terminalOf({ platform })
+    program.draw("\u001b[?2027$p\u001b[?2026$p\u001b[6n")
+    await settled()
+    return program.calls.filter((call) => call.startsWith("write"))
+  }
+
+  it("are answered on a pty, other reports with them", async () => {
+    expect(await answered("linux")).toEqual([
+      "write \u001b[?2027;0$y",
+      "write \u001b[?2026;2$y",
+      "write \u001b[1;1R",
+    ])
+  })
+
+  it("are not written to a Windows pseudoconsole, which would give its program the text of them", async () => {
+    expect(await answered("win32")).toEqual(["write \u001b[1;1R"])
+  })
+})
+
 describe("a terminal's hold", () => {
   const budget = { inputMs: 5_000, sizeMs: 10_000 }
   // A hold's caps and deadlines, on a clock the test moves, whatever the machine's load.
@@ -625,6 +646,41 @@ describe("a terminal's restart", () => {
 })
 
 describe("a terminal's events", () => {
+  it("draw nothing for a print that chooses none", async () => {
+    const { terminal } = terminalOf()
+    const attachment = terminal.attach("viewer", { mode: "observe" })
+    await terminal.print(() => null)
+    await terminal.print("x")
+    const events = await drain(terminal, "viewer", attachment, 2)
+    expect(events.map((event) => event.type)).toEqual(["snapshot", "output"])
+  })
+
+  it("scroll a print in on a Windows pseudoconsole, as a replay", async () => {
+    const { terminal } = terminalOf({ platform: "win32" })
+    const seen: boolean[] = []
+    await terminal.print((_screen, scrolled) => (seen.push(scrolled), "noted\r\n"))
+    expect(seen).toEqual([true])
+  })
+
+  it("send an attached window the note of a print on a Windows pseudoconsole", async () => {
+    const { terminal } = terminalOf({ platform: "win32" })
+    const attachment = terminal.attach("viewer", { mode: "observe" })
+    await terminal.print("noted\r\n")
+    const events = await drain(terminal, "viewer", attachment, 2)
+    expect(events.map((event) => event.type)).toEqual(["snapshot", "output"])
+    expect((events[1] as { data: string }).data).toContain("noted")
+  })
+
+  it("carry what is printed, which a replay's draw does not", async () => {
+    const { terminal } = terminalOf()
+    const attachment = terminal.attach("viewer", { mode: "observe" })
+    await terminal.print("noted\r\n")
+    await terminal.replay("quiet")
+    expect((await terminal.readScreen()).rows[0]?.trimEnd()).toBe("noted")
+    const events = await drain(terminal, "viewer", attachment, 2)
+    expect(events.at(-1)).toMatchObject({ type: "output", data: "noted\r\n" })
+  })
+
   it("are sequenced, and replayed after a cursor the ring still holds", async () => {
     const { terminal, program, settled } = terminalOf()
     program.draw("one")

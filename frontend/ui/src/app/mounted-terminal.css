@@ -33,3 +33,41 @@
     }
   }
 }
+
+/* A sleeping or waking agent: its screen is blank, with only a `z` where the agent will draw,
+   or `waking claude… █` once it is on its way. The terminal's output hides under it. */
+@layer components {
+  .terminal-mounted:has(.wake-screen) .terminal-screen {
+    visibility: hidden;
+  }
+  .wake-screen {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    padding: 12px 16px;
+    overflow: hidden;
+    pointer-events: none;
+    font-family: var(--tab-process-font, var(--font-glyphs));
+    font-size: 14px;
+    line-height: 17px;
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+  .wake-z {
+    color: var(--tab-sleeping-fg, var(--color-muted));
+  }
+  /* In Canvas, zoomed out to an overview, a bare large `z` reads from afar. */
+  .wake-screen[data-legible="false"] .wake-z {
+    font-size: 44px;
+    line-height: 1;
+  }
+  .wake-cursor {
+    color: var(--color-ink);
+    animation: wake-blink 1.06s steps(1) infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .wake-cursor {
+      animation: none;
+    }
+  }
+}

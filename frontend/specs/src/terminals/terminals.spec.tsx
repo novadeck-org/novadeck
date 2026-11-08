@@ -477,7 +477,7 @@ describe("closing terminals", () => {
       const dialog = closeConfirmation()
       await expect.element(dialog).toBeVisible()
       await expect
-        .element(dialog.getByRole("heading", { name: "Close @moth · “Checkout implementation”?" }))
+        .element(dialog.getByRole("heading", { name: "Close this terminal?" }))
         .toBeVisible()
       await expect.element(dialog.getByText("zsh is still running in it.")).toBeVisible()
       await expect.element(dialog.getByRole("button", { name: "Cancel" })).toHaveFocus()
@@ -520,6 +520,51 @@ describe("closing terminals", () => {
 
       await expect.element(terminalTab("Checkout implementation")).not.toBeInTheDocument()
       await expect.poll(visibleTerminalCounts).toEqual(["5 terminals"])
+    })
+  })
+
+  context("when the terminal leads a team", () => {
+    const openLead = async () => {
+      await openWorkspace("/?demo=messages&nested=on")
+      await headerAction("Checkout implementation", "Close Checkout implementation").click()
+    }
+
+    it("asks as a lead, listing its team nested under the lead that leads each", async () => {
+      await openLead()
+
+      const dialog = closeConfirmation()
+      await expect.element(dialog.getByRole("heading", { name: "Close this lead?" })).toBeVisible()
+      const rows = dialog.getByRole("listitem")
+      await expect.element(rows.first()).toBeVisible()
+      await expect.element(dialog.getByText("Closed terminals stay in History.")).toBeVisible()
+      await expect.element(dialog.getByRole("button", { name: "Cancel" })).toHaveFocus()
+      await expect.element(dialog.getByRole("button", { name: "Close @moth only" })).toBeVisible()
+      await expect.element(dialog.getByRole("button", { name: /^Close all \d+$/ })).toBeVisible()
+    })
+
+    it("closes the lead and its whole team when the person closes all", async () => {
+      await openLead()
+
+      await closeConfirmation()
+        .getByRole("button", { name: /^Close all/ })
+        .click()
+
+      await expect.element(closeConfirmation()).not.toBeInTheDocument()
+      await Promise.all(
+        ["Checkout implementation", "Tests", "Runtime", "Checkout review"].map((name) =>
+          expect.element(terminalTab(name)).not.toBeInTheDocument(),
+        ),
+      )
+    })
+
+    it("closes only the lead when the person says so, leaving its team running", async () => {
+      await openLead()
+
+      await closeConfirmation().getByRole("button", { name: "Close @moth only" }).click()
+
+      await expect.element(terminalTab("Checkout implementation")).not.toBeInTheDocument()
+      await expect.element(terminalTab("Tests")).toBeInTheDocument()
+      await expect.element(terminalTab("Checkout review")).toBeInTheDocument()
     })
   })
 
@@ -837,6 +882,47 @@ describe("reordering terminal tabs", () => {
       await press("{ArrowDown}")
 
       await expectSelected("Checkout implementation")
+    })
+  })
+
+  context("when closing a tab that was dragged", () => {
+    it("leaves no row of it behind", async () => {
+      await openWorkspace()
+      await dragTabOnto("Tests", "Checkout implementation")
+      await expect.poll(() => terminalTabNames()[0]).toBe("Tests")
+      // The drop animation ends before the list is left to React.
+      await new Promise((resolve) => setTimeout(resolve, 400))
+
+      await tabAction("Close Tests").click()
+      await confirmClose()
+
+      await expect
+        .poll(() => terminalTabNames())
+        .toEqual(["Checkout implementation", "Dev server", "Checkout review", "Runtime", "Build"])
+      expect(document.querySelectorAll(".terminal-tab-list [data-terminal-tab-id]")).toHaveLength(5)
+    })
+  })
+
+  context("when picking up and dropping a tab with the keyboard twice", () => {
+    it("keeps focus on that tab", async () => {
+      await openWorkspace()
+      await focusTab("Tests")
+      const dragging = () => document.querySelector(".terminal-tab.dragging") !== null
+      const focused = () =>
+        document.activeElement?.closest<HTMLElement>("[data-terminal-tab-id]")?.textContent ?? ""
+
+      const pickUpAndDrop = async (round: number): Promise<void> => {
+        await press(" ")
+        await expect.poll(dragging, { message: `picked up, round ${round}` }).toBe(true)
+        await press(" ")
+        await expect.poll(dragging, { message: `dropped, round ${round}` }).toBe(false)
+        // The drop's remount and focus have settled.
+        await new Promise((resolve) => setTimeout(resolve, 300))
+        expect(focused(), `round ${round}`).toContain("Tests")
+      }
+
+      await pickUpAndDrop(1)
+      await pickUpAndDrop(2)
     })
   })
 })

@@ -665,19 +665,15 @@ describe("Canvas", () => {
     it("reveals a terminal out of sight that Focus moved to", async () => {
       await openCanvas()
       await pushTestsOffScreen("Checkout implementation")
-      // Zoomed in further, until Tests' Focus button is below the view.
+      // Zoomed in further, until Tests' Focus button is below the view. The zoom is around
+      // Checkout implementation's own Focus button, which so stays in the view.
       for (
         let steps = 0;
         steps < 6 && boxOf(focusButton("Tests")).top <= viewBox().height;
         steps++
       ) {
         // eslint-disable-next-line no-await-in-loop -- One zoom step after another.
-        await scrollOver(
-          terminal("Checkout implementation").getByRole("heading", {
-            name: "Checkout implementation",
-          }),
-          -300,
-        )
+        await scrollOver(focusButton("Checkout implementation"), -300)
         // eslint-disable-next-line no-await-in-loop -- The camera settles before the next.
         await settled(() => boxesOf(names))
       }

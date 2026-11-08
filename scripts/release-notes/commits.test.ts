@@ -224,3 +224,17 @@ describe("the commits a release is written from", () => {
     expect(long.endsWith("...")).toBe(true)
   })
 })
+
+describe("parseCommit and the scopes", () => {
+  const raw = (subject: string) => ({ sha: "a", subject, body: "## What\n\nSomething changed.\n" })
+
+  it("leaves out the excluded scopes, the harnesses' too", () => {
+    for (const scope of ["atlas", "scripts", "wire", "ci", "release", "harnesses"])
+      expect(parseCommit(raw(`fix(${scope}): x (#1)`))).toBeUndefined()
+  })
+
+  it("never keeps what is not announced", () => {
+    expect(parseCommit(raw("fix(chat): x (#1)"))).toBeUndefined()
+    expect(parseCommit(raw("fix(demo): x (#1)"))).toBeUndefined()
+  })
+})

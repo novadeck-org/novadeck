@@ -16,16 +16,19 @@ const fixtures: Record<string, string> = {
   "ui-murmur-offer-expect-element": "Test (Windows)",
   "ui-process-windows-layout-settled": "Test (Windows, 1/3)",
   "e2e-codex-quirks-stopped-thread": "Codex (Windows quirks)",
+  "e2e-codex-windows-patch-never-returns": "Codex (Windows, 2/2)",
   "e2e-antigravity-macos-lead-tool-call": "Antigravity (macOS)",
   "e2e-claude-windows-interrupted-draft": "Claude Code (Windows)",
   "e2e-claude-windows-interrupt-draft": "Claude Code (Windows)",
-  "e2e-claude-macos-continuation-stop": "Claude Code (macOS)",
+  "e2e-claude-queued-turn-ends-in-hold": "Claude Code (Windows, 2/2)",
+  "e2e-claude-macos-continuation-stop": "Claude Code (macOS, 2/2)",
   "release-quality-wait-window": "macOS",
   "runner-engines-server-port-picked-again": "Test (Linux, 3/3)",
   "sandbox-reap-macos-ps-timeout": "Test (macOS)",
   "adapter-restore-macos-shell-exited": "Test (macOS)",
   "secrets-macos-hex-group-timeout": "Test (macOS)",
   "viewers-macos-diff-update-budget": "Test (macOS)",
+  "relay-status-line-windows-no-output": "Test (Windows, 1/3)",
 }
 
 describe("the known-flake register", () => {
@@ -33,6 +36,35 @@ describe("the known-flake register", () => {
     // Each log matches its own flake and no other.
     it.each(Object.entries(fixtures))("knows %s by its log alone", (id, job) => {
       expect(judgeJob(register, job, fixture(id))).toEqual({ job, flakes: [id], unknown: [] })
+    })
+  })
+
+  context("when the queued Stop gives back part of what it should", () => {
+    it("takes it for no flake, as only `null` is excused", () => {
+      const job = "Claude Code (Windows, 2/2)"
+      const log = fixture("e2e-claude-queued-turn-ends-in-hold")
+      const partial = log.replace("expected null to be", "expected 'Queued gamma' to be")
+      expect(judgeJob(register, job, partial).flakes).toEqual([])
+    })
+  })
+
+  context("when the transcripts test times out on another step", () => {
+    it("takes it for no flake, as only the patch's step is excused", () => {
+      const job = "Codex (Windows, 2/2)"
+      const log = fixture("e2e-codex-windows-patch-never-returns")
+      const other = log.replaceAll("Finished Transcript step 2.", "Finished Transcript step 1.")
+      expect(judgeJob(register, job, other).flakes).toEqual([])
+    })
+  })
+
+  context("when the relay's job fails on more than its status line tests", () => {
+    it("takes it for no flake, as only status line tests printing nothing are excused", () => {
+      const job = "Test (Windows, 1/3)"
+      const log = fixture("relay-status-line-windows-no-output").replace(
+        "    status_line::tests::prints_what_the_command_printed_from_the_same_input",
+        "    status_line::tests::prints_what_the_command_printed_from_the_same_input\n    hook::tests::reports_a_prompt",
+      )
+      expect(judgeJob(register, job, log).flakes).toEqual([])
     })
   })
 

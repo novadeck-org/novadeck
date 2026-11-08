@@ -1,9 +1,12 @@
 import { join } from "node:path"
+import { setTimeout as sleep } from "node:timers/promises"
 
+import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
-import { describe, e2e, expect, supported } from "./fixture.js"
-import { asked, record, tool, type Call } from "./model/script.js"
-import { delivered, own, replies, result, start, through, turn } from "./scenarios.js"
+import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
+import { agentsViewOutlivesDeck, losesLineBreakKeys } from "./known-gaps.js"
+import { asked, gate, record, text as allOf, tool, type Call, type Rule } from "./model/script.js"
+import { delivered, own, replies, result, start, through, turn, unrung } from "./scenarios.js"
 
 // The schema the model actually sees, after its harness translated the MCP declaration.
 // Antigravity loads it lazily: read_file's result is the model's copy, not the runner's.
@@ -240,6 +243,12 @@ for (const setup of setups) {
             ),
         ),
       ).toBe(true)
+      // Its record follows what the model got, so it's waited for.
+      const line = await terminal.poll(
+        async () => (await terminal.transcript()).find((item) => item.ring !== null),
+        "the reply line in its transcript",
+      )
+      expect(line.ring).toMatchObject({ replies: true })
       const history = terminal.messages().threads.flatMap((thread) => thread.messages)
       expect(history.filter((message) => message.inbox === "answer")).toMatchObject([
         {
@@ -253,6 +262,300 @@ for (const setup of setups) {
         "theme.css\n--heading: blue;",
       )
       expect(history.some((message) => message.inbox === "tell")).toBe(true)
+    })
+
+    // The model for a turn that asks the person and works on, its last reply held until
+    // `finishing` opens, and that says when it holds their reply.
+    const asksAndWorksOn = (run: E2E, finishing: ReturnType<typeof gate>): Rule =>
+      own(async (call) => {
+        if (delivered(call, "you")) return { text: "Merged, as you said." }
+        if (asked(call, "Ask and work on")) {
+          const name = [call, ...run.model.calls].map((one) => tool(one, "ask")).find(Boolean)
+          if (!name) throw new Error("Novadeck's ask tool is missing")
+          return {
+            calls: [
+              {
+                name,
+                input: {
+                  subject: "Merge the branch?",
+                  body: "It is ready.",
+                  shape: {
+                    type: "options",
+                    options: [{ label: "Merge" }, { label: "Wait" }],
+                    recommend: 0,
+                  },
+                },
+              },
+            ],
+          }
+        }
+        if (result(call)?.includes(" is in the user's Inbox.")) {
+          await finishing.opened
+          return { text: "Worked on." }
+        }
+        return undefined
+      })
+
+    // Whether a request holds the person's pick as a user turn, typed by the doorbell.
+    const lined = (call: Call): boolean =>
+      call.turns.some(
+        (entry) =>
+          entry.role === "user" &&
+          /\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] Re your ask "Merge the branch\?": I picked "Merge"\. \[\1\]/.test(
+            entry.text,
+          ),
+      )
+
+    it("ends the turn the person's reply waits at, and the reply comes as its prompt", async ({
+      e2e: run,
+    }) => {
+      const finishing = gate()
+      run.model.use(asksAndWorksOn(run, finishing))
+      const terminal = await start(run, setup)
+      const calls = run.model.mark()
+      await terminal.submit("Ask and work on")
+      await run.model.waitFor(
+        (call) => result(call)?.includes(" is in the user's Inbox.") === true,
+        {
+          after: calls,
+        },
+      )
+      const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
+      // The turn runs on, its last reply held, as the person answers.
+      run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: "" })
+      finishing.open()
+      await terminal.until("Merged, as you said.")
+      // The first request to hold the reply has it as a user turn: no Stop gave it as context.
+      const received = await run.model.waitFor((call) => !call.side && delivered(call, "you"), {
+        after: calls,
+      })
+      expect(lined(received)).toBe(true)
+    })
+
+    // A reply near the line's limit fills more rows than a small pane's box has, for its head to
+    // scroll away; the line is the prompt all the same, for auto mode to count it. Its first ring
+    // lands it: a failed ring would leave the rescue of a line left in the box to do it.
+    for (const rows of [14, 12])
+      it(`rings a reply a box of ${rows} rows shows only the end of, and it comes as its prompt`, async ({
+        e2e: run,
+      }) => {
+        const finishing = gate()
+        finishing.open()
+        run.model.use(
+          asksAndWorksOn(run, finishing),
+          own((call) => (delivered(call, "you") ? { text: "Merged, as you said." } : undefined)),
+        )
+        const terminal = await start(run, setup)
+        await turn(terminal, "Ask and work on", "Worked on.")
+        terminal.resize(40, rows)
+        const calls = run.model.mark()
+        const mark = terminal.mark()
+        const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
+        const words = `Merge it${" and say so in the changelog".repeat(7)}, thanks.`
+        run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: words })
+        const received = await run.model.waitFor((call) => !call.side && delivered(call, "you"), {
+          after: calls,
+        })
+        const typed = received.turns.find(
+          (entry) => entry.role === "user" && entry.text.includes(words),
+        )
+        expect(typed?.text).toMatch(
+          /\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] Re your ask .* \[\1\]/,
+        )
+        const states = terminal
+          .history()
+          .slice(mark)
+          .map((each) => each.delivery)
+        expect(states).not.toContain("unknown")
+      })
+
+    // Words scrolled out of a short box over blank lines leave only blank rows to read, or on
+    // Codex a dim arrow with the cursor back at the top: that's a draft, not an empty box, and no
+    // ring may go out with it.
+    for (const [lines, ups] of [
+      [12, 0],
+      [12, 4],
+    ] as const)
+      it(`rings nothing over a draft scrolled out of sight (${lines} blank lines, ${ups} Ups)`, async ({
+        e2e: run,
+      }) => {
+        const finishing = gate()
+        finishing.open()
+        run.model.use(asksAndWorksOn(run, finishing))
+        const terminal = await start(run, setup)
+        await turn(terminal, "Ask and work on", "Worked on.")
+        terminal.resize(40, 14)
+        await sleep(1_200)
+        const write = (data: string) =>
+          run.deck.terminals.write({ terminalId: terminal.id, data }, "e2e")
+        if (losesLineBreakKeys(setup))
+          write(`\x1b[200~MY UNFINISHED DRAFT${"\n".repeat(lines)}\x1b[201~`)
+        else {
+          write("MY UNFINISHED DRAFT")
+          await sleep(300)
+          for (let line = 0; line < lines; line += 1) {
+            write(setup.agent === "agy" ? "\x1b\r" : "\n")
+            // eslint-disable-next-line no-await-in-loop -- One key after another.
+            await sleep(120)
+          }
+        }
+        for (let up = 0; up < ups; up += 1) {
+          terminal.press("\x1b[A")
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await sleep(150)
+        }
+        await terminal.settled()
+        // The words are out of sight, or the test is of nothing.
+        expect(await terminal.screen()).not.toContain("MY UNFINISHED")
+        const calls = run.model.mark()
+        const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
+        run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: "Merge it." })
+        await sleep(unrung * 3)
+        expect(
+          run.model.calls.slice(calls).some((call) => allOf(call).includes("MY UNFINISHED DRAFT")),
+        ).toBe(false)
+        // Nor does the chat's take of the box have them: they stay, in sight once scrolled to, a
+        // key at a time, as Codex on Windows doesn't take them all in a burst, and no further
+        // than the words, as an Up past them recalls history.
+        expect((await run.deck.terminals.takeBox(terminal.id)).returned).toBeNull()
+        for (let up = 0; up < lines + 4; up += 1) {
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          if ((await terminal.screen()).includes("MY UNFINISHED")) break
+          terminal.press("\x1b[A")
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await sleep(200)
+        }
+        await terminal.until("MY UNFINISHED")
+      })
+
+    // Words of other views' footers, each at a size where a real screen read it as that view
+    // and the line stayed in the box (Claude Code 2.1.316, Codex 0.167.0, Antigravity 1.5.2,
+    // e2e/probes/ring-reading.e2e.ts), on every harness: the footer is read under the box.
+    for (const [words, columns, rows] of [
+      ["Showing detailed transcript of it", 40, 12],
+      ["enter to return · space to reply", 120, 24],
+      ["Esc to cancel · ctrl+s to scope", 120, 24],
+      ["reverse-i-search: merge", 40, 12],
+      ["? / esc close", 80, 24],
+      ["Side from main thread · ctrl+/ to switch", 120, 24],
+      ["Keyboard: ctrl+k esc Close", 40, 12],
+    ] as const)
+      it(`rings a reply that says "${words}" at ${columns}x${rows}`, async ({ e2e: run }) => {
+        const finishing = gate()
+        finishing.open()
+        run.model.use(asksAndWorksOn(run, finishing))
+        const terminal = await start(run, setup)
+        await turn(terminal, "Ask and work on", "Worked on.")
+        terminal.resize(columns, rows)
+        await sleep(1_200)
+        const calls = run.model.mark()
+        const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
+        // The words alone, no option picked: the line wraps as the probe's did, its words where
+        // they were taken for the view.
+        run.deck.terminals.answerAsk(ask.id, { type: "reply", option: null, text: words })
+        const received = await run.model.waitFor((call) => !call.side && delivered(call, "you"), {
+          after: calls,
+        })
+        expect(
+          received.turns.some((entry) => entry.role === "user" && entry.text.includes(words)),
+        ).toBe(true)
+      })
+
+    // A row of `─` in a reply read as the box's top rule, so as no box, on Claude Code and
+    // Antigravity, at these sizes.
+    for (const [columns, rows] of [
+      [40, 14],
+      [80, 12],
+      [120, 24],
+    ] as const)
+      it(`rings a reply with a row of ─ in it at ${columns}x${rows}`, async ({ e2e: run }) => {
+        const finishing = gate()
+        finishing.open()
+        run.model.use(asksAndWorksOn(run, finishing))
+        const terminal = await start(run, setup)
+        await turn(terminal, "Ask and work on", "Worked on.")
+        terminal.resize(columns, rows)
+        await sleep(1_200)
+        const calls = run.model.mark()
+        const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
+        const words = `see ${"─".repeat(Math.min(columns * 2, 160))} merge it`
+        run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: words })
+        const received = await run.model.waitFor((call) => !call.side && delivered(call, "you"), {
+          after: calls,
+        })
+        expect(
+          received.turns.some((entry) => entry.role === "user" && entry.text.includes(words)),
+        ).toBe(true)
+      })
+
+    // Words a person or agent may write, here the footer of Claude Code's agents view: a reply
+    // saying them is a line in the box like any other.
+    it("rings a reply that says what a view's footer says", async ({ e2e: run }) => {
+      const finishing = gate()
+      finishing.open()
+      run.model.use(
+        asksAndWorksOn(run, finishing),
+        own((call) => (delivered(call, "you") ? { text: "Merged, as you said." } : undefined)),
+      )
+      const terminal = await start(run, setup)
+      await turn(terminal, "Ask and work on", "Worked on.")
+      terminal.resize(170, 30)
+      const calls = run.model.mark()
+      const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
+      const words = "enter to open · then merge it"
+      run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: words })
+      await run.model.waitFor((call) => !call.side && delivered(call, "you"), { after: calls })
+    })
+
+    // Left opens Claude Code's agents view, whose field reads as a box in prompt mode and whose
+    // Enter starts a session: with text in it, it reads as a view.
+    it("takes Claude Code's agents view for a view at 14 rows, a paste in it", async ({
+      e2e: run,
+      skip,
+    }) => {
+      if (setup.agent !== "claude" || agentsViewOutlivesDeck(setup)) skip()
+      run.model.use(replies("Warm up", "Warmed up."))
+      const terminal = await start(run, setup)
+      await turn(terminal, "Warm up", "Warmed up.")
+      terminal.resize(40, 14)
+      await sleep(1_200)
+      const profile = harnesses[setup.agent].box!
+      terminal.press("\x1b[D")
+      await terminal.until("describe a task")
+      terminal.press(`\x1b[200~${"and say so in the changelog ".repeat(6)}[n7Q2]\x1b[201~`)
+      await terminal.until("[n7Q2]")
+      await sleep(300)
+      const shown = (await terminal.screenText())!
+      expect(profile.overlay(shown), shown.rows.join("\n")).toBe(true)
+    })
+
+    it("gives the reply at the Stop over a draft of the person's, never typing beside it", async ({
+      e2e: run,
+    }) => {
+      const finishing = gate()
+      run.model.use(asksAndWorksOn(run, finishing))
+      const terminal = await start(run, setup)
+      const calls = run.model.mark()
+      await terminal.submit("Ask and work on")
+      await run.model.waitFor(
+        (call) => result(call)?.includes(" is in the user's Inbox.") === true,
+        {
+          after: calls,
+        },
+      )
+      const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
+      terminal.press("half a thought")
+      await terminal.until("half a thought")
+      run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: "" })
+      finishing.open()
+      await terminal.until("Merged, as you said.")
+      const received = await run.model.waitFor((call) => !call.side && delivered(call, "you"), {
+        after: calls,
+      })
+      expect(lined(received)).toBe(false)
+      const shown = await terminal.screen()
+      expect(shown).toContain("half a thought")
+      expect(shown).not.toContain("[Novadeck")
     })
 
     it("lists a peer's done to other agents until its next prompt, then as its latest update", async ({

@@ -4,6 +4,7 @@ import {
   contract,
   errors as contractErrors,
   type AgentName,
+  type HistoryChange,
   type ItemContent,
 } from "@novadeck/protocol"
 import { TerminalError } from "@novadeck/terminal"
@@ -15,6 +16,7 @@ import type { CompanionItems } from "./companions/items.js"
 import { planSaveFolders } from "./companions/plan-folders.js"
 import { DomainError } from "./errors.js"
 import type { Harnesses } from "./harnesses/service.js"
+import type { History } from "./history.js"
 import { logs } from "./log.js"
 import type { Feedback } from "./messaging/feedback.js"
 import type { Murmur } from "./murmur/service.js"
@@ -47,6 +49,18 @@ export const apiError = (error: unknown): unknown => {
   return error
 }
 
+// What `history.watch` reports without a History: nothing is kept, and the stream waits.
+const noHistory = {
+  list: (_projectId: string) => [],
+  watch: (_sessionId: string, signal?: AbortSignal) => noHistoryStream(signal),
+}
+
+const noHistoryStream = async function* (signal?: AbortSignal): AsyncGenerator<HistoryChange> {
+  yield { type: "synced" }
+  if (signal?.aborted) return
+  await new Promise<void>((resolve) => signal?.addEventListener("abort", () => resolve()))
+}
+
 /**
  * The runner's procedures. Its sessions serve them (`createSessions`): only to authenticated
  * sessions, and mapping their failures with `apiError`.
@@ -57,6 +71,8 @@ export const createRouter = (options: {
   feedback: Feedback
   projects: Projects
   items: CompanionItems
+  /** Closed terminals; without it History is empty. */
+  history?: History
   agents: Harnesses
   uploads: Uploads
   voice: Voice
@@ -67,6 +83,7 @@ export const createRouter = (options: {
   closing: () => boolean
 }) => {
   const { store, terminals, feedback, projects, items, agents, uploads, voice, murmur } = options
+  const history = options.history ?? noHistory
   // A plan's content says whether Novadeck's plugin is installed into its agent, which the
   // companions can't know: it is looked up as the content leaves.
   const withSkill = async (content: ItemContent, agent: AgentName | undefined) =>
@@ -134,6 +151,7 @@ export const createRouter = (options: {
       release: api.terminals.release.handler(({ input }) =>
         terminals.releaseLead(input.terminalId),
       ),
+      busy: api.terminals.busy.handler(({ input }) => terminals.busyShells(input?.fresh === true)),
       watch: api.terminals.watch.handler(({ context, signal }) =>
         terminals.watch(context.session.id, signal),
       ),
@@ -173,10 +191,17 @@ export const createRouter = (options: {
       detail: api.agents.detail.handler(({ input, signal }) =>
         terminals.detail(input.terminalId, signal),
       ),
+      slice: api.agents.slice.handler(({ input, signal }) =>
+        terminals.slice(input.terminalId, signal),
+      ),
       transcript: api.agents.transcript.handler(({ input, signal }) =>
         terminals.transcript(input.terminalId, input.actor, signal),
       ),
       prompt: api.agents.prompt.handler(({ input }) => terminals.prompt(input)),
+      keys: api.agents.keys.handler(({ input }) => terminals.keys(input)),
+      takeBox: api.agents.takeBox.handler(({ input }) => terminals.takeBox(input.terminalId)),
+      putBox: api.agents.putBox.handler(({ input }) => terminals.putBox(input)),
+      clearBox: api.agents.clearBox.handler(({ input }) => terminals.clearBox(input)),
       answer: api.agents.answer.handler(({ input }) => terminals.answer(input)),
       interrupt: api.agents.interrupt.handler(({ input }) => terminals.interrupt(input)),
       set: api.agents.set.handler(async ({ input }) => {
@@ -184,6 +209,12 @@ export const createRouter = (options: {
         if (!result.connected) terminals.forgetAgent(input.agent)
         return result
       }),
+    },
+    history: {
+      list: api.history.list.handler(({ input }) => history.list(input.projectId)),
+      watch: api.history.watch.handler(({ context, signal }) =>
+        history.watch(context.session.id, signal),
+      ),
     },
     companions: {
       list: api.companions.list.handler(({ input }) => {

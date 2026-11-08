@@ -21,7 +21,7 @@ import { standingDone } from "../../messaging/peers.js"
 import type { Companion } from "../companion.js"
 import { afterTyped } from "../exits.js"
 import { failed } from "../failures.js"
-import { markTurn } from "../interrupted.js"
+import { markEnd, markTurn } from "../interrupted.js"
 import type { Record } from "../record.js"
 import { whenEndCounts } from "../sampling.js"
 import { hasRun } from "../saved-terminals.js"
@@ -63,6 +63,8 @@ export type BindingsHost = {
   readonly rebound: (record: Record) => void
   /** Where finished turns are stored: the Inbox's entries and the redactor that masks their text. */
   readonly turns: () => TurnsHost
+  /** The terminal's agent state moved (see `Hibernation.look`). */
+  readonly looked: (record: Record) => void
   /** Whether process `pid` still runs. */
   readonly alive: (pid: string) => boolean
   /** How often foreground processes are sampled: how long a shell outlives its agent to count. */
@@ -93,7 +95,8 @@ export class Bindings {
    */
   endExited(record: Record): boolean {
     const binding = record.bound?.binding
-    if (!binding?.instance || this.host.alive(binding.instance)) return false
+    // An agent stopped to rest is gone on purpose: its lead stands.
+    if (record.hibernating || !binding?.instance || this.host.alive(binding.instance)) return false
     record.left = binding
     // The agent's process is gone: the lead it had ends with it.
     this.endLeadGone(record)
@@ -225,7 +228,14 @@ export class Bindings {
    */
   restarted(): Pick<
     Record,
-    "bound" | "suspended" | "root" | "seenEntry" | "watching" | "transcript" | "goneSession"
+    | "bound"
+    | "suspended"
+    | "root"
+    | "seenEntry"
+    | "watching"
+    | "transcript"
+    | "goneSession"
+    | "startupScreen"
   > {
     return {
       bound: null,
@@ -239,8 +249,17 @@ export class Bindings {
    * What the shell held of its agents, which ends with it, as it exits or restarts. The rest
    * of a shell's state (its prompts, line, foreground) the restart sets for the new one.
    */
-  private shellEnded(): Pick<Record, "suspended" | "root" | "seenEntry" | "goneSession"> {
-    return { suspended: null, root: null, seenEntry: undefined, goneSession: undefined }
+  private shellEnded(): Pick<
+    Record,
+    "suspended" | "root" | "seenEntry" | "goneSession" | "startupScreen"
+  > {
+    return {
+      suspended: null,
+      root: null,
+      seenEntry: undefined,
+      goneSession: undefined,
+      startupScreen: undefined,
+    }
   }
 
   /**
@@ -250,7 +269,9 @@ export class Bindings {
   follow(record: Record, event: SessionObserved): void {
     this.unwatch(record)
     record.transcript = event.transcript ?? null
-    if (event.transcript !== undefined) this.watch(record, event.transcript)
+    if (event.transcript === undefined) return
+    this.watch(record, event.transcript)
+    this.settle(record, event.transcript)
   }
 
   /**
@@ -263,8 +284,32 @@ export class Bindings {
     if (!binding || binding.sessionId !== sessionId || record.transcript !== null) return
     record.transcript = transcript
     this.watch(record, transcript)
+    this.settle(record, transcript)
     // No detail snapshot says so (it carries no transcript): a chat that waits on it asks
     // again by its own backoff, and at the next snapshot.
+  }
+
+  /**
+   * Takes the bound session's transcript where its harness finds it, when the path its
+   * hooks named holds no file and the session's own file is elsewhere (see `reportedOr`):
+   * what reads `record.transcript` itself, as a turn's reply, reads the file the agent
+   * writes. The watch and the chat find the same by `locate` themselves. Nothing changes
+   * once the terminal is bound to another session or its transcript has changed.
+   */
+  private settle(record: Record, reported: string): void {
+    const binding = record.bound?.binding
+    const locate = binding && harnesses[binding.agent].transcripts?.locate
+    if (!binding || !locate) return
+    const { agent, sessionId, instance } = binding
+    void locate(reported, sessionId, null)
+      .then((found) => {
+        const now = record.bound?.binding
+        const same =
+          now?.agent === agent && now.sessionId === sessionId && now.instance === instance
+        if (found === undefined || found === reported || !same) return
+        if (record.transcript === reported) record.transcript = found
+      })
+      .catch(failed.following)
   }
 
   private watch(record: Record, transcript: string): void {
@@ -311,6 +356,7 @@ export class Bindings {
       !!agent &&
       harnesses[agent].messaging.exitCommands.includes(entered.trim())
     if (exit || endKeys.some((key) => data.includes(key))) record.endKeyAt = Date.now()
+    record.keyedAt = Date.now()
     this.escaped(record)
   }
 
@@ -553,11 +599,17 @@ export class Bindings {
     const { bound } = record
     const agent = bound?.binding.agent ?? null
     const ready = this.readyOf(record)
+    // Its prompt or a session ends a startup screen at once, not at the watch's next look.
+    const startup = bound || ready ? null : record.summary.startup
     const activity = bound ? activitySummary(bound.activity) : null
     // Before the early return below: an Escape that settles changes nothing the summary shows.
     this.ends.sight(record, activity)
-    // What the turn was doing is kept for a restart of Novadeck (`markTurn`), saved at once.
-    if (markTurn(record, activity)) {
+    // What the turn was doing is kept for a restart of Novadeck (`markTurn`), and when it ended
+    // for the age of a sleeper (`markEnd`), saved at once.
+    const turned = markTurn(record, activity)
+    const ended = markEnd(record, activity)
+    this.host.looked(record)
+    if (turned || ended) {
       record.changed = true
       this.host.save(record)
     }
@@ -570,13 +622,29 @@ export class Bindings {
       summary.agentRan === agentRan &&
       summary.agent === agent &&
       summary.ready === ready &&
+      summary.startup === startup &&
       JSON.stringify(summary.activity) === JSON.stringify(activity) &&
       JSON.stringify(summary.telemetry) === JSON.stringify(telemetry) &&
       JSON.stringify(summary.reported) === JSON.stringify(reported)
     )
       return
-    record.summary = { ...summary, agentRan, agent, ready, activity, telemetry, reported }
+    record.summary = { ...summary, agentRan, agent, ready, startup, activity, telemetry, reported }
     this.host.announce(record)
+  }
+
+  /** Forgets every session `agent` reported in the terminals, as once it is disconnected. */
+  forgetAgent(records: Iterable<Record>, agent: AgentName): void {
+    for (const record of records) {
+      const { [agent]: _forgotten, ...rest } = record.agents
+      record.agents = rest
+      const agentRan = hasRun(rest)
+      // Its binding ends too: a disconnected harness holds no terminal's foreground.
+      if (record.bound?.binding.agent === agent) this.forgotten(record)
+      else if (record.summary.agentRan !== agentRan) {
+        record.summary = { ...record.summary, agentRan }
+        this.host.announce(record)
+      }
+    }
   }
 
   /**
@@ -591,7 +659,7 @@ export class Bindings {
     const done = standingDone(
       this.host.turns().inbox.reports(id, saved),
       record.work?.personAt,
-      this.host.messaging().deliveredAt(id),
+      this.host.messaging().deliveredAt().get(id) ?? null,
     )
     return done && { subject: done.subject, at: done.at }
   }

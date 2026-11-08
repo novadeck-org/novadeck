@@ -1,11 +1,18 @@
 import { join } from "node:path"
 
-import { hookTranscript } from "@novadeck/harness-core/decode"
+import { hookTranscript, withLaunch } from "@novadeck/harness-core/decode"
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
+import {
+  forgottenUnits,
+  keptFlags,
+  resumeFlags,
+  type KeptFlags,
+} from "@novadeck/harness-core/kept-flags"
 import { beside } from "@novadeck/harness-core/paths"
 import type { Report } from "@novadeck/harness-core/report"
 
-import { box } from "./box.js"
+import { box, slice } from "./box.js"
+import { conversation, conversations } from "./conversation.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { claudeHome } from "./home.js"
@@ -48,6 +55,9 @@ const messaging: MessagingProfile = {
   prompt: (delivery) => context("UserPromptSubmit", delivery),
   call: (delivery, event) => context(event, delivery),
   reinjectPerCall: false,
+  // Up takes a queued prompt back with what its hook printed, unseen (probed 2026-11-06,
+  // 2.1.316, `e2e/probes/queued-doorbell.e2e.ts`).
+  promptHookOnQueueing: true,
   // What a Stop, a prompt and a tool call print is all kept in its transcript,
   // which it sends again on every later call, and a resumed session's too; its
   // `SessionStart` says `compact` once it compacted them away.
@@ -62,11 +72,47 @@ const messaging: MessagingProfile = {
   toolsAtTurnStart: false,
 }
 
+// What a resume carries over: the permission mode, however it was asked for, the model and
+// the effort, which `--resume` doesn't bring back with the session (see `LaunchProfile.kept`).
+const kept: KeptFlags = {
+  valued: {
+    "--model": "--model",
+    "--effort": "--effort",
+    "--permission-mode": "--permission-mode",
+  },
+  bare: {
+    "--dangerously-skip-permissions": "--dangerously-skip-permissions",
+    "--allow-dangerously-skip-permissions": "--allow-dangerously-skip-permissions",
+  },
+  // Probed 2026-11-07 (2.1.316, launch-flags.e2e.ts): a bare `--resume` brings back the model
+  // and the permission mode (`plan`, `acceptEdits`) but not the effort, nor bypass, however
+  // asked for (`--dangerously-skip-permissions` or `--permission-mode bypassPermissions`: the
+  // footer reads "manual mode", with the Bypass Permissions warning accepted in its settings,
+  // `skipDangerousModePermissionPrompt`). Those are given back. `--allow-dangerously-skip-permissions` only offers bypass
+  // in the Shift+Tab cycle and is unprobed: a flag that raises permissions is given back only
+  // where a probe showed it forgotten, as a stall shows in the Inbox and a raise does not.
+  forgets: ["--effort", "--dangerously-skip-permissions", "--permission-mode=bypassPermissions"],
+  takesValue: valued,
+  takesMany: many,
+  print: ["-p", "--print"],
+  sets: (flag) => (flag === "--model" ? "model" : flag === "--effort" ? "effort" : undefined),
+}
+
 const launch: LaunchProfile = {
   start: ["claude"],
   // It holds a command-line prompt behind its trust and startup screens.
   initialPrompt: (line) => Promise.resolve(["claude", line]),
-  resume: (session, choice = {}) => ["claude", ...launch.choose(choice), "--resume", session],
+  resumed: (claim, { sessionId }) =>
+    sessionId === null ? "waiting" : sessionId === claim ? "worked" : "failed",
+  resume: (session, choice = {}, carried = []) => [
+    "claude",
+    ...launch.choose(choice),
+    ...resumeFlags(carried, choice, kept),
+    "--resume",
+    session,
+  ],
+  kept: (argv) => keptFlags(argv, kept),
+  forgets: (words) => forgottenUnits(words, kept),
   models: () => Promise.resolve(models),
   choose: ({ model, effort }) => [
     ...(model !== undefined ? ["--model", model] : []),
@@ -82,6 +128,8 @@ export const claude = {
   plugin: "claude",
   // Claude Code's local install is an alias in the person's rc file, not on PATH.
   fallback: (home) => join(home, ".claude", "local", "claude"),
+  conversation,
+  conversations,
   home: claudeHome,
   planFolders: (install) => [join(claudeHome(install), "plans")],
   // Its transcripts are `<home>/projects/<project>/<session>.jsonl`.
@@ -127,12 +175,14 @@ export const claude = {
   },
   // Its hooks run with its own process's id in their environment.
   pidVariable: "CLAUDE_PID",
-  decode,
+  decode: (report) => withLaunch(decode(report), report, launch.kept),
   transcriptOf: hookTranscript,
   dialogs,
+  commandFields: ["command"],
   launch,
   messaging,
   box,
+  slice,
   watch: followTranscript,
   // A subagent's request its person denied, or whose prompt timed out, fires no hook: its own
   // transcript records the call's result.

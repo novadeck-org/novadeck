@@ -1,0 +1,80 @@
+# direct: command-passes
+tools: ran [run] · echo hello | Call: exec_command: 1 line: yield_time_ms: 5000 → 6 lines: Chunk ID: f2d305
+
+# direct: command-fails
+tools: ran [run] · sh -c 'echo boom >&2; exit 3' · exit 3 | Call: exec_command: 1 line: yield_time_ms: 5000 → 6 lines: Chunk ID: d0efda
+
+# direct: read
+tools: ran [run] · cat sample.txt | Call: exec_command: 1 line: yield_time_ms: 5000 → 11 lines: Chunk ID: 77115d
+
+# direct: tool-error
+tools: ran [run] · cat missing.txt · exit 1 | Call: exec_command: 1 line: yield_time_ms: 5000 → 6 lines: Chunk ID: 8f1e7b
+
+# direct: search
+tools: ran [run] · grep -n beta sample.txt | Call: exec_command: 1 line: yield_time_ms: 5000 → 6 lines: Chunk ID: 4bd5c5
+
+# direct: no-match
+tools: ran [run] · grep -n zzz sample.txt · exit 1 | Call: exec_command: 1 line: yield_time_ms: 5000 → 5 lines: Chunk ID: 4d9cf4
+
+# direct: runs-on
+tools: ran [run] · sleep 3; echo done · in the background | Call: exec_command: 1 line: yield_time_ms: 300 → 5 lines: Chunk ID: 80cd9c
+
+# direct: poll-ends
+tools: sent input [run] | Call: write_stdin: 3 lines: session_id: 75449 → 6 lines: Chunk ID: 3b02d4
+
+# direct: not-found
+tools: ran [run] · no-such-program-here · exit 127 | Call: exec_command: 1 line: yield_time_ms: 5000 → 6 lines: Chunk ID: 96557e
+
+# direct: patch-add
+tools: ran [run] · apply_patch <<'EOF' +2 −0 → 2 lines: 1 + one
+
+# direct: patch-update
+tools: ran [run] · apply_patch <<'EOF' +2 −1 → 5 lines: const a = 1
+
+# direct: patch-no-match
+tools: ran [run] · apply_patch <<'EOF' · failed | Call: exec_command: 10 lines: cmd: → 2 lines: apply_patch verification failed: Failed to find…
+
+# patch tool: add
+tools: patched [write] · new.txt +2 −0 → 2 lines: 1 + one
+
+# patch tool: update
+tools: patched [write] · src/auth.ts +2 −1 → 5 lines: const a = 1
+
+# patch tool: no-match
+tools: patched [write] · src/auth.ts · failed | Call: apply_patch: 6 lines: *** Begin Patch → 2 lines: apply_patch verification failed: Failed to find…
+
+# patch tool: move
+tools: patched [write] · new.txt +1 −1 → 2 lines: - one
+
+# patch tool: delete
+tools: patched [write] · moved.txt | Call: apply_patch: 3 lines: *** Begin Patch → 5 lines: Exit code: 0
+
+# code mode: command-passes
+tools: ran [run] · text(await tools.exec_command({cmd:"echo hello"})); · 1 call → 5 lines: Script completed; in script: ran [run] · echo hello → 1 line: hello
+
+# code mode: command-fails
+tools: ran [run] · text(await tools.exec_command({cmd:"exit 3"})); · 1 call · 1 failed → 5 lines: Script completed; in script: ran [run] · exit 3 · exit 3 → empty
+
+# code mode: script-fails
+tools: ran [run] · throw new Error("boom in the script"); · failed → 7 lines: Script failed
+
+# code mode: two-commands
+tools: ran [run] · const r = await Promise.allSettled([tools.exec_command({cmd:"echo one"}), tools.exec_command({cmd:"cat missing.txt"})]); · 2 calls · 1 failed | Call: exec: 2 lines: const r = await Promise.allSettled([tools.exec_… → 6 lines: Script completed; in script: ran [run] · cat missing.txt · exit 1 → 1 line: cat: missing.txt: No such file or directory; in script: ran [run] · echo one → 1 line: one
+
+# code mode: read
+tools: ran [run] · text(await tools.exec_command({cmd:"cat sample.txt"})); · 1 call → 5 lines: Script completed; in script: ran [run] · cat sample.txt · 6 lines → 6 lines: alpha
+
+# code mode: search
+tools: ran [run] · text(await tools.exec_command({cmd:"grep -n beta sample.txt"})); · 1 call → 5 lines: Script completed; in script: ran [run] · grep -n beta sample.txt → 1 line: 2:beta
+
+# code mode: add
+tools: ran [run] · text(await tools.apply_patch("*** Begin Patch\n*** Add File: new.txt\n+one\n+two\n*** End Patch")); · 1 call → 5 lines: Script completed; in script: patched [write] · …/user/project/new.txt +2 −0 → 2 lines: 1 + one
+
+# code mode: update
+tools: ran [run] · text(await tools.apply_patch("*** Begin Patch\n*** Update File: src/auth.ts\n@@\n const a = 1\n-const b = 2\n+const b = 20\n+const bb = 21\n const c = 3\n*** End Patch")); · 1 call → 5 lines: Script completed; in script: patched [write] · …/project/src/auth.ts +2 −1 → 5 lines: 1   const a = 1
+
+# code mode: no-match
+tools: ran [run] · text(await tools.apply_patch("*** Begin Patch\n*** Update File: src/auth.ts\n@@\n-no such text\n+x\n*** End Patch")); · failed → 7 lines: Script failed
+
+# code mode: runs-on
+tools: ran [run] · text(await tools.exec_command({cmd:"sleep 3; echo done", yield_time_ms: 300})); → 5 lines: Script completed

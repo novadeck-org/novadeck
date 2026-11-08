@@ -60,12 +60,15 @@ describe("Canvas zoomed in on a window", () => {
     // Zoomed in on the board, so a pane opening beside Build Studio would overflow it.
     const before = await settled(() => boxOf(terminal("Build Studio")))
     await scrollCanvas(-400)
-    await expect
-      .poll(() => boxOf(terminal("Build Studio")).width)
-      .toBeGreaterThan(before.width * 1.3)
-    const zoomed = await settled(() => boxOf(terminal("Build Studio")))
-    const zoom = zoomed.width / before.width
-    expect(zoomed.left + zoomed.width + 740 * zoom).toBeGreaterThan(boxOf(canvasView()).width)
+    // The wheel's zoom lands over several frames, and a slow runner can draw identical ones
+    // between them, so wait for the overflow itself rather than for a still frame.
+    const overflows = (): boolean => {
+      const box = boxOf(terminal("Build Studio"))
+      const zoom = box.width / before.width
+      return box.left + box.width + 740 * zoom > boxOf(canvasView()).width
+    }
+    await expect.poll(overflows).toBe(true)
+    await settled(() => boxOf(terminal("Build Studio")))
 
     // From the keyboard: zoomed in, the taskbar may lie past the view's bottom.
     taskbarIcon("Build Studio", "Plan: A home for Studio").element().focus()

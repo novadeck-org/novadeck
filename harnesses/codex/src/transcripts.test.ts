@@ -17,9 +17,39 @@ const item = (payload: object) => ({
   payload,
 })
 
+describe("what Codex says between turns", () => {
+  const context = (mode: string, approval_policy: string) => ({
+    timestamp: "2026-09-29T20:50:21.802Z",
+    type: "turn_context",
+    payload: { approval_policy, collaboration_mode: { mode } },
+  })
+
+  it("says plan mode, else its approval policy, the usual one as the default", () => {
+    expect(items([context("plan", "on-request")])).toMatchObject([
+      { role: "note", note: { type: "mode", mode: "plan" } },
+    ])
+    expect(items([context("default", "on-request")])).toMatchObject([
+      { note: { type: "mode", mode: "default" } },
+    ])
+    expect(items([context("default", "never")])).toMatchObject([
+      { note: { type: "mode", mode: "never" } },
+    ])
+  })
+
+  it("says nothing of a turn that names no mode", () => {
+    expect(items([{ type: "turn_context", payload: {} }])).toEqual([])
+  })
+
+  it("says a compaction, its message its text", () => {
+    expect(items([{ type: "compacted", payload: { message: "The summary" } }])).toMatchObject([
+      { role: "note", note: { type: "compaction" }, text: "The summary" },
+    ])
+  })
+})
+
 describe("Codex's rollout, as captured", () => {
   it("gives the tool call and its output, and leaves developer messages out", () => {
-    const [call, output, ...rest] = items(records)
+    const [call, output, ...rest] = items(records).filter(({ role }) => role !== "note")
     expect(rest).toEqual([])
     expect(call).toMatchObject({
       role: "assistant",
@@ -421,6 +451,29 @@ describe("Codex's transcripts", () => {
       await expect(transcripts.locate(root, "s1", "a8")).resolves.toBeUndefined()
     } finally {
       rmSync(sessions, { recursive: true, force: true })
+    }
+  })
+
+  it("are the session's rollout where Codex keeps it when the named one holds none", async () => {
+    const home = mkdtempSync(join(tmpdir(), "novadeck-codex-home-"))
+    try {
+      const id = "5b0e7d1c-4f3a-4c2b-9d8e-1a2b3c4d5e6f"
+      const folder = (...parts: string[]) => {
+        const path = join(home, ...parts)
+        mkdirSync(path, { recursive: true })
+        return path
+      }
+      const reported = join(folder("sessions", "2026", "11", "06"), `rollout-x-${id}.jsonl`)
+      // Not written yet, and nowhere else: as reported.
+      await expect(transcripts.locate(reported, id, null)).resolves.toBe(reported)
+      // A compressed one can't be followed, so it isn't taken.
+      writeFileSync(join(folder("sessions", "2026", "11", "07"), `rollout-y-${id}.jsonl.zst`), "")
+      await expect(transcripts.locate(reported, id, null)).resolves.toBe(reported)
+      const archived = join(folder("archived_sessions"), `rollout-y-${id}.jsonl`)
+      writeFileSync(archived, "")
+      await expect(transcripts.locate(reported, id, null)).resolves.toBe(archived)
+    } finally {
+      rmSync(home, { recursive: true, force: true })
     }
   })
 })

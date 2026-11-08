@@ -1,0 +1,120 @@
+{
+  "trust": {
+    "height": 40,
+    "columns": 120,
+    "cursor": {
+      "row": 16,
+      "column": 1
+    },
+    "rows": {
+      "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+      "1": "See \"man sudo_root\" for details.",
+      "4": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+      "5": " Accessing workspace:",
+      "7": " /tmp/novadeck-e2e-g7VWgB/project",
+      "9": " Quick safety check: Is this a project you created or one you trust? (Like your own code, a well-known open source",
+      "10": " project, or work from your team). If not, take a moment to review what's in this folder first.",
+      "12": " Claude Code'll be able to read, edit, and execute files here.",
+      "14": " Security guide",
+      "16": " ❯ No, exit",
+      "17": "   Yes, I trust this folder",
+      "19": " Enter to confirm · Esc to cancel"
+    },
+    "bright": {}
+  },
+  "onboarding": {
+    "height": 40,
+    "columns": 120,
+    "cursor": {
+      "row": 25,
+      "column": 1
+    },
+    "rows": {
+      "0": "See \"man sudo_root\" for details.",
+      "2": "Welcome to Claude Code v2.1.316",
+      "3": "..........................................................",
+      "5": "     *                                       █████▓▓░",
+      "6": "                                 *         ███▓░     ░░",
+      "7": "            ░░░░░░                        ███▓░",
+      "8": "    ░░░   ░░░░░░░░░░                      ███▓░",
+      "9": "   ░░░░░░░░░░░░░░░░░░░    *                ██▓░░      ▓",
+      "10": "                                             ░▓▓███▓▓░",
+      "11": " *                                 ░░░░",
+      "12": "                                 ░░░░░░░░",
+      "13": "                               ░░░░░░░░░░░░░░░░",
+      "14": "       █████████                                        *",
+      "15": "      ██▄█████▄██                        *",
+      "16": "       █████████      *",
+      "17": ".......█ █   █ █..........................................",
+      "19": " Let's get started.",
+      "21": " Choose the text style that looks best with your terminal",
+      "22": " To change this later, run /theme",
+      "24": "     Auto (match terminal)",
+      "25": " ❯ ✔ Dark mode",
+      "26": "     Light mode",
+      "27": "     Dark mode (colorblind-friendly)",
+      "28": "     Light mode (colorblind-friendly)",
+      "29": "     Dark mode (ANSI colors only)",
+      "30": "     Light mode (ANSI colors only)",
+      "32": " ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+      "33": "  1  function greet() {",
+      "34": "  2 -  console.log(\"Hello, World!\");                                                                               ",
+      "35": "  2 +  console.log(\"Hello, Claude!\");                                                                              ",
+      "36": "  3  }",
+      "37": " ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌",
+      "38": "  Syntax theme: Monokai Extended (ctrl+t to disable)"
+    },
+    "bright": {
+      "33": "     function greet() {",
+      "34": "  2 -  console.log(\"Hello, World!\");",
+      "35": "  2 +  console.log(\"Hello, Claude!\");",
+      "36": "     }"
+    }
+  },
+  "resume": {
+    "height": 40,
+    "columns": 120,
+    "cursor": {
+      "row": 8,
+      "column": 2
+    },
+    "rows": {
+      "1": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+      "2": "  Resume session",
+      "3": "  ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮",
+      "4": "  │ ⌕ Search…                                                                                                        │",
+      "5": "  ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯",
+      "6": "    project",
+      "8": "  ❯ Hello",
+      "9": "    4 seconds ago · HEAD · 354.1KB",
+      "11": "    Ctrl+A to show all projects · Ctrl+B to only show current branch · Space to preview · Ctrl+R to rename · Type to ",
+      "12": "    search · Esc to cancel"
+    },
+    "bright": {
+      "3": "",
+      "4": "    ⌕ Search…",
+      "5": "",
+      "11": "    Ctrl+A to show all projects · Ctrl+B to only show current branch · Space to preview · Ctrl+R to rename · Type to"
+    }
+  },
+  "prompt": {
+    "height": 40,
+    "columns": 120,
+    "cursor": {
+      "row": 36,
+      "column": 2
+    },
+    "rows": {
+      "1": " ▐▛███▛█   Claude Code v2.1.316",
+      "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+      "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-2vZJoz/project",
+      "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+      "36": "❯  ",
+      "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+      "39": "  ⏸ manual mode on"
+    },
+    "bright": {
+      "36": "❯"
+    }
+  }
+}

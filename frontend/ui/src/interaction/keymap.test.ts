@@ -446,6 +446,9 @@ describe("keymap", () => {
           expect(keydown(platform, { ...modifier, shiftKey: true, key: "S" })).toEqual([
             "sidebar.sessions",
           ])
+          expect(keydown(platform, { ...modifier, shiftKey: true, key: "B" })).toEqual([
+            "sidebar.inbox",
+          ])
         })
 
         it("requires exact modifiers and rejects Alt", () => {
@@ -602,6 +605,7 @@ describe("keymap", () => {
             "session.new",
             "sidebar.terminals",
             "sidebar.sessions",
+            "sidebar.inbox",
             "view.toggleFocus",
             "terminal.new",
             "zen.toggle",
@@ -636,6 +640,7 @@ describe("keymap", () => {
           "New session: Ctrl Shift N",
           "Toggle terminal sidebar: Ctrl Shift E",
           "Toggle session sidebar: Ctrl Shift S",
+          "Toggle Inbox: Ctrl Shift B",
           "Open preferences: Ctrl ,",
           "Navigate the workspace: Shift Esc",
           "Hold to dictate: Ctrl Shift M",
@@ -656,6 +661,7 @@ describe("keymap", () => {
           "New session: ⌘ Shift N",
           "Toggle terminal sidebar: ⌘ Shift E",
           "Toggle session sidebar: ⌘ Shift S",
+          "Toggle Inbox: ⌘ Shift B",
           "Open preferences: ⌘ ,",
           "Navigate the workspace: Shift Esc",
           "Hold to dictate: Ctrl Shift M",

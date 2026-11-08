@@ -164,8 +164,10 @@ export class HookAnswers {
   }
 
   /**
-   * A root Stop: the turn continues with the messages waiting, when it may, else ends. A
-   * report with no root Stop of the session says nothing.
+   * A root Stop: the turn continues with the messages waiting, when it may, else ends. It
+   * ends with the person's replies waiting where they ride the line (`ridesLine`), so they
+   * reach the agent as its prompt, the ring's hook carrying every message. A report with no
+   * root Stop of the session says nothing.
    */
   private askStop(
     { live, root, profile, silent, time }: Asked,
@@ -177,7 +179,8 @@ export class HookAnswers {
     const background = runsOn(stop.background)
     const lease =
       time &&
-      continues(live.delivery) &&
+      continues(live.delivery, profile.promptHookOnQueueing === true) &&
+      !this.host.deliveries.ridesLine(live.terminalId, background) &&
       this.host.leasing.lease(live, root, {
         kind: "stop",
         background,
@@ -225,11 +228,15 @@ export class HookAnswers {
     // The asks the person's prompt takes out go with their notice, while the hook has time to
     // print it, and leave only when it acknowledges having; else they stay, and the next
     // answer that can does both.
-    const noticed = time ? this.host.withdrawals.notices(live, root, person) : { texts: [] }
+    // A prompt queued behind the running turn may be taken back out of the queue, and all its
+    // hook printed with it: what waits stays waiting, for that turn's Stop.
+    const behind = profile.promptHookOnQueueing === true && live.promptBehindTurn
+    const noticed =
+      time && !behind ? this.host.withdrawals.notices(live, root, person) : { texts: [] }
     const notes = noticed.texts
     // What a harness whose injected messages last one call gives again on each later call.
     const noting = profile.reinjectPerCall && notes.length > 0
-    const holds = [...notes, ...(time ? this.host.heldFrom(live.terminalId) : [])]
+    const holds = [...notes, ...(time && !behind ? this.host.heldFrom(live.terminalId) : [])]
     if (start.cause === "call") {
       // A notice paid at a later call is given again on the turn's remaining ones, as one
       // paid at its first is.
@@ -256,7 +263,7 @@ export class HookAnswers {
     const print = (text: string) => profile.prompt(noted(text, holds))
     // A turn the person's prompt or the doorbell began, with time to print, can take
     // Novadeck's notices after what it says; they last one call, never kept with a delivery.
-    const begun = time && (start.cause === "prompt" || start.cause === "doorbell")
+    const begun = time && !behind && (start.cause === "prompt" || start.cause === "doorbell")
     const answered = (leaseId: string | null, text: string): Answer => ({
       leaseId,
       stdout: text || holds.length > 0 ? print(text) : silent.stdout,
@@ -264,6 +271,7 @@ export class HookAnswers {
     })
     const lease =
       time &&
+      !behind &&
       leasing.lease(live, root, {
         kind: "prompt",
         print,
@@ -274,12 +282,14 @@ export class HookAnswers {
     if (lease) return answered(lease.id, lease.text)
     // Else a lease of the notices alone, whose acknowledgement withdraws the asks and, for a
     // harness whose injected messages last one call, keeps the notice for each later call.
-    const only = leasing.noticed(
-      live,
-      "prompt",
-      noticed,
-      noting ? joined(kept, noted("", notes)) : undefined,
-    )
+    const only = behind
+      ? undefined
+      : leasing.noticed(
+          live,
+          "prompt",
+          noticed,
+          noting ? joined(kept, noted("", notes)) : undefined,
+        )
     if (kept !== undefined) return answered(only?.id ?? null, kept)
     if (start.cause !== "doorbell") return answered(only?.id ?? null, "")
     // A doorbell whose messages couldn't be leased now, as too late or while paused, says

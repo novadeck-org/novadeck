@@ -8,6 +8,11 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./conversation": {
+      "development": "./src/conversation.ts",
+      "types": "./dist/conversation.d.ts",
+      "default": "./dist/conversation.js"
+    },
     "./decode": {
       "development": "./src/decode.ts",
       "types": "./dist/decode.d.ts",
@@ -43,6 +48,11 @@
       "types": "./dist/header.d.ts",
       "default": "./dist/header.js"
     },
+    "./kept-flags": {
+      "development": "./src/kept-flags.ts",
+      "types": "./dist/kept-flags.d.ts",
+      "default": "./dist/kept-flags.js"
+    },
     "./hook-command": {
       "development": "./src/hook-command.ts",
       "types": "./dist/hook-command.d.ts",
@@ -52,6 +62,11 @@
       "development": "./src/items.ts",
       "types": "./dist/items.d.ts",
       "default": "./dist/items.js"
+    },
+    "./outcomes": {
+      "development": "./src/outcomes.ts",
+      "types": "./dist/outcomes.d.ts",
+      "default": "./dist/outcomes.js"
     },
     "./paths": {
       "development": "./src/paths.ts",
@@ -78,6 +93,11 @@
       "types": "./dist/shapes.d.ts",
       "default": "./dist/shapes.js"
     },
+    "./slices": {
+      "development": "./src/slices.ts",
+      "types": "./dist/slices.d.ts",
+      "default": "./dist/slices.js"
+    },
     "./testing/dialogs": {
       "development": "./src/testing/dialogs.ts",
       "types": "./dist/testing/dialogs.d.ts",
@@ -87,6 +107,11 @@
       "development": "./src/testing/probes.ts",
       "types": "./dist/testing/probes.d.ts",
       "default": "./dist/testing/probes.js"
+    },
+    "./testing/slices": {
+      "development": "./src/testing/slices.ts",
+      "types": "./dist/testing/slices.d.ts",
+      "default": "./dist/testing/slices.js"
     },
     "./testing/reports": {
       "development": "./src/testing/reports.ts",

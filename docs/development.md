@@ -9,6 +9,10 @@ pnpm install
 pnpm dev
 ```
 
+A new worktree can come without Electron's binary, which `apps/desktop`'s tests need ("Electron
+failed to install correctly"): `node install.js` in `node_modules/.pnpm/electron@*/node_modules/electron`
+fetches it.
+
 `pnpm dev` launches the Electron desktop application. Development launches keep their own
 data (database, settings, agent launchers) in `novadeck-dev`, beside and apart
 from an installed Novadeck's `novadeck` folder. Run one `pnpm dev` at a time:
@@ -255,7 +259,10 @@ this tab. A ↺ beside an action marks one that boots the demo again.
 
 Terminals:
 
-- **Selected terminal:** put the selected terminal in each of its states: starting, loading
+- **Selected terminal:** put the selected terminal in each of its states: starting, asleep (an
+  agent with a saved session and no process; a showcase sleeper, once seen for a moment, in Focus or
+  in sight in Grid and Canvas, wakes by itself: waking, then its agent resting; one the panel set,
+  from here or the gallery, stays asleep), waking (that agent on its way back), loading
   output, back at the prompt, running a long program, Claude Code, Codex or Antigravity, a failed
   paste, and each way to end (clean exit, exit code, killed, killed for memory, failed to
   start). Each one that changes the state calls off what the terminal's agent had
@@ -267,8 +274,8 @@ Terminals:
   Canvas wire side by side (on neighbours, the teams chain through the middle one).
 - **New terminals:** "Every state at once" adds one terminal per state, named after it, so
   the tabs and the windows in Grid and Canvas show done, replied (unread), failed, working,
-  planning, subagents, asking, waiting, paused at its limit, ended and the rest side by
-  side. Its agents are of the harness the group's switch chose (see Agent). "Asks (MCP)" and
+  planning, subagents, asking, waiting, paused at its limit, asleep (plain, done, asking),
+  waking (plain, asking), ended and the rest side by side. Its agents are of the harness the group's switch chose (see Agent). "Asks (MCP)" and
   "Needs a sign-in" are agents with an `ask` open in the Inbox (a
   question, and an action ask), so their "?" and "!" show beside "Working, a side question",
   an agent that works on with a question open. You stay on one that needs permission, and the
@@ -301,7 +308,8 @@ Agents:
   subagents finish. Rest leaves it at its prompt with nothing running or asking; the Inbox
   rows it wrote (a done report, a failed turn) stay.
 - **Agent fixtures:** what no turn produces: an unheard agent (of the chosen harness, in
-  place of whatever ran, whose hooks say nothing), and context and limits or tokens alone, in the tooltip and status; those two set
+  place of whatever ran, whose hooks say nothing), an agent held at its startup screen (of the
+  chosen harness) or Antigravity at its sign-in screen, before its first session, and context and limits or tokens alone, in the tooltip and status; those two set
   only the usage of the selected terminal's agent, so a turn, request or queued prompt stays.
 - **Approvals:** "Ask to close selected" has another terminal of the session ask to close the
   selected one, and "Ask to lead selected" has it ask to lead the selected one, which raises the
@@ -583,7 +591,7 @@ the median is above 8 seconds from the address to Claude Code's terminal drawn (
 now, as main's; the website gives up at 15). The build fails over its budgets
 (`tools/build-kit/src/bundle-checks.ts`, with the numbers in `apps/try/vite.config.ts`): what the page loads first, its scripts and styles gzipped and
 every woff2 font they declare, 1,300 kB, and the demo with its terminal emulator, which
-loads with the connection, 190 kB.
+loads with the connection, 195 kB.
 
 The hero's terminals are real terminal cells, as the desktop app draws them: the theme's
 ANSI palette, boxes in box-drawing characters, text wrapped at the column count. Where xterm
@@ -1224,10 +1232,12 @@ with up to four highlights picked from everything since the last stable release.
 shows a release's highlights after updating to it until the person dismisses them. The
 `OPENROUTER_API_KEY` repository secret enables it, and the `RELEASE_NOTES_PRERELEASE_MODEL`
 and `RELEASE_NOTES_PROMOTE_MODEL` repository variables pick the models (by default
-`anthropic/claude-haiku-5.5` and `anthropic/claude-sonnet-5.5`). Without the key, when the key is
+`anthropic/claude-haiku-5.5`, and `anthropic/claude-opus-5.5` at high effort; a different model a
+variable names thinks at its own default). Without the key, when the key is
 out of credit, or when a run fails, a release keeps the notes it has, the run page shows a
-warning, and neither step holds a release or a promotion. A promotion costs about $0.25 and a
-prerelease well under a cent. With `OPENROUTER_API_KEY` and a `gh` login,
+warning, and neither step holds a release or a promotion. A promotion costs about $0.10 to
+$0.30, and a prerelease about a tenth of a cent. OpenRouter holds a promotion's whole output
+limit up front, about $0.70 on Opus, so the key's limit needs that much free when one runs. With `OPENROUTER_API_KEY` and a `gh` login,
 `node scripts/release-notes/main.ts promote v1.2.3 --dry-run` prints what a promotion would
 write without changing any release; it asks the model, so it spends credit.
 

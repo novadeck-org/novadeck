@@ -144,9 +144,10 @@ Beside that common set, each keeps what only it has:
   and `shim.ts`.
 - Antigravity (`harnesses/agy`): `status-line.ts` (its status line's report, and the
   prompt it says shows), `call-memory.ts` (what its decoder holds of each conversation's
-  calls from one hook to the next) and `settings.ts` (its user settings: the status line
-  it takes only from them, put in place once connected, and the folders it trusts). It
-  has no `watch`: its transcripts are read only for the chat.
+  calls from one hook to the next), `listing.ts` (the work a Stop left that its status
+  line doesn't list yet, its `watch` telling when that wait runs out) and `settings.ts`
+  (its user settings: the status line it takes only from them, put in place once
+  connected, and the folders it trusts). Its transcripts are read only for the chat.
 
 An adapter imports only `@novadeck/harness-core`, `@novadeck/protocol`,
 `@novadeck/emulator`, `@novadeck/tui-input`, Node and its own files, never the runner's
@@ -445,6 +446,18 @@ Step 1 implements `plugin`, `fallback`, `home`, `connected`, `connect`, `disconn
 `hook`, `files`, `shims`, `resume` and `continuity`. The other fields arrive with
 the features that need them.
 
+Two more fields serve the History pane. `conversation(install, session)` says whether a
+conversation can still be found, as `found`, `gone` or `unknown`, by `stat` and `readdir`
+alone: `gone` only when its file is missing from a real folder that holds such files, and
+any other error, an empty store or a link to nowhere is `unknown`. The transcript path the
+session reported names its home when a wrapper moved it, and is checked first; `conversations(install)`
+gives a scan that reads each folder once for a whole list. Codex reads the day folder its UUIDv7 id names, plus its
+neighbours, and `archived_sessions` (an archived thread is found); an id with no date is looked for newest day first, within a budget of folders.
+`launch.resumed(claim, seen)` says whether a resume worked from the bound session and
+whether the prompt shows (`worked`, `waiting` or `failed`), so the runner never asks which
+harness it is. Both are measured in the E2E suite (`resume.e2e.ts`), which fails when a
+harness release moves its files.
+
 Use plain objects and functions: no classes, no per-feature `*Adapter` types,
 and no generic `execute(capabilityName, unknownPayload)` entry point.
 
@@ -490,8 +503,9 @@ Hooks do not decode anything. The one hook script, shared by every harness
 (`shell/hook.ts`), forwards to the runner:
 
 - the hook event,
-- a bounded copy of the harness's payload: long text cut to 4,096 characters,
-  deep or wide values dropped, and the whole report under 60,000 characters,
+- a bounded copy of the harness's payload: long text cut to 4,096 characters but for the
+  commands its `commandFields` name, deep or wide values dropped, and the whole report under
+  60,000 characters, those commands aside,
 - the harness process that ran it,
 - the few environment facts that tell nested agents apart.
 
@@ -766,13 +780,24 @@ harness.
   keys.
 - **Limits and raw dialogs.** What an adapter reads is cut to the protocol's limits before
   it shows (a long question or description). Novadeck never cuts a `choices` `detail`: one
-  past 4 KiB reads as nothing and shows raw, as does a dialog whose ids or counts exceed
+  past 64 KiB reads as nothing and shows raw, as does a dialog whose ids or counts exceed
   the limits. A harness may cut its own form: Codex's cuts any long value, and for its
-  task tools alone the `detail` tells that form as it is, `...` and all. A request raw for good (locked) still keeps another's
+  task tools alone the `detail` tells that form as it is, `...` and all.
+- **Commands taller than the screen.** A dialog shows only part of one: Claude Code's end
+  (its header scrolled away), Codex's and Antigravity's start, up to a mark that says more is
+  hidden. That part must be the request's own command, whitespace aside, and the `detail` is
+  then the whole command as the request tells it, for the screen never can: a hook's report
+  keeps the fields its harness names in `commandFields` whole, where all its other text is cut. Codex's options
+  may be pushed off the screen too: the last it has room for is dropped where it is cut, and
+  its no, where none shows, is the key its footer names, and with neither it reads as nothing.
+  Antigravity's status line names no call, so unless the turn's rows above the dialog show and
+  name no other call going on, its `detail` is the screen's own cut words. A request raw for good (locked) still keeps another's
   identical-looking dialog from being answerable; an answered one doesn't. An answer to a
   request whose dialog shows `raw` without a lock (the screen reads as nothing now) is a
   `CONFLICT` that locks nothing. Request dialogs only show raw, for want of one the adapter
-  reads, once the screen has been still for 1.5 s and the request pending for 2 s: a harness
+  reads, once the screen has been still for 1.5 s and the request pending for 2 s, or once it
+  has gone 6 s without reading one whatever it does, as a dialog may tick (Claude Code counts
+  down), and it then takes new text only every 6 s until the screen is still: a harness
   may run its hooks (ours included) before it draws a dialog.
 - **Follow-up words.** Where the answer's words go on as the agent's next prompt, they are
   given in the same input-queue entry once the dialog took its key and the screen settled.

@@ -10,6 +10,9 @@ const nameChars = 256
 const argCount = 64
 const argChars = 4096
 
+/** A machine's whole process list in text: far more than `ps`'s default room for a busy one. */
+const listingBytes = 16 * 1024 * 1024
+
 type ProcessStat = { ppid: number; pgrp: number; tty: number; tpgid: number }
 
 // /proc/<pid>/stat puts the command in parentheses; it may itself contain spaces or ')'.
@@ -106,6 +109,7 @@ export const processGroup = async (pid: number): Promise<number | undefined> => 
 // Programs that sit under an idle shell without being work the person started: prompt
 // helpers (powerlevel10k's gitstatusd), and on Windows a console host and the launcher a
 // shell starts as itself (Git Bash's bash.exe runs usr\\bin\\bash.exe).
+const noPids: ReadonlySet<number> = new Set()
 const promptHelper = /^gitstatusd/
 const consoleHosts = new Set(["conhost.exe", "openconsole.exe"])
 
@@ -130,12 +134,17 @@ export const parsePsRows = (output: string): PsRow[] =>
  * as a job in the background is (`npm run dev &`), not a worker on a terminal of its own, as
  * prompts that run async (zsh-async's zpty) keep, and not a known prompt helper.
  */
-export const hasTerminalChild = (rows: readonly PsRow[], pid: number): boolean | undefined => {
+export const hasTerminalChild = (
+  rows: readonly PsRow[],
+  pid: number,
+  except: ReadonlySet<number> = noPids,
+): boolean | undefined => {
   const shell = rows.find((row) => row.pid === pid)
   if (!shell || shell.tty === "?" || shell.tty === "??") return undefined
   return rows.some(
     (row) =>
       row.ppid === pid &&
+      !except.has(row.pid) &&
       row.tty === shell.tty &&
       !promptHelper.test(row.comm.split("/").pop() ?? row.comm),
   )
@@ -146,10 +155,14 @@ export const hasTerminalChild = (rows: readonly PsRow[], pid: number): boolean |
  * process other than the shell, a console host, or the launcher the shell started as itself
  * (a member that has the shell's own program name). Without names, any other process counts.
  */
-export const hasJobUnder = (tree: readonly Member[], pid: number): boolean => {
+export const hasJobUnder = (
+  tree: readonly Member[],
+  pid: number,
+  except: ReadonlySet<number> = noPids,
+): boolean => {
   const own = tree.find((member) => member.pid === pid)?.name?.toLowerCase()
   return tree.some((member) => {
-    if (member.pid === pid) return false
+    if (member.pid === pid || except.has(member.pid)) return false
     const name = member.name?.toLowerCase()
     return name === undefined || (!consoleHosts.has(name) && name !== own)
   })
@@ -159,27 +172,79 @@ export const hasJobUnder = (tree: readonly Member[], pid: number): boolean => {
  * Whether the shell `pid` has a live child that is work: a job in the background
  * (`npm run dev &`, a PowerShell `Start-Job`). Undefined when the lookup can't tell: `ps`
  * missing or failing, a shell with no terminal, and on Windows no `trees` or a relay that
- * can't run.
+ * can't run. Processes of `except` (pids) are not counted: the agent's own chain, when the
+ * question is whether the shell started anything beside it.
  */
 export const hasChildProcess = async (
   pid: number | undefined,
   trees?: { readonly read: (root: number) => Promise<readonly Member[] | undefined> },
+  except: ReadonlySet<number> = noPids,
 ): Promise<boolean | undefined> => {
   if (pid === undefined || !Number.isSafeInteger(pid) || pid <= 0) return undefined
   if (process.platform === "win32") {
     const tree = await trees?.read(pid)
-    return tree === undefined ? undefined : hasJobUnder(tree, pid)
+    return tree === undefined ? undefined : hasJobUnder(tree, pid, except)
   }
   if (process.platform !== "linux" && process.platform !== "darwin") return undefined
   try {
     const { stdout } = await promisify(execFile)("ps", ["-ax", "-o", "pid=,ppid=,tty=,comm="], {
       encoding: "utf8",
       timeout: 2_000,
+      maxBuffer: listingBytes,
     })
-    return hasTerminalChild(parsePsRows(stdout), pid)
+    return hasTerminalChild(parsePsRows(stdout), pid, except)
   } catch {
     return undefined
   }
+}
+
+/** A row of the system's process list, as `processTable` reads it. */
+export type TableRow = PsRow & { readonly pgid: number; readonly tpgid: number }
+
+/** `ps -o pid=,ppid=,pgid=,tpgid=,tty=,comm=` rows; a line that isn't one is left out. */
+export const parseProcessTable = (output: string): TableRow[] =>
+  output.split("\n").flatMap((line) => {
+    const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(-?\d+)\s+(\S+)\s+(.+?)\s*$/.exec(line)
+    return match
+      ? [
+          {
+            pid: Number(match[1]),
+            ppid: Number(match[2]),
+            pgid: Number(match[3]),
+            tpgid: Number(match[4]),
+            tty: match[5]!,
+            comm: match[6]!,
+          },
+        ]
+      : []
+  })
+
+/**
+ * Every process on the machine with its parent, groups and terminal, from one `ps` call: the
+ * answer for any number of shells at once (`tableForeground`, `hasTerminalChild`), so asking
+ * about all terminals costs one listing, not one each. Undefined where the platform has no
+ * `ps` to ask (Windows, which has `Trees`) and where the call fails, as `ps` missing, slow
+ * past two seconds, or too long for its buffer: callers treat that as not knowing, never as
+ * an empty machine.
+ */
+export const processTable = async (): Promise<TableRow[] | undefined> => {
+  if (process.platform !== "linux" && process.platform !== "darwin") return undefined
+  try {
+    const { stdout } = await promisify(execFile)(
+      "ps",
+      ["-ax", "-o", "pid=,ppid=,pgid=,tpgid=,tty=,comm="],
+      { encoding: "utf8", timeout: 2_000, maxBuffer: listingBytes },
+    )
+    return parseProcessTable(stdout)
+  } catch {
+    return undefined
+  }
+}
+
+/** The process group holding the terminal of shell `pid`, as `rows` show it; undefined when none does. */
+export const tableForeground = (rows: readonly TableRow[], pid: number): number | undefined => {
+  const group = rows.find((row) => row.pid === pid)?.tpgid
+  return group !== undefined && group > 0 ? group : undefined
 }
 
 /** A process's name as /proc/<pid>/stat holds it, in parentheses; null when unreadable. */

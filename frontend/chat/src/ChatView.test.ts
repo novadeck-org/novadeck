@@ -1,6 +1,7 @@
 import {
   WordsLost,
   noConversation,
+  noDoorbell,
   type ChatAnswer,
   type ChatItem,
   type ChatPrompt,
@@ -8,6 +9,7 @@ import {
   type Conversations,
   type SendResult,
 } from "@novadeck/core/conversation"
+import type { AgentMessage } from "@novadeck/core/messages"
 import { createStore, type Store } from "@novadeck/core/store"
 import { refusing } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
@@ -37,9 +39,11 @@ const inApp = (
     send = async () => {},
     answer = async () => {},
     onRef = () => {},
+    onKeys,
   }: {
     readonly draft?: string
     readonly program?: string
+    readonly onKeys?: (keys: string) => Promise<void>
     readonly send?: (text: string) => Promise<SendResult | void>
     readonly answer?: (request: string, answer: ChatAnswer) => Promise<void>
     readonly onRef?: (ref: string) => void
@@ -59,6 +63,7 @@ const inApp = (
   }
   const chat = createChat()
   const commands = createChatCommands({
+    chatView: () => true,
     chat,
     conversations,
     terminalOpen: () => true,
@@ -81,12 +86,14 @@ const inApp = (
           sending: chatSendsOf(state.sends, context, "01"),
           onSend: (text, to) => commands.sendChat(key, text, to),
           onInterrupt: async () => {},
+          onClearBox: async () => {},
           onAnswer: (request, reply) => conversations.answer(key, request, reply),
           onWordsLost: (words) => commands.appendChatDraft(context, "01", words),
           onAnswerInTerminal: () => {},
           focusInput: false,
           onInputFocused: () => {},
           refused: conversations.refused,
+          ...(onKeys && { onKeys }),
         })
       : null
   }
@@ -150,13 +157,18 @@ const send = async (container: HTMLElement): Promise<void> =>
       void sendButton(container).dispatchEvent(new MouseEvent("click", { bubbles: true })),
   )
 
-// The person's prompts shown before the record has them: their words, state and note.
+// The person's prompts shown before the record has them: their words, state, and their tag or
+// what became of them.
 const bubbles = (container: HTMLElement): (string | null)[][] =>
-  [...container.querySelectorAll<HTMLElement>(".chat-message[data-sent]")].map((each) => [
-    each.querySelector(".chat-text")?.textContent ?? null,
-    each.dataset.sent ?? null,
-    each.querySelector(".chat-sent")?.textContent ?? null,
-  ])
+  [...container.querySelectorAll<HTMLElement>(".chat-message[data-sent]")].map((each) => {
+    const tag = each.querySelector(".chat-sent-tag")?.textContent ?? null
+    const text = each.querySelector(".chat-text")?.textContent ?? ""
+    return [
+      tag ? text.slice(0, -tag.length).trimEnd() : text,
+      each.dataset.sent ?? null,
+      tag ?? each.querySelector(".chat-sent")?.textContent ?? null,
+    ]
+  })
 
 const userItem = (text: string): ChatItem => ({
   id: "s:0",
@@ -169,7 +181,10 @@ const userItem = (text: string): ChatItem => ({
   call: null,
   author: null,
   run: null,
+  outcome: null,
+  scripted: false,
   interrupted: false,
+  ring: null,
 })
 
 const box = (container: HTMLElement): HTMLTextAreaElement =>
@@ -225,6 +240,106 @@ describe("a chat whose answer's words didn't reach the agent", () => {
   })
 })
 
+describe("a chat over a harness's own menu", () => {
+  const talking: Conversation = {
+    ...noConversation,
+    agent: "claude",
+    session: "s",
+    loaded: true,
+  }
+  const open = (given: Conversation = talking) => {
+    const conversation = createStore(given)
+    const keys: string[] = []
+    const app = inApp(conversation, {
+      onKeys: async (written) => {
+        keys.push(written)
+      },
+    })
+    const field = app.container.querySelector("textarea")!
+    const down = (name: string): void =>
+      void act(() => {
+        field.dispatchEvent(
+          new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true }),
+        )
+      })
+    return { ...app, conversation, keys, field, down }
+  }
+
+  it("passes a leading / to the terminal rather than refuse it", () => {
+    const { field, keys, container, sent } = open()
+    set(field, "/")
+    set(field, "/m")
+    expect(keys).toEqual(["/", "m"])
+    expect(container.textContent).toContain("own menu")
+    expect(sent).not.toHaveBeenCalled()
+  })
+
+  it("sends Enter to the terminal, and echoes the command as the person's words", () => {
+    const { field, keys, down, container, sent } = open()
+    set(field, "/status")
+    down("Enter")
+    expect(keys).toEqual(["/status", "\r"])
+    expect(sent).not.toHaveBeenCalled()
+    expect(container.querySelector(".chat-echo")?.textContent).toBe("/status")
+  })
+
+  it("follows the terminal's program before a session binds", () => {
+    const conversation = createStore(noConversation)
+    const keys: string[] = []
+    const { container } = inApp(conversation, {
+      program: "codex",
+      onKeys: async (written) => {
+        keys.push(written)
+      },
+    })
+    set(container.querySelector("textarea")!, "/")
+    expect(keys).toEqual(["/"])
+  })
+
+  it("passes a menu's keys only while one shows", () => {
+    const { field, keys, down, conversation } = open()
+    set(field, "/")
+    down("ArrowDown")
+    down("Escape")
+    expect(keys).toEqual(["/"])
+    act(() =>
+      conversation.update((current) => ({
+        ...current,
+        slice: { reason: "menu", columns: 80, rows: [[]], cursor: null, secret: false },
+      })),
+    )
+    down("ArrowDown")
+    down("Escape")
+    expect(keys).toEqual(["/", "\x1b[B", "\x1b"])
+  })
+
+  it("takes a plain message as it always did", () => {
+    const { field, keys, down, sent } = open()
+    set(field, "hello there")
+    down("Enter")
+    expect(keys).toEqual([])
+    expect(sent).toHaveBeenCalled()
+  })
+
+  it("draws the terminal's own rows, and hands the keys to a view", () => {
+    const { conversation, keys, container } = open()
+    act(() =>
+      conversation.update((current) => ({
+        ...current,
+        slice: { reason: "view", columns: 80, rows: [[]], cursor: null, secret: false },
+      })),
+    )
+    const rows = container.querySelector<HTMLElement>(".chat-slice")!
+    expect(document.activeElement).toBe(rows)
+    act(() => {
+      rows.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+    })
+    expect(keys).toEqual(["\x1b"])
+    act(() => conversation.update((current) => ({ ...current, slice: null })))
+    expect(document.activeElement).toBe(container.querySelector("textarea"))
+  })
+})
+
 describe("a chat sending a message", () => {
   it("takes it out of the box as it goes, and queues the next one behind it", async () => {
     const sends: (() => void)[] = []
@@ -237,20 +352,20 @@ describe("a chat sending a message", () => {
     expect(chat.sent).toHaveBeenCalledWith("first")
     expect(box(container).value).toBe("")
     expect(box(container).readOnly).toBe(false)
-    expect(bubbles(container)).toEqual([["first", "sending", "Sending…"]])
+    expect(bubbles(container)).toEqual([["first", "sending", "sending"]])
     set(box(container), "second")
     expect(sendButton(container).disabled).toBe(false)
     await send(container)
     expect(chat.sent).toHaveBeenCalledTimes(1)
     expect(box(container).value).toBe("")
     expect(bubbles(container)).toEqual([
-      ["first", "sending", "Sending…"],
-      ["second", "queued", "Queued"],
+      ["first", "sending", "sending"],
+      ["second", "queued", "queued"],
     ])
     // A backend that follows no prompts: the next goes once the one before went.
     await act(async () => sends[0]!())
     expect(chat.sent).toHaveBeenLastCalledWith("second")
-    expect(bubbles(container)).toEqual([["second", "sending", "Sending…"]])
+    expect(bubbles(container)).toEqual([["second", "sending", "sending"]])
   })
 
   it("holds the next one until the agent's record has the one before, where the backend tells", async () => {
@@ -280,9 +395,100 @@ describe("a chat sending a message", () => {
     )
     expect(chat.sent).toHaveBeenLastCalledWith("second")
     // Settled, but its item yet to arrive: it shows as on its way until it does.
-    expect(bubbles(container)[0]).toEqual(["first", "sending", "Sending…"])
+    expect(bubbles(container)[0]).toEqual(["first", "sending", "sending"])
     await act(async () => conversation.update((now) => ({ ...now, items: [userItem("first")] })))
     expect(bubbles(container).map(([text]) => text)).toEqual(["second"])
+  })
+
+  it("shows a turn the doorbell started as a dim line, how many it brought where known", async () => {
+    const ring = (id: string, at: number, replies = false): ChatItem => ({
+      ...userItem("[Novadeck: automatic notice, agent messages waiting, n7Q2]"),
+      id,
+      at,
+      ring: { nonce: "n7Q2", replies },
+    })
+    const message = {
+      id: "m-1",
+      deliveredAt: 10_000,
+      from: { kind: "agent", handle: "moth", agent: "claude" },
+      text: "Check the export job.",
+    } as unknown as AgentMessage
+    const conversation = createStore<Conversation>({
+      ...asking,
+      requests: [],
+      items: [
+        ring("a", 10_000),
+        { ...userItem("mine"), id: "m", at: 30_000 },
+        ring("b", 90_000),
+        ring("c", 120_000, true),
+      ],
+      doorbell: { ...noDoorbell, delivered: [message] },
+    })
+    const { container } = inApp(conversation)
+    expect([...container.querySelectorAll(".chat-note")].map((note) => note.textContent)).toEqual([
+      "doorbell · 1 message",
+      "doorbell",
+      "doorbell · your reply",
+    ])
+    expect(container.textContent).not.toContain("automatic notice")
+    // Where a prompt would stand, with the mark hollow: a prompt, and not the person's.
+    const rings = [...container.querySelectorAll('[data-role="doorbell"]')]
+    expect(rings.map((each) => each.getAttribute("aria-label"))).toEqual([
+      "Doorbell, 1 message",
+      "Doorbell",
+      "Doorbell, your reply",
+    ])
+    expect(rings.every((each) => each.querySelector(".chat-mark[data-hollow]"))).toBe(true)
+    // What it brought follows in ink, under the handle that sent it.
+    const brought = rings[0]!.querySelector('[data-role="agent"]')
+    expect(brought?.getAttribute("aria-label")).toBe("Message from @moth")
+    expect(brought?.querySelector(".chat-author")?.textContent).toBe("@moth")
+    expect(brought?.querySelector(".markdown")?.textContent).toBe("Check the export job.")
+    expect(rings[1]!.querySelector('[data-role="agent"]')).toBeNull()
+  })
+
+  it("shows the person's own Inbox answer the doorbell brought as theirs, not a message", () => {
+    const ring: ChatItem = {
+      ...userItem("[Novadeck: automatic notice, agent messages waiting, r9Q2]"),
+      id: "a",
+      at: 10_000,
+      ring: { nonce: "r9Q2", replies: true },
+    }
+    const answer = {
+      id: "m-2",
+      deliveredAt: 10_000,
+      inbox: "answer",
+      from: { kind: "person" },
+      text: "Use green, please.",
+    } as unknown as AgentMessage
+    const conversation = createStore<Conversation>({
+      ...asking,
+      requests: [],
+      items: [ring],
+      doorbell: { ...noDoorbell, delivered: [answer] },
+    })
+    const { container } = inApp(conversation)
+    const bell = container.querySelector('[data-role="doorbell"]')!
+    expect(bell.querySelector(".chat-note")?.textContent).toBe("doorbell · your reply")
+    expect(bell.querySelector('[data-role="agent"]')).toBeNull()
+    const reply = bell.querySelector('[data-role="user"]')!
+    expect(reply.querySelector(".chat-mark:not([data-hollow])")).not.toBeNull()
+    expect(reply.querySelector(".chat-text")?.textContent).toBe("Use green, please. from the Inbox")
+  })
+
+  it("shows no message that a Stop handed back, though the record wrote it", async () => {
+    const conversation = createStore<Conversation>({
+      ...asking,
+      requests: [],
+      items: [userItem("went"), userItem("handed back")],
+      prompts: [
+        { ref: "abcdefghijklmnop", text: null, sentAt: 1, state: "settled", item: 0 },
+        { ref: "bcdefghijklmnopq", text: null, sentAt: 2, state: "withdrawn", item: 1 },
+      ],
+    })
+    const { container } = inApp(conversation)
+    expect(container.textContent).toContain("went")
+    expect(container.textContent).not.toContain("handed back")
   })
 
   it("says so when the agent's record never got it, and offers the terminal", async () => {
@@ -297,9 +503,73 @@ describe("a chat sending a message", () => {
     })
     const { container } = inApp(conversation)
     expect(bubbles(container)).toEqual([
-      ["lost words", "unrecorded", "Sent, but not in the agent's record.Show terminal"],
-      ["boxed words", "in-box", "It's back in Claude's box in the terminal.Show terminal"],
+      ["lost words", "unrecorded", "Sent, but not in the agent's record.send againeditterminal"],
+      ["boxed words", "in-box", "It's back in Claude's box in the terminal.terminal"],
     ])
+  })
+
+  describe("a prompt the record never got", () => {
+    const lost = (ref: string): Store<Conversation> =>
+      createStore<Conversation>({
+        ...asking,
+        requests: [],
+        prompts: [{ ref, text: "lost words", sentAt: 1, state: "unrecorded", item: null }],
+      })
+    const sentKey = (container: HTMLElement, name: string) =>
+      [...container.querySelectorAll<HTMLElement>(".chat-sent button")].find(
+        (each) => each.textContent === name,
+      )
+
+    it("goes again, and its line with it, as the receipt stays", async () => {
+      const chat = inApp(lost("resendaaaaaaaaaa"))
+      await act(async () => sentKey(chat.container, "send again")!.click())
+      expect(chat.sent).toHaveBeenCalledWith("lost words")
+      expect(
+        [...chat.container.querySelectorAll(".chat-message[data-sent]")].filter(
+          (each) => each.getAttribute("data-sent") === "unrecorded",
+        ),
+      ).toEqual([])
+    })
+
+    it("comes back to the box to edit, and its line goes", async () => {
+      const chat = inApp(lost("editaaaaaaaaaaaa"))
+      act(() => sentKey(chat.container, "edit")!.click())
+      expect(box(chat.container).value).toBe("lost words")
+      expect(document.activeElement).toBe(box(chat.container))
+      expect(chat.container.querySelector(".chat-sent")).toBeNull()
+    })
+
+    it("says why it didn't go again, its words back in the box", async () => {
+      const chat = inApp(lost("refusedaaaaaaaaa"), {
+        send: async () => {
+          throw new Error("The agent is waiting for your answer.")
+        },
+      })
+      await act(async () => sentKey(chat.container, "send again")!.click())
+      expect(chat.container.querySelector('[role="alert"]')?.textContent).toContain(
+        "waiting for your answer",
+      )
+      expect(box(chat.container).value).toBe("lost words")
+      expect(document.activeElement).toBe(box(chat.container))
+    })
+
+    it("still offers the terminal, where it may have gone after all", () => {
+      const chat = inApp(lost("terminalaaaaaaaa"))
+      expect(chat.container.querySelector('.chat-sent [aria-label="Show terminal"]')).not.toBeNull()
+    })
+
+    it("offers nothing that would turn it into a shell command", () => {
+      const chat = inApp(lost("shellaaaaaaaaaaa"), { draft: "!git status" })
+      expect(sentKey(chat.container, "send again")).toBeUndefined()
+      expect(sentKey(chat.container, "edit")).toBeUndefined()
+    })
+
+    it("can't go again over words in the box, which it would take; edit joins them", () => {
+      const chat = inApp(lost("draftaaaaaaaaaaa"), { draft: "and more" })
+      expect(sentKey(chat.container, "send again")).toBeUndefined()
+      act(() => sentKey(chat.container, "edit")!.click())
+      expect(box(chat.container).value).toBe("lost words\nand more")
+    })
   })
 
   it("puts it back before what was typed meanwhile when it doesn't go, saying why", async () => {
@@ -327,7 +597,7 @@ describe("a chat sending a message", () => {
     await act(async () => sends[0]!())
     chat.show(true)
     expect(box(chat.container).value).toBe("")
-    expect(sendButton(chat.container).getAttribute("aria-busy")).toBeNull()
+    expect(chat.container.querySelector('button[aria-label="Send"]')).toBeNull()
   })
 })
 
@@ -396,7 +666,7 @@ describe("a chat about the agent's question, where its own field takes the words
     const store = createStore<Conversation>(questioning)
     const { container } = inApp(store, { draft: "hi", program: "agy" })
     press(container, "Chat about this")
-    press(container, "Cancel")
+    press(container, "cancel")
     expect(container.querySelector(".chat-reply")).toBeNull()
     expect(container.querySelector('input[type="radio"]')).not.toBeNull()
     press(container, "Chat about this")
@@ -532,7 +802,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
     // Edited, it is a message again: here a shell command, said as one.
     set(box(container), "!important")
     expect(chat.replyTo()).toBeNull()
-    expect(container.querySelector(".chat-reply")?.textContent).toContain("Runs in")
+    expect(container.querySelector(".chat-composer .sr-only")?.textContent).toContain("Runs in")
     expect(sendButton(container).disabled).toBe(false)
   })
 
@@ -566,7 +836,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
     await send(container)
     press(container, "Chat about this")
     // The reply's Cancel isn't locked by the message on its way.
-    expect(button(container, "Cancel").disabled).toBe(false)
+    expect(button(container, "cancel").disabled).toBe(false)
     set(box(container), "pick X")
     act(() => store.update(() => withDialog(null)))
     expect(container.querySelector(".chat-reply")?.textContent).toContain("no longer a reply")
@@ -630,10 +900,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
       program: "agy",
     })
     const region = [...container.querySelectorAll('[role="status"]')].find(
-      (each) =>
-        each.childElementCount === 0 &&
-        each.tagName === "DIV" &&
-        !each.classList.contains("chat-unread-region"),
+      (each) => each.childElementCount === 0 && each.tagName === "DIV",
     )
     expect(region).toBeDefined()
     await send(container)
@@ -698,46 +965,92 @@ describe("a reply to the agent's question, as its dialog changes", () => {
 })
 
 describe("parts of the conversation the chat can't read", () => {
-  const notice = (container: HTMLElement): string | null =>
-    container.querySelector(".chat-unread")?.textContent ?? null
-  const action = (container: HTMLElement, name: string): HTMLButtonElement =>
-    [...container.querySelectorAll<HTMLButtonElement>(".chat-unread button")].find(
-      (each) => each.textContent === name,
-    )!
-
-  it("tells once at the top, until dismissed, for the session alone", () => {
-    const session = `s-${crypto.randomUUID()}`
-    const conversation = createStore<Conversation>({
-      ...noConversation,
-      agent: "claude",
-      session,
-      loaded: true,
-      unread: true,
-    })
-    const chat = inApp(conversation)
-    expect(notice(chat.container)).toContain(
-      "This chat may be missing parts of the conversation. The terminal has all of it.",
+  const gap = (id: string, text: string): ChatItem => ({
+    ...userItem(text),
+    id,
+    role: "note",
+    note: { type: "gap" },
+  })
+  const view = (items: readonly ChatItem[]) =>
+    inApp(
+      createStore<Conversation>({
+        ...noConversation,
+        agent: "claude",
+        session: "s",
+        loaded: true,
+        items,
+      }),
     )
-    // Above the thread, in a region mounted while empty so a screen reader announces it.
-    const region = chat.container.querySelector(".chat")?.firstElementChild
-    expect(region?.getAttribute("role")).toBe("status")
-    expect(region?.firstElementChild?.className).toBe("chat-unread")
-    expect(action(chat.container, "Show terminal")).toBeDefined()
-    act(() => action(chat.container, "Dismiss").click())
-    expect(notice(chat.container)).toBeNull()
-    // The chat leaving the screen and coming back, as the person visits the terminal.
-    chat.show(false)
-    chat.show(true)
-    expect(notice(chat.container)).toBeNull()
-    // Another session in the terminal tells its own.
-    act(() => void conversation.update((current) => ({ ...current, session: `${session}-next` })))
-    expect(notice(chat.container)).not.toBeNull()
+
+  it("marks where it stands among what could be read, the line there to open", () => {
+    const { container } = view([
+      { ...userItem("before"), id: "a" },
+      gap("b", '{"type":"hologram"}'),
+      { ...userItem("after"), id: "c" },
+    ])
+    const mark = container.querySelector('.chat-record[data-kind="gap"]')!
+    const line = mark.querySelector<HTMLButtonElement>("button.chat-tool-summary")!
+    expect(line.textContent).toBe("part of the record the chat can't read")
+    // Closed until clicked, as a tool line is.
+    expect(line.getAttribute("aria-expanded")).toBe("false")
+    act(() => line.click())
+    expect(mark.querySelector('[aria-label="As written"] pre')?.textContent).toBe(
+      '{"type":"hologram"}',
+    )
+    const words = [...container.querySelectorAll(".chat-text")].map((each) => each.textContent)
+    expect(words).toEqual(["before", "after"])
+    const order = mark.compareDocumentPosition(container.querySelectorAll(".chat-text")[1]!)
+    expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it("says nothing where the record holds nothing it can't read", () => {
-    const { container } = inApp(
-      createStore<Conversation>({ ...noConversation, agent: "claude", session: "s", loaded: true }),
+  it("marks the place alone where the line can't be shown", () => {
+    const { container } = view([gap("b", "")])
+    const mark = container.querySelector('.chat-record[data-kind="gap"]')!
+    expect(mark.querySelector("button")).toBeNull()
+    expect(mark.textContent).toBe("part of the record the chat can't read")
+  })
+
+  it("draws a compaction as a line that opens to the summary the agent goes on from", () => {
+    const { container } = view([
+      {
+        ...userItem("Context so far: the logout comes from a minute of slack."),
+        id: "k",
+        role: "note",
+        note: { type: "compaction" },
+      },
+    ])
+    const mark = container.querySelector('.chat-record[data-kind="compaction"]')!
+    const line = mark.querySelector<HTMLButtonElement>("button.chat-tool-summary")!
+    expect(line.textContent).toBe("compacted the conversation · summary kept")
+    act(() => line.click())
+    expect(mark.querySelector('[aria-label="Summary"] pre')?.textContent).toBe(
+      "Context so far: the logout comes from a minute of slack.",
     )
-    expect(notice(container)).toBeNull()
+    expect(line.getAttribute("aria-expanded")).toBe("true")
+  })
+
+  it("draws a compaction with a sealed summary as a line that promises nothing", () => {
+    const { container } = view([
+      { ...userItem(""), id: "k", role: "note", note: { type: "compaction" } },
+    ])
+    const mark = container.querySelector('.chat-record[data-kind="compaction"]')!
+    expect(mark.querySelector("button")).toBeNull()
+    expect(mark.textContent).toBe("compacted the conversation")
+  })
+
+  it("says a summary was cut short", () => {
+    const { container } = view([
+      {
+        ...userItem("A long summary"),
+        id: "k",
+        role: "note",
+        truncated: true,
+        note: { type: "compaction" },
+      },
+    ])
+    act(() => container.querySelector<HTMLButtonElement>(".chat-record button")!.click())
+    expect(container.querySelector(".chat-record .chat-tool-note")?.textContent).toContain(
+      "Shortened here",
+    )
   })
 })

@@ -57,6 +57,8 @@ export type LauncherOptions = {
 export type LauncherHost = {
   /** The runner is stopping: the integration that came up meanwhile is closed again. */
   readonly stopping: () => boolean
+  /** Where each shell goes as it starts, which a startup command waits for. */
+  readonly scopes: { active(): boolean } | undefined
   /** What hears agents' reports, asks, acknowledgements and tool calls. */
   readonly handlers: ReportHandlers
 }
@@ -197,6 +199,7 @@ export class Launcher {
       integration
         ? shellLaunch(shell, integration.paths, base, {
             shims: integration.shims,
+            scoped: this.host.scopes?.active(),
             ...(withStartup &&
               startup &&
               this.options.shellArgs === undefined && {

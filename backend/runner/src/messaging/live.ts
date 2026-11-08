@@ -29,6 +29,13 @@ export type Live = Scope & {
   ledBy: string | null
   /** Its root session, as the terminal manager follows it. */
   root: Root | null
+  /**
+   * The saved session of a terminal with no process, asleep, or just woken and not yet bound:
+   * messages may be addressed to it and wait for it, and its Inbox asks stay answerable. It
+   * is no root (`root` means a bound session only) and is never ringable; it ends when a
+   * root binds (`rootAt`), or the terminal goes.
+   */
+  resting: { agent: AgentName; sessionId: string } | null
   delivery: Delivery
   /**
    * The agent expected to bind there, which messages may be addressed to before it has;
@@ -79,6 +86,24 @@ export type Live = Scope & {
    * is the person's: put back by their Escape, or recalled from the prompt's history.
    */
   unconfirmed: readonly string[]
+  /** Whether the latest prompt's hook came while a turn ran: queued behind it, as far as told. */
+  promptBehindTurn: boolean
+  /** Whether a prompt the last Stop left queued may be running, which fires no prompt hook. */
+  queueRunning: boolean
+  /** How many prompts' hooks came behind a turn and have had no Stop to run after, as told. */
+  promptsQueued: number
+  /**
+   * Whether the screen said a turn runs from the queue since the last Stop (`queueSeen`), so a
+   * prompt behind it is counted as queued, as it is behind a turn a hook told of.
+   */
+  queueConfirmed: boolean
+  /** How many Stops ended a turn, and which of them the screen was looked at after. */
+  stops: number
+  queueLooked: number
+  /** Whether the doorbell rings it with the plain line, after a ring failed (`ringsPlain`). */
+  ringsPlain: boolean
+  /** When a reply line last started a turn: the replies waiting then have been said. */
+  lineAt: number | null
   /** Whether it is Ready because its screen showed the box empty, not a session's start. */
   viaScreen: boolean
   /**
@@ -101,6 +126,7 @@ export const started = (
   handle,
   ledBy,
   root: null,
+  resting: null,
   delivery: unbound,
   expecting: null,
   shown: null,
@@ -114,6 +140,14 @@ export const started = (
   waits: null,
   idleSince: null,
   unconfirmed: [],
+  promptBehindTurn: false,
+  queueRunning: false,
+  promptsQueued: 0,
+  queueConfirmed: false,
+  stops: 0,
+  queueLooked: 0,
+  ringsPlain: false,
+  lineAt: null,
   viaScreen: false,
   held: {},
 })
@@ -151,8 +185,15 @@ export const feed = (
   if (root.length > 0) loops.observe(live.terminalId, root, now())
 }
 
-/** Whether a message is for the root session. */
-export const addressed = (message: Pick<Message, "to">, root: Root): boolean =>
+/** A session a terminal's messages are for: its root, or the saved one it rests on. */
+export type Standing = Pick<Root, "agent" | "sessionId">
+
+/** The session messages to the terminal are for: its root, else the one it rests on. */
+export const standingOf = (live: Pick<Live, "root" | "resting">): Standing | null =>
+  live.root ?? live.resting
+
+/** Whether a message is for the session (the root, or the one a terminal rests on). */
+export const addressed = (message: Pick<Message, "to">, root: Standing): boolean =>
   message.to.agent === root.agent && message.to.sessionId === root.sessionId
 
 /**
@@ -163,11 +204,17 @@ export const awaiting = (live: Live, message: Pick<Message, "to">): boolean => {
   const { shown } = live
   if (!shown || message.to.agent !== shown.agent) return false
   const { sessionId } = message.to
-  return sessionId === null || (shown.prefix !== null && sessionId.startsWith(shown.prefix))
+  return (
+    sessionId === null ||
+    (shown.prefix !== null && sessionId.startsWith(shown.prefix)) ||
+    // A woken terminal's prompt shows before its session binds: the one it rested on.
+    (live.resting?.agent === shown.agent && live.resting.sessionId === sessionId)
+  )
 }
 
 /** Whether the terminal's own session never bound, so replies can't reach it. */
-export const neverBound = (live: Live): boolean => live.root === null && !live.shown
+export const neverBound = (live: Live): boolean =>
+  live.root === null && !live.shown && !live.resting
 
 /** Whether `lead` is the running lead of `worker`. */
 export const leads = (worker: Live, lead: Live): boolean =>
@@ -187,6 +234,7 @@ export type Deliverable =
  */
 export const deliverableAgent = (recipient: Live): Deliverable => {
   const { root } = recipient
+  const held = standingOf(recipient)
   if (!root && !recipient.shown && recipient.untrusted)
     return {
       ok: false,
@@ -195,12 +243,12 @@ export const deliverableAgent = (recipient: Live): Deliverable => {
         `${mention(recipient.handle)} has no agent Novadeck can deliver to: ` +
         `${untrustedNote(recipient.untrusted)}.`,
     }
-  const agent = root?.agent ?? recipient.shown?.agent ?? recipient.expecting
+  const agent = held?.agent ?? recipient.shown?.agent ?? recipient.expecting
   if (!agent)
     return {
       ok: false,
       code: "none",
       reason: `${mention(recipient.handle)} has no agent running there that Novadeck can deliver to.`,
     }
-  return { ok: true, agent, sessionId: root?.sessionId ?? null }
+  return { ok: true, agent, sessionId: held?.sessionId ?? null }
 }

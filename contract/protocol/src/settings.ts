@@ -5,6 +5,11 @@ import { z } from "zod"
 export const maxInboxOrder = 200
 export const maxInboxRowIdLength = 200
 
+// The longest an idle agent may wait before it is stopped, in minutes: a week.
+export const maxHibernateMinutes = 7 * 24 * 60
+// How long an idle agent waits before it is stopped, in minutes, until the person chooses.
+export const defaultHibernateMinutes = 30
+
 // Runner-wide settings a client can change.
 export const runnerSettings = z.strictObject({
   // Whether each terminal's screen is kept on disk, to show again when it restores.
@@ -17,6 +22,9 @@ export const runnerSettings = z.strictObject({
   // The Inbox's rows the person snoozed, each by its id and when it began (`<id>@<at>`), the
   // latest last; empty until they snooze one.
   inboxSnoozed: z.array(z.string().min(1).max(maxInboxRowIdLength)).max(maxInboxOrder),
+  // After how many idle minutes a terminal's agent is stopped, its session resting until a
+  // message or a look wakes it; null for never.
+  hibernateAfterMinutes: z.number().int().min(1).max(maxHibernateMinutes).nullable(),
 })
 
 // The settings as the runner reports them, with what it can do whatever they say.

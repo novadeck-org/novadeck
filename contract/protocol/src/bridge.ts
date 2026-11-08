@@ -103,6 +103,16 @@ export type DesktopBridge = {
    * update as usual, offering `downloading` and then `ready`.
    */
   allowUpdates?(): void
+  /**
+   * Quits the app and opens it again as the update waiting to install, now: the person's own
+   * choice, never the app's. Does nothing while a quit is already under way, and
+   * nothing unless the last offer is `ready` and the copy installs updates itself. Absent
+   * from apps that came before it. Should the update not go in, the current version opens again,
+   * except where the app is already gone, its runner may still be running, or a logout or
+   * shutdown came during the restart; see
+   * docs/auto-update.md, "Restart now".
+   */
+  restartToUpdate?(): void
   /** Which releases this build follows; see `UpdateChannel`. */
   updateChannel?(): Promise<UpdateChannel>
   /**
@@ -529,10 +539,10 @@ export const parsePortableState = (value: unknown): PortableState | undefined =>
 
 /**
  * What is new in the version the app updated to: its release's highlights, each a short
- * title and one plain line, as the release notes give them (scripts/release-notes). One to
+ * title and one plain line, as the release notes give them (scripts/release-notes). Up to
  * `whatsNewHighlights` of them; text only, never Markdown or links. `from` is the version
- * they are new since, when the app knows it: the one updated from, or the newest whose
- * notes were already seen when that is newer.
+ * they are new since, when the app knows it: the one updated from, or the newest whose notes
+ * were already seen when that is newer.
  */
 export type WhatsNew = {
   readonly version: string
@@ -569,32 +579,36 @@ const highlightText = (value: unknown, length: number): string | undefined => {
   return text !== "" && Array.from(text).length <= length ? text : undefined
 }
 
+// The items of a list of highlights that the contract allows, in their order.
+const highlightsOf = (items: readonly unknown[]): WhatsNewHighlight[] =>
+  items.flatMap((highlight: unknown): WhatsNewHighlight[] => {
+    if (!isRecord(highlight)) return []
+    const title = highlightText(highlight.title, whatsNewTitleLength)
+    const line = highlightText(highlight.line, whatsNewLineLength)
+    if (!title || !line) return []
+    const { icon } = highlight
+    return [
+      typeof icon === "string" && iconName.test(icon) ? { title, line, icon } : { title, line },
+    ]
+  })
+
 /**
  * What is new when it is something the contract allows, else undefined. Highlights that
  * break it are left out first, then the most that is shown are kept, so a valid one never
- * gives way to an invalid one before it. With none left there is nothing to show. A `from`
- * that is no version, or the version itself, is left out: the card then names none.
+ * gives way to an invalid one before it. With none left there is nothing to show. A `from` that
+ * is no version, or the version itself, is left out: the card then names none.
  */
 export const parseWhatsNew = (value: unknown): WhatsNew | undefined => {
   if (!isRecord(value) || !isVersion(value.version) || !Array.isArray(value.highlights))
     return undefined
-  const highlights = value.highlights
-    .flatMap((highlight: unknown): WhatsNewHighlight[] => {
-      if (!isRecord(highlight)) return []
-      const title = highlightText(highlight.title, whatsNewTitleLength)
-      const line = highlightText(highlight.line, whatsNewLineLength)
-      if (!title || !line) return []
-      const { icon } = highlight
-      return [
-        typeof icon === "string" && iconName.test(icon) ? { title, line, icon } : { title, line },
-      ]
-    })
-    .slice(0, whatsNewHighlights)
+  const highlights = highlightsOf(value.highlights).slice(0, whatsNewHighlights)
   if (highlights.length === 0) return undefined
   const { from } = value
-  return isVersion(from) && from !== value.version
-    ? { version: value.version, from, highlights }
-    : { version: value.version, highlights }
+  return {
+    version: value.version,
+    ...(isVersion(from) && from !== value.version ? { from } : {}),
+    highlights,
+  }
 }
 
 /** A desktop notification about one terminal; see `DesktopBridge.showNotice`. */

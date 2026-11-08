@@ -22,6 +22,7 @@ import { Launcher } from "../terminals/launching.js"
 import { Terminals } from "../terminals/manager.js"
 import { Saves } from "../terminals/saving.js"
 import type { FakeModel } from "./model/server.js"
+import { processLine, runningProcesses, treeOf } from "./processes.js"
 
 /**
  * Where a failed test's trace goes (`NOVADECK_E2E_TRACES`), as CI uploads it; none is
@@ -41,9 +42,19 @@ const brief = (value: unknown, most = 160): string => {
   return text.length > most ? `${text.slice(0, most)}…` : text
 }
 
-// Processes of a tree, each by its pid and start.
+/** What the trace reads of the runner's terminals as a failed test ends. */
+type PtyRecords = {
+  readonly records: ReadonlyMap<
+    string,
+    { readonly terminal: { readonly pty: { readonly pid: number | undefined } } }
+  >
+}
+
+// Processes of a tree, each by its pid and start, and its program where the relay tells.
 const list = (members: readonly Member[]): string =>
-  members.map(({ pid, startedAt }) => `${pid}@${startedAt}`).join(" ")
+  members
+    .map(({ pid, startedAt, name }) => `${pid}@${startedAt}${name ? `(${name})` : ""}`)
+    .join(" ")
 
 /**
  * `owner`, its `names` checked to be methods it has: a renamed one fails the trace at once,
@@ -152,7 +163,7 @@ const activityOf = (activity: NonNullable<Traced["bound"]>["activity"] | undefin
  * The runner runs in this process, so its harnesses' decoders, its messaging and its
  * report handling are wrapped while the test runs.
  */
-export const startTrace = (name: string, model: FakeModel) => {
+export const startTrace = (name: string, model: FakeModel, failed: () => boolean = () => false) => {
   const started = Date.now()
   const lines: string[] = []
   const at = (time = Date.now()) => `+${String(Math.round(time - started)).padStart(6)}`
@@ -694,6 +705,25 @@ export const startTrace = (name: string, model: FakeModel) => {
     }) => Promise<void>
   }
   const { read: readTree, end: endTree } = treeing
+  // What runs under each terminal as a failed test ends, while it still runs, with each
+  // command line: a hang is told by what is left. Only then, as the list takes half a minute
+  // on Windows CI.
+  const addProcesses = async ({ records }: PtyRecords) => {
+    if (records.size === 0) return
+    try {
+      const running = await runningProcesses()
+      for (const [id, { terminal }] of records) {
+        const { pid } = terminal.pty
+        if (pid === undefined) continue
+        add(`processes under ${named(id)}, shell ${pid}:`)
+        for (const member of treeOf(running, pid)) add(`  ${processLine(member)}`)
+      }
+    } catch (error) {
+      // What it says last tells: its command takes the start of a failed list's message.
+      const { signal } = error as { readonly signal?: unknown }
+      add(`processes unread, signal ${String(signal)}: ${String(error).slice(-200)}`)
+    }
+  }
   const { terminate, stop } = closing
   let closes = 0
   const during = () => (closes > 0 ? "in a close" : "outside a close")
@@ -717,6 +747,7 @@ export const startTrace = (name: string, model: FakeModel) => {
   }
   // The runner's shutdown ends every terminal's tree in the host: a close, as the reap's isn't.
   closing.stop = async function () {
+    if (failed()) await addProcesses(this as unknown as PtyRecords)
     add("shutdown begins")
     closes += 1
     try {

@@ -31,6 +31,7 @@ export type CommandId =
   | "session.new"
   | "sidebar.terminals"
   | "sidebar.sessions"
+  | "sidebar.inbox"
   | "recent.next"
   | "recent.previous"
   | "view.toggleFocus"
@@ -386,6 +387,12 @@ export const keymapFor = (platform: Platform): readonly KeyBinding[] => {
       layer: "app",
       keys: { shortcut: chord.sessions },
       command: "sidebar.sessions",
+      repeat: "swallow",
+    },
+    {
+      layer: "app",
+      keys: { shortcut: chord.inbox },
+      command: "sidebar.inbox",
       repeat: "swallow",
     },
     { layer: "app", keys: { shortcut: chord.recent }, command: "recent.next", repeat: "run" },

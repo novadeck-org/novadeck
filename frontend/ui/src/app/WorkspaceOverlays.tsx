@@ -28,9 +28,11 @@ import {
   sameApprovalView,
   type ApprovalView,
 } from "../terminals/ApprovalDialog"
+import { closeTeamTree, sameCloseTeamTree, type CloseTeamRow } from "../terminals/close-team"
 import { CloseTerminalDialog } from "../terminals/CloseTerminalDialog"
 import { visibleSwitcher } from "../terminals/recent"
 import { TerminalSwitcher } from "../terminals/TerminalSwitcher"
+import { CloseTeamRows } from "./CloseTeamRows"
 import {
   useFeatureFlag,
   useUiState,
@@ -62,6 +64,10 @@ const Loaded = ({
   return null
 }
 
+const closeTeamRows = (rows: readonly CloseTeamRow[]): React.JSX.Element => (
+  <CloseTeamRows rows={rows} />
+)
+
 const always = (): (() => void) => () => {}
 // The backend's transcript setting, for Preferences; undefined where it keeps none.
 const useTranscripts = (
@@ -78,6 +84,19 @@ const useTranscripts = (
     () => transcripts?.enabled.getSnapshot() ?? false,
   )
   return transcripts && { enabled, available: transcripts.available, onChange: transcripts.set }
+}
+
+// The backend's idle-agent wait, for Preferences; undefined where it stops none.
+const useHibernation = (
+  hibernation: Backend["hibernation"],
+):
+  | { readonly minutes: number | null; readonly onChange: (minutes: number | null) => void }
+  | undefined => {
+  const minutes = useSyncExternalStore(
+    hibernation?.after.subscribe ?? always,
+    () => hibernation?.after.getSnapshot() ?? null,
+  )
+  return hibernation && { minutes, onChange: hibernation.set }
 }
 
 const noAsks: readonly never[] = []
@@ -238,6 +257,7 @@ const useUninstall = (
 export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const { backend, commands, navigation, ui } = useWorkspaceServices()
   const transcripts = useTranscripts(backend.transcripts)
+  const hibernation = useHibernation(backend.hibernation)
   const agents = useAgents(backend.agents)
   const approval = useApproval(backend.approvals)
   const voice = useVoice(backend.voice)
@@ -249,6 +269,10 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const pending = useUiState((state) => state.closing)
   const closingTerminal = useWorkspaceState(
     (workspace) => closeQuestion({ closing: pending }, workspace) ?? null,
+  )
+  const closingTeam = useWorkspaceState(
+    (workspace) => (closingTerminal ? closeTeamTree(workspace, closingTerminal.id) : null),
+    (a, b) => a === b || (a !== null && b !== null && sameCloseTeamTree(a, b)),
   )
   const { projectName, context, view } = useWorkspaceState(
     (workspace) => ({
@@ -262,11 +286,12 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
     (workspace) => orderedTiles(currentState(workspace).roster),
     sameItems,
   )
-  const { dialog, section, preferences, switcher } = useUiState(
+  const { dialog, section, preferences, switcher, agentFocus } = useUiState(
     (state) => ({
       dialog: state.location.route.dialog,
       section: state.location.route.section,
       preferences: state.preferences,
+      agentFocus: state.agentFocus,
       switcher: visibleSwitcher(state.recent.switcher, context, state.location.route.dialog),
     }),
     shallowEqual,
@@ -303,6 +328,9 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
       />
       <CloseTerminalDialog
         terminal={closingTerminal}
+        keepsHistory={backend.history !== undefined}
+        team={closingTeam}
+        teamRows={closeTeamRows}
         onConfirm={confirmClose}
         onCancel={cancelClose}
         returnFocus={(id) =>
@@ -348,10 +376,13 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           open={settings}
           value={preferences}
           tab={section}
+          focusAgent={agentFocus}
+          onFocusedAgent={() => ui.update((state) => ({ ...state, agentFocus: null }))}
           onTabChange={(next) => go({ section: next })}
           onChange={updatePreferences}
           onClose={closeDialog}
           {...(transcripts ? { transcripts } : {})}
+          {...(hibernation ? { hibernation } : {})}
           notices={backend.notices !== undefined}
           systemSounds={backend.notices?.sounds === true}
           hearSound={dingOf(backend, ui).preview}

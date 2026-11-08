@@ -1,7 +1,7 @@
 import type { AgentName } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
-import { addressed, awaiting, type Live } from "./live.js"
+import { addressed, awaiting, standingOf, type Live } from "./live.js"
 import type { MessageStore } from "./message-store.js"
 import {
   cleanText,
@@ -42,14 +42,15 @@ export class Relays {
   /** The exact agent session that an Inbox ask and its answer belong to. */
   inboxOwner(terminalId: string): InboxOwner | undefined {
     const live = this.host.sessions.get(terminalId)
-    if (!live?.root || this.host.store.closed) return undefined
+    const standing = live && standingOf(live)
+    if (!live || !standing || this.host.store.closed) return undefined
     return {
       projectId: live.projectId,
       workspaceSessionId: live.sessionId,
       terminalId,
       handle: live.handle,
-      agent: live.root.agent,
-      sessionId: live.root.sessionId,
+      agent: standing.agent,
+      sessionId: standing.sessionId,
     }
   }
 
@@ -149,7 +150,8 @@ export class Relays {
     const { store } = this.host
     const live = this.host.sessions.get(terminalId)
     if (!live || store.closed) return false
-    const agent = live.root?.agent ?? live.shown?.agent ?? live.expecting
+    const standing = standingOf(live)
+    const agent = standing?.agent ?? live.shown?.agent ?? live.expecting
     if (!agent) return false
     if (!always) for (const message of store.messages()) if (this.soon(live, message)) return false
     const id = store.freshMessageId()
@@ -163,7 +165,7 @@ export class Relays {
         terminalId,
         handle: live.handle,
         agent,
-        sessionId: live.root?.sessionId ?? null,
+        sessionId: standing?.sessionId ?? null,
       },
       text: cleanText(text),
       sentAt: this.host.now(),
@@ -178,6 +180,19 @@ export class Relays {
   }
 
   /**
+   * Whether something is on its way to the terminal's agent: a message that will be
+   * delivered to it soon (`soon`), or a line an Inbox button sent whose turn is yet to
+   * spend it. An agent with such business is not left to be stopped.
+   */
+  occupied(terminalId: string): boolean {
+    const live = this.host.sessions.get(terminalId)
+    if (!live) return false
+    if (live.automatic.length > 0 || live.withdrawing !== null) return true
+    for (const message of this.host.store.messages()) if (this.soon(live, message)) return true
+    return false
+  }
+
+  /**
    * Whether a message will be delivered to the agent at the terminal soon: queued or leased,
    * addressed to its root session or, where none is bound, to the agent about to bind. Not
    * one held for the person's release, gone, or for another session; one held only while
@@ -187,6 +202,7 @@ export class Relays {
     if (message.to.terminalId !== live.terminalId) return false
     if (!undelivered(message) || this.host.store.holdOf(message) === "release") return false
     if (live.root) return addressed(message, live.root)
+    if (live.resting && addressed(message, live.resting)) return true
     if (awaiting(live, message)) return true
     return (
       message.to.sessionId === null && message.to.agent === (live.shown?.agent ?? live.expecting)

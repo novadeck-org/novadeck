@@ -1,3 +1,4 @@
+import type { AgentName } from "./harnesses"
 import type { Item, ItemId } from "./items"
 import type { Bar } from "./items/companion-bar"
 import type { NoticeSound } from "./sounds"
@@ -6,7 +7,7 @@ import type { NoticeSound } from "./sounds"
 export type SchemePreference = "system" | "light" | "dark"
 export type ViewMode = "focus" | "grid" | "canvas"
 // The sidebar's panels, each with a toggle on the rail.
-export const sidebarPanels = ["terminals", "source", "sessions", "inbox"] as const
+export const sidebarPanels = ["terminals", "source", "sessions", "history", "inbox"] as const
 export type SidebarPanel = (typeof sidebarPanels)[number]
 export type WindowedView = Exclude<ViewMode, "focus">
 export type PreferencesValue = {
@@ -65,6 +66,9 @@ export type AgentStatus = {
   // Its `done` report still stands: nothing the person prompted or a message delivered to it
   // came after. Looking at the terminal does not end it, so its done mark stays until then.
   readonly reported?: true
+  // One of its own screens holds it for the person before its first session, as a
+  // folder-trust or sign-in screen. No request stands behind it, so no Inbox row does either.
+  readonly startup?: "startup" | "sign-in"
 }
 
 // What an idle agent waits on: jobs it left running and picks up once they finish, each in
@@ -122,6 +126,15 @@ export type AgentUsage = {
 export type TerminalStatus =
   | { readonly state: "starting" | "idle" | "finished" }
   | { readonly state: "running"; readonly agent?: AgentStatus }
+  // A saved agent session with no process: the runner starts it again when someone needs it.
+  // `reported`: its agent's `done` still stands. `endedAt`: when its agent's last turn ended,
+  // where the runner kept it, so its tab can say how long ago.
+  | {
+      readonly state: "sleeping"
+      readonly agent: AgentName
+      readonly reported?: true
+      readonly endedAt?: number
+    }
   | {
       readonly state: "exited"
       readonly exitCode: number | null
@@ -149,6 +162,9 @@ export type TerminalMetadata = {
   command: string
   // The foreground program's name, as `programName` resolves it.
   process: string
+  // The foreground process's command line, where the platform tells it: the program, then its
+  // arguments. Absent where it can't, and while no program but the shell runs.
+  argv?: readonly string[]
   // The program to resume in the terminal's next shell: one that was running when its
   // shell was lost or ended, or when the app last closed. Present only while the
   // terminal has no live shell.
@@ -163,6 +179,12 @@ export type TerminalMetadata = {
   openedBy?: string | null
   // Whether an agent has run in it since it opened, running now or since exited.
   agentRan?: boolean
+  // Whether closing it can be undone from History: the backend can bring it back as it
+  // is. Absent reads as false, and where the backend says nothing of History.
+  restorable?: boolean
+  // Whether a program runs in its shell besides the prompt, known on every OS. Absent
+  // reads as false.
+  busy?: boolean
   // Who its name is from, where its backend tells.
   titleSource?: TitleSource
   // Never present: a window has one, which tells tiles apart (see `isWindow`).

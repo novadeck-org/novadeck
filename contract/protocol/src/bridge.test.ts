@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import { desktopBadgeOf, parseUpdateOffer, rendererPoolOf, webglContextsOf } from "./bridge.js"
+import {
+  desktopBadgeOf,
+  parseUpdateOffer,
+  parseWhatsNew,
+  rendererPoolOf,
+  webglContextsOf,
+} from "./bridge.js"
 
 describe("a WebGL context limit", () => {
   it.each([3, 16, 64, 1024])("is %s, a whole number in range", (value) => {
@@ -92,5 +98,17 @@ describe("a badge from the page", () => {
     ["no image at all", { count: 1 }],
   ])("is nothing with %s", (_name, value) => {
     expect(desktopBadgeOf(value)).toBeUndefined()
+  })
+})
+
+describe("what is new from an older host", () => {
+  const item = (n: number) => ({ title: `Title ${n}`, line: `Line ${n}.` })
+
+  it("ignores a heads-up field, and has nothing to show with only heads-ups", () => {
+    expect(parseWhatsNew({ version: "1.5.0", highlights: [item(1)], headsUp: [item(2)] })).toEqual({
+      version: "1.5.0",
+      highlights: [item(1)],
+    })
+    expect(parseWhatsNew({ version: "1.5.0", highlights: [], headsUp: [item(1)] })).toBeUndefined()
   })
 })

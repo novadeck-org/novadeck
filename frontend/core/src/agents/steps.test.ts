@@ -26,7 +26,10 @@ const item = (fields: Partial<ChatItem>): ChatItem => ({
   call: null,
   author: null,
   run: null,
+  outcome: null,
+  scripted: false,
   interrupted: false,
+  ring: null,
   ...fields,
 })
 const user = (text: string, at: number | null = null) => item({ role: "user", text, at })
@@ -584,5 +587,18 @@ describe("the person's Inbox answers an agent was given", () => {
         ]),
       ),
     ).toEqual([{ text: "use UTC", at: 3 }])
+  })
+})
+
+describe("a call inside a script", () => {
+  it("is no step of its own: the script's is", () => {
+    const script = called("exec", 'text(await tools.exec_command({cmd:"ls"}))', "", "a.txt")
+    const inside = called("exec_command", { cmd: "ls" }, "", "a.txt").map((each) => ({
+      ...each,
+      scripted: true,
+    }))
+    expect(
+      steps("codex", [user("look through it"), ...script, ...inside]).map(({ tool }) => tool),
+    ).toEqual(["exec"])
   })
 })

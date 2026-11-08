@@ -30,10 +30,15 @@ export {
   agentActivity,
   type AgentActivity,
   type AgentCoverage,
+  agentBox,
+  type AgentBox,
   agentDetail,
   promptReceipt,
+  promptFailure,
+  promptResult,
   type AgentDetail,
   type PromptReceipt,
+  type PromptResult,
   type AgentIntegration,
   agentLimits,
   agentName,
@@ -68,6 +73,15 @@ export {
   planUnwritable,
   type PlanUnwritable,
 } from "./companions.js"
+export {
+  type ClosedTerminal,
+  closedTerminal,
+  type ClosedTerminalState,
+  closedTerminalState,
+  historyChange,
+  type HistoryChange,
+  historyLimits,
+} from "./history.js"
 export { maxWebSocketMessageBytes, protocolVersion } from "./connection.js"
 export {
   dialogTextLimits,
@@ -105,6 +119,8 @@ export {
   type WorkspaceSession,
 } from "./projects.js"
 export {
+  defaultHibernateMinutes,
+  maxHibernateMinutes,
   maxInboxOrder,
   maxInboxRowIdLength,
   runnerSettings,
@@ -122,12 +138,16 @@ export {
   maxUploadBytes,
   maxUploadPartLength,
   startupCommand,
+  busyShells,
+  type BusyShells,
   type TerminalAttached,
   type TerminalChange,
   type TerminalEvent,
   type TerminalExit,
   type TerminalRequest,
   type TerminalRequestAnswer,
+  startupScreen,
+  type StartupScreen,
   type TerminalSummary,
   terminalTitle,
   titleFrom,
@@ -145,9 +165,25 @@ export {
   unsafeInLine,
 } from "./text.js"
 export {
+  outcomeLimits,
+  toolChange,
+  type ToolChange,
+  toolOutcome,
+  type ToolOutcome,
   type ToolRun,
   type TranscriptChange,
   transcriptItem,
+  transcriptNote,
   type TranscriptItem,
+  type TranscriptNote,
   transcriptLimits,
 } from "./transcripts.js"
+export {
+  liveSlice,
+  sliceChange,
+  sliceLimits,
+  sliceRun,
+  type LiveSlice,
+  type SliceChange,
+  type SliceRun,
+} from "./slices.js"

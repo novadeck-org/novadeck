@@ -88,6 +88,7 @@ const terminal = (
   let reading: "empty" | "starting" | Waits = options.stalled ?? "empty"
   const emptied: number[] = []
   const blocks: (Waits | null)[] = []
+  const plains: boolean[] = []
   let leftover = options.leftover
   const ringLeftovers: string[] = []
   // What the doorbell asked of the agent and the foreground, in order.
@@ -170,6 +171,7 @@ const terminal = (
     agentGone: () => void asked.push("agentGone"),
     target: () => target,
     ...(options.replies && { replies: () => options.replies }),
+    ringsPlain: (_, plain) => void plains.push(plain),
   }
   const target: TypingTarget = {
     screen: async () => {
@@ -247,6 +249,7 @@ const terminal = (
     failed,
     emptied,
     blocks,
+    plains,
     ringLeftovers,
     asked,
     emptiedAt,
@@ -590,10 +593,11 @@ describe("the doorbell", () => {
 
   it("rings with the person's Inbox replies as its line, and the plain line after a ring of them failed", async () => {
     const replies = (nonce: string) => `[Novadeck Inbox reply, ${nonce}] Re "x": yes [${nonce}]`
-    const { host, written, failed, rearm } = terminal({ takes: "elsewhere", replies })
+    const { host, written, failed, rearm, plains } = terminal({ takes: "elsewhere", replies })
     const doorbell = new Doorbell(host, host.queue, fast)
     doorbell.changed("t")
     await vi.waitFor(() => expect(failed).toHaveLength(1))
+    expect(plains).toEqual([true])
     expect(written[0]).toMatch(
       // eslint-disable-next-line no-control-regex -- A bracketed paste's markers.
       /^\x1b\[200~\[Novadeck Inbox reply, ([A-Za-z0-9]{6})\] Re "x": yes \[\1\]\x1b\[201~$/,
@@ -605,6 +609,21 @@ describe("the doorbell", () => {
       // eslint-disable-next-line no-control-regex -- A bracketed paste's markers.
       /^\x1b\[200~\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]{6}\]\x1b\[201~$/,
     )
+    doorbell.close()
+  })
+
+  it("tells a confirmed ring ends the plain line", async () => {
+    const { host, written, failed, rearm, confirm, plains } = terminal()
+    const doorbell = new Doorbell(host, host.queue, fast)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(failed).toHaveLength(1))
+    expect(plains).toEqual([true])
+    rearm()
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(enters(written)).toBe(2), { timeout: 5_000 })
+    confirm()
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(plains).toEqual([true, false]))
     doorbell.close()
   })
 
@@ -780,27 +799,30 @@ describe("the doorbell's care with a terminal it looks at", () => {
   })
 
   it("gives up after three failed rings, until something happens in the terminal", async () => {
-    const { host, failed, blocks, bump, stop } = terminal({ takes: "nothing" })
+    const { host, failed, blocks, bump, plains, stop } = terminal({ takes: "nothing" })
     const doorbell = new Doorbell(host, host.queue, recheck)
     doorbell.changed("t")
     await vi.waitFor(() => expect(failed).toHaveLength(3), { timeout: 3_000 })
     await sleep(300)
     expect(failed).toHaveLength(3)
     expect(blocks.at(-1)).toBe("failed")
-    // A root turn event or a key of the person's: it tries again.
+    expect(plains).toEqual([true, true, true])
+    // A root turn event or a key of the person's: it tries again, with its line.
     bump()
     doorbell.changed("t")
     await vi.waitFor(() => expect(failed.length).toBeGreaterThan(3), { timeout: 3_000 })
+    expect(plains[3]).toBe(false)
     stop()
     doorbell.close()
   })
 
   it("does not count a ring given up before it pasted anything", async () => {
-    const { host, failed, blocks, stop } = terminal({ inputBox: [true, true, false] })
+    const { host, failed, blocks, plains, stop } = terminal({ inputBox: [true, true, false] })
     const doorbell = new Doorbell(host, host.queue, recheck)
     doorbell.changed("t")
     await vi.waitFor(() => expect(failed.length).toBeGreaterThanOrEqual(3), { timeout: 3_000 })
     expect(blocks).not.toContain("failed")
+    expect(plains).not.toContain(true)
     stop()
     doorbell.close()
   })

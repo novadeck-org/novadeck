@@ -1,6 +1,7 @@
 import { expect } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
+import { closeToasts } from "./toasts"
 import { isMac, labelled, press } from "./workspace"
 
 // Vocabulary for keyboard, search, switcher, and Preferences specs.
@@ -28,6 +29,7 @@ export const shortcut = {
   zen: (): Chord => commandShift("Z"),
   terminals: (): Chord => commandShift("E"),
   sessions: (): Chord => commandShift("S"),
+  inbox: (): Chord => commandShift("B"),
   preferences: (): Chord =>
     isMac()
       ? { label: "Cmd+,", keys: "{Meta>},{/Meta}" }
@@ -91,6 +93,7 @@ export const preferencesDialog = (): Locator => page.getByRole("dialog", { name:
 
 /** Opens Preferences from the workspace's button, and waits for the focus to move into it. */
 export const openPreferences = async (): Promise<void> => {
+  await closeToasts()
   await page.getByRole("button", { name: "Workspace preferences" }).click()
   await expectFocusWithin(preferencesDialog())
 }

@@ -41,7 +41,7 @@ import { plainSealer } from "../testing/sealing.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import { bannerSeen } from "./binding/banners.js"
 import { Terminals } from "./manager.js"
-import type { Bound } from "./record.js"
+import type { Bound, Record } from "./record.js"
 
 const cwd = process.cwd()
 
@@ -429,6 +429,23 @@ describe("terminal prompts", () => {
     expect(events).toEqual(["mark continue", "failed continue"])
   })
 
+  it("answers a create of a terminal the runner woke itself with the running terminal, once", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const input = { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 }
+    const created = await manager.create(input, "creator")
+    // Any other existing id is taken.
+    await expect(manager.create(input, "client")).rejects.toMatchObject({ code: "CONFLICT" })
+    const inner = manager as unknown as {
+      records: Map<string, Record>
+      sleepers: { alones: WeakSet<Record> }
+    }
+    inner.sleepers.alones.add(inner.records.get(input.id)!)
+    await expect(manager.create(input, "client")).resolves.toMatchObject({ id: created.id })
+    await expect(manager.create(input, "client")).rejects.toMatchObject({ code: "CONFLICT" })
+  })
+
   it("refuse a plain shell, which runs no agent, writing nothing to it", async ({ terminals }) => {
     const manager = terminals.manager(ptyOptions)
     const terminal = await manager.create(
@@ -636,9 +653,11 @@ describe("terminal interrupts", () => {
       const script = [
         "stty raw -echo",
         `printf '\\033[10;1H${rule}\\033[11;1H❯\\302\\240\\033[2mPress up to edit queued messages\\033[22m\\033[12;1H${rule}\\033[11;3H'`,
-        "dd bs=1 count=1 >/dev/null 2>&1",
+        // Up, Claude Code's way of taking what is queued: three bytes.
+        "dd bs=1 count=3 >/dev/null 2>&1",
         "printf '\\033[11;1H\\033[K❯\\302\\240Queued words\\033[11;15H'",
-        "dd bs=1 count=2 >/dev/null 2>&1",
+        // The Escape that stops the turn, then the two that clear the box.
+        "dd bs=1 count=3 >/dev/null 2>&1",
         "printf '\\033[11;1H\\033[K❯\\302\\240\\033[11;3H'",
         "sleep 30",
       ].join("; ")
@@ -1820,6 +1839,60 @@ describe.skipIf(process.platform === "win32")("terminal message watches", () => 
   })
 })
 
+describe("a woken shell whose agent has not shown", () => {
+  type Inside = {
+    records: Map<
+      string,
+      {
+        woken?: number | undefined
+        startupRuns: boolean
+        summary: { ledBy: string | null }
+        terminal: { pty: unknown }
+      }
+    >
+    prompted: (record: unknown, child: unknown, cwd: string) => void
+  }
+
+  const woken = async (terminals: { manager: (options: object) => Terminals }) => {
+    // A short sample, so the wait Windows puts before a lead ends (30 samples) is a moment.
+    const manager = terminals.manager({ ...ptyOptions, processPollMs: 5 })
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as Inside
+    const record = inside.records.get(terminal.id)!
+    record.summary.ledBy = "moth"
+    return { manager, inside, record, terminal }
+  }
+
+  it("keeps its lead when its prompt shows with nothing bound, where a plain failed start ends it", async ({
+    terminals,
+  }) => {
+    const { inside, record } = await woken(terminals)
+    record.startupRuns = true
+    record.woken = Date.now()
+    inside.prompted(record, record.terminal.pty, cwd)
+    // Past the wait a Windows end of a lead is delayed by (150 ms), so a delayed end is seen too.
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(record.summary.ledBy).toBe("moth")
+    record.startupRuns = true
+    record.woken = undefined
+    inside.prompted(record, record.terminal.pty, cwd)
+    // At once elsewhere; on Windows once the shell has outlived its agent for the wait.
+    await vi.waitFor(() => expect(record.summary.ledBy).toBeNull(), { timeout: 5_000 })
+  })
+
+  it("stops being woken when the person enters a line there", async ({ terminals }) => {
+    const { manager, record, terminal } = await woken(terminals)
+    record.woken = Date.now()
+    manager.write({ terminalId: terminal.id, data: "ls" }, "creator")
+    expect(record.woken).toBeDefined()
+    manager.write({ terminalId: terminal.id, data: "\r" }, "creator")
+    expect(record.woken).toBeUndefined()
+  })
+})
+
 describe("a turn the person's Escape ended", () => {
   type Inside = {
     records: Map<string, { bound: Bound | null }>
@@ -2042,7 +2115,9 @@ describe("a turn the person's Escape ended", () => {
         ))
           if (change.type === "items")
             seen.push(
-              ...change.items.map((each) => (each.interrupted ? "(interrupted)" : each.text)),
+              ...change.items
+                .filter((each) => each.role !== "note")
+                .map((each) => (each.interrupted ? "(interrupted)" : each.text)),
             )
       })()
       return { seen, stop: () => (reader.abort(), reading) }
@@ -2195,7 +2270,9 @@ describe("a turn the person's Escape ended", () => {
         for await (const change of second.transcript(terminalId, rootRef(binding), reader.signal))
           if (change.type === "items")
             seen.push(
-              ...change.items.map((each) => (each.interrupted ? "(interrupted)" : each.text)),
+              ...change.items
+                .filter((each) => each.role !== "note")
+                .map((each) => (each.interrupted ? "(interrupted)" : each.text)),
             )
       })()
       await vi.waitFor(() => expect(seen).toContain("Go on"), { timeout: 5000 })

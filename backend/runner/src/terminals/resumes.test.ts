@@ -1,5 +1,18 @@
+import { mkdtempSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
 import { describe, expect, it } from "../test.js"
-import { Claims, restartedTask, resumeNote, resumeRefusal } from "./resumes.js"
+import { savedSession } from "./binding/standing.js"
+import {
+  cancelResume,
+  Claims,
+  launchFor,
+  restartedTask,
+  resumeNote,
+  resumeRefusal,
+  sessionHeldElsewhere,
+} from "./resumes.js"
 
 describe("the task a restored worker starts again", () => {
   const command = 'codex "[Novadeck: automatic notice, agent messages waiting, k3f9q2]"'
@@ -29,6 +42,59 @@ describe("the session an agent asks to resume in a new terminal", () => {
     new Claims({
       boundElsewhere: (_terminal, agent, session) => bound.includes(`${agent}:${session}`),
     })
+
+  it("resumes with the flags the session was launched with, the model asked for replacing theirs", () => {
+    const launch = ["--permission-mode", "plan", "--model", "opus", "--effort", "high"]
+    expect(claims().check("t1", "claude", "s-1", true, undefined, launch)).toEqual({
+      ok: true,
+      argv: ["claude", "--effort", "high", "--resume", "s-1"],
+      key: "claude:s-1",
+    })
+    expect(claims().check("t1", "claude", "s-1", true, { model: "sonnet" }, launch)).toMatchObject({
+      argv: ["claude", "--model", "sonnet", "--effort", "high", "--resume", "s-1"],
+    })
+  })
+
+  it("finds the flags a session was launched with in any row, the newest report first", () => {
+    const rows = [
+      { agents: { claude: { sessionId: "s-1", seq: 1, launch: ["--effort", "low"] } } },
+      { agents: { claude: { sessionId: "s-2", seq: 9, launch: ["--effort", "max"] } } },
+      { agents: { claude: { sessionId: "s-1", seq: 5, launch: ["--effort", "high"] } } },
+      { agents: { codex: { sessionId: "s-1", seq: 7, launch: ["--sandbox", "read-only"] } } },
+      { agents: { claude: { sessionId: "s-3", seq: 5 } } },
+    ]
+    expect(launchFor(rows, "claude", "s-1")).toEqual(["--effort", "high"])
+    expect(launchFor(rows, "codex", "s-1")).toEqual(["--sandbox", "read-only"])
+    expect(launchFor(rows, "claude", "s-3")).toBeUndefined()
+    expect(launchFor(rows, "agy", "s-1")).toBeUndefined()
+  })
+
+  it("judges a restored terminal's resume with the flags its saved row kept", () => {
+    const saved = {
+      agents: {
+        codex: {
+          sessionId: "s-1",
+          seq: 1,
+          launch: ["--sandbox", "read-only", "--dangerously-bypass-hook-trust"],
+        },
+      },
+    }
+    expect(claims().judge({ id: "t1", resume: "codex" }, saved, true)).toMatchObject({
+      ok: true,
+      argv: [
+        "codex",
+        "resume",
+        "--dangerously-bypass-hook-trust",
+        "-c",
+        "tui.resume_cwd=session",
+        "s-1",
+      ],
+    })
+    const old = { agents: { codex: { sessionId: "s-1", seq: 1 } } }
+    expect(claims().judge({ id: "t1", resume: "codex" }, old, true)).toMatchObject({
+      argv: ["codex", "resume", "-c", "tui.resume_cwd=session", "s-1"],
+    })
+  })
 
   it("resumes in each harness with the model and effort, in the place its CLI takes them", () => {
     const choice = { model: "m1", effort: "high" as const }
@@ -129,5 +195,45 @@ describe("the session a restore asks to resume", () => {
       "this shell can't run the command",
     )
     expect(resumeNote(undefined, undefined, false)).toBeUndefined()
+  })
+})
+
+describe("a session another terminal holds", () => {
+  const other = (id: string, held: { bound?: string; root?: string }) =>
+    ({
+      summary: { id },
+      bound: held.bound ? { binding: { agent: "agy", sessionId: held.bound } } : null,
+      root: held.root ? { agent: "agy", sessionId: held.root } : null,
+    }) as never
+
+  it("is held by a binding, or by the root conversation a status line names", () => {
+    const records = [other("b", { bound: "first", root: "convo" })]
+    expect(sessionHeldElsewhere(records, "a", "agy", "first")).toBe(true)
+    expect(sessionHeldElsewhere(records, "a", "agy", "convo")).toBe(true)
+    expect(sessionHeldElsewhere(records, "a", "agy", "else")).toBe(false)
+    expect(sessionHeldElsewhere(records, "a", "claude", "convo")).toBe(false)
+  })
+
+  it("is not held by the terminal itself", () => {
+    expect(sessionHeldElsewhere([other("a", { root: "convo" })], "a", "agy", "convo")).toBe(false)
+  })
+})
+
+describe("cancelling a resume", () => {
+  it("removes the command, keeping the claim its standing reports are read through", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "resume-")), "cmd")
+    writeFileSync(file, "claude --resume c")
+    const record = { resumeFile: file, resumeClaim: "claude:c" as string | undefined }
+    expect(cancelResume(record)).toBe(true)
+    expect(record.resumeClaim).toBe("claude:c")
+    expect(cancelResume(record)).toBe(false)
+  })
+
+  it("leaves the session's standing reports readable, so its done mark stands", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "resume-")), "cmd")
+    writeFileSync(file, "claude --resume c")
+    const record = { resumeFile: file, resumeClaim: "claude:c", bound: null }
+    cancelResume(record)
+    expect(savedSession(record)).toEqual({ agent: "claude", sessionId: "c" })
   })
 })

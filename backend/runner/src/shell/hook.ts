@@ -1,6 +1,6 @@
 import { hookShellSlackMs, dialectPrograms } from "@novadeck/harness-core/hook-command"
 import type { Report } from "@novadeck/harness-core/report"
-import { agentName, type AgentName } from "@novadeck/protocol"
+import { agentName, dialogTextLimits, type AgentName } from "@novadeck/protocol"
 
 import { askOf, harnesses } from "../harnesses/registry.js"
 import { cut } from "../text.js"
@@ -45,27 +45,129 @@ const printMs = 500
 const text = (value: unknown, max: number): string | undefined =>
   typeof value === "string" && value !== "" && value.length <= max ? value : undefined
 
-/** A copy small enough to keep: text past a path's length cut short, deep or wide values dropped. */
-export const prune = (value: unknown, depth: number, limit: number): unknown => {
+// A command is kept past what a dialog's detail takes, by what `cut` may give back of an emoji,
+// so that one too long to show whole reads as nothing there rather than as a shorter command.
+const maxCommand = dialogTextLimits.detail + 2
+
+/**
+ * A copy small enough to keep: text past a path's length cut short, deep or wide values
+ * dropped. Text right at a field named `whole` is kept, up to `maxCommand`.
+ */
+export const prune = (
+  value: unknown,
+  depth: number,
+  limit: number,
+  whole: readonly string[] = [],
+): unknown => {
   if (typeof value === "string") return cut(value, limit)
   if (typeof value !== "object" || value === null) return value
   if (depth > 6) return null
-  if (Array.isArray(value)) return value.slice(0, 50).map((each) => prune(each, depth + 1, limit))
+  if (Array.isArray(value))
+    return value.slice(0, 50).map((each) => prune(each, depth + 1, limit, whole))
   return Object.fromEntries(
     Object.entries(value)
       .slice(0, 100)
-      .map(([key, each]) => [key, prune(each, depth + 1, limit)]),
+      .map(([key, each]) => [
+        key,
+        prune(
+          each,
+          depth + 1,
+          typeof each === "string" && whole.includes(key) ? maxCommand : limit,
+          whole,
+        ),
+      ]),
   )
 }
 
-// The most a report may hold once pruned: enough for any decoder, as hooks always sent.
+// The most a report may hold once pruned, its commands aside: enough for any decoder, as
+// hooks always sent. With them, it is room for a few at their longest.
 const maxReport = 60_000
+const maxReportWhole = maxReport + 8 * maxCommand
 
 /**
  * A process the hook runs under, nearest first, where the platform tells: its pid, name,
  * and when it started, in epoch milliseconds, where the relay could read it.
  */
-type Ancestor = { readonly pid: number; readonly name: string; readonly startedAt?: number }
+type Ancestor = {
+  readonly pid: number
+  readonly name: string
+  readonly startedAt?: number
+  /** What it was started with, after its program: its words, or on Windows its one line. */
+  readonly args?: readonly string[]
+  readonly commandLine?: string
+  /** That the relay cut `commandLine` short, so its last word may be partial. */
+  readonly commandLineCut?: boolean
+}
+
+// The most of an ancestor's arguments the relay sends (`ancestors.rs`), as the runner takes them.
+const maxLaunchWords = 128
+const maxLaunchLength = 4096
+
+/**
+ * The words a command line holds, its program first, as the C runtime of a Windows program
+ * reads them: spaces and tabs part words outside quotes, a quote toggles that, and
+ * backslashes count only before a quote (two make one, an odd last one makes the quote
+ * literal).
+ */
+export const windowsWords = (line: string): string[] => {
+  const words: string[] = []
+  let word = ""
+  let started = false
+  let quoted = false
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index]!
+    if (char === "\\") {
+      let slashes = 1
+      while (line[index + 1] === "\\") {
+        slashes += 1
+        index += 1
+      }
+      if (line[index + 1] === '"') {
+        word += "\\".repeat(Math.floor(slashes / 2))
+        if (slashes % 2 === 1) {
+          word += '"'
+          index += 1
+        }
+      } else word += "\\".repeat(slashes)
+      started = true
+    } else if (char === '"') {
+      // A doubled quote inside quotes is a literal one.
+      if (quoted && line[index + 1] === '"') {
+        word += '"'
+        index += 1
+      } else quoted = !quoted
+      started = true
+    } else if ((char === " " || char === "\t") && !quoted) {
+      if (started) words.push(word)
+      word = ""
+      started = false
+    } else {
+      word += char
+      started = true
+    }
+  }
+  if (started) words.push(word)
+  return words
+}
+
+/**
+ * The words the agent process that ran the hook was started with, after its program, where
+ * the relay read them (`instance` names it): its words as the platform keeps them, or the
+ * one line Windows keeps, split as that platform's programs do. Undefined where they weren't.
+ */
+const launchOf = (
+  instance: string | null,
+  ancestors: readonly Ancestor[],
+): string[] | undefined => {
+  const found = ancestors.find((each) => String(each.pid) === instance)
+  if (found?.args !== undefined) return [...found.args]
+  if (found?.commandLine !== undefined) {
+    const words = windowsWords(found.commandLine).slice(1)
+    // A line the relay cut ends in a word that may be partial, as a value cut short.
+    return found.commandLineCut ? words.slice(0, -1) : words
+  }
+  return undefined
+}
 
 const ancestorsOf = (value: unknown): Ancestor[] =>
   (Array.isArray(value) ? value : [])
@@ -80,6 +182,21 @@ const ancestorsOf = (value: unknown): Ancestor[] =>
         (each.startedAt === undefined ||
           (typeof each.startedAt === "number" && Number.isFinite(each.startedAt))),
     )
+    // What it was started with is taken whole or not at all, never cut here: the relay sends
+    // whole words (the rest left out), or on Windows its line cut and marked, a cut line losing its last word.
+    .map(({ args, commandLine, commandLineCut, ...rest }) => ({
+      ...rest,
+      ...(Array.isArray(args) &&
+        args.length <= maxLaunchWords &&
+        args.every((word) => typeof word === "string" && word.length <= maxLaunchLength) && {
+          args: args as readonly string[],
+        }),
+      ...(typeof commandLine === "string" &&
+        commandLine.length <= maxLaunchLength && {
+          commandLine,
+          ...(commandLineCut === true && { commandLineCut }),
+        }),
+    }))
 
 // The longest a hook's shell may take to start its relay, past which a start read as its
 // own is someone else's: well past any cold start.
@@ -166,24 +283,34 @@ export const relayHook = (
   const codexThread = text(env.CODEX_THREAD_ID, 128)
   const shells = dialectPrograms[harnesses[agent.data].hookDialect(platform, event)]
   const firedAt = firedAtOf(instance, seq, ancestors, shells, platform)
+  const launch = launchOf(instance, ancestors)
+  const whole = harnesses[agent.data].commandFields
   const report = {
     agent: agent.data,
     event,
     seq,
     ...(firedAt !== undefined && { firedAt }),
     instance,
+    ...(launch !== undefined && { launch }),
     // Only what tells nested agents apart; nothing else of the environment is kept.
     env: {
       cursor: text(env.CURSOR_VERSION, 128) !== undefined,
       ...(codexThread !== undefined && { codexThread }),
     },
-    payload: prune(payload, 0, 4096) as Fields,
+    payload: prune(payload, 0, 4096, whole) as Fields,
   }
-  const sized =
-    JSON.stringify(report).length <= maxReport
-      ? report
-      : { ...report, payload: prune(payload, 0, 200) as Fields }
-  if (JSON.stringify(sized).length > maxReport) return undefined
+  const fits = (each: object): boolean => {
+    const others = JSON.stringify(each, (key, field: unknown) =>
+      typeof field === "string" && whole?.includes(key) ? undefined : field,
+    )
+    return others.length <= maxReport && JSON.stringify(each).length <= maxReportWhole
+  }
+  const sized = [
+    report,
+    { ...report, payload: prune(payload, 0, 200, whole) as Fields },
+    { ...report, payload: prune(payload, 0, 200) as Fields },
+  ].find(fits)
+  if (!sized) return undefined
   // The runner leases messages only with time left before the relay gives up to print
   // them and acknowledge the lease.
   const { deadline } = value

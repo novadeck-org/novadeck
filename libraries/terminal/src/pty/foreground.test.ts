@@ -8,10 +8,13 @@ import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from "v
 
 import {
   hasChildProcess,
+  tableForeground,
   hasTerminalChild,
+  processTable,
   parseCommandLine,
   parseProcessStat,
   parsePsRows,
+  parseProcessTable,
   sampleForeground,
   statName,
 } from "./foreground.js"
@@ -159,6 +162,30 @@ describe.skipIf(process.platform === "win32")("a process's children", () => {
     },
     2 * startsMs + 5_000,
   )
+
+  it(
+    "reads every shell's foreground group and jobs from one listing",
+    async () => {
+      const job = spawn("sh", ["-c", "sleep 30 & wait"], { cols: 80, rows: 24 })
+      onTestFinished(() => job.kill())
+      const idle = spawn("sh", [], { cols: 80, rows: 24 })
+      onTestFinished(() => idle.kill())
+      await vi.waitFor(
+        async () => {
+          const rows = (await processTable())!
+          expect(rows).toBeDefined()
+          // The idle shell holds its own terminal; the job's shell has a child on it.
+          expect(tableForeground(rows, idle.pid)).toBe(idle.pid)
+          expect(hasTerminalChild(rows, idle.pid)).toBe(false)
+          expect(hasTerminalChild(rows, job.pid)).toBe(true)
+          // The group a program holds, never one for a pid the listing lacks.
+          expect(tableForeground(rows, 2 ** 22 + 12345)).toBeUndefined()
+        },
+        { timeout: startsMs },
+      )
+    },
+    startsMs + 5_000,
+  )
 })
 
 describe("children on a Unix shell's terminal", () => {
@@ -190,6 +217,18 @@ describe("children on a Unix shell's terminal", () => {
         10,
       ),
     ).toBe(false)
+  })
+
+  it("leaves out the processes it is told to, such as the agent's own chain", () => {
+    const listed = rows("10 1 pts/3 zsh\n11 10 pts/3 npx\n")
+    expect(hasTerminalChild(listed, 10, new Set([11]))).toBe(false)
+    expect(
+      hasTerminalChild(
+        rows("10 1 pts/3 zsh\n11 10 pts/3 npx\n12 10 pts/3 sleep\n"),
+        10,
+        new Set([11]),
+      ),
+    ).toBe(true)
   })
 
   it("is idle with no child, and tells nothing for a shell with no terminal or none listed", () => {
@@ -231,6 +270,13 @@ describe("a Windows shell's children, from the relay's tree", () => {
     expect(trees.read).toHaveBeenCalledWith(10)
   })
 
+  it("leaves out the processes it is told to, such as the agent's tree", async () => {
+    onWindows()
+    const members = [at(10, "pwsh.exe"), at(11, "claude.exe"), at(12, "node.exe")]
+    await expect(hasChildProcess(10, tree(members), new Set([11, 12]))).resolves.toBe(false)
+    await expect(hasChildProcess(10, tree(members), new Set([11]))).resolves.toBe(true)
+  })
+
   it("counts any other process when the relay names none", async () => {
     onWindows()
     await expect(hasChildProcess(10, tree([at(10), at(11)]))).resolves.toBe(true)
@@ -241,5 +287,18 @@ describe("a Windows shell's children, from the relay's tree", () => {
     onWindows()
     await expect(hasChildProcess(10, tree(undefined))).resolves.toBeUndefined()
     await expect(hasChildProcess(10)).resolves.toBeUndefined()
+  })
+})
+
+describe("the process table", () => {
+  it("reads rows with their groups and terminal, program names with spaces included", () => {
+    expect(
+      parseProcessTable(
+        "  10     1    10    42 pts/3    zsh\n  11    10    11    -1 ??    /usr/bin/my prog\nbad\n",
+      ),
+    ).toEqual([
+      { pid: 10, ppid: 1, pgid: 10, tpgid: 42, tty: "pts/3", comm: "zsh" },
+      { pid: 11, ppid: 10, pgid: 11, tpgid: -1, tty: "??", comm: "/usr/bin/my prog" },
+    ])
   })
 })

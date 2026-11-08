@@ -42,7 +42,7 @@ export const endingText = ({ status, reason }: TerminalEnding): string =>
   reason ? `${status} · ${reason}` : status
 
 // What a terminal shows at a glance, in its tab and on its window, as the state of what it
-// does: a shell starting, idle at its prompt, running a program, waiting on something that
+// does: a shell starting, an agent asleep with its session saved or waking, idle at its prompt, running a program, waiting on something that
 // wakes it, paused at a usage limit, done, unheard, or ended. An agent that reports through
 // its hooks reads as running only while it works, its turn or what that left running. An
 // agent Novadeck hears nothing from, as its hooks aren't connected or trusted, is unheard:
@@ -58,6 +58,8 @@ export const endingText = ({ status, reason }: TerminalEnding): string =>
 // no phase: see `terminalNeedMark`.
 export type TerminalPhase =
   | "starting"
+  | "waking"
+  | "sleeping"
   | "idle"
   | "done"
   | "running"
@@ -86,7 +88,13 @@ export const terminalPhase = (
   now = Date.now(),
 ): TerminalPhase => {
   if (terminal.state === "exited" || terminal.state === "failed") return "ended"
-  if (terminal.state === "starting") return "starting"
+  // A shell that starts to resume an agent, a sleeper's or one a restart brought back, is
+  // waking until the agent draws and the shell reports.
+  if (terminal.state === "starting")
+    return terminal.restoredProcess && isAgentProgram(terminal.restoredProcess)
+      ? "waking"
+      : "starting"
+  if (terminal.state === "sleeping") return outcome ? "done" : "sleeping"
   if (terminal.state !== "running") return outcome ? "done" : "idle"
   if (!terminal.agent && isAgentProgram(terminal.process)) return "unheard"
   // A dialog it shows stops it: its harness keeps the turn open, but nothing works until the
@@ -117,9 +125,10 @@ export type TerminalNeed = "unblock" | "ask"
 // What a dialog its agent shows now needs, which shows at once, before the Inbox's row:
 // a question asks, a permission or a plan unblocks.
 const attentionNeed = (terminal: TerminalMetadata): TerminalNeed | undefined => {
-  const attention = terminal.state === "running" ? terminal.agent?.attention : undefined
-  if (!attention) return undefined
-  return attention.kind === "question" ? "ask" : "unblock"
+  const agent = terminal.state === "running" ? terminal.agent : undefined
+  if (agent?.startup) return "unblock"
+  if (!agent?.attention) return undefined
+  return agent.attention.kind === "question" ? "ask" : "unblock"
 }
 
 // The mark: the need the Inbox's rows make (`terminalNeed` in inbox.ts) and the one its
@@ -149,6 +158,11 @@ export const pausedText = (terminal: TerminalMetadata, now = Date.now()): string
     : `Paused at its usage limit · resets ${clockTime(at)}`
 }
 
+// What a sleeping terminal says: its agent has a saved session and no process, and starts again
+// when someone needs it.
+export const sleepingText = "Asleep · wakes when you open it"
+export const wakingText = "Waking…"
+
 // Joins the parts of a tab's or window's description into one sentence: a part after the
 // first reads on from it, so it isn't capitalised ("Needs you, paused at its usage limit ·
 // resets 15:40").
@@ -172,7 +186,9 @@ const waitingText = (what: string, count: number): string =>
 // What the agent in a terminal waits on the person for, in a few words; undefined when
 // nothing waits.
 export const attentionText = (terminal: TerminalMetadata): string | undefined => {
-  const attention = terminal.state === "running" ? terminal.agent?.attention : undefined
+  const agent = terminal.state === "running" ? terminal.agent : undefined
+  if (agent?.startup) return `Waiting at its ${agent.startup} screen`
+  const attention = agent?.attention
   if (!attention) return undefined
   const what =
     attention.kind === "question"
@@ -254,8 +270,10 @@ export type TerminalGlance = {
 
 // Whether a terminal's live dialogs are all its snoozed requests', which make no mark.
 const asleep = (terminal: TerminalMetadata, marks: InboxMarks): boolean => {
-  const dialogs = terminal.state === "running" ? (terminal.agent?.attention?.count ?? 0) : 0
-  return dialogs <= (marks.snoozedRequests ?? 0)
+  const agent = terminal.state === "running" ? terminal.agent : undefined
+  // No Inbox row stands behind a startup screen, so no snooze can set it aside.
+  if (agent?.startup) return false
+  return (agent?.attention?.count ?? 0) <= (marks.snoozedRequests ?? 0)
 }
 
 // `unread` is how the terminal's last turn ended while the person looked away, if it did.
@@ -266,7 +284,9 @@ export const terminalGlance = (
   now = Date.now(),
 ): TerminalGlance => {
   const failed = unread === "failed"
-  const reported = terminal.state === "running" && terminal.agent?.reported === true
+  const reported =
+    (terminal.state === "running" && terminal.agent?.reported === true) ||
+    (terminal.state === "sleeping" && terminal.reported === true)
   const phase = terminalPhase(terminal, reported || failed, now)
   const quiet = asleep(terminal, marks)
   const snoozed = phase !== "ended" && marks.snoozed === true && marks.need === undefined && quiet
@@ -280,7 +300,7 @@ export const terminalGlance = (
           : terminalNeedMark(terminal, marks.need),
     snoozed,
     failed,
-    brightened: unread === "unread" && phase === "idle",
+    brightened: unread === "unread" && (phase === "idle" || phase === "sleeping"),
   }
 }
 
@@ -314,15 +334,26 @@ export const terminalNote = (
     const { attention: _attention, ...agent } = terminal.agent
     return { ...terminal, agent }
   })()
-  const text = joinNote([
-    snoozed
-      ? `Snoozed${marks.subject ? `: ${marks.subject}` : ""}`
-      : needText(heard, marks.need, marks.subject, marks.dialog),
+  const need = snoozed
+    ? `Snoozed${marks.subject ? `: ${marks.subject}` : ""}`
+    : needText(heard, marks.need, marks.subject, marks.dialog)
+  const state =
     unheardText(terminal) ??
-      (phase === "paused" ? pausedText(terminal, now) : undefined) ??
-      (phase === "waiting" ? waitingNote(terminal, now) : undefined) ??
-      (phase === "done" ? doneText(failed) : undefined) ??
-      (brightened ? "Reply unread" : undefined),
-  ])
+    (phase === "paused" ? pausedText(terminal, now) : undefined) ??
+    (phase === "waiting" ? waitingNote(terminal, now) : undefined) ??
+    (phase === "done" ? doneText(failed) : undefined) ??
+    (phase === "waking" ? wakingText : undefined) ??
+    (brightened && phase !== "sleeping" ? "Reply unread" : undefined)
+  // Waking is a state of its own, set apart by a dot as "asleep" is, not read on from the need.
+  const said = phase === "waking" && need && state ? `${need} · ${state}` : joinNote([need, state])
+  // An asleep terminal says so after whatever else it says.
+  const text =
+    terminal.state !== "sleeping"
+      ? said
+      : said
+        ? `${said} · asleep`
+        : brightened
+          ? "Asleep · reply unread"
+          : sleepingText
   return { ...glance, text: text || undefined }
 }

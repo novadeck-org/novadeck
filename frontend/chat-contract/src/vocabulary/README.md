@@ -5,7 +5,7 @@ record shape (Claude's JSONL with `tool_use` and `tool_result`, a Codex rollout,
 steps), so they go through that harness's real decoder like any fixture.
 
 They exist because the recorded fixtures are thin: they name a handful of tools, mostly
-redacted, while the chat's vocabulary (each harness's `describe`, `inputText`, the tool kinds,
+redacted, while the chat's vocabulary (each harness's `describe`, `inputBeyondLine`, the tool kinds,
 the fold) knows many more. With the recorded fixtures, they name every Novadeck tool core's
 `novadeckTool` knows, in each harness's direct spelling (Antigravity's lazy `call_mcp_tool`
 spelling holds only a few), but the retired `summarize`, kept only to label sessions recorded

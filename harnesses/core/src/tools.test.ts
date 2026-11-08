@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { novadeckTool, sleepOnly } from "./tools.js"
 
@@ -126,5 +126,20 @@ describe("Novadeck's own tools", () => {
     expect(novadeckTool("done", { subject: "Shipped\nand tested", body: "" })?.detail).toBe(
       "Shipped",
     )
+  })
+})
+
+describe("a command too long to be a wait", () => {
+  it("is work, and is told at once however it's spaced", () => {
+    // Told by its length alone, not by running the patterns over it, which slow down on a
+    // long run of spaces: counted, not timed, as a slow runner would time it over any bound.
+    const matching = vi.spyOn(RegExp.prototype, "test")
+    try {
+      expect(sleepOnly(`start-sleep -s${" ".repeat(65_536)}x`)).toBe(false)
+      expect(sleepOnly(`sleep 1;${" ".repeat(2_000)}sleep 2`)).toBe(false)
+      expect(matching).not.toHaveBeenCalled()
+    } finally {
+      matching.mockRestore()
+    }
   })
 })

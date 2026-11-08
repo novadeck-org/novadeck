@@ -2,6 +2,7 @@ import { page, userEvent, type Locator } from "vitest/browser"
 
 import { expectStaysTrue } from "../support/layouts"
 import { switchProject } from "../support/sessions"
+import { closeToasts } from "../support/toasts"
 import {
   chooseView,
   expectStaysAbsent,
@@ -39,6 +40,7 @@ const doneButton = (): Locator =>
 const afterTurn = 5000
 
 const preferencesMurmur = async (): Promise<Locator> => {
+  await closeToasts()
   await page.getByRole("button", { name: "Workspace preferences" }).click()
   await page.getByRole("tab", { name: "Addons" }).click()
   return page.getByRole("region", { name: "Murmur" })

@@ -1,16 +1,46 @@
-import { dirname, join } from "node:path"
+import { readdir } from "node:fs/promises"
+import { basename, dirname, join } from "node:path"
 
-import { parseFields } from "@novadeck/harness-core/fields"
+import {
+  homeOfTranscript,
+  presence,
+  reportedOr,
+  sessionName,
+} from "@novadeck/harness-core/conversation"
+import { isFields, parseFields } from "@novadeck/harness-core/fields"
 import type { TranscriptDecoder, TranscriptEntry } from "@novadeck/harness-core/harness"
-import { at, entry, joined, textOf } from "@novadeck/harness-core/items"
+import { at, entry, joined, noteEntry, textOf } from "@novadeck/harness-core/items"
 import { shellCall } from "@novadeck/harness-core/tools"
 
 import { taskNotification } from "./decode.js"
 import { interruption } from "./interruption.js"
+import { outcomeOf } from "./outcomes.js"
 import { describe } from "./tools.js"
 
 // A subagent id Claude Code names its transcript by, as it writes them.
 const safeId = /^[\w-]{1,128}$/
+
+/**
+ * The session's transcript in another project of the home the reported path names:
+ * Claude Code keeps a session in the folder of the project it began in, and a resume in
+ * another folder reports that folder's project (probed 2026-11-07, 2.1.319) while it goes
+ * on writing the first. One listing of the projects and a `stat` in each.
+ */
+const inOtherProject = async (reported: string, sessionId: string): Promise<string | undefined> => {
+  const file = `${sessionId}.jsonl`
+  const home = homeOfTranscript(reported, "projects")
+  if (!sessionName.test(sessionId) || basename(reported) !== file || home === undefined)
+    return undefined
+  const projects = join(home, "projects")
+  const names = await readdir(projects).catch(() => [])
+  const found = await Promise.all(
+    names.map(async (name) => {
+      const path = join(projects, name, file)
+      return path !== reported && (await presence(path)) === "present" ? path : undefined
+    }),
+  )
+  return found.find((path) => path !== undefined)
+}
 
 /**
  * Claude Code's transcripts: the session's JSONL, and beside it a folder named for the
@@ -152,15 +182,31 @@ const textItems = (
     : []
 }
 
+// What its record says of the permission mode: on the record of each prompt, as it was then,
+// and on the `permission-mode` record it writes as a turn ends, so a change made mid-turn, as a
+// plan approved with auto-accept, shows there (probed 2026-11-07, 2.1.316).
+const modeNote = (mode: unknown, time: number | null): readonly TranscriptEntry[] =>
+  typeof mode === "string" && mode ? [noteEntry({ type: "mode", mode }, time)] : []
+
+// The words of the result of an ExitPlanMode the person approved, in place of any other mark.
+const planApproved = /^User has approved your plan\b/
+
 export const transcripts: TranscriptDecoder = {
-  locate: (root, sessionId, subagent) => {
-    if (subagent === null) return Promise.resolve(root)
-    if (!safeId.test(subagent) || !safeId.test(sessionId)) return Promise.resolve(undefined)
-    return Promise.resolve(join(dirname(root), sessionId, "subagents", `agent-${subagent}.jsonl`))
+  locate: async (reported, sessionId, subagent) => {
+    const root = await reportedOr(reported, sessionId, () => inOtherProject(reported, sessionId))
+    if (subagent === null) return root
+    if (!safeId.test(subagent) || !safeId.test(sessionId)) return undefined
+    return join(dirname(root), sessionId, "subagents", `agent-${subagent}.jsonl`)
   },
   items: (line) => {
     const fields = parseFields(line)
-    if (!fields || fields.isMeta === true || fields.isCompactSummary === true) return []
+    if (!fields || fields.isMeta === true) return []
+    if (fields.isCompactSummary === true) {
+      const summary = (fields.message as { content?: unknown } | undefined)?.content
+      const text = typeof summary === "string" ? summary : joined(summary, ["text"])
+      return [noteEntry({ type: "compaction" }, at(fields.timestamp), text)]
+    }
+    if (fields.type === "permission-mode") return modeNote(fields.permissionMode, null)
     if (fields.type === "attachment") {
       const queued = queuedPrompt(fields)
       return queued ? textItems("user", queued.text, at(queued.at), fields) : []
@@ -169,8 +215,12 @@ export const transcripts: TranscriptDecoder = {
     if (role !== "user" && role !== "assistant") return []
     const time = at(fields.timestamp)
     const content = (fields.message as { content?: unknown } | undefined)?.content
-    if (typeof content === "string") return textItems(role, content, time, fields)
-    return (Array.isArray(content) ? content : []).flatMap((part) => {
+    const mode = role === "user" ? modeNote(fields.permissionMode, time) : []
+    if (typeof content === "string") return [...mode, ...textItems(role, content, time, fields)]
+    const parts = Array.isArray(content) ? content : []
+    // The record's detail of a result speaks for one result alone.
+    const results = parts.filter((part) => isFields(part) && part.type === "tool_result")
+    const items = parts.flatMap((part) => {
       const {
         type,
         text,
@@ -179,6 +229,7 @@ export const transcripts: TranscriptDecoder = {
         id,
         content: result,
         tool_use_id: call,
+        is_error: failed,
       } = (part ?? {}) as Record<string, unknown>
       // The person's text block reads as their text content does, wrappers and all.
       if (type === "text" && typeof text === "string" && text)
@@ -194,16 +245,23 @@ export const transcripts: TranscriptDecoder = {
             describe,
           }),
         ]
-      if (type === "tool_result")
+      if (type === "tool_result") {
+        const output = typeof result === "string" ? result : joined(result, ["text"])
         return [
-          entry(
-            "tool",
-            "tool-result",
-            typeof result === "string" ? result : joined(result, ["text"]),
-            { at: time, call },
-          ),
+          entry("tool", "tool-result", output, {
+            at: time,
+            call,
+            outcome: outcomeOf(
+              failed === true,
+              output,
+              results.length === 1 ? fields.toolUseResult : undefined,
+            ),
+          }),
+          ...(planApproved.test(output) ? [noteEntry({ type: "plan-approved" }, time)] : []),
         ]
+      }
       return []
     })
+    return [...mode, ...items]
   },
 }

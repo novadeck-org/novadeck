@@ -1,3 +1,5 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
@@ -30,8 +32,11 @@ describe("Claude Code's transcript, as captured", () => {
       call: null,
       author: null,
       run: null,
+      outcome: null,
+      scripted: false,
       // Claude Code's marker for a stopped turn.
       interrupted: true,
+      ring: null,
     })
   })
 })
@@ -148,13 +153,38 @@ describe("Claude Code's transcript records", () => {
   it("leave out what Claude Code writes for itself, and anything not a record", () => {
     expect(items([{ type: "user", isMeta: true, message: { content: "caveat" } }])).toEqual([])
     expect(
-      items([{ type: "user", isCompactSummary: true, message: { content: "summary" } }]),
-    ).toEqual([])
-    expect(
       items([{ type: "user", message: { content: "<task-notification>\n</task-notification>" } }]),
     ).toEqual([])
     expect(transcripts.items("not json")).toEqual([])
     expect(transcripts.items("[]")).toEqual([])
+  })
+
+  it("say what mode a prompt went in, and what a turn's end left it in", () => {
+    const [mode, prompt] = items([
+      { type: "user", permissionMode: "acceptEdits", message: { content: "Go on" } },
+    ])
+    expect(mode).toMatchObject({ role: "note", note: { type: "mode", mode: "acceptEdits" } })
+    expect(prompt).toMatchObject({ role: "user", text: "Go on" })
+    expect(items([{ type: "permission-mode", permissionMode: "plan" }])).toMatchObject([
+      { note: { type: "mode", mode: "plan" } },
+    ])
+  })
+
+  it("say a compaction, its summary its text", () => {
+    expect(
+      items([{ type: "user", isCompactSummary: true, message: { content: "The summary" } }]),
+    ).toMatchObject([{ role: "note", note: { type: "compaction" }, text: "The summary" }])
+  })
+
+  it("say a plan was approved only by its result's words", () => {
+    const result = (content: string) => ({
+      type: "user",
+      message: { content: [{ type: "tool_result", tool_use_id: "t", content }] },
+    })
+    expect(items([result("User has approved your plan. You can now start coding.")])).toMatchObject(
+      [{ role: "tool" }, { role: "note", note: { type: "plan-approved" } }],
+    )
+    expect(items([result("The user doesn't want to proceed")])).toHaveLength(1)
   })
 
   it("cut long text short, and say so", () => {
@@ -243,6 +273,27 @@ describe("Claude Code's transcripts", () => {
       join(dirname(root), "s1", "subagents", "agent-a1b2.jsonl"),
     )
     await expect(transcripts.locate(root, "s1", "../x")).resolves.toBeUndefined()
+  })
+
+  it("are where the session began when it was resumed in another folder", async () => {
+    const home = mkdtempSync(join(tmpdir(), "novadeck-claude-projects-"))
+    try {
+      const id = "7049dc18-9e99-4602-99e9-03e585c25fdb"
+      const began = join(home, "projects", "-work")
+      mkdirSync(began, { recursive: true })
+      mkdirSync(join(home, "projects", "-other"))
+      // The resume's hooks name the folder it was resumed in, which holds no file.
+      const reported = join(home, "projects", "-work-notes", `${id}.jsonl`)
+      // A new session's file is not written yet: its path stays as reported.
+      await expect(transcripts.locate(reported, id, null)).resolves.toBe(reported)
+      writeFileSync(join(began, `${id}.jsonl`), "")
+      await expect(transcripts.locate(reported, id, null)).resolves.toBe(join(began, `${id}.jsonl`))
+      await expect(transcripts.locate(reported, id, "a1b2")).resolves.toBe(
+        join(began, id, "subagents", "agent-a1b2.jsonl"),
+      )
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
   })
 })
 

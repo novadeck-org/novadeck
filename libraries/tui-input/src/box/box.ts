@@ -22,6 +22,41 @@ export type InputBox = {
   /** The rows of the screen it spans, first to last. */
   readonly first: number
   readonly last: number
+  /** Whether it draws, apart from the text, that it shows only part of what it holds. */
+  readonly scrolled?: true
+  /**
+   * Whether it shows nothing but holds more than an empty box does: rows of blank lines typed,
+   * maybe under words scrolled out of sight. A blank box is one row tall.
+   */
+  readonly blanks?: true
+}
+
+/**
+ * The row a program shows while a turn runs, as a profile reads it: its words, and whether they
+ * say the turn is ending, as a hook run at its end. Programs pick new words for each turn.
+ */
+export type TurnStatus = {
+  readonly words: string
+  readonly ending: boolean
+  /** How long the turn has run, in seconds, where the row shows it. */
+  readonly seconds?: number
+}
+
+/**
+ * Whether `now` shows a turn other than the one `before` showed: a status row that isn't an
+ * ending one, after none, after an ending one, or with its clock gone back, or, with no clock,
+ * other words. A turn a program starts by itself, from its queue, fires no hook: this is how
+ * its screen tells of it.
+ */
+export const newTurn = (before: TurnStatus | undefined, now: TurnStatus | undefined): boolean => {
+  if (now === undefined || now.ending) return false
+  if (before?.ending) return true
+  // With no row before it, one is new only as it starts: not a turn's own row seen late.
+  if (before === undefined) return now.seconds === undefined || now.seconds <= 1
+  // A turn's clock only goes on, and a new one's starts again; its words may change within a
+  // turn, so they tell only where no clock shows.
+  if (now.seconds !== undefined && before.seconds !== undefined) return now.seconds < before.seconds
+  return now.words !== before.words
 }
 
 /** The markers leading a box's first row: in its prompt mode, and in its shell mode. */
@@ -37,6 +72,19 @@ export type BoxProfile = {
    */
   readonly collapsed: (box: InputBox) => boolean
   /**
+   * Whether the box says it shows only part of its text, where it has words for that, as
+   * Antigravity's `↑ 10 more lines`. Omitted where it doesn't.
+   */
+  readonly cut?: (box: InputBox) => boolean
+  /** What such a box shows of its text, without the rows that say it is cut. */
+  readonly uncut?: (text: string) => string
+  /**
+   * Whether a box's text holds, anywhere in it, what stands for more than it shows: a paste's
+   * placeholder or an attached image. Words read off the box then aren't all it holds, and
+   * erasing it loses the rest.
+   */
+  readonly stands: (text: string) => boolean
+  /**
    * The keys that clear the text a box holds, for a program that puts text back in its box
    * (an interrupted prompt, messages queued behind a turn): written only over text seen
    * there, as a program's Escape twice may open a picker over an empty box. Omitted where
@@ -46,6 +94,27 @@ export type BoxProfile = {
    * then opens a picker.
    */
   readonly clear?: (box: InputBox, screen?: ScreenText) => string
+  /**
+   * The keys that empty the box whether or not a turn runs, for text Novadeck left there:
+   * `clear` may be Escape, which stops a running turn. Written once, with the cursor on the
+   * box's last row, and read back: a program that took them otherwise shows it. Omitted where
+   * no such keys are known: its box is never emptied so.
+   */
+  readonly erase?: (box: InputBox) => string
+  /**
+   * Whether the program takes a bracketed paste as keys, on `platform` (this one where left
+   * out), so that a line break in a paste is an Enter unless it comes in what the program takes
+   * for a burst of typing: it submits what the box holds, with nothing of the paste. Omitted
+   * where a paste is always text.
+   */
+  readonly pastesAsKeys?: (platform?: NodeJS.Platform) => boolean
+  /**
+   * How many columns before the end of the text a program draws its cursor there; none where
+   * omitted.
+   */
+  readonly caret?: number
+  /** How far a word may reach on a row of the box's text, on a screen `columns` wide. */
+  readonly textWidth: (columns: number) => number
   /**
    * How the box takes a shell command (`!` typed in an empty box, then the command pasted):
    * `expands` where Enter runs a command it shows as a placeholder as the text the
@@ -69,6 +138,11 @@ export type BoxProfile = {
      * undefined for one that can't run there as written means.
      */
     readonly command?: (command: string, platform?: NodeJS.Platform) => string | undefined
+    /**
+     * The keys that leave its shell mode, emptying the box, whether or not a turn runs, with
+     * the cursor on the box's last row. Omitted where no such keys are known.
+     */
+    readonly leave?: (box: InputBox) => string
   }
   /**
    * Whether the screen shows, just above the box, the program's word that whoever types
@@ -88,6 +162,35 @@ export type BoxProfile = {
    * holds until the turn ends (or steers the turn with).
    */
   readonly queued: (screen: ScreenText) => boolean
+  /**
+   * The status row of the turn the screen shows running; undefined where none shows. Omitted
+   * where the program's queue fires a hook as its turn starts, so nothing needs the screen.
+   */
+  readonly status?: (screen: ScreenText) => TurnStatus | undefined
+  /**
+   * How an interrupt takes what is queued into the empty box, before its first Escape, where
+   * the program drains its queue as its turn ends, faster than any Escape: `keys` move it,
+   * and where nothing was queued by then they recall an earlier prompt instead, which
+   * `recalled` reads off the screen and `leave` undoes. They don't go where `blocked` says, a
+   * panel of the program's being up. Omitted where Escape does it.
+   */
+  readonly takeQueued?: {
+    readonly keys: string
+    readonly recalled: (screen: ScreenText) => boolean
+    readonly leave: string
+    readonly blocked: (screen: ScreenText) => boolean
+  }
+  /**
+   * When the screen says an interrupt's first Escape would go wrong yet, and how long, in
+   * milliseconds, that Escape waits for it to say otherwise, then goes all the same. A turn
+   * that ends during the wait takes the Escape with it, unless messages were queued behind
+   * that turn. `holds` is given the prompt of a person's turn (`InterruptHost.prompt`), and
+   * may be asked of any screen. Omitted where it can go at once.
+   */
+  readonly escapeHold?: {
+    readonly holds: (screen: ScreenText, prompt?: string) => boolean
+    readonly ms: number
+  }
   /**
    * Whether a paste of the text certainly shows as a placeholder, however small the
    * screen; false where it may show whole.
@@ -117,22 +220,102 @@ export type BoxProfile = {
 const minViewport = 2
 
 /**
- * Whether the box shows the tail of `text`, as a box shows a text taller than its viewport:
- * it is as tall as the viewport lets it be on a screen of `rows` rows, and what it shows ends
- * the text. A viewport of one row is every box's: on a screen too small to know it, none is.
+ * Whether the box is as tall as the viewport lets it be on a screen of `rows` rows, so it may
+ * show only the tail of what it holds. A text exactly that tall shows whole, which can't be
+ * told from one taller. A viewport of one row is every box's: on a screen too small to know
+ * it, none is.
  */
+export const fillsViewport = (profile: BoxProfile, box: InputBox, rows: number): boolean => {
+  const viewport = profile.viewport?.(rows) ?? Infinity
+  return viewport >= minViewport && box.last - box.first + 1 >= viewport
+}
+
+/**
+ * Whether the box may hold more than it shows: as tall as its viewport, or saying so itself.
+ * What it shows then isn't all that keys would act on, so nothing may go by those words alone.
+ */
+export const hidesText = (profile: BoxProfile, box: InputBox, rows: number): boolean =>
+  fillsViewport(profile, box, rows) || profile.cut?.(box) === true
+
+/**
+ * What shows of `text` in a box that hides the rest of it, without the rows that say so; undefined
+ * unless the box hides text and what it shows is the end of `text`. A line that ends in its
+ * nonce can be told by that end.
+ */
+export const tailOf = (
+  profile: BoxProfile,
+  box: InputBox,
+  rows: number,
+  text: string,
+): string | undefined => {
+  if (!hidesText(profile, box, rows)) return undefined
+  const shown = profile.uncut?.(box.text) ?? box.text
+  return endsText(shown, text) ? shown : undefined
+}
+
+/** Whether the box shows the tail of `text`, as a box shows a text taller than its viewport. */
 export const showsTail = (
   profile: BoxProfile,
   box: InputBox,
   rows: number,
   text: string,
-): boolean => {
-  const viewport = profile.viewport?.(rows) ?? Infinity
-  return viewport >= minViewport && box.last - box.first + 1 >= viewport && endsText(box.text, text)
+): boolean => fillsViewport(profile, box, rows) && endsText(box.text, text)
+
+/**
+ * Ctrl-U from the box's last row up, Backspace joining each row to the one above: Ctrl-U kills
+ * no more than the row the cursor is on. It stops no turn, as Escape or Ctrl-C would (probed
+ * 2026-11-06 on all three harnesses, idle and mid-turn, on one line, several, a wrapped line and
+ * a placeholder, fixtures/leftover.probe.json).
+ */
+export const eraseRows = ({ first, last }: InputBox): string =>
+  `${"\x15\x7f".repeat(last - first)}\x15`
+
+/**
+ * Leaves a box's shell mode: a Backspace in the empty box, as it leaves the mode where a
+ * command typed the `!` back out; a command is erased first (same probe). Escape would stop a
+ * running turn, and leaves the mode in only one harness then.
+ */
+export const leaveShell = (box: InputBox): string =>
+  isEmpty(box) ? "\x7f" : `${eraseRows(box)}\x7f`
+
+/**
+ * How long a first line must be for a program that takes a paste as keys to have taken it for a
+ * paste by the first line break, which is an Enter otherwise. Long lines always were on Codex
+ * on Windows in CI, and no shorter one is known to be, so what is shorter goes no further.
+ */
+const pasteFirstLine = 16
+
+/**
+ * Whether `text` can go in a paste to this program with no line break in it becoming an Enter:
+ * always where a paste is text, and where it's keys, with one line, or a long first one.
+ */
+export const pastesWhole = (profile: BoxProfile, text: string): boolean => {
+  if (!profile.pastesAsKeys?.()) return true
+  const lines = text.split(/\r\n?|\n/)
+  return lines.length === 1 || (lines[0]?.length ?? 0) >= pasteFirstLine
 }
 
 /** Whether the box holds nothing. */
-export const isEmpty = (box: InputBox): boolean => compact(box.text) === ""
+export const isEmpty = (box: InputBox): boolean =>
+  compact(box.text) === "" && !box.blanks && !box.scrolled
+
+/**
+ * Whether the keys that take what is queued may go on `screen`: only where it shows a queue,
+ * in a box that reads empty in its prompt mode with no view over it. Over a draft they would
+ * merge it with what they bring, and a queued row alone doesn't rule that out everywhere:
+ * Claude Code draws it in its shell mode's box and under its shortcuts panel too (`blocked`).
+ */
+export const takesQueue = (profile: BoxProfile, screen: ScreenText): boolean => {
+  const box = profile.read(screen)
+  return (
+    box !== undefined &&
+    box.mode === "prompt" &&
+    isEmpty(box) &&
+    profile.queued(screen) &&
+    !profile.overlay(screen) &&
+    profile.takeQueued?.blocked(screen) !== true
+  )
+}
 
 /**
  * The text of the rows `first` to `last`, whose first row starts with one of `markers`: the rows
@@ -170,7 +353,14 @@ const read = (
   // of the text faint, it is the placeholder, not a draft of one letter.
   const letter = compact(text).length === 1 && compact(faint).length > 1 && home
   if (compact(text) !== "" && !letter) return { text, mode, first, last }
-  return { text: compact(faint) === "" || home ? "" : faint, mode, first, last }
+  const blanks = compact(faint) === "" && last > first
+  return {
+    text: compact(faint) === "" || home ? "" : faint,
+    mode,
+    first,
+    last,
+    ...(blanks && { blanks }),
+  }
 }
 
 /** Whether a row starts with a box's marker, in either mode. */
@@ -206,8 +396,16 @@ export const footerRows = (screen: ScreenText, count = 4, reach = 12): readonly 
 export const rule = (row: string | undefined): boolean => /^─{8,}$/.test((row ?? "").trim())
 
 /**
+ * Whether a row is a rule from the screen's first column, as a box's frame is drawn: a row of
+ * `─` in the box's text is indented under its marker, and a row of it in a reply or a draft
+ * would otherwise read as the box's top.
+ */
+const frameRule = (row: string | undefined): boolean => /^─{8,}\s*$/.test(row ?? "")
+
+/**
  * A box drawn between two horizontal rules, its first row led by one of `markers` (`❯`, `>`): the
- * lowest pair of rules on the screen, the cursor between them.
+ * lowest rule on the screen and the nearest rule from the first column above it, the cursor
+ * between them.
  * It starts at the nearest row led by a marker at or above the cursor, so rows a TUI's
  * redraw left stale between the rules above its first row (it counts a wide character's
  * width differently, and erases the wrong rows) are no part of it. History above the
@@ -216,7 +414,7 @@ export const rule = (row: string | undefined): boolean => /^─{8,}$/.test((row 
 export const ruledBox = (screen: ScreenText, markers: Markers): InputBox | undefined => {
   const bottom = screen.rows.findLastIndex(rule)
   if (bottom < 0) return undefined
-  const top = screen.rows.slice(0, bottom).findLastIndex(rule)
+  const top = screen.rows.slice(0, bottom).findLastIndex(frameRule)
   if (top < 0 || bottom - top < 2) return undefined
   const { cursor } = screen
   if (cursor.row <= top || cursor.row >= bottom) return undefined
@@ -232,8 +430,11 @@ const bodyRow = (row: string | undefined): boolean => /^ {2}.*\S/.test(row ?? ""
  * A box drawn with no frame, its first row led by one of `markers`: rows indented under the
  * marker go up from the cursor to it, and on down from the cursor to the first row that is
  * not one (a blank row, before the program's footer), as a cursor moved up a draft leaves
- * lines of it below. The history above is no part of it: it ends at the nearest row led by a
- * marker.
+ * lines of it below. Blank lines in a draft leave blank rows inside it, so the rows down to the
+ * program's footer go with it too, where any shows text: the footer is the last rows drawn,
+ * under a blank row. Where a row among them isn't a line of a body, there's no telling what
+ * it is, and no box reads. The history above is no part of it: it ends at the nearest row led
+ * by a marker.
  */
 export const markedBox = (screen: ScreenText, markers: Markers): InputBox | undefined => {
   const { cursor } = screen
@@ -250,5 +451,14 @@ export const markedBox = (screen: ScreenText, markers: Markers): InputBox | unde
   if (first < 0) return undefined
   let last = cursor.row
   while (bodyRow(screen.rows[last + 1])) last += 1
+  const drawn = screen.rows.findLastIndex((row) => row.trim() !== "")
+  let footer = drawn
+  while (footer > last + 1 && (screen.rows[footer - 1] ?? "").trim() !== "") footer -= 1
+  const between = screen.rows.slice(last + 1, footer - 1)
+  const lower = between.findLastIndex((row) => row.trim() !== "")
+  if (lower >= 0) {
+    if (!between.every((row) => row.trim() === "" || bodyRow(row))) return undefined
+    last += 1 + lower
+  }
   return read(screen, first, last, markers)
 }

@@ -1,5 +1,5 @@
 import type { IMarker } from "@novadeck/emulator/headless"
-import type { AgentName } from "@novadeck/protocol"
+import type { AgentName, StartupScreen } from "@novadeck/protocol"
 import type { Terminal } from "@novadeck/terminal/host"
 import type { Foreground } from "@novadeck/terminal/pty"
 import type { Line } from "@novadeck/terminal/shell"
@@ -8,11 +8,24 @@ import type { Activity } from "../harnesses/activity.js"
 import type { Binding } from "../harnesses/bindings.js"
 import type { Root } from "../harnesses/roots.js"
 import type { Telemetry } from "../harnesses/telemetry.js"
+import type { Restoring } from "./history.js"
 import type { Nudges } from "./nudges.js"
 import type { AgentReport, AgentTurn, KeptInterruption } from "./saved-terminals.js"
+import type { Schedule } from "./schedules.js"
 import type { AgentSummary } from "./summary.js"
 import type { Naming } from "./titles.js"
 import type { Work } from "./work.js"
+
+/** The processes under an agent, by pid and start, recorded once it was up. */
+export type Baseline = {
+  /** The agent process it was recorded for; another process, another baseline. */
+  readonly instance: string
+  /** The processes; undefined until the read ends, and for ever if it could not tell. */
+  taken?: ReadonlySet<string> | undefined
+  /** Whether the read was begun, which happens once. */
+  begun: boolean
+  readonly timer: ReturnType<typeof setTimeout>
+}
 
 /** A harness session bound to a terminal (`Record.bound`). */
 export type Bound = {
@@ -161,6 +174,8 @@ export type Record = {
   nudges: Nudges
   /** The agent its shell was opened or restarted to run, until one binds or its startup ends. */
   expecting: AgentName | null
+  /** Which screen that agent last said it was at before its first session, and in which report. */
+  startupScreen?: { readonly screen: StartupScreen; readonly seq: number } | undefined
   /** Unsaved changes to what restores it: its directory, program, prompts. */
   changed: boolean
   /** Unsaved output: its transcript, saved on its own schedule. */
@@ -188,10 +203,43 @@ export type Record = {
    * bound: its first prompt's hooks bind it, so until then nothing says it is idle.
    */
   readyEntered: boolean
+  /**
+   * When this shell was started to wake a sleeping agent (epoch milliseconds), until a
+   * session binds, its prompt shows, or the person types a line there: while it stands, a
+   * prompt back with nothing bound does not end the lead nor let the sampler forget the
+   * program, so the row stays resumable (see `Sleepers`).
+   */
+  woken?: number | undefined
+  /**
+   * Set while its agent is being stopped to rest (see `Hibernation`): the shell's end is no
+   * exit, and nothing is announced, attached or started on it meanwhile.
+   */
+  hibernating?: true | undefined
+  /** When the person's keys last reached it, in epoch milliseconds. */
+  keyedAt?: number
+  /** When a client last attached to it, or let go of it, in epoch milliseconds. */
+  attachedAt?: number
+  /** What its agent scheduled that dies with its process, by the session that did (see `schedules.ts`). */
+  schedules?:
+    | { readonly sessionId: string; readonly items: ReadonlyMap<string, Schedule> }
+    | undefined
+  /** The processes under its agent when that was up, which hibernation tells its own from. */
+  baseline?: Baseline
   /** The last delivery epoch whose uncertain box got a screen-settling window. */
   boxDoubtEpoch?: number
   /** `performance.now()` at the last save of its screen, so saves take turns. */
   savedAt: number
+  /**
+   * Whether a line was ever entered in it, or an agent ran there: closing one where none
+   * did leaves no row in History. Sticky: a save never lowers it.
+   */
+  ran: boolean
+  /** The History row it was restored from, which a repeated create answers with this terminal. */
+  restoredFrom?: string
+  /** The restore of an agent's conversation still to be confirmed; undefined once it is or failed. */
+  restoring?: Restoring | undefined
+  /** What `restorable` was last judged for (the bound session and its ended turns, or none), so it is judged again only when that moves. */
+  restorableFor?: string
 } & Started
 
 /**

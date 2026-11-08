@@ -71,6 +71,7 @@
 @import "@novadeck/toolkit/sidebar-item.css" layer(components);
 @import "./sidebar/sidebar.css" layer(components);
 @import "./sidebar/source.css" layer(components);
+@import "./sidebar/history.css" layer(components);
 @import "./inbox/inbox.css" layer(components);
 @import "./inbox/inbox-toast.css" layer(components);
 @import "./projects/project-status.css" layer(components);
@@ -81,6 +82,7 @@
 @import "@novadeck/chat/chat.css" layer(components);
 @import "./terminals/tabs.css" layer(components);
 @import "./terminals/team-wire.css" layer(components);
+@import "./terminals/close-team.css" layer(components);
 @import "./terminals/switcher.css" layer(components);
 @import "./layouts/workspace.css" layer(components);
 @import "./layouts/transition.css" layer(components);

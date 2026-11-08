@@ -14,7 +14,7 @@ const crow = "storefront-initial-04"
 
 const open = (): Promise<void> => openWorkspace("/?approvals=on")
 const asking = (name: RegExp) => page.getByRole("alertdialog", { name })
-const closing = () => asking(/^Close .*Checkout review/)
+const closing = () => asking(/^Let @moth close @crow\?$/)
 const leading = () => asking(/^Let @crow lead @moth\?$/)
 
 describe("An agent's ask for the person's approval", () => {

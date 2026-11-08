@@ -187,7 +187,7 @@ describe("pinned project shortcuts", () => {
       await openWorkspace()
       await workspaceSwitcher().click()
       await page.getByRole("button", { name: "Remove storefront" }).click({ force: true })
-      const confirm = page.getByRole("alertdialog", { name: "Remove “storefront”?" })
+      const confirm = page.getByRole("alertdialog", { name: "Remove this project?" })
       await expect.element(confirm).toBeVisible()
 
       await pressDigit(2)

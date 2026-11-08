@@ -79,6 +79,13 @@ describe("what the app remembers about updating", () => {
       })
     })
 
+    it("loads a file from before heads-ups were dropped, ignoring their mark", () => {
+      writeFileSync(file, JSON.stringify({ channel: "experimental", whatsNewHeadsUpSeen: "1.5.0" }))
+      const state = keepUpdateState(file).read()
+      expect(state.channel).toBe("experimental")
+      expect(state).not.toHaveProperty("whatsNewHeadsUpSeen")
+    })
+
     it("keeps when a prerelease was last read, only for the notes still pending", () => {
       const state = keepUpdateState(file)
       state.recordLaunch("0.5.0-beta.1", "0.5.0-beta.1", undefined)

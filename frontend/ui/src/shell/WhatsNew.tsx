@@ -75,9 +75,9 @@ export const useOverflow = (): readonly [(list: HTMLUListElement | null) => void
 }
 
 // What assistive technology hears when the card comes up, once: the version and the
-// highlights' titles, not their lines, which the card has for whoever goes to read it.
-const announcement = ({ version, highlights }: Notes): string =>
-  `New in Novadeck ${version}: ${highlights.map(({ title }) => title).join(", ")}`
+// titles, not their lines, which the card has for whoever goes to read it.
+const announcement = (notes: Notes): string =>
+  `New in Novadeck ${notes.version}: ${notes.highlights.map(({ title }) => title).join(", ")}`
 
 // The card that tells what is new after an update, in the corner the download's bar and
 // the install notices use, as a `.floating` surface: a strip of label tape across its top
@@ -100,6 +100,29 @@ export const WhatsNew = ({
   readonly card: WhatsNewProps | undefined
   readonly hidden: boolean
 }): React.JSX.Element => {
+  const [said, setSaid] = useState("")
+  return (
+    <>
+      {/* Always mounted, here above the key, so filling it announces each card once, as the
+          footer's other notices do: a live region that arrives filled is often not read. */}
+      <span role="status" aria-live="polite" className="sr-only">
+        {said}
+      </span>
+      <WhatsNewCard card={card} hidden={hidden} onSay={setSaid} />
+    </>
+  )
+}
+
+const WhatsNewCard = ({
+  card,
+  hidden,
+  onSay,
+}: {
+  readonly card: WhatsNewProps | undefined
+  readonly hidden: boolean
+  // Gives the words to announce, or none, to the live region that outlasts this card.
+  readonly onSay: (words: string) => void
+}): React.JSX.Element => {
   const panel = useRef<HTMLElement>(null)
   const titleId = useId()
   // Whether the card has not been up yet, is being announced as it is, or has been: the
@@ -111,6 +134,8 @@ export const WhatsNew = ({
   if (shown && told === "not yet") setTold("telling")
   if (!shown && told === "telling") setTold("told")
   if (!card && told !== "not yet") setTold("not yet")
+  const words = card && told === "telling" ? announcement(card.notes) : ""
+  useEffect(() => onSay(words), [words, onSay])
   // Whether the card went away with focus inside it, as a download's bar taking the corner
   // does: focus would drop to the page, so it goes back to the terminal, unless whatever
   // took the card's place (a notice, a dialog) has taken it.
@@ -138,12 +163,15 @@ export const WhatsNew = ({
   }, [shown])
   const [setList, scrolls] = useOverflow()
   const inside = (): boolean => panel.current?.contains(document.activeElement) === true
+  // Focus on the button pressed would be lost with its card: the terminal gets it back.
+  const dismiss = (): void => {
+    if (!card) return
+    const had = inside()
+    card.onDismiss()
+    if (had) card.returnFocus()
+  }
   return (
     <>
-      {/* Always mounted, so filling it announces the card once, as the footer's other notices do. */}
-      <span role="status" aria-live="polite" className="sr-only">
-        {card && told === "telling" ? announcement(card.notes) : ""}
-      </span>
       {card && shown && (
         <section
           ref={panel}
@@ -174,12 +202,7 @@ export const WhatsNew = ({
               type="button"
               className="icon-button small update-card-close"
               aria-label="Dismiss"
-              onClick={() => {
-                // Focus on the button would be lost with it: the terminal gets it back.
-                const had = inside()
-                card.onDismiss()
-                if (had) card.returnFocus()
-              }}
+              onClick={dismiss}
             >
               <X size={14} />
             </button>

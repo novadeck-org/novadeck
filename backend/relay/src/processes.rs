@@ -41,6 +41,24 @@ struct FileTime {
     high: u32,
 }
 
+#[link(name = "ntdll")]
+unsafe extern "system" {
+    fn NtQueryInformationProcess(
+        process: *mut c_void,
+        class: u32,
+        information: *mut c_void,
+        length: u32,
+        returned: *mut u32,
+    ) -> i32;
+}
+
+/// NtQueryInformationProcess' class for a process's command line (Windows 8.1 and later),
+/// answered with a UNICODE_STRING followed by its text.
+const COMMAND_LINE_INFORMATION: u32 = 60;
+/// Room for the answer: the string's header and a command line of most of the 32,767
+/// characters Windows allows. A longer one is not read.
+const COMMAND_LINE_ROOM: usize = 1 << 16;
+
 #[link(name = "kernel32")]
 unsafe extern "system" {
     fn CreateToolhelp32Snapshot(flags: u32, pid: u32) -> *mut c_void;
@@ -145,6 +163,45 @@ pub fn started(pid: u32) -> Option<u64> {
     handle.started()
 }
 
+/// The command line process `pid` was started with, program first, as Windows keeps it;
+/// None where the process is gone, another user's, or Windows won't say.
+pub fn command_line(pid: u32) -> Option<String> {
+    let handle = Handle::open(pid, QUERY_LIMITED_INFORMATION)?;
+    // Eight-byte units, for the string's pointer to sit aligned.
+    let mut room = vec![0u64; COMMAND_LINE_ROOM / 8];
+    let mut returned = 0u32;
+    let status = unsafe {
+        NtQueryInformationProcess(
+            handle.0,
+            COMMAND_LINE_INFORMATION,
+            room.as_mut_ptr().cast(),
+            COMMAND_LINE_ROOM as u32,
+            &mut returned,
+        )
+    };
+    if status < 0 {
+        return None;
+    }
+    // A UNICODE_STRING: its length in bytes, its capacity, then (after padding to the
+    // pointer) the pointer to its text, which sits in the same room.
+    let base = room.as_ptr() as usize;
+    let bytes = unsafe { *room.as_ptr().cast::<u16>() } as usize;
+    let text = unsafe {
+        room.as_ptr()
+            .cast::<u8>()
+            .add(size_of::<usize>())
+            .cast::<usize>()
+            .read()
+    };
+    let at = text.checked_sub(base)?;
+    // Whole 16-bit units, aligned for them, inside the room.
+    if bytes % 2 != 0 || text % 2 != 0 || at.checked_add(bytes)? > COMMAND_LINE_ROOM {
+        return None;
+    }
+    let units = unsafe { std::slice::from_raw_parts(text as *const u16, bytes / 2) };
+    Some(String::from_utf16_lossy(units))
+}
+
 /// A process of a tree: its pid and when it started, which together name it alone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Member {
@@ -229,17 +286,29 @@ fn now() -> u64 {
         .map_or(0, |since| since.as_millis() as u64)
 }
 
-/// A tree member as the relay prints it: its pid, its start, and its program's file name
+/// A tree member as the relay prints it: its pid, its start, its program's file name
 /// from the snapshot (empty for a process the snapshot no longer lists), which lets the
-/// runner tell a shell's own launcher or console host from a program it started.
-fn member_json(member: &Member, files: &HashMap<u32, String>) -> Value {
+/// runner tell a shell's own launcher or console host from a program it started, and the
+/// pid of its parent as the snapshot records it (`parent`, left out for a process the
+/// snapshot no longer lists), which lets it tell a wrapper between a shell and its agent,
+/// such as an npm shim's `codex.cmd`, from a job the shell started.
+fn member_json(
+    member: &Member,
+    files: &HashMap<u32, String>,
+    parents: &HashMap<u32, u32>,
+) -> Value {
     let name = files.get(&member.pid).map_or("", String::as_str);
-    json!({ "pid": member.pid, "startedAt": member.started, "name": name })
+    let mut fields = json!({ "pid": member.pid, "startedAt": member.started, "name": name });
+    if let Some(parent) = parents.get(&member.pid) {
+        fields["parent"] = json!(parent);
+    }
+    fields
 }
 
 /// `novadeck-relay tree <pid>[:<started-ms>]...`: each root's tree, as JSON, a line for
 /// each root as it was named: `{"root":"<pid>[:<started-ms>]","processes":[{"pid":<pid>,
-/// "startedAt":<ms>,"name":"<program file>"},...]}`. False where Windows refused the snapshot, which tells nothing
+/// "startedAt":<ms>,"name":"<program file>","parent":<pid>},...]}` (`parent` as the snapshot
+/// records it, absent for a process it no longer lists). False where Windows refused the snapshot, which tells nothing
 /// of any tree.
 pub fn print_trees(roots: &[(String, Root)]) -> bool {
     let before = now();
@@ -259,7 +328,7 @@ pub fn print_trees(roots: &[(String, Root)]) -> bool {
     for (named, root) in roots {
         let members: Vec<Value> = tree(*root, &parents, &started, before)
             .iter()
-            .map(|member| member_json(member, &files))
+            .map(|member| member_json(member, &files, &parents))
             .collect();
         // A runner gone meanwhile reads none of it; `println!` would panic on that.
         let _ = writeln!(stdout, "{}", json!({ "root": named, "processes": members }));
@@ -283,6 +352,23 @@ pub fn end(members: &[Member]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prints_a_member_with_its_recorded_parent_where_the_snapshot_has_it() {
+        let member = Member {
+            pid: 7,
+            started: 99,
+        };
+        let files = HashMap::from([(7, "codex.exe".to_owned())]);
+        assert_eq!(
+            member_json(&member, &files, &HashMap::from([(7, 3)])),
+            json!({ "pid": 7, "startedAt": 99, "name": "codex.exe", "parent": 3 })
+        );
+        assert_eq!(
+            member_json(&member, &HashMap::new(), &HashMap::new()),
+            json!({ "pid": 7, "startedAt": 99, "name": "" })
+        );
+    }
 
     // Process starts by pid, and the tree a root has in them, as pids.
     fn pids(
@@ -312,7 +398,7 @@ mod tests {
             started: 200,
         };
         assert_eq!(
-            member_json(&known, &files),
+            member_json(&known, &files, &HashMap::new()),
             json!({ "pid": 11, "startedAt": 200, "name": "bash.exe" })
         );
         let gone = Member {
@@ -320,7 +406,7 @@ mod tests {
             started: 300,
         };
         assert_eq!(
-            member_json(&gone, &files),
+            member_json(&gone, &files, &HashMap::new()),
             json!({ "pid": 12, "startedAt": 300, "name": "" })
         );
     }

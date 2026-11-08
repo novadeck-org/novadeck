@@ -5,10 +5,20 @@ import { Tooltip } from "./Tooltip"
 export const sidebarListClasses =
   "sidebar-list mt-2.5 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-3"
 
-// An item (the item recipe draws it, its selection bar included); sidebar-item.css adds the
-// row's own looks.
-const sidebarItemClasses =
-  "item sidebar-item relative flex min-h-17 min-w-0 shrink-0 [&.dragging]:z-50"
+// A sidebar row's parts, for a list whose rows are drawn as an item's without being one, such as
+// the History panel's one-line rows: the row (the item recipe draws it, its selection bar
+// included; sidebar-item.css adds the row's own looks), its select button, its icon and its name.
+export const sidebarRowClasses = "item sidebar-item relative flex min-w-0 shrink-0"
+export const sidebarRowSelectClasses =
+  "sidebar-item-select flex min-w-0 flex-1 items-start gap-2 px-2.5 py-[9px] text-left"
+export const sidebarRowIconClasses =
+  "sidebar-item-icon flex h-[18px] w-3.5 shrink-0 items-center justify-center"
+// Its name in bold, as for something the person hasn't seen yet; "soft" in semibold, for an
+// item that is dimmed.
+export const sidebarRowNameClasses = (emphasized: boolean | "soft" = false): string =>
+  `truncate text-body leading-[18px] ${emphasized === "soft" ? "font-semibold" : emphasized ? "font-bold" : "font-medium"}`
+
+const sidebarItemClasses = `${sidebarRowClasses} min-h-17 [&.dragging]:z-50`
 
 export const SidebarItem = ({
   name,
@@ -46,8 +56,9 @@ export const SidebarItem = ({
   readonly tag?: ReactNode
   // Beside the name, as a count of what waits there.
   readonly badge?: ReactNode
-  // Its name in bold, as for something the person hasn't seen yet.
-  readonly emphasized?: boolean
+  // Its name in bold, as for something the person hasn't seen yet; "soft" in semibold, for
+  // an item that is dimmed.
+  readonly emphasized?: boolean | "soft"
   // What describes the row to a screen reader, by id, such as how to reorder it.
   readonly describedBy?: string
   readonly onSelect: () => void
@@ -62,12 +73,12 @@ export const SidebarItem = ({
   const descriptionId = useId()
   const describers =
     describedBy && [description && descriptionId, describedBy].filter(Boolean).join(" ")
-  const nameClasses = `truncate text-body leading-[18px] ${emphasized ? "font-bold" : "font-medium"}`
+  const nameClasses = sidebarRowNameClasses(emphasized)
   const select = (
     <button
       ref={handleRef}
       hidden={editing}
-      className="sidebar-item-select flex min-w-0 flex-1 items-start gap-2 px-2.5 py-[9px] text-left"
+      className={sidebarRowSelectClasses}
       type="button"
       aria-label={selectLabel}
       aria-description={describers ? undefined : description}
@@ -75,9 +86,7 @@ export const SidebarItem = ({
       aria-current={selected ? "true" : undefined}
       onClick={onSelect}
     >
-      <span className="sidebar-item-icon flex h-[18px] w-3.5 shrink-0 items-center justify-center">
-        {icon}
-      </span>
+      <span className={sidebarRowIconClasses}>{icon}</span>
       <span className="sidebar-item-copy flex min-w-0 flex-1 flex-col gap-1">
         {badge || tag ? (
           <span className="flex min-w-0 items-center gap-1.5">

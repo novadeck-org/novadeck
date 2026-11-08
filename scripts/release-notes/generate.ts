@@ -86,9 +86,8 @@ const compose = async (
       considered: given.length,
     }
   const { text, outputTokens, model } = await ask(kind, version, given)
-  const output = parseOutput(text)
   const checked = checkOutput(
-    output,
+    parseOutput(text),
     kind,
     new Set(given.flatMap((item) => item.prs)),
     new Set(given.filter((item) => !item.fix).flatMap((item) => item.prs)),

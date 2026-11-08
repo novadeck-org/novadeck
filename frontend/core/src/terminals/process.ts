@@ -78,3 +78,60 @@ const agentPrograms: ReadonlySet<string> = new Set(harnesses.map(({ id }) => id)
 
 // Takes a name from `programName`.
 export const isAgentProgram = (program: string): boolean => agentPrograms.has(program)
+
+// A Node harness's package, as its script's path names it: "@anthropic-ai/claude-code" from
+// "/@anthropic-ai/claude-code/cli.js". What `npx`, `pnpm dlx` and `bunx` are given to run.
+const packageOf = (script: string): string =>
+  script
+    .split("/")
+    .filter(Boolean)
+    .slice(0, script.includes("/@") ? 2 : 1)
+    .join("/")
+const agentPackages: readonly string[] = harnesses.flatMap(({ nodeScript }) =>
+  nodeScript === undefined ? [] : [packageOf(nodeScript)],
+)
+
+// Runners of packages, by the word that names them: the program (`npx`, `bunx`, `pnpx`), or the
+// script a Node program runs (`npx-cli.js`, `pnpx`) or that takes a subcommand (`pnpm.cjs dlx`,
+// `yarn.js dlx`, `npm-cli.js exec`, `bun x`).
+const packageRunners: ReadonlySet<string> = new Set(["npx", "bunx", "pnpx", "npx-cli"])
+const subcommandRunners: ReadonlySet<string> = new Set([
+  "pnpm",
+  "yarn",
+  "yarnpkg",
+  "npm-cli",
+  "bun",
+])
+const runnerSubcommands: ReadonlySet<string> = new Set(["dlx", "exec", "x"])
+const scriptRunners: ReadonlySet<string> = new Set(["node", "nodejs", "bun", "deno"])
+
+const isAgentPackage = (word: string | undefined): boolean =>
+  word !== undefined && agentPackages.some((name) => word === name || word.startsWith(`${name}@`))
+
+const firstWord = (words: readonly (string | undefined)[]): string | undefined =>
+  words.find((word) => word !== undefined && !word.startsWith("-"))
+
+// Whether a command line runs an agent, by what it runs and nothing it only mentions: the script
+// a Node program runs (`node …/@openai/codex/bin/codex.js`, as `programName` reads argv[1]), or
+// the package right after a runner of packages (`npx @anthropic-ai/claude-code`, `pnpm dlx
+// @openai/codex@latest`, `bunx …`, `bun x …`, `yarn dlx …`, `npm exec …`), skipping its options,
+// by the harnesses' own table. `npm install -g @anthropic-ai/claude-code` and `vim
+// …/codex.js` run no agent. A native harness (Antigravity) names itself by its process, which
+// `isAgentProgram` takes.
+export const runsAgentCommand = (argv: readonly string[] | undefined): boolean => {
+  const [program = "", script, ...rest] = argv ?? []
+  const name = baseName(program)
+  if (["npx", "bunx", "pnpx"].includes(name)) return isAgentPackage(firstWord([script, ...rest]))
+  if (script === undefined) return false
+  // `bun x pkg`, and `pnpm dlx pkg` where pnpm is a native binary.
+  if (subcommandRunners.has(name) && runnerSubcommands.has(script))
+    return isAgentPackage(firstWord(rest))
+  if (!scriptRunners.has(name)) return false
+  const path = script.replaceAll("\\", "/")
+  if (nodeLaunchers.some(({ script: known }) => path.endsWith(known))) return true
+  const runner = baseName(script).replace(/\.[^.]+$/, "")
+  if (packageRunners.has(runner)) return isAgentPackage(firstWord(rest))
+  return subcommandRunners.has(runner) && runnerSubcommands.has(rest[0] ?? "")
+    ? isAgentPackage(firstWord(rest.slice(1)))
+    : false
+}

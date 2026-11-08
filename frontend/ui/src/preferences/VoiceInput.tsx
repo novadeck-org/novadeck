@@ -4,7 +4,9 @@ import { installSize, type Voice, type VoiceState } from "@novadeck/core/addons/
 import { Chord } from "@novadeck/toolkit/Chord"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 import { Select } from "@novadeck/toolkit/Select"
+import { SubjectBar, SubjectDetail, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
 import { Switch } from "@novadeck/toolkit/Switch"
+import { Mic } from "lucide-react"
 import { useState, type RefObject } from "react"
 
 import { dictationKeys } from "../interaction/shortcuts"
@@ -20,6 +22,17 @@ export type VoiceAddon = {
 // What the card says went wrong: the runner's failure, or the backend's refusal of any call.
 const told = (state: VoiceState): string | null =>
   state.failure ?? (state.refused ? refusalText(state.refused, "voice input") : null)
+
+// What the uninstall asks about, named as the card names it, and what it frees.
+const uninstallBar = (shown: VoiceState): React.JSX.Element => (
+  <SubjectBar>
+    <SubjectSide>
+      <Mic size={14} strokeWidth={1.5} aria-hidden="true" />
+      <SubjectName>Voice input</SubjectName>
+    </SubjectSide>
+    <SubjectDetail end>{formatSize(installedSize(shown))}</SubjectDetail>
+  </SubjectBar>
+)
 
 const rowClasses = addonRowClasses
 const noteClasses = addonNoteClasses
@@ -117,7 +130,8 @@ export const VoiceInput = ({
   const confirmDialog = (
     <ConfirmDialog
       subject={confirming ? state : null}
-      title={() => "Uninstall voice input?"}
+      bar={uninstallBar}
+      title={() => "Uninstall this add-on?"}
       description={(shown) =>
         `The speech engine and its models are removed from this computer, freeing ${formatSize(installedSize(shown))}. You can install them again.`
       }

@@ -1,4 +1,5 @@
 import { MURMUR_NAME } from "@novadeck/core/addons/murmur"
+import type { AgentName } from "@novadeck/core/harnesses"
 import type { NoticeSound } from "@novadeck/core/sounds"
 import { viewModes } from "@novadeck/core/state"
 import type { PreferencesValue } from "@novadeck/core/types"
@@ -10,7 +11,7 @@ import { Switch } from "@novadeck/toolkit/Switch"
 import { Tabs, TabList, Tab, TabPanel } from "@novadeck/toolkit/Tabs"
 import { views } from "@novadeck/toolkit/views"
 import { X } from "lucide-react"
-import { useRef, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import { shortcutGroups } from "../interaction/keymap"
 import { currentPlatform } from "../interaction/shortcuts"
@@ -37,6 +38,15 @@ const schemeItems = [
   { label: "Light", value: "light" },
   { label: "Dark", value: "dark" },
 ] as const
+// How long an idle agent runs before it is stopped, in minutes; null for never.
+const idleChoices = [
+  { label: "Off", value: "off" },
+  { label: "15 minutes", value: "15" },
+  { label: "30 minutes", value: "30" },
+  { label: "1 hour", value: "60" },
+  { label: "4 hours", value: "240" },
+]
+
 const fontSizes = [12, 13, 15].map((size) => ({ label: `${size}px`, value: String(size) }))
 
 // Section titles match the sidebar's panel titles.
@@ -44,6 +54,13 @@ const sectionTitleClasses = "section-label m-0 text-label font-medium"
 const sectionDescriptionClasses = "settings-description m-0 mt-1.5 text-control leading-5"
 const panelClasses =
   "preferences-panel col-start-1 row-start-1 flex flex-col gap-6 px-6 py-5 data-[state=open]:visible data-[state=open]:opacity-100 data-[state=closed]:invisible data-[state=closed]:pointer-events-none data-[state=closed]:opacity-0 max-[480px]:px-4"
+
+// The switch of an agent in the Agents section, where the page has it.
+const agentSwitch = (agent: AgentName): HTMLElement | null =>
+  document
+    .getElementById(`agent-${agent}`)
+    ?.closest("li")
+    ?.querySelector<HTMLElement>("[role=switch]") ?? null
 
 // A titled group of settings; the title names the region unless a label is given.
 const Section = ({
@@ -94,6 +111,12 @@ const SettingText = ({
   </span>
 )
 
+// The list's value for a wait; none for one the list lacks.
+const idleChoice = (minutes: number | null): string => {
+  const value = minutes === null ? "off" : String(minutes)
+  return idleChoices.some((choice) => choice.value === value) ? value : ""
+}
+
 export const Preferences = ({
   open,
   value,
@@ -102,7 +125,10 @@ export const Preferences = ({
   onExitComplete,
   tab,
   onTabChange,
+  focusAgent = null,
+  onFocusedAgent,
   transcripts,
+  hibernation,
   agents,
   voice,
   murmur,
@@ -118,6 +144,10 @@ export const Preferences = ({
   open: boolean
   tab: PreferencesTab
   onTabChange: (tab: PreferencesTab) => void
+  // An agent whose switch to bring into view and focus once the dialog is open, where the
+  // person came from a row that needs it connected; `onFocusedAgent` says it was done.
+  focusAgent?: AgentName | null
+  onFocusedAgent?: () => void
   value: PreferencesValue
   onChange: (value: PreferencesValue) => void
   onClose: () => void
@@ -129,6 +159,12 @@ export const Preferences = ({
     // False where nothing can keep them encrypted: the switch shows off and cannot change.
     readonly available: boolean
     readonly onChange: (enabled: boolean) => void
+  }
+  // After how many idle minutes an agent is stopped, null for never; absent where the
+  // backend stops none.
+  hibernation?: {
+    readonly minutes: number | null
+    readonly onChange: (minutes: number | null) => void
   }
   // Whether the page can show desktop notifications, as the desktop app can.
   notices?: boolean
@@ -162,6 +198,40 @@ export const Preferences = ({
   uninstall?: UninstallValue
 }): React.JSX.Element => {
   const dialog = useRef<HTMLDivElement>(null)
+  const hasAgents = agents !== undefined
+  const focused = useRef(onFocusedAgent)
+  useEffect(() => {
+    focused.current = onFocusedAgent
+  }, [onFocusedAgent])
+  useEffect(() => {
+    if (!open || !focusAgent) return undefined
+    if (!hasAgents) {
+      focused.current?.()
+      return undefined
+    }
+    // The dialog's content mounts, and the dialog takes focus for itself, a moment after it
+    // opens: take it from there once the switch is on the page, and again while it settles.
+    let frame = 0
+    let tries = 0
+    let held = 0
+    const focusSwitch = (): void => {
+      const found = agentSwitch(focusAgent)
+      if (!found) {
+        if (++tries < 30) frame = requestAnimationFrame(focusSwitch)
+        else focused.current?.()
+        return
+      }
+      if (document.activeElement !== found) {
+        found.scrollIntoView?.({ block: "center" })
+        found.focus()
+        held = 0
+      } else held += 1
+      if (held < 3) frame = requestAnimationFrame(focusSwitch)
+      else focused.current?.()
+    }
+    frame = requestAnimationFrame(focusSwitch)
+    return () => cancelAnimationFrame(frame)
+  }, [open, focusAgent, hasAgents])
   const panels = useRef<HTMLDivElement>(null)
   const [openSelect, setOpenSelect] = useState<string | null>(null)
   const changeTab = (next: string): void => {
@@ -524,9 +594,27 @@ export const Preferences = ({
                 </div>
               </div>
             </Section>
-            {agents && (
-              <Section title="Agents" description={agentsExplanation}>
-                <AgentSwitches agents={agents.list} onChange={agents.onChange} />
+            {(agents || hibernation) && (
+              <Section title="Agents" {...(agents ? { description: agentsExplanation } : {})}>
+                {agents && <AgentSwitches agents={agents.list} onChange={agents.onChange} />}
+                {hibernation && (
+                  <div className={settingsCardClasses}>
+                    <Select
+                      className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
+                      label="Stop idle agents after"
+                      items={idleChoices}
+                      // A saved wait the list doesn't have shows as it is, without being chosen.
+                      value={idleChoice(hibernation.minutes)}
+                      placeholder={`${hibernation.minutes} minutes`}
+                      onValueChange={(choice) =>
+                        hibernation.onChange(choice === "off" ? null : Number(choice))
+                      }
+                      open={open && shown === "general" && openSelect === "idle-agents"}
+                      onOpenChange={(expanded) => setOpenSelect(expanded ? "idle-agents" : null)}
+                      portalContainer={dialog}
+                    />
+                  </div>
+                )}
               </Section>
             )}
           </TabPanel>

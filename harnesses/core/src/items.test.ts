@@ -96,3 +96,44 @@ describe("the protocol's item", () => {
     expect(transcriptItem.safeParse({ ...text, run }).success).toBe(false)
   })
 })
+
+describe("an item's outcome", () => {
+  const known = { failed: true, exit: 3, running: false, size: null, change: null, opening: false }
+
+  it("stays on a tool call or its result", () => {
+    expect(entry("tool", "tool-result", "x", { at: null, outcome: known }).outcome).toEqual(known)
+    expect(
+      entry("assistant", "tool-call", "{}", { at: null, outcome: known, describe: seen }).outcome,
+    ).toEqual(known)
+  })
+
+  it("never reaches text, which the protocol refuses", () => {
+    const item = entry("assistant", "text", "x", { at: null, outcome: known, scripted: true })
+    expect(item).toMatchObject({ outcome: null, scripted: false })
+    expect(() => transcriptItem.parse({ ...item, index: 0, outcome: known })).toThrow(
+      /Only a tool call or its result/,
+    )
+  })
+
+  it("is null where a decoder has none", () => {
+    expect(entry("tool", "tool-result", "x", { at: null })).toMatchObject({
+      outcome: null,
+      scripted: false,
+    })
+  })
+})
+
+describe("an item's ring", () => {
+  const line = "[Novadeck: automatic notice, agent messages waiting, n7Q2]"
+
+  it("marks the doorbell's line, its text left as the record has it", () => {
+    const item = entry("user", "text", line, { at: 1 })
+    expect(item).toMatchObject({ text: line, ring: { nonce: "n7Q2", replies: false } })
+  })
+
+  it("marks no line anyone else says, and no other kind of item", () => {
+    expect(entry("assistant", "text", line, { at: 1 }).ring).toBeNull()
+    expect(entry("tool", "tool-result", line, { at: 1 }).ring).toBeNull()
+    expect(entry("user", "text", "my words", { at: 1 }).ring).toBeNull()
+  })
+})
