@@ -295,7 +295,7 @@ export class Receipts {
     const track = this.tracks.get(terminalId)
     if (!track) return
     let changed = false
-    const own = this.ownedBy(track, marks, returned, true, since)
+    const own = this.ownedBy(track, marks, returned, true)
     for (const entry of track.entries) {
       // One back in the agent's box, too: the Stop took the words out of it.
       const waiting = entry.state === "pending" || entry.state === "in-box"
@@ -345,32 +345,28 @@ export class Receipts {
    * nothing else (`knownWords`). The box is theirs only then; one that holds more, a screenshot
    * the person pasted in the terminal or words they typed, is not, and nothing is given back.
    * The prompts are those in the box (`in-box`), and with `queued`, a Stop's, those still sent
-   * and waiting, which the Stop moved into the box, or settled since it began (`since`). Antigravity shows no placeholders and loses
+   * and waiting, which the Stop moved into the box, or settled already (Claude Code records a queued message as its turn
+   * starts, and an early Stop puts the turn's own prompt back). Antigravity shows no placeholders and loses
    * a queued message's media as the Stop takes the words back, so for it, `queued` only, no
    * marks are asked.
    */
-  private ownedBy(
-    track: Track,
-    marks: number,
-    words: string,
-    queued: boolean,
-    since?: number,
-  ): readonly Entry[] {
+  private ownedBy(track: Track, marks: number, words: string, queued: boolean): readonly Entry[] {
     if (marks <= 0 && !(queued && track.agent === "agy")) return []
     const candidates = track.entries.filter(
       (entry) =>
         entry.state === "in-box" ||
         (queued && entry.state === "pending" && entry.sentAt !== null) ||
-        // Claude Code records a queued message as its turn starts, which a Stop then undoes.
-        (since !== undefined && entry.state === "settled" && (entry.settledAt ?? 0) >= since),
+        (queued && entry.state === "settled"),
     )
     for (let from = candidates.length - 1; from >= 0; from -= 1) {
       const run = candidates.slice(from)
-      if (run[0]!.files.length === 0) continue
+      // Placeholders lead the words, so the first prompt's come first; Antigravity shows none.
+      if (marks > 0 && run[0]!.files.length === 0) continue
       const images = run.reduce((sum, entry) => sum + entry.files.length, 0)
-      if (marks > 0 && images !== marks) continue
+      if (marks > 0 ? images !== marks : images === 0) continue
       const speaking = run.filter((entry) => entry.lines.length > 0)
-      const exact = speaking.length === 0 ? words === "" : knownWords(speaking, words) !== undefined
+      const exact =
+        speaking.length === 0 ? words === "" : knownWords(speaking, words, true) !== undefined
       if (exact) return run
     }
     return []

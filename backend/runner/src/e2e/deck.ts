@@ -131,6 +131,8 @@ export type DeckTerminal = {
   readonly summary: () => TerminalSummary
   /** Its messages and how its agent can take one now. */
   readonly messages: () => TerminalMessages
+  /** The prompt that started the person's running turn, as its harness told the runner (probes). */
+  readonly personPrompt: () => string | undefined
   /**
    * What Novadeck knows of its agent now, as a client's detail view reads it: the session
    * bound, its activity, and the requests it waits on the person for.
@@ -805,6 +807,12 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         }),
       summary: () => terminals.get(id),
       messages: () => terminals.messages(id),
+      personPrompt: () =>
+        (
+          terminals as unknown as {
+            messaging: { personPrompt: (id: string) => string | undefined }
+          }
+        ).messaging.personPrompt(id),
       prompt: async (text, images = []) => {
         prompted = undefined
         // As the router does for the chat: the images saved by an upload, then checked.

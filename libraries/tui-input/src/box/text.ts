@@ -14,6 +14,10 @@ const pictures = /\p{Extended_Pictographic}|\p{Emoji_Modifier}|\u200d|\ufe0f/gu
 export const withoutImages = (text: string): string =>
   text.replace(/^(?:\s*\[Image #\d+\])+\s*/, "")
 
+/** How many placeholders of images lead a box's text. */
+export const imageCount = (text: string): number =>
+  /^(?:\s*\[Image #\d+\])+/.exec(text)?.[0].match(/\[Image #/g)?.length ?? 0
+
 /** Whether placeholders of images lead a box's text (see `withoutImages`). */
 export const leadsWithImages = (text: string): boolean => /^\s*\[Image #\d+\]/.test(text)
 

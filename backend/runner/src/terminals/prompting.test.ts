@@ -407,6 +407,7 @@ describe("interrupts", () => {
     expect(await stopped("the turn's own", { clear: true }).interrupt("t")).toEqual({
       returned: null,
       marks: 0,
+      restored: 0,
     })
   })
 
@@ -416,14 +417,17 @@ describe("interrupts", () => {
     expect(await stopped(line, { clear: true }).interrupt("t")).toEqual({
       returned: null,
       marks: 0,
+      restored: 0,
     })
     expect(await stopped(reply, { clear: true }).interrupt("t")).toEqual({
       returned: null,
       marks: 0,
+      restored: 0,
     })
     expect(await stopped(`queued words\n${line}`, { clear: true }).interrupt("t")).toEqual({
       returned: "queued words",
       marks: 0,
+      restored: 0,
     })
   })
 
@@ -431,16 +435,18 @@ describe("interrupts", () => {
     expect(await stopped("queued words", { clear: true }).interrupt("t")).toEqual({
       returned: "queued words",
       marks: 0,
+      restored: 0,
     })
   })
 
   it("counts the images that led the words, and leaves their placeholders out", async () => {
     expect(
       await stopped("[Image #1] [Image #2] queued words", { clear: true }).interrupt("t"),
-    ).toEqual({ returned: "queued words", marks: 2 })
+    ).toEqual({ returned: "queued words", marks: 2, restored: 0 })
     expect(await stopped("[Image #3]", { clear: true }).interrupt("t")).toEqual({
       returned: null,
       marks: 1,
+      restored: 0,
     })
   })
 })

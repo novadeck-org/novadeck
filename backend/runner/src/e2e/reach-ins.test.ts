@@ -24,6 +24,7 @@ const here = dirname(fileURLToPath(import.meta.url))
  */
 const reaching = [
   "chat.e2e.ts",
+  "deck.ts",
   "doorbell.e2e.ts",
   "person.e2e.ts",
   "probes/agent-exit.e2e.ts",
@@ -47,7 +48,12 @@ type Inside = {
   readonly saves: { saved: unknown }
   readonly reporting: { report: unknown }
   readonly typing: { receipts: { expect: unknown; sent: unknown; putBack: unknown } }
-  readonly messaging: { delivery(id: string): unknown; ring: unknown; ringFailed: unknown }
+  readonly messaging: {
+    delivery(id: string): unknown
+    ring: unknown
+    ringFailed: unknown
+    personPrompt: unknown
+  }
   live(id: string): { terminal: { screen: Parameters<typeof readScreen>[0]; pty: Process } }
 }
 
@@ -79,6 +85,11 @@ describe("the e2e reach-ins", () => {
     const { inside } = await running(resources)
     const { expect: expected, sent, putBack } = inside.typing.receipts
     for (const member of [expected, sent, putBack]) expect(member).toBeTypeOf("function")
+  })
+
+  it("deck's: messaging's person prompt, for the probe that reads it", async ({ resources }) => {
+    const { inside } = await running(resources)
+    expect(inside.messaging.personPrompt).toBeTypeOf("function")
   })
 
   it("doorbell's: messaging's ring, a live terminal's screen and pty", async ({ resources }) => {

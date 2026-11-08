@@ -101,6 +101,55 @@ for (const setup of setups) {
       expect(await t1.screen()).not.toMatch(setup.rewind?.shows ?? /(?!)/)
     })
 
+    // Stop right after the chat's image prompt started its turn: the harness may put the prompt
+    // back in its box (Claude Code to 2.1.287 did), with its image, which is cleared as a text
+    // prompt is, and the box is empty for the next prompt.
+    it("stops a turn that an image prompt started, leaving the box empty for the next prompt", async ({
+      e2e: run,
+    }) => {
+      const held = gate()
+      run.model.use(
+        replies("Carry on", "Carried on."),
+        own(async (call) => {
+          if (!asked(call, "Hold on")) return undefined
+          await held.opened
+          return { text: "Too late." }
+        }),
+      )
+      const t1 = await start(run, setup)
+      const calls = run.model.mark()
+      const mark = t1.mark()
+
+      await t1.prompt("Hold on", [{ name: "shot.png", data: picture }])
+      await run.model.waitFor((call) => !call.side && latest(call).includes("Hold on"), {
+        after: calls,
+      })
+      await t1.reached("working", { after: mark })
+      const stopped = await t1.interrupt()
+      // The harness takes the key a moment after it is written: its account of the interruption
+      // shows before the held reply is let go, which must never show.
+      const account = setup.interrupted("Hold on")
+      await t1.poll(
+        async () => {
+          const shown = await t1.screen()
+          return account.test(shown) || !shown.includes("Hold on") ? true : undefined
+        },
+        "the harness to take the interrupt",
+        30_000,
+      )
+      held.open()
+      await sleep(1500)
+
+      expect(stopped.returned).toBeNull()
+      expect(await t1.screen()).not.toContain("Too late.")
+      expect(t1.summary().activity?.state).not.toBe("working")
+
+      const next = t1.mark()
+      await t1.prompt("Carry on")
+      await t1.until("Carried on.")
+      await through(t1, ["working", "settled"], { after: next })
+    })
+
     // The chat sends words with an image while the turn works, then presses Stop: Claude Code
     // and Antigravity put the message back in their box, Claude Code with its `[Image #1]`
     // placeholder, which the runner takes out of the words and answers as the file it came from.

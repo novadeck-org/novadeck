@@ -180,7 +180,12 @@ export class Prompts extends Prompter {
  * What an interrupt gave back: the words queued behind the turn, null for none, and how many
  * images led them in the box (see `splitImages`), whose files the caller knows.
  */
-export type Interrupted = { readonly returned: string | null; readonly marks: number }
+export type Interrupted = {
+  readonly returned: string | null
+  readonly marks: number
+  /** How many images led the turn's own prompt, put back in the box and cleared. */
+  readonly restored: number
+}
 
 /** The library's `Interrupts` with its errors and result as the contract's (`agents.interrupt`). */
 export class Interrupts {
@@ -199,9 +204,13 @@ export class Interrupts {
     entry?: InputEntry,
     gave?: (words: string) => void,
   ): Promise<Interrupted> {
-    const { returned } = await asDomain(this.interrupts.interrupt(terminalId, entry))
+    const { returned, images } = await asDomain(this.interrupts.interrupt(terminalId, entry))
     if (returned) gave?.(returned)
     const { words, marks } = splitImages(returned ?? "")
-    return { returned: (words && withoutDoorbellLines(words)) || null, marks }
+    return {
+      returned: (words && withoutDoorbellLines(words)) || null,
+      marks,
+      restored: images ?? 0,
+    }
   }
 }

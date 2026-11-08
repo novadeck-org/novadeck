@@ -288,6 +288,12 @@ describe("interrupts", () => {
     expect(t.written).toEqual([CLEAR])
   })
 
+  it("leaves the turn's prompt put back with an image the person pasted in the terminal, as the hook told it too", async () => {
+    const t = terminal({ prompt: "[Image #1] fix this", after: () => "[Image #1] fix this" })
+    await expect(t.interrupt()).rejects.toBeInstanceOf(BoxNotCleared)
+    expect(t.written).toEqual([])
+  })
+
   it("leaves the turn's prompt put back with an image the person pasted in the terminal", async () => {
     const t = terminal({ prompt: "fix this", after: () => "[Image #1] fix this" })
     await expect(t.interrupt()).rejects.toBeInstanceOf(BoxNotCleared)
@@ -296,7 +302,7 @@ describe("interrupts", () => {
 
   it("clears the turn's prompt put back with an image that is all Novadeck's own", async () => {
     const t = terminal({ own: true, prompt: "fix this", after: () => "[Image #1] fix this" })
-    expect(await t.interrupt()).toEqual({ returned: undefined })
+    expect(await t.interrupt()).toEqual({ returned: undefined, images: 1 })
     expect(t.written).toEqual([CLEAR])
   })
 

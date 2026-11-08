@@ -124,15 +124,24 @@ export type Back = { readonly text: string; readonly lines: readonly string[] }
 /**
  * The words of `back`, as given, in the box's order and a line break between, where they are all
  * the box's `text`, white space aside; undefined where the box holds anything else, or none of them. Anything
- * beside them is the person's, and the box isn't Novadeck's to empty.
+ * beside them is the person's, and the box isn't Novadeck's to empty. With `every`, a prompt of
+ * `back` that is not found gives undefined too, rather than being passed over.
  */
-export const knownWords = (back: readonly Back[], text: string): string | undefined => {
+export const knownWords = (
+  back: readonly Back[],
+  text: string,
+  every = false,
+): string | undefined => {
   let rest = compact(text)
   const words: { readonly at: number; readonly text: string }[] = []
   for (const prompt of back) {
     const own = compact(prompt.lines.join(""))
     const at = own === "" ? -1 : rest.indexOf(own)
-    if (at < 0) continue
+    if (at < 0) {
+      // Every one asked for: a prompt not found is no part of this box.
+      if (every) return undefined
+      continue
+    }
     rest = rest.slice(0, at) + "\0".repeat(own.length) + rest.slice(at + own.length)
     words.push({ at, text: prompt.text })
   }

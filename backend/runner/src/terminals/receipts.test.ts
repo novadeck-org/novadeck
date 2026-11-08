@@ -618,3 +618,66 @@ describe("prompt receipts with images", () => {
     expect(state("r1")).toBe("withdrawn")
   })
 })
+
+describe("prompt receipts with images, after a Stop", () => {
+  const prompt = async (
+    run: Awaited<ReturnType<typeof setup>>,
+    text: string,
+    ref: string,
+    files: readonly string[] = [],
+  ) => {
+    await run.receipts.expect(terminal, text, ref, files)
+    run.receipts.sent(terminal, ref)
+  }
+
+  it("gives back the image of a prompt queued after a text one that Antigravity hands back with it", async ({
+    resources,
+  }) => {
+    const run = await setup(resources)
+    run.host.agent = "agy"
+    await prompt(run, "alpha", "A")
+    await prompt(run, "beta", "B", ["/up/x/b.png"])
+    expect(run.receipts.boxFiles(terminal, 0, "alpha\nbeta", true)).toEqual(["/up/x/b.png"])
+    run.receipts.withdraw(terminal, "alpha\nbeta", 0, 0)
+    expect(run.state("A")).toBe("withdrawn")
+    expect(run.state("B")).toBe("withdrawn")
+  })
+
+  it("does not take an unsettled image prompt for the box when its words are missing from it", async ({
+    resources,
+  }) => {
+    const run = await setup(resources)
+    run.host.agent = "agy"
+    await prompt(run, "look at this", "P", ["/up/x/p.png"])
+    await prompt(run, "beta", "B")
+    expect(run.receipts.boxFiles(terminal, 0, "beta", true)).toEqual([])
+    run.receipts.withdraw(terminal, "beta", 0, 0)
+    expect(run.state("P")).toBe("pending")
+    expect(run.state("B")).toBe("withdrawn")
+  })
+
+  it("takes a queued image prompt the record settled before the Stop took it back", async ({
+    resources,
+  }) => {
+    const run = await setup(resources)
+    await prompt(run, "Queued beta", "B", ["/up/x/b.png"])
+    await appendFile(run.path, row("[Image #3] Queued beta"))
+    await vi.waitFor(() => expect(run.state("B")).toBe("settled"))
+    expect(run.receipts.boxFiles(terminal, 1, "Queued beta", true)).toEqual(["/up/x/b.png"])
+    run.receipts.withdraw(terminal, "Queued beta", 0, 1)
+    expect(run.state("B")).toBe("withdrawn")
+  })
+
+  it("does not take a box with more images than the words' prompts carried", async ({
+    resources,
+  }) => {
+    const run = await setup(resources)
+    await prompt(run, "alpha", "A", ["/up/x/a.png"])
+    await prompt(run, "beta", "B", ["/up/x/b.png"])
+    expect(run.receipts.boxFiles(terminal, 2, "beta", true)).toEqual([])
+    expect(run.receipts.boxFiles(terminal, 2, "alpha\nbeta", true)).toEqual([
+      "/up/x/a.png",
+      "/up/x/b.png",
+    ])
+  })
+})

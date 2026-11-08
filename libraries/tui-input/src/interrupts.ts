@@ -11,7 +11,7 @@ import {
   type BoxProfile,
   type InputBox,
 } from "./box/box.js"
-import { leadsWithImages, sameText, withoutImages } from "./box/text.js"
+import { imageCount, leadsWithImages, sameText, withoutImages } from "./box/text.js"
 import type { InputEntry, InputHold } from "./queue.js"
 
 /** The waits of an interrupt, in milliseconds. */
@@ -69,7 +69,11 @@ export type InterruptHost = {
  * What an interrupt gave back: the words that were queued, or typed and not yet sent, which
  * clearing the box returned to the caller; undefined where there were none.
  */
-export type InterruptOutcome = { readonly returned: string | undefined }
+export type InterruptOutcome = {
+  readonly returned: string | undefined
+  /** How many images led the turn's own prompt that was put back and cleared, where they did. */
+  readonly images?: number
+}
 
 /**
  * An interrupt stopped the turn but left text in the box that clearing would lose or could
@@ -232,10 +236,16 @@ export class Interrupts {
       // long (probed 2026-10-07); a prompt taller than its box shows only its tail, the box
       // then as tall as it gets.
       const rows = first?.rows.length ?? 0
+      // Images in front of it: the turn's own, a prompt of the chat's, only where they all are;
+      // ones the person pasted in the terminal are theirs, and the box is left as it is.
+      const lead = leadsWithImages(box.text)
+      const own = lead && host.ownImages?.(terminalId, box.text) === true
       const restored =
         !queued &&
         prompt !== undefined &&
-        (sameText(this.words(terminalId, box.text), prompt) ||
+        (!lead || own) &&
+        (sameText(box.text, prompt) ||
+          sameText(this.words(terminalId, box.text), prompt) ||
           showsTail(profile, box, rows, prompt))
       // A placeholder stands for words that clearing would lose: they are left, and said. So
       // does a box that may hold more than it shows, where those words aren't known in full.
@@ -246,7 +256,9 @@ export class Interrupts {
       if (queued && fillsViewport(profile, box, rows)) throw new BoxNotCleared()
       const gone = await this.cleared(terminalId, profile, box, entry, waiting)
       if (gone === undefined) throw new BoxNotCleared()
-      return restored ? none : { returned: wordsOf(gone) }
+      // The turn's own prompt with its images is cleared like a text one; its images are said.
+      if (restored) return own ? { returned: undefined, images: imageCount(box.text) } : none
+      return { returned: wordsOf(gone) }
     } finally {
       waiting?.settle()
     }
