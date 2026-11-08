@@ -73,11 +73,21 @@ starter.once("exit", () => console.log(\`AGENT=\${process.pid} DAEMON=\${daemon.
 setInterval(() => {}, 1000)
 `
 
-// One that stops itself as it hears the hangup, and saves and exits once it runs again.
+// One that stops itself some time after it hears the hangup, as a program does when it finishes
+// restoring the terminal before bash's take-back stops it, and saves and exits once it runs
+// again. The stop comes after the shell's forced end at 1 s, so a wake sent as the shell exits
+// finds it still running and is lost; a wake that was stopped for is the only one it saves on.
 const stopping = `
 import { writeFileSync } from "node:fs"
-process.on("SIGHUP", () => process.kill(process.pid, "SIGSTOP"))
+let stopped = false
+process.on("SIGHUP", () =>
+  setTimeout(() => {
+    stopped = true
+    process.kill(process.pid, "SIGSTOP")
+  }, 1700),
+)
 process.on("SIGCONT", () => {
+  if (!stopped) return
   writeFileSync("saved", "saved")
   process.exit(0)
 })

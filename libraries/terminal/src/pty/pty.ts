@@ -126,12 +126,30 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
  * for good. Once the shell is gone the terminal answers with an error instead, so the
  * resumed program finishes exiting. A group already gone is skipped.
  */
-const resumeGroup = (group: number): void => {
+const resumeGroup = (group: number): boolean => {
   try {
     process.kill(-group, "SIGCONT")
+    return true
   } catch {
     // Gone.
+    return false
   }
+}
+
+/**
+ * `resumeGroup` now and every 100 ms for a second more while the group is there. A program
+ * that stops itself in user space, as one finishing its hangup handler does, may do so just
+ * after the one resume found it running: a resume sent to a running process is lost, and it
+ * would stay stopped until the end's bound. The timers don't keep the process alive.
+ */
+const resumeGroupRepeatedly = (group: number): void => {
+  if (!resumeGroup(group)) return
+  let left = 10
+  const timer = setInterval(() => {
+    left -= 1
+    if (left <= 0 || !resumeGroup(group)) clearInterval(timer)
+  }, 100)
+  timer.unref()
 }
 
 /**
@@ -383,7 +401,7 @@ export const spawnPty = (
         await Promise.all([
           // As soon as the shell has gone, however long what it left is waited for.
           exit.then(() => {
-            if (group !== undefined) resumeGroup(group)
+            if (group !== undefined) resumeGroupRepeatedly(group)
           }),
           tree && endLeft(tree, trees, budget),
           following &&
