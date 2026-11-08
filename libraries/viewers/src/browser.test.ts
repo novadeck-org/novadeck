@@ -637,7 +637,10 @@ describe("the browser viewer", () => {
       const pane = paneIn()
       live(pane)
       expect(pane.querySelector(".browser-viewer")!.getAttribute("data-size")).toBe("desktop")
-      expect(boxes(pane)).toEqual({ laid: [desktopWidth, 960], drawn: [0, 0, 400, 300] })
+      expect(boxes(pane)).toEqual({
+        laid: [desktopWidth, (300 * desktopWidth) / 400],
+        drawn: [0, 0, 400, 300],
+      })
     })
 
     it("fills a viewer as wide as a desktop's window, as it is", async () => {
@@ -650,7 +653,7 @@ describe("the browser viewer", () => {
       })
       // Narrower, it's scaled down to fit again.
       pane.style.width = "640px"
-      await expect.poll(() => boxes(pane).laid).toEqual([desktopWidth, 600])
+      await expect.poll(() => boxes(pane).laid).toEqual([desktopWidth, (300 * desktopWidth) / 640])
       expect(boxes(pane).drawn).toEqual([0, 0, 640, 300])
     })
 
@@ -2137,7 +2140,7 @@ describe("the browser viewer", () => {
       expect(viewer.seen()).toBeUndefined()
       page.dispatchEvent(event("did-stop-loading"))
       page.dispatchEvent(event("page-title-updated", { title: "Work" }))
-      // 400 wide and 300 high, scaled down to fit from a desktop's 1280.
+      // 400 wide and 300 high, scaled down to fit from a desktop's 1024.
       expect(viewer.seen()).toEqual({
         page: 7,
         url: "http://localhost:5173/work",

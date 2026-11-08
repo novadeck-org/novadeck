@@ -2424,7 +2424,7 @@ nothing when exactly one page is on the bar. The rules:
    refusal;
 3. the answer is a JPEG (up to `maxLookPicture`, 4 MiB as a data URL) with the page's
    address and title now, `taken` as `pane` (what the user's pane shows) or `fresh` (loaded
-   anew, hidden and one at a time, in the pages' shared session at 1280×800, or 390×844 when
+   anew, hidden and one at a time, in the pages' shared session at 1024×800, or 390×844 when
    the item is switched to the phone, because no pane shows it live), the size it laid out at, and
    the troubles seen. The result is text first (the page's name, its address now and the
    shown one if it moved, the title, how it was taken and at what size, the troubles), then
