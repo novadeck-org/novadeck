@@ -23,6 +23,9 @@ export const closeToasts = async (): Promise<void> => {
     standing()[0]!.querySelector<HTMLElement>(".toast-close")!.focus()
     // eslint-disable-next-line no-await-in-loop -- One toast after another, each settled first.
     await settled()
+    // Its toast may have left meanwhile, giving focus back to what had it, which Enter would press.
+    const close = document.activeElement
+    if (!close?.matches('.toast[data-state="open"] .toast-close')) continue
     // eslint-disable-next-line no-await-in-loop -- As above.
     await userEvent.keyboard("{Enter}")
   }
