@@ -860,13 +860,9 @@ describe("the runner's conversations", () => {
       streams.prompt.mockRejectedValueOnce(new WireError("PROMPT_REFUSED", "Nope."))
       await expect(conversations.send(key, "hi")).rejects.toThrow("Nope.")
       streams.prompt.mockRejectedValueOnce(
-        new WireError(
-          "PROMPT_FAILED",
-          "The agent did not take the image: it never showed it in its input box.",
-          {
-            data: { returned: "words" },
-          },
-        ),
+        new WireError("PROMPT_FAILED", "Any message: the reason is in the data.", {
+          data: { returned: "words", reason: "image-not-shown" },
+        }),
       )
       await expect(
         conversations.send(key, "hi", { images: ["/runner/a.png"] }),

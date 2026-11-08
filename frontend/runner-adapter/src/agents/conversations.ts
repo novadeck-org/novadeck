@@ -236,8 +236,11 @@ const conflictReasonOf = (error: { readonly data: unknown }) =>
   conflictReason.safeParse(error.data).data?.reason
 
 // The words a prompt took out of the agent's box before it failed, where it says.
-const wordsOf = (error: { readonly data: unknown }) =>
-  promptFailure.safeParse(error.data).data?.returned
+// A conflict's data has its own `reason`, so only `returned` is read, whatever else is there.
+const wordsOf = (error: { readonly data: unknown }): string | undefined => {
+  const { returned } = (error.data ?? {}) as { readonly returned?: unknown }
+  return typeof returned === "string" ? returned : undefined
+}
 
 // What the person is told when the agent can't take what they sent.
 const failure = (
@@ -253,7 +256,7 @@ const failure = (
   // The agent never showed an image in its box: it came back out, with the words.
   if (
     hasCode(error, "PROMPT_FAILED") &&
-    said(error)?.startsWith("The agent did not take the image")
+    promptFailure.safeParse((error as { data?: unknown }).data).data?.reason === "image-not-shown"
   )
     return withReturned(
       new Error("The agent didn't take the image. It is back in the box."),
