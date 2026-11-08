@@ -536,9 +536,9 @@ mod tests {
             assert!(ended < wait + Duration::from_secs(5));
             if printed == "partly" {
                 // It printed by the time it was ended, so had it lived it would have left
-                // the mark soon after `later` (from when it started, not from `began`).
+                // the mark `later` after its shell started, which was as late as the deadline.
                 std::thread::sleep(
-                    (began + later + Duration::from_secs(1))
+                    (began + wait + later + Duration::from_secs(1))
                         .saturating_duration_since(Instant::now()),
                 );
                 let left = std::fs::read_to_string(&mark);
