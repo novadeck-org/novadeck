@@ -884,4 +884,22 @@ describe("reordering terminal tabs", () => {
       await expectSelected("Checkout implementation")
     })
   })
+
+  context("when closing a tab that was dragged", () => {
+    it("leaves no row of it behind", async () => {
+      await openWorkspace()
+      await dragTabOnto("Tests", "Checkout implementation")
+      await expect.poll(() => terminalTabNames()[0]).toBe("Tests")
+      // The drop animation ends before the list is left to React.
+      await new Promise((resolve) => setTimeout(resolve, 400))
+
+      await tabAction("Close Tests").click()
+      await confirmClose()
+
+      await expect
+        .poll(() => terminalTabNames())
+        .toEqual(["Checkout implementation", "Dev server", "Checkout review", "Runtime", "Build"])
+      expect(document.querySelectorAll(".terminal-tab-list [data-terminal-tab-id]")).toHaveLength(5)
+    })
+  })
 })

@@ -11,7 +11,15 @@ import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable } from "@dnd-kit/react/sortable"
 import type { Tile } from "@novadeck/core/types"
 import { sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
-import { Fragment, useCallback, useContext, useMemo, useState, type ReactNode } from "react"
+import {
+  Fragment,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react"
 
 import { TabListContext } from "./tab-list"
 
@@ -50,15 +58,20 @@ export const TerminalTabs = ({
   terminals: readonly Tile[]
   // Renders one sortable tab, usually a TerminalTab, at its position in the list.
   renderTab: (terminal: Tile, index: number) => ReactNode
-  // Saves the order a drag ends on, and says the order it saved where it moved tabs the person
-  // can't see (a folded lead's team, kept right after it).
-  onReorder: (ids: string[]) => readonly string[] | void
+  // Saves the order a drag ends on.
+  onReorder: (ids: string[]) => void
 }): React.JSX.Element => {
   const [list, setList] = useState<HTMLDivElement | null>(null)
-  // Bumped when a drop saved another order than the drag showed: the drag library already moved
-  // the tabs to its own, which React's next update can't follow, so the tabs mount anew in the
-  // saved order. Only a drag past a folded lead does that.
-  const [generation, setGeneration] = useState(0)
+  // Bumped when a drag ends: the drag library moves a tab's element next to the one it passes,
+  // into that tab's wrapper, which React's next update can't follow (a tab closed later would
+  // leave its row behind, or take another's with it), so the tabs mount anew, in the saved
+  // order if a drop saved another than the drag showed (a drag past a folded lead).
+  // `focus` is the tab whose button held focus as the drag ended (a keyboard drag), which the
+  // new tabs give it back to.
+  const [{ generation, focus }, setDrag] = useState<{ generation: number; focus: string | null }>({
+    generation: 0,
+    focus: null,
+  })
   // The list, for the drag bounds and for the workspace's store of the list on screen.
   const tabList = useContext(TabListContext)
   const attach = useCallback(
@@ -72,6 +85,13 @@ export const TerminalTabs = ({
     },
     [tabList],
   )
+  useLayoutEffect(() => {
+    if (focus === null) return
+    const tab = [...(list?.querySelectorAll<HTMLElement>("[data-terminal-tab-id]") ?? [])].find(
+      (each) => each.dataset.terminalTabId === focus,
+    )
+    tab?.querySelector<HTMLElement>("button")?.focus()
+  }, [focus, list])
   const modifiers = useMemo(() => [RestrictToElement.configure({ element: list })], [list])
   return (
     <DragDropProvider
@@ -79,17 +99,21 @@ export const TerminalTabs = ({
       modifiers={modifiers}
       plugins={(defaults) => [...defaults, accessibility, feedback, cursor]}
       onDragEnd={(event) => {
-        if (event.canceled) return
         const { source } = event.operation
-        if (!isSortable(source) || source.initialIndex === source.index) return
+        if (!isSortable(source)) return
+        const held = document.activeElement
+        const focused = held && list?.contains(held) ? held.closest("[data-terminal-tab-id]") : null
+        setDrag((current) => ({
+          generation: current.generation + 1,
+          focus: focused?.getAttribute("data-terminal-tab-id") ?? null,
+        }))
+        if (event.canceled || source.initialIndex === source.index) return
         const order = terminals.map((terminal) => terminal.id)
         const from = order.indexOf(String(source.id))
         if (from < 0) return
         const [id] = order.splice(from, 1)
         order.splice(source.index, 0, id!)
-        const saved = onReorder(order)
-        if (saved && saved.some((each, index) => each !== order[index]))
-          setGeneration((current) => current + 1)
+        onReorder(order)
       }}
     >
       <div className={`terminal-tab-list ${sidebarListClasses}`} ref={attach}>
