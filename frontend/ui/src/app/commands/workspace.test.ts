@@ -668,6 +668,55 @@ describe("workspace commands", () => {
     })
   })
 
+  context("when pressing the open panel's toggle", () => {
+    const panel = (app: ReturnType<typeof openCommands>) =>
+      app.ui.getSnapshot().location.route.panel
+
+    it("goes back one step, to the panel shown before it, then hides from there", () => {
+      const app = openCommands()
+      app.commands.hideSidebar()
+      app.commands.toggleSidebar("terminals")
+      app.commands.toggleSidebar("inbox")
+      app.commands.toggleSidebar("sessions")
+      // Sessions after the Inbox goes back to the Inbox, the panel just before it.
+      app.commands.toggleSidebar("sessions")
+      expect(panel(app)).toBe("inbox")
+      expect(app.shell().sidebarCollapsed).toBe(false)
+      // The step is spent: from the Inbox the same press hides, rather than going on.
+      app.commands.toggleSidebar("inbox")
+      expect(app.shell().sidebarCollapsed).toBe(true)
+    })
+
+    it("hides the sidebar where it has no step to go back, as on the panel it opened on", () => {
+      const app = openCommands()
+      app.commands.hideSidebar()
+      app.commands.toggleSidebar("inbox")
+      expect(app.shell().sidebarBack).toBeNull()
+      app.commands.toggleSidebar("inbox")
+      expect(app.shell().sidebarCollapsed).toBe(true)
+    })
+
+    it("has no step to go back on a panel the app moved to, as for a new session", () => {
+      const app = openCommands()
+      app.commands.toggleSidebar("inbox")
+      app.commands.toggleSidebar("sessions")
+      app.commands.startFresh()
+      expect(panel(app)).toBe("terminals")
+      app.commands.toggleSidebar("terminals")
+      expect(app.shell().sidebarCollapsed).toBe(true)
+    })
+
+    it("goes back from a panel switched to on a sidebar left open", () => {
+      const app = openCommands()
+      expect(app.shell().sidebarBack).toBeNull()
+      app.commands.toggleSidebar("sessions")
+      app.commands.toggleSidebar("sessions")
+      expect(panel(app)).toBe("terminals")
+      app.commands.toggleSidebar("terminals")
+      expect(app.shell().sidebarCollapsed).toBe(true)
+    })
+  })
+
   context("when the Inbox shows for one row, as a click on a toast shows it", () => {
     const panel = (app: ReturnType<typeof openCommands>) =>
       app.ui.getSnapshot().location.route.panel
@@ -700,14 +749,25 @@ describe("workspace commands", () => {
       expect(app.shell().zen).toEqual(zen)
     })
 
-    it("puts nothing back once the person has moved the sidebar on", () => {
+    it("goes back to the panel it showed over, and then has nothing to put back", () => {
       const app = openCommands()
       app.commands.showSessions()
       const back = app.commands.peekInbox()
       app.commands.toggleSidebar("inbox")
+      expect(panel(app)).toBe("sessions")
       back!()
-      expect(app.shell().sidebarCollapsed).toBe(true)
-      expect(panel(app)).toBe("inbox")
+      expect(app.shell().sidebarCollapsed).toBe(false)
+      expect(panel(app)).toBe("sessions")
+    })
+
+    it("puts back where the open panel's toggle went back to", () => {
+      const app = openCommands()
+      app.commands.toggleSidebar("sessions")
+      app.commands.peekInbox()!()
+      expect(panel(app)).toBe("sessions")
+      app.commands.toggleSidebar("sessions")
+      expect(panel(app)).toBe("terminals")
+      expect(app.shell().sidebarCollapsed).toBe(false)
     })
 
     it("has nothing to put back where the Inbox showed already", () => {

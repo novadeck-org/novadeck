@@ -234,6 +234,7 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
       sidebarCollapsed,
       sidebarVisible: sidebarVisible(state.shell, desktop),
       sidebarPanel: state.location.route.panel,
+      sidebarBack: state.shell.sidebarBack,
       fontSize: state.preferences.fontSize,
       enabledViews: state.preferences.enabledViews,
     }
@@ -257,6 +258,7 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
       mobile={mobile}
       sidebarVisible={shell.sidebarVisible}
       sidebarPanel={sidebarPanel}
+      sidebarBack={shell.sidebarBack}
       zen={zen}
       hasSource={sourceShown(services.backend)}
       hasHistory={historyShown(services.backend)}
@@ -266,7 +268,6 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
         writeSidebarOrder(order)
       }}
       toggleSidebar={toggleSidebar}
-      hideSidebar={hideSidebar}
     />
   )
   return (

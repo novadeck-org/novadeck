@@ -614,6 +614,7 @@ leave Zen to show the requested panel. Zen is temporary and resets on reload.
 | New session in the current project                | `Cmd+Shift+N`      | `Ctrl+Shift+N`                   |
 | Toggle terminal sidebar                           | `Cmd+Shift+E`      | `Ctrl+Shift+E`                   |
 | Toggle session sidebar                            | `Cmd+Shift+S`      | `Ctrl+Shift+S`                   |
+| Toggle Inbox                                      | `Cmd+Shift+B`      | `Ctrl+Shift+B`                   |
 | Switch to pinned project 1 to 9                   | `Cmd+1` to `Cmd+9` | `Ctrl+Shift+1` to `Ctrl+Shift+9` |
 | Open preferences                                  | `Cmd+,`            | `Ctrl+,`                         |
 | Navigate the workspace                            | `Shift+Esc`        | `Shift+Esc`                      |
@@ -675,7 +676,11 @@ terminal.
 The new-session shortcut creates and selects an empty session in the current project
 and opens the Sessions sidebar.
 
-Sidebar shortcuts open or switch to their panel; pressing the same shortcut again hides it.
+A rail icon or sidebar shortcut opens or switches to its panel. Pressing it again on the open
+panel goes back one step, to the panel you were on just before, so a look at the Inbox, Sessions
+or History returns to where you were; back there, or on the panel the sidebar opened on, it hides
+the sidebar. A rail icon's tooltip says where the next press goes. Hiding the sidebar by its
+shortcut leaves typing in the terminal.
 
 Hold Ctrl while pressing Tab to choose a terminal, then release Ctrl to switch.
 While navigating Grid and Canvas, the arrow keys select the nearest terminal on that

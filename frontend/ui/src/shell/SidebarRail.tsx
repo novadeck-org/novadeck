@@ -14,10 +14,11 @@ import { ToggleGroup, ToggleGroupItem } from "@novadeck/toolkit/ToggleGroup"
 import { FolderGit2, History, Inbox, Layers2, Terminal as TerminalIcon } from "lucide-react"
 import { useCallback, useLayoutEffect, useRef, useState, type ComponentProps } from "react"
 
-import { shortcutBindings } from "../interaction/shortcuts"
+import { shortcutBindings, type ShortcutName } from "../interaction/shortcuts"
 import { BellDot } from "./BellDot"
 import type { InboxBadge } from "./inbox-badge"
 import { movedPanel } from "./rail-order"
+import { stepBack, type SidebarStep } from "./shell-state"
 
 const panels = {
   terminals: { label: "Terminals", icon: TerminalIcon },
@@ -26,6 +27,37 @@ const panels = {
   history: { label: "History", icon: History },
   inbox: { label: "Inbox", icon: Inbox },
 } as const satisfies Record<SidebarPanel, { label: string; icon: unknown }>
+
+// The panels with a key of their own.
+const panelShortcuts: Partial<Record<SidebarPanel, ShortcutName>> = {
+  terminals: "terminals",
+  sessions: "sessions",
+  inbox: "inbox",
+}
+
+// A toggle's tooltip: its panel, what it holds for the person, and, while its panel is open,
+// where a click takes the sidebar: back to the panel shown before it, or hidden.
+export const railTooltip = ({
+  panel,
+  detail,
+  open,
+  back,
+}: {
+  panel: SidebarPanel
+  detail?: string | undefined
+  open: boolean
+  back: SidebarPanel | null
+}): string => {
+  const action = open
+    ? back && back !== panel
+      ? `back to ${panels[back].label}`
+      : "hide sidebar"
+    : undefined
+  const shortcut = panelShortcuts[panel]
+  // Its keys joined by no-break spaces, so a wrapping tooltip keeps them on one line.
+  const keys = shortcut ? shortcutBindings()[shortcut].display.join("\u00a0") : undefined
+  return [panels[panel].label, detail, action, keys].filter(Boolean).join(" · ")
+}
 
 // Dragging the toggles: from 6px of movement with a mouse, a quarter second's press on
 // touch, so a click still opens a panel; along the rail only, without dnd-kit's
@@ -59,6 +91,7 @@ export const SidebarRail = ({
   mobile = false,
   sidebarVisible,
   sidebarPanel,
+  sidebarBack = null,
   zen,
   badge,
   bellRings,
@@ -68,11 +101,12 @@ export const SidebarRail = ({
   order = sidebarPanels,
   onOrder,
   toggleSidebar,
-  hideSidebar,
 }: {
   mobile?: boolean
   sidebarVisible: boolean
   sidebarPanel: SidebarPanel
+  // The panel shown before the open one, where the open panel's toggle goes back to.
+  sidebarBack?: SidebarStep | null
   zen: boolean
   badge: InboxBadge | undefined
   // How many new Inbox rows the bell has rung for, which its dot rings with.
@@ -88,7 +122,6 @@ export const SidebarRail = ({
   order?: readonly SidebarPanel[]
   onOrder?: (order: readonly SidebarPanel[]) => void
   toggleSidebar: (panel: SidebarPanel) => void
-  hideSidebar: () => void
 }): React.JSX.Element => {
   const shown = order.filter(
     (id) => (hasSource || id !== "source") && (hasHistory || id !== "history"),
@@ -124,9 +157,9 @@ export const SidebarRail = ({
         orientation="vertical"
         value={sidebarVisible ? [sidebarPanel] : []}
         onValueChange={(value) => {
-          const next = sidebarPanels.find((panel) => panel === value[0])
-          if (next) toggleSidebar(next)
-          else hideSidebar()
+          // Pressing the open panel's toggle leaves none pressed: the command for that panel
+          // decides whether it goes back to the panel before it or hides the sidebar.
+          toggleSidebar(sidebarPanels.find((panel) => panel === value[0]) ?? sidebarPanel)
         }}
       >
         {shown.map((id, index) => (
@@ -136,6 +169,8 @@ export const SidebarRail = ({
             value={id}
             index={index}
             count={shown.length}
+            open={sidebarVisible && sidebarPanel === id}
+            back={stepBack(sidebarBack, id)}
             badge={id === "inbox" ? badge : undefined}
             bellRings={bellRings}
             sessionsAsk={id === "sessions" ? sessionsAsk : undefined}
@@ -159,6 +194,8 @@ const RailToggle = ({
   value,
   index,
   count,
+  open,
+  back,
   badge,
   bellRings,
   sessionsAsk,
@@ -171,6 +208,9 @@ const RailToggle = ({
   value: SidebarPanel
   index: number
   count: number
+  // Its panel shows, so a click goes back to the panel before it or hides the sidebar.
+  open: boolean
+  back: SidebarPanel | null
   // What the Inbox holds, on its toggle.
   badge: InboxBadge | undefined
   // How many new Inbox rows the bell has rung for, which its dot rings with.
@@ -207,15 +247,12 @@ const RailToggle = ({
         button.current = node
         ref(node)
       }}
-      tooltip={
-        value === "terminals"
-          ? `Terminals · ${shortcutBindings().terminals.display.join(" ")}`
-          : badge
-            ? `${label} · ${badge.count} waiting`
-            : sessionsAsk
-              ? `${label} · ${sessionsAsk}`
-              : label
-      }
+      tooltip={railTooltip({
+        panel: value,
+        detail: badge ? `${badge.count} waiting` : sessionsAsk,
+        open,
+        back,
+      })}
       tooltipDisabled={dragging}
       value={value}
       id={id}

@@ -26,6 +26,7 @@ export type ShortcutName =
   | "newSession"
   | "terminals"
   | "sessions"
+  | "inbox"
   | "preferences"
   | "navigate"
   | "voice"
@@ -107,6 +108,15 @@ export const shortcutBindings = (
       meta: mac,
       shift: true,
       display: [mac ? "⌘" : "Ctrl", "Shift", "S"],
+    },
+    // B for the bell the Inbox once was; I opens the developer tools.
+    inbox: {
+      label: "Toggle Inbox",
+      key: "b",
+      ctrl: !mac,
+      meta: mac,
+      shift: true,
+      display: [mac ? "⌘" : "Ctrl", "Shift", "B"],
     },
     preferences: {
       label: "Open preferences",

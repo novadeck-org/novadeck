@@ -1,7 +1,7 @@
 import { afterEach } from "vitest"
 
 import { context, describe, expect, it } from "../test"
-import { classifyKeyTarget, focusZenCreate, insideOwnKeys } from "./dom"
+import { classifyKeyTarget, focusSidebarToggle, focusZenCreate, insideOwnKeys } from "./dom"
 
 afterEach(() => document.body.replaceChildren())
 
@@ -120,5 +120,29 @@ describe("focusing Zen's controls after they mount", () => {
     document.querySelector<HTMLElement>("[data-target]")!.focus()
     focusZenCreate()
     expect(document.activeElement).toBe(document.querySelector("[data-target]"))
+  })
+})
+
+describe("the sidebar toggle's focus as the sidebar hides", () => {
+  const page = `
+    <nav class="sidebar-tools"><button id="terminals-toggle" type="button">Terminals</button></nav>
+    <aside id="terminal-sidebar"><button id="inside" type="button">Close</button></aside>
+    <textarea id="terminal"></textarea>`
+
+  it("takes the focus the sidebar held, or none held", () => {
+    document.body.innerHTML = page
+    document.getElementById("inside")!.focus()
+    focusSidebarToggle("terminals")
+    expect(document.activeElement?.id).toBe("terminals-toggle")
+    ;(document.activeElement as HTMLElement).blur()
+    focusSidebarToggle("terminals")
+    expect(document.activeElement?.id).toBe("terminals-toggle")
+  })
+
+  it("leaves typing in a terminal where it is", () => {
+    document.body.innerHTML = page
+    document.getElementById("terminal")!.focus()
+    focusSidebarToggle("terminals")
+    expect(document.activeElement?.id).toBe("terminal")
   })
 })

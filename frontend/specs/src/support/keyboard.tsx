@@ -28,6 +28,7 @@ export const shortcut = {
   zen: (): Chord => commandShift("Z"),
   terminals: (): Chord => commandShift("E"),
   sessions: (): Chord => commandShift("S"),
+  inbox: (): Chord => commandShift("B"),
   preferences: (): Chord =>
     isMac()
       ? { label: "Cmd+,", keys: "{Meta>},{/Meta}" }
