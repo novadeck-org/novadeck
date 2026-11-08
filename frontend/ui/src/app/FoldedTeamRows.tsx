@@ -1,6 +1,7 @@
 import { descendantsOf, teamOf } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import { terminalGlance } from "@novadeck/core/terminals/ending"
+import type { TerminalMetadata } from "@novadeck/core/types"
 
 import { unreadEnd } from "../terminals/unread-state"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
@@ -13,7 +14,25 @@ import { useTerminalMarks } from "./useTerminalMarks"
 const listedRows = 4
 
 // Each spinner starts at its own frame, so rows side by side don't tick as one.
-const markDelay = (index: number) => ({ animationDelay: `-${((index + 1) * 260) % 800}ms` })
+export const markDelay = (index: number) => ({ animationDelay: `-${((index + 1) * 260) % 800}ms` })
+
+// A teammate as its tab reads it: the terminal and its phase, need and failure, from the
+// same marks and unread end the tab uses (terminalGlance), so rows and tabs never drift
+// apart. Undefined for what isn't a terminal of the session.
+export const useGlance = (
+  id: string,
+): { tile: TerminalMetadata; glance: ReturnType<typeof terminalGlance> } | undefined => {
+  const { backend } = useWorkspaceServices()
+  const target = useWorkspaceState(currentTarget, sameTarget)
+  const context = useWorkspaceState(currentContext)
+  const tile = useWorkspaceState((workspace) =>
+    currentState(workspace).roster.terminals.find((terminal) => terminal.id === id),
+  )
+  const marks = useTerminalMarks(backend.inbox, { ...target, terminalId: id })
+  const unread = useUiState((state) => unreadEnd(state.unread, context, id))
+  if (!tile || isWindow(tile)) return undefined
+  return { tile, glance: terminalGlance(tile, marks, unread) }
+}
 
 // One folded teammate's row: its branch, its phase glyph and name, and what it needs of the
 // person after the name, read as its own tab reads them (terminalGlance), so the two never
@@ -27,20 +46,15 @@ const FoldedRow = ({
   index: number
   last: boolean
 }): React.JSX.Element | null => {
-  const { backend, commands } = useWorkspaceServices()
-  const target = useWorkspaceState(currentTarget, sameTarget)
-  const context = useWorkspaceState(currentContext)
-  const tile = useWorkspaceState((workspace) =>
-    currentState(workspace).roster.terminals.find((terminal) => terminal.id === id),
-  )
+  const { commands } = useWorkspaceServices()
   const selected = useWorkspaceState((workspace) => currentState(workspace).selected === id)
   // A teammate that leads its own team: those it folds away with it, at any depth.
   const below = useWorkspaceState((workspace) => descendantsOf(workspace, id), sameItems)
   const view = useWorkspaceState((workspace) => currentState(workspace).view)
-  const marks = useTerminalMarks(backend.inbox, { ...target, terminalId: id })
-  const unread = useUiState((state) => unreadEnd(state.unread, context, id))
-  if (!tile || isWindow(tile)) return null
-  const { phase, need, failed } = terminalGlance(tile, marks, unread)
+  const read = useGlance(id)
+  if (!read) return null
+  const { tile, glance } = read
+  const { phase, need, failed } = glance
   return (
     <span
       className="team-fold-row"
@@ -84,17 +98,8 @@ const FoldedRow = ({
 
 // What an unlisted teammate needs of the person, on the row that counts it: its `!` or `?`,
 // or nothing.
-const UnlistedNeed = ({ id }: { id: string }): React.JSX.Element | null => {
-  const { backend } = useWorkspaceServices()
-  const target = useWorkspaceState(currentTarget, sameTarget)
-  const context = useWorkspaceState(currentContext)
-  const tile = useWorkspaceState((workspace) =>
-    currentState(workspace).roster.terminals.find((terminal) => terminal.id === id),
-  )
-  const marks = useTerminalMarks(backend.inbox, { ...target, terminalId: id })
-  const unread = useUiState((state) => unreadEnd(state.unread, context, id))
-  if (!tile || isWindow(tile)) return null
-  const { need } = terminalGlance(tile, marks, unread)
+export const UnlistedNeed = ({ id }: { id: string }): React.JSX.Element | null => {
+  const need = useGlance(id)?.glance.need
   return need ? (
     <span className="terminal-tab-need shrink-0" data-need={need}>
       {need === "unblock" ? "!" : "?"}

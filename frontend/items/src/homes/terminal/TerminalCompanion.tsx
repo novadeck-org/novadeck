@@ -5,6 +5,7 @@ import type { Messages } from "@novadeck/core/messages"
 import type { TerminalKey, ViewMode } from "@novadeck/core/types"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 import { usePresence, type Presence } from "@novadeck/toolkit/presence"
+import { SubjectBar, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
 import {
   createContext,
   useContext,
@@ -32,6 +33,7 @@ import { Taskbar } from "../../bar/Taskbar"
 import type { SlotActions } from "../../bar/TaskbarSlot"
 import type { Dragged } from "../../bar/use-bar-drag"
 import { stuckEdits } from "../../kinds/plan/plan-doc"
+import { registrationOf } from "../../registry"
 import type { ItemStore } from "../../store/item-store"
 import { usePlans } from "../../store/use-item-store"
 import { CompanionPane } from "./CompanionPane"
@@ -216,6 +218,19 @@ const AttachedPane = ({
 // window or beside its canvas node. It wraps every terminal of a backend that reports
 // companions or messages, so the terminal keeps its content when its agent first shows
 // something.
+// The item a close asks about, as the pane names it: its icon and its name.
+const closeBar = (item: Item): React.JSX.Element => {
+  const Icon = registrationOf(item).icon(item)
+  return (
+    <SubjectBar>
+      <SubjectSide>
+        <Icon size={14} strokeWidth={1.5} aria-hidden="true" />
+        <SubjectName>{item.name}</SubjectName>
+      </SubjectSide>
+    </SubjectBar>
+  )
+}
+
 export const TerminalCompanion = ({
   itemStore,
   messages,
@@ -455,7 +470,8 @@ export const TerminalCompanion = ({
       <ConfirmDialog
         key={askingKey}
         subject={asking}
-        title={(item) => `Close “${item.name}”?`}
+        bar={closeBar}
+        title={() => "Close this plan?"}
         description={(item) =>
           uncopied?.id === item.id
             ? "Your edits couldn't be copied, so the plan is still open. Try again, or copy them from the plan yourself."

@@ -3,6 +3,7 @@ import { act, createElement, type ComponentProps } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { ConfirmDialog } from "./ConfirmDialog"
+import { SubjectBar } from "./SubjectBar"
 import { context, describe, expect, it } from "./test"
 
 type Asked = { readonly name: string }
@@ -54,6 +55,7 @@ const mount = (overrides: Partial<Props> = {}) => {
   const answers: string[] = []
   const props = (subject: Asked | null, more: Partial<Props> = {}): Props => ({
     subject,
+    bar: (shown) => createElement(SubjectBar, { terminal: true }, `terminal ${shown.name}`),
     title: (shown) => `Close ${shown.name}?`,
     description: (shown) => `${shown.name} is running.`,
     confirmLabel: "Close",
@@ -201,6 +203,53 @@ describe("a confirm dialog's delay before confirming", () => {
       await show(null)
       expect(dialog()?.dataset.state).toBe("closed")
       expect(button("Close")!.disabled).toBe(false)
+    })
+  })
+
+  context("with what it is about, words and a list", () => {
+    it("opens on its subject bar, then the title, the words and the list", async () => {
+      const { show, dialog } = mount({
+        body: (shown) => createElement("ul", { "data-body": "" }, shown.name),
+      })
+      await show(a)
+      const parts = [...dialog()!.children].map((each) => each.className || each.tagName)
+      expect(parts[0]).toBe("modal-subject")
+      expect(dialog()!.querySelector(".modal-subject")!.hasAttribute("data-terminal")).toBe(true)
+      expect(dialog()!.querySelector(".modal-subject")!.textContent).toBe("terminal a")
+      expect(dialog()!.querySelector(".modal-description")!.textContent).toBe("a is running.")
+      expect(dialog()!.querySelector("[data-body]")!.textContent).toBe("a")
+    })
+
+    it("leaves the words out when there are none", async () => {
+      const { show, dialog } = mount({ description: () => null })
+      await show(a)
+      expect(dialog()!.querySelector(".modal-description")).toBeNull()
+    })
+  })
+
+  context("with an alternative answer", () => {
+    it("answers with it, not with a cancel, and sets cancelling at the start", async () => {
+      const { show, button, press, escape, answers } = mount({
+        alternative: { label: "Close a only", onSelect: () => void answers.push("alternative") },
+      })
+      await show(a)
+      expect(button("Cancel")!.className).toContain("mr-auto")
+      press("Close a only")
+      await show(null)
+      await escape()
+      expect(answers).toEqual(["alternative"])
+    })
+
+    it("waits for the arming delay as confirming does", async () => {
+      fakeTimers()
+      const { show, button } = mount({
+        armMs: 1000,
+        alternative: { label: "Close a only", onSelect: () => {} },
+      })
+      await show(a)
+      expect(button("Close a only")!.disabled).toBe(true)
+      act(() => vi.advanceTimersByTime(1000))
+      expect(button("Close a only")!.disabled).toBe(false)
     })
   })
 })

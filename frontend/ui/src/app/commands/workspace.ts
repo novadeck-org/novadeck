@@ -1,4 +1,5 @@
 import { resetAnswering } from "@novadeck/chat/state"
+import { descendantsOf } from "@novadeck/core/derivations"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { ClosedTerminal } from "@novadeck/core/history"
 import { addCompactGridTerminal } from "@novadeck/core/layout/grid-placement"
@@ -106,10 +107,12 @@ export type WorkspaceCommands = ShellCommands &
     readonly openAgentSettings: (agent: AgentName) => void
     // Closes the terminal, or asks first while closing would lose something: a program
     // running in it, or, where the backend keeps History, an agent mid-turn, one waiting on
-    // background work, one leading running agents, or one that couldn't be restored.
+    // background work, or one that couldn't be restored. A terminal that leads anyone always
+    // asks.
     readonly close: (terminalId: string) => void
-    // Answers the pending close confirmation.
-    readonly confirmClose: () => void
+    // Answers the pending close confirmation: closes the terminal alone, or, with "team", also
+    // everyone it leads, at any depth.
+    readonly confirmClose: (scope?: "terminal" | "team") => void
     readonly cancelClose: () => void
     // Answers the crash-loop dialog: start the terminals over, or leave it until the
     // next crash loop.
@@ -595,7 +598,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       // confirmClose or cancelClose.
       if (
         closing &&
-        closeReasons(closing, history !== undefined, currentState(snapshot).roster.terminals)
+        closeReasons(closing, history !== undefined, descendantsOf(snapshot, terminalId).length > 0)
           .length > 0
       )
         return void ui.update((state) => ({
@@ -604,12 +607,18 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         }))
       closeNow(terminalId)
     },
-    confirmClose: () => {
+    confirmClose: (scope = "terminal") => {
       const pending = ui.getSnapshot().closing
       if (!pending) return
       ui.update((state) => ({ ...state, closing: null }))
       // Only in the session it was asked in; a session change drops it.
-      if (pending.context === currentContext(workspace.getSnapshot())) closeNow(pending.id)
+      const snapshot = workspace.getSnapshot()
+      if (pending.context !== currentContext(snapshot)) return
+      // Its team goes first, those furthest down before the lead above them, so each is
+      // closed while the one that leads it is still there.
+      if (scope === "team")
+        for (const id of descendantsOf(snapshot, pending.id).toReversed()) closeNow(id)
+      closeNow(pending.id)
     },
     cancelClose: () => ui.update((state) => (state.closing ? { ...state, closing: null } : state)),
     retryAfterCrashLoop: () => {

@@ -41,6 +41,22 @@ const running = () => {
   return workspace
 }
 
+// Four idle terminals: 01 (@lynx) leads 02 (@glint) and 04; 02 leads 03.
+const withTeam = () => {
+  const workspace = workspaceFixture({ terminals: 4 })
+  const state = workspace.projects[0]!.history[0]!.state
+  const parts: Partial<TerminalMetadata>[] = [
+    { handle: "lynx" },
+    { handle: "glint", ledBy: "lynx" },
+    { ledBy: "glint" },
+    { ledBy: "lynx" },
+  ] as never
+  state.roster.terminals.forEach((each, index) => {
+    state.roster.terminals[index] = { ...each, state: "idle", ...parts[index] } as TerminalMetadata
+  })
+  return workspace
+}
+
 // A request from an agent in terminal 02, unless it says otherwise, noting its answers.
 const asking = (request: Partial<TerminalRequest> = {}) => {
   const answers: unknown[] = []
@@ -355,6 +371,54 @@ describe("workspace commands", () => {
       app.commands.close("01")
       expect(app.ui.getSnapshot().closing).toBeNull()
       expect(app.state().roster.terminals.map((item) => item.id)).not.toContain("01")
+    })
+  })
+
+  context("when closing a terminal that leads a team", () => {
+    const remaining = (app: ReturnType<typeof openCommands>) =>
+      app.state().roster.terminals.map((item) => item.id)
+
+    it("asks first, though nothing runs in it and its team is not running", () => {
+      const app = openCommands({ workspace: withTeam() })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toMatchObject({ id: "01" })
+      expect(remaining(app)).toContain("01")
+    })
+
+    it("asks first where the backend keeps History too", () => {
+      const history = { state: createStore({ rows: [] }), list: () => Promise.resolve([]) }
+      const app = openCommands({ workspace: withTeam(), history })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toMatchObject({ id: "01" })
+    })
+
+    it("asks of a sub-lead, and closes a teammate that leads no one without asking", () => {
+      const app = openCommands({ workspace: withTeam() })
+      app.commands.close("04")
+      expect(app.ui.getSnapshot().closing).toBeNull()
+      app.commands.close("02")
+      expect(app.ui.getSnapshot().closing).toMatchObject({ id: "02" })
+    })
+
+    it("closes the lead and everyone below it, at any depth, when the person closes all", () => {
+      const app = openCommands({ workspace: withTeam() })
+      app.commands.close("01")
+      app.commands.confirmClose("team")
+      expect(remaining(app)).toEqual([])
+    })
+
+    it("closes only the lead when the person closes it alone", () => {
+      const app = openCommands({ workspace: withTeam() })
+      app.commands.close("01")
+      app.commands.confirmClose("terminal")
+      expect(remaining(app)).toEqual(["02", "03", "04"])
+    })
+
+    it("closes a sub-lead with its own team and leaves the rest", () => {
+      const app = openCommands({ workspace: withTeam() })
+      app.commands.close("02")
+      app.commands.confirmClose("team")
+      expect(remaining(app)).toEqual(["01", "04"])
     })
   })
 

@@ -48,9 +48,13 @@ describe("what the close question says", () => {
     expect(text).toMatch(/doesn't start them again/)
   })
 
-  it("says a lead leaves the agents it leads without one", () => {
+  it("says nothing of a lead's team, which the dialog lists, and nothing of a lead with no reason of its own", () => {
     const lead = terminal({ agent: { working: false }, restorable: true, handle: "moth" } as never)
-    const led = terminal({ id: "02", ledBy: "moth" })
-    expect(closeDescription(lead, true, [lead, led])).toMatch(/leads other agents/)
+    expect(closeDescription(lead, true, true)).toBeNull()
+  })
+
+  it("says only a lead's own reasons", () => {
+    const lead = terminal({ agent: { working: true }, restorable: true, handle: "moth" } as never)
+    expect(closeDescription(lead, true, true)).toMatch(/working on a turn/)
   })
 })

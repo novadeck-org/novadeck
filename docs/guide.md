@@ -445,10 +445,15 @@ days. Novadeck asks before closing a terminal only when closing loses something 
 back from History: a program is running in its shell (on Windows too), its agent is in
 the middle of a turn, its agent is idle but waiting on a job, a monitor or a wake-up it set
 (or has tasks running in the background), which closing ends and a restore doesn't start
-again, it leads other agents that are still running, which would be left without a lead, or
-it can't be restored, such as a running agent with no session yet or one that isn't
+again, or it can't be restored, such as a running agent with no session yet or one that isn't
 connected. An agent waiting at its prompt with nothing of that, that can be restored,
 closes without asking.
+
+A terminal that leads other agents always asks, whether or not they are running and whether
+its team is folded in the sidebar. The dialog lists its team, each teammate under the one
+that leads it, and offers Close all, which closes the lead and everyone below it (each goes to
+History), or Close @handle only, which closes just the lead and leaves its teammates without
+one.
 
 ## Restoring terminals
 

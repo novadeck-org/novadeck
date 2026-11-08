@@ -8,9 +8,19 @@ export type ConfirmDialogProps<Subject> = {
   // is another question: an answer to the last one doesn't count for it. Keep its identity
   // while it asks the same thing.
   readonly subject: Subject | null
+  // The strip the dialog opens on, naming what it is about as its window header does
+  // (a SubjectBar), so the title can be a plain question.
+  readonly bar: (subject: Subject) => ReactNode
   readonly title: (subject: Subject) => string
+  // The words under the title; null for none, when the bar and the body say it all.
   readonly description: (subject: Subject) => ReactNode
+  // What shows under the words and over the answers, such as a list of what the answer
+  // touches.
+  readonly body?: (subject: Subject) => ReactNode
   readonly confirmLabel: string
+  // A third answer, between cancelling and confirming: a narrower way to go ahead. With
+  // it, cancelling moves to the start of the row.
+  readonly alternative?: { readonly label: string; readonly onSelect: () => void }
   // Whether confirming is not yet possible; the button is disabled, cancelling stays.
   readonly confirmDisabled?: boolean
   readonly cancelLabel: string
@@ -30,12 +40,16 @@ export type ConfirmDialogProps<Subject> = {
   readonly widthClassName: string
 }
 
-// A question with two answers, shown as an alert dialog above everything.
+// A question with two answers (or three, with `alternative`), shown as an alert dialog
+// above everything.
 export const ConfirmDialog = <Subject,>({
   subject,
+  bar,
   title,
   description,
+  body,
   confirmLabel,
+  alternative,
   confirmDisabled = false,
   cancelLabel,
   onConfirm,
@@ -72,6 +86,7 @@ export const ConfirmDialog = <Subject,>({
   }, [armMs, armKey, shownNow])
   const armed = armMs === 0 || armedKey === armKey
   const heading = shown === null ? "" : title(shown)
+  const words = shown === null ? null : description(shown)
   return (
     <Dialog
       open={subject !== null}
@@ -91,14 +106,34 @@ export const ConfirmDialog = <Subject,>({
       positionerClassName="fixed inset-0 z-50 flex items-center justify-center px-5"
       className={`modal ${widthClassName} flex flex-col gap-2 p-5`}
     >
+      {shown !== null && bar(shown)}
       <DialogTitle className="modal-title m-0 text-heading font-medium">{heading}</DialogTitle>
-      <DialogDescription className="modal-description m-0 text-body">
-        {shown === null ? null : description(shown)}
-      </DialogDescription>
+      {words !== null && words !== undefined && (
+        <DialogDescription className="modal-description m-0 text-body">{words}</DialogDescription>
+      )}
+      {shown !== null && body?.(shown)}
       <div className="mt-3 flex justify-end gap-2">
-        <button ref={cancel} type="button" className="button" onClick={onCancel}>
+        <button
+          ref={cancel}
+          type="button"
+          className={`button${alternative ? " mr-auto" : ""}`}
+          onClick={onCancel}
+        >
           {cancelLabel}
         </button>
+        {alternative && (
+          <button
+            type="button"
+            className="button"
+            disabled={!armed}
+            onClick={() => {
+              confirmed.current = true
+              alternative.onSelect()
+            }}
+          >
+            {alternative.label}
+          </button>
+        )}
         <button
           ref={confirm}
           type="button"

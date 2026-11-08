@@ -317,7 +317,7 @@ describe("Preferences Addons", () => {
         .toHaveAttribute("aria-checked", "false")
 
       await voiceCard().getByRole("button", { name: "Uninstall" }).click()
-      const confirm = page.getByRole("alertdialog", { name: "Uninstall voice input?" })
+      const confirm = page.getByRole("alertdialog", { name: "Uninstall this add-on?" })
       await expect.element(confirm.getByText(/freeing 602 MB/)).toBeVisible()
       await confirm.getByRole("button", { name: "Cancel" }).click()
       await expect.element(confirm).not.toBeInTheDocument()
@@ -429,7 +429,7 @@ describe("Preferences Addons", () => {
       await expect.element(enabled).toHaveAttribute("aria-checked", "false")
 
       await murmurCard().getByRole("button", { name: "Uninstall" }).click()
-      const confirm = page.getByRole("alertdialog", { name: "Uninstall Murmur?" })
+      const confirm = page.getByRole("alertdialog", { name: "Uninstall this add-on?" })
       await expect.element(confirm.getByText(/freeing 1\.2 GB/)).toBeVisible()
       await confirm.getByRole("button", { name: "Cancel" }).click()
       await expect.element(confirm).not.toBeInTheDocument()

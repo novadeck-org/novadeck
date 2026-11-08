@@ -4,7 +4,8 @@ import { waitingOf } from "./waiting"
 
 // Why closing a terminal asks first, each a thing the person would lose. Where the backend
 // keeps closed terminals (History), closing can be undone, so it asks only for what
-// restoring can't give back; elsewhere it is final, and asks while a program runs.
+// restoring can't give back; elsewhere it is final, and asks while a program runs. A lead
+// always asks, whatever else is so, since closing it can take its team along.
 export type CloseReason =
   // A program runs in its shell besides the prompt; closing ends it.
   | "program"
@@ -14,8 +15,8 @@ export type CloseReason =
   // left tasks running in the background. Closing ends them, and a restore doesn't start
   // them again.
   | "background"
-  // Its agent leads other running agents; closing it leaves them without a lead, and
-  // History doesn't give the lead back.
+  // It leads other terminals, running or not, folded in the sidebar or not: the person
+  // chooses whether they close with it or lose their lead.
   | "leads"
   // Its agent runs, and closing it can't be undone: it has no session to resume, or its
   // harness isn't connected.
@@ -27,16 +28,26 @@ export type CloseReason =
 export const closeReasons = (
   terminal: TerminalMetadata,
   keepsHistory: boolean,
-  // Every terminal of its session, to see whom it leads.
-  terminals: readonly TerminalMetadata[] = [],
+  // Whether it leads anyone (`descendantsOf` finds someone).
+  leads = false,
   now = Date.now(),
 ): readonly CloseReason[] => {
   // A sleeper or a waking agent has a session and no process to lose: it closes into
   // History like an agent idle at its prompt, and asks only when that session can't be restored.
   const resting = terminal.state === "sleeping" || terminalPhase(terminal) === "waking"
-  if (!keepsHistory) return terminal.state === "running" ? ["program"] : resting ? ["asleep"] : []
+  const lead = leads ? (["leads"] as const) : []
+  if (!keepsHistory)
+    return [
+      ...lead,
+      ...(terminal.state === "running"
+        ? (["program"] as const)
+        : resting
+          ? (["asleep"] as const)
+          : []),
+    ]
   const agent = terminal.state === "running" ? terminal.agent : undefined
   return [
+    ...lead,
     ...(resting && !terminal.restorable ? (["unrestorable"] as const) : []),
     // The runner counts an agent as a running program too, so only a plain one is asked about.
     // A waking agent is busy only for its resume, and a sleeper has no program: neither is one.
@@ -46,10 +57,6 @@ export const closeReasons = (
     // runner keeps it until the next turn.
     ...(agent && !agent.working && (waitingOf(terminal, now) || agent.background)
       ? (["background"] as const)
-      : []),
-    ...(terminal.handle &&
-    terminals.some((each) => each.ledBy === terminal.handle && each.state === "running")
-      ? (["leads"] as const)
       : []),
     // `restorable` is the backend's word; an agent is never assumed to restore.
     ...(agent && !terminal.restorable ? (["unrestorable"] as const) : []),

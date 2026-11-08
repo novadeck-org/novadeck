@@ -16,6 +16,10 @@ const terminalFixture = (parts: Partial<TerminalMetadata> & Pick<TerminalMetadat
 
 describe("what closing a terminal asks about", () => {
   describe("where the backend keeps no History", () => {
+    it("asks of a lead too, though nothing runs in it", () => {
+      expect(closeReasons(terminalFixture({ state: "idle" }), false, true)).toEqual(["leads"])
+    })
+
     it("asks while anything runs in it, as it always has", () => {
       expect(closeReasons(terminalFixture({ ...running }), false)).toEqual(["program"])
       expect(closeReasons(terminalFixture({ ...agent(true) }), false)).toEqual(["program"])
@@ -51,10 +55,9 @@ describe("what closing a terminal asks about", () => {
       expect(closeReasons(terminalFixture({ ...waking }), true)).toEqual(["unrestorable"])
     })
 
-    it("still asks when it leads running agents", () => {
+    it("still asks when it leads anyone", () => {
       const lead = terminalFixture({ ...sleeping, restorable: true, handle: "moth" as never })
-      const led = terminalFixture({ ...running, id: "02", ledBy: "moth" as never })
-      expect(closeReasons(lead, true, [lead, led])).toEqual(["leads"])
+      expect(closeReasons(lead, true, true)).toEqual(["leads"])
     })
   })
 
@@ -124,18 +127,19 @@ describe("what closing a terminal asks about", () => {
         restorable: true,
         agent: { working: false, waiting },
       } as never)
-      expect(closeReasons(terminal, true, [], now)).toEqual([])
-      expect(closeReasons(terminal, true, [], hourAgo)).toEqual(["background"])
+      expect(closeReasons(terminal, true, false, now)).toEqual([])
+      expect(closeReasons(terminal, true, false, hourAgo)).toEqual(["background"])
     })
 
-    it("asks when an idle agent leads others that still run, not when they have ended", () => {
+    it("asks when an idle agent leads anyone, whether or not they still run", () => {
       const lead = terminalFixture({ ...agent(false), restorable: true, handle: "moth" })
-      const led = (state: TerminalMetadata["state"], ledBy: string | null) =>
-        terminalFixture({ id: "02", ...(state === "running" ? running : { state: "idle" }), ledBy })
-      expect(closeReasons(lead, true, [lead, led("running", "moth")])).toEqual(["leads"])
-      expect(closeReasons(lead, true, [lead, led("idle", "moth")])).toEqual([])
-      expect(closeReasons(lead, true, [lead, led("running", "other")])).toEqual([])
-      expect(closeReasons(lead, true, [lead])).toEqual([])
+      expect(closeReasons(lead, true, true)).toEqual(["leads"])
+      expect(closeReasons(lead, true, false)).toEqual([])
+    })
+
+    it("asks about a lead first, then about what is its own", () => {
+      const lead = terminalFixture({ ...agent(true), restorable: true, handle: "moth" })
+      expect(closeReasons(lead, true, true)).toEqual(["leads", "working"])
     })
 
     it("lets a terminal with nothing running in it close", () => {

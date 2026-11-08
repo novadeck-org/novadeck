@@ -718,7 +718,9 @@ describe("a terminal's taskbar", () => {
         (each) => each.textContent === "Close 2 plans",
       )!
       await act(async () => close.click())
-      await vi.waitFor(() => expect(dialog()?.textContent).toContain("Close “first.md”?"))
+      await vi.waitFor(() =>
+        expect(dialog()?.querySelector(".modal-subject")?.textContent).toBe("first.md"),
+      )
       // Its agent closed the second meanwhile.
       await act(
         async () =>
@@ -744,9 +746,13 @@ describe("a terminal's taskbar", () => {
       )!
       await act(async () => close.click())
       // The menu runs what was chosen once it has closed, a frame later.
-      await vi.waitFor(() => expect(dialog()?.textContent).toContain("Close “first.md”?"))
+      await vi.waitFor(() =>
+        expect(dialog()?.querySelector(".modal-subject")?.textContent).toBe("first.md"),
+      )
       await answer("Copy my edits and close")
-      await vi.waitFor(() => expect(dialog()?.textContent).toContain("Close “second.md”?"))
+      await vi.waitFor(() =>
+        expect(dialog()?.querySelector(".modal-subject")?.textContent).toBe("second.md"),
+      )
       await answer("Copy my edits and close")
       expect(onBar(workspace)).toEqual([])
     })
