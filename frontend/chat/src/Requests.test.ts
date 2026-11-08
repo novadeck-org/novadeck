@@ -652,6 +652,28 @@ describe("a dialog of questions", () => {
     expect(tabs(container)[0]?.getAttribute("aria-selected")).toBe("true")
   })
 
+  it("asks each question once, on its page, and not again as the request's subject", () => {
+    // Every harness's question request takes its first question as its subject.
+    const { container, unmount } = render(
+      createElement(Requests, {
+        requests: [{ ...request(dialog), kind: "question", subject: "Keep the grace?" }],
+        slice: null,
+        agent: "Claude",
+        onAnswer: async () => {},
+        onAnswerInTerminal: () => {},
+        onSettled,
+        replying: null,
+        replySending: false,
+        onReply,
+        refused: refusing("/tmp is full", "x @a "),
+        onChatting,
+      }),
+    )
+    unmounts.push(unmount)
+    expect(container.querySelector(".chat-request-subject")).toBeNull()
+    expect(container.textContent?.split("Keep the grace?")).toHaveLength(2)
+  })
+
   it("keeps every page in its cell, one of them shown, so turning one moves nothing", () => {
     const { container } = show(dialog, async () => {})
     expect(container.querySelectorAll(".chat-pages > .chat-page")).toHaveLength(3)

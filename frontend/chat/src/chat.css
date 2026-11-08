@@ -38,6 +38,8 @@
    --chat-error-fg (the terminal's red, then danger-fg): what failed.
    --chat-added-fg (the terminal's green, then success-fg): what an edit added.
    --chat-line-color (line): the hairlines.
+   --chat-measure (92ch): the reading width. Every line the chat shows ends at the same column,
+   this far past the gutter and the mark's two cells, however wide the window.
    */
 
 .chat {
@@ -51,6 +53,10 @@
   --_line: var(--chat-line-color, var(--color-line));
   --_pad: 30px;
   --_lh: 21px;
+  --_measure: var(--chat-measure, 92ch);
+  /* The most a region that starts at the chat's left edge spans: its gutter, the mark's cells,
+     the reading width, and the gutter after it. */
+  --_column: calc(var(--_pad) + 2ch + var(--_measure) + var(--_pad));
   --_mark-width: 6px;
   --_mark-height: 13px;
   --markdown-muted-fg: var(--_muted);
@@ -118,8 +124,19 @@
 .chat-thread > * {
   position: relative;
   min-width: 0;
-  max-width: 92ch;
   margin-left: 2ch;
+}
+/* The column: whatever the chat shows ends where the transcript's lines do, so the width is kept
+   here alone. Each region starts at the chat's left edge and keeps its gutters inside, so a cap
+   from that edge, not a scrollbar's, holds them all to one column. A region under a hairline
+   (the prompt, the live rows) keeps it the window's width and caps what it holds, inside its
+   gutter. A new region joins here; `.chat` puts the cap over a row's own max-width, such as the
+   live rows' 100%, which the cap keeps for a narrower window. */
+.chat :is(.chat-thread, .chat-request, .chat-lost) {
+  max-width: min(100%, var(--_column));
+}
+.chat :is(.chat-live, .chat-composer) > * {
+  max-width: min(100%, var(--_column) - 2 * var(--_pad));
 }
 /* What stands in the gutter, in the first line's height. */
 .chat-mark {
@@ -471,7 +488,8 @@
 /* Jump to the latest */
 .chat-jump {
   position: absolute;
-  right: var(--_pad);
+  /* Where the column ends, as everything else does. */
+  right: max(var(--_pad), 100% - var(--_column) + var(--_pad));
   bottom: 0;
   padding: 0 0 0 2ch;
   border: 0;

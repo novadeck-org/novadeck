@@ -21,6 +21,12 @@ const titles: Readonly<Record<ChatRequest["kind"], string>> = {
 // in milliseconds.
 export const againMs = 1000
 
+// Whether the dialog already shows the request's subject. A question tool's subject is its first
+// question, which the dialog's own page shows, and over the other pages it would name the
+// wrong one.
+const saysSubject = (dialog: ChatRequest["dialog"], subject: string): boolean =>
+  dialog?.type === "questions" || (dialog?.type === "choices" && dialog.detail === subject)
+
 const reason = (failure: unknown): string =>
   failure instanceof Error && failure.message ? failure.message : "That answer didn't go through."
 
@@ -177,7 +183,7 @@ const Card = ({
           </button>
         )}
       </header>
-      {request.subject && !(dialog?.type === "choices" && dialog.detail === request.subject) && (
+      {request.subject && !saysSubject(dialog, request.subject) && (
         <p className="chat-request-subject">{request.subject}</p>
       )}
       {request.answered ? (
