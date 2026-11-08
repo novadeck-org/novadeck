@@ -240,6 +240,26 @@ describe("restart check", () => {
       }
     })
 
+    it("reads an agent's command up to its first operator, past a leading cd", () => {
+      const named = (command: string) =>
+        risk(
+          agent(1, "claude", {
+            working: false,
+            waiting: {
+              jobs: [{ id: "j", description: null, command, since: 1, until: null }],
+              wake: null,
+            },
+          }),
+        )[0]
+      expect(named("cd /home/u/repo && pnpm test")).toMatchObject({ command: "pnpm test" })
+      expect(named("sleep 30 && gh pr checks 1")).toMatchObject({ command: "sleep 30" })
+      expect(named("sleep 30; gh pr checks 1")).toMatchObject({ command: "sleep 30" })
+      expect(named("pnpm dev | tee log")).toMatchObject({ command: "pnpm dev" })
+      const loop = named("cd /home/u/repo && for i in $(seq 1 60); do sleep 30; done")
+      expect(loop).toMatchObject({ what: "1 background command stops" })
+      expect(loop).not.toHaveProperty("command")
+    })
+
     it("says nothing of an agent with no background work", () => {
       expect(risk(agent(5, "claude", { background: { agents: 0, tasks: 0 } }))).toEqual([])
     })

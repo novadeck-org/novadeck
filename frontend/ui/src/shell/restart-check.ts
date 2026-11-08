@@ -109,11 +109,20 @@ export const commandText = (name: string, argv: readonly string[] | undefined): 
 // Words that begin shell syntax rather than name a program: `for i in $(seq 1 60)` names none.
 const shellSyntax = new Set(["for", "while", "until", "if", "case", "select", "function", "!"])
 
-// A command a person or an agent typed as one string, shown as `commandText` shows one; none
-// where it begins with an option or a value, as `KEY=x pnpm dev` does, or with shell syntax (a
-// loop, a group, a substitution), which names no program to read.
+// Words that join one command to the next: what follows the first is another command.
+const operators = new Set(["&&", "||", ";", "|", "&"])
+
+// A command a person or an agent typed as one string, shown as `commandText` shows one, up to
+// its first operator and past a leading `cd <folder> &&`, as agents write them; none where it
+// begins with an option or a value, as `KEY=x pnpm dev` does, or with shell syntax (a loop, a
+// group, a substitution), which names no program to read.
 const commandString = (command: string): string | undefined => {
-  const [program, ...rest] = command.trim().split(/\s+/)
+  let words = command.trim().split(/\s+/)
+  while (words[0] === "cd" && words[2] === "&&") words = words.slice(3)
+  // `sleep 30; gh …` ends its first command on the word's own `;`.
+  const end = words.findIndex((word) => operators.has(word) || word.endsWith(";"))
+  if (end !== -1) words = [...words.slice(0, end), words[end]!.replace(/;$/, "")]
+  const [program, ...rest] = words.filter((word) => word !== "" && !operators.has(word))
   if (!program || program.startsWith("-") || /[=@:]/.test(baseName(program))) return undefined
   if (shellSyntax.has(program) || /^(?:[[({`]|\$\()/.test(program)) return undefined
   return leading([withoutExe(baseName(program))], rest) || undefined
@@ -188,7 +197,9 @@ export const restartCheck = (
       // A job of the shell's own beside the agent (`pnpm dev &` typed before it started), or
       // a process under the agent it doesn't report. The runner counts the agent's own
       // background commands there too, so where the agent named its work, that row stands
-      // for the terminal: one row each, never the same loop again as "Can't see what runs".
+      // for the terminal, rather than show its own loop again as "Can't see what runs". Work
+      // beside what it named (a dev server Claude Code leaves out of its jobs) goes unnamed
+      // then, though the terminal still has its row to go to.
       else if (held(busy, id)) risks.push({ kind: "unknown", id, title })
     } else if (terminal.state === "running" && !isShellProcess(terminal.process)) {
       // The roster calls a terminal running only for a program past its shell, so what runs
