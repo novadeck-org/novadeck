@@ -86,7 +86,7 @@ find it.
 
 ## Docs
 
-- [Guide](docs/guide.md): how Novadeck works, in detail.
+- [Guide](docs/guide.md): a short tour of how Novadeck works. The [reference](docs/reference.md) has every detail.
 - [Development](docs/development.md): setup, repository map, tests and releases.
 - [Contributing](CONTRIBUTING.md) · [Code style](CODING.md) · [Security](SECURITY.md)
 - Found a bug or want something? [Open an issue](https://github.com/novadeck-org/novadeck/issues).
