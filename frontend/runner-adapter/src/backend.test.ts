@@ -406,7 +406,12 @@ describe("runner backend", () => {
       const app = open()
       app.addTerminal()
       await app.idle()
-      await expect(app.backend.busyTerminals!()).resolves.toEqual({ busy: [], unknown: [] })
+      const answer = await app.backend.busyTerminals!()
+      expect(answer?.busy).toEqual([])
+      // Windows reads a shell's processes through the relay, which tests run without, so
+      // there the shells are ones it can't read: never taken for idle.
+      if (process.platform === "win32") expect(answer?.unknown.length).toBeGreaterThan(0)
+      else expect(answer?.unknown).toEqual([])
       app.stop()
     })
 

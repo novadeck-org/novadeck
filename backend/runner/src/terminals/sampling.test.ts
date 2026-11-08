@@ -422,6 +422,9 @@ describe("whether a program runs in a shell, for the summary", () => {
 })
 
 describe("which terminals hold work a close would end", () => {
+  // Read from the process table, as on Linux and macOS, whichever system runs the tests;
+  // the Windows block below sets its own.
+  beforeEach(() => on("linux"))
   type Table = NonNullable<typeof fresh.table>
   const row = (pid: number, ppid: number, tpgid: number, tty = "pts/1", comm = "sh") => ({
     pid,
