@@ -19,6 +19,9 @@ export type SentShell = { readonly text: string; readonly at: number }
 // records keep whole seconds at the coarsest.
 const clockSlackMs = 2_000
 
+// What a text runs, were it a shell command.
+const command = (text: string): string => shellCommand(text) ?? text
+
 type Entry = { readonly text: string; readonly at: number | null }
 
 // The prompts the person gave the agent, oldest first: the words of its recorded turns, with
@@ -47,7 +50,6 @@ export const promptsOf = (
         !(agent === "codex" && isCodexAnswer(item.text)),
     )
     .map(({ text, at }) => ({ text, at }))
-  const command = (text: string): string => shellCommand(text) ?? text
   const recordedShell = (shell: SentShell): boolean =>
     recorded.some(
       ({ text, at }) =>
@@ -58,7 +60,7 @@ export const promptsOf = (
   const later: Entry[] = [
     ...bubbles.map(({ text, at }) => ({ text, at })),
     ...shells.filter((shell) => !recordedShell(shell)),
-  ].sort((a, b) => (a.at ?? Infinity) - (b.at ?? Infinity))
+  ].toSorted((a, b) => (a.at ?? Infinity) - (b.at ?? Infinity))
   const ordered: Entry[] = []
   for (const entry of recorded) {
     while (entry.at !== null && later[0]?.at != null && later[0].at < entry.at)
