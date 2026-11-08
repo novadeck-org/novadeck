@@ -59,7 +59,7 @@ export const defaultModels = {
 } as const
 
 /**
- * The effort a mode's default model thinks at; a model a variable names keeps its own default,
+ * The effort a mode's default model thinks at; a different model a variable names keeps its own default,
  * as it may not take the parameter.
  */
 export const defaultEfforts: { readonly [mode in "release" | "promote"]?: "high" } = {
