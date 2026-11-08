@@ -6,7 +6,7 @@ import {
   type CanvasArrangement,
 } from "@novadeck/core/layout/canvas-arrangement"
 import { isWindow } from "@novadeck/core/roster"
-import type { Tile } from "@novadeck/core/types"
+import type { TerminalMetadata, Tile } from "@novadeck/core/types"
 import type { Viewport, XYPosition } from "@xyflow/react"
 
 // One stay on Canvas: how its windows are arranged (core/layout/canvas-arrangement.ts), and
@@ -20,11 +20,18 @@ export type CanvasStay = {
 
 type Room = { readonly width: number; readonly height: number }
 
+// The handle of the terminal that leads this one: the one its backend named, whether or
+// not that agent runs yet, as the sidebar lists it under that lead (core/state.ts). Until
+// the backend has described it (it has no handle yet), the one that opened it, which the
+// sidebar lists it under at once. So an agent its lead opens lands in that lead's team
+// from the first, not in the block with a slot left empty behind it; and a canvas
+// arranged while its leads still start has its teams, and a lead that ends or restarts
+// moves nothing.
+const leadHandle = (tile: TerminalMetadata): string | undefined =>
+  tile.ledBy ?? (tile.handle === undefined ? (tile.openedBy ?? undefined) : undefined)
+
 // The windows the canvas arranges, in the order given but for those left out, each with
-// the window that leads it: the one whose handle its backend named, whether or not that
-// agent runs yet, as the sidebar lists it under that lead (core/state.ts). So a canvas
-// arranged while its leads still start has its teams from the first, and a lead that ends
-// or restarts moves nothing.
+// the window that leads it.
 export const arrangedTiles = (
   tiles: readonly Tile[],
   omit: (tile: Tile) => boolean,
@@ -35,10 +42,10 @@ export const arrangedTiles = (
       byHandle.set(tile.handle, tile.id)
   return tiles
     .filter((tile) => !omit(tile))
-    .map((tile) => ({
-      id: tile.id,
-      lead: !isWindow(tile) && tile.ledBy ? byHandle.get(tile.ledBy) : undefined,
-    }))
+    .map((tile) => {
+      const lead = isWindow(tile) ? undefined : leadHandle(tile)
+      return { id: tile.id, lead: lead === undefined ? undefined : byHandle.get(lead) }
+    })
 }
 
 export const beginStay = (tiles: readonly Arranged[], room: Room): CanvasStay => ({

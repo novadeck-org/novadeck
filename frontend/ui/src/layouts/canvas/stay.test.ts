@@ -76,11 +76,12 @@ describe("the windows a canvas arranges", () => {
     { ...terminalFixture(1, "~"), handle: "fox", state: "starting" },
     { ...terminalFixture(2, "~"), handle: "owl", ledBy: "fox" },
     { ...terminalFixture(3, "~"), ledBy: "gone" },
-    { ...terminalFixture(4, "~"), ledBy: null },
+    { ...terminalFixture(4, "~"), handle: "kit", ledBy: null, openedBy: "fox" },
+    { ...terminalFixture(5, "~"), openedBy: "fox" },
   ]
 
   it("takes each window's lead from the handle its backend named, running or not", () => {
-    expect(arrangedTiles(terminals, () => false)).toEqual([
+    expect(arrangedTiles(terminals, () => false).slice(0, 4)).toEqual([
       { id: "01", lead: undefined },
       { id: "02", lead: "01" },
       { id: "03", lead: undefined },
@@ -88,11 +89,16 @@ describe("the windows a canvas arranges", () => {
     ])
   })
 
+  it("takes its opener for the lead of one its backend hasn't described yet", () => {
+    expect(arrangedTiles(terminals, () => false)[4]).toEqual({ id: "05", lead: "01" })
+  })
+
   it("leaves out the windows asked, in the order given", () => {
     expect(arrangedTiles(terminals, (tile) => tile.id === "02").map((tile) => tile.id)).toEqual([
       "01",
       "03",
       "04",
+      "05",
     ])
   })
 })
