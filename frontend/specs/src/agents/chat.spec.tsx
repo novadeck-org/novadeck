@@ -1,5 +1,6 @@
 import { vi } from "vitest"
 import { page, userEvent } from "vitest/browser"
+import type { Locator } from "vitest/browser"
 
 import {
   attachments,
@@ -134,6 +135,75 @@ describe("A chat's conversation", () => {
     await expect
       .element(chat.getByRole("article", { name: "Message from /root/explorer_1" }))
       .toBeVisible()
+  })
+})
+
+// The caret at the start of the box, as Ctrl+Home puts it on Linux and Windows and Cmd+Up on macOS.
+const caretToStart = (chat: Locator): void => {
+  const box = composer(chat).element() as HTMLTextAreaElement
+  box.setSelectionRange(0, 0)
+}
+
+describe("Recalling earlier prompts in the chat's box", () => {
+  const first = "Build the app and tell me how big the bundle is."
+
+  it("walks back through the prompts with Up and returns to the draft with Down", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    await userEvent.type(composer(chat), "Run the linter")
+    await userEvent.keyboard("{Enter}")
+    await expect.element(composer(chat)).toHaveValue("")
+    await userEvent.type(composer(chat), "half a thought")
+    caretToStart(chat)
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue("Run the linter")
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue(first)
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue(first)
+    await userEvent.keyboard("{ArrowDown}")
+    await expect.element(composer(chat)).toHaveValue("Run the linter")
+    await userEvent.keyboard("{ArrowDown}")
+    await expect.element(composer(chat)).toHaveValue("half a thought")
+  })
+
+  it("takes a second Up from the end of a one-line draft, the first going to its start", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    await userEvent.type(composer(chat), "half a thought")
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue("half a thought")
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue(first)
+    await userEvent.keyboard("{ArrowDown}")
+    await expect.element(composer(chat)).toHaveValue("half a thought")
+  })
+
+  it("recalls a shell command as it was typed", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    await userEvent.type(composer(chat), "!")
+    await userEvent.keyboard("ls -la{Enter}")
+    await expect.element(conversation(chat).getByText("!ls -la")).toBeVisible()
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue("!ls -la")
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue(first)
+  })
+
+  it("leaves Up to a long draft's rows, and starts from the start of the box", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    const long = "a long draft that has to wrap onto a second row ".repeat(6).trim()
+    await userEvent.click(composer(chat))
+    await userEvent.fill(composer(chat), long)
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue(long)
+    caretToStart(chat)
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue(first)
+    await userEvent.keyboard("{ArrowDown}")
+    await expect.element(composer(chat)).toHaveValue(long)
   })
 })
 

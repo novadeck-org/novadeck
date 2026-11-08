@@ -231,22 +231,6 @@ describe("workspace render scope", () => {
     })
   })
 
-  // "stage" counts Canvas, which renders exactly when WorkspaceStage does.
-  context("when Canvas saves its layout", () => {
-    it("re-renders only the stage, Canvas and the terminals on it", async () => {
-      const { services } = await open()
-      const seen = rendersDuring(() =>
-        services.commands.setCanvasLayout(firstTarget(services), (layout) => ({
-          ...layout,
-          viewport: { x: 10, y: 20, zoom: 1 },
-        })),
-      )
-      const frames = Object.keys(seen).filter((name) => name.startsWith("frame "))
-      expect(frames.length).toBeGreaterThan(0)
-      expect(new Set(Object.keys(seen))).toEqual(new Set(["stage", ...frames]))
-    })
-  })
-
   context("when a rename keystroke changes the draft", () => {
     it("re-renders only the tab and the frame of the terminal being renamed", async () => {
       const { services } = await open()

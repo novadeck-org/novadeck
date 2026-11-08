@@ -192,7 +192,6 @@ export type TerminalMetadata = {
 } & TerminalStatus
 
 export type CanvasLayout = {
-  viewport?: { x: number; y: number; zoom: number }
   geometry: Record<
     string,
     {

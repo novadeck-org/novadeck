@@ -8,6 +8,7 @@ import {
   turnStatus,
   wentItems,
 } from "@novadeck/core/conversation/turns"
+import { isAgentName, opensMenu } from "@novadeck/core/harnesses"
 import type { Store } from "@novadeck/core/store"
 import type { AgentStatus } from "@novadeck/core/types"
 import {
@@ -26,6 +27,7 @@ import { Composer } from "./Composer"
 import { composerMode } from "./composer-mode"
 import { joinDraft } from "./drafts"
 import { useEchoes } from "./echoes"
+import { promptsOf, type SentShell } from "./history"
 import { Mark } from "./Mark"
 import { otherMenu } from "./other-menu"
 import { usePassing } from "./passing"
@@ -35,6 +37,8 @@ import { takeSentImages, type ChatSend } from "./sends"
 import { settledSent, settleSent } from "./settled"
 import { LiveSlice, Slice, SliceKeys } from "./Slice"
 import { Transcript } from "./Transcript"
+
+const noShells: readonly SentShell[] = []
 
 // How many blocks of a long conversation show, and how many more "Show earlier" adds.
 const windowSize = 60
@@ -62,6 +66,7 @@ export const ChatView = ({
   onAttach,
   onDetach,
   onSend,
+  shells = noShells,
   onInterrupt,
   onClearBox,
   onAnswer,
@@ -106,6 +111,8 @@ export const ChatView = ({
     to: ChatReply | null,
     images?: readonly Attachment[],
   ) => Promise<boolean>
+  // The shell commands sent from this chat, which its history recalls.
+  readonly shells?: readonly SentShell[] | undefined
   readonly onInterrupt: () => Promise<void>
   // Empties the agent's own input box of the text the chat showed it holds.
   readonly onClearBox: (seen: string) => Promise<void>
@@ -160,6 +167,17 @@ export const ChatView = ({
   const bubbles = useMemo(
     () => sentBubbles(sending, prompts, items.length).filter(({ ref }) => !settled.has(ref)),
     [sending, prompts, items.length, settled],
+  )
+
+  // The agent whose menus the box calls up, as passing names it.
+  const menuAgent = harness ?? program
+  // What Up in the box recalls: the person's prompts to this agent.
+  const history = useMemo(
+    () =>
+      promptsOf(wentItems(items, prompts), bubbles, shells, menuAgent, (text) =>
+        isAgentName(menuAgent) ? opensMenu(text, menuAgent) : false,
+      ),
+    [items, prompts, bubbles, shells, menuAgent],
   )
 
   const scroller = useRef<HTMLDivElement>(null)
@@ -500,6 +518,7 @@ export const ChatView = ({
           onOpenTerminal={onAnswerInTerminal}
           refused={(text, options) => !passing.on && refused(text, options)}
           passing={passing.on}
+          history={history}
           onPress={(keys) => {
             const went = passing.press(keys)
             if (went && keys === "\r" && draft.startsWith("/")) echoes.echo(draft.trim())

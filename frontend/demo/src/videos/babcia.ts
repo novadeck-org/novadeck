@@ -222,7 +222,8 @@ const keyOf = (number: number, projectId = bar): TerminalKey => deskKey(projectI
 // The Canvas: windows on a grid four across and four down, each a little off the line as windows
 // end up when moved by hand. The twelve fill the first three rows but two places of the third,
 // and the first of the fourth, which the camera's fit takes in: the lead (the tenth) has its
-// right and the row below it empty for its three helpers, whose places `helpers` gives them.
+// right and the row below it empty for its three helpers. Canvas arranges its windows itself
+// now and reads none of these places; the heights still size Grid's first tiles.
 // Each window's column and row, by its place in the list.
 const cells = [
   [0, 0],
@@ -269,7 +270,6 @@ const place = (index: number) => {
   }
 }
 const deskLayout = (): CanvasLayout => ({
-  viewport: { x: 120, y: 60, zoom: 0.5 },
   geometry: Object.fromEntries(
     jobs.map((_, index) => [
       demoTerminalId({ projectId: bar, workspaceSessionId: session }, index + 1),
@@ -650,9 +650,6 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
           type: "terminal/add" as const,
           target: { projectId: bar, workspaceSessionId: session },
           terminal: agentTerminal(bar, jobs.length + index + 1, job.name, job.agent, working, lead),
-          // At the desk's window size, in the places beside and under the lead, wherever the
-          // person's selection is.
-          canvasGeometry: place(jobs.length + index),
           anchor: keyOf(babcia.lead).terminalId,
           select: false,
         })),

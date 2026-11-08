@@ -121,10 +121,7 @@ export type WorkspaceAction =
       target: WorkspaceTarget
       terminal: TerminalMetadata
       gridLayouts?: GridLayouts
-      canvasGeometry?: CanvasLayout["geometry"][string]
-      // Its size on Canvas, where the caller measured the stage.
-      canvasSize?: { width: number; height: number }
-      // The terminal to place it beside; the selected one by default.
+      // The terminal that opened it, which it is listed under in the sidebar.
       anchor?: string
       // Whether it becomes the session's selection, as it does by default.
       select?: boolean
@@ -157,8 +154,8 @@ export type WorkspaceAction =
       terminalId: string
       open?: boolean
     }
-  // The person undocks an item into a window of its own, placed beside `anchor` (the
-  // selected terminal by default) or where it was dropped.
+  // The person undocks an item into a window of its own, placed where it was dropped, if
+  // it was.
   | {
       type: "item/undock"
       target: WorkspaceTarget
@@ -166,22 +163,15 @@ export type WorkspaceAction =
       window: CompanionWindowMeta
       gridLayouts?: GridLayouts
       canvasGeometry?: CanvasLayout["geometry"][string]
-      // Its size on Canvas, where the caller measured the stage.
-      canvasSize?: { width: number; height: number }
-      anchor?: string
     }
   // The person opened a file in the session's project window, as the backend now has it:
-  // the item and the window take its word, a new window placed beside `anchor` (the
-  // selected tile by default), and the window is selected.
+  // the item and the window take its word, and the window is selected.
   | {
       type: "project/open"
       target: WorkspaceTarget
       item: Item
       window: CompanionWindowMeta
       gridLayouts?: GridLayouts
-      canvasGeometry?: CanvasLayout["geometry"][string]
-      canvasSize?: { width: number; height: number }
-      anchor?: string
       // The session had no such window before this open, so it is placed as asked even if
       // the watch placed it a moment earlier, which the person has not touched.
       made?: boolean
@@ -508,13 +498,11 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
       return updateTarget(workspace, action.target, (state) => {
         const { roster } = state
         if (!action.terminal.id || hasTerminal(roster, action.terminal.id)) return state
-        const beside = action.anchor ?? state.selected
         const tiles = tilesOf(roster)
-        const anchor = tiles.find((tile) => tile.id === beside) ?? tiles.at(-1)
         const added = addTerminal(roster, action.terminal)
         return {
           ...state,
-          // Beside its anchor in the sidebar too; the person's own go last.
+          // Under the terminal that opened it in the sidebar; the person's own go last.
           roster:
             action.anchor === undefined
               ? added
@@ -522,10 +510,7 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
           layout: placeTerminal(state.layout, {
             terminal: action.terminal,
             terminals: tiles,
-            anchor,
             gridLayouts: action.gridLayouts,
-            canvasGeometry: action.canvasGeometry,
-            canvasSize: action.canvasSize,
           }),
           selected: action.select === false ? state.selected : action.terminal.id,
         }

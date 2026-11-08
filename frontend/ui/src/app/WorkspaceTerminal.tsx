@@ -5,6 +5,7 @@ import {
   chatImageNoteOf,
   chatReplyOf,
   chatSendsOf,
+  chatShellsOf,
   chatShown,
 } from "@novadeck/chat/state"
 import { useBoxHandover } from "@novadeck/chat/use-box-handover"
@@ -278,6 +279,7 @@ export const WorkspaceTerminal = memo(
     const imageNote = useChat(chat, (state) =>
       chatImageNoteOf(state.imageNotes, chatContext, terminalId),
     )
+    const shells = useChat(chat, (state) => chatShellsOf(state.shells, chatContext, terminalId))
     const conversation = useMemo(
       () => (showChat ? conversations?.conversation(terminalKey) : undefined),
       [showChat, conversations, terminalKey],
@@ -310,6 +312,7 @@ export const WorkspaceTerminal = memo(
                 replyTo={replyTo}
                 onReplyTo={(to) => commands.setChatReply(chatContext, terminalId, to)}
                 sending={sending}
+                shells={shells}
                 attachments={attachments}
                 imageNote={imageNote}
                 onRestore={(images) => commands.restoreChatImages(chatContext, terminalId, images)}

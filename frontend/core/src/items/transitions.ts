@@ -151,22 +151,19 @@ export const undockItem = (
   state: WorkspaceState,
   action: Extract<WorkspaceAction, { type: "item/undock" }>,
 ): WorkspaceState => {
-  const { itemId, window, gridLayouts, canvasGeometry, canvasSize } = action
+  const { itemId, window, gridLayouts, canvasGeometry } = action
   const item = state.items.find((each) => each.id === itemId)
   if (!item || window.itemId !== itemId || hasTile(state.roster, window.id)) return state
   const left = unhold(unfresh(state, itemId), item)
   const tiles = tilesOf(left.roster)
-  const beside = action.anchor ?? left.selected
   return {
     ...withItem(left, { ...item, holder: { windowId: window.id } }),
     roster: addWindow(left.roster, window),
     layout: placeTerminal(left.layout, {
       terminal: window,
       terminals: tiles,
-      anchor: tiles.find((tile) => tile.id === beside) ?? tiles.at(-1),
       gridLayouts,
       canvasGeometry,
-      canvasSize,
     }),
     selected: window.id,
   }
@@ -251,7 +248,6 @@ export const upsertWindow = (
     layout: placeTerminal(state.layout, {
       terminal: window,
       terminals: tiles,
-      anchor: tiles.at(-1),
       gridLayouts: addCompactGridTerminal(tiles, state.layout.grid, window),
     }),
   }
@@ -265,7 +261,7 @@ export const openInProject = (
   state: WorkspaceState,
   action: Extract<WorkspaceAction, { type: "project/open" }>,
 ): WorkspaceState => {
-  const { gridLayouts, canvasGeometry, canvasSize } = action
+  const { gridLayouts } = action
   if (action.window.itemId !== action.item.id || hasTerminal(state.roster, action.window.id))
     return state
   // A later re-point the watch reported first is not undone by this older answer.
@@ -282,7 +278,6 @@ export const openInProject = (
     const roster = newer ? listed.roster : updateWindow(listed.roster, window)
     return { ...listed, roster, selected: window.id }
   }
-  const beside = action.anchor ?? listed.selected
   const apart = placed
     ? {
         ...listed,
@@ -297,10 +292,7 @@ export const openInProject = (
     layout: placeTerminal(apart.layout, {
       terminal: window,
       terminals: tiles,
-      anchor: tiles.find((tile) => tile.id === beside) ?? tiles.at(-1),
       gridLayouts: gridLayouts ?? addCompactGridTerminal(tiles, apart.layout.grid, window),
-      canvasGeometry,
-      canvasSize,
     }),
     selected: window.id,
   }

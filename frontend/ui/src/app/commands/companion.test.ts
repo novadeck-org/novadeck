@@ -74,15 +74,12 @@ describe("companion commands", () => {
       })
     })
 
-    it("moves a window already open there, keeping its size", () => {
+    it("moves a window already open to where it was dropped", () => {
       const app = open()
       app.commands.undock(hero.id)
-      const { width, height } = app.state().layout.canvas.geometry["session-1"]!
       app.commands.undock(hero.id, { canvas: { x: 408, y: 240 } })
       expect(app.state().layout.canvas.geometry["session-1"]).toMatchObject({
         position: { x: 408, y: 240 },
-        width,
-        height,
       })
     })
 

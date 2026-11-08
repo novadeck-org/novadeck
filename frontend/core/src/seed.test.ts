@@ -156,7 +156,7 @@ describe("workspace from a backend seed", () => {
 
     it("lays out terminals the saved state does not know after the saved ones", () => {
       expect(session.state.roster.terminals.at(-1)).toEqual(extra)
-      expect(session.state.layout.canvas.geometry).toHaveProperty("extra")
+      expect(session.state.layout.sizePresets.grid).toHaveProperty("extra")
       expect(session.state.layout.canvas.geometry["01"]).toEqual(saved.layout.canvas.geometry["01"])
     })
   })
@@ -246,7 +246,7 @@ describe("workspace from a backend seed", () => {
     it("lays the windows out after the terminals and puts items on their bars, oldest first", () => {
       const state = seeded({})
       expect(state.roster.windows).toEqual([window])
-      expect(state.layout.canvas.geometry).toHaveProperty("w1")
+      expect(state.layout.sizePresets.grid).toHaveProperty("w1")
       expect(state.items).toEqual([newer, older, undocked])
       expect(state.bars).toEqual({
         "01": { order: [older.id, newer.id], hidden: [], stack: [], open: false },

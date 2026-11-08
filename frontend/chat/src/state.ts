@@ -11,6 +11,7 @@ import { keepTerminals, type ByTerminal } from "./by-terminal"
 import { chatDraftOf, noChatDrafts, setChatDraft, type ChatDrafts } from "./drafts"
 import { noChatReplies, settleChatReplies, type ChatReplies } from "./replies"
 import { noChatSends, type ChatSends } from "./sends"
+import { noChatShells, type ChatShells } from "./shells"
 import {
   chatKept,
   keepTerminalAnswers,
@@ -26,6 +27,7 @@ export { valueOf as chatImageNoteOf } from "./by-terminal"
 export { chatDraftOf, setChatDraft } from "./drafts"
 export { chatReplyOf } from "./replies"
 export { chatSendsOf } from "./sends"
+export { chatShellsOf } from "./shells"
 export { chatShown } from "./shown"
 
 // What the chat keeps for the app, a store of its own that the app composes. It starts over
@@ -41,6 +43,8 @@ export type ChatState = {
   readonly replies: ChatReplies
   // The words on their way from there to the agent, out of the draft until they arrive.
   readonly sends: ChatSends
+  // The shell commands sent from each terminal's chat, for its history.
+  readonly shells: ChatShells
   // The terminals showing their screen though the chat view is on, as the person went to
   // answer their agent there.
   readonly answering: TerminalAnswers
@@ -52,6 +56,7 @@ const initialChat: ChatState = {
   imageNotes: {},
   replies: noChatReplies,
   sends: noChatSends,
+  shells: noChatShells,
   answering: noTerminalAnswers,
 }
 
@@ -169,13 +174,15 @@ export const watchChat = (chat: Chat, workspace: Store<Workspace>): (() => void)
         drafts,
         (context, id) => open(context, id) && !keep(context, id),
       )
+      const shells = keepTerminals(state.shells, open)
       return answering === state.answering &&
         drafts === state.drafts &&
         attachments === state.attachments &&
         imageNotes === state.imageNotes &&
-        replies === state.replies
+        replies === state.replies &&
+        shells === state.shells
         ? state
-        : { ...state, answering, drafts, attachments, imageNotes, replies }
+        : { ...state, answering, drafts, attachments, imageNotes, replies, shells }
     })
   })
 }

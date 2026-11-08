@@ -1,6 +1,4 @@
 import type { CanvasLayout, GridLayouts, GridRestoreWidths, Placed, TerminalLayout } from "../types"
-import { adjacentCanvasPosition } from "./canvas-placement"
-import { defaultCanvasWindowSize } from "./terminal-size"
 
 type CanvasGeometry = CanvasLayout["geometry"][string]
 
@@ -65,39 +63,27 @@ export const pruneGridLayouts = (
 
 export type TerminalPlacement = {
   readonly terminal: Placed
-  // The terminals and windows already placed, and the one to place the new one beside.
+  // The terminals and windows already placed.
   readonly terminals: readonly Placed[]
-  readonly anchor: Placed | undefined
   readonly gridLayouts?: GridLayouts | undefined
+  // Where it was dropped on Canvas, for a window dropped there.
   readonly canvasGeometry?: CanvasGeometry | undefined
-  // Its size on Canvas: the person's preferred size for a new window, where the caller
-  // knows it. The default size otherwise.
-  readonly canvasSize?: { readonly width: number; readonly height: number } | undefined
 }
 
-// Places a new terminal at its small size: beside the anchor on Canvas, and in the
-// given Grid layouts when the caller measured them.
+// Places a new terminal at its small size in the given Grid layouts, when the caller
+// measured them. Canvas arranges its windows itself (canvas-arrangement.ts): it only hears
+// where a window was dropped on it.
 export const placeTerminal = (
   layout: TerminalLayout,
-  { terminal, terminals, anchor, gridLayouts, canvasGeometry, canvasSize }: TerminalPlacement,
-): TerminalLayout => {
-  const size = canvasSize ?? defaultCanvasWindowSize
-  const position = anchor
-    ? adjacentCanvasPosition(anchor, terminals, layout.canvas, size)
-    : { x: 80, y: 80 }
-  return {
-    ...layout,
-    canvas: {
-      ...layout.canvas,
-      geometry: {
-        ...layout.canvas.geometry,
-        [terminal.id]: canvasGeometry ?? { position, width: size.width, height: size.height },
-      },
-    },
-    grid: gridLayouts ? pruneGridLayouts(gridLayouts, [...terminals, terminal]) : layout.grid,
-    sizePresets: { grid: { ...layout.sizePresets.grid, [terminal.id]: "small" } },
-  }
-}
+  { terminal, terminals, gridLayouts, canvasGeometry }: TerminalPlacement,
+): TerminalLayout => ({
+  ...layout,
+  canvas: canvasGeometry
+    ? { ...layout.canvas, geometry: { ...layout.canvas.geometry, [terminal.id]: canvasGeometry } }
+    : layout.canvas,
+  grid: gridLayouts ? pruneGridLayouts(gridLayouts, [...terminals, terminal]) : layout.grid,
+  sizePresets: { grid: { ...layout.sizePresets.grid, [terminal.id]: "small" } },
+})
 
 // Forgets every saved reference to a closed terminal.
 export const removeFromLayout = (layout: TerminalLayout, terminalId: string): TerminalLayout => {

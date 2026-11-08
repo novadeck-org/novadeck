@@ -5,14 +5,12 @@
   .canvas-viewport .react-flow {
     --xy-background-color: transparent;
   }
+  /* A window the canvas moves as it arranges itself glides to its new place, so the eye
+     can follow it. */
   .canvas-viewport .react-flow__node {
-    transition:
-      transform 160ms ease-out,
-      width 160ms ease-out,
-      height 160ms ease-out;
+    transition: transform 160ms ease-out;
   }
-  .canvas-viewport .react-flow__node.dragging,
-  .canvas-viewport .react-flow__node.resizing {
+  .canvas-viewport .react-flow__node.dragging {
     transition: none;
   }
   /* How far a node recedes (`--_recede`, its opacity). The window fades, and so does what
@@ -36,9 +34,9 @@
   .canvas-viewport[data-has-selection="false"] .canvas-node {
     --_recede: 1;
   }
-  /* The window's own opacity is its hiding's (workspace.css), and the grip has its own, so
-     what fades is what the window holds. */
-  .canvas-node > .terminal-visibility > :not(.terminal-resize-grip),
+  /* The window's own opacity is its hiding's (workspace.css), so what fades is what the
+     window holds. */
+  .canvas-node > .terminal-visibility > *,
   .canvas-node > .pane-attached > *,
   .canvas-node > .pane-attached::before {
     opacity: var(--_recede);
@@ -77,20 +75,6 @@
     opacity: 0;
     pointer-events: none;
   }
-  .canvas-node .terminal-resize-grip {
-    /* Its look is the workspace recipe's, shared with Grid's resize handle. */
-    @apply absolute right-px bottom-px z-10 flex size-7 items-end justify-end p-1.5;
-    top: auto;
-    left: auto;
-    border: 0;
-    background: transparent;
-    translate: none;
-    transform: scale(var(--_canvas-chrome-scale));
-    transform-origin: bottom right;
-  }
-  .terminal-resize-pattern {
-    pointer-events: none;
-  }
   .canvas-node .terminal-heading {
     height: calc(var(--_canvas-header-height) * var(--_canvas-chrome-scale));
   }
@@ -109,26 +93,6 @@
     transform: scale(var(--_canvas-chrome-scale));
     transform-origin: top left;
     cursor: move;
-  }
-  .canvas-node.compact-header .terminal-header {
-    gap: 4px;
-    padding: 5px 6px;
-  }
-  .canvas-node.compact-header .terminal-title {
-    gap: 4px;
-    padding: 0 2px;
-    line-height: 16px;
-  }
-  .canvas-node.compact-header .terminal-actions {
-    justify-content: flex-end;
-    gap: 0;
-  }
-  .canvas-node.compact-header .terminal-actions .icon-button {
-    width: 22px;
-    height: 22px;
-    min-width: 0;
-    flex-shrink: 1;
-    padding: 0;
   }
   .canvas-node .terminal-content {
     overscroll-behavior: contain;
@@ -255,7 +219,13 @@
   .react-flow__node.canvas-drop-settle {
     transition: transform 160ms var(--ease-interface);
   }
+  /* While windows glide to where the canvas arranged them (data-arranging on it), the team
+     wires, which are drawn where the windows will be, wait out of sight. */
+  .canvas-viewport[data-arranging] .canvas-team-wire {
+    visibility: hidden;
+  }
   @media (prefers-reduced-motion: reduce) {
+    .canvas-viewport .react-flow__node,
     .react-flow__node.canvas-drop-settle {
       transition: none;
     }

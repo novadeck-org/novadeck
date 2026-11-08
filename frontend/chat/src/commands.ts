@@ -42,6 +42,7 @@ import {
   type ChatSend,
   type ChatSends,
 } from "./sends"
+import { withShell } from "./shells"
 import { answeringInTerminal } from "./shown"
 import type { Chat, ChatState } from "./state"
 
@@ -718,8 +719,16 @@ export const createChatCommands = ({
           { ref, draft, text, images, to: null, phase: "queued" },
         ]),
       }))
+      const at = Date.now()
       pump(key)
-      return await sent
+      const went = await sent
+      // A command has no receipt, so the history keeps it from here.
+      if (went && shellCommand(text) !== undefined)
+        chat.update((state) => ({
+          ...state,
+          shells: withShell(state.shells, context, terminalId, { text, at }),
+        }))
+      return went
     },
     clearBox: async (key, seen) => {
       if (conversations?.clearBox && !(await conversations.clearBox(key, seen)))

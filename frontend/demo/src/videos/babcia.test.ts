@@ -542,53 +542,6 @@ describe("the Babcia demo", () => {
     expect(activeSession(store.getSnapshot())!.state.items).toEqual(shown)
   })
 
-  it("puts the helpers in the desk's frame, at its window size, whatever is selected", () => {
-    let layoutOf = (): Record<string, { position: { x: number; y: number } }> => ({})
-    const geometry = (select: number | undefined) => {
-      const { cues, store, terminals } = open()
-      if (select)
-        store.transact([
-          {
-            type: "terminal/select",
-            target: bar,
-            terminalId: key(select).terminalId,
-          },
-        ])
-      cues.helpers()
-      const layout = activeSession(store.getSnapshot())!.state.layout.canvas.geometry
-      layoutOf = () => layout
-      return terminals()
-        .slice(9)
-        .map((each) => [each.id, layout[each.id]] as const)
-    }
-    const first = geometry(undefined)
-    expect(geometry(3)).toEqual(first)
-    expect(geometry(12)).toEqual(first)
-    const [leadAt, ...helperAts] = [first[0], first[3], first[4], first[5]].map((each) => each![1]!)
-    expect(helperAts).toHaveLength(3)
-    for (const each of helperAts) {
-      expect(each).toMatchObject({ width: 550, height: 380 })
-      // Within the desk's four columns and rows, to the right of or under the lead.
-      expect(each.position.x).toBeLessThan(4 * 610 + 50)
-      expect(each.position.y).toBeLessThan(4 * 440 + 50)
-      expect(each.position.x >= leadAt!.position.x || each.position.y >= leadAt!.position.y).toBe(
-        true,
-      )
-    }
-    // No two windows of the desk lie over each other.
-    const all = Object.values(layoutOf())
-    const overlaps = all.flatMap((one, at) =>
-      all
-        .slice(at + 1)
-        .filter(
-          (other) =>
-            Math.abs(one.position.x - other.position.x) < 550 &&
-            Math.abs(one.position.y - other.position.y) < 380,
-        ),
-    )
-    expect(overlaps).toEqual([])
-  })
-
   it("leaves the agents still waiting on the person waiting when everyone finishes", async () => {
     const { cues, rows, agent } = open()
     cues.asks()
