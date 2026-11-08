@@ -324,7 +324,10 @@ describe.skipIf(process.platform !== "darwin")("reap on macOS", () => {
           const found = await darwin.list(scope)
           if (!looked) {
             looked = true
+            const gone = once(shell, "exit")
             shell.stdin!.end()
+            // Gone before the round goes on, so sleep is found only as it was before.
+            await gone
           }
           return found
         },
