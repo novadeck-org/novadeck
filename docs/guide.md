@@ -4,7 +4,13 @@ A quick tour. Every detail is in the [reference](reference.md).
 
 ## Install
 
-Get it from [novadeck.dev/download](https://novadeck.dev/download), for macOS, Windows or Linux.
+On macOS and x86_64 Linux:
+
+```sh
+curl -fsSL https://novadeck.dev/install.sh | sh
+```
+
+For Windows and portable builds, see [novadeck.dev/download](https://novadeck.dev/download).
 
 ## Connect your agents
 

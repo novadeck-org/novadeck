@@ -76,11 +76,13 @@ Novadeck runs the CLIs you already have, with your config and your own accounts.
 
 ## Install
 
+On macOS and x86_64 Linux:
+
 ```sh
 curl -fsSL https://novadeck.dev/install.sh | sh
 ```
 
-On macOS and x86_64 Linux. For Windows and portable builds, see
+For Windows and portable builds, see
 [novadeck.dev/download](https://novadeck.dev/download?utm_source=readme).
 
 Leave a ⭐ on your way out. It's your way back here, and someone else's way in.
