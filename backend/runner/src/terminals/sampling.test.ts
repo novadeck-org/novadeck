@@ -9,6 +9,7 @@ const fresh = vi.hoisted(() => ({
   childCalls: 0,
   tableCalls: 0,
   listings: [] as (number | undefined)[],
+  listingCalls: 0,
 }))
 vi.mock("@novadeck/terminal/pty", async (original) => {
   const real = await original<typeof import("@novadeck/terminal/pty")>()
@@ -21,7 +22,10 @@ vi.mock("@novadeck/terminal/pty", async (original) => {
     },
     processListing: (_platform?: unknown, _shared?: unknown, limitMs?: number) => {
       fresh.listings.push(limitMs)
-      return async () => fresh.listing
+      return async () => {
+        fresh.listingCalls += 1
+        return fresh.listing
+      }
     },
     hasChildProcess: async () => {
       fresh.childCalls += 1
@@ -588,6 +592,7 @@ describe("which terminals hold work a close would end", () => {
       fresh.childCalls = 0
       fresh.tableCalls = 0
       fresh.listings = []
+      fresh.listingCalls = 0
       const records = ["claude", "codex", "agy"].flatMap((agent) => [
         boundTo(agent, agent),
         boundTo(`${agent}2`, agent),
@@ -595,6 +600,7 @@ describe("which terminals hold work a close would end", () => {
       await busyTerminals(records)
       expect(fresh.tableCalls).toBe(1)
       expect(fresh.listings).toEqual([2_000])
+      expect(fresh.listingCalls).toBe(1)
       expect(fresh.childCalls).toBe(0)
     })
 

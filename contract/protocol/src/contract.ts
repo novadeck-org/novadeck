@@ -238,7 +238,7 @@ export const contract = {
     // suspended), one not yet bound by the shell's jobs beside it. `unknown` are the terminals
     // the runner could not read (the system's process list failed or was too slow, or an
     // agent's start isn't recorded yet), which a client must not take for idle. Read from the
-    // system when asked, a fixed number of listings for all terminals, and never sampled: a client asks while
+    // system when asked, on Linux and macOS a fixed number of listings for all terminals, and never sampled: a client asks while
     // someone looks at the answer (every few seconds, as a restart's card is open) and when
     // it is about to act on it, not otherwise. Calls that overlap share one read, except that `fresh` waits for a read
     // that starts after the call, so what began before it is never taken for now (a client
