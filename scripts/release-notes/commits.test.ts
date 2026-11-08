@@ -162,6 +162,37 @@ describe("the commits a release is written from", () => {
     expect(parseCommits([kept, raw('Revert "feat: old thing (#9)" (#10)')])).toHaveLength(1)
   })
 
+  it("leaves out a withdrawn pull request and the one that withdrew it, when both are in range", () => {
+    const raw = (subject: string) => ({ sha: subject, subject, body: "" })
+    const added = raw("feat(updates): a card (#20)")
+    const kept = raw("feat(ui): keep me (#1)")
+    const removed = raw("fix(updates): what's new again, and the card is gone (#21)")
+    const withdrawn = new Map([[21, [20]]])
+    expect(parseCommits([added, kept, removed], withdrawn).map((each) => each.pr)).toEqual([1])
+    // Either one alone stands: a range after the card's own release still tells its removal.
+    expect(parseCommits([kept, removed], withdrawn).map((each) => each.pr)).toEqual([1, 21])
+    expect(parseCommits([added, kept], withdrawn).map((each) => each.pr)).toEqual([20, 1])
+  })
+
+  it("never announces the Heads-up card to stable: #789 took back #755", () => {
+    const raws = [
+      {
+        sha: "a",
+        subject:
+          "feat(updates): a Heads-up card tells what works differently after an update (#755)",
+        body: "",
+      },
+      { sha: "b", subject: "feat(sessions): rows show what agents need (#786)", body: "" },
+      {
+        sha: "c",
+        subject:
+          "fix(updates): what's new tells every feature again, and the Heads-up card is gone (#789)",
+        body: "",
+      },
+    ]
+    expect(parseCommits(raws).map((each) => each.pr)).toEqual([786])
+  })
+
   it("takes the type, scope and pull request number off the subject", () => {
     expect(parseCommit(commit(330))).toMatchObject({
       type: "feat",

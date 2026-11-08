@@ -179,12 +179,37 @@ const revertOf = (raw: RawCommit): Revert | undefined => {
 }
 
 /**
+ * Pull requests that took back earlier ones without being a revert, by number: the pull request
+ * that took them back, then the ones it took back. A range that holds both reads as if neither
+ * were made, the way a revert does, so a promotion never announces what its stable users
+ * never had. #789 removed the Heads-up card that #755 added, both after v1.4.12.
+ */
+export const withdrawals: ReadonlyMap<number, readonly number[]> = new Map([[789, [755]]])
+
+/**
  * The user-visible commits of a range. A commit that a revert in the range undoes is left out
  * along with the revert; a revert of a revert brings the original back. Commits are taken
  * oldest first, and a revert matches by the full subject it quotes (type and scope included),
  * by a typed `revert(scope): subject` with the same scope and subject, or by a pull request it names.
+ * A pull request in `withdrawals` and the ones it took back are left out the same way.
  */
-export const parseCommits = (raws: readonly RawCommit[]): Commit[] => {
+export const parseCommits = (
+  raws: readonly RawCommit[],
+  withdrawn: ReadonlyMap<number, readonly number[]> = withdrawals,
+): Commit[] => {
+  const kept = parseReverted(raws)
+  const present = new Set(kept.flatMap((commit) => (commit.pr === undefined ? [] : [commit.pr])))
+  const dropped = new Set<number>()
+  for (const [by, taken] of withdrawn) {
+    const inRange = taken.filter((pr) => present.has(pr))
+    if (!present.has(by) || inRange.length === 0) continue
+    dropped.add(by)
+    for (const pr of inRange) dropped.add(pr)
+  }
+  return kept.filter((commit) => commit.pr === undefined || !dropped.has(commit.pr))
+}
+
+const parseReverted = (raws: readonly RawCommit[]): Commit[] => {
   type Entry = { commit: Commit; full: string; undoneBy: number | undefined }
   const entries: Entry[] = []
   const reverts: { revert: Revert; active: boolean }[] = []
