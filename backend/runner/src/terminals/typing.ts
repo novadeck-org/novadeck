@@ -436,6 +436,7 @@ export class Typing {
     this.tools.forget(terminalId)
     this.dialogs.forget(terminalId)
     this.receipts.forget(terminalId)
+    this.givenBack.forget(terminalId)
     this.boxes.forget(terminalId)
     this.entered.delete(terminalId)
     this.queueLooks.delete(terminalId)

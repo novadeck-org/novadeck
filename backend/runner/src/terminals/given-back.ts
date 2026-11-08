@@ -3,14 +3,33 @@ import type { HarnessEvent } from "@novadeck/harness-core/events"
 /** How long after a Stop gave messages back a hook of theirs may still report. */
 const lateMs = 60_000
 
+/**
+ * How long past the Stop's end a hook may have fired and still be one of the messages it gave
+ * back: the person sends the words again only after the Stop told them back, longer than this.
+ */
+const graceMs = 1_500
+
+/** The most a report waits for a Stop under way, which is bound by itself in any case. */
+const waitMs = 5_000
+
 const nothing = (): void => {}
 
 type Given = {
   /** The words handed back, every message queued behind the turn. */
-  readonly words: string
-  /** When the Stop began: a hook that started before it told of its message in time. */
+  readonly lines: readonly string[]
+  /** When the Stop began and ended: a hook fired between (and just after) is of a message in it. */
   readonly since: number
+  readonly endedAt: number
   readonly until: number
+  /** The messages already told of, each once. */
+  readonly used: Set<string>
+}
+
+/** Whether `lines` hold all of `message`'s lines, whole and in a row. */
+const holds = (lines: readonly string[], message: string): boolean => {
+  const own = message.split("\n").map((line) => line.trim())
+  if (own.every((line) => line === "")) return false
+  return lines.some((_, at) => own.every((line, index) => lines[at + index] === line))
 }
 
 /**
@@ -37,16 +56,32 @@ export class GivenBack {
     const stop = { since, ended }
     this.stopping.set(terminalId, stop)
     return (words) => {
-      if (words !== null) this.given.set(terminalId, { words, since, until: Date.now() + lateMs })
+      const endedAt = Date.now()
+      if (words !== null)
+        this.given.set(terminalId, {
+          lines: words.split("\n").map((line) => line.trim()),
+          since,
+          endedAt,
+          until: endedAt + lateMs,
+          used: new Set(),
+        })
       if (this.stopping.get(terminalId) === stop) this.stopping.delete(terminalId)
       end()
     }
   }
 
+  /** The terminal is gone: what it was given back goes with it. */
+  forget(terminalId: string): void {
+    this.given.delete(terminalId)
+    this.stopping.delete(terminalId)
+  }
+
   /**
-   * Whether the report's `events` start the turn of a message given back, by a hook that started
-   * after the Stop did: nothing ran, so the report tells of nothing. A Stop still under way is
-   * waited for, as its hook may report before it knows what it hands back.
+   * Whether the report's `events` start the turn of a message given back, by a hook fired
+   * after the Stop began and not after its end (give or take `graceMs`): nothing ran, so the
+   * report tells of nothing. A message is told of once; the person's own sending of the same
+   * words fires after the Stop ended. A Stop still under way is waited for, as its hook may
+   * report before it knows what it hands back.
    */
   async late(terminalId: string, events: readonly HarnessEvent[]): Promise<boolean> {
     const starts = events.filter(
@@ -54,19 +89,33 @@ export class GivenBack {
         event.type === "turn-started" && (event.cause === "prompt" || event.cause === "doorbell"),
     )
     if (starts.length === 0) return false
+    const firedAt = (event: (typeof starts)[number]) => event.firedAt ?? event.startedAt
     const stop = this.stopping.get(terminalId)
-    if (stop && starts.some((event) => event.startedAt >= stop.since)) await stop.ended
+    if (stop && starts.some((event) => firedAt(event) >= stop.since))
+      await Promise.race([
+        stop.ended,
+        new Promise((resolve) => setTimeout(resolve, waitMs).unref()),
+      ])
     const given = this.given.get(terminalId)
     if (!given) return false
     if (given.until < Date.now()) {
       this.given.delete(terminalId)
       return false
     }
-    return starts.some((event) => {
-      if (event.startedAt < given.since) return false
-      if (event.cause === "doorbell")
-        return event.nonce !== undefined && given.words.includes(event.nonce)
-      return event.prompt !== undefined && given.words.includes(event.prompt)
-    })
+    let late = false
+    for (const event of starts) {
+      const at = firedAt(event)
+      if (at < given.since || at > given.endedAt + graceMs) continue
+      const key = event.cause === "doorbell" ? event.nonce : event.prompt
+      if (key === undefined || given.used.has(key)) continue
+      const told =
+        event.cause === "doorbell"
+          ? given.lines.some((line) => line.includes(key))
+          : holds(given.lines, key)
+      if (!told) continue
+      given.used.add(key)
+      late = true
+    }
+    return late
   }
 }
