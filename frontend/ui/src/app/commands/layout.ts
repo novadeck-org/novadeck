@@ -1,19 +1,13 @@
 import type { ValueUpdate } from "@novadeck/core/state"
-import type {
-  CanvasLayout,
-  GridLayouts,
-  GridRestoreWidths,
-  WorkspaceTarget,
-} from "@novadeck/core/types"
+import type { GridLayouts, GridRestoreWidths, WorkspaceTarget } from "@novadeck/core/types"
 
 import { markReordered } from "../../shell/shell-state"
 import type { CommandContext } from "./context"
 
-// Layout changes a view reports. Each takes the target the view rendered for: Canvas
-// saves geometry when it unmounts after a session switch, and that save belongs to
-// the session it showed.
+// Layout changes a view reports. Each takes the target the view rendered for: Grid saves
+// its layouts when it unmounts after a session switch, and that save belongs to the
+// session it showed.
 export type LayoutCommands = {
-  readonly setCanvasLayout: (target: WorkspaceTarget, layout: ValueUpdate<CanvasLayout>) => void
   readonly setGridLayouts: (target: WorkspaceTarget, layouts: ValueUpdate<GridLayouts>) => void
   readonly toggleGridWidth: (
     target: WorkspaceTarget,
@@ -29,8 +23,6 @@ export const createLayoutCommands = ({
   workspace,
   ui,
 }: Pick<CommandContext, "workspace" | "ui">): LayoutCommands => ({
-  setCanvasLayout: (target, layout) =>
-    void workspace.dispatch({ type: "canvas/layout", target, layout }),
   setGridLayouts: (target, layouts) =>
     void workspace.dispatch({ type: "grid/layouts", target, layouts }),
   toggleGridWidth: (target, terminalId, change) =>

@@ -350,7 +350,6 @@ const place = (number: number) => {
   }
 }
 const deskLayout = (): CanvasLayout => ({
-  viewport: { x: 120, y: 60, zoom: 0.5 },
   geometry: Object.fromEntries(
     jobs.flatMap((_, index) =>
       onDeck(index + 1)

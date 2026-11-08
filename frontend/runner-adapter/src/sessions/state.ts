@@ -20,11 +20,12 @@ export type SavedSession = {
   readonly state: RestoredView
 }
 
-// Canvas marks a node while a gesture runs; a saved layout never resumes one.
+// Canvas marks a node while a gesture runs; a saved layout never resumes one. Of the
+// canvas, only where windows were dropped is saved: the camera an older build saved is
+// left out.
 const settled = (layout: TerminalLayout): TerminalLayout => ({
   ...layout,
   canvas: {
-    ...layout.canvas,
     geometry: Object.fromEntries(
       Object.entries(layout.canvas.geometry).map(
         ([id, { dragging: _dragging, resizing: _resizing, ...geometry }]) => [id, geometry],

@@ -53,8 +53,9 @@ describe("a stay on Canvas", () => {
   it("is held for each session apart, for the sidebar's order it was arranged for", () => {
     const stays = createCanvasStays()
     const stay = beginStay(tiles, room)
-    stays.of("one").keep(stay, 2)
-    expect(stays.of("one").kept(2)).toBe(stay)
+    const camera = { x: 10, y: 20, zoom: 0.5 }
+    stays.of("one").keep(stay, 2, camera)
+    expect(stays.of("one").kept(2)).toEqual({ stay, camera })
     expect(stays.of("one").kept(3)).toBeUndefined()
     expect(stays.of("two").kept(2)).toBeUndefined()
   })

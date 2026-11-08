@@ -1,6 +1,5 @@
-import type { CanvasLayout } from "@novadeck/core/types"
+import type { Viewport } from "@xyflow/react"
 
-type Viewport = NonNullable<CanvasLayout["viewport"]>
 type Flight = { viewport: Viewport }
 
 // A single visit, scoped to the mounted Canvas; this is not a camera history.

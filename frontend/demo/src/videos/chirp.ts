@@ -191,7 +191,6 @@ const nudges = [
   [-10, -15],
 ] as const
 const deskLayout = (): CanvasLayout => ({
-  viewport: { x: 85, y: 91, zoom: 0.62 },
   geometry: Object.fromEntries(
     jobs.map((_, index) => {
       const [dx, dy] = nudges[index % nudges.length]!

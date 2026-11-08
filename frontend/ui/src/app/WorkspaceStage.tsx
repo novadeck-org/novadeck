@@ -1,7 +1,7 @@
 import { allTeams, sameTeam, sameTeams, teamOf } from "@novadeck/core/derivations"
 import { orderedTiles, tilesOf } from "@novadeck/core/roster"
 import type { ValueUpdate } from "@novadeck/core/state"
-import type { CanvasLayout, GridLayouts } from "@novadeck/core/types"
+import type { GridLayouts } from "@novadeck/core/types"
 import { memo, Suspense, useCallback, useEffect, useMemo, useState, type RefObject } from "react"
 
 import { createCanvasStays } from "../layouts/canvas/stay"
@@ -101,7 +101,6 @@ export const WorkspaceStage = memo(
       setSelected,
       add,
       showSessions,
-      setCanvasLayout: saveCanvasLayout,
       setGridLayouts: saveGridLayouts,
       toggleGridWidth,
       showAll,
@@ -109,10 +108,6 @@ export const WorkspaceStage = memo(
     const preview = hidden[selected] ? selected : ""
     const layoutHidden = useLayoutHidden(hidden, preview)
     // Views save layouts for the session they rendered, even after it is left.
-    const setCanvasLayout = useCallback(
-      (next: ValueUpdate<CanvasLayout>) => saveCanvasLayout(target, next),
-      [saveCanvasLayout, target],
-    )
     const setGridLayouts = useCallback(
       (layouts: ValueUpdate<GridLayouts>) => saveGridLayouts(target, layouts),
       [saveGridLayouts, target],
@@ -177,7 +172,6 @@ export const WorkspaceStage = memo(
               reordered={reordered}
               fitOnNavigate={shellNavigation.move === "fit"}
               flyOnNavigate={flying}
-              onLayoutChange={setCanvasLayout}
               terminals={listed}
               selected={selected}
               team={team}

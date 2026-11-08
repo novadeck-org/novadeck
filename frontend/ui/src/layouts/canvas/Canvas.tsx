@@ -53,7 +53,6 @@ import type {
   TerminalNode,
 } from "./types"
 import { useCanvasNavigation } from "./useCanvasNavigation"
-import { useCanvasPersistence } from "./useCanvasPersistence"
 import { useCanvasVisit } from "./useCanvasVisit"
 export type { CanvasHandle } from "./types"
 
@@ -78,7 +77,6 @@ const TerminalCanvas = ({
   reordered,
   fitOnNavigate,
   flyOnNavigate,
-  onLayoutChange,
   terminals,
   hidden,
   preview,
@@ -117,27 +115,16 @@ const TerminalCanvas = ({
   )
   // Whether a node's text can be read at the zoom; the selector changes only as it crosses.
   const legible = useStore((state) => state.transform[2] >= legibleZoom)
-  const maxZoom = Math.max(1.5, layout.viewport?.zoom ?? 1, fitZoom)
+  // The stay it opens as it was left with, if it does: only then does it keep that camera.
+  const [kept] = useState(() => (revealOnMount ? held.kept(reordered) : undefined))
+  const initialViewport = kept?.camera
+  const maxZoom = Math.max(1.5, initialViewport?.zoom ?? 1, fitZoom)
   const container = useRef<HTMLDivElement>(null)
   const [visibility] = useState(createNodeVisibility)
-  const [initialViewport] = useState(layout.viewport)
   const { visit, animateVisit } = useCanvasVisit(handleRef)
-  const { viewportRef, mounted, trackViewport, commitViewport } = useCanvasPersistence({
-    layout,
-    onLayoutChange,
-  })
-  // Leaving Canvas ends a visit as though the person came back from it: the camera it
-  // keeps is where the visit began, so a double-click on returning flies in again, not to
-  // where the camera already is. After the unmount snapshot above, so it wins.
-  useEffect(
-    () => () => {
-      const { home } = visit
-      if (!home) return
-      trackViewport(home)
-      commitViewport()
-    },
-    [visit, trackViewport, commitViewport],
-  )
+  // The camera as the move under way began, or last left it: a move the person makes ends
+  // a visit's return point; one the canvas makes does not.
+  const lastViewport = useRef<CanvasViewport>(initialViewport ?? { x: 0, y: 0, zoom: 1 })
   // The chrome's scale is a CSS variable, but setting it on the canvas restyles everything
   // inside, thousands of terminal rows included, on every frame of a zoom. So a zoom sets
   // it only on the chrome that reads it, and the canvas takes it once the zoom rests, for
@@ -187,22 +174,23 @@ const TerminalCanvas = ({
   // paint, and its windows mount where it puts them.
   const stay = useRef<CanvasStay | null>(null)
   const [opened, setOpened] = useState<ReadonlyMap<string, XYPosition> | null>(null)
-  // The stay it opens as it was left with, if it does: only then does it keep that camera.
-  const [kept] = useState(() => (revealOnMount ? held.kept(reordered) : undefined))
   useLayoutEffect(() => {
     if (stay.current) return
-    const first = kept ? continueStay(kept, tiles) : beginStay(tiles, room())
+    const first = kept ? continueStay(kept.stay, tiles) : beginStay(tiles, room())
     stay.current = first
     setOpened(stayPlaces(first))
   }, [kept, room, tiles])
   // The sidebar's order the windows were last arranged afresh for.
   const arrangedFor = useRef(reordered)
-  // Leaving, it hands its stay to the stage, for coming back by a window's own button.
+  // Leaving, it hands its stay and camera to the stage, for coming back by a window's own
+  // button. Leaving ends a visit as though the person came back from it: the camera kept
+  // is where the visit began, so a double-click on returning flies in again, not to where
+  // the camera already is.
   useEffect(
     () => () => {
-      if (stay.current) held.keep(stay.current, arrangedFor.current)
+      if (stay.current) held.keep(stay.current, arrangedFor.current, visit.home ?? getViewport())
     },
-    [held],
+    [getViewport, held, visit],
   )
   const knownTerminals = useRef(new Set(terminals.map((terminal) => terminal.id)))
   const createdPositions = useRef(new Map<string, XYPosition>())
@@ -641,9 +629,11 @@ const TerminalCanvas = ({
               maxZoom={maxZoom}
               defaultViewport={initialViewport ?? { x: 0, y: 0, zoom: 1 }}
               onInit={initializeViewport}
-              onMoveStart={(_, viewport) => trackViewport(viewport)}
+              onMoveStart={(_, viewport) => {
+                lastViewport.current = viewport
+              }}
               onMove={(event, viewport) => {
-                const previous = viewportRef.current
+                const previous = lastViewport.current
                 if (
                   event &&
                   (viewport.x !== previous.x ||
@@ -651,19 +641,7 @@ const TerminalCanvas = ({
                     viewport.zoom !== previous.zoom)
                 )
                   visit.clear()
-                trackViewport(viewport)
-              }}
-              onMoveEnd={(_, viewport) => {
-                const current = getViewport()
-                if (
-                  !mounted.current ||
-                  current.x !== viewport.x ||
-                  current.y !== viewport.y ||
-                  current.zoom !== viewport.zoom
-                )
-                  return
-                trackViewport(viewport)
-                commitViewport()
+                lastViewport.current = viewport
               }}
               panOnDrag
               panOnScroll={false}

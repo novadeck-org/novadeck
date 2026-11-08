@@ -5,7 +5,7 @@ import {
   type Arranged,
   type CanvasArrangement,
 } from "@novadeck/core/layout/canvas-arrangement"
-import type { XYPosition } from "@xyflow/react"
+import type { Viewport, XYPosition } from "@xyflow/react"
 
 // One stay on Canvas: how its windows are arranged (core/layout/canvas-arrangement.ts), and
 // where the person put the ones they dragged or dropped, which holds until the stay ends.
@@ -50,12 +50,15 @@ export const moveInStay = (stay: CanvasStay, id: string, position: XYPosition): 
 export const stayPlaces = (stay: CanvasStay): ReadonlyMap<string, XYPosition> =>
   new Map([...canvasPlaces(stay.arrangement), ...Object.entries(stay.moved)])
 
+// A stay as Canvas left it, with the camera it left with.
+export type KeptStay = { readonly stay: CanvasStay; readonly camera: Viewport }
+
 // A session's stay as Canvas last had it. It is kept with the sidebar's order it was
 // arranged for (the count of the person's reorders): a stay arranged for another order is
 // not come back to.
 export type HeldStay = {
-  readonly kept: (reordered: number) => CanvasStay | undefined
-  readonly keep: (stay: CanvasStay, reordered: number) => void
+  readonly kept: (reordered: number) => KeptStay | undefined
+  readonly keep: (stay: CanvasStay, reordered: number, camera: Viewport) => void
 }
 
 // Each session's stay, held by the stage, which outlives the views: going to Focus by a
@@ -63,14 +66,14 @@ export type HeldStay = {
 export type CanvasStays = { readonly of: (context: string) => HeldStay }
 
 export const createCanvasStays = (): CanvasStays => {
-  const stays = new Map<string, { readonly stay: CanvasStay; readonly reordered: number }>()
+  const stays = new Map<string, KeptStay & { readonly reordered: number }>()
   return {
     of: (context) => ({
       kept: (reordered) => {
         const held = stays.get(context)
-        return held?.reordered === reordered ? held.stay : undefined
+        return held?.reordered === reordered ? { stay: held.stay, camera: held.camera } : undefined
       },
-      keep: (stay, reordered) => void stays.set(context, { stay, reordered }),
+      keep: (stay, reordered, camera) => void stays.set(context, { stay, reordered, camera }),
     }),
   }
 }

@@ -1,7 +1,7 @@
 import type { Team } from "@novadeck/core/derivations"
 import type { Tile, CanvasLayout } from "@novadeck/core/types"
-import type { Node } from "@xyflow/react"
-import type { Dispatch, SetStateAction, Ref, ReactNode } from "react"
+import type { Node, Viewport } from "@xyflow/react"
+import type { Ref, ReactNode } from "react"
 
 import type { TerminalLayoutControls } from "../../terminals/WindowShell"
 import type { HeldStay } from "./stay"
@@ -18,8 +18,8 @@ export type TerminalNode = Node<
   "terminal"
 >
 export type CanvasProps = {
-  // Its camera, which it saves, and where a window was dropped on it; it arranges its
-  // windows itself and saves nothing of that.
+  // Where a window was dropped on it, which it reads as the drop; it arranges its windows
+  // itself and saves nothing of that, nor of its camera.
   layout: CanvasLayout
   // Come back to from Focus by a window's own button: it opens as it was left, its camera
   // and its windows. Otherwise it arranges its windows afresh and frames them all.
@@ -31,7 +31,6 @@ export type CanvasProps = {
   fitOnNavigate: boolean
   // Navigation flies the camera in to the selection, as a header's double-click does.
   flyOnNavigate: boolean
-  onLayoutChange: Dispatch<SetStateAction<CanvasLayout>>
   // The session's terminals and windows, in the sidebar's order.
   terminals: readonly Tile[]
   hidden: Record<string, boolean>
@@ -47,7 +46,7 @@ export type CanvasProps = {
   onSelect: (id: string) => void
   render: (terminal: Tile, controls: TerminalLayoutControls) => ReactNode
 }
-export type CanvasViewport = NonNullable<CanvasLayout["viewport"]>
+export type CanvasViewport = Viewport
 export type CanvasHandle = {
   returnToOrigin: () => boolean
 }
