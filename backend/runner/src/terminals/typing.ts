@@ -43,7 +43,7 @@ import { Interrupts, Prompts } from "./prompting.js"
 import { freshRef, Receipts, type ReceiptsOptions } from "./receipts.js"
 import type { Record } from "./record.js"
 import { slicingOf } from "./slices.js"
-import { interruptionsOf } from "./transcripts.js"
+import { holds, interruptionsOf } from "./transcripts.js"
 
 const log = logs.for("chat")
 
@@ -847,7 +847,9 @@ export class Typing {
         const source = binding && harnesses[binding.agent].transcripts
         if (!record || !binding || !root || !source) return undefined
         const path = await source.locate(root, binding.sessionId, null)
-        if (!path || record.bound?.binding !== binding) return undefined
+        // The same session: a status line telling its version meanwhile makes a binding of its own,
+        // which the prompt would otherwise go unfollowed for.
+        if (!path || !holds(record.bound?.binding, binding)) return undefined
         return {
           key: keyOf(record)!,
           agent: binding.agent,
