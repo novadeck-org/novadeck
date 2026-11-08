@@ -21,7 +21,6 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-1f2328?style=flat-square" alt="Runs on macOS, Windows and Linux" />
-  <a href="https://github.com/novadeck-org/novadeck/releases/latest"><img src="https://img.shields.io/github/v/release/novadeck-org/novadeck?style=flat-square&label=release&color=1f2328" alt="Latest release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-1f2328?style=flat-square" alt="License: GPL-3.0-or-later" /></a>
 </p>
 
