@@ -663,6 +663,8 @@ describe("prompt receipts with images, after a Stop", () => {
     await prompt(run, "Queued beta", "B", ["/up/x/b.png"])
     await appendFile(run.path, row("[Image #3] Queued beta"))
     await vi.waitFor(() => expect(run.state("B")).toBe("settled"))
+    // The turn that runs began with it.
+    run.host.turns = { working: true, endedAt: null, startedAt: run.clock.now - 10 }
     expect(run.receipts.boxFiles(terminal, 1, "Queued beta", true)).toEqual(["/up/x/b.png"])
     run.receipts.withdraw(terminal, "Queued beta", 0, 1)
     expect(run.state("B")).toBe("withdrawn")
@@ -679,5 +681,41 @@ describe("prompt receipts with images, after a Stop", () => {
       "/up/x/a.png",
       "/up/x/b.png",
     ])
+  })
+
+  it("does not take an image prompt settled in an earlier turn for a box the person filled", async ({
+    resources,
+  }) => {
+    const run = await setup(resources)
+    await prompt(run, "fix this", "A", ["/up/old/a.png"])
+    await appendFile(run.path, row("[Image #1] fix this"))
+    await vi.waitFor(() => expect(run.state("A")).toBe("settled"))
+    // An hour on, a later turn runs, and the person's own screenshot and words are in the box.
+    run.clock.now += 3_600_000
+    run.host.turns = { working: true, endedAt: null, startedAt: run.clock.now }
+    expect(run.receipts.boxFiles(terminal, 1, "fix this", true)).toEqual([])
+    run.receipts.withdraw(terminal, "fix this", run.clock.now, 1)
+    expect(run.state("A")).toBe("settled")
+  })
+
+  it("does not take an image prompt Antigravity settled in an earlier turn for queued words", async ({
+    resources,
+  }) => {
+    const run = await setup(resources)
+    run.host.agent = "agy"
+    await prompt(run, "fix this", "A", ["/up/old/a.png"])
+    await appendFile(run.path, row("fix this"))
+    await vi.waitFor(() => expect(run.state("A")).toBe("settled"))
+    run.clock.now += 3_600_000
+    run.host.turns = { working: true, endedAt: null, startedAt: run.clock.now }
+    expect(run.receipts.boxFiles(terminal, 0, "fix this", true)).toEqual([])
+  })
+
+  it("takes no settled prompt when no turn runs", async ({ resources }) => {
+    const run = await setup(resources)
+    await prompt(run, "fix this", "A", ["/up/old/a.png"])
+    await appendFile(run.path, row("[Image #1] fix this"))
+    await vi.waitFor(() => expect(run.state("A")).toBe("settled"))
+    expect(run.receipts.boxFiles(terminal, 1, "fix this", true)).toEqual([])
   })
 })

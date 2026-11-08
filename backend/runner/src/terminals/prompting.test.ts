@@ -1,3 +1,7 @@
+import { appendFile, mkdtemp, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { doorbellLine, replyLine } from "@novadeck/harness-core/prompts"
 import { screen as screenOf } from "@novadeck/harness-core/testing/screens"
@@ -12,10 +16,13 @@ import {
   type PromptRefusalReason,
 } from "@novadeck/tui-input"
 import type { BoxProfile, InputBox } from "@novadeck/tui-input/box"
+import { vi } from "vitest"
 
 import { DomainError } from "../errors.js"
 import { describe, expect, it } from "../test.js"
+import { splitImages } from "./image-marks.js"
 import { asFailure, Interrupts, Prompts, promptError } from "./prompting.js"
+import { Receipts } from "./receipts.js"
 
 const refused = (text: string, options?: { shell?: boolean }) => refusedBy(text, options)
 
@@ -349,7 +356,15 @@ describe("the contract's errors for what the library refuses", () => {
 
 describe("interrupts", () => {
   /** A terminal whose turn works, its box empty until the Escape, then holding `after`. */
-  const stopped = (after: string, options: { clear?: boolean } = {}) => {
+  const stopped = (
+    after: string,
+    options: {
+      clear?: boolean
+      /** The turn's prompt; the box standing for what clearing would lose, and whose images are theirs. */
+      prompt?: string
+      own?: (text: string) => boolean
+    } = {},
+  ) => {
     let escaped = false
     let cleared = false
     const profile: BoxProfile = {
@@ -359,7 +374,7 @@ describe("interrupts", () => {
           ? undefined
           : { text: screen.rows[first]!.slice(2).trimEnd(), mode: "prompt", first, last: first }
       },
-      stands: () => false,
+      stands: (text: string) => options.own !== undefined && /\[Image #\d+\]/.test(text),
       textWidth: (columns) => columns - 3,
       collapsed: () => false,
       ...(options.clear ? { clear: () => "\x15" } : {}),
@@ -375,7 +390,7 @@ describe("interrupts", () => {
         working: () => true,
         alive: () => true,
         profile: () => profile,
-        prompt: () => "the turn's own",
+        prompt: () => options.prompt ?? "the turn's own",
         screen: () =>
           Promise.resolve(
             screenOf({ rows: ["header", escaped && !cleared ? `> ${after}` : "> "] }),
@@ -388,6 +403,7 @@ describe("interrupts", () => {
           cleared = true
           return true
         },
+        ...(options.own && { ownImages: (_id: string, text: string) => options.own!(text) }),
       },
       { restoreMs: 300, restoreCalmMs: 50, settleMs: 0 },
     )
@@ -448,6 +464,79 @@ describe("interrupts", () => {
       marks: 1,
       restored: 0,
     })
+  })
+  const files = ["/up/old/a.png"]
+
+  /** Receipts of a Claude Code terminal holding a chat prompt "fix this" with an image, settled at 1,000. */
+  const receiptsOf = async (turnStartedAt: number) => {
+    const folder = await mkdtemp(join(tmpdir(), "novadeck-stop-images-"))
+    const path = join(folder, "record.jsonl")
+    await writeFile(path, "")
+    const receipts = new Receipts(
+      {
+        source: async () => ({
+          key: "s",
+          agent: "claude",
+          version: "1",
+          path,
+          items: (line: string) =>
+            [
+              {
+                role: "user",
+                kind: "text",
+                text: (JSON.parse(line) as { text: string }).text,
+                at: 0,
+              },
+            ] as never,
+        }),
+        bound: () => "s",
+        shown: () => undefined,
+        interruptions: () => [],
+        turns: () => ({ working: true, endedAt: null, startedAt: turnStartedAt }),
+        box: async () => undefined,
+        changed: () => {},
+      },
+      { now: () => 1_000, slackMs: 50, pollMs: 5, keepMs: 30, lateMs: 1_000 },
+    )
+    await receipts.expect("t", "fix this", "A", files)
+    receipts.sent("t", "A")
+    await appendFile(path, `${JSON.stringify({ text: "[Image #1] fix this" })}\n`)
+    await vi.waitFor(() =>
+      expect(receipts.view("t").find((each) => each.ref === "A")?.state).toBe("settled"),
+    )
+    return { receipts, close: () => receipts.close() }
+  }
+  const owns = (receipts: Receipts) => (text: string) => {
+    const { words, marks } = splitImages(text)
+    return receipts.boxFiles("t", marks, words, true).length > 0
+  }
+
+  it("clears the turn's own image prompt put back, which settled in the turn that runs", async ({
+    resources,
+  }) => {
+    const { receipts, close } = await receiptsOf(900)
+    resources.defer(close)
+    const stop = stopped("[Image #1] fix this", {
+      clear: true,
+      prompt: "[Image #1] fix this",
+      own: owns(receipts),
+    })
+    expect(await stop.interrupt("t")).toMatchObject({ returned: null, marks: 0, restored: 1 })
+  })
+
+  it("leaves a box the person filled, though an old turn's image prompt has the same words", async ({
+    resources,
+  }) => {
+    // The old prompt settled at 1,000; the turn that runs began an hour later.
+    const { receipts, close } = await receiptsOf(3_601_000)
+    resources.defer(close)
+    const stop = stopped("[Image #1] fix this", {
+      clear: true,
+      prompt: "[Image #1] fix this",
+      own: owns(receipts),
+    })
+    const failure = await rejection(stop.interrupt("t"))
+    expect(failure).toMatchObject({ code: "BOX_NOT_CLEARED" })
   })
 })
 

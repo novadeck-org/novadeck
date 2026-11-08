@@ -917,7 +917,11 @@ export class Typing {
         const activity = this.host.held(terminalId)?.bound?.activity
         if (!activity) return { working: false, endedAt: null }
         const working = activity.state === "working"
-        return { working, endedAt: working ? null : (activity.lastTurn?.at ?? activity.turnAt) }
+        return {
+          working,
+          endedAt: working ? null : (activity.lastTurn?.at ?? activity.turnAt),
+          startedAt: working ? activity.turnAt : null,
+        }
       },
       box: async (terminalId) => {
         const screen = await this.screenOf(terminalId)

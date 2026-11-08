@@ -79,6 +79,9 @@ export type ReceiptsOptions = {
   readonly lateMs?: number
 }
 
+// How long before its turn's hook started a prompt may be settled in the record, in milliseconds.
+const turnGraceMs = 1_000
+
 type State = PromptReceipt["state"]
 
 /** A prompt being followed. */
@@ -295,7 +298,7 @@ export class Receipts {
     const track = this.tracks.get(terminalId)
     if (!track) return
     let changed = false
-    const own = this.ownedBy(track, marks, returned, true)
+    const own = this.ownedBy(terminalId, track, marks, returned, true)
     for (const entry of track.entries) {
       // One back in the agent's box, too: the Stop took the words out of it.
       const waiting = entry.state === "pending" || entry.state === "in-box"
@@ -321,7 +324,7 @@ export class Receipts {
     const track = this.tracks.get(terminalId)
     if (!track) return
     let changed = false
-    const own = this.ownedBy(track, marks, returned, false)
+    const own = this.ownedBy(terminalId, track, marks, returned, false)
     for (const entry of track.entries)
       if (
         entry.ref !== except &&
@@ -350,13 +353,21 @@ export class Receipts {
    * a queued message's media as the Stop takes the words back, so for it, `queued` only, no
    * marks are asked.
    */
-  private ownedBy(track: Track, marks: number, words: string, queued: boolean): readonly Entry[] {
+  private ownedBy(
+    terminalId: string,
+    track: Track,
+    marks: number,
+    words: string,
+    queued: boolean,
+  ): readonly Entry[] {
     if (marks <= 0 && !(queued && track.agent === "agy")) return []
     const candidates = track.entries.filter(
       (entry) =>
         entry.state === "in-box" ||
         (queued && entry.state === "pending" && entry.sentAt !== null) ||
-        (queued && entry.state === "settled"),
+        // The record has the stopped turn's own prompt, or a queued one it took in as the turn
+        // started: only those that settled within the turn that runs, never an earlier one's.
+        (queued && entry.state === "settled" && this.settledInTurn(terminalId, entry)),
     )
     for (let from = candidates.length - 1; from >= 0; from -= 1) {
       const run = candidates.slice(from)
@@ -372,13 +383,21 @@ export class Receipts {
     return []
   }
 
+  /** Whether the entry settled within the turn that runs now (a hook's start and the record differ by a moment). */
+  private settledInTurn(terminalId: string, entry: Entry): boolean {
+    const started = this.host.turns(terminalId).startedAt
+    return typeof started === "number" && (entry.settledAt ?? 0) >= started - turnGraceMs
+  }
+
   /**
    * The image files, as the client named them, of the prompts the box held exactly (see
    * `ownedBy`); `queued` for a Stop's box.
    */
   boxFiles(terminalId: string, marks: number, words: string, queued = false): readonly string[] {
     const track = this.tracks.get(terminalId)
-    return track ? this.ownedBy(track, marks, words, queued).flatMap((entry) => entry.files) : []
+    return track
+      ? this.ownedBy(terminalId, track, marks, words, queued).flatMap((entry) => entry.files)
+      : []
   }
 
   /**

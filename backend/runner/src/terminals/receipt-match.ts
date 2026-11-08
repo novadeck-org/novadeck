@@ -158,6 +158,8 @@ export type Turns = {
   readonly working: boolean
   /** When its latest turn ended, where one did; null while one runs, or before any ended. */
   readonly endedAt: number | null
+  /** When the turn that runs now began (its hook's start); null when none runs, or it is not known. */
+  readonly startedAt?: number | null
 }
 
 /**
