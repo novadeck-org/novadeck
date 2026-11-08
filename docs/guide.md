@@ -4,22 +4,22 @@ A quick tour. Every detail is in the [reference](reference.md).
 
 ## Install
 
-macOS and Linux:
-
-```sh
-curl -fsSL https://novadeck.dev/install.sh | sh
-```
-
-Windows: run the
-[installer](https://github.com/novadeck-org/novadeck/releases/latest/download/novadeck-win-x64-setup.exe).
-Portable builds are on [novadeck.dev/download](https://novadeck.dev/download).
+Get it from [novadeck.dev/download](https://novadeck.dev/download), for macOS, Windows or Linux.
 
 ## Connect your agents
 
+Novadeck runs the agent CLIs you already have, so install at least one and sign in to it
+first:
+
+- [Claude Code](https://code.claude.com/docs/en/setup): `claude`
+- [Codex](https://developers.openai.com/codex/cli): `codex`
+- [Antigravity CLI](https://antigravity.google/docs/getting-started?tab=cli): `agy`
+
 ![The welcome dialog: Claude Code and Codex ticked, Antigravity not installed, and a Let's build something button.](assets/guide/welcome.webp)
 
-Tick the agents you use. Novadeck adds a small plugin to each, so it can resume them after a
-restart and pass messages between them. Then start them as usual: `claude`, `codex` or `agy`.
+When you first open Novadeck, tick the agents you use. Novadeck adds a small plugin to each, so
+it can resume them after a restart and pass messages between them. Then start them in any
+terminal, the same way you always do.
 
 Codex may ask you to trust Novadeck's hooks. Do it with `/hooks`, or messages won't reach it.
 
