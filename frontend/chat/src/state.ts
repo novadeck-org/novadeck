@@ -1,6 +1,7 @@
 import { createStore, type Store } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
+import { noChatAttachments, type ChatAttachments } from "./attachments"
 import { keepTerminals } from "./by-terminal"
 import { chatDraftOf, noChatDrafts, setChatDraft, type ChatDrafts } from "./drafts"
 import { noChatReplies, settleChatReplies, type ChatReplies } from "./replies"
@@ -15,6 +16,7 @@ import {
 
 // What the app reads of the state, from the package's one door: the selectors, and the
 // pure update its tests set a draft with.
+export { chatAttachmentsOf } from "./attachments"
 export { chatDraftOf, setChatDraft } from "./drafts"
 export { chatReplyOf } from "./replies"
 export { chatSendsOf } from "./sends"
@@ -25,6 +27,8 @@ export { chatShown } from "./shown"
 export type ChatState = {
   // What the person typed in a terminal's chat and has not sent.
   readonly drafts: ChatDrafts
+  // The images pasted there to go with it.
+  readonly attachments: ChatAttachments
   // The question each draft replies to, or that it is held once that question went.
   readonly replies: ChatReplies
   // The words on their way from there to the agent, out of the draft until they arrive.
@@ -36,6 +40,7 @@ export type ChatState = {
 
 const initialChat: ChatState = {
   drafts: noChatDrafts,
+  attachments: noChatAttachments,
   replies: noChatReplies,
   sends: noChatSends,
   answering: noTerminalAnswers,
@@ -116,6 +121,7 @@ export const watchChat = (chat: Chat, workspace: Store<Workspace>): (() => void)
     if (
       held.answering === noTerminalAnswers &&
       held.drafts === noChatDrafts &&
+      held.attachments === noChatAttachments &&
       held.replies === noChatReplies
     )
       return
@@ -143,6 +149,7 @@ export const watchChat = (chat: Chat, workspace: Store<Workspace>): (() => void)
         (context, id) => keep(context, id) && !answered(context, id),
       )
       const drafts = keepTerminals(state.drafts, open)
+      const attachments = keepTerminals(state.attachments, open)
       // What a draft replies to, or that it is held, stays as long as the draft: a reply
       // whose question went with its agent comes back held, never as a message, and never
       // replies to a later agent's question.
@@ -151,9 +158,12 @@ export const watchChat = (chat: Chat, workspace: Store<Workspace>): (() => void)
         drafts,
         (context, id) => open(context, id) && !keep(context, id),
       )
-      return answering === state.answering && drafts === state.drafts && replies === state.replies
+      return answering === state.answering &&
+        drafts === state.drafts &&
+        attachments === state.attachments &&
+        replies === state.replies
         ? state
-        : { ...state, answering, drafts, replies }
+        : { ...state, answering, drafts, attachments, replies }
     })
   })
 }

@@ -44,3 +44,38 @@ export const conversation = (chat: Locator): Locator =>
 /** The card of a request that waits on the person, by what it says it needs. */
 export const requestCard = (chat: Locator, title: string | RegExp): Locator =>
   chat.getByRole("region", { name: "Waiting for you" }).getByRole("article", { name: title })
+
+/** A small PNG made on the spot, named `name`, `size` of a side. */
+export const imageFile = async (name: string, size = 48): Promise<File> => {
+  const canvas = document.createElement("canvas")
+  canvas.width = size
+  canvas.height = size
+  const context = canvas.getContext("2d")!
+  const gradient = context.createLinearGradient(0, 0, size, size)
+  gradient.addColorStop(0, "#e5484d")
+  gradient.addColorStop(1, "#3e63dd")
+  context.fillStyle = gradient
+  context.fillRect(0, 0, size, size)
+  const blob = await new Promise<Blob>((resolve) => canvas.toBlob((made) => resolve(made!)))
+  return new File([blob], name, { type: "image/png" })
+}
+
+/**
+ * Pastes `files` into the box as the browser does on Ctrl+V, Ctrl+Shift+V or ⌘V with them on the
+ * clipboard, and answers whether the paste was left to the box (not taken by the chat).
+ */
+export const pasteInto = async (box: Locator, files: readonly File[]): Promise<boolean> => {
+  const data = new DataTransfer()
+  for (const file of files) data.items.add(file)
+  const event = new ClipboardEvent("paste", {
+    clipboardData: data,
+    bubbles: true,
+    cancelable: true,
+  })
+  box.element().dispatchEvent(event)
+  return !event.defaultPrevented
+}
+
+/** The chips of the images waiting for the next message. */
+export const attachments = (chat: Locator): Locator =>
+  chat.getByRole("list", { name: "Images for the next message" })

@@ -2,11 +2,14 @@ import { vi } from "vitest"
 import { page, userEvent } from "vitest/browser"
 
 import {
+  attachments,
   chatOf,
   composer,
   conversation,
+  imageFile,
   openChat,
   openChatDemo,
+  pasteInto,
   requestCard,
 } from "../support/chat"
 import { expectStaysTrue } from "../support/layouts"
@@ -202,6 +205,83 @@ describe("Sending a prompt from the chat", () => {
     await expect.element(chat.getByRole("alert")).not.toBeInTheDocument()
     await chat.getByRole("button", { name: "Stop" }).click()
     await expect.element(composer(chat)).toHaveValue("More please")
+  })
+})
+
+describe("Pasting an image into the chat", () => {
+  it("shows it as a chip once uploaded and sends it with the next message", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    const left = await pasteInto(composer(chat), [await imageFile("shot.png")])
+    expect(left).toBe(false)
+    const chip = attachments(chat).getByRole("listitem")
+    await expect.element(chip.getByRole("img", { name: "shot.png" })).toBeVisible()
+    await expect.element(chip.getByRole("button", { name: "Remove shot.png" })).toBeVisible()
+    // Saved on the agent's machine, it is ready to send, with no words.
+    await expect.element(chip.getByRole("status")).not.toBeInTheDocument()
+    await userEvent.type(composer(chat), "What is this?")
+    await userEvent.keyboard("{Enter}")
+    await expect.element(attachments(chat)).not.toBeInTheDocument()
+    // The demo's agent records each image as a line of the prompt, as the harnesses do.
+    await expect.element(conversation(chat).getByText(/What is this\?\s+\[Image\]/)).toBeVisible()
+  })
+
+  it("sends images alone, and lets one go before it does", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    await pasteInto(composer(chat), [await imageFile("a.png"), await imageFile("b.png")])
+    await chat.getByRole("button", { name: "Remove a.png" }).click()
+    await expect.element(chat.getByRole("img", { name: "a.png" })).not.toBeInTheDocument()
+    await expect.element(chat.getByRole("button", { name: "Send" })).toBeEnabled()
+    await chat.getByRole("button", { name: "Send" }).click()
+    await expect.element(conversation(chat).getByText("[Image]", { exact: true })).toBeVisible()
+  })
+
+  it("brings the images back to the box with the words when the prompt didn't go", async () => {
+    await openChatDemo()
+    // Codex in Checkout review waits for the person's answer.
+    const chat = await openChat("Checkout review")
+    await pasteInto(composer(chat), [await imageFile("shot.png")])
+    await expect.element(attachments(chat).getByRole("status")).not.toBeInTheDocument()
+    await userEvent.type(composer(chat), "More please")
+    await userEvent.keyboard("{Enter}")
+    await expect.element(chat.getByRole("alert").getByText(/waiting for your answer/)).toBeVisible()
+    await expect.element(composer(chat)).toHaveValue("More please")
+    await expect.element(chat.getByRole("img", { name: "shot.png" })).toBeVisible()
+  })
+
+  it("keeps the images for their terminal across a change of view", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    await pasteInto(composer(chat), [await imageFile("shot.png")])
+    await chooseView("Grid")
+    const grid = terminal("Build").getByRole("region", { name: "Build chat" })
+    await expect.element(grid.getByRole("img", { name: "shot.png" })).toBeVisible()
+  })
+
+  it("refuses them in a shell command, and says why", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    await userEvent.type(composer(chat), "!ls")
+    await pasteInto(composer(chat), [await imageFile("shot.png")])
+    await expect
+      .element(chat.getByRole("alert").getByText("A shell command takes text only."))
+      .toBeVisible()
+    await expect.element(attachments(chat)).not.toBeInTheDocument()
+  })
+
+  it("leaves a paste of text to the box", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    const data = new DataTransfer()
+    data.setData("text/plain", "pasted words")
+    const event = new ClipboardEvent("paste", {
+      clipboardData: data,
+      bubbles: true,
+      cancelable: true,
+    })
+    composer(chat).element().dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
   })
 })
 

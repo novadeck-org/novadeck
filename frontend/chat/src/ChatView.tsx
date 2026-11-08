@@ -20,6 +20,7 @@ import {
   useSyncExternalStore,
 } from "react"
 
+import type { Attachment } from "./attachments"
 import { sentBubbles, type SentBubble } from "./bubbles"
 import { Composer } from "./Composer"
 import { composerMode } from "./composer-mode"
@@ -55,6 +56,9 @@ export const ChatView = ({
   replyTo,
   onReplyTo,
   sending,
+  attachments,
+  onAttach,
+  onDetach,
   onSend,
   onInterrupt,
   onClearBox,
@@ -82,6 +86,12 @@ export const ChatView = ({
   readonly onReplyTo: (to: ChatReplyTo | null) => void
   // The words from the box on their way to the agent, oldest first, which the app keeps.
   readonly sending: readonly ChatSend[]
+  // The images pasted into the box, to go with its next message, which the app keeps with the draft.
+  readonly attachments: readonly Attachment[]
+  // Adds pasted images, saving each at once; answers why some weren't added, or null. Absent where
+  // the backend takes no images.
+  readonly onAttach?: ((files: readonly File[]) => string | null) | undefined
+  readonly onDetach: (id: string) => void
   // Sends the box's words, as a prompt or as the reply `to` names: the app takes them
   // out of the draft as they go, queues a prompt behind those still on their way, and puts
   // them back should they not arrive. It resolves whether they went: false once they came
@@ -446,6 +456,9 @@ export const ChatView = ({
           sending={sending.some((send) => send.to !== null)}
           replySending={replyGoing}
           working={working}
+          attachments={attachments}
+          onAttach={onAttach}
+          onDetach={onDetach}
           onSend={async (text) => {
             if (mode === "waiting")
               throw new Error("The conversation is still loading. Send again in a moment.")

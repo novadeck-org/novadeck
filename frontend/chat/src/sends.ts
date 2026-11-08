@@ -1,3 +1,4 @@
+import type { Attachment } from "./attachments"
 import { valueOf, withValue, type ByTerminal } from "./by-terminal"
 import type { ChatReply } from "./replies"
 
@@ -5,7 +6,9 @@ import type { ChatReply } from "./replies"
 // - `ref`: what names the prompt's receipt in the conversation (`Conversation.prompts`);
 // - `draft`: the draft they were sent from, as typed, which goes back in the box should they
 //   not go;
-// - `text`: the words as sent;
+// - `text`: the words as sent, empty for a message of images alone;
+// - `images`: the images that go with them, ready on the agent's machine, which go back in the
+//   box with the draft should they not go;
 // - `to`: the question they answer, for a reply, which goes at once and shows as its dialog's
 //   answer; null for a prompt, which takes its turn in the terminal's queue;
 // - `phase`: `queued` while a prompt before it hasn't reached the agent's record yet, or a
@@ -17,6 +20,7 @@ export type ChatSend = {
   readonly ref: string
   readonly draft: string
   readonly text: string
+  readonly images: readonly Attachment[]
   readonly to: ChatReply | null
   readonly phase: "queued" | "typing" | "sent" | "settled"
 }

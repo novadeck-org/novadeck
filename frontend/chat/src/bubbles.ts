@@ -1,19 +1,24 @@
 import type { ChatPrompt } from "@novadeck/core/conversation"
 import type { ChatBlock } from "@novadeck/core/conversation/turns"
 
+import type { Attachment } from "./attachments"
 import type { ChatSend } from "./sends"
 
 // A prompt the chat shows as the person's before, or instead of, the agent's record showing
 // it: `queued` behind a prompt still on its way; `sending` on its way, or sent and not in the
 // record yet; `unrecorded`, sent, and the record never got it; `in-box`, not in the record,
 // and back in the agent's own box. `at` is when it was sent, on the backend's clock; null
-// while it hasn't been.
+// while it hasn't been. `images` are the ones this window sent with it, shown until the record
+// holds the turn.
 export type SentBubble = {
   readonly ref: string
   readonly text: string
+  readonly images: readonly Attachment[]
   readonly state: "queued" | "sending" | "unrecorded" | "in-box"
   readonly at: number | null
 }
+
+const noImages: readonly Attachment[] = []
 
 // The prompts to show as bubbles, in the order they were given: those the conversation's
 // receipts tell (`prompts`), as any window shows them, then this window's own still on their
@@ -27,24 +32,25 @@ export const sentBubbles = (
   items: number,
 ): readonly SentBubble[] => {
   const told = new Set(prompts.map(({ ref }) => ref))
-  const local = new Map(sends.map((send) => [send.ref, send.text]))
-  const textOf = (prompt: ChatPrompt) => prompt.text ?? local.get(prompt.ref)
+  const local = new Map(sends.map((send) => [send.ref, send]))
+  const textOf = (prompt: ChatPrompt) => prompt.text ?? local.get(prompt.ref)?.text
   const fromReceipts = prompts.flatMap((prompt): SentBubble[] => {
     const text = textOf(prompt)
     if (text === undefined) return []
     const { ref, sentAt: at } = prompt
+    const images = local.get(ref)?.images ?? noImages
     switch (prompt.state) {
       case "withdrawn":
         return []
       case "settled":
         return prompt.item !== null && items > prompt.item
           ? []
-          : [{ ref, text, state: "sending", at }]
+          : [{ ref, text, images, state: "sending", at }]
       case "pending":
-        return [{ ref, text, state: "sending", at }]
+        return [{ ref, text, images, state: "sending", at }]
       case "unrecorded":
       case "in-box":
-        return [{ ref, text, state: prompt.state, at }]
+        return [{ ref, text, images, state: prompt.state, at }]
     }
   })
   const ownLeft = sends
@@ -52,6 +58,7 @@ export const sentBubbles = (
     .map((send): SentBubble => ({
       ref: send.ref,
       text: send.text,
+      images: send.images,
       state: send.phase === "queued" ? "queued" : "sending",
       at: null,
     }))

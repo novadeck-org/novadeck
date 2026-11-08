@@ -60,7 +60,10 @@ describe("the scrollback", () => {
   })
 
   it("marks a prompt the record doesn't have yet, with its state", () => {
-    const container = show([], [{ ref: "a", text: "and a test", state: "queued", at: null }])
+    const container = show(
+      [],
+      [{ ref: "a", text: "and a test", images: [], state: "queued", at: null }],
+    )
     const prompt = container.querySelector("article")
     expect(prompt?.getAttribute("data-sent")).toBe("queued")
     expect(prompt?.querySelector(".chat-mark")).not.toBeNull()
@@ -79,7 +82,7 @@ describe("the scrollback", () => {
   })
 
   it("offers what can be done about a prompt the record never got", () => {
-    const lost: SentBubble = { ref: "a", text: "words", state: "unrecorded", at: null }
+    const lost: SentBubble = { ref: "a", text: "words", images: [], state: "unrecorded", at: null }
     const resent: SentBubble[] = []
     const edited: SentBubble[] = []
     const { container, unmount } = render(
@@ -109,7 +112,7 @@ describe("the scrollback", () => {
         blocks: [],
         agent: "Claude",
         working: false,
-        sent: [{ ref: "a", text: "words", state: "unrecorded", at: null }],
+        sent: [{ ref: "a", text: "words", images: [], state: "unrecorded", at: null }],
         onEdit: () => {},
       }),
     )
@@ -123,7 +126,7 @@ describe("the scrollback", () => {
         blocks: [],
         agent: "Claude",
         working: false,
-        sent: [{ ref: "a", text: "words", state: "in-box", at: null }],
+        sent: [{ ref: "a", text: "words", images: [], state: "in-box", at: null }],
         onShowTerminal: () => {},
       }),
     )

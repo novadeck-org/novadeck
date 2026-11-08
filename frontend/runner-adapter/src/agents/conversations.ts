@@ -21,6 +21,7 @@ import { createStore, type MutableStore, type Store } from "@novadeck/core/store
 import { terminalKeyPath, type TerminalKey } from "@novadeck/core/types"
 import {
   conflictReason,
+  maxUploadBytes,
   normalisedText,
   promptFailure,
   promptRefusal as protocolRefusal,
@@ -47,12 +48,22 @@ export type ConversationStreams = {
   readonly prompt: (
     terminalId: string,
     text: string,
-    options?: { readonly automatic?: true; readonly along?: true; readonly ref?: string },
+    options?: {
+      readonly automatic?: true
+      readonly along?: true
+      readonly ref?: string
+      readonly images?: readonly string[]
+    },
   ) => Promise<{
     readonly ref: string
     readonly tracked: boolean
     readonly returned?: string | null | undefined
   }>
+  // Saves a pasted image on the runner's machine; resolves with its path there.
+  readonly upload: (
+    terminalId: string,
+    file: { readonly name: string; readonly data: Uint8Array },
+  ) => Promise<string>
   readonly interrupt: (terminalId: string) => Promise<{ readonly returned: string | null }>
   readonly keys: (terminalId: string, keys: string) => Promise<void>
   readonly takeBox: (terminalId: string) => Promise<{ readonly returned: string | null }>
@@ -590,6 +601,14 @@ export const createRunnerConversations = (
   return {
     // The runner's terminal ids are unique, so the id alone names the terminal.
     conversation: (key) => entryOf(key).conversation,
+    uploadImage: ({ terminalId }, file) =>
+      track(streams.upload(terminalId, file)).catch((error: unknown) => {
+        if (hasCode(error, "DISCONNECTED", "CLOSED")) throw new Error("The runner is offline.")
+        if (hasCode(error, "UPLOAD_TOO_LARGE"))
+          throw new Error("It is over the size the runner takes.")
+        throw new Error("The runner couldn't save it.")
+      }),
+    imageMaxBytes: maxUploadBytes,
     send: ({ terminalId }, text, options) =>
       track(streams.prompt(terminalId, text, options)).then(
         ({ tracked, returned }) => ({ tracked, returned: returned ?? null }),

@@ -36,6 +36,8 @@ const show = (
       onPress: () => false,
       draft,
       onDraft: () => {},
+      attachments: [],
+      onDetach: () => {},
       mode: composerMode(draft, null, [], true),
       sending: false,
       replySending: false,

@@ -83,6 +83,7 @@ const setup = () => {
       ref: options?.ref ?? "runner-picked-ref",
       tracked: true,
     })),
+    upload: vi.fn<ConversationStreams["upload"]>(async (_terminal, file) => `/runner/${file.name}`),
     interrupt: vi.fn<ConversationStreams["interrupt"]>(async () => ({ returned: null })),
     takeBox: vi.fn<ConversationStreams["takeBox"]>(async () => ({ returned: null })),
     clearBox: vi.fn<ConversationStreams["clearBox"]>(async () => ({ cleared: true })),
@@ -828,6 +829,30 @@ describe("the runner's conversations", () => {
       await conversations.interrupt(key)
       expect(streams.prompt).toHaveBeenCalledWith("t", "hello", undefined)
       expect(streams.interrupt).toHaveBeenCalledWith("t")
+    })
+
+    it("saves a pasted image on the runner and sends its path with the prompt", async () => {
+      const { conversations, streams } = setup()
+      const file = { name: "shot.png", data: new Uint8Array([1]) }
+      await expect(conversations.uploadImage?.(key, file)).resolves.toBe("/runner/shot.png")
+      expect(streams.upload).toHaveBeenCalledWith("t", file)
+      await conversations.send(key, "", { ref: "r", images: ["/runner/shot.png"] })
+      expect(streams.prompt).toHaveBeenCalledWith("t", "", {
+        ref: "r",
+        images: ["/runner/shot.png"],
+      })
+    })
+
+    it("tells the person why an image didn't upload", async () => {
+      const { conversations, streams } = setup()
+      streams.upload.mockRejectedValueOnce(new WireError("UPLOAD_TOO_LARGE"))
+      await expect(
+        conversations.uploadImage?.(key, { name: "a.png", data: new Uint8Array() }),
+      ).rejects.toThrow("over the size")
+      streams.upload.mockRejectedValueOnce(new WireError("DISCONNECTED"))
+      await expect(
+        conversations.uploadImage?.(key, { name: "a.png", data: new Uint8Array() }),
+      ).rejects.toThrow("offline")
     })
 
     it("marks a fixed line an Inbox button sends as automatic", async () => {

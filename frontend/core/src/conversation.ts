@@ -330,12 +330,27 @@ export type Conversations = {
   // `Conversation.prompts` (16 letters, digits, `_` or `-`; see `promptRef`), where the
   // backend follows it. `along` is the chat's own send, whose person can see what the agent's
   // box holds (`Conversation.box`): that goes out with it where it can. Without it, the box must
-  // be empty.
+  // be empty. `images` are paths `uploadImage` answered, which go with the prompt as its
+  // images; `text` may be empty then.
   readonly send: (
     key: TerminalKey,
     text: string,
-    options?: { readonly automatic?: true; readonly along?: true; readonly ref?: string },
+    options?: {
+      readonly automatic?: true
+      readonly along?: true
+      readonly ref?: string
+      readonly images?: readonly string[]
+    },
   ) => Promise<SendResult | void>
+  // Saves an image the person pasted on the agent's machine, which may not be this one, and
+  // resolves with its path there, for `send`'s `images`. Absent where the backend takes no
+  // images: the chat refuses a paste of one. Rejects with an Error whose message says why.
+  readonly uploadImage?: (
+    key: TerminalKey,
+    file: { readonly name: string; readonly data: Uint8Array },
+  ) => Promise<string>
+  // The most bytes of an image `uploadImage` takes; a larger one is never read.
+  readonly imageMaxBytes?: number
   // Stops the agent's turn, as Escape in its TUI does. Resolves with the words the person
   // had queued behind the turn, which the agent gave back and the chat's box takes again,
   // or null. Rejects as `send` does.

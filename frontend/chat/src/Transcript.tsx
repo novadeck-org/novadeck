@@ -244,6 +244,19 @@ const SentView = memo(
     return (
       <article className="chat-message" data-role="user" data-sent={state} aria-label="You">
         <Mark />
+        {bubble.images.length > 0 && (
+          <ul className="chat-images" aria-label="Images sent">
+            {bubble.images.map((image) => (
+              <li key={image.id}>
+                {image.preview ? (
+                  <img src={image.preview} alt={image.name} />
+                ) : (
+                  <span>{image.name}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
         <p className="chat-text">
           {bubble.text}
           {(state === "queued" || state === "sending") && (

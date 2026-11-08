@@ -1283,6 +1283,7 @@ export const runnerBackend = (
       slice: (terminalId) => runner.agents.slice(terminalId),
       transcript: (terminalId, actor) => runner.agents.transcript(terminalId, actor),
       prompt: (terminalId, text, given) => runner.agents.prompt(terminalId, text, given),
+      upload: (terminalId, file) => runner.terminals.upload(terminalId, file),
       interrupt: (terminalId) => runner.agents.interrupt(terminalId),
       keys: (terminalId, keys) => runner.agents.keys(terminalId, keys),
       takeBox: (terminalId) => runner.agents.takeBox(terminalId),

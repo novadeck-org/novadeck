@@ -472,6 +472,9 @@ importers:
       '@novadeck/core':
         specifier: workspace:*
         version: link:../core
+      '@novadeck/terminal':
+        specifier: workspace:*
+        version: link:../../libraries/terminal
       '@novadeck/toolkit':
         specifier: workspace:*
         version: link:../toolkit
