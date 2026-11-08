@@ -340,8 +340,8 @@ export const contract = {
     // may pick so its own copy of the prompt has the same key from the start; one the
     // terminal had already is a CONFLICT, writing nothing; without one, the runner picks it.
     // `tracked` says whether a receipt follows: not for a shell command (Codex records one
-    // only once it ran, Antigravity none), nor where no agent shows in the terminal, nor for
-    // a prompt of images alone.
+    // only once it ran, Antigravity none), nor where no agent shows in the terminal. A prompt
+    // of images alone has one like any other.
     // `images` are files the person pasted into the chat, saved by `terminals.upload` on this
     // runner: each path is pasted into the agent's box on its own, as a person pastes an
     // image file, before the text, and the agent shows it as an image (Claude Code and Codex

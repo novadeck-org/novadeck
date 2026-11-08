@@ -402,11 +402,9 @@ export class Typing {
     // The words as the agent's box held them, with any doorbell line a hook may still tell of.
     let boxed: string | null = null
     // The prompt that started the turn, as its hook told it, before the Stop changes that.
-    let person: string | undefined
     const result = await this.inputs
       .run(terminalId, (entry) => {
         since = Date.now()
-        person = this.host.messaging().personPrompt(terminalId)
         ended = this.givenBack.begin(terminalId, since)
         return this.interrupts.interrupt(terminalId, entry, (words) => (boxed = words))
       })
@@ -427,13 +425,11 @@ export class Typing {
         },
       )
     // The words handed back are the person's draft again: their prompts no longer wait.
-    // The turn's own prompt put back and cleared names its images as the words it held would.
-    const images = this.receipts.boxFiles(
-      terminalId,
-      result.restored || result.marks,
-      result.restored ? splitImages(person ?? "").words : (result.returned ?? ""),
-      true,
-    )
+    // The turn's own prompt put back and cleared gives back nothing, its images no more than
+    // its words: the agent had both, and images alone in the box would ride the next message.
+    const images = result.restored
+      ? []
+      : this.receipts.boxFiles(terminalId, result.marks, result.returned ?? "", true)
     if (result.returned !== null || result.marks > 0)
       this.receipts.withdraw(terminalId, result.returned ?? "", since, result.marks)
     return { returned: result.returned, ...(images.length > 0 && { images: [...images] }) }
