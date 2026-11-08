@@ -123,7 +123,7 @@ describe("the model call", () => {
       timeout: 180_000,
     })
     expect(clientFor("promote", {})).toMatchObject({ model: defaultModels.promote })
-    expect(defaultModels.promote).toBe("anthropic/claude-sonnet-5.5")
+    expect(defaultModels.promote).toBe("anthropic/claude-opus-5.5")
     const env = {
       RELEASE_NOTES_PRERELEASE_MODEL: "x/cheap",
       RELEASE_NOTES_PROMOTE_MODEL: "x/strong",
@@ -138,6 +138,18 @@ describe("the model call", () => {
     expect(clientFor("promote", { RELEASE_NOTES_PROMOTE_MODEL: "  " }).model).toBe(
       defaultModels.promote,
     )
+  })
+
+  it("asks the default promotion model for high effort, and no other model for any", async () => {
+    const promote = client(() => json(ok()), { model: defaultModels.promote })
+    await ask(promote.fake, "promote", "1", items)
+    expect(promote.sent[0]!.body.reasoning).toEqual({ effort: "high" })
+    const named = client(() => json(ok()), { model: "x/strong" })
+    await ask(named.fake, "promote", "1", items)
+    expect(named.sent[0]!.body).not.toHaveProperty("reasoning")
+    const release = client(() => json(ok()), { model: defaultModels.release })
+    await ask(release.fake, "release", "1", items)
+    expect(release.sent[0]!.body).not.toHaveProperty("reasoning")
   })
 
   it("sends the chosen model", async () => {

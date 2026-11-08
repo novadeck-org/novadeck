@@ -50,13 +50,21 @@ export type ModelOutput = z.infer<typeof answer>
  * The model a mode asks unless an environment variable says another: a cheap one for the many
  * prereleases (RELEASE_NOTES_PRERELEASE_MODEL), a strong one for the few promotions
  * (RELEASE_NOTES_PROMOTE_MODEL). Picked by dry runs over past prereleases: the cheap one keeps
- * to English and to the voice, which DeepSeek v4 Pro did not, and the strong one was the most
- * careful of those tried about what makes a highlight, at half the price of Opus.
+ * to English and to the voice, which DeepSeek v4 Pro did not. A promotion is the one set of notes
+ * every stable user reads, so it gets Opus: about $0.11 to Sonnet's $0.08 over v1.4.12..v1.5.30.
  */
 export const defaultModels = {
   release: "anthropic/claude-haiku-5.5",
-  promote: "anthropic/claude-sonnet-5.5",
+  promote: "anthropic/claude-opus-5.5",
 } as const
+
+/**
+ * The effort a mode's default model thinks at; a model a variable names keeps its own default,
+ * as it may not take the parameter.
+ */
+export const defaultEfforts: { readonly [mode in "release" | "promote"]?: "high" } = {
+  promote: "high",
+}
 
 /**
  * How long a mode waits for the model, a promotion having far more to read. The answer is
@@ -70,8 +78,8 @@ export const timeouts = { release: 180_000, promote: 480_000 } as const
  * models a variable may name cap a completion at 16,384. A promotion's dry run over 165 changes
  * on Sonnet 5.5 wrote 15,076 tokens, about 3,600 of them the answer, so the promotion has room
  * past that. OpenRouter holds the cost of the whole limit up front, before the model writes a
- * word, and that hold has to fit what is left on a key capped at a dollar with the prereleases'
- * spend already taken out: on Sonnet 5.5, 32,000 tokens hold about $0.32.
+ * word, and that hold has to fit what is left on the key with the prereleases' spend already
+ * taken out: on Opus 5.5, 32,000 tokens hold about $0.64, plus the input.
  */
 export const maxTokens = { release: 16_000, promote: 32_000 } as const
 
@@ -131,6 +139,9 @@ export const ask = (
     user: userMessage(kind, version, items),
     schema: { name: "release_notes", json: responseSchema },
     maxTokens: maxTokens[kind],
+    ...(client.model === defaultModels[kind] && defaultEfforts[kind]
+      ? { effort: defaultEfforts[kind] }
+      : {}),
   })
 
 /** The text of an answer as `ModelOutput`, or a `Skip` saying where it broke. */
