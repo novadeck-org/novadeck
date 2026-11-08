@@ -46,7 +46,7 @@ describe("the canvas's arrangement", () => {
       const team = ["1", "2", "3", "4"].map((id) => led(id, "lead"))
       const arrangement = arrangeCanvas([solo("lead"), ...team], room)
       expect(places(arrangement, ["lead", "1", "2", "3", "4"])).toBe(
-        "lead 0,0 | 1 1008,0 | 2 1932,0 | 3 1008,636 | 4 1932,636",
+        "lead 0,0 | 1 1008,0 | 2 1008,636 | 3 1008,1272 | 4 1932,0",
       )
     })
 
@@ -199,6 +199,16 @@ describe("the canvas's arrangement", () => {
       const grown = growCanvas(before, [solo("a"), solo("b"), led("lead", "one"), solo("one")])
       expect(grown.islands).toEqual(["one"])
       expect(grown.teams).toEqual({ lead: [null], one: ["lead"] })
+    })
+  })
+
+  context("as a team grows past a column", () => {
+    it("moves none of the teammates placed before", () => {
+      const team = ["1", "2", "3"].map((id) => led(id, "lead"))
+      const before = arrangeCanvas([solo("lead"), ...team], room)
+      const after = growCanvas(before, [solo("lead"), ...team, led("4", "lead")])
+      for (const id of ["lead", "1", "2", "3"]) expect(at(after, id)).toEqual(at(before, id))
+      expect(at(after, "4")).toEqual({ x: 1932, y: 0 })
     })
   })
 

@@ -67,8 +67,9 @@ type Spot = readonly [id: string, x: number, y: number]
 type Box = { readonly w: number; readonly h: number; readonly at: readonly Spot[] }
 
 // A team as an island: the lead, then its team in the next column. Teammates that lead no
-// one come first, `deep` to a column; one that leads comes below them, its own island
-// starting where it stands.
+// one come first, filled down `deep` to a column and then across, so that one joining
+// moves none placed before it; one that leads comes below them, its own island starting
+// where it stands.
 const island = (teams: CanvasArrangement["teams"], lead: string): Box => {
   const members = teams[lead] ?? []
   const own: Spot = [lead, 0, 0]
@@ -76,20 +77,13 @@ const island = (teams: CanvasArrangement["teams"], lead: string): Box => {
   const leadsNow = (cell: Cell): cell is string => held(cell) && Boolean(teams[cell]?.length)
   const plain = members.filter((cell) => !leadsNow(cell))
   const nested = members.filter(leadsNow).map((cell) => island(teams, cell))
-  const widest = Math.max(0, ...nested.map((each) => each.w))
-  const columns = Math.max(
-    1,
-    Math.ceil(plain.length / deep),
-    Math.min(plain.length, Math.round((widest + gap) / pitch.x)),
-  )
   const left = size.width + level
   const at: Spot[] = [own]
   plain.forEach((cell, n) => {
-    if (held(cell))
-      at.push([cell, left + (n % columns) * pitch.x, Math.floor(n / columns) * pitch.y])
+    if (held(cell)) at.push([cell, left + Math.floor(n / deep) * pitch.x, (n % deep) * pitch.y])
   })
-  let y = plain.length ? Math.ceil(plain.length / columns) * pitch.y : 0
-  let width = plain.length ? Math.min(columns, plain.length) * pitch.x - gap : 0
+  let y = Math.min(plain.length, deep) * pitch.y
+  let width = plain.length ? Math.ceil(plain.length / deep) * pitch.x - gap : 0
   for (const each of nested) {
     for (const [id, x, top] of each.at) at.push([id, left + x, y + top])
     y += each.h + gap

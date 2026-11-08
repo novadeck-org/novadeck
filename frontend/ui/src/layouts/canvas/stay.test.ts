@@ -1,5 +1,15 @@
+import { terminalFixture } from "@novadeck/core/testing"
+import type { Tile } from "@novadeck/core/types"
+
 import { context, describe, expect, it } from "../../test"
-import { beginStay, continueStay, createCanvasStays, moveInStay, stayPlaces } from "./stay"
+import {
+  arrangedTiles,
+  beginStay,
+  continueStay,
+  createCanvasStays,
+  moveInStay,
+  stayPlaces,
+} from "./stay"
 
 const room = { width: 1280, height: 860 }
 const tiles = [{ id: "a" }, { id: "b" }, { id: "lead" }, { id: "one", lead: "lead" }]
@@ -58,5 +68,31 @@ describe("a stay on Canvas", () => {
     expect(stays.of("one").kept(2)).toEqual({ stay, camera })
     expect(stays.of("one").kept(3)).toBeUndefined()
     expect(stays.of("two").kept(2)).toBeUndefined()
+  })
+})
+
+describe("the windows a canvas arranges", () => {
+  const terminals: readonly Tile[] = [
+    { ...terminalFixture(1, "~"), handle: "fox", state: "starting" },
+    { ...terminalFixture(2, "~"), handle: "owl", ledBy: "fox" },
+    { ...terminalFixture(3, "~"), ledBy: "gone" },
+    { ...terminalFixture(4, "~"), ledBy: null },
+  ]
+
+  it("takes each window's lead from the handle its backend named, running or not", () => {
+    expect(arrangedTiles(terminals, () => false)).toEqual([
+      { id: "01", lead: undefined },
+      { id: "02", lead: "01" },
+      { id: "03", lead: undefined },
+      { id: "04", lead: undefined },
+    ])
+  })
+
+  it("leaves out the windows asked, in the order given", () => {
+    expect(arrangedTiles(terminals, (tile) => tile.id === "02").map((tile) => tile.id)).toEqual([
+      "01",
+      "03",
+      "04",
+    ])
   })
 })

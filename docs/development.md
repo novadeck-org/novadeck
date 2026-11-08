@@ -892,8 +892,8 @@ reach the page (focus, view transitions, timers, the clock, ids) only through th
 `CommandEffects` that `app/controller/effects.ts` supplies, and tests pass their
 own. Address updates by project and session IDs so delayed callbacks affect
 their original session or become a no-op after it is removed: layout callbacks
-take the target their view rendered with, because Canvas saves its geometry when
-it unmounts after a session switch.
+take the target their view rendered with, because Grid saves its layouts when it
+unmounts after a session switch.
 
 Keyboard shortcuts are data. `interaction/keymap.ts` lists every binding by
 layer and routes a key from its input, the kind of element it was pressed on,
@@ -906,10 +906,9 @@ own zoom keys.
 Sections in `app/` subscribe to just what they render with `useWorkspaceState`
 and `useUiState`, built on `useStoreSelector`, and share selectors from
 `app/selectors.ts`. Each terminal frame and sidebar tab selects by its own
-terminal, so a rename keystroke re-renders only that tab and frame. A Canvas
-layout save re-renders the stage section, Canvas, and the terminals on it, but not
-the header, sidebar, tabs, or overlays. Effects that must follow a commit, such as
-saving a rename left behind, live in `app/controller/useWorkspaceEffects.ts`.
+terminal, so a rename keystroke re-renders only that tab and frame. Effects that
+must follow a commit, such as saving a rename left behind, live in
+`app/controller/useWorkspaceEffects.ts`.
 Feature components outside `app/` take props.
 
 Terminal metadata and saved layouts live in the workspace model. Everything
@@ -978,8 +977,9 @@ for Enter. An exited, killed, or
 failed terminal shows "Press Enter to restart", which starts a fresh shell in the
 same tile. While the runner is away, terminals dim and refuse input.
 
-XYFlow owns live Canvas gestures; save geometry and camera state when a gesture
-ends or the view unmounts. Grid, Canvas, Preferences, and search load on demand.
+XYFlow owns live Canvas gestures; Canvas arranges its windows itself
+(`layouts/canvas/stay.ts`, `core/layout/canvas-arrangement.ts`) and saves nothing of
+them or of its camera. Grid, Canvas, Preferences, and search load on demand.
 Keep vendor-specific types and CSS inside their adapters, and use
 application-owned types for saved layouts.
 

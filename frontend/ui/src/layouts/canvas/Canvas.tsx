@@ -43,7 +43,15 @@ import {
   windowSize,
 } from "./geometry"
 import { createNodeVisibility } from "./nodeVisibility"
-import { beginStay, continueStay, moveInStay, samePoint, stayPlaces, type CanvasStay } from "./stay"
+import {
+  arrangedTiles,
+  beginStay,
+  continueStay,
+  moveInStay,
+  samePoint,
+  stayPlaces,
+  type CanvasStay,
+} from "./stay"
 import { NodeVisibilityContext, TerminalContent, nodeTypes } from "./TerminalNode"
 import type {
   CanvasProps,
@@ -152,14 +160,14 @@ const TerminalCanvas = ({
   // The windows the canvas arranges: those not hidden, in the sidebar's order, each with
   // the window that leads it. A hidden terminal shown while it is selected (`preview`) is
   // not one of them: looking at it arranges nothing.
-  const tiles = useMemo((): readonly Arranged[] => {
-    const leads = new Map(
-      teams.flatMap((each) => each.workers.map((worker) => [worker, each.lead] as const)),
-    )
-    return terminals
-      .filter((terminal) => !hidden[terminal.id] && terminal.id !== preview)
-      .map((terminal) => ({ id: terminal.id, lead: leads.get(terminal.id) }))
-  }, [terminals, hidden, preview, teams])
+  const tiles = useMemo(
+    (): readonly Arranged[] =>
+      arrangedTiles(
+        terminals,
+        (terminal) => Boolean(hidden[terminal.id]) || terminal.id === preview,
+      ),
+    [terminals, hidden, preview],
+  )
   // The room the canvas has, which decides how its windows are packed. Read when they are
   // arranged afresh, never followed: it changes every frame while the sidebar slides.
   const room = useCallback((): { width: number; height: number } => {
