@@ -94,5 +94,4 @@ Closing the tab? Leave a ⭐ first. It's your bookmark back here, and it helps o
 
 ## License
 
-[GPL-3.0-or-later](LICENSE). Copyright © 2026 Mateusz Pietrzak and contributors.
-Contributions come in under the [CLA](CLA.md).
+[GPL-3.0-or-later](LICENSE). Contributions come in under the [CLA](CLA.md).
