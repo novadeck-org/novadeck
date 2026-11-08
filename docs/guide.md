@@ -378,7 +378,7 @@ While Novadeck has your focus, a new item that needs you (an approval, a questio
 that stopped an agent) shows as a toast over the header's right end after a 2 s grace. When
 Novadeck is in the background, the OS ping rings instead, never both for one item. Up to three
 stack, with the rest behind a "+N more" pill. A click opens the item in the Inbox, **×**
-closes the toast, and it goes by itself after 8 s, unless the pointer rests on it. No toast
+closes the toast, and it goes by itself after 30 s, unless the pointer rests on it. No toast
 comes for the terminal you have selected or while the Inbox is open. While Preferences,
 Search, the close confirmation, the crash-loop dialog or the terminal switcher you opened by
 click is open, a new one waits and shows when it closes, if Novadeck still has your focus;

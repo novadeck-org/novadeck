@@ -167,7 +167,7 @@
   height: 2px;
   border-bottom-left-radius: var(--_radius);
   background-color: var(--toast-countdown-bg, var(--color-line-strong));
-  animation: toast-countdown var(--_life, 8s) linear forwards;
+  animation: toast-countdown var(--_life, 30s) linear forwards;
 }
 @keyframes toast-countdown {
   to {
