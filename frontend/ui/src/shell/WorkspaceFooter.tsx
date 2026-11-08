@@ -6,6 +6,7 @@ import { FooterMurmur, type FooterMurmurProps } from "./FooterMurmur"
 import { FooterSandbox, type FooterSandboxProps } from "./FooterSandbox"
 import { useOverlayOpen } from "./notice-focus"
 import { PortableInstall, type PortableInstallProps } from "./PortableInstall"
+import { RestartToUpdate, type RestartUpdateProps } from "./RestartToUpdate"
 import { UpdateAvailable, type AvailableUpdate } from "./UpdateAvailable"
 import { UpdateProgress } from "./UpdateProgress"
 import { WhatsNew, type WhatsNewProps } from "./WhatsNew"
@@ -14,6 +15,8 @@ import { WhatsNew, type WhatsNewProps } from "./WhatsNew"
 // terminal says so over its screen, and a crash loop asks in a dialog; dismissed, it
 // leaves a chip at the end, "Restart terminals", to try again. An update downloading floats a bar above its right end (UpdateProgress.tsx); one it can't install
 // itself is a chip, "Update available", that opens the release page (UpdateAvailable.tsx).
+// One downloaded and waiting for the next quit is a chip, "Restart to update", whose card checks
+// what a restart would do and offers it (RestartToUpdate.tsx).
 // A portable copy has a chip there instead, "Install Novadeck" or "Update available", in
 // the bar's own colours, which opens its notice (PortableInstall.tsx). Without the security
 // sandbox, a chip before it says so (FooterSandbox.tsx). After an update, a card says what
@@ -28,6 +31,7 @@ export const WorkspaceFooter = ({
   navigate = false,
   onRetry,
   portable,
+  restart,
   progress = null,
   available,
   noticeOpen = false,
@@ -51,6 +55,9 @@ export const WorkspaceFooter = ({
   // A portable copy's install entry, with the release it is missing. Quiet: it never tones
   // the bar, and the link's status keeps its place after it.
   readonly portable?: PortableInstallProps | undefined
+  // A downloaded update waiting for the next quit: a chip, "Restart to update", and its card
+  // (RestartToUpdate.tsx). Its card also waits for the notices the footer itself knows of.
+  readonly restart?: RestartUpdateProps | undefined
   // The update the app updates itself to, whose download the floating bar follows.
   readonly progress?: UpdateOffer | null
   // A release an installed copy can't install itself: a chip that opens its release page.
@@ -77,6 +84,9 @@ export const WorkspaceFooter = ({
   const cardWanted =
     whatsNew !== undefined && !whatsNew.blocked && !hidden && !murmurSheet && !barActive
   const overlay = useOverlayOpen(cardWanted)
+  // The what's-new card is up and has the corner; the restart card, which the person opens
+  // from its chip, waits for it.
+  const whatsNewShown = cardWanted && !overlay
   const card = whatsNew && {
     ...whatsNew,
     blocked: whatsNew.blocked || murmurSheet || overlay || barActive,
@@ -111,6 +121,15 @@ export const WorkspaceFooter = ({
         <FooterMurmur murmur={murmur} hidden={hidden} onSheetChange={setMurmurSheet} />
         <PortableInstall portable={portable} hidden={hidden} />
         <WhatsNew card={card} hidden={hidden} />
+        <RestartToUpdate
+          restart={
+            restart && {
+              ...restart,
+              blocked: restart.blocked || noticeOpen || murmurSheet || barActive || whatsNewShown,
+            }
+          }
+          hidden={hidden}
+        />
         <UpdateAvailable available={available} />
         {/* A download has the corner from its start until its bar fades; the card waits. */}
         <UpdateProgress

@@ -86,6 +86,7 @@ export const showcaseDemo = (
     titleSource: { kind: "murmur" },
     command: "pnpm test --watch",
     process: "node",
+    argv: ["node", "/usr/lib/node_modules/pnpm/bin/pnpm.cjs", "test", "--watch"],
     state: "running",
     directory: "~/projects/website",
   }

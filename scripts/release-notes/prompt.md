@@ -25,6 +25,13 @@ and the update channels are for contributors only: describe updates without nami
 Preferences' Experimental switch, its Experimental tab and every feature behind them: leave
 them out.
 
+A later change you are given can take back all or part of an earlier one you are given,
+without being a revert: it removes what the earlier one added, or puts back what the earlier
+one changed. The reader never had what was taken back, so leave it out of both changes, and
+never tell of the removal. Tell whatever else either change does, as what the reader ends up
+with. A change that improves or replaces an earlier one takes nothing back: tell the result
+once.
+
 Name a feature by what a person sees in the app, not by the code that makes it: not "the
 Saves module" but "terminals come back after a restart". If you cannot tell what a person
 would see, leave the change out.

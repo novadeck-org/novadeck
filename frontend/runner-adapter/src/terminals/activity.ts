@@ -1,4 +1,9 @@
-import { isShellProcess, runningProgram } from "@novadeck/core/terminals/process"
+import {
+  isAgentProgram,
+  isShellProcess,
+  programName,
+  runningProgram,
+} from "@novadeck/core/terminals/process"
 import type { AgentStatus, AgentUsage, TerminalStatus } from "@novadeck/core/types"
 import type {
   AgentActivity,
@@ -49,6 +54,8 @@ export type TerminalActivity = {
   // The foreground program's name; absent once the process exited, so the last
   // program stays on show.
   readonly process?: string
+  // Its command line, where the platform tells it and the name above is the process's own.
+  readonly argv?: readonly string[]
   // What the agent's records say of its tokens and quotas, kept apart from its status;
   // absent when they say nothing.
   readonly usage?: AgentUsage
@@ -105,6 +112,16 @@ const agentStatus = ({
     : {}),
 })
 
+// The process's command line, when the program named is that process's own, not an agent's name
+// taken where the process can't tell. An agent's is left out: it never stops, so nothing reads it.
+const commandLine = (
+  { process }: TerminalSummary,
+  program: string,
+): { readonly argv?: readonly string[] } =>
+  process?.argv?.length && !isAgentProgram(program) && programName(process) === program
+    ? { argv: process.argv }
+    : {}
+
 // What the UI shows for a terminal the runner reports: which program it runs, and
 // whether it is busy (a program runs in the foreground) or idle (the shell waits for
 // input). An agent in the foreground adds what its hooks say it does; one at its own
@@ -139,6 +156,7 @@ export const terminalActivity = (
   return {
     status: { state: "running", ...(agent ? { agent } : {}) },
     process: program,
+    ...commandLine(summary, program),
     ...(usage ? { usage } : {}),
   }
 }

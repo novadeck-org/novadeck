@@ -10,6 +10,9 @@ const nameChars = 256
 const argCount = 64
 const argChars = 4096
 
+/** A machine's whole process list in text: far more than `ps`'s default room for a busy one. */
+const listingBytes = 16 * 1024 * 1024
+
 type ProcessStat = { ppid: number; pgrp: number; tty: number; tpgid: number }
 
 // /proc/<pid>/stat puts the command in parentheses; it may itself contain spaces or ')'.
@@ -187,11 +190,61 @@ export const hasChildProcess = async (
     const { stdout } = await promisify(execFile)("ps", ["-ax", "-o", "pid=,ppid=,tty=,comm="], {
       encoding: "utf8",
       timeout: 2_000,
+      maxBuffer: listingBytes,
     })
     return hasTerminalChild(parsePsRows(stdout), pid, except)
   } catch {
     return undefined
   }
+}
+
+/** A row of the system's process list, as `processTable` reads it. */
+export type TableRow = PsRow & { readonly pgid: number; readonly tpgid: number }
+
+/** `ps -o pid=,ppid=,pgid=,tpgid=,tty=,comm=` rows; a line that isn't one is left out. */
+export const parseProcessTable = (output: string): TableRow[] =>
+  output.split("\n").flatMap((line) => {
+    const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(-?\d+)\s+(\S+)\s+(.+?)\s*$/.exec(line)
+    return match
+      ? [
+          {
+            pid: Number(match[1]),
+            ppid: Number(match[2]),
+            pgid: Number(match[3]),
+            tpgid: Number(match[4]),
+            tty: match[5]!,
+            comm: match[6]!,
+          },
+        ]
+      : []
+  })
+
+/**
+ * Every process on the machine with its parent, groups and terminal, from one `ps` call: the
+ * answer for any number of shells at once (`tableForeground`, `hasTerminalChild`), so asking
+ * about all terminals costs one listing, not one each. Undefined where the platform has no
+ * `ps` to ask (Windows, which has `Trees`) and where the call fails, as `ps` missing, slow
+ * past two seconds, or too long for its buffer: callers treat that as not knowing, never as
+ * an empty machine.
+ */
+export const processTable = async (): Promise<TableRow[] | undefined> => {
+  if (process.platform !== "linux" && process.platform !== "darwin") return undefined
+  try {
+    const { stdout } = await promisify(execFile)(
+      "ps",
+      ["-ax", "-o", "pid=,ppid=,pgid=,tpgid=,tty=,comm="],
+      { encoding: "utf8", timeout: 2_000, maxBuffer: listingBytes },
+    )
+    return parseProcessTable(stdout)
+  } catch {
+    return undefined
+  }
+}
+
+/** The process group holding the terminal of shell `pid`, as `rows` show it; undefined when none does. */
+export const tableForeground = (rows: readonly TableRow[], pid: number): number | undefined => {
+  const group = rows.find((row) => row.pid === pid)?.tpgid
+  return group !== undefined && group > 0 ? group : undefined
 }
 
 /** A process's name as /proc/<pid>/stat holds it, in parentheses; null when unreadable. */

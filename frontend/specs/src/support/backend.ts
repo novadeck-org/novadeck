@@ -62,7 +62,8 @@ const demoWithUpdate = (
 ): ReturnType<typeof createDemoBackend> => {
   const experimental = experimentalRequested()
   if (!scenario && !portable?.offer && !experimental) return demo
-  const controls = createDemoUpdates()
+  // A restart is counted, not done: it would reload the page the spec is looking at.
+  const controls = createDemoUpdates(() => void (restarts += 1))
   if (experimental) controls.updates?.channel?.set("experimental")
   if (scenario) scenario.play(controls, "0.0.80")
   else if (portable?.offer) controls.offer(portable.offer)
@@ -74,6 +75,10 @@ const demoWithUpdate = (
 // one, so what the spec does reaches each, and what the page asked of the app is counted
 // across them.
 const made: ReturnType<typeof createDemoUpdates>[] = []
+
+// How many times the page has asked the app to restart into an update since it opened.
+let restarts = 0
+export const restartsAsked = (): number => restarts
 
 /** Has the app's update download begin, in the backend the page uses (and its twin). */
 export const startDownload = (version: string): void =>

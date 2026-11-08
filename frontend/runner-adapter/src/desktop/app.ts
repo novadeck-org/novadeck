@@ -119,6 +119,7 @@ export const desktopUpdates = (app: DesktopApp | undefined): Backend["updates"] 
   const get = app.updateChannel
   const set = app.setUpdateChannel
   const allow = app.allowUpdates
+  const restart = app.restartToUpdate
   return {
     onOffer: (listener) =>
       listen((offer) => {
@@ -127,6 +128,7 @@ export const desktopUpdates = (app: DesktopApp | undefined): Backend["updates"] 
       }),
     openPage: () => openPage(),
     ...(allow ? { allow: () => allow() } : {}),
+    ...(restart ? { restart: () => restart() } : {}),
     ...(get && set
       ? {
           channel: {

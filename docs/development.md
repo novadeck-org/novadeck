@@ -1231,10 +1231,12 @@ with up to four highlights picked from everything since the last stable release.
 shows a release's highlights after updating to it until the person dismisses them. The
 `OPENROUTER_API_KEY` repository secret enables it, and the `RELEASE_NOTES_PRERELEASE_MODEL`
 and `RELEASE_NOTES_PROMOTE_MODEL` repository variables pick the models (by default
-`anthropic/claude-haiku-5.5` and `anthropic/claude-sonnet-5.5`). Without the key, when the key is
+`anthropic/claude-haiku-5.5`, and `anthropic/claude-opus-5.5` at high effort; a different model a
+variable names thinks at its own default). Without the key, when the key is
 out of credit, or when a run fails, a release keeps the notes it has, the run page shows a
-warning, and neither step holds a release or a promotion. A promotion costs about $0.25 and a
-prerelease well under a cent. With `OPENROUTER_API_KEY` and a `gh` login,
+warning, and neither step holds a release or a promotion. A promotion costs about $0.10 to
+$0.30, and a prerelease about a tenth of a cent. OpenRouter holds a promotion's whole output
+limit up front, about $0.70 on Opus, so the key's limit needs that much free when one runs. With `OPENROUTER_API_KEY` and a `gh` login,
 `node scripts/release-notes/main.ts promote v1.2.3 --dry-run` prints what a promotion would
 write without changing any release; it asks the model, so it spends credit.
 

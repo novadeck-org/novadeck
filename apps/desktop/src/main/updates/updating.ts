@@ -26,7 +26,14 @@ import {
   removeMacUpdates,
   UpdateRejected,
 } from "./mac.js"
-import { opensAfterQuit, swapsAtQuitStart } from "./quit-install.js"
+import {
+  opensAfterQuit,
+  dropRestart,
+  opensCurrentAfterQuit,
+  placedBy,
+  requestRestart,
+  swapsAtQuitStart,
+} from "./quit-install.js"
 import {
   failureOutdated,
   fileIdentity,
@@ -97,6 +104,14 @@ export const updating = ({
   // Whether the macOS update is going into place, which a second quit, as a logout's, waits
   // for: the app it ends would be left between the old bundle and the new.
   let macInstalling = false
+  // Whether the install call returned true: the installer was started (Windows).
+  let installRan = false
+  // Whether the quit left the update because the runner may still be there.
+  let runnerKept = false
+  // Whether a restart has added its Windows quit hook, which opens the app again.
+  let reopenHooked = false
+  // Whether the macOS update was put in place by this quit.
+  let macPlaced = false
   // Whether letting this copy install updates is under way, so one request runs at a time.
   let allowing = false
 
@@ -270,6 +285,7 @@ export const updating = ({
         )
       },
       installStarted: recordInstalling,
+      installReturned: (ran) => void (installRan = ran),
       // Windows runs the installer after the app has gone: asked to start the app again when
       // the person opened it meanwhile.
       runAfterInstall:
@@ -389,6 +405,51 @@ export const updating = ({
       }
     },
 
+    /**
+     * The person's choice to restart into the update waiting to install: the orderly quit
+     * that installs it, with the app to open again afterwards. Ignored unless the last offer
+     * is `ready` in a copy that installs, and while a quit is under way. See
+     * docs/auto-update.md, "Restart now".
+     */
+    restart: async (): Promise<void> => {
+      const mode = updatePlan(await build.updateBuild())?.mode
+      const version = offers.current()?.version
+      requestRestart({
+        offer: offers.current()?.kind,
+        mode,
+        quitting,
+        quit: () => {
+          log.info(`Restarting into ${version ?? "the update"} at the person's request.`)
+          // Windows installs after the app has gone, from electron-updater's own quit
+          // handler, which was added when the download finished and so runs before this
+          // one. An install that did not begin there (the download vanished, nothing
+          // installs) leaves the app closed unless it opens itself. `relaunch` starts a
+          // helper that waits for this process to exit. Added once: a second restart during
+          // the same quit must not start a second copy.
+          if (process.platform === "win32" && !reopenHooked) {
+            reopenHooked = true
+            app.once("quit", () => {
+              const reopens = opensCurrentAfterQuit({
+                restart: quitting.restart && !runnerKept,
+                placed: placedBy({
+                  platform: "win32",
+                  appImageSwapped: false,
+                  macPlaced: false,
+                  installerRan: installRan,
+                }),
+              })
+              if (!reopens) return
+              log.warn(
+                `${version ?? "The update"} did not install; opening ${app.getVersion()} again.`,
+              )
+              app.relaunch()
+            })
+          }
+          app.quit()
+        },
+      })
+    },
+
     /** The page of the last offer's release, from the repository the build updates from. */
     page: async (): Promise<string | undefined> => {
       const offer = offers.current()
@@ -403,7 +464,11 @@ export const updating = ({
      */
     quitOnSessionEnd: quitWithoutInstalling(
       () => (process.platform === "darwin" ? macQuitInstall : updater),
-      () => app.quit(),
+      () => {
+        // A logout or shutdown during a restart ends the session: nothing opens after it.
+        dropRestart(quitting)
+        app.quit()
+      },
     ),
 
     /** No update installs as the app quits, as the uninstall's quit must not put it back. */
@@ -414,11 +479,13 @@ export const updating = ({
     },
 
     /** No update installs and nothing opens, as the runner may still be there; see ./updater.ts. */
-    keepUpdateOnQuit: (): void =>
+    keepUpdateOnQuit: (): void => {
+      runnerKept = true
       keepUpdateOnQuit([updater, macQuitInstall], {
         swapped: appImageSwapped,
         log: (line) => log.warn(line),
-      }),
+      })
+    },
 
     /**
      * Whether the macOS update is going into place, which holds a second quit, as a
@@ -476,6 +543,7 @@ export const updating = ({
         recordInstalling(update.version)
         try {
           await installMacUpdate({ prepared: update.prepared, bundle, mode })
+          macPlaced = true
           log.info(`Installed ${update.version}; it starts at the next launch.`)
         } catch (error) {
           warn("Installing the update failed.", error)
@@ -506,6 +574,31 @@ export const updating = ({
       // Started only once this process has gone: its windows and their storage are still
       // open while it shuts down, and the data folder's lock is released with it.
       await startInstalledImage(image, process.pid)
+    },
+
+    /**
+     * After a restart whose update did not go in, opens the version that is running: the
+     * person asked for a restart, so the app does not stay closed. Linux starts the
+     * AppImage that was never swapped, macOS the bundle that was left whole. Windows has
+     * no such step: its installer starts the app when it succeeds.
+     */
+    openCurrentAfterQuit: async (): Promise<void> => {
+      const placed = placedBy({
+        platform: process.platform,
+        appImageSwapped,
+        macPlaced,
+        installerRan: installRan,
+      })
+      if (
+        process.platform === "win32" ||
+        !opensCurrentAfterQuit({ restart: quitting.restart, placed })
+      )
+        return
+      log.warn(
+        `${installingVersion ?? "The update"} was not put in place; opening ${app.getVersion()} again.`,
+      )
+      if (process.platform === "darwin") await startBundle(bundleOf(app.getPath("exe")))
+      else if (process.env.APPIMAGE) await startInstalledImage(process.env.APPIMAGE, process.pid)
     },
   }
 }

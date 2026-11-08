@@ -54,6 +54,7 @@ import {
   terminalEvent,
   terminalRequest,
   terminalRequestAnswer,
+  busyShells,
   terminalSummary,
   terminalTitle,
 } from "./terminals.js"
@@ -228,6 +229,23 @@ export const contract = {
     // later changes (creation, title, size, foreground process, exit, restart, and its
     // shell's record let go, when it is saved again) and `removed` once it is closed.
     watch: procedure.input(z.void()).output(eventIterator(terminalChange)),
+    // The terminals, in every session and project, whose shell holds work a restart would
+    // end. With no agent, as `terminals.close` judges it for an agent's request: a program in
+    // the foreground, a line entered whose prompt hasn't come back, or a job in the background
+    // or suspended. With an agent, whose own process is its session and resumes, only work
+    // beside or under it: a bound agent by the rule that keeps an idle agent from resting (a
+    // process under it that it didn't come up with, a job of the shell's beside it, the agent
+    // suspended), one not yet bound by the shell's jobs beside it. `unknown` are the terminals
+    // the runner could not read (the system's process list failed or was too slow, or an
+    // agent's start isn't recorded yet), which a client must not take for idle. Read from the
+    // system when asked, on Linux and macOS a fixed number of listings for all terminals, and never sampled: a client asks while
+    // someone looks at the answer (every few seconds, as a restart's card is open) and when
+    // it is about to act on it, not otherwise. Calls that overlap share one read, except that `fresh` waits for a read
+    // that starts after the call, so what began before it is never taken for now (a client
+    // about to act on the answer asks so). CLOSING while the runner stops.
+    busy: procedure
+      .input(z.strictObject({ fresh: z.literal(true).optional() }).optional())
+      .output(busyShells),
     attach: procedure
       .input(
         z.strictObject({

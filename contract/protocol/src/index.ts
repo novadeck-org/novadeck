@@ -138,6 +138,8 @@ export {
   maxUploadBytes,
   maxUploadPartLength,
   startupCommand,
+  busyShells,
+  type BusyShells,
   type TerminalAttached,
   type TerminalChange,
   type TerminalEvent,

@@ -32,6 +32,7 @@ import { contextBridge, ipcRenderer, webUtils } from "electron"
 
 import {
   allowUpdatesChannel,
+  restartToUpdateChannel,
   apiUrlArgumentPrefix,
   webglContextsArgumentPrefix,
   appearanceChannel,
@@ -311,6 +312,9 @@ const bridge = {
         },
       }
     : {}),
+  restartToUpdate: () => {
+    ipcRenderer.send(restartToUpdateChannel)
+  },
   updateChannel: async () => {
     const channel: unknown = await ipcRenderer.invoke(updateChannelChannel)
     return updateChannels.find((known) => known === channel) ?? "stable"

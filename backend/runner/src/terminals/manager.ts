@@ -77,7 +77,7 @@ import {
   resumeNote,
   sessionHeldElsewhere,
 } from "./resumes.js"
-import { markBusy, Sampler, shellProcess } from "./sampling.js"
+import { busyReader, markBusy, Sampler, shellProcess } from "./sampling.js"
 import { hasRun, keptState, type TerminalRecords } from "./saved-terminals.js"
 import { Saves } from "./saving.js"
 import { Sleepers } from "./sleepers.js"
@@ -135,6 +135,10 @@ const positive = (value: number | undefined, fallback: number): number => {
  */
 export class Terminals {
   private readonly records = new Map<string, Record>()
+  private readonly busyRead = busyReader(
+    () => this.records.values(),
+    () => this.trees,
+  )
   private readonly pendingOwners = new Map<string, Set<{ released: boolean }>>()
   /** Agents' requests for a new terminal, on their way to the client. */
   private readonly opens = new OpenRequests()
@@ -1450,6 +1454,12 @@ export class Terminals {
   async *slice(terminalId: string, signal?: AbortSignal): AsyncGenerator<SliceChange> {
     if (this.stopping) throw new DomainError("CLOSING")
     yield* this.streams.watchSlice(this.record(terminalId).summary.id, signal)
+  }
+
+  /** The terminals whose shell holds work a restart would end, read now (see `busyTerminals`). */
+  busyShells(fresh = false) {
+    if (this.stopping) throw new DomainError("CLOSING")
+    return fresh ? this.busyRead.fresh() : this.busyRead.read()
   }
 
   /** Closes another terminal of the caller's project and session (see `Calls.closePeer`). */
