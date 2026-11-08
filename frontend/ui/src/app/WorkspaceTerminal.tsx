@@ -2,6 +2,7 @@ import { ChatView } from "@novadeck/chat/ChatView"
 import {
   chatAttachmentsOf,
   chatDraftOf,
+  chatImageNoteOf,
   chatReplyOf,
   chatSendsOf,
   chatShown,
@@ -274,6 +275,9 @@ export const WorkspaceTerminal = memo(
     const attachments = useChat(chat, (state) =>
       chatAttachmentsOf(state.attachments, chatContext, terminalId),
     )
+    const imageNote = useChat(chat, (state) =>
+      chatImageNoteOf(state.imageNotes, chatContext, terminalId),
+    )
     const conversation = useMemo(
       () => (showChat ? conversations?.conversation(terminalKey) : undefined),
       [showChat, conversations, terminalKey],
@@ -307,13 +311,15 @@ export const WorkspaceTerminal = memo(
                 onReplyTo={(to) => commands.setChatReply(chatContext, terminalId, to)}
                 sending={sending}
                 attachments={attachments}
+                imageNote={imageNote}
+                onRestore={(images) => commands.restoreChatImages(chatContext, terminalId, images)}
                 onAttach={
                   conversations!.uploadImage
                     ? (files) => commands.attachChatImages(terminalKey, files)
                     : undefined
                 }
                 onDetach={(id) => commands.removeChatImage(chatContext, terminalId, id)}
-                onSend={(text, to) => commands.sendChat(terminalKey, text, to)}
+                onSend={(text, to, images) => commands.sendChat(terminalKey, text, to, images)}
                 // Words queued behind the stopped turn, the agent's and the chat's, come back
                 // to the box, to send again.
                 onInterrupt={() => commands.stopChat(terminalKey)}

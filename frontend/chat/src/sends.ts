@@ -66,3 +66,22 @@ export const withSend = (
 // The reply on its way to the terminal's agent, if one is.
 export const chatReplySendOf = (sends: ChatSends, context: string, id: string): ChatSend | null =>
   chatSendsOf(sends, context, id).find((send) => send.to !== null) ?? null
+
+// The images of prompts the record never got, by ref, for as long as their line can be sent again
+// or taken back to edit: kept for the page's life apart from the send, which ended with its
+// receipt. Whoever takes a line's images takes them out.
+const kept = new Map<string, readonly Attachment[]>()
+
+export const keepSentImages = (ref: string, images: readonly Attachment[]): void => {
+  if (images.length > 0) kept.set(ref, images)
+}
+
+// The images kept for a line, left kept.
+export const keptImagesOf = (ref: string): readonly Attachment[] | undefined => kept.get(ref)
+
+// Takes a line's kept images out, to go on with them.
+export const takeSentImages = (ref: string): readonly Attachment[] => {
+  const images = kept.get(ref) ?? []
+  kept.delete(ref)
+  return images
+}

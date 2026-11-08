@@ -14,11 +14,16 @@ import { uploadName } from "@novadeck/terminal/view"
 import {
   attachmentsHold,
   chatAttachmentsOf,
+  imageTypes,
+  labelFor,
   maxAttachments,
+  releaseImages,
   setChatAttachments,
+  withBack,
   withAttachment,
   type Attachment,
 } from "./attachments"
+import { withValue } from "./by-terminal"
 import { chatDraftOf, joinDraft, mixes, setChatDraft, takenDraft } from "./drafts"
 import {
   chatReplyOf,
@@ -31,6 +36,7 @@ import {
 import {
   chatReplySendOf,
   chatSendsOf,
+  keepSentImages,
   setChatSends,
   withSend,
   type ChatSend,
@@ -49,6 +55,12 @@ export type ChatCommands = {
   // weren't added (too many for a message, or not images), or null where all were.
   readonly attachChatImages: (key: TerminalKey, files: readonly File[]) => string | null
   // Takes an image off the terminal's draft; one still uploading is dropped when it arrives.
+  // Puts images back in the box ahead of its own, as a line taken back to edit has them.
+  readonly restoreChatImages: (
+    context: string,
+    terminalId: string,
+    images: readonly Attachment[],
+  ) => void
   readonly removeChatImage: (context: string, terminalId: string, id: string) => void
   // Says whether the chat passes keys to the terminal's box, which it keeps off meanwhile.
   readonly setChatPassing: (terminalId: string, on: boolean) => void
@@ -67,7 +79,13 @@ export type ChatCommands = {
   // was typed meanwhile, with every prompt queued after them. A reply goes one at a time.
   // The images come back as the words do, and are not sent, but left in the draft, while one is
   // still uploading or has failed: it rejects, and the words stay too.
-  readonly sendChat: (key: TerminalKey, text: string, to: ChatReply | null) => Promise<boolean>
+  readonly sendChat: (
+    key: TerminalKey,
+    text: string,
+    to: ChatReply | null,
+    // The images to send, where they aren't the box's: a line sent again takes its own.
+    images?: readonly Attachment[],
+  ) => Promise<boolean>
   // Moves what the agent's own box holds into the chat's, ahead of what's written there.
   readonly takeBox: (key: TerminalKey) => Promise<void>
   // Moves the chat's draft into the agent's own box, where it can go, as its terminal shows.
@@ -104,9 +122,28 @@ const contextOf = (key: TerminalKey) => `${key.projectId}/${key.workspaceSession
 const previewOf = (file: Blob): string =>
   typeof URL.createObjectURL === "function" ? URL.createObjectURL(file) : ""
 
-const freeImages = (images: readonly Attachment[]): void => {
-  if (typeof URL.revokeObjectURL !== "function") return
-  for (const image of images) if (image.preview) URL.revokeObjectURL(image.preview)
+// Puts `back` in the terminal's box ahead of its images, no more than a message takes: those
+// the box has no room for are let go, and the terminal is told so.
+const imagesBack = (
+  state: ChatState,
+  context: string,
+  terminalId: string,
+  back: readonly Attachment[],
+): Pick<ChatState, "attachments" | "imageNotes"> => {
+  const { kept, over } = withBack(back, chatAttachmentsOf(state.attachments, context, terminalId))
+  releaseImages(over)
+  return {
+    attachments: setChatAttachments(state.attachments, context, terminalId, kept),
+    imageNotes:
+      over.length > 0
+        ? withValue(
+            state.imageNotes,
+            context,
+            terminalId,
+            `The box holds ${maxAttachments} images at most, so ${over.length} went.`,
+          )
+        : state.imageNotes,
+  }
 }
 
 // The receipt of a prompt, as the conversation shows it now; null where it shows none.
@@ -166,10 +203,7 @@ export const createChatCommands = ({
       return {
         ...state,
         ...(open && {
-          attachments: setChatAttachments(state.attachments, context, terminalId, [
-            ...images,
-            ...chatAttachmentsOf(state.attachments, context, terminalId),
-          ]),
+          ...imagesBack(state, context, terminalId, images),
           drafts: setChatDraft(
             state.drafts,
             context,
@@ -181,7 +215,7 @@ export const createChatCommands = ({
       }
     })
     // Nothing went back for a terminal that closed: its images go with it.
-    if (!open) freeImages(back.flatMap((send) => send.images))
+    if (!open) releaseImages(back.flatMap((send) => send.images))
     for (const send of back) {
       const settle = settles.get(send.ref)
       settles.delete(send.ref)
@@ -213,12 +247,16 @@ export const createChatCommands = ({
   // The prompt's turn is over: it leaves the queue, and the next one goes. Its words being
   // back in the agent's own box would make the next one a draft there: those queued come
   // back to the chat's box instead.
-  const finished = (key: TerminalKey, ref: string, inBox: boolean): void => {
+  const finished = (key: TerminalKey, ref: string, inBox: boolean, keep = false): void => {
     watches.get(ref)?.()
     watches.delete(ref)
     const own = sendsOf(key).find((send) => send.ref === ref)
     const was = own?.phase
-    if (own) freeImages(own.images)
+    // A line the record never got can be sent again, or taken back to edit, with its images.
+    if (own) {
+      if (keep) keepSentImages(ref, own.images)
+      else releaseImages(own.images)
+    }
     update(key, (sends) => withSend(sends, contextOf(key), key.terminalId, ref, () => null))
     if (inBox) handBack(key, (send) => send.phase === "queued")
     // One that settled already let the next go.
@@ -252,7 +290,12 @@ export const createChatCommands = ({
         return pump(key)
       }
       if (gone || (receipt && receipt.state !== "pending"))
-        finished(key, ref, receipt?.state === "in-box")
+        finished(
+          key,
+          ref,
+          receipt?.state === "in-box",
+          receipt?.state === "unrecorded" || receipt?.state === "in-box",
+        )
     }
     const unsubscribe = store.subscribe(look)
     // A receipt the backend dropped before this window saw it, as one whose session never
@@ -265,6 +308,25 @@ export const createChatCommands = ({
       unsubscribe()
     })
     look()
+  }
+
+  // Follows a prompt of images that no receipt follows until the record holds a turn after it, or
+  // it has waited as long as a receipt does: its line shows meanwhile.
+  const watchItems = (key: TerminalKey, ref: string): void => {
+    const store = conversations!.conversation(key)
+    const { items, session } = store.getSnapshot()
+    const look = (): void => {
+      const now = store.getSnapshot()
+      if (now.items.length > items.length || now.session !== session) finished(key, ref, false)
+    }
+    const unsubscribe = store.subscribe(look)
+    const unseen = setTimeout(() => {
+      if (watches.has(ref)) finished(key, ref, false)
+    }, unseenMs)
+    watches.set(ref, () => {
+      clearTimeout(unseen)
+      unsubscribe()
+    })
   }
 
   // Sends the terminal's next queued prompt, once no prompt before it is still on its way:
@@ -336,11 +398,12 @@ export const createChatCommands = ({
           settle?.resolve(true)
           if (result?.returned) wordsBack(key, result.returned)
           if (!sendsOf(key).some((send) => send.ref === next.ref)) return
-          if (!result?.tracked) return finished(key, next.ref, false)
+          if (!result?.tracked && next.images.length === 0) return finished(key, next.ref, false)
           update(key, (all) =>
             withSend(all, context, terminalId, next.ref, (send) => ({ ...send, phase: "sent" })),
           )
-          watch(key, next.ref)
+          if (result?.tracked) watch(key, next.ref)
+          else watchItems(key, next.ref)
         },
         // It didn't go: back in the box with every prompt queued after it, which would only
         // have gone after it.
@@ -414,9 +477,22 @@ export const createChatCommands = ({
 
   // Saves a pasted image on the agent's machine and marks its attachment ready, or failed with
   // why. An attachment taken off meanwhile is left alone.
-  const upload = async (key: TerminalKey, id: string, file: File): Promise<void> => {
+  // One image goes up at a time, whichever terminal, so the bytes of eight big ones are not all
+  // in memory at once.
+  let uploads: Promise<void> = Promise.resolve()
+  const upload = (key: TerminalKey, id: string, file: File): void => {
+    uploads = uploads.then(() => save(key, id, file))
+  }
+  const save = async (key: TerminalKey, id: string, file: File): Promise<void> => {
     const context = contextOf(key)
     const { terminalId } = key
+    // Taken off while it waited its turn.
+    if (
+      !chatAttachmentsOf(chat.store.getSnapshot().attachments, context, terminalId).some(
+        (each) => each.id === id,
+      )
+    )
+      return
     const settle = (change: (attachment: Attachment) => Attachment): void =>
       void chat.update((state) => {
         const attachments = withAttachment(state.attachments, context, terminalId, id, change)
@@ -444,17 +520,20 @@ export const createChatCommands = ({
       if (!conversations?.uploadImage) return "This backend can't take images."
       const context = contextOf(key)
       const { terminalId } = key
-      const images = files.filter((file) => file.type.startsWith("image/"))
-      const room = Math.max(
-        0,
-        maxAttachments -
-          chatAttachmentsOf(chat.store.getSnapshot().attachments, context, terminalId).length,
-      )
+      const images = files.filter((file) => imageTypes.has(file.type))
+      const held = chatAttachmentsOf(chat.store.getSnapshot().attachments, context, terminalId)
+      const room = Math.max(0, maxAttachments - held.length)
+      const names = held.map(({ name }) => name)
+      const label = (file: File): string => {
+        const name = labelFor(uploadName(file, new Date()), names)
+        names.push(name)
+        return name
+      }
       const added = images.slice(0, room).map((file) => ({
         file,
         attachment: {
           id: promptRef(),
-          name: uploadName(file, new Date()),
+          name: label(file),
           preview: previewOf(file),
           state: "uploading",
           path: null,
@@ -464,25 +543,37 @@ export const createChatCommands = ({
       if (added.length > 0) {
         chat.update((state) => ({
           ...state,
+          imageNotes: withValue(state.imageNotes, context, terminalId, undefined),
           attachments: setChatAttachments(state.attachments, context, terminalId, [
             ...chatAttachmentsOf(state.attachments, context, terminalId),
             ...added.map(({ attachment }) => attachment),
           ]),
         }))
-        for (const { file, attachment } of added) void upload(key, attachment.id, file)
+        for (const { file, attachment } of added) upload(key, attachment.id, file)
       }
       if (images.length > added.length) return `A message takes at most ${maxAttachments} images.`
-      if (images.length < files.length) return "Only images can be attached."
+      if (images.length < files.length) return "Only PNG, JPEG, GIF or WebP images can be attached."
       return null
     },
     removeChatImage: (context, terminalId, id) => {
       const gone = chatAttachmentsOf(chat.store.getSnapshot().attachments, context, terminalId)
-      freeImages(gone.filter((each) => each.id === id))
+      releaseImages(gone.filter((each) => each.id === id))
       chat.update((state) => {
         const attachments = withAttachment(state.attachments, context, terminalId, id, () => null)
-        return attachments === state.attachments ? state : { ...state, attachments }
+        return attachments === state.attachments
+          ? state
+          : {
+              ...state,
+              attachments,
+              imageNotes: withValue(state.imageNotes, context, terminalId, undefined),
+            }
       })
     },
+    restoreChatImages: (context, terminalId, images) =>
+      void chat.update((state) => ({
+        ...state,
+        ...imagesBack(state, context, terminalId, images),
+      })),
     setChatPassing: (terminalId, on) => {
       if (on) passing.add(terminalId)
       else passing.delete(terminalId)
@@ -555,7 +646,7 @@ export const createChatCommands = ({
           : now,
       )
     },
-    sendChat: async (key, text, to) => {
+    sendChat: async (key, text, to, given) => {
       if (!conversations) throw new Error("This backend can't reach the agent.")
       if (to) return await sendReply(key, text, to)
       const context = contextOf(key)
@@ -563,8 +654,10 @@ export const createChatCommands = ({
       // The draft as typed goes back on a failure, not the words as sent, trimmed.
       const draft = chatDraftOf(chat.store.getSnapshot().drafts, context, terminalId) || text
       // Images go with a message, not with a shell command, which only text can be.
-      const images =
-        shellCommand(text) === undefined
+      const own = given === undefined
+      const images = given
+        ? given
+        : shellCommand(text) === undefined
           ? chatAttachmentsOf(chat.store.getSnapshot().attachments, context, terminalId)
           : []
       const hold = attachmentsHold(images)
@@ -576,9 +669,10 @@ export const createChatCommands = ({
         drafts: setChatDraft(state.drafts, context, terminalId, ""),
         // The images go with the message, but for a shell command they wait.
         attachments:
-          images.length > 0
+          own && images.length > 0
             ? setChatAttachments(state.attachments, context, terminalId, [])
             : state.attachments,
+        imageNotes: withValue(state.imageNotes, context, terminalId, undefined),
         sends: setChatSends(state.sends, context, terminalId, [
           ...chatSendsOf(state.sends, context, terminalId),
           { ref, draft, text, images, to: null, phase: "queued" },
@@ -614,14 +708,11 @@ export const createChatCommands = ({
         const open = terminalOpen(key)
         const words = queued.reduce((draft, send) => joinDraft(draft, send.draft), returned ?? "")
         const images = queued.flatMap((send) => send.images)
-        if (!open) freeImages(images)
+        if (!open) releaseImages(images)
         if (open && (words || images.length > 0))
           chat.update((state) => ({
             ...state,
-            attachments: setChatAttachments(state.attachments, context, terminalId, [
-              ...images,
-              ...chatAttachmentsOf(state.attachments, context, terminalId),
-            ]),
+            ...imagesBack(state, context, terminalId, images),
             drafts: setChatDraft(
               state.drafts,
               context,

@@ -66,6 +66,7 @@ export const Composer = ({
   draft,
   onDraft,
   attachments,
+  imageNote,
   onAttach,
   onDetach,
   mode,
@@ -91,6 +92,8 @@ export const Composer = ({
   // The images pasted in, to go with the next message, and how a paste of more adds them (it
   // answers why some weren't, or null; absent where the backend takes no images) and one goes.
   readonly attachments: readonly Attachment[]
+  // What the person is told of the images, as that some went for want of room.
+  readonly imageNote?: string | undefined
   readonly onAttach?: ((files: readonly File[]) => string | null) | undefined
   readonly onDetach: (id: string) => void
   readonly mode: ComposerMode
@@ -162,7 +165,12 @@ export const Composer = ({
     }
     const text = draft.trim()
     // The draft is judged as the hint judges it, so Enter refuses what Send does.
-    if ((!text && !imaged) || sending || refused || (imaged && uploading)) return
+    if ((!text && !imaged) || sending || refused) return
+    // Enter, which the Send key waits for: it says why nothing went.
+    if (imaged && uploading) {
+      setError({ text: "An image is still uploading. Send again once it has.", terminal: false })
+      return
+    }
     setError(null)
     onSend(text).catch((failure: unknown) => {
       if (mounted.current) setError(failed(failure))
@@ -330,7 +338,11 @@ export const Composer = ({
                 <span className="chat-attachment-name">{each.name}</span>
               )}
               {each.state !== "ready" && (
-                <span className="chat-attachment-state" role="status">
+                // A failure is announced once, by the line under the row.
+                <span
+                  className="chat-attachment-state"
+                  {...(each.state === "uploading" ? { role: "status" } : { "aria-hidden": true })}
+                >
                   {each.state === "uploading" ? "uploading" : "failed"}
                 </span>
               )}
@@ -354,6 +366,7 @@ export const Composer = ({
             </p>
           ),
       )}
+      {imageNote && <p className="chat-reply">{imageNote}</p>}
       {attachments.length > 0 && !carries && (
         <p className="chat-reply">
           <span>The images wait for a message of your own.</span>

@@ -71,3 +71,47 @@ export const attachmentsHold = (list: readonly Attachment[]): string | null => {
     return "An image didn't upload. Remove it to send the rest."
   return null
 }
+
+// What the runner takes of a pasted image.
+export const imageTypes: ReadonlySet<string> = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+])
+
+// Lets go of the thumbnails' object URLs.
+export const releaseImages = (images: readonly Attachment[]): void => {
+  if (typeof URL.revokeObjectURL !== "function") return
+  for (const image of images) if (image.preview) URL.revokeObjectURL(image.preview)
+}
+
+// The images of terminals `after` no longer holds: those of a terminal that closed.
+export const droppedImages = (
+  before: ChatAttachments,
+  after: ChatAttachments,
+): readonly Attachment[] =>
+  Object.entries(before).flatMap(([context, ids]) =>
+    Object.entries(ids).flatMap(([id, list]) =>
+      chatAttachmentsOf(after, context, id).length === 0 ? list : [],
+    ),
+  )
+
+// Images put back in a box that holds `current`, ahead of them, and no more than a message
+// takes: `kept` is the box's new list, `over` what the box has no room for, which comes from
+// the end.
+export const withBack = (
+  back: readonly Attachment[],
+  current: readonly Attachment[],
+): { readonly kept: readonly Attachment[]; readonly over: readonly Attachment[] } => {
+  const all = [...back, ...current]
+  return { kept: all.slice(0, maxAttachments), over: all.slice(maxAttachments) }
+}
+
+// The label for a new image among those held: its own name, numbered where another has it.
+export const labelFor = (name: string, held: readonly string[]): string => {
+  if (!held.includes(name)) return name
+  let n = 2
+  while (held.includes(`${name} ${n}`)) n += 1
+  return `${name} ${n}`
+}

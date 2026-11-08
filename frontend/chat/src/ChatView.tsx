@@ -31,7 +31,7 @@ import { otherMenu } from "./other-menu"
 import { usePassing } from "./passing"
 import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
 import { Requests } from "./Requests"
-import type { ChatSend } from "./sends"
+import { takeSentImages, type ChatSend } from "./sends"
 import { settledSent, settleSent } from "./settled"
 import { LiveSlice, Slice, SliceKeys } from "./Slice"
 import { Transcript } from "./Transcript"
@@ -57,6 +57,8 @@ export const ChatView = ({
   onReplyTo,
   sending,
   attachments,
+  imageNote,
+  onRestore,
   onAttach,
   onDetach,
   onSend,
@@ -88,6 +90,9 @@ export const ChatView = ({
   readonly sending: readonly ChatSend[]
   // The images pasted into the box, to go with its next message, which the app keeps with the draft.
   readonly attachments: readonly Attachment[]
+  readonly imageNote?: string | undefined
+  // Puts images back in the box, ahead of its own, as a line taken back to edit has them.
+  readonly onRestore: (images: readonly Attachment[]) => void
   // Adds pasted images, saving each at once; answers why some weren't added, or null. Absent where
   // the backend takes no images.
   readonly onAttach?: ((files: readonly File[]) => string | null) | undefined
@@ -96,7 +101,11 @@ export const ChatView = ({
   // out of the draft as they go, queues a prompt behind those still on their way, and puts
   // them back should they not arrive. It resolves whether they went: false once they came
   // back to the box unsent.
-  readonly onSend: (text: string, to: ChatReply | null) => Promise<boolean>
+  readonly onSend: (
+    text: string,
+    to: ChatReply | null,
+    images?: readonly Attachment[],
+  ) => Promise<boolean>
   readonly onInterrupt: () => Promise<void>
   // Empties the agent's own input box of the text the chat showed it holds.
   readonly onClearBox: (seen: string) => Promise<void>
@@ -264,7 +273,8 @@ export const ChatView = ({
     settle(bubble)
     setResent(null)
     focusBox()
-    onSend(bubble.text, null).then(
+    // Its own images go, never those the box holds.
+    onSend(bubble.text, null, takeSentImages(bubble.ref)).then(
       (went) => {
         if (!went) setResent("Your words didn't go again. They're in the box below.")
       },
@@ -278,6 +288,7 @@ export const ChatView = ({
   }
   const edit = (bubble: SentBubble): void => {
     settle(bubble)
+    onRestore(takeSentImages(bubble.ref))
     draftChanged(joinDraft(bubble.text, draft))
     focusBox()
   }
@@ -346,7 +357,9 @@ export const ChatView = ({
                 agent={name}
                 working={working}
                 sent={bubbles}
-                {...(plain && draft.trim() === "" && { onResend: resend })}
+                {...(plain &&
+                  draft.trim() === "" &&
+                  attachments.length === 0 && { onResend: resend })}
                 {...(plain && { onEdit: edit })}
                 onShowTerminal={onAnswerInTerminal}
               />
@@ -457,6 +470,7 @@ export const ChatView = ({
           replySending={replyGoing}
           working={working}
           attachments={attachments}
+          imageNote={imageNote}
           onAttach={onAttach}
           onDetach={onDetach}
           onSend={async (text) => {

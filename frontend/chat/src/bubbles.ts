@@ -2,7 +2,7 @@ import type { ChatPrompt } from "@novadeck/core/conversation"
 import type { ChatBlock } from "@novadeck/core/conversation/turns"
 
 import type { Attachment } from "./attachments"
-import type { ChatSend } from "./sends"
+import { keptImagesOf, type ChatSend } from "./sends"
 
 // A prompt the chat shows as the person's before, or instead of, the agent's record showing
 // it: `queued` behind a prompt still on its way; `sending` on its way, or sent and not in the
@@ -38,7 +38,7 @@ export const sentBubbles = (
     const text = textOf(prompt)
     if (text === undefined) return []
     const { ref, sentAt: at } = prompt
-    const images = local.get(ref)?.images ?? noImages
+    const images = local.get(ref)?.images ?? keptImagesOf(ref) ?? noImages
     switch (prompt.state) {
       case "withdrawn":
         return []
