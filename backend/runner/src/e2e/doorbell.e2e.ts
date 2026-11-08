@@ -601,7 +601,9 @@ for (const setup of setups) {
         await sleep(unrung)
         expect(states(t1, mark)).not.toContain("ringing")
         expect(messages(t1).findLast((one) => one.from === "fox")?.state).toBe("queued")
-        expect(t1.messages().waits).toBe("draft")
+        // Said with the screen: a box that reads as a dialog (seen once on Windows, 2026-11-08,
+        // with nothing recorded of the screen) shows what it held.
+        expect(t1.messages().waits, await t1.screen()).toBe("draft")
         expect(await t1.screen()).not.toContain("[Novadeck")
         // The words are where they were, out of sight on Claude Code's box until scrolled back to.
         t1.press(down.repeat(lines))
