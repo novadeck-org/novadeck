@@ -318,8 +318,9 @@ export const Composer = ({
                 event.preventDefault()
               return
             }
-            // Up and Down walk the person's earlier prompts where they have no line to move
-            // along; the agent's question has its own field, and a held reply its own words.
+            // Up and Down walk the person's earlier prompts, from the start of the box and then
+            // wherever the caret is; the agent's question has its own field, and a held reply
+            // its own words.
             if (
               (event.key === "ArrowUp" || event.key === "ArrowDown") &&
               !replying &&
@@ -328,7 +329,9 @@ export const Composer = ({
               !(event.shiftKey || event.ctrlKey || event.metaKey || event.altKey)
             ) {
               const field = event.currentTarget
-              if (walksAt(event.key, draft, field.selectionStart, field.selectionEnd)) {
+              if (
+                walksAt(walk.current, event.key, draft, field.selectionStart, field.selectionEnd)
+              ) {
                 const step = recall(history, walk.current, draft, event.key)
                 if (step) {
                   event.preventDefault()

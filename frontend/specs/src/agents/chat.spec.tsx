@@ -144,7 +144,7 @@ describe("Recalling earlier prompts in the chat's box", () => {
     await userEvent.keyboard("{Enter}")
     await expect.element(composer(chat)).toHaveValue("")
     await userEvent.type(composer(chat), "half a thought")
-    await userEvent.keyboard("{ArrowUp}")
+    await userEvent.keyboard("{Control>}{Home}{/Control}{ArrowUp}")
     await expect.element(composer(chat)).toHaveValue("Run the linter")
     await userEvent.keyboard("{ArrowUp}")
     await expect.element(composer(chat)).toHaveValue(first)
@@ -168,16 +168,18 @@ describe("Recalling earlier prompts in the chat's box", () => {
     await expect.element(composer(chat)).toHaveValue(first)
   })
 
-  it("leaves Up to a multi-line draft's lines", async () => {
+  it("leaves Up to a long draft's rows, and starts from the start of the box", async () => {
     await openChatDemo()
     const chat = await openChat("Build")
-    await userEvent.type(composer(chat), "one")
-    await userEvent.keyboard("{Shift>}{Enter}{/Shift}")
-    await userEvent.type(composer(chat), "two")
+    const long = "a long draft that has to wrap onto a second row ".repeat(6).trim()
+    await userEvent.click(composer(chat))
+    await userEvent.fill(composer(chat), long)
     await userEvent.keyboard("{ArrowUp}")
-    await expect.element(composer(chat)).toHaveValue("one\ntwo")
-    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue(long)
+    await userEvent.keyboard("{Control>}{Home}{/Control}{ArrowUp}")
     await expect.element(composer(chat)).toHaveValue(first)
+    await userEvent.keyboard("{ArrowDown}")
+    await expect.element(composer(chat)).toHaveValue(long)
   })
 })
 

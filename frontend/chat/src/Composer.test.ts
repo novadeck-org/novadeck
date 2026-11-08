@@ -286,7 +286,7 @@ describe("the composer's history", () => {
     expect(field.selectionStart).toBe(6)
     await press(field, "ArrowUp")
     expect(field.value).toBe("first")
-    await press(field, "ArrowUp")
+    expect((await press(field, "ArrowUp")).defaultPrevented).toBe(false)
     expect(field.value).toBe("first")
   })
 
@@ -302,17 +302,41 @@ describe("the composer's history", () => {
     expect((await press(field, "ArrowDown")).defaultPrevented).toBe(false)
   })
 
-  it("leaves Up to the caret below a multi-line draft's first line, and with a selection", async () => {
-    const field = walking(["old"], "one\ntwo")
-    field.setSelectionRange(6, 6)
-    expect((await press(field, "ArrowUp")).defaultPrevented).toBe(false)
-    expect(field.value).toBe("one\ntwo")
-    field.setSelectionRange(0, 3)
+  it("keeps walking from a caret anywhere while the recalled prompt is unedited", async () => {
+    const field = walking(["old", "a long\nrecalled prompt"])
     await press(field, "ArrowUp")
-    expect(field.value).toBe("one\ntwo")
-    field.setSelectionRange(1, 1)
+    field.setSelectionRange(9, 9)
     await press(field, "ArrowUp")
     expect(field.value).toBe("old")
+    field.setSelectionRange(1, 1)
+    await press(field, "ArrowDown")
+    expect(field.value).toBe("a long\nrecalled prompt")
+  })
+
+  it("starts only from the start of the box, so a long draft's rows keep their Up", async () => {
+    const field = walking(["old"], "a long draft that wraps onto a second row of the box")
+    field.setSelectionRange(30, 30)
+    expect((await press(field, "ArrowUp")).defaultPrevented).toBe(false)
+    expect(field.value).toBe("a long draft that wraps onto a second row of the box")
+    field.setSelectionRange(0, 4)
+    expect((await press(field, "ArrowUp")).defaultPrevented).toBe(false)
+    field.setSelectionRange(0, 0)
+    expect((await press(field, "ArrowUp")).defaultPrevented).toBe(true)
+    expect(field.value).toBe("old")
+  })
+
+  it("ends the walk with an edit, which the next Up then starts from", async () => {
+    const field = walking(["old", "newer"])
+    await press(field, "ArrowUp")
+    await act(async () => {
+      const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!
+      set.call(field, "newer!")
+      field.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    field.setSelectionRange(3, 3)
+    expect((await press(field, "ArrowUp")).defaultPrevented).toBe(false)
+    expect((await press(field, "ArrowDown")).defaultPrevented).toBe(false)
+    expect(field.value).toBe("newer!")
   })
 
   it("leaves a modified Up, and Up during IME composition, alone", async () => {

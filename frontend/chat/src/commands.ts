@@ -7,6 +7,7 @@ import {
   type Conversation,
   type Conversations,
 } from "@novadeck/core/conversation"
+import { shellCommand } from "@novadeck/core/conversation/prompt-refusal"
 import type { TerminalKey } from "@novadeck/core/types"
 
 import { chatDraftOf, joinDraft, mixes, setChatDraft, takenDraft } from "./drafts"
@@ -26,6 +27,7 @@ import {
   type ChatSend,
   type ChatSends,
 } from "./sends"
+import { withShell } from "./shells"
 import { answeringInTerminal } from "./shown"
 import type { Chat, ChatState } from "./state"
 
@@ -456,8 +458,16 @@ export const createChatCommands = ({
           { ref, draft, text, to: null, phase: "queued" },
         ]),
       }))
+      const at = Date.now()
       pump(key)
-      return await sent
+      const went = await sent
+      // A command has no receipt, so the history keeps it from here.
+      if (went && shellCommand(text) !== undefined)
+        chat.update((state) => ({
+          ...state,
+          shells: withShell(state.shells, context, terminalId, { text, at }),
+        }))
+      return went
     },
     clearBox: async (key, seen) => {
       if (conversations?.clearBox && !(await conversations.clearBox(key, seen)))

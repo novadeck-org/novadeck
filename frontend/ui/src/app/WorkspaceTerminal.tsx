@@ -1,5 +1,11 @@
 import { ChatView } from "@novadeck/chat/ChatView"
-import { chatDraftOf, chatReplyOf, chatSendsOf, chatShown } from "@novadeck/chat/state"
+import {
+  chatDraftOf,
+  chatReplyOf,
+  chatSendsOf,
+  chatShellsOf,
+  chatShown,
+} from "@novadeck/chat/state"
 import { useBoxHandover } from "@novadeck/chat/use-box-handover"
 import { useChat } from "@novadeck/chat/use-chat"
 import { agentStats } from "@novadeck/core/agents/stats"
@@ -265,6 +271,7 @@ export const WorkspaceTerminal = memo(
     const draft = useChat(chat, (state) => chatDraftOf(state.drafts, chatContext, terminalId))
     const replyTo = useChat(chat, (state) => chatReplyOf(state.replies, chatContext, terminalId))
     const sending = useChat(chat, (state) => chatSendsOf(state.sends, chatContext, terminalId))
+    const shells = useChat(chat, (state) => chatShellsOf(state.shells, chatContext, terminalId))
     const conversation = useMemo(
       () => (showChat ? conversations?.conversation(terminalKey) : undefined),
       [showChat, conversations, terminalKey],
@@ -297,6 +304,7 @@ export const WorkspaceTerminal = memo(
                 replyTo={replyTo}
                 onReplyTo={(to) => commands.setChatReply(chatContext, terminalId, to)}
                 sending={sending}
+                shells={shells}
                 onSend={(text, to) => commands.sendChat(terminalKey, text, to)}
                 // Words queued behind the stopped turn, the agent's and the chat's, come back
                 // to the box, to send again.
