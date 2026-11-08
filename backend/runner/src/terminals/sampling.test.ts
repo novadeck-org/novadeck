@@ -6,15 +6,27 @@ const fresh = vi.hoisted(() => ({
   table: undefined as import("@novadeck/terminal/pty").TableRow[] | undefined,
   listing: undefined as import("@novadeck/terminal/pty").Listed[] | undefined,
   jobs: false as boolean | undefined,
+  childCalls: 0,
+  tableCalls: 0,
+  listings: [] as (number | undefined)[],
 }))
 vi.mock("@novadeck/terminal/pty", async (original) => {
   const real = await original<typeof import("@novadeck/terminal/pty")>()
   return {
     ...real,
     terminalForeground: async () => fresh.group,
-    processTable: async () => fresh.table,
-    processListing: () => async () => fresh.listing,
-    hasChildProcess: async () => fresh.jobs,
+    processTable: async () => {
+      fresh.tableCalls += 1
+      return fresh.table
+    },
+    processListing: (_platform?: unknown, _shared?: unknown, limitMs?: number) => {
+      fresh.listings.push(limitMs)
+      return async () => fresh.listing
+    },
+    hasChildProcess: async () => {
+      fresh.childCalls += 1
+      return fresh.jobs
+    },
     sampleForeground: ((...args: Parameters<typeof real.sampleForeground>) =>
       fresh.sampled ?? real.sampleForeground(...args)) as typeof real.sampleForeground,
   }
@@ -546,9 +558,15 @@ describe("which terminals hold work a close would end", () => {
     // The shell 200 holds its terminal for the agent 300 and what it started: a server 350
     // the agent came up with, which the baseline holds.
     const base = [proc(200, 1, 200, 300), proc(300, 200, 300, 300), proc(350, 300, 350)]
+    // The table the same shell shows: the agent is its child, in the foreground.
+    const table = [row(200, 1, 300), row(300, 200, 300)]
     const listed = (...more: Listed[]) => {
       fresh.listing = [...base, ...more]
-      onTestFinished(() => void (fresh.listing = undefined))
+      fresh.table = table
+      onTestFinished(() => {
+        fresh.listing = undefined
+        fresh.table = undefined
+      })
     }
     const boundTo = (id: string, agent: string, taken: string[] | null = ["350:s350"]) =>
       shell(id, 200, {
@@ -564,6 +582,31 @@ describe("which terminals hold work a close would end", () => {
         expect(await busyTerminals([boundTo(agent, agent)])).toEqual({ busy: [], unknown: [] })
     })
 
+    it("reads the system a fixed number of times however many agents, and waits as long as the table may", async () => {
+      // The shells of three agents of one terminal's kind each, all under the same listing.
+      listed()
+      fresh.childCalls = 0
+      fresh.tableCalls = 0
+      fresh.listings = []
+      const records = ["claude", "codex", "agy"].flatMap((agent) => [
+        boundTo(agent, agent),
+        boundTo(`${agent}2`, agent),
+      ])
+      await busyTerminals(records)
+      expect(fresh.tableCalls).toBe(1)
+      expect(fresh.listings).toEqual([2_000])
+      expect(fresh.childCalls).toBe(0)
+    })
+
+    it("is unknown for a bound agent where the table can't be read", async () => {
+      listed()
+      fresh.table = undefined
+      expect(await busyTerminals([boundTo("blind", "claude")])).toEqual({
+        busy: [],
+        unknown: ["blind"],
+      })
+    })
+
     it("is busy for a process that came after, as Codex's background terminal, whichever harness", async () => {
       // A dev server its exec_command or Bash tool left running, under the agent.
       listed(proc(400, 300, 400), proc(410, 400, 400))
@@ -574,13 +617,13 @@ describe("which terminals hold work a close would end", () => {
 
     it("is busy for a job of the shell's beside it, and for an agent suspended", async () => {
       listed()
-      fresh.jobs = true
-      onTestFinished(() => void (fresh.jobs = false))
+      // `pnpm dev &` typed before the agent: another child of the shell, on its terminal.
+      fresh.table = [...table, row(310, 200, 310)]
       expect(await busyTerminals([boundTo("beside", "codex")])).toEqual({
         busy: ["beside"],
         unknown: [],
       })
-      fresh.jobs = false
+      fresh.table = table
       // The shell holds the terminal again.
       fresh.listing = [proc(200, 1, 200, 200), proc(300, 200, 300, 200), proc(350, 300, 350)]
       expect(await busyTerminals([boundTo("stopped", "claude")])).toEqual({

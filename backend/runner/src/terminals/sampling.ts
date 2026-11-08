@@ -205,6 +205,9 @@ type BusyRecord = Pick<
 const runsAgent = ({ summary, bound }: Pick<Record, "summary" | "bound">): boolean =>
   bound !== null || summary.agent !== null || summary.ready !== null || summary.startup !== null
 
+/** How long the busy path's listing may take, as `processTable` may. */
+const listingMs = 2_000
+
 const usable = (pid: number | undefined): pid is number =>
   pid !== undefined && Number.isSafeInteger(pid) && pid > 0
 
@@ -280,8 +283,12 @@ const boundAgentWork = async (
   record: Record,
   trees: Parameters<typeof hasChildProcess>[1],
   list: () => ReturnType<Listing>,
+  table: readonly TableRow[],
 ): Promise<boolean | undefined> => {
-  const tree = await readTree(record, trees, list)
+  // The shell's jobs from the table already read, not a listing of this agent's own.
+  const tree = await readTree(record, trees, list, (shell, chain) =>
+    hasTerminalChild(table, shell, new Set(chain)),
+  )
   if (!tree?.placed) return undefined
   if (!tree.foreground || tree.beside) return true
   const { baseline, bound } = record
@@ -296,7 +303,8 @@ const boundAgentWork = async (
  * background or suspended. A terminal with an agent is not: the agent's own process is its
  * session, which resumes, so only work beside or under it counts: a bound agent by
  * hibernation's rule (`boundAgentWork`), one not yet bound by the shell's jobs beside it
- * (`agentShellJobs`). The system's processes are listed once for all of them, on Linux and
+ * (`agentShellJobs`). The system's processes are listed a fixed number of times for all of them (the table, and
+ * hibernation's listing for bound agents), not once each, on Linux and
  * macOS together with each shell's foreground group, and read when asked: nothing samples
  * it. A read that failed is `unknown`, never "not busy": no listing makes every shell
  * unknown. A terminal whose shell has ended or hasn't started is neither.
@@ -304,7 +312,9 @@ const boundAgentWork = async (
 export const busyTerminals = async (
   records: Iterable<Record>,
   trees?: Parameters<typeof hasChildProcess>[1],
-  listing: Listing = processListing(),
+  // As long as the table may take, not hibernation's shorter bound: a slow listing would
+  // make every bound agent unknown.
+  listing: Listing = processListing(process.platform, undefined, listingMs),
 ): Promise<BusyShells> => {
   const shells = [...records].filter(
     ({ terminal }) => terminal.exit === null && !terminal.exiting && usable(terminal.pty.pid),
@@ -316,8 +326,11 @@ export const busyTerminals = async (
   const found = await Promise.all(
     shells.map(async (record): Promise<boolean | undefined> => {
       const pid = record.terminal.pty.pid!
-      if (record.bound !== null && agentProcess(record) !== undefined)
-        return boundAgentWork(record, trees, list)
+      if (record.bound !== null && agentProcess(record) !== undefined) {
+        // On Linux and macOS the table says where the agent's shell stands; none, none known.
+        if (process.platform !== "win32" && !table) return undefined
+        return boundAgentWork(record, trees, list, table ?? [])
+      }
       if (runsAgent(record)) return agentShellJobs(record, pid, table, trees)
       if (process.platform === "win32") {
         // No foreground group to read: a program is a line entered, or a job in the tree.

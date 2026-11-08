@@ -222,6 +222,14 @@ export const readTree = async (
   record: Record,
   trees: Pick<ProcessTrees, "read"> | undefined,
   list: () => ReturnType<Listing>,
+  // Whether the shell has a job beside the agent's own chain, where the system can tell: by
+  // its own look at the system's processes unless the caller has one to read it from, as a
+  // caller reading many terminals has.
+  jobs: (
+    shell: number,
+    chain: readonly number[],
+  ) => Promise<boolean | undefined> | boolean | undefined = (shell, chain) =>
+    hasChildProcess(shell, undefined, new Set(chain)),
 ): Promise<Tree | undefined> => {
   const shell = record.terminal.pty.pid
   const agent = agentProcess(record)
@@ -244,14 +252,14 @@ export const readTree = async (
       beside: true,
     }
   // Anything else on the shell's terminal: `npm run dev &` before the agent started.
-  const jobs = await hasChildProcess(shell, undefined, new Set(found.chain))
+  const beside = await jobs(shell, found.chain)
   return {
     placed: true,
     foreground: found.foreground,
     below: new Set(found.below.map(processKey)),
     lineage: found.lineage,
     // Where the system can't tell, nothing is assumed gone.
-    beside: jobs !== false,
+    beside: beside !== false,
   }
 }
 

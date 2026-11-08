@@ -135,7 +135,6 @@ describe("the update progress bar", () => {
       await openWorkspace("/?update=ready")
       await expectStaysAbsent(finished())
       expect(bar()).toBeNull()
-      expect(bar()).toBeNull()
       // No chip to fetch it either: the update is downloaded, and has its own chip.
       expect(availableChip().query()).toBeNull()
     })
