@@ -29,6 +29,8 @@ export type Question = {
   readonly schema: { readonly name: string; readonly json: unknown }
   /** The most the model may write. */
   readonly maxTokens: number
+  /** How hard the model thinks, sent as `reasoning.effort`; left out, the model's own default. */
+  readonly effort?: "low" | "medium" | "high"
 }
 
 // The schema the answer is held to, from the same zod that reads it back. OpenRouter passes it
@@ -176,8 +178,10 @@ export const ask = async (client: Client, question: Question): Promise<Answer> =
           type: "json_schema",
           json_schema: { name: question.schema.name, strict: true, schema: question.schema.json },
         },
-        // Only a provider that honours `response_format` may take the request. No `reasoning`
-        // is sent: with this flag a model without that parameter would be left with no provider.
+        // Sent only when asked for: with the flag below, a model without the parameter would be
+        // left with no provider.
+        ...(question.effort ? { reasoning: { effort: question.effort } } : {}),
+        // Only a provider that honours `response_format` may take the request.
         provider: { require_parameters: true },
       }),
       signal,
