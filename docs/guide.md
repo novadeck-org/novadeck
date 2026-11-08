@@ -1,6 +1,6 @@
 # Using Novadeck
 
-The basics. Everything else is in the [reference](reference.md).
+A quick tour. Every detail is in the [reference](reference.md).
 
 ## Install
 
@@ -12,43 +12,75 @@ curl -fsSL https://novadeck.dev/install.sh | sh
 
 Windows: run the
 [installer](https://github.com/novadeck-org/novadeck/releases/latest/download/novadeck-win-x64-setup.exe).
-No admin rights needed.
-
-Want to try it first? There are portable builds on
-[novadeck.dev/download](https://novadeck.dev/download).
-
-The installed app updates itself when you quit. It never restarts on its own.
+Portable builds are on [novadeck.dev/download](https://novadeck.dev/download).
 
 ## Connect your agents
 
-On first run, pick the agents to connect: Claude Code, Codex, Antigravity. Novadeck adds a small
-plugin to each, so it can follow their sessions and pass messages between them.
+![The welcome dialog: Claude Code and Codex ticked, Antigravity not installed, and a Let's build something button.](assets/guide/welcome.webp)
 
-Codex may ask you to trust Novadeck's hooks. Do it (`/hooks` in Codex), or messages won't reach
-it.
+Tick the agents you use. Novadeck adds a small plugin to each, so it can resume them after a
+restart and pass messages between them. Then start them as usual: `claude`, `codex` or `agy`.
 
-Then start agents the usual way, with `claude`, `codex` or `agy` in any terminal.
+Codex may ask you to trust Novadeck's hooks. Do it with `/hooks`, or messages won't reach it.
 
-## Views
+## Three views
 
-- **Focus:** one terminal.
-- **Grid:** all of them side by side.
-- **Canvas:** arrange them freely. Scroll to zoom, drag to pan.
+![Focus: one Claude Code terminal filling the window.](assets/guide/focus.webp)
 
-Zen mode (`Ctrl+Shift+Z`, or `Cmd+Shift+Z` on macOS) hides everything but the terminals.
+**Focus**: one terminal.
 
-## Inbox
+![Grid: four agents side by side.](assets/grid.webp)
 
-The bell on the left. When an agent wants a permission, a plan approved or an answer, it shows
-up here. Click it and answer with a button. If that's not possible, it takes you to the
-terminal. `S` snoozes it.
+**Grid**: everything side by side.
 
-Agents that finish leave a short report here too.
+![Canvas: eleven terminals arranged on a board.](assets/guide/canvas.webp)
+
+**Canvas**: put terminals wherever you like. Scroll to zoom, drag to pan.
+
+![Zen mode: only the terminals and a small dock.](assets/guide/zen.webp)
+
+**Zen** (`Ctrl+Shift+Z`, `Cmd+Shift+Z` on macOS) hides everything else.
+
+![Search for "order" listing three matching terminals.](assets/guide/search.webp)
+
+`Ctrl+Shift+K` (`Cmd+K`) finds any terminal by name.
+
+## The Inbox
+
+![Three agents ask at once, and each is answered from the Inbox.](assets/inbox.webp)
+
+When an agent wants a permission, a plan approved or an answer, it lands in the Inbox. Most of
+the time you answer with a button, right there.
+
+![A plan from Claude Code in the Inbox, with Approve, auto-accept edits, Send it back and Go to terminal.](assets/guide/inbox-plan.webp)
+
+Plans show in full before you approve them.
+
+![A toast in the corner: @dusk wants to go ahead with a plan.](assets/guide/toast.webp)
+
+If you're looking elsewhere in Novadeck, a toast pops up. If you're in another app, you get a
+system notification.
+
+![A done report in the Inbox: Inventory sync is done, with Mark read and Give @volt a follow-up.](assets/guide/done.webp)
+
+When an agent finishes, its short report waits here too.
 
 ## Teams
 
-Each terminal has a handle, like `@moth`. Agents use it to message each other, and one agent can
-start others and lead them. Lines on screen show who leads whom.
+![A lead, Orders API, wired to its three teammates.](assets/team-canvas.webp)
+
+Every terminal has a handle like `@moth`. Agents use it to message each other, and one agent can
+start others and lead them. The wires show who leads whom.
+
+![The Messages pane of Orders API, with a conversation per teammate.](assets/guide/messages.webp)
+
+Click **Messages** on a terminal to read its conversations with other agents.
+
+## Agents show you their work
+
+![An order status page shown in a pane next to the agent's terminal.](assets/guide/show-page.webp)
+
+An agent can open a page, an image, a plan or its changes in a pane right next to its terminal.
 
 ## After a restart
 
