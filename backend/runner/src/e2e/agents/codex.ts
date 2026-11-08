@@ -561,6 +561,21 @@ type Listed = {
  */
 const trustHooks = async (
   sandbox: Sandbox,
+  options: { readonly hooks?: boolean } = {},
+): Promise<void> => {
+  // An app-server that never answers `initialize` (not one that is slow: `answerMs` waits
+  // that out) is started afresh once, the files its first start made kept in CODEX_HOME;
+  // a Windows runner's cold start was seen to outlast even 60 s (2026-11-08, #763).
+  try {
+    await trustHooksOnce(sandbox, options)
+  } catch (error) {
+    if (!String(error).includes("didn't answer initialize")) throw error
+    await trustHooksOnce(sandbox, options)
+  }
+}
+
+const trustHooksOnce = async (
+  sandbox: Sandbox,
   { hooks = true }: { readonly hooks?: boolean } = {},
 ): Promise<void> => {
   const server = appServer(sandbox.env)
