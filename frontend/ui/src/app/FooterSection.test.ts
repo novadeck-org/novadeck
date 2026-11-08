@@ -235,6 +235,87 @@ describe("the footer's restart to update chip", () => {
       expect(restart).toHaveBeenCalledOnce()
     })
 
+    // The fixture's first terminal, "01", as the test wants it.
+    const first = (over: Partial<TerminalMetadata>): Workspace => {
+      const base = workspaceFixture({ terminals: 1 })
+      const [project] = base.projects
+      const [session] = project!.history
+      const [only] = session!.state.roster.terminals
+      return {
+        ...base,
+        projects: [
+          {
+            ...project!,
+            history: [
+              {
+                ...session!,
+                state: {
+                  ...session!.state,
+                  roster: {
+                    ...session!.state.roster,
+                    terminals: [{ ...only!, ...over } as TerminalMetadata],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      }
+    }
+    const pressRestart = (page: Rendered) =>
+      act(async () =>
+        [...page.container.querySelectorAll("button")]
+          .find((button) => button.textContent === "Restart now")!
+          .click(),
+      )
+
+    it("goes on when a read before the first answer names a terminal the card already shows", async () => {
+      const restart = vi.fn<() => void>()
+      const busyTerminals = vi.fn<NonNullable<Backend["busyTerminals"]>>((only) =>
+        only?.fresh ? Promise.resolve({ busy: ["01"], unknown: [] }) : new Promise(() => {}),
+      )
+      const page = withOffer(
+        { updates: updates(restart), busyTerminals },
+        ready,
+        null,
+        first({ process: "vite", state: "running" }),
+      )
+      await act(async () => chipOf(page)!.click())
+      expect(page.container.querySelector(".restart-card")?.textContent).toContain("vite stops")
+      await pressRestart(page)
+      expect(restart).toHaveBeenCalledOnce()
+    })
+
+    it("goes on for a terminal still starting, which the card can't show", async () => {
+      const restart = vi.fn<() => void>()
+      const busyTerminals = vi.fn<NonNullable<Backend["busyTerminals"]>>(() =>
+        Promise.resolve({ busy: ["01"], unknown: [] }),
+      )
+      const page = withOffer(
+        { updates: updates(restart), busyTerminals },
+        ready,
+        null,
+        first({ state: "starting" }),
+      )
+      await act(async () => chipOf(page)!.click())
+      await pressRestart(page)
+      expect(restart).toHaveBeenCalledOnce()
+    })
+
+    it("holds back where the read fails before the card has an answer, and says it couldn't check", async () => {
+      const restart = vi.fn<() => void>()
+      const busyTerminals = vi.fn<NonNullable<Backend["busyTerminals"]>>((only) =>
+        only?.fresh ? Promise.reject(new Error("gone")) : new Promise(() => {}),
+      )
+      const page = withOffer({ updates: updates(restart), busyTerminals }, ready)
+      await act(async () => chipOf(page)!.click())
+      await pressRestart(page)
+      expect(restart).not.toHaveBeenCalled()
+      expect(page.container.querySelector(".restart-card")?.textContent).toContain(
+        "Couldn't check what runs in shells",
+      )
+    })
+
     it("restarts as before where the second look fails, the card having shown what it could", async () => {
       const restart = vi.fn<() => void>()
       const busyTerminals = vi

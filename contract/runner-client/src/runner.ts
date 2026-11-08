@@ -250,10 +250,11 @@ export type Runner = {
      */
     resetTitle(terminalId: string): Promise<void>
     /**
-     * The ids of the terminals, in every session, whose shell holds work a close would end (a
-     * program, an unfinished line, a background or suspended job, an agent's shell's own
-     * job), read from the system now (with `fresh`, by a read that starts after the call), and those the runner couldn't read (`unknown`, never
-     * idle). Ask when it is needed, never on a timer.
+     * The ids of the terminals, in every session, whose shell holds work a restart would end (a
+     * program, an unfinished line, a background or suspended job; for an agent, whose own
+     * process resumes, only work beside or under it, as the rule that keeps an idle agent from
+     * resting sees it), read from the system now (with `fresh`, by a read that starts after the call), and those the runner couldn't read (`unknown`, never
+     * idle). Ask only while someone looks at the answer, or is about to act on it.
      */
     busy(options?: {
       readonly fresh?: true

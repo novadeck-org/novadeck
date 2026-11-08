@@ -1,6 +1,11 @@
 import { basename } from "node:path"
 
-import { harnesses, type AgentName, type ForegroundProcess } from "@novadeck/protocol"
+import {
+  harnesses,
+  type AgentName,
+  type BusyShells,
+  type ForegroundProcess,
+} from "@novadeck/protocol"
 import {
   chainTo,
   hasChildProcess,
@@ -10,11 +15,14 @@ import {
   sampleForeground,
   tableForeground,
   terminalForeground,
+  processListing,
+  type Listing,
   type Member,
   type TableRow,
 } from "@novadeck/terminal/pty"
 
 import { agentProcess } from "./ending.js"
+import { readTree, stray } from "./hibernation.js"
 import type { Record } from "./record.js"
 
 /** What sampling reads of a terminal's record, and what it keeps there. */
@@ -193,9 +201,6 @@ type BusyRecord = Pick<
   "foreground" | "terminal" | "summary" | "shellName" | "prompts" | "submitted"
 >
 
-/** What `busyTerminals` found: the terminals that hold work, and those it couldn't read. */
-export type BusyShells = { readonly busy: string[]; readonly unknown: string[] }
-
 /** Whether an agent runs, or is expected, in the record's terminal. */
 const runsAgent = ({ summary, bound }: Pick<Record, "summary" | "bound">): boolean =>
   bound !== null || summary.agent !== null || summary.ready !== null || summary.startup !== null
@@ -263,10 +268,34 @@ const harnessMembers = (tree: readonly Member[]): ReadonlySet<number> => {
 }
 
 /**
- * The terminals whose shell holds work a close would end, as `shellBusy` says it for one, and
- * those it couldn't read, for every terminal given at once. A shell without an agent is busy
- * for a program in its foreground, a line entered and not finished, or a job in the
- * background or suspended; one with an agent, for a job of its own beside the agent
+ * Whether an agent bound to a terminal has work a restart would end besides its own session,
+ * by the rule hibernation keeps an agent awake by (`readTree`, `stray`): a process under it
+ * that was not there when it came up (its tool's server, a Codex "background terminal", a
+ * `nohup` command of Claude Code's or Antigravity's, while its parent lives), a job of the
+ * shell's beside it, or the agent itself suspended. Undefined where the system can't tell, the
+ * agent isn't found under the shell, or the processes it started with weren't recorded yet.
+ * A process re-parented away from the agent (a double fork) is seen by neither.
+ */
+const boundAgentWork = async (
+  record: Record,
+  trees: Parameters<typeof hasChildProcess>[1],
+  list: () => ReturnType<Listing>,
+): Promise<boolean | undefined> => {
+  const tree = await readTree(record, trees, list)
+  if (!tree?.placed) return undefined
+  if (!tree.foreground || tree.beside) return true
+  const { baseline, bound } = record
+  const held = baseline?.instance === bound?.binding.instance ? baseline?.taken : undefined
+  return held === undefined ? undefined : stray(tree, held) !== undefined
+}
+
+/**
+ * The terminals whose shell holds work a restart would end, and those it couldn't read, for
+ * every terminal given at once. A shell without an agent is judged as `shellBusy` judges one
+ * for a close: a program in its foreground, a line entered and not finished, or a job in the
+ * background or suspended. A terminal with an agent is not: the agent's own process is its
+ * session, which resumes, so only work beside or under it counts: a bound agent by
+ * hibernation's rule (`boundAgentWork`), one not yet bound by the shell's jobs beside it
  * (`agentShellJobs`). The system's processes are listed once for all of them, on Linux and
  * macOS together with each shell's foreground group, and read when asked: nothing samples
  * it. A read that failed is `unknown`, never "not busy": no listing makes every shell
@@ -275,14 +304,20 @@ const harnessMembers = (tree: readonly Member[]): ReadonlySet<number> => {
 export const busyTerminals = async (
   records: Iterable<Record>,
   trees?: Parameters<typeof hasChildProcess>[1],
+  listing: Listing = processListing(),
 ): Promise<BusyShells> => {
   const shells = [...records].filter(
     ({ terminal }) => terminal.exit === null && !terminal.exiting && usable(terminal.pty.pid),
   )
   const table = await processTable()
+  // The listing hibernation reads, once for every agent here.
+  let rows: ReturnType<Listing> | undefined
+  const list = (): ReturnType<Listing> => (rows ??= listing())
   const found = await Promise.all(
     shells.map(async (record): Promise<boolean | undefined> => {
       const pid = record.terminal.pty.pid!
+      if (record.bound !== null && agentProcess(record) !== undefined)
+        return boundAgentWork(record, trees, list)
       if (runsAgent(record)) return agentShellJobs(record, pid, table, trees)
       if (process.platform === "win32") {
         // No foreground group to read: a program is a line entered, or a job in the tree.

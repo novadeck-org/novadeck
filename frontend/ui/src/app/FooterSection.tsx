@@ -8,10 +8,18 @@ import type { TerminalKey } from "@novadeck/core/port"
 import { waitingAgents } from "@novadeck/core/terminals/ending"
 import { nextWaitingChange } from "@novadeck/core/terminals/waiting"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
-import { memo, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
 
 import { FeedbackButton } from "../feedback/FeedbackButton"
-import { nothingToCheck, restartCheck } from "../shell/restart-check"
+import { nothingToCheck, restartCheck, riskKey } from "../shell/restart-check"
 import { readSubscriptionOrder, writeSubscriptionOrder } from "../shell/shell-storage"
 import { SubscriptionUsage } from "../shell/SubscriptionUsage"
 import { WorkspaceFooter } from "../shell/WorkspaceFooter"
@@ -30,6 +38,8 @@ const allTerminals = (workspace: Workspace): readonly TerminalMetadata[] =>
   workspace.projects.flatMap((project) =>
     project.history.flatMap((session) => session.state.roster.terminals),
   )
+const noTerminals = (): readonly TerminalMetadata[] => none
+const none: readonly TerminalMetadata[] = []
 const sameTerminals = (a: readonly TerminalMetadata[], b: readonly TerminalMetadata[]): boolean =>
   a.length === b.length && a.every((terminal, index) => terminal === b[index])
 
@@ -88,24 +98,38 @@ export const FooterSection = memo((): React.JSX.Element => {
   // A downloaded update the person can restart into now: not a portable copy, which has its
   // own chip, and only from a desktop app that can.
   const restartable = !!updates?.restart && !portable && !portablePending && offer?.kind === "ready"
-  // Every terminal of every session, which a restart would do something to.
-  const everyTerminal = useWorkspaceState(allTerminals, sameTerminals)
+  // Every terminal of every session, which a restart would do something to; none watched
+  // while no update waits, so the footer isn't redrawn for terminals nobody asks about.
+  const everyTerminal = useWorkspaceState(restartable ? allTerminals : noTerminals, sameTerminals)
   // The card is up: the runner is asked about shells only then.
   const [restartShown, setRestartShown] = useState(false)
-  const { busy, answer, recheck } = useBusyTerminals(
+  const { busy, answer, refresh } = useBusyTerminals(
     backend.busyTerminals,
     restartable && restartShown,
-    // The terminals the card can show: a restart is held back only for work in those.
-    (id) =>
-      everyTerminal.some(
-        (terminal) =>
-          terminal.id === id && terminal.state !== "exited" && terminal.state !== "failed",
-      ),
   )
   const restartPlan = useMemo(
     () => (restartable ? restartCheck(everyTerminal, busy) : nothingToCheck),
     [restartable, everyTerminal, busy],
   )
+  // What the card shows now, for Restart now to compare a fresh read with.
+  const shown = useRef({ everyTerminal, restartPlan, answer })
+  useEffect(() => {
+    shown.current = { everyTerminal, restartPlan, answer }
+  })
+  // Whether the restart may go on after a fresh read: not when it names work the card did not
+  // show, which it then shows, nor when the read failed while the card had no answer yet, which
+  // it then says. Anything the card already showed, or could not show, holds nothing back.
+  const mayRestart = useCallback(async (): Promise<boolean> => {
+    const before = shown.current
+    const told = await refresh()
+    if (told === undefined) return before.answer !== "pending"
+    const after = restartCheck(shown.current.everyTerminal, {
+      busy: new Set(told.busy),
+      unknown: new Set(told.unknown),
+    })
+    const seen = new Set(before.restartPlan.risks.map(riskKey))
+    return after.risks.every((risk) => seen.has(riskKey(risk)))
+  }, [refresh])
   const [appVersion, setAppVersion] = useState<string>()
   useEffect(() => {
     if (!restartable || !backend.version) return undefined
@@ -186,7 +210,7 @@ export const FooterSection = memo((): React.JSX.Element => {
               from: appVersion,
               check: restartPlan,
               answer,
-              recheck,
+              recheck: mayRestart,
               onShownChange: setRestartShown,
               onRestart: updates.restart,
               onGoTo: (terminalId) => {

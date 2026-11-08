@@ -345,10 +345,11 @@ export type BackendFields = {
   // again: the name the person gave it goes, and the backend reports the one it takes
   // with `terminal/update`. Absent where names are only the person's.
   readonly resetTitle?: (key: TerminalKey) => void
-  // Optional. Asks which terminals hold work a close would end: a program in a plain shell, a
-  // line not finished, a job in the background or suspended, or an agent's shell's own job beside it, by
+  // Optional. Asks which terminals hold work a restart would end: a program in a plain shell, a
+  // line not finished, a job in the background or suspended; for an agent, whose own process
+  // resumes, only work beside or under it (a Codex background terminal, a job of its shell's), by
   // terminal id, across every session. Read from the system when asked, so ask when it is
-  // needed and not on a timer. `unknown` are those it couldn't read, never to be taken for
+  // needed: while someone looks at the answer, and as they act on it. `unknown` are those it couldn't read, never to be taken for
   // idle. Answers nothing (undefined) where it can't tell at all, as from a runner that came
   // before it. Absent where the backend has no shells to look at.
   // With `fresh`, the answer comes from a read that starts after the call, as one about to act

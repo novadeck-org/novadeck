@@ -212,6 +212,49 @@ export const windowsTree = (
   }
 }
 
+/**
+ * The processes under a bound agent and beside it, from the system, as hibernation and the
+ * restart check both judge what the agent started: its tools and servers below it, the shell's
+ * jobs beside it. `list` is the process listing, which a caller reading many terminals shares.
+ * Undefined when it can't tell, or the agent's process isn't known.
+ */
+export const readTree = async (
+  record: Record,
+  trees: Pick<ProcessTrees, "read"> | undefined,
+  list: () => ReturnType<Listing>,
+): Promise<Tree | undefined> => {
+  const shell = record.terminal.pty.pid
+  const agent = agentProcess(record)
+  if (shell === undefined || agent === undefined) return undefined
+  if (process.platform === "win32") {
+    if (!trees) return undefined
+    const [all, own] = await Promise.all([trees.read(shell), trees.read(agent)])
+    if (!all || !own) return undefined
+    return windowsTree(all, own, shell, agent)
+  }
+  const rows = await list()
+  if (!rows) return undefined
+  const found = placement(rows, shell, agent)
+  if (!found)
+    return {
+      placed: false,
+      foreground: false,
+      below: new Set(),
+      lineage: new Map(),
+      beside: true,
+    }
+  // Anything else on the shell's terminal: `npm run dev &` before the agent started.
+  const jobs = await hasChildProcess(shell, undefined, new Set(found.chain))
+  return {
+    placed: true,
+    foreground: found.foreground,
+    below: new Set(found.below.map(processKey)),
+    lineage: found.lineage,
+    // Where the system can't tell, nothing is assumed gone.
+    beside: jobs !== false,
+  }
+}
+
 /** What hibernation reaches in the runner. */
 export type HibernationHost = {
   readonly stopping: () => boolean
@@ -456,37 +499,10 @@ export class Hibernation {
   }
 
   /** The processes under the agent and beside it, from the system; undefined when it can't tell. */
-  private async read(record: Record): Promise<Tree | undefined> {
-    const shell = record.terminal.pty.pid
-    const agent = agentProcess(record)
-    if (shell === undefined || agent === undefined) return undefined
-    if (process.platform === "win32") {
-      const trees = this.host.trees()
-      const [all, own] = await Promise.all([trees.read(shell), trees.read(agent)])
-      if (!all || !own) return undefined
-      return windowsTree(all, own, shell, agent)
-    }
-    const rows = await (this.sweeping ? (this.rows ??= this.listing()) : this.listing())
-    if (!rows) return undefined
-    const found = placement(rows, shell, agent)
-    if (!found)
-      return {
-        placed: false,
-        foreground: false,
-        below: new Set(),
-        lineage: new Map(),
-        beside: true,
-      }
-    // Anything else on the shell's terminal: `npm run dev &` before the agent started.
-    const jobs = await hasChildProcess(shell, undefined, new Set(found.chain))
-    return {
-      placed: true,
-      foreground: found.foreground,
-      below: new Set(found.below.map(processKey)),
-      lineage: found.lineage,
-      // Where the system can't tell, nothing is assumed gone.
-      beside: jobs !== false,
-    }
+  private read(record: Record): Promise<Tree | undefined> {
+    return readTree(record, this.host.trees(), () =>
+      this.sweeping ? (this.rows ??= this.listing()) : this.listing(),
+    )
   }
 
   /** The terminal's facts at `now`, with what the system showed of its processes if read. */

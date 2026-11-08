@@ -772,7 +772,7 @@ kill the process tree and wait.
 
 `DesktopBridge` in `contract/protocol/src/bridge.ts` carries `onUpdate` (an
 `UpdateOffer` with `kind` (`downloading`, `ready`, `retrying` or `available`), `version` and, for `downloading`, a whole `percent`), `openUpdatePage`,
-`updateChannel` and `setUpdateChannel`. After an update the app shows one card of what is new (see
+`updateChannel`, `setUpdateChannel` and `restartToUpdate`, which the footer's "Restart to update" chip and its card call once the offer is `ready`. After an update the app shows one card of what is new (see
 "What is new" below), through `whatsNew` and `dismissWhatsNew`. `onPortableState`
 pushes the `PortableState` to every window when it changes, each step of an install included.
 The preload checks every offer and portable state again, with the protocol's parsers, before the

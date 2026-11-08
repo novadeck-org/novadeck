@@ -1456,7 +1456,7 @@ export class Terminals {
     yield* this.streams.watchSlice(this.record(terminalId).summary.id, signal)
   }
 
-  /** The terminals whose shell holds work a close would end, read now (see `busyTerminals`). */
+  /** The terminals whose shell holds work a restart would end, read now (see `busyTerminals`). */
   busyShells(fresh = false) {
     if (this.stopping) throw new DomainError("CLOSING")
     return fresh ? this.busyRead.fresh() : this.busyRead.read()

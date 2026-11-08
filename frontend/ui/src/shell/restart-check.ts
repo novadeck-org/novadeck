@@ -42,6 +42,9 @@ export type RestartCheck = {
   readonly risks: readonly Risk[]
 }
 
+// Which terminal's risk of which kind, to tell one the card shows from one it doesn't.
+export const riskKey = (risk: Risk): string => `${risk.kind}:${risk.id}`
+
 export const nothingToCheck: RestartCheck = { resume: 0, reopen: 0, risks: [] }
 
 const maxCommand = 40

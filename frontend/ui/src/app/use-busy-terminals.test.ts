@@ -12,17 +12,13 @@ afterEach(() => {
 })
 
 type Told = { readonly busy: readonly string[]; readonly unknown: readonly string[] }
-type Ask = () => Promise<Told | undefined>
+type Ask = (options?: { fresh?: true }) => Promise<Told | undefined>
 
 // What the hook says, as a component that asks for it reads it.
-const watch = (
-  ask: Ask | undefined,
-  active: boolean,
-  shows: (id: string) => boolean = () => true,
-) => {
+const watch = (ask: Ask | undefined, active: boolean) => {
   const latest: { current?: BusyTerminals } = {}
   const Probe = ({ to, on }: { to: Ask | undefined; on: boolean }) => {
-    const value = useBusyTerminals(to, on, shows)
+    const value = useBusyTerminals(to, on)
     useEffect(() => {
       latest.current = value
     })
@@ -96,38 +92,38 @@ describe("asking the runner about shells", () => {
     expect(view.now().busy).toBeUndefined()
   })
 
-  it("asks for a fresh read as the restart is pressed, and holds back only for terminals the card shows", async () => {
+  it("refreshes by a fresh read, keeps the answer and gives it back", async () => {
     const ask = vi.fn<Ask>((options?: { fresh?: true }) =>
-      Promise.resolve(
-        options?.fresh ? { busy: ["elsewhere"], unknown: [] } : { busy: [], unknown: [] },
-      ),
+      Promise.resolve(options?.fresh ? { busy: ["b"], unknown: [] } : { busy: ["a"], unknown: [] }),
     )
-    const view = watch(ask, true, (id) => id !== "elsewhere")
-    await act(() => Promise.resolve())
-    let go = false
-    await act(async () => void (go = await view.now().recheck()))
-    expect(ask).toHaveBeenLastCalledWith({ fresh: true })
-    expect(go).toBe(true)
-  })
-
-  it("lets the restart go on unless a new answer names work the card did not show", async () => {
-    const answers: Told[] = [
-      { busy: ["a"], unknown: [] },
-      { busy: ["a"], unknown: ["b"] },
-    ]
-    const ask = vi.fn<Ask>(() => Promise.resolve(answers.shift()))
     const view = watch(ask, true)
     await act(() => Promise.resolve())
-    let go = true
-    await act(async () => void (go = await view.now().recheck()))
-    expect(go).toBe(false)
-    expect(view.now().busy?.unknown.has("b")).toBe(true)
-    // Nothing new, and an answer that fails, let it go on.
-    ask.mockResolvedValueOnce({ busy: ["a"], unknown: ["b"] })
-    await act(async () => void (go = await view.now().recheck()))
-    expect(go).toBe(true)
-    ask.mockRejectedValueOnce(new Error("gone"))
-    await act(async () => void (go = await view.now().recheck()))
-    expect(go).toBe(true)
+    let told: Told | undefined
+    await act(async () => void (told = await view.now().refresh()))
+    expect(ask).toHaveBeenLastCalledWith({ fresh: true })
+    expect(told).toEqual({ busy: ["b"], unknown: [] })
+    expect(view.now().busy?.busy.has("b")).toBe(true)
+  })
+
+  it("changes nothing for a failed read once there is an answer, and says it couldn't while there is none", async () => {
+    const ask = vi
+      .fn<Ask>()
+      .mockResolvedValueOnce({ busy: ["a"], unknown: [] })
+      .mockRejectedValue(new Error("gone"))
+    const view = watch(ask, true)
+    await act(() => Promise.resolve())
+    let told: Told | undefined = { busy: [], unknown: [] }
+    await act(async () => void (told = await view.now().refresh()))
+    expect(told).toBeUndefined()
+    expect(view.now().answer).toBe("known")
+    // Pressed before the first answer came, and the read fails.
+    const first = deferred()
+    const pending = watch(
+      (options) => (options?.fresh ? Promise.reject(new Error("gone")) : first.promise),
+      true,
+    )
+    expect(pending.now().answer).toBe("pending")
+    await act(async () => void (await pending.now().refresh()))
+    expect(pending.now().answer).toBe("unavailable")
   })
 })
