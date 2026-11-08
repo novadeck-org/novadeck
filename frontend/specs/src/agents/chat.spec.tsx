@@ -156,6 +156,18 @@ describe("Recalling earlier prompts in the chat's box", () => {
     await expect.element(composer(chat)).toHaveValue("half a thought")
   })
 
+  it("takes a second Up from the end of a one-line draft, the first going to its start", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    await userEvent.type(composer(chat), "half a thought")
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue("half a thought")
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue(first)
+    await userEvent.keyboard("{ArrowDown}")
+    await expect.element(composer(chat)).toHaveValue("half a thought")
+  })
+
   it("recalls a shell command as it was typed", async () => {
     await openChatDemo()
     const chat = await openChat("Build")
