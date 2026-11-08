@@ -546,3 +546,75 @@ describe("prompt receipts", () => {
     expect(refs).toContain("r8")
   })
 })
+
+describe("prompt receipts with images", () => {
+  const chat = ["/up/u1/chat.png"]
+  const withImages = async (
+    resources: Parameters<typeof setup>[0],
+    text: string,
+    files: readonly string[] = chat,
+    agent: ReceiptSource["agent"] = "claude",
+  ) => {
+    const run = await setup(resources)
+    run.host.agent = agent
+    await run.receipts.expect(terminal, text, "r1", files)
+    run.receipts.sent(terminal, "r1")
+    return run
+  }
+
+  it("gives back the files, as the client named them, of a prompt the box holds exactly", async ({
+    resources,
+  }) => {
+    const { receipts } = await withImages(resources, "describe")
+    expect(receipts.boxFiles(terminal, 1, "describe", true)).toEqual(chat)
+  })
+
+  it("does not take a screenshot the person pasted in the terminal for the chat's image", async ({
+    resources,
+  }) => {
+    // The chat's prompt waits in the agent's queue, not in the box, which holds the person's.
+    const { receipts, state } = await withImages(resources, "describe")
+    const box = { words: "fix this layout", marks: 1 }
+    expect(receipts.boxFiles(terminal, box.marks, box.words)).toEqual([])
+    expect(receipts.boxFiles(terminal, box.marks, box.words, true)).toEqual([])
+    receipts.taken(terminal, box.words, undefined, box.marks)
+    expect(state("r1")).toBe("pending")
+  })
+
+  it("does not take words the person typed that hold a queued prompt's for it", async ({
+    resources,
+  }) => {
+    const { receipts, state } = await withImages(resources, "fix it")
+    expect(receipts.boxFiles(terminal, 0, "please fix it now")).toEqual([])
+    expect(receipts.boxFiles(terminal, 0, "please fix it now", true)).toEqual([])
+    receipts.taken(terminal, "please fix it now", undefined, 0)
+    receipts.withdraw(terminal, "please fix it now", 0, 0)
+    expect(state("r1")).toBe("pending")
+  })
+
+  it("does not take a box of the prompt's words and more images than it carried", async ({
+    resources,
+  }) => {
+    const { receipts } = await withImages(resources, "describe")
+    expect(receipts.boxFiles(terminal, 2, "describe", true)).toEqual([])
+  })
+
+  it("gives back the files of a Stop's prompt for Antigravity by its exact words, which show no marks", async ({
+    resources,
+  }) => {
+    const { receipts, state } = await withImages(resources, "Queued beta", chat, "agy")
+    expect(receipts.boxFiles(terminal, 0, "Queued beta", true)).toEqual(chat)
+    expect(receipts.boxFiles(terminal, 0, "Queued beta and mine", true)).toEqual([])
+    expect(receipts.boxFiles(terminal, 0, "Queued beta")).toEqual([])
+    receipts.withdraw(terminal, "Queued beta", 0, 0)
+    expect(state("r1")).toBe("withdrawn")
+  })
+
+  it("withdraws an images-only prompt when the box holds exactly its images", async ({
+    resources,
+  }) => {
+    const { receipts, state } = await withImages(resources, "")
+    receipts.withdraw(terminal, "", 0, 1)
+    expect(state("r1")).toBe("withdrawn")
+  })
+})

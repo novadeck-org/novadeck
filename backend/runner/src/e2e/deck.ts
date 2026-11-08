@@ -818,7 +818,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
           terminalId: id,
           text,
           along: true,
-          ...(checked.length > 0 && { images: checked }),
+          ...(checked.length > 0 && { images: checked, files: paths }),
         })
       },
       interrupt: async () => {

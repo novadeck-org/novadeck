@@ -321,8 +321,11 @@ export const conflictReason = z.strictObject({
  */
 export const promptFailure = z.object({
   returned: z.string().optional(),
-  /** `image-not-shown`: the agent never showed an image of the prompt, which was taken back out. */
-  reason: z.literal("image-not-shown").optional(),
+  /**
+   * Why, as a CONFLICT says (`conflictReason`) of a send that took words out first, or
+   * `image-not-shown`: the agent never showed an image of the prompt, which was taken back out.
+   */
+  reason: z.string().optional(),
 })
 
 /**

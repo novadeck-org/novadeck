@@ -328,7 +328,6 @@ export class Handovers {
     }
   }
 
-  /** The words the box holds, as they were given where Novadeck knows them, else as typed. */
   /** The box's text without the images that lead it, where all of them are Novadeck's own. */
   private words(terminalId: string, text: string): string {
     return leadsWithImages(text) && this.host.ownImages?.(terminalId, text) === true
@@ -336,6 +335,7 @@ export class Handovers {
       : text
   }
 
+  /** The words the box holds, as they were given where Novadeck knows them, else as typed. */
   private wordsOf(
     terminalId: string,
     profile: BoxProfile,

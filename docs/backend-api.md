@@ -1026,13 +1026,15 @@ one from an earlier runner.
   When a Stop (`agents.interrupt`) or `agents.takeBox` takes a message with images out of the
   box, where Claude Code and Codex show `[Image #N]` placeholders ahead of the words, the
   placeholders are left out of `returned` (null for a message of images alone) and the files they
-  came from are answered as `images`, the paths of the prompts' `images` the box held, absent for
-  none. The latest queued prompts whose images add up to the placeholders counted are the ones, as
-  a turn takes the earliest queued message first. Antigravity loses a queued message's media as
-  a Stop takes the words back, so there `images` names the files of the prompts whose words came
-  back. If the leading placeholders are not all of the chat's own prompts (an image pasted in the
-  terminal view), the box is `BOX_NOT_CLEARED` for a Stop and untouched by `takeBox`, as the
-  runner holds no file to give back.
+  came from are answered as `images`, the paths of the prompts' `images` the box held exactly,
+  as the client named them (not their real paths), absent for none. The box is the chat's own
+  only when its placeholders are as many as the images of the latest prompts waiting in it (a
+  Stop's queued ones, which it moved there, or those back in it) and the words after them are
+  exactly those prompts' words. A box that holds more, an image the person pasted in the terminal
+  view or words they typed, is `BOX_NOT_CLEARED` for a Stop and untouched by `takeBox`, and no
+  prompt of the chat is withdrawn for it. Antigravity loses a queued message's media as a Stop
+  takes the words back, so there `images` names the files of the prompts whose words came back
+  exactly.
 
   A text whose trimmed form starts with `!` is a shell command (`shellCommand`, the rest
   after the `!`, trimmed), which Claude Code, Codex and Antigravity run in their shell mode

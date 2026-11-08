@@ -295,15 +295,14 @@ export class Receipts {
     const track = this.tracks.get(terminalId)
     if (!track) return
     let changed = false
-    const withImages = this.queuedImages(track, marks, returned)
+    const own = this.ownedBy(track, marks, returned, true, since)
     for (const entry of track.entries) {
       // One back in the agent's box, too: the Stop took the words out of it.
       const waiting = entry.state === "pending" || entry.state === "in-box"
       const stopped = entry.state === "settled" && (entry.settledAt ?? 0) >= since
-      if (
-        ((waiting || stopped) && inBox(returned, entry.lines)) ||
-        (waiting && withImages.includes(entry))
-      ) {
+      // A prompt with images is taken for the box's only where the box is exactly its own.
+      const held = entry.files.length > 0 ? own.includes(entry) : inBox(returned, entry.lines)
+      if ((waiting || stopped) && held) {
         done(entry, "withdrawn", entry.item ?? undefined)
         changed = true
       }
@@ -322,15 +321,16 @@ export class Receipts {
     const track = this.tracks.get(terminalId)
     if (!track) return
     let changed = false
-    const withImages = this.queuedImages(track, marks, returned)
+    const own = this.ownedBy(track, marks, returned, false)
     for (const entry of track.entries)
       if (
         entry.ref !== except &&
-        ((entry.state === "in-box" && inBox(returned, entry.lines)) ||
-          (entry.state === "pending" &&
-            entry.sentAt !== null &&
-            knownWords([entry], returned) !== undefined) ||
-          withImages.includes(entry))
+        (entry.files.length > 0
+          ? own.includes(entry)
+          : (entry.state === "in-box" && inBox(returned, entry.lines)) ||
+            (entry.state === "pending" &&
+              entry.sentAt !== null &&
+              knownWords([entry], returned) !== undefined))
       ) {
         done(entry, "withdrawn")
         changed = true
@@ -340,33 +340,49 @@ export class Receipts {
   }
 
   /**
-   * The prompts with images that came back out of the agent's box. Where it showed `marks`
-   * placeholders (Claude Code, Codex): the latest queued ones whose images add up to that
-   * many, as a turn takes the earliest queued message first; empty where no run adds up, and
-   * nothing is known of which images the box held. Where it showed none (Antigravity keeps a
-   * queued message's media apart, and loses it as a Stop takes the words back): the queued
-   * ones whose words are in `returned`.
+   * The latest prompts whose images and words are exactly what the box held: `marks`
+   * placeholders leading `words`, as many as the prompts carried, and the words theirs and
+   * nothing else (`knownWords`). The box is theirs only then; one that holds more, a screenshot
+   * the person pasted in the terminal or words they typed, is not, and nothing is given back.
+   * The prompts are those in the box (`in-box`), and with `queued`, a Stop's, those still sent
+   * and waiting, which the Stop moved into the box, or settled since it began (`since`). Antigravity shows no placeholders and loses
+   * a queued message's media as the Stop takes the words back, so for it, `queued` only, no
+   * marks are asked.
    */
-  private queuedImages(track: Track, marks: number, returned: string): readonly Entry[] {
-    const queued = track.entries.filter(
+  private ownedBy(
+    track: Track,
+    marks: number,
+    words: string,
+    queued: boolean,
+    since?: number,
+  ): readonly Entry[] {
+    if (marks <= 0 && !(queued && track.agent === "agy")) return []
+    const candidates = track.entries.filter(
       (entry) =>
-        entry.files.length > 0 &&
-        (entry.state === "in-box" || (entry.state === "pending" && entry.sentAt !== null)),
+        entry.state === "in-box" ||
+        (queued && entry.state === "pending" && entry.sentAt !== null) ||
+        // Claude Code records a queued message as its turn starts, which a Stop then undoes.
+        (since !== undefined && entry.state === "settled" && (entry.settledAt ?? 0) >= since),
     )
-    if (marks <= 0) return queued.filter((entry) => inBox(returned, entry.lines))
-    let sum = 0
-    for (let from = queued.length - 1; from >= 0; from -= 1) {
-      sum += queued[from]!.files.length
-      if (sum === marks) return queued.slice(from)
-      if (sum > marks) break
+    for (let from = candidates.length - 1; from >= 0; from -= 1) {
+      const run = candidates.slice(from)
+      if (run[0]!.files.length === 0) continue
+      const images = run.reduce((sum, entry) => sum + entry.files.length, 0)
+      if (marks > 0 && images !== marks) continue
+      const speaking = run.filter((entry) => entry.lines.length > 0)
+      const exact = speaking.length === 0 ? words === "" : knownWords(speaking, words) !== undefined
+      if (exact) return run
     }
     return []
   }
 
-  /** The image files of the prompts that came back out of the agent's box (see `queuedImages`). */
-  boxFiles(terminalId: string, marks: number, returned = ""): readonly string[] {
+  /**
+   * The image files, as the client named them, of the prompts the box held exactly (see
+   * `ownedBy`); `queued` for a Stop's box.
+   */
+  boxFiles(terminalId: string, marks: number, words: string, queued = false): readonly string[] {
     const track = this.tracks.get(terminalId)
-    return track ? this.queuedImages(track, marks, returned).flatMap((entry) => entry.files) : []
+    return track ? this.ownedBy(track, marks, words, queued).flatMap((entry) => entry.files) : []
   }
 
   /**

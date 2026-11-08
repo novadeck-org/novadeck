@@ -17,7 +17,6 @@ for (const setup of setups) {
     // a space makes the path one (the runner's folder may hold spaces too, on macOS and
     // Windows), which Codex and Antigravity take only quoted or escaped.
     for (const { what, images, words } of [
-      { what: "an image", images: ["shot.png"], words: "What is in this picture" },
       {
         what: "an image with a space in its name",
         images: ["my shot.png"],

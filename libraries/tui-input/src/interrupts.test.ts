@@ -288,6 +288,18 @@ describe("interrupts", () => {
     expect(t.written).toEqual([CLEAR])
   })
 
+  it("leaves the turn's prompt put back with an image the person pasted in the terminal", async () => {
+    const t = terminal({ prompt: "fix this", after: () => "[Image #1] fix this" })
+    await expect(t.interrupt()).rejects.toBeInstanceOf(BoxNotCleared)
+    expect(t.written).toEqual([])
+  })
+
+  it("clears the turn's prompt put back with an image that is all Novadeck's own", async () => {
+    const t = terminal({ own: true, prompt: "fix this", after: () => "[Image #1] fix this" })
+    expect(await t.interrupt()).toEqual({ returned: undefined })
+    expect(t.written).toEqual([CLEAR])
+  })
+
   it("leaves the box and says so where its TUI has no keys to clear it", async () => {
     const t = terminal({ clear: false, prompt: "Say hi", after: () => "Say hi" })
     await expect(t.interrupt()).rejects.toBeInstanceOf(BoxNotCleared)

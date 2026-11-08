@@ -235,7 +235,8 @@ export class Interrupts {
       const restored =
         !queued &&
         prompt !== undefined &&
-        (sameText(withoutImages(box.text), prompt) || showsTail(profile, box, rows, prompt))
+        (sameText(this.words(terminalId, box.text), prompt) ||
+          showsTail(profile, box, rows, prompt))
       // A placeholder stands for words that clearing would lose: they are left, and said. So
       // does a box that may hold more than it shows, where those words aren't known in full.
       if (!profile.clear) throw new BoxNotCleared()

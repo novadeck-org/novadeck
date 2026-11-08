@@ -1,7 +1,7 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { doorbellLine, replyLine } from "@novadeck/harness-core/prompts"
 import { screen as screenOf } from "@novadeck/harness-core/testing/screens"
-import { promptRefusal as refusedBy, shellCommand } from "@novadeck/protocol"
+import { promptFailure, promptRefusal as refusedBy, shellCommand } from "@novadeck/protocol"
 import {
   BoxNotCleared,
   InputQueue,
@@ -442,5 +442,21 @@ describe("interrupts", () => {
       returned: null,
       marks: 1,
     })
+  })
+})
+
+describe("the data of a failed prompt that took words out", () => {
+  it("is read by promptFailure whatever the refusal that came with them", () => {
+    const failure = asFailure(new WordsTaken(new PromptRefusal("too-tall", "x"), "my draft"))
+    expect(failure).toMatchObject({ code: "CONFLICT" })
+    expect(promptFailure.safeParse((failure as DomainError).data).data).toEqual({
+      reason: "too-tall",
+      returned: "my draft",
+    })
+  })
+
+  it("carries an image's failure as its reason", () => {
+    const failure = promptError(new PromptRefusal("image-not-shown", "x")) as DomainError
+    expect(promptFailure.safeParse(failure.data).data).toEqual({ reason: "image-not-shown" })
   })
 })
