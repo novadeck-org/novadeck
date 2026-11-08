@@ -1,113 +1,71 @@
 # Using Novadeck
 
-A short tour of how Novadeck works. Every detail, edge case and setting is in the
-[reference](reference.md).
+The basics. Everything else is in the [reference](reference.md).
 
 ## Install
 
-On macOS and x86_64 Linux:
+macOS and Linux:
 
 ```sh
 curl -fsSL https://novadeck.dev/install.sh | sh
 ```
 
-Run it as yourself, not with `sudo`. On Windows, run
-[`novadeck-win-x64-setup.exe`](https://github.com/novadeck-org/novadeck/releases/latest/download/novadeck-win-x64-setup.exe);
-it installs for your user, with no administrator prompt. To try Novadeck without installing
-anything, grab a portable build from [novadeck.dev/download](https://novadeck.dev/download).
+Windows: run the
+[installer](https://github.com/novadeck-org/novadeck/releases/latest/download/novadeck-win-x64-setup.exe).
+No admin rights needed.
 
-An installed Novadeck keeps itself up to date. A downloaded update installs when you next
-quit, and a **Restart to update** chip in the footer tells you what a restart would do first.
-Novadeck never restarts on its own. A portable build only checks for new releases and offers to install Novadeck.
-To remove Novadeck, press **Uninstall…** under About in Preferences (a Homebrew install shows
-its `brew uninstall` command there instead).
+Want to try it first? There are portable builds on
+[novadeck.dev/download](https://novadeck.dev/download).
+
+The installed app updates itself when you quit. It never restarts on its own.
 
 ## Connect your agents
 
-On first run, Novadeck offers to connect the agents it finds installed: Claude Code, Codex and
-Antigravity. Connecting one installs a small Novadeck plugin through the agent's own plugin
-command. It tells Novadeck which session the agent is in, so Novadeck can resume it after a
-restart, and it carries agents' messages to each other. Turn an agent off in Preferences and
-its plugin is uninstalled.
+On first run, pick the agents to connect: Claude Code, Codex, Antigravity. Novadeck adds a small
+plugin to each, so it can follow their sessions and pass messages between them.
 
-Codex asks you to review Novadeck's hooks ("Hooks need review"), and asks again when a
-Novadeck update changes them. Trust them in Codex with `/hooks`; until you do, they don't
-run, so other agents' messages can't reach that Codex session.
+Codex may ask you to trust Novadeck's hooks. Do it (`/hooks` in Codex), or messages won't reach
+it.
 
-After that, run the agent as usual: open a terminal and type `claude`, `codex` or `agy`. It's
-the real CLI, signed in to your own account, with your own settings.
+Then start agents the usual way, with `claude`, `codex` or `agy` in any terminal.
 
 ## Views
 
-Switch views from the top bar:
+- **Focus:** one terminal.
+- **Grid:** all of them side by side.
+- **Canvas:** arrange them freely. Scroll to zoom, drag to pan.
 
-- **Focus** shows one terminal at a time.
-- **Grid** puts every terminal side by side.
-- **Canvas** lets you place terminals freely on a board. Scroll to zoom, drag the background to
-  pan, and double-click a terminal's header, away from its name, to zoom in on it. Do it again
-  to go back. Double-clicking the name renames the terminal.
+Zen mode (`Ctrl+Shift+Z`, or `Cmd+Shift+Z` on macOS) hides everything but the terminals.
 
-**Zen mode** (`Cmd+Shift+Z` on macOS, `Ctrl+Shift+Z` elsewhere) hides everything but your
-terminals and a small dock.
+## Inbox
 
-Terminals are grouped into projects and sessions. The project switcher is at the top left, and
-a mark next to a project shows when one of its agents needs you.
+The bell on the left. When an agent wants a permission, a plan approved or an answer, it shows
+up here. Click it and answer with a button. If that's not possible, it takes you to the
+terminal. `S` snoozes it.
 
-## The Inbox
+Agents that finish leave a short report here too.
 
-The Inbox, the bell on the left rail, collects everything your agents are waiting on, from
-every project:
+## Teams
 
-- **Unblock (!):** the agent can't go on without you, for example a permission to run a
-  command or a plan to approve.
-- **Ask (?):** a question.
-- **Trouble:** a failed turn, a usage limit, or messages held too long.
-- **Update:** an agent reporting it's done, or telling you something.
-
-Click a row to read it. Most questions you can answer right there, with the agent's own options
-as buttons. When the Inbox can't offer the answer, it takes you to the terminal. Press **S** to
-snooze a row you want to leave for later.
-
-When something new needs you, a toast appears if Novadeck is in front, or a system
-notification if it isn't. Nothing rings for the terminal you're looking at. You can turn both
-off in Preferences.
-
-## Agents working together
-
-Every terminal gets a handle, such as `@moth`, and agents use it to message each other. An agent
-can open more agents and brief them, and it then leads that team. Novadeck draws a wire
-between a lead and its teammates in the sidebar, Grid and Canvas.
-
-A terminal that has had messages gets a **Messages** icon, which shows its conversations. To
-stop all messages between agents for a while, use **Pause all agents' messages** at the top of
-that pane.
-
-When an agent finishes its task, it reports it: a green ✓ on its tab, its short report in the
-Inbox, and a notification if Novadeck is in the background.
+Each terminal has a handle, like `@moth`. Agents use it to message each other, and one agent can
+start others and lead them. Lines on screen show who leads whom.
 
 ## After a restart
 
-Restart your computer and Novadeck puts every terminal back in the folder it was in, with its
-earlier output above a fresh prompt. Claude Code, Codex and Antigravity come back in the session
-they were running.
+Terminals reopen where they were, and agents pick up their sessions. Closed terminals stay in
+History for 30 days.
 
-Closing a terminal isn't final either. It moves to **History** on the left rail, where you can
-restore it for 30 days.
+## Shortcuts
 
-## Keyboard shortcuts
+| Action                 | Windows and Linux                | macOS              |
+| ---------------------- | -------------------------------- | ------------------ |
+| Find a terminal        | `Ctrl+Shift+K`                   | `Cmd+K`            |
+| New terminal           | `Ctrl+Shift+T`                   | `Cmd+T`            |
+| Recent terminals       | `Ctrl+Tab`                       | `Ctrl+Tab`         |
+| Move between terminals | `Ctrl+Shift+↑↓←→`                | `Cmd+Option+↑↓←→`  |
+| Inbox                  | `Ctrl+Shift+B`                   | `Cmd+Shift+B`      |
+| Zen                    | `Ctrl+Shift+Z`                   | `Cmd+Shift+Z`      |
+| Pinned project 1–9     | `Ctrl+Shift+1` to `Ctrl+Shift+9` | `Cmd+1` to `Cmd+9` |
+| Preferences            | `Ctrl+,`                         | `Cmd+,`            |
 
-| Action                       | macOS              | Windows and Linux                |
-| ---------------------------- | ------------------ | -------------------------------- |
-| Find a terminal              | `Cmd+K`            | `Ctrl+Shift+K`                   |
-| New terminal                 | `Cmd+T`            | `Ctrl+Shift+T`                   |
-| Recent terminals             | `Ctrl+Tab`         | `Ctrl+Tab`                       |
-| Terminal in that direction   | `Cmd+Option+↑↓←→`  | `Ctrl+Shift+↑↓←→`                |
-| Switch Focus and Grid/Canvas | `Cmd+Enter`        | `Ctrl+Shift+Enter`               |
-| Toggle the Inbox             | `Cmd+Shift+B`      | `Ctrl+Shift+B`                   |
-| Toggle Zen                   | `Cmd+Shift+Z`      | `Ctrl+Shift+Z`                   |
-| Pinned project 1 to 9        | `Cmd+1` to `Cmd+9` | `Ctrl+Shift+1` to `Ctrl+Shift+9` |
-| Preferences                  | `Cmd+,`            | `Ctrl+,`                         |
-
-`Shift+Esc` steps out of the terminal so the arrow keys move between terminals. `Enter` or `Esc`
-takes you back in. The full list, copy and paste included, is in the
-[reference](reference.md#keyboard-shortcuts).
+The full list is in the [reference](reference.md#keyboard-shortcuts).
