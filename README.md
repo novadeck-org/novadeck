@@ -20,8 +20,13 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-1f2328?style=flat-square" alt="Runs on macOS, Windows and Linux" />
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-1f2328?style=flat-square" alt="License: GPL-3.0-or-later" /></a>
+  <a href="https://github.com/novadeck-org/novadeck/releases/latest"><img src="https://novadeck.dev/badge/latest.svg" alt="Latest release" /></a>
+  <a href="https://github.com/novadeck-org/novadeck/commits/main"><img src="https://novadeck.dev/badge/commits.svg" alt="Commits this week" /></a>
+  <a href="docs/guide.md#connect-your-agents"><img src="https://novadeck.dev/badge/agents.svg" alt="Agents: Claude Code, Codex and Antigravity" /></a>
+  <br />
+  <a href="https://novadeck.dev/download?utm_source=readme"><img src="https://novadeck.dev/badge/runs-on.svg" alt="Runs on macOS, Windows and Linux" /></a>
+  <a href="https://novadeck.dev/privacy?utm_source=readme"><img src="https://novadeck.dev/badge/privacy.svg" alt="Privacy: no account, no telemetry" /></a>
+  <a href="LICENSE"><img src="https://novadeck.dev/badge/license.svg" alt="License: GPL-3.0-or-later" /></a>
 </p>
 
 <p align="center">
