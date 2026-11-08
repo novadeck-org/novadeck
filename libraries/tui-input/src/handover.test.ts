@@ -19,6 +19,7 @@ type Options = {
   readonly ringing?: boolean
   readonly ringLine?: boolean
   readonly known?: string
+  readonly own?: boolean
   readonly refused?: boolean
   readonly enteredAgo?: number
   readonly pasteLost?: boolean
@@ -140,6 +141,7 @@ const fake = (options: Options = {}) => {
         return true
       },
       known: () => options.known,
+      ...(options.own !== undefined && { ownImages: () => options.own! }),
       ringLine: () => options.ringLine ?? false,
       enteredAt: () =>
         options.enteredAgo === undefined ? undefined : Date.now() - options.enteredAgo,
@@ -209,9 +211,15 @@ describe("clearing what a box holds, as the person asked", () => {
   })
 
   it("takes the words of a box led by the placeholders of images, which come with them", async () => {
-    const tui = fake({ text: "[Image #1] [Image #2] Compare them" })
+    const tui = fake({ text: "[Image #1] [Image #2] Compare them", own: true })
     await expect(tui.handovers.take("t")).resolves.toBe("[Image #1] [Image #2] Compare them")
     expect(tui.box()).toBe("")
+  })
+
+  it("leaves a box led by images the person pasted in the terminal alone", async () => {
+    const tui = fake({ text: "[Image #1] fix this", own: false })
+    await expect(tui.handovers.take("t")).resolves.toBeUndefined()
+    expect(tui.written).toEqual([])
   })
 
   it("leaves a box with an image beside its words, where it isn't leading, alone", async () => {

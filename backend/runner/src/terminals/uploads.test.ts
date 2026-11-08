@@ -1,6 +1,17 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from "node:fs/promises"
+import { randomUUID } from "node:crypto"
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  utimes,
+  writeFile,
+} from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { dirname, join } from "node:path"
+import { basename, dirname, join, relative } from "node:path"
 
 import { maxUploadBytes } from "@novadeck/protocol"
 
@@ -199,12 +210,34 @@ describe("the images a prompt names", () => {
 
   it("accepts a file this runner saved, one of the formats agents take", async ({ resources }) => {
     const { uploads, path } = await saved(resources)
-    await expect(uploads.checkImages([path])).resolves.toBeUndefined()
+    expect(await uploads.checkImages([path])).toEqual([await realpath(path)])
     const jpeg = await uploads.save({
       name: "a b.jpg",
       data: Buffer.from([0xff, 0xd8, 0xff, 0xe0]).toString("base64"),
     })
-    await expect(uploads.checkImages([path, jpeg])).resolves.toBeUndefined()
+    expect(await uploads.checkImages([path, jpeg])).toHaveLength(2)
+  })
+
+  it("accepts an earlier upload after the runner restarted, as its folder is known", async ({
+    resources,
+  }) => {
+    const { path } = await saved(resources)
+    const restarted = new Uploads(dirname(dirname(path)))
+    expect(await restarted.checkImages([path])).toHaveLength(1)
+  })
+
+  it("refuses a relative path, and a file name that is a folder", async ({ resources }) => {
+    const { uploads, path } = await saved(resources)
+    await expect(uploads.checkImages([relative(process.cwd(), path)])).rejects.toMatchObject({
+      code: "PROMPT_REFUSED",
+    })
+    await mkdir(join(dirname(path), "..", randomUUID(), "dir.png"), { recursive: true })
+    const folderPath = (await readdir(dirname(dirname(path)))).find(
+      (one) => one !== basename(dirname(path)),
+    )!
+    await expect(
+      uploads.checkImages([join(dirname(dirname(path)), folderPath, "dir.png")]),
+    ).rejects.toMatchObject({ code: "PROMPT_REFUSED" })
   })
 
   it("refuses a path the runner did not save, as when nothing was saved yet", async ({
@@ -217,7 +250,7 @@ describe("the images a prompt names", () => {
     await expect(uploads.checkImages(["/etc/passwd"])).rejects.toMatchObject({
       code: "PROMPT_REFUSED",
     })
-    await expect(new Uploads(await folder(resources)).checkImages([path])).rejects.toMatchObject({
+    await expect(new Uploads(undefined).checkImages([path])).rejects.toMatchObject({
       code: "PROMPT_REFUSED",
     })
   })

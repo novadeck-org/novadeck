@@ -345,9 +345,10 @@ export const contract = {
     // `images` are files the person pasted into the chat, saved by `terminals.upload` on this
     // runner: each path is pasted into the agent's box on its own, as a person pastes an
     // image file, before the text, and the agent shows it as an image (Claude Code and Codex
-    // as `[Image #1]`, Antigravity as an attachment line). A path the runner did not save for
-    // a terminal of its own, or whose file is gone, is PROMPT_REFUSED, writing nothing; an
-    // image the agent never shows is PROMPT_FAILED, and what landed is cleared.
+    // as `[Image #1]`, Antigravity as an attachment line). A path this runner did not save
+    // (by `terminals.upload`), or whose file is gone, is PROMPT_REFUSED, writing nothing; an
+    // image the agent never shows is PROMPT_FAILED with data `{ reason: "image-not-shown" }`,
+    // and what landed is cleared.
     prompt: procedure
       .input(
         z

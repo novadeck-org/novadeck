@@ -21,10 +21,10 @@ const paste = (data: string): string | undefined =>
 
 const terminal = (
   style: Style,
-  options: { alone?: boolean; draft?: string; bare?: boolean } = {},
+  options: { alone?: boolean; draft?: string; bare?: boolean; attached?: number } = {},
 ) => {
   let words = options.draft ?? ""
-  let images = 0
+  let images = options.attached ?? 0
   const written: string[] = []
   const sent: { words: string; images: number }[] = []
   const chips = () => Array.from({ length: images }, (_, at) => `[Image #${at + 1}]`).join(" ")
@@ -195,6 +195,14 @@ describe("a prompt with images", () => {
   it("leaves a draft the person has alone, refusing the prompt before any key", async () => {
     const { prompts, written } = terminal("chips", { draft: "Mine" })
     expect(await reason(prompts.prompt("t", "Look", "freed", undefined, ["/up/a/one.png"]))).toBe(
+      "draft",
+    )
+    expect(written).toEqual([])
+  })
+
+  it("refuses as a draft, writing nothing, images already attached that are the person's", async () => {
+    const { prompts, written } = terminal("media", { attached: 1 })
+    expect(await reason(prompts.prompt("t", "Look", "alone", undefined, ["/up/a/one.png"]))).toBe(
       "draft",
     )
     expect(written).toEqual([])

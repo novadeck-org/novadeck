@@ -3,14 +3,15 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
-import type { AgentBox, TranscriptItem } from "@novadeck/protocol"
+import type { AgentBox } from "@novadeck/protocol"
 import { isEmpty } from "@novadeck/tui-input/box"
 
 import { harnesses } from "../harnesses/registry.js"
 import type { Receipts } from "../terminals/receipts.js"
 import type { AgentSetup } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
-import { occurrences, type DeckImage, type DeckTerminal } from "./deck.js"
+import { item, prompted, texts } from "./chat-prompts.js"
+import { occurrences, type DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
 import { losesAstral } from "./known-gaps.js"
 import { asked, gate, latest, type Call } from "./model/script.js"
@@ -20,68 +21,6 @@ import { lacking, nestedRuns, own, replies, start, through, turn } from "./scena
 // The chat view's way to an agent, the same for every harness (see messaging.e2e.ts for
 // the rule on parity): `agents.prompt` and `agents.interrupt`, read back through
 // `agents.transcript` of the root actor `agents.detail` names (docs/backend-api.md).
-
-/** The root transcript's text items of `role`, as `agents.transcript` gives them. */
-const texts = async (terminal: DeckTerminal, role: TranscriptItem["role"]): Promise<string[]> =>
-  (await terminal.transcript())
-    .filter((item) => item.role === role && item.kind === "text")
-    .map((item) => item.text)
-
-/** Waits until the transcript holds a `role` item whose text passes `fits`, and returns it. */
-const item = (
-  terminal: DeckTerminal,
-  role: TranscriptItem["role"],
-  fits: (text: string) => boolean,
-): Promise<string> =>
-  terminal.poll(
-    async () => {
-      // A transcript the agent has not opened yet (or is changing) is NOT_FOUND: wait on.
-      try {
-        return (await texts(terminal, role)).find(fits)
-      } catch (error) {
-        if ((error as { code?: string }).code === "NOT_FOUND") return undefined
-        throw error
-      }
-    },
-    `its transcript to hold a ${role} item`,
-    30_000,
-  )
-
-/**
- * Gives the agent a prompt as the chat does, and checks its receipt: followed, pending or
- * already settled once the Enter is out (`agents.detail`); then returns a wait for it to
- * settle, as the user item at its `item` that holds its words.
- */
-const prompted = async (
-  terminal: DeckTerminal,
-  text: string,
-  images: readonly DeckImage[] = [],
-): Promise<() => Promise<void>> => {
-  // Its first line names it in a failure: a long prompt's whole text would bury the message.
-  const [label = ""] = text.split("\n")
-  const receiptOf = async (ref: string) =>
-    ((await terminal.detail()).prompts ?? []).find((prompt) => prompt.ref === ref)
-  const { ref, tracked } = await terminal.prompt(text, images)
-  expect(tracked, `${label}: followed`).toBe(true)
-  expect((await receiptOf(ref))?.state, `${label}: its receipt once sent`).toMatch(
-    /^(pending|settled)$/,
-  )
-  return async () => {
-    const settled = await terminal.poll(
-      async () => {
-        const receipt = await receiptOf(ref)
-        expect(receipt?.state, `${label}: never missing`).not.toMatch(/^(unrecorded|in-box)$/)
-        return receipt?.state === "settled" ? receipt : undefined
-      },
-      `"${label}" to reach its agent's record`,
-      30_000,
-    )
-    const items = await terminal.transcript()
-    const at = items.find((each) => each.index === settled.item)
-    expect(at?.role, `${label}: settled by`).toBe("user")
-    expect(at?.text, `${label}: settled by`).toContain(label)
-  }
-}
 
 /**
  * What the record holds of a message sent along with text in the box: a blank line between,
@@ -131,73 +70,6 @@ for (const setup of setups) {
       )
       await item(t1, "assistant", (text) => text.includes("Hello, chat."))
     })
-
-    // The chat's images: saved on the runner by `terminals.upload`, then pasted into the box
-    // on their own before the words, each as the harness takes a pasted image file. A name with
-    // a space makes the path one (the runner's folder may hold spaces too, on macOS and
-    // Windows), which Codex and Antigravity take only quoted or escaped.
-    for (const { what, images, words } of [
-      { what: "an image", images: ["shot.png"], words: "What is in this picture" },
-      {
-        what: "an image with a space in its name",
-        images: ["my shot.png"],
-        words: "Read this one",
-      },
-      { what: "two images", images: ["one.png", "two shot.png"], words: "Compare these two" },
-    ])
-      gated(it, lacking(setup, "image"))(
-        `gives its agent a prompt with ${what}, which the model receives with the words`,
-        async ({ e2e: run }) => {
-          run.model.use(replies(words, "Seen."))
-          const t1 = await start(run, setup)
-          const calls = run.model.mark()
-          const mark = t1.mark()
-
-          const settled = await prompted(
-            t1,
-            words,
-            images.map((name) => ({ name, data: picture })),
-          )
-          await t1.until("Seen.")
-          await settled()
-          await through(t1, ["working", "settled"], { after: mark })
-
-          const call = await run.model.waitFor(
-            (each) =>
-              !each.side &&
-              each.turns.some((one) => one.role === "user" && one.text.includes(words)),
-            { after: calls },
-          )
-          const user = call.turns.findLast((one) => one.role === "user" && one.text.includes(words))
-          expect(
-            user?.role === "user" ? (user.images ?? 0) : -1,
-            "the images it passed to the model",
-          ).toBe(images.length)
-          // The record keeps each image's place in the words, or beside them.
-          const record = await item(t1, "user", (text) => text.includes(words))
-          if (setup.image!.inline) expect(record).toContain(`[Image #${images.length}]`)
-        },
-      )
-
-    it(
-      setup.image?.alone === false
-        ? "refuses images with no words, writing nothing, where Enter would send none"
-        : "sends images with no words",
-      async ({ e2e: run }) => {
-        run.model.use(own(() => ({ text: "Seen." })))
-        const t1 = await start(run, setup)
-        const image = [{ name: "shot.png", data: picture }]
-        if (setup.image?.alone === false) {
-          await expect(t1.prompt("", image)).rejects.toMatchObject({ code: "PROMPT_REFUSED" })
-          expect(await t1.screen()).not.toContain("media attached")
-          return
-        }
-        // Followed like any prompt: its receipt settles on the record item of its placeholders.
-        const settled = await prompted(t1, "", image)
-        await t1.until("Seen.")
-        await settled()
-      },
-    )
 
     it("names the terminal by no prompt: given by the chat or typed, it keeps its default title", async ({
       e2e: run,

@@ -428,6 +428,10 @@ export class Prompts {
       }
       // A request may have come while the hold was taken: no paste into its dialog.
       this.host.admit(terminalId)
+      // Images attached already, as one pasted in the program's own terminal and not sent
+      // (Antigravity keeps them apart from the box's text), are a draft: they would be counted
+      // as ours and taken back with ours.
+      if (images.length > 0 && (profile.images?.attached(before) ?? 0) > 0) throw this.draft()
       // Each image is a paste of its own, as a program reads a path pasted alone as an image;
       // it must show as one before the next goes in, or the paths would run together.
       for (const image of images) {

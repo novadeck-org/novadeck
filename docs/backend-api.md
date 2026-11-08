@@ -1016,10 +1016,23 @@ one from an earlier runner.
   special character, a Windows path with a space in double quotes: probed on Linux with all three,
   where Codex and Antigravity leave a bare path with a space as text), as the uploads
   folder may hold spaces (`Application Support` on macOS, a Windows profile name). An image
-  that never shows is `PROMPT_FAILED`, writing no Enter and taking back what landed by
+  that never shows is `PROMPT_FAILED` with data `{ reason: "image-not-shown" }`, writing no Enter and taking back what landed by
   the harness's own keys (Ctrl-U in a box of placeholders; Antigravity's Escape, only at its idle
   prompt, as it stops a running turn otherwise). A prompt of images alone has a receipt like any other, settled by a record item of nothing but
   its images' placeholders (Claude Code and Codex; Antigravity takes none alone).
+  Images attached in Antigravity already (pasted in its terminal and not sent) count as a draft:
+  the usual `CONFLICT`, nothing typed.
+
+  When a Stop (`agents.interrupt`) or `agents.takeBox` takes a message with images out of the
+  box, where Claude Code and Codex show `[Image #N]` placeholders ahead of the words, the
+  placeholders are left out of `returned` (null for a message of images alone) and the files they
+  came from are answered as `images`, the paths of the prompts' `images` the box held, absent for
+  none. The latest queued prompts whose images add up to the placeholders counted are the ones, as
+  a turn takes the earliest queued message first. Antigravity loses a queued message's media as
+  a Stop takes the words back, so there `images` names the files of the prompts whose words came
+  back. If the leading placeholders are not all of the chat's own prompts (an image pasted in the
+  terminal view), the box is `BOX_NOT_CLEARED` for a Stop and untouched by `takeBox`, as the
+  runner holds no file to give back.
 
   A text whose trimmed form starts with `!` is a shell command (`shellCommand`, the rest
   after the `!`, trimmed), which Claude Code, Codex and Antigravity run in their shell mode

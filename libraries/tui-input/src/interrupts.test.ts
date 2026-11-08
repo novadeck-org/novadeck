@@ -38,6 +38,8 @@ const terminal = (
     takes?: (ups: number) => string | "recall" | undefined
     /** Whether a view stands over the box. */
     overlay?: boolean
+    /** Whether the images that lead the box are all Novadeck's own. */
+    own?: boolean
     /** Whether a panel stands by it, the keys that take the queue not to go. */
     blocked?: boolean
     /** The box's mode. */
@@ -176,6 +178,7 @@ const terminal = (
       if (next !== undefined) box = next
       return true
     },
+    ...(options.own !== undefined && { ownImages: () => options.own! }),
     write: (_id, data) => {
       written.push(data)
       heldAtWrites.push(holds.some((hold) => hold.held))
@@ -633,9 +636,22 @@ describe("interrupts", () => {
       expect(t.written).toEqual([UP])
     })
 
+    it("leaves it in the box where the placeholders leading it are not all Novadeck's own", async () => {
+      let took = false
+      const t = terminal({
+        queued: () => !took,
+        takes: () => {
+          took = true
+          return "[Image #1] look at this"
+        },
+      })
+      await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
+    })
+
     it("gives back a message led by the placeholders of its images, which the caller knows", async () => {
       let took = false
       const t = terminal({
+        own: true,
         queued: () => !took,
         takes: () => {
           took = true

@@ -95,7 +95,7 @@ export const promptError = (refusal: PromptRefusal): DomainError => {
       return new DomainError(
         "PROMPT_FAILED",
         "The agent did not take the image: it never showed it in its input box.",
-        undefined,
+        { reason: "image-not-shown" },
         undefined,
         { cause: refusal },
       )

@@ -5,7 +5,14 @@ import type { ScreenText } from "@novadeck/emulator/headless"
 import { isEmpty, pastesWhole, showsTail, type BoxProfile, type InputBox } from "./box/box.js"
 import { cursorEnded, pressKeys, type BoxKeysHost } from "./box/keys.js"
 import { leftoverOf } from "./box/leftover.js"
-import { sameText, unwrapped, wentFrom, withoutImages, wrappedRows } from "./box/text.js"
+import {
+  leadsWithImages,
+  sameText,
+  unwrapped,
+  wentFrom,
+  withoutImages,
+  wrappedRows,
+} from "./box/text.js"
 import { collapsible, type BoxNote } from "./prompts.js"
 import type { HoldBudget, InputEntry, InputQueue } from "./queue.js"
 import { bracketedPaste } from "./typing.js"
@@ -24,6 +31,11 @@ export type HandoverHost = {
   readonly write: (terminalId: string, data: string) => boolean
   /** The words the box's text stands for, where all of it is text Novadeck typed and knows. */
   readonly known: (terminalId: string, text: string) => string | undefined
+  /**
+   * Whether the images that lead the box's text are all Novadeck's own, files it pasted and
+   * can give back: only then may the text come out without them. Omitted where none are.
+   */
+  readonly ownImages?: (terminalId: string, text: string) => boolean
   /** Whether the text is a line a delivery left in the box, which is its own to finish. */
   readonly ringLine: (terminalId: string, text: string) => boolean
   /** When a prompt's Enter was last pressed there, whose text the box may still show. */
@@ -219,7 +231,7 @@ export class Handovers {
         return undefined
       }
       const keys = box.mode === "shell" ? profile.shell.leave?.(box) : profile.erase?.(box)
-      if (tail || profile.stands(withoutImages(box.text)) || keys === undefined) {
+      if (tail || profile.stands(this.words(terminalId, box.text)) || keys === undefined) {
         this.host.note(terminalId, "unreadable")
         return undefined
       }
@@ -317,6 +329,13 @@ export class Handovers {
   }
 
   /** The words the box holds, as they were given where Novadeck knows them, else as typed. */
+  /** The box's text without the images that lead it, where all of them are Novadeck's own. */
+  private words(terminalId: string, text: string): string {
+    return leadsWithImages(text) && this.host.ownImages?.(terminalId, text) === true
+      ? withoutImages(text)
+      : text
+  }
+
   private wordsOf(
     terminalId: string,
     profile: BoxProfile,

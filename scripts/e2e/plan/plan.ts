@@ -159,7 +159,7 @@ export const setups = (selected: readonly string[], ids: readonly string[]): rea
         { agents: ids.join(","), name: "Mixed", files: "mixed.e2e.ts" },
       ]
 
-const core = "messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts"
+const core = "messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts images.e2e.ts"
 
 // Every harness: a message crossing under a cmd AutoRun that prints (the file sets it, on CI only).
 const autorunFile = "windows-autorun.e2e.ts"

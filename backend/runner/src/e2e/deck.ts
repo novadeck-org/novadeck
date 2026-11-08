@@ -813,12 +813,12 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
             on.uploads.save({ name: image.name, data: image.data.toString("base64") }),
           ),
         )
-        await on.uploads.checkImages(paths)
+        const checked = await on.uploads.checkImages(paths)
         return await terminals.prompt({
           terminalId: id,
           text,
           along: true,
-          ...(paths.length > 0 && { images: paths }),
+          ...(checked.length > 0 && { images: checked }),
         })
       },
       interrupt: async () => {

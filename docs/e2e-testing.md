@@ -129,7 +129,7 @@ starts with `-NoProfile`), a folder the user's PATH in the registry
 gains after the runner started, holding `novadeck-registry-marker.cmd`, and, last, in
 Antigravity's job, a cmd AutoRun that prints. With `NOVADECK_E2E_SPACED=1` its sandbox,
 and so the home and Novadeck's launcher, is named with a space, which cmd reads by its
-short name. It runs `messaging`, `requests` and `lifecycle` for its harness;
+short name. It runs `messaging`, `requests`, `lifecycle` and `images` (the chat's images, whose paths go through the spaced uploads folder) for its harness;
 `windows-quirks.e2e.ts` (Claude Code's job) opens a terminal whose PATH is read from the
 registry, as the app's are, and runs the marker; `windows-autorun.e2e.ts` (every harness's job)
 sets the printing AutoRun itself, starts the runner under it, and delivers a message between two
@@ -658,7 +658,7 @@ for (const setup of setups) {
   - _One line_ and _several lines_: the transcript holds the user item with that text,
     each line whole, one user turn, and the fake model's reply; the turn goes working,
     then settled. A _long_ prompt (40 lines), which a TUI may show as a placeholder, too.
-  - _Images_: a prompt with one image, one whose name has a space, and two, each saved with
+  - _Images_ (`images.e2e.ts`): a prompt with one image, one whose name has a space, and two, each saved with
     `t.prompt(text, images)` as the router does and pasted ahead of the words; the model's
     call holds that many pictures with the words, the receipt settles and the record keeps
     `[Image #N]` where the harness does. Images alone are sent, except to Antigravity, whose

@@ -11,7 +11,7 @@ import {
   type BoxProfile,
   type InputBox,
 } from "./box/box.js"
-import { sameText, withoutImages } from "./box/text.js"
+import { leadsWithImages, sameText, withoutImages } from "./box/text.js"
 import type { InputEntry, InputHold } from "./queue.js"
 
 /** The waits of an interrupt, in milliseconds. */
@@ -58,6 +58,11 @@ export type InterruptHost = {
   readonly type: (terminalId: string, data: string) => boolean
   /** Writes keys to the terminal as they are, with none of that bookkeeping; false once it is gone. */
   readonly write: (terminalId: string, data: string) => boolean
+  /**
+   * Whether the images that lead the box's text are all Novadeck's own, files it pasted and
+   * can give back: only then may the text come out without them. Omitted where none are.
+   */
+  readonly ownImages?: (terminalId: string, text: string) => boolean
 }
 
 /**
@@ -234,7 +239,7 @@ export class Interrupts {
       // A placeholder stands for words that clearing would lose: they are left, and said. So
       // does a box that may hold more than it shows, where those words aren't known in full.
       if (!profile.clear) throw new BoxNotCleared()
-      if (!restored && (profile.collapsed(box) || profile.stands(withoutImages(box.text))))
+      if (!restored && (profile.collapsed(box) || profile.stands(this.words(terminalId, box.text))))
         throw new BoxNotCleared()
       if (!restored && profile.cut?.(box) === true) throw new BoxNotCleared()
       if (queued && fillsViewport(profile, box, rows)) throw new BoxNotCleared()
@@ -330,7 +335,7 @@ export class Interrupts {
       if (
         !erase ||
         profile.collapsed(box) ||
-        profile.stands(withoutImages(box.text)) ||
+        profile.stands(this.words(terminalId, box.text)) ||
         hidesText(profile, box, rows)
       )
         throw new BoxNotCleared()
@@ -343,6 +348,13 @@ export class Interrupts {
     } finally {
       hold.settle()
     }
+  }
+
+  /** The box's text without the images that lead it, where all of them are Novadeck's own. */
+  private words(terminalId: string, text: string): string {
+    return leadsWithImages(text) && this.host.ownImages?.(terminalId, text) === true
+      ? withoutImages(text)
+      : text
   }
 
   /** How long clearing the box may hold the person's input. */

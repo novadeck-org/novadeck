@@ -319,7 +319,11 @@ export const conflictReason = z.strictObject({
  * `agents.prompt` would have given them (`promptResult`), for a client to put back in the
  * person's draft: they are in the box no longer.
  */
-export const promptFailure = z.object({ returned: z.string() })
+export const promptFailure = z.object({
+  returned: z.string().optional(),
+  /** `image-not-shown`: the agent never showed an image of the prompt, which was taken back out. */
+  reason: z.literal("image-not-shown").optional(),
+})
 
 /**
  * What `agents.interrupt` gives back: the words the person had queued behind the turn that

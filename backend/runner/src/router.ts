@@ -199,8 +199,8 @@ export const createRouter = (options: {
       ),
       prompt: api.agents.prompt.handler(async ({ input }) => {
         // Only images this runner saved are pasted into an agent's box.
-        if (input.images) await uploads.checkImages(input.images)
-        return terminals.prompt(input)
+        if (!input.images) return terminals.prompt(input)
+        return terminals.prompt({ ...input, images: await uploads.checkImages(input.images) })
       }),
       keys: api.agents.keys.handler(({ input }) => terminals.keys(input)),
       takeBox: api.agents.takeBox.handler(({ input }) => terminals.takeBox(input.terminalId)),

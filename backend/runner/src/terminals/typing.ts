@@ -308,7 +308,8 @@ export class Typing {
       )
       // Words it took out of the box go back with the failure: they wait on no record now.
       const taken = error instanceof DomainError && promptFailure.safeParse(error.data).data
-      if (taken) this.receipts.taken(terminalId, taken.returned, claimed)
+      if (taken && taken.returned !== undefined)
+        this.receipts.taken(terminalId, taken.returned, claimed)
       // A failure that says to look at the box comes after what the box holds.
       if (error instanceof DomainError && lookAtBox.has(error.reason ?? ""))
         await this.boxes.refresh(terminalId)
@@ -692,6 +693,15 @@ export class Typing {
     }
   }
 
+  /**
+   * Whether the images leading a box's text are all prompts' of the chat, whose files are
+   * known and can go back: not those the person pasted in the terminal, which a clear would lose.
+   */
+  private ownImages(terminalId: string, text: string): boolean {
+    const { words, marks } = splitImages(text)
+    return marks > 0 && this.receipts.boxFiles(terminalId, marks, words).length > 0
+  }
+
   /** Writes keys to a running terminal as they are, with none of what watches the person's. */
   private written(terminalId: string, data: string): boolean {
     const record = this.host.live(terminalId)
@@ -719,6 +729,7 @@ export class Typing {
       type: (terminalId, data) => this.typed(terminalId, data),
       write: (terminalId, data) => this.written(terminalId, data),
       known: (terminalId, text) => this.receipts.known(terminalId, text),
+      ownImages: (terminalId, text) => this.ownImages(terminalId, text),
       ringLine: (_terminalId, text) => holdsRingLine(text),
       enteredAt: (terminalId) => this.entered.get(terminalId),
       refuse: (text) => promptRefusal(text, { shell: true }),
@@ -786,6 +797,7 @@ export class Typing {
       screen: (terminalId) => this.screenOf(terminalId),
       type: (terminalId, data) => this.typed(terminalId, data),
       write: (terminalId, data) => this.written(terminalId, data),
+      ownImages: (terminalId, text) => this.ownImages(terminalId, text),
     }
   }
 
