@@ -173,8 +173,18 @@ export const requestOf = (
   answered: request.answered,
 })
 
-const requestsOf = (detail: AgentDetail, root: string | null): readonly ChatRequest[] =>
-  detail.requests.map((request) => requestOf(request, root))
+// The runner lists the requests that hold the agent first, then those that ask without waiting
+// (`attention.detached` of them, of all `attention.pending`), so those past the ones that hold it
+// are detached. A request the detail left out only moves later ones forward: one detached may
+// read as holding the agent, never the other way round.
+const requestsOf = (detail: AgentDetail, root: string | null): readonly ChatRequest[] => {
+  const attention = detail.activity?.attention
+  const holding = attention ? attention.pending - (attention.detached ?? 0) : Infinity
+  return detail.requests.map((request, index) => ({
+    ...requestOf(request, root),
+    ...(index >= holding && { detached: true as const }),
+  }))
+}
 
 // The receipts of the prompts given in the session, as the chat has them. A settled one
 // keeps the words its receipt carried while pending, as the runner drops them, so the chat

@@ -3,7 +3,7 @@ import {
   returnedBy,
   RingUnderWay,
   promptRef,
-  openQuestion,
+  questionsToSetAside,
   type ChatPrompt,
   type Conversation,
   type Conversations,
@@ -213,14 +213,10 @@ export const createChatCommands = ({
   // What follows each prompt sent until its receipt says whether the record has it, by ref.
   const watches = new Map<string, () => void>()
 
-  // The ids of the questions the terminal's agent asks now (`openQuestion`), which the
-  // person's own Send or Stop sets aside.
+  // The ids of the questions the terminal's agent asks now and waits on, which the person's
+  // own Send or Stop sets aside (`questionsToSetAside`).
   const questionsAsked = (key: TerminalKey): readonly string[] =>
-    conversations!
-      .conversation(key)
-      .getSnapshot()
-      .requests.filter(openQuestion)
-      .map((request) => request.id)
+    questionsToSetAside(conversations!.conversation(key).getSnapshot().requests)
   const sendsOf = (key: TerminalKey) =>
     chatSendsOf(chat.store.getSnapshot().sends, contextOf(key), key.terminalId)
   // How many images a message carries, as the backend says; everything the box holds went in

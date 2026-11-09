@@ -3,7 +3,14 @@ import type {
   ToolRun as ProtocolToolRun,
 } from "@novadeck/protocol"
 
-import { type ChatRequest, questionWaits, type ToolOutcome, type ToolRun } from "./conversation"
+import {
+  type ChatRequest,
+  maxSetAside,
+  questionsToSetAside,
+  questionWaits,
+  type ToolOutcome,
+  type ToolRun,
+} from "./conversation"
 import { describe, expect, it } from "./test"
 
 // The core declares its own tool run, since it reads no more of the protocol than its data
@@ -64,5 +71,36 @@ describe("questionWaits", () => {
       questionWaits([request({ dialog: { type: "raw", text: "?", reason: "unrecognized" } })]),
     ).toBe(false)
     expect(questionWaits([request({ dialog: null })])).toBe(false)
+  })
+
+  it("never for one that asks without waiting, which holds nothing to set aside", () => {
+    expect(questionWaits([request({ detached: true })])).toBe(false)
+  })
+})
+
+describe("questionsToSetAside", () => {
+  it("names the questions that hold the agent, the first first, as many as one Send takes", () => {
+    const asked = Array.from(
+      { length: maxSetAside + 2 },
+      (_, index) =>
+        ({
+          id: `q${index}`,
+          kind: "question",
+          tool: "request_user_input",
+          subject: null,
+          choices: [],
+          subagent: false,
+          dialog: { type: "questions", id: `d${index}`, chat: "prompt", questions: [] },
+          answered: false,
+        }) satisfies ChatRequest,
+    )
+    const named = questionsToSetAside([
+      { ...asked[0]!, kind: "permission" },
+      ...asked.slice(1, 3),
+      { ...asked[3]!, detached: true },
+      ...asked.slice(4),
+    ])
+    expect(named).toEqual(["q1", "q2", "q4", "q5", "q6", "q7", "q8", "q9"])
+    expect(named).toHaveLength(maxSetAside)
   })
 })

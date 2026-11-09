@@ -205,13 +205,31 @@ export type ChatRequest = {
   readonly dialog: ChatDialog | null
   // Whether it was answered from the chat and the agent has yet to report it settled.
   readonly answered: boolean
+  // Whether it asks without waiting, as Codex's async questions: the agent works on and
+  // takes prompts, and the request may outlast its turn.
+  readonly detached?: true
 }
 
 // Whether a request is a question of the agent's own in a dialog the chat reads, not yet
-// answered: the person's own Send and Stop set it aside (`setAside`) rather than being
-// refused for it, as a permission or a plan still refuses them, to be answered first.
+// answered, that holds the agent: the person's own Send and Stop set it aside (`setAside`)
+// rather than being refused for it, as a permission or a plan still refuses them, to be
+// answered first. One that asks without waiting (`detached`) holds nothing to set aside.
 export const openQuestion = (request: ChatRequest): boolean =>
-  request.kind === "question" && !request.answered && request.dialog?.type === "questions"
+  request.kind === "question" &&
+  !request.answered &&
+  request.detached !== true &&
+  request.dialog?.type === "questions"
+
+// The most questions one Send or Stop sets aside, as the protocol takes them.
+export const maxSetAside = 8
+
+// The ids of the questions the person's own Send or Stop sets aside (`openQuestion`), as
+// many as one takes, the first first: should more wait, the backend refuses for the rest.
+export const questionsToSetAside = (requests: readonly ChatRequest[]): readonly string[] =>
+  requests
+    .filter(openQuestion)
+    .slice(0, maxSetAside)
+    .map((request) => request.id)
 
 // Whether the agent waits on such a question (`openQuestion`).
 export const questionWaits = (requests: readonly ChatRequest[]): boolean =>

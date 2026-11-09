@@ -751,7 +751,7 @@ describe("a chat about the agent's question, where its words go on as a prompt",
 })
 
 describe("a message sent over the agent's question", () => {
-  const asked = (agent: "claude" | "agy", chat: "prompt" | "field") =>
+  const asked = (agent: "claude" | "codex" | "agy", chat: "prompt" | "field") =>
     createStore<Conversation>({
       ...questioning,
       agent,
@@ -806,6 +806,24 @@ describe("a message sent over the agent's question", () => {
     expect(chat.answered).not.toHaveBeenCalled()
     expect(chat.sent).toHaveBeenCalledWith("Do this instead")
     expect(chat.setAside).toEqual([["r1"]])
+  })
+
+  it("leaves a question that asks without waiting showing, never setting it aside", async () => {
+    const store = asked("codex", "prompt")
+    act(() =>
+      store.update((conversation) => ({
+        ...conversation,
+        requests: conversation.requests.map((request) => ({ ...request, detached: true })),
+      })),
+    )
+    const chat = inApp(store, {
+      draft: "Go on",
+      program: "codex",
+      send: () => new Promise<void>(() => {}),
+    })
+    await send(chat.container)
+    expect(chat.setAside).toEqual([undefined])
+    expect(chat.container.querySelector(".chat-request")).not.toBeNull()
   })
 
   it("never sets a permission aside", async () => {

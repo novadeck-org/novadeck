@@ -562,6 +562,24 @@ describe("a Send or Stop over a question the agent asks", () => {
     expect(sentOptions()).toMatchObject({ setAside: ["q1"] })
   })
 
+  it("never names a question that asks without waiting, and names no more than one Send takes", async () => {
+    const given: unknown[] = []
+    const { commands, sentOptions, tell } = open("s1", {
+      interrupt: async (_key, options) => {
+        given.push(options)
+        return { words: null }
+      },
+    })
+    tell({ requests: [{ ...request("a1", "question"), detached: true }] })
+    await commands.sendChat(key, "Go on", null)
+    expect(sentOptions()).not.toHaveProperty("setAside")
+    await commands.stopChat(key)
+    const many = Array.from({ length: 10 }, (_, index) => request(`q${index}`, "question"))
+    tell({ requests: [{ ...request("a1", "question"), detached: true }, ...many] })
+    await commands.stopChat(key)
+    expect(given).toEqual([undefined, { setAside: many.slice(0, 8).map(({ id }) => id) }])
+  })
+
   it("comes back to the box with why, where the runner turns it away", async () => {
     const { chat, commands, draft, tell } = open("s1", {
       sends: () => {

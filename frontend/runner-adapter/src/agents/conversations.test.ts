@@ -332,6 +332,46 @@ describe("the runner's conversations", () => {
       ])
     })
 
+    it("marks those that ask without waiting, which the runner lists after those that hold the agent", async () => {
+      const { details, store } = setup()
+      store.subscribe(() => {})
+      const asked = (ref: string): AgentDetail["requests"][number] => ({
+        ref,
+        actor: root,
+        kind: "question",
+        tool: "request_user_input",
+        subject: null,
+        choices: [],
+        dialog: { type: "questions", id: `${ref}:d`, chat: "prompt", questions: [] },
+        answered: false,
+        askedAt: 1,
+      })
+      details.push(
+        detail({
+          activity: {
+            state: "working",
+            background: null,
+            planning: false,
+            waiting: null,
+            attention: { pending: 3, kind: "question", detached: 2 },
+            subagents: [],
+            lastTurn: null,
+          },
+          requests: [
+            asked("holdholdholdhold"),
+            asked("det1det1det1det1"),
+            asked("det2det2det2det2"),
+          ],
+        }),
+      )
+      await settle()
+      expect(store.getSnapshot().requests.map(({ id, detached }) => [id, detached])).toEqual([
+        ["holdholdholdhold", undefined],
+        ["det1det1det1det1", true],
+        ["det2det2det2det2", true],
+      ])
+    })
+
     it("shows a dialog that turned raw, and keeps the store for one that read the same", async () => {
       const { details, store } = setup()
       const listener = vi.fn<() => void>()
