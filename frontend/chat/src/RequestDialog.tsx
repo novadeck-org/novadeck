@@ -42,7 +42,7 @@ import { Hint } from "./Hint"
 import { shownControls } from "./shown-controls"
 import { LiveSlice } from "./Slice"
 import { submitOnEnter } from "./submit-on-enter"
-import { isTyping, useMenu, type Menu } from "./use-menu"
+import { holdsWords, isTyping, useMenu, type Menu } from "./use-menu"
 
 // What a request's dialog offers, as the next lines of the terminal: numbered rows, a thin bar on
 // the one the person is on. Each takes `send`, which gives the answer to the backend and says
@@ -154,6 +154,7 @@ const Choices = ({
         aria-labelledby={dialog.title ? label : undefined}
         aria-label={dialog.title ? undefined : "Answers"}
         onKeyDown={menu.onKeyDown}
+        onPointerMove={menu.onPointerMove}
       >
         {dialog.options.map((option, index) => (
           <Row
@@ -249,6 +250,7 @@ const QuestionRows = ({
       role={question.multiSelect ? "group" : "radiogroup"}
       aria-labelledby={`${id}-q`}
       onKeyDown={menu.onKeyDown}
+      onPointerMove={menu.onPointerMove}
     >
       <legend id={`${id}-q`} className="chat-question-text">
         {shownControls(question.question)}
@@ -392,11 +394,7 @@ const askedFree = (within: Element | null): boolean => {
   const active = document.activeElement
   if (!active || active === document.body) return true
   if (!within?.closest(".chat")?.contains(active)) return false
-  return !(
-    (active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement) &&
-    isTyping(active) &&
-    active.value !== ""
-  )
+  return !holdsWords(active)
 }
 
 const headerOf = (question: ChatQuestion, index: number): string =>
@@ -459,6 +457,7 @@ const Review = ({
         role="group"
         aria-label="Send the answers"
         onKeyDown={menu.onKeyDown}
+        onPointerMove={menu.onPointerMove}
       >
         <button
           {...row(0)}
@@ -550,12 +549,19 @@ const Questions = ({
   const panelId = (at: number): string => `${base}-page-${at}`
   // Left and right turn the pages from anywhere in them, as a harness's tabs do.
   const turnKeys = (event: React.KeyboardEvent): void => {
+    // Down from a tab goes into its page.
+    const onTab = event.target instanceof Element && event.target.closest('[role="tab"]') !== null
+    if (event.key === "ArrowDown" && onTab && !hasModifier(event)) {
+      event.preventDefault()
+      focusPage(pages.current, page)
+      return
+    }
     if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return
     if (replying || hasModifier(event) || isTyping(event.target)) return
     event.preventDefault()
     const count = questions.length + 1
     const to = (page + (event.key === "ArrowRight" ? 1 : count - 1)) % count
-    if (event.target instanceof Element && event.target.closest('[role="tab"]')) {
+    if (onTab) {
       setTurned(to)
       document.getElementById(tabId(to))?.focus()
     } else turnTo(to)
@@ -856,6 +862,7 @@ const Form = ({
         role="group"
         aria-label="Answer the form"
         onKeyDown={menu.onKeyDown}
+        onPointerMove={menu.onPointerMove}
       >
         <button
           {...menu.row(0)}
