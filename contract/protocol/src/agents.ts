@@ -270,6 +270,9 @@ export const agentDetail = z.strictObject({
         answered: z.boolean(),
         // When the request's hook started, on the runner's clock, in epoch milliseconds.
         askedAt: z.number(),
+        // A request that asks without holding the agent (Codex's async questions): its
+        // prompt stays free, and it is listed after those that hold it. Absent otherwise.
+        detached: z.literal(true).optional(),
       }),
     )
     .max(agentLimits.requests),

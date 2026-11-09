@@ -99,6 +99,7 @@ export const agentDetail = (
           dialog: dialogs.get(at) ?? null,
           answered: answered.has(at),
           askedAt: request.askedAt,
+          ...(request.detached === true && { detached: true as const }),
         }
       }),
     coverage: harnesses[binding.agent].coverage,

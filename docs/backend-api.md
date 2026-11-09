@@ -808,7 +808,9 @@ one from an earlier runner.
   harness says which agent started a nested one; a subagent seen only through its requests is listed without a kind), each request waiting on the person
   (its kind, tool, the actor asking, what it asks about: a command, a path, a question
   and its answers, or a plan's file, when its hook started it as `askedAt`, in epoch
-  milliseconds on the runner's clock, and its `dialog`, below), and how much of each
+  milliseconds on the runner's clock, its `dialog`, below, and `detached: true` where it asks
+  without holding the agent, as Codex's async questions do, its prompt free: those are listed
+  after the requests that hold it), and how much of each
   feature the agent's harness
   tells (`unsupported`, `partial`, `complete`). Actors and requests have runner-issued
   refs, never a harness's own ids; the summary's subagents use the same refs. Its `prompts`

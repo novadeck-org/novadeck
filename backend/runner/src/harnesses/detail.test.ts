@@ -132,6 +132,17 @@ describe("an agent's detail", () => {
     expect(answered.requests[0]?.answered).toBe(true)
   })
 
+  it("marks a request that asks without holding the agent, listed after those that hold it", () => {
+    const { binding, activity } = replay("question")
+    const [asked] = activity.pending
+    const id = "00000000-0000-4000-8000-000000000001"
+    const loose = { ...asked!, requestId: "async", askedAt: 1, detached: true as const }
+    const detail = agentDetail(id, binding, { ...activity, pending: [loose, asked!] }, null)
+    expect(schema.parse(detail)).toEqual(detail)
+    expect(detail.requests.map((request) => request.detached)).toEqual([undefined, true])
+    expect(detail.requests[0]).not.toHaveProperty("detached")
+  })
+
   it("names a plan waiting for review by its file", () => {
     const { binding, activity } = replay("plan")
     expect(agentDetail("t", binding, activity, null).requests).toMatchObject([
