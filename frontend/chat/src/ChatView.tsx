@@ -36,7 +36,7 @@ import { Requests } from "./Requests"
 import { takeSentImages, type ChatSend } from "./sends"
 import { settledSent, settleSent } from "./settled"
 import { LiveSlice, Slice, SliceKeys } from "./Slice"
-import { Transcript } from "./Transcript"
+import { Transcript, type PeerLooks } from "./Transcript"
 
 const noShells: readonly SentShell[] = []
 
@@ -55,6 +55,7 @@ export const ChatView = ({
   program,
   agent,
   compact,
+  peerLooks,
   draft,
   onDraft,
   replyTo,
@@ -86,6 +87,9 @@ export const ChatView = ({
   // What the terminal's agent says it is doing.
   readonly agent: AgentStatus | undefined
   readonly compact: boolean
+  // How other Novadeck agents look in the transcript (their face and where they run), where the
+  // app knows them; without it their messages have neither.
+  readonly peerLooks?: PeerLooks | undefined
   readonly draft: string
   readonly onDraft: (draft: string) => void
   // The question the draft replies to, or that it is held, kept with the draft by the app.
@@ -389,6 +393,7 @@ export const ChatView = ({
                 agent={name}
                 working={working}
                 sent={bubbles}
+                looks={peerLooks}
                 {...(plain &&
                   draft.trim() === "" &&
                   attachments.length === 0 && { onResend: resend })}
