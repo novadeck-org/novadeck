@@ -14,6 +14,7 @@ import {
   requestCard,
 } from "../support/chat"
 import { expectStaysTrue } from "../support/layouts"
+import { switchProject } from "../support/sessions"
 import { closeToasts } from "../support/toasts"
 import {
   chooseView,
@@ -267,6 +268,38 @@ describe("Sending a prompt from the chat", () => {
     await userEvent.keyboard("{Enter}")
     await expect.element(chat.getByRole("alert").getByText(/waiting for your answer/)).toBeVisible()
     await expect.element(composer(chat)).toHaveValue("More please")
+  })
+
+  it("sets the agent's question aside for a message sent over it", async () => {
+    await openChatDemo()
+    // Claude Code in docs-site asks a question.
+    await switchProject("docs-site")
+    const chat = await openChat("Checkout implementation")
+    const card = requestCard(chat, /^Has a question/)
+    await expect.element(card).toBeVisible()
+    await userEvent.type(composer(chat), "Do this instead")
+    await userEvent.keyboard("{Enter}")
+    await expect.element(card).not.toBeInTheDocument()
+    await expect.element(composer(chat)).toHaveValue("")
+    await expect.element(conversation(chat).getByText("Do this instead")).toBeVisible()
+    await expect.element(chat.getByRole("alert")).not.toBeInTheDocument()
+    await expect
+      .element(conversation(chat).getByText("Done: Do this instead.", { exact: false }), {
+        timeout: 5000,
+      })
+      .toBeVisible()
+  })
+
+  it("sets the agent's question aside for a Stop, stopping it", async () => {
+    await openChatDemo()
+    await switchProject("docs-site")
+    const chat = await openChat("Checkout implementation")
+    const card = requestCard(chat, /^Has a question/)
+    await expect.element(card).toBeVisible()
+    await chat.getByRole("button", { name: "Stop" }).click()
+    await expect.element(card).not.toBeInTheDocument()
+    await expect.element(chat.getByRole("alert")).not.toBeInTheDocument()
+    await expect.element(conversation(chat).getByText("Interrupted")).toBeVisible()
   })
 
   it("queues a prompt sent while the agent works, which Stop gives back to the box", async () => {

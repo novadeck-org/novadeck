@@ -5,6 +5,7 @@ import {
   type Conversation,
   type Conversations,
   noDoorbell,
+  questionWaits,
 } from "@novadeck/core/conversation"
 import { promptRefusal, shellCommand } from "@novadeck/core/conversation/prompt-refusal"
 import type { TerminalKey } from "@novadeck/core/port"
@@ -557,13 +558,24 @@ export const createDemoChat = (
         const prompt = withImageMarks(given, images.length, options?.at).trim()
         const name = chatAgents[chatAgent(found.terminal)!]
         const agent = agentOf(found.terminal)
-        if (agent.attention)
+        // The person's own Send over a question sets it aside, as the runner does; anything
+        // else the agent waits on is answered first.
+        const setAside =
+          options?.setAside === true &&
+          agent.attention?.kind === "question" &&
+          questionWaits(storeOf(found.key).getSnapshot().requests)
+        if (agent.attention && !setAside)
           throw new Error(
             `${name} is waiting for your answer in its terminal. Answer it there first.`,
           )
         if (!prompt.trim()) return
         // As the runner refuses it: text the agent would read as more than a message.
         if (given.trim() && promptRefused(given, { shell: true })) throw new Error(promptRefusal)
+        // The question goes, and the agent takes the words as its next turn, in one step.
+        if (setAside) {
+          turns.resume(found.key, found.terminal, { prompt })
+          return
+        }
         // The mark and the time go with the line, so a line that waits, is dropped or never
         // goes takes them along.
         const sent: Sent = { text: prompt, submittedAt: Date.now() }

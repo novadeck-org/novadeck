@@ -7,6 +7,7 @@ import {
   type BoxReturn,
   type ChatItem,
   type ChatPrompt,
+  type ChatRequest,
   type Conversation,
   type Conversations,
 } from "@novadeck/core/conversation"
@@ -58,7 +59,7 @@ const open = (
     clearBox,
     chatView = true,
   }: {
-    readonly interrupt?: () => Promise<BoxReturn>
+    readonly interrupt?: Conversations["interrupt"]
     readonly answer?: () => Promise<void>
     readonly returned?: string | null
     readonly sends?: () => void
@@ -495,6 +496,86 @@ describe("a Stop from the chat", () => {
     await expect(queued).resolves.toBe(false)
     expect(draft()).toBe("two")
     expect(sent).toEqual(["one"])
+  })
+})
+
+describe("a Send or Stop over a question the agent asks", () => {
+  const request = (id: string, kind: ChatRequest["kind"]): ChatRequest => ({
+    id,
+    kind,
+    tool: kind === "question" ? "AskUserQuestion" : "Bash",
+    subject: null,
+    choices: [],
+    subagent: false,
+    dialog:
+      kind === "question"
+        ? { type: "questions", id: `${id}:d`, chat: "prompt", questions: [] }
+        : { type: "choices", id: `${id}:d`, title: null, detail: null, options: [] },
+    answered: false,
+  })
+  const setAsides = (chat: ReturnType<typeof open>["chat"]) =>
+    chatSendsOf(chat.store.getSnapshot().sends, context, "01").map((send) => send.setAside)
+
+  it("sets the question aside for the person's message, naming it on the send", async () => {
+    const { chat, commands, sentOptions, tell } = open()
+    tell({ requests: [request("q1", "question")] })
+    const going = commands.sendChat(key, "Do this instead", null)
+    expect(setAsides(chat)).toEqual([["q1"]])
+    await going
+    expect(sentOptions()).toMatchObject({ along: true, setAside: true })
+  })
+
+  it("never for a shell command, a permission, or a question already answered", async () => {
+    const { commands, sentOptions, tell } = open()
+    tell({ requests: [request("q1", "question")] })
+    await commands.sendChat(key, "!ls", null)
+    expect(sentOptions()).not.toHaveProperty("setAside")
+    tell({ requests: [request("p1", "permission")], prompts: [] })
+    await commands.sendChat(key, "Go on", null).catch(() => undefined)
+    expect(sentOptions()).not.toHaveProperty("setAside")
+  })
+
+  it("leaves a question asked after the words were queued for the person to see", async () => {
+    const { commands, sent, receipt, sentOptions, tell } = open()
+    await commands.sendChat(key, "one", null)
+    const queued = commands.sendChat(key, "two", null)
+    tell({ prompts: [receipt(0, "pending")], requests: [request("q1", "question")] })
+    tell({ prompts: [receipt(0, "settled", 0)] })
+    await queued
+    expect(sent).toEqual(["one", "two"])
+    expect(sentOptions()).not.toHaveProperty("setAside")
+  })
+
+  it("comes back to the box with why, where the runner turns it away", async () => {
+    const { chat, commands, draft, tell } = open("s1", {
+      sends: () => {
+        throw new Error("The agent is waiting for your answer. Answer it here, then send again.")
+      },
+    })
+    tell({ requests: [request("p1", "permission"), request("q1", "question")] })
+    commands.setChatDraft("01", "Do this instead")
+    await expect(commands.sendChat(key, "Do this instead", null)).rejects.toThrow(
+      "waiting for your answer",
+    )
+    expect(draft()).toBe("Do this instead")
+    expect(setAsides(chat)).toEqual([])
+  })
+
+  it("stops the agent, setting the question aside, and only then", async () => {
+    const given: unknown[] = []
+    const { commands, tell } = open("s1", {
+      interrupt: async (_key, options) => {
+        given.push(options)
+        return { words: null }
+      },
+    })
+    tell({ requests: [request("q1", "question")] })
+    await commands.stopChat(key)
+    tell({ requests: [request("p1", "permission")] })
+    await commands.stopChat(key)
+    tell({ requests: [{ ...request("q2", "question"), answered: true }] })
+    await commands.stopChat(key)
+    expect(given).toEqual([{ setAside: true }, undefined, undefined])
   })
 })
 

@@ -214,6 +214,43 @@ describe("demo conversations", () => {
     await expect(chat.send(key("04"), "hello")).rejects.toThrow("waiting for your answer")
   })
 
+  it("sets a question aside for the person's own Send, and takes the words as its next turn", async () => {
+    const { chat, turns, agent, said } = open()
+    turns.ask(key("06"), agent("06"), "question", 1)
+    const conversation = chat.conversation(key("06"))
+    expect(conversation.getSnapshot().requests).toHaveLength(1)
+    // Without `setAside`, as an automatic prompt sends, it waits for the answer.
+    await expect(chat.send(key("06"), "Do this instead")).rejects.toThrow("waiting for your answer")
+    await chat.send(key("06"), "Do this instead", { setAside: true })
+    expect(conversation.getSnapshot().requests).toEqual([])
+    expect(said("06").at(-1)).toBe("Do this instead")
+    expect(agent("06")).toMatchObject({ agent: { working: true } })
+    expect(agent("06")).not.toHaveProperty("agent.attention")
+    await vi.advanceTimersByTimeAsync(demoTurnMs)
+    expect(conversation.getSnapshot().items.at(-1)?.text).toBe(
+      "Done: Do this instead. Nothing else changed.",
+    )
+  })
+
+  it("never sets a permission aside, though the Send asks", async () => {
+    const { chat, turns, agent } = open()
+    turns.ask(key("06"), agent("06"), "permission", 1)
+    await expect(chat.send(key("06"), "Go on", { setAside: true })).rejects.toThrow(
+      "waiting for your answer",
+    )
+    expect(chat.conversation(key("06")).getSnapshot().requests).toHaveLength(1)
+  })
+
+  it("sets a question aside for the person's own Stop, stopping the agent", async () => {
+    const { chat, turns, agent } = open()
+    turns.ask(key("06"), agent("06"), "question", 1)
+    await chat.interrupt(key("06"), { setAside: true })
+    expect(chat.conversation(key("06")).getSnapshot().requests).toEqual([])
+    expect(agent("06")).toMatchObject({
+      agent: { working: false, lastTurn: { outcome: "interrupted" } },
+    })
+  })
+
   it("queues what is sent while the agent works, and takes it once the turn ends", async () => {
     const { chat, agent } = open()
     const conversation = chat.conversation(key("06"))

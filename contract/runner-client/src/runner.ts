@@ -332,6 +332,11 @@ export type Runner = {
         readonly images?: readonly string[]
         /** Where each image goes in the text (UTF-16 offsets, one per image, never back); absent, they lead. */
         readonly at?: readonly number[]
+        /**
+         * The person's own Send over a question the agent asks: the runner sets the question
+         * aside and gives the words, in one step. A permission request still refuses it.
+         */
+        readonly setAside?: true
       },
     ): Promise<{ readonly ref: string; readonly tracked: boolean }>
     /**
@@ -351,9 +356,11 @@ export type Runner = {
      * Resolves with the queued words the agent's box took back, cleared out of it, for the
      * chat to put back in the person's draft (`returned`, null for none, and for Codex);
      * rejects with `BOX_NOT_CLEARED` when the box still holds them: the turn is stopped, and
-     * the person is to clear the box in the terminal.
+     * the person is to clear the box in the terminal. `setAside`, the person's own Stop, sets
+     * aside a question the agent asks and stops it, in one step; without it, or for a
+     * permission request, a waiting request refuses it (`CONFLICT`).
      */
-    interrupt(terminalId: string): Promise<InterruptResult>
+    interrupt(terminalId: string, options?: { readonly setAside?: true }): Promise<InterruptResult>
     /** Writes keys to the terminal's agent as the person's. */
     keys(terminalId: string, keys: string): Promise<void>
     takeBox(terminalId: string): Promise<{
@@ -704,13 +711,14 @@ export const connectRunner = async (
           (client, signal) => client.agents.transcript({ terminalId, actor }, { signal }),
           { type: "reset" },
         ),
-      prompt: (terminalId, text, { automatic, along, ref, images, at } = {}) =>
+      prompt: (terminalId, text, { automatic, along, ref, images, at, setAside } = {}) =>
         call((client) =>
           client.agents.prompt({
             terminalId,
             text,
             ...(automatic && { automatic }),
             ...(along && { along }),
+            ...(setAside && { setAside }),
             ...(ref !== undefined && { ref }),
             ...(images && images.length > 0 && { images: [...images] }),
             // Images that all lead need no places: a runner from before them takes the call as ever.
@@ -719,7 +727,8 @@ export const connectRunner = async (
         ),
       answer: (terminalId, request, answer) =>
         call((client) => client.agents.answer({ terminalId, request, answer })),
-      interrupt: (terminalId) => call((client) => client.agents.interrupt({ terminalId })),
+      interrupt: (terminalId, { setAside } = {}) =>
+        call((client) => client.agents.interrupt({ terminalId, ...(setAside && { setAside }) })),
       keys: (terminalId, keys) => call((client) => client.agents.keys({ terminalId, keys })),
       takeBox: (terminalId) => call((client) => client.agents.takeBox({ terminalId })),
       putBox: (terminalId, text) => call((client) => client.agents.putBox({ terminalId, text })),

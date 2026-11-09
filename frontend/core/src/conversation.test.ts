@@ -3,7 +3,7 @@ import type {
   ToolRun as ProtocolToolRun,
 } from "@novadeck/protocol"
 
-import type { ToolOutcome, ToolRun } from "./conversation"
+import { type ChatRequest, questionWaits, type ToolOutcome, type ToolRun } from "./conversation"
 import { describe, expect, it } from "./test"
 
 // The core declares its own tool run, since it reads no more of the protocol than its data
@@ -34,5 +34,35 @@ describe("the core's ToolOutcome", () => {
       opening: true,
     } as const
     expect(fromProtocol(toProtocol(outcome))).toEqual(outcome)
+  })
+})
+
+describe("questionWaits", () => {
+  const request = (change: Partial<ChatRequest> = {}): ChatRequest => ({
+    id: "r1",
+    kind: "question",
+    tool: "AskUserQuestion",
+    subject: null,
+    choices: [],
+    subagent: false,
+    dialog: { type: "questions", id: "d1", chat: "prompt", questions: [] },
+    answered: false,
+    ...change,
+  })
+
+  it("holds for a question the chat reads, not yet answered", () => {
+    expect(questionWaits([request()])).toBe(true)
+    expect(questionWaits([request({ kind: "permission" }), request({ id: "r2" })])).toBe(true)
+  })
+
+  it("never for a permission, a plan, one answered or one the chat can't read", () => {
+    expect(questionWaits([])).toBe(false)
+    expect(questionWaits([request({ kind: "permission" })])).toBe(false)
+    expect(questionWaits([request({ kind: "plan" })])).toBe(false)
+    expect(questionWaits([request({ answered: true })])).toBe(false)
+    expect(
+      questionWaits([request({ dialog: { type: "raw", text: "?", reason: "unrecognized" } })]),
+    ).toBe(false)
+    expect(questionWaits([request({ dialog: null })])).toBe(false)
   })
 })

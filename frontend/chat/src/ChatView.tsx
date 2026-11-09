@@ -179,6 +179,16 @@ export const ChatView = ({
     () => sentBubbles(sending, prompts, items.length).filter(({ ref }) => !settled.has(ref)),
     [sending, prompts, items.length, settled],
   )
+  // The requests whose cards show: a question that a message on its way sets aside goes as
+  // the message goes, and comes back only should it not go.
+  const asked = useMemo(() => {
+    const aside = new Set(
+      sending.flatMap((send) =>
+        send.phase === "typing" || send.phase === "sent" ? (send.setAside ?? []) : [],
+      ),
+    )
+    return aside.size > 0 ? requests.filter((request) => !aside.has(request.id)) : requests
+  }, [requests, sending])
 
   // The agent whose menus the box calls up, as passing names it.
   const menuAgent = harness ?? program
@@ -446,7 +456,7 @@ export const ChatView = ({
           />
         )}
         <Requests
-          requests={requests}
+          requests={asked}
           slice={slice}
           agent={name}
           onAnswer={answer}

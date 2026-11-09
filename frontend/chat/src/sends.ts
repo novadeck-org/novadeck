@@ -17,7 +17,9 @@ import type { ChatReply } from "./replies"
 //   doorbell ring is under way;
 //   `typing` while it goes into the agent's box; `sent` once it went, until its receipt says
 //   whether the record has it; `settled` once the record has it, kept only for its words
-//   until the conversation holds its item.
+//   until the conversation holds its item;
+// - `setAside`: the ids of the questions the agent asked as the person pressed Send
+//   (`questionWaits`), which the words go over, setting them aside: their cards go meanwhile.
 export type ChatSend = {
   readonly ref: string
   readonly draft: string
@@ -26,6 +28,7 @@ export type ChatSend = {
   readonly at: readonly number[]
   readonly to: ChatReply | null
   readonly phase: "queued" | "typing" | "sent" | "settled"
+  readonly setAside?: readonly string[]
 }
 
 // The words on their way to each terminal's agent, oldest first, by session context and

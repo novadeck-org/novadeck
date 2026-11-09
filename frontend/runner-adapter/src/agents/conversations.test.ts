@@ -833,7 +833,31 @@ describe("the runner's conversations", () => {
       })
       await conversations.interrupt(key)
       expect(streams.prompt).toHaveBeenCalledWith("t", "hello", undefined)
-      expect(streams.interrupt).toHaveBeenCalledWith("t")
+      expect(streams.interrupt).toHaveBeenCalledWith("t", undefined)
+    })
+
+    it("asks the runner to set a question aside for the person's own Send and Stop", async () => {
+      const { conversations, streams } = setup()
+      await conversations.send(key, "Do this instead", { along: true, setAside: true })
+      expect(streams.prompt).toHaveBeenCalledWith("t", "Do this instead", {
+        along: true,
+        setAside: true,
+      })
+      await conversations.interrupt(key, { setAside: true })
+      expect(streams.interrupt).toHaveBeenCalledWith("t", { setAside: true })
+    })
+
+    it("still says to answer a permission first, which a Send or Stop over it never sets aside", async () => {
+      const { conversations, streams } = setup()
+      const pending = new WireError("CONFLICT", "A request waits.", { data: { reason: "pending" } })
+      streams.prompt.mockRejectedValue(pending)
+      await expect(conversations.send(key, "hi", { setAside: true })).rejects.toThrow(
+        "The agent is waiting for your answer. Answer it here, then send again.",
+      )
+      streams.interrupt.mockRejectedValue(pending)
+      await expect(conversations.interrupt(key, { setAside: true })).rejects.toThrow(
+        "The agent is waiting for your answer. Answer it first, then stop it.",
+      )
     })
 
     it("saves a pasted image on the runner and sends its path with the prompt", async () => {

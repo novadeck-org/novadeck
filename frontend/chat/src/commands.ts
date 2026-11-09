@@ -3,6 +3,7 @@ import {
   returnedBy,
   RingUnderWay,
   promptRef,
+  openQuestion,
   type ChatPrompt,
   type Conversation,
   type Conversations,
@@ -212,6 +213,14 @@ export const createChatCommands = ({
   // What follows each prompt sent until its receipt says whether the record has it, by ref.
   const watches = new Map<string, () => void>()
 
+  // The ids of the questions the terminal's agent asks now (`openQuestion`), which the
+  // person's own Send or Stop sets aside.
+  const questionsAsked = (key: TerminalKey): readonly string[] =>
+    conversations!
+      .conversation(key)
+      .getSnapshot()
+      .requests.filter(openQuestion)
+      .map((request) => request.id)
   const sendsOf = (key: TerminalKey) =>
     chatSendsOf(chat.store.getSnapshot().sends, contextOf(key), key.terminalId)
   // How many images a message carries, as the backend says; everything the box holds went in
@@ -450,6 +459,7 @@ export const createChatCommands = ({
       .send(key, next.text, {
         ref: next.ref,
         ...(shown && { along: true }),
+        ...(next.setAside && { setAside: true }),
         ...(next.images.length > 0 && {
           images: next.images.map(({ path }) => path!),
           at: next.at,
@@ -799,6 +809,9 @@ export const createChatCommands = ({
       const places = split?.at ?? []
       const ref = promptRef()
       const sent = new Promise<boolean>((resolve, reject) => settles.set(ref, { resolve, reject }))
+      // A message sent while the agent asks a question goes over it, setting it aside, as the
+      // person saw it asked; a shell command never does, nor words queued before it was asked.
+      const setAside = shell ? [] : questionsAsked(key)
       chat.update((state) => ({
         ...state,
         drafts: setChatDraft(state.drafts, context, terminalId, ""),
@@ -810,7 +823,16 @@ export const createChatCommands = ({
         imageNotes: withValue(state.imageNotes, context, terminalId, undefined),
         sends: setChatSends(state.sends, context, terminalId, [
           ...chatSendsOf(state.sends, context, terminalId),
-          { ref, draft, text: sentText, images, at: places, to: null, phase: "queued" },
+          {
+            ref,
+            draft,
+            text: sentText,
+            images,
+            at: places,
+            to: null,
+            phase: "queued",
+            ...(setAside.length > 0 && { setAside }),
+          },
         ]),
       }))
       const at = Date.now()
@@ -845,7 +867,11 @@ export const createChatCommands = ({
       let handed: readonly string[] | undefined
       let places: readonly number[] | undefined
       try {
-        const result = await conversations.interrupt(key)
+        // A Stop while the agent asks a question sets it aside and stops the agent.
+        const result = await conversations.interrupt(
+          key,
+          questionsAsked(key).length > 0 ? { setAside: true } : undefined,
+        )
         returned = result.words
         handed = result.images
         places = result.at

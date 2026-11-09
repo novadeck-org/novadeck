@@ -207,6 +207,16 @@ export type ChatRequest = {
   readonly answered: boolean
 }
 
+// Whether a request is a question of the agent's own in a dialog the chat reads, not yet
+// answered: the person's own Send and Stop set it aside (`setAside`) rather than being
+// refused for it, as a permission or a plan still refuses them, to be answered first.
+export const openQuestion = (request: ChatRequest): boolean =>
+  request.kind === "question" && !request.answered && request.dialog?.type === "questions"
+
+// Whether the agent waits on such a question (`openQuestion`).
+export const questionWaits = (requests: readonly ChatRequest[]): boolean =>
+  requests.some(openQuestion)
+
 // A prompt given the agent through `Conversations.send`, and whether its own record has it
 // yet, as the backend reads that record (where it tells, `SendResult.tracked`): `pending`
 // until it does; `settled` once it does, as the person's words of the item at `item` (its
@@ -345,13 +355,16 @@ export type Conversations = {
   // backend follows it. `along` is the chat's own send, whose person can see what the agent's
   // box holds (`Conversation.box`): that goes out with it where it can. Without it, the box must
   // be empty. `images` are paths `uploadImage` answered, which go with the prompt as its
-  // images; `text` may be empty then.
+  // images; `text` may be empty then. `setAside` is the person's own Send over a question the
+  // agent asks (`questionWaits`): the question is set aside and the words go, in one step,
+  // where a request waiting on the person otherwise refuses them. A permission still does.
   readonly send: (
     key: TerminalKey,
     text: string,
     options?: {
       readonly automatic?: true
       readonly along?: true
+      readonly setAside?: true
       readonly ref?: string
       readonly images?: readonly string[]
       // Where each image goes in `text` (UTF-16 offsets, one per image, never back); absent,
@@ -373,8 +386,12 @@ export type Conversations = {
   readonly maxImages?: number
   // Stops the agent's turn, as Escape in its TUI does. Resolves with the words the person
   // had queued behind the turn, with the images that were in the box with them, which the
-  // agent gave back and the chat's box takes again. Rejects as `send` does.
-  readonly interrupt: (key: TerminalKey) => Promise<BoxReturn>
+  // agent gave back and the chat's box takes again. Rejects as `send` does. `setAside`, the
+  // person's own Stop over a question the agent asks, sets it aside and stops the agent.
+  readonly interrupt: (
+    key: TerminalKey,
+    options?: { readonly setAside?: true },
+  ) => Promise<BoxReturn>
   // Writes keys to the agent's terminal as the person's, for what shows in `slice`: a key or
   // an edit a call, in order. Where the backend has none, the chat keeps to its own menus' rule
   // (`refused`). Rejects as `send` does.
