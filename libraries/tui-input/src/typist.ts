@@ -46,8 +46,10 @@ export type Timing = {
 export type Trace = (line: string) => void
 
 /**
- * Where the cursor stood on a screen, and the rows a ruled box would lie between there, as
- * `ruledBox` finds them: facts, never the screen's text, as a doorbell line holds.
+ * Where the cursor stood on a screen, and the rows a ruled box would lie between there, found
+ * as `ruledBox` finds them but on the screen as it is: a profile that reads another (Antigravity
+ * blanks its subagents' panel first) or no ruled box at all (Codex) may differ. Facts, never the
+ * screen's text, as a doorbell line holds.
  */
 const cursorFact = ({ rows, columns, cursor }: ScreenText): string => {
   const { top, bottom } = boxRules(rows)
@@ -320,8 +322,8 @@ export const createTypist = (
       timing.calmMs,
     )
     // Facts alone, as the doorbell's line holds, never what the screen shows: where the cursor
-    // stood against the screen's size and whether it lay inside the rules `ruledBox` would read
-    // a box between, as a box the cursor isn't in reads as none.
+    // stood against the screen's size and whether it lay inside the rules a ruled box would lie
+    // between on the screen as it is, as a box the cursor isn't in reads as none.
     const shown = inputBox === false ? `, ${cursorFact(screen)}` : ""
     trace(
       `gate ${verdict} (foreground ${String(foreground)}, input box ${String(inputBox)}, bracketed paste ${screen.bracketedPaste}${shown})`,

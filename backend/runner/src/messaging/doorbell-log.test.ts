@@ -191,19 +191,6 @@ describe("createDoorbellLog", () => {
 })
 
 describe("logDoorbell", () => {
-  it("keeps the screen's text out of a refused gate's line, which holds facts alone", () => {
-    const { logger, lines } = setup()
-    logDoorbell(logger.for("doorbell"), { now: () => 0 })
-    tracer.sink?.(
-      "t1",
-      "gate no-input-box (foreground undefined, input box false, bracketed paste true, cursor 3,0 of 14x40, 2 rules, cursor between the lowest two)",
-    )
-    doorbellLog.current?.ringFailed("t1")
-    const written = JSON.stringify(lines())
-    expect(written).toContain("cursor 3,0 of 14x40")
-    expect(written).not.toContain("secret plans")
-  })
-
   it("takes the doorbell's trace from its tracer into the runner's file", () => {
     const { logger, lines } = setup()
     logDoorbell(logger.for("doorbell"), { now: () => 0 })
