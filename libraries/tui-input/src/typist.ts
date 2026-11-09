@@ -2,7 +2,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 
-import { isEmpty, tailOf, type BoxProfile } from "./box/box.js"
+import { boxRules, isEmpty, tailOf, type BoxProfile } from "./box/box.js"
 import { changedRows, checkPaste } from "./box/paste.js"
 import { sameText } from "./box/text.js"
 import type { InputEntry } from "./queue.js"
@@ -44,6 +44,18 @@ export type Timing = {
 
 /** Where the typist tells what it decided, line by line. */
 export type Trace = (line: string) => void
+
+/**
+ * Where the cursor stood on a screen, and the rows a ruled box would lie between there, found
+ * as `ruledBox` finds them but on the screen as it is: a profile that reads another (Antigravity
+ * blanks its subagents' panel first) or no ruled box at all (Codex) may differ. Facts, never the
+ * screen's text, as a doorbell line holds.
+ */
+const cursorFact = ({ rows, columns, cursor }: ScreenText): string => {
+  const { top, bottom } = boxRules(rows)
+  const inside = top >= 0 && bottom - top >= 2 && cursor.row > top && cursor.row < bottom
+  return `cursor ${cursor.row},${cursor.column} of ${rows.length}x${columns}, box rules ${top},${bottom}, cursor ${inside ? "inside" : "outside"}`
+}
 
 /**
  * How long the test paste may take to show by default on `platform`, in milliseconds. A loaded
@@ -309,8 +321,12 @@ export const createTypist = (
       },
       timing.calmMs,
     )
+    // Facts alone, as the doorbell's line holds, never what the screen shows: where the cursor
+    // stood against the screen's size and whether it lay inside the rules a ruled box would lie
+    // between on the screen as it is, as a box the cursor isn't in reads as none.
+    const shown = inputBox === false ? `, ${cursorFact(screen)}` : ""
     trace(
-      `gate ${verdict} (foreground ${String(foreground)}, input box ${String(inputBox)}, bracketed paste ${screen.bracketedPaste})`,
+      `gate ${verdict} (foreground ${String(foreground)}, input box ${String(inputBox)}, bracketed paste ${screen.bracketedPaste}${shown})`,
     )
     return verdict
   }

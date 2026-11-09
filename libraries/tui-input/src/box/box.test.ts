@@ -1,7 +1,15 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { describe, expect, it } from "vitest"
 
-import { agreeing, footerRows, isEmpty, markedBox, ruledBox, type Markers } from "./box.js"
+import {
+  agreeing,
+  boxRules,
+  footerRows,
+  isEmpty,
+  markedBox,
+  ruledBox,
+  type Markers,
+} from "./box.js"
 
 const markers: Markers = { prompt: "❯", shell: "!" }
 const line = "─".repeat(20)
@@ -175,5 +183,17 @@ describe("footerRows", () => {
     const rows = Array.from({ length: 15 }, (_, at) => `r${at}`)
     expect(footerRows(screen(rows.slice(0, 14), 2, 0))).toHaveLength(12)
     expect(footerRows(screen(rows, 2, 0))).toEqual(["r11", "r12", "r13", "r14"])
+  })
+})
+
+describe("boxRules", () => {
+  it("finds the lowest rule and the nearest rule from the first column above it", () => {
+    const bar = "─".repeat(20)
+    expect(boxRules([bar, "> draft", `  ${bar}`, "  more", bar, "footer"])).toEqual({
+      top: 0,
+      bottom: 4,
+    })
+    expect(boxRules(["> draft", bar])).toEqual({ top: -1, bottom: 1 })
+    expect(boxRules(["> draft", "footer"])).toEqual({ top: -1, bottom: -1 })
   })
 })

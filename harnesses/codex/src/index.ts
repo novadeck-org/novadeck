@@ -44,6 +44,9 @@ const messaging: MessagingProfile = {
   root: "binding",
   queueKey: "\t",
   silentOnFailure: true,
+  // Escape abandons request_user_input and aborts the turn (`turn_aborted`, probed
+  // 2026-11-09, 0.167.0, e2e/probes/question-dismiss.e2e.ts).
+  questionEscape: "interrupts",
   // A spawned agent running, the root idle, it took a typed prompt (fixture
   // `background-prompt.probe.json`, probed 2026-10-19, 0.163.0).
   promptsInBackground: true,
