@@ -137,6 +137,11 @@
   width: auto;
   min-width: 2rem;
 }
+/* A critter (Agent avatars, experimental) in the program icon's place, 24px, in the same
+   32px button. */
+.icon-button.terminal-switch:has(> .message-av) {
+  padding: 4px;
+}
 .terminal-switch-handle {
   max-width: 0;
   overflow: hidden;
@@ -450,7 +455,7 @@
 .terminal-window[data-terminal-sleeping] .terminal-title-text * {
   color: var(--tab-sleeping-name-fg, color-mix(in srgb, var(--color-ink) 62%, transparent));
 }
-.terminal-window[data-terminal-sleeping] .terminal-switch svg {
+.terminal-window[data-terminal-sleeping] .terminal-switch > svg {
   color: var(--tab-sleeping-fg, var(--color-muted));
   opacity: 0.7;
 }

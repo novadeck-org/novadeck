@@ -266,6 +266,15 @@ export const Preferences = ({
       onToggle: (chatView: boolean) => onChange({ ...value, chatView }),
       disabled: !chat,
     },
+    {
+      id: "agent-avatars",
+      label: "Agent avatars",
+      description:
+        "Show each terminal's critter from Messages in its tab and window header. On a zoomed-out Canvas, it grows so you can still tell windows apart.",
+      checked: value.agentAvatars,
+      onToggle: (agentAvatars: boolean) => onChange({ ...value, agentAvatars }),
+      disabled: false,
+    },
   ]
   const lastView = value.enabledViews.length === 1
   const { appearance } = value

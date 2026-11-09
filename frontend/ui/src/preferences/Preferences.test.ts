@@ -102,7 +102,7 @@ describe("the Experimental tab", () => {
     expect(tabs()).not.toContain("Experimental")
   })
 
-  it("shows, last, while the switch is on, with the chat view", async () => {
+  it("shows, last, while the switch is on, with the chat view and agent avatars", async () => {
     await show({ tab: "experimental", chat: true, experimental: experimental(true) })
 
     expect(tabs().at(-1)).toBe("Experimental")
@@ -110,6 +110,9 @@ describe("the Experimental tab", () => {
     const panel = document.querySelector('[role="tabpanel"][aria-labelledby$="experimental"]')
     expect(
       panel?.querySelector('[role="switch"][aria-labelledby="chat-view-label"]'),
+    ).not.toBeNull()
+    expect(
+      panel?.querySelector('[role="switch"][aria-labelledby="agent-avatars-label"]'),
     ).not.toBeNull()
   })
 })

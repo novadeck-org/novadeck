@@ -46,6 +46,12 @@ const watch = (): (() => void) => {
   }
 }
 
+// Has every avatar measure its scale again now, for a change no event above says of, as
+// Canvas's zoom, whose wheel never reaches the window.
+export const rescaleAvatars = (): void => {
+  for (const listener of listeners) listener()
+}
+
 export const onScaleChange = (listener: () => void): (() => void) => {
   listeners.add(listener)
   if (!stopWatching && typeof window.matchMedia === "function") stopWatching = watch()

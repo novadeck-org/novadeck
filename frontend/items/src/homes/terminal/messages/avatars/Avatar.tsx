@@ -6,6 +6,8 @@ import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "
 
 import { clocksOf, handleParts, hueOf, imp, impClocks, spriteOf, type Clocks } from "./critters"
 import { deviceScale, onScaleChange } from "./device-scale"
+
+export { rescaleAvatars } from "./device-scale"
 import { allCells, cellsPath, hopped, ledGrid, tonesOf, type LedGrid } from "./led"
 
 // Whether a handle's agent is there: at rest, working (its critter hops), or gone from its
@@ -95,9 +97,10 @@ const Imp = ({ grid }: { grid: LedGrid }): React.JSX.Element => {
   )
 }
 
-// A handle's avatar, only in the Messages pane: its word's critter lit on a small dark LED
-// screen in the word's hue, the number a later round gives the word in its corner, and,
-// where it has room, the program its agent runs. The person (`person`) is a backlit imp.
+// A handle's avatar: its word's critter lit on a small dark LED screen in the word's hue, the number a later round gives the word in its corner, and,
+// where it has room, the program its agent runs. The person (`person`) is a backlit imp. The Messages pane
+// draws them, and, with the experimental Agent avatars on, a terminal's tab and window
+// header, where they only blink.
 export const Avatar = ({
   handle,
   person = false,

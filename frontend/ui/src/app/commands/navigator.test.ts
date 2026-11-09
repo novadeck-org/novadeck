@@ -18,6 +18,7 @@ const preferences: PreferencesValue = {
   soundChoice: "theme",
   ligatures: false,
   chatView: false,
+  agentAvatars: false,
 }
 const panels = availablePanels(true)
 const base = "/projects/project/sessions/initial/grid"
