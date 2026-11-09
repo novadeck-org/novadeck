@@ -258,16 +258,12 @@
   gap: 0 1.5ch;
   margin: 0;
 }
+/* A handle on its own head line runs its full length, wrapping only past the column. */
 .chat-author {
-  max-width: 24ch;
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--_agent, var(--_muted));
   font-weight: 600;
-}
-/* A handle on its own head line is never cut or wrapped. */
-.chat-agent-head .chat-author {
-  max-width: none;
 }
 .chat-agent-where {
   color: var(--_muted);

@@ -43,6 +43,16 @@ export type PeerLook = {
 }
 export type PeerLooks = (handle: string) => PeerLook | null
 
+// Whether focus came by the keys rather than a click, as the browser shows its ring only then.
+const keyFocus = (target: EventTarget): boolean => {
+  if (!(target instanceof Element)) return false
+  try {
+    return target.matches(":focus-visible")
+  } catch {
+    return true
+  }
+}
+
 // A message shows its first lines when it runs past this many, and the key opens the rest.
 const foldedAt = 5
 const shownLines = foldedAt - 1
@@ -99,8 +109,9 @@ const PeerMessage = ({
         id={id}
         className="chat-words"
         data-folded={(folds && !open) || undefined}
-        // A link or a field in the cut-off lines takes focus out of sight: the rest opens to it.
-        onFocus={folds && !open ? () => setOpen(true) : undefined}
+        // The keys taking a link or a field into the cut-off lines would put focus out of sight:
+        // the rest opens to them. A click (on a link, a code block, its copy key) leaves it shut.
+        onFocus={folds && !open ? (event) => keyFocus(event.target) && setOpen(true) : undefined}
         style={
           folds && !open
             ? ({ "--_shown": `calc(${shownLines} * var(--_lh))` } as React.CSSProperties)
@@ -140,7 +151,7 @@ const SubagentLine = ({ block }: { readonly block: Subagent }): React.JSX.Elemen
   const subagent = block.name !== parentAgent
   // Named by who and how it stands, not by the whole report its line holds.
   const label = [
-    block.name,
+    shownControls(block.name),
     ...(subagent ? ["subagent"] : []),
     ...(block.running ? ["running"] : []),
     ...(block.failed ? ["failed"] : []),

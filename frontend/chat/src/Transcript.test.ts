@@ -207,9 +207,25 @@ describe("the scrollback", () => {
         const container = show([moth("See [the diff](https://example.com/d).")], undefined, looks)
         const said = container.querySelector(".chat-words")!
         expect(said.hasAttribute("data-folded")).toBe(true)
-        await act(async () => said.querySelector<HTMLElement>("a")!.focus())
+        const link = said.querySelector<HTMLElement>("a")!
+        // The keys' focus shows its ring: :focus-visible matches.
+        const matches = link.matches.bind(link)
+        link.matches = (selector: string) => selector === ":focus-visible" || matches(selector)
+        await act(async () => link.focus())
         expect(said.hasAttribute("data-folded")).toBe(false)
         expect(key(container)?.getAttribute("aria-expanded")).toBe("true")
+      })
+
+      it("stays shut when a click puts focus in it, as on a link or a code block", async () => {
+        lay(9)
+        const container = show([moth("See [the diff](https://example.com/d).")], undefined, looks)
+        const said = container.querySelector(".chat-words")!
+        const link = said.querySelector<HTMLElement>("a")!
+        // A click's focus shows no ring: :focus-visible doesn't match.
+        const matches = link.matches.bind(link)
+        link.matches = (selector: string) => selector !== ":focus-visible" && matches(selector)
+        await act(async () => link.focus())
+        expect(said.hasAttribute("data-folded")).toBe(true)
       })
 
       it("does not fold at five lines", () => {
