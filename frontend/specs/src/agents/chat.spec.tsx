@@ -296,6 +296,19 @@ describe("Sending a prompt from the chat", () => {
     await expect.element(conversation(chat).getByText("Interrupted")).toBeVisible()
   })
 
+  it("stops the agent at Esc from the box, as its own terminal does", async () => {
+    await openChatDemo()
+    await switchProject("docs-site")
+    const chat = await openChat("Checkout implementation")
+    const card = requestCard(chat, /^Has a question/)
+    await expect.element(card).toBeVisible()
+    await expect.element(chat.getByRole("button", { name: "Stop" })).toBeVisible()
+    await composer(chat).click()
+    await userEvent.keyboard("{Escape}")
+    await expect.element(card).not.toBeInTheDocument()
+    await expect.element(conversation(chat).getByText("Interrupted")).toBeVisible()
+  })
+
   it("queues a prompt sent while the agent works, which Stop gives back to the box", async () => {
     await openChatDemo()
     // Claude Code in Tests still works in the background.

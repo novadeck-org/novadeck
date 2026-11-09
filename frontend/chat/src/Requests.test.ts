@@ -623,12 +623,21 @@ describe("a dialog's menu", () => {
     expect(container.querySelector(".chat-raw-reason")?.className).not.toContain("sr-only")
   })
 
+  it("says how long it has waited, on the card's head", () => {
+    const { container } = show(choices, async () => {})
+    expect(container.querySelector(".chat-request-head .chat-fact")?.textContent).toMatch(
+      /^asked \d+s ago$/,
+    )
+  })
+
   it("names the request's tool to a screen reader, not on its line", () => {
     const { container } = show(choices, async () => {})
     expect(container.querySelector("article")?.getAttribute("aria-label")).toBe(
       "Needs your permission: Bash",
     )
-    expect(container.querySelector(".chat-request-head")?.textContent).toBe("Needs your permission")
+    expect(container.querySelector(".chat-request-head h3")?.textContent).toBe(
+      "Needs your permission",
+    )
   })
 
   it("says a subagent asks", () => {

@@ -3,6 +3,8 @@ import type { ToolEntry } from "@novadeck/core/conversation/turns"
 import { counted } from "@novadeck/core/units"
 import { useId, useState } from "react"
 
+import { Fact, Since, TimeFact } from "./Fact"
+import { longMs, span } from "./facts"
 import { inputBeyondLine } from "./input-text"
 import { shownControls } from "./shown-controls"
 import {
@@ -90,6 +92,11 @@ const ToolRow = ({
   const body = useId()
   // The agent works and this call has no result yet.
   const running = live && entry.result === null && entry.tool !== null
+  // Its clock while it runs, its length once it's done and that was long; else its time, on hover.
+  const took =
+    entry.at !== null && entry.doneAt !== null && entry.doneAt - entry.at >= longMs
+      ? entry.doneAt - entry.at
+      : null
   // A result whose call is outside the window is "Result".
   const summary = callRun(entry) ?? { kind: "other", title: "Result", detail: "" }
   const note = toolNote(entry)
@@ -159,6 +166,15 @@ const ToolRow = ({
           )}
           {scripted.length > 0 && <ToolList entries={scripted} live={live} />}
         </div>
+      )}
+      {running && entry.at !== null ? (
+        <Fact live>
+          <Since since={entry.at} />
+        </Fact>
+      ) : took !== null ? (
+        <Fact>{span(took)}</Fact>
+      ) : (
+        <TimeFact at={entry.at} hover />
       )}
     </li>
   )

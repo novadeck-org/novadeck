@@ -9,6 +9,7 @@ import {
 } from "@novadeck/core/conversation/prompt-refusal"
 import { clipboardImages, pastedFiles, pastedText } from "@novadeck/terminal/view"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
+import { CornerDownLeft } from "lucide-react"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
 import type { Attachment } from "./attachments"
@@ -34,9 +35,9 @@ const menuKeys: Readonly<Record<string, string>> = {
 }
 
 // What a failure says, and whether the person settles it in the agent's terminal.
-type Failure = { readonly text: string; readonly terminal: boolean }
+export type Failure = { readonly text: string; readonly terminal: boolean }
 
-const failed = (failure: unknown): Failure => ({
+export const failed = (failure: unknown): Failure => ({
   text: failure instanceof Error && failure.message ? failure.message : "It didn't go through.",
   terminal: failure instanceof SettleInTerminal,
 })
@@ -78,7 +79,7 @@ export const Composer = ({
   replySending,
   working,
   onSend,
-  onStop,
+  stopError,
   onClearBox,
   focusInput,
   onInputFocused,
@@ -120,7 +121,8 @@ export const Composer = ({
   // Resolves once the agent has it. Taking the words out of the draft, and putting them
   // back on a failure, is the owner's, which may outlive this box.
   readonly onSend: (text: string) => Promise<void>
-  readonly onStop: () => Promise<void>
+  // Why a Stop, which the working line makes, didn't go.
+  readonly stopError: Failure | null
   // Empties the agent's own box of the text shown of it. Rejects where it didn't.
   readonly onClearBox: (seen: string) => Promise<void>
   // Keyboard navigation asks for focus here; call `onInputFocused` once it's there.
@@ -147,10 +149,10 @@ export const Composer = ({
   const caretAtEnd = useRef(false)
   // Where the caret is due once the draft shows the placeholders a paste typed in.
   const caretAt = useRef<number | null>(null)
-  const [stopping, setStopping] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [error, setError] = useState<Failure | null>(null)
   const mounted = useMounted()
+  const shownError = error ?? stopError
   useEffect(() => {
     if (!focusInput || !input.current) return
     input.current.focus({ preventScroll: true })
@@ -218,18 +220,6 @@ export const Composer = ({
       if (mounted.current) setError(failed(failure))
     })
   }
-  const stop = (): void => {
-    if (stopping) return
-    setStopping(true)
-    onStop().then(
-      () => mounted.current && setStopping(false),
-      (failure: unknown) => {
-        if (!mounted.current) return
-        setStopping(false)
-        setError(failed(failure))
-      },
-    )
-  }
   const clearBox = (seen: string): void => {
     if (clearing) return
     setClearing(true)
@@ -292,10 +282,10 @@ export const Composer = ({
         send()
       }}
     >
-      {error && (
-        <p className="chat-error" role="alert" data-terminal={error.terminal || undefined}>
-          <span>{error.text}</span>
-          {error.terminal && (
+      {shownError && (
+        <p className="chat-error" role="alert" data-terminal={shownError.terminal || undefined}>
+          <span>{shownError.text}</span>
+          {shownError.terminal && (
             <button
               type="button"
               className="chat-key nodrag nopan"
@@ -525,27 +515,16 @@ export const Composer = ({
         />
         <div className="chat-composer-actions">
           {mode === "shell" && <span aria-hidden>shell</span>}
-          {working && (
-            <button
-              type="button"
-              className="chat-key"
-              aria-label="Stop"
-              aria-disabled={stopping || undefined}
-              onClick={stop}
-            >
-              stop
-            </button>
-          )}
           {!empty && (
-            <Tooltip content="Send · Enter">
+            <Tooltip content={working ? "Queue · Enter" : "Send · Enter"}>
               <button
                 type="submit"
-                className="chat-key"
+                className="icon-button small chat-send"
                 aria-label="Send"
                 disabled={sending || refused || (imaged && uploading)}
                 aria-busy={sending || undefined}
               >
-                ⏎
+                <CornerDownLeft size={14} />
               </button>
             </Tooltip>
           )}

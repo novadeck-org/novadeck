@@ -6,6 +6,8 @@ import {
   groupItems,
   recordsShell,
   sameBlock,
+  turnsWorked,
+  turnStartedAt,
   turnStatus,
   wentItems,
   type ToolEntry,
@@ -603,5 +605,50 @@ describe("what a harness says between turns", () => {
       item({ role: "assistant", text: "said" }),
     ])
     expect(blocks.map(({ kind }) => kind)).toEqual(["user", "assistant"])
+  })
+})
+
+describe("the times a turn records", () => {
+  const user = (at: number | null) => item({ role: "user", text: "go", at })
+  const said = (at: number | null) => item({ text: "done", at })
+
+  it("dates a call and its result, and a subagent's report", () => {
+    const [block] = groupItems([
+      { ...call("Bash", "c1"), at: 1000 },
+      { ...result("c1"), at: 9000 },
+    ])
+    expect(block).toMatchObject({
+      kind: "tools",
+      entries: [{ at: 1000, doneAt: 9000 }],
+    })
+  })
+
+  it("says how long each ended turn worked, by its last words", () => {
+    const items = [
+      user(1000),
+      { ...call("Bash", "c1"), at: 2000 },
+      { ...result("c1"), at: 380_000 },
+      { ...said(401_000), id: "first" },
+      user(500_000),
+      { ...said(502_000), id: "second" },
+    ]
+    const blocks = groupItems(items)
+    expect([...turnsWorked(blocks, false)]).toEqual([
+      ["first", 400_000],
+      ["second", 2000],
+    ])
+    // The turn the agent works on has no length yet.
+    expect([...turnsWorked(blocks, true).keys()]).toEqual(["first"])
+  })
+
+  it("leaves out a turn whose harness gave no times", () => {
+    expect(turnsWorked(groupItems([user(null), said(null)]), false).size).toBe(0)
+    expect(turnsWorked(groupItems([user(1000), said(null)]), false).size).toBe(0)
+  })
+
+  it("starts the latest turn at the last prompt's time", () => {
+    expect(turnStartedAt(groupItems([user(1000), said(2000), user(5000)]))).toBe(5000)
+    expect(turnStartedAt(groupItems([said(2000)]))).toBeNull()
+    expect(turnStartedAt(groupItems([user(null)]))).toBeNull()
   })
 })

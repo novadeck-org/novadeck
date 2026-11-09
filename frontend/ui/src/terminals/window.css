@@ -211,9 +211,11 @@
 .terminal-host {
   container-type: inline-size;
 }
+/* Above the chat, which covers the terminal's content (`.chat-pane`, z-10), so it floats over
+   either view alike. */
 .terminal-stats {
   position: absolute;
-  z-index: 2;
+  z-index: 11;
   top: 8px;
   right: 8px;
   gap: 8px;
