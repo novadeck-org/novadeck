@@ -264,6 +264,56 @@ describe("Grid view", () => {
       await expectStaysTrue(() => sameSize(bounds(terminal(first!)), one), "its size")
     })
 
+    it("lets Escape through once the corner is let go, after it was pressed again while held", async () => {
+      await openGrid()
+      const [first] = terminalTabNames()
+      const one = bounds(terminal(first!))
+      await holdCorner(first!, one.width * 0.7, 0)
+      // The corner pressed again while it is held, as when a release was lost: the mouse's own
+      // pointer, which the browser lets the corner take again.
+      corner(first!)
+        .element()
+        .dispatchEvent(new PointerEvent("pointerdown", { pointerId: 1, button: 0, bubbles: true }))
+      await pinPointer("release")
+
+      let heard = false
+      const listen = (): void => {
+        heard = true
+      }
+      document.addEventListener("keydown", listen)
+      try {
+        document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+      } finally {
+        document.removeEventListener("keydown", listen)
+      }
+      expect(heard).toBe(true)
+    })
+
+    it("keeps the width it was given when the Grid is too narrow for it and the keys make it taller", async () => {
+      await openGrid()
+      const [first] = terminalTabNames()
+      const one = bounds(terminal(first!))
+      ;(corner(first!).element() as HTMLElement).focus()
+      await userEvent.keyboard("{ArrowRight}")
+      await expect.poll(() => bounds(terminal(first!)).width).toBeGreaterThan(one.width + 100)
+
+      // One column: the tile shows one wide, and the keys make it taller.
+      await page.viewport(1000, 900)
+      await expect.poll(() => bounds(terminal(first!)).width).toBeLessThan(900)
+      ;(corner(first!).element() as HTMLElement).focus()
+      await userEvent.keyboard("{ArrowDown}")
+      await page.viewport(twoColumns.width, twoColumns.height)
+
+      await expect
+        .poll(() =>
+          sameSize(bounds(terminal(first!)), {
+            width: 2 * one.width + 16,
+            height: 2 * one.height + 16,
+          }),
+        )
+        .toBe(true)
+    })
+
     it("keeps a sized tile's size when a terminal is made", async () => {
       await openGrid()
       const [first] = terminalTabNames()

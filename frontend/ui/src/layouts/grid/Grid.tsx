@@ -96,6 +96,9 @@ const plugins: React.ComponentProps<typeof DragDropProvider>["plugins"] = (defau
 
 const noControls: TerminalLayoutControls = {}
 const oneCell: GridSpan = { columns: 1, rows: 1 }
+// A span as the Grid shows it: no wider than the columns there are.
+const shownSpan = (span: GridSpan, columns: number): GridSpan =>
+  span.columns <= columns ? span : { ...span, columns }
 
 type TileProps = {
   readonly terminal: Tile
@@ -121,7 +124,7 @@ type Resize = (
   change:
     | { readonly kind: "held" | "done"; readonly across: number; readonly down: number }
     | { readonly kind: "cancel" }
-    | { readonly kind: "keys"; readonly span: GridSpan },
+    | { readonly kind: "keys"; readonly key: "wider" | "narrower" | "taller" | "shorter" },
 ) => void
 
 // The corner a tile is sized by, in whole cells: held and moved, it takes the span nearest
@@ -137,8 +140,9 @@ const ResizeCorner = ({
   readonly span: GridSpan
   readonly onResize: Resize
 }): React.JSX.Element => {
-  // The tile's top left as the corner was taken, in the page's frame, and how to let it go.
-  const from = useRef<{ x: number; y: number } | null>(null)
+  // The tile's top left as the corner was taken, in the page's frame, the pointer that took
+  // it, and how to let it go.
+  const from = useRef<{ x: number; y: number; pointer: number } | null>(null)
   const release = useRef<(() => void) | null>(null)
   const letGo = (): void => {
     from.current = null
@@ -150,12 +154,12 @@ const ResizeCorner = ({
     across: event.clientX - from.current!.x,
     down: event.clientY - from.current!.y,
   })
-  const keys: Record<string, GridSpan> = {
-    ArrowRight: { ...span, columns: span.columns + 1 },
-    ArrowLeft: { ...span, columns: span.columns - 1 },
-    ArrowDown: { ...span, rows: span.rows + 1 },
-    ArrowUp: { ...span, rows: span.rows - 1 },
-  }
+  const keys = {
+    ArrowRight: "wider",
+    ArrowLeft: "narrower",
+    ArrowDown: "taller",
+    ArrowUp: "shorter",
+  } as const
   return (
     <button
       type="button"
@@ -163,15 +167,16 @@ const ResizeCorner = ({
       aria-label={`Resize ${name}`}
       aria-description={`${span.columns} by ${span.rows} cells; arrow keys change it`}
       onPointerDown={(event) => {
-        if (event.button !== 0) return
+        // One pointer sizes it at a time: another, such as a second finger, is let be.
+        if (event.button !== 0 || from.current) return
         const tile = event.currentTarget.closest("[data-grid-terminal]")
         if (!tile) return
         event.preventDefault()
         event.stopPropagation()
         const box = tile.getBoundingClientRect()
-        from.current = { x: box.left, y: box.top }
         const corner = event.currentTarget
         const pointer = event.pointerId
+        from.current = { x: box.left, y: box.top, pointer }
         corner.setPointerCapture(pointer)
         // Escape lets go without sizing it, wherever the focus is.
         const escape = (key: KeyboardEvent): void => {
@@ -186,25 +191,25 @@ const ResizeCorner = ({
         release.current = () => window.removeEventListener("keydown", escape, { capture: true })
       }}
       onPointerMove={(event) => {
-        if (from.current) onResize(id, { kind: "held", ...at(event) })
+        if (from.current?.pointer === event.pointerId) onResize(id, { kind: "held", ...at(event) })
       }}
       onPointerUp={(event) => {
-        if (!from.current) return
+        if (from.current?.pointer !== event.pointerId) return
         const done = at(event)
         letGo()
         onResize(id, { kind: "done", ...done })
       }}
-      onLostPointerCapture={() => {
-        if (!from.current) return
+      onLostPointerCapture={(event) => {
+        if (from.current?.pointer !== event.pointerId) return
         letGo()
         onResize(id, { kind: "cancel" })
       }}
       onKeyDown={(event) => {
-        const next = keys[event.key]
-        if (!next || event.altKey || event.ctrlKey || event.metaKey) return
+        const key = keys[event.key as keyof typeof keys]
+        if (!key || event.altKey || event.ctrlKey || event.metaKey) return
         event.preventDefault()
         event.stopPropagation()
-        onResize(id, { kind: "keys", span: next })
+        onResize(id, { kind: "keys", key })
       }}
     />
   )
@@ -338,10 +343,12 @@ export const Grid = ({
     return listed.filter((id) => on.has(id))
   }, [shown, listed])
 
-  // A tile whose corner is held: the span it would take, shown before it is saved.
-  const [resizing, setResizing] = useState<{ readonly id: string; readonly span: GridSpan } | null>(
+  // A tile whose corner is held: the span it would take, shown before it is saved. One that is
+  // gone in the meantime is held no more.
+  const [sizing, setResizing] = useState<{ readonly id: string; readonly span: GridSpan } | null>(
     null,
   )
+  const resizing = sizing !== null && ids.includes(sizing.id) ? sizing : null
   const sized = useMemo(
     () => (resizing ? { ...spans, [resizing.id]: resizing.span } : spans),
     [spans, resizing],
@@ -352,10 +359,19 @@ export const Grid = ({
   const resize = useCallback<Resize>(
     (id, change) => {
       if (change.kind === "cancel") return setResizing(null)
+      // The span saved, and the one showing, no wider than the columns there are.
+      const saved = spans[id] ?? oneCell
+      const showing = { ...saved, columns: Math.min(saved.columns, rest.columns) }
+      const keyed = (key: "wider" | "narrower" | "taller" | "shorter"): GridSpan =>
+        key === "wider" || key === "narrower"
+          ? {
+              columns: Math.min(rest.columns, showing.columns + (key === "wider" ? 1 : -1)),
+              rows: saved.rows,
+            }
+          : // Down or up keeps the width it was given, wider than the Grid holds now or not.
+            { columns: saved.columns, rows: saved.rows + (key === "taller" ? 1 : -1) }
       const span =
-        change.kind === "keys"
-          ? { columns: Math.min(change.span.columns, rest.columns), rows: change.span.rows }
-          : spanAt(change.across, change.down, rest)
+        change.kind === "keys" ? keyed(change.key) : spanAt(change.across, change.down, rest)
       if (change.kind === "held")
         return setResizing((was) =>
           was?.id === id && was.span.columns === span.columns && was.span.rows === span.rows
@@ -363,9 +379,12 @@ export const Grid = ({
             : { id, span },
         )
       setResizing(null)
+      // Let go where it shows, as with a click on the corner, it keeps what it was given.
+      if (change.kind === "done" && span.columns === showing.columns && span.rows === showing.rows)
+        return
       onResize(id, span)
     },
-    [rest, onResize],
+    [rest, spans, onResize],
   )
 
   // Something dragged off a terminal's taskbar can be dropped on the grid. While it's over
@@ -595,7 +614,7 @@ export const Grid = ({
                     }
                     hidden={hidden[terminal.id] ?? false}
                     hiding={hidden[terminal.id] ?? false}
-                    span={sized[terminal.id] ?? oneCell}
+                    span={shownSpan(sized[terminal.id] ?? oneCell, rest.columns)}
                     onResize={resize}
                     render={render}
                   />

@@ -59,12 +59,16 @@ export const removeFromLayout = (layout: TerminalLayout, terminalId: string): Te
 // The most cells down a Grid tile spans: past that it stands taller than most screens.
 export const gridSpanRows = 3
 
+// A count of whole cells, at least one: one for anything that isn't a number.
+const cells = (count: number): number =>
+  Number.isFinite(count) ? Math.max(1, Math.round(count)) : 1
+
 // A span as Grid keeps it: whole cells, at least one of each and at most `gridSpanRows` down.
 // How many columns fit is the Grid's width's to say, so the span across is limited where it
 // is laid out.
 export const gridSpan = (span: GridSpan): GridSpan => ({
-  columns: Math.max(1, Math.round(span.columns)),
-  rows: Math.min(gridSpanRows, Math.max(1, Math.round(span.rows))),
+  columns: cells(span.columns),
+  rows: Math.min(gridSpanRows, cells(span.rows)),
 })
 
 // The layout with the tile `terminalId` spanning `span`, or none saved for one cell.
