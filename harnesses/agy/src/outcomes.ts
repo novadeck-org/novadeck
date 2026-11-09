@@ -21,7 +21,7 @@ const launchLine = new RegExp(
 /**
  * The conversation of the subagent a result step says it started: invoke_subagent's
  * result is only that launch, the subagent's report coming later as a message (see
- * `idleReport`).
+ * `endedSubagents` in transcripts.ts).
  */
 export const launchedSubagent = (content: string): string | undefined =>
   launchLine.exec(content)?.[1]

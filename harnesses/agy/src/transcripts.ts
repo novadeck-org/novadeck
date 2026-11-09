@@ -1,5 +1,5 @@
 import { presence, reportedOr, sessionName } from "@novadeck/harness-core/conversation"
-import { parseFields, type Fields } from "@novadeck/harness-core/fields"
+import { fieldsOf, parseFields, type Fields } from "@novadeck/harness-core/fields"
 import type { TranscriptDecoder, TranscriptEntry, UserEntry } from "@novadeck/harness-core/harness"
 import { at, entry, noteEntry, textOf } from "@novadeck/harness-core/items"
 import { outcome } from "@novadeck/harness-core/outcomes"
@@ -14,15 +14,37 @@ const request = /<USER_REQUEST>\n?([\s\S]*?)\n?<\/USER_REQUEST>/
 // How the plan review's Approve goes in, as a prompt (probed 2026-11-07, 1.5.2).
 const planApproved = /^\[Approved\] \S+$/
 
-// The message a background subagent's going idle wakes the root with, naming its
-// conversation and, where it said something, its last words: its report (probed
-// 2026-11-09, 1.5.2, fixtures/subagent-transcript.probe.json).
+// Each message a system step holds: its header (timestamp, sender, priority) and what it
+// says, up to the next message or the block's end. A step may hold several, and several
+// blocks.
+const messages = /\[Message\] ([^\n]*?) content=([\s\S]*?)(?=\n\[Message\] |\n<\/SYSTEM_MESSAGE>)/g
+
+// What Antigravity itself tells the root of a background subagent: that it went idle, with
+// its last words, its report, where it said something; or that it failed, with the error.
+// A subagent the root killed is told of by no message, and one left running when the root
+// is interrupted reports with the root's next turn (probed 2026-11-09, 1.5.2,
+// fixtures/subagent-transcript.probe.json and subagent-ends.probe.json).
 const wentIdle =
-  /<SYSTEM_MESSAGE>\n\[Message\] [^\n]*?\bsender=system\b[^\n]*? content=Subagent (\S+) has gone idle\.(?: This was the subagent's most recent response: ([\s\S]*?))?\n<\/SYSTEM_MESSAGE>/
+  /^Subagent (\S+) has gone idle\.(?: This was the subagent's most recent response: ([\s\S]*))?$/
+const failedLine =
+  /^The subagent .* with id "([^"\n]+)" encountered an error and has either stopped or failed to start execution: /
+
+type Ended = { readonly conversation: string; readonly text: string; readonly failed: boolean }
+
+/** Each subagent a system step says went idle or failed, in its order. */
+export const endedSubagents = (content: string): readonly Ended[] =>
+  [...content.matchAll(messages)].flatMap(([, header, said]): Ended[] => {
+    if (!/(?:^| )sender=system(?: |$)/.test(header!)) return []
+    const idle = wentIdle.exec(said!)
+    if (idle)
+      return [{ conversation: idle[1]!, text: idle[2]?.trim() || "Went idle.", failed: false }]
+    const error = failedLine.exec(said!)
+    return error ? [{ conversation: error[1]!, text: said!.trim(), failed: true }] : []
+  })
 
 // The call that started each subagent, by its conversation: the launch's step comes before
-// its idle message in the file, which is read from its start. Conversation ids are unique,
-// so every session's transcripts share it; the oldest go past a bound.
+// any word of its end in the file, which is read from its start. Conversation ids are
+// unique, so every session's transcripts share it; the oldest go past a bound.
 const launches = new Map<string, string>()
 const launchesKept = 1000
 
@@ -32,25 +54,32 @@ const launched = (conversation: string, call: string): void => {
   if (launches.size > launchesKept) launches.delete(launches.keys().next().value!)
 }
 
-/** The conversation of the subagent a message says went idle; none for any other text. */
-export const idleSubagent = (content: string): string | undefined => wentIdle.exec(content)?.[1]
+/** Forgets every launch read: for tests, so none pairs through another's. */
+export const forgetLaunches = (): void => launches.clear()
+
+/** A subagent's end as a result of the call that started it; none for one not read. */
+const endOf = (
+  conversation: string,
+  text: string,
+  failed: boolean,
+  time: number | null,
+): TranscriptEntry[] => {
+  const call = launches.get(conversation)
+  return call
+    ? [entry("tool", "tool-result", text, { at: time, call, outcome: outcome({ failed }) })]
+    : []
+}
 
 /**
- * A subagent's going idle as the result of the call that started it, which pairs with it
- * by the call's id: its last words, its report. None for any other message, or for one
- * whose launch wasn't read.
+ * The subagents a manage_subagents call kills by their conversations, each as a failed
+ * result of the call that started it: nothing else tells of their end. Its `kill_all` names
+ * none, and a line names no session to tell this one's subagents by, so those run on.
  */
-const idleReport = (content: string, time: number | null): TranscriptEntry[] => {
-  const idle = wentIdle.exec(content)
-  const call = idle && launches.get(idle[1]!)
-  if (!idle || !call) return []
-  return [
-    entry("tool", "tool-result", idle[2]?.trim() || "Went idle.", {
-      at: time,
-      call,
-      outcome: outcome({ failed: false }),
-    }),
-  ]
+const killed = (name: unknown, args: unknown, time: number | null): TranscriptEntry[] => {
+  const fields = fieldsOf(args)
+  if (name !== "manage_subagents" || fields?.Action !== "kill") return []
+  const ids = Array.isArray(fields.ConversationIds) ? fields.ConversationIds : []
+  return ids.flatMap((id) => (typeof id === "string" ? endOf(id, "Killed.", true, time) : []))
 }
 
 const contentOf = (fields: Fields): string =>
@@ -87,8 +116,9 @@ const inOwnFolder = async (reported: string, sessionId: string): Promise<string 
  * Antigravity's transcript: a JSONL of the conversation's steps, which hooks name. The
  * person's input, the model's responses with their tool calls, and each call's result
  * as the next step, as many steps on as it came in its call's list, and a background
- * subagent's report, from the message its going idle wakes the root with, as its launch's
- * result; its reasoning and its other system steps stay out. It names no subagents.
+ * subagent's end, from the message its going idle or failing wakes the root with or the
+ * call that kills it, as its launch's result; its reasoning and its other system steps stay
+ * out. It names no subagents.
  */
 export const transcripts: TranscriptDecoder = {
   locate: async (reported, sessionId, subagent) =>
@@ -119,7 +149,9 @@ export const transcripts: TranscriptDecoder = {
     if (fields.source === "SYSTEM" && fields.type === "CHECKPOINT")
       return [noteEntry({ type: "compaction" }, time, content)]
     if (fields.source === "SYSTEM" && fields.type === "SYSTEM_MESSAGE")
-      return idleReport(content, time)
+      return endedSubagents(content).flatMap((one) =>
+        endOf(one.conversation, one.text, one.failed, time),
+      )
     if (fields.source !== "MODEL") return []
     if (fields.type === "GENERIC") {
       const subagent = launchedSubagent(content)
@@ -133,16 +165,21 @@ export const transcripts: TranscriptDecoder = {
       ]
     }
     if (fields.type !== "PLANNER_RESPONSE") return []
-    const calls = (Array.isArray(fields.tool_calls) ? fields.tool_calls : []).map((call, index) => {
-      const { name, args } = (call ?? {}) as { name?: unknown; args?: unknown }
-      return entry("assistant", "tool-call", textOf(args), {
-        at: time,
-        tool: name,
-        call: step === undefined ? undefined : `step:${step + 1 + index}`,
-        outcome: callChange(name, args),
-        describe,
-      })
-    })
+    const calls = (Array.isArray(fields.tool_calls) ? fields.tool_calls : []).flatMap(
+      (call, index) => {
+        const { name, args } = (call ?? {}) as { name?: unknown; args?: unknown }
+        return [
+          entry("assistant", "tool-call", textOf(args), {
+            at: time,
+            tool: name,
+            call: step === undefined ? undefined : `step:${step + 1 + index}`,
+            outcome: callChange(name, args),
+            describe,
+          }),
+          ...killed(name, args, time),
+        ]
+      },
+    )
     return [...(content ? [entry("assistant", "text", content, { at: time })] : []), ...calls]
   },
 }
