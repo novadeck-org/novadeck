@@ -61,6 +61,60 @@ describe("saved session state", () => {
     })
   })
 
+  context("when an older build reads what this one saved", () => {
+    // What that build's decoder asks of a layout, from before Grid took its own: each of these
+    // keys an object, the canvas has `geometry` and the size presets `grid`. Without them it
+    // drops the whole view.
+    const readable = (layout: Record<string, unknown>): boolean => {
+      const isObject = (value: unknown): value is Record<string, unknown> =>
+        typeof value === "object" && value !== null && !Array.isArray(value)
+      const keys = ["canvas", "grid", "gridRestoreWidths", "sizePresets", "hidden"]
+      return (
+        keys.every((key) => isObject(layout[key])) &&
+        isObject((layout.canvas as Record<string, unknown>).geometry) &&
+        isObject((layout.sizePresets as Record<string, unknown>).grid)
+      )
+    }
+
+    it("finds the layout keys it needs, empty", () => {
+      const { layout } = (JSON.parse(encodeSession(session())) as { state: { layout: never } })
+        .state
+      expect(readable(layout)).toBe(true)
+      expect(layout).toMatchObject({ grid: {}, gridRestoreWidths: {}, sizePresets: { grid: {} } })
+    })
+
+    it("is still read by this build, and its own decoder asks for no more than it saved", () => {
+      expect(decodeSession(encodeSession(session()))).toBeDefined()
+    })
+  })
+
+  context("when it was saved by a build that kept Grid's cells and widths", () => {
+    const old = (): string => {
+      const current = JSON.parse(encodeSession(session())) as {
+        state: { layout: Record<string, unknown> }
+      }
+      current.state.layout = {
+        ...current.state.layout,
+        grid: { desktop: [{ i: "01", x: 4, y: 0, w: 4, h: 18, minW: 4, minH: 10 }] },
+        gridRestoreWidths: { "01": { desktop: 4 } },
+        sizePresets: { grid: { "01": "large" } },
+      }
+      return JSON.stringify(current)
+    }
+
+    it("reads it, and carries on none of what Grid took from the sidebar", () => {
+      const saved = decodeSession(old())
+      expect(saved?.state).toMatchObject({ order: ["02", "01"], selected: "02" })
+      expect(Object.keys(saved!.state.layout).toSorted()).toEqual(["canvas", "hidden"])
+      expect(saved?.state.layout.canvas.geometry["01"]?.position).toEqual({ x: 10, y: 20 })
+      // What it wrote of them is empty, so none of the old cells comes back.
+      const again = JSON.parse(
+        encodeSession({ ...session(), state: { ...session().state, layout: saved!.state.layout } }),
+      ) as { state: { layout: Record<string, unknown> } }
+      expect(again.state.layout).toMatchObject({ grid: {}, sizePresets: { grid: {} } })
+    })
+  })
+
   context("when it was saved by a build that kept the terminals too", () => {
     it("reads nothing, as that build is gone", () => {
       const current = JSON.parse(encodeSession(session())) as {

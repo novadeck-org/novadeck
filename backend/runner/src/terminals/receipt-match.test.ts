@@ -182,6 +182,59 @@ describe("a prompt with images", () => {
     expect(settledBy(withImages(1), "words")).toEqual([])
   })
 
+  it("is settled by an item with its placeholders among the words, Codex's extra space or not", () => {
+    const see = withImages(1, "See this:  and fix it")
+    expect(settledBy(see, "See this: [Image #1] and fix it")).toEqual(["r0"])
+    expect(settledBy(see, "See this: [Image #1]  and fix it")).toEqual(["r0"])
+    expect(settledBy(see, "See this: [Image #1] and fix it too")).toEqual([])
+    expect(settledBy(see, "See this: [Image #1] [Image #2] and fix it")).toEqual([])
+    expect(settledBy(withImages(2, "Compare  with"), "Compare [Image #1] with[Image #2]")).toEqual([
+      "r0",
+    ])
+  })
+
+  it("is settled by an item of words with the placeholders the runner typed for Antigravity", () => {
+    expect(settledBy(withImages(1, "Look at  here"), "Look at [Image #1] here")).toEqual(["r0"])
+    expect(settledBy(withImages(1, "Look at  here"), "Look at  here")).toEqual(["r0"])
+  })
+
+  it("keeps a placeholder's text in its own words as words", () => {
+    expect(
+      settledBy(withImages(1, "Is [Image #9] a mark?"), "[Image #1] Is [Image #9] a mark?"),
+    ).toEqual(["r0"])
+    expect(settledBy(withImages(1, "Is [Image #9] a mark?"), "Is [Image #9] a mark?")).toEqual([
+      "r0",
+    ])
+    expect(
+      settledBy(
+        withImages(1, "Is [Image #9] a mark?"),
+        "[Image #1] [Image #2] Is [Image #9] a mark?",
+      ),
+    ).toEqual([])
+  })
+
+  it("settles each of several prompts with images, joined into one item, by its own placeholders", () => {
+    const two = [
+      { ref: "a", lines: ["first"], images: 1 },
+      { ref: "b", lines: ["second  here"], images: 1 },
+    ]
+    expect(settledBy(two, "first [Image #1]\nsecond [Image #2] here")).toEqual(["a", "b"])
+  })
+
+  it("is in the box by its words with a placeholder among them", () => {
+    expect(inBox("See this: [Image #1] and fix it", ["See this:  and fix it"], 1)).toBe(true)
+    expect(inBox("See this: [Image #1]  and fix it", ["See this:  and fix it"], 1)).toBe(true)
+    expect(inBox("See this: [Image #1] and fix", ["See this:  and fix it"], 1)).toBe(false)
+  })
+
+  it("is settled where the person left no space around its image, a harness keeping its own", () => {
+    const tight = withImages(1, "see this:, ok")
+    expect(settledBy(tight, "see this:[Image #1], ok")).toEqual(["r0"])
+    // Codex puts a space after the placeholder.
+    expect(settledBy(tight, "see this:[Image #1] , ok")).toEqual(["r0"])
+    expect(settledBy(tight, "see this:[Image #1] , ok then")).toEqual([])
+  })
+
   it("is in the box as many placeholders as it carried, or by its words", () => {
     expect(inBox("[Image #1] [Image #2]", [], 2)).toBe(true)
     expect(inBox("[Image #1]", [], 2)).toBe(false)

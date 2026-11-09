@@ -23,8 +23,16 @@ export type SavedSession = {
 // Canvas marks a node while a gesture runs; a saved layout never resumes one. Of the
 // canvas, only where windows were dropped is saved: the camera an older build saved is
 // left out.
-const settled = (layout: TerminalLayout): TerminalLayout => ({
+//
+// A build before Grid took its layout from the sidebar needs `grid`, `gridRestoreWidths` and
+// `sizePresets.grid` to read a saved view at all, and drops the whole view without them, as a
+// rolled-back or older portable build would. They are written empty so it still loads; this
+// build reads past them. They can go once no build that is supported reads them.
+const settled = (layout: TerminalLayout) => ({
   ...layout,
+  grid: {},
+  gridRestoreWidths: {},
+  sizePresets: { grid: {} },
   canvas: {
     geometry: Object.fromEntries(
       Object.entries(layout.canvas.geometry).map(
@@ -92,22 +100,17 @@ const isObject = (value: unknown): value is Json =>
 const isString = (value: unknown): value is string => typeof value === "string"
 const views: readonly unknown[] = ["focus", "grid", "canvas"] satisfies ViewMode[]
 
-const layoutKeys = [
-  "canvas",
-  "grid",
-  "gridRestoreWidths",
-  "sizePresets",
-  "hidden",
-] as const satisfies readonly (keyof TerminalLayout)[]
-
 // Layout records are the UI's own output; checking their shape one level deep is
-// enough to keep a hand-edited or truncated value from reaching the views.
+// enough to keep a hand-edited or truncated value from reaching the views. What an older
+// build saved for Grid (each window's cell and width, which Grid now takes from the sidebar's
+// order) is read past and not carried on.
 const layout = (value: unknown): TerminalLayout | undefined => {
-  if (!isObject(value) || !layoutKeys.every((key) => isObject(value[key]))) return undefined
-  const { canvas, sizePresets } = value as Json & { canvas: Json; sizePresets: Json }
-  if (!isObject(canvas.geometry)) return undefined
-  if (!isObject(sizePresets.grid)) return undefined
-  return value as TerminalLayout
+  if (!isObject(value) || !isObject(value.canvas) || !isObject(value.hidden)) return undefined
+  if (!isObject(value.canvas.geometry)) return undefined
+  return {
+    canvas: value.canvas as TerminalLayout["canvas"],
+    hidden: value.hidden as TerminalLayout["hidden"],
+  }
 }
 
 const isKeys = (value: unknown): value is BarKey[] => Array.isArray(value) && value.every(isString)

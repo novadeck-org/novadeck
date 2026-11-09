@@ -1,6 +1,6 @@
 /* The workspace recipe: the ground behind Focus, Grid and Canvas, its grain, its dot
    grid and the spotlight that follows the pointer, how idle terminals fade in Canvas,
-   Grid's resize grip, and the ghost of a window a drop would open. Zen
+   and the ghost of a window a drop would open. Zen
    (data-zen="true" on `.workspace`) quiets the ground.
 
    `.workspace-background` clips what overflows it and never scrolls; its pseudo-elements
@@ -9,7 +9,7 @@
    Hooks: `.workspace-background` and data-pointer-inside="true" on it;
    `.workspace-dots`, `.canvas-grid` and `.canvas-grid-spotlight` (the dot grid and its
    spotlight); `.grid-terminal` and `.canvas-node`, `.selected` when selected;
-   `.drop-ghost` and `.drop-ghost-header`; Grid's resize handle.
+   `.drop-ghost` and `.drop-ghost-header`.
 
    Tokens, each optional (its fallback in brackets):
    --workspace-bg (canvas): the ground. --workspace-glow-bg (paper),
@@ -26,9 +26,6 @@
    --workspace-zen-grain-opacity (0.02): the same in Zen.
    --terminal-idle-opacity, --terminal-hover-opacity: a Canvas window not selected, at
    rest and under the pointer, while another one is.
-   --workspace-grip-fg (muted), --workspace-grip-opacity (0.35),
-   --workspace-grip-hover-opacity (0.8), --workspace-grip-image (a hatch of the grip's
-   colour): a window's resize grip.
    --workspace-placeholder-bg (soft), --workspace-placeholder-border-color (line),
    --workspace-placeholder-radius (radius-panel): where a window dragged in Grid lands.
    --workspace-ghost-bg (paper at 78%), --workspace-ghost-fg (muted),
@@ -141,26 +138,6 @@
 .canvas-node:not(.selected):hover {
   --_recede: var(--terminal-hover-opacity);
 }
-/* A window's resize grip in Grid, react-grid-layout's handle, which draws it after
-   itself: a triangle of hatching in the corner, faint until the pointer reaches it. */
-.terminal-grid .react-resizable-handle {
-  color: var(--workspace-grip-fg, var(--color-muted));
-  opacity: var(--workspace-grip-opacity, 0.35);
-  transition: opacity var(--motion-feedback) var(--ease-interface);
-}
-.terminal-grid .react-resizable-handle:hover {
-  opacity: var(--workspace-grip-hover-opacity, 0.8);
-}
-.terminal-grid .react-resizable-handle::after {
-  width: 11px;
-  height: 11px;
-  border: 0;
-  background: var(
-    --workspace-grip-image,
-    repeating-linear-gradient(135deg, transparent 0 3px, currentColor 3px 4px)
-  );
-  clip-path: polygon(100% 0, 100% 100%, 0 100%);
-}
 .stage-note {
   color: var(--workspace-note-fg, var(--color-muted));
 }
@@ -173,11 +150,10 @@
   outline-offset: 2px;
 }
 /* Where a window dragged in Grid will land. */
-.terminal-grid .react-grid-placeholder {
+.terminal-grid .grid-placeholder {
   border: var(--border-width) solid var(--workspace-placeholder-border-color, var(--color-line));
   border-radius: var(--workspace-placeholder-radius, var(--radius-panel));
   background: var(--workspace-placeholder-bg, var(--color-soft));
-  opacity: 1;
 }
 /* Where a window dragged off a taskbar would open in a view's free space: a ghost of it,
    a node on the Canvas and a placeholder in the Grid, with a header strip saying what it

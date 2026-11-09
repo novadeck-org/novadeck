@@ -42,7 +42,7 @@ import { Hint } from "./Hint"
 import { shownControls } from "./shown-controls"
 import { LiveSlice } from "./Slice"
 import { submitOnEnter } from "./submit-on-enter"
-import { isTyping, useMenu, type Menu } from "./use-menu"
+import { holdsWords, isTyping, useMenu, type Menu } from "./use-menu"
 
 // What a request's dialog offers, as the next lines of the terminal: numbered rows, a thin bar on
 // the one the person is on. Each takes `send`, which gives the answer to the backend and says
@@ -154,6 +154,7 @@ const Choices = ({
         aria-labelledby={dialog.title ? label : undefined}
         aria-label={dialog.title ? undefined : "Answers"}
         onKeyDown={menu.onKeyDown}
+        onPointerMove={menu.onPointerMove}
       >
         {dialog.options.map((option, index) => (
           <Row
@@ -249,6 +250,7 @@ const QuestionRows = ({
       role={question.multiSelect ? "group" : "radiogroup"}
       aria-labelledby={`${id}-q`}
       onKeyDown={menu.onKeyDown}
+      onPointerMove={menu.onPointerMove}
     >
       <legend id={`${id}-q`} className="chat-question-text">
         {shownControls(question.question)}
@@ -378,6 +380,23 @@ const answerWords = (question: ChatQuestion, pick: Pick | undefined): string => 
 const hasModifier = (event: React.KeyboardEvent): boolean =>
   event.altKey || event.ctrlKey || event.metaKey
 
+// Focus to a page's row the person is on, or its first control.
+const focusPage = (pages: HTMLElement | null, page: number): void =>
+  pages
+    ?.querySelector<HTMLElement>(
+      `[data-page="${page}"] :is(input, button):not([tabindex="-1"], :disabled)`,
+    )
+    ?.focus({ preventScroll: true })
+
+// Whether focus is free for a dialog that appears in `within`: on nothing, or in its chat on
+// what holds no words of the person's.
+const askedFree = (within: Element | null): boolean => {
+  const active = document.activeElement
+  if (!active || active === document.body) return true
+  if (!within?.closest(".chat")?.contains(active)) return false
+  return !holdsWords(active)
+}
+
 const headerOf = (question: ChatQuestion, index: number): string =>
   question.header ?? `Question ${index + 1}`
 
@@ -438,6 +457,7 @@ const Review = ({
         role="group"
         aria-label="Send the answers"
         onKeyDown={menu.onKeyDown}
+        onPointerMove={menu.onPointerMove}
       >
         <button
           {...row(0)}
@@ -496,15 +516,24 @@ const Questions = ({
   useEffect(() => {
     if (!moved.current) return
     moved.current = false
-    pages.current
-      ?.querySelector<HTMLElement>(
-        `[data-page="${page}"] :is(input, button):not([tabindex="-1"], :disabled)`,
-      )
-      ?.focus({ preventScroll: true })
+    focusPage(pages.current, page)
     // The pages share a cell as tall as the tallest: this one starts at its top.
     const scroller = pages.current?.closest(".chat-requests")
     if (scroller) scroller.scrollTop = 0
   }, [page])
+  // The questions take the keys as they appear, as a harness's own do, unless the person is
+  // writing something or is elsewhere: then what they type stays where they type it.
+  const now = useRef({ page, held: replying || sending })
+  useEffect(() => {
+    now.current = { page, held: replying || sending }
+  })
+  useEffect(() => {
+    // A dialog read again leaves the person where they are in it.
+    const form = pages.current?.closest("form")
+    if (now.current.held || form?.contains(document.activeElement)) return
+    if (askedFree(pages.current)) focusPage(pages.current, now.current.page)
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Only as the dialog comes.
+  }, [dialog.id])
   const turnTo = (to: number): void => {
     moved.current = true
     setTurned(to)
@@ -520,12 +549,19 @@ const Questions = ({
   const panelId = (at: number): string => `${base}-page-${at}`
   // Left and right turn the pages from anywhere in them, as a harness's tabs do.
   const turnKeys = (event: React.KeyboardEvent): void => {
+    // Down from a tab goes into its page.
+    const onTab = event.target instanceof Element && event.target.closest('[role="tab"]') !== null
+    if (event.key === "ArrowDown" && onTab && !hasModifier(event)) {
+      event.preventDefault()
+      focusPage(pages.current, page)
+      return
+    }
     if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return
     if (replying || hasModifier(event) || isTyping(event.target)) return
     event.preventDefault()
     const count = questions.length + 1
     const to = (page + (event.key === "ArrowRight" ? 1 : count - 1)) % count
-    if (event.target instanceof Element && event.target.closest('[role="tab"]')) {
+    if (onTab) {
       setTurned(to)
       document.getElementById(tabId(to))?.focus()
     } else turnTo(to)
@@ -826,6 +862,7 @@ const Form = ({
         role="group"
         aria-label="Answer the form"
         onKeyDown={menu.onKeyDown}
+        onPointerMove={menu.onPointerMove}
       >
         <button
           {...menu.row(0)}

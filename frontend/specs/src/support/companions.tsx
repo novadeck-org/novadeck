@@ -125,14 +125,14 @@ const terminals = (): Element[] => page.getByRole("region", { name: / terminal$/
 export const freeSpaceIn = (view: Locator): { x: number; y: number } => {
   const box = view.element().getBoundingClientRect()
   const occupied = terminals().map((each) => each.getBoundingClientRect())
-  // A shorter view can leave a free strip narrower than the first scan's inset.
-  for (const step of [40, 20])
+  // A shorter view can leave a free strip narrower than the first scan's inset, and Grid's
+  // tiles leave only the gutters between them.
+  for (const step of [40, 20, 8])
     for (let y = box.height - step; y > step; y -= step)
       for (let x = box.width - step; x > step; x -= step) {
         const clientX = box.left + x
         const clientY = box.top + y
         const hit = document.elementFromPoint(clientX, clientY)
-        // A Grid resize handle is a sibling of its terminal region, inside its rectangle.
         const covered = occupied.some(
           (each) =>
             clientX >= each.left &&

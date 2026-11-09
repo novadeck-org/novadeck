@@ -7,19 +7,24 @@ export const compact = (text: string): string => text.replace(/\s+/g, "")
 // leave a ZWJ family sequence blank, so a box's text is compared without them.
 const pictures = /\p{Extended_Pictographic}|\p{Emoji_Modifier}|\u200d|\ufe0f/gu
 
+/** A placeholder a program shows for a pasted image file: `[Image #1]`. */
+const mark = /\[Image #\d+\]/g
+
 /**
- * A box's text without the placeholders of images that lead it (`[Image #1] [Image #2] words`),
- * which a program shows for a pasted image file and keeps apart from the words.
+ * A box's text without the placeholders of images (`[Image #1] words`, or among the words,
+ * `look [Image #1] here`), which a program shows for a pasted image file. A text they led
+ * loses the white space they leave at its start.
  */
-export const withoutImages = (text: string): string =>
-  text.replace(/^(?:\s*\[Image #\d+\])+\s*/, "")
+export const withoutImages = (text: string): string => {
+  const bare = text.replace(mark, "")
+  return /^\s*\[Image #\d+\]/.test(text) ? bare.trimStart() : bare
+}
 
-/** How many placeholders of images lead a box's text. */
-export const imageCount = (text: string): number =>
-  /^(?:\s*\[Image #\d+\])+/.exec(text)?.[0].match(/\[Image #/g)?.length ?? 0
+/** How many placeholders of images a box's text holds, wherever they stand. */
+export const imageCount = (text: string): number => text.match(mark)?.length ?? 0
 
-/** Whether placeholders of images lead a box's text (see `withoutImages`). */
-export const leadsWithImages = (text: string): boolean => /^\s*\[Image #\d+\]/.test(text)
+/** Whether a box's text holds the placeholder of an image (see `withoutImages`). */
+export const hasImages = (text: string): boolean => imageCount(text) > 0
 
 /**
  * Whether the box's text is exactly the text sent, whitespace aside, and emoji as the

@@ -1,3 +1,4 @@
+import { onTestFinished } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
 import { expectStaysTrue } from "../support/layouts"
@@ -163,7 +164,10 @@ describe("Murmur's one-time offer", () => {
         .toHaveAttribute("aria-checked", "false")
     })
 
-    it("shrinks to its icon in a narrow Grid tile, and the name stays", async () => {
+    it("shrinks to its icon in the narrow Grid tile of a small window, and the name stays", async () => {
+      // A tile is narrower than 480 px only in a Grid too narrow for two columns, as in a small window.
+      await page.viewport(720, 900)
+      onTestFinished(() => page.viewport(1440, 900))
       await openWorkspace("/?demo=agents&murmur=uninstalled&turnMs=2000")
       await chooseView("Grid")
       await terminalTab("Build").click()

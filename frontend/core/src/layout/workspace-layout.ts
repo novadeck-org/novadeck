@@ -1,14 +1,9 @@
-import type { CanvasLayout, GridLayouts, GridRestoreWidths, Placed, TerminalLayout } from "../types"
+import type { CanvasLayout, Placed, TerminalLayout } from "../types"
 
 type CanvasGeometry = CanvasLayout["geometry"][string]
 
-export const emptyLayout = (
-  initial: { canvas?: CanvasLayout; grid?: GridLayouts } = {},
-): TerminalLayout => ({
+export const emptyLayout = (initial: { canvas?: CanvasLayout } = {}): TerminalLayout => ({
   canvas: initial.canvas ?? { geometry: {} },
-  grid: initial.grid ?? {},
-  gridRestoreWidths: {},
-  sizePresets: { grid: {} },
   hidden: {},
 })
 
@@ -17,18 +12,6 @@ const withoutKey = <Value>(values: Record<string, Value>, key: string): Record<s
   const next = { ...values }
   delete next[key]
   return next
-}
-
-const withoutGridItem = (layouts: GridLayouts, terminalId: string): GridLayouts => {
-  let changed = false
-  const next = Object.fromEntries(
-    Object.entries(layouts).map(([breakpoint, layout]) => {
-      const remaining = layout.filter((item) => item.i !== terminalId)
-      changed ||= remaining.length !== layout.length
-      return [breakpoint, remaining]
-    }),
-  ) as GridLayouts
-  return changed ? next : layouts
 }
 
 // Drops geometry for terminals that no longer exist, such as a delayed commit after a close.
@@ -43,46 +26,22 @@ export const pruneCanvasLayout = (
   return Object.keys(layout.geometry).every((id) => ids.has(id)) ? layout : { ...layout, geometry }
 }
 
-export const pruneGridLayouts = (
-  layouts: GridLayouts,
-  terminals: readonly Placed[],
-): GridLayouts => {
-  const ids = new Set(terminals.map((terminal) => terminal.id))
-  const next = Object.fromEntries(
-    Object.entries(layouts).map(([breakpoint, layout]) => [
-      breakpoint,
-      layout.filter((item) => ids.has(item.i)),
-    ]),
-  ) as GridLayouts
-  return Object.entries(layouts).every(
-    ([breakpoint, layout]) => next[breakpoint as keyof GridLayouts]?.length === layout.length,
-  )
-    ? layouts
-    : next
-}
-
 export type TerminalPlacement = {
   readonly terminal: Placed
-  // The terminals and windows already placed.
-  readonly terminals: readonly Placed[]
-  readonly gridLayouts?: GridLayouts | undefined
   // Where it was dropped on Canvas, for a window dropped there.
   readonly canvasGeometry?: CanvasGeometry | undefined
 }
 
-// Places a new terminal at its small size in the given Grid layouts, when the caller
-// measured them. Canvas arranges its windows itself (canvas-arrangement.ts): it only hears
-// where a window was dropped on it.
+// Places a new terminal. Grid and Canvas arrange their windows themselves, from the sidebar's
+// order (canvas-arrangement.ts): Canvas only hears where a window was dropped on it.
 export const placeTerminal = (
   layout: TerminalLayout,
-  { terminal, terminals, gridLayouts, canvasGeometry }: TerminalPlacement,
+  { terminal, canvasGeometry }: TerminalPlacement,
 ): TerminalLayout => ({
   ...layout,
   canvas: canvasGeometry
     ? { ...layout.canvas, geometry: { ...layout.canvas.geometry, [terminal.id]: canvasGeometry } }
     : layout.canvas,
-  grid: gridLayouts ? pruneGridLayouts(gridLayouts, [...terminals, terminal]) : layout.grid,
-  sizePresets: { grid: { ...layout.sizePresets.grid, [terminal.id]: "small" } },
 })
 
 // Forgets every saved reference to a closed terminal.
@@ -91,30 +50,6 @@ export const removeFromLayout = (layout: TerminalLayout, terminalId: string): Te
   return {
     ...layout,
     canvas: geometry === layout.canvas.geometry ? layout.canvas : { ...layout.canvas, geometry },
-    grid: withoutGridItem(layout.grid, terminalId),
-    gridRestoreWidths: withoutKey(layout.gridRestoreWidths, terminalId),
-    sizePresets: { grid: withoutKey(layout.sizePresets.grid, terminalId) },
     hidden: withoutKey(layout.hidden, terminalId),
-  }
-}
-
-// Applies a Grid size toggle: `restoreWidths` is null when the terminal returns to small.
-export const resizeGridTerminal = (
-  layout: TerminalLayout,
-  terminalId: string,
-  change: { layouts: GridLayouts; restoreWidths: GridRestoreWidths | null },
-  terminals: readonly Placed[],
-): TerminalLayout => {
-  const widths = change.restoreWidths
-  return {
-    ...layout,
-    grid: pruneGridLayouts(change.layouts, terminals),
-    gridRestoreWidths:
-      widths === null
-        ? withoutKey(layout.gridRestoreWidths, terminalId)
-        : { ...layout.gridRestoreWidths, [terminalId]: widths },
-    sizePresets: {
-      grid: { ...layout.sizePresets.grid, [terminalId]: widths === null ? "small" : "large" },
-    },
   }
 }

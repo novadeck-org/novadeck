@@ -19,6 +19,8 @@ export type ToolRun = {
   readonly title: string
   // What it was called on: the command, the file, the pattern. Empty where there is none.
   readonly detail: string
+  // The call starts a subagent whose result is its report, as the protocol's `toolRun` says.
+  readonly subagent?: true | undefined
 }
 
 // What came of a tool call, in its harness's own words, as its decoder said; the same shape
@@ -320,7 +322,14 @@ export type SendResult = { readonly tracked: boolean; readonly returned?: string
 // What came back out of the agent's box, for the chat's: the `words` (null where none came, and
 // for a message of images alone) and the `images`, as the paths `Conversations.uploadImage`
 // answered, of the prompt images that came with them.
-export type BoxReturn = { readonly words: string | null; readonly images?: readonly string[] }
+//
+// `at` says where each image stood in the words (UTF-16 offsets into `words`, or into nothing
+// where they are null, one per image, never back); absent, they all led.
+export type BoxReturn = {
+  readonly words: string | null
+  readonly images?: readonly string[]
+  readonly at?: readonly number[]
+}
 
 // Where a backend's conversations come from, and how the chat talks back to the agent.
 export type Conversations = {
@@ -345,6 +354,9 @@ export type Conversations = {
       readonly along?: true
       readonly ref?: string
       readonly images?: readonly string[]
+      // Where each image goes in `text` (UTF-16 offsets, one per image, never back); absent,
+      // they lead the text.
+      readonly at?: readonly number[]
     },
   ) => Promise<SendResult | void>
   // Saves an image the person pasted on the agent's machine, which may not be this one, and

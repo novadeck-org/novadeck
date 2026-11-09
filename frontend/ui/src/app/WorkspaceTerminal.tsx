@@ -1,4 +1,3 @@
-import { ChatView } from "@novadeck/chat/ChatView"
 import {
   chatAttachmentsOf,
   chatDraftOf,
@@ -45,6 +44,7 @@ import { useMessageLinks } from "./message-links"
 import { MountedTerminal } from "./MountedTerminal"
 import { plainTitle } from "./murmur-offer"
 import { NameChip } from "./NameChip"
+import { ChatWithPeers } from "./peer-looks"
 import { useReleaseLead } from "./release-lead"
 import {
   currentContext,
@@ -63,20 +63,19 @@ import { useTerminalMarks } from "./useTerminalMarks"
 // undocked from a companion: its header, its menu, and the controls its layout offers.
 const useWindowFrame = (
   tile: Tile,
-  { onFlyTo, onResizePreset }: TerminalLayoutControls,
+  { onFlyTo }: TerminalLayoutControls,
 ): Omit<WindowShellProps, "children" | "icon"> => {
   const { backend, commands } = useWorkspaceServices()
-  const { setSelected, openWindowed, openFocus, close, startRename, openSwitcher } = commands
+  const { openWindowed, openFocus, close, startRename, openSwitcher } = commands
   const { resetTitle, changeRenameDraft, saveRename, cancelRename } = commands
   const id = tile.id
-  const { context, view, windowedView, active, large } = useWorkspaceState((workspace) => {
+  const { context, view, windowedView, active } = useWorkspaceState((workspace) => {
     const state = currentState(workspace)
     return {
       context: currentContext(workspace),
       view: state.view,
       windowedView: state.windowedView,
       active: state.selected === id,
-      large: state.view === "grid" && state.layout.sizePresets.grid[id] === "large",
     }
   }, shallowEqual)
   const { fresh, rename, enabledViews, unread } = useUiState(
@@ -130,15 +129,6 @@ const useWindowFrame = (
     switcher: { onOpen: (button) => openSwitcher(id, button) },
     onClose: () => close(id),
     ...(onFlyTo ? { onFlyTo } : {}),
-    ...(onResizePreset
-      ? {
-          onResizePreset: (button: HTMLButtonElement) => {
-            setSelected(id)
-            onResizePreset(button)
-          },
-        }
-      : {}),
-    large,
     ...(compact && enabledViews.includes("focus")
       ? { onFocus: () => openFocus(id) }
       : !compact && destination
@@ -313,12 +303,13 @@ export const WorkspaceTerminal = memo(
               className="chat-pane absolute inset-0 z-10 nodrag nopan nowheel"
               data-workspace-chat=""
             >
-              <ChatView
+              <ChatWithPeers
                 conversation={conversation}
                 terminalName={terminal.name}
                 program={terminal.process}
                 agent={terminal.state === "running" ? terminal.agent : undefined}
                 compact={view !== "focus"}
+                links={messageLinks}
                 draft={draft}
                 onDraft={(text) => commands.setChatDraft(terminalId, text)}
                 replyTo={replyTo}
@@ -327,10 +318,12 @@ export const WorkspaceTerminal = memo(
                 shells={shells}
                 attachments={attachments}
                 imageNote={imageNote}
-                onRestore={(images) => commands.restoreChatImages(chatContext, terminalId, images)}
+                onRestore={(words, images) =>
+                  commands.restoreChat(chatContext, terminalId, words, images)
+                }
                 onAttach={
                   conversations!.uploadImage
-                    ? (files) => commands.attachChatImages(terminalKey, files)
+                    ? (files, selection) => commands.attachChatImages(terminalKey, files, selection)
                     : undefined
                 }
                 onDetach={(id) => commands.removeChatImage(chatContext, terminalId, id)}

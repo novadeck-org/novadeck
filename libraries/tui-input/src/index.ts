@@ -13,6 +13,7 @@ export type {
   PromptOptions,
   PromptRefusalReason,
 } from "./prompts.js"
+export { isPlaced, placedWords, placesFit } from "./places.js"
 export { InputQueue } from "./queue.js"
 export type { HoldBudget, InputEntry, InputHold, InputQueueHost } from "./queue.js"
 export { bracketedPaste, calmMs, freshNonce } from "./typing.js"

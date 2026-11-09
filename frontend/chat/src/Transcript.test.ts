@@ -1,22 +1,29 @@
 import type { ChatBlock } from "@novadeck/core/conversation/turns"
 import { render } from "@novadeck/test-kit/render"
-import { createElement } from "react"
-import { afterEach } from "vitest"
+import { act, createElement } from "react"
+import { afterEach, vi } from "vitest"
 
 import type { SentBubble } from "./bubbles"
-import { describe, expect, it } from "./test"
-import { Transcript } from "./Transcript"
+import { context, describe, expect, it } from "./test"
+import { Transcript, type PeerLooks } from "./Transcript"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
 
-const show = (blocks: readonly ChatBlock[], sent?: readonly SentBubble[]) => {
+const show = (
+  blocks: readonly ChatBlock[],
+  sent?: readonly SentBubble[],
+  looks?: PeerLooks,
+  gone?: boolean,
+) => {
   const { container, unmount } = render(
     createElement(Transcript, {
       blocks,
       agent: "Claude",
       working: false,
       ...(sent && { sent }),
+      ...(looks && { looks }),
+      ...(gone && { gone }),
     }),
   )
   unmounts.push(unmount)
@@ -132,5 +139,208 @@ describe("the scrollback", () => {
     )
     unmounts.push(unmount)
     expect(container.querySelector('[aria-label="Show terminal"]')?.textContent).toBe("terminal")
+  })
+
+  context("another Novadeck agent's message", () => {
+    const moth = (text: string): ChatBlock => ({
+      kind: "doorbell",
+      id: "d",
+      at: null,
+      replies: false,
+      messages: [
+        {
+          id: "m",
+          text,
+          from: { kind: "agent", handle: "moth", agent: "codex" },
+        } as never,
+      ],
+    })
+    const looks: PeerLooks = (handle) =>
+      handle === "moth"
+        ? { face: createElement("i", { className: "face" }), where: "codex · Review", hue: 4 }
+        : null
+
+    it("has the app's face, hue and terminal where the app knows the sender", () => {
+      const message = show([moth("Keep it.")], undefined, looks).querySelector(
+        '.chat-ring > [data-role="agent"]',
+      )
+      expect(message?.getAttribute("data-hue")).toBe("4")
+      expect(message?.querySelector(".chat-agent-face .face")).not.toBeNull()
+      expect(message?.querySelector(".chat-author")?.textContent).toBe("@moth")
+      expect(message?.querySelector(".chat-agent-where")?.textContent).toBe("codex · Review")
+    })
+
+    it("has no face and no terminal without the app's look, or for a sender it doesn't know", () => {
+      for (const container of [
+        show([moth("Keep it.")]),
+        show([moth("Keep it.")], undefined, () => null),
+      ]) {
+        const message = container.querySelector('[data-role="agent"]')
+        expect(message?.querySelector(".chat-author")?.textContent).toBe("@moth")
+        expect(message?.querySelector(".chat-agent-face")).toBeNull()
+        expect(message?.querySelector(".chat-agent-where")).toBeNull()
+        expect(message?.hasAttribute("data-hue")).toBe(false)
+      }
+    })
+
+    context("a long one", () => {
+      // jsdom lays nothing out: the words take `lines` lines of 20px.
+      const lay = (lines: number) => {
+        vi.spyOn(window, "getComputedStyle").mockReturnValue({ lineHeight: "20px" } as never)
+        vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(lines * 20)
+      }
+      afterEach(() => vi.restoreAllMocks())
+      const key = (container: Element) => container.querySelector<HTMLElement>(".chat-more")
+
+      it("folds past five lines, to a key that counts the rest and opens them", async () => {
+        lay(9)
+        const container = show([moth("a long one")], undefined, looks)
+        const said = container.querySelector(".chat-words")!
+        expect(said.hasAttribute("data-folded")).toBe(true)
+        expect(key(container)?.textContent).toBe("… 5 more lines")
+        expect(key(container)?.getAttribute("aria-expanded")).toBe("false")
+        expect(key(container)?.getAttribute("aria-controls")).toBe(said.id)
+        await act(async () => key(container)!.click())
+        expect(said.hasAttribute("data-folded")).toBe(false)
+        expect(key(container)?.textContent).toBe("show less")
+        expect(key(container)?.getAttribute("aria-expanded")).toBe("true")
+        await act(async () => key(container)!.click())
+        expect(said.hasAttribute("data-folded")).toBe(true)
+      })
+
+      it("opens when focus goes into its cut-off lines", async () => {
+        lay(9)
+        const container = show([moth("See [the diff](https://example.com/d).")], undefined, looks)
+        const said = container.querySelector(".chat-words")!
+        expect(said.hasAttribute("data-folded")).toBe(true)
+        const link = said.querySelector<HTMLElement>("a")!
+        // The keys' focus shows its ring: :focus-visible matches.
+        const matches = link.matches.bind(link)
+        link.matches = ((selector: string) =>
+          selector === ":focus-visible" || matches(selector)) as typeof link.matches
+        await act(async () => link.focus())
+        expect(said.hasAttribute("data-folded")).toBe(false)
+        expect(key(container)?.getAttribute("aria-expanded")).toBe("true")
+      })
+
+      it("stays shut when a click puts focus in it, as on a link or a code block", async () => {
+        lay(9)
+        const container = show([moth("See [the diff](https://example.com/d).")], undefined, looks)
+        const said = container.querySelector(".chat-words")!
+        const link = said.querySelector<HTMLElement>("a")!
+        // A click's focus shows no ring: :focus-visible doesn't match.
+        const matches = link.matches.bind(link)
+        link.matches = ((selector: string) =>
+          selector !== ":focus-visible" && matches(selector)) as typeof link.matches
+        await act(async () => link.focus())
+        expect(said.hasAttribute("data-folded")).toBe(true)
+      })
+
+      it("does not fold at five lines", () => {
+        lay(5)
+        const container = show([moth("five lines")], undefined, looks)
+        expect(key(container)).toBeNull()
+        expect(container.querySelector(".chat-words")?.hasAttribute("data-folded")).toBe(false)
+      })
+    })
+  })
+
+  context("a subagent's report", () => {
+    const report = (over: Partial<Extract<ChatBlock, { kind: "subagent" }>> = {}): ChatBlock => ({
+      kind: "subagent",
+      id: "s",
+      name: "explorer 1",
+      text: "Found it:\n\nthe cart leaks.",
+      truncated: false,
+      running: false,
+      failed: false,
+      at: null,
+      call: null,
+      ...over,
+    })
+    const line = (container: Element) =>
+      container.querySelector<HTMLElement>(".chat-subagent-summary")!
+
+    it("is a line of its own: the name, the tag, the report cut to one line", () => {
+      const container = show([report()])
+      expect(container.querySelector(".chat-tools")).toBeNull()
+      expect(container.querySelector(".chat-subagent-name")?.textContent).toBe("explorer 1")
+      expect(container.querySelector(".chat-subagent-tag")?.textContent).toBe("· subagent")
+      expect(container.querySelector(".chat-subagent-said")?.textContent).toBe(
+        "Found it: the cart leaks.",
+      )
+      expect(line(container).getAttribute("aria-expanded")).toBe("false")
+    })
+
+    it("opens to the whole report, and shuts again", async () => {
+      const container = show([report()])
+      await act(async () => line(container).click())
+      expect(line(container).getAttribute("aria-expanded")).toBe("true")
+      expect(container.querySelector(".chat-tool-body .markdown")?.textContent).toContain(
+        "the cart leaks.",
+      )
+      await act(async () => line(container).click())
+      expect(container.querySelector(".chat-tool-body")).toBeNull()
+    })
+
+    it("says it runs until it has a report, and what failed", () => {
+      const running = show([report({ text: null, running: true })])
+      expect(running.querySelector(".chat-subagent-said")?.textContent).toBe("running…")
+      expect(running.querySelector(".chat-subagent")?.hasAttribute("data-running")).toBe(true)
+      const failed = show([report({ failed: true })])
+      expect(failed.querySelector(".chat-subagent")?.hasAttribute("data-failed")).toBe(true)
+    })
+
+    it("says it stopped with its session where the agent has gone before it reported", async () => {
+      const container = show([report({ text: null, running: true })], undefined, undefined, true)
+      expect(container.querySelector(".chat-subagent-said")?.textContent).toBe(
+        "stopped with its session",
+      )
+      expect(container.querySelector(".chat-subagent")?.hasAttribute("data-running")).toBe(false)
+      expect(container.querySelector(".chat-subagent")?.hasAttribute("data-stopped")).toBe(true)
+      expect(line(container).getAttribute("aria-label")).toBe("explorer 1, subagent, stopped")
+      await act(async () => line(container).click())
+      expect(container.querySelector(".chat-tool-note")?.textContent).toContain("stopped")
+      // A report that came still reads as it was.
+      const done = show([report()], undefined, undefined, true)
+      expect(done.querySelector(".chat-subagent")?.hasAttribute("data-stopped")).toBe(false)
+    })
+
+    it("says in words that it failed, open as well as shut", async () => {
+      const container = show([report({ failed: true })])
+      expect(container.querySelector(".chat-subagent-failed")?.textContent).toBe("· failed")
+      await act(async () => line(container).click())
+      expect(container.querySelector(".chat-subagent-failed")?.textContent).toBe("· failed")
+      expect(show([report()]).querySelector(".chat-subagent-failed")).toBeNull()
+    })
+
+    it("names its line by who and how it stands, not by the whole report", () => {
+      const label = (over: Partial<Extract<ChatBlock, { kind: "subagent" }>>) =>
+        line(show([report(over)])).getAttribute("aria-label")
+      expect(label({})).toBe("explorer 1, subagent")
+      expect(label({ text: null, running: true })).toBe("explorer 1, subagent, running")
+      expect(label({ failed: true })).toBe("explorer 1, subagent, failed")
+      expect(label({ name: "parent agent" })).toBe("parent agent")
+      expect(
+        show([report()]).querySelector(".chat-subagent-said")?.getAttribute("aria-hidden"),
+      ).toBe("true")
+    })
+
+    it("tags its parent's words, in a subagent's own record, as no subagent's", () => {
+      const container = show([report({ name: "parent agent", text: "Look at the cart." })])
+      expect(container.querySelector(".chat-subagent-name")?.textContent).toBe("parent agent")
+      expect(container.querySelector(".chat-subagent-tag")).toBeNull()
+    })
+
+    it("says when its report was cut short", async () => {
+      const container = show([report({ truncated: true })])
+      await act(async () => line(container).click())
+      expect(container.querySelector(".chat-tool-body .chat-shortened")).not.toBeNull()
+    })
+
+    it("stands apart from the tool runs around it, each report its own line", () => {
+      const container = show([report({ id: "a" }), report({ id: "b", name: "explorer 2" })])
+      expect(container.querySelectorAll(".chat-subagent")).toHaveLength(2)
+    })
   })
 })

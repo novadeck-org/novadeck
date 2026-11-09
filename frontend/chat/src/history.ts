@@ -8,7 +8,8 @@ import type { SentBubble } from "./bubbles"
 // earlier prompt, Down toward the newest and then to the words that were being typed.
 
 // The place an image had in a prompt, which the harness writes into the words (Claude Code and
-// Codex both); the image is not in the box again, so the mark would mislead.
+// Codex both, where the image stood, with a space more or less around it); the image is not in
+// the box again, so the mark would mislead.
 const imageMark = /\s*\[Image #\d+\]\s*/g
 
 // A shell command the person sent from this chat, and when: kept by the app for the terminal,

@@ -908,9 +908,18 @@ one from an earlier runner.
   without the context either harness writes in the person's place, their developer or
   meta records, and Antigravity's (the step log its hooks name: the person's request
   without the context wrapped around it, the agent's words, each tool call and its
-  result, never its reasoning or system steps). A Codex agent's transcript also holds
+  result, never its reasoning or its other system steps). A Codex agent's transcript also holds
   the messages other agents sent it, as role `agent` with `author` naming the sender's
-  path (`/root`, `/root/<name>`). A user item marked `interrupted` is where the person
+  path (`/root`, `/root/<name>`), which the chat shows as its subagents' reports. A call that
+  starts a subagent (Claude Code's Task/Agent, Antigravity's `invoke_subagent`; not Codex's
+  `spawn_agent`, whose reports come as those messages) has `run.subagent: true`, and the chat
+  draws it apart from the commands, with its result as the report. One started in the
+  background answers at once with a launch note, whose `outcome.running` is true; its report
+  comes later as a second result of the same `call`: Claude Code's task notice (a user record
+  or, while a turn runs, a queued attachment), Antigravity's system message that the subagent
+  went idle (or failed: `failed` true, as for one killed by `manage_subagents`). The chat
+  takes the last result that doesn't say `running` as the report. Nothing is recorded for a
+  background subagent when its session exits. A user item marked `interrupted` is where the person
   interrupted the turn: Claude Code's and Codex's records hold their own, and for
   Antigravity, whose record holds none, the runner adds one where an Escape that stood
   came: after the turn's last steps, before the person's next prompt written after the key.
@@ -941,7 +950,7 @@ one from an earlier runner.
   client's `agents.transcript(terminalId, actor)` resubscribes across reconnections,
   yielding `reset` before the items follow again, and ends without one when the actor
   is gone.
-- `agents.prompt({ terminalId, text, images?, automatic?, along?, ref? })` gives the terminal's agent a prompt as the person
+- `agents.prompt({ terminalId, text, images?, at?, automatic?, along?, ref? })` gives the terminal's agent a prompt as the person
   would paste and submit it (`automatic: true` marks a fixed line an Inbox button sends, such as "continue", not words the person wrote: the turn it starts withdraws no ask from the Inbox, see [Agent messaging](agent-messaging.md); a strict-schema field added with the protocol version unchanged, as the repo does while client and runner ship together; `text` is 1 to 16,384 characters; its line breaks, CRLF and a lone CR included, are taken as one line break each and stay
   line breaks in the box). It needs an agent bound, or one showing its own empty prompt
   before its first session binds (Codex before its first prompt), and no request waiting
@@ -1023,6 +1032,30 @@ one from an earlier runner.
   Images attached in Antigravity already (pasted in its terminal and not sent) count as a draft:
   the usual `CONFLICT`, nothing typed.
 
+  `at` (one offset into `text` per image, in UTF-16 units, none before the one ahead of it, none
+  past the end: else the call is invalid, `placesFit`) puts each image where the person put it
+  among the words, not all ahead of them. Absent, or with every offset 0, everything above stands
+  unchanged. Otherwise the runner pastes in order the words before the first image, the image
+  (waited for as above), the words up to the next, and so on, each run of words a paste of its
+  own (an empty run is none; the text's edges are trimmed as for any prompt, an image that stood
+  in the trimmed white space going to the edge; an image left of any words keeps the one space
+  after it that images ahead of the words always had), then Enter. Claude Code and Codex put
+  `[Image #N]` at the cursor, so the box, the model's turn and the record read `See this:
+  [Image #1] and fix it` (Codex keeps a space of its own after a placeholder). Antigravity
+  attaches the image but shows no placeholder at its place (probed 2026-11-09, 1.5.2), so the
+  runner types `[Image #k]` itself after each image (`k` counting from 1 in this message),
+  from the harness's own profile (`ProfileImages.typed`, `harnesses/agy`); the model and the
+  record then read the same, and a prompt with its images all ahead of the words (`at` absent
+  or all 0) types nothing. The refusals judge the whole text as before, and also each run of
+  words before an image: one ending in an `@name` or `$name` that a space doesn't close (the
+  image's path would be pasted into an open picker) is `PROMPT_REFUSED`. A run of words that a
+  harness would show as a placeholder (Claude Code over three lines or about 900 characters,
+  Codex over 1,024, Antigravity over 15 lines) can't be checked in the box, so the prompt goes as
+  if `at` were absent: every image first, then the words, nothing typed for Antigravity, the
+  receipt and a later Stop treating it as a leading one; only the placement is lost. The same goes for Codex on Windows, which reads a paste as keys, so a path pasted after words stays text there (CI, 2026-11-09, `BoxProfile.pastesAsKeys`): any prompt with `at` goes images first. A failure takes back what landed, the words ahead of an image too. The
+  receipt settles on a record item that holds the prompt's words whatever the placeholders and
+  their spacing are.
+
   When a Stop (`agents.interrupt`) or `agents.takeBox` takes a message with images out of the
   box, where Claude Code and Codex show `[Image #N]` placeholders ahead of the words, the
   placeholders are left out of `returned` (null for a message of images alone) and the files they
@@ -1035,6 +1068,17 @@ one from an earlier runner.
   prompt of the chat is withdrawn for it. Antigravity loses a queued message's media as a Stop
   takes the words back, so there `images` names the files of the prompts whose words came back
   exactly.
+
+  With images among the words (`at` on the prompt), the placeholders stand in the box where the
+  images were put, and the box is the chat's own only when they stand in those places (counted in
+  characters of the words before them, white space aside, so Codex's extra space is no
+  difference), as many as the prompts carried, over exactly the prompts' words; a placeholder
+  elsewhere, one more or fewer, or other words is not. Then `returned` is the prompts' own text
+  (as sent: queued prompts joined by a line break), not the box's, and `at` says where each of
+  `images` stood in it (absent when they all led, and for a box that is not the chat's own, whose
+  `returned` is the box's words with the placeholders left out and no `images`). For Antigravity,
+  the `[Image #k]` the runner typed is the same text in the same places; if it is not there,
+  its words alone decide, and `at` is the one sent.
 
   A text whose trimmed form starts with `!` is a shell command (`shellCommand`, the rest
   after the `!`, trimmed), which Claude Code, Codex and Antigravity run in their shell mode
@@ -1146,7 +1190,7 @@ one from an earlier runner.
   and `agents.putBox` hands a draft back as the terminal shows again (`Handovers`, in
   `libraries/tui-input`). Each takes its turn in the terminal's input queue, so neither races
   a ring or a prompt, and neither presses Enter.
-  - `agents.takeBox({ terminalId })` resolves with `{ returned, images? }`, the words as typed: rows
+  - `agents.takeBox({ terminalId })` resolves with `{ returned, images?, at? }`, the words as typed: rows
     the box wrapped joined again (a row the next one's first word wouldn't have fit on, and
     one filled by a single word mid-word), and a shell mode's command with its `!`. It takes only
     what reads whole: not a box that may show a tail, nor one holding a paste's placeholder or

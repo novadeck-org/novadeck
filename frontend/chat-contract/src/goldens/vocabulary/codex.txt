@@ -21,7 +21,7 @@ tools: [4 tool calls · patched, a_very_long_tool_name_zzzzzzzzzzzzzzzzzzzzzzzzz
 # agent-message-and-interruption
 user: Start.
 assistant: Working.
-agent (/root/reviewer): Found two problems.
+subagent (reviewer): Found two problems.
 agent (Another agent): From a subagent that gave no name.
 note: Interrupted
 

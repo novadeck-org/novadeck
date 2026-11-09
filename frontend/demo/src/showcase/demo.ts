@@ -1,12 +1,9 @@
-import { gridColumns } from "@novadeck/core/layout/grid-placement"
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
 import { viewOf } from "@novadeck/core/seed"
 import { createTerminalState } from "@novadeck/core/state"
 import {
   type AgentStatus,
   type CanvasLayout,
-  type GridBreakpoint,
-  type GridLayouts,
   type TerminalMetadata,
   type Workspace,
   terminalKeyPath,
@@ -103,23 +100,6 @@ export const showcaseDemo = (
       ]),
     ),
   }
-  const gridLayouts: GridLayouts = Object.fromEntries(
-    Object.entries(gridColumns).map(([breakpoint, columns]) => {
-      const count = breakpoint === "mobile" ? 1 : 2
-      return [
-        breakpoint as GridBreakpoint,
-        terminals.map((terminal, index) => ({
-          i: terminal.id,
-          x: (index % count) * (columns / count),
-          y: Math.floor(index / count) * 24,
-          w: columns / count,
-          h: 24,
-          minW: 4,
-          minH: 10,
-        })),
-      ]
-    }),
-  )
   // The sample agents run in the first two terminals of the showcase's own session:
   // they open with their own transcripts, answer what they're told, and report their
   // plans and what they show. The dev server's terminal holds what can't show, one of
@@ -216,12 +196,7 @@ export const showcaseDemo = (
               terminals,
               items: showcase.items,
               windows: [],
-              restored: viewOf(
-                createTerminalState(terminals, "focus", "grid", {
-                  canvasLayout,
-                  gridLayouts,
-                }),
-              ),
+              restored: viewOf(createTerminalState(terminals, "focus", "grid", { canvasLayout })),
             },
           ],
         },

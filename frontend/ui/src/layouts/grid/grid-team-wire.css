@@ -8,7 +8,7 @@
    selected terminal's. `.grid-team-wire` has data-settled (the lit wire's entrance has
    played; one redrawn after a layout change appears without playing again) and data-hidden
    (the tiles are moving, or a window is over the grid: the wires are out of the way; so,
-   while a tile is dragged or resized, is the grid's data-gesture). */
+   while a tile is dragged, is the grid's data-gesture). */
 @layer components {
   .grid-team-wire {
     position: absolute;

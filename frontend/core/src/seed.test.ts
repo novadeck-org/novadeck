@@ -1,6 +1,6 @@
 import { itemIdOf } from "./items"
 import { messagesKey } from "./items/companion-bar"
-import { initialGridLayouts } from "./layout/grid-placement"
+import { orderedTiles } from "./roster"
 import { workspaceFromSeed, WorkspaceSeedError, type WorkspaceSeed, viewOf } from "./seed"
 import { context, describe, expect, it } from "./test"
 import { itemFixture, terminalFixture } from "./testing"
@@ -51,10 +51,7 @@ describe("workspace from a backend seed", () => {
         windowedView: "canvas",
         selected: "01",
         roster: { terminals, order: [] },
-        layout: {
-          canvas: canvasLayout,
-          grid: initialGridLayouts(terminals, canvasLayout.geometry),
-        },
+        layout: { canvas: canvasLayout, hidden: {} },
       })
     })
   })
@@ -154,9 +151,9 @@ describe("workspace from a backend seed", () => {
       expect(session.state.roster.terminals.slice(0, 2)).toEqual(live)
     })
 
-    it("lays out terminals the saved state does not know after the saved ones", () => {
+    it("lists terminals the saved state does not know after the saved ones", () => {
       expect(session.state.roster.terminals.at(-1)).toEqual(extra)
-      expect(session.state.layout.sizePresets.grid).toHaveProperty("extra")
+      expect(orderedTiles(session.state.roster).at(-1)).toEqual(extra)
       expect(session.state.layout.canvas.geometry["01"]).toEqual(saved.layout.canvas.geometry["01"])
     })
   })
@@ -200,11 +197,6 @@ describe("workspace from a backend seed", () => {
       expect(seeded.roster).toEqual({ terminals: [kept], windows: [], order: ["01"] })
       expect(seeded.selected).toBe("01")
       expect(seeded.layout.canvas.geometry).not.toHaveProperty("02")
-      expect(
-        Object.values(seeded.layout.grid)
-          .flat()
-          .some((item) => item?.i === "02"),
-      ).toBe(false)
     })
   })
 
@@ -243,10 +235,9 @@ describe("workspace from a backend seed", () => {
         defaults,
       ).projects[0]!.history[0]!.state
 
-    it("lays the windows out after the terminals and puts items on their bars, oldest first", () => {
+    it("lists the windows after the terminals and puts items on their bars, oldest first", () => {
       const state = seeded({})
       expect(state.roster.windows).toEqual([window])
-      expect(state.layout.sizePresets.grid).toHaveProperty("w1")
       expect(state.items).toEqual([newer, older, undocked])
       expect(state.bars).toEqual({
         "01": { order: [older.id, newer.id], hidden: [], stack: [], open: false },

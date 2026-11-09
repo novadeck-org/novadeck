@@ -139,6 +139,21 @@ const lineOf = (block: Element): { line: string; rows: number } => {
     const rows = rowsOf(block.querySelector(":scope > .chat-tools-list")!)
     return { line: `tools: ${folded}${rows.join("; ")}`, rows: rows.length }
   }
+  // A subagent's report: its name, whether it runs or failed, and the whole of what it said.
+  if (block.matches(".chat-subagent")) {
+    const line = block.querySelector<HTMLElement>(".chat-subagent-summary")!
+    if (line.getAttribute("aria-expanded") === "false") click(line)
+    const name = textOf(block.querySelector(".chat-subagent-name")!)
+    const state = block.hasAttribute("data-failed")
+      ? ", failed"
+      : block.hasAttribute("data-running")
+        ? ", running"
+        : ""
+    const body = block.querySelector(".chat-tool-body")
+    const short = body?.querySelector(".chat-tool-note, .chat-shortened") ? ", shortened" : ""
+    const said = body?.querySelector(".markdown")
+    return { line: `subagent (${name}${state}${short}): ${said ? textOf(said) : "…"}`, rows: 0 }
+  }
   if (block.matches(".chat-note")) return { line: `note: ${textOf(block)}`, rows: 0 }
   if (block.getAttribute("data-role") === "doorbell") {
     const brought = [...block.querySelectorAll(":scope > [data-role]")].map((message) => {

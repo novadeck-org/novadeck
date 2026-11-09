@@ -1,4 +1,4 @@
-import type { CanvasLayout, GridBreakpoint, GridItem, GridLayouts } from "../types"
+import type { CanvasLayout } from "../types"
 
 // A point on the canvas, settled onto its 24 px grid.
 const step = 24
@@ -10,25 +10,12 @@ export const canvasPointPosition = (point: {
   y: Math.round(point.y / step) * step,
 })
 
-export type GridCell = {
-  readonly x: number
-  readonly y: number
-  readonly w: number
-  readonly h: number
-}
-
 // Where a window goes when it's dropped into a view. On the canvas, its top left in canvas
-// units. On the grid, its cell at the width the grid had then, and that width's saved
-// layout with room made for it.
+// units. In the grid, which lays itself out from the sidebar's order, the tile it goes before
+// in that order, or none to go last.
 export type WindowPlace =
   | { readonly canvas: { readonly x: number; readonly y: number } }
-  | {
-      readonly grid: {
-        readonly breakpoint: GridBreakpoint
-        readonly layout: readonly GridItem[]
-        readonly cell: GridCell
-      }
-    }
+  | { readonly grid: { readonly before: string | null } }
 
 // A new window dropped on the canvas: there, settled onto the canvas's grid.
 export const droppedCanvasGeometry = (point: {
@@ -44,14 +31,4 @@ export const moveOnCanvas = (
 ): CanvasLayout => ({
   ...canvas,
   geometry: { ...canvas.geometry, [id]: droppedCanvasGeometry(point) },
-})
-
-// The grid's layouts with window `id` in its dropped cell, and nowhere else at that width.
-export const dropOnGrid = (
-  layouts: GridLayouts,
-  id: string,
-  { breakpoint, layout, cell }: Extract<WindowPlace, { grid: unknown }>["grid"],
-): GridLayouts => ({
-  ...layouts,
-  [breakpoint]: [...layout.filter((item) => item.i !== id), { i: id, ...cell, minW: 4, minH: 10 }],
 })

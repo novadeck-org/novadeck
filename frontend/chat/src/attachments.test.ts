@@ -10,6 +10,7 @@ import { describe, expect, it } from "./test"
 
 const image = (id: string, state: Attachment["state"] = "ready"): Attachment => ({
   id,
+  n: 1,
   name: `${id}.png`,
   preview: "",
   state,

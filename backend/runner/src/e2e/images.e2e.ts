@@ -1,4 +1,6 @@
 /* eslint-disable no-await-in-loop -- A scenario's steps run in order, each after the one before. */
+import { box as codexBox } from "@novadeck/harness-codex/box"
+
 import { setups } from "./agents/index.js"
 import { item, prompted } from "./chat-prompts.js"
 import { describe, e2e, expect, gated, supported } from "./fixture.js"
@@ -57,6 +59,111 @@ for (const setup of setups) {
           if (setup.image!.inline) expect(record).toContain(`[Image #${images.length}]`)
         },
       )
+
+    // The chat's images among the words: the words before one, the image, the words after, so
+    // the model reads where each belongs. Claude Code and Codex show the placeholder at the
+    // image's place themselves; Antigravity shows none, so the runner types it.
+    for (const { what, images, words, at } of [
+      {
+        what: "an image among its words",
+        images: ["one.png"],
+        words: "See this:  and fix it",
+        at: [10],
+      },
+      {
+        what: "two images among its words, the last ending the text",
+        images: ["one.png", "two shot.png"],
+        words: "Compare  with  please ",
+        at: [8, 15],
+      },
+      {
+        what: "an image ahead of the words and another among them",
+        images: ["one.png", "two.png"],
+        words: "Look at  here",
+        at: [0, 8],
+      },
+    ])
+      gated(it, lacking(setup, "image"))(
+        `gives its agent a prompt with ${what}, each where the person put it`,
+        async ({ e2e: run }) => {
+          run.model.use(replies(words.trim().split(/\s+/)[0]!, "Seen."))
+          const t1 = await start(run, setup)
+          const calls = run.model.mark()
+          const mark = t1.mark()
+
+          const settled = await prompted(
+            t1,
+            words,
+            images.map((name) => ({ name, data: picture })),
+            at,
+          )
+          await t1.until("Seen.")
+          await settled()
+          await through(t1, ["working", "settled"], { after: mark })
+
+          // The words and the placeholders in the order they were put, as the model got them
+          // and as the record keeps them, whichever harness's.
+          const pieces = [...at, words.length].map((end, index) =>
+            words.slice(index === 0 ? 0 : at[index - 1], end).trim(),
+          )
+          // Where the harness reads a paste as keys (Codex on Windows) a path after words is only
+          // text, so the runner sends the images first, and the record holds them ahead.
+          const held = !(setup.agent === "codex" && codexBox.pastesAsKeys?.() === true)
+          const flat = (text: string) =>
+            text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+")
+          const placed = new RegExp(
+            held
+              ? pieces.map(flat).join("\\s*\\[Image #\\d+\\]\\s*")
+              : `(?:\\s*\\[Image #\\d+\\])+\\s*${flat(pieces.filter(Boolean).join(" "))}`,
+          )
+          const call = await run.model.waitFor(
+            (each) =>
+              !each.side && each.turns.some((one) => one.role === "user" && placed.test(one.text)),
+            { after: calls },
+          )
+          const user = call.turns.findLast((one) => one.role === "user" && placed.test(one.text))
+          expect(
+            user?.role === "user" ? (user.images ?? 0) : -1,
+            "the images it passed to the model",
+          ).toBe(images.length)
+          expect(await item(t1, "user", (text) => placed.test(text))).toMatch(placed)
+        },
+      )
+
+    // Twenty lines of words, then the image, then words: every harness would show them as a
+    // placeholder, which the box can't be checked against, so the image goes first as if it had
+    // no place, and the prompt is sent all the same.
+    gated(it, lacking(setup, "image"))(
+      "sends a prompt whose words before an image are too long to paste whole, with the image ahead",
+      async ({ e2e: run }) => {
+        const before = Array.from({ length: 20 }, (_, i) => `line${i + 1}`).join("\n")
+        run.model.use(replies("line1", "Seen."))
+        const t1 = await start(run, setup)
+        const calls = run.model.mark()
+        const mark = t1.mark()
+        const words = `${before}\nthen this: and that`
+        const settled = await prompted(
+          t1,
+          words,
+          [{ name: "one.png", data: picture }],
+          [before.length + 11],
+        )
+        await t1.until("Seen.")
+        await settled()
+        await through(t1, ["working", "settled"], { after: mark })
+        const call = await run.model.waitFor(
+          (each) =>
+            !each.side &&
+            each.turns.some((one) => one.role === "user" && one.text.includes("line20")),
+          { after: calls },
+        )
+        const user = call.turns.findLast(
+          (one) => one.role === "user" && one.text.includes("line20"),
+        )
+        expect(user?.role === "user" ? (user.images ?? 0) : -1).toBe(1)
+        expect(user?.text).toContain("line19\nline20")
+      },
+    )
 
     it(
       setup.image?.alone === false

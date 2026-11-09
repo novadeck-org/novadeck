@@ -1,8 +1,6 @@
 import { allTeams, sameTeam, sameTeams, teamOf } from "@novadeck/core/derivations"
 import { orderedTiles, tilesOf } from "@novadeck/core/roster"
-import type { ValueUpdate } from "@novadeck/core/state"
-import type { GridLayouts } from "@novadeck/core/types"
-import { memo, Suspense, useCallback, useEffect, useMemo, useState, type RefObject } from "react"
+import { memo, Suspense, useEffect, useMemo, useState, type RefObject } from "react"
 
 import { createCanvasStays } from "../layouts/canvas/stay"
 import type { CanvasHandle } from "../layouts/canvas/types"
@@ -19,6 +17,7 @@ import {
   sameTarget,
   shallowEqual,
 } from "./selectors"
+import { useFoldedOrder, useReorderTiles } from "./team-fold"
 import { renderTerminal } from "./WorkspaceTerminal"
 
 const useLayoutHidden = (hidden: Record<string, boolean>, preview: string) =>
@@ -46,7 +45,7 @@ export const WorkspaceStage = memo(
           view: state.view,
           selected: state.selected,
           terminals: tilesOf(state.roster),
-          // In the sidebar's order, which Canvas arranges its windows by.
+          // In the sidebar's order, which Grid and Canvas arrange their windows by.
           listed: orderedTiles(state.roster),
           layout: state.layout,
         }
@@ -57,13 +56,7 @@ export const WorkspaceStage = memo(
     // terminal's, whose wire lights as the sidebar's rail does.
     const teams = useWorkspaceState(allTeams, sameTeams)
     const team = useWorkspaceState((workspace) => teamOf(workspace, selected), sameTeam)
-    const {
-      canvas: canvasLayout,
-      grid: gridLayouts,
-      gridRestoreWidths,
-      sizePresets,
-      hidden,
-    } = layout
+    const { canvas: canvasLayout, hidden } = layout
     const {
       zen,
       revealCanvas,
@@ -97,21 +90,12 @@ export const WorkspaceStage = memo(
     const flying = flies(after, shellNavigation, context, view)
     // The terminal Focus shows: the selection, a kept preview, or the first terminal.
     const displayed = activeTerminal(terminals, selected, context, focusPreview)?.id
-    const {
-      setSelected,
-      add,
-      showSessions,
-      setGridLayouts: saveGridLayouts,
-      toggleGridWidth,
-      showAll,
-    } = commands
+    const { setSelected, add, showSessions, showAll } = commands
+    const reorderTiles = useReorderTiles()
+    const keepFolds = useFoldedOrder()
+    const listedIds = useMemo(() => listed.map((tile) => tile.id), [listed])
     const preview = hidden[selected] ? selected : ""
     const layoutHidden = useLayoutHidden(hidden, preview)
-    // Views save layouts for the session they rendered, even after it is left.
-    const setGridLayouts = useCallback(
-      (layouts: ValueUpdate<GridLayouts>) => saveGridLayouts(target, layouts),
-      [saveGridLayouts, target],
-    )
     return (
       <section
         key={context}
@@ -143,6 +127,8 @@ export const WorkspaceStage = memo(
           {view === "grid" && (
             <Grid
               terminals={terminals}
+              listed={listedIds}
+              keepFolds={keepFolds}
               hidden={layoutHidden}
               preview={preview}
               selected={selected}
@@ -150,11 +136,7 @@ export const WorkspaceStage = memo(
               teams={teams}
               onSelect={setSelected}
               navigation={shellNavigation.count}
-              presets={sizePresets.grid}
-              restoreWidths={gridRestoreWidths}
-              onToggleWidth={(terminalId, change) => toggleGridWidth(target, terminalId, change)}
-              layouts={gridLayouts}
-              onLayoutsChange={setGridLayouts}
+              onReorder={reorderTiles}
               onCreate={() => {
                 add()
               }}

@@ -55,6 +55,7 @@ export type ConversationStreams = {
       readonly along?: true
       readonly ref?: string
       readonly images?: readonly string[]
+      readonly at?: readonly number[]
     },
   ) => Promise<{
     readonly ref: string
@@ -69,11 +70,13 @@ export type ConversationStreams = {
   readonly interrupt: (terminalId: string) => Promise<{
     readonly returned: string | null
     readonly images?: readonly string[] | undefined
+    readonly at?: readonly number[] | undefined
   }>
   readonly keys: (terminalId: string, keys: string) => Promise<void>
   readonly takeBox: (terminalId: string) => Promise<{
     readonly returned: string | null
     readonly images?: readonly string[] | undefined
+    readonly at?: readonly number[] | undefined
   }>
   readonly putBox: (terminalId: string, text: string) => Promise<{ readonly placed: boolean }>
   readonly clearBox: (terminalId: string, seen: string) => Promise<{ readonly cleared: boolean }>
@@ -666,7 +669,11 @@ export const createRunnerConversations = (
     },
     takeBox: ({ terminalId }) =>
       track(streams.takeBox(terminalId)).then(
-        ({ returned, images }) => ({ words: returned, ...(images && { images }) }),
+        ({ returned, images, at }) => ({
+          words: returned,
+          ...(images && { images }),
+          ...(images && at && { at }),
+        }),
         () => ({ words: null }),
       ),
     putBox: ({ terminalId }, text) =>
@@ -683,7 +690,11 @@ export const createRunnerConversations = (
       ),
     interrupt: ({ terminalId }) =>
       track(streams.interrupt(terminalId)).then(
-        ({ returned, images }) => ({ words: returned, ...(images && { images }) }),
+        ({ returned, images, at }) => ({
+          words: returned,
+          ...(images && { images }),
+          ...(images && at && { at }),
+        }),
         (error: unknown) => {
           throw failure(error, "stop", "stop")
         },

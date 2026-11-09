@@ -1,4 +1,3 @@
-import { initialGridLayouts } from "@novadeck/core/layout/grid-placement"
 import { setTerminalProcess, setTerminalStatus } from "@novadeck/core/roster"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createTerminalState } from "@novadeck/core/state"
@@ -82,9 +81,7 @@ const saved = (
     process: "",
     state: "idle" as const,
   }))
-  const state = createTerminalState(metadata, "grid", "grid", {
-    gridLayouts: initialGridLayouts(metadata),
-  })
+  const state = createTerminalState(metadata, "grid", "grid")
   return {
     id: uuid(id),
     projectId: uuid(1),
@@ -199,18 +196,16 @@ describe("runner seed", () => {
       expect([...lostTerminals(listing)]).toEqual([uuid(21)])
     })
 
-    it("lays out terminals the view didn't know after the others, as the runner names them", () => {
+    it("lists terminals the view didn't know after the others, as the runner names them", () => {
       expect(state.roster.terminals.slice(2)).toMatchObject([
         { id: uuid(22), name: "Terminal", command: "vim", state: "running" },
         { id: uuid(23), name: "Terminal", state: "exited", exitCode: 1 },
       ])
-      expect(state.layout.sizePresets.grid[uuid(22)]).toBe("small")
     })
 
     it("drops what it kept of a terminal the runner no longer has, handing selection on", () => {
       expect(state.roster.terminals.map((terminal) => terminal.id)).not.toContain(uuid(24))
       expect(state.layout.canvas.geometry[uuid(24)]).toBeUndefined()
-      expect(state.layout.grid.desktop?.some((item) => item.i === uuid(24))).toBe(false)
       expect(state.selected).toBe(uuid(20))
     })
   })

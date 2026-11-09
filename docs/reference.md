@@ -109,8 +109,8 @@ minimize button opens Grid or Canvas.
 
 Click **New terminal** or use its keyboard shortcut to create and select a terminal
 immediately in any view, with or without Zen, ready to type in; F2 renames it. It goes
-at the top of the Terminals list. Focus shows it right away. Grid uses
-an available slot and scrolls it into view. Canvas puts it first in its block, where no
+at the top of the Terminals list. Focus shows it right away. Grid shows it first and scrolls
+it into view, the others shifting along without changing size. Canvas puts it first in its block, where no
 other window moves, and pans only as needed to reveal it without changing zoom.
 Right-click the Grid background and choose **Terminal** to create one without entering
 rename mode. Terminals created with the New terminal control open in rename mode with their name
@@ -230,11 +230,14 @@ shells `LANG` for the system's language and country in UTF-8 (`AppleLocale`, its
 region override left out), as Terminal.app does (`en_US.UTF-8` when the system has no such
 locale), so typing a character such as "ż" works in bash.
 
-In Grid, the terminal header's resize control alternates
-between two widths: **Make full width** fills the available columns; **Restore width**
-returns to the width at each breakpoint from before that click, preserving terminal height.
-That choice is remembered per terminal and session. New Grid terminals start at compact
-column width, with no placement preview.
+Grid lays its terminals out from the Terminals list, as Canvas does: in the list's order,
+left to right and then top to bottom, skipping hidden ones. Every terminal has the same
+size, 416 px tall, and as many columns fit as leave each at least 480 px wide, stretching to
+fill the row (one column at the full width on a narrow window). Opening or closing a terminal
+never resizes another, which would resize its program's screen; the later ones shift along.
+Only a change to the window's width does. Drag a terminal by its header to reorder: the others
+make room as you go, and on release the Terminals list changes to match, as if you had dragged
+its tab, and Canvas follows it too. Reordering the list reflows Grid at once.
 
 In Grid, selecting a terminal from its tab smoothly scrolls it into view. With
 reduced motion enabled, it scrolls immediately.

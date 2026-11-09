@@ -5,12 +5,12 @@ import { join } from "node:path"
 import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { hookReport } from "@novadeck/harness-core/testing/reports"
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
 
 import { decode } from "./decode.js"
 import { hook } from "./report.test-support.js"
-import { store } from "./shapes.js"
-import { transcripts } from "./transcripts.js"
+import { shapes, store } from "./shapes.js"
+import { forgetLaunches, transcripts } from "./transcripts.js"
 
 const { transcript, parallel, hooks } = loadProbe(import.meta.dirname, "transcript.probe.json") as {
   transcript: object[]
@@ -279,5 +279,153 @@ describe("the transcript read", () => {
   it("is the untruncated file in the store, not the one beside it", () => {
     expect(store.file.test("c/.system_generated/logs/transcript_full.jsonl")).toBe(true)
     expect(store.file.test("c/.system_generated/logs/transcript.jsonl")).toBe(false)
+  })
+})
+
+type Step = { step_index: number; source: string; type: string; content?: string }
+
+const decodeAll = (steps: readonly Step[]) =>
+  steps.flatMap((step) => transcripts.items(JSON.stringify(step)))
+
+describe("a background subagent, as captured", () => {
+  const { root } = loadProbe(import.meta.dirname, "subagent-transcript.probe.json") as {
+    root: Step[]
+  }
+  const wake = root.find(({ type }) => type === "SYSTEM_MESSAGE")!
+  // Each test decodes from a clean slate, as a reader of the file from its start does.
+  let decoded: ReturnType<typeof decodeAll> = []
+  let launch: string | null | undefined
+  beforeEach(() => {
+    forgetLaunches()
+    decoded = decodeAll(root)
+    launch = decoded.find(({ kind }) => kind === "tool-call")!.call
+  })
+
+  it("takes the launch as its call's result while the subagent runs", () => {
+    const call = decoded.find(({ kind }) => kind === "tool-call")
+    expect(call).toMatchObject({ tool: "invoke_subagent", run: { subagent: true } })
+    const result = decoded.find(({ kind }) => kind === "tool-result")
+    expect(result).toMatchObject({ call: launch, outcome: { running: true } })
+    expect(result?.text).toContain("Created the following subagent")
+  })
+
+  it("takes its going idle as its call's report, its last words", () => {
+    const results = decoded.filter(({ kind }) => kind === "tool-result")
+    expect(results).toHaveLength(2)
+    expect(results[1]).toMatchObject({
+      role: "tool",
+      call: launch,
+      text: "Helper report: the build is green.",
+      outcome: { failed: false },
+    })
+    expect(results[1]?.outcome?.running).toBeFalsy()
+    // The wake turn's words follow it, the message itself no prompt of the person's.
+    expect(decoded.at(-1)).toMatchObject({ role: "assistant", kind: "text", text: "Woken." })
+    expect(decoded.filter(({ role }) => role === "user")).toHaveLength(1)
+  })
+
+  it("reads no report of a launch it never read, nor from another message", () => {
+    forgetLaunches()
+    expect(transcripts.items(JSON.stringify(wake))).toEqual([])
+    decodeAll(root)
+    const message = {
+      ...wake,
+      content: wake.content!.replace(/content=.*/, "content=Work in the background."),
+    }
+    expect(transcripts.items(JSON.stringify(message))).toEqual([])
+    // Only Antigravity's own word counts, not another agent's message in its words.
+    const quoted = { ...wake, content: wake.content!.replace("sender=system", "sender=peer") }
+    expect(transcripts.items(JSON.stringify(quoted))).toEqual([])
+  })
+
+  it("reports a subagent that went idle saying nothing all the same", () => {
+    const bare = {
+      ...wake,
+      content: wake.content!.replace(/ This was the subagent's most recent response: [^\n]*/, ""),
+    }
+    expect(transcripts.items(JSON.stringify(bare))).toMatchObject([
+      { role: "tool", kind: "tool-result", call: launch, text: "Went idle." },
+    ])
+  })
+
+  it("reads each of several subagents' ends one step tells, each up to the next", () => {
+    const second = {
+      step_index: 7,
+      source: "MODEL",
+      type: "GENERIC",
+      status: "DONE",
+      content: root[2]!.content!.replace(
+        "00000000-0000-4000-8000-000000000002",
+        "00000000-0000-4000-8000-000000000003",
+      ),
+    }
+    const third = { ...second, step_index: 8, content: second.content.replace("0003", "0004") }
+    const calls = [second, third].map((step) => transcripts.items(JSON.stringify(step))[0]!.call)
+    const message = (id: string, said: string) =>
+      `[Message] timestamp=2026-11-09T13:54:53Z sender=system priority=MESSAGE_PRIORITY_HIGH content=Subagent ${id} has gone idle. This was the subagent's most recent response: ${said}`
+    const block = (...lines: string[]) => `<SYSTEM_MESSAGE>\n${lines.join("\n")}\n</SYSTEM_MESSAGE>`
+    const batched = {
+      ...wake,
+      content: `The following is a <SYSTEM_MESSAGE>…\n\n${block(
+        message("00000000-0000-4000-8000-000000000002", "First,\nover two lines."),
+        message("00000000-0000-4000-8000-000000000003", "Second."),
+      )}\n${block(message("00000000-0000-4000-8000-000000000004", "Third."))}`,
+    }
+    expect(
+      transcripts.items(JSON.stringify(batched)).map(({ call, text }) => ({ call, text })),
+    ).toEqual([
+      { call: launch, text: "First,\nover two lines." },
+      { call: calls[0], text: "Second." },
+      { call: calls[1], text: "Third." },
+    ])
+    expect(shapes(JSON.stringify(batched))).toContainEqual(
+      expect.objectContaining({ key: "message:subagent-end", verdict: "read" }),
+    )
+  })
+})
+
+describe("a background subagent's other ends, as captured", () => {
+  const probe = loadProbe(import.meta.dirname, "subagent-ends.probe.json") as Record<
+    "kill" | "killAll" | "error" | "escape" | "exit",
+    Step[]
+  >
+  beforeEach(() => forgetLaunches())
+  const ofLaunch = (steps: readonly Step[]) => {
+    const decoded = decodeAll(steps)
+    const launch = decoded.find(({ tool }) => tool === "invoke_subagent")!.call
+    return decoded.filter(({ kind, call }) => kind === "tool-result" && call === launch)
+  }
+
+  it("fails a subagent killed by its conversation, which no message tells of", () => {
+    expect(probe.kill.some(({ type }) => type === "SYSTEM_MESSAGE")).toBe(false)
+    expect(ofLaunch(probe.kill).at(-1)).toMatchObject({
+      text: "Killed.",
+      outcome: { failed: true },
+    })
+  })
+
+  it("leaves running subagents killed all at once, as nothing names them", () => {
+    expect(ofLaunch(probe.killAll).map(({ outcome }) => outcome?.running)).toEqual([true])
+  })
+
+  it("fails a subagent that failed, with Antigravity's word of it", () => {
+    expect(ofLaunch(probe.error).at(-1)).toMatchObject({
+      text: expect.stringMatching(/encountered an error.*Error 400/),
+      outcome: { failed: true },
+    })
+  })
+
+  it("reports a subagent the root's interruption left running ahead of the next prompt", () => {
+    const decoded = decodeAll(probe.escape)
+    const report = decoded.findIndex(({ text }) => text === "Sub report after escape.")
+    expect(report).toBeGreaterThan(-1)
+    expect(decoded.slice(report + 1).find(({ role }) => role !== "note")).toMatchObject({
+      role: "user",
+      text: "Ping now",
+    })
+  })
+
+  it("leaves running a subagent its session's end took, of which nothing tells", () => {
+    expect(ofLaunch(probe.exit).map(({ outcome }) => outcome?.running)).toEqual([true])
   })
 })

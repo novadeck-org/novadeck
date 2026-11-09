@@ -7,6 +7,12 @@ export const isTyping = (target: EventTarget): boolean =>
   target instanceof HTMLTextAreaElement ||
   (target instanceof HTMLInputElement && (target.type === "text" || target.type === "number"))
 
+// Whether `target` holds words the person typed, which focus moving away would leave mid-thought.
+export const holdsWords = (target: Element): boolean =>
+  (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) &&
+  isTyping(target) &&
+  target.value !== ""
+
 export type Menu = {
   // The row the person is on.
   readonly at: number
@@ -17,11 +23,14 @@ export type Menu = {
     readonly onFocus: () => void
   }
   readonly onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void
+  // The bar follows the mouse, and so do the keys while they are in the dialog already.
+  readonly onPointerMove: (event: React.PointerEvent<HTMLElement>) => void
 }
 
 // A numbered menu's keys, as a terminal's: arrows move between its rows and a digit presses one.
 // Focus stays where it is until the person comes here: a dialog that took it would take what they
 // were typing for an answer. A row's own keys (Enter on a button, Space on a mark) stay its own.
+// The mouse moves the bar as the arrows do, so what is lit is what Enter takes.
 export const useMenu = (count: number): Menu => {
   const [cursor, setCursor] = useState(0)
   const at = Math.min(cursor, Math.max(count - 1, 0))
@@ -45,6 +54,21 @@ export const useMenu = (count: number): Menu => {
         row.focus()
         row.click()
       }
+    },
+    onPointerMove: (event) => {
+      if (event.pointerType !== "mouse" || !(event.target instanceof Element)) return
+      const option = event.target.closest(".chat-option")
+      if (!option || !event.currentTarget.contains(option)) return
+      const rows = [...event.currentTarget.querySelectorAll<HTMLElement>(`[${rowMark}]`)]
+      const index = rows.findIndex((row) => row === option || option.contains(row))
+      const row = rows[index]
+      if (!row || index === at || row.matches(":disabled")) return
+      const active = document.activeElement
+      // Focus goes along from anything in the dialog but a field the person writes in, empty
+      // or not: their words would land on a row instead.
+      if (active && option.closest(".chat-dialog")?.contains(active) && !isTyping(active))
+        row.focus({ preventScroll: true })
+      else setCursor(index)
     },
   }
 }

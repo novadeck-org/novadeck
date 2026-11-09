@@ -19,6 +19,10 @@ export const toolRun = z.strictObject({
   title: z.string().max(transcriptLimits.text),
   // What it was called on: the command, the file, the pattern. Empty where there is none.
   detail: z.string().max(transcriptLimits.text),
+  // Set where the call starts a subagent whose result is its report (Claude Code's Task, an
+  // Antigravity invoke_subagent); the chat shows that report apart from commands. Absent on
+  // every other call, including those that only message or manage subagents.
+  subagent: z.literal(true).optional(),
 })
 // The lines a tool changed, as its harness records them or as the call's input says, read
 // before any cut. `added` and `removed` count the whole change; `lines` hold its first lines:

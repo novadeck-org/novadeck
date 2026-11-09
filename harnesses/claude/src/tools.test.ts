@@ -34,7 +34,13 @@ suite("what a Claude Code tool call was", () => {
     ["EnterWorktree", { path: "/a/b" }, "run", "Entered a worktree", "/a/b"],
     ["ExitWorktree", { action: "keep" }, "run", "Left a worktree", "keep"],
   ])("reads %s", (tool, input, kind, title, detail) => {
-    expect(run(tool, input)).toEqual({ kind, title, detail })
+    expect(run(tool, input)).toEqual({
+      kind,
+      title,
+      detail,
+      // Only a call that starts a subagent, whose result is its report, says so.
+      ...(title === "Subagent" ? { subagent: true } : {}),
+    })
   })
 
   const send = { to: "fox", text: "Tests are green.\nShip it." }

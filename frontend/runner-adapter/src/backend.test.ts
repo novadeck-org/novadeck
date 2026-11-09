@@ -252,12 +252,6 @@ describe("runner backend", () => {
             },
           }),
         },
-        {
-          type: "grid/size-toggle",
-          target,
-          terminalId: first.id,
-          change: { layouts: {}, restoreWidths: { desktop: 6 } },
-        },
         { type: "terminal/visibility", target, terminalId: second.id, hidden: true },
         {
           type: "view/change",

@@ -2,7 +2,7 @@ import type { ChatPrompt } from "@novadeck/core/conversation"
 import type { ChatBlock } from "@novadeck/core/conversation/turns"
 
 import type { Attachment } from "./attachments"
-import { keptImagesOf, type ChatSend } from "./sends"
+import { keptDraftOf, keptImagesOf, type ChatSend } from "./sends"
 
 // A prompt the chat shows as the person's before, or instead of, the agent's record showing
 // it: `queued` behind a prompt still on its way; `sending` on its way, or sent and not in the
@@ -33,7 +33,13 @@ export const sentBubbles = (
 ): readonly SentBubble[] => {
   const told = new Set(prompts.map(({ ref }) => ref))
   const local = new Map(sends.map((send) => [send.ref, send]))
-  const textOf = (prompt: ChatPrompt) => prompt.text ?? local.get(prompt.ref)?.text
+  // What a prompt of images shows reads as its draft did, the placeholders in the words.
+  const textOf = (prompt: ChatPrompt): string | undefined => {
+    const send = local.get(prompt.ref)
+    const drafted =
+      send && send.images.length > 0 ? send.draft.trim() : keptDraftOf(prompt.ref)?.trim()
+    return drafted ?? prompt.text ?? send?.text
+  }
   const fromReceipts = prompts.flatMap((prompt): SentBubble[] => {
     const text = textOf(prompt)
     if (text === undefined) return []
@@ -57,7 +63,7 @@ export const sentBubbles = (
     .filter((send) => send.to === null && send.phase !== "settled" && !told.has(send.ref))
     .map((send): SentBubble => ({
       ref: send.ref,
-      text: send.text,
+      text: send.images.length > 0 ? send.draft.trim() : send.text,
       images: send.images,
       state: send.phase === "queued" ? "queued" : "sending",
       at: null,

@@ -211,29 +211,6 @@ export type CanvasLayout = {
     }
   >
 }
-export type GridBreakpoint = "wide" | "desktop" | "tablet" | "mobile"
-export type GridItem = {
-  i: string
-  x: number
-  y: number
-  w: number
-  h: number
-  minW?: number
-  maxW?: number
-  minH?: number
-  maxH?: number
-  static?: boolean
-  isDraggable?: boolean
-  isResizable?: boolean
-  resizeHandles?: ("s" | "w" | "e" | "n" | "sw" | "nw" | "se" | "ne")[]
-  isBounded?: boolean
-  moved?: boolean
-}
-export type GridLayouts = Partial<Record<GridBreakpoint, readonly GridItem[]>>
-export type GridRestoreWidths = Partial<Record<GridBreakpoint, number>>
-
-export type SizePreset = "large" | "small"
-
 // A window holding one item, as its backend keeps it: which item it shows, and
 // its name, the person's or the backend's default. It is an item undocked from a bar, or
 // the session's project window, the one the person opens files in, which never docks
@@ -260,13 +237,10 @@ export type TerminalRoster = {
   readonly windows: readonly CompanionWindowMeta[]
   readonly order: string[]
 }
-// Where each terminal sits and how big it is in each view.
+// What each view keeps of where a terminal sits. Grid keeps nothing: it lays itself out from
+// the sidebar's order.
 export type TerminalLayout = {
   readonly canvas: CanvasLayout
-  readonly grid: GridLayouts
-  readonly gridRestoreWidths: Record<string, GridRestoreWidths>
-  // Grid's width presets; Canvas windows keep whatever size they were given.
-  readonly sizePresets: { readonly grid: Record<string, SizePreset> }
   readonly hidden: Record<string, boolean>
 }
 export type WorkspaceState = {

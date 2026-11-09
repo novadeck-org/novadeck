@@ -120,6 +120,8 @@ export type PromptInput = {
   readonly images?: readonly string[] | undefined
   /** The same files as the client named them, which Stop and takeBox answer; `images` where omitted. */
   readonly files?: readonly string[] | undefined
+  /** Where each image goes in `text` (`agents.prompt`'s `at`); absent, they lead it. */
+  readonly at?: readonly number[] | undefined
 }
 
 /**
@@ -133,7 +135,12 @@ export type Prompted = {
 }
 
 /** What `takeBox` gives: the words, and the image files that led them in the box. */
-export type TakenBox = { readonly returned: string | null; readonly images?: string[] }
+export type TakenBox = {
+  readonly returned: string | null
+  readonly images?: string[]
+  /** Where each of `images` stood in `returned`; absent where they led it, or none were. */
+  readonly at?: number[]
+}
 
 export type TypingOptions = {
   readonly platform: NodeJS.Platform
@@ -256,8 +263,8 @@ export class Typing {
 
   /** `prompt` for the input of `agents.prompt`. */
   given(input: PromptInput): Promise<Prompted> {
-    const { terminalId, text, automatic, ref, along, images, files } = input
-    return this.prompt(terminalId, text, automatic, ref, along, images, files)
+    const { terminalId, text, automatic, ref, along, images, files, at } = input
+    return this.prompt(terminalId, text, automatic, ref, along, images, files, at)
   }
 
   /**
@@ -275,6 +282,7 @@ export class Typing {
     along?: true | undefined,
     images: readonly string[] = [],
     files: readonly string[] = images,
+    at?: readonly number[],
   ): Promise<Prompted> {
     // Its ref is held at once, and it joins the input queue in this same tick, as it always
     // has, so nothing given after it goes before it. Its receipt is set up beside it: what
@@ -282,7 +290,7 @@ export class Typing {
     const claimed = ref ?? freshRef()
     this.receipts.claim(terminalId, claimed)
     this.givenBack.sent(terminalId, text)
-    const following = this.receipts.expect(terminalId, text, claimed, files)
+    const following = this.receipts.expect(terminalId, text, claimed, files, at)
     // A fixed line from an Inbox button: the turn it starts withdraws no ask (see `automatic`).
     if (automatic) this.host.messaging().automatic(terminalId, text)
     let returned: string | null = null
@@ -299,6 +307,12 @@ export class Typing {
             () => undefined,
           ),
         images.map(imagePaste),
+        at,
+        () =>
+          void following.then(
+            () => this.receipts.unplaced(terminalId, claimed),
+            () => undefined,
+          ),
       )
       returned = given?.returned ?? null
       went = given?.along
@@ -337,10 +351,14 @@ export class Typing {
     const boxed = await this.handovers.take(terminalId)
     if (boxed === undefined) return { returned: null }
     // The images in the box come out with the words: the files they were pasted from go back.
-    const { words, marks } = splitImages(boxed)
-    const images = this.receipts.boxFiles(terminalId, marks, words)
-    this.receipts.taken(terminalId, words, undefined, marks)
-    return { returned: words || null, ...(images.length > 0 && { images: [...images] }) }
+    const { words, marks, places } = splitImages(boxed)
+    const given = this.receipts.boxGiven(terminalId, marks, words, false, places)
+    this.receipts.taken(terminalId, words, undefined, marks, places)
+    return {
+      returned: (given.text ?? words) || null,
+      ...(given.files.length > 0 && { images: [...given.files] }),
+      ...(given.at && { at: given.at }),
+    }
   }
 
   /** Writes keys as the person's, as a chat passes them on (see `agents.keys`). */
@@ -427,12 +445,17 @@ export class Typing {
     // The words handed back are the person's draft again: their prompts no longer wait.
     // The turn's own prompt put back and cleared gives back nothing, its images no more than
     // its words: the agent had both, and images alone in the box would ride the next message.
-    const images = result.restored
-      ? []
-      : this.receipts.boxFiles(terminalId, result.marks, result.returned ?? "", true)
-    if (result.returned !== null || result.marks > 0)
-      this.receipts.withdraw(terminalId, result.returned ?? "", since, result.marks)
-    return { returned: result.returned, ...(images.length > 0 && { images: [...images] }) }
+    const { marks, places } = result
+    const given = result.restored
+      ? { files: [] }
+      : this.receipts.boxGiven(terminalId, marks, result.returned ?? "", true, places)
+    if (result.returned !== null || marks > 0)
+      this.receipts.withdraw(terminalId, result.returned ?? "", since, marks, places)
+    return {
+      returned: (given.text ?? result.returned) || null,
+      ...(given.files.length > 0 && { images: [...given.files] }),
+      ...(given.at && { at: given.at }),
+    }
   }
 
   /** The terminal's screen or messages changed: the doorbell looks at it again. */
@@ -706,8 +729,8 @@ export class Typing {
    * known and can go back: not those the person pasted in the terminal, which a clear would lose.
    */
   private ownImages(terminalId: string, text: string, queued: boolean): boolean {
-    const { words, marks } = splitImages(text)
-    return this.receipts.boxFiles(terminalId, marks, words, queued).length > 0
+    const { words, marks, places } = splitImages(text)
+    return this.receipts.boxFiles(terminalId, marks, words, queued, places).length > 0
   }
 
   /** Writes keys to a running terminal as they are, with none of what watches the person's. */

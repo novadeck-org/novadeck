@@ -49,6 +49,10 @@ const linesRead = (detail: Fields): ToolOutcome["size"] => {
 export const outcomeOf = (failed: boolean, output: string, detail: unknown): ToolOutcome => {
   const fields = isFields(detail) ? detail : {}
   if (typeof fields.backgroundTaskId === "string") return outcome({ running: true })
+  // A subagent started in the background answers at once with a launch note; its report comes
+  // later, in a task notice (`notified`).
+  if (fields.isAsync === true || fields.status === "async_launched")
+    return outcome({ running: true })
   const code = failed ? exitLine.exec(output)?.[1] : undefined
   return outcome({
     failed,

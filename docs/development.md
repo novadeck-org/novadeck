@@ -165,8 +165,8 @@ freely, as a dragged window does; dropped, the window opens where the ghost was 
 settles onto the canvas's grid, where it stays until Canvas next arranges its windows
 afresh. On Grid, a placeholder window joins the grid under
 the pointer as soon as the icon is over it, and the grid makes room for it like any
-window: the window it's over moves aside. It goes as the icon leaves the grid; dropped,
-the window takes its place. In
+window: the tiles from that place on shift along. It goes as the icon leaves the grid; dropped,
+the window is listed at that place in the Terminals list, which Grid follows. In
 “Build Studio”, type `show` to have Codex show the next thing, or `open` to play
 asking it to open it; it opens `projects.json` for you as the demo starts. Files are
 syntax-highlighted by their extension (JSON, JavaScript and TypeScript with JSX, CSS,
@@ -811,8 +811,8 @@ routing still loads React Router at runtime: it builds on the core,
 `interaction/keymap.ts`, the UI store, routing, selectors,
 the Canvas handle type in `layouts/canvas/types.ts`, and the pure state modules
 of `shell/` and `terminals/` (unread finishes among them), the item store and the chat's store among them. Vendor
-libraries stay in their adapters: XYFlow in `layouts/canvas/`, React Grid Layout
-in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
+libraries stay in their adapters: XYFlow in `layouts/canvas/`, Allotment in `shell/`, dnd kit
+in `terminals/` and Grid's tiles (`layouts/grid/Grid.tsx`), Ark UI in
 `frontend/toolkit`, React Router in `app/` and `shell/`, and React DOM in
 `layouts/transition.ts` and `entries/start.tsx`; and the runner client and
 the emulator's view in `frontend/runner-adapter/`, the demo's terminals
@@ -892,8 +892,8 @@ reach the page (focus, view transitions, timers, the clock, ids) only through th
 `CommandEffects` that `app/controller/effects.ts` supplies, and tests pass their
 own. Address updates by project and session IDs so delayed callbacks affect
 their original session or become a no-op after it is removed: layout callbacks
-take the target their view rendered with, because Grid saves its layouts when it
-unmounts after a session switch.
+take the target their view rendered with, so a view that reports after a session switch
+changes the session it showed.
 
 Keyboard shortcuts are data. `interaction/keymap.ts` lists every binding by
 layer and routes a key from its input, the kind of element it was pressed on,

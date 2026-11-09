@@ -96,14 +96,14 @@ trace or Electron shows software rendering.
   page, `.xterm`; Grid mounts every one, Focus the few it keeps) and **time against the
   terminals in view** (a screen at least half inside the window); both are rows of the tables.
 - `--window <width>x<height>` sets the window's content (1440×900 by default). **To have 20
-  tiles in view the window is made bigger, not the tiles smaller.** The Grid puts two tiles
-  across at any width above a phone's (a tile is half the Grid's width, `gridPresetWidth`)
-  and a row of them takes 432 px (a tile is 400 px high, `gridTileHeight`, with its gaps)
-  under 161 px of header, so n tiles in view need about 161 + 432 × n/2 px of height: 1440×900
-  has 4 in view, 2560×2400 has 10 or 12, and 20 take about 4500 px, which only a virtual
-  display has (`xvfb-run -s "-screen 0 1600x4600x24"` and `--window 1600x4500`); a real
-  display's window is clamped to it. Tiles can't go small enough to help (the smallest is 240
-  px high). On a real display, `--switch=--force-device-scale-factor=0.5` doubles the CSS pixels
+  tiles in view the window is made bigger, not the tiles smaller.** The Grid puts as many
+  tiles across as leave each 480 px wide (`gridTileMinWidth`), which is two in a 1440 px
+  window with the sidebar open and three in a 1920 px one, and a row of them takes 432 px (a
+  tile is 416 px high, `gridTileHeight`, with its gap) under 161 px of header, so n tiles in
+  view need about 161 + 432 × n/2 px of height at two across: 1440×900 has 4 in view, and 20
+  take about 4500 px, which only a virtual
+  display has (`xvfb-run -s "-screen 0 1440x4600x24"` and `--window 1440x4500`); a real
+  display's window is clamped to it. Tiles are all one size and can't be made smaller. On a real display, `--switch=--force-device-scale-factor=0.5` doubles the CSS pixels
   the window holds, but draws the terminals' text at half its size, which changes what the
   atlas holds: do not compare it with a run without. The "Terminals in view" row says what a run
   got.

@@ -69,6 +69,7 @@ const known = (name: string, fields: Fields | undefined): ToolRun | undefined =>
         kind: "agent",
         title: "Subagent",
         detail: oneLine(textField(fields, "description", "subagent_type", "prompt")),
+        subagent: true,
       }
     // Keys as real transcripts give them: SendMessage {to, message, summary}, TaskStop
     // {task_id}, ScheduleWakeup {delaySeconds, prompt, reason}, CronCreate {cron, prompt},

@@ -3,9 +3,14 @@
    for the person's mark, red only for what failed. The log (`.chat-scroll`) holds the person's
    prompts (`.chat-message[data-role="user"]`, the mark `.chat-mark` in a two-cell gutter), the
    agent's text as plain formatted prose (`.markdown`, drawn by the toolkit's Markdown, whose
-   recipe is its `markdown.css`, set flat here), other agents' messages (`data-role="agent"`),
-   runs of tool calls (`.chat-tools`, a dim line `.chat-tool` each, opening to
-   `.chat-tool-body`), notes (`.chat-note`) and the agent's state (`.chat-status`, with its
+   recipe is its `markdown.css`, set flat here, in full ink with a mark in the gutter where a
+   turn's prose starts), other agents' messages (`data-role="agent"`: no box, their face
+   `.chat-agent-face` in the gutter, the handle `.chat-author` in their hue and where they run
+   `.chat-agent-where` beside it, a long one folded to `.chat-more`), subagents' reports
+   (`.chat-subagent`, a dim line each on a dotted rule, `.chat-subagent-summary` holding its
+   `.chat-subagent-name`, `.chat-subagent-tag`, `.chat-subagent-failed` where it failed and
+   what it said `.chat-subagent-said`, opening to `.chat-tool-body`), runs of tool calls (`.chat-tools`, a dim line `.chat-tool` each on a
+   solid rule, opening to `.chat-tool-body`), notes (`.chat-note`) and the agent's state (`.chat-status`, with its
    spinner `.chat-spin`). Under it sit what waits on the person (`.chat-requests`) and the
    prompt (`.chat-composer`), one line under a hairline. What the harness shows at its input
    stands over the prompt too (`.chat-live`, a title over its own rows `.chat-slice`).
@@ -14,6 +19,9 @@
    "assistant" | "agent" on a message, data-sent="queued" | "sending" | "unrecorded" |
    "in-box" on the person's prompt the agent's record doesn't hold yet, its tag `.chat-sent-tag`,
    what became of it `.chat-sent`;
+   data-hue="1".."8" on another agent's message (its hue, as the Messages pane gives it),
+   data-folded on its words while a long message is cut short, data-running and data-failed on
+   a subagent's report;
    data-kind="run" | "read" | "write" | "search" | "web" | "agent" | "plan" | "other",
    data-running and data-failed on a tool line, aria-expanded on its button, `.chat-tool-failed`
    on what says a call failed; data-sign="+" |
@@ -51,8 +59,13 @@
   --_red: var(--chat-error-fg, var(--terminal-ansi-red, var(--color-danger-fg)));
   --_green: var(--chat-added-fg, var(--terminal-ansi-green, var(--color-success-fg)));
   --_line: var(--chat-line-color, var(--color-line));
+  /* What the agent did: dimmer than the dim text, so its work reads as the footnote. */
+  --_work: color-mix(in srgb, var(--_muted) 85%, transparent);
   --_pad: 30px;
   --_lh: 21px;
+  /* The work's voice, tools and subagents: a step under the chat's own, in either size. */
+  --_work-size: 12px;
+  --_work-lh: 18px;
   --_measure: var(--chat-measure, 92ch);
   /* The most a region that starts at the chat's left edge spans: its gutter, the mark's cells,
      the reading width, and the gutter after it. */
@@ -75,6 +88,8 @@
 .chat[data-compact] {
   --_pad: 14px;
   --_lh: 18px;
+  --_work-size: 11px;
+  --_work-lh: 16px;
   --_mark-width: 5px;
   --_mark-height: 11px;
   font-size: 12px;
@@ -205,20 +220,73 @@
 .chat-message[data-role="user"]:not(:first-child, [data-sent]) {
   margin-top: var(--_lh);
 }
-/* Another agent's words: its handle, dim, then what it said. The mark is only ever the person's. */
+/* The agent's answer is the text: full ink, a mark in the gutter where a turn of prose starts. */
+.chat-message[data-role="assistant"] {
+  color: var(--_ink);
+}
+.chat-message[data-role="assistant"]::before {
+  content: "●";
+  position: absolute;
+  left: -2ch;
+  color: var(--_mid);
+  font-size: 10px;
+}
+/* A second block of prose right after it needs no second mark. */
+.chat-message[data-role="assistant"] + .chat-message[data-role="assistant"]::before {
+  content: none;
+}
+/* Another agent's words can turn the work from outside, so they stand next to the person's own
+   prompt in weight. No box: like every voice here they're marked in the gutter, by the agent's
+   face, at its first line. The handle in its hue, where it runs dim beside it, the words in
+   full ink under it. */
 .chat-message[data-role="agent"] {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  column-gap: 2ch;
+  --_agent: var(--_h, var(--_ink));
+  /* Its face stands at its own first line, in a doorbell's ring too. */
+  position: relative;
+  color: var(--_ink);
 }
-.chat-message[data-role="agent"] > :not(.chat-author) {
-  grid-column: 2;
+.chat-agent-face {
+  position: absolute;
+  top: -2px;
+  /* Out into the gutter, so the words keep their column; in a narrow gutter, kept inside it. */
+  left: max(calc(-2ch - 16px), calc(2px - var(--_pad) - 2ch));
 }
+.chat-agent-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 1.5ch;
+  margin: 0;
+}
+/* A handle on its own head line runs its full length, wrapping only past the column. */
 .chat-author {
-  max-width: 24ch;
   margin: 0;
   overflow-wrap: anywhere;
+  color: var(--_agent, var(--_muted));
+  font-weight: 600;
+}
+.chat-agent-where {
   color: var(--_muted);
+}
+/* Two in a row read as one exchange, each still its own. */
+.chat-message[data-role="agent"] + .chat-message[data-role="agent"] {
+  margin-top: calc(var(--_lh) / 2);
+}
+/* A long message shows its first lines, fading out, then a key for the rest. */
+.chat-words[data-folded] {
+  max-height: var(--_shown);
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, currentColor calc(100% - var(--_lh)), transparent);
+}
+.chat-more {
+  display: block;
+  margin: 2px 0 0;
+  color: var(--_muted);
+}
+@media (hover: hover) {
+  .chat-more:hover {
+    color: var(--_ink);
+  }
 }
 /* The person's prompt before the agent's record has it: dim and tagged while queued or on its
    way; what became of it under it once it never arrived. */
@@ -257,6 +325,23 @@
 .chat-note {
   margin: 0;
   color: var(--_muted);
+}
+/* A doorbell ring's header speaks for the messages under it: in ink, with a dashed rule after. */
+.chat-ring > .chat-note {
+  display: flex;
+  align-items: center;
+  gap: 1ch;
+  margin-bottom: calc(var(--_lh) / 3);
+  color: var(--_ink);
+  font-weight: 600;
+}
+.chat-ring > .chat-note::after {
+  content: "";
+  flex: 1;
+  border-top: 1px dashed var(--color-line-strong);
+}
+.chat-ring > .chat-mark {
+  color: var(--_mid);
 }
 /* The person's answer the doorbell typed is their line, under the doorbell's. */
 .chat-ring-reply {
@@ -337,10 +422,119 @@
   border-bottom: var(--border-width) solid var(--_line);
   background: none;
 }
+/* Rows of several lines each read apart: a little air, and a rule under each. */
+.chat .markdown-table td {
+  padding-block: calc(var(--_lh) / 4);
+}
+.chat .markdown-table tr:not(:last-child) td {
+  border-bottom: var(--border-width) solid var(--_line);
+}
 
-/* What the agent did: a dim line each, what came of it after a dot. */
+/* What the agent did: a dim line each, what came of it after a dot. Pulled up under the prose it
+   serves, smaller, on a thin rule. */
 .chat-tools {
   color: var(--_muted);
+}
+.chat-thread > .chat-tools {
+  margin-top: calc(var(--_lh) * -0.6);
+  padding-left: 1.5ch;
+  border-left: 1px solid var(--_line);
+  color: var(--_work);
+  font-size: var(--_work-size);
+  line-height: var(--_work-lh);
+}
+.chat-tools .chat-tool-title {
+  color: var(--_work);
+}
+.chat-tools .chat-tool-detail {
+  color: var(--_muted);
+}
+/* What failed still shows. */
+.chat-tools :is(.chat-tool-failed, [data-failed] .chat-tool-end) {
+  color: var(--_red);
+}
+/* Prose after a turn's tools starts a little apart again, and the agent's tools after a ring
+   keep their distance from it. */
+.chat-thread > .chat-tools + .chat-message[data-role="assistant"] {
+  margin-top: calc(var(--_lh) * -0.25);
+}
+.chat-thread > .chat-ring + .chat-tools {
+  margin-top: calc(var(--_lh) * -0.25);
+}
+
+/* A subagent's report: the agent's own work, so as quiet as a command it ran, but a group of its
+   own, apart from the commands: a little air before it, a dotted rule of its own (the commands'
+   is solid), the name in the brighter of the dim voices. A line each, what it said cut to the
+   line; it opens, as a tool line does, to the whole. */
+.chat-subagent {
+  margin-top: calc(var(--_lh) * -0.3);
+  padding-left: 1.5ch;
+  border-left: 1px dotted var(--_mid);
+  color: var(--_work);
+  font-size: var(--_work-size);
+  line-height: var(--_work-lh);
+}
+/* Right under the prose it serves, it's pulled up as a tool run is. */
+.chat-thread > .chat-message[data-role="assistant"] + .chat-subagent {
+  margin-top: calc(var(--_lh) * -0.6);
+}
+/* Its reports in a row are one group. */
+.chat-subagent + .chat-subagent {
+  margin-top: calc(var(--_lh) * -1);
+}
+.chat-subagent-summary {
+  display: flex;
+  gap: 1ch;
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.chat-subagent-name {
+  flex-shrink: 0;
+  max-width: 24ch;
+  overflow: hidden;
+  color: var(--_mid);
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+.chat-subagent-name::before {
+  content: "↳ ";
+  font-weight: 400;
+}
+.chat-subagent-tag {
+  flex-shrink: 0;
+  color: var(--_muted);
+  font-weight: 400;
+}
+.chat-subagent-said {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--_muted);
+  text-overflow: ellipsis;
+}
+.chat-subagent-failed {
+  flex-shrink: 0;
+  color: var(--_red);
+}
+@media (hover: hover) {
+  .chat-subagent-summary:hover .chat-subagent-said {
+    color: var(--_ink);
+  }
+}
+/* Open, the whole report is under the line, so the line doesn't repeat its start. */
+.chat-subagent-summary[aria-expanded="true"] {
+  color: var(--_ink);
+}
+.chat-subagent-summary[aria-expanded="true"] .chat-subagent-said {
+  display: none;
 }
 .chat-tools-list {
   display: flex;
@@ -1042,7 +1236,7 @@
   scrollbar-color: var(--_line) transparent;
 }
 /* The images pasted for the next message: thumbnails on a row over the prompt, each with its
-   state (dim while it uploads, red once it failed) and a key to take it off. Those the box
+   number (the `[Image #k]` in the words) and state (dim while it uploads, red once it failed) and a key to take it off. Those the box
    cannot send yet, as it replies or runs a shell command, stay dim. */
 .chat-attachments {
   display: flex;
@@ -1095,6 +1289,16 @@
 }
 .chat-attachment[data-state="failed"] .chat-attachment-state {
   color: var(--_red);
+}
+.chat-attachment-n {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 0 3px;
+  background: var(--chat-bg, var(--window-bg, var(--color-paper)));
+  color: var(--_ink);
+  font-size: 0.75em;
+  line-height: 1.3;
 }
 .chat-attachment-remove {
   position: absolute;
