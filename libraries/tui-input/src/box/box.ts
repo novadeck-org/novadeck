@@ -143,6 +143,11 @@ export type BoxProfile = {
      * the cursor on the box's last row. Omitted where no such keys are known.
      */
     readonly leave?: (box: InputBox) => string
+    /**
+     * What a shell command does when Enter comes while a turn works: `queues` it until the
+     * turn ends, or `runs` it at once. Queued where omitted.
+     */
+    readonly midTurn?: "queues" | "runs"
   }
   /**
    * Whether the screen shows, just above the box, the program's word that whoever types

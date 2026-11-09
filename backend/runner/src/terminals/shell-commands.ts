@@ -6,17 +6,20 @@ import {
 } from "@novadeck/terminal/pty"
 import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
 
+import { agentProcess } from "./ending.js"
 import type { Record } from "./record.js"
 
-/**
- * When, after an Enter in a harness's shell mode, the shell's processes are looked at for
- * the command it started: a command takes the harness a moment to spawn, and a slow one
- * (a wrapper that sources a snapshot first) a little more.
- */
-export const lookMs: readonly number[] = [750, 2_000, 3_000]
+/** How often, while an Enter's find window is open, the shell's processes are looked at. */
+export const lookEveryMs = 500
 
-/** How long a process must be seen to live, between two looks, before it counts: a helper that passes never shows. */
-export const aliveMs = 1_000
+/** How long after its anchor (the Enter, or the end of the turn it waited out) an attempt looks. */
+export const findMs = 5_000
+
+/**
+ * How long a process must have been seen live, between two looks, before it counts: a
+ * helper that passes through never shows. A second apart, less what timers' jitter takes.
+ */
+export const confirmMs = 900
 
 /** How often a command shown running is looked at again, in milliseconds. */
 export const pollMs = 1_000
@@ -24,8 +27,11 @@ export const pollMs = 1_000
 /** How many looks in a row that could not tell end the command shown: no evidence, no busy. */
 export const unknownLooks = 2
 
+/** How long after an Enter mid-turn a command that the harness runs at once (Codex) starts, in ms. */
+export const midTurnMs = 2_000
+
 /** What the shell commands read of a terminal's record, and the summary field they keep there. */
-export type ShellRecord = Pick<Record, "summary" | "terminal" | "hibernating" | "closed">
+export type ShellRecord = Pick<Record, "summary" | "terminal" | "hibernating" | "closed" | "bound">
 
 export type ShellCommandsHost<R extends ShellRecord> = {
   /** The harness box of the agent in the record's terminal, if it runs one. */
@@ -41,38 +47,47 @@ export type ShellCommandsHost<R extends ShellRecord> = {
   readonly stopping: () => boolean
 }
 
-/** A shell-mode Enter at `at`; `ended` is when the turn it waited out ended, if it did. */
-type Attempt = { readonly command: string; readonly at: number; readonly ended?: number }
-
-/** How long after an Enter mid-turn a command that the harness runs at once (Codex) starts, in ms. */
-export const midTurnMs = 2_000
+/** A shell-mode Enter, with what its looks learned: each keeps its own. */
+type Attempt = {
+  readonly command: string
+  readonly at: number
+  /** Whether its harness runs a command at once while a turn works (Codex), not after it. */
+  readonly runs: boolean
+  /** When the turn it waited out ended, if it waited. */
+  readonly ended?: number
+  /** When a turn first started after it: that turn's tools' processes are not the command. */
+  cutoff: number | undefined
+  /** When each candidate was first seen live, by `Spawn.key`; only those still listed stay. */
+  seen: Map<string, number>
+}
 
 type Watch = {
   readonly run: number
   readonly pid: number
   /** The processes the command started, top-level, by `Spawn.key`. */
   readonly held: Set<string>
-  /** The looks still to come after an Enter. */
-  readonly looks: Set<NodeJS.Timeout>
+  /** The Enters whose find window is open. */
+  attempts: Attempt[]
+  /** The one timer of their looks. */
+  look: NodeJS.Timeout | undefined
   poll: NodeJS.Timeout | undefined
-  /** How many looks in a row could not tell. */
+  /** How many polls in a row could not tell. */
   unknown: number
   /** How many looks and polls are awaiting the system: none may be left behind by a settle. */
   inflight: number
-  /** When each candidate was first seen live, by `Spawn.key`; only those still listed stay. */
-  readonly seen: Map<string, number>
-  /** When a turn first started after the Enter being looked for: the new turn's tools are not it. */
-  cutoff: number | undefined
-  /** The latest Enter that came while a turn worked, until that turn ends. */
-  pending: Attempt | undefined
+  /** The latest Enter that came while a turn worked (a harness that queues it, or runs it), until that turn ends. */
+  pending: Omit<Attempt, "ended" | "cutoff" | "seen"> | undefined
 }
 
-// Novadeck's own helper, which an agent's status line or hooks start beside a command.
-// (the relay, the hook's launcher, whose posix fallback keeps its comm `hook`, and Windows'
-// console host), and what they run: a status line's own command is their child.
-const helpers = new Set(["novadeck-relay", "hook", "hook.cmd", "conhost"])
-const helper = (spawn: Spawn): boolean =>
-  helpers.has((spawn.name ?? "").toLowerCase().replace(/\.exe$/, ""))
+// Novadeck's own helpers, which an agent's status line or hooks start beside a command: the
+// relay and the hook's launcher (its posix fallback keeps its comm `hook`), and what they
+// run, as a status line's own command.
+const helpers = new Set(["novadeck-relay", "hook"])
+const bare = (spawn: Spawn): string => (spawn.name ?? "").toLowerCase().replace(/\.exe$/, "")
+const helper = (spawn: Spawn): boolean => helpers.has(bare(spawn))
+
+// The wrappers a status line runs its helper under: only these count as part of it.
+const shells = new Set(["sh", "bash", "dash", "zsh", "fish", "cmd", "powershell", "pwsh"])
 
 /**
  * The commands a person runs in an agent's own shell mode (`!sleep 15`), which fire no hook:
@@ -80,10 +95,12 @@ const helper = (spawn: Spawn): boolean =>
  * and none of it is a turn.
  *
  * An Enter that reaches an agent's terminal while its box (read as it stood before the
- * Enter) is in shell mode and holds a command starts two looks at the shell's processes; those
- * started since the Enter, less Novadeck's helpers and what they run under, are the command. Once
- * one is found it is looked at every second, and shown until none is left, or the system
- * twice could not tell.
+ * Enter) is in shell mode and holds a command opens a window of five seconds in which the
+ * shell's processes are looked at every half second. The processes started since the Enter
+ * (or since the end of the turn it waited out), less Novadeck's helpers, what they run and
+ * the shells they run under, and with the bound agent as the parent of each top one, are
+ * the command, once seen live a second apart. Once one is found it is looked at every
+ * second, and shown until none is left, or the system twice could not tell.
  */
 export class ShellCommands<R extends ShellRecord> {
   private readonly watches = new Map<R, Watch>()
@@ -124,12 +141,12 @@ export class ShellCommands<R extends ShellRecord> {
         if (box?.mode !== "shell" || isEmpty(box) || profile.overlay(screen)) return
         const command = box.text.trim().slice(0, 4096)
         if (command === "") return
-        const attempt = { command, at }
-        // Mid-turn Codex runs the command at once, Claude Code and Antigravity queue it until
-        // the turn ends; the turn's own tools start processes too, so it is looked for
-        // once the turn has ended (`changed`).
-        if (record.summary.activity?.state === "working") this.hold(record, run, pid, attempt)
-        else this.begin(record, run, pid, attempt)
+        const entry = { command, at, runs: profile.shell.midTurn === "runs" }
+        // Mid-turn the harness queues the command until the turn ends (Claude Code,
+        // Antigravity) or runs it at once (Codex), and the turn's own tools start processes
+        // too: it is looked for once the turn has ended (`changed`).
+        if (record.summary.activity?.state === "working") this.hold(record, run, pid, entry)
+        else this.begin(record, run, pid, { ...entry, cutoff: undefined, seen: new Map() })
       },
       () => undefined,
     )
@@ -153,17 +170,29 @@ export class ShellCommands<R extends ShellRecord> {
     for (const [record, watch] of this.watches) this.drop(record, watch)
   }
 
-  /** The record's activity changed: a turn that ended brings the looks for the command waiting on it. */
+  /**
+   * The record's activity changed: a turn that ended brings the looks for the command waiting
+   * on it, and one that started cuts off the attempts then looking.
+   */
   changed(record: R): void {
     const watch = this.watches.get(record)
+    if (!watch) return
     const working = record.summary.activity?.state === "working"
-    // A turn that starts once the looks began: its tools' processes are not the command.
-    if (watch && !watch.pending && working) watch.cutoff ??= Date.now()
-    if (!watch?.pending || working) return
-    const attempt = { ...watch.pending, ended: Date.now() }
+    if (working) {
+      // Each attempt has its own cutoff: the turn's tools are not what they look for.
+      const now = Date.now()
+      for (const attempt of watch.attempts) attempt.cutoff ??= now
+      return
+    }
+    if (!watch.pending) return
+    const { pending } = watch
     watch.pending = undefined
-    watch.cutoff = undefined
-    this.schedule(record, watch, attempt)
+    this.begin(record, watch.run, watch.pid, {
+      ...pending,
+      ended: Date.now(),
+      cutoff: undefined,
+      seen: new Map(),
+    })
   }
 
   private watchOf(record: R, run: number, pid: number): Watch | undefined {
@@ -178,12 +207,11 @@ export class ShellCommands<R extends ShellRecord> {
         run,
         pid,
         held: new Set(),
-        looks: new Set(),
+        attempts: [],
+        look: undefined,
         poll: undefined,
         unknown: 0,
         inflight: 0,
-        seen: new Map(),
-        cutoff: undefined,
         pending: undefined,
       }
       this.watches.set(record, watch)
@@ -191,26 +219,26 @@ export class ShellCommands<R extends ShellRecord> {
     return watch
   }
 
-  private hold(record: R, run: number, pid: number, attempt: Attempt): void {
+  private hold(record: R, run: number, pid: number, entry: NonNullable<Watch["pending"]>): void {
     const watch = this.watchOf(record, run, pid)
-    if (watch) watch.pending = attempt
+    if (watch) watch.pending = entry
   }
 
   private begin(record: R, run: number, pid: number, attempt: Attempt): void {
     const watch = this.watchOf(record, run, pid)
-    if (watch) this.schedule(record, watch, attempt)
+    if (!watch) return
+    watch.attempts.push(attempt)
+    this.looking(record, watch)
   }
 
-  private schedule(record: R, watch: Watch, attempt: Attempt): void {
-    if (watch.looks.size === 0) watch.cutoff = undefined
-    for (const ms of lookMs) {
-      const look = setTimeout(() => {
-        watch.looks.delete(look)
-        this.run(record, watch, () => this.look(record, watch, attempt))
-      }, ms)
-      look.unref()
-      watch.looks.add(look)
-    }
+  /** Arms the watch's one look timer, if an attempt's window is open and none is. */
+  private looking(record: R, watch: Watch): void {
+    if (watch.look !== undefined || watch.attempts.length === 0) return
+    watch.look = setTimeout(() => {
+      watch.look = undefined
+      this.run(record, watch, () => this.look(record, watch))
+    }, lookEveryMs)
+    watch.look.unref()
   }
 
   /** Whether the record is the same running shell, and not on its way out. */
@@ -248,8 +276,9 @@ export class ShellCommands<R extends ShellRecord> {
     if (!this.alive(record, watch)) this.end(record)
     else if (
       watch.inflight === 0 &&
-      watch.looks.size === 0 &&
+      watch.look === undefined &&
       watch.poll === undefined &&
+      watch.attempts.length === 0 &&
       !watch.pending
     ) {
       // Nothing left to see it end: a command still shown would never clear.
@@ -258,61 +287,86 @@ export class ShellCommands<R extends ShellRecord> {
   }
 
   private drop(record: R, watch: Watch): void {
-    for (const look of watch.looks) clearTimeout(look)
-    watch.looks.clear()
+    if (watch.look) clearTimeout(watch.look)
+    watch.look = undefined
     if (watch.poll) clearTimeout(watch.poll)
     watch.poll = undefined
     if (this.watches.get(record) === watch) this.watches.delete(record)
   }
 
-  private async look(record: R, watch: Watch, attempt: Attempt): Promise<void> {
-    const spawns = await this.under(watch.pid)
-    if (!this.alive(record, watch) || spawns === undefined) return
-    const now = Date.now()
-    const found = this.started(spawns, attempt, watch.cutoff)
-    // Only a process seen live a second apart counts: a helper passing through never shows.
-    const before = new Map(watch.seen)
-    watch.seen.clear()
-    for (const { key } of found) watch.seen.set(key, before.get(key) ?? now)
-    const fresh = found.filter(
-      ({ key }) => !watch.held.has(key) && now - (watch.seen.get(key) ?? now) >= aliveMs,
-    )
-    if (fresh.length === 0) return
-    for (const { key } of fresh) watch.held.add(key)
-    const shown = record.summary.shellCommand
-    if (shown == null || shown.since !== attempt.at || shown.command !== attempt.command) {
-      record.summary = {
-        ...record.summary,
-        shellCommand: { command: attempt.command, since: attempt.at },
+  /** One look at the shell's processes, for every attempt whose window is open. */
+  private async look(record: R, watch: Watch): Promise<void> {
+    try {
+      const spawns = await this.under(watch.pid)
+      if (!this.alive(record, watch) || spawns === undefined) return
+      const now = Date.now()
+      const agent = agentProcess(record)
+      // The newest attempt first: a process is the latest Enter's it can be.
+      const claimed = new Set<string>()
+      for (const attempt of watch.attempts.toReversed()) {
+        const found = this.started(spawns, attempt, agent)
+        const before = attempt.seen
+        attempt.seen = new Map(found.map(({ key }) => [key, before.get(key) ?? now]))
+        const fresh = found.filter(
+          ({ key }) =>
+            !claimed.has(key) &&
+            !watch.held.has(key) &&
+            now - (attempt.seen.get(key) ?? now) >= confirmMs,
+        )
+        for (const { key } of found) claimed.add(key)
+        if (fresh.length === 0) continue
+        for (const { key } of fresh) watch.held.add(key)
+        const shown = record.summary.shellCommand
+        if (shown == null || shown.since !== attempt.at || shown.command !== attempt.command) {
+          record.summary = {
+            ...record.summary,
+            shellCommand: { command: attempt.command, since: attempt.at },
+          }
+          this.host.announce(record)
+        }
+        this.polling(record, watch)
       }
-      this.host.announce(record)
+    } finally {
+      // The windows that have closed are over; the others look again.
+      const now = Date.now()
+      watch.attempts = watch.attempts.filter(({ at, ended }) => now - (ended ?? at) < findMs)
+      if (this.alive(record, watch)) this.looking(record, watch)
     }
-    this.polling(record, watch)
   }
 
-  /** The top-level processes started since `at`, less Novadeck's helpers and what runs them. */
+  /**
+   * The top-level processes the attempt's Enter started, less Novadeck's helpers, what they
+   * run and the shells they run under. With `agent`, the bound agent's process, a top one is
+   * its child: what it left running before (a dev server's watcher restarting its own
+   * child) is not the command.
+   */
   private started(
     spawns: readonly Spawn[],
-    { at, ended }: Attempt,
-    cutoff: number | undefined,
+    { at, ended, runs, cutoff }: Attempt,
+    agent: number | undefined,
   ): readonly Spawn[] {
     const res = this.host.resolutionMs?.() ?? startResolutionMs()
-    // After a turn's end: what started right after the Enter (Codex runs it at once), or
-    // since the turn ended (the others queue it); not what the turn's tools started between.
+    // After a turn's end: what started since it (a harness that queues the command), or
+    // too what started right after the Enter (one that runs it at once, Codex); never what
+    // the turn's tools started between.
     const candidates = spawns.filter(
       ({ startedMs }) =>
         (cutoff === undefined || startedMs < cutoff) &&
         (startedMs >= (ended ?? at) - res ||
-          (ended !== undefined && startedMs >= at - res && startedMs <= at + midTurnMs)),
+          (ended !== undefined && runs && startedMs >= at - res && startedMs <= at + midTurnMs)),
     )
     const all = new Map(spawns.map((spawn) => [spawn.pid, spawn]))
     const byPid = new Map(candidates.map((spawn) => [spawn.pid, spawn]))
     const excluded = new Set<number>()
-    for (const spawn of candidates.filter(helper)) {
-      // The helper and the wrapper processes above it that are candidates themselves.
+    for (const spawn of candidates) {
+      // The console host, as itself alone.
+      if (bare(spawn) === "conhost") excluded.add(spawn.pid)
+      if (!helper(spawn)) continue
+      excluded.add(spawn.pid)
+      // The wrappers above it, while they are shells: a status line's `sh -c`.
       for (
-        let up: Spawn | undefined = spawn, steps = 0;
-        up && steps < 64;
+        let up = spawn.parent === null ? undefined : byPid.get(spawn.parent), steps = 0;
+        up && shells.has(bare(up)) && steps < 64;
         up = up.parent === null ? undefined : byPid.get(up.parent), steps += 1
       )
         excluded.add(up.pid)
@@ -328,7 +382,10 @@ export class ShellCommands<R extends ShellRecord> {
     }
     const kept = candidates.filter(({ pid }) => !excluded.has(pid))
     const pids = new Set(kept.map(({ pid }) => pid))
-    return kept.filter(({ parent }) => parent === null || !pids.has(parent))
+    return kept.filter(
+      ({ parent }) =>
+        parent === null || (!pids.has(parent) && (agent === undefined || parent === agent)),
+    )
   }
 
   private polling(record: R, watch: Watch): void {
@@ -350,7 +407,7 @@ export class ShellCommands<R extends ShellRecord> {
         ? watch.unknown >= unknownLooks
         : !spawns.some(({ key }) => watch.held.has(key))
     if (over) {
-      // Looks after a later Enter stay: they may find the next command.
+      // Attempts still looking may find the next command.
       watch.held.clear()
       this.hide(record, true)
     } else this.polling(record, watch)

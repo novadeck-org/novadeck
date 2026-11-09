@@ -5,7 +5,8 @@ import { afterEach, beforeEach, vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
 import {
-  lookMs,
+  findMs,
+  lookEveryMs,
   pollMs,
   ShellCommands,
   type ShellCommandsHost,
@@ -13,22 +14,23 @@ import {
 } from "./shell-commands.js"
 
 const SHELL = 100
+const AGENT = 50
 
 type Fake = ShellRecord & { box: InputBox | undefined; overlay: boolean }
 
-const record = (): Fake => {
+const record = (instance: string | null = null): Fake => {
   const fake = {
     box: undefined as InputBox | undefined,
     overlay: false,
     hibernating: undefined,
     closed: false,
-    summary: { shellCommand: null },
+    bound: instance === null ? null : { binding: { instance } },
+    summary: { shellCommand: null, activity: null },
     terminal: {
       run: 1,
       exit: null,
       exiting: false,
       pty: { pid: SHELL },
-      // The screen stands for the box as it was read.
       readScreen: () => Promise.resolve({} as never),
     },
   }
@@ -37,7 +39,7 @@ const record = (): Fake => {
 
 const shellBox = (text: string): InputBox => ({ text, mode: "shell", first: 0, last: 0 })
 
-const spawn = (pid: number, startedMs: number, parent = SHELL - 1, name = "sleep"): Spawn => ({
+const spawn = (pid: number, startedMs: number, parent = AGENT, name = "sleep"): Spawn => ({
   key: `${pid}:${startedMs}`,
   pid,
   parent,
@@ -45,17 +47,29 @@ const spawn = (pid: number, startedMs: number, parent = SHELL - 1, name = "sleep
   startedMs,
 })
 
+const activity = (rec: Fake, state: "working" | "idle"): void => {
+  ;(rec.summary as { activity: unknown }).activity = { state }
+}
+
 type Setup = {
   readonly shells: ShellCommands<Fake>
   readonly rec: Fake
   readonly announced: () => number
   readonly processes: { current: readonly Spawn[] | undefined }
   readonly lookups: () => number
-  readonly press: (box?: InputBox) => Promise<void>
+  readonly press: (box?: InputBox) => Promise<number>
+  readonly ends: () => Promise<number>
 }
 
-const setup = (options: { resolutionMs?: number; profile?: boolean } = {}): Setup => {
-  const rec = record()
+const setup = (
+  options: {
+    resolutionMs?: number
+    profile?: boolean
+    midTurn?: "queues" | "runs"
+    agent?: boolean
+  } = {},
+): Setup => {
+  const rec = record(options.agent ? String(AGENT) : null)
   rec.box = shellBox("sleep 15")
   const processes: { current: readonly Spawn[] | undefined } = { current: [] }
   let announces = 0
@@ -63,6 +77,7 @@ const setup = (options: { resolutionMs?: number; profile?: boolean } = {}): Setu
   const profile = {
     read: () => rec.box,
     overlay: () => rec.overlay,
+    shell: { midTurn: options.midTurn ?? "queues" },
   } as unknown as BoxProfile
   const host: ShellCommandsHost<Fake> = {
     profile: () => (options.profile === false ? undefined : profile),
@@ -73,8 +88,8 @@ const setup = (options: { resolutionMs?: number; profile?: boolean } = {}): Setu
       lookups += 1
       return processes.current
     },
-    resolutionMs: () => options.resolutionMs ?? 10,
     trees: () => ({ read: async () => undefined }),
+    resolutionMs: () => options.resolutionMs ?? 10,
     stopping: () => false,
   }
   const shells = new ShellCommands<Fake>(host)
@@ -86,11 +101,20 @@ const setup = (options: { resolutionMs?: number; profile?: boolean } = {}): Setu
     lookups: () => lookups,
     press: async (box) => {
       if (box) rec.box = box
+      const at = Date.now()
       shells.entered(rec)
       await vi.advanceTimersByTimeAsync(0)
+      return at
+    },
+    ends: async () => {
+      activity(rec, "idle")
+      shells.changed(rec)
+      return Date.now()
     },
   }
 }
+
+const settle = (ms: number) => vi.advanceTimersByTimeAsync(ms)
 
 describe("shell commands", () => {
   beforeEach(() => {
@@ -100,33 +124,56 @@ describe("shell commands", () => {
     vi.useRealTimers()
   })
 
-  it("shows the process a shell-mode Enter started, then clears when it ends", async () => {
+  it("shows the process a shell-mode Enter started once seen live a second apart, then clears", async () => {
     const s = setup()
-    await s.press()
-    const at = Date.now()
+    const at = await s.press()
     s.processes.current = [spawn(7, at + 5)]
-    await vi.advanceTimersByTimeAsync(lookMs[1]!)
+    await settle(lookEveryMs)
+    expect(s.rec.summary.shellCommand).toBeNull()
+    await settle(lookEveryMs * 2)
     expect(s.rec.summary.shellCommand).toEqual({ command: "sleep 15", since: at })
     expect(s.announced()).toBe(1)
-    // Held: still alive a second later.
-    await vi.advanceTimersByTimeAsync(pollMs)
+    await settle(pollMs)
     expect(s.rec.summary.shellCommand).not.toBeNull()
     s.processes.current = []
-    await vi.advanceTimersByTimeAsync(pollMs)
+    await settle(pollMs)
     expect(s.rec.summary.shellCommand).toBeNull()
     expect(s.announced()).toBe(2)
-    await vi.advanceTimersByTimeAsync(10 * pollMs)
+    await settle(findMs + 5 * pollMs)
     expect(s.shells.watching).toBe(0)
+    expect(vi.getTimerCount()).toBe(0)
   })
 
-  it("finds a command that starts after the first look, within about 3 s", async () => {
+  it("never shows a command that ends within a second", async () => {
     const s = setup()
-    await s.press()
-    await vi.advanceTimersByTimeAsync(lookMs[0]!)
+    const at = await s.press()
+    s.processes.current = [spawn(7, at + 5)]
+    await settle(lookEveryMs * 2 - 100)
+    s.processes.current = []
+    await settle(findMs)
+    expect(s.announced()).toBe(0)
+  })
+
+  it("still shows a command first seen late in the window", async () => {
+    const s = setup()
+    const at = await s.press()
+    s.processes.current = []
+    await settle(3_900)
+    s.processes.current = [spawn(7, at + 3_950)]
+    await settle(findMs - 3_900)
+    expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
+  })
+
+  it("tolerates timer jitter: a gap of 990 ms between sightings counts", async () => {
+    const s = setup()
+    const at = await s.press()
+    s.processes.current = [spawn(7, at + 5)]
+    await settle(lookEveryMs)
+    // The clock steps back a little between looks, so the sightings are 495 ms apart each.
+    vi.setSystemTime(Date.now() - 5)
+    await settle(lookEveryMs)
     expect(s.rec.summary.shellCommand).toBeNull()
-    s.processes.current = [spawn(7, Date.now())]
-    // Seen at the second look, still there a second later at the third.
-    await vi.advanceTimersByTimeAsync(lookMs[2]! - lookMs[0]!)
+    await settle(lookEveryMs)
     expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
   })
 
@@ -140,7 +187,7 @@ describe("shell commands", () => {
       s.rec.box = box
       s.processes.current = [spawn(7, Date.now() + 5)]
       s.shells.entered(s.rec)
-      await vi.advanceTimersByTimeAsync(5_000)
+      await settle(findMs)
       expect(s.rec.summary.shellCommand).toBeNull()
       expect(s.lookups()).toBe(0)
       expect(s.shells.watching).toBe(0)
@@ -148,207 +195,165 @@ describe("shell commands", () => {
     const overlaid = setup()
     overlaid.rec.overlay = true
     await overlaid.press()
-    await vi.advanceTimersByTimeAsync(5_000)
+    await settle(findMs)
     expect(overlaid.lookups()).toBe(0)
     const none = setup({ profile: false })
     await none.press()
     expect(none.shells.watching).toBe(0)
   })
 
-  describe("while a turn works", () => {
-    const working = async (): Promise<{ s: Setup; t: number }> => {
-      const s = setup()
-      ;(s.rec.summary as { activity: unknown }).activity = { state: "working" }
-      await s.press()
-      return { s, t: Date.now() }
-    }
-    const ends = async (s: Setup): Promise<number> => {
-      ;(s.rec.summary as { activity: unknown }).activity = { state: "idle" }
-      s.shells.changed(s.rec)
-      return Date.now()
-    }
+  it("ignores processes that started before the Enter", async () => {
+    const s = setup()
+    await s.press()
+    s.processes.current = [spawn(5, Date.now() - 60_000)]
+    await settle(findMs + 1_000)
+    expect(s.rec.summary.shellCommand).toBeNull()
+  })
 
-    it("looks at nothing until the turn ends, and keeps no timer", async () => {
-      const { s, t } = await working()
-      s.processes.current = [spawn(7, t + 5)]
-      await vi.advanceTimersByTimeAsync(30_000)
-      expect(s.lookups()).toBe(0)
+  it("counts a process started within macOS's whole second before the Enter", async () => {
+    const mac = setup({ resolutionMs: startResolutionMs("darwin") })
+    await mac.press()
+    mac.processes.current = [spawn(7, Date.now() - 900)]
+    await settle(findMs)
+    expect(mac.rec.summary.shellCommand).not.toBeNull()
+    const linux = setup({ resolutionMs: startResolutionMs("linux") })
+    await linux.press()
+    linux.processes.current = [spawn(7, Date.now() - 900)]
+    await settle(findMs)
+    expect(linux.rec.summary.shellCommand).toBeNull()
+  })
+
+  it("finds the command through the relay's tree on Windows, with a console host beside it", async () => {
+    const rec = record()
+    rec.box = shellBox("timeout 15")
+    let tree: readonly Member[] | undefined
+    const shells = new ShellCommands<Fake>({
+      profile: () =>
+        ({ read: () => rec.box, overlay: () => false, shell: {} }) as unknown as BoxProfile,
+      announce: () => undefined,
+      trees: () => ({ read: async () => tree }),
+      under: (pid) => processesUnder(pid, { platform: "win32", trees: { read: async () => tree } }),
+      resolutionMs: () => startResolutionMs("win32"),
+      stopping: () => false,
+    })
+    shells.entered(rec)
+    await settle(0)
+    const at = Date.now()
+    // The command is the one process, with its console host under it: the host alone is left out.
+    tree = [
+      { pid: SHELL, startedAt: at - 9_000, name: "pwsh.exe" },
+      { pid: 8, startedAt: at - 8_000, name: "claude.exe", parent: SHELL },
+      { pid: 9, startedAt: at + 20, name: "timeout.exe", parent: 8 },
+      { pid: 11, startedAt: at + 22, name: "conhost.exe", parent: 9 },
+      { pid: 10, startedAt: at + 25, name: "novadeck-relay.exe", parent: 8 },
+    ]
+    await settle(findMs)
+    expect(rec.summary.shellCommand).toEqual({ command: "timeout 15", since: at })
+    tree = [
+      { pid: SHELL, startedAt: at - 9_000, name: "pwsh.exe" },
+      { pid: 8, startedAt: at - 8_000, name: "claude.exe", parent: SHELL },
+    ]
+    await settle(pollMs)
+    expect(rec.summary.shellCommand).toBeNull()
+    shells.stop()
+  })
+
+  describe("helpers", () => {
+    it("leaves out the relay, the hook launcher, what they run and the shell wrapper above", async () => {
+      const s = setup()
+      const at = await s.press()
+      s.processes.current = [
+        // A status line: sh -c wrapper, the relay, and the person's own command under it.
+        spawn(20, at + 1, 5, "sh"),
+        spawn(21, at + 2, 20, "novadeck-relay"),
+        spawn(22, at + 3, 21, "starship"),
+        // A hook launcher's fallback and what it starts.
+        spawn(23, at + 4, 5, "hook"),
+        spawn(24, at + 5, 23, "node"),
+        // A console host with nothing under it.
+        spawn(25, at + 6, 5, "conhost.exe"),
+      ]
+      await settle(findMs + 1_000)
       expect(s.rec.summary.shellCommand).toBeNull()
-      expect(vi.getTimerCount()).toBe(0)
+      expect(s.announced()).toBe(0)
     })
 
-    it("finds a command the harness queued, started after the turn's end", async () => {
-      const { s } = await working()
-      await vi.advanceTimersByTimeAsync(20_000)
-      const e = await ends(s)
-      s.processes.current = [spawn(7, e + 100)]
-      await vi.advanceTimersByTimeAsync(lookMs[1]!)
+    it("keeps a nested agent's command, whose relay is under a program that is no shell", async () => {
+      const s = setup()
+      const at = await s.press()
+      s.processes.current = [
+        spawn(30, at + 1, 5, "claude"),
+        spawn(31, at + 2, 30, "novadeck-relay"),
+        spawn(32, at + 3, 30, "sh"),
+      ]
+      await settle(findMs)
       expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
     })
 
-    it("finds a command run at once, started right after the Enter and alive at the end", async () => {
-      const { s, t } = await working()
-      s.processes.current = [spawn(7, t + 50)]
-      await vi.advanceTimersByTimeAsync(20_000)
-      await ends(s)
-      await vi.advanceTimersByTimeAsync(lookMs[1]!)
-      expect(s.rec.summary.shellCommand).toEqual({ command: "sleep 15", since: t })
-    })
-
-    it("drops the attempt when neither look finds anything", async () => {
-      const { s } = await working()
-      await vi.advanceTimersByTimeAsync(5_000)
-      await ends(s)
-      await vi.advanceTimersByTimeAsync(lookMs[2]!)
-      expect(s.rec.summary.shellCommand).toBeNull()
-      expect(s.shells.watching).toBe(0)
-      expect(vi.getTimerCount()).toBe(0)
-      // A later end finds nothing pending.
-      const lookups = s.lookups()
-      await ends(s)
-      await vi.advanceTimersByTimeAsync(lookMs[2]!)
-      expect(s.lookups()).toBe(lookups)
-    })
-
-    it("takes neither a tool process that ended before the turn's end nor a background one outside the windows", async () => {
-      const { s, t } = await working()
-      await vi.advanceTimersByTimeAsync(20_000)
-      await ends(s)
-      // Gone by the end: not listed. A background server started mid-turn, well after the
-      // Enter and before the end, lives on.
-      s.processes.current = [spawn(8, t + 10_000)]
-      await vi.advanceTimersByTimeAsync(lookMs[2]!)
+    it("holds the top of a command beside the helpers", async () => {
+      const s = setup()
+      const at = await s.press()
+      s.processes.current = [
+        spawn(20, at + 1, 5, "sh"),
+        spawn(21, at + 2, 20, "novadeck-relay"),
+        spawn(30, at + 4, 5, "bash"),
+        spawn(31, at + 5, 30, "sleep"),
+      ]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
+      s.processes.current = [spawn(30, at + 4, 5, "bash"), spawn(31, at + 5, 30, "sleep")]
+      await settle(pollMs)
+      expect(s.rec.summary.shellCommand).not.toBeNull()
+      s.processes.current = [spawn(20, at + 1, 5, "sh"), spawn(21, at + 2, 20, "novadeck-relay")]
+      await settle(pollMs)
       expect(s.rec.summary.shellCommand).toBeNull()
     })
+  })
 
-    it("drops a pending attempt with the terminal", async () => {
-      const { s } = await working()
-      ;(s.rec.terminal as { exit: unknown }).exit = { code: 0 }
-      s.shells.end(s.rec, false)
-      expect(s.shells.watching).toBe(0)
-      s.processes.current = [spawn(7, Date.now() + 10)]
-      await ends(s)
-      await vi.advanceTimersByTimeAsync(lookMs[2]!)
-      expect(s.lookups()).toBe(0)
+  describe("the bound agent", () => {
+    it("takes only a top process whose parent is the agent", async () => {
+      const s = setup({ agent: true })
+      const at = await s.press()
+      // A dev server's watcher restarting its own child after the Enter.
+      const server = [spawn(40, at - 60_000, AGENT, "node"), spawn(41, at + 100, 40, "node")]
+      s.processes.current = server
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toBeNull()
+      // The command, in a window of its own.
+      const second = await s.press()
+      s.processes.current = [...server, spawn(42, second + 200, AGENT, "bash")]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
+      // It ends with its own process, though the server's child lives on.
+      s.processes.current = server
+      await settle(pollMs)
+      expect(s.rec.summary.shellCommand).toBeNull()
     })
 
-    it("shows the latest of two Enters mid-turn", async () => {
-      const { s } = await working()
-      await vi.advanceTimersByTimeAsync(1_000)
-      await s.press(shellBox("sleep 30"))
-      const t2 = Date.now()
-      await vi.advanceTimersByTimeAsync(1_000)
-      const e = await ends(s)
-      s.processes.current = [spawn(7, e + 100)]
-      await vi.advanceTimersByTimeAsync(lookMs[1]!)
-      expect(s.rec.summary.shellCommand).toEqual({ command: "sleep 30", since: t2 })
+    it("applies no parent rule to an agent not bound yet", async () => {
+      const s = setup()
+      const at = await s.press()
+      s.processes.current = [spawn(41, at + 100, 40, "node")]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
     })
   })
 
-  it("leaves out Novadeck's helpers and the wrappers they run under", async () => {
+  it("claims nothing when the looks can't tell, and treats a failing look as one that can't", async () => {
     const s = setup()
     await s.press()
-    const at = Date.now()
-    s.processes.current = [
-      spawn(20, at + 1, 5, "sh"),
-      spawn(21, at + 2, 20, "novadeck-relay"),
-      spawn(22, at + 3, 5, "novadeck-relay.exe"),
-    ]
-    await vi.advanceTimersByTimeAsync(lookMs[2]!)
+    s.processes.current = undefined
+    await settle(findMs + 1_000)
     expect(s.rec.summary.shellCommand).toBeNull()
-    expect(s.announced()).toBe(0)
-  })
+    expect(s.shells.watching).toBe(0)
 
-  it("holds the top of a command beside the helpers", async () => {
-    const s = setup()
-    await s.press()
-    const at = Date.now()
-    // Claude's bash wrapper with sleep under it, and a status line's wrapper with the relay.
-    s.processes.current = [
-      spawn(20, at + 1, 5, "sh"),
-      spawn(21, at + 2, 20, "novadeck-relay"),
-      spawn(30, at + 4, 5, "bash"),
-      spawn(31, at + 5, 30, "sleep"),
-    ]
-    await vi.advanceTimersByTimeAsync(lookMs[1]!)
-    expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
-    // The top is the hold: its child alone, or the helpers alone, are not the command.
-    s.processes.current = [spawn(30, at + 4, 5, "bash"), spawn(31, at + 5, 30, "sleep")]
-    await vi.advanceTimersByTimeAsync(pollMs)
-    expect(s.rec.summary.shellCommand).not.toBeNull()
-    s.processes.current = [spawn(20, at + 1, 5, "sh"), spawn(21, at + 2, 20, "novadeck-relay")]
-    await vi.advanceTimersByTimeAsync(pollMs)
-    expect(s.rec.summary.shellCommand).toBeNull()
-  })
-
-  it("leaves out what a helper runs, Novadeck's hook launcher and Windows' console host", async () => {
-    const s = setup()
-    await s.press()
-    const at = Date.now()
-    s.processes.current = [
-      // The relay running the person's own status line.
-      spawn(20, at + 1, 5, "novadeck-relay"),
-      spawn(21, at + 2, 20, "sh"),
-      spawn(22, at + 3, 21, "starship"),
-      // The posix hook launcher's fallback, and what it starts.
-      spawn(23, at + 4, 5, "hook"),
-      spawn(24, at + 5, 23, "node"),
-      spawn(25, at + 6, 5, "conhost.exe"),
-    ]
-    await vi.advanceTimersByTimeAsync(lookMs[2]! + 2_000)
-    expect(s.rec.summary.shellCommand).toBeNull()
-    expect(s.announced()).toBe(0)
-  })
-
-  it("never shows a process that is gone by the next look", async () => {
-    const s = setup()
-    await s.press()
-    s.processes.current = [spawn(7, Date.now() + 5)]
-    await vi.advanceTimersByTimeAsync(lookMs[0]!)
-    s.processes.current = []
-    await vi.advanceTimersByTimeAsync(lookMs[2]! - lookMs[0]!)
-    expect(s.rec.summary.shellCommand).toBeNull()
-    expect(s.announced()).toBe(0)
-  })
-
-  it("takes a process the turn that started after the Enter had no hand in, not that turn's tools", async () => {
-    const s = setup()
-    await s.press()
-    const at = Date.now()
-    await vi.advanceTimersByTimeAsync(lookMs[0]!)
-    // A ring starts a turn; its tool starts a process.
-    ;(s.rec.summary as { activity: unknown }).activity = { state: "working" }
-    s.shells.changed(s.rec)
-    await vi.advanceTimersByTimeAsync(10)
-    s.processes.current = [spawn(7, Date.now())]
-    await vi.advanceTimersByTimeAsync(lookMs[2]!)
-    expect(at).toBeGreaterThan(0)
-    expect(s.rec.summary.shellCommand).toBeNull()
-  })
-
-  it("takes no tool of a turn that started after a held command's turn ended", async () => {
-    const s = setup()
-    ;(s.rec.summary as { activity: unknown }).activity = { state: "working" }
-    await s.press()
-    await vi.advanceTimersByTimeAsync(5_000)
-    ;(s.rec.summary as { activity: unknown }).activity = { state: "idle" }
-    s.shells.changed(s.rec)
-    await vi.advanceTimersByTimeAsync(lookMs[0]!)
-    ;(s.rec.summary as { activity: unknown }).activity = { state: "working" }
-    s.shells.changed(s.rec)
-    await vi.advanceTimersByTimeAsync(10)
-    s.processes.current = [spawn(7, Date.now())]
-    await vi.advanceTimersByTimeAsync(lookMs[2]!)
-    expect(s.rec.summary.shellCommand).toBeNull()
-  })
-
-  it("treats a look that fails as one that can't tell", async () => {
     const rec = record()
     rec.box = shellBox("sleep 15")
     let fail = false
     const started = Date.now() + 5
     const shells = new ShellCommands<Fake>({
-      profile: () => ({ read: () => rec.box, overlay: () => false }) as unknown as BoxProfile,
+      profile: () =>
+        ({ read: () => rec.box, overlay: () => false, shell: {} }) as unknown as BoxProfile,
       announce: () => undefined,
       trees: () => ({ read: async () => undefined }),
       under: async () => {
@@ -359,99 +364,240 @@ describe("shell commands", () => {
       stopping: () => false,
     })
     shells.entered(rec)
-    await vi.advanceTimersByTimeAsync(lookMs[2]!)
+    await settle(findMs)
     expect(rec.summary.shellCommand).not.toBeNull()
     fail = true
-    // Two polls that threw end it, with no unhandled rejection.
-    await vi.advanceTimersByTimeAsync(pollMs)
+    await settle(pollMs)
     expect(rec.summary.shellCommand).not.toBeNull()
-    await vi.advanceTimersByTimeAsync(pollMs)
-    expect(rec.summary.shellCommand).toBeNull()
-    shells.stop()
-  })
-
-  it("ignores processes that started before the Enter", async () => {
-    const s = setup()
-    await s.press()
-    s.processes.current = [spawn(5, Date.now() - 60_000)]
-    await vi.advanceTimersByTimeAsync(lookMs[2]!)
-    expect(s.rec.summary.shellCommand).toBeNull()
-  })
-
-  it("counts a process started within macOS's whole second before the Enter", async () => {
-    const mac = setup({ resolutionMs: 1000 })
-    await mac.press()
-    // `ps` truncates the start to whole seconds: up to 999 ms before the Enter.
-    mac.processes.current = [spawn(7, Date.now() - 900)]
-    await vi.advanceTimersByTimeAsync(lookMs[1]!)
-    expect(mac.rec.summary.shellCommand).not.toBeNull()
-    const linux = setup({ resolutionMs: 10 })
-    await linux.press()
-    linux.processes.current = [spawn(7, Date.now() - 900)]
-    await vi.advanceTimersByTimeAsync(lookMs[1]!)
-    expect(linux.rec.summary.shellCommand).toBeNull()
-  })
-
-  it("finds the command through the relay's tree on Windows", async () => {
-    const rec = record()
-    rec.box = shellBox("timeout 15")
-    let tree: readonly Member[] | undefined
-    const shells = new ShellCommands<Fake>({
-      profile: () => ({ read: () => rec.box, overlay: () => false }) as unknown as BoxProfile,
-      announce: () => undefined,
-      trees: () => ({ read: async () => tree }),
-      under: (pid) => processesUnder(pid, { platform: "win32", trees: { read: async () => tree } }),
-      resolutionMs: () => startResolutionMs("win32"),
-      stopping: () => false,
-    })
-    shells.entered(rec)
-    await vi.advanceTimersByTimeAsync(0)
-    const at = Date.now()
-    tree = [
-      { pid: SHELL, startedAt: at - 9_000, name: "pwsh.exe" },
-      { pid: 8, startedAt: at - 8_000, name: "claude.exe", parent: SHELL },
-      { pid: 9, startedAt: at + 20, name: "timeout.exe", parent: 8 },
-      { pid: 10, startedAt: at + 25, name: "novadeck-relay.exe", parent: 8 },
-    ]
-    await vi.advanceTimersByTimeAsync(lookMs[1]!)
-    expect(rec.summary.shellCommand).toEqual({ command: "timeout 15", since: at })
-    tree = [
-      { pid: SHELL, startedAt: at - 9_000, name: "pwsh.exe" },
-      { pid: 8, startedAt: at - 8_000, name: "claude.exe", parent: SHELL },
-    ]
-    await vi.advanceTimersByTimeAsync(pollMs)
+    await settle(pollMs)
     expect(rec.summary.shellCommand).toBeNull()
     shells.stop()
   })
 
   it("clears when the system can't tell twice in a row, not once", async () => {
     const s = setup()
-    await s.press()
-    const started = Date.now() + 5
+    const at = await s.press()
+    const started = at + 5
     s.processes.current = [spawn(7, started)]
-    await vi.advanceTimersByTimeAsync(lookMs[2]!)
+    await settle(findMs)
     expect(s.rec.summary.shellCommand).not.toBeNull()
     s.processes.current = undefined
-    await vi.advanceTimersByTimeAsync(pollMs)
+    await settle(pollMs)
     expect(s.rec.summary.shellCommand).not.toBeNull()
-    // A look that could tell resets the count.
     s.processes.current = [spawn(7, started)]
-    await vi.advanceTimersByTimeAsync(pollMs)
+    await settle(pollMs)
     s.processes.current = undefined
-    await vi.advanceTimersByTimeAsync(pollMs)
+    await settle(pollMs)
     expect(s.rec.summary.shellCommand).not.toBeNull()
-    await vi.advanceTimersByTimeAsync(pollMs)
+    await settle(pollMs)
     expect(s.rec.summary.shellCommand).toBeNull()
   })
 
-  it("still ends a command shown when the last look finishes while a poll is in flight", async () => {
+  it("keeps no timer for a terminal with no candidate", async () => {
+    const s = setup()
+    await s.press()
+    await settle(findMs + 500)
+    const looked = s.lookups()
+    await settle(30_000)
+    expect(s.lookups()).toBe(looked)
+    expect(s.shells.watching).toBe(0)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  describe("two Enters", () => {
+    it("shows the latest command when a second Enter starts another", async () => {
+      const s = setup()
+      const first = await s.press()
+      s.processes.current = [spawn(7, first + 5)]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toEqual({ command: "sleep 15", since: first })
+      const second = await s.press(shellBox("sleep 30"))
+      s.processes.current = [spawn(7, first + 5), spawn(8, second + 5)]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toEqual({ command: "sleep 30", since: second })
+      s.processes.current = [spawn(8, second + 5)]
+      await settle(pollMs)
+      expect(s.rec.summary.shellCommand).not.toBeNull()
+      s.processes.current = []
+      await settle(pollMs)
+      expect(s.rec.summary.shellCommand).toBeNull()
+    })
+
+    it("keeps a second Enter's looks when the first command ended meanwhile", async () => {
+      const s = setup()
+      const first = await s.press()
+      s.processes.current = [spawn(7, first + 5)]
+      await settle(findMs)
+      const second = await s.press(shellBox("sleep 30"))
+      s.processes.current = [spawn(9, second + 5)]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toEqual({ command: "sleep 30", since: second })
+    })
+
+    it("gives each attempt its own cutoff and first-seen times", async () => {
+      const s = setup()
+      // A's window sees a turn start, which cuts A off; its tool's process is not A's.
+      await s.press()
+      await settle(1_200)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      await settle(100)
+      activity(s.rec, "idle")
+      s.shells.changed(s.rec)
+      // B comes after that turn: A's cutoff is not B's, and B's sighting is not reset by A's looks.
+      const second = await s.press(shellBox("sleep 30"))
+      s.processes.current = [spawn(8, second + 5)]
+      await settle(lookEveryMs * 3)
+      expect(s.rec.summary.shellCommand).toEqual({ command: "sleep 30", since: second })
+    })
+  })
+
+  describe("while a turn works", () => {
+    const working = async (options: Parameters<typeof setup>[0] = {}) => {
+      const s = setup(options)
+      activity(s.rec, "working")
+      const t = await s.press()
+      return { s, t }
+    }
+
+    it("looks at nothing until the turn ends, and keeps no timer", async () => {
+      const { s, t } = await working()
+      s.processes.current = [spawn(7, t + 5)]
+      await settle(30_000)
+      expect(s.lookups()).toBe(0)
+      expect(s.rec.summary.shellCommand).toBeNull()
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it("finds a command the harness queued, started after the turn's end", async () => {
+      const { s } = await working()
+      await settle(20_000)
+      const e = await s.ends()
+      s.processes.current = [spawn(7, e + 100)]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
+    })
+
+    it("finds a Codex command run at once, started right after the Enter, still alive at the end", async () => {
+      const { s, t } = await working({ midTurn: "runs" })
+      s.processes.current = [spawn(7, t + 50)]
+      await settle(20_000)
+      await s.ends()
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toEqual({ command: "sleep 15", since: t })
+    })
+
+    it("takes no turn's background tool started right after the Enter where the harness queues", async () => {
+      const { s, t } = await working({ midTurn: "queues" })
+      s.processes.current = [spawn(7, t + 50)]
+      await settle(20_000)
+      await s.ends()
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toBeNull()
+    })
+
+    it("drops the attempt when neither look finds anything", async () => {
+      const { s } = await working()
+      await settle(5_000)
+      await s.ends()
+      await settle(findMs + 500)
+      expect(s.rec.summary.shellCommand).toBeNull()
+      expect(s.shells.watching).toBe(0)
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it("takes neither a tool process that ended before the turn's end nor one outside the windows", async () => {
+      const { s, t } = await working({ midTurn: "runs" })
+      await settle(20_000)
+      await s.ends()
+      s.processes.current = [spawn(8, t + 10_000)]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toBeNull()
+    })
+
+    it("takes no tool of a turn that started after the held command's turn ended", async () => {
+      const { s } = await working()
+      await settle(5_000)
+      await s.ends()
+      await settle(lookEveryMs)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      await settle(10)
+      s.processes.current = [spawn(7, Date.now())]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toBeNull()
+    })
+
+    it("takes no tool of a turn that a ring started after an idle Enter", async () => {
+      const s = setup()
+      await s.press()
+      await settle(lookEveryMs)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      await settle(10)
+      s.processes.current = [spawn(7, Date.now())]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toBeNull()
+    })
+
+    it("shows the latest of two Enters mid-turn", async () => {
+      const { s } = await working()
+      await settle(1_000)
+      const t2 = await s.press(shellBox("sleep 30"))
+      await settle(1_000)
+      const e = await s.ends()
+      s.processes.current = [spawn(7, e + 100)]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toEqual({ command: "sleep 30", since: t2 })
+    })
+  })
+
+  it("ends and stops every timer when the agent leaves, the terminal exits or restarts, or it rests", async () => {
+    const cases: ((rec: Fake) => void)[] = [
+      (rec) => ((rec.terminal as { exit: unknown }).exit = { code: 0 }),
+      (rec) => ((rec.terminal as { run: number }).run = 2),
+      (rec) => ((rec as { hibernating?: true }).hibernating = true),
+      (rec) => ((rec as { closed: boolean }).closed = true),
+    ]
+    for (const change of cases) {
+      const s = setup()
+      const at = await s.press()
+      s.processes.current = [spawn(7, at + 5)]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).not.toBeNull()
+      change(s.rec)
+      await settle(pollMs)
+      expect(s.rec.summary.shellCommand).toBeNull()
+      expect(s.shells.watching).toBe(0)
+      expect(vi.getTimerCount()).toBe(0)
+    }
+  })
+
+  it("ends at once on `end`, and `stop` leaves no timer", async () => {
+    const s = setup()
+    const at = await s.press()
+    s.processes.current = [spawn(7, at + 5)]
+    await settle(findMs)
+    s.shells.end(s.rec)
+    expect(s.rec.summary.shellCommand).toBeNull()
+    expect(vi.getTimerCount()).toBe(0)
+    const t = setup()
+    await t.press()
+    t.shells.stop()
+    expect(vi.getTimerCount()).toBe(0)
+    await settle(5_000)
+    expect(t.lookups()).toBe(0)
+  })
+
+  it("still ends a command shown when a look finishes while a poll is in flight", async () => {
     const rec = record()
     rec.box = shellBox("sleep 15")
     const started = Date.now() + 5
     const waiting: ((spawns: readonly Spawn[]) => void)[] = []
     let hold = false
     const shells = new ShellCommands<Fake>({
-      profile: () => ({ read: () => rec.box, overlay: () => false }) as unknown as BoxProfile,
+      profile: () =>
+        ({ read: () => rec.box, overlay: () => false, shell: {} }) as unknown as BoxProfile,
       announce: () => undefined,
       trees: () => ({ read: async () => undefined }),
       under: (): Promise<readonly Spawn[]> =>
@@ -462,112 +608,24 @@ describe("shell commands", () => {
       stopping: () => false,
     })
     shells.entered(rec)
-    await vi.advanceTimersByTimeAsync(lookMs[1]!)
+    // Shown at the third look; the poll is armed a second out, and the window's last look
+    // comes at the same moment.
+    await settle(1_500)
     expect(rec.summary.shellCommand).not.toBeNull()
-    // The third look and the first poll come due together, and answer in the other order.
     hold = true
-    await vi.advanceTimersByTimeAsync(lookMs[2]! - lookMs[1]!)
-    expect(waiting).toHaveLength(2)
-    waiting[0]!([spawn(7, started)])
-    await vi.advanceTimersByTimeAsync(0)
-    // The command ended: the poll's answer lists nothing.
-    waiting[1]!([])
-    await vi.advanceTimersByTimeAsync(0)
+    await settle(findMs)
+    // Every look of the window and the poll: answer them, the poll's last, saying it ended.
+    const polls = waiting.splice(0)
+    expect(polls.length).toBeGreaterThan(0)
+    const last = polls.pop()!
+    for (const answer of polls) answer([spawn(7, started)])
+    await settle(0)
+    last([])
+    await settle(0)
+    hold = false
+    await settle(findMs)
     expect(rec.summary.shellCommand).toBeNull()
     expect(shells.watching).toBe(0)
     expect(vi.getTimerCount()).toBe(0)
-  })
-
-  it("claims nothing when the first looks can't tell", async () => {
-    const s = setup()
-    await s.press()
-    s.processes.current = undefined
-    await vi.advanceTimersByTimeAsync(lookMs[2]!)
-    expect(s.rec.summary.shellCommand).toBeNull()
-    expect(s.shells.watching).toBe(0)
-  })
-
-  it("polls nothing for a terminal with no candidate", async () => {
-    const s = setup()
-    await s.press()
-    await vi.advanceTimersByTimeAsync(lookMs[2]!)
-    const looked = s.lookups()
-    expect(looked).toBe(lookMs.length)
-    await vi.advanceTimersByTimeAsync(30_000)
-    expect(s.lookups()).toBe(looked)
-    expect(s.shells.watching).toBe(0)
-    expect(vi.getTimerCount()).toBe(0)
-  })
-
-  it("shows the latest command when a second Enter starts another", async () => {
-    const s = setup()
-    await s.press()
-    const first = Date.now()
-    s.processes.current = [spawn(7, first + 5)]
-    await vi.advanceTimersByTimeAsync(lookMs[1]!)
-    expect(s.rec.summary.shellCommand).toEqual({ command: "sleep 15", since: first })
-    await vi.advanceTimersByTimeAsync(3_000)
-    const second = Date.now()
-    await s.press(shellBox("sleep 30"))
-    s.processes.current = [spawn(7, first + 5), spawn(8, second + 5)]
-    await vi.advanceTimersByTimeAsync(lookMs[1]!)
-    expect(s.rec.summary.shellCommand).toEqual({ command: "sleep 30", since: second })
-    // The first ending leaves it shown while the second runs; both over, it clears.
-    s.processes.current = [spawn(8, second + 5)]
-    await vi.advanceTimersByTimeAsync(pollMs)
-    expect(s.rec.summary.shellCommand).not.toBeNull()
-    s.processes.current = []
-    await vi.advanceTimersByTimeAsync(pollMs)
-    expect(s.rec.summary.shellCommand).toBeNull()
-  })
-
-  it("keeps a second Enter's looks when the first command ended meanwhile", async () => {
-    const s = setup()
-    await s.press()
-    s.processes.current = [spawn(7, Date.now() + 5)]
-    await vi.advanceTimersByTimeAsync(lookMs[2]!)
-    const second = Date.now()
-    await s.press(shellBox("sleep 30"))
-    // The first ends at the poll before the second's looks end.
-    s.processes.current = [spawn(9, second + 5)]
-    await vi.advanceTimersByTimeAsync(lookMs[2]!)
-    expect(s.rec.summary.shellCommand).toEqual({ command: "sleep 30", since: second })
-  })
-
-  it("ends and stops every timer when the agent leaves, the terminal exits or restarts, or it rests", async () => {
-    const cases: [string, (rec: Fake) => void][] = [
-      ["exit", (rec) => ((rec.terminal as { exit: unknown }).exit = { code: 0 })],
-      ["restart", (rec) => ((rec.terminal as { run: number }).run = 2)],
-      ["rest", (rec) => ((rec as { hibernating?: true }).hibernating = true)],
-      ["closed", (rec) => ((rec as { closed: boolean }).closed = true)],
-    ]
-    for (const [, change] of cases) {
-      const s = setup()
-      await s.press()
-      s.processes.current = [spawn(7, Date.now() + 5)]
-      await vi.advanceTimersByTimeAsync(lookMs[1]!)
-      expect(s.rec.summary.shellCommand).not.toBeNull()
-      change(s.rec)
-      await vi.advanceTimersByTimeAsync(pollMs)
-      expect(s.rec.summary.shellCommand).toBeNull()
-      expect(s.shells.watching).toBe(0)
-      expect(vi.getTimerCount()).toBe(0)
-    }
-  })
-
-  it("ends at once on `end`, and `stop` leaves no timer", async () => {
-    const s = setup()
-    await s.press()
-    s.processes.current = [spawn(7, Date.now() + 5)]
-    await vi.advanceTimersByTimeAsync(lookMs[1]!)
-    s.shells.end(s.rec)
-    expect(s.rec.summary.shellCommand).toBeNull()
-    expect(vi.getTimerCount()).toBe(0)
-    const t = setup()
-    await t.press()
-    t.shells.stop()
-    expect(vi.getTimerCount()).toBe(0)
-    await vi.advanceTimersByTimeAsync(5_000)
-    expect(t.lookups()).toBe(0)
   })
 })

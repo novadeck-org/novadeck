@@ -52,8 +52,21 @@ describe("restart check", () => {
       expect(check.risks[0]).toMatchObject({
         kind: "agent",
         command: "sleep 15",
-        what: "1 background command stops",
+        what: "1 shell command stops",
+        shellOnly: true,
       })
+    })
+
+    it("is counted apart from background work beside it", () => {
+      const [risk] = restartCheck([
+        agent(1, "claude", {
+          working: false,
+          shellCommand,
+          background: { agents: 0, tasks: 2 },
+        }),
+      ]).risks
+      expect(risk).toMatchObject({ what: "1 shell command and 2 background commands stop" })
+      expect(risk).not.toHaveProperty("shellOnly")
     })
 
     it("leaves a turn under way resuming", () => {

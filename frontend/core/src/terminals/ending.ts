@@ -167,12 +167,19 @@ const shellCommandWidth = 60
 // What a terminal runs in its agent's shell mode, in words for its tab's description:
 // "Runs ! sleep 15", cut to fit. Undefined when it runs none.
 export const shellCommandText = (terminal: TerminalMetadata): string | undefined => {
+  const cut = shellCommandCut(terminal)
+  if (cut === undefined) return undefined
+  return cut ? `Runs ! ${cut}` : "Runs a shell command"
+}
+
+// The command cut to fit a sentence, by characters; undefined when none runs, empty for a bare `!`.
+export const shellCommandCut = (terminal: TerminalMetadata): string | undefined => {
   const line = shellCommandLine(terminal)
   if (line === undefined) return undefined
   const chars = [...line]
-  const cut =
-    chars.length > shellCommandWidth ? `${chars.slice(0, shellCommandWidth - 1).join("")}…` : line
-  return cut ? `Runs ! ${cut}` : "Runs a shell command"
+  return chars.length > shellCommandWidth
+    ? `${chars.slice(0, shellCommandWidth - 1).join("")}…`
+    : line
 }
 
 // The command a terminal runs in its agent's shell mode as one line, without the `!` it was

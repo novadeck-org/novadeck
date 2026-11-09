@@ -33,6 +33,8 @@ export type Risk =
       // The one command it waits on, when it is one; else `what` says it in words.
       readonly command?: string
       readonly what: string
+      // All of it is a command the person ran in its agent's shell mode, not work it waits on.
+      readonly shellOnly?: true
     }
   | { readonly kind: "unknown"; readonly id: string; readonly title: string }
 
@@ -141,28 +143,31 @@ const withoutShellCommand = (terminal: TerminalMetadata): TerminalMetadata => {
 
 const agentWork = (
   terminal: TerminalMetadata,
-): { readonly command?: string; readonly what: string } | undefined => {
+): { readonly command?: string; readonly what: string; readonly shellOnly?: true } | undefined => {
   if (terminal.state !== "running" || !terminal.agent) return undefined
   const jobs = terminal.agent.waiting?.jobs ?? []
   const { tasks = 0, agents = 0 } = terminal.agent.background ?? {}
   const shell = shellCommandLine(terminal)
-  const commands =
-    Math.max(jobs.length, jobs.length > 0 ? 0 : tasks) + (shell === undefined ? 0 : 1)
-  if (commands === 0 && agents === 0) return undefined
+  // A command the person ran in its shell mode is counted apart from the work the agent waits on.
+  const own = shell === undefined ? 0 : 1
+  const commands = Math.max(jobs.length, jobs.length > 0 ? 0 : tasks)
+  if (own + commands === 0 && agents === 0) return undefined
   const one =
-    shell !== undefined && jobs.length === 0 && tasks === 0
+    own === 1 && commands === 0
       ? shell
-      : jobs.length === 1 && shell === undefined
+      : own === 0 && jobs.length === 1
         ? jobs[0]!.command
         : undefined
   const only = one !== undefined && agents === 0 ? commandString(one) : undefined
   const parts = [
+    own > 0 && plural(own, "shell command"),
     commands > 0 && plural(commands, "background command"),
     agents > 0 && plural(agents, "subagent"),
   ].filter((part): part is string => part !== false)
   return {
     ...(only !== undefined ? { command: only } : {}),
-    what: `${parts.join(" and ")} ${commands + agents === 1 ? "stops" : "stop"}`,
+    what: `${parts.join(" and ")} ${own + commands + agents === 1 ? "stops" : "stop"}`,
+    ...(own > 0 && commands + agents === 0 ? { shellOnly: true as const } : {}),
   }
 }
 

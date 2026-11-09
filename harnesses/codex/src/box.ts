@@ -161,7 +161,14 @@ export const box: BoxProfile = {
   cut: ({ scrolled }) => scrolled === true,
   // Enter runs a command shown as a placeholder as the text it stands for. Its commands run
   // without a session, as it binds none (`starts`).
-  shell: { expands: true, starts: false, footer: shellFooter, leave: leaveShell },
+  // Runs at once while a turn works (probed 2026-10-07, 0.159.3; docs/harness-coverage.md).
+  shell: {
+    expands: true,
+    starts: false,
+    footer: shellFooter,
+    leave: leaveShell,
+    midTurn: "runs",
+  },
   // On 80 and 120 columns a word reaches 77 and 117, and one too long for a row starts a new
   // row and breaks at the same column (fixtures/leftover.probe.json).
   textWidth: (columns) => columns - 3,

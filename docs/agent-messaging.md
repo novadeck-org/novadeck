@@ -1905,20 +1905,29 @@ model at once and the turn runs beside the command. The terminal still shows as 
 calls it busy (`Whereabouts.working`), as `send` does for an unknown handle's refusal; a successful `send`'s
 route still comes from the recipient's delivery state, which the command doesn't change.
 The command is found by the processes: an Enter reaching an agent's terminal whose box, read
-as it stood before the Enter, was in its shell mode and held text starts three looks, at 750 ms,
-2 s and 3 s, at the processes under the terminal's shell (not the agent's, which Codex has none
-of before its first prompt). Those that started since the Enter, less Novadeck's helpers (the
-relay, the hook launcher, Windows' console host), what they run (a status line's own command)
-and what runs them (its `sh -c` wrapper), are the command. A process counts only once two
-looks a second apart both found it live, so a helper passing through never shows and the
-command shows about 2 to 3 s after the Enter. A turn that starts after the Enter (a ring's)
-cuts the window off: its tools' processes are not the command. Once one is found the command is looked at every second, and shown until none
-is left, or the system twice in a row couldn't tell (a look that fails is one that can't).
+as it stood before the Enter, was in its shell mode and held text opens a window of five
+seconds, in which the processes under the terminal's shell (not the agent's, which Codex has
+none of before its first prompt) are looked at every half second, once for all the windows
+open. The command is the top-level processes that started since the Enter (a platform's
+start-time resolution before it), less Novadeck's helpers: the relay and the hook launcher,
+what they run (a status line's own command), and the shells they run under (its `sh -c`),
+while a nested agent keeping its own relay under it leaves the command; and Windows'
+console host, itself alone. With the agent bound, a top one's parent must be the agent's
+process (`binding.instance`: Claude Code's `CLAUDE_PID`, otherwise the nearest ancestor named
+as the agent), so what the agent left running before, as a dev server's watcher restarting
+its child after a `!git pull`, is not the command; before a first prompt no turn has run, and
+there is no such rule. A process shows only once two looks at least 0.9 s apart found it
+live: a helper passing through never does, nor does a command that ends within about a second
+(`!ls`), and one that keeps running shows about 1 to 2 s after it starts. A turn that starts after the Enter (a ring's)
+cuts that Enter's window off, each Enter's with its own cutoff and first-seen times: its
+tools' processes are not the command. Once one is found it is looked at every second, and
+shown until none is left, or the system twice in a row couldn't tell (a look that fails is
+one that can't). The latest of several Enters is the one shown.
 An Enter while a turn works is held instead, as the turn's own tools start processes too, and
-looked at once the turn has ended (the same looks): Claude Code and Antigravity queue the
-command until then, so what started since the end is it; Codex runs it at once, so what
-started within 2 s of the Enter counts too. A held Enter that finds nothing is dropped; the
-latest of several is kept.
+its window opens once the turn has ended: Claude Code and Antigravity queue the command until
+then (`BoxProfile.shell.midTurn` is `queues`), so only what started since the end is it; Codex
+runs it at once (`runs`), so what started within 2 s of the Enter counts too. A held Enter
+that finds nothing is dropped; the latest of several is kept.
 
 ### Message states
 
