@@ -45,6 +45,7 @@ import { useMessageLinks } from "./message-links"
 import { MountedTerminal } from "./MountedTerminal"
 import { plainTitle } from "./murmur-offer"
 import { NameChip } from "./NameChip"
+import { usePeerLooks } from "./peer-looks"
 import { useReleaseLead } from "./release-lead"
 import {
   currentContext,
@@ -238,6 +239,7 @@ export const WorkspaceTerminal = memo(
       [projectId, workspaceSessionId, terminalId],
     )
     const messageLinks = useMessageLinks()
+    const peerLooks = usePeerLooks(messageLinks)
     const onInputFocused = useCallback(() => setKeyboardFocus(null), [setKeyboardFocus])
     const { bar, items, fresh } = useTerminalBar(terminalId)
     const { icon: Icon } = terminalProfile(terminal)
@@ -309,6 +311,7 @@ export const WorkspaceTerminal = memo(
                 program={terminal.process}
                 agent={terminal.state === "running" ? terminal.agent : undefined}
                 compact={view !== "focus"}
+                peerLooks={peerLooks}
                 draft={draft}
                 onDraft={(text) => commands.setChatDraft(terminalId, text)}
                 replyTo={replyTo}
