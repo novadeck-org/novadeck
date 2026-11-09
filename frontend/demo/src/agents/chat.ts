@@ -4,8 +4,9 @@ import {
   type ChatRequest,
   type Conversation,
   type Conversations,
+  conflictFailure,
   noDoorbell,
-  questionWaits,
+  openQuestion,
 } from "@novadeck/core/conversation"
 import { promptRefusal, shellCommand } from "@novadeck/core/conversation/prompt-refusal"
 import type { TerminalKey } from "@novadeck/core/port"
@@ -533,6 +534,94 @@ export const createDemoChat = (
       )
     return found
   }
+  const answerRequest: Conversations["answer"] = async (key, id, answer) => {
+    const found = agentFor(key)
+    const { store, made, answering } = entryOf(found.key)
+    const waiting = (): ChatRequest | undefined =>
+      store.getSnapshot().requests.find((request) => request.id === id && !request.answered)
+    const dialog = waiting()?.dialog
+    if (!waiting() || answering.has(id)) throw new Error("That request is already answered.")
+    const outcome = outcomeOf(found, made, id)
+    if (
+      !dialog ||
+      dialog.type === "raw" ||
+      !outcome ||
+      !{
+        choices: ["choice"],
+        questions: ["questions", "chat"],
+        form: ["form"],
+      }[dialog.type].includes(answer.type)
+    )
+      throw new Error("Couldn't answer that here. Answer it in the terminal.")
+    if (dialog.id !== answer.dialog)
+      throw new Error("The dialog changed — check it and answer again.")
+    // Words that go on as a prompt are checked before anything is pressed.
+    const asPrompt =
+      (answer.type === "choice" &&
+        dialog.type === "choices" &&
+        dialog.options.find((option) => option.id === answer.option)?.text === "prompt") ||
+      (answer.type === "chat" && dialog.type === "questions" && dialog.chat === "prompt")
+    if (
+      asPrompt &&
+      (answer.type === "choice" || answer.type === "chat") &&
+      promptRefused(answer.text ?? "")
+    )
+      throw new Error(promptRefusal)
+    // Anything that takes the agent some other way meanwhile (Stop, a verb of the panel)
+    // calls the answer off: it was to an agent that has moved on.
+    const epoch = turns.epoch(found.key)
+    const moved = (): boolean => turns.epoch(found.key) !== epoch
+    answering.add(id)
+    try {
+      await new Promise((resolve) => setTimeout(resolve, answerMs))
+      // Stopped meanwhile: the request went with the turn.
+      if (moved()) throw new Error(movedOn)
+      if (!waiting()) throw new Error("That request is already answered.")
+      const result = outcome(answer, dialog)
+      store.update((conversation) => ({
+        ...conversation,
+        requests: conversation.requests.map((request) =>
+          request.id === id ? { ...request, answered: true } : request,
+        ),
+      }))
+      await new Promise((resolve) => setTimeout(resolve, answeredMs))
+      // The agent was stopped or taken elsewhere while the request showed as answered:
+      // what that left is final, and the answer goes no further, which the caller is
+      // told.
+      if (moved()) {
+        store.update((conversation) => ({
+          ...conversation,
+          requests: conversation.requests.map((request) =>
+            request.id === id ? { ...request, answered: false } : request,
+          ),
+        }))
+        throw new Error(movedOn)
+      }
+      // Of several requests, answering one lowers what the agent waits on and goes no
+      // further; the last takes it on.
+      const remaining = store.getSnapshot().requests.filter((request) => request.id !== id)
+      const current = locate(found.key) ?? found
+      const entry = entryOf(found.key)
+      const attention = agentOf(current.terminal).attention
+      entry.seen =
+        attention && remaining.length ? { ...attention, count: remaining.length } : undefined
+      store.update((conversation) => ({
+        ...conversation,
+        requests: remaining,
+      }))
+      append(found.key, ...result.items.map(draftOf))
+      // An agent that reports nothing is never told: its screen is all that changed,
+      // and what it says is in the conversation, with no turn behind it.
+      if (!heard(current)) {
+        if ("reply" in result) append(found.key, text("assistant", result.reply))
+        return
+      }
+      if (!remaining.length) turns.resume(found.key, current.terminal, result)
+      else turns.lower(found.key, current.terminal, remaining.length)
+    } finally {
+      answering.delete(id)
+    }
+  }
   return {
     conversations: {
       conversation: storeOf,
@@ -560,10 +649,14 @@ export const createDemoChat = (
         const agent = agentOf(found.terminal)
         // The person's own Send over a question sets it aside, as the runner does; anything
         // else the agent waits on is answered first.
+        const question = storeOf(found.key)
+          .getSnapshot()
+          .requests.find(
+            (request) => openQuestion(request) && options?.setAside?.includes(request.id),
+          )
         const setAside =
-          options?.setAside === true &&
-          agent.attention?.kind === "question" &&
-          questionWaits(storeOf(found.key).getSnapshot().requests)
+          question !== undefined &&
+          (agent.attention === undefined || agent.attention.kind === "question")
         if (agent.attention && !setAside)
           throw new Error(
             `${name} is waiting for your answer in its terminal. Answer it there first.`,
@@ -571,8 +664,28 @@ export const createDemoChat = (
         if (!prompt.trim()) return
         // As the runner refuses it: text the agent would read as more than a message.
         if (given.trim() && promptRefused(given, { shell: true })) throw new Error(promptRefusal)
-        // The question goes, and the agent takes the words as its next turn, in one step.
-        if (setAside) {
+        // Antigravity's Escape only skips a question, so the words go as the answer to it, in
+        // its own field, the rest skipped: no prompt, and a field takes no images.
+        if (
+          setAside &&
+          chatAgent(found.terminal) === "agy" &&
+          question.dialog?.type === "questions"
+        ) {
+          if (images.length > 0) throw conflictFailure("question-words-only", "send")
+          await answerRequest(found.key, question.id, {
+            type: "questions",
+            dialog: question.dialog.id,
+            answers: question.dialog.questions.map((each, index) => ({
+              question: each.id,
+              options: [],
+              ...(index === 0 && { text: prompt }),
+            })),
+          })
+          return
+        }
+        // Elsewhere Escape dismisses it, and the agent takes the words as its next turn; one
+        // that reports nothing takes them as any prompt, which moves its screen past it.
+        if (setAside && agent.attention) {
           turns.resume(found.key, found.terminal, { prompt })
           return
         }
@@ -603,94 +716,7 @@ export const createDemoChat = (
         // What waited behind the turn comes back, for the person to send again.
         return { words: queued ? queued.prompts.map(({ text: line }) => line).join("\n") : null }
       },
-      answer: async (key, id, answer) => {
-        const found = agentFor(key)
-        const { store, made, answering } = entryOf(found.key)
-        const waiting = (): ChatRequest | undefined =>
-          store.getSnapshot().requests.find((request) => request.id === id && !request.answered)
-        const dialog = waiting()?.dialog
-        if (!waiting() || answering.has(id)) throw new Error("That request is already answered.")
-        const outcome = outcomeOf(found, made, id)
-        if (
-          !dialog ||
-          dialog.type === "raw" ||
-          !outcome ||
-          !{
-            choices: ["choice"],
-            questions: ["questions", "chat"],
-            form: ["form"],
-          }[dialog.type].includes(answer.type)
-        )
-          throw new Error("Couldn't answer that here. Answer it in the terminal.")
-        if (dialog.id !== answer.dialog)
-          throw new Error("The dialog changed — check it and answer again.")
-        // Words that go on as a prompt are checked before anything is pressed.
-        const asPrompt =
-          (answer.type === "choice" &&
-            dialog.type === "choices" &&
-            dialog.options.find((option) => option.id === answer.option)?.text === "prompt") ||
-          (answer.type === "chat" && dialog.type === "questions" && dialog.chat === "prompt")
-        if (
-          asPrompt &&
-          (answer.type === "choice" || answer.type === "chat") &&
-          promptRefused(answer.text ?? "")
-        )
-          throw new Error(promptRefusal)
-        // Anything that takes the agent some other way meanwhile (Stop, a verb of the panel)
-        // calls the answer off: it was to an agent that has moved on.
-        const epoch = turns.epoch(found.key)
-        const moved = (): boolean => turns.epoch(found.key) !== epoch
-        answering.add(id)
-        try {
-          await new Promise((resolve) => setTimeout(resolve, answerMs))
-          // Stopped meanwhile: the request went with the turn.
-          if (moved()) throw new Error(movedOn)
-          if (!waiting()) throw new Error("That request is already answered.")
-          const result = outcome(answer, dialog)
-          store.update((conversation) => ({
-            ...conversation,
-            requests: conversation.requests.map((request) =>
-              request.id === id ? { ...request, answered: true } : request,
-            ),
-          }))
-          await new Promise((resolve) => setTimeout(resolve, answeredMs))
-          // The agent was stopped or taken elsewhere while the request showed as answered:
-          // what that left is final, and the answer goes no further, which the caller is
-          // told.
-          if (moved()) {
-            store.update((conversation) => ({
-              ...conversation,
-              requests: conversation.requests.map((request) =>
-                request.id === id ? { ...request, answered: false } : request,
-              ),
-            }))
-            throw new Error(movedOn)
-          }
-          // Of several requests, answering one lowers what the agent waits on and goes no
-          // further; the last takes it on.
-          const remaining = store.getSnapshot().requests.filter((request) => request.id !== id)
-          const current = locate(found.key) ?? found
-          const entry = entryOf(found.key)
-          const attention = agentOf(current.terminal).attention
-          entry.seen =
-            attention && remaining.length ? { ...attention, count: remaining.length } : undefined
-          store.update((conversation) => ({
-            ...conversation,
-            requests: remaining,
-          }))
-          append(found.key, ...result.items.map(draftOf))
-          // An agent that reports nothing is never told: its screen is all that changed,
-          // and what it says is in the conversation, with no turn behind it.
-          if (!heard(current)) {
-            if ("reply" in result) append(found.key, text("assistant", result.reply))
-            return
-          }
-          if (!remaining.length) turns.resume(found.key, current.terminal, result)
-          else turns.lower(found.key, current.terminal, remaining.length)
-        } finally {
-          answering.delete(id)
-        }
-      },
+      answer: answerRequest,
     },
     observe: (workspace) => {
       latest = workspace

@@ -838,13 +838,13 @@ describe("the runner's conversations", () => {
 
     it("asks the runner to set a question aside for the person's own Send and Stop", async () => {
       const { conversations, streams } = setup()
-      await conversations.send(key, "Do this instead", { along: true, setAside: true })
+      await conversations.send(key, "Do this instead", { along: true, setAside: ["r1"] })
       expect(streams.prompt).toHaveBeenCalledWith("t", "Do this instead", {
         along: true,
-        setAside: true,
+        setAside: ["r1"],
       })
-      await conversations.interrupt(key, { setAside: true })
-      expect(streams.interrupt).toHaveBeenCalledWith("t", { setAside: true })
+      await conversations.interrupt(key, { setAside: ["r1"] })
+      expect(streams.interrupt).toHaveBeenCalledWith("t", { setAside: ["r1"] })
     })
 
     it("says a question taking only words can't be set aside by images", async () => {
@@ -854,7 +854,7 @@ describe("the runner's conversations", () => {
           data: { reason: "question-words-only" },
         }),
       )
-      await expect(conversations.send(key, "see this", { setAside: true })).rejects.toThrow(
+      await expect(conversations.send(key, "see this", { setAside: ["r1"] })).rejects.toThrow(
         "The agent's question takes only words in its answer. Remove the images, or answer it first.",
       )
     })
@@ -863,11 +863,11 @@ describe("the runner's conversations", () => {
       const { conversations, streams } = setup()
       const pending = new WireError("CONFLICT", "A request waits.", { data: { reason: "pending" } })
       streams.prompt.mockRejectedValue(pending)
-      await expect(conversations.send(key, "hi", { setAside: true })).rejects.toThrow(
+      await expect(conversations.send(key, "hi", { setAside: ["r1"] })).rejects.toThrow(
         "The agent is waiting for your answer. Answer it here, then send again.",
       )
       streams.interrupt.mockRejectedValue(pending)
-      await expect(conversations.interrupt(key, { setAside: true })).rejects.toThrow(
+      await expect(conversations.interrupt(key, { setAside: ["r1"] })).rejects.toThrow(
         "The agent is waiting for your answer. Answer it first, then stop it.",
       )
     })

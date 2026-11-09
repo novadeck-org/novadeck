@@ -435,16 +435,21 @@ describe("A chat's unsent draft", () => {
 })
 
 describe("An Antigravity terminal's chat", () => {
-  it("shows its conversation and answers a prompt, though it reports no status", async () => {
+  it("shows its conversation and takes a message, though it reports no status", async () => {
     await openChatDemo()
     const chat = await openChat("Runtime")
     await expect.element(chat.getByRole("button", { name: /^ran / }).first()).toBeVisible()
+    // Its question is open: the words go as its answer, in the question's own field, as
+    // Antigravity's Escape would only skip it.
+    const card = requestCard(chat, /^Has a question: ask_question/)
+    await expect.element(card).toBeVisible()
     await userEvent.type(composer(chat), "Check the logs")
     await userEvent.keyboard("{Enter}")
-    await expect.element(conversation(chat).getByText("Check the logs")).toBeVisible()
+    await expect.element(card).not.toBeInTheDocument()
     await expect
-      .element(conversation(chat).getByText(/Done: Check the logs/), { timeout: 5000 })
+      .element(conversation(chat).getByText(/Noted: Check the logs\./), { timeout: 5000 })
       .toBeVisible()
+    await expect.element(chat.getByRole("alert")).not.toBeInTheDocument()
   })
 })
 

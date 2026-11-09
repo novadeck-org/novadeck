@@ -522,7 +522,7 @@ describe("a Send or Stop over a question the agent asks", () => {
     const going = commands.sendChat(key, "Do this instead", null)
     expect(setAsides(chat)).toEqual([["q1"]])
     await going
-    expect(sentOptions()).toMatchObject({ along: true, setAside: true })
+    expect(sentOptions()).toMatchObject({ along: true, setAside: ["q1"] })
   })
 
   it("never for a shell command, a permission, or a question already answered", async () => {
@@ -544,6 +544,22 @@ describe("a Send or Stop over a question the agent asks", () => {
     await queued
     expect(sent).toEqual(["one", "two"])
     expect(sentOptions()).not.toHaveProperty("setAside")
+  })
+
+  it("sets aside only a question it was sent over that still waits as its turn comes", async () => {
+    const { commands, receipt, sentOptions, tell } = open()
+    await commands.sendChat(key, "one", null)
+    tell({ requests: [request("q1", "question")] })
+    const second = commands.sendChat(key, "two", null)
+    const third = commands.sendChat(key, "three", null)
+    // q1 went while they waited, and the agent asks q2: neither was written over it.
+    tell({ prompts: [receipt(0, "pending")], requests: [request("q2", "question")] })
+    tell({ prompts: [receipt(0, "settled", 0)] })
+    await second
+    expect(sentOptions()).not.toHaveProperty("setAside")
+    tell({ prompts: [receipt(1, "settled", 1)], requests: [request("q1", "question")] })
+    await third
+    expect(sentOptions()).toMatchObject({ setAside: ["q1"] })
   })
 
   it("comes back to the box with why, where the runner turns it away", async () => {
@@ -575,7 +591,7 @@ describe("a Send or Stop over a question the agent asks", () => {
     await commands.stopChat(key)
     tell({ requests: [{ ...request("q2", "question"), answered: true }] })
     await commands.stopChat(key)
-    expect(given).toEqual([{ setAside: true }, undefined, undefined])
+    expect(given).toEqual([{ setAside: ["q1"] }, undefined, undefined])
   })
 })
 

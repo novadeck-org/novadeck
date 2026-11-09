@@ -73,7 +73,7 @@ const inApp = (
   // Where each went among its words.
   const sentAt: (readonly number[] | undefined)[] = []
   // Whether each set a question aside.
-  const setAside: (true | undefined)[] = []
+  const setAside: (readonly string[] | undefined)[] = []
   const answered = vi.fn<(request: string, answer: ChatAnswer) => Promise<void>>(answer)
   const conversations: Conversations = {
     conversation: () => conversation,
@@ -772,7 +772,7 @@ describe("a message sent over the agent's question", () => {
     const { container } = chat
     expect(container.querySelector(".chat-request")).not.toBeNull()
     await send(container)
-    expect(chat.setAside).toEqual([true])
+    expect(chat.setAside).toEqual([["r1"]])
     expect(chat.draft()).toBe("")
     expect(container.querySelector(".chat-request")).toBeNull()
     expect(bubbles(container)).toEqual([["Do this instead", "sending", "sending"]])
@@ -805,7 +805,7 @@ describe("a message sent over the agent's question", () => {
     await send(chat.container)
     expect(chat.answered).not.toHaveBeenCalled()
     expect(chat.sent).toHaveBeenCalledWith("Do this instead")
-    expect(chat.setAside).toEqual([true])
+    expect(chat.setAside).toEqual([["r1"]])
   })
 
   it("never sets a permission aside", async () => {

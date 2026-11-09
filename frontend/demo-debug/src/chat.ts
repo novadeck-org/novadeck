@@ -3,7 +3,7 @@ import {
   type ConflictReason,
   type Conversations,
   notCleared,
-  questionWaits,
+  openQuestion,
 } from "@novadeck/core/conversation"
 import type { TerminalKey } from "@novadeck/core/types"
 
@@ -52,6 +52,11 @@ const failures: readonly {
     hint: "Says to answer it first",
   },
   {
+    reason: "question-words-only",
+    label: "Question takes only words",
+    hint: "Images over Antigravity's question · Remove them",
+  },
+  {
     reason: "no-paste",
     label: "Screen not ready",
     hint: "Says to retry in a moment",
@@ -80,8 +85,11 @@ export const createChatFailures = (): {
     wrap: (conversations) => {
       // Whether a request armed as waiting gives way: the person's own Send or Stop is over a
       // question the agent asks, which the runner sets aside.
-      const givesWay = (key: TerminalKey, setAside?: true): boolean =>
-        setAside === true && questionWaits(conversations.conversation(key).getSnapshot().requests)
+      const givesWay = (key: TerminalKey, setAside?: readonly string[]): boolean =>
+        conversations
+          .conversation(key)
+          .getSnapshot()
+          .requests.some((request) => openQuestion(request) && setAside?.includes(request.id))
       return {
         ...conversations,
         send: async (key, text, options) => {

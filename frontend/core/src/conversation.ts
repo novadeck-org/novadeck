@@ -355,16 +355,17 @@ export type Conversations = {
   // backend follows it. `along` is the chat's own send, whose person can see what the agent's
   // box holds (`Conversation.box`): that goes out with it where it can. Without it, the box must
   // be empty. `images` are paths `uploadImage` answered, which go with the prompt as its
-  // images; `text` may be empty then. `setAside` is the person's own Send over a question the
-  // agent asks (`questionWaits`): the question is set aside and the words go, in one step,
-  // where a request waiting on the person otherwise refuses them. A permission still does.
+  // images; `text` may be empty then. `setAside` is the person's own Send over the questions the
+  // agent asks (`openQuestion`), by their ids, as the person saw them: those are set aside and
+  // the words go, in one step, where a request waiting on the person otherwise refuses them.
+  // Any other request still does.
   readonly send: (
     key: TerminalKey,
     text: string,
     options?: {
       readonly automatic?: true
       readonly along?: true
-      readonly setAside?: true
+      readonly setAside?: readonly string[]
       readonly ref?: string
       readonly images?: readonly string[]
       // Where each image goes in `text` (UTF-16 offsets, one per image, never back); absent,
@@ -387,10 +388,11 @@ export type Conversations = {
   // Stops the agent's turn, as Escape in its TUI does. Resolves with the words the person
   // had queued behind the turn, with the images that were in the box with them, which the
   // agent gave back and the chat's box takes again. Rejects as `send` does. `setAside`, the
-  // person's own Stop over a question the agent asks, sets it aside and stops the agent.
+  // person's own Stop over the questions the agent asks, by their ids, sets those aside and
+  // stops the agent.
   readonly interrupt: (
     key: TerminalKey,
-    options?: { readonly setAside?: true },
+    options?: { readonly setAside?: readonly string[] },
   ) => Promise<BoxReturn>
   // Writes keys to the agent's terminal as the person's, for what shows in `slice`: a key or
   // an edit a call, in order. Where the backend has none, the chat keeps to its own menus' rule

@@ -455,11 +455,15 @@ export const createChatCommands = ({
     // others may go once the person has gone to the terminal, and may be typing there.
     const answering = answeringInTerminal(chat.store.getSnapshot().answering, context, terminalId)
     const shown = chatView() && !answering
+    // It sets aside only a question the person saw as they sent it that still waits: one asked
+    // since, while it waited its turn, is no question its words were written over.
+    const asked = questionsAsked(key)
+    const setAside = next.setAside?.filter((id) => asked.includes(id)) ?? []
     conversations!
       .send(key, next.text, {
         ref: next.ref,
         ...(shown && { along: true }),
-        ...(next.setAside && { setAside: true }),
+        ...(setAside.length > 0 && { setAside }),
         ...(next.images.length > 0 && {
           images: next.images.map(({ path }) => path!),
           at: next.at,
@@ -867,10 +871,11 @@ export const createChatCommands = ({
       let handed: readonly string[] | undefined
       let places: readonly number[] | undefined
       try {
-        // A Stop while the agent asks a question sets it aside and stops the agent.
+        // A Stop while the agent asks questions sets those aside and stops the agent.
+        const asked = questionsAsked(key)
         const result = await conversations.interrupt(
           key,
-          questionsAsked(key).length > 0 ? { setAside: true } : undefined,
+          asked.length > 0 ? { setAside: asked } : undefined,
         )
         returned = result.words
         handed = result.images

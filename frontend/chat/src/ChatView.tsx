@@ -253,8 +253,9 @@ export const ChatView = ({
     [onAnswer, onWordsLost],
   )
 
-  // What the box does with its words. Its agent's requests are known once its agent is.
-  const mode = composerMode(draft, replyTo, requests, harness !== null)
+  // What the box does with its words. Its agent's requests are known once its agent is; a
+  // question a message on its way sets aside is gone for a reply, as its card is.
+  const mode = composerMode(draft, replyTo, asked, harness !== null)
   const reply = mode === "reply" && replyTo !== null && replyTo !== "held" ? replyTo : null
   // A reply ends with its dialog, for good: the same dialog read again doesn't bring it
   // back. Words still in the box are held, as a reply whose question went, until the

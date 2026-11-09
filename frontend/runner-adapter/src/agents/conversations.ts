@@ -53,7 +53,7 @@ export type ConversationStreams = {
     options?: {
       readonly automatic?: true
       readonly along?: true
-      readonly setAside?: true
+      readonly setAside?: readonly string[]
       readonly ref?: string
       readonly images?: readonly string[]
       readonly at?: readonly number[]
@@ -70,7 +70,7 @@ export type ConversationStreams = {
   ) => Promise<string>
   readonly interrupt: (
     terminalId: string,
-    options?: { readonly setAside?: true },
+    options?: { readonly setAside?: readonly string[] },
   ) => Promise<{
     readonly returned: string | null
     readonly images?: readonly string[] | undefined
