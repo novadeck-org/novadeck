@@ -72,10 +72,13 @@ type Attempt = {
   /** When its find window closes. */
   deadline: number
   /**
-   * When a turn started while it was unconfirmed, until the look taken at once for it has
-   * run: what that look lists is counted as seen then, before the turn's tools.
+   * When a turn started while it was unconfirmed and had an open interval, until the look
+   * taken at once for it has run: what that look lists counts as started before the turn
+   * (`preTurn`), though it confirms nothing.
    */
   snap: number | undefined
+  /** The processes that look listed, by `Spawn.key`: started before the turn that closed its interval. */
+  preTurn: Set<string>
   /** When each candidate was first seen live, by `Spawn.key`; only those still listed stay. */
   seen: Map<string, number>
 }
@@ -215,6 +218,7 @@ export class ShellCommands<R extends ShellRecord> {
       confirmed: false,
       rearms: 0,
       snap: undefined,
+      preTurn: new Set(),
       waiting: false,
       deadline: anchor + findMs,
       seen: new Map(),
@@ -240,10 +244,12 @@ export class ShellCommands<R extends ShellRecord> {
     if (record.summary.activity?.state === "working") {
       for (const attempt of watch.attempts) {
         // Confirmed or not: what a turn starts is none of its command.
+        const opened = attempt.intervals.some(({ to }) => to === undefined)
         for (const interval of attempt.intervals) interval.to ??= now
         if (!attempt.confirmed) {
           attempt.cut = true
-          attempt.snap ??= now
+          // Only the turn's start takes the look: not each report during the turn.
+          if (opened) attempt.snap = now
         }
       }
       this.looking(record, watch)
@@ -402,10 +408,11 @@ export class ShellCommands<R extends ShellRecord> {
       let shown = false
       for (const attempt of watch.attempts.toReversed()) {
         const snapped = snaps.has(attempt)
-        const found = this.started(spawns, attempt, agent, snapped)
+        const found = this.started(spawns, attempt, agent, snapped ? attempt.snap : undefined)
+        // Sightings are real looks': the turn-start look confirms nothing alone.
+        if (snapped) for (const { key } of found) attempt.preTurn.add(key)
         const before = attempt.seen
-        const stamp = snapped ? (attempt.snap ?? now) : now
-        attempt.seen = new Map(found.map(({ key }) => [key, before.get(key) ?? stamp]))
+        attempt.seen = new Map(found.map(({ key }) => [key, before.get(key) ?? now]))
         const fresh = found.filter(
           ({ key }) =>
             !claimed.has(key) &&
@@ -433,6 +440,8 @@ export class ShellCommands<R extends ShellRecord> {
         this.polling(record, watch)
       }
     } finally {
+      // A turn-start look that could not list is not made up: the attempt waits the turn
+      // out, which is the conservative end of it.
       for (const attempt of snaps) attempt.snap = undefined
       watch.looking = false
       // The windows that have closed are over, but an unconfirmed attempt whose window
@@ -457,9 +466,9 @@ export class ShellCommands<R extends ShellRecord> {
    */
   private started(
     spawns: readonly Spawn[],
-    { intervals, seen }: Attempt,
+    { intervals, seen, preTurn }: Attempt,
     agent: number | undefined,
-    snapshot: boolean,
+    snapAt: number | undefined,
   ): readonly Spawn[] {
     const res = this.resolution()
     // Started before an interval's end if a look that ran before it saw it, or if even the
@@ -469,7 +478,11 @@ export class ShellCommands<R extends ShellRecord> {
         ({ from, to }) =>
           startedMs >= from &&
           (to === undefined ||
-            snapshot ||
+            // The turn-start look's listing. Start times as precise as Linux's and Windows'
+            // admit only what started before the turn; macOS's floor admits what started
+            // within the listing's own delay (at most `listMs`, 300 ms) after it.
+            (snapAt !== undefined && (res >= 100 || startedMs < snapAt)) ||
+            preTurn.has(key) ||
             startedMs + res < to ||
             (seen.get(key) ?? Infinity) <= to),
       ),

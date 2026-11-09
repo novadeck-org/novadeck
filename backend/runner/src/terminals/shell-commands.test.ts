@@ -68,6 +68,9 @@ const setup = (
     profile?: boolean
     midTurn?: "queues" | "runs"
     agent?: boolean
+    delay?: number
+    /** Tests: whether the next listing fails. */
+    unlisted?: () => boolean
   } = {},
 ): Setup => {
   const rec = record(options.agent ? String(AGENT) : null)
@@ -87,6 +90,8 @@ const setup = (
     },
     under: async () => {
       lookups += 1
+      if (options.delay) await new Promise((resolve) => setTimeout(resolve, options.delay))
+      if (options.unlisted?.()) return undefined
       return processes.current
     },
     trees: () => ({ read: async () => undefined }),
@@ -862,6 +867,40 @@ describe("shell commands", () => {
       }
     })
 
+    it("keeps a command a look saw before the report when the look at the report could not list", async () => {
+      let fail = false
+      const s = setup({ resolutionMs: 1_000, unlisted: () => fail })
+      activity(s.rec, "working")
+      await s.press()
+      await settle(20_000)
+      const e = await s.ends()
+      // Real start 100 ms after the end, read exactly: no floor bound reaches it.
+      s.processes.current = [spawn(7, e + 100)]
+      await settle(lookEveryMs)
+      // The report comes in the very moment of that look, whose sighting counts as before it.
+      fail = true
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      await settle(0)
+      fail = false
+      await settle(findMs + 2_000)
+      expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
+    })
+
+    it("keeps a command the look at the report listed, though its listing was slow", async () => {
+      const s = setup({ resolutionMs: 1_000, delay: 300 })
+      activity(s.rec, "working")
+      await s.press()
+      await settle(20_000)
+      const e = await s.ends()
+      s.processes.current = [spawn(7, e + 100)]
+      await settle(300)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      await settle(findMs + 3_000)
+      expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
+    })
+
     it("takes no tool started after the working report", async () => {
       const s = mac()
       activity(s.rec, "working")
@@ -878,6 +917,94 @@ describe("shell commands", () => {
       s.processes.current = [spawn(9, w - 800)]
       await settle(findMs)
       expect(s.rec.summary.shellCommand).toBeNull()
+    })
+  })
+
+  describe("the look at a turn's start", () => {
+    const tool = (at: number) => spawn(9, at, AGENT, "node")
+
+    it("takes a turn's long tool for no command, however many reports come while the Enter waits", async () => {
+      const s = setup({ agent: true })
+      await s.press()
+      await settle(300)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      await settle(findMs + 1_000)
+      s.processes.current = [tool(Date.now())]
+      for (let report = 0; report < 3; report += 1) {
+        await settle(500)
+        s.shells.changed(s.rec)
+      }
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toBeNull()
+    })
+
+    it("takes a mid-turn tool for no command while the window is open and reports come every 400 ms", async () => {
+      const s = setup({ agent: true })
+      await s.press()
+      await settle(100)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      await settle(1_000)
+      s.processes.current = [tool(Date.now())]
+      for (let report = 0; report < 8; report += 1) {
+        await settle(400)
+        s.shells.changed(s.rec)
+      }
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toBeNull()
+    })
+
+    it("admits nothing started after the report when the listing is slow", async () => {
+      const s = setup({ agent: true, delay: 1_000 })
+      await s.press()
+      await settle(100)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      s.processes.current = [tool(Date.now() + 50)]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toBeNull()
+    })
+
+    it("admits nothing a tool started during a look already under way at the report", async () => {
+      const s = setup({ agent: true, delay: 700 })
+      await s.press()
+      await settle(lookEveryMs + 100)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      s.processes.current = [tool(Date.now() + 300)]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toBeNull()
+    })
+
+    it("takes no look for the reports of a long turn once the one at its start has run", async () => {
+      const s = setup({ agent: true })
+      await s.press()
+      await settle(100)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      await settle(findMs + 500)
+      const before = s.lookups()
+      for (let report = 0; report < 100; report += 1) {
+        await settle(100)
+        s.shells.changed(s.rec)
+      }
+      expect(s.lookups()).toBe(before)
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it("confirms with two real sightings, not on the one its slow listing made", async () => {
+      const s = setup({ delay: 1_000 })
+      const at = await s.press()
+      s.processes.current = [spawn(7, at + 5, AGENT, "bash")]
+      await settle(100)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      // The look at the report lists after a second; that is a first sighting, not a second.
+      await settle(1_150)
+      expect(s.rec.summary.shellCommand).toBeNull()
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
     })
   })
 

@@ -1926,10 +1926,14 @@ starts while it is unconfirmed (a ring's, one the runner heard of late, or the d
 continuing a turn at its Stop) closes its interval at the turn's start: a process counts as started before it if a look
 before it saw it, or if even its latest possible start (its reading plus the resolution) falls
 before it, so the turn's tools are not taken for the command while a command started just
-before the report is kept, also at macOS's 1 s resolution. Each unconfirmed Enter takes one look
-at once when the report comes and counts what that lists as seen at the report, since the
-turn's tools start later: one a tool starts within that look's own delay can be taken for the
-command; its looks go on to the end of that window,
+before the report is kept, also at macOS's 1 s resolution. Each unconfirmed Enter whose interval
+the turn's start closes takes one look at once, only then and not for the reports that follow
+during the turn, and what that look lists counts as started before the turn, though it is no
+sighting: confirming still takes two real looks 0.9 s apart. Where start times are precise
+(Linux, Windows) it admits only what started before the report; on macOS the floor also admits
+what started within the listing's own delay after it, up to 0.3 s, which a tool of the turn can
+be taken for. A listing that fails is not made up: the Enter then rests on what earlier
+looks saw. Its looks go on to the end of that window, its looks go on to the end of that window,
 and then it waits the turn out with no looks. When the turn ends, a harness that queues the
 command (Claude Code, Antigravity) gets a new interval from the end less the resolution, and
 a find window of its own; on macOS that reaches up to 1 s into the turn, so a hook's process
@@ -1944,13 +1948,15 @@ one shown. Once one is found the command is polled every second, every terminal'
 on Linux and macOS the system lists its processes once for all of them, while on Windows the
 relay is read for each terminal. It is shown until none of its processes is left. Polls that
 couldn't tell (a look that fails is one that can't) hide it only once they have run for five
-seconds in a row, which with a poll's second between them is 5.5 to 6 s, and longer where
+seconds in a row, counted from the first poll that couldn't tell: with polls a second apart it
+hides 5 s after that poll, about 6 s after the last good one, and longer where
 a Windows relay times out; so two slow listings never clear a running command.
 
 An Enter while a turn works is held instead, as the turn's own tools start processes too, and
 looked for once the turn has ended: Claude Code and Antigravity queue the command until then
 (`BoxProfile.shell.midTurn` is `queues`), so only what started since the end is it; Codex
-runs it at once (`runs`), so what started within 2 s of the Enter counts too. A held Enter
+runs it at once (`runs`), so what started within 2 s of the Enter counts too (on macOS the
+2 s bound is on the start as read, which is up to 1 s early: up to about 3 s real). A held Enter
 that finds nothing is dropped; the latest of several is kept. For Codex a long-lived tool the
 model started within 2 s of such an Enter can be shown as the command until it ends. Two
 queued Enters in one turn show the first command under the second's label, and the second may
