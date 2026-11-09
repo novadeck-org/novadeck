@@ -134,7 +134,6 @@ export const packages: readonly Pkg[] = [
       "@novadeck/wire",
       "@xyflow/react",
       "react-dom",
-      "react-grid-layout",
     ],
   },
   {
@@ -1560,7 +1559,6 @@ const baseline = {
     "lucide-react": "^1.55.0",
     react: "^19.3.0",
     "react-dom": "^19.3.0",
-    "react-grid-layout": "^2.3.0",
     "react-router": "^8.4.0",
     "tailwind-merge": "^3.3.1",
     "@novadeck/build-kit": "workspace:*",

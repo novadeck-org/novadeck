@@ -106,13 +106,14 @@ const typeOnlyPackages: Record<string, readonly string[]> = {
 const testLayers = new Set(["test/", "test.ts"])
 const vendors: Record<string, readonly string[]> = {
   "@xyflow/react": ["layouts/canvas/"],
-  "react-grid-layout": ["layouts/grid/"],
   allotment: ["shell/"],
   // Terminals' tabs, windows and taskbars, the footer's subscriptions, the rail's toggles and
   // the project switcher's projects and its pins, which reorder as the taskbar's icons do,
-  // and the drag the switcher hands to the pins bar.
+  // and the drag the switcher hands to the pins bar; Grid's tiles, which drag to reorder the
+  // tabs.
   "@dnd-kit": [
     "terminals/",
+    "layouts/grid/Grid.tsx",
     "inbox/InboxList.tsx",
     "shell/SubscriptionUsage.tsx",
     "shell/SidebarRail.tsx",

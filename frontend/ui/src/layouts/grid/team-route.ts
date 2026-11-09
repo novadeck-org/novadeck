@@ -2,10 +2,7 @@
 // (GridTeamWire.tsx), worked out from where the tiles sit. All in the grid container's
 // frame in pixels, so the route is plain numbers and can be tested alone.
 
-import type { GridItem } from "@novadeck/core/types"
-import { calcGridItemPosition } from "react-grid-layout"
-
-// A tile as the grid lays it out.
+// A tile as the grid lays it out (layout.ts).
 export type TileBox = {
   readonly id: string
   readonly left: number
@@ -49,34 +46,6 @@ const sharedCost = 0.05
 // What a run another team's wire already takes costs per pixel: enough to go round it
 // where there is room, not so much as to leave a team unreached.
 const foreignCost = 4
-
-// The pixel boxes of the grid's items, where react-grid-layout puts them (its own
-// calculation, so edges that meet there meet here).
-export const tileBoxes = (
-  items: readonly GridItem[],
-  width: number,
-  columns: number,
-  rowHeight: number,
-  margin: number,
-): TileBox[] => {
-  const params = {
-    cols: columns,
-    containerPadding: [0, 0] as [number, number],
-    containerWidth: width,
-    margin: [margin, margin] as [number, number],
-    maxRows: Infinity,
-    rowHeight,
-  }
-  return items.map((item) => {
-    const {
-      left,
-      top,
-      width: w,
-      height,
-    } = calcGridItemPosition(params, item.x, item.y, item.w, item.h)
-    return { id: item.i, left, top, width: w, height }
-  })
-}
 
 type Edge = {
   readonly to: number

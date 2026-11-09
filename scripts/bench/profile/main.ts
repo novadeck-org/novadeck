@@ -88,8 +88,8 @@ for (const name of chosen)
 const terminals = Number(values.terminals)
 if (!Number.isInteger(terminals) || terminals < 2)
   throw new Error(`--terminals takes a whole number, 2 or more: ${values.terminals}`)
-// The window's content, 1440×900 unless told. The Grid puts two tiles across and a row of them
-// takes 432 px under 161 px of header, so 20 in view need about 4500 px of height (README).
+// The window's content, 1440×900 unless told. At two tiles across (a 1920 px window) a row of
+// them takes 432 px under 161 px of header, so 20 in view need about 4500 px of height (README).
 const size = (() => {
   if (values.window === undefined) return shared.window
   const found = /^(\d+)x(\d+)$/.exec(values.window)

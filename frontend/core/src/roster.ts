@@ -220,6 +220,20 @@ export const removeWindow = (roster: TerminalRoster, windowId: string): Terminal
       }
     : roster
 
+// The order `ids` make with `id` moved to sit just before `before`, or last when there is no
+// such tile: where a window dropped between two tiles in Grid goes in the sidebar. Dropped
+// before itself, it stays.
+export const orderBefore = (
+  ids: readonly string[],
+  id: string,
+  before: string | null,
+): string[] => {
+  if (before === id) return [...ids]
+  const rest = ids.filter((each) => each !== id)
+  const at = before === null ? -1 : rest.indexOf(before)
+  return at < 0 ? [...rest, id] : [...rest.slice(0, at), id, ...rest.slice(at)]
+}
+
 // Keeps known ids once each, in the requested order.
 export const reorderTerminals = (roster: TerminalRoster, requested: string[]): TerminalRoster => {
   const seen = new Set<string>()

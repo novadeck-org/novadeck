@@ -552,14 +552,14 @@ describe("items in the workspace", () => {
   })
 
   context("when the backend reports windows", () => {
-    it("lays out one it didn't know, without taking the selection", () => {
+    it("lists one it didn't know, without taking the selection", () => {
       const state = run(shown({ ...hero, holder: { windowId: "w1" } }), {
         type: "window/upsert",
         target,
         window: windowFor(hero),
       })
       expect(state.roster.windows).toEqual([windowFor(hero)])
-      expect(state.layout.grid.desktop!.map((item) => item.i)).toContain("w1")
+      expect(orderedTiles(state.roster).map((tile) => tile.id)).toContain("w1")
       expect(state.selected).toBe("01")
     })
 

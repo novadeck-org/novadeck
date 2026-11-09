@@ -42,7 +42,6 @@ const tooling = {
   "@ark-ui/react": "^5.39.3",
   "@xyflow/react": "^12.12.0",
   "react-dom": "^19.3.0",
-  "react-grid-layout": "^2.3.0",
 }
 
 // A small old UI: just enough files for every kind of import.

@@ -1,11 +1,12 @@
 import { descendantsOf, leadChain } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import type { Tile, Workspace } from "@novadeck/core/types"
+import { useCallback } from "react"
 
-import { foldsAway, isFolded, toggleFolded } from "../terminals/team-fold"
+import { foldsAway, isFolded, keepFoldsTogether, toggleFolded } from "../terminals/team-fold"
 import type { FoldTeam } from "../terminals/window-menu"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
-import { currentContext, currentState, sameItems } from "./selectors"
+import { currentContext, currentState, currentTarget, sameItems, sameTarget } from "./selectors"
 import type { UiState, UiStore } from "./ui-store"
 
 // How long a team counts as folding or unfolding once the person turned it over: past the
@@ -62,6 +63,21 @@ export const foldsOf = (
     lead,
     hidden: descendantsOf(workspace, lead).filter((id) => !kept.has(id)),
   }))
+}
+
+// Saves the order a drag of the Terminals list, or of a tile in Grid, ended on: a drag past a
+// folded lead keeps its hidden team right after it.
+export const useReorderTiles = (): ((order: string[]) => void) => {
+  const { commands, workspace, ui } = useWorkspaceServices()
+  const target = useWorkspaceState(currentTarget, sameTarget)
+  return useCallback(
+    (order) =>
+      commands.reorder(
+        target,
+        keepFoldsTogether(order, foldsOf(workspace.getSnapshot(), ui.getSnapshot())),
+      ),
+    [commands, workspace, ui, target],
+  )
 }
 
 // The current session's folded leads.

@@ -1,13 +1,6 @@
 import { describe as context, describe, expect, it } from "vitest"
 
-import {
-  teamRoute,
-  teamRoutes,
-  tileBoxes,
-  type Run,
-  type TeamRoute,
-  type TileBox,
-} from "./team-route"
+import { teamRoute, teamRoutes, type Run, type TeamRoute, type TileBox } from "./team-route"
 
 const gap = 16
 const width = 1000
@@ -186,19 +179,5 @@ describe("Several teams' wires", () => {
   it("leaves a team out that has no lead or no worker among the tiles", () => {
     const routes = teamRoutes(boxes, [{ lead: "gone", workers: ["a1"] }, crews[1]!], gap, width)
     expect(routes.map((route) => route !== undefined)).toEqual([false, true])
-  })
-})
-
-describe("The tiles' boxes", () => {
-  it("follow the grid's columns, rows and margin", () => {
-    // Twelve columns of 64px with 16px between them.
-    const [box] = tileBoxes([{ i: "a", x: 4, y: 2, w: 4, h: 10 }], 944, 12, 8, 16)
-    expect(box).toEqual({
-      id: "a",
-      left: 320,
-      top: 48,
-      width: 304,
-      height: 224,
-    })
   })
 })

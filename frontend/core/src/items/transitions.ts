@@ -1,5 +1,4 @@
 import { isOnBar, ownItemWith, windowOfItem, type Item, type ItemId } from "../items"
-import { addCompactGridTerminal } from "../layout/grid-placement"
 import { placeTerminal, removeFromLayout } from "../layout/workspace-layout"
 import {
   addWindow,
@@ -9,7 +8,6 @@ import {
   orderedTiles,
   removeTerminal,
   removeWindow,
-  tilesOf,
   updateWindow,
 } from "../roster"
 import type { WorkspaceAction } from "../state"
@@ -151,20 +149,14 @@ export const undockItem = (
   state: WorkspaceState,
   action: Extract<WorkspaceAction, { type: "item/undock" }>,
 ): WorkspaceState => {
-  const { itemId, window, gridLayouts, canvasGeometry } = action
+  const { itemId, window, canvasGeometry } = action
   const item = state.items.find((each) => each.id === itemId)
   if (!item || window.itemId !== itemId || hasTile(state.roster, window.id)) return state
   const left = unhold(unfresh(state, itemId), item)
-  const tiles = tilesOf(left.roster)
   return {
     ...withItem(left, { ...item, holder: { windowId: window.id } }),
     roster: addWindow(left.roster, window),
-    layout: placeTerminal(left.layout, {
-      terminal: window,
-      terminals: tiles,
-      gridLayouts,
-      canvasGeometry,
-    }),
+    layout: placeTerminal(left.layout, { terminal: window, canvasGeometry }),
     selected: window.id,
   }
 }
@@ -241,16 +233,7 @@ export const upsertWindow = (
     return roster === state.roster ? state : { ...state, roster }
   }
   if (hasTerminal(state.roster, window.id)) return state
-  const tiles = tilesOf(state.roster)
-  return {
-    ...state,
-    roster: addWindow(state.roster, window),
-    layout: placeTerminal(state.layout, {
-      terminal: window,
-      terminals: tiles,
-      gridLayouts: addCompactGridTerminal(tiles, state.layout.grid, window),
-    }),
-  }
+  return { ...state, roster: addWindow(state.roster, window) }
 }
 
 // The person opened a file in the session's project window, as the backend now has it. The
@@ -261,7 +244,6 @@ export const openInProject = (
   state: WorkspaceState,
   action: Extract<WorkspaceAction, { type: "project/open" }>,
 ): WorkspaceState => {
-  const { gridLayouts } = action
   if (action.window.itemId !== action.item.id || hasTerminal(state.roster, action.window.id))
     return state
   // A later re-point the watch reported first is not undone by this older answer.
@@ -285,15 +267,9 @@ export const openInProject = (
         layout: removeFromLayout(listed.layout, window.id),
       }
     : listed
-  const tiles = tilesOf(apart.roster)
   return {
     ...apart,
     roster: addWindow(apart.roster, window),
-    layout: placeTerminal(apart.layout, {
-      terminal: window,
-      terminals: tiles,
-      gridLayouts: gridLayouts ?? addCompactGridTerminal(tiles, apart.layout.grid, window),
-    }),
     selected: window.id,
   }
 }

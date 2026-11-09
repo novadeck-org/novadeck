@@ -61,6 +61,31 @@ describe("saved session state", () => {
     })
   })
 
+  context("when it was saved by a build that kept Grid's cells and widths", () => {
+    const old = (): string => {
+      const current = JSON.parse(encodeSession(session())) as {
+        state: { layout: Record<string, unknown> }
+      }
+      current.state.layout = {
+        ...current.state.layout,
+        grid: { desktop: [{ i: "01", x: 4, y: 0, w: 4, h: 18, minW: 4, minH: 10 }] },
+        gridRestoreWidths: { "01": { desktop: 4 } },
+        sizePresets: { grid: { "01": "large" } },
+      }
+      return JSON.stringify(current)
+    }
+
+    it("reads it, and carries on none of what Grid took from the sidebar", () => {
+      const saved = decodeSession(old())
+      expect(saved?.state).toMatchObject({ order: ["02", "01"], selected: "02" })
+      expect(Object.keys(saved!.state.layout).toSorted()).toEqual(["canvas", "hidden"])
+      expect(saved?.state.layout.canvas.geometry["01"]?.position).toEqual({ x: 10, y: 20 })
+      expect(
+        encodeSession({ ...session(), state: { ...session().state, layout: saved!.state.layout } }),
+      ).not.toContain("sizePresets")
+    })
+  })
+
   context("when it was saved by a build that kept the terminals too", () => {
     it("reads nothing, as that build is gone", () => {
       const current = JSON.parse(encodeSession(session())) as {

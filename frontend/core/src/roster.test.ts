@@ -1,4 +1,4 @@
-import { createRoster, setTerminalProcess, setTerminalStatus } from "./roster"
+import { createRoster, orderBefore, setTerminalProcess, setTerminalStatus } from "./roster"
 import { describe, expect, it } from "./test"
 import type { TerminalMetadata, TerminalStatus } from "./types"
 
@@ -66,5 +66,22 @@ describe("a terminal's status", () => {
     expect(setTerminalProcess(running, "01", "node", ["node", "pnpm.cjs", "dev"])).toBe(running)
     const back = setTerminalProcess(running, "01", "zsh")
     expect(back.terminals[0]).not.toHaveProperty("argv")
+  })
+})
+
+describe("where a tile dropped between two others goes", () => {
+  const order = ["a", "b", "c"]
+
+  it("sits just before the tile it was dropped on, wherever it was", () => {
+    expect(orderBefore(order, "x", "b")).toEqual(["a", "x", "b", "c"])
+    expect(orderBefore(order, "c", "a")).toEqual(["c", "a", "b"])
+    expect(orderBefore(order, "a", "c")).toEqual(["b", "a", "c"])
+  })
+
+  it("goes last when nothing follows it, or the tile it names is gone", () => {
+    expect(orderBefore(order, "x", null)).toEqual(["a", "b", "c", "x"])
+    expect(orderBefore(order, "a", null)).toEqual(["b", "c", "a"])
+    expect(orderBefore(order, "x", "gone")).toEqual(["a", "b", "c", "x"])
+    expect(orderBefore(order, "b", "b")).toEqual(order)
   })
 })

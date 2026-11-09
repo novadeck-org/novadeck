@@ -11,15 +11,7 @@ import type { Tile } from "@novadeck/core/types"
 import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import {
-  BellOff,
-  Minimize2,
-  FoldHorizontal,
-  UnfoldHorizontal,
-  Maximize2,
-  Mic,
-  X,
-} from "lucide-react"
+import { BellOff, Minimize2, Maximize2, Mic, X } from "lucide-react"
 import { lazy, Suspense, useRef, type ReactNode } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
@@ -30,7 +22,6 @@ import { useRenderAt } from "./useRenderAt"
 // What a layout contributes to each terminal it places.
 export type TerminalLayoutControls = {
   readonly onFlyTo?: () => void
-  readonly onResizePreset?: (button: HTMLButtonElement) => void
   // Frames the terminal together with content hanging past its right edge.
   readonly onReveal?: (extent: { readonly right: number; readonly height: number }) => void
   // False while the layout holds the terminal out of the person's sight. Absent means in sight.
@@ -67,9 +58,6 @@ export type WindowShellProps = {
   onFocus?: () => void
   switcher?: { onOpen: (button: HTMLButtonElement) => void }
   onFlyTo?: () => void
-  onResizePreset?: (button: HTMLButtonElement) => void
-  // Grid's width preset: full width, or the width from before.
-  large?: boolean
   windowed?: { destination: string; onOpen: () => void }
   onClose?: () => void
   dictation?: DictationControls
@@ -112,8 +100,6 @@ export const WindowShell = ({
   onFocus,
   switcher,
   onFlyTo,
-  onResizePreset,
-  large = false,
   onClose,
   windowed,
   dictation,
@@ -136,8 +122,6 @@ export const WindowShell = ({
   menu,
   titleExtra,
 }: WindowShellProps): React.JSX.Element => {
-  const resizeLabel = large ? "Restore width" : "Make full width"
-  const ResizeIcon = large ? FoldHorizontal : UnfoldHorizontal
   const Heading = compact ? "h2" : "h1"
   const focusHint = active ? ` · ${shortcutBindings().focus.display.join(" ")}` : ""
   const headerPress = useRef<{
@@ -385,21 +369,6 @@ export const WindowShell = ({
               }}
             >
               <Mic size={12} />
-            </button>
-          </Tooltip>
-        )}
-        {onResizePreset && (
-          <Tooltip content={large ? "Restore width" : "Full width"}>
-            <button
-              className={`${headerActionClasses} terminal-view-action nodrag nopan`}
-              aria-label={`${resizeLabel}: ${label}`}
-              aria-pressed={large}
-              onClick={(event) => {
-                event.stopPropagation()
-                onResizePreset(event.currentTarget)
-              }}
-            >
-              <ResizeIcon size={12} />
             </button>
           </Tooltip>
         )}

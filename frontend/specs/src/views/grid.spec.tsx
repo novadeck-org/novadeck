@@ -13,6 +13,7 @@ import {
   sameBox,
 } from "../support/layouts"
 import { openMessagesDemo } from "../support/messages"
+import { confirmClose, headerAction } from "../support/terminals"
 import {
   chooseView,
   clickInto,
@@ -29,16 +30,55 @@ import {
   recordAppearance,
   terminal,
   terminalTab,
+  terminalTabNames,
   view,
 } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
-const resizeButton = (label: "Make full width" | "Restore width", name: string) =>
-  page.getByRole("button", { name: labelled(`${label}: `, name) })
+// Wide enough for two tiles side by side beside the sidebar, which 1440 px is not.
+const twoColumns = { width: 1920, height: 900 }
 
-const openGrid = async (): Promise<void> => {
+const openGrid = async (height = twoColumns.height): Promise<void> => {
+  await page.viewport(twoColumns.width, height)
   await openWorkspace()
   await chooseView("Grid")
+}
+
+afterEach(async () => {
+  await page.viewport(1440, 900)
+})
+
+/** Each shown tile's box by name, in the order the Grid presents them. */
+const tileBoxes = (): Record<string, DOMRect> =>
+  Object.fromEntries(gridTerminalNames().map((name) => [name, bounds(terminal(name))] as const))
+
+/** The tiles' names in reading order: left to right, then top to bottom. */
+const readingOrder = (): string[] =>
+  Object.entries(tileBoxes())
+    .toSorted(([, a], [, b]) => (Math.abs(a.top - b.top) > 1 ? a.top - b.top : a.left - b.left))
+    .map(([name]) => name)
+
+/** Drags a tile by its header onto another tile's header, in several moves. */
+const dragTileOnto = async (source: string, destination: string): Promise<void> => {
+  const from = bounds(terminal(source))
+  const to = bounds(terminal(destination))
+  const grid = bounds(gridView())
+  const grip = headerGap(source)
+  await userEvent.dragAndDrop(gridView(), gridView(), {
+    sourcePosition: { x: from.left + grip.x - grid.left, y: from.top + grip.y - grid.top },
+    targetPosition: { x: to.left + grip.x - grid.left, y: to.top + grip.y - grid.top },
+    steps: 20,
+  })
+}
+
+/** Drags a tab by pointer onto the top quarter of another tab, as the sidebar's list is reordered. */
+const dragTabOnto = async (source: string, destination: string): Promise<void> => {
+  const target = terminalTab(destination)
+  const { width, height } = target.element().getBoundingClientRect()
+  await userEvent.dragAndDrop(terminalTab(source), target, {
+    targetPosition: { x: width / 2, y: height / 4 },
+    steps: 20,
+  })
 }
 
 /** Terminal names in the order the Grid presents them. */
@@ -55,158 +95,145 @@ const newTerminalName = async (before: string[]): Promise<string> => {
 }
 
 describe("Grid view", () => {
-  context("when making a terminal full width", () => {
-    it("fills the available columns", async () => {
+  context("when laying the terminals out", () => {
+    it("follows the sidebar's order, left to right and then top to bottom", async () => {
       await openGrid()
-      const compact = bounds(terminal("Tests")).width
 
-      await resizeButton("Make full width", "Tests").click()
-
-      await expect
-        .element(resizeButton("Restore width", "Tests"))
-        .toHaveAttribute("aria-pressed", "true")
-      await expect.poll(() => bounds(terminal("Tests")).width).toBeGreaterThan(compact)
-      await expect
-        .poll(() => bounds(terminal("Tests")).width / bounds(gridView()).width)
-        .toBeGreaterThan(0.9)
+      expect(readingOrder()).toEqual(terminalTabNames())
+      expect(gridTerminalNames()).toEqual(terminalTabNames())
+      const boxes = tileBoxes()
+      expect(bounds(terminal(terminalTabNames()[1]!)).left).toBeGreaterThan(
+        boxes[terminalTabNames()[0]!]!.right,
+      )
     })
 
-    it("returns to the previous width and keeps the height when restored", async () => {
+    it("gives every terminal the same size, with columns for the Grid's width", async () => {
       await openGrid()
-      const before = bounds(terminal("Tests"))
-      await resizeButton("Make full width", "Tests").click()
-      await expect
-        .poll(() => bounds(terminal("Tests")).width / bounds(gridView()).width)
-        .toBeGreaterThan(0.9)
 
-      await resizeButton("Restore width", "Tests").click()
-
-      await expect
-        .element(resizeButton("Make full width", "Tests"))
-        .toHaveAttribute("aria-pressed", "false")
-      await expect.poll(() => bounds(terminal("Tests")).width).toBeCloseTo(before.width, 0)
-      await expect.poll(() => bounds(terminal("Tests")).height).toBeCloseTo(before.height, 0)
+      const boxes = Object.values(tileBoxes())
+      for (const box of boxes) {
+        expect(box.width).toBeCloseTo(boxes[0]!.width, 0)
+        expect(box.height).toBeCloseTo(416, 0)
+      }
+      // Two tiles of at least 560 px fill a row of the Grid, which is under three.
+      expect(boxes[0]!.width).toBeGreaterThanOrEqual(560)
+      expect(new Set(boxes.map((box) => Math.round(box.left))).size).toBe(2)
+      expect(boxes[1]!.right).toBeLessThanOrEqual(bounds(gridView()).right)
     })
 
-    it("remembers the choice after visiting Focus", async () => {
-      await openGrid()
-      await resizeButton("Make full width", "Tests").click()
-      await expect.element(resizeButton("Restore width", "Tests")).toBeInTheDocument()
-
-      await chooseView("Focus")
+    it("takes the whole width for one column where two would be narrower than 560 px", async () => {
+      await page.viewport(1440, 900)
+      await openWorkspace()
       await chooseView("Grid")
 
-      await expect
-        .element(resizeButton("Restore width", "Tests"))
-        .toHaveAttribute("aria-pressed", "true")
-      await expect
-        .poll(() => bounds(terminal("Tests")).width / bounds(gridView()).width)
-        .toBeGreaterThan(0.9)
+      const boxes = Object.values(tileBoxes())
+      expect(new Set(boxes.map((box) => Math.round(box.left))).size).toBe(1)
+      expect(boxes[0]!.width).toBeGreaterThan(1000)
+      expect(boxes[0]!.height).toBeCloseTo(416, 0)
     })
 
-    it("keeps the choice to Grid, where Canvas offers no width control", async () => {
+    it("lays out again from the sidebar's order when a tab is dragged there", async () => {
       await openGrid()
-      await resizeButton("Make full width", "Tests").click()
-      await expect.element(resizeButton("Restore width", "Tests")).toBeInTheDocument()
+      const [first, second] = terminalTabNames()
 
-      await chooseView("Canvas")
+      await dragTabOnto(second!, first!)
 
-      await expect.element(terminal("Tests")).toBeVisible()
-      await expect.element(resizeButton("Restore width", "Tests")).not.toBeInTheDocument()
+      await expect.poll(() => terminalTabNames().slice(0, 2)).toEqual([second, first])
+      await expect.poll(() => readingOrder().slice(0, 2)).toEqual([second, first])
     })
   })
 
-  context("when dragging a terminal's resize corner", () => {
-    it("resizes the terminal to follow the pointer", async () => {
+  context("when a terminal is added", () => {
+    it("shows it first and leaves every tile the size it was", async () => {
       await openGrid()
-      const before = bounds(terminal("Tests"))
-      const grid = bounds(gridView())
+      const before = tileBoxes()
 
-      await userEvent.dragAndDrop(gridView(), gridView(), {
-        sourcePosition: { x: before.right - 4 - grid.left, y: before.bottom - 4 - grid.top },
-        targetPosition: { x: before.right - 4 - grid.left, y: before.bottom + 120 - grid.top },
-      })
+      await page.getByRole("button", { name: "New terminal" }).click()
 
-      await expect.poll(() => bounds(terminal("Tests")).height).toBeGreaterThan(before.height + 60)
-      await expect.poll(() => bounds(terminal("Tests")).width).toBeCloseTo(before.width, 0)
+      const name = await newTerminalName(Object.keys(before))
+      await expect.poll(() => readingOrder()[0]).toBe(name)
+      const after = tileBoxes()
+      for (const [other, box] of Object.entries(before)) {
+        expect(after[other]!.width).toBeCloseTo(box.width, 0)
+        expect(after[other]!.height).toBeCloseTo(box.height, 0)
+      }
     })
+  })
 
-    it("lets no terminal's text be selected until the corner is let go", async () => {
+  context("when a terminal is closed", () => {
+    it("shifts the later tiles along without resizing them", async () => {
       await openGrid()
-      const corner = bounds(terminal("Tests"))
-      const at = { clientX: corner.right - 4, clientY: corner.bottom - 4, button: 0, bubbles: true }
-      const text = (): string =>
-        getComputedStyle(terminal("Dev server").element().querySelector("[data-terminal-content]")!)
-          .userSelect
-      expect(text()).toBe("text")
+      const before = tileBoxes()
+      const [first, second, third] = Object.keys(before)
 
-      document
-        .elementFromPoint(at.clientX, at.clientY)!
-        .dispatchEvent(new MouseEvent("mousedown", at))
-      await expect.poll(text).toBe("none")
+      await headerAction(second!, `Close ${second}`).click()
+      await confirmClose()
+      await expect.poll(() => gridTerminalNames()).not.toContain(second)
 
-      document.dispatchEvent(new MouseEvent("mouseup", at))
-      await expect.poll(text).toBe("text")
+      const after = tileBoxes()
+      expect(after[first!]!.left).toBeCloseTo(before[first!]!.left, 0)
+      expect(after[third!]!.left).toBeCloseTo(before[second!]!.left, 0)
+      expect(after[third!]!.top).toBeCloseTo(before[second!]!.top, 0)
+      for (const [name, box] of Object.entries(after))
+        expect(box.width).toBeCloseTo(before[name]!.width, 0)
     })
   })
 
   context("when dragging a terminal by its header", () => {
-    it("moves the terminal to where it is dropped", async () => {
+    it("reorders the Grid and the sidebar's list", async () => {
       await openGrid()
-      const from = bounds(terminal("Tests"))
-      const to = bounds(terminal("Checkout implementation"))
-      const grid = bounds(gridView())
-      const grip = headerGap("Tests")
+      const [first, second, third] = terminalTabNames()
 
-      await userEvent.dragAndDrop(gridView(), gridView(), {
-        sourcePosition: { x: from.left + grip.x - grid.left, y: from.top + grip.y - grid.top },
-        targetPosition: { x: to.left + grip.x - grid.left, y: to.top + grip.y - grid.top },
-      })
+      await dragTileOnto(third!, first!)
 
-      await expect.poll(() => bounds(terminal("Tests")).left).toBeCloseTo(to.left, 0)
-      await expect
-        .poll(() =>
-          overlaps(bounds(terminal("Tests")), bounds(terminal("Checkout implementation"))),
-        )
-        .toBe(false)
+      await expect.poll(() => terminalTabNames().slice(0, 3)).toEqual([third, first, second])
+      await expect.poll(() => readingOrder().slice(0, 3)).toEqual([third, first, second])
+      // Every tile in its cell, none left over the others.
+      const boxes = Object.values(tileBoxes())
+      for (const box of boxes) expect(boxes.filter((other) => overlaps(box, other))).toHaveLength(1)
     })
 
-    it("follows the pointer between columns rather than jumping from one to the next", async () => {
+    it("makes room as it goes, before it is dropped", async () => {
       await openGrid()
-      const from = bounds(terminal("Tests"))
-      const grip = headerGap("Tests")
-      const at = (dx: number): MouseEventInit => ({
-        clientX: from.left + grip.x + dx,
-        clientY: from.top + grip.y,
-        button: 0,
-        bubbles: true,
-      })
-      document
-        .elementFromPoint(from.left + grip.x, from.top + grip.y)!
-        .dispatchEvent(new MouseEvent("mousedown", at(0)))
-      await expect
-        .poll(() => terminal("Tests").element().closest(".react-draggable-dragging"))
-        .not.toBeNull()
-      // Past the drag's threshold, then a few pixels on: far less than a column.
-      document.dispatchEvent(new MouseEvent("mousemove", at(20)))
-      await expect.poll(() => bounds(terminal("Tests")).left).not.toBe(from.left)
-      const started = bounds(terminal("Tests")).left
+      const [first, second] = terminalTabNames()
+      const from = bounds(terminal(second!))
+      // What the tiles and the sidebar show while the pointer is down, noted as it moves.
+      const seen: { first: number; tabs: string[] }[] = []
+      let dragging = true
+      const note = (): void => {
+        if (!dragging) return
+        seen.push({ first: bounds(terminal(first!)).left, tabs: terminalTabNames().slice(0, 2) })
+        requestAnimationFrame(note)
+      }
+      note()
 
-      document.dispatchEvent(new MouseEvent("mousemove", at(26)))
+      await dragTileOnto(second!, first!)
+      dragging = false
 
-      await expect.poll(() => bounds(terminal("Tests")).left).toBeCloseTo(started + 6, 0)
-      document.dispatchEvent(new MouseEvent("mouseup", at(26)))
+      // The first tile moved aside, into the dragged tile's cell, while the sidebar's list was
+      // still as it was; the drop then saved the order.
+      expect(
+        seen.some(
+          ({ first: left, tabs }) =>
+            Math.abs(left - from.left) < 1 && tabs.join() === [first, second].join(),
+        ),
+      ).toBe(true)
+      await expect.poll(() => terminalTabNames().slice(0, 2)).toEqual([second, first])
+    })
+
+    it("leaves the order alone when it is dropped where it was", async () => {
+      await openGrid()
+      const before = terminalTabNames()
+
+      await dragTileOnto(before[0]!, before[0]!)
+
+      await expectStaysTrue(() => terminalTabNames().join() === before.join(), "the sidebar order")
     })
   })
 
   context("when the terminals do not all fit on screen", () => {
-    afterEach(async () => {
-      await page.viewport(1440, 900)
-    })
-
     it("scrolls a terminal selected from its tab into view", async () => {
-      await page.viewport(1440, 560)
-      await openGrid()
+      await openGrid(560)
       await expect.poll(() => isShownInGrid("Build")).toBe(false)
 
       await terminalTab("Build").click()
@@ -215,9 +242,8 @@ describe("Grid view", () => {
       await expect.poll(() => isShownInGrid("Build")).toBe(true)
     })
 
-    it("places a new terminal in a free slot and scrolls it into view", async () => {
-      await page.viewport(1440, 560)
-      await openGrid()
+    it("shows a new terminal first, in view, over none of the others", async () => {
+      await openGrid(560)
       const before = gridTerminalNames()
 
       await page.getByRole("button", { name: "New terminal" }).click()
@@ -233,10 +259,6 @@ describe("Grid view", () => {
   })
 
   context("when the wheel turns over a window", () => {
-    afterEach(async () => {
-      await page.viewport(1440, 900)
-    })
-
     const stage = (): HTMLElement => gridView().element().querySelector(".grid-stage")!
 
     /** Counts the wheels that reach what the terminal draws in its window. */
@@ -250,8 +272,7 @@ describe("Grid view", () => {
     }
 
     it("scrolls the grid, not the window, while another window is selected", async () => {
-      await page.viewport(1440, 560)
-      await openGrid()
+      await openGrid(560)
       await clickInto("Dev server")
       const reached = wheelsInside("Tests")
 
@@ -262,8 +283,7 @@ describe("Grid view", () => {
     })
 
     it("scrolls the grid while the window is selected but the focus is elsewhere", async () => {
-      await page.viewport(1440, 560)
-      await openGrid()
+      await openGrid(560)
       await clickInto("Tests")
       await focusStage()
       await expectSelected("Tests")
@@ -283,8 +303,7 @@ describe("Grid view", () => {
     }
 
     it("scrolls the grid over a scroller in the window that keeps its scroll to itself", async () => {
-      await page.viewport(1440, 560)
-      await openGrid()
+      await openGrid(560)
       await clickInto("Dev server")
       const scroller = document.createElement("div")
       scroller.style.cssText = "overflow-y: auto; overscroll-behavior: contain"
@@ -302,8 +321,7 @@ describe("Grid view", () => {
     })
 
     it("scrolls the grid over a page the window shows in its own frame", async () => {
-      await page.viewport(1440, 560)
-      await openGrid()
+      await openGrid(560)
       await clickInto("Dev server")
       const frame = document.createElement("iframe")
       frame.srcdoc = '<div style="height: 2000px"></div>'
@@ -317,8 +335,7 @@ describe("Grid view", () => {
     })
 
     it("hands the wheel to the window that is selected and holds the focus", async () => {
-      await page.viewport(1440, 560)
-      await openGrid()
+      await openGrid(560)
       await clickInto("Tests")
       const reached = wheelsInside("Tests")
 
@@ -336,6 +353,7 @@ describe("Grid view", () => {
       const right = bounds(terminal("Dev server"))
       const grid = bounds(gridView())
 
+      // In the gutter between two tiles.
       await gridView().click({
         button: "right",
         position: { x: (left.right + right.left) / 2 - grid.left, y: left.top + 40 - grid.top },
@@ -381,8 +399,8 @@ describe("Grid view", () => {
 })
 
 describe("Grid arrow keys", () => {
-  // Demo layout at 1440px, three columns: Checkout implementation, Dev server, Tests
-  // on top; Checkout review, Runtime, Build below.
+  // Demo layout at 1920px, two columns in the sidebar's order: Checkout implementation and
+  // Dev server, Tests and Checkout review, Runtime and Build.
   const selectInGrid = async (name: string): Promise<void> => {
     await openGrid()
     await terminal(name).click({ position: { x: 150, y: 150 } })
@@ -394,7 +412,7 @@ describe("Grid arrow keys", () => {
       await selectInGrid("Checkout implementation")
       const start = bounds(terminal("Checkout implementation"))
       const right = bounds(terminal("Dev server"))
-      const below = bounds(terminal("Checkout review"))
+      const below = bounds(terminal("Tests"))
       expect(right.left).toBeGreaterThan(start.right)
       expect(right.top < start.bottom && start.top < right.bottom).toBe(true)
       expect(below.top).toBeGreaterThan(start.bottom - 1)
@@ -405,9 +423,9 @@ describe("Grid arrow keys", () => {
       await press("{ArrowRight}")
       await expectSelected("Dev server")
       await press("{ArrowDown}")
-      await expectSelected("Runtime")
-      await press("{ArrowLeft}")
       await expectSelected("Checkout review")
+      await press("{ArrowLeft}")
+      await expectSelected("Tests")
       await press("{ArrowUp}")
       await expectSelected("Checkout implementation")
     })
@@ -448,7 +466,6 @@ describe("Grid arrow keys", () => {
 
       await press("{ArrowLeft}")
       await expectSelected("Checkout implementation")
-      // Its shorter row-mates are beside it, not above it.
       await press("{ArrowUp}")
       await expectSelected("Checkout implementation")
 
@@ -458,11 +475,11 @@ describe("Grid arrow keys", () => {
       await press("{ArrowUp}")
       await expectSelected("Dev server")
 
-      await terminal("Tests").click({ position: { x: 150, y: 150 } })
-      await expectSelected("Tests")
+      await terminal("Build").click({ position: { x: 150, y: 150 } })
+      await expectSelected("Build")
       await enterNavigateMode()
       await press("{ArrowRight}")
-      await expect.element(terminalTab("Tests")).toHaveAttribute("aria-current", "true")
+      await expect.element(terminalTab("Build")).toHaveAttribute("aria-current", "true")
     })
   })
 })
