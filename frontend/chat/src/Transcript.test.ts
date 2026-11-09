@@ -216,7 +216,8 @@ describe("the scrollback", () => {
         const link = said.querySelector<HTMLElement>("a")!
         // The keys' focus shows its ring: :focus-visible matches.
         const matches = link.matches.bind(link)
-        link.matches = (selector: string) => selector === ":focus-visible" || matches(selector)
+        link.matches = ((selector: string) =>
+          selector === ":focus-visible" || matches(selector)) as typeof link.matches
         await act(async () => link.focus())
         expect(said.hasAttribute("data-folded")).toBe(false)
         expect(key(container)?.getAttribute("aria-expanded")).toBe("true")
@@ -229,7 +230,8 @@ describe("the scrollback", () => {
         const link = said.querySelector<HTMLElement>("a")!
         // A click's focus shows no ring: :focus-visible doesn't match.
         const matches = link.matches.bind(link)
-        link.matches = (selector: string) => selector !== ":focus-visible" && matches(selector)
+        link.matches = ((selector: string) =>
+          selector !== ":focus-visible" && matches(selector)) as typeof link.matches
         await act(async () => link.focus())
         expect(said.hasAttribute("data-folded")).toBe(true)
       })

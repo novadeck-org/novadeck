@@ -129,12 +129,13 @@ describe("A chat's conversation", () => {
       .toBeVisible()
   })
 
-  it("names another agent's message by its author", async () => {
+  it("names a subagent's report by the subagent, apart from the commands", async () => {
     await openChatDemo()
     const chat = await openChat("Checkout review")
+    await expect.element(chat.getByRole("group", { name: "Subagent explorer 1" })).toBeVisible()
     await expect
-      .element(chat.getByRole("article", { name: "Message from /root/explorer_1" }))
-      .toBeVisible()
+      .element(chat.getByRole("button", { name: "explorer 1, subagent" }))
+      .toHaveAttribute("aria-expanded", "false")
   })
 })
 
