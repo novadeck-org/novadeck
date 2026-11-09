@@ -305,6 +305,11 @@ export const Grid = ({
     stage.addEventListener("scroll", scrolled, { passive: true })
     return () => stage.removeEventListener("scroll", scrolled)
   }, [dragging, follow])
+  // A tile added or gone while one is held moves the slots under a pointer that holds
+  // still, so the held tile's place is read again.
+  useEffect(() => {
+    if (dragging && live.current) follow(live.current.pointer)
+  }, [dragging, follow])
 
   const order = useMemo(() => {
     // What a drop would save: with a folded team's tabs together, so the tiles shown making

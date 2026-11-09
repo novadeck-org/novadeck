@@ -49,6 +49,8 @@ const openGrid = async (height = twoColumns.height): Promise<void> => {
 }
 
 afterEach(async () => {
+  // A drag a failed spec left held would carry into the next.
+  await pinPointer("release")
   await page.viewport(1440, 900)
 })
 
@@ -386,6 +388,7 @@ describe("Grid view", () => {
 
       await pinPointer("press", { x: box.left + gap.x, y: box.top + gap.y })
       await pinPointer("move", { x: box.left + gap.x + 30, y: box.top + gap.y + 10 })
+      await expect.poll(() => document.querySelector(".grid-placeholder")).not.toBeNull()
       await new Promise((done) => setTimeout(done, 400))
 
       for (const [name, was] of Object.entries(rest)) {
@@ -405,31 +408,39 @@ describe("Grid view", () => {
       await chooseView("Grid")
       const menu = await windowMenu(lead)
       await menu.getByRole("menuitem", { name: "Fold 1 teammate", exact: true }).click()
-      await terminal("Dev server").click({ position: { x: 150, y: 150 } })
-      await expectSelected("Dev server")
+      // Tests, at the bottom left, where no toast covers its header.
+      await terminal("Tests").click({ position: { x: 150, y: 150 } })
+      await expectSelected("Tests")
       const tabs = (): string[] =>
         [...document.querySelectorAll<HTMLElement>("[data-terminal-tab-id]")].map(
           (tab) => tab.querySelector("strong")?.textContent ?? "",
         )
-      const box = bounds(terminal("Dev server"))
-      const gap = headerGap("Dev server")
+      const box = bounds(terminal("Tests"))
+      const gap = headerGap("Tests")
       const onto = bounds(terminal(worker))
 
       await pinPointer("press", { x: box.left + gap.x, y: box.top + gap.y })
       await pinPointer("move", { x: onto.left + 60, y: onto.top + 30 })
-      await new Promise((done) => setTimeout(done, 400))
-
-      // The other tiles and the place held for the dragged one, in reading order.
-      const placeholder = document.querySelector(".grid-placeholder")!.getBoundingClientRect()
-      const slots = [
-        ...Object.entries(tileBoxes()).filter(([name]) => name !== "Dev server"),
-        ["held", placeholder] as const,
-      ]
-        .toSorted(([, a], [, b]) => (Math.abs(a.top - b.top) > 1 ? a.top - b.top : a.left - b.left))
-        .map(([name]) => name)
-      const named = (name: string): number => slots.indexOf(name)
-      expect(named(lead)).toBeGreaterThanOrEqual(0)
-      expect(named(worker) - named(lead)).toBe(1)
+      // The other tiles and the place held for the dragged one, in reading order, once they
+      // have moved there.
+      const slots = (): string[] => {
+        const placeholder = document.querySelector(".grid-placeholder")
+        if (!placeholder) return []
+        return [
+          ...Object.entries(tileBoxes()).filter(([name]) => name !== "Tests"),
+          ["held", placeholder.getBoundingClientRect()] as const,
+        ]
+          .toSorted(([, a], [, b]) =>
+            Math.abs(a.top - b.top) > 1 ? a.top - b.top : a.left - b.left,
+          )
+          .map(([name]) => name)
+      }
+      await expect
+        .poll(() => {
+          const shown = slots()
+          return shown.includes(lead) ? shown.indexOf(worker) - shown.indexOf(lead) : null
+        })
+        .toBe(1)
       await pinPointer("release")
       await expect.poll(() => tabs().indexOf(worker) - tabs().indexOf(lead)).toBe(1)
     })
