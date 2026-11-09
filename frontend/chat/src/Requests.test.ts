@@ -843,6 +843,15 @@ describe("a dialog of questions", () => {
     expect(document.activeElement).toBe(input(container, "Session"))
   })
 
+  it("takes focus from a tab to the row the mouse lights, so Enter presses that row", () => {
+    const { container } = show(dialog, async () => {})
+    const tab = tabs(container)[0] as HTMLElement
+    tab.focus()
+    const drop = input(container, "Drop it")
+    pointerMove(drop.closest("label")!)
+    expect(document.activeElement).toBe(drop)
+  })
+
   it("moves the bar and focus with the mouse over a question's rows", () => {
     const { container } = show(dialog, async () => {})
     const drop = input(container, "Drop it")
