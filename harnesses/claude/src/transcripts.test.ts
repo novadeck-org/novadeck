@@ -159,6 +159,82 @@ describe("Claude Code's transcript records", () => {
     expect(transcripts.items("[]")).toEqual([])
   })
 
+  it("read a background subagent's launch note as running, and its task notice as its report", () => {
+    const [launched, notice] = items([
+      {
+        type: "user",
+        message: {
+          content: [
+            { type: "tool_result", tool_use_id: "toolu_A", content: "Async agent launched" },
+          ],
+        },
+        toolUseResult: { isAsync: true, status: "async_launched", agentId: "a1" },
+      },
+      {
+        type: "user",
+        message: {
+          content:
+            '<task-notification>\n<task-id>a1</task-id>\n<tool-use-id>toolu_A</tool-use-id>\n<status>completed</status>\n<summary>Agent "x" completed</summary>\n<result>The report.</result>\n</task-notification>',
+        },
+      },
+    ])
+    expect(launched).toMatchObject({ kind: "tool-result", outcome: { running: true } })
+    expect(notice).toMatchObject({
+      kind: "tool-result",
+      text: "The report.",
+      outcome: { running: false, failed: false },
+    })
+    expect(notice?.call).toBe(launched?.call)
+  })
+
+  it("read a subagent's task notice queued into a running turn as its report", () => {
+    // As 2.1.319 writes it most often: an attachment, not a turn of the person's.
+    const [launched, notice] = items([
+      {
+        type: "user",
+        message: {
+          content: [
+            { type: "tool_result", tool_use_id: "toolu_Q", content: "Async agent launched" },
+          ],
+        },
+        toolUseResult: { isAsync: true, status: "async_launched", agentId: "a2" },
+      },
+      {
+        type: "attachment",
+        timestamp: "2026-11-09T13:47:27.742Z",
+        attachment: {
+          type: "queued_command",
+          commandMode: "task-notification",
+          origin: { kind: "task-notification", producer: "session-task" },
+          timestamp: "2026-11-09T13:47:27.742Z",
+          prompt:
+            '<task-notification>\n<task-id>a2</task-id>\n<tool-use-id>toolu_Q</tool-use-id>\n<status>completed</status>\n<summary>Agent "Runner tracking" finished</summary>\n<result>Done: three files changed.</result>\n</task-notification>',
+        },
+      },
+    ])
+    expect(launched).toMatchObject({ kind: "tool-result", outcome: { running: true } })
+    expect(notice).toMatchObject({
+      kind: "tool-result",
+      call: launched?.call,
+      text: "Done: three files changed.",
+      outcome: { running: false, failed: false },
+    })
+  })
+
+  it("leave a background command's task notice out", () => {
+    expect(
+      items([
+        {
+          type: "user",
+          message: {
+            content:
+              '<task-notification>\n<tool-use-id>toolu_B</tool-use-id>\n<status>completed</status>\n<summary>Background command "x" completed</summary>\n</task-notification>',
+          },
+        },
+      ]),
+    ).toEqual([])
+  })
+
   it("say what mode a prompt went in, and what a turn's end left it in", () => {
     const [mode, prompt] = items([
       { type: "user", permissionMode: "acceptEdits", message: { content: "Go on" } },

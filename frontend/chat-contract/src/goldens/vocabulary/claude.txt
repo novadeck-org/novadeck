@@ -13,7 +13,9 @@ tools: [5 tool calls · searched, found files, listed, searched the web] searche
 
 # agents-and-plans
 user: Plan it.
-tools: [5 tool calls · subagent ×2, updated todos, proposed a plan, asked] subagent [agent] · Review the diff | Call: Task: 2 lines: subagent_type: reviewer → 1 line: Reviewed; subagent [agent] · explorer | Call: Agent: 1 line: prompt: Map the repo → 1 line: Mapped; updated todos [plan] · 3 items | Call: TodoWrite: 1 line: [{"content":"one","status":"pending"},{"content… → 1 line: Todos updated; proposed a plan [plan] | Call: ExitPlanMode: 1 line: Do the thing → 1 line: Plan shown; asked [plan] · Which database? | Call: AskUserQuestion: 1 line: [{"question":"Which database?","header":"DB","o… → 1 line: Answered
+subagent (Review the diff): Reviewed
+subagent (explorer): Mapped
+tools: updated todos [plan] · 3 items | Call: TodoWrite: 1 line: [{"content":"one","status":"pending"},{"content… → 1 line: Todos updated; proposed a plan [plan] | Call: ExitPlanMode: 1 line: Do the thing → 1 line: Plan shown; asked [plan] · Which database? | Call: AskUserQuestion: 1 line: [{"question":"Which database?","header":"DB","o… → 1 line: Answered
 
 # novadeck-tools
 user: Use the other terminals.

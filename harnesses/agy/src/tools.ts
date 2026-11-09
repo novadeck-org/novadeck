@@ -146,6 +146,7 @@ const known = (name: string, fields: Fields | undefined): ToolRun | undefined =>
         kind: "agent",
         title: "Subagent",
         detail: oneLine(textField(fields, "Role", "Prompt", "TypeName")),
+        subagent: true,
       }
     case "define_subagent":
       return {

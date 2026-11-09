@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest"
 
-import { callChange, stepOutcome } from "./outcomes.js"
+import { callChange, launchedSubagent, stepOutcome } from "./outcomes.js"
 import { transcripts } from "./transcripts.js"
 
 const times = "Created At: 2026-11-06T14:13:53+01:00\nCompleted At: 2026-11-06T14:13:53+01:00\n"
 
 describe("what an Antigravity result step says", () => {
+  it("runs on where it started a subagent, which reports once it goes idle", () => {
+    const launch = `${times}Created the following subagent:\n{\n  "conversationId":  "00000000-0000-4000-8000-000000000002",\n  "workspaceUris":  []\n}\nThe subagent will send you a message when it has completed its task or requires guidance.`
+    expect(stepOutcome("DONE", undefined, launch)).toMatchObject({ running: true })
+    expect(launchedSubagent(launch)).toBe("00000000-0000-4000-8000-000000000002")
+    expect(launchedSubagent(`${times}Started`)).toBeUndefined()
+  })
+
   it("fails on its status, with or without the command's word", () => {
     expect(stepOutcome("ERROR", "file does not exist", times)).toMatchObject({ failed: true })
     expect(stepOutcome("INVALID", "invalid arguments", times)).toMatchObject({ failed: true })

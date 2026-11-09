@@ -7,13 +7,14 @@ import {
   type TranscriptStore,
 } from "@novadeck/harness-core/shapes"
 
-import { typedEntry } from "./transcripts.js"
+import { endedSubagents, typedEntry } from "./transcripts.js"
 
 /**
  * The shapes of Antigravity's transcript steps (see harness-core's shapes.ts), keyed as its
  * decoder tells them apart:
  * - `step:<source>/<type>`, a step by who wrote it and what it is;
  * - `media:<source>/<type>`, a step that carries images or other media besides its text;
+ * - `message:subagent-end`, a system message saying a background subagent went idle or failed;
  * - `tag:<name>`, the tag the person's input opens with (`<USER_REQUEST>`, which Antigravity
  *   wraps every prompt in), and the tag the words within it open with.
  */
@@ -24,6 +25,8 @@ export const lists: ShapeLists = {
     "step:MODEL/GENERIC",
     // A compaction, its summary its content (probed 2026-11-07, 1.5.2).
     "step:SYSTEM/CHECKPOINT",
+    // A background subagent's going idle, its report, or its failing (probed 2026-11-09, 1.5.2).
+    "message:subagent-end",
     "tag:USER_REQUEST",
   ],
   skipped: [
@@ -47,6 +50,9 @@ const keysOf = (line: string, fields: Fields): string[] => {
   return [
     `step:${source}/${type}`,
     ...(media ? [`media:${source}/${type}`] : []),
+    ...(source === "SYSTEM" && type === "SYSTEM_MESSAGE" && endedSubagents(content).length > 0
+      ? ["message:subagent-end"]
+      : []),
     ...(typed
       ? [...tagKeys(content), ...(typed.text === content.trim() ? [] : tagKeys(typed.text))]
       : []),

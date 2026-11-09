@@ -1,12 +1,18 @@
-/* The History panel's rows (HistoryPanel.tsx): one line each, a `.history-row` holding a
-   `.history-row-select` button: an icon, the title (with a plain terminal's folder after it)
-   and, at the end, the day or time it closed. Under the pointer or the keyboard's focus the
-   end gives its place to the restore icon. A row that can't restore is hatched and quiet,
-   and says a word where the date was; one that is restoring shows a spinner there.
+/* The History panel's rows (HistoryPanel.tsx), drawn as the Terminals panel's tabs: a
+   `.history-row` holding a `.history-row-select` button with its icon, a `.history-row-line`
+   (the title, and at its end `.history-row-end`: the day or time it closed, or what stands
+   there instead, in a `.history-row-end-text`; for a row that can be restored, the
+   `.history-row-restore` icon takes the date's place under the pointer or the keyboard's
+   focus) and a `.history-row-detail`: a plain terminal's `.history-row-folder`, in the tabs'
+   program font, and the start of its summary, two lines at most, a search's match lit. A row
+   that can't restore is hatched and quiet, as an ended terminal's tab, and says a word where
+   the time was; one that is restoring shows a spinner there.
 
-   Hooks: on a row, data-state="ready" | "restoring" | "gone" | "disconnected" | "open".
+   Hooks: on a row, data-state="ready" | "restoring" | "gone" | "disconnected" | "open"; on
+   its end, data-end="time" | "restoring" | "handle" | "word".
 
-   Tokens: none of its own; it reads the palette's (muted, strong, ink) and the item's. */
+   Tokens: none of its own; it reads the palette's (muted, strong, ink) and the tabs'
+   (--tab-process-font). */
 .history-search {
   flex: none;
 }
@@ -17,17 +23,26 @@
 .history-row-select {
   cursor: pointer;
 }
+.history-row-restore {
+  position: absolute;
+  right: 0;
+  display: none;
+  color: var(--color-ink);
+}
+/* Under the pointer or focus the restore icon takes the date's place, which keeps its room so
+   the title does not move. */
+.history-row[data-state="ready"]:is(:hover, :focus-within) .history-row-end-text {
+  visibility: hidden;
+}
+.history-row[data-state="ready"]:is(:hover, :focus-within) .history-row-restore {
+  display: block;
+}
 .history-row-line {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
   height: 18px;
-}
-.history-row-folder {
-  margin-left: 6px;
-  font-size: var(--text-caption);
-  font-weight: 400;
 }
 .history-row-end {
   position: relative;
@@ -40,30 +55,30 @@
   line-height: 18px;
   white-space: nowrap;
 }
-.history-row-end[data-open="true"] {
+/* The terminal that holds its conversation now stands out, as where its click goes. */
+.history-row-end[data-end="handle"] {
   color: var(--color-strong);
 }
-.history-row-restore {
-  position: absolute;
-  right: 0;
-  display: none;
-  color: var(--color-ink);
-}
-.history-row-summary {
+.history-row-detail {
   display: -webkit-box;
   overflow: hidden;
   color: var(--color-muted);
   font-size: var(--text-caption);
   line-height: 16px;
+  overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
-.history-row-summary mark {
+.history-row-folder {
+  color: var(--color-ink);
+  font-family: var(--tab-process-font, var(--font-glyphs));
+}
+.history-row-detail mark {
   background: transparent;
   color: var(--color-strong);
 }
 
-/* Beside the select button, pinned to the title line: what a row that can't restore offers
+/* Beside the select button, on the title's line: what a row that can't restore offers
    instead. Hidden until the row is under the pointer or holds focus, and always there on a
    screen with no pointer, where nothing hovers. */
 .history-row-actions {
@@ -76,14 +91,6 @@
 }
 .history-row:is(:hover, :focus-within) .history-row-actions {
   opacity: 1;
-}
-/* Under the pointer or focus the restore icon takes the date's place, which keeps its room
-   so the title does not move. */
-.history-row[data-state="ready"]:is(:hover, :focus-within) .history-row-end-text {
-  visibility: hidden;
-}
-.history-row[data-state="ready"]:is(:hover, :focus-within) .history-row-restore {
-  display: block;
 }
 /* Not connected is wider than a date, so with its plug showing it gives its room back to
    the title. */

@@ -19,6 +19,8 @@ export type ToolRun = {
   readonly title: string
   // What it was called on: the command, the file, the pattern. Empty where there is none.
   readonly detail: string
+  // The call starts a subagent whose result is its report, as the protocol's `toolRun` says.
+  readonly subagent?: true | undefined
 }
 
 // What came of a tool call, in its harness's own words, as its decoder said; the same shape

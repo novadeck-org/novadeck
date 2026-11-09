@@ -1,4 +1,3 @@
-import { ChatView } from "@novadeck/chat/ChatView"
 import {
   chatAttachmentsOf,
   chatDraftOf,
@@ -45,6 +44,7 @@ import { useMessageLinks } from "./message-links"
 import { MountedTerminal } from "./MountedTerminal"
 import { plainTitle } from "./murmur-offer"
 import { NameChip } from "./NameChip"
+import { ChatWithPeers } from "./peer-looks"
 import { useReleaseLead } from "./release-lead"
 import {
   currentContext,
@@ -303,12 +303,13 @@ export const WorkspaceTerminal = memo(
               className="chat-pane absolute inset-0 z-10 nodrag nopan nowheel"
               data-workspace-chat=""
             >
-              <ChatView
+              <ChatWithPeers
                 conversation={conversation}
                 terminalName={terminal.name}
                 program={terminal.process}
                 agent={terminal.state === "running" ? terminal.agent : undefined}
                 compact={view !== "focus"}
+                links={messageLinks}
                 draft={draft}
                 onDraft={(text) => commands.setChatDraft(terminalId, text)}
                 replyTo={replyTo}

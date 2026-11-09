@@ -56,7 +56,8 @@ export const closedFull = (closedAt: number, now: number): string => {
 }
 
 // How a row stands, as the person is told it. `inert` rows take no click: one restoring, or
-// one that can't be. `end` is what stands where the date does. `reason` says why a row can't
+// one that can't be. `end` is what stands at the end of its title's line: the day or time it
+// closed, or what stands where that does. `reason` says why a row can't
 // be restored, or what its click does instead, for assistive technology and the tooltip.
 // `connect` is the agent whose connection the row offers to open Preferences for.
 export type RowView = {
@@ -148,13 +149,6 @@ export const rowView = (
 export const rowFolder = (row: ClosedTerminal): string | undefined =>
   row.agent === null ? folderOf(row.cwd) : undefined
 
-// The words a row shows: handle, title and, for a plain terminal, its folder.
-const shownWords = (row: ClosedTerminal): readonly (string | null | undefined)[] => [
-  row.handle,
-  row.title,
-  rowFolder(row),
-]
-
 // Whether a search finds the row: by handle, title or the folder it ran in (an agent's
 // row doesn't show it), as Find a terminal does, or by its summary.
 export const rowMatches = (row: ClosedTerminal, typed: string): boolean =>
@@ -188,21 +182,17 @@ const matchRange = (
   return { start: starts[found]!, end: ends[found + query.length - 1]! }
 }
 
-// Whether the row is found by its summary alone, which it then shows with the match lit.
-export const foundBySummary = (row: ClosedTerminal, typed: string): boolean =>
-  row.summary !== null &&
-  matchRange(row.summary, typed) !== undefined &&
-  !matchesQuery(shownWords(row), typed)
+// How far into a summary a match can end and still show within the two lines a row has for
+// it, after a plain terminal's folder and at the sidebar's narrowest; and how far before a match an excerpt
+// starts, past that.
+const shown = 48
+const lead = 20
 
-// How far before a match a summary's excerpt starts, so the match shows within the two
-// lines a row has for it.
-const lead = 24
-
-// A summary cut to start a little before the match, with an ellipsis, when the match is
-// further in than the row's two lines show.
+// A summary cut to start a little before the match, with an ellipsis, when the match ends
+// further in than the row's two lines show; the whole summary otherwise.
 export const summaryExcerpt = (text: string, typed: string): string => {
   const range = matchRange(text, typed)
-  if (!range || range.start <= lead) return text
+  if (!range || range.end <= shown) return text
   const from = text.lastIndexOf(" ", range.start - lead)
   return `…${text.slice(from < 0 ? range.start - lead : from + 1)}`
 }

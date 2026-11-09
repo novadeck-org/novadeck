@@ -300,7 +300,7 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
           prompt:
             "Compare Stripe, Adyen and Mollie for a small EU storefront: guest checkout, SCA support, webhook model. Report in under 150 words.",
         },
-        { kind: "agent", title: "Subagent", detail: "Survey payment providers" },
+        { kind: "agent", title: "Subagent", detail: "Survey payment providers", subagent: true },
       ),
       got(
         "toolu_01c",
@@ -416,7 +416,12 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
           subagent_type: "general-purpose",
           prompt: "Run src/cart specs five times and report which ones fail or time out.",
         },
-        { kind: "agent", title: "Subagent", detail: "Find flaky tests in cart specs" },
+        {
+          kind: "agent",
+          title: "Subagent",
+          detail: "Find flaky tests in cart specs",
+          subagent: true,
+        },
       ),
       use(
         "toolu_03c",
@@ -426,7 +431,12 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
           subagent_type: "general-purpose",
           prompt: "Run src/checkout specs five times and report which ones fail or time out.",
         },
-        { kind: "agent", title: "Subagent", detail: "Find flaky tests in checkout specs" },
+        {
+          kind: "agent",
+          title: "Subagent",
+          detail: "Find flaky tests in checkout specs",
+          subagent: true,
+        },
       ),
     ]),
     requests: [],
