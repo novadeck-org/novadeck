@@ -453,7 +453,7 @@ export const Composer = ({
           onPaste={pasted}
           onChange={(event) => {
             // An edit that would leave part of a placeholder takes the whole of it.
-            const fixed = cleaned(draft, event.target.value, attachments)
+            const fixed = cleaned(draft, event.target.value, attachments, event.target.selectionEnd)
             if (fixed) caretAt.current = fixed.caret
             onDraft(fixed ? fixed.text : event.target.value)
             if (error) setError(null)

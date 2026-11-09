@@ -175,14 +175,14 @@ describe("a draft's image placeholders", () => {
     expect(joined.draft).toBe("[Image #2] [Image #3] words\nmine")
   })
 
-  it("go whole on Backspace after them or their space, and on Delete before them", () => {
+  it("go whole on Backspace right after them, and on Delete right before them", () => {
     const draft = "look [Image #1] more"
     const one = [image(1)]
     expect(unitEdit(draft, 15, 15, "Backspace", one)).toEqual({ text: "look more", caret: 5 })
-    expect(unitEdit(draft, 16, 16, "Backspace", one)).toEqual({ text: "look more", caret: 5 })
     expect(unitEdit(draft, 5, 5, "Delete", one)).toEqual({ text: "look more", caret: 5 })
     expect(unitEdit("a[Image #1]b", 11, 11, "Backspace", one)).toEqual({ text: "ab", caret: 1 })
-    // Elsewhere, or with a selection, the field edits.
+    // Not after its space, where a Backspace joins words, or elsewhere, or with a selection.
+    expect(unitEdit(draft, 16, 16, "Backspace", one)).toBeNull()
     expect(unitEdit(draft, 4, 4, "Backspace", one)).toBeNull()
     expect(unitEdit(draft, 14, 15, "Backspace", one)).toBeNull()
     expect(unitEdit(draft, 15, 15, "Backspace", [image(2)])).toBeNull()
@@ -190,18 +190,36 @@ describe("a draft's image placeholders", () => {
 
   it("take the whole of one an edit would have left a part of", () => {
     const one = [image(1)]
-    expect(cleaned("look [Image #1] ", "look [Image #1", one)).toEqual({ text: "look ", caret: 5 })
-    expect(cleaned("look [Image #1] x", "look [Image #X", one)).toEqual({
+    expect(cleaned("look [Image #1] ", "look [Image #1", one, 14)).toEqual({
+      text: "look ",
+      caret: 5,
+    })
+    expect(cleaned("look [Image #1] x", "look [Image #X", one, 14)).toEqual({
       text: "look X",
       caret: 6,
     })
-    expect(cleaned("look [Image #1] x", "look [ImQage #1] x", one)).toEqual({
+    expect(cleaned("look [Image #1] x", "look [ImQage #1] x", one, 9)).toEqual({
       text: "look Q x",
       caret: 6,
     })
     // Whole placeholders going, or words elsewhere changing, leave nothing to clean.
-    expect(cleaned("a [Image #1] b", "a b", one)).toBeNull()
-    expect(cleaned("a [Image #1] b", "ax [Image #1] b", one)).toBeNull()
-    expect(cleaned("x [Image #2] [Image #3] ", "x [Image #3] ", [image(2), image(3)])).toBeNull()
+    expect(cleaned("a [Image #1] b", "a b", one, 2)).toBeNull()
+    expect(cleaned("a [Image #1] b", "ax [Image #1] b", one, 2)).toBeNull()
+  })
+
+  it("leave a selection-delete of a whole placeholder alone, whatever stands next to it", () => {
+    const three = [image(1), image(2), image(3)]
+    const cases: [string, string, number][] = [
+      ["[Image #1] [Image #3] [Image #2]", "[Image #1] [Image #2]", 11],
+      ["[Image #1] [Image #2] [Image #3]", "[Image #1] [Image #3]", 11],
+      ["[Image #1][Image #3][Image #2]", "[Image #1][Image #2]", 10],
+    ]
+    for (const [before, after, caret] of cases)
+      expect(cleaned(before, after, three, caret)).toBeNull()
+    expect(
+      cleaned("[Image #1] [note] [Image #2]", "[Image #1] [Image #2]", [image(1), image(2)], 11),
+    ).toBeNull()
+    // A caret that doesn't say where the edit was is no ground to cut.
+    expect(cleaned("look [Image #1] ", "look [Image #1", [image(1)], 0)).toBeNull()
   })
 })

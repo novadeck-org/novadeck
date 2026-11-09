@@ -1636,7 +1636,7 @@ describe("a chat with images pasted into its box", () => {
       )
     })
 
-  it("takes a placeholder whole on Backspace after it or its space, and on Delete before it", async () => {
+  it("takes a placeholder whole on Backspace right after it, and on Delete before it", async () => {
     const chat = inApp(createStore<Conversation>(live), {
       upload: async () => "/runner/a.png",
       draft: "look",
@@ -1647,6 +1647,11 @@ describe("a chat with images pasted into its box", () => {
     await settle()
     expect(chat.draft()).toBe("look [Image #1] ")
     expect(box(container).selectionStart).toBe(16)
+    // After the space it is the field's Backspace, which takes the space only.
+    pressKey(container, "Backspace")
+    expect(chat.draft()).toBe("look [Image #1] ")
+    expect(chips(container)).toHaveLength(1)
+    caretAt(container, 15)
     pressKey(container, "Backspace")
     expect(chat.draft()).toBe("look ")
     expect(chips(container)).toEqual([])

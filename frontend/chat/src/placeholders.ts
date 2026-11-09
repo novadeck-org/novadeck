@@ -226,7 +226,7 @@ export const comeBack = (
   return { draft: text, images: kept, over }
 }
 
-// The draft after Backspace (caret right after a placeholder, or the space after it) or Delete
+// The draft after Backspace (caret right after a placeholder's bracket) or Delete
 // (caret right before one) at `start`..`end`, the whole placeholder gone, and where the caret
 // goes; null where the key has no placeholder to take, and the field edits as it would.
 export const unitEdit = (
@@ -242,7 +242,6 @@ export const unitEdit = (
     const lone = mark.start === 0 || /\s/.test(draft[mark.start - 1]!)
     let to: number
     if (key === "Backspace" && start === mark.end) to = mark.end + (spaced && lone ? 1 : 0)
-    else if (key === "Backspace" && start === mark.end + 1 && spaced) to = mark.end + 1
     else if (key === "Delete" && start === mark.start) to = mark.end + (spaced && lone ? 1 : 0)
     else continue
     return { text: draft.slice(0, mark.start) + draft.slice(to), caret: mark.start }
@@ -251,11 +250,13 @@ export const unitEdit = (
 }
 
 // An edit from `before` to `after` that left only part of an image's placeholder, as the same
-// draft without what was left of it, and where the caret goes; null where it left none.
+// draft without what was left of it, and where the caret goes; null where it left none, or
+// where `at` (the field's, after the edit) doesn't tell which edit it was.
 export const cleaned = (
   before: string,
   after: string,
   images: readonly Attachment[],
+  at: number,
 ): { readonly text: string; readonly caret: number } | null => {
   const most = Math.min(before.length, after.length)
   const ahead = (limit: number): number => {
@@ -292,9 +293,12 @@ export const cleaned = (
     }
     return cuts
   }
-  // Left whole by either reading, whole placeholders went and no part of one is left.
-  if (readings.some((reading) => cutsOf(reading).length === 0)) return null
-  const reading = readings[0]!
+  // A native edit leaves the caret at the end of what it put in, which says where it was made:
+  // only a reading that ends there can be it. Where none does, or one of those leaves every
+  // placeholder whole, there is nothing to say a part was left.
+  const fitting = readings.filter((each) => after.length - each.s === at)
+  if (fitting.length === 0 || fitting.some((each) => cutsOf(each).length === 0)) return null
+  const reading = fitting[0]!
   const cuts = cutsOf(reading)
   const newEnd = after.length - reading.s
   let text = after
