@@ -384,6 +384,30 @@ describe("Grid view", () => {
       await pinPointer("release")
     })
 
+    it("scrolls the Grid for a corner flicked from clear of its edge straight to the bottom", async () => {
+      await openGrid(700)
+      const [first] = terminalTabNames()
+      const stage = gridView().element().querySelector<HTMLElement>(".grid-stage")!
+      const box = bounds(corner(first!))
+      const x = box.left + box.width / 2
+
+      await pinPointer("press", { x, y: box.top + box.height / 2 })
+      // One move, all the way: the pointer is seen clear of the edge only where it was taken.
+      corner(first!)
+        .element()
+        .dispatchEvent(
+          new PointerEvent("pointermove", {
+            pointerId: 1,
+            bubbles: true,
+            clientX: x,
+            clientY: stage.getBoundingClientRect().bottom - 8,
+          }),
+        )
+
+      await expect.poll(() => stage.scrollTop).toBeGreaterThan(100)
+      await pinPointer("release")
+    })
+
     it("keeps a sized tile's size when a terminal is made", async () => {
       await openGrid()
       const [first] = terminalTabNames()

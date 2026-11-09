@@ -96,6 +96,8 @@ const plugins: React.ComponentProps<typeof DragDropProvider>["plugins"] = (defau
 
 const noControls: TerminalLayoutControls = {}
 const oneCell: GridSpan = { columns: 1, rows: 1 }
+// How near the Grid's top or bottom a held corner scrolls it.
+const scrollEdge = 48
 // A span as the Grid shows it: no wider than the columns there are.
 const shownSpan = (span: GridSpan, columns: number): GridSpan =>
   span.columns <= columns ? span : { ...span, columns }
@@ -187,6 +189,8 @@ const ResizeCorner = ({
         }
         window.addEventListener("keydown", escape, { capture: true })
         release.current = () => window.removeEventListener("keydown", escape, { capture: true })
+        // Where it was taken counts too, for whether the pointer came to the Grid's edge.
+        onResize(id, { kind: "held", ...at(event) })
       }}
       onPointerMove={(event) => {
         if (from.current?.pointer === event.pointerId) onResize(id, { kind: "held", ...at(event) })
@@ -368,6 +372,15 @@ export const Grid = ({
     (id, change) => {
       if (corner.current === null) armed.current = false
       corner.current = change.kind === "held" ? { id, x: change.x, y: change.y } : null
+      // Each point the pointer is seen at clear of the edges arms the Grid's scrolling.
+      const bounds = change.kind === "held" ? stageRef.current?.getBoundingClientRect() : undefined
+      if (
+        change.kind === "held" &&
+        bounds &&
+        change.y <= bounds.bottom - scrollEdge &&
+        change.y >= bounds.top + scrollEdge
+      )
+        armed.current = true
       if (change.kind === "cancel") return setSizing(null)
       // The span saved, and the one showing, no wider than the columns there are.
       const saved = spans[id] ?? oneCell
@@ -416,7 +429,7 @@ export const Grid = ({
       if (pointer) resize(pointer.id, { kind: "held", x: pointer.x, y: pointer.y })
     }
     stage.addEventListener("scroll", again, { passive: true })
-    const edge = 48
+    const edge = scrollEdge
     let frame = 0
     const step = (): void => {
       const pointer = corner.current
