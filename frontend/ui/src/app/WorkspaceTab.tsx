@@ -1,4 +1,4 @@
-import { teamText, treeRole } from "@novadeck/core/derivations"
+import { critterLive, teamText, treeRole } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import type { Tile } from "@novadeck/core/types"
@@ -20,6 +20,7 @@ import { useReleaseLead } from "./release-lead"
 import { currentContext, currentState, currentTarget, sameTarget, shallowEqual } from "./selectors"
 import { useFoldTeam, useTabFold, useTeamLevel } from "./team-fold"
 import { useTerminalBar } from "./terminal-bar"
+import { agentAvatarsOn } from "./ui-store"
 import { useTerminalMarks } from "./useTerminalMarks"
 
 // One terminal's or window's sidebar tab. It selects only what concerns its own tile, so
@@ -85,12 +86,18 @@ export const WorkspaceTab = memo(
     // Folding a lead's teammates out of the list: how this tab stands in a fold, and on a
     // lead, its menu's item and, while folded, its teammates' rows.
     const fold = useTabFold(id)
+    const avatars = useUiState(agentAvatarsOn)
     const level = useTeamLevel(id)
     const foldTeam = useFoldTeam(terminal)
     return (
       <TerminalTab
         terminal={terminal}
         icon={(isWindow(terminal) ? windowProfile(item) : terminalProfile(terminal)).icon}
+        avatar={
+          avatars && !isWindow(terminal) && terminal.handle
+            ? { handle: terminal.handle, live: critterLive(terminal) }
+            : undefined
+        }
         index={index}
         selected={selected}
         team={team}

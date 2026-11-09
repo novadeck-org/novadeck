@@ -99,6 +99,7 @@ const backgrounded = (notifyNeeds = true) => {
       soundChoice: "theme",
       ligatures: false,
       chatView: false,
+      agentAvatars: false,
     },
   })
   return createUiStore({ ...base, pageFocused: false })

@@ -52,6 +52,7 @@ const ui = () =>
         soundChoice: "theme",
         ligatures: false,
         chatView: false,
+        agentAvatars: false,
       },
     }),
   )

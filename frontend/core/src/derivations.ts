@@ -61,6 +61,18 @@ const leadsOf = remembered((roster): Readonly<Record<string, RunningLead>> => {
 export const runningLeads = (workspace: Workspace): Readonly<Record<string, RunningLead>> =>
   leadsOf(rosterOf(workspace))
 
+// How a terminal's critter stands, wherever it's drawn (Messages, and with Agent avatars its
+// tab and window): hopping while its agent works, at rest while it's idle or asleep, and dim
+// once no agent runs there.
+export const critterLive = (each: TerminalMetadata): MessagePeer["live"] =>
+  each.state === "sleeping"
+    ? "idle"
+    : each.state !== "running" || !(each.agent || isAgentProgram(each.process))
+      ? "gone"
+      : each.agent?.working
+        ? "working"
+        : "idle"
+
 // The current session's terminals as their messages show them, by handle, which name the
 // agents its messages are with and say whether each is there.
 const peersOf = remembered((roster): Readonly<Record<string, MessagePeer>> =>
@@ -74,14 +86,7 @@ const peersOf = remembered((roster): Readonly<Record<string, MessagePeer>> =>
                 name: each.name,
                 terminalId: each.id,
                 program: each.state === "running" ? each.process : undefined,
-                live:
-                  each.state === "sleeping"
-                    ? "idle"
-                    : each.state !== "running" || !(each.agent || isAgentProgram(each.process))
-                      ? "gone"
-                      : each.agent?.working
-                        ? "working"
-                        : "idle",
+                live: critterLive(each),
               },
             ],
           ]

@@ -11,9 +11,15 @@ import {
 import { useBoxHandover } from "@novadeck/chat/use-box-handover"
 import { useChat } from "@novadeck/chat/use-chat"
 import { agentStats } from "@novadeck/core/agents/stats"
-import { ledTerminals, runningLeads, terminalOrigins } from "@novadeck/core/derivations"
+import {
+  critterLive,
+  ledTerminals,
+  runningLeads,
+  terminalOrigins,
+} from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import type { CompanionWindowMeta, TerminalMetadata, Tile } from "@novadeck/core/types"
+import { Avatar } from "@novadeck/items/Avatar"
 import { ProjectWindow } from "@novadeck/items/ProjectWindow"
 import { TerminalCompanion } from "@novadeck/items/TerminalCompanion"
 import { UndockedWindow } from "@novadeck/items/UndockedWindow"
@@ -50,7 +56,7 @@ import {
 } from "./selectors"
 import { useFoldTeam } from "./team-fold"
 import { useTerminalBar } from "./terminal-bar"
-import { chatViewOn } from "./ui-store"
+import { agentAvatarsOn, chatViewOn } from "./ui-store"
 import { useTerminalMarks } from "./useTerminalMarks"
 
 // What every window in the current view takes from the workspace, a terminal's or one
@@ -235,6 +241,8 @@ export const WorkspaceTerminal = memo(
     const onInputFocused = useCallback(() => setKeyboardFocus(null), [setKeyboardFocus])
     const { bar, items, fresh } = useTerminalBar(terminalId)
     const { icon: Icon } = terminalProfile(terminal)
+    // Agent avatars (experimental): the handle's critter in the program's place.
+    const avatar = useUiState(agentAvatarsOn) ? terminal.handle : undefined
     const processWindow = presentedProgram(terminal)
     const mic = useMicButton(terminal, terminalKey)
     const frame: Omit<WindowShellProps, "children"> = {
@@ -245,7 +253,11 @@ export const WorkspaceTerminal = memo(
       ...(terminal.state === "running" && terminal.agent && plainTitle(terminal)
         ? { titleExtra: <NameChip terminalId={terminalId} context={chatContext} /> }
         : {}),
-      icon: <Icon size={14} strokeWidth={1.5} />,
+      icon: avatar ? (
+        <Avatar handle={avatar} live={critterLive(terminal)} size={24} />
+      ) : (
+        <Icon size={14} strokeWidth={1.5} />
+      ),
       ...(processWindow ? { processWindow } : {}),
     }
     // The chat is drawn over the content, which stays mounted at its size, so the terminal

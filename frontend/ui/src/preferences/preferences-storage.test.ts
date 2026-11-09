@@ -62,4 +62,12 @@ describe("readPreferences", () => {
       expect(readPreferences().soundChoice).toBe(choice)
     }
   })
+
+  it("keeps agent avatars off unless they were switched on", () => {
+    expect(readPreferences().agentAvatars).toBe(false)
+    localStorage.setItem(preferencesStorageKey, JSON.stringify({ agentAvatars: "yes" }))
+    expect(readPreferences().agentAvatars).toBe(false)
+    localStorage.setItem(preferencesStorageKey, JSON.stringify({ agentAvatars: true }))
+    expect(readPreferences().agentAvatars).toBe(true)
+  })
 })

@@ -3,6 +3,7 @@ import type { Arranged } from "@novadeck/core/layout/canvas-arrangement"
 import { canvasPointPosition } from "@novadeck/core/layout/window-place"
 import { isWindow } from "@novadeck/core/roster"
 import type { Tile } from "@novadeck/core/types"
+import { rescaleAvatars } from "@novadeck/items/Avatar"
 import { useDrag, useDragSession } from "@novadeck/items/drag-session"
 import {
   Background,
@@ -150,7 +151,12 @@ const TerminalCanvas = ({
       for (const chrome of element.querySelectorAll<HTMLElement>(chromeReaders))
         chrome.style.setProperty("--_canvas-chrome-scale", scale)
       clearTimeout(resting)
-      resting = setTimeout(() => element.style.setProperty("--_canvas-chrome-scale", scale), 150)
+      resting = setTimeout(() => {
+        element.style.setProperty("--_canvas-chrome-scale", scale)
+        // Agent avatars' critters lay their LEDs on whole device pixels again at the zoom at
+        // rest.
+        rescaleAvatars()
+      }, 150)
     })
     return () => {
       unsubscribe()

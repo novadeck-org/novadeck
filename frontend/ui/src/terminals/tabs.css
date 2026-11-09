@@ -244,7 +244,8 @@
 .terminal-tab[data-terminal-sleeping] .sidebar-item-select strong {
   color: var(--tab-sleeping-name-fg, color-mix(in srgb, var(--color-ink) 62%, transparent));
 }
-.terminal-tab[data-terminal-sleeping] .sidebar-item-icon {
+/* A critter (Agent avatars) never shows how its terminal stands, asleep or not. */
+.terminal-tab[data-terminal-sleeping] .sidebar-item-icon:not(:has(> .message-av)) {
   color: var(--tab-sleeping-fg, var(--color-muted));
   opacity: 0.7;
 }
