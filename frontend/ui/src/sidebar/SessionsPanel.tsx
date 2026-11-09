@@ -95,8 +95,9 @@ const accessibility = Accessibility.configure({
       "Press Enter to open a session. Press Space to pick it up, use arrow keys to reorder, then Space to drop or Escape to cancel.",
   },
 })
+const dropMs = 180
 const feedback = Feedback.configure({
-  dropAnimation: { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
+  dropAnimation: { duration: dropMs, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
 })
 const cursor = Cursor.configure({ cursor: "pointer" })
 
@@ -349,8 +350,8 @@ export const SessionsPanel = ({
   // The session a delete asks about, while it asks.
   const [removing, setRemoving] = useState<WorkspaceSessionSummary | null>(null)
   // Bumped as a drag ends: the drag library moves a row's element among the others, which
-  // React can't follow, so the rows mount anew in the saved order. `focus` is the row whose
-  // button held focus as it ended (a keyboard drag), which the new rows give it back to.
+  // React can't follow, so the rows mount anew in the saved order. `focus` is the row a
+  // keyboard drag moved, which the new rows give the focus back to.
   const [drag, setDrag] = useState<{ generation: number; focus: string | null }>({
     generation: 0,
     focus: null,
@@ -358,10 +359,21 @@ export const SessionsPanel = ({
   useLayoutEffect(() => {
     const { focus } = drag
     if (focus === null) return
-    const row = [...(list?.querySelectorAll<HTMLElement>("[data-workspace-session]") ?? [])].find(
-      (each) => each.dataset.workspaceSession === focus,
-    )
-    row?.querySelector<HTMLElement>("button")?.focus()
+    const give = (): void => {
+      const row = [...(list?.querySelectorAll<HTMLElement>("[data-workspace-session]") ?? [])].find(
+        (each) => each.dataset.workspaceSession === focus,
+      )
+      row?.querySelector<HTMLElement>("button")?.focus()
+    }
+    give()
+    // As a keyboard drop settles, dnd-kit gives the focus to the row it dragged, which may be
+    // the element these rows replaced (a race, most often with reduced motion, where no drop
+    // animation runs); a focus lost to that comes back.
+    const again = setTimeout(() => {
+      const held = document.activeElement
+      if (!held || held === document.body || !held.isConnected) give()
+    }, dropMs + 120)
+    return () => clearTimeout(again)
   }, [drag, list])
   const modifiers = useMemo(() => [RestrictToElement.configure({ element: list })], [list])
   const removable = Boolean(onRemove) && sessions.length > 1
@@ -390,14 +402,14 @@ export const SessionsPanel = ({
         modifiers={modifiers}
         plugins={(defaults) => [...defaults, accessibility, feedback, cursor]}
         onDragEnd={(event) => {
-          const { source } = event.operation
+          const { source, activatorEvent } = event.operation
           if (!isSortable(source)) return
-          const held = document.activeElement
-          const focused =
-            held && list?.contains(held) ? held.closest("[data-workspace-session]") : null
+          // A drag from the keyboard leaves the focus on the session it moved. Where the focus
+          // stands as it ends can't say: moving the row's element may have dropped it.
+          const keyboard = activatorEvent instanceof KeyboardEvent
           setDrag((current) => ({
             generation: current.generation + 1,
-            focus: focused?.getAttribute("data-workspace-session") ?? null,
+            focus: keyboard ? String(source.id) : null,
           }))
           if (event.canceled || source.initialIndex === source.index) return
           onMove?.(String(source.id), source.index)
