@@ -1042,7 +1042,7 @@
   scrollbar-color: var(--_line) transparent;
 }
 /* The images pasted for the next message: thumbnails on a row over the prompt, each with its
-   state (dim while it uploads, red once it failed) and a key to take it off. Those the box
+   number (the `[Image #k]` in the words) and state (dim while it uploads, red once it failed) and a key to take it off. Those the box
    cannot send yet, as it replies or runs a shell command, stay dim. */
 .chat-attachments {
   display: flex;
@@ -1095,6 +1095,16 @@
 }
 .chat-attachment[data-state="failed"] .chat-attachment-state {
   color: var(--_red);
+}
+.chat-attachment-n {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 0 3px;
+  background: var(--chat-bg, var(--window-bg, var(--color-paper)));
+  color: var(--_ink);
+  font-size: 0.75em;
+  line-height: 1.3;
 }
 .chat-attachment-remove {
   position: absolute;

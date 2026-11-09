@@ -96,11 +96,18 @@ export const ChatView = ({
   // The images pasted into the box, to go with its next message, which the app keeps with the draft.
   readonly attachments: readonly Attachment[]
   readonly imageNote?: string | undefined
-  // Puts images back in the box, ahead of its own, as a line taken back to edit has them.
-  readonly onRestore: (images: readonly Attachment[]) => void
-  // Adds pasted images, saving each at once; answers why some weren't added, or null. Absent where
-  // the backend takes no images.
-  readonly onAttach?: ((files: readonly File[]) => string | null) | undefined
+  // Puts a line with images taken back to edit in the box, ahead of what it holds: its words with
+  // their placeholders, and the images.
+  readonly onRestore: (words: string, images: readonly Attachment[]) => void
+  // Adds pasted images, saving each at once and typing their placeholders into the draft over the
+  // selection; answers where the caret goes and why some weren't added, or null. Absent where the
+  // backend takes no images.
+  readonly onAttach?:
+    | ((
+        files: readonly File[],
+        selection: { readonly start: number; readonly end: number },
+      ) => { readonly refusal: string | null; readonly caret: number | null })
+    | undefined
   readonly onDetach: (id: string) => void
   // Sends the box's words, as a prompt or as the reply `to` names: the app takes them
   // out of the draft as they go, queues a prompt behind those still on their way, and puts
@@ -268,7 +275,7 @@ export const ChatView = ({
     ...(onLeftMenu && { onLeft: onLeftMenu }),
   })
   // The person's draft as it changes, from the box or from a prompt taken back to edit.
-  const draftChanged = (text: string): void => {
+  const draftEdited = (): void => {
     setLost(false)
     setResent(null)
     setUnrecorded(false)
@@ -276,6 +283,9 @@ export const ChatView = ({
     // as the hold is written or not yet; not while that reply is on its way, whose
     // words, should it fail, come back held.
     if (mode === "held" && replyTo !== "held" && !replyGoing) onReplyTo(null)
+  }
+  const draftChanged = (text: string): void => {
+    draftEdited()
     passing.edit(text)
   }
   // A prompt the record never got, dealt with: sent again, whose words come back to the box should
@@ -306,8 +316,12 @@ export const ChatView = ({
   }
   const edit = (bubble: SentBubble): void => {
     settle(bubble)
-    onRestore(takeSentImages(bubble.ref))
-    draftChanged(joinDraft(bubble.text, draft))
+    const images = takeSentImages(bubble.ref)
+    if (images.length > 0) {
+      // The words and their images come back together, the placeholders renumbered to the box's.
+      draftEdited()
+      onRestore(bubble.text, images)
+    } else draftChanged(joinDraft(bubble.text, draft))
     focusBox()
   }
 

@@ -848,6 +848,40 @@ describe("the runner's conversations", () => {
       })
     })
 
+    it("sends where each image goes among the words, and gives back where they stood", async () => {
+      const { conversations, streams } = setup()
+      await conversations.send(key, "See this:  and fix it", {
+        ref: "r",
+        images: ["/runner/shot.png"],
+        at: [10],
+      })
+      expect(streams.prompt).toHaveBeenCalledWith("t", "See this:  and fix it", {
+        ref: "r",
+        images: ["/runner/shot.png"],
+        at: [10],
+      })
+      streams.interrupt.mockResolvedValueOnce({
+        returned: "a b",
+        images: ["/runner/a.png"],
+        at: [2],
+      })
+      expect(await conversations.interrupt(key)).toEqual({
+        words: "a b",
+        images: ["/runner/a.png"],
+        at: [2],
+      })
+      streams.takeBox.mockResolvedValueOnce({
+        returned: "a b",
+        images: ["/runner/a.png"],
+        at: [1],
+      })
+      await expect(conversations.takeBox?.(key)).resolves.toEqual({
+        words: "a b",
+        images: ["/runner/a.png"],
+        at: [1],
+      })
+    })
+
     it("says an image couldn't go when the runner refuses one, and that the agent didn't take it", async () => {
       const { conversations, streams } = setup()
       streams.prompt.mockRejectedValueOnce(

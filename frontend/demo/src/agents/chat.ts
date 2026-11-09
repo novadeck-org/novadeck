@@ -193,6 +193,25 @@ const toolRun = (agent: string, terminal: TerminalMetadata, call: string) =>
           run: gitStatus,
         }
 
+// The text with a mark `[Image #k]` typed in at each image's place (`at`, which are offsets into
+// it; the start where absent), spaced from the words, as the agents' records show them.
+const withImageMarks = (
+  words: string,
+  count: number,
+  at: readonly number[] | undefined,
+): string => {
+  let out = ""
+  let cursor = 0
+  for (let index = 0; index < count; index += 1) {
+    const offset = Math.min(Math.max(at?.[index] ?? 0, cursor), words.length)
+    out += words.slice(cursor, offset)
+    cursor = offset
+    out += `${out !== "" && !/\s$/.test(out) ? " " : ""}[Image #${index + 1}]`
+    if (index === count - 1 && cursor < words.length && !/^\s/.test(words.slice(cursor))) out += " "
+  }
+  return out + words.slice(cursor)
+}
+
 // The demo's conversations: each terminal running Claude Code or Codex opens with its
 // `transcripts` entry, and a prompt sent to it drives the same simulated turn as one typed
 // in its screen, which `turns` runs. What is sent while its agent works waits in the agent's
@@ -534,8 +553,8 @@ export const createDemoChat = (
       send: async (key, given, options) => {
         const found = agentFor(key)
         const images = options?.images ?? []
-        // Each image shows in the line as the agents' own records show one.
-        const prompt = [given.trim(), ...images.map(() => "[Image]")].filter(Boolean).join("\n")
+        // Each image shows in the line, where the person put it, as the agents' own records show one.
+        const prompt = withImageMarks(given, images.length, options?.at).trim()
         const name = chatAgents[chatAgent(found.terminal)!]
         const agent = agentOf(found.terminal)
         if (agent.attention)

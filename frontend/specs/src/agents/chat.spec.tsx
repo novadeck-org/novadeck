@@ -289,11 +289,16 @@ describe("Pasting an image into the chat", () => {
     await expect.element(chip.getByRole("button", { name: "Remove shot.png" })).toBeVisible()
     // Saved on the agent's machine, it is ready to send, with no words.
     await expect.element(chip.getByRole("status")).not.toBeInTheDocument()
+    // Its placeholder went into the box at the caret, which the words go on after.
+    await expect.element(composer(chat)).toHaveValue("[Image #1] ")
+    await expect.element(chip.getByText("#1")).toBeVisible()
     await userEvent.type(composer(chat), "What is this?")
     await userEvent.keyboard("{Enter}")
     await expect.element(attachments(chat)).not.toBeInTheDocument()
-    // The demo's agent records each image as a line of the prompt, as the harnesses do.
-    await expect.element(conversation(chat).getByText(/What is this\?\s+\[Image\]/)).toBeVisible()
+    // The demo's agent records each image where it stood in the prompt, as the harnesses do.
+    await expect
+      .element(conversation(chat).getByText(/\[Image #1\]\s+What is this\?/))
+      .toBeVisible()
   })
 
   it("sends images alone, and lets one go before it does", async () => {
@@ -302,9 +307,11 @@ describe("Pasting an image into the chat", () => {
     await pasteInto(composer(chat), [await imageFile("a.png"), await imageFile("b.png")])
     await chat.getByRole("button", { name: "Remove a.png" }).click()
     await expect.element(chat.getByRole("img", { name: "a.png" })).not.toBeInTheDocument()
+    // Its placeholder went with it.
+    await expect.element(composer(chat)).toHaveValue("[Image #2] ")
     await expect.element(chat.getByRole("button", { name: "Send" })).toBeEnabled()
     await chat.getByRole("button", { name: "Send" }).click()
-    await expect.element(conversation(chat).getByText("[Image]", { exact: true })).toBeVisible()
+    await expect.element(conversation(chat).getByText("[Image #1]", { exact: true })).toBeVisible()
   })
 
   it("brings the images back to the box with the words when the prompt didn't go", async () => {
@@ -316,7 +323,7 @@ describe("Pasting an image into the chat", () => {
     await userEvent.type(composer(chat), "More please")
     await userEvent.keyboard("{Enter}")
     await expect.element(chat.getByRole("alert").getByText(/waiting for your answer/)).toBeVisible()
-    await expect.element(composer(chat)).toHaveValue("More please")
+    await expect.element(composer(chat)).toHaveValue("[Image #1] More please")
     await expect.element(chat.getByRole("img", { name: "shot.png" })).toBeVisible()
   })
 

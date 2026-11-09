@@ -328,8 +328,10 @@ export type Runner = {
         readonly automatic?: true
         readonly along?: true
         readonly ref?: string
-        /** Paths `terminals.upload` answered, pasted in as images ahead of the text, which may then be empty. */
+        /** Paths `terminals.upload` answered, pasted in as images (ahead of the text unless `at` places them), which may then be empty. */
         readonly images?: readonly string[]
+        /** Where each image goes in the text (UTF-16 offsets, one per image, never back); absent, they lead. */
+        readonly at?: readonly number[]
       },
     ): Promise<{ readonly ref: string; readonly tracked: boolean }>
     /**
@@ -354,7 +356,11 @@ export type Runner = {
     interrupt(terminalId: string): Promise<InterruptResult>
     /** Writes keys to the terminal's agent as the person's. */
     keys(terminalId: string, keys: string): Promise<void>
-    takeBox(terminalId: string): Promise<{ readonly returned: string | null }>
+    takeBox(terminalId: string): Promise<{
+      readonly returned: string | null
+      readonly images?: readonly string[] | undefined
+      readonly at?: readonly number[] | undefined
+    }>
     putBox(terminalId: string, text: string): Promise<{ readonly placed: boolean }>
     clearBox(terminalId: string, seen: string): Promise<{ readonly cleared: boolean }>
     /**
@@ -698,7 +704,7 @@ export const connectRunner = async (
           (client, signal) => client.agents.transcript({ terminalId, actor }, { signal }),
           { type: "reset" },
         ),
-      prompt: (terminalId, text, { automatic, along, ref, images } = {}) =>
+      prompt: (terminalId, text, { automatic, along, ref, images, at } = {}) =>
         call((client) =>
           client.agents.prompt({
             terminalId,
@@ -707,6 +713,7 @@ export const connectRunner = async (
             ...(along && { along }),
             ...(ref !== undefined && { ref }),
             ...(images && images.length > 0 && { images: [...images] }),
+            ...(images && images.length > 0 && at && at.length > 0 && { at: [...at] }),
           }),
         ),
       answer: (terminalId, request, answer) =>
