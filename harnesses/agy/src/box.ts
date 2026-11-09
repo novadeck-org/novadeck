@@ -94,6 +94,29 @@ const withoutPanel = (screen: ScreenText): ScreenText => {
 }
 
 /**
+ * The screen with a cursor Windows' ConPTY left under the box put back in it. After a resize
+ * it parks the cursor on the footer row, two rows under where the program believes it, and
+ * keeps it there: Windows CI runs of 40x14 panes read no box for a minute (run 42688579657,
+ * cursor 13,2 under rules 10 and 12), so no ring was made. A cursor on the row just under the
+ * lowest rule, the last that shows anything, goes to the end of the box's last row, which
+ * keeps a dim word there a draft's, as with the cursor past it. One further down is a view's
+ * (its shortcuts, its artifacts), and stays where it is.
+ */
+const withCursorInBox = (screen: ScreenText): ScreenText => {
+  const { rows, cursor } = screen
+  const bottom = rows.findLastIndex(rule)
+  if (bottom < 0 || cursor.row !== bottom + 1) return screen
+  if (rows.slice(cursor.row + 1).some((row) => row.trim() !== "")) return screen
+  const top = rows.slice(0, bottom).findLastIndex((row) => /^─{8,}\s*$/.test(row))
+  if (top < 0 || bottom - top < 2) return screen
+  const row = bottom - 1
+  return { ...screen, cursor: { row, column: (rows[row] ?? "").trimEnd().length } }
+}
+
+/** The screen as its box is read off it: a panel under the box and a lost cursor set right. */
+const boxScreen = (screen: ScreenText): ScreenText => withCursorInBox(withoutPanel(screen))
+
+/**
  * The rows as the calm and a paste's check read them, without the panel of running
  * subagents: it redraws their elapsed time with whatever else it draws, as a paste lands,
  * and pushes the footer, whose hint a paste erases, further from the box than a paste's
@@ -117,7 +140,7 @@ const interruption = "⎿Interrupted·WhatshouldAntigravityCLIdoinstead?"
  * no box is found to read above, as mid-redraw or under a dialog: no telling then.
  */
 const interruptedShown = (screen: ScreenText): boolean | undefined => {
-  const box = ruledBox(withoutPanel(screen), markers)
+  const box = ruledBox(boxScreen(screen), markers)
   if (!box) return undefined
   const top = screen.rows.slice(0, box.first).findLastIndex(rule)
   if (top < 0) return undefined
@@ -200,7 +223,7 @@ const images: ProfileImages = {
 
 /** How its box reads off a screen. */
 const read = (screen: ScreenText): InputBox | undefined =>
-  marked(agreeing(ruledBox(withoutPanel(screen), markers), shellFooter(screen.rows)), screen)
+  marked(agreeing(ruledBox(boxScreen(screen), markers), shellFooter(screen.rows)), screen)
 
 /**
  * Antigravity's input box: between two `─` rules, `> ` leading its first row and the rest

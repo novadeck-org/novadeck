@@ -549,6 +549,36 @@ describe("the end of a line outside the box", () => {
   })
 })
 
+// 40x14, Windows, Antigravity 1.5.3 (run 42688579657, 2026-11-09): after a resize ConPTY left the
+// cursor on the footer row, two rows under the box, and the doorbell read no box for a minute.
+describe("Antigravity's box with the cursor left under it", () => {
+  const rule = "─".repeat(40)
+  const rows = ["history", "", ...blanks(8), rule, ">", rule, "? for shortcuts"]
+  const at = (cursor: { row: number; column: number }) => screenWith({ rows, columns: 40, cursor })
+
+  it("reads the empty box the cursor stood two rows under", () => {
+    const box = agy.read(at({ row: 13, column: 2 }))
+    expect(box && isEmpty(box)).toBe(true)
+    expect(box).toMatchObject({ first: 11, last: 11, mode: "prompt" })
+  })
+
+  it("reads a draft there as a draft", () => {
+    const drafted = [...rows.slice(0, 11), "> hello", rule, "? for shortcuts"]
+    const box = agy.read(
+      screenWith({
+        rows: drafted,
+        columns: 40,
+        cursor: { row: 13, column: 9 },
+      }),
+    )
+    expect(box?.text).toBe("hello")
+  })
+
+  it("still reads no box with the cursor above the rules", () => {
+    expect(agy.read(at({ row: 0, column: 2 }))).toBeUndefined()
+  })
+})
+
 describe("Claude Code's agents view with a paste in its field", () => {
   const rule = "─".repeat(40)
   // 40x14, 2.1.316 (2026-11-07): its field read as a box in prompt mode, ending as the paste did.
