@@ -1928,12 +1928,14 @@ before it saw it, or if even its latest possible start (its reading plus the res
 before it, so the turn's tools are not taken for the command while a command started just
 before the report is kept, also at macOS's 1 s resolution. Each unconfirmed Enter whose interval
 the turn's start closes takes one look at once, only then and not for the reports that follow
-during the turn, and what that look lists counts as started before the turn, though it is no
-sighting: confirming still takes two real looks 0.9 s apart. Where start times are precise
-(Linux, Windows) it admits only what started before the report; on macOS the floor also admits
-what started within the listing's own delay after it, up to 0.3 s, which a tool of the turn can
-be taken for. A listing that fails is not made up: the Enter then rests on what earlier
-looks saw. Its looks go on to the end of that window, its looks go on to the end of that window,
+during the turn. What that look lists counts as started before the turn, for the interval that
+turn closed alone (an Enter re-armed into a later turn gets no such admission for the earlier
+one), and it is also a first sighting, in real time like any look's, which counts toward the
+0.9 s that confirming takes. Where start times are precise (Linux, Windows) it admits only
+what started before the report; on macOS the floor also admits what started within the
+listing's own delay after it: up to 0.3 s, and up to about two listings (0.6 s) when a look
+was already under way at the turn's start, which a tool of the turn can be taken for. A
+listing that fails is not made up: the Enter then rests on what earlier looks saw. Its looks go on to the end of that window,
 and then it waits the turn out with no looks. When the turn ends, a harness that queues the
 command (Claude Code, Antigravity) gets a new interval from the end less the resolution, and
 a find window of its own; on macOS that reaches up to 1 s into the turn, so a hook's process

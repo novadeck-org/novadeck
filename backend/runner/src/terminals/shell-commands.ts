@@ -51,7 +51,12 @@ export type ShellCommandsHost<R extends ShellRecord> = {
 }
 
 /** The start times a process may have to be an attempt's command: `from` on, until `to` if it ends. */
-type Interval = { readonly from: number; to?: number }
+type Interval = {
+  readonly from: number
+  to?: number
+  /** What the look at the turn start that closed it listed, by `Spawn.key`: started before that turn. */
+  pre?: Set<string>
+}
 
 /** A shell-mode Enter, with what its looks learned: each keeps its own. */
 type Attempt = {
@@ -72,13 +77,11 @@ type Attempt = {
   /** When its find window closes. */
   deadline: number
   /**
-   * When a turn started while it was unconfirmed and had an open interval, until the look
-   * taken at once for it has run: what that look lists counts as started before the turn
-   * (`preTurn`), though it confirms nothing.
+   * When a turn started that closed an open interval of it while unconfirmed, until the look
+   * taken at once for that turn has run: what that look lists counts as started before the
+   * turn, for the interval it closed alone, and it is a first sighting like any look's.
    */
   snap: number | undefined
-  /** The processes that look listed, by `Spawn.key`: started before the turn that closed its interval. */
-  preTurn: Set<string>
   /** When each candidate was first seen live, by `Spawn.key`; only those still listed stay. */
   seen: Map<string, number>
 }
@@ -218,7 +221,6 @@ export class ShellCommands<R extends ShellRecord> {
       confirmed: false,
       rearms: 0,
       snap: undefined,
-      preTurn: new Set(),
       waiting: false,
       deadline: anchor + findMs,
       seen: new Map(),
@@ -230,11 +232,13 @@ export class ShellCommands<R extends ShellRecord> {
    * every attempt at that moment (a process counts as started before it if a look before it
    * saw it, or its latest possible start falls before it), so what a turn's tools start is
    * left out rather than taken for the command: no busy on no evidence. Each attempt still
-   * unconfirmed takes one look at once and counts what it lists as seen then, as the turn's
-   * tools start later, and waits out the turn. A turn that ended opens a new interval for a
-   * command its harness queued, from its end less the resolution, and a find window of its
-   * own; a command run at once (Codex) is in the first interval. A held Enter's attempt
-   * begins at that end.
+   * unconfirmed that had an interval open takes one look at once, only for this transition,
+   * and what that look lists is recorded for the interval the turn closed as started before
+   * the turn; it is also a first sighting, as any look's, and confirms nothing alone. The
+   * attempt then waits out the turn. A turn that ended opens a new interval for a command
+   * its harness queued, from its end less the resolution, and a find window of its own; a
+   * command run at once (Codex) is in the first interval. A held Enter's attempt begins at
+   * that end.
    */
   changed(record: R): void {
     const watch = this.watches.get(record)
@@ -410,7 +414,7 @@ export class ShellCommands<R extends ShellRecord> {
         const snapped = snaps.has(attempt)
         const found = this.started(spawns, attempt, agent, snapped ? attempt.snap : undefined)
         // Sightings are real looks': the turn-start look confirms nothing alone.
-        if (snapped) for (const { key } of found) attempt.preTurn.add(key)
+        if (snapped) this.recorded(attempt, found, attempt.snap)
         const before = attempt.seen
         attempt.seen = new Map(found.map(({ key }) => [key, before.get(key) ?? now]))
         const fresh = found.filter(
@@ -459,6 +463,27 @@ export class ShellCommands<R extends ShellRecord> {
   }
 
   /**
+   * Whether a process with this start time, as listed by the look at a turn's start at
+   * `snapAt`, started before the turn. Start times as precise as Linux's and Windows' tell
+   * exactly; macOS's floor admits what started within the listing's own delay after it
+   * (a listing takes at most `listMs`, 300 ms, and two when a look was already under way).
+   */
+  private beforeTurn(startedMs: number, snapAt: number): boolean {
+    return this.resolution() >= 100 || startedMs < snapAt
+  }
+
+  /** Records what the look at a turn's start listed, for the interval that turn closed. */
+  private recorded(attempt: Attempt, found: readonly Spawn[], snapAt: number | undefined): void {
+    if (snapAt === undefined) return
+    for (const interval of attempt.intervals) {
+      if (interval.to !== snapAt) continue
+      for (const { key, startedMs } of found)
+        if (startedMs >= interval.from && this.beforeTurn(startedMs, snapAt))
+          (interval.pre ??= new Set()).add(key)
+    }
+  }
+
+  /**
    * The top-level processes the attempt's Enter started, less Novadeck's helpers, what they
    * run and the shells they run under. With `agent`, the bound agent's process, a top one is
    * its child: what it left running before (a dev server's watcher restarting its own
@@ -466,7 +491,7 @@ export class ShellCommands<R extends ShellRecord> {
    */
   private started(
     spawns: readonly Spawn[],
-    { intervals, seen, preTurn }: Attempt,
+    { intervals, seen }: Attempt,
     agent: number | undefined,
     snapAt: number | undefined,
   ): readonly Spawn[] {
@@ -475,14 +500,12 @@ export class ShellCommands<R extends ShellRecord> {
     // latest its start time may truly be (the platform's resolution on) falls before it.
     const candidates = spawns.filter(({ key, startedMs }) =>
       intervals.some(
-        ({ from, to }) =>
+        ({ from, to, pre }) =>
           startedMs >= from &&
           (to === undefined ||
-            // The turn-start look's listing. Start times as precise as Linux's and Windows'
-            // admit only what started before the turn; macOS's floor admits what started
-            // within the listing's own delay (at most `listMs`, 300 ms) after it.
-            (snapAt !== undefined && (res >= 100 || startedMs < snapAt)) ||
-            preTurn.has(key) ||
+            // The listing of the look at the turn start that closed this interval.
+            (snapAt === to && this.beforeTurn(startedMs, snapAt)) ||
+            pre?.has(key) === true ||
             startedMs + res < to ||
             (seen.get(key) ?? Infinity) <= to),
       ),

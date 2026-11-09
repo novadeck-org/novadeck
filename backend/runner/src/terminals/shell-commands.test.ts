@@ -993,6 +993,56 @@ describe("shell commands", () => {
       expect(vi.getTimerCount()).toBe(0)
     })
 
+    // `!ls` ends at once; a message starts turn 1, whose tool lives on, and the turn goes on.
+    const chained = async (gap: number) => {
+      const s = setup({ agent: true })
+      await s.press()
+      await settle(300)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      await settle(200)
+      s.processes.current = [tool(Date.now())]
+      await settle(3_000)
+      await s.ends()
+      await settle(gap)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      return s
+    }
+
+    it("takes no tool of the first turn at a second turn's start, however soon it follows", async () => {
+      for (const gap of [50, 2_000]) {
+        const s = await chained(gap)
+        await settle(3_000)
+        expect(s.rec.summary.shellCommand).toBeNull()
+      }
+    })
+
+    it("does not carry the first turn's listing into the window after the second", async () => {
+      const s = await chained(50)
+      await settle(10)
+      const kept = s.processes.current
+      s.processes.current = []
+      await settle(findMs + 500)
+      s.processes.current = kept
+      await s.ends()
+      await settle(3_000)
+      expect(s.rec.summary.shellCommand).toBeNull()
+    })
+
+    it("admits nothing that started a moment after the report, where start times are precise", async () => {
+      for (const res of [10, 16]) {
+        const s = setup({ agent: true, resolutionMs: res })
+        await s.press()
+        await settle(100)
+        activity(s.rec, "working")
+        s.shells.changed(s.rec)
+        s.processes.current = [tool(Date.now() + 30)]
+        await settle(findMs)
+        expect(s.rec.summary.shellCommand).toBeNull()
+      }
+    })
+
     it("confirms with two real sightings, not on the one its slow listing made", async () => {
       const s = setup({ delay: 1_000 })
       const at = await s.press()
