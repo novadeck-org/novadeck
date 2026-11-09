@@ -5,7 +5,6 @@ import { context, describe, expect, it } from "../test"
 import {
   closedShort,
   folderOf,
-  foundBySummary,
   litPieces,
   rowFolder,
   rowMatches,
@@ -81,6 +80,7 @@ describe("History's rows", () => {
       expect(rowView(row(), now, undefined)).toMatchObject({
         state: "ready",
         inert: false,
+        end: { kind: "time", text: closedShort(row().closedAt, now) },
         reason: undefined,
         connect: undefined,
       })
@@ -178,14 +178,6 @@ describe("History's rows", () => {
 
     it("finds an agent's row by the folder it ran in too, though it doesn't show it", () => {
       expect(rowMatches(row({ summary: null }), "storefront")).toBe(true)
-      expect(foundBySummary(row({ summary: null }), "storefront")).toBe(false)
-    })
-
-    it("shows the summary only for a row the title doesn't explain", () => {
-      expect(foundBySummary(row(), "checkout")).toBe(true)
-      expect(foundBySummary(row(), "coupon")).toBe(false)
-      expect(foundBySummary(row(), "")).toBe(false)
-      expect(foundBySummary(plain, "web")).toBe(false)
     })
 
     it("lights the match in the summary, whatever its case", () => {
@@ -213,6 +205,9 @@ describe("History's rows", () => {
       expect(excerpt.endsWith("idempotent")).toBe(true)
       expect(excerpt.length).toBeLessThan(55)
       expect(summaryExcerpt("Short summary here", "short")).toBe("Short summary here")
+      // Its two lines show a match a little way in, so the summary stays whole.
+      const whole = "Order receipts sent after the payment webhook"
+      expect(summaryExcerpt(whole, "webhook")).toBe(whole)
     })
   })
 

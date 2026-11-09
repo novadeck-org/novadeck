@@ -15,10 +15,9 @@ import { Fragment, useEffect, useId, useState, type ReactNode } from "react"
 import {
   agentName,
   closedFull,
-  foundBySummary,
   litPieces,
-  rowFolder,
   rowMatches,
+  rowFolder,
   rowTooltip,
   rowView,
   summaryExcerpt,
@@ -54,6 +53,11 @@ const Lit = ({ text, typed }: { text: string; typed: string }): React.JSX.Elemen
   </>
 )
 
+// A row drawn as a terminal's tab: its icon and title, with when it closed at the end of the
+// title's line, and under them the start of its summary, cut to where a search found it (a
+// plain terminal's folder before it). Its handle isn't shown: a restore keeps it only where
+// it is still free in the session. Under the pointer or focus, a row that can be
+// restored shows the restore icon in its date's place.
 const HistoryRow = ({
   row,
   view,
@@ -103,13 +107,10 @@ const HistoryRow = ({
           }}
         >
           <span className={sidebarRowIconClasses}>{icon}</span>
-          <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="history-row-line">
-              <span className={`${sidebarRowNameClasses()} min-w-0 flex-1`}>
-                {row.title}
-                {folder && <span className="history-row-folder item-detail">{folder}</span>}
-              </span>
-              <span className="history-row-end" data-open={view.state === "open"}>
+              <strong className={`${sidebarRowNameClasses()} min-w-0 flex-1`}>{row.title}</strong>
+              <span className="history-row-end" data-end={view.end.kind}>
                 {view.end.kind === "restoring" ? (
                   <span className="history-spinner" aria-hidden="true" />
                 ) : (
@@ -122,9 +123,11 @@ const HistoryRow = ({
                 )}
               </span>
             </span>
-            {foundBySummary(row, typed) && (
-              <span className="history-row-summary">
-                <Lit text={summaryExcerpt(row.summary!, typed)} typed={typed} />
+            {(folder || row.summary) && (
+              <span className="history-row-detail">
+                {folder && <span className="history-row-folder">{folder}</span>}
+                {folder && row.summary && " "}
+                {row.summary && <Lit text={summaryExcerpt(row.summary, typed)} typed={typed} />}
               </span>
             )}
           </span>

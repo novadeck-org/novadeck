@@ -41,7 +41,17 @@ describe("The History panel", () => {
     it("names a plain terminal's folder after its title", async () => {
       await openHistory()
       const row = closed().getByRole("button", { name: "Restore pnpm dev" })
-      await expect.poll(() => row.element().textContent).toMatch(/pnpm dev\s*web/)
+      await expect.poll(() => row.element().textContent).toMatch(/^pnpm dev.*web$/)
+    })
+
+    it("shows a row's summary under its title, without the handle it had", async () => {
+      await openHistory()
+      const row = closed().getByRole("button", { name: "Restore Coupon codes" })
+      await expect
+        .poll(() => row.element().textContent)
+        .toMatch(/^Coupon codes.*Coupon codes in the cart and at checkout$/)
+      expect(row.element().textContent).not.toMatch(/@wren/)
+      expect(row.element().querySelector("mark")).toBeNull()
     })
   })
 
@@ -62,7 +72,7 @@ describe("The History panel", () => {
       await expect.element(page.getByRole("button", { name: "Restore Tax rounding" })).toBeVisible()
     })
 
-    it("shows the summary, with the match lit, for a row only its summary finds", async () => {
+    it("lights a search's match in the summary", async () => {
       await openHistory()
       await find().fill("webhook")
       const row = page.getByRole("button", { name: "Restore Payment retries" })
