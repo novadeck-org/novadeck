@@ -137,6 +137,11 @@
   width: auto;
   min-width: 2rem;
 }
+/* A critter (Agent avatars, experimental) in the program icon's place, 24px, in the same
+   32px button. */
+.icon-button.terminal-switch:has(> .message-av) {
+  padding: 4px;
+}
 .terminal-switch-handle {
   max-width: 0;
   overflow: hidden;

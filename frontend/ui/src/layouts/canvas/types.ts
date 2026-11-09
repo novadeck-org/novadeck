@@ -41,9 +41,6 @@ export type CanvasProps = {
   team: Team | undefined
   // Every team, whose wires the canvas draws whatever is selected.
   teams: readonly Team[]
-  // Whether terminals' windows draw their handles' critters (Agent avatars, experimental),
-  // which grow past their corners once zoomed out.
-  avatars: boolean
   keyboardFocusRequest: number | null
   navigation: number
   onSelect: (id: string) => void

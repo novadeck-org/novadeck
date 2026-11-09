@@ -19,7 +19,6 @@ import {
   sameTarget,
   shallowEqual,
 } from "./selectors"
-import { agentAvatarsOn } from "./ui-store"
 import { renderTerminal } from "./WorkspaceTerminal"
 
 const useLayoutHidden = (hidden: Record<string, boolean>, preview: string) =>
@@ -88,7 +87,6 @@ export const WorkspaceStage = memo(
     // Each session's stay on Canvas (layouts/canvas/stay.ts). The stage outlives each
     // session's view, so Canvas finds its stay again when the person comes back to it from
     // Focus by a window's own button.
-    const avatars = useUiState(agentAvatarsOn)
     const [stays] = useState(createCanvasStays)
     const stay = useMemo(() => stays.of(context), [stays, context])
     // A navigation that flies is for the view on screen as it was asked, here or in the
@@ -178,7 +176,6 @@ export const WorkspaceStage = memo(
               selected={selected}
               team={team}
               teams={teams}
-              avatars={avatars}
               keyboardFocusRequest={
                 canvasKeyboardFocus?.context === context && canvasKeyboardFocus.id === selected
                   ? canvasKeyboardFocus.request

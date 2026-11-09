@@ -22,15 +22,6 @@ const avatarIn = (element: Element, selector = ".message-av"): HTMLElement | nul
 const headerAvatar = (): HTMLElement =>
   avatarIn(terminal(name).element(), ".terminal-switch .message-av")!
 
-// A window's grown critter, in the layer over every window, by its node.
-const grownAvatarOf = (node: string): HTMLElement =>
-  document.querySelector<HTMLElement>(`.canvas-avatar-at[data-node="${node}"] .message-av`)!
-
-const grownAvatar = (): HTMLElement =>
-  grownAvatarOf(terminal(name).element().closest<HTMLElement>(".canvas-node")!.dataset.node!)
-
-const opacity = (element: Element): number => Number(getComputedStyle(element).opacity)
-
 // The Canvas's zoom, from the window's size on screen against its own.
 const zoom = (): number => {
   const element = terminal(name).element() as HTMLElement
@@ -62,8 +53,6 @@ describe("agent avatars", () => {
       expect(slot.getBoundingClientRect().width).toBe(24)
       // It stands as Messages draws it: Dev server runs no agent, so its critter is dim.
       expect(avatarIn(terminalTab("Dev server").element())?.dataset.live).toBe("gone")
-      // Grown critters belong to Canvas alone.
-      expect(document.querySelector(".canvas-avatar")).toBeNull()
     })
   })
 
@@ -77,45 +66,35 @@ describe("agent avatars", () => {
   })
 
   context("on Canvas", () => {
-    it("grows the header's critter past the window's corner once zoomed out, clear of the title", async () => {
+    it("keeps the critter 24px on screen as it zooms out, inside its header, pushing the title over", async () => {
       await openWithAvatars()
       await chooseView("Canvas")
       await expect.element(terminal(name)).toBeVisible()
       await clickBackground({ x: 150, y: 100 })
 
-      // Near, the header's critter shows and its twin doesn't.
-      await zoomPast("+", 0.6)
-      await expect.poll(() => opacity(grownAvatar().parentElement!)).toBe(0)
-      expect(opacity(headerAvatar())).toBe(1)
-
-      // Far, the twin takes over, larger than the header's, sharing its lower right corner.
-      await zoomPast("-", 0.3)
-      expect(zoom()).toBeLessThanOrEqual(0.3)
-      await expect.poll(() => opacity(grownAvatar().parentElement!)).toBe(1)
-      expect(opacity(headerAvatar())).toBe(0)
-      const grown = await settled(() => grownAvatar().getBoundingClientRect().toJSON() as DOMRect)
-      const small = headerAvatar().getBoundingClientRect()
-      expect(grown.width).toBeGreaterThan(small.width * 2)
-      expect(Math.abs(grown.right - small.right)).toBeLessThan(1.5)
-      expect(Math.abs(grown.bottom - small.bottom)).toBeLessThan(1.5)
-      const title = terminal(name).element().querySelector("[data-terminal-name]")!
-      expect(grown.right).toBeLessThanOrEqual(title.getBoundingClientRect().left)
-
-      // No window covers any window's grown critter, its neighbours' included: each one's
-      // corners, just inside, are its own. They take no pointer, so for the look they do here.
-      const twins = [...document.querySelectorAll<HTMLElement>(".canvas-avatar .message-av")]
-      expect(twins.length).toBeGreaterThan(1)
-      for (const twin of twins) {
-        const { left, top, right, bottom } = twin.getBoundingClientRect()
-        twin.style.pointerEvents = "auto"
-        for (const [x, y] of [
-          [left + 2, top + 2],
-          [right - 2, top + 2],
-          [left + 2, bottom - 2],
-        ] as const)
-          expect(twin.contains(document.elementFromPoint(x, y)), `${x},${y}`).toBe(true)
-        twin.style.pointerEvents = ""
+      const window = (): DOMRect => terminal(name).element().getBoundingClientRect()
+      const title = (): DOMRect =>
+        terminal(name).element().querySelector("[data-terminal-name]")!.getBoundingClientRect()
+      const inside = (critter: DOMRect): void => {
+        const frame = window()
+        expect(critter.left).toBeGreaterThanOrEqual(frame.left)
+        expect(critter.top).toBeGreaterThanOrEqual(frame.top)
+        expect(critter.right).toBeLessThanOrEqual(title().left)
       }
+
+      // While the header has room it holds 24px on screen, whatever the zoom.
+      await zoomPast("+", 0.6)
+      const near = await settled(() => headerAvatar().getBoundingClientRect().toJSON() as DOMRect)
+      expect(zoom()).toBeGreaterThan(0.45)
+      expect(near.width).toBeCloseTo(24, 0)
+      inside(near)
+
+      // Further out it fills the header and shrinks with it, never leaving its window.
+      await zoomPast("-", 0.2)
+      const far = await settled(() => headerAvatar().getBoundingClientRect().toJSON() as DOMRect)
+      expect(far.width).toBeLessThan(24)
+      expect(far.width).toBeGreaterThan(12)
+      inside(far)
     })
   })
 })

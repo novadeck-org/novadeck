@@ -252,7 +252,7 @@ export const WorkspaceTerminal = memo(
     const { bar, items, fresh } = useTerminalBar(terminalId)
     const { icon: Icon } = terminalProfile(terminal)
     // Agent avatars (experimental): the handle's critter in the program's place, which on a
-    // zoomed-out Canvas grows past the window's corner (CanvasAvatars).
+    // zoomed-out Canvas keeps its size on screen while its header has room (canvas.css).
     const avatar = useUiState(agentAvatarsOn) ? terminal.handle : undefined
     const processWindow = presentedProgram(terminal)
     const mic = useMicButton(terminal, terminalKey)
@@ -265,7 +265,7 @@ export const WorkspaceTerminal = memo(
         ? { titleExtra: <NameChip terminalId={terminalId} context={chatContext} /> }
         : {}),
       icon: avatar ? (
-        <Avatar handle={avatar} live={critterLive(terminal)} size={16} />
+        <Avatar handle={avatar} live={critterLive(terminal)} size={24} />
       ) : (
         <Icon size={14} strokeWidth={1.5} />
       ),
