@@ -644,6 +644,56 @@ describe("prompts", () => {
     expect(written).toEqual(["\x1b[200~First\x1b[201~", "\r", "\x1b[200~Second\x1b[201~", "\r"])
   })
 
+  it("run what makes way for a prompt first, in its own turn, nothing coming between", async () => {
+    const { host, written } = terminal()
+    const prompts = new Prompts(host, host.queue, fast)
+    const order: string[] = []
+    const first = prompts.prompt("t", "First", "alone", undefined, [], undefined, undefined, () => {
+      order.push(`before ${written.length}`)
+      // A prompt given meanwhile waits for this one's turn to end.
+      void prompts.prompt("t", "Second").then(() => order.push("second"))
+      return Promise.resolve(undefined)
+    })
+    await first
+    order.push("first")
+    await host.queue.run("t", () => Promise.resolve())
+    expect(order).toEqual(["before 0", "first", "second"])
+    expect(written.slice(0, 2)).toEqual(["\x1b[200~First\x1b[201~", "\r"])
+  })
+
+  it("type nothing where what came first gave the words another way, and check them before it", async () => {
+    const { host, written } = terminal()
+    const prompts = new Prompts(host, host.queue, fast)
+    const given = await prompts.prompt(
+      "t",
+      "Hello",
+      "alone",
+      undefined,
+      [],
+      undefined,
+      undefined,
+      () => Promise.resolve({ returned: undefined }),
+    )
+    expect(given).toEqual({ returned: undefined })
+    expect(written).toEqual([])
+    let ran = false
+    const refused = new Prompts(host, host.queue, { ...fast, refuse: () => "no" }).prompt(
+      "t",
+      "Hello",
+      "alone",
+      undefined,
+      [],
+      undefined,
+      undefined,
+      () => {
+        ran = true
+        return Promise.resolve(undefined)
+      },
+    )
+    expect(await refusal(refused)).toBe("refused")
+    expect(ran).toBe(false)
+  })
+
   it("hold the next prompt until the session of a first one binds", async () => {
     const { host, written, writesAtBind } = terminal({ bindsMs: 80 })
     const prompts = new Prompts(host, host.queue, fast)

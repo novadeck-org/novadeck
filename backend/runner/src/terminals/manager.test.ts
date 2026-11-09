@@ -321,6 +321,40 @@ describe("an answer's own keys", () => {
   })
 })
 
+describe("a question set aside by the chat's own Send or Stop", () => {
+  it("lets it past questions only, and only with setAside", async ({ terminals }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as {
+      records: Map<string, { bound: Bound | null }>
+      typing: { promptable: (id: string, setAside?: true) => unknown }
+    }
+    const record = inside.records.get(terminal.id)!
+    const waiting = (...kinds: string[]) => {
+      record.bound = {
+        binding: { agent: "claude", sessionId: "s", instance: null },
+        activity: {
+          ...fresh(0),
+          pending: kinds.map((kind) => ({ kind }) as Activity["pending"][number]),
+        },
+        telemetry: null,
+      }
+    }
+    const { typing } = inside
+    const pending = expect.objectContaining({ code: "CONFLICT", reason: "pending" })
+    waiting("question")
+    expect(() => typing.promptable(terminal.id)).toThrow(pending)
+    expect(typing.promptable(terminal.id, true)).toBe(record)
+    waiting("question", "permission")
+    expect(() => typing.promptable(terminal.id, true)).toThrow(pending)
+    waiting("permission")
+    expect(() => typing.promptable(terminal.id, true)).toThrow(pending)
+  })
+})
+
 describe("answers and the prompts after them", () => {
   it("keeps a chat prompt behind an answer's follow-up words, which go first, though the answered request is still pending", async ({
     terminals,

@@ -85,6 +85,12 @@ export type AnswersHost = {
   readonly turnStartedAt: (terminalId: string) => number | undefined
   /** An answer begins or ends there, so the dialogs tracker leaves its screens alone. */
   readonly busy: (terminalId: string, on: boolean) => void
+  /** The requests that hold its agent (`blocking`), first met first: their refs and kinds. */
+  readonly asking: (
+    terminalId: string,
+  ) => readonly { readonly ref: string; readonly kind: string | null }[]
+  /** What an Escape in its agent's question dialog does (the harness's `questionEscape`). */
+  readonly questionEscape: (terminalId: string) => "interrupts" | "skips" | undefined
 }
 
 export type AnswersOptions = {
@@ -116,6 +122,26 @@ export type AnswersOptions = {
   readonly calmMs?: number
 }
 
+/**
+ * Setting the question aside, as the person's Send or Stop does over it: Escape, or, where
+ * Escape only skips a question and there are words, the words as its answer (see `setAside`).
+ */
+type Aside = {
+  readonly type: "aside"
+  readonly escape: "interrupts" | "skips"
+  readonly text?: string
+}
+
+/** What `setAside` did: nothing waited, the questions went, or the words went as the answer. */
+export type SetAside = "none" | "dismissed" | "answered"
+
+/** How many questions set aside one after another, at most, before one is refused. */
+const asideRounds = 3
+
+/** The refusal of a request that holds the agent, as a prompt's (`Typing.promptable`). */
+export const waitsOnPerson = (message = "The agent waits on the person's answer to a request.") =>
+  new DomainError("CONFLICT", message, undefined, "pending")
+
 /** A failure to answer, after some key was pressed or not. */
 class Failed extends Error {
   constructor(
@@ -127,8 +153,9 @@ class Failed extends Error {
 }
 
 /** Every piece of the person's own words in an answer. */
-const wordsOf = (answer: RequestAnswer): string[] => {
+const wordsOf = (answer: RequestAnswer | Aside): string[] => {
   switch (answer.type) {
+    case "aside":
     case "choice":
     case "chat":
       return answer.text === undefined ? [] : [answer.text]
@@ -201,11 +228,81 @@ export class Answers {
     await this.queue.run(terminalId, (entry) => this.send(entry, terminalId, ref, answer))
   }
 
+  /**
+   * Sets aside the questions the terminal's agent waits on, as the person's own Send or Stop
+   * in a chat does, within `entry`, the turn of the input queue the prompt or Stop holds, so
+   * nothing comes between. Where Escape ends the turn in its question dialog (the harness's
+   * `questionEscape`, `interrupts`), Escape dismisses it, and this resolves once the request
+   * no longer holds the agent, for the words to follow as a prompt; where Escape only skips
+   * the question on screen (`skips`), `text` goes as its answer through the dialog's `chat`
+   * (its Write-in, the rest skipped), and without words Escape skips each question until
+   * the request is gone. Any request that is no question, or a dialog not read as one, is a
+   * CONFLICT (`pending`), and images where the words go as an answer one of its own
+   * (`question-words-only`), both pressing nothing. Keys go through `send`'s bookkeeping:
+   * held input, the dialog read first, and a dialog that didn't go as it should locked for good.
+   */
+  async setAside(
+    entry: InputEntry,
+    terminalId: string,
+    text?: string,
+    images = false,
+  ): Promise<SetAside> {
+    for (let round = 0; ; round += 1) {
+      const asking = this.host.asking(terminalId)
+      if (asking.length === 0) return round === 0 ? "none" : "dismissed"
+      const escape = this.host.questionEscape(terminalId)
+      if (!escape || round >= asideRounds || asking.some(({ kind }) => kind !== "question"))
+        throw waitsOnPerson()
+      const answers = escape === "skips" && text !== undefined
+      if (answers && images)
+        throw new DomainError(
+          "CONFLICT",
+          "The question takes the words as its answer, without images: answer it first, or send the words alone.",
+          undefined,
+          "question-words-only",
+        )
+      const { ref } = asking[0]!
+      try {
+        // eslint-disable-next-line no-await-in-loop -- One question after another.
+        await this.send(entry, terminalId, ref, {
+          type: "aside",
+          escape,
+          ...(text !== undefined && { text }),
+        })
+      } catch (error) {
+        if (!(error instanceof DomainError)) throw error
+        // Gone meanwhile: what holds the agent now is looked at again.
+        if (error.code === "NOT_FOUND") continue
+        // Nothing pressed: the question waits, as for any prompt.
+        if (error.code === "CONFLICT" && error.reason === undefined)
+          throw new DomainError("CONFLICT", error.message, undefined, "pending", { cause: error })
+        throw error
+      }
+      if (answers) return "answered"
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await this.left(terminalId, ref)
+    }
+  }
+
+  /**
+   * Waits for a request set aside to no longer hold the agent: its dialog went from the screen,
+   * and its hook, which says so, may be a moment behind.
+   */
+  private async left(terminalId: string, ref: string): Promise<void> {
+    const until = Date.now() + this.followMs
+    while (this.host.asking(terminalId).some((each) => each.ref === ref)) {
+      if (Date.now() >= until)
+        throw waitsOnPerson("The question was set aside, but the agent still waits on it.")
+      // eslint-disable-next-line no-await-in-loop -- Looked at in turn.
+      await sleep(this.pollMs)
+    }
+  }
+
   private async send(
     entry: InputEntry,
     terminalId: string,
     ref: string,
-    answer: RequestAnswer,
+    answer: RequestAnswer | Aside,
   ): Promise<void> {
     // Keys the person's words can't carry: an escape sequence would be pressed, not typed.
     if (wordsOf(answer).some(hasControlCharacters))
@@ -248,16 +345,38 @@ export class Answers {
       const found = await this.readDialog(terminalId, ref, adapter, self, others)
       rows = found.rows
       const { read } = found
-      if (identified(read.dialog)?.id !== answer.dialog)
+      // The answer given: one set aside with words through its chat, or none for Escape.
+      let given: RequestAnswer | undefined
+      if (answer.type === "aside") {
+        if (read.dialog.type !== "questions")
+          throw waitsOnPerson("The request's dialog is no question to set aside.")
+        given =
+          answer.escape === "skips" && answer.text !== undefined
+            ? { type: "chat", dialog: identified(read.dialog)!.id, text: answer.text }
+            : undefined
+      } else if (identified(read.dialog)?.id !== answer.dialog)
         throw new DomainError("DIALOG_CHANGED", "The dialog on screen is not the one answered.")
-      // A dialog answered as the agent's next prompt: nothing is pressed, and the prompt goes
-      // as the person's would, once their keys are let go.
-      if (read.prompt) {
+      else given = answer
+      if (given === undefined) {
+        // Escape where it ends the turn; each where it skips a question, a Write-in opened
+        // aside (its Escape goes back) one more.
+        const most =
+          answer.type === "aside" && answer.escape === "skips" && read.dialog.type === "questions"
+            ? read.dialog.questions.length + 1
+            : 1
+        rows = await this.dismiss(terminalId, ref, adapter, most)
+        hold.discard()
+        hold.release()
+        this.settleLater(hold)
+        this.host.done(terminalId, ref)
+      } else if (read.prompt) {
+        // A dialog answered as the agent's next prompt: nothing is pressed, and the prompt
+        // goes as the person's would, once their keys are let go.
         // Only once no turn runs, as its hooks say, whatever the screen read as: a prompt
         // typed into a running turn waits for its end, a different answer from its dialog's.
         if (this.host.working(terminalId))
           throw new DomainError("CONFLICT", "The agent's turn runs: its dialog takes keys.")
-        words = read.prompt(answer)
+        words = read.prompt(given)
         if (words === undefined)
           throw new DomainError("CONFLICT", "The request's dialog can't take that answer.")
         const refusal = promptRefusal(words)
@@ -268,15 +387,15 @@ export class Answers {
       } else {
         // Setting the questions aside to talk: only where the dialog offers it, and a field
         // takes words, which are the answer.
-        if (answer.type === "chat") {
+        if (given.type === "chat") {
           const chat = read.dialog.type === "questions" ? read.dialog.chat : null
           if (chat === null)
             throw new DomainError("CONFLICT", "The dialog can't be set aside to talk it over.")
-          if (chat === "field" && answer.text === undefined)
+          if (chat === "field" && given.text === undefined)
             throw new DomainError("CONFLICT", "Talking it over there takes words.")
-          if (chat === "prompt") words = answer.text
+          if (chat === "prompt") words = given.text
         }
-        const steps = read.keys(answer)
+        const steps = read.keys(given)
         if (!steps)
           throw new DomainError("CONFLICT", "The request's dialog can't take that answer.")
         // The hold must outlast every wait of the answer.
@@ -286,18 +405,20 @@ export class Answers {
         )
         if (needs > this.holdMs)
           throw new DomainError("CONFLICT", "The answer takes longer than the keys can be held.")
-        if (answer.type === "choice" && read.dialog.type === "choices")
+        if (given.type === "choice" && read.dialog.type === "choices") {
+          const { option } = given
           words =
-            read.dialog.options.find(({ id }) => id === answer.option)?.text === "prompt"
-              ? answer.text
+            read.dialog.options.find(({ id }) => id === option)?.text === "prompt"
+              ? given.text
               : undefined
+        }
         // Words that follow as the agent's next prompt must be ones a prompt can carry, said
         // before any key is pressed, not after the dialog took its answer.
         const refusal = words === undefined ? undefined : promptRefusal(words)
         if (refusal) throw new DomainError("PROMPT_REFUSED", refusal)
         const pressedAt = await this.run(terminalId, ref, steps, {
           adapter,
-          id: answer.dialog,
+          id: given.dialog,
         })
         const taken = await this.confirmed(
           terminalId,
@@ -564,6 +685,59 @@ export class Answers {
       pressed = true
     }
     return pressedAt
+  }
+
+  /**
+   * Presses Escape in the request's dialog, at most `most` times, each once the screen
+   * settled after the one before, until the request is gone or its dialog no longer shows:
+   * one Escape where it ends the turn, one a question where it skips the question on screen.
+   * The screen must read as the request's dialog before each. Gives the screen's rows at the end.
+   */
+  private async dismiss(
+    terminalId: string,
+    ref: string,
+    adapter: DialogAdapter,
+    most: number,
+  ): Promise<readonly string[]> {
+    let pressed = 0
+    for (;;) {
+      // eslint-disable-next-line no-await-in-loop -- Each press waits for the one before.
+      const screen = await this.screen(terminalId, pressed > 0)
+      const current = this.host.request(terminalId, ref)
+      if (!current) return screen.rows
+      if (!adapter.read(screen.rows, current.facts)) {
+        if (pressed === 0)
+          throw new DomainError("CONFLICT", "The request's dialog isn't on the agent's screen.")
+        return screen.rows
+      }
+      if (pressed >= most) throw new Failed("The question did not go as Escape should.", true)
+      if (!this.host.press(terminalId, "\x1b"))
+        throw new Failed("The terminal went away before the keys were pressed.", pressed > 0)
+      pressed += 1
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await this.moved(terminalId, ref, screen.rows)
+    }
+  }
+
+  /**
+   * Waits after a key for the request to go, or the screen to settle other than it was
+   * (`before`), on two reads running, for `answeredMs`.
+   */
+  private async moved(terminalId: string, ref: string, before: readonly string[]): Promise<void> {
+    const until = Date.now() + this.answeredMs
+    const was = before.join("\n")
+    let last: string | undefined
+    for (;;) {
+      // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
+      const screen = await this.screen(terminalId, true)
+      if (!this.host.request(terminalId, ref)) return
+      const now = screen.rows.join("\n")
+      if (now === last && now !== was) return
+      last = now
+      if (Date.now() >= until) throw new Failed("The screen did not move after Escape.", true)
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await sleep(this.pollMs)
+    }
   }
 
   /** The text of a `type` step as the screen takes it: one bracketed paste, where it can. */

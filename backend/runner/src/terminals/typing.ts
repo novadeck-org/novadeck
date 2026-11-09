@@ -31,7 +31,7 @@ import { harnesses } from "../harnesses/registry.js"
 import { logs } from "../log.js"
 import { confirmMs, Doorbell, type DoorbellOptions } from "../messaging/doorbell.js"
 import type { Messaging } from "../messaging/messaging.js"
-import { Answers, type AnswersOptions } from "./answers.js"
+import { Answers, waitsOnPerson, type AnswersOptions } from "./answers.js"
 import { bannerDrawn } from "./binding/banners.js"
 import { boxView, BoxStates, shownBox } from "./box-state.js"
 import { Dialogs, type DialogsOptions } from "./dialogs.js"
@@ -109,6 +109,12 @@ const boxSettleMs = 5_000
 const queueLookMs = 2_000
 const queueGoneMs = 200
 
+/**
+ * How long a Stop waits, after the Escape that set a question aside, for the turn it ended to
+ * show as ended: its hooks told it within 0.1 s for Claude Code and Codex (e2e/probes/question-dismiss).
+ */
+const asideEndMs = 1_500
+
 /** What `agents.prompt` gives: the text, and whether it is automatic, under which ref. */
 export type PromptInput = {
   readonly terminalId: string
@@ -122,6 +128,8 @@ export type PromptInput = {
   readonly files?: readonly string[] | undefined
   /** Where each image goes in `text` (`agents.prompt`'s `at`); absent, they lead it. */
   readonly at?: readonly number[] | undefined
+  /** Sets aside the question the agent waits on, as the person's own Send does (see `setAside`). */
+  readonly setAside?: true | undefined
 }
 
 /**
@@ -263,8 +271,8 @@ export class Typing {
 
   /** `prompt` for the input of `agents.prompt`. */
   given(input: PromptInput): Promise<Prompted> {
-    const { terminalId, text, automatic, ref, along, images, files, at } = input
-    return this.prompt(terminalId, text, automatic, ref, along, images, files, at)
+    const { terminalId, text, automatic, ref, along, images, files, at, setAside } = input
+    return this.prompt(terminalId, text, automatic, ref, along, images, files, at, setAside)
   }
 
   /**
@@ -273,6 +281,9 @@ export class Typing {
    * `ref` until the agent's record has it (see `Receipts`). With `along`, which only a client
    * showing the box asks for, what the box holds doesn't stop it, where the screen shows that's
    * safe: it goes along, or out, the words handed back. Without it, it goes into an empty box.
+   * With `setAside`, a question the agent waits on is set aside first, in the prompt's own
+   * turn of the queue (see `Answers.setAside`): where the words go as its answer, nothing is
+   * typed as a prompt and no receipt follows.
    */
   async prompt(
     terminalId: string,
@@ -283,7 +294,12 @@ export class Typing {
     images: readonly string[] = [],
     files: readonly string[] = images,
     at?: readonly number[],
+    setAside?: true,
   ): Promise<Prompted> {
+    // Words that set a question aside are a message, never a shell command, whichever way
+    // they go: refused before anything waits, as any prompt's shape is.
+    const aside = setAside && !(images.length > 0 && text.trim() === "") && promptRefusal(text)
+    if (aside) throw new DomainError("PROMPT_REFUSED", aside)
     // Its ref is held at once, and it joins the input queue in this same tick, as it always
     // has, so nothing given after it goes before it. Its receipt is set up beside it: what
     // the record was is looked at long before any key of it lands.
@@ -295,6 +311,8 @@ export class Typing {
     if (automatic) this.host.messaging().automatic(terminalId, text)
     let returned: string | null = null
     let went: string | undefined
+    // Whether the words went as the answer to the question set aside, not as a prompt.
+    let answered = false
     try {
       const given = await this.prompts.prompt(
         terminalId,
@@ -313,6 +331,12 @@ export class Typing {
             () => this.receipts.unplaced(terminalId, claimed),
             () => undefined,
           ),
+        setAside &&
+          (async (entry) => {
+            const done = await this.answers.setAside(entry, terminalId, text, images.length > 0)
+            answered = done === "answered"
+            return answered ? { returned: undefined } : undefined
+          }),
       )
       returned = given?.returned ?? null
       went = given?.along
@@ -331,6 +355,14 @@ export class Typing {
       if (error instanceof DomainError && lookAtBox.has(error.reason ?? ""))
         await this.boxes.refresh(terminalId)
       throw error
+    }
+    if (answered) {
+      // The question's answer is no prompt the record tells of.
+      void following.then(
+        () => this.receipts.failed(terminalId, claimed),
+        () => undefined,
+      )
+      return { ref: claimed, tracked: false, returned: null }
     }
     const receipt = await following.catch(() => ({ ref: claimed, tracked: false }))
     // Words that came out are the person's draft again, and those that went along with it are
@@ -412,19 +444,26 @@ export class Typing {
     return this.answers.answer(terminalId, request, answer)
   }
 
-  /** Presses Escape in the terminal's agent as the person would (see `Terminals.interrupt`). */
-  async interrupt(terminalId: string): Promise<InterruptResult> {
-    this.promptable(terminalId)
+  /**
+   * Presses Escape in the terminal's agent as the person would (see `Terminals.interrupt`).
+   * With `setAside`, a question the agent waits on is set aside first, in the same turn of
+   * the queue (see `Answers.setAside`): where that Escape ended the turn, the Stop finds it
+   * over once its activity says so, and presses nothing more.
+   */
+  async interrupt(terminalId: string, setAside?: true): Promise<InterruptResult> {
+    this.promptable(terminalId, setAside)
     let since = Date.now()
     let ended = noStop
     // The words as the agent's box held them, with any doorbell line a hook may still tell of.
     let boxed: string | null = null
     // The prompt that started the turn, as its hook told it, before the Stop changes that.
     const result = await this.inputs
-      .run(terminalId, (entry) => {
+      .run(terminalId, async (entry) => {
         since = Date.now()
         ended = this.givenBack.begin(terminalId, since)
-        return this.interrupts.interrupt(terminalId, entry, (words) => (boxed = words))
+        if (setAside && (await this.answers.setAside(entry, terminalId)) === "dismissed")
+          await this.asideEnded(terminalId)
+        return await this.interrupts.interrupt(terminalId, entry, (words) => (boxed = words))
       })
       .catch(async (error: unknown) => {
         // Words it couldn't take out are back in the box, which the next prompt sees to.
@@ -512,11 +551,27 @@ export class Typing {
   }
 
   /**
+   * After questions were set aside for a Stop: where their Escape ends the turn, waits up to
+   * `asideEndMs` for the activity to say so, so the Stop presses no second
+   * Escape at an idle prompt (two open Claude Code's rewind picker). Where it skips them, the
+   * turn goes on, for the Stop to end.
+   */
+  private async asideEnded(terminalId: string): Promise<void> {
+    const agent = this.host.live(terminalId)?.bound?.binding.agent
+    if (!agent || harnesses[agent].messaging.questionEscape !== "interrupts") return
+    const until = Date.now() + asideEndMs
+    while (this.host.live(terminalId)?.bound?.activity.state === "working" && Date.now() < until)
+      // eslint-disable-next-line no-await-in-loop -- Looked at in turn.
+      await sleep(25)
+  }
+
+  /**
    * The record of a terminal whose agent takes the person's keys, or the error saying why
    * not: no agent bound, nor its own prompt shown before its first session binds, or one
-   * that waits on the person's answer to a request, whose dialog would take them.
+   * that waits on the person's answer to a request, whose dialog would take them. With
+   * `setAside`, requests that are all questions don't refuse: the caller sets them aside.
    */
-  promptable(terminalId: string): Record {
+  promptable(terminalId: string, setAside?: true): Record {
     if (this.host.stopping()) throw new DomainError("CLOSING")
     const record = this.host.record(terminalId)
     this.host.running(record)
@@ -527,13 +582,9 @@ export class Typing {
         undefined,
         "no-agent",
       )
-    if (blocking(record.bound?.activity.pending).length > 0)
-      throw new DomainError(
-        "CONFLICT",
-        "The agent waits on the person's answer to a request.",
-        undefined,
-        "pending",
-      )
+    const asking = blocking(record.bound?.activity.pending)
+    if (asking.length > 0 && !(setAside && asking.every(({ kind }) => kind === "question")))
+      throw waitsOnPerson()
     return record
   }
 
@@ -900,6 +951,18 @@ export class Typing {
       busy: (terminalId, on) => {
         if (on) this.dialogs.begin(terminalId)
         else this.dialogs.end(terminalId)
+      },
+      asking: (terminalId) => {
+        const bound = this.host.live(terminalId)?.bound
+        if (!bound) return []
+        return blocking(bound.activity.pending).map((request) => ({
+          ref: requestRef(bound.binding, request),
+          kind: request.kind,
+        }))
+      },
+      questionEscape: (terminalId) => {
+        const agent = this.host.live(terminalId)?.bound?.binding.agent
+        return agent && harnesses[agent].messaging.questionEscape
       },
     }
   }

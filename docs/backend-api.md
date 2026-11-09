@@ -950,7 +950,7 @@ one from an earlier runner.
   client's `agents.transcript(terminalId, actor)` resubscribes across reconnections,
   yielding `reset` before the items follow again, and ends without one when the actor
   is gone.
-- `agents.prompt({ terminalId, text, images?, at?, automatic?, along?, ref? })` gives the terminal's agent a prompt as the person
+- `agents.prompt({ terminalId, text, images?, at?, automatic?, along?, ref?, setAside? })` gives the terminal's agent a prompt as the person
   would paste and submit it (`automatic: true` marks a fixed line an Inbox button sends, such as "continue", not words the person wrote: the turn it starts withdraws no ask from the Inbox, see [Agent messaging](agent-messaging.md); a strict-schema field added with the protocol version unchanged, as the repo does while client and runner ship together; `text` is 1 to 16,384 characters; its line breaks, CRLF and a lone CR included, are taken as one line break each and stay
   line breaks in the box). It needs an agent bound, or one showing its own empty prompt
   before its first session binds (Codex before its first prompt), and no request waiting
@@ -1010,6 +1010,30 @@ one from an earlier runner.
   sequences, CJK) as a TUI's own do (`@novadeck/emulator/width`), so a redraw erases
   the rows the TUI means. The person's keys are held from before the box is looked at until
   the Enter is out, at most the wait for an empty box, a shell command's switch (up to 5 s), the paste's 5 s and a margin of 2 s.
+
+  `setAside: true`, which only the person's own Send in a chat gives (an automatic prompt or
+  a doorbell ring never does), sends over a question the agent waits on (Claude Code's
+  AskUserQuestion, Codex's request_user_input, Antigravity's ask_question) instead of
+  refusing it `pending`: in the prompt's own turn of the terminal's input queue, so nothing
+  comes between, the question is set aside and the words go. How depends on what the
+  harness's Escape does in its question dialog (`MessagingProfile.questionEscape`), never on
+  its name, and goes through the answer driver's bookkeeping (the person's keys held, the
+  dialog read off a settled screen first, a turn that just put it up given its settle time).
+  Where Escape ends the turn there (`interrupts`: Claude Code, Codex), Escape is pressed once,
+  the runner waits for the request to leave `pending` (its hook a moment behind the dialog, up
+  to 10 s, then a `CONFLICT` `pending`), and the words follow as any prompt, images and all,
+  with their receipt: the model's one call holds the dismissed tool and the words. Where it
+  only skips the question on screen (`skips`: Antigravity), the words go as the answer to the
+  question on screen through its Write-in, as `agents.answer`'s `chat`, the later questions
+  skipped: one call, the words in the tool's result, so no prompt is typed and `tracked` is
+  false; images there are a `CONFLICT` with reason `question-words-only`, pressing nothing.
+  The words must be a message either way (`promptRefusal` without the shell form: a leading
+  `!` is `PROMPT_REFUSED`). A request that is no question (an approval, a form, a plan), or
+  a question whose dialog isn't read (raw), is still a `CONFLICT` `pending`, pressing
+  nothing; Escape pressed without the question going is `ANSWER_FAILED`, the dialog turning
+  `raw`. Measured with the fake model, a Send right after the question showed took about
+  1.1 to 1.3 s in all three, most of it the wait for the turn that put the question up to
+  settle (1 s from its start); later it is a few hundred milliseconds.
 
   `images` (1 to 8 paths, `maxPromptImages`) hands the agent pictures the chat holds, which
   `terminals.upload` saved on this runner: an image file (PNG, JPEG, GIF or WebP) in an upload's
@@ -1358,7 +1382,7 @@ one from an earlier runner.
   [Harness adapters, Answer driver](harness-adapters.md#answer-driver). The client's
   `agents.answer(terminalId, request, answer)` is that call.
 
-- `agents.interrupt({ terminalId })` presses Escape in the terminal's agent, which stops
+- `agents.interrupt({ terminalId, setAside? })` presses Escape in the terminal's agent, which stops
   its turn in every harness, after up to 5 s where Claude Code's queued messages are still
   in their prompt hooks (the turn ends without a normal Stop: its activity is
   `unknown` until the next prompt, see `agent-messaging.md`, and the agent's `lastTurn`
@@ -1416,6 +1440,16 @@ one from an earlier runner.
   `returned` leaves out Novadeck's own doorbell and reply lines. The call takes up to about half a
   second longer where nothing comes back, and a few seconds more with queued messages. The
   client's `agents.interrupt(terminalId)` is that call, and resolves with the result.
+
+  `setAside: true`, only the person's own Stop in a chat, stops over a question the agent
+  waits on instead of refusing it `pending`, in the Stop's own turn of the input queue:
+  Escape is pressed in the question's dialog, once where it ends the turn (Claude Code,
+  Codex), else once per question until the request is gone (Antigravity, whose Escape skips
+  one question a press, the tool returning "User Skipped" and the turn going on). Where that
+  Escape ended the turn, the Stop waits up to 1.5 s for the activity to say so (its hooks did
+  within 0.1 s) and then presses nothing more, so no second Escape opens Claude Code's rewind
+  picker; where the turn goes on, the Stop ends it as above. It resolves with nothing
+  `returned`. The refusals are `agents.prompt`'s with `setAside`.
 
 - `history.*` lists the terminals closed in the last 30 days, per project, which
   `terminals.create({ closed })` restores. A row has the id its terminal had, its project,
@@ -1583,7 +1617,9 @@ Typed errors include `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`, `CONFLICT`,
 `agents.interrupt`) carries `{ reason }` as its data (`conflictReason`) where one applies:
 `agents.prompt` and `agents.interrupt` give one for every conflict about typing into the
 terminal, and `agents.answer` only `ringing` (a doorbell ring that outlasts 10 s), its
-other conflicts carrying none. `pending` (a request waits on the person), `ringing` or
+other conflicts carrying none. `question-words-only` (a `setAside` prompt with images over a
+question that takes the words as its answer, Antigravity's) is for the person to send the
+words alone or answer first. `pending` (a request waits on the person), `ringing` or
 `no-paste` clear by themselves or by answering, while `draft`, `shell`, `too-tall`,
 `no-box` (the agent's input box is not found on its screen) and `no-agent` (no agent runs
 in the terminal) are for the person to settle in the terminal. Other conflicts carry no

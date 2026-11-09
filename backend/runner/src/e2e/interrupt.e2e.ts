@@ -2,13 +2,13 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
-import type { AgentSetup } from "./agents/agent.js"
+import type { AgentSetup, Question } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
 import { asked, gate, latest } from "./model/script.js"
 import { picture } from "./pictures.js"
-import { own, replies, start, through } from "./scenarios.js"
+import { answers, lacking, own, replies, result, start, through } from "./scenarios.js"
 
 // The chat's Stop, `agents.interrupt`, never leaves the agent's TUI in a state the chat
 // can't recover from: it presses Escape once, while a turn works or its queued messages go
@@ -601,5 +601,88 @@ for (const setup of setups) {
       await t1.until("Carried on.")
       await through(t1, ["working", "settled"], { after: mark })
     })
+
+    // The chat's own Stop while a question waits (`agents.interrupt` with `setAside`) sets it
+    // aside and stops the agent in one step: an Escape that ends the turn there (Claude Code,
+    // Codex), or one per question where it only skips them (Antigravity), whose turn then
+    // runs on with the skipped answers until the Stop's own Escape ends it.
+    for (const [shape, questions] of [
+      ["one question", [colour]],
+      ["two questions", [colour, size]],
+    ] as const)
+      gated(it, lacking(setup, "questions"))(
+        `stops over ${shape} from the chat, setting it aside, with no picker after`,
+        async ({ e2e: run }) => {
+          const held = gate()
+          run.model.use(
+            replies("Carry on", "Carried on."),
+            answers("Ask me", (call) => setup.asking!.questions(call, questions)),
+            // A turn that goes on with the answer the Escape gave is held, for the Stop to end.
+            own(async (call) => {
+              if (result(call) === undefined) return undefined
+              await held.opened
+              return { text: "Too late." }
+            }),
+          )
+          const t1 = await start(run, setup)
+          await setup.asking!.enter?.(t1)
+
+          await t1.prompt("Ask me about the button")
+          await questionOf(t1)
+          const since = Date.now()
+          const stopped = await t1.interrupt(true)
+          const took = Date.now() - since
+          expect(stopped.returned).toBeNull()
+          expect((await t1.detail()).requests).toHaveLength(0)
+          await t1.poll(
+            () => (t1.summary().activity?.state === "working" ? undefined : true),
+            "its turn to end",
+            15_000,
+          )
+          // The harness takes the key a moment after it is written (Antigravity showed
+          // "Interrupted" within 0.7 s), though the activity says the turn ended at once.
+          await sleep(1500)
+          held.open()
+          // Past the time a second Escape would have taken to open a picker.
+          await sleep(2500)
+          const shown = await t1.screen()
+          if (setup.rewind) expect(shown).not.toMatch(setup.rewind.shows)
+          expect(shown).not.toContain("Too late.")
+          console.info(`${setup.name}: stopped over ${shape} in ${took} ms`)
+
+          const mark = t1.mark()
+          await t1.prompt("Carry on")
+          await t1.until("Carried on.")
+          await through(t1, ["working", "settled"], { after: mark })
+        },
+      )
   })
+}
+
+/** Waits until the terminal's first request shows its questions' dialog. */
+const questionOf = (terminal: DeckTerminal) =>
+  terminal.poll(
+    async () =>
+      (await terminal.detail()).requests[0]?.dialog?.type === "questions" ? true : undefined,
+    "its question's dialog",
+    60_000,
+  )
+
+const colour: Question = {
+  question: "Which color should the button be?",
+  header: "Color",
+  multiSelect: false,
+  options: [
+    { label: "Blue", description: "The house color." },
+    { label: "Green", description: "Calmer." },
+  ],
+}
+const size: Question = {
+  question: "Which size should the button be?",
+  header: "Size",
+  multiSelect: false,
+  options: [
+    { label: "Small", description: "Compact." },
+    { label: "Large", description: "Roomy." },
+  ],
 }

@@ -101,6 +101,12 @@ const terminal = (
      * saying so from then on, and its dialog then reads as nothing, as a harness's leftover.
      */
     turnEndsAfter?: number
+    /** The requests that hold the agent, as `setAside` looks at them; none by default. */
+    asking?: () => { ref: string; kind: string | null }[]
+    /** What an Escape in its question dialog does. */
+    escape?: "interrupts" | "skips"
+    /** How many questions its `chat` dialog asks; one by default. */
+    questions?: number
   } = {},
 ) => {
   const tui = new FakeTui()
@@ -155,16 +161,14 @@ const terminal = (
               ...read,
               dialog: {
                 type: "questions" as const,
-                questions: [
-                  {
-                    id: "q1",
-                    header: null,
-                    question: "Which?",
-                    options: [],
-                    multiSelect: false,
-                    text: true,
-                  },
-                ],
+                questions: Array.from({ length: options.questions ?? 1 }, (_, at) => ({
+                  id: `q${at + 1}`,
+                  header: null,
+                  question: "Which?",
+                  options: [],
+                  multiSelect: false,
+                  text: true,
+                })),
                 chat,
               },
               keys: () => [{ press: "1" }],
@@ -287,6 +291,8 @@ const terminal = (
     busy: (_terminal, on) => {
       busy += on ? 1 : -1
     },
+    asking: () => options.asking?.() ?? [],
+    questionEscape: () => options.escape,
   }
   const queue = new InputQueue({
     hold: () => {
@@ -1099,4 +1105,126 @@ describe("waiting for an agent's screen to settle before words follow an answer"
       await settling({ gone: true })
       expect(Date.now() - started).toBe(0)
     }))
+})
+
+describe("setting a question aside, as the chat's Send or Stop does over it", () => {
+  /**
+   * A terminal whose request "r1" is a question until it goes: `gone` says what the screen
+   * and the request do after each Escape (by default the first takes both away at once).
+   */
+  const asking = (
+    options: Parameters<typeof terminal>[0] & {
+      kind?: string
+      onEscape?: (tui: FakeTui, escapes: number, leave: () => void) => void
+    } = {},
+  ) => {
+    let waiting = true
+    let escapes = 0
+    const leave = () => (waiting = false)
+    const { kind = "question", onEscape, ...rest } = options
+    const made = terminal({
+      chat: "prompt",
+      escape: "interrupts",
+      waiting: () => waiting,
+      asking: () => (waiting ? [{ ref: "r1", kind }] : []),
+      after: (tui) => {
+        if (tui.written.at(-1) !== "\x1b") return
+        escapes += 1
+        if (onEscape) return onEscape(tui, escapes, leave)
+        tui.state = "gone"
+        leave()
+      },
+      ...rest,
+    })
+    const setAside = (text?: string, images = false) =>
+      made.queue.run("t", (entry) => made.answers.setAside(entry, "t", text, images))
+    return { ...made, setAside, waiting: () => waiting }
+  }
+
+  const reason = async (run: Promise<unknown>): Promise<string | undefined> => {
+    try {
+      await run
+    } catch (error) {
+      if (error instanceof DomainError) return `${error.code} ${error.reason ?? ""}`.trim()
+      throw error
+    }
+    throw new Error("It did not fail.")
+  }
+
+  it("does nothing where nothing waits", async () => {
+    const { tui, answers, queue } = terminal({ escape: "interrupts" })
+    expect(await queue.run("t", (entry) => answers.setAside(entry, "t", "hi"))).toBe("none")
+    expect(tui.written).toEqual([])
+  })
+
+  it("presses one Escape where it ends the turn, with the person's keys held, and resolves once the request is gone", async () => {
+    const { tui, setAside, calls, busy, holds } = asking()
+    expect(await setAside("talk about the footer")).toBe("dismissed")
+    expect(tui.written).toEqual(["\x1b"])
+    expect(calls).toEqual(["discard", "release", "done"])
+    expect(holds()).toBe(1)
+    expect(busy()).toBe(0)
+  })
+
+  it("waits for the request's hook a moment behind the dialog, and refuses one that never comes", async () => {
+    const late = asking({
+      onEscape: (tui, _escapes, leave) => {
+        tui.state = "gone"
+        setTimeout(leave, 30)
+      },
+    })
+    expect(await late.setAside("hi")).toBe("dismissed")
+    const never = asking({
+      onEscape: (tui) => {
+        tui.state = "gone"
+      },
+    })
+    expect(await reason(never.setAside("hi"))).toBe("CONFLICT pending")
+    expect(never.tui.written).toEqual(["\x1b"])
+  })
+
+  it("presses no second Escape where the first left the question showing, and locks it", async () => {
+    const { tui, setAside, locks } = asking({ onEscape: (each) => (each.noise += 1) })
+    expect(await reason(setAside("hi"))).toBe("ANSWER_FAILED")
+    expect(tui.written).toEqual(["\x1b"])
+    expect(locks).toEqual(["failed"])
+  })
+
+  it("refuses a request that is no question, and a raw dialog, pressing nothing", async () => {
+    const permission = asking({ kind: "permission" })
+    expect(await reason(permission.setAside("hi"))).toBe("CONFLICT pending")
+    expect(permission.tui.written).toEqual([])
+    const raw = asking({ raw: true })
+    expect(await reason(raw.setAside("hi"))).toBe("CONFLICT pending")
+    expect(raw.tui.written).toEqual([])
+    expect(raw.locks).toEqual([])
+  })
+
+  it("gives the words as the answer where Escape only skips a question, and refuses images there", async () => {
+    const words = asking({ escape: "skips", chat: "field" })
+    expect(await words.setAside("talk about the footer")).toBe("answered")
+    // The chat answer's own keys, not Escape.
+    expect(words.tui.written).toEqual(["1"])
+    const images = asking({ escape: "skips", chat: "field" })
+    expect(await reason(images.setAside("look", true))).toBe("CONFLICT question-words-only")
+    expect(images.tui.written).toEqual([])
+  })
+
+  it("skips each question with Escape for a Stop where Escape only skips one", async () => {
+    const { tui, setAside, waiting } = asking({
+      escape: "skips",
+      chat: "field",
+      questions: 2,
+      onEscape: (each, escapes, leave) => {
+        if (escapes < 2) each.noise += 1
+        else {
+          each.state = "gone"
+          leave()
+        }
+      },
+    })
+    expect(await setAside()).toBe("dismissed")
+    expect(tui.written).toEqual(["\x1b", "\x1b"])
+    expect(waiting()).toBe(false)
+  })
 })

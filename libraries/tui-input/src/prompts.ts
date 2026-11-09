@@ -296,6 +296,11 @@ export class Prompts {
    * program shows as a placeholder, the box could not be checked against it: the prompt goes
    * as if `at` were absent (all images first, nothing typed for them), and `unplaced` is told
    * before any key.
+   *
+   * `first` runs in the prompt's own entry of the queue before anything of it, once the text
+   * passed its checks, so nothing comes between the two: what makes way for the prompt, such
+   * as setting a question aside. Where it gives the words another way it says how, and the
+   * prompt types nothing.
    */
   async prompt(
     terminalId: string,
@@ -305,12 +310,16 @@ export class Prompts {
     images: readonly string[] = [],
     at?: readonly number[],
     unplaced?: () => void,
+    first?: (entry: InputEntry) => Promise<PromptGiven | undefined>,
   ): Promise<PromptGiven> {
     this.refuse(text, images.length > 0)
     if (at !== undefined && !placesFit(text, images.length, at))
       throw new PromptRefusal("refused", "Each image needs a place in the text, in order.")
-    return await this.queue.run(terminalId, (entry) =>
-      this.give(entry, terminalId, text, mode, joined, images, at, unplaced),
+    return await this.queue.run(
+      terminalId,
+      async (entry) =>
+        (await first?.(entry)) ??
+        (await this.give(entry, terminalId, text, mode, joined, images, at, unplaced)),
     )
   }
 
