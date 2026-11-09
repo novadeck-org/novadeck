@@ -311,12 +311,16 @@ export const Grid = ({
     if (dragging && live.current) follow(live.current.pointer)
   }, [dragging, follow])
 
+  // Read apart from where the held tile is drawn, so the order is worked out again only
+  // when the place it would take changes, not on every move of the pointer.
+  const heldId = held?.id
+  const heldTo = held?.to
   const order = useMemo(() => {
     // What a drop would save: with a folded team's tabs together, so the tiles shown making
     // room are those that move. A tile held where it lies saves nothing, so nothing moves.
     const on = new Set(ids)
-    if (held) {
-      const next = orderAfterDrag(listed, ids, held.id, held.to)
+    if (heldId !== undefined && heldTo !== undefined) {
+      const next = orderAfterDrag(listed, ids, heldId, heldTo)
       return next === listed ? ids : keepFolds(next).filter((id) => on.has(id))
     }
     if (!dropPlace) return ids
@@ -325,11 +329,11 @@ export const Grid = ({
     return keepFolds(orderBefore(listed, dropGhost, dropPlace.grid.before)).filter(
       (id) => id === dropGhost || on.has(id),
     )
-  }, [ids, listed, keepFolds, held, dropPlace])
+  }, [ids, listed, keepFolds, heldId, heldTo, dropPlace])
   const { boxes, height } = useMemo(() => arrangeGrid(order, width), [order, width])
   const boxOf = useMemo(() => new Map(boxes.map((box) => [box.id, box])), [boxes])
   // The wire is drawn from the tiles at rest, not from where a drag or a drop makes room.
-  const wired = useMemo(() => (held || dropPlace ? [] : boxes), [boxes, held, dropPlace])
+  const wired = useMemo(() => (dragging || dropPlace ? [] : boxes), [boxes, dragging, dropPlace])
 
   // Brings the selected tile into view when the person navigates to it or the grid's width
   // changes, and not when another tile is added or goes and it shifts.

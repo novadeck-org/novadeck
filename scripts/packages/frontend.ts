@@ -1559,6 +1559,9 @@ const baseline = {
     "lucide-react": "^1.55.0",
     react: "^19.3.0",
     "react-dom": "^19.3.0",
+    // Gone from main since Grid lays itself out, but the old manifest had it: kept here so a
+    // branch's own copy of it isn't taken for something the branch added.
+    "react-grid-layout": "^2.3.0",
     "react-router": "^8.4.0",
     "tailwind-merge": "^3.3.1",
     "@novadeck/build-kit": "workspace:*",

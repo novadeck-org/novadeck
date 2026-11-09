@@ -1,6 +1,6 @@
 /* The workspace recipe: the ground behind Focus, Grid and Canvas, its grain, its dot
    grid and the spotlight that follows the pointer, how idle terminals fade in Canvas,
-   Grid's resize grip, and the ghost of a window a drop would open. Zen
+   and the ghost of a window a drop would open. Zen
    (data-zen="true" on `.workspace`) quiets the ground.
 
    `.workspace-background` clips what overflows it and never scrolls; its pseudo-elements
@@ -9,7 +9,7 @@
    Hooks: `.workspace-background` and data-pointer-inside="true" on it;
    `.workspace-dots`, `.canvas-grid` and `.canvas-grid-spotlight` (the dot grid and its
    spotlight); `.grid-terminal` and `.canvas-node`, `.selected` when selected;
-   `.drop-ghost` and `.drop-ghost-header`; Grid's resize handle.
+   `.drop-ghost` and `.drop-ghost-header`.
 
    Tokens, each optional (its fallback in brackets):
    --workspace-bg (canvas): the ground. --workspace-glow-bg (paper),

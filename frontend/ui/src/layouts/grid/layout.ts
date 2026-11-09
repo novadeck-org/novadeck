@@ -8,8 +8,7 @@ import type { TileBox } from "./team-route"
 // The space between tiles, in pixels.
 export const gridGap = 16
 
-// Every tile's height: 400 px of terminal under its 16 px gap, as 18 rows of Grid's old 24 px
-// steps came to.
+// Every tile's height, the same a new tile had before Grid laid itself out.
 export const gridTileHeight = 416
 
 // The narrowest a tile gets: as many columns fit as leave each tile this wide, and the tiles

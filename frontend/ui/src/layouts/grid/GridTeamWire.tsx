@@ -38,7 +38,7 @@ export const GridTeamWire = ({
   boxes: readonly TileBox[]
   gap: number
   width: number
-  // While a window is dropped on the grid; a tile dragged or resized is the stylesheet's.
+  // While a window is dropped on the grid; a tile dragged is the stylesheet's.
   hidden: boolean
 }): React.JSX.Element | null => {
   const geometry = `${width}|${boxes.map((box) => `${box.id}:${box.left},${box.top},${box.width},${box.height}`).join("|")}`
