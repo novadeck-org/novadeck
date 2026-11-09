@@ -337,6 +337,13 @@
   border-bottom: var(--border-width) solid var(--_line);
   background: none;
 }
+/* Rows of several lines each read apart: a little air, and a rule under each. */
+.chat .markdown-table td {
+  padding-block: calc(var(--_lh) / 4);
+}
+.chat .markdown-table tr:not(:last-child) td {
+  border-bottom: var(--border-width) solid var(--_line);
+}
 
 /* What the agent did: a dim line each, what came of it after a dot. */
 .chat-tools {
