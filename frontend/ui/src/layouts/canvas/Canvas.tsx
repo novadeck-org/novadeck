@@ -153,8 +153,8 @@ const TerminalCanvas = ({
       clearTimeout(resting)
       resting = setTimeout(() => {
         element.style.setProperty("--_canvas-chrome-scale", scale)
-        // Agent avatars' critters, which keep their size on screen in the headers, lay their
-        // LEDs on whole device pixels again at the zoom at rest.
+        // Agent avatars' critters lay their LEDs on whole device pixels again at the zoom at
+        // rest.
         rescaleAvatars()
       }, 150)
     })

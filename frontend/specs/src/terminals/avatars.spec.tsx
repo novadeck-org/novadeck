@@ -66,35 +66,21 @@ describe("agent avatars", () => {
   })
 
   context("on Canvas", () => {
-    it("keeps the critter 24px on screen as it zooms out, inside its header, pushing the title over", async () => {
+    it("keeps the critter in its header as it zooms out, beside the title", async () => {
       await openWithAvatars()
       await chooseView("Canvas")
       await expect.element(terminal(name)).toBeVisible()
       await clickBackground({ x: 150, y: 100 })
-
-      const window = (): DOMRect => terminal(name).element().getBoundingClientRect()
-      const title = (): DOMRect =>
-        terminal(name).element().querySelector("[data-terminal-name]")!.getBoundingClientRect()
-      const inside = (critter: DOMRect): void => {
-        const frame = window()
-        expect(critter.left).toBeGreaterThanOrEqual(frame.left)
-        expect(critter.top).toBeGreaterThanOrEqual(frame.top)
-        expect(critter.right).toBeLessThanOrEqual(title().left)
-      }
-
-      // While the header has room it holds 24px on screen, whatever the zoom.
-      await zoomPast("+", 0.6)
-      const near = await settled(() => headerAvatar().getBoundingClientRect().toJSON() as DOMRect)
-      expect(zoom()).toBeGreaterThan(0.45)
-      expect(near.width).toBeCloseTo(24, 0)
-      inside(near)
-
-      // Further out it fills the header and shrinks with it, never leaving its window.
       await zoomPast("-", 0.2)
-      const far = await settled(() => headerAvatar().getBoundingClientRect().toJSON() as DOMRect)
-      expect(far.width).toBeLessThan(24)
-      expect(far.width).toBeGreaterThan(12)
-      inside(far)
+
+      const critter = await settled(
+        () => headerAvatar().getBoundingClientRect().toJSON() as DOMRect,
+      )
+      const frame = terminal(name).element().getBoundingClientRect()
+      const title = terminal(name).element().querySelector("[data-terminal-name]")!
+      expect(critter.left).toBeGreaterThanOrEqual(frame.left)
+      expect(critter.top).toBeGreaterThanOrEqual(frame.top)
+      expect(critter.right).toBeLessThanOrEqual(title.getBoundingClientRect().left)
     })
   })
 })

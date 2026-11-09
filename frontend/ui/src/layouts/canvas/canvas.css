@@ -94,21 +94,6 @@
     transform-origin: top left;
     cursor: move;
   }
-  /* Agent avatars (experimental). A window's critter keeps 24px on screen as the Canvas
-     zooms out, so it still tells windows apart when titles can't be read: its size undoes
-     the zoom (24px by the chrome scale, the zoom being the chrome scale's inverse squared),
-     and it pushes the title over rather than covering anything. Once it nearly fills the
-     header's height, 46px of the header's 52, past its padding but inside the window, it
-     shrinks with the header. Its button's padding gives way as it grows. */
-  .canvas-node .icon-button.terminal-switch:has(> .message-av) {
-    --_critter: clamp(24px, calc(24px * var(--_canvas-chrome-scale, 1)), 46px);
-    height: auto;
-    padding: clamp(0px, calc((32px - var(--_critter)) / 2), 4px);
-  }
-  .canvas-node .terminal-switch > .message-av {
-    width: var(--_critter);
-    height: var(--_critter);
-  }
   .canvas-node .terminal-content {
     overscroll-behavior: contain;
   }

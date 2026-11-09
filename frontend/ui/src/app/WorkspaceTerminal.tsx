@@ -251,8 +251,7 @@ export const WorkspaceTerminal = memo(
     const onInputFocused = useCallback(() => setKeyboardFocus(null), [setKeyboardFocus])
     const { bar, items, fresh } = useTerminalBar(terminalId)
     const { icon: Icon } = terminalProfile(terminal)
-    // Agent avatars (experimental): the handle's critter in the program's place, which on a
-    // zoomed-out Canvas keeps its size on screen while its header has room (canvas.css).
+    // Agent avatars (experimental): the handle's critter in the program's place.
     const avatar = useUiState(agentAvatarsOn) ? terminal.handle : undefined
     const processWindow = presentedProgram(terminal)
     const mic = useMicButton(terminal, terminalKey)

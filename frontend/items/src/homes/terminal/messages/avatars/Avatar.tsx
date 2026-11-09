@@ -21,27 +21,20 @@ const programIcons: Readonly<Record<string, typeof Terminal>> = {
   agy: AntigravityIcon,
 }
 
-// The screen's scale and the avatar's side as laid out, which a stylesheet may set apart
-// from its `size` (as Canvas's headers do), measured once it's laid out and again whenever
-// they may have changed, so its LEDs stay on whole device pixels.
-const useDeviceScale = (
-  element: React.RefObject<HTMLElement | null>,
-  size: number,
-): { readonly scale: number; readonly side: number } => {
+// The screen's scale, measured on the avatar once it's laid out and again whenever it may
+// have changed, so its LEDs stay on whole device pixels.
+const useDeviceScale = (element: React.RefObject<HTMLElement | null>): number => {
   const [scale, setScale] = useState(() =>
     typeof window === "undefined" ? 1 : window.devicePixelRatio || 1,
   )
-  const [side, setSide] = useState(size)
   useLayoutEffect(() => {
     const measure = (): void => {
-      if (!element.current) return
-      setScale(deviceScale(element.current))
-      setSide(element.current.offsetWidth || size)
+      if (element.current) setScale(deviceScale(element.current))
     }
     measure()
     return onScaleChange(measure)
-  }, [element, size])
-  return { scale, side }
+  }, [element])
+  return scale
 }
 
 const timing = (clocks: Clocks): CSSProperties =>
@@ -125,8 +118,8 @@ export const Avatar = ({
   program?: string | undefined
 }): React.JSX.Element => {
   const element = useRef<HTMLSpanElement>(null)
-  const { scale, side } = useDeviceScale(element, size)
-  const grid = ledGrid(side, scale)
+  const scale = useDeviceScale(element)
+  const grid = ledGrid(size, scale)
   const you = person
   const sprite = useMemo(() => (you ? imp : spriteOf(handle)), [you, handle])
   const hop = useMemo(() => hopped(sprite), [sprite])
