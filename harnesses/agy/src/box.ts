@@ -9,6 +9,7 @@ import {
   ruledBox,
   type BoxProfile,
   type InputBox,
+  type ProfileImages,
   type Markers,
 } from "@novadeck/tui-input/box"
 
@@ -163,6 +164,32 @@ const marked = (box: InputBox | undefined, screen: ScreenText): InputBox | undef
   return { ...box, text: rows.join("\n") }
 }
 
+/**
+ * How many images it shows attached to the prompt: its row above the box's top rule,
+ * `▸ 📎 2 media attached  (ctrl+o to expand)`, which stays while the prompt is written and
+ * becomes `📎 1 image(s)` in the history once sent (probed 2026-11-08, 1.5.2,
+ * e2e/probes/image-box.e2e.ts). Its box stays empty of them.
+ */
+const images: ProfileImages = {
+  attached: (screen) => {
+    const box = read(screen)
+    if (!box) return 0
+    for (const row of screen.rows.slice(Math.max(box.first - 3, 0), box.first).toReversed()) {
+      const found = /^\s*▸ 📎 (\d+) media attached/.exec(row)
+      if (found) return Number(found[1])
+    }
+    return 0
+  },
+  // Enter in a box with images and no words does nothing.
+  alone: false,
+  // Escape takes them back out at its idle prompt, its bottom row offering the shortcuts (the
+  // same probe); a running turn would be stopped by it, and Backspace, Ctrl-U and Ctrl-C left them.
+  discard: (screen) => {
+    const last = screen.rows.findLast((row) => row.trim() !== "")
+    return last !== undefined && /^\? for shortcuts(\s|$)/.test(last.trim()) ? "\x1b" : undefined
+  },
+}
+
 /** How its box reads off a screen. */
 const read = (screen: ScreenText): InputBox | undefined =>
   marked(agreeing(ruledBox(withoutPanel(screen), markers), shellFooter(screen.rows)), screen)
@@ -178,6 +205,7 @@ const read = (screen: ScreenText): InputBox | undefined =>
  */
 export const box: BoxProfile = {
   read,
+  images,
   // Enter would run a command shown as a placeholder as the placeholder's own text (probed
   // 2026-10-07). A `!` command creates the conversation and binds the session (`starts`;
   // probed 2026-10-08).

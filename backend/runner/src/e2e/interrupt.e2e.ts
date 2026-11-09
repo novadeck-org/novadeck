@@ -7,6 +7,7 @@ import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
 import { asked, gate, latest } from "./model/script.js"
+import { picture } from "./pictures.js"
 import { own, replies, start, through } from "./scenarios.js"
 
 // The chat's Stop, `agents.interrupt`, never leaves the agent's TUI in a state the chat
@@ -98,6 +99,72 @@ for (const setup of setups) {
       await t1.until("Carried on.")
       await through(t1, ["working", "settled"], { after: next })
       expect(await t1.screen()).not.toMatch(setup.rewind?.shows ?? /(?!)/)
+    })
+
+    // The chat sends words with an image while the turn works, then presses Stop: Claude Code
+    // and Antigravity put the message back in their box, Claude Code with its `[Image #1]`
+    // placeholder, which the runner takes out of the words and answers as the file it came from.
+    it("stops a turn with an image queued behind it, giving back the words and the image's file", async ({
+      e2e: run,
+    }) => {
+      const held = gate()
+      const queuedHeld = gate()
+      run.model.use(
+        replies("Carry on", "Carried on."),
+        own(async (call) => {
+          if (asked(call, "Queued beta")) {
+            await queuedHeld.opened
+            return { text: "Queued late." }
+          }
+          if (!asked(call, "Hold on")) return undefined
+          await held.opened
+          return { text: "Too late." }
+        }),
+      )
+      const t1 = await start(run, setup)
+      const calls = run.model.mark()
+      const mark = t1.mark()
+
+      // The turn is the chat's own image prompt, which a Stop may put back in the box too.
+      await t1.prompt("Hold on", [{ name: "turn.png", data: picture }])
+      await run.model.waitFor((call) => !call.side && latest(call).includes("Hold on"), {
+        after: calls,
+      })
+      await t1.reached("working", { after: mark })
+      await t1.prompt("Queued beta", [{ name: "shot.png", data: picture }])
+      // Claude Code shows the message behind its image's placeholder, as `❯ [Image #1] Queued beta`.
+      if (setup.agent === "claude") await t1.until("ctrl+x ctrl+s to send now")
+      else await queuedUp(t1, setup, "Queued beta")
+      await sleep(1000)
+      const stopped = await t1.interrupt()
+      // The harness takes the key a moment after it is written: its account of the interruption
+      // shows before the held reply is let go, which must never show.
+      const account = setup.interrupted("Hold on")
+      await t1.poll(
+        async () => {
+          const shown = await t1.screen()
+          return account.test(shown) || !shown.includes("Hold on") ? true : undefined
+        },
+        "the harness to take the interrupt",
+        30_000,
+      )
+      held.open()
+      queuedHeld.open()
+      await sleep(2500)
+
+      expect(stopped.returned).toBe(setup.agent === "codex" ? null : "Queued beta")
+      // Claude Code's box showed the image's placeholder; Antigravity lost the image with the Stop
+      // and the runner names it by the words that came back; Codex's steer went to the agent.
+      expect(stopped.images ?? []).toEqual(
+        setup.agent === "codex" ? [] : [expect.stringMatching(/shot\.png$/)],
+      )
+      expect(t1.summary().activity?.state).not.toBe("working")
+
+      // The box is empty: the next prompt goes alone, as a normal turn.
+      const next = t1.mark()
+      await t1.prompt("Carry on")
+      await t1.until("Carried on.")
+      await through(t1, ["working", "settled"], { after: next })
     })
 
     it("stops a turn that has a message queued behind it, and gives the queued words back out of the box", async ({

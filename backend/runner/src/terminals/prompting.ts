@@ -1,5 +1,5 @@
 import { withoutDoorbellLines } from "@novadeck/harness-core/prompts"
-import { promptRefusal, type InterruptResult } from "@novadeck/protocol"
+import { promptRefusal } from "@novadeck/protocol"
 import {
   BoxNotCleared,
   Interrupts as Interrupter,
@@ -17,6 +17,7 @@ import {
 } from "@novadeck/tui-input"
 
 import { DomainError, type ConflictReason } from "../errors.js"
+import { splitImages } from "./image-marks.js"
 
 // The library's refusals as the contract's errors, with the wording clients read. Where
 // the library's timing was tuned on real agents: the wait for a first prompt's session
@@ -90,6 +91,14 @@ export const promptError = (refusal: PromptRefusal): DomainError => {
         undefined,
         { cause: refusal },
       )
+    case "image-not-shown":
+      return new DomainError(
+        "PROMPT_FAILED",
+        "The agent did not take the image: it never showed it in its input box.",
+        { reason: "image-not-shown" },
+        undefined,
+        { cause: refusal },
+      )
     case "unexpanded":
       return new DomainError(
         "PROMPT_FAILED",
@@ -157,13 +166,25 @@ export class Prompts extends Prompter {
     text: string,
     mode?: PromptMode,
     joined?: () => void,
+    images?: readonly string[],
   ): Promise<PromptGiven> {
-    return await asDomain(super.prompt(terminalId, text, mode, joined))
+    return await asDomain(super.prompt(terminalId, text, mode, joined, images))
   }
 
   override async promptIn(entry: InputEntry, terminalId: string, text: string): Promise<void> {
     return await asDomain(super.promptIn(entry, terminalId, text))
   }
+}
+
+/**
+ * What an interrupt gave back: the words queued behind the turn, null for none, and how many
+ * images led them in the box (see `splitImages`), whose files the caller knows.
+ */
+export type Interrupted = {
+  readonly returned: string | null
+  readonly marks: number
+  /** How many images led the turn's own prompt, put back in the box and cleared. */
+  readonly restored: number
 }
 
 /** The library's `Interrupts` with its errors and result as the contract's (`agents.interrupt`). */
@@ -182,9 +203,14 @@ export class Interrupts {
     terminalId: string,
     entry?: InputEntry,
     gave?: (words: string) => void,
-  ): Promise<InterruptResult> {
-    const { returned } = await asDomain(this.interrupts.interrupt(terminalId, entry))
+  ): Promise<Interrupted> {
+    const { returned, images } = await asDomain(this.interrupts.interrupt(terminalId, entry))
     if (returned) gave?.(returned)
-    return { returned: (returned && withoutDoorbellLines(returned)) || null }
+    const { words, marks } = splitImages(returned ?? "")
+    return {
+      returned: (words && withoutDoorbellLines(words)) || null,
+      marks,
+      restored: images ?? 0,
+    }
   }
 }

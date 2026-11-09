@@ -4,6 +4,7 @@ import {
   RingUnderWay,
   SettleInTerminal,
   withReturned,
+  type BoxReturn,
   type ChatItem,
   type ChatPrompt,
   type Conversation,
@@ -48,7 +49,7 @@ const userItem = (index: number, text: string): ChatItem => ({
 const open = (
   session: string | null = "s1",
   {
-    interrupt = async () => null,
+    interrupt = async () => ({ words: null }),
     answer = async () => {},
     returned = null,
     sends,
@@ -57,7 +58,7 @@ const open = (
     clearBox,
     chatView = true,
   }: {
-    readonly interrupt?: () => Promise<string | null>
+    readonly interrupt?: () => Promise<BoxReturn>
     readonly answer?: () => Promise<void>
     readonly returned?: string | null
     readonly sends?: () => void
@@ -177,7 +178,7 @@ describe("the chat's send queue", () => {
   })
 
   it("leaves the box to a menu of the harness's own, and to the chat's own keys", async () => {
-    const taken = vi.fn<NonNullable<Conversations["takeBox"]>>(async () => "taken")
+    const taken = vi.fn<NonNullable<Conversations["takeBox"]>>(async () => ({ words: "taken" }))
     const box = { text: "look at @sr", mode: "prompt", tail: false, known: false } as const
     const menu = { reason: "menu", columns: 80, rows: [[]], cursor: null, secret: false } as const
     const withMenu = open("s1", { takeBox: taken })
@@ -195,7 +196,7 @@ describe("the chat's send queue", () => {
   })
 
   it("waits for a take on its way before it puts the draft back", async () => {
-    let finish: (words: string) => void = () => {}
+    let finish: (words: BoxReturn) => void = () => {}
     const put: string[] = []
     const { commands, draft } = open("s1", {
       takeBox: () => new Promise((resolve) => (finish = resolve)),
@@ -207,7 +208,7 @@ describe("the chat's send queue", () => {
     commands.setChatDraft("01", "from the chat")
     const taking = commands.takeBox(key)
     const putting = commands.putDraft(key)
-    finish("from the box")
+    finish({ words: "from the box" })
     await Promise.all([taking, putting])
     expect(put).toEqual(["from the box\n\nfrom the chat"])
     expect(draft()).toBe("")
@@ -236,7 +237,7 @@ describe("the chat's send queue", () => {
     const { commands, draft, tell } = open("s1", {
       takeBox: async (at) => {
         asked.push(at)
-        return "!ls"
+        return { words: "!ls" }
       },
     })
     tell({ box: { text: "ls", mode: "shell", tail: false, known: false } })
@@ -339,21 +340,21 @@ describe("the chat's send queue", () => {
   })
 
   it("adds nothing a paste that landed unseen left in both", async () => {
-    const { commands, draft } = open("s1", { takeBox: async () => "the words" })
+    const { commands, draft } = open("s1", { takeBox: async () => ({ words: "the words" }) })
     commands.setChatDraft("01", "the words")
     await commands.takeBox(key)
     expect(draft()).toBe("the words")
   })
 
   it("takes what the agent's box holds ahead of what's written, a blank line between", async () => {
-    const { commands, draft } = open("s1", { takeBox: async () => "from the box" })
+    const { commands, draft } = open("s1", { takeBox: async () => ({ words: "from the box" }) })
     commands.setChatDraft("01", "from the chat")
     await commands.takeBox(key)
     expect(draft()).toBe("from the box\n\nfrom the chat")
   })
 
   it("leaves the chat's box as it is where nothing was taken", async () => {
-    const { commands, draft } = open("s1", { takeBox: async () => null })
+    const { commands, draft } = open("s1", { takeBox: async () => ({ words: null }) })
     commands.setChatDraft("01", "from the chat")
     await commands.takeBox(key)
     expect(draft()).toBe("from the chat")
@@ -470,7 +471,7 @@ describe("the chat's send queue", () => {
 describe("a Stop from the chat", () => {
   it("hands back the queued words after the agent's, before the box's, and sends none after it", async () => {
     const { commands, sent, phases, draft, two } = open("s1", {
-      interrupt: async () => "in the agent's box",
+      interrupt: async () => ({ words: "in the agent's box" }),
     })
     const { queued } = await two()
     const third = commands.sendChat(key, "three", null)

@@ -3,86 +3,24 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
-import type { AgentBox, TranscriptItem } from "@novadeck/protocol"
+import type { AgentBox } from "@novadeck/protocol"
 import { isEmpty } from "@novadeck/tui-input/box"
 
 import { harnesses } from "../harnesses/registry.js"
 import type { Receipts } from "../terminals/receipts.js"
 import type { AgentSetup } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
+import { item, prompted, texts } from "./chat-prompts.js"
 import { occurrences, type DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
 import { losesAstral } from "./known-gaps.js"
 import { asked, gate, latest, type Call } from "./model/script.js"
+import { picture } from "./pictures.js"
 import { lacking, nestedRuns, own, replies, start, through, turn } from "./scenarios.js"
-
-// A 1x1 PNG, for a prompt with an image.
-const picture = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-  "base64",
-)
 
 // The chat view's way to an agent, the same for every harness (see messaging.e2e.ts for
 // the rule on parity): `agents.prompt` and `agents.interrupt`, read back through
 // `agents.transcript` of the root actor `agents.detail` names (docs/backend-api.md).
-
-/** The root transcript's text items of `role`, as `agents.transcript` gives them. */
-const texts = async (terminal: DeckTerminal, role: TranscriptItem["role"]): Promise<string[]> =>
-  (await terminal.transcript())
-    .filter((item) => item.role === role && item.kind === "text")
-    .map((item) => item.text)
-
-/** Waits until the transcript holds a `role` item whose text passes `fits`, and returns it. */
-const item = (
-  terminal: DeckTerminal,
-  role: TranscriptItem["role"],
-  fits: (text: string) => boolean,
-): Promise<string> =>
-  terminal.poll(
-    async () => {
-      // A transcript the agent has not opened yet (or is changing) is NOT_FOUND: wait on.
-      try {
-        return (await texts(terminal, role)).find(fits)
-      } catch (error) {
-        if ((error as { code?: string }).code === "NOT_FOUND") return undefined
-        throw error
-      }
-    },
-    `its transcript to hold a ${role} item`,
-    30_000,
-  )
-
-/**
- * Gives the agent a prompt as the chat does, and checks its receipt: followed, pending or
- * already settled once the Enter is out (`agents.detail`); then returns a wait for it to
- * settle, as the user item at its `item` that holds its words.
- */
-const prompted = async (terminal: DeckTerminal, text: string): Promise<() => Promise<void>> => {
-  // Its first line names it in a failure: a long prompt's whole text would bury the message.
-  const [label = ""] = text.split("\n")
-  const receiptOf = async (ref: string) =>
-    ((await terminal.detail()).prompts ?? []).find((prompt) => prompt.ref === ref)
-  const { ref, tracked } = await terminal.prompt(text)
-  expect(tracked, `${label}: followed`).toBe(true)
-  expect((await receiptOf(ref))?.state, `${label}: its receipt once sent`).toMatch(
-    /^(pending|settled)$/,
-  )
-  return async () => {
-    const settled = await terminal.poll(
-      async () => {
-        const receipt = await receiptOf(ref)
-        expect(receipt?.state, `${label}: never missing`).not.toMatch(/^(unrecorded|in-box)$/)
-        return receipt?.state === "settled" ? receipt : undefined
-      },
-      `"${label}" to reach its agent's record`,
-      30_000,
-    )
-    const items = await terminal.transcript()
-    const at = items.find((each) => each.index === settled.item)
-    expect(at?.role, `${label}: settled by`).toBe("user")
-    expect(at?.text, `${label}: settled by`).toContain(label)
-  }
-}
 
 /**
  * What the record holds of a message sent along with text in the box: a blank line between,

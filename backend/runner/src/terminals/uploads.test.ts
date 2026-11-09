@@ -1,6 +1,17 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from "node:fs/promises"
+import { randomUUID } from "node:crypto"
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  utimes,
+  writeFile,
+} from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { dirname, join } from "node:path"
+import { basename, dirname, join } from "node:path"
 
 import { maxUploadBytes } from "@novadeck/protocol"
 
@@ -185,5 +196,84 @@ describe("uploads", () => {
     } finally {
       await rm(dirname(dirname(path)), { recursive: true, force: true })
     }
+  })
+})
+
+describe("the images a prompt names", () => {
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0])
+
+  const saved = async (resources: Resources, name = "shot.png", bytes: Buffer = png) => {
+    const uploads = new Uploads(await folder(resources))
+    const path = await uploads.save({ name, data: bytes.toString("base64") })
+    return { uploads, path }
+  }
+
+  it("accepts a file this runner saved, one of the formats agents take", async ({ resources }) => {
+    const { uploads, path } = await saved(resources)
+    expect(await uploads.checkImages([path])).toEqual([await realpath(path)])
+    const jpeg = await uploads.save({
+      name: "a b.jpg",
+      data: Buffer.from([0xff, 0xd8, 0xff, 0xe0]).toString("base64"),
+    })
+    expect(await uploads.checkImages([path, jpeg])).toHaveLength(2)
+  })
+
+  it("accepts an earlier upload after the runner restarted, as its folder is known", async ({
+    resources,
+  }) => {
+    const { path } = await saved(resources)
+    const restarted = new Uploads(dirname(dirname(path)))
+    expect(await restarted.checkImages([path])).toHaveLength(1)
+  })
+
+  it("refuses a relative path, and a file name that is a folder", async ({ resources }) => {
+    const { uploads, path } = await saved(resources)
+    await expect(uploads.checkImages([join("uploads", "x", "shot.png")])).rejects.toMatchObject({
+      code: "PROMPT_REFUSED",
+    })
+    await mkdir(join(dirname(path), "..", randomUUID(), "dir.png"), { recursive: true })
+    const folderPath = (await readdir(dirname(dirname(path)))).find(
+      (one) => one !== basename(dirname(path)),
+    )!
+    await expect(
+      uploads.checkImages([join(dirname(dirname(path)), folderPath, "dir.png")]),
+    ).rejects.toMatchObject({ code: "PROMPT_REFUSED" })
+  })
+
+  it("refuses a path the runner did not save, as when nothing was saved yet", async ({
+    resources,
+  }) => {
+    const { uploads, path } = await saved(resources)
+    const foreign = join(dirname(dirname(dirname(path))), "elsewhere.png")
+    await writeFile(foreign, png)
+    await expect(uploads.checkImages([foreign])).rejects.toMatchObject({ code: "PROMPT_REFUSED" })
+    await expect(uploads.checkImages(["/etc/passwd"])).rejects.toMatchObject({
+      code: "PROMPT_REFUSED",
+    })
+    await expect(new Uploads(undefined).checkImages([path])).rejects.toMatchObject({
+      code: "PROMPT_REFUSED",
+    })
+  })
+
+  it("refuses a path out of an upload's folder, or a folder of the upload's own", async ({
+    resources,
+  }) => {
+    const { uploads, path } = await saved(resources)
+    await expect(
+      uploads.checkImages([join(dirname(path), "..", "..", "x.png")]),
+    ).rejects.toMatchObject({
+      code: "PROMPT_REFUSED",
+    })
+    await expect(uploads.checkImages([dirname(path)])).rejects.toMatchObject({
+      code: "PROMPT_REFUSED",
+    })
+  })
+
+  it("refuses a file that is not an image, and one that is gone", async ({ resources }) => {
+    const { uploads, path } = await saved(resources, "notes.png", Buffer.from("not an image"))
+    await expect(uploads.checkImages([path])).rejects.toMatchObject({ code: "PROMPT_REFUSED" })
+    const image = await uploads.save({ name: "a.png", data: png.toString("base64") })
+    await rm(dirname(image), { recursive: true })
+    await expect(uploads.checkImages([image])).rejects.toMatchObject({ code: "PROMPT_REFUSED" })
   })
 })

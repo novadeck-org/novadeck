@@ -317,6 +317,11 @@ export const noConversation: Conversation = {
 // agent's box to go (see `ChatBox`), are those words, for the chat's box.
 export type SendResult = { readonly tracked: boolean; readonly returned?: string | null }
 
+// What came back out of the agent's box, for the chat's: the `words` (null where none came, and
+// for a message of images alone) and the `images`, as the paths `Conversations.uploadImage`
+// answered, of the prompt images that came with them.
+export type BoxReturn = { readonly words: string | null; readonly images?: readonly string[] }
+
 // Where a backend's conversations come from, and how the chat talks back to the agent.
 export type Conversations = {
   // The conversation of the agent in a terminal, following the terminal from session to
@@ -330,16 +335,34 @@ export type Conversations = {
   // `Conversation.prompts` (16 letters, digits, `_` or `-`; see `promptRef`), where the
   // backend follows it. `along` is the chat's own send, whose person can see what the agent's
   // box holds (`Conversation.box`): that goes out with it where it can. Without it, the box must
-  // be empty.
+  // be empty. `images` are paths `uploadImage` answered, which go with the prompt as its
+  // images; `text` may be empty then.
   readonly send: (
     key: TerminalKey,
     text: string,
-    options?: { readonly automatic?: true; readonly along?: true; readonly ref?: string },
+    options?: {
+      readonly automatic?: true
+      readonly along?: true
+      readonly ref?: string
+      readonly images?: readonly string[]
+    },
   ) => Promise<SendResult | void>
+  // Saves an image the person pasted on the agent's machine, which may not be this one, and
+  // resolves with its path there, for `send`'s `images`. Absent where the backend takes no
+  // images: the chat refuses a paste of one. Rejects with an Error whose message says why.
+  readonly uploadImage?: (
+    key: TerminalKey,
+    file: { readonly name: string; readonly data: Uint8Array },
+  ) => Promise<string>
+  // What `uploadImage` takes, which the backend's protocol says: the most bytes of an image (a
+  // larger one is never read), the media types, and how many images one message carries.
+  readonly imageMaxBytes?: number
+  readonly imageTypes?: readonly string[]
+  readonly maxImages?: number
   // Stops the agent's turn, as Escape in its TUI does. Resolves with the words the person
-  // had queued behind the turn, which the agent gave back and the chat's box takes again,
-  // or null. Rejects as `send` does.
-  readonly interrupt: (key: TerminalKey) => Promise<string | null>
+  // had queued behind the turn, with the images that were in the box with them, which the
+  // agent gave back and the chat's box takes again. Rejects as `send` does.
+  readonly interrupt: (key: TerminalKey) => Promise<BoxReturn>
   // Writes keys to the agent's terminal as the person's, for what shows in `slice`: a key or
   // an edit a call, in order. Where the backend has none, the chat keeps to its own menus' rule
   // (`refused`). Rejects as `send` does.
@@ -347,7 +370,7 @@ export type Conversations = {
   // Takes what the agent's own box holds out of it for the chat's, where it can be read whole
   // and the backend has a box: the words, or null where nothing was taken, which `box` then
   // still shows.
-  readonly takeBox?: (key: TerminalKey) => Promise<string | null>
+  readonly takeBox?: (key: TerminalKey) => Promise<BoxReturn>
   // Puts the chat's draft in the agent's own box, with no Enter, as the person goes to its
   // terminal: whether it went. Where not, the draft stays the chat's.
   readonly putBox?: (key: TerminalKey, text: string) => Promise<boolean>

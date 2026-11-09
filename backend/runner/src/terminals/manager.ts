@@ -994,7 +994,7 @@ export class Terminals {
    * `Prompts`), once those before it in the terminal's input queue are done.
    */
   prompt(input: PromptInput): Promise<Prompted> {
-    return this.typing.prompt(input.terminalId, input.text, input.automatic, input.ref, input.along)
+    return this.typing.given(input)
   }
 
   /** Writes keys as the person's, as a chat passes them on (see `Typing.keys`). */
@@ -1003,7 +1003,7 @@ export class Terminals {
   }
 
   /** Takes what the agent's box holds, for the client's draft (see `Typing.takeBox`). */
-  takeBox(terminalId: string): Promise<{ returned: string | null }> {
+  takeBox(terminalId: string): Promise<{ returned: string | null; images?: string[] }> {
     return this.typing.takeBox(terminalId)
   }
 

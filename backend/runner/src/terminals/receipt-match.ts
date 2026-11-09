@@ -44,11 +44,26 @@ const runAt = (
   return -1
 }
 
-/** A prompt still waiting for its record: its ref, its lines (`promptLines`), and `Receipts.joined`. */
+/**
+ * The placeholders a harness records for the images of a prompt, ahead of its words
+ * (`[Image #1] [Image #2] words`; the numbers run on through the session): how many lead
+ * the text, and the text after them.
+ */
+const imageMarks = (text: string): { readonly count: number; readonly rest: string } => {
+  const marks = /^(?:\s*\[Image #\d+\])+/.exec(text)?.[0] ?? ""
+  return { count: marks.match(/\[Image #/g)?.length ?? 0, rest: text.slice(marks.length) }
+}
+
+/**
+ * A prompt still waiting for its record: its ref, its lines (`promptLines`), `Receipts.joined`,
+ * and how many images it carried, which Claude Code and Codex record as placeholders ahead of
+ * the words and Antigravity keeps apart from the text.
+ */
 export type Waiting = {
   readonly ref: string
   readonly lines: readonly string[]
   readonly joined?: boolean
+  readonly images?: number
 }
 
 /**
@@ -61,10 +76,27 @@ export type Waiting = {
  */
 export const settledBy = (waiting: readonly Waiting[], item: string): readonly string[] => {
   const lines = promptLines(item)
+  const marked = imageMarks(item)
   const settled: string[] = []
   let cursor = 0
   for (const prompt of waiting) {
-    const at = runAt(lines, prompt.lines, cursor, prompt.joined)
+    if (!prompt.images) {
+      const at = runAt(lines, prompt.lines, cursor, prompt.joined)
+      if (at < 0) continue
+      settled.push(prompt.ref)
+      cursor = at + prompt.lines.length
+      continue
+    }
+    // A prompt with images: the item's placeholders are its images (none where the harness
+    // keeps them apart), and the words follow them.
+    if (marked.count !== 0 && marked.count !== prompt.images) continue
+    const own = marked.count === 0 ? lines : promptLines(marked.rest)
+    if (prompt.lines.length === 0) {
+      // Images alone: an item of nothing but their placeholders.
+      if (marked.count === prompt.images && own.length === 0) settled.push(prompt.ref)
+      continue
+    }
+    const at = runAt(own, prompt.lines, marked.count === 0 ? cursor : 0)
     if (at < 0) continue
     settled.push(prompt.ref)
     cursor = at + prompt.lines.length
@@ -79,9 +111,11 @@ const compact = (text: string): string => text.replace(/\s+/g, "")
  * Whether the agent's input box holds a prompt's words, as its screen shows them: all its
  * text, white space aside, as a box wraps long lines and draws its own indent.
  */
-export const inBox = (box: string, lines: readonly string[]): boolean => {
+export const inBox = (box: string, lines: readonly string[], images = 0): boolean => {
   const words = compact(lines.join(""))
-  return words !== "" && compact(box).includes(words)
+  // Images alone are there when the box holds that many placeholders.
+  if (words === "") return images > 0 && (box.match(/\[Image #\d+\]/g)?.length ?? 0) >= images
+  return compact(box).includes(words)
 }
 
 /** A prompt whose words may be in the box: as given, and its lines (`promptLines`). */
@@ -90,15 +124,24 @@ export type Back = { readonly text: string; readonly lines: readonly string[] }
 /**
  * The words of `back`, as given, in the box's order and a line break between, where they are all
  * the box's `text`, white space aside; undefined where the box holds anything else, or none of them. Anything
- * beside them is the person's, and the box isn't Novadeck's to empty.
+ * beside them is the person's, and the box isn't Novadeck's to empty. With `every`, a prompt of
+ * `back` that is not found gives undefined too, rather than being passed over.
  */
-export const knownWords = (back: readonly Back[], text: string): string | undefined => {
+export const knownWords = (
+  back: readonly Back[],
+  text: string,
+  every = false,
+): string | undefined => {
   let rest = compact(text)
   const words: { readonly at: number; readonly text: string }[] = []
   for (const prompt of back) {
     const own = compact(prompt.lines.join(""))
     const at = own === "" ? -1 : rest.indexOf(own)
-    if (at < 0) continue
+    if (at < 0) {
+      // Every one asked for: a prompt not found is no part of this box.
+      if (every) return undefined
+      continue
+    }
     rest = rest.slice(0, at) + "\0".repeat(own.length) + rest.slice(at + own.length)
     words.push({ at, text: prompt.text })
   }
@@ -115,6 +158,8 @@ export type Turns = {
   readonly working: boolean
   /** When its latest turn ended, where one did; null while one runs, or before any ended. */
   readonly endedAt: number | null
+  /** When the turn that runs now began (its hook's start); null when none runs, or it is not known. */
+  readonly startedAt?: number | null
 }
 
 /**

@@ -335,7 +335,12 @@ export type AgentSetup = {
    * the image's place in the prompt's text, as the transcript records it too (`[Image #1]`);
    * otherwise the image goes beside the text, which is the prompt as the chat shows it.
    */
-  readonly image?: { readonly shows: string; readonly inline: boolean }
+  readonly image?: {
+    readonly shows: string
+    readonly inline: boolean
+    /** Whether Enter sends images with no words (Antigravity does nothing then). */
+    readonly alone: boolean
+  }
   /** A command its prompt runs that submits nothing to the model, as `/status`. */
   readonly idleCommand?: string
   /** How the person forks a session, in a new terminal or in place. */

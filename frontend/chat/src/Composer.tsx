@@ -7,9 +7,11 @@ import {
   shellCommand,
   type Refused,
 } from "@novadeck/core/conversation/prompt-refusal"
+import { clipboardImages, pastedFiles, pastedText } from "@novadeck/terminal/view"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
+import type { Attachment } from "./attachments"
 import type { ComposerMode } from "./composer-mode"
 import { Hint } from "./Hint"
 import { recall, walksAt, type Walk } from "./history"
@@ -58,10 +60,17 @@ export const boxNote = (label: string, box: ChatBox): string => {
 // fails says why, its words back in the box. Its `mode` says what the words are: while it
 // replies to the agent's question, the answer for the agent's own field, which takes one
 // line; a message that starts with `!`, a shell command the agent runs in its shell mode.
+// Pasting images (Ctrl+V, Ctrl+Shift+V or ⌘V) adds them to the next message, which only a plain
+// message takes: the other modes refuse the paste and say why.
 export const Composer = ({
   label,
   draft,
   onDraft,
+  attachments,
+  imageNote,
+  imagesAlone,
+  onAttach,
+  onDetach,
   mode,
   sending,
   replySending,
@@ -83,6 +92,16 @@ export const Composer = ({
   readonly label: string
   readonly draft: string
   readonly onDraft: (draft: string) => void
+  // The images pasted in, to go with the next message, and how a paste of more adds them (it
+  // answers why some weren't, or null; absent where the backend takes no images) and one goes.
+  readonly attachments: readonly Attachment[]
+  // What the person is told of the images, as that some went for want of room.
+  readonly imageNote?: string | undefined
+  // Whether the agent takes a message of images and no words; Antigravity refuses one, and an
+  // agent not known yet is not trusted to take it.
+  readonly imagesAlone: boolean
+  readonly onAttach?: ((files: readonly File[]) => string | null) | undefined
+  readonly onDetach: (id: string) => void
   readonly mode: ComposerMode
   // Whether earlier words are still on their way, which the owner keeps, and whether they
   // are this reply's, which can't be cancelled meanwhile.
@@ -144,9 +163,16 @@ export const Composer = ({
   const held = mode === "held"
   // The agent's field takes what a prompt can't start with; only control characters stop it.
   const long = replying && oneLine(draft).trim().length > replyMax
+  // Whether the images pasted go with what is sent now: only a plain message takes them.
+  const carries = mode === "message" && !passing
+  const bare = carries && attachments.length > 0 && draft.trim() === "" && !imagesAlone
   const refused =
-    held || (replying ? hasControlCharacters(draft) || long : refuses(draft, { shell: true }))
+    held ||
+    bare ||
+    (replying ? hasControlCharacters(draft) || long : refuses(draft, { shell: true }))
   const command = mode === "shell" ? shellCommand(draft) : undefined
+  const uploading = attachments.some((each) => each.state === "uploading")
+  const imaged = carries && attachments.length > 0
   // A `!` still waiting for its command: nothing to send yet, nothing to warn about either.
   const awaitingCommand = command === ""
   const send = (): void => {
@@ -158,7 +184,12 @@ export const Composer = ({
     }
     const text = draft.trim()
     // The draft is judged as the hint judges it, so Enter refuses what Send does.
-    if (!text || sending || refused) return
+    if ((!text && !imaged) || sending || refused) return
+    // Enter, which the Send key waits for: it says why nothing went.
+    if (imaged && uploading) {
+      setError({ text: "An image is still uploading. Send again once it has.", terminal: false })
+      return
+    }
     setError(null)
     walk.current = null
     onSend(text).catch((failure: unknown) => {
@@ -190,7 +221,33 @@ export const Composer = ({
       },
     )
   }
-  const empty = draft.trim() === ""
+  const empty = draft.trim() === "" && !imaged
+  // Why a paste of images can't join the next message, where it can't.
+  const pasteRefusal = (): string | null => {
+    if (passing) return `What you type goes to ${label}'s own menu, which takes no images.`
+    if (replying) return "A reply to the agent's question takes text only."
+    if (held) return "Edit the held reply to send it as a message first, then paste the images."
+    if (mode === "shell") return "A shell command takes text only."
+    return null
+  }
+  const attach = (files: readonly File[]): void => {
+    const refusal =
+      pasteRefusal() ?? (onAttach ? onAttach(files) : "This backend can't take images.")
+    setError(refusal ? { text: refusal, terminal: false } : null)
+  }
+  // A paste of images, which the field would drop: a paste with text stays the field's, as a
+  // page's copied cells come. One that carries nothing (as Ctrl+Shift+V pastes an image alone)
+  // asks the clipboard, once the page may read it.
+  const pasted = (event: React.ClipboardEvent<HTMLTextAreaElement>): void => {
+    const data = event.clipboardData
+    if (pastedText(data)) return
+    const files = pastedFiles(data)
+    event.preventDefault()
+    if (files.length > 0) return attach(files)
+    void clipboardImages(new Date()).then((images) => {
+      if (mounted.current && images && images.length > 0) attach(images)
+    })
+  }
   const hint = useId()
   const note = useId()
   const shellNote = useId()
@@ -277,14 +334,66 @@ export const Composer = ({
         className="chat-error"
         text={
           refused && !awaitingCommand && !held
-            ? replying
-              ? long
-                ? "A reply takes at most 16,384 characters."
-                : controlHint
-              : messageHint(draft)
+            ? bare
+              ? `${label} needs a few words with the images.`
+              : replying
+                ? long
+                  ? "A reply takes at most 16,384 characters."
+                  : controlHint
+                : messageHint(draft)
             : ""
         }
       />
+      {attachments.length > 0 && (
+        <ul className="chat-attachments" aria-label="Images for the next message">
+          {attachments.map((each) => (
+            <li
+              key={each.id}
+              className="chat-attachment"
+              data-state={each.state}
+              data-held={!carries || undefined}
+              aria-busy={each.state === "uploading" || undefined}
+            >
+              {each.preview ? (
+                <img src={each.preview} alt={each.name} title={each.error ?? each.name} />
+              ) : (
+                <span className="chat-attachment-name">{each.name}</span>
+              )}
+              {each.state !== "ready" && (
+                // A failure is announced once, by the line under the row.
+                <span
+                  className="chat-attachment-state"
+                  {...(each.state === "uploading" ? { role: "status" } : { "aria-hidden": true })}
+                >
+                  {each.state === "uploading" ? "uploading" : "failed"}
+                </span>
+              )}
+              <button
+                type="button"
+                className="chat-key chat-attachment-remove"
+                aria-label={`Remove ${each.name}`}
+                onClick={() => onDetach(each.id)}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {attachments.map(
+        (each) =>
+          each.state === "failed" && (
+            <p key={each.id} className="chat-error" role="alert">
+              {each.name} didn't upload. {each.error}
+            </p>
+          ),
+      )}
+      {imageNote && <p className="chat-reply">{imageNote}</p>}
+      {attachments.length > 0 && !carries && (
+        <p className="chat-reply">
+          <span>The images wait for a message of your own.</span>
+        </p>
+      )}
       <div className="chat-composer-box">
         <Mark />
         <textarea
@@ -303,6 +412,7 @@ export const Composer = ({
           // What the agent's field takes, as the protocol carries it.
           maxLength={replying ? replyMax : undefined}
           spellCheck
+          onPaste={pasted}
           onChange={(event) => {
             onDraft(event.target.value)
             if (error) setError(null)
@@ -366,7 +476,7 @@ export const Composer = ({
                 type="submit"
                 className="chat-key"
                 aria-label="Send"
-                disabled={sending || refused}
+                disabled={sending || refused || (imaged && uploading)}
                 aria-busy={sending || undefined}
               >
                 ⏎

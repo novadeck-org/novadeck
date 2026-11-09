@@ -8,6 +8,20 @@ export const compact = (text: string): string => text.replace(/\s+/g, "")
 const pictures = /\p{Extended_Pictographic}|\p{Emoji_Modifier}|\u200d|\ufe0f/gu
 
 /**
+ * A box's text without the placeholders of images that lead it (`[Image #1] [Image #2] words`),
+ * which a program shows for a pasted image file and keeps apart from the words.
+ */
+export const withoutImages = (text: string): string =>
+  text.replace(/^(?:\s*\[Image #\d+\])+\s*/, "")
+
+/** How many placeholders of images lead a box's text. */
+export const imageCount = (text: string): number =>
+  /^(?:\s*\[Image #\d+\])+/.exec(text)?.[0].match(/\[Image #/g)?.length ?? 0
+
+/** Whether placeholders of images lead a box's text (see `withoutImages`). */
+export const leadsWithImages = (text: string): boolean => /^\s*\[Image #\d+\]/.test(text)
+
+/**
  * Whether the box's text is exactly the text sent, whitespace aside, and emoji as the
  * screen drew them: a text of nothing but emoji must match as drawn.
  */

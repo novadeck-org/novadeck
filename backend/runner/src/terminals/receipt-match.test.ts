@@ -159,3 +159,32 @@ describe("knownWords", () => {
     expect(knownWords([back("")], "")).toBeUndefined()
   })
 })
+
+describe("a prompt with images", () => {
+  const withImages = (images: number, ...lines: string[]) => [{ ref: "r0", lines, images }]
+
+  it("is settled by an item that leads with as many placeholders, then the words", () => {
+    expect(settledBy(withImages(1, "Look at this"), "[Image #3] Look at this")).toEqual(["r0"])
+    expect(settledBy(withImages(2, "Compare"), "[Image #1] [Image #2] Compare")).toEqual(["r0"])
+  })
+
+  it("is not settled by an item with another number of placeholders", () => {
+    expect(settledBy(withImages(2, "Compare"), "[Image #1] Compare")).toEqual([])
+  })
+
+  it("is settled by an item without placeholders, as Antigravity keeps its media apart", () => {
+    expect(settledBy(withImages(1, "Look at this"), "Look at this")).toEqual(["r0"])
+  })
+
+  it("is settled, with no words, by an item of nothing but its placeholders", () => {
+    expect(settledBy(withImages(1), "[Image #1]")).toEqual(["r0"])
+    expect(settledBy(withImages(1), "[Image #1] and words")).toEqual([])
+    expect(settledBy(withImages(1), "words")).toEqual([])
+  })
+
+  it("is in the box as many placeholders as it carried, or by its words", () => {
+    expect(inBox("[Image #1] [Image #2]", [], 2)).toBe(true)
+    expect(inBox("[Image #1]", [], 2)).toBe(false)
+    expect(inBox("[Image #1] Look at this", ["Look at this"], 1)).toBe(true)
+  })
+})

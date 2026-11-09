@@ -941,7 +941,7 @@ one from an earlier runner.
   client's `agents.transcript(terminalId, actor)` resubscribes across reconnections,
   yielding `reset` before the items follow again, and ends without one when the actor
   is gone.
-- `agents.prompt({ terminalId, text, automatic?, ref? })` gives the terminal's agent a prompt as the person
+- `agents.prompt({ terminalId, text, images?, automatic?, along?, ref? })` gives the terminal's agent a prompt as the person
   would paste and submit it (`automatic: true` marks a fixed line an Inbox button sends, such as "continue", not words the person wrote: the turn it starts withdraws no ask from the Inbox, see [Agent messaging](agent-messaging.md); a strict-schema field added with the protocol version unchanged, as the repo does while client and runner ship together; `text` is 1 to 16,384 characters; its line breaks, CRLF and a lone CR included, are taken as one line break each and stay
   line breaks in the box). It needs an agent bound, or one showing its own empty prompt
   before its first session binds (Codex before its first prompt), and no request waiting
@@ -1001,6 +1001,40 @@ one from an earlier runner.
   sequences, CJK) as a TUI's own do (`@novadeck/emulator/width`), so a redraw erases
   the rows the TUI means. The person's keys are held from before the box is looked at until
   the Enter is out, at most the wait for an empty box, a shell command's switch (up to 5 s), the paste's 5 s and a margin of 2 s.
+
+  `images` (1 to 8 paths, `maxPromptImages`) hands the agent pictures the chat holds, which
+  `terminals.upload` saved on this runner: an image file (PNG, JPEG, GIF or WebP) in an upload's
+  folder, or the call is `PROMPT_REFUSED` before any key, so a client can't have the runner
+  paste any other path. `text` may then be empty, though not for Antigravity, whose Enter
+  sends nothing for images alone (`PROMPT_REFUSED`). A shell command takes no images, and
+  the box must be empty, whatever `along` says (a draft is the usual `CONFLICT`). The runner pastes
+  each path as a bracketed paste of its own, all three harnesses reading a path pasted alone as an
+  image file (Claude Code and Codex as `[Image #N]` at the start of the box, Antigravity as a
+  `📎 N media attached` row above it), and waits, within 5 s each, for the box to show the
+  image before the next goes in; then the text follows on the same line, led by a space, and
+  Enter. The path is written as a shell reads it as one word (a backslash before each space and
+  special character, a Windows path with a space in double quotes: probed on Linux with all three,
+  where Codex and Antigravity leave a bare path with a space as text), as the uploads
+  folder may hold spaces (`Application Support` on macOS, a Windows profile name). An image
+  that never shows is `PROMPT_FAILED` with data `{ reason: "image-not-shown" }`, writing no Enter and taking back what landed by
+  the harness's own keys (Ctrl-U in a box of placeholders; Antigravity's Escape, only at its idle
+  prompt, as it stops a running turn otherwise). A prompt of images alone has a receipt like any other, settled by a record item of nothing but
+  its images' placeholders (Claude Code and Codex; Antigravity takes none alone).
+  Images attached in Antigravity already (pasted in its terminal and not sent) count as a draft:
+  the usual `CONFLICT`, nothing typed.
+
+  When a Stop (`agents.interrupt`) or `agents.takeBox` takes a message with images out of the
+  box, where Claude Code and Codex show `[Image #N]` placeholders ahead of the words, the
+  placeholders are left out of `returned` (null for a message of images alone) and the files they
+  came from are answered as `images`, the paths of the prompts' `images` the box held exactly,
+  as the client named them (not their real paths), absent for none. The box is the chat's own
+  only when its placeholders are as many as the images of the latest prompts waiting in it (a
+  Stop's queued ones, which it moved there, or those back in it) and the words after them are
+  exactly those prompts' words. A box that holds more, an image the person pasted in the terminal
+  view or words they typed, is `BOX_NOT_CLEARED` for a Stop and untouched by `takeBox`, and no
+  prompt of the chat is withdrawn for it. Antigravity loses a queued message's media as a Stop
+  takes the words back, so there `images` names the files of the prompts whose words came back
+  exactly.
 
   A text whose trimmed form starts with `!` is a shell command (`shellCommand`, the rest
   after the `!`, trimmed), which Claude Code, Codex and Antigravity run in their shell mode
@@ -1112,7 +1146,7 @@ one from an earlier runner.
   and `agents.putBox` hands a draft back as the terminal shows again (`Handovers`, in
   `libraries/tui-input`). Each takes its turn in the terminal's input queue, so neither races
   a ring or a prompt, and neither presses Enter.
-  - `agents.takeBox({ terminalId })` resolves with `{ returned }`, the words as typed: rows
+  - `agents.takeBox({ terminalId })` resolves with `{ returned, images? }`, the words as typed: rows
     the box wrapped joined again (a row the next one's first word wouldn't have fit on, and
     one filled by a single word mid-word), and a shell mode's command with its `!`. It takes only
     what reads whole: not a box that may show a tail, nor one holding a paste's placeholder or

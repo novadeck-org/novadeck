@@ -4,6 +4,7 @@ import {
   noDoorbell,
   type ChatAnswer,
   type ChatItem,
+  type BoxReturn,
   type ChatPrompt,
   type Conversation,
   type Conversations,
@@ -18,7 +19,14 @@ import { afterEach, vi } from "vitest"
 
 import { ChatView } from "./ChatView"
 import { createChatCommands } from "./commands"
-import { chatDraftOf, chatReplyOf, chatSendsOf, createChat } from "./state"
+import {
+  chatAttachmentsOf,
+  chatDraftOf,
+  chatImageNoteOf,
+  chatReplyOf,
+  chatSendsOf,
+  createChat,
+} from "./state"
 import { describe, expect, it } from "./test"
 import { useChat } from "./use-chat"
 
@@ -40,24 +48,41 @@ const inApp = (
     answer = async () => {},
     onRef = () => {},
     onKeys,
+    upload,
+    interrupt,
+    takeBox,
   }: {
     readonly draft?: string
     readonly program?: string
     readonly onKeys?: (keys: string) => Promise<void>
+    readonly interrupt?: () => Promise<BoxReturn>
+    readonly takeBox?: () => Promise<BoxReturn>
+    // Saves a pasted image, as the backend would; without it the backend takes no images.
+    readonly upload?: (file: { name: string; data: Uint8Array }) => Promise<string>
     readonly send?: (text: string) => Promise<SendResult | void>
     readonly answer?: (request: string, answer: ChatAnswer) => Promise<void>
     readonly onRef?: (ref: string) => void
   } = {},
 ) => {
   const sent = vi.fn<(text: string) => Promise<SendResult | void>>(send)
+  // The images each message went with, in order.
+  const sentImages: (readonly string[] | undefined)[] = []
   const answered = vi.fn<(request: string, answer: ChatAnswer) => Promise<void>>(answer)
   const conversations: Conversations = {
     conversation: () => conversation,
     send: (_key, text, options) => {
       if (options?.ref) onRef(options.ref)
+      sentImages.push(options?.images)
       return sent(text)
     },
-    interrupt: async () => null,
+    ...(upload && {
+      uploadImage: (_key: unknown, file: { name: string; data: Uint8Array }) => upload(file),
+      imageMaxBytes: 1024,
+      imageTypes: ["image/png", "image/jpeg", "image/gif", "image/webp"],
+      maxImages: 8,
+    }),
+    interrupt: interrupt ?? (async () => ({ words: null })),
+    ...(takeBox && { takeBox }),
     answer: (_key, request, reply) => answered(request, reply),
     refused: refusing(),
   }
@@ -84,7 +109,14 @@ const inApp = (
           replyTo: chatReplyOf(state.replies, context, "01"),
           onReplyTo: (to) => commands.setChatReply(context, "01", to),
           sending: chatSendsOf(state.sends, context, "01"),
-          onSend: (text, to) => commands.sendChat(key, text, to),
+          attachments: chatAttachmentsOf(state.attachments, context, "01"),
+          onAttach: conversations.uploadImage
+            ? (files) => commands.attachChatImages(key, files)
+            : undefined,
+          onDetach: (id) => commands.removeChatImage(context, "01", id),
+          onSend: (text, to, images) => commands.sendChat(key, text, to, images),
+          imageNote: chatImageNoteOf(state.imageNotes, context, "01"),
+          onRestore: (images) => commands.restoreChatImages(context, "01", images),
           onInterrupt: async () => {},
           onClearBox: async () => {},
           onAnswer: (request, reply) => conversations.answer(key, request, reply),
@@ -102,11 +134,14 @@ const inApp = (
   return {
     container,
     sent,
+    sentImages,
     answered,
     show: (mounted: boolean) => rerender(createElement(App, { mounted })),
     draft: () => chatDraftOf(chat.store.getSnapshot().drafts, context, "01"),
+    attachments: () => chatAttachmentsOf(chat.store.getSnapshot().attachments, context, "01"),
     replyTo: () => chatReplyOf(chat.store.getSnapshot().replies, context, "01"),
     stop: () => act(() => commands.stopChat(key)),
+    take: () => act(() => commands.takeBox(key)),
   }
 }
 
@@ -1052,5 +1087,381 @@ describe("parts of the conversation the chat can't read", () => {
     expect(container.querySelector(".chat-record .chat-tool-note")?.textContent).toContain(
       "Shortened here",
     )
+  })
+})
+
+// Pastes into the box as the browser does: a clipboard with `files` and `text`.
+const paste = (
+  container: HTMLElement,
+  { files = [], text = "" }: { readonly files?: readonly File[]; readonly text?: string },
+): Event => {
+  const event = new Event("paste", { bubbles: true, cancelable: true })
+  Object.defineProperty(event, "clipboardData", {
+    value: {
+      files,
+      items: files.map((file) => ({ kind: "file", getAsFile: () => file })),
+      getData: (type: string) => (type === "text/plain" ? text : ""),
+    },
+  })
+  act(() => void box(container).dispatchEvent(event))
+  return event
+}
+
+const png = (name = "shot.png"): File =>
+  new File([new Uint8Array([1, 2, 3])], name, { type: "image/png" })
+
+const chips = (container: HTMLElement): string[] =>
+  [...container.querySelectorAll(".chat-attachment")].map(
+    (each) =>
+      `${each.querySelector("img, .chat-attachment-name")?.getAttribute("alt") ?? each.querySelector(".chat-attachment-name")?.textContent}:${(each as HTMLElement).dataset.state}`,
+  )
+
+// Lets the upload and the file read it follows settle.
+const settle = async (): Promise<void> => {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+}
+
+describe("a chat with images pasted into its box", () => {
+  const live = { ...asking, requests: [] }
+
+  it("uploads each at once, shows it as a chip, and sends the paths with the next message", async () => {
+    const uploads: ((path: string) => void)[] = []
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: () => new Promise<string>((resolve) => uploads.push(resolve)),
+    })
+    const { container } = chat
+    const event = paste(container, { files: [png("a.png"), png("b.png")] })
+    expect(event.defaultPrevented).toBe(true)
+    await settle()
+    // One at a time: the second goes up once the first is saved.
+    expect(uploads).toHaveLength(1)
+    expect(chips(container)).toEqual(["a.png:uploading", "b.png:uploading"])
+    // Nothing is typed, and Send waits for the images rather than going without them.
+    expect(sendButton(container).disabled).toBe(true)
+    uploads[0]!("/runner/a.png")
+    await settle()
+    expect(uploads).toHaveLength(2)
+    uploads[1]!("/runner/b.png")
+    await settle()
+    expect(chips(container)).toEqual(["a.png:ready", "b.png:ready"])
+    expect(sendButton(container).disabled).toBe(false)
+    await send(container)
+    expect(chat.sent).toHaveBeenCalledWith("")
+    expect(chat.sentImages).toEqual([["/runner/a.png", "/runner/b.png"]])
+    expect(chips(container)).toEqual([])
+    expect(chat.attachments()).toEqual([])
+  })
+
+  it("reads the clipboard for a paste that carries nothing, as Ctrl+Shift+V pastes an image alone", async () => {
+    const read = vi.fn<() => Promise<unknown[]>>(async () => [
+      {
+        types: ["image/png"],
+        getType: async () => new Blob([new Uint8Array([1])], { type: "image/png" }),
+      },
+    ])
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { read } })
+    try {
+      const chat = inApp(createStore<Conversation>(live), { upload: async () => "/runner/a.png" })
+      const { container } = chat
+      expect(paste(container, {}).defaultPrevented).toBe(true)
+      await settle()
+      expect(read).toHaveBeenCalledOnce()
+      expect(chips(container)).toHaveLength(1)
+      expect(chips(container)[0]).toMatch(/^pasted-.*\.png:ready$/)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  // A line with an image that the record never got: its receipt says so.
+  const unrecordedWithImage = async (extra?: () => void) => {
+    const conversation = createStore<Conversation>(live)
+    const refs: string[] = []
+    const chat = inApp(conversation, {
+      upload: async () => "/runner/a.png",
+      draft: "look",
+      send: async () => ({ tracked: true }),
+      onRef: (ref) => refs.push(ref),
+    })
+    paste(chat.container, { files: [png()] })
+    await settle()
+    await send(chat.container)
+    extra?.()
+    await act(async () =>
+      conversation.update((now) => ({
+        ...now,
+        prompts: [{ ref: refs[0]!, text: "look", sentAt: 1, state: "unrecorded", item: null }],
+      })),
+    )
+    return chat
+  }
+
+  it("sends a line the record never got again with its own images, not the box's", async () => {
+    const chat = await unrecordedWithImage()
+    expect(chat.container.querySelector(".chat-message[data-sent] .chat-images img")).not.toBeNull()
+    const again = [...chat.container.querySelectorAll<HTMLElement>(".chat-sent button")].find(
+      (each) => each.textContent === "send again",
+    )!
+    await act(async () => again.click())
+    expect(chat.sentImages).toEqual([["/runner/a.png"], ["/runner/a.png"]])
+  })
+
+  it("takes the images of such a line back to the box to edit, and offers no resend with images there", async () => {
+    const chat = await unrecordedWithImage()
+    paste(chat.container, { files: [png("other.png")] })
+    await settle()
+    expect(
+      [...chat.container.querySelectorAll(".chat-sent button")].map((each) => each.textContent),
+    ).not.toContain("send again")
+    const edit = [...chat.container.querySelectorAll<HTMLElement>(".chat-sent button")].find(
+      (each) => each.textContent === "edit",
+    )!
+    act(() => edit.click())
+    expect(chat.attachments().map(({ path }) => path)).toEqual(["/runner/a.png", "/runner/a.png"])
+  })
+
+  it("shows a line of images alone, which no receipt follows, until the record holds a turn", async () => {
+    const conversation = createStore<Conversation>(live)
+    const chat = inApp(conversation, { upload: async () => "/runner/a.png" })
+    paste(chat.container, { files: [png()] })
+    await settle()
+    await send(chat.container)
+    expect(
+      chat.container.querySelectorAll(".chat-message[data-sent] .chat-images img"),
+    ).toHaveLength(1)
+    await act(async () => conversation.update((now) => ({ ...now, items: [userItem("")] })))
+    expect(chat.container.querySelector(".chat-message[data-sent]")).toBeNull()
+  })
+
+  it("says why Enter did nothing while an image uploads", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: () => new Promise<string>(() => {}),
+      draft: "look",
+    })
+    paste(chat.container, { files: [png()] })
+    await settle()
+    act(() => {
+      box(chat.container).dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+      )
+    })
+    expect(chat.container.querySelector('[role="alert"]')?.textContent).toContain("still uploading")
+    expect(chat.sent).not.toHaveBeenCalled()
+  })
+
+  it("takes only PNG, JPEG, GIF and WebP, and numbers images of one name", async () => {
+    const chat = inApp(createStore<Conversation>(live), { upload: async () => "/runner/a.png" })
+    const { container } = chat
+    paste(container, { files: [new File([new Uint8Array(1)], "a.svg", { type: "image/svg+xml" })] })
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "PNG, JPEG, GIF or WebP",
+    )
+    paste(container, { files: [png("same.png"), png("same.png")] })
+    await settle()
+    expect(chips(container)).toEqual(["same.png:ready", "same.png 2:ready"])
+  })
+
+  it("keeps the box to eight images as some come back, and says so", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+      draft: "look",
+      send: async () => {
+        throw new Error("No agent here.")
+      },
+    })
+    const { container } = chat
+    paste(container, { files: Array.from({ length: 8 }, (_, i) => png(`${i}.png`)) })
+    await settle()
+    await send(container)
+    // Eight came back; eight more were pasted meanwhile.
+    expect(chat.attachments()).toHaveLength(8)
+    paste(container, { files: Array.from({ length: 3 }, (_, i) => png(`n${i}.png`)) })
+    await settle()
+    expect(chat.attachments().length).toBeLessThanOrEqual(8)
+  })
+
+  it("asks Antigravity, which refuses images alone, for a few words with them", async () => {
+    const chat = inApp(createStore<Conversation>({ ...live, agent: "agy" }), {
+      upload: async () => "/runner/a.png",
+    })
+    const { container } = chat
+    paste(container, { files: [png()] })
+    await settle()
+    expect(sendButton(container).disabled).toBe(true)
+    expect(container.textContent).toContain("needs a few words with the images")
+    set(box(container), "look")
+    expect(sendButton(container).disabled).toBe(false)
+    await send(container)
+    expect(chat.sentImages).toEqual([["/runner/a.png"]])
+  })
+
+  it("asks for words too while the agent is not known yet", async () => {
+    const chat = inApp(createStore<Conversation>({ ...live, agent: null }), {
+      upload: async () => "/runner/a.png",
+    })
+    paste(chat.container, { files: [png()] })
+    await settle()
+    expect(sendButton(chat.container).disabled).toBe(true)
+  })
+
+  it("puts the images that came back out of the agent's box on a Stop in the box with the words", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+      draft: "look",
+      send: async () => ({ tracked: true }),
+      interrupt: async () => ({ words: "boxed", images: ["/runner/a.png", "/runner/other.png"] }),
+    })
+    paste(chat.container, { files: [png()] })
+    await settle()
+    await send(chat.container)
+    await chat.stop()
+    expect(chat.draft()).toBe("boxed")
+    expect(chat.attachments().map(({ path }) => path)).toEqual([
+      "/runner/a.png",
+      "/runner/other.png",
+    ])
+    // The one this window sent keeps its thumbnail; the other has none.
+    expect(chips(chat.container)).toHaveLength(2)
+  })
+
+  it("takes the images of the agent's own box with its words, and no more than eight", async () => {
+    const paths = Array.from({ length: 10 }, (_, i) => `/runner/${i}.png`)
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/x.png",
+      takeBox: async () => ({ words: null, images: paths }),
+    })
+    await chat.take()
+    expect(chat.attachments()).toHaveLength(8)
+    expect(chat.container.textContent).toContain("8 images at most, so 2 went")
+  })
+
+  it("goes with the words, and leaves a text paste to the box", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+      draft: "look",
+    })
+    const { container } = chat
+    expect(paste(container, { text: "more words" }).defaultPrevented).toBe(false)
+    expect(paste(container, { files: [png()], text: "cells" }).defaultPrevented).toBe(false)
+    expect(chips(container)).toEqual([])
+    paste(container, { files: [png()] })
+    await settle()
+    await send(container)
+    expect(chat.sent).toHaveBeenCalledWith("look")
+    expect(chat.sentImages).toEqual([["/runner/a.png"]])
+  })
+
+  it("comes back to the box with the words when the send fails", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+      draft: "look",
+      send: async () => {
+        throw new Error("No agent here.")
+      },
+    })
+    const { container } = chat
+    paste(container, { files: [png()] })
+    await settle()
+    await send(container)
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("No agent here.")
+    expect(chat.draft()).toBe("look")
+    expect(chips(container)).toEqual(["shot.png:ready"])
+    expect(chat.attachments().map(({ path }) => path)).toEqual(["/runner/a.png"])
+  })
+
+  it("shows the images in the sent line until the record has the turn", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+      send: () => new Promise<void>(() => {}),
+    })
+    const { container } = chat
+    paste(container, { files: [png()] })
+    await settle()
+    await send(container)
+    expect(
+      container.querySelector(".chat-message[data-sent] .chat-images img")?.getAttribute("alt"),
+    ).toBe("shot.png")
+  })
+
+  it("keeps an image that failed, with why, and will not send until it is removed", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => {
+        throw new Error("The runner is offline.")
+      },
+      draft: "look",
+    })
+    const { container } = chat
+    paste(container, { files: [png()] })
+    await settle()
+    expect(chips(container)).toEqual(["shot.png:failed"])
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "The runner is offline.",
+    )
+    await send(container)
+    expect(chat.sent).not.toHaveBeenCalled()
+    expect(container.textContent).toContain("Remove it to send the rest")
+    press(container, "×")
+    expect(chips(container)).toEqual([])
+    await send(container)
+    expect(chat.sent).toHaveBeenCalledWith("look")
+  })
+
+  it("refuses an image over what the backend takes, and more than eight", async () => {
+    const chat = inApp(createStore<Conversation>(live), { upload: async () => "/runner/x.png" })
+    const { container } = chat
+    const big = new File([new Uint8Array(2048)], "big.png", { type: "image/png" })
+    paste(container, { files: [big] })
+    await settle()
+    expect(chips(container)).toEqual(["big.png:failed"])
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("over 0 MiB")
+    press(container, "×")
+    paste(container, { files: Array.from({ length: 9 }, (_, i) => png(`${i}.png`)) })
+    await settle()
+    expect(chips(container)).toHaveLength(8)
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "A message takes at most 8 images.",
+    )
+  })
+
+  it("says where a backend takes no images", () => {
+    const { container } = inApp(createStore<Conversation>(live))
+    expect(paste(container, { files: [png()] }).defaultPrevented).toBe(true)
+    expect(chips(container)).toEqual([])
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "This backend can't take images.",
+    )
+  })
+
+  it("refuses them in a reply to the agent's question, which takes one line of text", () => {
+    const chat = inApp(createStore<Conversation>(questioning), {
+      upload: async () => "/runner/a.png",
+      program: "agy",
+    })
+    const { container } = chat
+    press(container, "Chat about this")
+    paste(container, { files: [png()] })
+    expect(chips(container)).toEqual([])
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("takes text only")
+  })
+
+  it("refuses them in a shell command, and sends the command without those waiting", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+    })
+    const { container } = chat
+    paste(container, { files: [png()] })
+    await settle()
+    set(box(container), "!ls")
+    expect(container.textContent).toContain("The images wait for a message of your own")
+    paste(container, { files: [png("two.png")] })
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "A shell command takes text only.",
+    )
+    await send(container)
+    expect(chat.sent).toHaveBeenCalledWith("!ls")
+    expect(chat.sentImages).toEqual([undefined])
+    expect(chips(container)).toEqual(["shot.png:ready"])
   })
 })

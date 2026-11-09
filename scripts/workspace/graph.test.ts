@@ -196,7 +196,8 @@ describe("the package graph", () => {
   })
 
   it("keeps the chat off the app's chrome, the items package, every backend and every harness", () => {
-    // The chat view is a part the UI composes: it reaches the core and the toolkit, and nothing
+    // The chat view is a part the UI composes: it reaches the core, the toolkit and
+    // the terminal library (for its paste helpers), and nothing
     // that composes it, nor the items package beside it, nor a backend, nor a harness (the contract
     // test is the one that renders it over them).
     const reached = reaches("frontend/chat")

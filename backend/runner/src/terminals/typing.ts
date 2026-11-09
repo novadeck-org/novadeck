@@ -37,6 +37,8 @@ import { boxView, BoxStates, shownBox } from "./box-state.js"
 import { Dialogs, type DialogsOptions } from "./dialogs.js"
 import { agentWorking, doorbellHost, profileOf } from "./doorbell-host.js"
 import { GivenBack } from "./given-back.js"
+import { splitImages } from "./image-marks.js"
+import { imagePaste } from "./image-paste.js"
 import { holdsRingLine, leftoverNonce } from "./leftover.js"
 import { McpTools } from "./mcp-tools.js"
 import { Interrupts, Prompts } from "./prompting.js"
@@ -65,6 +67,7 @@ const fallbacks: ReadonlySet<BoxNote | HandoverNote> = new Set([
   "draft-kept",
   "no-box",
   "not-shown",
+  "images-kept",
 ])
 
 /**
@@ -113,6 +116,10 @@ export type PromptInput = {
   readonly automatic?: true | undefined
   readonly along?: true | undefined
   readonly ref?: string | undefined
+  /** Paths of image files the runner saved (checked by `Uploads.checkImages`), pasted ahead of the text. */
+  readonly images?: readonly string[] | undefined
+  /** The same files as the client named them, which Stop and takeBox answer; `images` where omitted. */
+  readonly files?: readonly string[] | undefined
 }
 
 /**
@@ -124,6 +131,9 @@ export type Prompted = {
   readonly tracked: boolean
   readonly returned: string | null
 }
+
+/** What `takeBox` gives: the words, and the image files that led them in the box. */
+export type TakenBox = { readonly returned: string | null; readonly images?: string[] }
 
 export type TypingOptions = {
   readonly platform: NodeJS.Platform
@@ -244,6 +254,12 @@ export class Typing {
       })
   }
 
+  /** `prompt` for the input of `agents.prompt`. */
+  given(input: PromptInput): Promise<Prompted> {
+    const { terminalId, text, automatic, ref, along, images, files } = input
+    return this.prompt(terminalId, text, automatic, ref, along, images, files)
+  }
+
   /**
    * Gives the terminal's agent a prompt as the person would paste and submit it (see
    * `Prompts`), once those before it in the terminal's input queue are done, followed under
@@ -257,6 +273,8 @@ export class Typing {
     automatic?: true | undefined,
     ref?: string | undefined,
     along?: true | undefined,
+    images: readonly string[] = [],
+    files: readonly string[] = images,
   ): Promise<Prompted> {
     // Its ref is held at once, and it joins the input queue in this same tick, as it always
     // has, so nothing given after it goes before it. Its receipt is set up beside it: what
@@ -264,7 +282,7 @@ export class Typing {
     const claimed = ref ?? freshRef()
     this.receipts.claim(terminalId, claimed)
     this.givenBack.sent(terminalId, text)
-    const following = this.receipts.expect(terminalId, text, claimed)
+    const following = this.receipts.expect(terminalId, text, claimed, files)
     // A fixed line from an Inbox button: the turn it starts withdraws no ask (see `automatic`).
     if (automatic) this.host.messaging().automatic(terminalId, text)
     let returned: string | null = null
@@ -273,13 +291,14 @@ export class Typing {
       const given = await this.prompts.prompt(
         terminalId,
         text,
-        along && !automatic ? "freed" : "alone",
+        along && !automatic && images.length === 0 ? "freed" : "alone",
         // Its receipt is set up by then, or as soon as it is: before its Enter, in either case.
         () =>
           void following.then(
             () => this.receipts.joined(terminalId, claimed),
             () => undefined,
           ),
+        images.map(imagePaste),
       )
       returned = given?.returned ?? null
       went = given?.along
@@ -292,7 +311,8 @@ export class Typing {
       )
       // Words it took out of the box go back with the failure: they wait on no record now.
       const taken = error instanceof DomainError && promptFailure.safeParse(error.data).data
-      if (taken) this.receipts.taken(terminalId, taken.returned, claimed)
+      if (taken && taken.returned !== undefined)
+        this.receipts.taken(terminalId, taken.returned, claimed)
       // A failure that says to look at the box comes after what the box holds.
       if (error instanceof DomainError && lookAtBox.has(error.reason ?? ""))
         await this.boxes.refresh(terminalId)
@@ -312,11 +332,15 @@ export class Typing {
    * Takes what the agent's box holds out of it for the client's draft (see `Handovers.take`):
    * prompts of the person's back there no longer wait on the record.
    */
-  async takeBox(terminalId: string): Promise<{ returned: string | null }> {
+  async takeBox(terminalId: string): Promise<TakenBox> {
     this.promptable(terminalId)
-    const returned = (await this.handovers.take(terminalId)) ?? null
-    if (returned !== null) this.receipts.taken(terminalId, returned)
-    return { returned }
+    const boxed = await this.handovers.take(terminalId)
+    if (boxed === undefined) return { returned: null }
+    // The images in the box come out with the words: the files they were pasted from go back.
+    const { words, marks } = splitImages(boxed)
+    const images = this.receipts.boxFiles(terminalId, marks, words)
+    this.receipts.taken(terminalId, words, undefined, marks)
+    return { returned: words || null, ...(images.length > 0 && { images: [...images] }) }
   }
 
   /** Writes keys as the person's, as a chat passes them on (see `agents.keys`). */
@@ -377,6 +401,7 @@ export class Typing {
     let ended = noStop
     // The words as the agent's box held them, with any doorbell line a hook may still tell of.
     let boxed: string | null = null
+    // The prompt that started the turn, as its hook told it, before the Stop changes that.
     const result = await this.inputs
       .run(terminalId, (entry) => {
         since = Date.now()
@@ -400,8 +425,14 @@ export class Typing {
         },
       )
     // The words handed back are the person's draft again: their prompts no longer wait.
-    if (result.returned !== null) this.receipts.withdraw(terminalId, result.returned, since)
-    return result
+    // The turn's own prompt put back and cleared gives back nothing, its images no more than
+    // its words: the agent had both, and images alone in the box would ride the next message.
+    const images = result.restored
+      ? []
+      : this.receipts.boxFiles(terminalId, result.marks, result.returned ?? "", true)
+    if (result.returned !== null || result.marks > 0)
+      this.receipts.withdraw(terminalId, result.returned ?? "", since, result.marks)
+    return { returned: result.returned, ...(images.length > 0 && { images: [...images] }) }
   }
 
   /** The terminal's screen or messages changed: the doorbell looks at it again. */
@@ -670,6 +701,15 @@ export class Typing {
     }
   }
 
+  /**
+   * Whether the images leading a box's text are all prompts' of the chat, whose files are
+   * known and can go back: not those the person pasted in the terminal, which a clear would lose.
+   */
+  private ownImages(terminalId: string, text: string, queued: boolean): boolean {
+    const { words, marks } = splitImages(text)
+    return this.receipts.boxFiles(terminalId, marks, words, queued).length > 0
+  }
+
   /** Writes keys to a running terminal as they are, with none of what watches the person's. */
   private written(terminalId: string, data: string): boolean {
     const record = this.host.live(terminalId)
@@ -697,6 +737,7 @@ export class Typing {
       type: (terminalId, data) => this.typed(terminalId, data),
       write: (terminalId, data) => this.written(terminalId, data),
       known: (terminalId, text) => this.receipts.known(terminalId, text),
+      ownImages: (terminalId, text) => this.ownImages(terminalId, text, false),
       ringLine: (_terminalId, text) => holdsRingLine(text),
       enteredAt: (terminalId) => this.entered.get(terminalId),
       refuse: (text) => promptRefusal(text, { shell: true }),
@@ -764,6 +805,7 @@ export class Typing {
       screen: (terminalId) => this.screenOf(terminalId),
       type: (terminalId, data) => this.typed(terminalId, data),
       write: (terminalId, data) => this.written(terminalId, data),
+      ownImages: (terminalId, text) => this.ownImages(terminalId, text, true),
     }
   }
 
@@ -871,7 +913,11 @@ export class Typing {
         const activity = this.host.held(terminalId)?.bound?.activity
         if (!activity) return { working: false, endedAt: null }
         const working = activity.state === "working"
-        return { working, endedAt: working ? null : (activity.lastTurn?.at ?? activity.turnAt) }
+        return {
+          working,
+          endedAt: working ? null : (activity.lastTurn?.at ?? activity.turnAt),
+          startedAt: working ? activity.turnAt : null,
+        }
       },
       box: async (terminalId) => {
         const screen = await this.screenOf(terminalId)

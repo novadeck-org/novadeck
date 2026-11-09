@@ -197,7 +197,12 @@ export const createRouter = (options: {
       transcript: api.agents.transcript.handler(({ input, signal }) =>
         terminals.transcript(input.terminalId, input.actor, signal),
       ),
-      prompt: api.agents.prompt.handler(({ input }) => terminals.prompt(input)),
+      prompt: api.agents.prompt.handler(async ({ input }) => {
+        // Only images this runner saved are pasted into an agent's box.
+        if (!input.images) return terminals.prompt(input)
+        const images = await uploads.checkImages(input.images)
+        return terminals.prompt({ ...input, images, files: input.images })
+      }),
       keys: api.agents.keys.handler(({ input }) => terminals.keys(input)),
       takeBox: api.agents.takeBox.handler(({ input }) => terminals.takeBox(input.terminalId)),
       putBox: api.agents.putBox.handler(({ input }) => terminals.putBox(input)),

@@ -83,6 +83,7 @@ const setup = () => {
       ref: options?.ref ?? "runner-picked-ref",
       tracked: true,
     })),
+    upload: vi.fn<ConversationStreams["upload"]>(async (_terminal, file) => `/runner/${file.name}`),
     interrupt: vi.fn<ConversationStreams["interrupt"]>(async () => ({ returned: null })),
     takeBox: vi.fn<ConversationStreams["takeBox"]>(async () => ({ returned: null })),
     clearBox: vi.fn<ConversationStreams["clearBox"]>(async () => ({ cleared: true })),
@@ -766,9 +767,14 @@ describe("the runner's conversations", () => {
     it("takes the agent's box, and puts in it, leaving words where they are on a failure", async () => {
       const { conversations, streams } = setup()
       streams.takeBox.mockResolvedValueOnce({ returned: "words" })
-      await expect(conversations.takeBox?.(key)).resolves.toBe("words")
+      await expect(conversations.takeBox?.(key)).resolves.toEqual({ words: "words" })
       streams.takeBox.mockRejectedValueOnce(new WireError("CONFLICT"))
-      await expect(conversations.takeBox?.(key)).resolves.toBeNull()
+      await expect(conversations.takeBox?.(key)).resolves.toEqual({ words: null })
+      streams.takeBox.mockResolvedValueOnce({ returned: null, images: ["/runner/a.png"] })
+      await expect(conversations.takeBox?.(key)).resolves.toEqual({
+        words: null,
+        images: ["/runner/a.png"],
+      })
       streams.putBox.mockResolvedValueOnce({ placed: true })
       await expect(conversations.putBox?.(key, "draft")).resolves.toBe(true)
       expect(streams.putBox).toHaveBeenCalledWith("t", "draft")
@@ -828,6 +834,54 @@ describe("the runner's conversations", () => {
       await conversations.interrupt(key)
       expect(streams.prompt).toHaveBeenCalledWith("t", "hello", undefined)
       expect(streams.interrupt).toHaveBeenCalledWith("t")
+    })
+
+    it("saves a pasted image on the runner and sends its path with the prompt", async () => {
+      const { conversations, streams } = setup()
+      const file = { name: "shot.png", data: new Uint8Array([1]) }
+      await expect(conversations.uploadImage?.(key, file)).resolves.toBe("/runner/shot.png")
+      expect(streams.upload).toHaveBeenCalledWith("t", file)
+      await conversations.send(key, "", { ref: "r", images: ["/runner/shot.png"] })
+      expect(streams.prompt).toHaveBeenCalledWith("t", "", {
+        ref: "r",
+        images: ["/runner/shot.png"],
+      })
+    })
+
+    it("says an image couldn't go when the runner refuses one, and that the agent didn't take it", async () => {
+      const { conversations, streams } = setup()
+      streams.prompt.mockRejectedValueOnce(
+        new WireError("PROMPT_REFUSED", "An image of the prompt is gone."),
+      )
+      await expect(conversations.send(key, "", { images: ["/runner/a.png"] })).rejects.toThrow(
+        "An image couldn't go. Remove it and paste it again.",
+      )
+      // Without images, a refusal is the text's own.
+      streams.prompt.mockRejectedValueOnce(new WireError("PROMPT_REFUSED", "Nope."))
+      await expect(conversations.send(key, "hi")).rejects.toThrow("Nope.")
+      streams.prompt.mockRejectedValueOnce(
+        new WireError("PROMPT_FAILED", "Any message: the reason is in the data.", {
+          data: { returned: "words", reason: "image-not-shown" },
+        }),
+      )
+      await expect(
+        conversations.send(key, "hi", { images: ["/runner/a.png"] }),
+      ).rejects.toMatchObject({
+        message: "The agent didn't take the image. It is back in the box.",
+        returned: "words",
+      })
+    })
+
+    it("tells the person why an image didn't upload", async () => {
+      const { conversations, streams } = setup()
+      streams.upload.mockRejectedValueOnce(new WireError("UPLOAD_TOO_LARGE"))
+      await expect(
+        conversations.uploadImage?.(key, { name: "a.png", data: new Uint8Array() }),
+      ).rejects.toThrow("over the size")
+      streams.upload.mockRejectedValueOnce(new WireError("DISCONNECTED"))
+      await expect(
+        conversations.uploadImage?.(key, { name: "a.png", data: new Uint8Array() }),
+      ).rejects.toThrow("offline")
     })
 
     it("marks a fixed line an Inbox button sends as automatic", async () => {
@@ -973,9 +1027,15 @@ describe("the runner's conversations", () => {
 
     it("gives back the words the agent returned from its queue, or null", async () => {
       const { conversations, streams } = setup()
-      expect(await conversations.interrupt(key)).toBeNull()
-      streams.interrupt.mockResolvedValueOnce({ returned: "Queued beta" })
-      expect(await conversations.interrupt(key)).toBe("Queued beta")
+      expect(await conversations.interrupt(key)).toEqual({ words: null })
+      streams.interrupt.mockResolvedValueOnce({
+        returned: "Queued beta",
+        images: ["/runner/a.png"],
+      })
+      expect(await conversations.interrupt(key)).toEqual({
+        words: "Queued beta",
+        images: ["/runner/a.png"],
+      })
       streams.interrupt.mockRejectedValueOnce(new WireError("BOX_NOT_CLEARED"))
       await expect(conversations.interrupt(key)).rejects.toThrow("still in the agent's box")
     })

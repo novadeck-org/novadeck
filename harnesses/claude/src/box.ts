@@ -5,6 +5,7 @@ import {
   eraseRows,
   footerRows,
   leaveShell,
+  placeholderImages,
   rule,
   ruledBox,
   type BoxProfile,
@@ -169,6 +170,9 @@ export const box: BoxProfile = {
   // of the row it starts on, to the same column (fixtures/leftover.probe.json).
   textWidth: (columns) => columns - 4,
   stands: (text) => /\[(?:Pasted text #\d+|Image #\d+)/.test(text),
+  // A pasted image file's path alone becomes `[Image #N]` in its box, ahead of the words (probed
+  // 2026-11-08, 2.1.316, e2e/probes/image-box.e2e.ts); Ctrl-U empties the box.
+  images: placeholderImages(read),
   collapsed: ({ text }) => /^\[Pasted text #\d+(?: \+\d+ lines?)?\]$/.test(text.trim()),
   // Escape twice, over text seen in the box only; it clears a restored prompt or the queued
   // messages an Escape put back, of any number of lines (probed 2026-10-07). Where its footer

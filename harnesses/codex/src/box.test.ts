@@ -288,3 +288,17 @@ describe("Codex's box with text that fills its last row", () => {
     expect(box.read(drawn(short, { row: 3, column: 2 }))).toBeUndefined()
   })
 })
+
+describe("Codex's images", () => {
+  it("counts the placeholders its box shows for pasted image paths, ahead of the words", () => {
+    const screen = screenOf("› [Image #1] [Image #2] Compare them", "")
+    expect(box.images!.attached({ ...screen, cursor: { row: 0, column: 36 } })).toBe(2)
+  })
+
+  it("counts none in an empty box, and clears the box with its keys", () => {
+    const empty = { ...screenOf("› Ask Codex to do anything"), cursor: { row: 0, column: 2 } }
+    expect(box.images!.attached(empty)).toBe(0)
+    const shown = { ...screenOf("› [Image #1]"), cursor: { row: 0, column: 12 } }
+    expect(box.images!.discard(shown)).toBe("\x15")
+  })
+})

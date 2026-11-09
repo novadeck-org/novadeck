@@ -1,3 +1,4 @@
+import type { Attachment } from "./attachments"
 import { valueOf, withValue, type ByTerminal } from "./by-terminal"
 import type { ChatReply } from "./replies"
 
@@ -5,7 +6,9 @@ import type { ChatReply } from "./replies"
 // - `ref`: what names the prompt's receipt in the conversation (`Conversation.prompts`);
 // - `draft`: the draft they were sent from, as typed, which goes back in the box should they
 //   not go;
-// - `text`: the words as sent;
+// - `text`: the words as sent, empty for a message of images alone;
+// - `images`: the images that go with them, ready on the agent's machine, which go back in the
+//   box with the draft should they not go;
 // - `to`: the question they answer, for a reply, which goes at once and shows as its dialog's
 //   answer; null for a prompt, which takes its turn in the terminal's queue;
 // - `phase`: `queued` while a prompt before it hasn't reached the agent's record yet, or a
@@ -17,6 +20,7 @@ export type ChatSend = {
   readonly ref: string
   readonly draft: string
   readonly text: string
+  readonly images: readonly Attachment[]
   readonly to: ChatReply | null
   readonly phase: "queued" | "typing" | "sent" | "settled"
 }
@@ -62,3 +66,26 @@ export const withSend = (
 // The reply on its way to the terminal's agent, if one is.
 export const chatReplySendOf = (sends: ChatSends, context: string, id: string): ChatSend | null =>
   chatSendsOf(sends, context, id).find((send) => send.to !== null) ?? null
+
+// The images of prompts the record never got, by ref, for as long as their line can be sent again
+// or taken back to edit: kept for the page's life apart from the send, which ended with its
+// receipt. Whoever takes a line's images takes them out.
+const kept = new Map<string, readonly Attachment[]>()
+
+export const keepSentImages = (ref: string, images: readonly Attachment[]): void => {
+  if (images.length > 0) kept.set(ref, images)
+}
+
+// The images kept for a line, left kept.
+export const keptImagesOf = (ref: string): readonly Attachment[] | undefined => kept.get(ref)
+
+// The kept image saved at `path`, if one is.
+export const keptImageAt = (path: string): Attachment | undefined =>
+  [...kept.values()].flat().find((image) => image.path === path)
+
+// Takes a line's kept images out, to go on with them.
+export const takeSentImages = (ref: string): readonly Attachment[] => {
+  const images = kept.get(ref) ?? []
+  kept.delete(ref)
+  return images
+}

@@ -35,6 +35,9 @@ export const answerMs = 400
 // settled, in milliseconds.
 export const answeredMs = 500
 
+// The most a pasted image the demo takes, in bytes: a larger one shows how a refusal looks.
+const demoImageMaxBytes = 5 * 1024 * 1024
+
 const movedOn = "The agent moved on before your answer reached it."
 
 // A line sent to an agent, and when the person sent it.
@@ -519,8 +522,20 @@ export const createDemoChat = (
         storeOf(key).update((conversation) => ({ ...conversation, box: null }))
         return true
       },
-      send: async (key, prompt, options) => {
+      // Pasted images are kept nowhere: the demo answers a path, after the moment a save takes.
+      // The page refuses the larger ones itself, so a chip that failed shows with a big image.
+      imageMaxBytes: demoImageMaxBytes,
+      imageTypes: ["image/png", "image/jpeg", "image/gif", "image/webp"],
+      maxImages: 8,
+      uploadImage: async (_key, file) => {
+        await new Promise((resolve) => setTimeout(resolve, 600))
+        return `/tmp/novadeck-demo/${file.name}`
+      },
+      send: async (key, given, options) => {
         const found = agentFor(key)
+        const images = options?.images ?? []
+        // Each image shows in the line as the agents' own records show one.
+        const prompt = [given.trim(), ...images.map(() => "[Image]")].filter(Boolean).join("\n")
         const name = chatAgents[chatAgent(found.terminal)!]
         const agent = agentOf(found.terminal)
         if (agent.attention)
@@ -529,7 +544,7 @@ export const createDemoChat = (
           )
         if (!prompt.trim()) return
         // As the runner refuses it: text the agent would read as more than a message.
-        if (promptRefused(prompt, { shell: true })) throw new Error(promptRefusal)
+        if (given.trim() && promptRefused(given, { shell: true })) throw new Error(promptRefusal)
         // The mark and the time go with the line, so a line that waits, is dropped or never
         // goes takes them along.
         const sent: Sent = { text: prompt, submittedAt: Date.now() }
@@ -555,7 +570,7 @@ export const createDemoChat = (
         queues.delete(id)
         turns.interrupt(found.key, agentOf(found.terminal))
         // What waited behind the turn comes back, for the person to send again.
-        return queued ? queued.prompts.map(({ text: line }) => line).join("\n") : null
+        return { words: queued ? queued.prompts.map(({ text: line }) => line).join("\n") : null }
       },
       answer: async (key, id, answer) => {
         const found = agentFor(key)

@@ -135,7 +135,9 @@ const turnsOf = (one: z.infer<typeof content>): Turn[] => {
   )
   const text = textOf(one.parts)
   if (one.role !== "model")
-    return text || results.length === 0 ? [...results, { role: "user", text }] : results
+    return text || results.length === 0
+      ? [...results, { role: "user", text, ...withImages(imagesIn(one.parts)) }]
+      : results
   const calls = one.parts.flatMap(({ functionCall: call }) => (call ? [callOf(call)] : []))
   return text || calls.length > 0 || results.length === 0
     ? [{ role: "assistant", text, calls }, ...results]
@@ -151,7 +153,14 @@ const conversation = (contents: readonly z.infer<typeof content>[]): Turn[] =>
   contents.flatMap(turnsOf).reduce<Turn[]>((turns, turn) => {
     const last = turns.at(-1)
     return turn.role === "user" && last?.role === "user"
-      ? [...turns.slice(0, -1), { role: "user", text: `${last.text}\n${turn.text}` }]
+      ? [
+          ...turns.slice(0, -1),
+          {
+            role: "user",
+            text: `${last.text}\n${turn.text}`,
+            ...withImages((last.images ?? 0) + (turn.images ?? 0)),
+          },
+        ]
       : [...turns, turn]
   }, [])
 

@@ -20,6 +20,7 @@ const item = (text: string, extra: Partial<ChatItem> = {}): ChatItem =>
 const sent = (text: string, at: number | null = null): SentBubble => ({
   ref: text,
   text,
+  images: [],
   state: "sending",
   at,
 })

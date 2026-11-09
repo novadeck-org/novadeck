@@ -8,7 +8,7 @@ const key = { projectId: "p", workspaceSessionId: "s", terminalId: "01" }
 const inner = (sent: string[] = []): Conversations => ({
   conversation: () => ({ getSnapshot: () => noConversation, subscribe: () => () => {} }),
   send: async (_key, text) => void sent.push(text),
-  interrupt: async () => null,
+  interrupt: async () => ({ words: null }),
   answer: async () => {},
   refused: () => false,
 })
@@ -69,7 +69,7 @@ describe("the debug panel's chat failures", () => {
     // The next message sees to them: nothing to settle in the terminal.
     expect(failure).not.toBeInstanceOf(SettleInTerminal)
     expect(failure).toHaveProperty("message", expect.stringContaining("still in the agent's box"))
-    expect(await conversations.interrupt(key)).toBeNull()
+    expect(await conversations.interrupt(key)).toEqual({ words: null })
   })
 
   it("arm the next Stop to meet a request waiting, saying to answer it first", async () => {
@@ -79,6 +79,6 @@ describe("the debug panel's chat failures", () => {
     const failure = await conversations.interrupt(key).catch((error: unknown) => error)
     expect(failure).not.toBeInstanceOf(SettleInTerminal)
     expect(failure).toHaveProperty("message", expect.stringContaining("then stop it"))
-    expect(await conversations.interrupt(key)).toBeNull()
+    expect(await conversations.interrupt(key)).toEqual({ words: null })
   })
 })

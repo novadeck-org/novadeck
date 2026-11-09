@@ -28,7 +28,12 @@ export type Api = "anthropic" | "responses" | "gemini"
  * the prompt and any context a hook added beside it, joined.
  */
 export type Turn =
-  | { readonly role: "user"; readonly text: string }
+  | {
+      readonly role: "user"
+      readonly text: string
+      /** How many pictures the harness passed to the model with the prompt. */
+      readonly images?: number
+    }
   | { readonly role: "assistant"; readonly text: string; readonly calls: readonly ToolCall[] }
   | {
       readonly role: "tool"

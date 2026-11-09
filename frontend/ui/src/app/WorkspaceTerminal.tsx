@@ -1,6 +1,8 @@
 import { ChatView } from "@novadeck/chat/ChatView"
 import {
+  chatAttachmentsOf,
   chatDraftOf,
+  chatImageNoteOf,
   chatReplyOf,
   chatSendsOf,
   chatShellsOf,
@@ -271,6 +273,12 @@ export const WorkspaceTerminal = memo(
     const draft = useChat(chat, (state) => chatDraftOf(state.drafts, chatContext, terminalId))
     const replyTo = useChat(chat, (state) => chatReplyOf(state.replies, chatContext, terminalId))
     const sending = useChat(chat, (state) => chatSendsOf(state.sends, chatContext, terminalId))
+    const attachments = useChat(chat, (state) =>
+      chatAttachmentsOf(state.attachments, chatContext, terminalId),
+    )
+    const imageNote = useChat(chat, (state) =>
+      chatImageNoteOf(state.imageNotes, chatContext, terminalId),
+    )
     const shells = useChat(chat, (state) => chatShellsOf(state.shells, chatContext, terminalId))
     const conversation = useMemo(
       () => (showChat ? conversations?.conversation(terminalKey) : undefined),
@@ -305,7 +313,16 @@ export const WorkspaceTerminal = memo(
                 onReplyTo={(to) => commands.setChatReply(chatContext, terminalId, to)}
                 sending={sending}
                 shells={shells}
-                onSend={(text, to) => commands.sendChat(terminalKey, text, to)}
+                attachments={attachments}
+                imageNote={imageNote}
+                onRestore={(images) => commands.restoreChatImages(chatContext, terminalId, images)}
+                onAttach={
+                  conversations!.uploadImage
+                    ? (files) => commands.attachChatImages(terminalKey, files)
+                    : undefined
+                }
+                onDetach={(id) => commands.removeChatImage(chatContext, terminalId, id)}
+                onSend={(text, to, images) => commands.sendChat(terminalKey, text, to, images)}
                 // Words queued behind the stopped turn, the agent's and the chat's, come back
                 // to the box, to send again.
                 onInterrupt={() => commands.stopChat(terminalKey)}

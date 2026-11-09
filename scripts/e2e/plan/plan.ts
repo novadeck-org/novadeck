@@ -159,7 +159,7 @@ export const setups = (selected: readonly string[], ids: readonly string[]): rea
         { agents: ids.join(","), name: "Mixed", files: "mixed.e2e.ts" },
       ]
 
-const core = "messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts"
+const core = "messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts images.e2e.ts"
 
 // Every harness: a message crossing under a cmd AutoRun that prints (the file sets it, on CI only).
 const autorunFile = "windows-autorun.e2e.ts"
@@ -186,7 +186,8 @@ export const quirks = (selected: readonly string[]): readonly Quirk[] =>
 // #781's tests (19.1 minutes of tests then, 11.1 of them in the first half's files). On macOS,
 // where runners are scarce, a harness keeps one job while it fits: Claude Code's took 27.4 to
 // 29.6 of its 30 minutes on 2026-11-07 and ran out twice that evening, so it runs in two there
-// too; Codex's took 23.6 and stays whole.
+// too; Codex's took 23.6 and stays whole (26 of 30 on the nightly of 2026-11-08, so the image
+// cases, `images.e2e.ts`, are three cases per harness, about 9 s of tests on Linux, and no more).
 const both: ReadonlySet<string> = new Set([systems.linux, systems.windows])
 const shardedOn: ReadonlyMap<string, ReadonlySet<string>> = new Map([
   ["claude", new Set([...both, systems.macos])],

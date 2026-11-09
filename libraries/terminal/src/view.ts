@@ -3,5 +3,6 @@
 // the colour ones itself.
 export { createTerminalScreens, parkedCap, parkMs } from "./view/screens.js"
 export type { Hold, ShowOptions, TerminalScreens, TerminalScreensOptions } from "./view/screens.js"
+export { clipboardImages, pastedFiles, pastedText, uploadName } from "./view/paste.js"
 export type { PasteFailure } from "./view/paste.js"
 export type { ViewPhase } from "./view/view-state.js"

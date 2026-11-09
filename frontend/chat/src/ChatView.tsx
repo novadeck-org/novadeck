@@ -21,6 +21,7 @@ import {
   useSyncExternalStore,
 } from "react"
 
+import type { Attachment } from "./attachments"
 import { sentBubbles, type SentBubble } from "./bubbles"
 import { Composer } from "./Composer"
 import { composerMode } from "./composer-mode"
@@ -32,7 +33,7 @@ import { otherMenu } from "./other-menu"
 import { usePassing } from "./passing"
 import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
 import { Requests } from "./Requests"
-import type { ChatSend } from "./sends"
+import { takeSentImages, type ChatSend } from "./sends"
 import { settledSent, settleSent } from "./settled"
 import { LiveSlice, Slice, SliceKeys } from "./Slice"
 import { Transcript } from "./Transcript"
@@ -59,6 +60,11 @@ export const ChatView = ({
   replyTo,
   onReplyTo,
   sending,
+  attachments,
+  imageNote,
+  onRestore,
+  onAttach,
+  onDetach,
   onSend,
   shells = noShells,
   onInterrupt,
@@ -87,11 +93,24 @@ export const ChatView = ({
   readonly onReplyTo: (to: ChatReplyTo | null) => void
   // The words from the box on their way to the agent, oldest first, which the app keeps.
   readonly sending: readonly ChatSend[]
+  // The images pasted into the box, to go with its next message, which the app keeps with the draft.
+  readonly attachments: readonly Attachment[]
+  readonly imageNote?: string | undefined
+  // Puts images back in the box, ahead of its own, as a line taken back to edit has them.
+  readonly onRestore: (images: readonly Attachment[]) => void
+  // Adds pasted images, saving each at once; answers why some weren't added, or null. Absent where
+  // the backend takes no images.
+  readonly onAttach?: ((files: readonly File[]) => string | null) | undefined
+  readonly onDetach: (id: string) => void
   // Sends the box's words, as a prompt or as the reply `to` names: the app takes them
   // out of the draft as they go, queues a prompt behind those still on their way, and puts
   // them back should they not arrive. It resolves whether they went: false once they came
   // back to the box unsent.
-  readonly onSend: (text: string, to: ChatReply | null) => Promise<boolean>
+  readonly onSend: (
+    text: string,
+    to: ChatReply | null,
+    images?: readonly Attachment[],
+  ) => Promise<boolean>
   // The shell commands sent from this chat, which its history recalls.
   readonly shells?: readonly SentShell[] | undefined
   readonly onInterrupt: () => Promise<void>
@@ -272,7 +291,8 @@ export const ChatView = ({
     settle(bubble)
     setResent(null)
     focusBox()
-    onSend(bubble.text, null).then(
+    // Its own images go, never those the box holds.
+    onSend(bubble.text, null, takeSentImages(bubble.ref)).then(
       (went) => {
         if (!went) setResent("Your words didn't go again. They're in the box below.")
       },
@@ -286,6 +306,7 @@ export const ChatView = ({
   }
   const edit = (bubble: SentBubble): void => {
     settle(bubble)
+    onRestore(takeSentImages(bubble.ref))
     draftChanged(joinDraft(bubble.text, draft))
     focusBox()
   }
@@ -354,7 +375,9 @@ export const ChatView = ({
                 agent={name}
                 working={working}
                 sent={bubbles}
-                {...(plain && draft.trim() === "" && { onResend: resend })}
+                {...(plain &&
+                  draft.trim() === "" &&
+                  attachments.length === 0 && { onResend: resend })}
                 {...(plain && { onEdit: edit })}
                 onShowTerminal={onAnswerInTerminal}
               />
@@ -464,6 +487,12 @@ export const ChatView = ({
           sending={sending.some((send) => send.to !== null)}
           replySending={replyGoing}
           working={working}
+          attachments={attachments}
+          imageNote={imageNote}
+          // Antigravity refuses a message of images alone, so an agent not known yet might.
+          imagesAlone={harness === "claude" || harness === "codex"}
+          onAttach={onAttach}
+          onDetach={onDetach}
           onSend={async (text) => {
             if (mode === "waiting")
               throw new Error("The conversation is still loading. Send again in a moment.")

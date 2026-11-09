@@ -97,7 +97,7 @@ export const ownPath = (path: string): string | undefined => {
 // text field can't hold, so a paste of an image alone arrives empty; the clipboard API
 // still has it, once the page may read the clipboard. Undefined where it may not, or
 // has no clipboard API.
-const clipboardImages = async (now: Date): Promise<File[] | undefined> => {
+export const clipboardImages = async (now: Date): Promise<File[] | undefined> => {
   try {
     return await imagesOf(await navigator.clipboard.read(), now)
   } catch {

@@ -270,8 +270,8 @@ describe("demo conversations", () => {
     const { chat } = open()
     await chat.send(key("03"), "first")
     await chat.send(key("03"), "second")
-    expect(await chat.interrupt(key("03"))).toBe("first\nsecond")
-    expect(await chat.interrupt(key("03"))).toBeNull()
+    expect(await chat.interrupt(key("03"))).toEqual({ words: "first\nsecond" })
+    expect(await chat.interrupt(key("03"))).toEqual({ words: null })
   })
 
   it("answers a permission: the request goes, its tool result lands, the turn ends", async () => {

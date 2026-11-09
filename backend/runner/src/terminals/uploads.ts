@@ -1,7 +1,17 @@
 import { randomUUID } from "node:crypto"
-import { appendFile, mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises"
+import {
+  appendFile,
+  mkdir,
+  mkdtemp,
+  open,
+  readdir,
+  realpath,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { dirname, join } from "node:path"
+import { dirname, isAbsolute, join, relative, sep } from "node:path"
 
 import { maxUploadBytes } from "@novadeck/protocol"
 
@@ -43,6 +53,14 @@ export const safeName = (name: string): string => {
   if (/^\.*$/.test(clean)) return "upload"
   return fitted(device.test(clean) ? `_${clean}` : clean)
 }
+
+// Whether the first bytes are one of the image formats the agents take: PNG, JPEG, GIF, WebP.
+const isImage = (head: Buffer): boolean =>
+  head.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])) ||
+  head.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])) ||
+  head.subarray(0, 4).toString("latin1") === "GIF8" ||
+  (head.subarray(0, 4).toString("latin1") === "RIFF" &&
+    head.subarray(8, 12).toString("latin1") === "WEBP")
 
 type Part = { name?: string | undefined; path?: string | undefined; data: string }
 
@@ -89,6 +107,48 @@ export class Uploads {
     }
     this.receiving.set(path, { size: bytes.length, at: this.now() })
     return path
+  }
+
+  /**
+   * Checks that each path is an image file this runner saved: `<uploads>/<uuid>/<name>`, as
+   * `save` answers, a regular file that is not a link out, in one of the formats agents take.
+   * A prompt pastes these paths into an agent's box, so a client cannot have the runner paste
+   * any other. Answers the checked paths as they really are, which are the ones to paste; throws
+   * `PROMPT_REFUSED`, naming the first that fails, before anything is typed.
+   */
+  async checkImages(paths: readonly string[]): Promise<string[]> {
+    // The folder is known without a save since this runner started: uploads last a week.
+    const root = this.folder ?? (await this.root?.catch(() => undefined))
+    const real = root && (await realpath(root).catch(() => undefined))
+    const checked = await Promise.all(paths.map((path) => this.imageAt(real, path)))
+    const fault = checked.find((one) => !("file" in one))
+    if (fault && "fault" in fault)
+      throw new DomainError("PROMPT_REFUSED", `An image of the prompt ${fault.fault}.`)
+    return checked.flatMap((one) => ("file" in one ? [one.file] : []))
+  }
+
+  /** The image file at `path` in `real`, the uploads folder as it really is; else why it is none. */
+  private async imageAt(
+    real: string | undefined,
+    path: string,
+  ): Promise<{ readonly file: string } | { readonly fault: string }> {
+    const foreign = { fault: "is not a file this runner saved" }
+    if (!real || !isAbsolute(path) || /\p{Cc}/u.test(path)) return foreign
+    try {
+      const file = await realpath(path).catch(() => undefined)
+      if (file === undefined) return { fault: "is gone" }
+      const parts = relative(real, file).split(sep)
+      if (parts.length !== 2 || !ownFolder.test(parts[0]!) || parts[1] === "") return foreign
+      if (!(await stat(file)).isFile()) return foreign
+      const handle = await open(file, "r")
+      const head = Buffer.alloc(12)
+      const { bytesRead } = await handle.read(head, 0, 12, 0).finally(() => handle.close())
+      return isImage(head.subarray(0, bytesRead))
+        ? { file }
+        : { fault: "is not a PNG, JPEG, GIF or WebP image" }
+    } catch {
+      return { fault: "can't be read" }
+    }
   }
 
   private async add(path: string, bytes: Buffer): Promise<string> {

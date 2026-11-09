@@ -1041,6 +1041,87 @@
   scrollbar-width: thin;
   scrollbar-color: var(--_line) transparent;
 }
+/* The images pasted for the next message: thumbnails on a row over the prompt, each with its
+   state (dim while it uploads, red once it failed) and a key to take it off. Those the box
+   cannot send yet, as it replies or runs a shell command, stay dim. */
+.chat-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 calc(var(--_lh) / 2);
+  padding: 0 0 0 2ch;
+  list-style: none;
+  cursor: default;
+}
+.chat-attachment {
+  position: relative;
+  display: flex;
+  width: 56px;
+  height: 56px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: var(--border-width) solid var(--_line);
+  color: var(--_muted);
+}
+.chat-attachment > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.chat-attachment[data-state="uploading"] > img,
+.chat-attachment[data-held] > img {
+  opacity: 0.45;
+}
+.chat-attachment[data-state="failed"] {
+  border-color: var(--_red);
+}
+.chat-attachment[data-state="failed"] > img {
+  opacity: 0.3;
+}
+.chat-attachment-name {
+  padding: 2px;
+  font-size: 0.75em;
+  overflow-wrap: anywhere;
+}
+.chat-attachment-state {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  padding: 0 2px;
+  background: var(--chat-bg, var(--window-bg, var(--color-paper)));
+  font-size: 0.75em;
+  text-align: center;
+}
+.chat-attachment[data-state="failed"] .chat-attachment-state {
+  color: var(--_red);
+}
+.chat-attachment-remove {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 18px;
+  height: 18px;
+  background: var(--chat-bg, var(--window-bg, var(--color-paper)));
+  color: var(--_ink);
+  line-height: 1;
+}
+/* The images a prompt carried, in the person's line. */
+.chat-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+}
+.chat-images img {
+  display: block;
+  max-width: 160px;
+  max-height: 120px;
+  border: var(--border-width) solid var(--_line);
+  object-fit: cover;
+}
 .chat-composer-box {
   display: grid;
   grid-template-columns: 2ch minmax(0, 1fr) auto;

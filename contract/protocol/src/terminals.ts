@@ -12,6 +12,13 @@ export const maxUploadBytes = 32 * 1024 * 1024
  * `terminals.upload` call fits in `maxWebSocketMessageBytes`.
  */
 export const maxUploadPartLength = 196_608
+/** The most images one `agents.prompt` carries. */
+export const maxPromptImages = 8
+/**
+ * The image types an `agents.prompt` takes, which all three harnesses read from a file: the
+ * runner checks a file's first bytes against these before it pastes its path.
+ */
+export const promptImageTypes = ["image/png", "image/jpeg", "image/gif", "image/webp"] as const
 
 // `name` is the process's own name. `argv` is the foreground process group leader's
 // command line, which tells a script apart from its interpreter; null where the

@@ -111,9 +111,10 @@ export type DeckTerminal = {
   /**
    * Gives its agent a prompt as the chat does, `agents.prompt`: pasted into its box, and
    * Enter once it shows; resolves once that Enter is out, with the ref of its receipt in
-   * `detail` and whether one follows, and rejects as the call would.
+   * `detail` and whether one follows, and rejects as the call would. Given `images`, they
+   * are saved on the runner and pasted ahead of the text, as the chat sends them.
    */
-  readonly prompt: (text: string) => Promise<Prompted>
+  readonly prompt: (text: string, images?: readonly DeckImage[]) => Promise<Prompted>
   /** Presses Escape in its agent as the chat does, `agents.interrupt`. */
   readonly interrupt: () => Promise<InterruptResult>
   /**
@@ -130,6 +131,8 @@ export type DeckTerminal = {
   readonly summary: () => TerminalSummary
   /** Its messages and how its agent can take one now. */
   readonly messages: () => TerminalMessages
+  /** The prompt that started the person's running turn, as its harness told the runner (probes). */
+  readonly personPrompt: () => string | undefined
   /**
    * What Novadeck knows of its agent now, as a client's detail view reads it: the session
    * bound, its activity, and the requests it waits on the person for.
@@ -551,12 +554,16 @@ export const arrivals = <T>(what: string) => {
   }
 }
 
+/** An image file a chat pastes into a prompt: the runner saves it and pastes its path. */
+export type DeckImage = { readonly name: string; readonly data: Buffer }
+
 /** One runner the deck wired, from `wire` until it closes. */
 type Runner = {
   readonly store: WorkspaceStore
   readonly agents: ReturnType<typeof wire>["agents"]
   readonly terminals: Terminals
   readonly items: ReturnType<typeof wire>["items"]
+  readonly uploads: ReturnType<typeof wire>["uploads"]
   /** Aborts as the runner closes, ending every watch of it. */
   readonly closing: AbortController
 }
@@ -625,8 +632,9 @@ const now = async <T>(stream: (signal: AbortSignal) => AsyncGenerator<T>): Promi
 export const createDeck = async (options: DeckOptions): Promise<Deck> => {
   const shellFolder = join(options.data, "shell")
   const start = async (): Promise<Runner> => {
-    const { store, shellFiles, agents, terminals, items } = wire({
+    const { store, shellFiles, agents, terminals, items, uploads } = wire({
       database: join(options.data, "workspace.sqlite"),
+      uploads: join(options.data, "uploads"),
       shell: shellFolder,
       ...(options.transcriptKey && { transcriptKey: options.transcriptKey }),
       // Plugin commands run with the sandbox's environment as it is: a login shell's
@@ -653,7 +661,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       store.close()
       throw new Error("Novadeck's shell files could not be written")
     }
-    return { store, agents, terminals, items, closing: new AbortController() }
+    return { store, agents, terminals, items, uploads, closing: new AbortController() }
   }
 
   let runner = await start()
@@ -799,9 +807,31 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         }),
       summary: () => terminals.get(id),
       messages: () => terminals.messages(id),
-      prompt: async (text) => {
+      personPrompt: () =>
+        (
+          terminals as unknown as {
+            messaging: { personPrompt: (id: string) => string | undefined }
+          }
+        ).messaging.personPrompt(id),
+      prompt: async (text, images = []) => {
         prompted = undefined
-        return await terminals.prompt({ terminalId: id, text, along: true })
+        // Without images it joins the terminal's input queue in this same tick, as the router's
+        // does: prompts given at once keep their order.
+        if (images.length === 0) return terminals.prompt({ terminalId: id, text, along: true })
+        // As the router does for the chat: the images saved by an upload, then checked.
+        const paths = await Promise.all(
+          images.map((image) =>
+            on.uploads.save({ name: image.name, data: image.data.toString("base64") }),
+          ),
+        )
+        const checked = await on.uploads.checkImages(paths)
+        return await terminals.prompt({
+          terminalId: id,
+          text,
+          along: true,
+          images: checked,
+          files: paths,
+        })
       },
       interrupt: async () => {
         prompted = undefined
