@@ -451,6 +451,7 @@ export type ConflictReason =
   | "shell"
   | "no-paste"
   | "command"
+  | "question-words-only"
 
 // What the person did that the agent couldn't take: sent a message, pressed Stop, or picked
 // an option of a request.
@@ -513,6 +514,11 @@ export const conflictFailure = (reason: ConflictReason | undefined, action: Chat
         action === "stop"
           ? "The agent is waiting for your answer. Answer it first, then stop it."
           : "The agent is waiting for your answer. Answer it here, then send again.",
+      )
+    case "question-words-only":
+      // A question set aside by words that answer it in its own field, which takes no images.
+      return new Error(
+        "The agent's question takes only words in its answer. Remove the images, or answer it first.",
       )
     case "ringing":
       return action === "send"

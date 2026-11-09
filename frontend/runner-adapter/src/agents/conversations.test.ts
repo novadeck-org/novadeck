@@ -847,6 +847,18 @@ describe("the runner's conversations", () => {
       expect(streams.interrupt).toHaveBeenCalledWith("t", { setAside: true })
     })
 
+    it("says a question taking only words can't be set aside by images", async () => {
+      const { conversations, streams } = setup()
+      streams.prompt.mockRejectedValue(
+        new WireError("CONFLICT", "The question takes words only.", {
+          data: { reason: "question-words-only" },
+        }),
+      )
+      await expect(conversations.send(key, "see this", { setAside: true })).rejects.toThrow(
+        "The agent's question takes only words in its answer. Remove the images, or answer it first.",
+      )
+    })
+
     it("still says to answer a permission first, which a Send or Stop over it never sets aside", async () => {
       const { conversations, streams } = setup()
       const pending = new WireError("CONFLICT", "A request waits.", { data: { reason: "pending" } })
