@@ -158,7 +158,8 @@ export const withBatch = (
 export const rootOf = (detail: AgentDetail): string | null =>
   detail.actors.find((actor) => actor.role === "root")?.ref ?? null
 
-// A request of the agent's detail, as the chat has it; `root` is the root agent's ref.
+// A request of the agent's detail, as the chat has it; `root` is the root agent's ref. One
+// that asks without holding the agent (Codex's async questions) is marked `detached`.
 export const requestOf = (
   request: AgentDetail["requests"][number],
   root: string | null,
@@ -171,20 +172,11 @@ export const requestOf = (
   subagent: request.actor !== root,
   dialog: request.dialog,
   answered: request.answered,
+  ...(request.detached && { detached: true as const }),
 })
 
-// The runner lists the requests that hold the agent first, then those that ask without waiting
-// (`attention.detached` of them, of all `attention.pending`), so those past the ones that hold it
-// are detached. A request the detail left out only moves later ones forward: one detached may
-// read as holding the agent, never the other way round.
-const requestsOf = (detail: AgentDetail, root: string | null): readonly ChatRequest[] => {
-  const attention = detail.activity?.attention
-  const holding = attention ? attention.pending - (attention.detached ?? 0) : Infinity
-  return detail.requests.map((request, index) => ({
-    ...requestOf(request, root),
-    ...(index >= holding && { detached: true as const }),
-  }))
-}
+const requestsOf = (detail: AgentDetail, root: string | null): readonly ChatRequest[] =>
+  detail.requests.map((request) => requestOf(request, root))
 
 // The receipts of the prompts given in the session, as the chat has them. A settled one
 // keeps the words its receipt carried while pending, as the runner drops them, so the chat

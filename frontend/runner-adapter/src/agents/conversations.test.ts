@@ -332,10 +332,11 @@ describe("the runner's conversations", () => {
       ])
     })
 
-    it("marks those that ask without waiting, which the runner lists after those that hold the agent", async () => {
+    it("marks those the runner says ask without waiting", async () => {
       const { details, store } = setup()
       store.subscribe(() => {})
-      const asked = (ref: string): AgentDetail["requests"][number] => ({
+      const asked = (ref: string, detached = false): AgentDetail["requests"][number] => ({
+        ...(detached && { detached: true as const }),
         ref,
         actor: root,
         kind: "question",
@@ -357,17 +358,18 @@ describe("the runner's conversations", () => {
             subagents: [],
             lastTurn: null,
           },
+          // In any order: the runner marks each one.
           requests: [
+            asked("det1det1det1det1", true),
             asked("holdholdholdhold"),
-            asked("det1det1det1det1"),
-            asked("det2det2det2det2"),
+            asked("det2det2det2det2", true),
           ],
         }),
       )
       await settle()
       expect(store.getSnapshot().requests.map(({ id, detached }) => [id, detached])).toEqual([
-        ["holdholdholdhold", undefined],
         ["det1det1det1det1", true],
+        ["holdholdholdhold", undefined],
         ["det2det2det2det2", true],
       ])
     })
