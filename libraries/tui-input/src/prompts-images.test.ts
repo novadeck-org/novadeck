@@ -21,7 +21,14 @@ const paste = (data: string): string | undefined =>
 
 const terminal = (
   style: Style,
-  options: { alone?: boolean; draft?: string; bare?: boolean; attached?: number } = {},
+  options: {
+    alone?: boolean
+    draft?: string
+    bare?: boolean
+    attached?: number
+    /** How long an image or the text may take to show; short only where it never will. */
+    waitMs?: number
+  } = {},
 ) => {
   let words = options.draft ?? ""
   let images = options.attached ?? 0
@@ -114,7 +121,12 @@ const terminal = (
     }),
   })
   return {
-    prompts: new Prompts(host, queue, { pollMs: 5, pasteMs: 150, emptyMs: 60, settleMs: 5 }),
+    prompts: new Prompts(host, queue, {
+      pollMs: 5,
+      pasteMs: options.waitMs ?? 3_000,
+      emptyMs: 60,
+      settleMs: 5,
+    }),
     written,
     sent,
   }
@@ -173,7 +185,7 @@ describe("a prompt with images", () => {
   })
 
   it("fails when an image never shows, never presses Enter, and takes back what landed", async () => {
-    const { prompts, written, sent } = terminal("text")
+    const { prompts, written, sent } = terminal("text", { waitMs: 150 })
     expect(await reason(prompts.prompt("t", "Look", "alone", undefined, ["/up/a/one.png"]))).toBe(
       "image-not-shown",
     )
@@ -182,7 +194,7 @@ describe("a prompt with images", () => {
   })
 
   it("takes back the images that landed when a later one never shows", async () => {
-    const { prompts, written } = terminal("chips")
+    const { prompts, written } = terminal("chips", { waitMs: 150 })
     expect(
       await reason(
         prompts.prompt("t", "Look", "alone", undefined, ["/up/a/one.png", "/up/b/notimage.txt"]),

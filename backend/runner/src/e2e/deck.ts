@@ -815,6 +815,9 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         ).messaging.personPrompt(id),
       prompt: async (text, images = []) => {
         prompted = undefined
+        // Without images it joins the terminal's input queue in this same tick, as the router's
+        // does: prompts given at once keep their order.
+        if (images.length === 0) return terminals.prompt({ terminalId: id, text, along: true })
         // As the router does for the chat: the images saved by an upload, then checked.
         const paths = await Promise.all(
           images.map((image) =>
@@ -826,7 +829,8 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
           terminalId: id,
           text,
           along: true,
-          ...(checked.length > 0 && { images: checked, files: paths }),
+          images: checked,
+          files: paths,
         })
       },
       interrupt: async () => {

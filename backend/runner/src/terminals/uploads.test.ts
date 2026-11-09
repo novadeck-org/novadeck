@@ -11,7 +11,7 @@ import {
   writeFile,
 } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { basename, dirname, join, relative } from "node:path"
+import { basename, dirname, join } from "node:path"
 
 import { maxUploadBytes } from "@novadeck/protocol"
 
@@ -228,7 +228,7 @@ describe("the images a prompt names", () => {
 
   it("refuses a relative path, and a file name that is a folder", async ({ resources }) => {
     const { uploads, path } = await saved(resources)
-    await expect(uploads.checkImages([relative(process.cwd(), path)])).rejects.toMatchObject({
+    await expect(uploads.checkImages([join("uploads", "x", "shot.png")])).rejects.toMatchObject({
       code: "PROMPT_REFUSED",
     })
     await mkdir(join(dirname(path), "..", randomUUID(), "dir.png"), { recursive: true })
