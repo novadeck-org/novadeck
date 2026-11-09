@@ -309,8 +309,14 @@ export const createTypist = (
       },
       timing.calmMs,
     )
+    // Where the cursor stood and the rows as they were, when no box read: a box the cursor isn't in
+    // reads as none, and a trace is all a failed run on another machine leaves.
+    const shown =
+      inputBox === false
+        ? `, cursor ${screen.cursor.row},${screen.cursor.column} of ${screen.rows.length}x${screen.columns}, rows ${JSON.stringify(screen.rows)}`
+        : ""
     trace(
-      `gate ${verdict} (foreground ${String(foreground)}, input box ${String(inputBox)}, bracketed paste ${screen.bracketedPaste})`,
+      `gate ${verdict} (foreground ${String(foreground)}, input box ${String(inputBox)}, bracketed paste ${screen.bracketedPaste}${shown})`,
     )
     return verdict
   }
