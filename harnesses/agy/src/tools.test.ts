@@ -152,12 +152,12 @@ suite("what Antigravity's own subagent, task and question tools were", () => {
     [
       "invoke_subagent",
       { TypeName: "self", Role: "Background helper", Prompt: "Work." },
-      { kind: "agent", title: "Subagent", detail: "Background helper" },
+      { kind: "agent", title: "Subagent", detail: "Background helper", subagent: true },
     ],
     [
       "invoke_subagent",
       { TypeName: "self", Prompt: "Work.\nMore." },
-      { kind: "agent", title: "Subagent", detail: "Work." },
+      { kind: "agent", title: "Subagent", detail: "Work.", subagent: true },
     ],
     [
       "define_subagent",

@@ -450,7 +450,9 @@ describe("the demo's scripted tool calls", () => {
     }) => {
       seen += 1
       const old = toolSummary(call.tool ?? "tool", call.text)
-      if (JSON.stringify(call.run) !== JSON.stringify(old))
+      // The old table predates `subagent`, which marks a call whose result is a report.
+      const { subagent: _, ...run } = (call.run ?? {}) as Record<string, unknown>
+      if (JSON.stringify(call.run === null ? null : run) !== JSON.stringify(old))
         wrong.push(`${call.call}: ${JSON.stringify(call.run)} is not ${JSON.stringify(old)}`)
     }
     const stories = visitorStory(agentTranscripts(now), demoTurns(), 2000).transcripts
