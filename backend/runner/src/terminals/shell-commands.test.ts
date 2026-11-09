@@ -552,6 +552,116 @@ describe("shell commands", () => {
     })
   })
 
+  describe("turns around an Enter", () => {
+    it("finds a queued command after a continued Stop: idle, working again, the real end", async () => {
+      const s = setup()
+      activity(s.rec, "working")
+      await s.press()
+      await settle(2_000)
+      const e = await s.ends()
+      await settle(1_200)
+      // The doorbell continues the turn: the first Stop was not the end.
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      await settle(10)
+      s.processes.current = [spawn(8, Date.now() + 5)]
+      await settle(20_000)
+      expect(s.rec.summary.shellCommand).toBeNull()
+      s.processes.current = []
+      const end = await s.ends()
+      expect(end).toBeGreaterThan(e)
+      s.processes.current = [spawn(7, end + 100)]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
+    })
+
+    it("finds a queued command when the turn it waited for was reported late", async () => {
+      const s = setup()
+      await s.press()
+      // The harness was already in a turn; its working report comes after the Enter.
+      await settle(300)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      await settle(30_000)
+      const e = await s.ends()
+      s.processes.current = [spawn(7, e + 100)]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
+    })
+
+    it("still finds a command already running when a ring starts a turn beside it", async () => {
+      const s = setup()
+      const at = await s.press()
+      s.processes.current = [spawn(7, at + 5)]
+      await settle(300)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toEqual({ command: "sleep 15", since: at })
+      // Later turns change nothing for a confirmed attempt.
+      s.processes.current = [spawn(7, at + 5), spawn(9, Date.now())]
+      await s.ends()
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toEqual({ command: "sleep 15", since: at })
+    })
+
+    it("waits out a long turn without looking, and takes no timer", async () => {
+      const s = setup()
+      await s.press()
+      await settle(300)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      await settle(findMs + 1_000)
+      const looked = s.lookups()
+      await settle(60_000)
+      expect(s.lookups()).toBe(looked)
+      expect(vi.getTimerCount()).toBe(0)
+    })
+  })
+
+  describe("looks", () => {
+    it("shows the newest of two Enters confirmed in the same look, announcing once", async () => {
+      const s = setup()
+      const first = await s.press()
+      await settle(600)
+      const second = await s.press(shellBox("sleep 30"))
+      // Both processes appear together, so both confirm in one look.
+      s.processes.current = [spawn(7, first + 100), spawn(8, second + 5)]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toEqual({ command: "sleep 30", since: second })
+      expect(s.announced()).toBe(1)
+    })
+
+    it("runs one look at a time, whatever begins meanwhile", async () => {
+      const rec = record()
+      rec.box = shellBox("sleep 15")
+      const waiting: (() => void)[] = []
+      let calls = 0
+      const shells = new ShellCommands<Fake>({
+        profile: () =>
+          ({ read: () => rec.box, overlay: () => false, shell: {} }) as unknown as BoxProfile,
+        announce: () => undefined,
+        trees: () => ({ read: async () => undefined }),
+        under: () => {
+          calls += 1
+          return new Promise((resolve) => waiting.push(() => resolve([])))
+        },
+        resolutionMs: () => 10,
+        stopping: () => false,
+      })
+      shells.entered(rec)
+      await settle(lookEveryMs)
+      expect(calls).toBe(1)
+      shells.entered(rec)
+      await settle(5 * lookEveryMs)
+      expect(calls).toBe(1)
+      waiting.shift()!()
+      await settle(lookEveryMs)
+      expect(calls).toBe(2)
+      shells.stop()
+    })
+  })
+
   it("ends and stops every timer when the agent leaves, the terminal exits or restarts, or it rests", async () => {
     const cases: ((rec: Fake) => void)[] = [
       (rec) => ((rec.terminal as { exit: unknown }).exit = { code: 0 }),

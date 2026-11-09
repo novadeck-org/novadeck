@@ -1918,16 +1918,24 @@ as the agent), so what the agent left running before, as a dev server's watcher 
 its child after a `!git pull`, is not the command; before a first prompt no turn has run, and
 there is no such rule. A process shows only once two looks at least 0.9 s apart found it
 live: a helper passing through never does, nor does a command that ends within about a second
-(`!ls`), and one that keeps running shows about 1 to 2 s after it starts. A turn that starts after the Enter (a ring's)
-cuts that Enter's window off, each Enter's with its own cutoff and first-seen times: its
-tools' processes are not the command. Once one is found it is looked at every second, and
+(`!ls`), and one that keeps running shows about 1 to 2 s after it starts. Each Enter keeps the start times a process may have to be its command: from the Enter
+(less the platform's resolution, 1 s on macOS) on. A turn that starts while it is still
+unconfirmed (a ring's, one the runner heard of late, or the doorbell continuing a turn at its
+Stop) closes that interval at the turn's start less the resolution, so the turn's tools are
+not taken for the command, and the Enter waits the turn out with no looks. When the turn ends,
+a harness that queues the command (Claude Code, Antigravity) gets a new interval from the end
+and a find window of its own; a command already running when the turn began is found by
+the first interval, as Codex's, which runs at once, always is. On macOS a command started
+within a second before a turn's start is therefore not shown. A confirmed Enter is unaffected
+by later turns. Two confirmed in one look show the newest, and one look runs at a time. Once one is found it is looked at every second, and
 shown until none is left, or the system twice in a row couldn't tell (a look that fails is
 one that can't). The latest of several Enters is the one shown.
 An Enter while a turn works is held instead, as the turn's own tools start processes too, and
 its window opens once the turn has ended: Claude Code and Antigravity queue the command until
 then (`BoxProfile.shell.midTurn` is `queues`), so only what started since the end is it; Codex
 runs it at once (`runs`), so what started within 2 s of the Enter counts too. A held Enter
-that finds nothing is dropped; the latest of several is kept.
+that finds nothing is dropped; the latest of several is kept. For Codex a long-lived tool the
+model started within 2 s of such an Enter can be shown as the command until it ends.
 
 ### Message states
 
