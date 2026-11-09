@@ -45,6 +45,14 @@ const scenarios: readonly Scenario[] = [
     steps: [one, () => "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nn\no\np\nq"],
   },
   { name: "image only", steps: [one], send: true },
+  // An image among the words, where the person put it: is it taken there, and where does it
+  // show in the box and the record?
+  { name: "text, image, text", steps: [() => "See this: ", one, () => " and fix it"], send: true },
+  {
+    name: "text, image, text, image",
+    steps: [() => "Compare ", one, () => " with ", two],
+    send: true,
+  },
   {
     name: "clear keys",
     steps: [one],
