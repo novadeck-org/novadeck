@@ -665,6 +665,11 @@ for (const setup of setups) {
     call holds that many pictures with the words, the receipt settles and the record keeps
     `[Image #N]` where the harness does. Images alone are sent, except to Antigravity, whose
     Enter does nothing then: refused, `PROMPT_REFUSED`, nothing written.
+    With `at`, `t.prompt(text, images, at)`, images among the words (one, two with the last
+    ending the text, one ahead of the words and one among them): the model's turn and the
+    record hold the words and `[Image #N]` in the order put, for every harness (Antigravity's is
+    typed by the runner), and the receipt settles. In `interrupt.e2e.ts`, a Stop with such an
+    image queued behind a turn answers the words as sent, the file and `at`.
   - _Named alike_: a terminal given its first prompt this way is named as one typed in
     another terminal is, whatever that is for the harness.
   - _Mid-turn_: with the reply held, a second prompt (several lines) queues, or steers,

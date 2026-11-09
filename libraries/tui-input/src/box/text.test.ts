@@ -34,10 +34,11 @@ describe("wrappedRows", () => {
 })
 
 describe("withoutImages", () => {
-  it("takes off the placeholders that lead a box's text, and only those", () => {
+  it("takes off the placeholders of images, where they lead the text or stand among it", () => {
     expect(withoutImages("[Image #1] [Image #2] Compare them")).toBe("Compare them")
     expect(withoutImages("[Image #1][Pasted text #2 +16 lines]")).toBe("[Pasted text #2 +16 lines]")
     expect(withoutImages("[Image #1]")).toBe("")
-    expect(withoutImages("Look at [Image #1]")).toBe("Look at [Image #1]")
+    expect(withoutImages("Look at [Image #1]")).toBe("Look at ")
+    expect(withoutImages("See this: [Image #1] and fix it")).toBe("See this:  and fix it")
   })
 })

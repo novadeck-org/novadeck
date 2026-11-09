@@ -302,6 +302,17 @@ describe("Claude Code's images", () => {
     expect(box.images!.discard(screen)).toBe("\x15")
   })
 
+  it("counts those among the words, which it shows itself, so nothing is typed for them", () => {
+    const screen = screenOf(
+      rule,
+      "❯ See this: [Image #1] and [Image #2]",
+      rule,
+      "  ? for shortcuts",
+    )
+    expect(box.images!.attached(screen)).toBe(2)
+    expect(box.images!.typed).toBeUndefined()
+  })
+
   it("counts none in an empty box", () => {
     expect(box.images!.attached(screenOf(rule, "❯ ", rule, "  ? for shortcuts"))).toBe(0)
   })

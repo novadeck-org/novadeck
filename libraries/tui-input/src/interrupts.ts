@@ -11,7 +11,7 @@ import {
   type BoxProfile,
   type InputBox,
 } from "./box/box.js"
-import { imageCount, leadsWithImages, sameText, withoutImages } from "./box/text.js"
+import { hasImages, imageCount, sameText, withoutImages } from "./box/text.js"
 import type { InputEntry, InputHold } from "./queue.js"
 
 /** The waits of an interrupt, in milliseconds. */
@@ -59,7 +59,7 @@ export type InterruptHost = {
   /** Writes keys to the terminal as they are, with none of that bookkeeping; false once it is gone. */
   readonly write: (terminalId: string, data: string) => boolean
   /**
-   * Whether the images that lead the box's text are all Novadeck's own, files it pasted and
+   * Whether the images in the box's text, wherever they stand, are all Novadeck's own, files it pasted and
    * can give back: only then may the text come out without them. Omitted where none are.
    */
   readonly ownImages?: (terminalId: string, text: string) => boolean
@@ -236,14 +236,14 @@ export class Interrupts {
       // long (probed 2026-10-07); a prompt taller than its box shows only its tail, the box
       // then as tall as it gets.
       const rows = first?.rows.length ?? 0
-      // Images in front of it: the turn's own, a prompt of the chat's, only where they all are;
+      // Images in it, wherever they stand: the turn's own, a prompt of the chat's, only where they all are;
       // ones the person pasted in the terminal are theirs, and the box is left as it is.
-      const lead = leadsWithImages(box.text)
-      const own = lead && host.ownImages?.(terminalId, box.text) === true
+      const marked = hasImages(box.text)
+      const own = marked && host.ownImages?.(terminalId, box.text) === true
       const restored =
         !queued &&
         prompt !== undefined &&
-        (!lead || own) &&
+        (!marked || own) &&
         (sameText(box.text, prompt) ||
           sameText(this.words(terminalId, box.text), prompt) ||
           showsTail(profile, box, rows, prompt))
@@ -363,9 +363,9 @@ export class Interrupts {
     }
   }
 
-  /** The box's text without the images that lead it, where all of them are Novadeck's own. */
+  /** The box's text without its images, where all of them are Novadeck's own. */
   private words(terminalId: string, text: string): string {
-    return leadsWithImages(text) && this.host.ownImages?.(terminalId, text) === true
+    return hasImages(text) && this.host.ownImages?.(terminalId, text) === true
       ? withoutImages(text)
       : text
   }

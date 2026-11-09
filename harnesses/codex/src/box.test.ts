@@ -290,6 +290,12 @@ describe("Codex's box with text that fills its last row", () => {
 })
 
 describe("Codex's images", () => {
+  it("counts those among the words, which it shows itself, so nothing is typed for them", () => {
+    const screen = screenOf("› See this: [Image #1]  and fix it", "")
+    expect(box.images!.attached({ ...screen, cursor: { row: 0, column: 36 } })).toBe(1)
+    expect(box.images!.typed).toBeUndefined()
+  })
+
   it("counts the placeholders its box shows for pasted image paths, ahead of the words", () => {
     const screen = screenOf("› [Image #1] [Image #2] Compare them", "")
     expect(box.images!.attached({ ...screen, cursor: { row: 0, column: 36 } })).toBe(2)

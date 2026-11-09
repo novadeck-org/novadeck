@@ -58,6 +58,71 @@ for (const setup of setups) {
         },
       )
 
+    // The chat's images among the words: the words before one, the image, the words after, so
+    // the model reads where each belongs. Claude Code and Codex show the placeholder at the
+    // image's place themselves; Antigravity shows none, so the runner types it.
+    for (const { what, images, words, at } of [
+      {
+        what: "an image among its words",
+        images: ["one.png"],
+        words: "See this:  and fix it",
+        at: [10],
+      },
+      {
+        what: "two images among its words, the last ending the text",
+        images: ["one.png", "two shot.png"],
+        words: "Compare  with  please ",
+        at: [8, 15],
+      },
+      {
+        what: "an image ahead of the words and another among them",
+        images: ["one.png", "two.png"],
+        words: "Look at  here",
+        at: [0, 8],
+      },
+    ])
+      gated(it, lacking(setup, "image"))(
+        `gives its agent a prompt with ${what}, each where the person put it`,
+        async ({ e2e: run }) => {
+          run.model.use(replies(words.trim().split(/\s+/)[0]!, "Seen."))
+          const t1 = await start(run, setup)
+          const calls = run.model.mark()
+          const mark = t1.mark()
+
+          const settled = await prompted(
+            t1,
+            words,
+            images.map((name) => ({ name, data: picture })),
+            at,
+          )
+          await t1.until("Seen.")
+          await settled()
+          await through(t1, ["working", "settled"], { after: mark })
+
+          // The words and the placeholders in the order they were put, as the model got them
+          // and as the record keeps them, whichever harness's.
+          const pieces = [...at, words.length].map((end, index) =>
+            words.slice(index === 0 ? 0 : at[index - 1], end).trim(),
+          )
+          const placed = new RegExp(
+            pieces
+              .map((piece) => piece.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+"))
+              .join("\\s*\\[Image #\\d+\\]\\s*"),
+          )
+          const call = await run.model.waitFor(
+            (each) =>
+              !each.side && each.turns.some((one) => one.role === "user" && placed.test(one.text)),
+            { after: calls },
+          )
+          const user = call.turns.findLast((one) => one.role === "user" && placed.test(one.text))
+          expect(
+            user?.role === "user" ? (user.images ?? 0) : -1,
+            "the images it passed to the model",
+          ).toBe(images.length)
+          expect(await item(t1, "user", (text) => placed.test(text))).toMatch(placed)
+        },
+      )
+
     it(
       setup.image?.alone === false
         ? "refuses images with no words, writing nothing, where Enter would send none"

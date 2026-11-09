@@ -4,9 +4,11 @@ import { stat } from "node:fs/promises"
 import { followLines } from "@novadeck/harness-core/follow"
 import type { Harness } from "@novadeck/harness-core/harness"
 import { agentLimits, shellCommand, type AgentName, type PromptReceipt } from "@novadeck/protocol"
+import { isPlaced } from "@novadeck/tui-input"
 
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
+import { compactLength } from "./image-marks.js"
 import {
   inBox,
   knownWords,
@@ -17,6 +19,28 @@ import {
 } from "./receipt-match.js"
 
 const log = logs.for("chat")
+
+/**
+ * Where the images of `run`, prompts queued together, stand in the box: for each, how many
+ * characters of the words before it, white space not counted (`splitImages`). A prompt's own
+ * are those it was sent with, after the words of those before it; where none of them had a
+ * place among the words, the box shows all the placeholders ahead of its words, as it does
+ * for each.
+ */
+const placesOf = (run: readonly Entry[]): readonly number[] => {
+  const ahead = !run.some((entry) => entry.at)
+  const places: number[] = []
+  let before = 0
+  for (const entry of run) {
+    for (const [index] of entry.files.entries())
+      places.push(ahead ? 0 : before + compactLength(entry.text.slice(0, entry.at?.[index] ?? 0)))
+    before += compactLength(entry.text)
+  }
+  return places
+}
+
+const samePlaces = (a: readonly number[], b: readonly number[]): boolean =>
+  a.length === b.length && a.every((place, index) => place === b[index])
 
 /** The root session's record a terminal's receipts read, as its binding names it. */
 export type ReceiptSource = {
@@ -91,6 +115,8 @@ type Entry = {
   readonly lines: readonly string[]
   /** The image files it carried, which are in the agent's box as placeholders while it is. */
   readonly files: readonly string[]
+  /** Where each stood in `text` (`agents.prompt`'s `at`); undefined where they all led it. */
+  readonly at?: readonly number[] | undefined
   /** How long the record was as the prompt was given: a line ending past it is new to it. */
   readonly bytes: number
   /**
@@ -209,6 +235,7 @@ export class Receipts {
     text: string,
     ref: string = freshRef(),
     images: readonly string[] = [],
+    at?: readonly number[],
   ): Promise<{ readonly ref: string; readonly tracked: boolean }> {
     this.claim(terminalId, ref)
     const givenAt = this.now()
@@ -243,6 +270,7 @@ export class Receipts {
       text,
       lines,
       files: images,
+      at: isPlaced(at) ? at : undefined,
       bytes,
       since: source ? null : givenAt,
       items: bytes === 0 ? 0 : undefined,
@@ -294,11 +322,17 @@ export class Receipts {
    * its turn starts, and once that turn is stopped takes it out of the conversation, the model
    * never seeing it, so that item is no message that went (see docs/harness-coverage.md).
    */
-  withdraw(terminalId: string, returned: string, since: number, marks = 0): void {
+  withdraw(
+    terminalId: string,
+    returned: string,
+    since: number,
+    marks = 0,
+    places?: readonly number[],
+  ): void {
     const track = this.tracks.get(terminalId)
     if (!track) return
     let changed = false
-    const own = this.ownedBy(terminalId, track, marks, returned, true)
+    const own = this.ownedBy(terminalId, track, marks, returned, true, places)
     for (const entry of track.entries) {
       // One back in the agent's box, too: the Stop took the words out of it.
       const waiting = entry.state === "pending" || entry.state === "in-box"
@@ -320,11 +354,17 @@ export class Receipts {
    * words and nothing else, as one on its way may just say what they hold; `except`, the prompt
    * that took them out, never does.
    */
-  taken(terminalId: string, returned: string, except?: string, marks = 0): void {
+  taken(
+    terminalId: string,
+    returned: string,
+    except?: string,
+    marks = 0,
+    places?: readonly number[],
+  ): void {
     const track = this.tracks.get(terminalId)
     if (!track) return
     let changed = false
-    const own = this.ownedBy(terminalId, track, marks, returned, false)
+    const own = this.ownedBy(terminalId, track, marks, returned, false, places)
     for (const entry of track.entries)
       if (
         entry.ref !== except &&
@@ -344,8 +384,10 @@ export class Receipts {
 
   /**
    * The latest prompts whose images and words are exactly what the box held: `marks`
-   * placeholders leading `words`, as many as the prompts carried, and the words theirs and
-   * nothing else (`knownWords`). The box is theirs only then; one that holds more, a screenshot
+   * placeholders, as many as the prompts carried, each where the prompt had its image
+   * (`places`, from `splitImages`: those of the prompts as sent, or leading `words` where none
+   * had a place of its own, which is also all that is told where `places` is omitted), and the
+   * words theirs and nothing else (`knownWords`). The box is theirs only then; one that holds more, a screenshot
    * the person pasted in the terminal or words they typed, is not, and nothing is given back.
    * The prompts are those in the box (`in-box`), and with `queued`, a Stop's, those still sent
    * and waiting, which the Stop moved into the box, or settled already (Claude Code records a queued message as its turn
@@ -359,6 +401,7 @@ export class Receipts {
     marks: number,
     words: string,
     queued: boolean,
+    places: readonly number[] = Array<number>(Math.max(marks, 0)).fill(0),
   ): readonly Entry[] {
     if (marks <= 0 && !(queued && track.agent === "agy")) return []
     const candidates = track.entries.filter(
@@ -371,10 +414,11 @@ export class Receipts {
     )
     for (let from = candidates.length - 1; from >= 0; from -= 1) {
       const run = candidates.slice(from)
-      // Placeholders lead the words, so the first prompt's come first; Antigravity shows none.
-      if (marks > 0 && run[0]!.files.length === 0) continue
       const images = run.reduce((sum, entry) => sum + entry.files.length, 0)
       if (marks > 0 ? images !== marks : images === 0) continue
+      // Each placeholder where its image was sent (Antigravity shows none, or the words typed
+      // for them, which are no more than the same text in the same places).
+      if (marks > 0 && !samePlaces(places, placesOf(run))) continue
       const speaking = run.filter((entry) => entry.lines.length > 0)
       const exact =
         speaking.length === 0 ? words === "" : knownWords(speaking, words, true) !== undefined
@@ -393,11 +437,41 @@ export class Receipts {
    * The image files, as the client named them, of the prompts the box held exactly (see
    * `ownedBy`); `queued` for a Stop's box.
    */
-  boxFiles(terminalId: string, marks: number, words: string, queued = false): readonly string[] {
+  boxFiles(
+    terminalId: string,
+    marks: number,
+    words: string,
+    queued = false,
+    places?: readonly number[],
+  ): readonly string[] {
+    return this.boxGiven(terminalId, marks, words, queued, places).files
+  }
+
+  /**
+   * What goes back to the client for the images of the prompts the box held exactly (see
+   * `ownedBy`): their files, and, where any stood among the words, the prompts' own text
+   * (as given, the box's words may differ in the white space a harness keeps around a
+   * placeholder) with `at`, where each file stood in it. Prompts queued together are joined by a line break.
+   */
+  boxGiven(
+    terminalId: string,
+    marks: number,
+    words: string,
+    queued = false,
+    places?: readonly number[],
+  ): { readonly files: readonly string[]; readonly text?: string; readonly at?: number[] } {
     const track = this.tracks.get(terminalId)
-    return track
-      ? this.ownedBy(terminalId, track, marks, words, queued).flatMap((entry) => entry.files)
-      : []
+    const own = track ? this.ownedBy(terminalId, track, marks, words, queued, places) : []
+    const files = own.flatMap((entry) => entry.files)
+    if (!own.some((entry) => entry.at)) return { files }
+    const at: number[] = []
+    let text = ""
+    for (const entry of own) {
+      if (entry.text !== "" && text !== "") text += "\n"
+      for (const [index] of entry.files.entries()) at.push(text.length + (entry.at?.[index] ?? 0))
+      text += entry.text
+    }
+    return { files, text, at }
   }
 
   /**

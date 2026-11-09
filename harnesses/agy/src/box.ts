@@ -182,6 +182,11 @@ const images: ProfileImages = {
   },
   // Enter in a box with images and no words does nothing.
   alone: false,
+  // An image pasted among the words shows only in that row, never at its place: the model gets
+  // it attached, with nothing to say where it belongs (probed 2026-11-09, 1.5.2, the
+  // `text, image, text` scenarios of the same probe). The runner types where, as Claude Code and
+  // Codex show it, so the model and the record read `See this: [Image #1] and fix it`.
+  typed: (ordinal) => `[Image #${ordinal}]`,
   // Escape takes them back out at its idle prompt, its bottom row offering the shortcuts (the
   // same probe); a running turn would be stopped by it, and Backspace, Ctrl-U and Ctrl-C left them.
   discard: (screen) => {

@@ -112,9 +112,14 @@ export type DeckTerminal = {
    * Gives its agent a prompt as the chat does, `agents.prompt`: pasted into its box, and
    * Enter once it shows; resolves once that Enter is out, with the ref of its receipt in
    * `detail` and whether one follows, and rejects as the call would. Given `images`, they
-   * are saved on the runner and pasted ahead of the text, as the chat sends them.
+   * are saved on the runner and pasted ahead of the text, as the chat sends them, or with
+   * `at`, each at its offset in the text.
    */
-  readonly prompt: (text: string, images?: readonly DeckImage[]) => Promise<Prompted>
+  readonly prompt: (
+    text: string,
+    images?: readonly DeckImage[],
+    at?: readonly number[],
+  ) => Promise<Prompted>
   /** Presses Escape in its agent as the chat does, `agents.interrupt`. */
   readonly interrupt: () => Promise<InterruptResult>
   /**
@@ -813,7 +818,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
             messaging: { personPrompt: (id: string) => string | undefined }
           }
         ).messaging.personPrompt(id),
-      prompt: async (text, images = []) => {
+      prompt: async (text, images = [], at) => {
         prompted = undefined
         // Without images it joins the terminal's input queue in this same tick, as the router's
         // does: prompts given at once keep their order.
@@ -831,6 +836,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
           along: true,
           images: checked,
           files: paths,
+          ...(at && { at }),
         })
       },
       interrupt: async () => {
