@@ -320,8 +320,8 @@ export const createTypist = (
       timing.calmMs,
     )
     // Facts alone, as the doorbell's line holds, never what the screen shows: where the cursor
-    // stood against the screen's size and whether it lay between the two lowest rules, as a box
-    // the cursor isn't in reads as none.
+    // stood against the screen's size and whether it lay inside the rules `ruledBox` would read
+    // a box between, as a box the cursor isn't in reads as none.
     const shown = inputBox === false ? `, ${cursorFact(screen)}` : ""
     trace(
       `gate ${verdict} (foreground ${String(foreground)}, input box ${String(inputBox)}, bracketed paste ${screen.bracketedPaste}${shown})`,
