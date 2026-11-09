@@ -3,6 +3,7 @@ import { page, userEvent } from "vitest/browser"
 
 import { desktopWindow } from "../support/backend"
 import { preferencesDialog } from "../support/keyboard"
+import { pressableToasts } from "../support/toasts"
 import { appearsAt, expectStaysAbsent, openWorkspace, sidebarPanel } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
@@ -44,6 +45,8 @@ const nothingToasts = (): Promise<void> =>
   expectStaysAbsent({ shown: () => toasts().length > 0, name: "a toast" }, { ms: 5_000 })
 
 describe("The Inbox's toasts", () => {
+  pressableToasts()
+
   context("while the app has the person's focus", () => {
     it("rings a new entry that needs them after a grace, and sends no OS notice", async () => {
       await open()

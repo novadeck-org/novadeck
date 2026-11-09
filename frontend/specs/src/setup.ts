@@ -2,6 +2,8 @@ import { applyAppearance } from "@novadeck/ui/theme/apply"
 import { beforeEach } from "vitest"
 import { page, server } from "vitest/browser"
 
+import { toastsPassThrough } from "./support/toasts"
+
 import "@novadeck/ui/styles.css"
 
 applyAppearance(document.documentElement, { theme: "coolant", scheme: "light" })
@@ -29,4 +31,6 @@ beforeEach(async () => {
   localStorage.clear()
   sessionStorage.clear()
   window.history.replaceState(null, "", "/")
+  // Toasts that land mid-spec don't take its presses (support/toasts.tsx).
+  toastsPassThrough()
 })

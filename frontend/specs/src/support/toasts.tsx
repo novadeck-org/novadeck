@@ -1,5 +1,28 @@
-import { expect } from "vitest"
+import { beforeEach, expect } from "vitest"
 import { userEvent, type Locator } from "vitest/browser"
+
+const passThroughId = "specs-toasts-pass-through"
+
+/**
+ * Makes the toasts let the pointer through to what is under them, for every spec (the setup
+ * file calls it before each one). The demo raises toasts of its own a moment after it opens,
+ * and they stand 30 s over the header's right end and the windows' heads, so a spec's click
+ * or hover there, on whatever it was about, timed out on a loaded runner whenever one landed
+ * first (`.toast-layer … intercepts pointer events`, #784). They still show, read and take
+ * the keyboard; a spec about pressing them asks for that with `pressableToasts`.
+ */
+export const toastsPassThrough = (): void => {
+  if (document.getElementById(passThroughId)) return
+  const style = document.createElement("style")
+  style.id = passThroughId
+  style.textContent = ".toast-layer, .toast-layer * { pointer-events: none !important; }"
+  document.head.append(style)
+}
+
+/** For the specs of a file or block about pressing toasts: they take the pointer, as in the app. */
+export const pressableToasts = (): void => {
+  beforeEach(() => document.getElementById(passThroughId)?.remove())
+}
 
 // The toasts standing, the front one first, those leaving left out.
 const standing = (): HTMLElement[] =>

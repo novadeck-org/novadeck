@@ -3,6 +3,7 @@ import { page, userEvent } from "vitest/browser"
 import { agentShowsPage } from "../support/backend"
 import { boxOf, canvasView, scrollCanvas, settled } from "../support/canvas"
 import { companionPane, openShowcase, taskbarIcon } from "../support/companions"
+import { pressableToasts } from "../support/toasts"
 import {
   chooseView,
   expectStaysAbsent,
@@ -79,6 +80,8 @@ describe("Canvas zoomed in on a window", () => {
 })
 
 describe("Canvas with a pane an agent opens beside a window that is not on top", () => {
+  // Its toast is pressed.
+  pressableToasts()
   const node = (name: string): HTMLElement =>
     terminal(name).element().closest<HTMLElement>(".react-flow__node")!
   const layer = (name: string): number => Number(getComputedStyle(node(name)).zIndex)
