@@ -135,6 +135,23 @@ export const queuedPrompt = (
   return { text, at: queued.timestamp ?? fields.timestamp }
 }
 
+// A background task's notice a `queued_command` attachment carries (origin `task-notification`),
+// and when it came.
+const queuedNotice = (
+  fields: Record<string, unknown>,
+): { readonly text: string; readonly at: unknown } | undefined => {
+  const queued = (fields.attachment ?? {}) as Record<string, unknown>
+  const { origin, prompt } = queued
+  if (
+    queued.type !== "queued_command" ||
+    (origin as { kind?: unknown } | undefined)?.kind !== "task-notification" ||
+    typeof prompt !== "string" ||
+    !taskNotification.test(prompt)
+  )
+    return undefined
+  return { text: prompt, at: queued.timestamp ?? fields.timestamp }
+}
+
 const tagged = (text: string, tag: string): string | undefined =>
   new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`).exec(text)?.[1]?.trim()
 
@@ -232,6 +249,10 @@ export const transcripts: TranscriptDecoder = {
     }
     if (fields.type === "permission-mode") return modeNote(fields.permissionMode, null)
     if (fields.type === "attachment") {
+      // A task's notice that came while a turn ran is queued the same way, and is most often
+      // how a background subagent's report arrives (2.1.319): it is that call's result.
+      const notice = queuedNotice(fields)
+      if (notice) return notified(notice.text, at(notice.at))
       const queued = queuedPrompt(fields)
       return queued ? textItems("user", queued.text, at(queued.at), fields) : []
     }

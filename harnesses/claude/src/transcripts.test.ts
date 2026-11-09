@@ -187,6 +187,40 @@ describe("Claude Code's transcript records", () => {
     expect(notice?.call).toBe(launched?.call)
   })
 
+  it("read a subagent's task notice queued into a running turn as its report", () => {
+    // As 2.1.319 writes it most often: an attachment, not a turn of the person's.
+    const [launched, notice] = items([
+      {
+        type: "user",
+        message: {
+          content: [
+            { type: "tool_result", tool_use_id: "toolu_Q", content: "Async agent launched" },
+          ],
+        },
+        toolUseResult: { isAsync: true, status: "async_launched", agentId: "a2" },
+      },
+      {
+        type: "attachment",
+        timestamp: "2026-11-09T13:47:27.742Z",
+        attachment: {
+          type: "queued_command",
+          commandMode: "task-notification",
+          origin: { kind: "task-notification", producer: "session-task" },
+          timestamp: "2026-11-09T13:47:27.742Z",
+          prompt:
+            '<task-notification>\n<task-id>a2</task-id>\n<tool-use-id>toolu_Q</tool-use-id>\n<status>completed</status>\n<summary>Agent "Runner tracking" finished</summary>\n<result>Done: three files changed.</result>\n</task-notification>',
+        },
+      },
+    ])
+    expect(launched).toMatchObject({ kind: "tool-result", outcome: { running: true } })
+    expect(notice).toMatchObject({
+      kind: "tool-result",
+      call: launched?.call,
+      text: "Done: three files changed.",
+      outcome: { running: false, failed: false },
+    })
+  })
+
   it("leave a background command's task notice out", () => {
     expect(
       items([
