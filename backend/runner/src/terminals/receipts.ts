@@ -116,7 +116,7 @@ type Entry = {
   /** The image files it carried, which are in the agent's box as placeholders while it is. */
   readonly files: readonly string[]
   /** Where each stood in `text` (`agents.prompt`'s `at`); undefined where they all led it. */
-  readonly at?: readonly number[] | undefined
+  at?: readonly number[] | undefined
   /** How long the record was as the prompt was given: a line ending past it is new to it. */
   readonly bytes: number
   /**
@@ -491,6 +491,15 @@ export class Receipts {
   known(terminalId: string, text: string): string | undefined {
     const back = this.tracks.get(terminalId)?.entries.filter((entry) => entry.state === "in-box")
     return back && knownWords(back, text)
+  }
+
+  /**
+   * The prompt's images went in ahead of its words, not at the places it asked for (a run of
+   * words the agent would show as a placeholder): they are owned as leading ones.
+   */
+  unplaced(terminalId: string, ref: string): void {
+    const entry = this.tracks.get(terminalId)?.entries.find((each) => each.ref === ref)
+    if (entry) entry.at = undefined
   }
 
   /**

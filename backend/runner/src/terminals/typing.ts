@@ -308,6 +308,11 @@ export class Typing {
           ),
         images.map(imagePaste),
         at,
+        () =>
+          void following.then(
+            () => this.receipts.unplaced(terminalId, claimed),
+            () => undefined,
+          ),
       )
       returned = given?.returned ?? null
       went = given?.along

@@ -1039,10 +1039,11 @@ one from an earlier runner.
   record then read the same, and a prompt with its images all ahead of the words (`at` absent
   or all 0) types nothing. The refusals judge the whole text as before, and also each run of
   words before an image: one ending in an `@name` or `$name` that a space doesn't close (the
-  image's path would be pasted into an open picker) is `PROMPT_REFUSED`; so is a run of words
-  that a harness would show as a placeholder (Claude Code over three lines or about 900
-  characters, Codex over 1,024, Antigravity over 15 lines), which the box could not be
-  checked against. A failure takes back what landed, the words ahead of an image too. The
+  image's path would be pasted into an open picker) is `PROMPT_REFUSED`. A run of words that a
+  harness would show as a placeholder (Claude Code over three lines or about 900 characters,
+  Codex over 1,024, Antigravity over 15 lines) can't be checked in the box, so the prompt goes as
+  if `at` were absent: every image first, then the words, nothing typed for Antigravity, the
+  receipt and a later Stop treating it as a leading one; only the placement is lost. A failure takes back what landed, the words ahead of an image too. The
   receipt settles on a record item that holds the prompt's words whatever the placeholders and
   their spacing are.
 

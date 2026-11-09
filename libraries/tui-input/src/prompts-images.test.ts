@@ -349,21 +349,32 @@ describe("a prompt with images among its words", () => {
     expect(written).toEqual([])
   })
 
-  it("refuses a run of words the program would show as a placeholder, writing nothing", async () => {
-    const { prompts, written } = terminal("inline", { collapsesAt: 10 })
-    expect(
-      await reason(
-        prompts.prompt(
-          "t",
-          "A long run of words then more",
-          "alone",
-          undefined,
-          ["/up/a/one.png"],
-          [20],
-        ),
-      ),
-    ).toBe("refused")
-    expect(written).toEqual([])
+  it("sends images first, as without places, where a run of words would show as a placeholder", async () => {
+    const { prompts, written, sent } = terminal("media", { collapsesAt: 10, typed: true })
+    let told = 0
+    await prompts.prompt(
+      "t",
+      "A long run of words then more",
+      "alone",
+      undefined,
+      ["/up/a/one.png"],
+      [20],
+      () => (told += 1),
+    )
+    expect(told).toBe(1)
+    expect(written).toEqual([
+      "\x1b[200~/up/a/one.png\x1b[201~",
+      "\x1b[200~ A long run of words then more\x1b[201~",
+      "\r",
+    ])
+    expect(sent).toEqual([{ words: " A long run of words then more", images: 1 }])
+  })
+
+  it("does not tell of places given up where every run shows whole", async () => {
+    const { prompts } = terminal("inline", { collapsesAt: 100 })
+    let told = 0
+    await prompts.prompt("t", see, "alone", undefined, ["/up/a/one.png"], [10], () => (told += 1))
+    expect(told).toBe(0)
   })
 
   it("takes back the words and images that landed when an image never shows", async () => {

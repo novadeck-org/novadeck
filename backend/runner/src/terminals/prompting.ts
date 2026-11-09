@@ -189,11 +189,12 @@ export class Prompts extends Prompter {
     joined?: () => void,
     images?: readonly string[],
     at?: readonly number[],
+    unplaced?: () => void,
   ): Promise<PromptGiven> {
     return await asDomain(
       (async () => {
         if (images && at) imageRefusal(text, images.length, at)
-        return await super.prompt(terminalId, text, mode, joined, images, at)
+        return await super.prompt(terminalId, text, mode, joined, images, at, unplaced)
       })(),
     )
   }

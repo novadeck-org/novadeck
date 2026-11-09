@@ -292,8 +292,10 @@ export class Prompts {
    * With `at`, an offset into `text` for each image (see `placedWords`), those past the start of
    * the text go where they stand among its words: the words before, the image, the words after,
    * each a paste of its own, and the program's own placeholder where it shows one, or what its
-   * profile types (`ProfileImages.typed`) where it shows none. No run of words may be one the
-   * program shows as a placeholder, as the box could not be checked against it.
+   * profile types (`ProfileImages.typed`) where it shows none. Where a run of words is one the
+   * program shows as a placeholder, the box could not be checked against it: the prompt goes
+   * as if `at` were absent (all images first, nothing typed for them), and `unplaced` is told
+   * before any key.
    */
   async prompt(
     terminalId: string,
@@ -302,12 +304,13 @@ export class Prompts {
     joined?: () => void,
     images: readonly string[] = [],
     at?: readonly number[],
+    unplaced?: () => void,
   ): Promise<PromptGiven> {
     this.refuse(text, images.length > 0)
     if (at !== undefined && !placesFit(text, images.length, at))
       throw new PromptRefusal("refused", "Each image needs a place in the text, in order.")
     return await this.queue.run(terminalId, (entry) =>
-      this.give(entry, terminalId, text, mode, joined, images, at),
+      this.give(entry, terminalId, text, mode, joined, images, at, unplaced),
     )
   }
 
@@ -344,6 +347,7 @@ export class Prompts {
     joined?: () => void,
     images: readonly string[] = [],
     at?: readonly number[],
+    unplaced?: () => void,
   ): Promise<PromptGiven> {
     // A message's edges are no part of it, and no TUI shows them: the cursor of a trailing
     // line break would sit below its box.
@@ -364,6 +368,7 @@ export class Prompts {
           joined,
           images,
           runs,
+          unplaced,
         )
       : await this.send(entry, terminalId, command, true, mode, joined)
   }
@@ -377,8 +382,10 @@ export class Prompts {
     mode: PromptMode,
     joined: (() => void) | undefined,
     images: readonly string[] = [],
-    runs?: readonly string[],
+    placed?: readonly string[],
+    unplaced?: () => void,
   ): Promise<PromptGiven> {
+    let runs = placed
     await this.ringDone(terminalId)
     const profile = this.host.admit(terminalId)
     if (images.length > 0) {
@@ -389,12 +396,12 @@ export class Prompts {
           "refused",
           "This program sends nothing for images alone: they need words with them.",
         )
-      // A run it shows as a placeholder is no text to check the box against, among images.
-      if (runs?.some((run) => profile.collapses(run)))
-        throw new PromptRefusal(
-          "refused",
-          "A run of words between images is too long for the agent's input box to show whole: it would show a placeholder for it.",
-        )
+      // A run it shows as a placeholder is no text to check the box against, among images:
+      // the images go first, as when they have no places, and the caller is told.
+      if (runs?.some((run) => profile.collapses(run))) {
+        runs = undefined
+        unplaced?.()
+      }
     }
     // A command as its TUI's shell mode runs it the way sh runs what was written; one its
     // shell can't run as written means is refused before any key.

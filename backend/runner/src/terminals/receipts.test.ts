@@ -840,4 +840,11 @@ describe("prompt receipts with images among the words", () => {
     expect(receipts.boxGiven(terminal, 0, `${text} and more`, true).files).toEqual([])
     expect(receipts.boxGiven(terminal, 1, text, true, [3]).files).toEqual([])
   })
+
+  it("owns a prompt whose places were given up as a leading one", async ({ resources }) => {
+    const { receipts } = await inline(resources)
+    receipts.unplaced(terminal, "r1")
+    expect(receipts.boxGiven(terminal, 1, text, true, [0])).toEqual({ files: photo })
+    expect(receipts.boxGiven(terminal, 1, text, true, [8]).files).toEqual([])
+  })
 })

@@ -123,6 +123,41 @@ for (const setup of setups) {
         },
       )
 
+    // Twenty lines of words, then the image, then words: every harness would show them as a
+    // placeholder, which the box can't be checked against, so the image goes first as if it had
+    // no place, and the prompt is sent all the same.
+    gated(it, lacking(setup, "image"))(
+      "sends a prompt whose words before an image are too long to paste whole, with the image ahead",
+      async ({ e2e: run }) => {
+        const before = Array.from({ length: 20 }, (_, i) => `line${i + 1}`).join("\n")
+        run.model.use(replies("line1", "Seen."))
+        const t1 = await start(run, setup)
+        const calls = run.model.mark()
+        const mark = t1.mark()
+        const words = `${before}\nthen this: and that`
+        const settled = await prompted(
+          t1,
+          words,
+          [{ name: "one.png", data: picture }],
+          [before.length + 11],
+        )
+        await t1.until("Seen.")
+        await settled()
+        await through(t1, ["working", "settled"], { after: mark })
+        const call = await run.model.waitFor(
+          (each) =>
+            !each.side &&
+            each.turns.some((one) => one.role === "user" && one.text.includes("line20")),
+          { after: calls },
+        )
+        const user = call.turns.findLast(
+          (one) => one.role === "user" && one.text.includes("line20"),
+        )
+        expect(user?.role === "user" ? (user.images ?? 0) : -1).toBe(1)
+        expect(user?.text).toContain("line19\nline20")
+      },
+    )
+
     it(
       setup.image?.alone === false
         ? "refuses images with no words, writing nothing, where Enter would send none"
