@@ -66,6 +66,25 @@ const scenarios: readonly Scenario[] = [
       ["backspace again", "\x7f"],
     ],
   },
+  // The clear keys with words in the box beside the image (a failed prompt with images among its
+  // words must leave the box as it found it): which take the words, which the attachment?
+  {
+    name: "text and image, clear keys",
+    steps: [() => "See this: ", one, () => "[Image #1] and more"],
+    after: [
+      ["escape", "\x1b"],
+      ["ctrl-u", "\x15"],
+      ["escape again", "\x1b"],
+    ],
+  },
+  {
+    name: "text and image, ctrl-u first",
+    steps: [() => "See this: ", one],
+    after: [
+      ["ctrl-u", "\x15"],
+      ["escape", "\x1b"],
+    ],
+  },
   { name: "spaced raw", steps: [spaced] },
   { name: "spaced escaped", steps: [(project) => spaced(project).replaceAll(" ", "\\ ")] },
   { name: "spaced quoted", steps: [(project) => `"${spaced(project)}"`] },

@@ -34,6 +34,10 @@ const terminal = (
     typed?: boolean
     /** A run of words longer than this shows as a placeholder, as a long paste does. */
     collapsesAt?: number
+    /** Whether a line break leading a paste is an Enter, as in Codex on Windows. */
+    asKeys?: boolean
+    /** Whether the keys for its images are offered at an empty box only, as Antigravity's are. */
+    idleOnly?: boolean
   } = {},
 ) => {
   let words = options.draft ?? ""
@@ -62,6 +66,7 @@ const terminal = (
     shell: { expands: true, starts: false, footer: () => false },
     queued: () => false,
     overlay: () => false,
+    ...(options.asKeys && { pastesAsKeys: () => true }),
     collapses: (text) => text.length > (options.collapsesAt ?? Infinity),
     room: (rows) => rows - 3,
     ...(!options.bare && {
@@ -73,7 +78,8 @@ const terminal = (
                   screen.rows.map((row) => /^▸ (\d+) media/.exec(row)?.[1]).find(Boolean) ?? 0,
                 ),
               alone: options.alone ?? false,
-              discard: () => "\x1b",
+              discard: (screen) =>
+                options.idleOnly && !screen.rows.some((row) => row === "> ") ? undefined : "\x1b",
               ...(options.typed && { typed: (ordinal: number) => `[Image #${ordinal}]` }),
             }
           : {
@@ -377,6 +383,44 @@ describe("a prompt with images among its words", () => {
     expect(told).toBe(0)
   })
 
+  it("empties a box that offers the keys for its images only when empty, words first", async () => {
+    const { prompts, written, sent } = terminal("media", { waitMs: 150, idleOnly: true })
+    expect(
+      await reason(
+        prompts.prompt(
+          "t",
+          "Look  here",
+          "alone",
+          undefined,
+          ["/up/a/one.png", "/up/b/no.txt"],
+          [5, 5],
+        ),
+      ),
+    ).toBe("image-not-shown")
+    expect(written.slice(-2)).toEqual(["\x15", "\x1b"])
+    expect(sent).toEqual([])
+  })
+
+  it("sends images first where a line break leading a run would be an Enter", async () => {
+    const { prompts, written } = terminal("inline", { asKeys: true })
+    let told = 0
+    await prompts.prompt(
+      "t",
+      "See this:\nand\nfix it",
+      "alone",
+      undefined,
+      ["/up/a/one.png"],
+      [9],
+      () => (told += 1),
+    )
+    expect(told).toBe(1)
+    expect(written[0]).toBe("\x1b[200~/up/a/one.png\x1b[201~")
+    // One line, or a long first one, goes among the words as before.
+    const whole = terminal("inline", { asKeys: true })
+    await whole.prompts.prompt("t", see, "alone", undefined, ["/up/a/one.png"], [10])
+    expect(whole.written[0]).toBe("\x1b[200~See this: \x1b[201~")
+  })
+
   it("takes back the words and images that landed when an image never shows", async () => {
     const { prompts, written, sent } = terminal("text", { waitMs: 150 })
     expect(
@@ -385,6 +429,7 @@ describe("a prompt with images among its words", () => {
     expect(written).toEqual([
       "\x1b[200~See this: \x1b[201~",
       "\x1b[200~/up/a/one.png\x1b[201~",
+      "\x15",
       "\x15",
     ])
     expect(sent).toEqual([])
@@ -404,7 +449,7 @@ describe("a prompt with images among its words", () => {
         ),
       ),
     ).toBe("image-not-shown")
-    expect(written.slice(-2)).toEqual(["\x1b", "\x15"])
+    expect(written.slice(-2)).toEqual(["\x15", "\x1b"])
     expect(sent).toEqual([])
   })
 })

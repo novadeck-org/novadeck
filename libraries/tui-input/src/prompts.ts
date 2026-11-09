@@ -398,7 +398,9 @@ export class Prompts {
         )
       // A run it shows as a placeholder is no text to check the box against, among images:
       // the images go first, as when they have no places, and the caller is told.
-      if (runs?.some((run) => profile.collapses(run))) {
+      // A run a program that reads pastes as keys would take for an Enter (`pastesWhole`) can't
+      // be pasted among the words either.
+      if (runs?.some((run) => profile.collapses(run) || !pastesWhole(profile, run))) {
         runs = undefined
         unplaced?.()
       }
@@ -648,7 +650,18 @@ export class Prompts {
     wrote = false,
   ): Promise<boolean> {
     try {
-      const now = await this.host.screen(terminalId)
+      let now = await this.host.screen(terminalId)
+      // The words that went in ahead of the images are the prompt's too, and come out first: a
+      // program that shows its shortcuts only at an empty box (Antigravity) offers the keys for
+      // the images then, and one whose placeholders sit among the words takes those out with them.
+      const box = wrote && now ? profile.read(now) : undefined
+      if (box && !isEmpty(box)) {
+        now = await this.keyed(terminalId, eraseRows(box), holding, (after) => {
+          const left = profile.read(after)
+          return left !== undefined && isEmpty(left)
+        })
+        if (!now) return false
+      }
       const keys = now && profile.images?.discard(now)
       if (!keys) return false
       const cleared = await this.keyed(
@@ -657,17 +670,7 @@ export class Prompts {
         holding,
         (after) => (profile.images?.attached(after) ?? 0) === 0,
       )
-      if (cleared === undefined) return false
-      // The words that went in ahead of the images are the prompt's too: out with them, where
-      // the keys for the images left them (a program whose placeholders sit among the words
-      // took them out with those).
-      const box = wrote ? profile.read(cleared) : undefined
-      if (!box || isEmpty(box)) return true
-      const erased = await this.keyed(terminalId, eraseRows(box), holding, (after) => {
-        const left = profile.read(after)
-        return left !== undefined && isEmpty(left)
-      })
-      return erased !== undefined
+      return cleared !== undefined
     } catch {
       return false
     }

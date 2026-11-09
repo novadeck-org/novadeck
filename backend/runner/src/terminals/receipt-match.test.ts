@@ -221,6 +221,20 @@ describe("a prompt with images", () => {
     expect(settledBy(two, "first [Image #1]\nsecond [Image #2] here")).toEqual(["a", "b"])
   })
 
+  it("is in the box by its words with a placeholder among them", () => {
+    expect(inBox("See this: [Image #1] and fix it", ["See this:  and fix it"], 1)).toBe(true)
+    expect(inBox("See this: [Image #1]  and fix it", ["See this:  and fix it"], 1)).toBe(true)
+    expect(inBox("See this: [Image #1] and fix", ["See this:  and fix it"], 1)).toBe(false)
+  })
+
+  it("is settled where the person left no space around its image, a harness keeping its own", () => {
+    const tight = withImages(1, "see this:, ok")
+    expect(settledBy(tight, "see this:[Image #1], ok")).toEqual(["r0"])
+    // Codex puts a space after the placeholder.
+    expect(settledBy(tight, "see this:[Image #1] , ok")).toEqual(["r0"])
+    expect(settledBy(tight, "see this:[Image #1] , ok then")).toEqual([])
+  })
+
   it("is in the box as many placeholders as it carried, or by its words", () => {
     expect(inBox("[Image #1] [Image #2]", [], 2)).toBe(true)
     expect(inBox("[Image #1]", [], 2)).toBe(false)

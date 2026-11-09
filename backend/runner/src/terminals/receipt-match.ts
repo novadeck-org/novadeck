@@ -63,8 +63,12 @@ const imageMarks = (text: string): { readonly count: number; readonly rest: stri
   rest: text.replace(mark, ""),
 })
 
-/** A line with each run of white space as one space: a harness keeps a space of its own beside a placeholder. */
-const spaced = (line: string): string => line.trim().replace(/\s+/g, " ")
+/**
+ * A line without its white space: a harness keeps a space of its own beside a placeholder
+ * (Codex adds one after it), and a person may have none around it, so what spaces stood near
+ * where a placeholder was can't be told from what a harness added.
+ */
+const spaced = (line: string): string => line.replace(/\s+/g, "")
 
 /**
  * A prompt still waiting for its record: its ref, its lines (`promptLines`), `Receipts.joined`,
@@ -136,9 +140,11 @@ const compact = (text: string): string => text.replace(/\s+/g, "")
  */
 export const inBox = (box: string, lines: readonly string[], images = 0): boolean => {
   const words = compact(lines.join(""))
+  // A prompt with images has their placeholders in the box, among the words or ahead of them.
+  const shown = images > 0 ? box.replace(mark, "") : box
   // Images alone are there when the box holds that many placeholders.
   if (words === "") return images > 0 && (box.match(/\[Image #\d+\]/g)?.length ?? 0) >= images
-  return compact(box).includes(words)
+  return compact(shown).includes(words)
 }
 
 /** A prompt whose words may be in the box: as given, and its lines (`promptLines`). */

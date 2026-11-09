@@ -189,6 +189,9 @@ const images: ProfileImages = {
   typed: (ordinal) => `[Image #${ordinal}]`,
   // Escape takes them back out at its idle prompt, its bottom row offering the shortcuts (the
   // same probe); a running turn would be stopped by it, and Backspace, Ctrl-U and Ctrl-C left them.
+  // That row is gone while the box holds words (probed 2026-11-09, 1.5.2, `text and image, clear
+  // keys`: Escape took the attachment with words in the box, Ctrl-U took only the words), so the
+  // words come out first, which brings it back.
   discard: (screen) => {
     const last = screen.rows.findLast((row) => row.trim() !== "")
     return last !== undefined && /^\? for shortcuts(\s|$)/.test(last.trim()) ? "\x1b" : undefined
