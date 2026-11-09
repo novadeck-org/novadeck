@@ -232,6 +232,12 @@ export type ProfileImages = {
    * undefined where none are safe on it (a key that would stop a turn that runs).
    */
   readonly discard: (screen: ScreenText) => string | undefined
+  /**
+   * The words to type where the image's `ordinal`th (from 1) stands among a prompt's words,
+   * for a program that shows no placeholder of its own there: the model reads the image's
+   * place from them. Omitted where the program shows a placeholder at the image's place.
+   */
+  readonly typed?: (ordinal: number) => string
 }
 
 /**

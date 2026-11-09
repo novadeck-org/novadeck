@@ -3,6 +3,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 import type { ScreenText } from "@novadeck/emulator/headless"
 
 import {
+  eraseRows,
   fillsViewport,
   isEmpty,
   pastesWhole,
@@ -13,6 +14,7 @@ import {
 import { cursorEnded, pressKeys, type BoxKeysHost } from "./box/keys.js"
 import { leftoverOf } from "./box/leftover.js"
 import { endsText, sameText, unwrapped, wentFrom, withoutImages, wrappedRows } from "./box/text.js"
+import { isPlaced, placedWords, placesFit } from "./places.js"
 import type { HoldBudget, InputEntry, InputQueue } from "./queue.js"
 import { bracketedPaste, pasteable } from "./typing.js"
 
@@ -287,6 +289,13 @@ export class Prompts {
    * before the next goes in, within `pasteMs`, or the prompt fails as `image-not-shown`. The
    * box must be empty (`mode` is no use with them), and a shell command takes none; the text
    * may be empty where the program submits with only images. The text follows on the same line.
+   * With `at`, an offset into `text` for each image (see `placedWords`), those past the start of
+   * the text go where they stand among its words: the words before, the image, the words after,
+   * each a paste of its own, and the program's own placeholder where it shows one, or what its
+   * profile types (`ProfileImages.typed`) where it shows none. Where a run of words is one the
+   * program shows as a placeholder, the box could not be checked against it: the prompt goes
+   * as if `at` were absent (all images first, nothing typed for them), and `unplaced` is told
+   * before any key.
    */
   async prompt(
     terminalId: string,
@@ -294,10 +303,14 @@ export class Prompts {
     mode: PromptMode = "alone",
     joined?: () => void,
     images: readonly string[] = [],
+    at?: readonly number[],
+    unplaced?: () => void,
   ): Promise<PromptGiven> {
     this.refuse(text, images.length > 0)
+    if (at !== undefined && !placesFit(text, images.length, at))
+      throw new PromptRefusal("refused", "Each image needs a place in the text, in order.")
     return await this.queue.run(terminalId, (entry) =>
-      this.give(entry, terminalId, text, mode, joined, images),
+      this.give(entry, terminalId, text, mode, joined, images, at, unplaced),
     )
   }
 
@@ -333,6 +346,8 @@ export class Prompts {
     mode: PromptMode = "alone",
     joined?: () => void,
     images: readonly string[] = [],
+    at?: readonly number[],
+    unplaced?: () => void,
   ): Promise<PromptGiven> {
     // A message's edges are no part of it, and no TUI shows them: the cursor of a trailing
     // line break would sit below its box.
@@ -341,8 +356,20 @@ export class Prompts {
       throw new PromptRefusal("refused", "A shell command takes no images.")
     // Beside a draft the images would land in the middle of it: they go into an empty box only.
     const taking = images.length > 0 ? "alone" : mode
+    // Its images among the words: the runs of words between them, which the edges' trim reaches.
+    const runs = images.length > 0 && isPlaced(at) ? placedWords(text, at) : undefined
     return command === undefined
-      ? await this.send(entry, terminalId, normalised(text).trim(), false, taking, joined, images)
+      ? await this.send(
+          entry,
+          terminalId,
+          runs ? runs.join("") : normalised(text).trim(),
+          false,
+          taking,
+          joined,
+          images,
+          runs,
+          unplaced,
+        )
       : await this.send(entry, terminalId, command, true, mode, joined)
   }
 
@@ -355,7 +382,10 @@ export class Prompts {
     mode: PromptMode,
     joined: (() => void) | undefined,
     images: readonly string[] = [],
+    placed?: readonly string[],
+    unplaced?: () => void,
   ): Promise<PromptGiven> {
+    let runs = placed
     await this.ringDone(terminalId)
     const profile = this.host.admit(terminalId)
     if (images.length > 0) {
@@ -366,6 +396,18 @@ export class Prompts {
           "refused",
           "This program sends nothing for images alone: they need words with them.",
         )
+      // A run it shows as a placeholder is no text to check the box against, among images:
+      // the images go first, as when they have no places, and the caller is told.
+      // A program that reads pastes as keys (Codex on Windows) takes a path pasted after words as
+      // text, not as an image, so none can go among them; and a run it would take for an Enter
+      // (`pastesWhole`) can't be pasted either.
+      if (
+        runs?.some((run) => profile.collapses(run) || !pastesWhole(profile, run)) ||
+        (runs && profile.pastesAsKeys?.() === true)
+      ) {
+        runs = undefined
+        unplaced?.()
+      }
     }
     // A command as its TUI's shell mode runs it the way sh runs what was written; one its
     // shell can't run as written means is refused before any key.
@@ -390,6 +432,8 @@ export class Prompts {
     let along: string | undefined
     // How many images the box showed so far, which a failure takes back out.
     let attached = 0
+    // Whether some of the words went in ahead of an image, which a failure takes out with them.
+    let wrote = false
     let textTyped = false
     const taken = (error: unknown): unknown => {
       if (error instanceof PromptRefusal) this.host.refused?.(terminalId, error.reason)
@@ -433,8 +477,23 @@ export class Prompts {
       // as ours and taken back with ours.
       if (images.length > 0 && (profile.images?.attached(before) ?? 0) > 0) throw this.draft()
       // Each image is a paste of its own, as a program reads a path pasted alone as an image;
-      // it must show as one before the next goes in, or the paths would run together.
-      for (const image of images) {
+      // it must show as one before the next goes in, or the paths would run together. Among
+      // words, the run before each goes in first, and the last after the last image.
+      // After images that lead, the words go on their line; a space keeps their first word apart
+      // from the last placeholder, as the record then holds it (see `Receipts.joined`).
+      let ahead = true
+      const runPaste = (index: number): string => {
+        const run = runs?.[index] ?? ""
+        const lead = ahead && index > 0 && run !== ""
+        if (run !== "") ahead = false
+        return lead ? ` ${run}` : run
+      }
+      for (const [index, image] of images.entries()) {
+        const run = runPaste(index)
+        if (run !== "") {
+          if (!this.host.type(terminalId, bracketedPaste(inPaste(run)))) throw this.notShown()
+          wrote = true
+        }
         if (!this.host.type(terminalId, bracketedPaste(image))) throw this.notShown()
         // Counted as soon as written: a path that showed late is still in the box.
         attached += 1
@@ -442,6 +501,9 @@ export class Prompts {
         if (!(await this.imageShown(terminalId, profile, attached, hold.holding)))
           throw new PromptRefusal("image-not-shown", "The program did not show an image.")
         this.host.admit(terminalId)
+        // A program with no placeholder of its own is told where the image stands, in words.
+        const marked = runs && profile.images?.typed?.(index + 1)
+        if (marked && !this.host.type(terminalId, bracketedPaste(marked))) throw this.notShown()
       }
       if (shell) {
         // The `!` as a key: pasted whole, some TUIs send it to the model as text.
@@ -478,11 +540,13 @@ export class Prompts {
       if (images.length > 0 && typed !== "") joined?.()
       const pasted = left
         ? `${keys ? " " : "\n\n"}${typed}`
-        : images.length > 0 && typed !== ""
-          ? ` ${typed}`
-          : typed
+        : runs
+          ? runPaste(images.length)
+          : images.length > 0 && typed !== ""
+            ? ` ${typed}`
+            : typed
       textTyped = true
-      if (typed !== "" && !this.host.type(terminalId, bracketedPaste(inPaste(pasted))))
+      if (pasted !== "" && !this.host.type(terminalId, bracketedPaste(inPaste(pasted))))
         throw this.notShown()
       // Images alone were seen in the box, steady, as each went in.
       const landed =
@@ -513,7 +577,11 @@ export class Prompts {
       if (pressed && !this.host.type(terminalId, "\r")) throw this.gone()
     } catch (error) {
       // What of the images landed goes back out, while the person's keys are still held.
-      if (attached > 0 && !textTyped && !(await this.discard(terminalId, profile, hold.holding)))
+      if (
+        attached > 0 &&
+        !textTyped &&
+        !(await this.discard(terminalId, profile, hold.holding, wrote))
+      )
         this.host.note?.(terminalId, "images-kept")
       hold.settle()
       throw taken(error)
@@ -583,9 +651,21 @@ export class Prompts {
     terminalId: string,
     profile: BoxProfile,
     holding: () => boolean,
+    wrote = false,
   ): Promise<boolean> {
     try {
-      const now = await this.host.screen(terminalId)
+      let now = await this.host.screen(terminalId)
+      // The words that went in ahead of the images are the prompt's too, and come out first: a
+      // program that shows its shortcuts only at an empty box (Antigravity) offers the keys for
+      // the images then, and one whose placeholders sit among the words takes those out with them.
+      const box = wrote && now ? profile.read(now) : undefined
+      if (box && !isEmpty(box)) {
+        now = await this.keyed(terminalId, eraseRows(box), holding, (after) => {
+          const left = profile.read(after)
+          return left !== undefined && isEmpty(left)
+        })
+        if (!now) return false
+      }
       const keys = now && profile.images?.discard(now)
       if (!keys) return false
       const cleared = await this.keyed(
@@ -952,7 +1032,7 @@ export class Prompts {
       // A view opened over the box as the text landed would take the Enter.
       const right = box !== undefined && box.mode === mode && !profile.overlay(after)
       // A text taller than the box's viewport shows only its tail, the box then full.
-      const whole = left ? `${left.text}\n\n${text}` : text
+      const whole = left ? `${left.text}\n\n${text}` : images ? withoutImages(text) : text
       const holds =
         right &&
         (sameText(box.text, whole) ||

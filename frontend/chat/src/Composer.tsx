@@ -12,10 +12,12 @@ import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
 import type { Attachment } from "./attachments"
+import { replyImagesNote, shellImagesNote } from "./commands"
 import type { ComposerMode } from "./composer-mode"
 import { Hint } from "./Hint"
 import { recall, walksAt, type Walk } from "./history"
 import { Mark } from "./Mark"
+import { cleaned, splitDraft, unitEdit } from "./placeholders"
 import { submitOnEnter } from "./submit-on-enter"
 import { useMounted } from "./use-mounted"
 
@@ -92,15 +94,22 @@ export const Composer = ({
   readonly label: string
   readonly draft: string
   readonly onDraft: (draft: string) => void
-  // The images pasted in, to go with the next message, and how a paste of more adds them (it
-  // answers why some weren't, or null; absent where the backend takes no images) and one goes.
+  // The images pasted in, to go with the next message, each with its placeholder in the draft,
+  // and how a paste of more adds them (it types their placeholders over the selection, answers
+  // where the caret goes after them and why some weren't added, or null; absent where the backend
+  // takes no images) and one goes, its placeholder with it.
   readonly attachments: readonly Attachment[]
   // What the person is told of the images, as that some went for want of room.
   readonly imageNote?: string | undefined
   // Whether the agent takes a message of images and no words; Antigravity refuses one, and an
   // agent not known yet is not trusted to take it.
   readonly imagesAlone: boolean
-  readonly onAttach?: ((files: readonly File[]) => string | null) | undefined
+  readonly onAttach?:
+    | ((
+        files: readonly File[],
+        selection: { readonly start: number; readonly end: number },
+      ) => { readonly refusal: string | null; readonly caret: number | null })
+    | undefined
   readonly onDetach: (id: string) => void
   readonly mode: ComposerMode
   // Whether earlier words are still on their way, which the owner keeps, and whether they
@@ -136,6 +145,8 @@ export const Composer = ({
   // they put in the box once it shows them.
   const walk = useRef<Walk | null>(null)
   const caretAtEnd = useRef(false)
+  // Where the caret is due once the draft shows the placeholders a paste typed in.
+  const caretAt = useRef<number | null>(null)
   const [stopping, setStopping] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [error, setError] = useState<Failure | null>(null)
@@ -155,6 +166,10 @@ export const Composer = ({
       caretAtEnd.current = false
       field.setSelectionRange(draft.length, draft.length)
     }
+    if (caretAt.current !== null) {
+      field.setSelectionRange(caretAt.current, caretAt.current)
+      caretAt.current = null
+    }
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Sized to the text it holds.
   }, [draft])
   // Sending answers the agent's question with the words, until the person cancels.
@@ -165,11 +180,18 @@ export const Composer = ({
   const long = replying && oneLine(draft).trim().length > replyMax
   // Whether the images pasted go with what is sent now: only a plain message takes them.
   const carries = mode === "message" && !passing
-  const bare = carries && attachments.length > 0 && draft.trim() === "" && !imagesAlone
+  // Whether the words are only the images' placeholders.
+  const bare =
+    carries && attachments.length > 0 && splitDraft(draft, attachments).text === "" && !imagesAlone
+  // Images the box holds that this mode can't send.
+  const stuck = attachments.length > 0 && !carries && !passing && (replying || mode === "shell")
+  // What goes to the agent is judged without the placeholders, as the runner judges it.
+  const sentWords = carries && attachments.length > 0 ? splitDraft(draft, attachments).text : draft
   const refused =
     held ||
     bare ||
-    (replying ? hasControlCharacters(draft) || long : refuses(draft, { shell: true }))
+    stuck ||
+    (replying ? hasControlCharacters(draft) || long : refuses(sentWords, { shell: true }))
   const command = mode === "shell" ? shellCommand(draft) : undefined
   const uploading = attachments.some((each) => each.state === "uploading")
   const imaged = carries && attachments.length > 0
@@ -231,9 +253,17 @@ export const Composer = ({
     return null
   }
   const attach = (files: readonly File[]): void => {
-    const refusal =
-      pasteRefusal() ?? (onAttach ? onAttach(files) : "This backend can't take images.")
-    setError(refusal ? { text: refusal, terminal: false } : null)
+    const field = input.current
+    const blocked = pasteRefusal()
+    const result =
+      blocked === null && onAttach
+        ? onAttach(files, {
+            start: field?.selectionStart ?? draft.length,
+            end: field?.selectionEnd ?? draft.length,
+          })
+        : { refusal: blocked ?? "This backend can't take images.", caret: null }
+    if (result.caret !== null) caretAt.current = result.caret
+    setError(result.refusal ? { text: result.refusal, terminal: false } : null)
   }
   // A paste of images, which the field would drop: a paste with text stays the field's, as a
   // page's copied cells come. One that carries nothing (as Ctrl+Shift+V pastes an image alone)
@@ -334,13 +364,17 @@ export const Composer = ({
         className="chat-error"
         text={
           refused && !awaitingCommand && !held
-            ? bare
-              ? `${label} needs a few words with the images.`
-              : replying
-                ? long
-                  ? "A reply takes at most 16,384 characters."
-                  : controlHint
-                : messageHint(draft)
+            ? stuck
+              ? replying
+                ? replyImagesNote
+                : shellImagesNote
+              : bare
+                ? `${label} needs a few words with the images.`
+                : replying
+                  ? long
+                    ? "A reply takes at most 16,384 characters."
+                    : controlHint
+                  : messageHint(sentWords)
             : ""
         }
       />
@@ -368,10 +402,14 @@ export const Composer = ({
                   {each.state === "uploading" ? "uploading" : "failed"}
                 </span>
               )}
+              <span className="chat-attachment-n" aria-hidden>
+                #{each.n}
+              </span>
               <button
                 type="button"
                 className="chat-key chat-attachment-remove"
                 aria-label={`Remove ${each.name}`}
+                title={`Remove #${each.n}`}
                 onClick={() => onDetach(each.id)}
               >
                 ×
@@ -389,7 +427,7 @@ export const Composer = ({
           ),
       )}
       {imageNote && <p className="chat-reply">{imageNote}</p>}
-      {attachments.length > 0 && !carries && (
+      {attachments.length > 0 && !carries && !stuck && (
         <p className="chat-reply">
           <span>The images wait for a message of your own.</span>
         </p>
@@ -414,10 +452,36 @@ export const Composer = ({
           spellCheck
           onPaste={pasted}
           onChange={(event) => {
-            onDraft(event.target.value)
+            // An edit that would leave part of a placeholder takes the whole of it.
+            const fixed = cleaned(draft, event.target.value, attachments, event.target.selectionEnd)
+            if (fixed) caretAt.current = fixed.caret
+            onDraft(fixed ? fixed.text : event.target.value)
             if (error) setError(null)
           }}
           onKeyDown={(event) => {
+            // Backspace after a placeholder, or Delete before one, takes it whole.
+            if (
+              (event.key === "Backspace" || event.key === "Delete") &&
+              !passing &&
+              !event.nativeEvent.isComposing &&
+              !(event.shiftKey || event.ctrlKey || event.metaKey || event.altKey)
+            ) {
+              const field = event.currentTarget
+              const unit = unitEdit(
+                draft,
+                field.selectionStart,
+                field.selectionEnd,
+                event.key,
+                attachments,
+              )
+              if (unit) {
+                event.preventDefault()
+                caretAt.current = unit.caret
+                onDraft(unit.text)
+                if (error) setError(null)
+                return
+              }
+            }
             if (passing && !event.nativeEvent.isComposing) {
               // A modified key stays the app's, and the field's; Shift+Enter has no line to start.
               if (event.key === "Enter" && event.shiftKey) event.preventDefault()
@@ -435,6 +499,8 @@ export const Composer = ({
               (event.key === "ArrowUp" || event.key === "ArrowDown") &&
               !replying &&
               !held &&
+              // A walk would take the placeholders, and so the images, out of the box.
+              attachments.length === 0 &&
               !event.nativeEvent.isComposing &&
               !(event.shiftKey || event.ctrlKey || event.metaKey || event.altKey)
             ) {

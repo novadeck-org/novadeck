@@ -306,6 +306,20 @@ describe("interrupts", () => {
     expect(t.written).toEqual([CLEAR])
   })
 
+  it("clears the turn's prompt put back with images among its words that are all Novadeck's own", async () => {
+    const text = "See this: [Image #1] and fix it"
+    const t = terminal({ own: true, prompt: text, after: () => text })
+    expect(await t.interrupt()).toEqual({ returned: undefined, images: 1 })
+    expect(t.written).toEqual([CLEAR])
+  })
+
+  it("leaves the turn's prompt put back with an image the person pasted among its words", async () => {
+    const text = "See this: [Image #1] and fix it"
+    const t = terminal({ prompt: text, after: () => text })
+    await expect(t.interrupt()).rejects.toBeInstanceOf(BoxNotCleared)
+    expect(t.written).toEqual([])
+  })
+
   it("leaves the box and says so where its TUI has no keys to clear it", async () => {
     const t = terminal({ clear: false, prompt: "Say hi", after: () => "Say hi" })
     await expect(t.interrupt()).rejects.toBeInstanceOf(BoxNotCleared)
@@ -677,6 +691,19 @@ describe("interrupts", () => {
         },
       })
       expect(await t.interruptIn()).toEqual({ returned: "[Image #1] look at this" })
+    })
+
+    it("gives back a message with its images among the words, which the caller knows", async () => {
+      let took = false
+      const t = terminal({
+        own: true,
+        queued: () => !took,
+        takes: () => {
+          took = true
+          return "look at [Image #1] this"
+        },
+      })
+      expect(await t.interruptIn()).toEqual({ returned: "look at [Image #1] this" })
     })
 
     it("gives the screen time to show what the hold let go, and leaves that as a draft", async () => {

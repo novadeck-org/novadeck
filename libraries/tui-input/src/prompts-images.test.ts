@@ -10,10 +10,12 @@ import { screen as screenOf } from "./testing/screens.js"
 /**
  * How the fake program takes an image path pasted alone:
  * - `chips`: as `[Image #N]` at the start of its box, as Claude Code and Codex do;
+ * - `inline`: as `[Image #N]` at the cursor, among the words, as the same two do for a path
+ *   pasted after other words;
  * - `media`: as a row above the box, its box staying as it was, as Antigravity does;
  * - `text`: not at all, the path stays words in the box.
  */
-type Style = "chips" | "media" | "text"
+type Style = "chips" | "inline" | "media" | "text"
 
 const paste = (data: string): string | undefined =>
   // eslint-disable-next-line no-control-regex -- A bracketed paste's markers.
@@ -28,6 +30,14 @@ const terminal = (
     attached?: number
     /** How long an image or the text may take to show; short only where it never will. */
     waitMs?: number
+    /** What it types for the `n`th image, where it shows no placeholder of its own. */
+    typed?: boolean
+    /** A run of words longer than this shows as a placeholder, as a long paste does. */
+    collapsesAt?: number
+    /** Whether a line break leading a paste is an Enter, as in Codex on Windows. */
+    asKeys?: boolean
+    /** Whether the keys for its images are offered at an empty box only, as Antigravity's are. */
+    idleOnly?: boolean
   } = {},
 ) => {
   let words = options.draft ?? ""
@@ -56,7 +66,8 @@ const terminal = (
     shell: { expands: true, starts: false, footer: () => false },
     queued: () => false,
     overlay: () => false,
-    collapses: () => false,
+    ...(options.asKeys && { pastesAsKeys: () => true }),
+    collapses: (text) => text.length > (options.collapsesAt ?? Infinity),
     room: (rows) => rows - 3,
     ...(!options.bare && {
       images:
@@ -67,7 +78,9 @@ const terminal = (
                   screen.rows.map((row) => /^▸ (\d+) media/.exec(row)?.[1]).find(Boolean) ?? 0,
                 ),
               alone: options.alone ?? false,
-              discard: () => "\x1b",
+              discard: (screen) =>
+                options.idleOnly && !screen.rows.some((row) => row === "> ") ? undefined : "\x1b",
+              ...(options.typed && { typed: (ordinal: number) => `[Image #${ordinal}]` }),
             }
           : {
               ...placeholderImages((screen) => profile.read(screen)),
@@ -96,6 +109,7 @@ const terminal = (
       written.push(data)
       if (data === "\x1b" || data === "\x15") {
         images = 0
+        if (data === "\x15") words = ""
         return true
       }
       if (data === "\r") {
@@ -106,8 +120,10 @@ const terminal = (
       }
       const pasted = paste(data)
       if (pasted === undefined) return true
-      if (pasted.endsWith(".png") && style !== "text") images += 1
-      else words += pasted
+      if (pasted.endsWith(".png") && style !== "text") {
+        images += 1
+        if (style === "inline") words += `[Image #${images}]`
+      } else words += pasted
       return true
     },
   }
@@ -234,5 +250,217 @@ describe("a prompt with images", () => {
       "refused",
     )
     expect(written).toEqual([])
+  })
+})
+
+describe("a prompt with images among its words", () => {
+  const see = "See this:  and fix it"
+
+  it("pastes the words before, the image, and the words after, each on its own", async () => {
+    const { prompts, written, sent } = terminal("inline")
+    await prompts.prompt("t", see, "alone", undefined, ["/up/a/one.png"], [10])
+    expect(written).toEqual([
+      "\x1b[200~See this: \x1b[201~",
+      "\x1b[200~/up/a/one.png\x1b[201~",
+      "\x1b[200~ and fix it\x1b[201~",
+      "\r",
+    ])
+    expect(sent).toEqual([{ words: "See this: [Image #1] and fix it", images: 1 }])
+  })
+
+  it("puts two images each where it stands, and none past the last when it ends the text", async () => {
+    const { prompts, written, sent } = terminal("inline")
+    await prompts.prompt(
+      "t",
+      "Compare  with ",
+      "alone",
+      undefined,
+      ["/up/a/one.png", "/up/b/two.png"],
+      [8, 14],
+    )
+    expect(written).toEqual([
+      "\x1b[200~Compare \x1b[201~",
+      "\x1b[200~/up/a/one.png\x1b[201~",
+      "\x1b[200~ with\x1b[201~",
+      "\x1b[200~/up/b/two.png\x1b[201~",
+      "\r",
+    ])
+    expect(sent).toEqual([{ words: "Compare [Image #1] with[Image #2]", images: 2 }])
+  })
+
+  it("keeps images ahead of the words a space from them, as images that lead do", async () => {
+    const { prompts, written } = terminal("inline")
+    await prompts.prompt(
+      "t",
+      "Look at it",
+      "alone",
+      undefined,
+      ["/up/a/one.png", "/up/b/two.png"],
+      [0, 4],
+    )
+    expect(written).toEqual([
+      "\x1b[200~/up/a/one.png\x1b[201~",
+      "\x1b[200~ Look\x1b[201~",
+      "\x1b[200~/up/b/two.png\x1b[201~",
+      "\x1b[200~ at it\x1b[201~",
+      "\r",
+    ])
+  })
+
+  it("trims the text's edges where an image stands in the white space", async () => {
+    const { prompts, written } = terminal("inline")
+    await prompts.prompt("t", "  Look\n", "alone", undefined, ["/up/a/one.png"], [7])
+    expect(written).toEqual(["\x1b[200~Look\x1b[201~", "\x1b[200~/up/a/one.png\x1b[201~", "\r"])
+  })
+
+  it("is what images with no places are when all of them are at the start", async () => {
+    const same = terminal("chips")
+    await same.prompts.prompt("t", "Look at this", "alone", undefined, ["/up/a/one.png"], [0])
+    const lead = terminal("chips")
+    await lead.prompts.prompt("t", "Look at this", "alone", undefined, ["/up/a/one.png"])
+    expect(same.written).toEqual(lead.written)
+  })
+
+  it("types where each image stands after it, for a program that shows no placeholder", async () => {
+    const { prompts, written, sent } = terminal("media", { typed: true })
+    await prompts.prompt("t", see, "alone", undefined, ["/up/a/one.png"], [10])
+    expect(written).toEqual([
+      "\x1b[200~See this: \x1b[201~",
+      "\x1b[200~/up/a/one.png\x1b[201~",
+      "\x1b[200~[Image #1]\x1b[201~",
+      "\x1b[200~ and fix it\x1b[201~",
+      "\r",
+    ])
+    expect(sent).toEqual([{ words: "See this: [Image #1] and fix it", images: 1 }])
+  })
+
+  it("types nothing for images that lead, as before they had places", async () => {
+    const { prompts, written } = terminal("media", { typed: true })
+    await prompts.prompt("t", "Look", "alone", undefined, ["/up/a/one.png"], [0])
+    expect(written).not.toContain("\x1b[200~[Image #1]\x1b[201~")
+  })
+
+  it("refuses places that don't fit the text, writing nothing", async () => {
+    const { prompts, written } = terminal("inline")
+    const images = ["/up/a/one.png", "/up/b/two.png"]
+    expect(await reason(prompts.prompt("t", "Look", "alone", undefined, images, [2]))).toBe(
+      "refused",
+    )
+    expect(await reason(prompts.prompt("t", "Look", "alone", undefined, images, [3, 2]))).toBe(
+      "refused",
+    )
+    expect(await reason(prompts.prompt("t", "Look", "alone", undefined, images, [2, 9]))).toBe(
+      "refused",
+    )
+    expect(written).toEqual([])
+  })
+
+  it("sends images first, as without places, where a run of words would show as a placeholder", async () => {
+    const { prompts, written, sent } = terminal("media", { collapsesAt: 10, typed: true })
+    let told = 0
+    await prompts.prompt(
+      "t",
+      "A long run of words then more",
+      "alone",
+      undefined,
+      ["/up/a/one.png"],
+      [20],
+      () => (told += 1),
+    )
+    expect(told).toBe(1)
+    expect(written).toEqual([
+      "\x1b[200~/up/a/one.png\x1b[201~",
+      "\x1b[200~ A long run of words then more\x1b[201~",
+      "\r",
+    ])
+    expect(sent).toEqual([{ words: " A long run of words then more", images: 1 }])
+  })
+
+  it("does not tell of places given up where every run shows whole", async () => {
+    const { prompts } = terminal("inline", { collapsesAt: 100 })
+    let told = 0
+    await prompts.prompt("t", see, "alone", undefined, ["/up/a/one.png"], [10], () => (told += 1))
+    expect(told).toBe(0)
+  })
+
+  it("empties a box that offers the keys for its images only when empty, words first", async () => {
+    const { prompts, written, sent } = terminal("media", { waitMs: 150, idleOnly: true })
+    expect(
+      await reason(
+        prompts.prompt(
+          "t",
+          "Look  here",
+          "alone",
+          undefined,
+          ["/up/a/one.png", "/up/b/no.txt"],
+          [5, 5],
+        ),
+      ),
+    ).toBe("image-not-shown")
+    expect(written.slice(-2)).toEqual(["\x15", "\x1b"])
+    expect(sent).toEqual([])
+  })
+
+  it("sends images first where a line break leading a run would be an Enter", async () => {
+    const { prompts, written } = terminal("inline", { asKeys: true })
+    let told = 0
+    await prompts.prompt(
+      "t",
+      "See this:\nand\nfix it",
+      "alone",
+      undefined,
+      ["/up/a/one.png"],
+      [9],
+      () => (told += 1),
+    )
+    expect(told).toBe(1)
+    expect(written[0]).toBe("\x1b[200~/up/a/one.png\x1b[201~")
+    // Nor can an image go after words where pastes are keys, even on one line: a path pasted
+    // after words stays text there (Codex on Windows, CI 2026-11-09).
+    const one = terminal("inline", { asKeys: true })
+    let again = 0
+    await one.prompts.prompt(
+      "t",
+      see,
+      "alone",
+      undefined,
+      ["/up/a/one.png"],
+      [10],
+      () => (again += 1),
+    )
+    expect(again).toBe(1)
+    expect(one.written[0]).toBe("\x1b[200~/up/a/one.png\x1b[201~")
+  })
+
+  it("takes back the words and images that landed when an image never shows", async () => {
+    const { prompts, written, sent } = terminal("text", { waitMs: 150 })
+    expect(
+      await reason(prompts.prompt("t", see, "alone", undefined, ["/up/a/one.png"], [10])),
+    ).toBe("image-not-shown")
+    expect(written).toEqual([
+      "\x1b[200~See this: \x1b[201~",
+      "\x1b[200~/up/a/one.png\x1b[201~",
+      "\x15",
+      "\x15",
+    ])
+    expect(sent).toEqual([])
+  })
+
+  it("takes out the words too where the keys for the images leave them", async () => {
+    const { prompts, written, sent } = terminal("media", { waitMs: 150 })
+    expect(
+      await reason(
+        prompts.prompt(
+          "t",
+          "Look  here",
+          "alone",
+          undefined,
+          ["/up/a/one.png", "/up/b/no.txt"],
+          [5, 5],
+        ),
+      ),
+    ).toBe("image-not-shown")
+    expect(written.slice(-2)).toEqual(["\x15", "\x1b"])
+    expect(sent).toEqual([])
   })
 })

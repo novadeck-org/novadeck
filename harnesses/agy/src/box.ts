@@ -182,8 +182,16 @@ const images: ProfileImages = {
   },
   // Enter in a box with images and no words does nothing.
   alone: false,
+  // An image pasted among the words shows only in that row, never at its place: the model gets
+  // it attached, with nothing to say where it belongs (probed 2026-11-09, 1.5.2, the
+  // `text, image, text` scenarios of the same probe). The runner types where, as Claude Code and
+  // Codex show it, so the model and the record read `See this: [Image #1] and fix it`.
+  typed: (ordinal) => `[Image #${ordinal}]`,
   // Escape takes them back out at its idle prompt, its bottom row offering the shortcuts (the
   // same probe); a running turn would be stopped by it, and Backspace, Ctrl-U and Ctrl-C left them.
+  // That row is gone while the box holds words (probed 2026-11-09, 1.5.2, `text and image, clear
+  // keys`: Escape took the attachment with words in the box, Ctrl-U took only the words), so the
+  // words come out first, which brings it back.
   discard: (screen) => {
     const last = screen.rows.findLast((row) => row.trim() !== "")
     return last !== undefined && /^\? for shortcuts(\s|$)/.test(last.trim()) ? "\x1b" : undefined

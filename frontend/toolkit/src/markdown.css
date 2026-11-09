@@ -131,6 +131,12 @@
   border: var(--border-width) solid var(--markdown-table-border-color, var(--color-line));
   text-align: left;
   vertical-align: top;
+  /* A cell's words stay whole: the text's `anywhere` lets a column shrink to a letter a line,
+     as a long link beside it takes the width. A link may still break anywhere. */
+  overflow-wrap: break-word;
+}
+.markdown-table :is(th, td) a {
+  overflow-wrap: anywhere;
 }
 .markdown-table th {
   background-color: var(--markdown-table-head-bg, var(--color-shell));

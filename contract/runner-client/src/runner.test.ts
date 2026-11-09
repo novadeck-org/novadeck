@@ -239,3 +239,30 @@ describe("History", () => {
     expect(seen).toEqual(["reset", "changed", "synced", "removed"])
   })
 })
+
+describe("a prompt with images", () => {
+  const sent = async (at: readonly number[]) => {
+    const inputs: unknown[] = []
+    const { runner } = await fakeRunner({
+      agents: {
+        prompt: api.agents.prompt.handler(({ input }) => {
+          inputs.push(input)
+          return { ref: "r1r1r1r1r1r1r1r1", tracked: true }
+        }),
+      },
+    })
+    await runner.agents.prompt(crypto.randomUUID(), "See this: and fix it", {
+      images: ["/u/a.png"],
+      at,
+    })
+    return inputs[0]
+  }
+
+  it("leaves out the places of images that all lead, as a runner from before them takes", async () => {
+    expect(await sent([0])).not.toHaveProperty("at")
+  })
+
+  it("gives the places of an image among the words", async () => {
+    expect(await sent([10])).toMatchObject({ images: ["/u/a.png"], at: [10] })
+  })
+})

@@ -6,9 +6,11 @@ import type { ChatReply } from "./replies"
 // - `ref`: what names the prompt's receipt in the conversation (`Conversation.prompts`);
 // - `draft`: the draft they were sent from, as typed, which goes back in the box should they
 //   not go;
-// - `text`: the words as sent, empty for a message of images alone;
-// - `images`: the images that go with them, ready on the agent's machine, which go back in the
-//   box with the draft should they not go;
+// - `text`: the words as sent, with the images' placeholders taken out, empty for a message of
+//   images alone;
+// - `images`: the images that go with them, in the order of their placeholders, ready on the
+//   agent's machine, which go back in the box with the draft should they not go;
+// - `at`: where each image stands in `text`, as the protocol has it (one per image);
 // - `to`: the question they answer, for a reply, which goes at once and shows as its dialog's
 //   answer; null for a prompt, which takes its turn in the terminal's queue;
 // - `phase`: `queued` while a prompt before it hasn't reached the agent's record yet, or a
@@ -21,6 +23,7 @@ export type ChatSend = {
   readonly draft: string
   readonly text: string
   readonly images: readonly Attachment[]
+  readonly at: readonly number[]
   readonly to: ChatReply | null
   readonly phase: "queued" | "typing" | "sent" | "settled"
 }
@@ -67,25 +70,30 @@ export const withSend = (
 export const chatReplySendOf = (sends: ChatSends, context: string, id: string): ChatSend | null =>
   chatSendsOf(sends, context, id).find((send) => send.to !== null) ?? null
 
-// The images of prompts the record never got, by ref, for as long as their line can be sent again
-// or taken back to edit: kept for the page's life apart from the send, which ended with its
-// receipt. Whoever takes a line's images takes them out.
-const kept = new Map<string, readonly Attachment[]>()
+// The images and draft of prompts the record never got, by ref, for as long as their line can be
+// sent again or taken back to edit: kept for the page's life apart from the send, which ended
+// with its receipt. The draft is the words with the images' placeholders, as the person wrote
+// them. Whoever takes a line's images takes them out.
+const kept = new Map<string, { readonly images: readonly Attachment[]; readonly draft: string }>()
 
-export const keepSentImages = (ref: string, images: readonly Attachment[]): void => {
-  if (images.length > 0) kept.set(ref, images)
+export const keepSentImages = (ref: string, images: readonly Attachment[], draft: string): void => {
+  if (images.length > 0) kept.set(ref, { images, draft })
 }
 
 // The images kept for a line, left kept.
-export const keptImagesOf = (ref: string): readonly Attachment[] | undefined => kept.get(ref)
+export const keptImagesOf = (ref: string): readonly Attachment[] | undefined =>
+  kept.get(ref)?.images
+
+// The draft a line with kept images was sent from, left kept.
+export const keptDraftOf = (ref: string): string | undefined => kept.get(ref)?.draft
 
 // The kept image saved at `path`, if one is.
 export const keptImageAt = (path: string): Attachment | undefined =>
-  [...kept.values()].flat().find((image) => image.path === path)
+  [...kept.values()].flatMap(({ images }) => images).find((image) => image.path === path)
 
 // Takes a line's kept images out, to go on with them.
 export const takeSentImages = (ref: string): readonly Attachment[] => {
-  const images = kept.get(ref) ?? []
+  const images = kept.get(ref)?.images ?? []
   kept.delete(ref)
   return images
 }

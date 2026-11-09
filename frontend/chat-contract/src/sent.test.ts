@@ -88,6 +88,7 @@ const sends: readonly ChatSend[] = [
     draft: "thanks",
     text: "thanks",
     images: [],
+    at: [],
     to: null,
     phase: "queued",
   },

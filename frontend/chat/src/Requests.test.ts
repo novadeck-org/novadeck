@@ -462,6 +462,13 @@ const change = (input: HTMLInputElement, value: string): void =>
     input.dispatchEvent(new Event("input", { bubbles: true }))
   })
 
+// The mouse moving over `element`; `kind` is the pointer's.
+const pointerMove = (element: Element, kind = "mouse"): void => {
+  const event = new MouseEvent("pointermove", { bubbles: true })
+  Object.defineProperty(event, "pointerType", { value: kind })
+  act(() => void element.dispatchEvent(event))
+}
+
 describe("a dialog's menu", () => {
   const rows = (container: HTMLElement) => [...container.querySelectorAll(".chat-option")]
   const on = (container: HTMLElement) =>
@@ -489,6 +496,48 @@ describe("a dialog's menu", () => {
     expect(document.activeElement).toBe(first)
     keyDown(first!, "ArrowUp")
     expect(document.activeElement).toBe(second)
+  })
+
+  it("moves the bar with the mouse, focus staying in the person's box", () => {
+    const box = document.body.appendChild(document.createElement("textarea"))
+    box.focus()
+    const { container } = show(choices, async () => {})
+    const [first, second] = rows(container) as HTMLElement[]
+    pointerMove(second!.querySelector(".chat-option-words")!)
+    expect(on(container)).toEqual([second])
+    expect(second!.getAttribute("tabindex")).toBe("0")
+    expect(document.activeElement).toBe(box)
+    pointerMove(first!)
+    expect(on(container)).toEqual([first])
+    box.remove()
+  })
+
+  it("moves focus with the bar while it is in the dialog, so Enter takes the row that's lit", () => {
+    const { container } = show(choices, async () => {})
+    const [first, second] = rows(container) as HTMLElement[]
+    first!.focus()
+    pointerMove(second!)
+    expect(document.activeElement).toBe(second)
+    expect(on(container)).toEqual([second])
+  })
+
+  it("leaves focus in a field the person opened to write in, the bar moving alone", async () => {
+    const { container } = show(choices, async () => {})
+    click(button(container, "No, and tell it"))
+    await settle()
+    const field = container.querySelector("textarea")!
+    expect(document.activeElement).toBe(field)
+    const [first] = rows(container) as HTMLElement[]
+    pointerMove(first!)
+    expect(document.activeElement).toBe(field)
+    expect(on(container)).toEqual([first])
+  })
+
+  it("moves nothing for a touch, whose tap presses the row", () => {
+    const { container } = show(choices, async () => {})
+    const [first, second] = rows(container) as HTMLElement[]
+    pointerMove(second!, "touch")
+    expect(on(container)).toEqual([first])
   })
 
   it("keeps one row in the tab order", () => {
@@ -730,6 +779,85 @@ describe("a dialog of questions", () => {
   it("has no native group, which would pick as the arrows go and hide rows from Tab", () => {
     const { container } = show(dialog, async () => {})
     expect(input(container, "Keep it").name).toBe("")
+  })
+
+  // The questions appearing in a chat whose box holds `words`, with focus on the box, or on a
+  // field outside the chat.
+  const appear = (words: string, where: "box" | "elsewhere") => {
+    const element = (requests: readonly ChatRequest[]) =>
+      createElement(
+        "div",
+        { className: "chat" },
+        createElement("textarea", { className: "chat-input", defaultValue: words }),
+        createElement(Requests, {
+          requests,
+          slice: null,
+          agent: "Claude",
+          onAnswer: async () => {},
+          onAnswerInTerminal: () => {},
+          onSettled,
+          replying: null,
+          replySending: false,
+          onReply,
+          refused: refusing("/tmp is full", "x @a "),
+          onChatting,
+        }),
+      )
+    const { container, rerender, unmount } = render(element([]))
+    unmounts.push(unmount)
+    const elsewhere = document.body.appendChild(document.createElement("textarea"))
+    unmounts.push(() => elsewhere.remove())
+    const box = container.querySelector<HTMLTextAreaElement>(".chat-input")!
+    ;(where === "box" ? box : elsewhere).focus()
+    rerender(element([request(dialog)]))
+    return { container, box, elsewhere }
+  }
+
+  it("takes the keys as it appears, on its first row", () => {
+    const { container } = show(dialog, async () => {})
+    expect(document.activeElement).toBe(input(container, "Keep it"))
+  })
+
+  it("takes the keys from the chat's box while it holds no words", () => {
+    const { container } = appear("", "box")
+    expect(document.activeElement).toBe(input(container, "Keep it"))
+  })
+
+  it("leaves the keys in the chat's box while the person is writing there", () => {
+    const { box } = appear("half a thought", "box")
+    expect(document.activeElement).toBe(box)
+  })
+
+  it("leaves the keys where they are outside the chat", () => {
+    const { elsewhere } = appear("", "elsewhere")
+    expect(document.activeElement).toBe(elsewhere)
+  })
+
+  it("goes down from a tab into its page", async () => {
+    const { container } = show(dialog, async () => {})
+    const tab = tabs(container)[1] as HTMLElement
+    click(tab)
+    tab.focus()
+    expect(keyDown(tab, "ArrowDown")).toBe(true)
+    await settle()
+    expect(document.activeElement).toBe(input(container, "Session"))
+  })
+
+  it("takes focus from a tab to the row the mouse lights, so Enter presses that row", () => {
+    const { container } = show(dialog, async () => {})
+    const tab = tabs(container)[0] as HTMLElement
+    tab.focus()
+    const drop = input(container, "Drop it")
+    pointerMove(drop.closest("label")!)
+    expect(document.activeElement).toBe(drop)
+  })
+
+  it("moves the bar and focus with the mouse over a question's rows", () => {
+    const { container } = show(dialog, async () => {})
+    const drop = input(container, "Drop it")
+    pointerMove(drop.closest("label")!.querySelector(".chat-option-words")!)
+    expect(document.activeElement).toBe(drop)
+    expect(drop.closest("label")!.hasAttribute("data-on")).toBe(true)
   })
 
   it("turns the page with left and right, picking nothing, focus going along", async () => {

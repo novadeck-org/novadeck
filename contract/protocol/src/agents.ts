@@ -329,18 +329,43 @@ export const promptFailure = z.object({
 })
 
 /**
+ * Where each of a message's images stands in its text: `at[i]` is the offset in the text (in
+ * UTF-16 code units, as a JavaScript string counts) at which image `i` goes, so the text and
+ * images read in order, as the person wrote them ("See this: [image] and fix it"). The
+ * offsets run in the images' order, never back, and none past the text's end; several at one
+ * offset go in their order. Absent, every image leads the text (all at 0), as before images
+ * had places.
+ */
+export const imagePlaces = z.array(z.number().int().nonnegative()).min(1)
+
+/** Whether `at` gives each of `images` a place in `text`, in order (see `imagePlaces`). */
+export const placesFit = (
+  text: string,
+  images: readonly unknown[] | undefined,
+  at: readonly number[] | undefined,
+): boolean =>
+  at === undefined ||
+  (images !== undefined &&
+    at.length === images.length &&
+    at.every((offset, index) => offset <= text.length && (index === 0 || offset >= at[index - 1]!)))
+
+/**
  * What `agents.interrupt` gives back: the words the person had queued behind the turn that
  * the agent's input box took back as the turn was stopped (Claude Code and Antigravity
  * hand queued messages back for editing), now cleared out of the box, which the chat puts
  * back in the person's draft; null when there were none, and always for Codex, whose
  * queued message goes to the agent as a steer. `images` are the files, of those given to
  * `agents.prompt`, that were in the box with them (Claude Code and Codex put a queued message's
- * images back as `[Image #N]` placeholders, which `returned` leaves out); absent where none.
+ * images back as `[Image #N]` placeholders, which `returned` leaves out, `at` saying where
+ * they stood); absent where none.
  * `returned` may be null with `images` given, for a message of images alone.
  */
 export const interruptResult = z.strictObject({
   returned: z.string().nullable(),
   images: z.array(directory).optional(),
+  // Where each of `images` stood among the words (see `imagePlaces`): in `returned` (or
+  // empty text, where it is null). Absent where none, or where they all led.
+  at: imagePlaces.optional(),
 })
 
 /**

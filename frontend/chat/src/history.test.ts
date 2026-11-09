@@ -83,6 +83,18 @@ describe("the prompts the person gave an agent", () => {
     expect(given([item("[Image #2]")])).toEqual([])
   })
 
+  it("read the same where a mark is inline, whatever the harness spaces it with, and for a draft's own", () => {
+    expect(
+      given([
+        item("See this: [Image #3] and fix it"),
+        item("See this: [Image #3]  and fix it"),
+        item("fix [Image #1]"),
+      ]),
+    ).toEqual(["See this: and fix it", "fix"])
+    // The sent line not yet recorded, with its placeholders, is the record's line once it is.
+    expect(given([item("a [Image #1] b")], { bubbles: [sent("a [Image #2] b")] })).toEqual(["a b"])
+  })
+
   it("leave out words that would call up the harness's menu in the box", () => {
     expect(
       given([item("/clear"), item("look at @src"), item("fine")], {

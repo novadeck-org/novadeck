@@ -51,10 +51,13 @@ const inApp = (
     upload,
     interrupt,
     takeBox,
+    refuse = [],
   }: {
     readonly draft?: string
     readonly program?: string
     readonly onKeys?: (keys: string) => Promise<void>
+    // Words the backend's rule refuses as a message.
+    readonly refuse?: readonly string[]
     readonly interrupt?: () => Promise<BoxReturn>
     readonly takeBox?: () => Promise<BoxReturn>
     // Saves a pasted image, as the backend would; without it the backend takes no images.
@@ -67,12 +70,15 @@ const inApp = (
   const sent = vi.fn<(text: string) => Promise<SendResult | void>>(send)
   // The images each message went with, in order.
   const sentImages: (readonly string[] | undefined)[] = []
+  // Where each went among its words.
+  const sentAt: (readonly number[] | undefined)[] = []
   const answered = vi.fn<(request: string, answer: ChatAnswer) => Promise<void>>(answer)
   const conversations: Conversations = {
     conversation: () => conversation,
     send: (_key, text, options) => {
       if (options?.ref) onRef(options.ref)
       sentImages.push(options?.images)
+      sentAt.push(options?.at)
       return sent(text)
     },
     ...(upload && {
@@ -84,7 +90,7 @@ const inApp = (
     interrupt: interrupt ?? (async () => ({ words: null })),
     ...(takeBox && { takeBox }),
     answer: (_key, request, reply) => answered(request, reply),
-    refused: refusing(),
+    refused: refusing(...refuse),
   }
   const chat = createChat()
   const commands = createChatCommands({
@@ -111,12 +117,12 @@ const inApp = (
           sending: chatSendsOf(state.sends, context, "01"),
           attachments: chatAttachmentsOf(state.attachments, context, "01"),
           onAttach: conversations.uploadImage
-            ? (files) => commands.attachChatImages(key, files)
+            ? (files, selection) => commands.attachChatImages(key, files, selection)
             : undefined,
           onDetach: (id) => commands.removeChatImage(context, "01", id),
           onSend: (text, to, images) => commands.sendChat(key, text, to, images),
           imageNote: chatImageNoteOf(state.imageNotes, context, "01"),
-          onRestore: (images) => commands.restoreChatImages(context, "01", images),
+          onRestore: (words, images) => commands.restoreChat(context, "01", words, images),
           onInterrupt: async () => {},
           onClearBox: async () => {},
           onAnswer: (request, reply) => conversations.answer(key, request, reply),
@@ -135,6 +141,7 @@ const inApp = (
     container,
     sent,
     sentImages,
+    sentAt,
     answered,
     show: (mounted: boolean) => rerender(createElement(App, { mounted })),
     draft: () => chatDraftOf(chat.store.getSnapshot().drafts, context, "01"),
@@ -1291,10 +1298,11 @@ describe("a chat with images pasted into its box", () => {
     await settle()
     expect(sendButton(container).disabled).toBe(true)
     expect(container.textContent).toContain("needs a few words with the images")
-    set(box(container), "look")
+    set(box(container), "[Image #1] look")
     expect(sendButton(container).disabled).toBe(false)
     await send(container)
     expect(chat.sentImages).toEqual([["/runner/a.png"]])
+    expect(chat.sentAt).toEqual([[0]])
   })
 
   it("asks for words too while the agent is not known yet", async () => {
@@ -1317,7 +1325,8 @@ describe("a chat with images pasted into its box", () => {
     await settle()
     await send(chat.container)
     await chat.stop()
-    expect(chat.draft()).toBe("boxed")
+    // The images led the words they came with.
+    expect(chat.draft()).toBe("[Image #1] [Image #2] boxed")
     expect(chat.attachments().map(({ path }) => path)).toEqual([
       "/runner/a.png",
       "/runner/other.png",
@@ -1349,8 +1358,10 @@ describe("a chat with images pasted into its box", () => {
     paste(container, { files: [png()] })
     await settle()
     await send(container)
+    // The caret was at the start: the image goes before the words.
     expect(chat.sent).toHaveBeenCalledWith("look")
     expect(chat.sentImages).toEqual([["/runner/a.png"]])
+    expect(chat.sentAt).toEqual([[0]])
   })
 
   it("comes back to the box with the words when the send fails", async () => {
@@ -1366,7 +1377,7 @@ describe("a chat with images pasted into its box", () => {
     await settle()
     await send(container)
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("No agent here.")
-    expect(chat.draft()).toBe("look")
+    expect(chat.draft()).toBe("[Image #1] look")
     expect(chips(container)).toEqual(["shot.png:ready"])
     expect(chat.attachments().map(({ path }) => path)).toEqual(["/runner/a.png"])
   })
@@ -1446,15 +1457,304 @@ describe("a chat with images pasted into its box", () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("takes text only")
   })
 
-  it("refuses them in a shell command, and sends the command without those waiting", async () => {
+  // The box with its caret at `at`, as the person clicked there.
+  const caretAt = (container: HTMLElement, at: number): void =>
+    act(() => box(container).setSelectionRange(at, at))
+
+  it("types a placeholder at the caret, labels the thumbnail with it, and sends the words with the image's place", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+      draft: "see this: and fix it",
+    })
+    const { container } = chat
+    caretAt(container, 10)
+    paste(container, { files: [png()] })
+    await settle()
+    expect(chat.draft()).toBe("see this: [Image #1] and fix it")
+    expect(box(container).selectionStart).toBe(21)
+    expect(container.querySelector(".chat-attachment-n")?.textContent).toBe("#1")
+    await send(container)
+    expect(chat.sent).toHaveBeenCalledWith("see this:  and fix it")
+    expect(chat.sentImages).toEqual([["/runner/a.png"]])
+    expect(chat.sentAt).toEqual([[10]])
+    // The line reads as it was written until the record has it.
+    expect(bubbles(container)[0]![0]).toBe("see this: [Image #1] and fix it")
+  })
+
+  it("replaces a selection, numbers on from the highest in use, and starts again at 1 once none is left", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+      draft: "one XX two",
+    })
+    const { container } = chat
+    act(() => box(container).setSelectionRange(4, 6))
+    paste(container, { files: [png("a.png")] })
+    await settle()
+    expect(chat.draft()).toBe("one [Image #1] two")
+    caretAt(container, chat.draft().length)
+    paste(container, { files: [png("b.png"), png("c.png")] })
+    await settle()
+    expect(chat.draft()).toBe("one [Image #1] two [Image #2] [Image #3] ")
+    expect(
+      [...container.querySelectorAll(".chat-attachment-n")].map((each) => each.textContent),
+    ).toEqual(["#1", "#2", "#3"])
+    // Deleting the middle one's words lets its image go, and the next takes the number after
+    // the highest left.
+    set(box(container), "one [Image #1] two [Image #3] ")
+    expect(chips(container)).toEqual(["a.png:ready", "c.png:ready"])
+    caretAt(container, 0)
+    paste(container, { files: [png("d.png")] })
+    await settle()
+    expect(chat.draft().startsWith("[Image #4] one")).toBe(true)
+    set(box(container), "no images now")
+    expect(chips(container)).toEqual([])
+    paste(container, { files: [png("e.png")] })
+    await settle()
+    expect(chat.draft()).toContain("[Image #1]")
+  })
+
+  it("lets the thumbnail's key take its placeholder out of the words", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+      draft: "look at  now",
+    })
+    const { container } = chat
+    caretAt(container, 8)
+    paste(container, { files: [png("a.png")] })
+    await settle()
+    expect(chat.draft()).toBe("look at [Image #1] now")
+    act(() => container.querySelector<HTMLElement>(".chat-attachment-remove")!.click())
+    expect(chat.draft()).toBe("look at now")
+    expect(chips(container)).toEqual([])
+  })
+
+  it("keeps a failed image's placeholder, which holds the message until it is removed", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => {
+        throw new Error("No room.")
+      },
+      draft: "look",
+    })
+    const { container } = chat
+    caretAt(container, 4)
+    paste(container, { files: [png()] })
+    await settle()
+    expect(chat.draft()).toBe("look [Image #1] ")
+    expect(chips(container)).toEqual(["shot.png:failed"])
+    await send(container)
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Remove it")
+    expect(chat.sent).not.toHaveBeenCalled()
+    expect(chat.draft()).toBe("look [Image #1] ")
+  })
+
+  it("inserts nothing for an image the box can't take", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+      draft: "look",
+    })
+    const { container } = chat
+    paste(container, { files: [new File([new Uint8Array(1)], "a.svg", { type: "image/svg+xml" })] })
+    expect(chat.draft()).toBe("look")
+    // A shell command takes text only.
+    set(box(container), "!ls")
+    paste(container, { files: [png()] })
+    expect(chat.draft()).toBe("!ls")
+    expect(chips(container)).toEqual([])
+  })
+
+  it("sends a message of placeholders alone as images with no words", async () => {
+    const chat = inApp(createStore<Conversation>(live), { upload: async () => "/runner/a.png" })
+    const { container } = chat
+    paste(container, { files: [png("a.png"), png("b.png")] })
+    await settle()
+    expect(chat.draft()).toBe("[Image #1] [Image #2] ")
+    await send(container)
+    expect(chat.sent).toHaveBeenCalledWith("")
+    expect(chat.sentAt).toEqual([[0, 0]])
+  })
+
+  it("puts the images a Stop gives back where they stood among the words", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+      send: async () => ({ tracked: true }),
+      interrupt: async () => ({
+        words: "see this:  and fix it",
+        images: ["/runner/z.png"],
+        at: [10],
+      }),
+    })
+    await chat.stop()
+    expect(chat.draft()).toBe("see this: [Image #1] and fix it")
+    expect(chat.attachments().map(({ path, n }) => [path, n])).toEqual([["/runner/z.png", 1]])
+  })
+
+  it("numbers the images that come back after those already in the box", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+      takeBox: async () => ({
+        words: "see this:  and fix it",
+        images: ["/runner/z.png"],
+        at: [10],
+      }),
+      draft: "mine",
+    })
+    caretAt(chat.container, 4)
+    paste(chat.container, { files: [png()] })
+    await settle()
+    await chat.take()
+    expect(chat.draft()).toBe("see this: [Image #2] and fix it\n\nmine [Image #1] ")
+    expect(chat.attachments().map(({ n }) => n)).toEqual([2, 1])
+  })
+
+  it("lets a line's images come back to the box at their places, as it is edited", async () => {
+    const chat = await unrecordedWithImage()
+    const edit = [...chat.container.querySelectorAll<HTMLElement>(".chat-sent button")].find(
+      (each) => each.textContent === "edit",
+    )!
+    act(() => edit.click())
+    expect(chat.draft()).toContain("look")
+    expect(chat.draft()).toContain("[Image #1]")
+    expect(chat.attachments().map(({ n }) => n)).toEqual([1])
+  })
+
+  it("does not walk the history away from a box that holds an image", async () => {
+    const chat = inApp(createStore<Conversation>(live), { upload: async () => "/runner/a.png" })
+    const { container } = chat
+    paste(container, { files: [png()] })
+    await settle()
+    caretAt(container, 0)
+    const event = new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true })
+    act(() => void box(container).dispatchEvent(event))
+    expect(chat.draft()).toBe("[Image #1] ")
+    expect(chips(container)).toHaveLength(1)
+  })
+
+  const pressKey = (container: HTMLElement, name: string): void =>
+    act(() => {
+      box(container).dispatchEvent(
+        new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true }),
+      )
+    })
+
+  it("takes a placeholder whole on Backspace right after it, and on Delete before it", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+      draft: "look",
+    })
+    const { container } = chat
+    caretAt(container, 4)
+    paste(container, { files: [png()] })
+    await settle()
+    expect(chat.draft()).toBe("look [Image #1] ")
+    expect(box(container).selectionStart).toBe(16)
+    // After the space it is the field's Backspace, which takes the space only.
+    pressKey(container, "Backspace")
+    expect(chat.draft()).toBe("look [Image #1] ")
+    expect(chips(container)).toHaveLength(1)
+    caretAt(container, 15)
+    pressKey(container, "Backspace")
+    expect(chat.draft()).toBe("look ")
+    expect(chips(container)).toEqual([])
+    caretAt(container, 4)
+    paste(container, { files: [png()] })
+    await settle()
+    caretAt(container, 5)
+    pressKey(container, "Delete")
+    expect(chat.draft()).toBe("look ")
+    expect(chips(container)).toEqual([])
+    // Right after the mark itself, with words behind it.
+    set(box(container), "look ")
+    caretAt(container, 5)
+    paste(container, { files: [png()] })
+    await settle()
+    set(box(container), "look [Image #1]x")
+    expect(chips(container)).toHaveLength(1)
+    caretAt(container, 15)
+    pressKey(container, "Backspace")
+    expect(chat.draft()).toBe("look x")
+    expect(chips(container)).toEqual([])
+  })
+
+  it("takes the whole placeholder when an edit would leave a part of it", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+      draft: "look",
+    })
+    const { container } = chat
+    caretAt(container, 4)
+    paste(container, { files: [png()] })
+    await settle()
+    // The closing bracket and the space went, as two Backspaces would do natively.
+    set(box(container), "look [Image #1")
+    expect(chat.draft()).toBe("look ")
+    expect(chips(container)).toEqual([])
+    caretAt(container, 5)
+    paste(container, { files: [png()] })
+    await settle()
+    // Typing over a selection that covers the end of it and some words after.
+    set(box(container), "look [Image #X")
+    expect(chat.draft()).toBe("look X")
+    expect(chips(container)).toEqual([])
+  })
+
+  it("judges the words without the placeholders, as the runner does", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+      draft: "/review this",
+      refuse: ["/review this"],
+    })
+    const { container } = chat
+    caretAt(container, 0)
+    paste(container, { files: [png()] })
+    await settle()
+    expect(chat.draft()).toBe("[Image #1] /review this")
+    expect(sendButton(container).disabled).toBe(true)
+    await send(container)
+    expect(chat.sent).not.toHaveBeenCalled()
+  })
+
+  it("refuses a reply while the box holds images, and keeps both", async () => {
+    const chat = inApp(createStore<Conversation>(questioning), {
+      upload: async () => "/runner/a.png",
+      draft: "look",
+      program: "agy",
+    })
+    const { container } = chat
+    caretAt(container, 4)
+    paste(container, { files: [png()] })
+    await settle()
+    press(container, "Chat about this")
+    expect(sendButton(container).disabled).toBe(true)
+    expect(container.textContent).toContain("A reply can't take images")
+    expect(container.textContent).not.toContain("The images wait")
+    await send(container)
+    expect(chat.draft()).toBe("look [Image #1] ")
+    expect(chips(container)).toEqual(["shot.png:ready"])
+  })
+
+  it("refuses a shell command while the box holds images, and keeps both", async () => {
+    const chat = inApp(createStore<Conversation>(live), { upload: async () => "/runner/a.png" })
+    const { container } = chat
+    paste(container, { files: [png()] })
+    await settle()
+    set(box(container), "!ls [Image #1]")
+    expect(sendButton(container).disabled).toBe(true)
+    expect(container.textContent).toContain("A shell command can't take images")
+    await send(container)
+    expect(chat.sent).not.toHaveBeenCalled()
+    expect(chips(container)).toEqual(["shot.png:ready"])
+  })
+
+  it("refuses them in a shell command, which has no placeholder for one to stay by", async () => {
     const chat = inApp(createStore<Conversation>(live), {
       upload: async () => "/runner/a.png",
     })
     const { container } = chat
     paste(container, { files: [png()] })
     await settle()
+    // The words that replace the placeholder take its image with them.
     set(box(container), "!ls")
-    expect(container.textContent).toContain("The images wait for a message of your own")
+    expect(chips(container)).toEqual([])
     paste(container, { files: [png("two.png")] })
     expect(container.querySelector('[role="alert"]')?.textContent).toBe(
       "A shell command takes text only.",
@@ -1462,6 +1762,6 @@ describe("a chat with images pasted into its box", () => {
     await send(container)
     expect(chat.sent).toHaveBeenCalledWith("!ls")
     expect(chat.sentImages).toEqual([undefined])
-    expect(chips(container)).toEqual(["shot.png:ready"])
+    expect(chips(container)).toEqual([])
   })
 })

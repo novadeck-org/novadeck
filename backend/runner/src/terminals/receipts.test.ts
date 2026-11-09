@@ -719,3 +719,132 @@ describe("prompt receipts with images, after a Stop", () => {
     expect(run.receipts.boxFiles(terminal, 1, "fix this", true)).toEqual([])
   })
 })
+
+describe("prompt receipts with images among the words", () => {
+  const photo = ["/up/u1/chat.png"]
+  const text = "See this:  and fix it"
+  // The box as Claude Code shows it after a Stop, and how `splitImages` reads it.
+  const box = { words: text, marks: 1, places: [8] }
+
+  const inline = async (
+    resources: Parameters<typeof setup>[0],
+    agent: ReceiptSource["agent"] = "claude",
+    words = text,
+    at: readonly number[] = [10],
+    files: readonly string[] = photo,
+  ) => {
+    const run = await setup(resources)
+    run.host.agent = agent
+    await run.receipts.expect(terminal, words, "r1", files, at)
+    run.receipts.sent(terminal, "r1")
+    return run
+  }
+
+  it("gives the file back with the text and where it stood, for a box that is exactly the prompt", async ({
+    resources,
+  }) => {
+    const { receipts } = await inline(resources)
+    expect(receipts.boxGiven(terminal, box.marks, box.words, true, box.places)).toEqual({
+      files: photo,
+      text,
+      at: [10],
+    })
+  })
+
+  it("does not take a box whose placeholder stands elsewhere, ahead of the words or not", async ({
+    resources,
+  }) => {
+    const { receipts, state } = await inline(resources)
+    for (const places of [[0], [9], [20]]) {
+      expect(receipts.boxGiven(terminal, 1, text, true, places).files).toEqual([])
+      receipts.taken(terminal, text, undefined, 1, places)
+      receipts.withdraw(terminal, text, 0, 1, places)
+    }
+    expect(state("r1")).toBe("pending")
+  })
+
+  it("does not take a box with another image beside the prompt's, or other words", async ({
+    resources,
+  }) => {
+    const { receipts, state } = await inline(resources)
+    expect(receipts.boxGiven(terminal, 2, text, true, [8, 8]).files).toEqual([])
+    expect(receipts.boxGiven(terminal, 2, text, true, [8, 20]).files).toEqual([])
+    expect(receipts.boxGiven(terminal, 1, `${text} now`, true, [8]).files).toEqual([])
+    expect(receipts.boxGiven(terminal, 1, `Also ${text}`, true, [8]).files).toEqual([])
+    receipts.withdraw(terminal, text, 0, 2, [8, 8])
+    expect(state("r1")).toBe("pending")
+  })
+
+  it("takes the box on a Stop only for its own queued prompt, a hand-pasted image beside the words never", async ({
+    resources,
+  }) => {
+    const { receipts } = await inline(resources)
+    // Not queued, not in the box: only a Stop's box may be the prompt's.
+    expect(receipts.boxGiven(terminal, box.marks, box.words, false, box.places).files).toEqual([])
+  })
+
+  it("withdraws the prompt for the box that is exactly its own", async ({ resources }) => {
+    const { receipts, state } = await inline(resources)
+    receipts.withdraw(terminal, text, 0, 1, [8])
+    expect(state("r1")).toBe("withdrawn")
+  })
+
+  it("tells two images' places in one prompt, and a prompt ending in an image", async ({
+    resources,
+  }) => {
+    const both = ["/up/u1/a.png", "/up/u1/b.png"]
+    const { receipts } = await inline(resources, "codex", "Compare  with ", [8, 14], both)
+    expect(receipts.boxGiven(terminal, 2, "Compare  with", true, [7, 11])).toEqual({
+      files: both,
+      text: "Compare  with ",
+      at: [8, 14],
+    })
+    expect(receipts.boxGiven(terminal, 2, "Compare  with", true, [7, 7]).files).toEqual([])
+  })
+
+  it("gives the words after an image that led the others, and queued prompts joined", async ({
+    resources,
+  }) => {
+    const run = await setup(resources)
+    await run.receipts.expect(terminal, "alpha", "A", [], undefined)
+    run.receipts.sent(terminal, "A")
+    await run.receipts.expect(terminal, "see  now", "B", photo, [4])
+    run.receipts.sent(terminal, "B")
+    expect(run.receipts.boxGiven(terminal, 1, "alpha\nsee  now", true, [8])).toEqual({
+      files: photo,
+      text: "alpha\nsee  now",
+      at: [10],
+    })
+  })
+
+  it("keeps the images of prompts that all led giving no text and no places, as before", async ({
+    resources,
+  }) => {
+    const run = await setup(resources)
+    await run.receipts.expect(terminal, "describe", "r1", photo, [0])
+    run.receipts.sent(terminal, "r1")
+    expect(run.receipts.boxGiven(terminal, 1, "describe", true, [0])).toEqual({ files: photo })
+  })
+
+  it("gives Antigravity's typed placeholders back as they stand, or as sent where they are gone", async ({
+    resources,
+  }) => {
+    const { receipts } = await inline(resources, "agy")
+    expect(receipts.boxGiven(terminal, 1, text, true, [8])).toEqual({
+      files: photo,
+      text,
+      at: [10],
+    })
+    // Words with no placeholder left: its media were lost with the Stop, the words are the prompt's.
+    expect(receipts.boxGiven(terminal, 0, text, true)).toEqual({ files: photo, text, at: [10] })
+    expect(receipts.boxGiven(terminal, 0, `${text} and more`, true).files).toEqual([])
+    expect(receipts.boxGiven(terminal, 1, text, true, [3]).files).toEqual([])
+  })
+
+  it("owns a prompt whose places were given up as a leading one", async ({ resources }) => {
+    const { receipts } = await inline(resources)
+    receipts.unplaced(terminal, "r1")
+    expect(receipts.boxGiven(terminal, 1, text, true, [0])).toEqual({ files: photo })
+    expect(receipts.boxGiven(terminal, 1, text, true, [8]).files).toEqual([])
+  })
+})

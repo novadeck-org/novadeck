@@ -2,6 +2,9 @@ import { withoutDoorbellLines } from "@novadeck/harness-core/prompts"
 import { promptRefusal } from "@novadeck/protocol"
 import {
   BoxNotCleared,
+  isPlaced,
+  placedWords,
+  placesFit,
   Interrupts as Interrupter,
   PromptRefusal,
   Prompts as Prompter,
@@ -150,6 +153,24 @@ const asDomain = async <T>(work: Promise<T>): Promise<T> => {
 }
 
 /**
+ * The words ahead of an image that would leave a picker open: `@name` or `$name` at the very
+ * end of the run, with the image's path pasted right after it. The whole text's end is judged
+ * by `promptRefusal` already, and white space after a mention closes its picker, so only a run
+ * that ends in one is refused. Throws a `PromptRefusal` for it, before any key.
+ */
+const imageRefusal = (text: string, images: number, at: readonly number[]): void => {
+  if (!isPlaced(at) || !placesFit(text, images, at)) return
+  const runs = placedWords(text, at)
+  for (const run of runs.slice(0, images)) {
+    if (/(?:^|\s)@\S*$/.test(run) || /(?:^|\s)\$(?:[A-Za-z_]\S*)?$/.test(run))
+      throw new PromptRefusal(
+        "refused",
+        "An image can't follow an @ or $ mention: the agent would offer a file or skill to pick.",
+      )
+  }
+}
+
+/**
  * The library's `Prompts` with this app's rule for what a prompt may hold (`promptRefusal`,
  * which the clients apply too) and its errors as the contract's (see `agents.prompt`). A
  * subclass, so that the manager's tests can still replace the one step they are not about,
@@ -167,8 +188,15 @@ export class Prompts extends Prompter {
     mode?: PromptMode,
     joined?: () => void,
     images?: readonly string[],
+    at?: readonly number[],
+    unplaced?: () => void,
   ): Promise<PromptGiven> {
-    return await asDomain(super.prompt(terminalId, text, mode, joined, images))
+    return await asDomain(
+      (async () => {
+        if (images && at) imageRefusal(text, images.length, at)
+        return await super.prompt(terminalId, text, mode, joined, images, at, unplaced)
+      })(),
+    )
   }
 
   override async promptIn(entry: InputEntry, terminalId: string, text: string): Promise<void> {
@@ -178,11 +206,13 @@ export class Prompts extends Prompter {
 
 /**
  * What an interrupt gave back: the words queued behind the turn, null for none, and how many
- * images led them in the box (see `splitImages`), whose files the caller knows.
+ * images were in the box with them and where (see `splitImages`), whose files the caller knows.
  */
 export type Interrupted = {
   readonly returned: string | null
   readonly marks: number
+  /** Where each of the marks stood among the words (see `splitImages`). */
+  readonly places: readonly number[]
   /** How many images led the turn's own prompt, put back in the box and cleared. */
   readonly restored: number
 }
@@ -206,10 +236,11 @@ export class Interrupts {
   ): Promise<Interrupted> {
     const { returned, images } = await asDomain(this.interrupts.interrupt(terminalId, entry))
     if (returned) gave?.(returned)
-    const { words, marks } = splitImages(returned ?? "")
+    const { words, marks, places } = splitImages(returned ?? "")
     return {
       returned: (words && withoutDoorbellLines(words)) || null,
       marks,
+      places,
       restored: images ?? 0,
     }
   }

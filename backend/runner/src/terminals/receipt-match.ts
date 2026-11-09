@@ -35,24 +35,40 @@ const runAt = (
   needle: readonly string[],
   from: number,
   joined = false,
+  loose = false,
 ): number => {
   if (needle.length === 0) return -1
+  // `loose`: white space within a line is no difference, as around a placeholder's place.
   const fits = (line: string, own: string, first: boolean): boolean =>
-    line.trim() === own.trim() || (joined && first && line.trim().endsWith(` ${own.trim()}`))
+    loose
+      ? spaced(line) === spaced(own)
+      : line.trim() === own.trim() || (joined && first && line.trim().endsWith(` ${own.trim()}`))
   for (let at = from; at + needle.length <= lines.length; at += 1)
     if (needle.every((own, offset) => fits(lines[at + offset]!, own, offset === 0))) return at
   return -1
 }
 
+/** The placeholder a harness records for an image of a prompt: `[Image #1]`. */
+const mark = /\[Image #\d+\]/g
+
 /**
- * The placeholders a harness records for the images of a prompt, ahead of its words
- * (`[Image #1] [Image #2] words`; the numbers run on through the session): how many lead
- * the text, and the text after them.
+ * A record item's placeholders of images, wherever they stand (`[Image #1] [Image #2] words`
+ * ahead of them, or `look [Image #1] here` among them; the numbers run on through the
+ * session): how many, and the text without them. Antigravity records none for images it
+ * attached, and for a prompt with images among its words, the placeholders the runner typed
+ * (`ProfileImages.typed`).
  */
-const imageMarks = (text: string): { readonly count: number; readonly rest: string } => {
-  const marks = /^(?:\s*\[Image #\d+\])+/.exec(text)?.[0] ?? ""
-  return { count: marks.match(/\[Image #/g)?.length ?? 0, rest: text.slice(marks.length) }
-}
+const imageMarks = (text: string): { readonly count: number; readonly rest: string } => ({
+  count: text.match(mark)?.length ?? 0,
+  rest: text.replace(mark, ""),
+})
+
+/**
+ * A line without its white space: a harness keeps a space of its own beside a placeholder
+ * (Codex adds one after it), and a person may have none around it, so what spaces stood near
+ * where a placeholder was can't be told from what a harness added.
+ */
+const spaced = (line: string): string => line.replace(/\s+/g, "")
 
 /**
  * A prompt still waiting for its record: its ref, its lines (`promptLines`), `Receipts.joined`,
@@ -75,11 +91,15 @@ export type Waiting = {
  * after each was sent), and a prompt settles once.
  */
 export const settledBy = (waiting: readonly Waiting[], item: string): readonly string[] => {
-  const lines = promptLines(item)
   const marked = imageMarks(item)
+  // Placeholders of the item's own, in the words of a prompt, are no image's.
+  const lines = promptLines(item)
+  const bare = promptLines(marked.rest)
   const settled: string[] = []
   let cursor = 0
-  for (const prompt of waiting) {
+  // The item's placeholders not yet taken for a prompt's images.
+  let marks = marked.count
+  for (const [index, prompt] of waiting.entries()) {
     if (!prompt.images) {
       const at = runAt(lines, prompt.lines, cursor, prompt.joined)
       if (at < 0) continue
@@ -87,19 +107,26 @@ export const settledBy = (waiting: readonly Waiting[], item: string): readonly s
       cursor = at + prompt.lines.length
       continue
     }
-    // A prompt with images: the item's placeholders are its images (none where the harness
-    // keeps them apart), and the words follow them.
-    if (marked.count !== 0 && marked.count !== prompt.images) continue
-    const own = marked.count === 0 ? lines : promptLines(marked.rest)
     if (prompt.lines.length === 0) {
       // Images alone: an item of nothing but their placeholders.
-      if (marked.count === prompt.images && own.length === 0) settled.push(prompt.ref)
+      if (marked.count === prompt.images && bare.length === 0) settled.push(prompt.ref)
       continue
     }
-    const at = runAt(own, prompt.lines, marked.count === 0 ? cursor : 0)
+    // A prompt with images: the item's placeholders are its images, wherever they stand (none
+    // where the harness keeps them apart), and the words are the rest, and the words' own
+    // placeholder-like text, which stays in them. The last prompt with images takes all
+    // that are left; one before it, at least its own.
+    const literal = prompt.lines.join("\n").match(mark)?.length ?? 0
+    const exact = !waiting.slice(index + 1).some((later) => later.images)
+    const fits = (count: number): boolean => (exact ? marks === count : marks >= count)
+    const shown = fits(prompt.images + literal)
+    if (!shown && !fits(literal)) continue
+    const words = prompt.lines.map((line) => line.replace(mark, ""))
+    const at = runAt(bare, words, cursor, false, true)
     if (at < 0) continue
     settled.push(prompt.ref)
     cursor = at + prompt.lines.length
+    marks -= shown ? prompt.images + literal : literal
   }
   return settled
 }
@@ -113,9 +140,11 @@ const compact = (text: string): string => text.replace(/\s+/g, "")
  */
 export const inBox = (box: string, lines: readonly string[], images = 0): boolean => {
   const words = compact(lines.join(""))
+  // A prompt with images has their placeholders in the box, among the words or ahead of them.
+  const shown = images > 0 ? box.replace(mark, "") : box
   // Images alone are there when the box holds that many placeholders.
   if (words === "") return images > 0 && (box.match(/\[Image #\d+\]/g)?.length ?? 0) >= images
-  return compact(box).includes(words)
+  return compact(shown).includes(words)
 }
 
 /** A prompt whose words may be in the box: as given, and its lines (`promptLines`). */

@@ -317,10 +317,12 @@ export const WorkspaceTerminal = memo(
                 shells={shells}
                 attachments={attachments}
                 imageNote={imageNote}
-                onRestore={(images) => commands.restoreChatImages(chatContext, terminalId, images)}
+                onRestore={(words, images) =>
+                  commands.restoreChat(chatContext, terminalId, words, images)
+                }
                 onAttach={
                   conversations!.uploadImage
-                    ? (files) => commands.attachChatImages(terminalKey, files)
+                    ? (files, selection) => commands.attachChatImages(terminalKey, files, selection)
                     : undefined
                 }
                 onDetach={(id) => commands.removeChatImage(chatContext, terminalId, id)}

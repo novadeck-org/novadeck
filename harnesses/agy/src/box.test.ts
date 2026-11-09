@@ -49,4 +49,9 @@ describe("Antigravity's images", () => {
   it("sends nothing for images alone", () => {
     expect(box.images!.alone).toBe(false)
   })
+
+  it("types the place of an image among the words, which it shows no mark for", () => {
+    expect(box.images!.typed?.(1)).toBe("[Image #1]")
+    expect(box.images!.typed?.(12)).toBe("[Image #12]")
+  })
 })

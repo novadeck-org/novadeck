@@ -35,6 +35,13 @@ export const item = (
     30_000,
   )
 
+/** Text without its placeholders of images and runs of white space, as words are told apart. */
+const unmarked = (text = ""): string =>
+  text
+    .replace(/\[Image #\d+\]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+
 /**
  * Gives the agent a prompt as the chat does, and checks its receipt: followed, pending or
  * already settled once the Enter is out (`agents.detail`); then returns a wait for it to
@@ -44,12 +51,13 @@ export const prompted = async (
   terminal: DeckTerminal,
   text: string,
   images: readonly DeckImage[] = [],
+  places?: readonly number[],
 ): Promise<() => Promise<void>> => {
   // Its first line names it in a failure: a long prompt's whole text would bury the message.
   const [label = ""] = text.split("\n")
   const receiptOf = async (ref: string) =>
     ((await terminal.detail()).prompts ?? []).find((prompt) => prompt.ref === ref)
-  const { ref, tracked } = await terminal.prompt(text, images)
+  const { ref, tracked } = await terminal.prompt(text, images, places)
   expect(tracked, `${label}: followed`).toBe(true)
   expect((await receiptOf(ref))?.state, `${label}: its receipt once sent`).toMatch(
     /^(pending|settled)$/,
@@ -67,6 +75,7 @@ export const prompted = async (
     const items = await terminal.transcript()
     const at = items.find((each) => each.index === settled.item)
     expect(at?.role, `${label}: settled by`).toBe("user")
-    expect(at?.text, `${label}: settled by`).toContain(label)
+    // Images among the words are in the record as placeholders there: the words are what is told.
+    expect(unmarked(at?.text), `${label}: settled by`).toContain(unmarked(label))
   }
 }

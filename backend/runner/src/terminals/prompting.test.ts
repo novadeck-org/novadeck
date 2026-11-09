@@ -423,6 +423,7 @@ describe("interrupts", () => {
     expect(await stopped("the turn's own", { clear: true }).interrupt("t")).toEqual({
       returned: null,
       marks: 0,
+      places: [],
       restored: 0,
     })
   })
@@ -433,16 +434,19 @@ describe("interrupts", () => {
     expect(await stopped(line, { clear: true }).interrupt("t")).toEqual({
       returned: null,
       marks: 0,
+      places: [],
       restored: 0,
     })
     expect(await stopped(reply, { clear: true }).interrupt("t")).toEqual({
       returned: null,
       marks: 0,
+      places: [],
       restored: 0,
     })
     expect(await stopped(`queued words\n${line}`, { clear: true }).interrupt("t")).toEqual({
       returned: "queued words",
       marks: 0,
+      places: [],
       restored: 0,
     })
   })
@@ -451,6 +455,7 @@ describe("interrupts", () => {
     expect(await stopped("queued words", { clear: true }).interrupt("t")).toEqual({
       returned: "queued words",
       marks: 0,
+      places: [],
       restored: 0,
     })
   })
@@ -458,10 +463,11 @@ describe("interrupts", () => {
   it("counts the images that led the words, and leaves their placeholders out", async () => {
     expect(
       await stopped("[Image #1] [Image #2] queued words", { clear: true }).interrupt("t"),
-    ).toEqual({ returned: "queued words", marks: 2, restored: 0 })
+    ).toEqual({ returned: "queued words", marks: 2, places: [0, 0], restored: 0 })
     expect(await stopped("[Image #3]", { clear: true }).interrupt("t")).toEqual({
       returned: null,
       marks: 1,
+      places: [0],
       restored: 0,
     })
   })
@@ -507,8 +513,8 @@ describe("interrupts", () => {
     return { receipts, close: () => receipts.close() }
   }
   const owns = (receipts: Receipts) => (text: string) => {
-    const { words, marks } = splitImages(text)
-    return receipts.boxFiles("t", marks, words, true).length > 0
+    const { words, marks, places } = splitImages(text)
+    return receipts.boxFiles("t", marks, words, true, places).length > 0
   }
 
   it("clears the turn's own image prompt put back, which settled in the turn that runs", async ({
@@ -553,5 +559,42 @@ describe("the data of a failed prompt that took words out", () => {
   it("carries an image's failure as its reason", () => {
     const failure = promptError(new PromptRefusal("image-not-shown", "x")) as DomainError
     expect(promptFailure.safeParse(failure.data).data).toEqual({ reason: "image-not-shown" })
+  })
+})
+
+describe("a prompt with images among its words", () => {
+  const prompts = new Prompts({} as never, new InputQueue({} as never))
+  const given = (text: string, at: readonly number[]) =>
+    prompts
+      .prompt("t", text, "alone", undefined, ["/up/a/one.png"], at)
+      .catch((error: unknown) => error)
+
+  it("is refused where the words before an image end in a mention that would leave a picker open", async () => {
+    for (const [text, at] of [
+      ["look at @READ  now", 13],
+      ["see $pdf2  now", 9],
+      ["@a  now", 2],
+      ["done. $  now", 7],
+    ] as const) {
+      // eslint-disable-next-line no-await-in-loop -- Each case is judged in turn.
+      const error = await given(text, [at])
+      expect(error).toBeInstanceOf(DomainError)
+      expect(error).toMatchObject({ code: "PROMPT_REFUSED" })
+    }
+  })
+
+  it("is not refused for a mention that a space or other words close before the image", async () => {
+    // Past the check the prompt goes to the queue, whose host here is bare: any other error.
+    for (const [text, at] of [
+      ["look at @READ  now", 14],
+      ["look @READ it  now", 14],
+      ["it costs $5  now", 11],
+      ["mail a@b.co  now", 12],
+      ["@READ.md and  now", 12],
+    ] as const) {
+      // eslint-disable-next-line no-await-in-loop -- Each case is judged in turn.
+      const error = await given(text, [at])
+      expect(error).not.toMatchObject({ code: "PROMPT_REFUSED" })
+    }
   })
 })

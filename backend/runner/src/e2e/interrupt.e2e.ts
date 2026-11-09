@@ -167,6 +167,70 @@ for (const setup of setups) {
       await through(t1, ["working", "settled"], { after: next })
     })
 
+    // The same with the image among the words: Claude Code and Antigravity put the message back
+    // in their box (Antigravity with the placeholder the runner typed for its image), and the
+    // runner answers the words and the file, and where the image stood in them.
+    it("stops a turn with an image among the words queued behind it, giving back where the image stood", async ({
+      e2e: run,
+    }) => {
+      const held = gate()
+      const queuedHeld = gate()
+      run.model.use(
+        replies("Carry on", "Carried on."),
+        own(async (call) => {
+          if (asked(call, "Queued")) {
+            await queuedHeld.opened
+            return { text: "Queued late." }
+          }
+          if (!asked(call, "Hold on")) return undefined
+          await held.opened
+          return { text: "Too late." }
+        }),
+      )
+      const t1 = await start(run, setup)
+      const calls = run.model.mark()
+      const mark = t1.mark()
+
+      // The turn is the chat's own prompt with an image among its words, which a Stop may put
+      // back in the box too.
+      await t1.prompt("Hold on  now", [{ name: "turn.png", data: picture }], [8])
+      await run.model.waitFor((call) => !call.side && latest(call).includes("Hold on"), {
+        after: calls,
+      })
+      await t1.reached("working", { after: mark })
+      await t1.prompt("Queued  beta", [{ name: "shot.png", data: picture }], [7])
+      if (setup.agent === "claude") await t1.until("ctrl+x ctrl+s to send now")
+      else await queuedUp(t1, setup, "Queued")
+      await sleep(1000)
+      const stopped = await t1.interrupt()
+      const account = setup.interrupted("Hold on")
+      await t1.poll(
+        async () => {
+          const shown = await t1.screen()
+          return account.test(shown) || !shown.includes("Hold on") ? true : undefined
+        },
+        "the harness to take the interrupt",
+        30_000,
+      )
+      held.open()
+      queuedHeld.open()
+      await sleep(2500)
+
+      // Codex's steer went to the agent: nothing came back.
+      expect(stopped.returned).toBe(setup.agent === "codex" ? null : "Queued  beta")
+      expect(stopped.images ?? []).toEqual(
+        setup.agent === "codex" ? [] : [expect.stringMatching(/shot\.png$/)],
+      )
+      expect(stopped.at).toEqual(setup.agent === "codex" ? undefined : [7])
+      expect(t1.summary().activity?.state).not.toBe("working")
+
+      // The box is empty: the next prompt goes alone, as a normal turn.
+      const next = t1.mark()
+      await t1.prompt("Carry on")
+      await t1.until("Carried on.")
+      await through(t1, ["working", "settled"], { after: next })
+    })
+
     it("stops a turn that has a message queued behind it, and gives the queued words back out of the box", async ({
       e2e: run,
     }) => {

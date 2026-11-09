@@ -5,14 +5,7 @@ import type { ScreenText } from "@novadeck/emulator/headless"
 import { isEmpty, pastesWhole, showsTail, type BoxProfile, type InputBox } from "./box/box.js"
 import { cursorEnded, pressKeys, type BoxKeysHost } from "./box/keys.js"
 import { leftoverOf } from "./box/leftover.js"
-import {
-  leadsWithImages,
-  sameText,
-  unwrapped,
-  wentFrom,
-  withoutImages,
-  wrappedRows,
-} from "./box/text.js"
+import { hasImages, sameText, unwrapped, wentFrom, withoutImages, wrappedRows } from "./box/text.js"
 import { collapsible, type BoxNote } from "./prompts.js"
 import type { HoldBudget, InputEntry, InputQueue } from "./queue.js"
 import { bracketedPaste } from "./typing.js"
@@ -32,7 +25,7 @@ export type HandoverHost = {
   /** The words the box's text stands for, where all of it is text Novadeck typed and knows. */
   readonly known: (terminalId: string, text: string) => string | undefined
   /**
-   * Whether the images that lead the box's text are all Novadeck's own, files it pasted and
+   * Whether the images in the box's text, wherever they stand, are all Novadeck's own, files it pasted and
    * can give back: only then may the text come out without them. Omitted where none are.
    */
   readonly ownImages?: (terminalId: string, text: string) => boolean
@@ -328,9 +321,9 @@ export class Handovers {
     }
   }
 
-  /** The box's text without the images that lead it, where all of them are Novadeck's own. */
+  /** The box's text without its images, where all of them are Novadeck's own. */
   private words(terminalId: string, text: string): string {
-    return leadsWithImages(text) && this.host.ownImages?.(terminalId, text) === true
+    return hasImages(text) && this.host.ownImages?.(terminalId, text) === true
       ? withoutImages(text)
       : text
   }

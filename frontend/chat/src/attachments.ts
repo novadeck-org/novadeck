@@ -2,12 +2,14 @@ import { valueOf, withValue, type ByTerminal } from "./by-terminal"
 
 // An image the person pasted into a terminal's chat, to go with their next message:
 // - `id`: what names it while it is here;
+// - `n`: its number in the draft, which its placeholder `[Image #n]` in the words carries;
 // - `name`: what it is called, for its label;
 // - `preview`: an object URL of the pasted bytes, for its thumbnail;
 // - `state`: `uploading` while it is being saved on the agent's machine, `ready` with its
 //   `path` there once it is, `failed` with `error` (the reason, in words) if it couldn't be.
 export type Attachment = {
   readonly id: string
+  readonly n: number
   readonly name: string
   readonly preview: string
   readonly state: "uploading" | "ready" | "failed"
@@ -85,18 +87,6 @@ export const droppedImages = (
       chatAttachmentsOf(after, context, id).length === 0 ? list : [],
     ),
   )
-
-// Images put back in a box that holds `current`, ahead of them, and no more than a message
-// takes: `kept` is the box's new list, `over` what the box has no room for, which comes from
-// the end.
-export const withBack = (
-  back: readonly Attachment[],
-  current: readonly Attachment[],
-  max: number,
-): { readonly kept: readonly Attachment[]; readonly over: readonly Attachment[] } => {
-  const all = [...back, ...current]
-  return { kept: all.slice(0, max), over: all.slice(max) }
-}
 
 // The label for a new image among those held: its own name, numbered where another has it.
 export const labelFor = (name: string, held: readonly string[]): string => {

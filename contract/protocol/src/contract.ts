@@ -18,7 +18,9 @@ import {
   agentName,
   agentRef,
   conflictReason,
+  imagePlaces,
   interruptResult,
+  placesFit,
   promptFailure,
   promptResult,
 } from "./agents.js"
@@ -344,7 +346,8 @@ export const contract = {
     // of images alone has one like any other.
     // `images` are files the person pasted into the chat, saved by `terminals.upload` on this
     // runner: each path is pasted into the agent's box on its own, as a person pastes an
-    // image file, before the text, and the agent shows it as an image (Claude Code and Codex
+    // image file, at its place in the text (`at`; before the text without it), and the agent
+    // shows it as an image (Claude Code and Codex
     // as `[Image #1]`, Antigravity as an attachment line). A path this runner did not save
     // (by `terminals.upload`), or whose file is gone, is PROMPT_REFUSED, writing nothing; an
     // image the agent never shows is PROMPT_FAILED with data `{ reason: "image-not-shown" }`,
@@ -359,6 +362,8 @@ export const contract = {
             // The paths `terminals.upload` answered for this runner, each an image the agent
             // takes first (see below); at most `maxPromptImages`.
             images: z.array(directory).min(1).max(maxPromptImages).optional(),
+            // Where each image goes in the text (see `imagePlaces`); without it they lead.
+            at: imagePlaces.max(maxPromptImages).optional(),
             automatic: z.literal(true).optional(),
             // Whether what the box holds may go along, or come out (see below): only where the
             // person can see it, as the chat shows it. Without it the box must be empty.
@@ -368,6 +373,10 @@ export const contract = {
           .refine((prompt) => prompt.text.length > 0 || prompt.images !== undefined, {
             message: "A prompt holds text, images, or both.",
             path: ["text"],
+          })
+          .refine((prompt) => placesFit(prompt.text, prompt.images, prompt.at), {
+            message: "`at` gives each image a place in the text, in order.",
+            path: ["at"],
           }),
       )
       .output(promptResult),
@@ -383,11 +392,14 @@ export const contract = {
     // over the terminal is where the person writes: only what reads whole and steady off the
     // screen. Null where nothing was taken, the box's text then still in `agents.detail`'s
     // `box` (see docs/backend-api.md, "One input").
-    takeBox: procedure
-      .input(z.strictObject({ terminalId: id }))
-      .output(
-        z.strictObject({ returned: z.string().nullable(), images: z.array(directory).optional() }),
-      ),
+    takeBox: procedure.input(z.strictObject({ terminalId: id })).output(
+      z.strictObject({
+        returned: z.string().nullable(),
+        images: z.array(directory).optional(),
+        // Where each of `images` stood in `returned` (see `imagePlaces`); absent where they led.
+        at: imagePlaces.optional(),
+      }),
+    ),
     // Puts a client's draft in the agent's input box, with no Enter, as the person goes to the
     // terminal: `placed` false where the box isn't empty, or the text would open a picker there,
     // and the draft stays the client's.
