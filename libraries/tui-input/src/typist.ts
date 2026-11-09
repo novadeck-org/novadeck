@@ -2,7 +2,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 
-import { isEmpty, rule, tailOf, type BoxProfile } from "./box/box.js"
+import { boxRules, isEmpty, tailOf, type BoxProfile } from "./box/box.js"
 import { changedRows, checkPaste } from "./box/paste.js"
 import { sameText } from "./box/text.js"
 import type { InputEntry } from "./queue.js"
@@ -46,22 +46,20 @@ export type Timing = {
 export type Trace = (line: string) => void
 
 /**
+ * Where the cursor stood on a screen, and the rows a ruled box would lie between there, as
+ * `ruledBox` finds them: facts, never the screen's text, as a doorbell line holds.
+ */
+const cursorFact = ({ rows, columns, cursor }: ScreenText): string => {
+  const { top, bottom } = boxRules(rows)
+  const inside = top >= 0 && bottom - top >= 2 && cursor.row > top && cursor.row < bottom
+  return `cursor ${cursor.row},${cursor.column} of ${rows.length}x${columns}, box rules ${top},${bottom}, cursor ${inside ? "inside" : "outside"}`
+}
+
+/**
  * How long the test paste may take to show by default on `platform`, in milliseconds. A loaded
  * Windows runner stalls the runner for a second at a time (probed on CI), so the screen is
  * looked at less often than the test paste's check needs: more time there.
  */
-/** Where the cursor stood on a screen, and whether it lay between its two lowest rules: facts, no text. */
-const cursorFact = (screen: ScreenText): string => {
-  const rules = screen.rows.flatMap((row, at) => (rule(row) ? [at] : []))
-  const [top, bottom] = rules.slice(-2)
-  const inside =
-    top !== undefined &&
-    bottom !== undefined &&
-    screen.cursor.row > top &&
-    screen.cursor.row < bottom
-  return `cursor ${screen.cursor.row},${screen.cursor.column} of ${screen.rows.length}x${screen.columns}, ${rules.length} rules, cursor ${inside ? "between" : "not between"} the lowest two`
-}
-
 export const pasteMsOn = (platform: NodeJS.Platform): number =>
   platform === "win32" ? 4_000 : 1_500
 
