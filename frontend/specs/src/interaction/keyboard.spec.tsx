@@ -619,7 +619,7 @@ describe("workspace keys after choosing a view", () => {
       await press("{ArrowLeft}")
       await expect.element(view("Grid")).toBeChecked()
       await press("{ArrowDown}")
-      await expectSelected("Dev server")
+      await expectSelected("Tests")
     })
   })
 

@@ -15,15 +15,6 @@ export const openShowcase = async (view: "focus" | "grid" | "canvas" = "grid"): 
   await openWorkspace(`/projects/studio/sessions/initial/${view}?demo=showcase`)
 }
 
-/**
- * Makes the window tall enough for the showcase's Grid to show the terminals a drag runs
- * between together, as every tile is 416 px high, and puts it back when the test ends.
- */
-export const tallWindow = async (): Promise<void> => {
-  await page.viewport(1440, 1800)
-  onTestFinished(() => page.viewport(1440, 900))
-}
-
 /** A terminal's taskbar, named after the agent whose things it shows. */
 export const taskbar = (name: string): Locator =>
   terminal(name).getByRole("group", { name: /^What .+ showed you$/ })

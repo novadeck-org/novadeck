@@ -165,7 +165,7 @@ describe("Murmur's one-time offer", () => {
     })
 
     it("shrinks to its icon in the narrow Grid tile of a small window, and the name stays", async () => {
-      // A tile is narrower than 560 px only in a Grid too narrow for two columns, as on a small window.
+      // A tile is narrower than 480 px only in a Grid too narrow for two columns, as in a small window.
       await page.viewport(720, 900)
       onTestFinished(() => page.viewport(1440, 900))
       await openWorkspace("/?demo=agents&murmur=uninstalled&turnMs=2000")

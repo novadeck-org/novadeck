@@ -65,8 +65,8 @@ A taskbar along each terminal's bottom has an icon for the plan. Opening it show
 the plan beside its terminal, never over the workspace:
 
 - **Focus** and **Grid** split the window: terminal on the left, plan on the
-  right, with a draggable divider. In a window under 640 px wide, as a Grid window is
-  on a phone or beside the sidebar of a small screen, the pane covers the terminal instead, which keeps its size underneath, until you
+  right, with a draggable divider. In a window under 640 px wide, as most Grid windows
+  are, the pane covers the terminal instead, which keeps its size underneath, until you
   minimize or close it. While it covers the terminal, Escape minimizes it and never
   reaches the agent, Enter only uncovers the terminal, and any other key the terminal
   would take uncovers it and goes into it, so typing a reply brings the terminal back;

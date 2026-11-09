@@ -15,7 +15,7 @@ export const gridTileHeight = 416
 // The narrowest a tile gets: as many columns fit as leave each tile this wide, and the tiles
 // then stretch to fill the row. Below it, which is a phone's width, one column takes the
 // whole width.
-export const gridTileMinWidth = 560
+export const gridTileMinWidth = 480
 
 export const gridColumnCount = (width: number): number =>
   Math.max(1, Math.floor((width + gridGap) / (gridTileMinWidth + gridGap)))

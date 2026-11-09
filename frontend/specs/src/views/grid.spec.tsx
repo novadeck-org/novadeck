@@ -35,8 +35,8 @@ import {
 } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
-// Wide enough for two tiles side by side beside the sidebar, which 1440 px is not.
-const twoColumns = { width: 1920, height: 900 }
+// Two tiles side by side beside the sidebar: the Grid is about 1126 px wide.
+const twoColumns = { width: 1440, height: 900 }
 
 const openGrid = async (height = twoColumns.height): Promise<void> => {
   await page.viewport(twoColumns.width, height)
@@ -115,21 +115,31 @@ describe("Grid view", () => {
         expect(box.width).toBeCloseTo(boxes[0]!.width, 0)
         expect(box.height).toBeCloseTo(416, 0)
       }
-      // Two tiles of at least 560 px fill a row of the Grid, which is under three.
-      expect(boxes[0]!.width).toBeGreaterThanOrEqual(560)
+      // Two tiles of at least 480 px fill a row of the Grid, which is under three.
+      expect(boxes[0]!.width).toBeGreaterThanOrEqual(480)
       expect(new Set(boxes.map((box) => Math.round(box.left))).size).toBe(2)
       expect(boxes[1]!.right).toBeLessThanOrEqual(bounds(gridView()).right)
     })
 
-    it("takes the whole width for one column where two would be narrower than 560 px", async () => {
-      await page.viewport(1440, 900)
+    it("takes the whole width for one column where two would be narrower than 480 px", async () => {
+      await page.viewport(1000, 900)
       await openWorkspace()
       await chooseView("Grid")
 
       const boxes = Object.values(tileBoxes())
       expect(new Set(boxes.map((box) => Math.round(box.left))).size).toBe(1)
-      expect(boxes[0]!.width).toBeGreaterThan(1000)
+      expect(boxes[0]!.width).toBeGreaterThan(550)
       expect(boxes[0]!.height).toBeCloseTo(416, 0)
+    })
+
+    it("fits a third column when the Grid is wide enough for three tiles of 480 px", async () => {
+      await page.viewport(1920, 900)
+      await openWorkspace()
+      await chooseView("Grid")
+
+      const boxes = Object.values(tileBoxes())
+      expect(new Set(boxes.map((box) => Math.round(box.left))).size).toBe(3)
+      expect(boxes[0]!.width).toBeGreaterThanOrEqual(480)
     })
 
     it("lays out again from the sidebar's order when a tab is dragged there", async () => {
@@ -399,7 +409,7 @@ describe("Grid view", () => {
 })
 
 describe("Grid arrow keys", () => {
-  // Demo layout at 1920px, two columns in the sidebar's order: Checkout implementation and
+  // Demo layout at 1440px, two columns in the sidebar's order: Checkout implementation and
   // Dev server, Tests and Checkout review, Runtime and Build.
   const selectInGrid = async (name: string): Promise<void> => {
     await openGrid()

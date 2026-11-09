@@ -97,12 +97,12 @@ trace or Electron shows software rendering.
   terminals in view** (a screen at least half inside the window); both are rows of the tables.
 - `--window <width>x<height>` sets the window's content (1440×900 by default). **To have 20
   tiles in view the window is made bigger, not the tiles smaller.** The Grid puts as many
-  tiles across as leave each 560 px wide (`gridTileMinWidth`), which is one in a 1440 px
-  window with the sidebar open and two in a 1920 px one, and a row of them takes 432 px (a
+  tiles across as leave each 480 px wide (`gridTileMinWidth`), which is two in a 1440 px
+  window with the sidebar open and three in a 1920 px one, and a row of them takes 432 px (a
   tile is 416 px high, `gridTileHeight`, with its gap) under 161 px of header, so n tiles in
-  view need about 161 + 432 × n/2 px of height at two across: 1920×900 has 4 in view, and 20
+  view need about 161 + 432 × n/2 px of height at two across: 1440×900 has 4 in view, and 20
   take about 4500 px, which only a virtual
-  display has (`xvfb-run -s "-screen 0 1920x4600x24"` and `--window 1920x4500`); a real
+  display has (`xvfb-run -s "-screen 0 1440x4600x24"` and `--window 1440x4500`); a real
   display's window is clamped to it. Tiles are all one size and can't be made smaller. On a real display, `--switch=--force-device-scale-factor=0.5` doubles the CSS pixels
   the window holds, but draws the terminals' text at half its size, which changes what the
   atlas holds: do not compare it with a run without. The "Terminals in view" row says what a run

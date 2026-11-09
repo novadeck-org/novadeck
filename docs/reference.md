@@ -232,7 +232,7 @@ locale), so typing a character such as "ż" works in bash.
 
 Grid lays its terminals out from the Terminals list, as Canvas does: in the list's order,
 left to right and then top to bottom, skipping hidden ones. Every terminal has the same
-size, 416 px tall, and as many columns fit as leave each at least 560 px wide, stretching to
+size, 416 px tall, and as many columns fit as leave each at least 480 px wide, stretching to
 fill the row (one column at the full width on a narrow window). Opening or closing a terminal
 never resizes another, which would resize its program's screen; the later ones shift along.
 Only a change to the window's width does. Drag a terminal by its header to reorder: the others

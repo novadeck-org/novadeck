@@ -13,7 +13,6 @@ import {
   dragIconToFreeSpace,
   iconMenu,
   openShowcase,
-  tallWindow,
   taskbar,
   taskbarIcon,
   taskbarIcons,
@@ -403,7 +402,6 @@ describe("A plan whose edits can't be saved", () => {
   })
 
   it("asks before closing the plan once it was placed elsewhere, copying the edits first", async () => {
-    await tallWindow()
     await typeInto("folder")
     await dragIconToBar("Build Studio", "Plan: A home for Studio", "Refactor auth")
     // Beside Refactor auth's own plan, which only hides; the placed one would be lost.
@@ -687,7 +685,6 @@ describe("Something that can't show", () => {
 describe("Placing an item on another terminal's taskbar", () => {
   context("when an image is dragged onto it in Grid", () => {
     it("shows there, from its terminal, and goes back from its menu", async () => {
-      await tallWindow()
       await openShowcase()
       await dragCardToBar("Build Studio", "2 images", "hero.png", "Refactor auth")
       await expect
@@ -710,7 +707,6 @@ describe("Placing an item on another terminal's taskbar", () => {
 
   context("when the pointer is cancelled while an image is dragged over it", () => {
     it("stays where it was", async () => {
-      await tallWindow()
       await openShowcase()
       const cancelled = cancelPointerOver(taskbar("Refactor auth"))
       await dragCardToBar("Build Studio", "2 images", "hero.png", "Refactor auth")
@@ -740,7 +736,6 @@ describe("Placing an item on another terminal's taskbar", () => {
 
   context("when the messages are dragged onto it", () => {
     it("keeps them on their own terminal's taskbar", async () => {
-      await tallWindow()
       await openShowcase()
       await dragIconToBar("Build Studio", "Messages", "Refactor auth")
       await expect.element(taskbarIcon("Build Studio", "Messages")).toBeVisible()
@@ -782,7 +777,6 @@ describe("Undocking an item into a window of its own", () => {
   context("when dragged onto the Grid between its tiles", () => {
     it("opens a window there", async () => {
       watchBarDrag()
-      await tallWindow()
       await openShowcase()
       await dragIconToFreeSpace("Refactor auth", "Plan: refactor-auth.md", gridView())
       await expect.element(terminal("refactor-auth.md")).toBeVisible()
@@ -796,7 +790,6 @@ describe("Undocking an item into a window of its own", () => {
   context("when dropped on the Grid between its tiles by the move that starts the drag", () => {
     it("opens a window there", async () => {
       watchBarDrag()
-      await tallWindow()
       await openShowcase()
       await dragIconToFreeSpace("Refactor auth", "Plan: refactor-auth.md", gridView(), {
         one: true,
