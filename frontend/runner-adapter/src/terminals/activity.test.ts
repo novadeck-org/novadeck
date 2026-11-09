@@ -30,6 +30,7 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   ready: null,
   startup: null,
   activity: null,
+  shellCommand: null,
   telemetry: null,
   reported: null,
   ...change,
@@ -441,6 +442,63 @@ describe("terminal activity", () => {
       })
       const other = summary({ process: { name: "vim", argv: null }, ready: "codex" })
       expect(terminalActivity(other).status).toEqual({ state: "running" })
+    })
+  })
+
+  context("while the person runs a command in the agent's shell mode", () => {
+    const shellCommand = { command: "sleep 15", since: 1000 }
+
+    it("rides on a bound agent's status, whose turn stays as it was", () => {
+      const bound = summary({
+        process: { name: "claude", argv: null },
+        agent: "claude",
+        activity: {
+          state: "idle",
+          attention: { pending: 0, kind: null },
+          subagents: [],
+          planning: false,
+          background: null,
+          waiting: null,
+          lastTurn: null,
+        } as unknown as TerminalSummary["activity"],
+        shellCommand,
+      })
+      expect(terminalActivity(bound).status).toMatchObject({
+        state: "running",
+        agent: { working: false, shellCommand },
+      })
+    })
+
+    it("rides on a bound agent whose hooks said nothing yet", () => {
+      const bound = summary({
+        process: { name: "claude", argv: null },
+        agent: "claude",
+        shellCommand,
+      })
+      expect(terminalActivity(bound).status).toEqual({
+        state: "running",
+        agent: { working: false, shellCommand },
+      })
+    })
+
+    it("rides on an agent at its prompt before its first session", () => {
+      const ready = summary({
+        process: { name: "codex", argv: null },
+        ready: "codex",
+        shellCommand,
+      })
+      expect(terminalActivity(ready).status).toEqual({
+        state: "running",
+        agent: { working: false, shellCommand },
+      })
+    })
+
+    it("changes the status, so the app hears when it starts and ends", () => {
+      const idle = summary({ process: { name: "codex", argv: null }, ready: "codex" })
+      const busy = summary({ ...idle, shellCommand })
+      expect(
+        sameStatus(terminalActivity(idle).status as never, terminalActivity(busy).status as never),
+      ).toBe(false)
     })
   })
 

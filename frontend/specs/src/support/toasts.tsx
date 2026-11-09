@@ -1,5 +1,5 @@
 import { expect } from "vitest"
-import { userEvent } from "vitest/browser"
+import { userEvent, type Locator } from "vitest/browser"
 
 // The toasts standing, the front one first, those leaving left out.
 const standing = (): HTMLElement[] =>
@@ -30,4 +30,23 @@ export const closeToasts = async (): Promise<void> => {
     await userEvent.keyboard("{Enter}")
   }
   expect(standing()).toHaveLength(0)
+}
+
+/**
+ * Clicks `target` with the pointer once the toasts are closed. The demo raises toasts of its
+ * own a moment after it opens, so one can land between `closeToasts` and the click and take
+ * it (`.toast-layer … intercepts pointer events`): a click that times out closes them again
+ * and clicks again, so the press stays the pointer's, which a spec about a click needs.
+ */
+export const clickPastToasts = async (target: Locator, tries = 3): Promise<void> => {
+  for (let attempt = 1; ; attempt++) {
+    // eslint-disable-next-line no-await-in-loop -- Each try closes what landed before it.
+    await closeToasts()
+    try {
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      return await target.click({ timeout: 3_000 })
+    } catch (error) {
+      if (attempt >= tries) throw error
+    }
+  }
 }

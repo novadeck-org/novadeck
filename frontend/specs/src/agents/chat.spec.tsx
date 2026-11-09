@@ -1,5 +1,5 @@
 import { vi } from "vitest"
-import { page, userEvent } from "vitest/browser"
+import { userEvent } from "vitest/browser"
 import type { Locator } from "vitest/browser"
 
 import {
@@ -13,9 +13,9 @@ import {
   pasteInto,
   requestCard,
 } from "../support/chat"
+import { openPreferencesOn, preferencesDialog } from "../support/keyboard"
 import { expectStaysTrue } from "../support/layouts"
 import { switchProject } from "../support/sessions"
-import { closeToasts } from "../support/toasts"
 import {
   chooseView,
   commandInput,
@@ -33,13 +33,8 @@ const answeredMs = 500
 
 // Turns the chat view on or off in Preferences → Experimental, and closes Preferences.
 const setChatView = async (on: boolean): Promise<void> => {
-  await closeToasts()
-  // A toast landing after them would take the click (the demo raises its asks as it boots);
-  // the keys reach the button under it.
-  ;(page.getByRole("button", { name: "Workspace preferences" }).element() as HTMLElement).focus()
-  await userEvent.keyboard("{Enter}")
-  const dialog = page.getByRole("dialog", { name: "Preferences" })
-  await dialog.getByRole("tab", { name: "Experimental" }).click()
+  await openPreferencesOn("Experimental")
+  const dialog = preferencesDialog()
   const chatView = dialog.getByRole("switch", { name: "Chat view" })
   await chatView.click()
   await expect.element(chatView).toHaveAttribute("aria-checked", String(on))
@@ -73,9 +68,8 @@ describe("The chat view", () => {
   it("goes back to the terminal's output once Experimental is turned off", async () => {
     await openChatDemo()
     await openChat("Build")
-    await page.getByRole("button", { name: "Workspace preferences" }).click()
-    const dialog = page.getByRole("dialog", { name: "Preferences" })
-    await dialog.getByRole("tab", { name: "About" }).click()
+    await openPreferencesOn("About")
+    const dialog = preferencesDialog()
     const experimental = dialog.getByRole("switch", { name: "Experimental" })
     await expect.element(experimental).toHaveAttribute("aria-checked", "true")
     await experimental.click()

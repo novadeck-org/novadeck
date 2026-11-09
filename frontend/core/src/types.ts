@@ -72,6 +72,10 @@ export type AgentStatus = {
   // One of its own screens holds it for the person before its first session, as a
   // folder-trust or sign-in screen. No request stands behind it, so no Inbox row does either.
   readonly startup?: "startup" | "sign-in"
+  // A command the person runs in the agent's shell mode (`!sleep 15`) that still runs: what
+  // they typed and when they ran it. It busies the terminal but is no turn: `working` and
+  // the turn's outcome are unchanged by it.
+  readonly shellCommand?: { readonly command: string; readonly since: number }
 }
 
 // What an idle agent waits on: jobs it left running and picks up once they finish, each in
@@ -233,11 +237,16 @@ export type TerminalRoster = {
   readonly windows: readonly CompanionWindowMeta[]
   readonly order: string[]
 }
-// What each view keeps of where a terminal sits. Grid keeps nothing: it lays itself out from
-// the sidebar's order.
+// How many of Grid's cells a tile spans, across and down; a tile the person never sized spans
+// one of each, and has none saved.
+export type GridSpan = { readonly columns: number; readonly rows: number }
+
+// What each view keeps of where a terminal sits. Grid keeps only how many cells a tile spans:
+// where it goes follows from the sidebar's order.
 export type TerminalLayout = {
   readonly canvas: CanvasLayout
   readonly hidden: Record<string, boolean>
+  readonly spans: Record<string, GridSpan>
 }
 export type WorkspaceState = {
   readonly roster: TerminalRoster

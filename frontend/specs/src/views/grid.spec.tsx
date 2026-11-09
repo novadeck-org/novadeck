@@ -195,6 +195,238 @@ describe("Grid view", () => {
     })
   })
 
+  context("when a tile is sized by its corner", () => {
+    /** The corner a tile is sized by. */
+    const corner = (name: string): Locator =>
+      page.getByRole("button", { name: labelled("Resize ", name) })
+    /** Holds the corner of `name` and moves it `across` and `down` pixels. */
+    const holdCorner = async (name: string, across: number, down: number): Promise<void> => {
+      const box = bounds(corner(name))
+      const from = { x: box.left + box.width / 2, y: box.top + box.height / 2 }
+      await pinPointer("press", from)
+      await pinPointer("move", { x: from.x + across, y: from.y + down })
+    }
+    const sameSize = (a: DOMRect, b: { width: number; height: number }): boolean =>
+      near(a.width, b.width) && near(a.height, b.height)
+
+    it("snaps it to two cells wide, the tiles after it making room, and keeps it after Focus", async () => {
+      await openGrid()
+      const [first, second] = terminalTabNames()
+      const one = bounds(terminal(first!))
+      const wide = { width: 2 * one.width + 16, height: one.height }
+
+      await holdCorner(first!, one.width * 0.7, 0)
+      await expect.poll(() => sameSize(bounds(terminal(first!)), wide)).toBe(true)
+      await pinPointer("release")
+
+      await expect.poll(() => sameSize(bounds(terminal(first!)), wide)).toBe(true)
+      expect(bounds(terminal(second!)).top).toBeGreaterThan(bounds(terminal(first!)).bottom)
+      await chooseView("Focus")
+      await chooseView("Grid")
+      await expect.poll(() => sameSize(bounds(terminal(first!)), wide)).toBe(true)
+    })
+
+    it("takes a cell more or less with each arrow key on its corner", async () => {
+      await openGrid()
+      const [first] = terminalTabNames()
+      const one = bounds(terminal(first!))
+      ;(corner(first!).element() as HTMLElement).focus()
+
+      await userEvent.keyboard("{ArrowDown}")
+      await expect
+        .poll(() =>
+          sameSize(bounds(terminal(first!)), { width: one.width, height: 2 * one.height + 16 }),
+        )
+        .toBe(true)
+      await userEvent.keyboard("{ArrowRight}")
+      await expect
+        .poll(() =>
+          sameSize(bounds(terminal(first!)), {
+            width: 2 * one.width + 16,
+            height: 2 * one.height + 16,
+          }),
+        )
+        .toBe(true)
+      await userEvent.keyboard("{ArrowUp}{ArrowLeft}")
+      await expect.poll(() => sameSize(bounds(terminal(first!)), one)).toBe(true)
+    })
+
+    it("keeps its size when Escape lets the corner go", async () => {
+      await openGrid()
+      const [first] = terminalTabNames()
+      const one = bounds(terminal(first!))
+
+      await holdCorner(first!, one.width * 0.7, 0)
+      await expect.poll(() => bounds(terminal(first!)).width).toBeGreaterThan(one.width + 100)
+      await userEvent.keyboard("{Escape}")
+      await expect.poll(() => sameSize(bounds(terminal(first!)), one)).toBe(true)
+      await pinPointer("release")
+      await expectStaysTrue(() => sameSize(bounds(terminal(first!)), one), "its size")
+    })
+
+    it("lets Escape through once the corner is let go, after it was pressed again while held", async () => {
+      await openGrid()
+      const [first] = terminalTabNames()
+      const one = bounds(terminal(first!))
+      await holdCorner(first!, one.width * 0.7, 0)
+      // The corner pressed again while it is held, as when a release was lost: the mouse's own
+      // pointer, which the browser lets the corner take again.
+      corner(first!)
+        .element()
+        .dispatchEvent(new PointerEvent("pointerdown", { pointerId: 1, button: 0, bubbles: true }))
+      await pinPointer("release")
+
+      let heard = false
+      const listen = (): void => {
+        heard = true
+      }
+      document.addEventListener("keydown", listen)
+      try {
+        document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+      } finally {
+        document.removeEventListener("keydown", listen)
+      }
+      expect(heard).toBe(true)
+    })
+
+    it("keeps the width it was given when the Grid is too narrow for it and the keys make it taller", async () => {
+      await openGrid()
+      const [first] = terminalTabNames()
+      const one = bounds(terminal(first!))
+      ;(corner(first!).element() as HTMLElement).focus()
+      await userEvent.keyboard("{ArrowRight}")
+      await expect.poll(() => bounds(terminal(first!)).width).toBeGreaterThan(one.width + 100)
+
+      // One column: the tile shows one wide, and the keys make it taller.
+      await page.viewport(1000, 900)
+      await expect.poll(() => bounds(terminal(first!)).width).toBeLessThan(900)
+      ;(corner(first!).element() as HTMLElement).focus()
+      await userEvent.keyboard("{ArrowDown}")
+      await page.viewport(twoColumns.width, twoColumns.height)
+
+      await expect
+        .poll(() =>
+          sameSize(bounds(terminal(first!)), {
+            width: 2 * one.width + 16,
+            height: 2 * one.height + 16,
+          }),
+        )
+        .toBe(true)
+    })
+
+    it("keeps the width it was given when, too narrow for it, the Grid can show no change", async () => {
+      await openGrid()
+      const [first] = terminalTabNames()
+      const one = bounds(terminal(first!))
+      ;(corner(first!).element() as HTMLElement).focus()
+      await userEvent.keyboard("{ArrowRight}")
+      await expect.poll(() => bounds(terminal(first!)).width).toBeGreaterThan(one.width + 100)
+
+      await page.viewport(1000, 900)
+      await expect.poll(() => bounds(terminal(first!)).width).toBeLessThan(900)
+      // Wider than one column can't show; then the corner dragged straight down a cell.
+      ;(corner(first!).element() as HTMLElement).focus()
+      await userEvent.keyboard("{ArrowRight}")
+      await holdCorner(first!, 0, one.height * 0.7)
+      await pinPointer("release")
+      await page.viewport(twoColumns.width, twoColumns.height)
+
+      await expect
+        .poll(() =>
+          sameSize(bounds(terminal(first!)), {
+            width: 2 * one.width + 16,
+            height: 2 * one.height + 16,
+          }),
+        )
+        .toBe(true)
+    })
+
+    it("scrolls the Grid while its corner is held near the bottom, so the tile can grow past the screen", async () => {
+      await openGrid(700)
+      const [first] = terminalTabNames()
+      const one = bounds(terminal(first!))
+      const stage = gridView().element().querySelector<HTMLElement>(".grid-stage")!
+      const box = bounds(corner(first!))
+
+      await pinPointer("press", { x: box.left + box.width / 2, y: box.top + box.height / 2 })
+      await pinPointer("move", {
+        x: box.left + box.width / 2,
+        y: stage.getBoundingClientRect().bottom - 8,
+      })
+      await expect.poll(() => stage.scrollTop).toBeGreaterThan(100)
+      await expect.poll(() => bounds(terminal(first!)).height).toBeGreaterThan(one.height + 100)
+      await pinPointer("release")
+
+      await expectStaysTrue(
+        () => bounds(terminal(first!)).height > one.height + 100,
+        "the taller size, saved",
+      )
+    })
+
+    it("doesn't scroll the Grid for a corner taken near its bottom and moved along it", async () => {
+      await openGrid(700)
+      const [, , third] = terminalTabNames()
+      const one = bounds(terminal(third!))
+      const stage = gridView().element().querySelector<HTMLElement>(".grid-stage")!
+      // The third tile's corner 20 px above the bottom of the Grid, inside the band that
+      // scrolls it.
+      stage.scrollTop += bounds(corner(third!)).bottom - (stage.getBoundingClientRect().bottom - 20)
+      await expect.poll(() => bounds(corner(third!)).bottom).toBeGreaterThan(0)
+      const scrolled = stage.scrollTop
+      const box = bounds(corner(third!))
+
+      await pinPointer("press", { x: box.left + box.width / 2, y: box.top + box.height / 2 })
+      await pinPointer("move", { x: box.left + box.width / 2 - 6, y: box.top + box.height / 2 })
+      await new Promise((done) => setTimeout(done, 600))
+
+      expect(stage.scrollTop).toBe(scrolled)
+      expect(sameSize(bounds(terminal(third!)), one)).toBe(true)
+      await pinPointer("release")
+    })
+
+    it("scrolls the Grid for a corner flicked from clear of its edge straight to the bottom", async () => {
+      await openGrid(700)
+      const [first] = terminalTabNames()
+      const stage = gridView().element().querySelector<HTMLElement>(".grid-stage")!
+      const box = bounds(corner(first!))
+      const x = box.left + box.width / 2
+
+      await pinPointer("press", { x, y: box.top + box.height / 2 })
+      // One move, all the way: the pointer is seen clear of the edge only where it was taken.
+      corner(first!)
+        .element()
+        .dispatchEvent(
+          new PointerEvent("pointermove", {
+            pointerId: 1,
+            bubbles: true,
+            clientX: x,
+            clientY: stage.getBoundingClientRect().bottom - 8,
+          }),
+        )
+
+      await expect.poll(() => stage.scrollTop).toBeGreaterThan(100)
+      await pinPointer("release")
+    })
+
+    it("keeps a sized tile's size when a terminal is made", async () => {
+      await openGrid()
+      const [first] = terminalTabNames()
+      ;(corner(first!).element() as HTMLElement).focus()
+      await userEvent.keyboard("{ArrowRight}")
+      await expect.poll(() => bounds(terminal(first!)).width).toBeGreaterThan(800)
+      const sized = bounds(terminal(first!))
+      const before = gridTerminalNames()
+
+      await page.getByRole("button", { name: "New terminal", exact: true }).click()
+      await newTerminalName(before)
+
+      await expectStaysTrue(
+        () => sameSize(bounds(terminal(first!)), sized),
+        "the sized tile's size",
+      )
+    })
+  })
+
   context("when dragging a terminal by its header", () => {
     it("reorders the Grid and the sidebar's list", async () => {
       await openGrid()

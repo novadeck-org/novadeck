@@ -26,7 +26,7 @@ import {
   barOf,
   withBar,
 } from "./items/transitions"
-import { emptyLayout, pruneCanvasLayout } from "./layout/workspace-layout"
+import { emptyLayout, pruneCanvasLayout, spanTerminal } from "./layout/workspace-layout"
 import {
   addTerminal,
   createRoster,
@@ -45,6 +45,7 @@ import {
 } from "./roster"
 import type {
   CanvasLayout,
+  GridSpan,
   CompanionWindowMeta,
   PreferencesValue,
   Project,
@@ -208,6 +209,8 @@ export type WorkspaceAction =
     }
   | { type: "terminal/select"; target: WorkspaceTarget; terminalId: string }
   | { type: "terminal/visibility"; target: WorkspaceTarget; terminalId: string; hidden: boolean }
+  // The person sized a Grid tile to span this many cells.
+  | { type: "grid/span"; target: WorkspaceTarget; terminalId: string; span: GridSpan }
   | {
       type: "view/change"
       target: WorkspaceTarget
@@ -626,6 +629,12 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
               ...layout,
               hidden: { ...layout.hidden, [action.terminalId]: action.hidden },
             }))
+          : state,
+      )
+    case "grid/span":
+      return updateTarget(workspace, action.target, (state) =>
+        hasTile(state.roster, action.terminalId)
+          ? updateLayout(state, (layout) => spanTerminal(layout, action.terminalId, action.span))
           : state,
       )
     case "view/change":

@@ -15,6 +15,8 @@ export type Listed = {
    */
   readonly started: string
   readonly zombie: boolean
+  /** Its program's name: Linux's `comm`, macOS's `comm` as given (a path, maybe); none if unread. */
+  readonly command?: string
 }
 
 /** A process followed past a hangup. */
@@ -45,15 +47,30 @@ export const parseStat = (stat: string): Listed | undefined => {
   const numbers = [stat, fields[1], fields[2], fields[5]].map((field) => Number.parseInt(field!))
   if (started === undefined || !numbers.every(Number.isSafeInteger)) return undefined
   const [pid, parent, group, foreground] = numbers as [number, number, number, number]
-  return { pid, parent, group, foreground, started, zombie: /^[ZX]/.test(fields[0]!) }
+  const command = stat.slice(stat.indexOf("(") + 1, end)
+  return {
+    pid,
+    parent,
+    group,
+    foreground,
+    started,
+    zombie: /^[ZX]/.test(fields[0]!),
+    ...(command !== "" && { command }),
+  }
 }
 
-/** `ps -o pid=,ppid=,pgid=,tpgid=,stat=,lstart=` rows; a line that isn't one is left out. */
+/**
+ * `ps -o pid=,ppid=,pgid=,tpgid=,stat=,lstart=,comm=` rows (`comm` last, as it may hold spaces,
+ * and optional); a line that isn't one is left out.
+ */
 export const parsePs = (output: string): Listed[] =>
   output.split("\n").flatMap((line) => {
-    const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(-?\d+)\s+(\S+)\s+(\S.*?)\s*$/.exec(line)
+    const match =
+      /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(-?\d+)\s+(\S+)\s+(\w+\s+\w+\s+\d+\s+\d+:\d+:\d+\s+\d+)(?:\s+(\S.*?))?\s*$/.exec(
+        line,
+      )
     if (!match) return []
-    const [, pid, parent, group, foreground, state, started] = match
+    const [, pid, parent, group, foreground, state, started, command] = match
     return [
       {
         pid: Number(pid),
@@ -62,6 +79,7 @@ export const parsePs = (output: string): Listed[] =>
         foreground: Number(foreground),
         started: started!,
         zombie: state!.startsWith("Z"),
+        ...(command !== undefined && { command }),
       },
     ]
   })
@@ -83,7 +101,7 @@ const listPs =
   async () => {
     const { stdout } = await promisify(execFile)(
       "ps",
-      ["-axo", "pid=,ppid=,pgid=,tpgid=,stat=,lstart="],
+      ["-axo", "pid=,ppid=,pgid=,tpgid=,stat=,lstart=,comm="],
       {
         encoding: "utf8",
         env: { ...process.env, LC_ALL: "C" },
@@ -141,7 +159,7 @@ export const processListing = (
 }
 
 /** `seed` and everything under them by parent, each once, in the order found. */
-const withBelow = (rows: readonly Listed[], seed: readonly Listed[]): readonly Listed[] => {
+export const withBelow = (rows: readonly Listed[], seed: readonly Listed[]): readonly Listed[] => {
   const found = new Map(seed.map((row) => [row.pid, row]))
   for (let grown = true; grown;) {
     grown = false

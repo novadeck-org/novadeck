@@ -25,7 +25,7 @@ export type Whereabouts = {
   readonly work: Work | null
   /** The handle of the terminal whose agent opened it, if one did. */
   readonly openedBy: string | null
-  /** Whether its agent works, as its terminal shows: its turn, or what that left running. */
+  /** Whether its agent works, as its terminal shows: a turn, what it left running, or a shell-mode command. */
   readonly working: boolean
   /** What its agent waits on the person for, if anything; null otherwise. */
   readonly waiting: Waiting | null

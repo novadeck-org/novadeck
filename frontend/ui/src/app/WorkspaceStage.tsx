@@ -1,6 +1,7 @@
 import { allTeams, sameTeam, sameTeams, teamOf } from "@novadeck/core/derivations"
 import { orderedTiles, tilesOf } from "@novadeck/core/roster"
-import { memo, Suspense, useEffect, useMemo, useState, type RefObject } from "react"
+import type { GridSpan } from "@novadeck/core/types"
+import { memo, Suspense, useCallback, useEffect, useMemo, useState, type RefObject } from "react"
 
 import { createCanvasStays } from "../layouts/canvas/stay"
 import type { CanvasHandle } from "../layouts/canvas/types"
@@ -56,7 +57,7 @@ export const WorkspaceStage = memo(
     // terminal's, whose wire lights as the sidebar's rail does.
     const teams = useWorkspaceState(allTeams, sameTeams)
     const team = useWorkspaceState((workspace) => teamOf(workspace, selected), sameTeam)
-    const { canvas: canvasLayout, hidden } = layout
+    const { canvas: canvasLayout, hidden, spans } = layout
     const {
       zen,
       revealCanvas,
@@ -94,6 +95,11 @@ export const WorkspaceStage = memo(
     const reorderTiles = useReorderTiles()
     const keepFolds = useFoldedOrder()
     const listedIds = useMemo(() => listed.map((tile) => tile.id), [listed])
+    // One callback for the session, so the tiles it reaches don't draw again with each change.
+    const setSpan = useCallback(
+      (id: string, span: GridSpan) => commands.setSpan(target, id, span),
+      [commands, target],
+    )
     const preview = hidden[selected] ? selected : ""
     const layoutHidden = useLayoutHidden(hidden, preview)
     return (
@@ -130,6 +136,8 @@ export const WorkspaceStage = memo(
               listed={listedIds}
               keepFolds={keepFolds}
               hidden={layoutHidden}
+              spans={spans}
+              onResize={setSpan}
               preview={preview}
               selected={selected}
               team={team}

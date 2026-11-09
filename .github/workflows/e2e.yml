@@ -88,8 +88,9 @@ jobs:
     name: ${{ matrix.job }}
     runs-on: ${{ matrix.os }}
     # Windows starts processes and consoles several times slower, and has no namespace;
-    # macOS's runners are slower than Linux's too.
-    timeout-minutes: ${{ matrix.os == 'windows-latest' && 45 || matrix.os == 'macos-latest' && 30 || 20 }}
+    # macOS's runners are slower than Linux's too. Codex's macOS job, run whole, took 28 to
+    # 29.5 minutes before shell-command.e2e.ts added about half a minute; 36 leaves room.
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 45 || matrix.os == 'macos-latest' && 36 || 20 }}
     defaults:
       run:
         # Git's bash on Windows, so every step reads alike on all three.

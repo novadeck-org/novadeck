@@ -100,6 +100,9 @@ export const terminalPhase = (
   // A dialog it shows stops it: its harness keeps the turn open, but nothing works until the
   // person answers, so it rests as far as the glyph and the window's line say.
   if (terminal.agent && (!terminal.agent.working || heldByDialog(terminal))) {
+    // A command the person runs in its shell mode busies it, whatever its turn left; a
+    // dialog still holds it.
+    if (terminal.agent.shellCommand && !heldByDialog(terminal)) return "running"
     if (pausedUntil(terminal) !== undefined) return "paused"
     if (outcome) return "done"
     return waitingOf(terminal, now) ? "waiting" : "idle"
@@ -156,6 +159,34 @@ export const pausedText = (terminal: TerminalMetadata, now = Date.now()): string
   return at <= now
     ? "Paused at its usage limit · it has reset and waits to be continued"
     : `Paused at its usage limit · resets ${clockTime(at)}`
+}
+
+// The longest a shell command shows in a description before it is cut.
+const shellCommandWidth = 60
+
+// What a terminal runs in its agent's shell mode, in words for its tab's description:
+// "Runs ! sleep 15", cut to fit. Undefined when it runs none.
+export const shellCommandText = (terminal: TerminalMetadata): string | undefined => {
+  const cut = shellCommandCut(terminal)
+  if (cut === undefined) return undefined
+  return cut ? `Runs ! ${cut}` : "Runs a shell command"
+}
+
+// The command cut to fit a sentence, by characters; undefined when none runs, empty for a bare `!`.
+export const shellCommandCut = (terminal: TerminalMetadata): string | undefined => {
+  const line = shellCommandLine(terminal)
+  if (line === undefined) return undefined
+  const chars = [...line]
+  return chars.length > shellCommandWidth
+    ? `${chars.slice(0, shellCommandWidth - 1).join("")}…`
+    : line
+}
+
+// The command a terminal runs in its agent's shell mode as one line, without the `!` it was
+// typed with; undefined when it runs none, empty when the box held only the `!`.
+export const shellCommandLine = (terminal: TerminalMetadata): string | undefined => {
+  const shell = terminal.state === "running" ? terminal.agent?.shellCommand : undefined
+  return shell?.command.replace(/\s+/g, " ").trim().replace(/^!\s*/, "")
 }
 
 // What a sleeping terminal says: its agent has a saved session and no process, and starts again
@@ -341,6 +372,7 @@ export const terminalNote = (
     unheardText(terminal) ??
     (phase === "paused" ? pausedText(terminal, now) : undefined) ??
     (phase === "waiting" ? waitingNote(terminal, now) : undefined) ??
+    (phase === "running" ? shellCommandText(terminal) : undefined) ??
     (phase === "done" ? doneText(failed) : undefined) ??
     (phase === "waking" ? wakingText : undefined) ??
     (brightened && phase !== "sleeping" ? "Reply unread" : undefined)

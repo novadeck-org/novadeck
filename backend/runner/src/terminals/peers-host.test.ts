@@ -199,7 +199,12 @@ describe("where a peer's agent works now", () => {
     await mkdir(join(root, "scratchpad"))
   }
 
-  const whereabouts = async (root: string, places: readonly string[], bound = true) => {
+  const whereabouts = async (
+    root: string,
+    places: readonly string[],
+    bound = true,
+    shellCommand: { command: string; since: number } | null = null,
+  ) => {
     const record = {
       summary: {
         id: "t1",
@@ -207,6 +212,7 @@ describe("where a peer's agent works now", () => {
         sessionId: "s",
         title: "t",
         activity: null,
+        shellCommand,
       },
       naming: { person: null, opener: null, murmur: null, own: null, summary: null },
       work: { ...freshWork("claude:s1"), places },
@@ -267,6 +273,16 @@ describe("where a peer's agent works now", () => {
     expect(await whereabouts(root, [join(root, "scratchpad")])).toMatchObject(stayed)
     expect(await whereabouts(root, [])).toMatchObject(stayed)
     expect(await whereabouts(root, [join(root, "tasks", "b", "repo")], false)).toMatchObject(stayed)
+  })
+
+  it("counts a command run in its agent's shell mode as working, and nothing else idle", async ({
+    resources,
+  }) => {
+    const root = await folder(resources)
+    await project(root)
+    expect((await whereabouts(root, []))?.working).toBe(false)
+    const running = { command: "sleep 15", since: 1 }
+    expect((await whereabouts(root, [], true, running))?.working).toBe(true)
   })
 
   it("names a folder in the person's home but outside the project from ~", async ({

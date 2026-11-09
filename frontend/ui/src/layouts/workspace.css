@@ -1,6 +1,6 @@
 /* The workspace recipe: the ground behind Focus, Grid and Canvas, its grain, its dot
    grid and the spotlight that follows the pointer, how idle terminals fade in Canvas,
-   and the ghost of a window a drop would open. Zen
+   Grid's resize corner, and the ghost of a window a drop would open. Zen
    (data-zen="true" on `.workspace`) quiets the ground.
 
    `.workspace-background` clips what overflows it and never scrolls; its pseudo-elements
@@ -9,7 +9,7 @@
    Hooks: `.workspace-background` and data-pointer-inside="true" on it;
    `.workspace-dots`, `.canvas-grid` and `.canvas-grid-spotlight` (the dot grid and its
    spotlight); `.grid-terminal` and `.canvas-node`, `.selected` when selected;
-   `.drop-ghost` and `.drop-ghost-header`.
+   `.drop-ghost` and `.drop-ghost-header`; `.grid-resize`, Grid's resize corner.
 
    Tokens, each optional (its fallback in brackets):
    --workspace-bg (canvas): the ground. --workspace-glow-bg (paper),
@@ -26,6 +26,9 @@
    --workspace-zen-grain-opacity (0.02): the same in Zen.
    --terminal-idle-opacity, --terminal-hover-opacity: a Canvas window not selected, at
    rest and under the pointer, while another one is.
+   --workspace-grip-fg (muted), --workspace-grip-opacity (0.35),
+   --workspace-grip-hover-opacity (0.8), --workspace-grip-image (a hatch of the grip's
+   colour): the corner a Grid tile is sized by.
    --workspace-placeholder-bg (soft), --workspace-placeholder-border-color (line),
    --workspace-placeholder-radius (radius-panel): where a window dragged in Grid lands.
    --workspace-ghost-bg (paper at 78%), --workspace-ghost-fg (muted),
@@ -137,6 +140,29 @@
 /* How far it recedes (canvas.css), so its sheet comes forward with it. */
 .canvas-node:not(.selected):hover {
   --_recede: var(--terminal-hover-opacity);
+}
+/* The corner a Grid tile is sized by: a triangle of hatching, faint until the pointer or the
+   focus reaches it. */
+.terminal-grid .grid-resize {
+  color: var(--workspace-grip-fg, var(--color-muted));
+  opacity: var(--workspace-grip-opacity, 0.35);
+  transition: opacity var(--motion-feedback) var(--ease-interface);
+}
+.terminal-grid .grid-resize:is(:hover, :focus-visible) {
+  opacity: var(--workspace-grip-hover-opacity, 0.8);
+}
+.terminal-grid .grid-resize::after {
+  content: "";
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  width: 11px;
+  height: 11px;
+  background: var(
+    --workspace-grip-image,
+    repeating-linear-gradient(135deg, transparent 0 3px, currentColor 3px 4px)
+  );
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
 }
 .stage-note {
   color: var(--workspace-note-fg, var(--color-muted));

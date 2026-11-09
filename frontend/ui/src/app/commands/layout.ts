@@ -1,4 +1,4 @@
-import type { WorkspaceTarget } from "@novadeck/core/types"
+import type { GridSpan, WorkspaceTarget } from "@novadeck/core/types"
 
 import { markReordered } from "../../shell/shell-state"
 import type { CommandContext } from "./context"
@@ -8,6 +8,7 @@ export type LayoutCommands = {
   readonly setVisibility: (target: WorkspaceTarget, terminalId: string, hidden: boolean) => void
   readonly showAll: (target: WorkspaceTarget, terminalIds: readonly string[]) => void
   readonly reorder: (target: WorkspaceTarget, tabOrder: string[]) => void
+  readonly setSpan: (target: WorkspaceTarget, terminalId: string, span: GridSpan) => void
 }
 
 export const createLayoutCommands = ({
@@ -32,4 +33,6 @@ export const createLayoutCommands = ({
     if (workspace.dispatch({ type: "terminal/reorder", target, tabOrder }) !== before)
       ui.update((state) => ({ ...state, shell: markReordered(state.shell) }))
   },
+  setSpan: (target, terminalId, span) =>
+    void workspace.dispatch({ type: "grid/span", target, terminalId, span }),
 })

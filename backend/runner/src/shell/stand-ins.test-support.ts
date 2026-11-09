@@ -158,7 +158,9 @@ export const context = (printed: string): string =>
  * its hooks find its instance. `askafter` asks a permission after its first turn's Stop;
  * `askpaste` asks one as a paste comes after it, drawing the paste once told to; `asking`
  * puts a question in the Inbox after its first turn's Stop, `askbox` too, with Codex's own box
- * marker, so a prompt the runner gives it finds its box. `donecall` reports its task done after
+ * marker, so a prompt the runner gives it finds its box. `shellmode` has that box too, and a `!`
+ * typed in its empty box switches it to a shell mode that runs what it holds as a child
+ * process on Enter, firing no hook. `donecall` reports its task done after
  * its first turn's Stop. `askinglost` asks as `asking` does, and loses the answer of its second
  * turn's prompt hook (its output pipe closed before the relay prints), then makes a call of the
  * turn, whose hook's output goes to `<raw>.later`, unless `<raw>.nolater` exists.
@@ -222,8 +224,11 @@ let menu = false
 let turns = 0
 let pasteAsked = false
 // With "askbox", Codex draws its own box marker, so a prompt given through the runner finds it.
-const marker = mode === "askbox" && agent === "codex" ? "\u203a " : "> "
-const draw = () => process.stdout.write(menu ? "\r\x1b[2K  [menu] pick an item" : "\r\x1b[2K" + marker + box)
+// With "shellmode" it does too, and a "!" typed in its empty box switches it to its shell mode
+// (marker "!"), where Enter runs the box as a child process and returns to the prompt.
+const marker = (mode === "askbox" || mode === "shellmode") && agent === "codex" ? "\u203a " : "> "
+let shellMode = false
+const draw = () => process.stdout.write(menu ? "\r\x1b[2K  [menu] pick an item" : "\r\x1b[2K" + (shellMode ? "! " : marker) + box)
 // Antigravity's hooks name no prompt: it records what was typed in its transcript, as a
 // USER_EXPLICIT USER_INPUT step, and what woke it by itself as a SYSTEM_MESSAGE one.
 const transcript = received + ".transcript.jsonl"
@@ -406,7 +411,14 @@ if (mode !== "bg") {
         go()
       })
     }
-    if (data.startsWith("\x1b[200~")) box += data.slice(6, -6)
+    if (mode === "shellmode" && data === "!" && box === "" && !shellMode) shellMode = true
+    else if (mode === "shellmode" && data === "\r" && shellMode) {
+      const [program, ...args] = box.trim().split(" ")
+      spawn(program, args, { stdio: "ignore", detached: true }).on("error", () => {})
+      shellMode = false
+      box = ""
+      process.stdout.write("\r\n")
+    } else if (data.startsWith("\x1b[200~")) box += data.slice(6, -6)
     else if (data === "\r") {
       // A dialog takes Enter; a backslash before it makes it a newline in the box.
       if (dialog) {
@@ -417,6 +429,12 @@ if (mode !== "bg") {
       if (box.endsWith("\\")) {
         box = box.slice(0, -1) + "\n"
         return draw()
+      }
+      // With "shellmode", a message in its prompt mode starts a process too (a tool of its
+      // own), so only its box's mode tells a message from a shell command.
+      if (mode === "shellmode" && box && !busy) {
+        const [program, ...args] = box.trim().split(" ")
+        spawn(program, args, { stdio: "ignore", detached: true }).on("error", () => {})
       }
       // Busy, or an empty box: Enter submits nothing.
       if (busy || !box) return

@@ -147,6 +147,32 @@ describe("restart to update", () => {
       expect(card(page)?.textContent).toContain("Checkout · its agent waits on it")
       expect(card(page)?.textContent).toContain("2 background commands stop")
     })
+
+    it("tells a command run in the agent's shell mode from what it waits on", () => {
+      const page = show(
+        base([
+          {
+            kind: "agent",
+            id: "5",
+            title: "Checkout",
+            what: "1 shell command stops",
+            shell: "only",
+          },
+          {
+            kind: "agent",
+            id: "6",
+            title: "Orders",
+            what: "1 shell command and 2 background commands stop",
+            shell: "mixed",
+          },
+        ]),
+      )
+      open(page)
+      expect(card(page)?.textContent).toContain("Checkout · run in its agent's shell mode")
+      expect(card(page)?.textContent).toContain(
+        "Orders · its agent waits on all but its shell command",
+      )
+    })
   })
 
   context("pressing Restart now", () => {

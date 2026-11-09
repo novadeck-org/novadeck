@@ -3,8 +3,9 @@ import { Accessibility, Feedback, PointerActivationConstraints, PointerSensor } 
 import { DragDropProvider, useDraggable } from "@dnd-kit/react"
 import type { Team } from "@novadeck/core/derivations"
 import type { WindowPlace } from "@novadeck/core/layout/window-place"
-import { orderBefore } from "@novadeck/core/roster"
-import type { Tile } from "@novadeck/core/types"
+import { isWindow, orderBefore } from "@novadeck/core/roster"
+import { terminalLabel } from "@novadeck/core/terminals/handle"
+import type { GridSpan, Tile } from "@novadeck/core/types"
 import { useDrag, useDragSession } from "@novadeck/items/drag-session"
 import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
 import { Plus } from "lucide-react"
@@ -24,7 +25,7 @@ import type { TerminalLayoutControls } from "../../terminals/WindowShell"
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
 import { GridTeamWire } from "./GridTeamWire"
-import { arrangeGrid, gridGap, gridTileHeight, orderAfterDrag, slotAt } from "./layout"
+import { arrangeGrid, gridGap, orderAfterDrag, slotAt, spanAt } from "./layout"
 import type { TileBox } from "./team-route"
 
 // The wheel over a window scrolls the grid, unless the window is the selected one and holds
@@ -94,6 +95,12 @@ const plugins: React.ComponentProps<typeof DragDropProvider>["plugins"] = (defau
 ]
 
 const noControls: TerminalLayoutControls = {}
+const oneCell: GridSpan = { columns: 1, rows: 1 }
+// How near the Grid's top or bottom a held corner scrolls it.
+const scrollEdge = 48
+// A span as the Grid shows it: no wider than the columns there are.
+const shownSpan = (span: GridSpan, columns: number): GridSpan =>
+  span.columns <= columns ? span : { ...span, columns }
 
 type TileProps = {
   readonly terminal: Tile
@@ -105,7 +112,109 @@ type TileProps = {
   readonly role: "lead" | "worker" | undefined
   readonly hidden: boolean
   readonly hiding: boolean
+  // How many cells it spans now, which its corner and the arrow keys on it change.
+  readonly span: GridSpan
+  readonly onResize: Resize
   readonly render: (terminal: Tile, controls: TerminalLayoutControls) => ReactNode
+}
+
+// A tile's corner held at a point of the page, while it is held
+// ("held"), once let go ("done"), or let go of with Escape or lost ("cancel"); or a span the
+// keys asked for ("keys").
+type Resize = (
+  id: string,
+  change:
+    | { readonly kind: "held" | "done"; readonly x: number; readonly y: number }
+    | { readonly kind: "cancel" }
+    | { readonly kind: "keys"; readonly key: "wider" | "narrower" | "taller" | "shorter" },
+) => void
+
+// Where a pointer is, in the page's frame.
+const at = (event: React.PointerEvent): { x: number; y: number } => ({
+  x: event.clientX,
+  y: event.clientY,
+})
+
+// The corner a tile is sized by, in whole cells: held and moved, it takes the span nearest
+// the pointer; the arrow keys widen, narrow, lengthen or shorten it one cell at a time.
+const ResizeCorner = ({
+  id,
+  name,
+  span,
+  onResize,
+}: {
+  readonly id: string
+  readonly name: string
+  readonly span: GridSpan
+  readonly onResize: Resize
+}): React.JSX.Element => {
+  // The pointer that took the corner, and how to let it go.
+  const from = useRef<{ pointer: number } | null>(null)
+  const release = useRef<(() => void) | null>(null)
+  const letGo = (): void => {
+    from.current = null
+    release.current?.()
+    release.current = null
+  }
+  useEffect(() => () => release.current?.(), [])
+  const keys = {
+    ArrowRight: "wider",
+    ArrowLeft: "narrower",
+    ArrowDown: "taller",
+    ArrowUp: "shorter",
+  } as const
+  return (
+    <button
+      type="button"
+      className="grid-resize"
+      aria-label={`Resize ${name}`}
+      aria-description={`${span.columns} by ${span.rows} cells; arrow keys change it`}
+      onPointerDown={(event) => {
+        // One pointer sizes it at a time: another, such as a second finger, is let be.
+        if (event.button !== 0 || from.current) return
+        event.preventDefault()
+        event.stopPropagation()
+        const corner = event.currentTarget
+        const pointer = event.pointerId
+        from.current = { pointer }
+        corner.setPointerCapture(pointer)
+        // Escape lets go without sizing it, wherever the focus is.
+        const escape = (key: KeyboardEvent): void => {
+          if (key.key !== "Escape") return
+          key.preventDefault()
+          key.stopPropagation()
+          letGo()
+          if (corner.hasPointerCapture(pointer)) corner.releasePointerCapture(pointer)
+          onResize(id, { kind: "cancel" })
+        }
+        window.addEventListener("keydown", escape, { capture: true })
+        release.current = () => window.removeEventListener("keydown", escape, { capture: true })
+        // Where it was taken counts too, for whether the pointer came to the Grid's edge.
+        onResize(id, { kind: "held", ...at(event) })
+      }}
+      onPointerMove={(event) => {
+        if (from.current?.pointer === event.pointerId) onResize(id, { kind: "held", ...at(event) })
+      }}
+      onPointerUp={(event) => {
+        if (from.current?.pointer !== event.pointerId) return
+        const done = at(event)
+        letGo()
+        onResize(id, { kind: "done", ...done })
+      }}
+      onLostPointerCapture={(event) => {
+        if (from.current?.pointer !== event.pointerId) return
+        letGo()
+        onResize(id, { kind: "cancel" })
+      }}
+      onKeyDown={(event) => {
+        const key = keys[event.key as keyof typeof keys]
+        if (!key || event.altKey || event.ctrlKey || event.metaKey) return
+        event.preventDefault()
+        event.stopPropagation()
+        onResize(id, { kind: "keys", key })
+      }}
+    />
+  )
 }
 
 // One window in the grid, placed by its box. Its content is made once for a terminal, so a
@@ -120,6 +229,8 @@ const GridTile = memo(
     role,
     hidden,
     hiding,
+    span,
+    onResize,
     render,
   }: TileProps): React.JSX.Element => {
     const { ref } = useDraggable({ id: terminal.id })
@@ -146,6 +257,12 @@ const GridTile = memo(
         <div className="grid-terminal-body terminal-visibility min-h-0 flex-1" data-hiding={hiding}>
           {content}
         </div>
+        <ResizeCorner
+          id={terminal.id}
+          name={terminalLabel(terminal.name, isWindow(terminal) ? undefined : terminal.handle)}
+          span={span}
+          onResize={onResize}
+        />
       </div>
     )
   },
@@ -176,6 +293,10 @@ type Props = {
   team: Team | undefined
   onSelect: (id: string) => void
   hidden: Record<string, boolean>
+  // How many cells each tile the person sized spans; the rest span one.
+  spans: Readonly<Record<string, GridSpan>>
+  // Saves the span the person sized a tile to.
+  onResize: (id: string, span: GridSpan) => void
   preview: string
   onCreate: () => void
   // Saves the sidebar's order after a tile is dragged to a place in it.
@@ -197,6 +318,8 @@ export const Grid = ({
   navigation,
   onSelect,
   hidden,
+  spans,
+  onResize,
   preview,
   onCreate,
   onReorder,
@@ -222,6 +345,110 @@ export const Grid = ({
     return listed.filter((id) => on.has(id))
   }, [shown, listed])
 
+  // A tile whose corner is held: the span it would take, shown before it is saved. One that is
+  // gone in the meantime is held no more.
+  const [sizing, setSizing] = useState<{ readonly id: string; readonly span: GridSpan } | null>(
+    null,
+  )
+  const resizing = sizing !== null && ids.includes(sizing.id) ? sizing : null
+  // Forgotten as soon as its tile goes, so it doesn't come back with the tile.
+  if (sizing !== null && resizing === null) setSizing(null)
+  const sized = useMemo(
+    () => (resizing ? { ...spans, [resizing.id]: resizing.span } : spans),
+    [spans, resizing],
+  )
+  // The tiles as they rest, which a pointer is read against, so what is under it doesn't move
+  // as the others make room.
+  const rest = useMemo(() => arrangeGrid(ids, width, spans), [ids, width, spans])
+  // Where the pointer holding a corner is, in the page's frame, to size the tile again as
+  // the Grid scrolls under it.
+  const corner = useRef<{ readonly id: string; readonly x: number; readonly y: number } | null>(
+    null,
+  )
+  // Whether the pointer holding a corner has been clear of the Grid's top and bottom edges:
+  // only a pointer that comes to an edge scrolls the Grid, not a corner taken there.
+  const armed = useRef(false)
+  const resize = useCallback<Resize>(
+    (id, change) => {
+      if (corner.current === null) armed.current = false
+      corner.current = change.kind === "held" ? { id, x: change.x, y: change.y } : null
+      // Each point the pointer is seen at clear of the edges arms the Grid's scrolling.
+      const bounds = change.kind === "held" ? stageRef.current?.getBoundingClientRect() : undefined
+      if (
+        change.kind === "held" &&
+        bounds &&
+        change.y <= bounds.bottom - scrollEdge &&
+        change.y >= bounds.top + scrollEdge
+      )
+        armed.current = true
+      if (change.kind === "cancel") return setSizing(null)
+      // The span saved, and the one showing, no wider than the columns there are.
+      const saved = spans[id] ?? oneCell
+      const showing = { ...saved, columns: Math.min(saved.columns, rest.columns) }
+      const keyed = (key: "wider" | "narrower" | "taller" | "shorter"): GridSpan =>
+        key === "wider" || key === "narrower"
+          ? {
+              columns: Math.min(rest.columns, showing.columns + (key === "wider" ? 1 : -1)),
+              rows: saved.rows,
+            }
+          : // Down or up keeps the width it was given, wider than the Grid holds now or not.
+            { columns: saved.columns, rows: saved.rows + (key === "taller" ? 1 : -1) }
+      // A held corner is measured from the tile's top left where it rests, in the Grid's own
+      // frame, so it counts what the Grid scrolled since.
+      const cornerAt = (x: number, y: number): GridSpan => {
+        const frame = containerRef.current?.getBoundingClientRect()
+        const box = rest.boxes.find((each) => each.id === id)
+        return frame && box
+          ? spanAt(x - frame.left - box.left, y - frame.top - box.top, rest)
+          : showing
+      }
+      const asked = change.kind === "keys" ? keyed(change.key) : cornerAt(change.x, change.y)
+      // A width the Grid shows no differently keeps the one it was given, which may be wider
+      // than the Grid holds now: only a change the person can see is saved.
+      const across = Math.max(1, asked.columns)
+      const span = { ...asked, columns: across === showing.columns ? saved.columns : across }
+      if (change.kind === "held")
+        return setSizing((was) =>
+          was?.id === id && was.span.columns === span.columns && was.span.rows === span.rows
+            ? was
+            : { id, span },
+        )
+      setSizing(null)
+      onResize(id, span)
+    },
+    [rest, spans, onResize, containerRef],
+  )
+  // While a corner is held, the Grid scrolls when the pointer nears its top or bottom, as a
+  // tile dragged by its header does, and the tile is sized again as it scrolls.
+  const sizingNow = resizing !== null
+  useEffect(() => {
+    const stage = stageRef.current
+    if (!sizingNow || !stage) return
+    const again = (): void => {
+      const pointer = corner.current
+      if (pointer) resize(pointer.id, { kind: "held", x: pointer.x, y: pointer.y })
+    }
+    stage.addEventListener("scroll", again, { passive: true })
+    const edge = scrollEdge
+    let frame = 0
+    const step = (): void => {
+      const pointer = corner.current
+      const bounds = stage.getBoundingClientRect()
+      if (pointer) {
+        const low = pointer.y > bounds.bottom - edge
+        const high = pointer.y < bounds.top + edge
+        if (!low && !high) armed.current = true
+        else if (armed.current) stage.scrollBy({ top: low ? 12 : -12, behavior: "instant" })
+      }
+      frame = requestAnimationFrame(step)
+    }
+    frame = requestAnimationFrame(step)
+    return () => {
+      cancelAnimationFrame(frame)
+      stage.removeEventListener("scroll", again)
+    }
+  }, [sizingNow, resize])
+
   // Something dragged off a terminal's taskbar can be dropped on the grid. While it's over
   // the grid, a placeholder sits among the tiles where it would go, and they make room for
   // it; dropped, the window takes the place in the sidebar's order. The grid offers its
@@ -240,7 +467,7 @@ export const Grid = ({
         if (!document.elementsFromPoint(x, y).some((element) => stage.contains(element)))
           return null
         const bounds = container.getBoundingClientRect()
-        const slot = slotAt({ x: x - bounds.left, y: y - bounds.top }, width, ids.length)
+        const slot = slotAt({ x: x - bounds.left, y: y - bounds.top }, rest, ids, ids.length)
         const before = ids[slot] ?? null
         // The same place is the same value, so nothing re-renders as the pointer moves in it.
         if (offered.current?.before === before) return offered.current.place
@@ -248,7 +475,7 @@ export const Grid = ({
         offered.current = { before, place }
         return place
       }),
-    [session, containerRef, ids, width],
+    [session, containerRef, ids, width, rest],
   )
   const dropPlace = useDrag((drag) => (drag?.place && "grid" in drag.place ? drag.place : null))
   const dropName = useDrag((drag) => drag?.name ?? "")
@@ -274,7 +501,9 @@ export const Grid = ({
       const { id } = live.current.held
       live.current.pointer = pointer
       // Held within the grid, so the tile never makes it scroll where there is nothing.
-      const { tileWidth, height } = arrangeGrid(ids, width)
+      const own = rest.boxes.find((box) => box.id === id)
+      const across = own?.width ?? rest.cellWidth
+      const down = own?.height ?? 0
       // Outside the grid it is no drop, so the tiles go back to where they rest.
       const stage = stageRef.current?.getBoundingClientRect()
       const outside =
@@ -285,16 +514,13 @@ export const Grid = ({
         pointer.y > stage.bottom
       live.current.held = {
         id,
-        to: outside ? ids.indexOf(id) : slotAt(point, width, ids.length - 1),
-        x: Math.min(Math.max(point.x - live.current.grab.x, 0), width - tileWidth),
-        y: Math.min(
-          Math.max(point.y - live.current.grab.y, 0),
-          Math.max(height - gridTileHeight, 0),
-        ),
+        to: outside ? ids.indexOf(id) : slotAt(point, rest, ids, ids.length - 1),
+        x: Math.min(Math.max(point.x - live.current.grab.x, 0), Math.max(width - across, 0)),
+        y: Math.min(Math.max(point.y - live.current.grab.y, 0), Math.max(rest.height - down, 0)),
       }
       setHeld(live.current.held)
     },
-    [containerRef, stageRef, width, ids],
+    [containerRef, stageRef, width, ids, rest],
   )
   useEffect(() => {
     const stage = stageRef.current
@@ -330,10 +556,13 @@ export const Grid = ({
       (id) => id === dropGhost || on.has(id),
     )
   }, [ids, listed, keepFolds, heldId, heldTo, dropPlace])
-  const { boxes, height } = useMemo(() => arrangeGrid(order, width), [order, width])
+  const { boxes, height } = useMemo(() => arrangeGrid(order, width, sized), [order, width, sized])
   const boxOf = useMemo(() => new Map(boxes.map((box) => [box.id, box])), [boxes])
   // The wire is drawn from the tiles at rest, not from where a drag or a drop makes room.
-  const wired = useMemo(() => (dragging || dropPlace ? [] : boxes), [boxes, dragging, dropPlace])
+  const wired = useMemo(
+    () => (dragging || resizing || dropPlace ? [] : boxes),
+    [boxes, dragging, resizing, dropPlace],
+  )
 
   // Brings the selected tile into view when the person navigates to it or the grid's width
   // changes, and not when another tile is added or goes and it shifts.
@@ -401,7 +630,7 @@ export const Grid = ({
           className="relative"
           // While a tile is dragged the wire isn't drawn: the grid says so in an attribute its
           // stylesheet reads.
-          data-gesture={held ? "" : undefined}
+          data-gesture={held || resizing ? "" : undefined}
         >
           {width > 0 && (
             <GridTeamWire
@@ -447,6 +676,8 @@ export const Grid = ({
                     }
                     hidden={hidden[terminal.id] ?? false}
                     hiding={hidden[terminal.id] ?? false}
+                    span={shownSpan(sized[terminal.id] ?? oneCell, rest.columns)}
+                    onResize={resize}
                     render={render}
                   />
                 ) : null

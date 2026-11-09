@@ -80,6 +80,7 @@ import {
 import { busyReader, markBusy, Sampler, shellProcess } from "./sampling.js"
 import { hasRun, keptState, type TerminalRecords } from "./saved-terminals.js"
 import { Saves } from "./saving.js"
+import { ShellCommands } from "./shell-commands.js"
 import { Sleepers } from "./sleepers.js"
 import { slicingOf } from "./slices.js"
 import { StartupWatch } from "./startup-watch.js"
@@ -146,6 +147,13 @@ export class Terminals {
   private readonly confirms = new Approvals()
   /** Samples running terminals' foreground processes. */
   private readonly sampler: Sampler<Record>
+  /** The commands run in an agent's own shell mode, shown while a process of theirs lives. */
+  private readonly shellCommands = new ShellCommands<Record>({
+    profile: (record) => this.typing.boxOf(record),
+    announce: (record) => this.announce(record),
+    trees: () => this.trees,
+    stopping: () => this.stopping,
+  })
   private readonly startups: StartupWatch<Record>
   /** Who reads the terminals: their watchers, and each one's detail and messages readers. */
   private readonly streams: Streams<Record>
@@ -1091,6 +1099,7 @@ export class Terminals {
     if (markBusy(record)) this.announce(record)
     if (keys.some(({ kind }) => kind === "enter") && this.bindings.readyOf(record))
       this.bindings.readyEnter(record)
+    if (keys.some(({ kind }) => kind === "enter")) this.shellCommands.entered(record)
     const waiting = blocking(record.bound?.activity.pending)
     this.messaging.keys(record.summary.id, deliveredKeys(agent, waiting, keys), waiting.length > 0)
     this.bindings.keyed(record, data)
@@ -1624,6 +1633,7 @@ export class Terminals {
     this.sleepers.stop()
     this.hibernation.stop()
     this.sampler.stop()
+    this.shellCommands.stop()
     this.startups.stop()
     this.saves.stop()
     this.history.close()
@@ -1666,6 +1676,7 @@ export class Terminals {
   /** Reports the record's current summary to every watcher. */
   private announce(record: Record): void {
     markBusy(record)
+    this.shellCommands.changed(record)
     // A closed terminal's watchers already heard it is gone; its exit must not add it back.
     // One stopped to rest is told once it has, as a sleeper (see `Hibernation`).
     if (!record.closed && !record.hibernating) this.streams.changed(() => summaryOf(record))
@@ -1751,6 +1762,7 @@ export class Terminals {
     record.submitted = false
     markPrompt(record, entered)
     record.readyEntered = false
+    this.shellCommands.end(record)
     // Whether the startup command (an agent opened or resumed there) ran, so this prompt
     // is the first after it ended.
     const cancelled = record.startupRuns && cancelResume(record)
@@ -1792,6 +1804,7 @@ export class Terminals {
 
   /** The shell exited: the agent layer lets go of it, before its viewers read the exit. */
   private exited(record: Record): void {
+    this.shellCommands.end(record, false)
     this.bindings.exited(record)
     forgetPrompts(record)
     // An exited terminal takes no messages; its agent's are gone until it runs again. One

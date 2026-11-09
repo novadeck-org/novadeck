@@ -69,7 +69,7 @@ export const critterLive = (each: TerminalMetadata): MessagePeer["live"] =>
     ? "idle"
     : each.state !== "running" || !(each.agent || isAgentProgram(each.process))
       ? "gone"
-      : each.agent?.working
+      : each.agent?.working || each.agent?.shellCommand
         ? "working"
         : "idle"
 

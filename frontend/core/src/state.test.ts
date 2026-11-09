@@ -928,3 +928,33 @@ describe("removing a project", () => {
     expect(remove(before, "nowhere")).toBe(before)
   })
 })
+
+describe("sizing a Grid tile", () => {
+  const span = (terminalId: string, columns: number, rows: number): WorkspaceAction => ({
+    type: "grid/span",
+    target,
+    terminalId,
+    span: { columns, rows },
+  })
+
+  it("keeps how many cells the tile spans", () => {
+    const state = run(workspaceFixture(), span("01", 2, 2))
+    expect(state.layout.spans).toEqual({ "01": { columns: 2, rows: 2 } })
+  })
+
+  it("keeps nothing for a tile sized back to one cell", () => {
+    const state = run(workspaceFixture(), span("01", 2, 1), span("01", 1, 1))
+    expect(state.layout.spans).toEqual({})
+  })
+
+  it("holds a span to whole cells, at least one and at most three down", () => {
+    const state = run(workspaceFixture(), span("01", 2.4, 7), span("02", 0, -1))
+    expect(state.layout.spans).toEqual({ "01": { columns: 2, rows: 3 } })
+  })
+
+  it("changes nothing for the same span again, or a tile that isn't there", () => {
+    const sized = apply(workspaceFixture(), span("01", 2, 1))
+    expect(apply(sized, span("01", 2, 1))).toBe(sized)
+    expect(apply(sized, span("gone", 2, 1))).toBe(sized)
+  })
+})
