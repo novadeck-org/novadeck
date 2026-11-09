@@ -377,7 +377,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "The runner reads the dialog off the terminal screen, checks it is the one answered, and presses the keys a person would.",
         anchor: {
           file: `${runnerSrc}/terminals/answers.ts`,
-          text: "const steps = read.keys(answer)",
+          text: "const steps = read.keys(given)",
         },
       },
     ],
