@@ -49,6 +49,7 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   ready: null,
   startup: null,
   activity: null,
+  shellCommand: null,
   telemetry: null,
   reported: null,
   ...change,

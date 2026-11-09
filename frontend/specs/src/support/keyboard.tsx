@@ -91,10 +91,19 @@ export const recentOption = (name: string): Locator =>
 
 export const preferencesDialog = (): Locator => page.getByRole("dialog", { name: "Preferences" })
 
-/** Opens Preferences from the workspace's button, and waits for the focus to move into it. */
+/**
+ * Opens Preferences from the workspace's button, pressed from the keyboard, and waits for the
+ * focus to move into it. A toast stands over the header's right end, and one the app raises
+ * after `closeToasts` would take a click meant for the button; Enter on the focused button
+ * reaches it whatever stands over it.
+ */
 export const openPreferences = async (): Promise<void> => {
   await closeToasts()
-  await page.getByRole("button", { name: "Workspace preferences" }).click()
+  const button = page.getByRole("button", { name: "Workspace preferences" })
+  await expect.element(button).toBeVisible()
+  button.element().focus()
+  await expect.element(button).toHaveFocus()
+  await press("{Enter}")
   await expectFocusWithin(preferencesDialog())
 }
 

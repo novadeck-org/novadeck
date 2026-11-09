@@ -48,6 +48,7 @@ describe("a process's listing", () => {
       foreground: 9,
       started: "987654",
       zombie: false,
+      command: "node ) helper",
     })
     expect(parseStat(`42 (node) Z ${fields.slice(2)}`)?.zombie).toBe(true)
     expect(parseStat("42 node")).toBeUndefined()
@@ -342,5 +343,21 @@ describe("an agent's place in its terminal", () => {
   it("leaves out what has ended but not been reaped", () => {
     const found = placement([shell, agent, row(30, 20, 30, { zombie: true })], 10, 20)
     expect(found?.below).toEqual([])
+  })
+})
+
+describe("program names", () => {
+  it("reads ps's comm after the start, spaces and all, and parses without one", () => {
+    const [named, bare] = parsePs(
+      [
+        "  101     1   101   101 Ss   Fri Nov  6 15:20:11 2026 /Applications/Visual Studio Code/code",
+        "  102   101   102    -1 S    Fri Nov  6 15:20:12 2026",
+      ].join("\n"),
+    )
+    expect(named).toMatchObject({
+      started: "Fri Nov  6 15:20:11 2026",
+      command: "/Applications/Visual Studio Code/code",
+    })
+    expect(bare).not.toHaveProperty("command")
   })
 })

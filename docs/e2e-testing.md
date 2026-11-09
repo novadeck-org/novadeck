@@ -115,7 +115,7 @@ change reaches them only by one of the paths above.
 
 Each of these jobs runs, where the plan puts it, on Linux, on Windows (`windows-latest`,
 named `… (Windows)`) and on macOS (`macos-latest`, Apple silicon, named `… (macOS)`). A
-Windows job has 45 minutes and a macOS one 30, against Linux's 20, as both start processes
+Windows job has 45 minutes and a macOS one 36, against Linux's 20, as both start processes
 slower, and both run without the network namespace, which neither has (see Isolation). A
 macOS job first turns off the image's Reduce motion (see Running). Every job sets
 `NOVADECK_E2E_TRACES`, and one whose tests failed or that was cancelled uploads the traces

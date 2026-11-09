@@ -247,7 +247,9 @@ export class TerminalPeers {
             plan,
             work: terminal.work,
             openedBy: terminal.openedBy,
-            working: terminal.summary.activity?.state === "working",
+            working:
+              terminal.summary.activity?.state === "working" ||
+              terminal.summary.shellCommand != null,
             waiting: waitingOf(terminal.activity),
             waitsOn: terminal.summary.activity?.waiting
               ? waitsOnNote(terminal.summary.activity.waiting, Date.now())

@@ -1,4 +1,4 @@
-import { terminalPhase } from "@novadeck/core/terminals/ending"
+import { shellCommandLine, terminalPhase } from "@novadeck/core/terminals/ending"
 import { isAgentProgram, isShellProcess, runsAgentCommand } from "@novadeck/core/terminals/process"
 import type { TerminalMetadata } from "@novadeck/core/types"
 
@@ -33,6 +33,9 @@ export type Risk =
       // The one command it waits on, when it is one; else `what` says it in words.
       readonly command?: string
       readonly what: string
+      // Whether the work includes a command the person ran in its agent's shell mode, not work
+      // it waits on: all of it ("only") or beside work it does wait on ("mixed").
+      readonly shell?: "only" | "mixed"
     }
   | { readonly kind: "unknown"; readonly id: string; readonly title: string }
 
@@ -131,24 +134,44 @@ const commandString = (command: string): string | undefined => {
 const plural = (count: number, one: string, many = `${one}s`): string =>
   `${count} ${count === 1 ? one : many}`
 
+// The terminal with the command the person runs in its shell mode left out, as no turn.
+const withoutShellCommand = (terminal: TerminalMetadata): TerminalMetadata => {
+  if (terminal.state !== "running" || !terminal.agent?.shellCommand) return terminal
+  const { shellCommand: _shellCommand, ...agent } = terminal.agent
+  return { ...terminal, agent }
+}
+
 // What an agent's work that a restart stops says, from the jobs it waits on and the background
 // work its harness counts: the one command, or words.
 const agentWork = (
   terminal: TerminalMetadata,
-): { readonly command?: string; readonly what: string } | undefined => {
+):
+  | { readonly command?: string; readonly what: string; readonly shell?: "only" | "mixed" }
+  | undefined => {
   if (terminal.state !== "running" || !terminal.agent) return undefined
   const jobs = terminal.agent.waiting?.jobs ?? []
   const { tasks = 0, agents = 0 } = terminal.agent.background ?? {}
+  const shell = shellCommandLine(terminal)
+  // A command the person ran in its shell mode is counted apart from the work the agent waits on.
+  const own = shell === undefined ? 0 : 1
   const commands = Math.max(jobs.length, jobs.length > 0 ? 0 : tasks)
-  if (commands === 0 && agents === 0) return undefined
-  const only = jobs.length === 1 && agents === 0 ? commandString(jobs[0]!.command) : undefined
+  if (own + commands === 0 && agents === 0) return undefined
+  const one =
+    own === 1 && commands === 0
+      ? shell
+      : own === 0 && jobs.length === 1
+        ? jobs[0]!.command
+        : undefined
+  const only = one !== undefined && agents === 0 ? commandString(one) : undefined
   const parts = [
+    own > 0 && plural(own, "shell command"),
     commands > 0 && plural(commands, "background command"),
     agents > 0 && plural(agents, "subagent"),
   ].filter((part): part is string => part !== false)
   return {
     ...(only !== undefined ? { command: only } : {}),
-    what: `${parts.join(" and ")} ${commands + agents === 1 ? "stops" : "stop"}`,
+    what: `${parts.join(" and ")} ${own + commands + agents === 1 ? "stops" : "stop"}`,
+    ...(own > 0 ? { shell: commands + agents === 0 ? ("only" as const) : ("mixed" as const) } : {}),
   }
 }
 
@@ -189,7 +212,8 @@ export const restartCheck = (
     if (terminal.state === "exited" || terminal.state === "failed") continue
     const { id, name: title } = terminal
     if (runsAgent(terminal)) {
-      const phase = terminalPhase(terminal, false, now)
+      // A shell command is no turn: the phase counts what the agent's turn does.
+      const phase = terminalPhase(withoutShellCommand(terminal), false, now)
       if (phase === "running" || phase === "waiting") resume += 1
       else reopen += 1
       const work = agentWork(terminal)

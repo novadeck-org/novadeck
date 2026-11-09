@@ -72,6 +72,10 @@ export type AgentStatus = {
   // One of its own screens holds it for the person before its first session, as a
   // folder-trust or sign-in screen. No request stands behind it, so no Inbox row does either.
   readonly startup?: "startup" | "sign-in"
+  // A command the person runs in the agent's shell mode (`!sleep 15`) that still runs: what
+  // they typed and when they ran it. It busies the terminal but is no turn: `working` and
+  // the turn's outcome are unchanged by it.
+  readonly shellCommand?: { readonly command: string; readonly since: number }
 }
 
 // What an idle agent waits on: jobs it left running and picks up once they finish, each in

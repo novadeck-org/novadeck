@@ -223,6 +223,8 @@ export const box: BoxProfile = {
     footer: shellFooter,
     command: shellCommandOf,
     leave: leaveShell,
+    // Queues until the turn ends (probed 2026-10-07, 1.2.14; docs/harness-coverage.md).
+    midTurn: "queues",
   },
   // On 80 and 120 columns a word reaches 76 and 116; one too long for a row starts a new row
   // and breaks a column further (fixtures/leftover.probe.json).

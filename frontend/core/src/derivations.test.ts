@@ -369,6 +369,19 @@ describe("the peers messages show", () => {
     expect(messagePeers(running(false)).moth?.live).toBe("idle")
   })
 
+  it("say an agent busy with a command in its shell mode is working", () => {
+    const shell = workspaceReducer(led(), {
+      type: "terminal/status",
+      target,
+      terminalId: "01",
+      status: {
+        state: "running",
+        agent: { working: false, shellCommand: { command: "sleep 15", since: 1 } },
+      },
+    })
+    expect(messagePeers(shell).moth?.live).toBe("working")
+  })
+
   it("say an agent is gone from a terminal that only runs its shell", () => {
     expect(messagePeers(led()).fox?.live).toBe("gone")
   })
