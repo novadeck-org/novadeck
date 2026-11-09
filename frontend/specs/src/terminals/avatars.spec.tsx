@@ -57,9 +57,11 @@ describe("agent avatars", () => {
       await expect
         .poll(() => avatarIn(terminal(name).element(), ".terminal-switch .message-av"))
         .not.toBeNull()
-      // Its slot widens to the critter's 18px, so the name moves over rather than under it.
+      // Its slot widens to the critter's 24px, so the name moves over rather than under it.
       const slot = terminalTab(name).element().querySelector(".sidebar-item-icon")!
-      expect(slot.getBoundingClientRect().width).toBe(18)
+      expect(slot.getBoundingClientRect().width).toBe(24)
+      // It stands as Messages draws it: Dev server runs no agent, so its critter is dim.
+      expect(avatarIn(terminalTab("Dev server").element())?.dataset.live).toBe("gone")
       // Grown critters belong to Canvas alone.
       expect(document.querySelector(".canvas-avatar")).toBeNull()
     })

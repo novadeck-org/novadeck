@@ -1,4 +1,4 @@
-import { teamText, treeRole } from "@novadeck/core/derivations"
+import { critterLive, teamText, treeRole } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import type { Tile } from "@novadeck/core/types"
@@ -93,7 +93,11 @@ export const WorkspaceTab = memo(
       <TerminalTab
         terminal={terminal}
         icon={(isWindow(terminal) ? windowProfile(item) : terminalProfile(terminal)).icon}
-        avatar={avatars && !isWindow(terminal) ? terminal.handle : undefined}
+        avatar={
+          avatars && !isWindow(terminal) && terminal.handle
+            ? { handle: terminal.handle, live: critterLive(terminal) }
+            : undefined
+        }
         index={index}
         selected={selected}
         team={team}

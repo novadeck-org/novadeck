@@ -20,7 +20,7 @@ import {
   wakePassed,
 } from "@novadeck/core/terminals/waiting"
 import type { Tile } from "@novadeck/core/types"
-import { Avatar } from "@novadeck/items/Avatar"
+import { Avatar, type AvatarLive } from "@novadeck/items/Avatar"
 import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import {
@@ -100,8 +100,9 @@ export const TerminalTab = ({
   terminal: Tile
   // What it presents as: its program, or what the window shows.
   icon: LucideIcon
-  // The handle whose critter stands in the icon's place (Agent avatars, experimental).
-  avatar?: string | undefined
+  // The critter that stands in the icon's place (Agent avatars, experimental): its handle,
+  // and whether its agent works, rests or has gone, as Messages draws it.
+  avatar?: { readonly handle: string; readonly live: AvatarLive } | undefined
   index: number
   selected: boolean
   // Its place in the selected terminal's team: the lead or one of its workers (tabs.css).
@@ -156,8 +157,12 @@ export const TerminalTab = ({
 }): React.JSX.Element => {
   const editing = Boolean(rename)
   const shell = isWindow(terminal) ? undefined : terminal
-  // A critter only blinks here: the detail line says how the terminal stands.
-  const icon = avatar ? <Avatar handle={avatar} size={18} /> : <Icon size={14} strokeWidth={1.5} />
+  // 24px, the smallest whose LEDs keep their gaps on a 1× screen, as Messages' do.
+  const icon = avatar ? (
+    <Avatar handle={avatar.handle} live={avatar.live} size={24} />
+  ) : (
+    <Icon size={14} strokeWidth={1.5} />
+  )
   const label = terminalLabel(terminal.name, shell?.handle)
   // The detail line shows the state: a glyph (a spinner while a program runs) before the
   // program, what the agent needs of the person right after it, or a note while the shell

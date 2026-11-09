@@ -13,9 +13,10 @@ export const sidebarRowSelectClasses =
   "sidebar-item-select flex min-w-0 flex-1 items-start gap-2 px-2.5 py-[9px] text-left"
 export const sidebarRowIconClasses =
   "sidebar-item-icon flex h-[18px] w-3.5 shrink-0 items-center justify-center"
-// The icon's slot for a wide icon, as an agent's 18px critter.
+// The icon's slot for a wide icon, as an agent's 24px critter, which stands out of the
+// name's line above and below.
 export const sidebarRowWideIconClasses =
-  "sidebar-item-icon flex h-[18px] w-[18px] shrink-0 items-center justify-center"
+  "sidebar-item-icon flex h-[18px] w-6 shrink-0 items-center justify-center"
 // Its name in bold, as for something the person hasn't seen yet; "soft" in semibold, for an
 // item that is dimmed.
 export const sidebarRowNameClasses = (emphasized: boolean | "soft" = false): string =>
@@ -48,7 +49,7 @@ export const SidebarItem = ({
 }: Omit<ComponentPropsWithoutRef<"div">, "children" | "onSelect"> & {
   readonly name: string
   readonly icon: ReactNode
-  // An icon 18px wide, whose slot widens to hold it.
+  // An icon 24px wide, whose slot widens to hold it.
   readonly wideIcon?: boolean
   readonly detail: ReactNode
   // Under the detail line, such as rows of what the item runs.

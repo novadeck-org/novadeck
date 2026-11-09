@@ -11,7 +11,12 @@ import {
 import { useBoxHandover } from "@novadeck/chat/use-box-handover"
 import { useChat } from "@novadeck/chat/use-chat"
 import { agentStats } from "@novadeck/core/agents/stats"
-import { ledTerminals, runningLeads, terminalOrigins } from "@novadeck/core/derivations"
+import {
+  critterLive,
+  ledTerminals,
+  runningLeads,
+  terminalOrigins,
+} from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import type { CompanionWindowMeta, TerminalMetadata, Tile } from "@novadeck/core/types"
 import { Avatar } from "@novadeck/items/Avatar"
@@ -259,7 +264,11 @@ export const WorkspaceTerminal = memo(
       ...(terminal.state === "running" && terminal.agent && plainTitle(terminal)
         ? { titleExtra: <NameChip terminalId={terminalId} context={chatContext} /> }
         : {}),
-      icon: avatar ? <Avatar handle={avatar} size={16} /> : <Icon size={14} strokeWidth={1.5} />,
+      icon: avatar ? (
+        <Avatar handle={avatar} live={critterLive(terminal)} size={16} />
+      ) : (
+        <Icon size={14} strokeWidth={1.5} />
+      ),
       ...(processWindow ? { processWindow } : {}),
     }
     // The chat is drawn over the content, which stays mounted at its size, so the terminal

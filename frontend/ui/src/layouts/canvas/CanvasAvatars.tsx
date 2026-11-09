@@ -1,4 +1,4 @@
-import { Avatar } from "@novadeck/items/Avatar"
+import { Avatar, type AvatarLive } from "@novadeck/items/Avatar"
 import { useStore, ViewportPortal, type ReactFlowState } from "@xyflow/react"
 import { useCallback, useMemo } from "react"
 
@@ -11,11 +11,14 @@ import type { TerminalNode } from "./types"
 // twins share one layer in the viewport's world above every window, so a neighbour's
 // corner never covers one: a node's own stacking would let it. Mounted only while some
 // window has a critter, so that without one no move renders anything.
+// A window's critter: its handle, and whether its agent works, rests or has gone.
+export type Face = { readonly handle: string; readonly live: AvatarLive }
+
 export const CanvasAvatars = ({
   avatars,
 }: {
-  // Each window's handle, by its id, for the windows that draw a critter.
-  avatars: ReadonlyMap<string, string>
+  // Each window's critter, by its id, for the windows that draw one.
+  avatars: ReadonlyMap<string, Face>
 }): React.JSX.Element | null => (avatars.size ? <Twins avatars={avatars} /> : null)
 
 type Placed = [
@@ -29,7 +32,7 @@ type Placed = [
   dragging: boolean,
 ]
 
-const Twins = ({ avatars }: { avatars: ReadonlyMap<string, string> }): React.JSX.Element => {
+const Twins = ({ avatars }: { avatars: ReadonlyMap<string, Face> }): React.JSX.Element => {
   const ids = useMemo(() => [...avatars.keys()], [avatars])
   // Where each window is and how it stands, as one string, so that this renders only when
   // one moves or changes, never on a pan or zoom: those reach the twins through CSS.
@@ -78,7 +81,7 @@ const Twins = ({ avatars }: { avatars: ReadonlyMap<string, string> }): React.JSX
                 data-preview={preview || undefined}
                 data-team={team || undefined}
               >
-                <Avatar handle={avatars.get(id)!} size={16} />
+                <Avatar {...avatars.get(id)!} size={16} />
               </span>
             </div>
           ),

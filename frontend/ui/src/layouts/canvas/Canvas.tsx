@@ -1,4 +1,5 @@
 import "./canvas.css"
+import { critterLive } from "@novadeck/core/derivations"
 import type { Arranged } from "@novadeck/core/layout/canvas-arrangement"
 import { canvasPointPosition } from "@novadeck/core/layout/window-place"
 import { isWindow } from "@novadeck/core/roster"
@@ -34,7 +35,7 @@ import { workspaceOverlayOpen, workspaceShortcutTarget } from "../../interaction
 import { backgroundPointerHandlers } from "../background"
 import { legibleZoom } from "../useSeen"
 import { useTerminalVisibility } from "../useTerminalVisibility"
-import { CanvasAvatars } from "./CanvasAvatars"
+import { CanvasAvatars, type Face } from "./CanvasAvatars"
 import { CanvasTeamWire } from "./CanvasTeamWire"
 import {
   avatarGrowAt,
@@ -183,13 +184,16 @@ const TerminalCanvas = ({
       ),
     [terminals, hidden, preview],
   )
-  // The handle of each terminal whose window draws its critter (Agent avatars).
+  // The critter of each terminal whose window draws one (Agent avatars): its handle, and how
+  // it stands, as Messages draws it.
   const faces = useMemo(
     () =>
       new Map(
         avatars
-          ? terminals.flatMap((tile): [string, string][] =>
-              !isWindow(tile) && tile.handle ? [[tile.id, tile.handle]] : [],
+          ? terminals.flatMap((tile): [string, Face][] =>
+              !isWindow(tile) && tile.handle
+                ? [[tile.id, { handle: tile.handle, live: critterLive(tile) }]]
+                : [],
             )
           : [],
       ),
