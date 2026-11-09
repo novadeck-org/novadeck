@@ -111,12 +111,16 @@ export const createRouter = (options: {
       }),
     },
     sessions: {
-      list: api.sessions.list.handler(({ input }) => store.sessions(input.projectId)),
+      list: api.sessions.list.handler(({ input }) => projects.sessions(input.projectId)),
       create: api.sessions.create.handler(({ input }) => {
         projects.ensureNotRemoving(input.projectId)
         return store.createSession(input)
       }),
       rename: api.sessions.rename.handler(({ input }) => store.renameSession(input)),
+      arrange: api.sessions.arrange.handler(({ input }) =>
+        projects.arrangeSessions(input.projectId, input.order),
+      ),
+      remove: api.sessions.remove.handler(({ input }) => projects.removeSession(input.sessionId)),
       save: api.sessions.save.handler(({ input }) => {
         // Shells exiting during shutdown would otherwise overwrite the last state saved
         // before it with one where nothing runs.
@@ -132,7 +136,7 @@ export const createRouter = (options: {
       create: api.terminals.create.handler(async ({ input, context }) => {
         const session = store.session(input.sessionId)
         const project = store.project(session.projectId)
-        return projects.creatingIn(project.id, () =>
+        return projects.creatingIn(project.id, session.id, () =>
           terminals.create({ ...input, cwd: input.cwd ?? project.cwd }, context.session.id),
         )
       }),

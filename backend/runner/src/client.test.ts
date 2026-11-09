@@ -656,6 +656,171 @@ describe("runner client project removal", () => {
   })
 })
 
+describe("runner client session management", () => {
+  it("lists sessions as arranged, newest first, ignoring ids the project lacks", async ({
+    resources,
+  }) => {
+    const app = await deployed(resources)
+    const client = await app.connect()
+    const project = await client.projects.create({
+      id: crypto.randomUUID(),
+      name: "P",
+      cwd: app.directory,
+    })
+    const other = await client.projects.create({
+      id: crypto.randomUUID(),
+      name: "Other",
+      cwd: app.directory,
+    })
+    const foreign = await client.sessions.create({
+      id: crypto.randomUUID(),
+      projectId: other.id,
+      name: "Foreign",
+    })
+    const names = async () =>
+      (await client.sessions.list({ projectId: project.id })).map(({ name }) => name)
+    const [a, b, c] = ["A", "B", "C"].map((name) => ({ id: crypto.randomUUID(), name }))
+    for (const { id, name } of [a!, b!, c!])
+      // eslint-disable-next-line no-await-in-loop -- Created in order.
+      await client.sessions.create({ id, projectId: project.id, name })
+    // Each new session comes first.
+    expect(await names()).toEqual(["C", "B", "A"])
+
+    await client.sessions.arrange({
+      projectId: project.id,
+      order: [a!.id, foreign.id, crypto.randomUUID(), c!.id, a!.id],
+    })
+    // B was left out and follows; the foreign session stays in its own project.
+    expect(await names()).toEqual(["A", "C", "B"])
+    await expect(client.sessions.list({ projectId: other.id })).resolves.toMatchObject([
+      { id: foreign.id },
+    ])
+
+    const d = { id: crypto.randomUUID(), projectId: project.id, name: "D" }
+    await client.sessions.create(d)
+    expect(await names()).toEqual(["D", "A", "C", "B"])
+    await expect(
+      client.sessions.arrange({ projectId: crypto.randomUUID(), order: [] }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+  })
+
+  it("closes a session's terminals, running or kept, into History, and restores one beside it", async ({
+    resources,
+  }) => {
+    const directory = await temporary(resources)
+    const database = join(directory, "workspace.sqlite")
+    const earlier = new WorkspaceStore(database)
+    const ids = { project: crypto.randomUUID(), going: crypto.randomUUID() }
+    const staying = crypto.randomUUID()
+    await earlier.createProject({ id: ids.project, name: "P", cwd: directory })
+    earlier.createSession({ id: staying, projectId: ids.project, name: "Staying" })
+    earlier.createSession({ id: ids.going, projectId: ids.project, name: "Going" })
+    const saved = crypto.randomUUID()
+    earlier.saveTerminal({
+      id: saved,
+      sessionId: ids.going,
+      cwd: directory,
+      agents: {},
+      promptedAt: null,
+      handle: earlier.giveHandle(ids.going),
+      naming: { person: null, opener: null, murmur: null, own: null, summary: null },
+      openedBy: null,
+      ledBy: null,
+      command: null,
+      lastProgram: null,
+      work: null,
+      ran: true,
+    })
+    earlier.close()
+
+    const app = await deployed(resources, { database })
+    const client = await app.connect()
+    // Another window holds control of the running terminal; removing closes it anyway.
+    const other = await app.connect()
+    const running = await other.terminals.create(shell(ids.going))
+    const attached = await other.terminals.attach(running.id)
+    const screen = view(attached, resources)
+    await print(attached, "echo started")
+    await screen.until("started")
+    const elsewhere = await client.terminals.create(shell(staying))
+    const watch = changes(client, resources)
+    await watch.synced()
+
+    await client.sessions.remove({ sessionId: ids.going })
+    const removed = new Set<string>()
+    while (removed.size < 2) {
+      // eslint-disable-next-line no-await-in-loop -- Changes are read in order.
+      const change = await watch.until((item) => item.type === "removed")
+      if (change.type === "removed") removed.add(change.terminalId)
+    }
+    expect(removed).toEqual(new Set([running.id, saved]))
+
+    await expect(client.sessions.list({ projectId: ids.project })).resolves.toMatchObject([
+      { id: staying },
+    ])
+    await expect(client.terminals.list({ sessionId: ids.going })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    })
+    await expect(client.terminals.create(shell(ids.going))).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    })
+    await expect(client.terminals.list({ sessionId: staying })).resolves.toEqual([
+      expect.objectContaining({ id: elsewhere.id }),
+    ])
+    expect(rows(database)).toMatchObject({
+      sessions: [staying],
+      terminals: [elsewhere.id],
+      handles: [staying],
+    })
+    // Both stay in History, to restore into the session that remains.
+    const history = await client.history.list({ projectId: ids.project })
+    expect(history.map(({ id }) => id).toSorted()).toEqual([running.id, saved].toSorted())
+    const restored = await client.terminals.create({ ...shell(staying), closed: saved })
+    expect(restored.sessionId).toBe(staying)
+  })
+
+  it("refuses to remove a project's last session or one it lacks", async ({ resources }) => {
+    const app = await deployed(resources)
+    const client = await app.connect()
+    const { id: sessionId, projectId } = await session(client, app.directory)
+    await expect(client.sessions.remove({ sessionId })).rejects.toMatchObject({
+      code: "CONFLICT",
+    })
+    await expect(client.sessions.remove({ sessionId: crypto.randomUUID() })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    })
+    await expect(client.sessions.list({ projectId })).resolves.toMatchObject([{ id: sessionId }])
+  })
+
+  it.skipIf(process.platform === "win32")(
+    "shares a second removal and refuses terminals in the session while it goes",
+    async ({ resources }) => {
+      // A shell that ignores a hangup holds the removal open for about a second, once it
+      // says it does.
+      const app = await deployed(resources, {
+        terminals: { shell: "/bin/sh", shellArgs: ["-c", "trap '' HUP; echo ready; exec cat"] },
+      })
+      const client = await app.connect()
+      const { id: sessionId, projectId } = await session(client, app.directory)
+      const kept = await client.sessions.create({
+        id: crypto.randomUUID(),
+        projectId,
+        name: "Kept",
+      })
+      const terminal = await client.terminals.create(shell(sessionId))
+      await view(await client.terminals.attach(terminal.id), resources).until("ready")
+      const removing = client.sessions.remove({ sessionId })
+      const again = client.sessions.remove({ sessionId })
+      // Asked once the removal began, long before its shell is gone.
+      await expect(client.terminals.create(shell(sessionId))).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      })
+      await expect(client.sessions.list({ projectId })).resolves.toMatchObject([{ id: kept.id }])
+      await expect(Promise.all([removing, again])).resolves.toEqual([undefined, undefined])
+    },
+  )
+})
+
 describe("runner client agent detail", () => {
   it("follows a terminal's agent, and ends once the terminal is gone", async ({ resources }) => {
     const app = await deployed(resources)

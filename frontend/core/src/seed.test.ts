@@ -78,6 +78,28 @@ describe("workspace from a backend seed", () => {
       expect(project.activeSessionId).toBe("latest")
       expect(project.history.map((session) => session.id)).toEqual(["latest", "older"])
     })
+    it("opens the session visited last, wherever the person put it", () => {
+      const workspace = workspaceFromSeed(
+        {
+          projects: [
+            {
+              id: "one",
+              name: "one",
+              directory: "~/one",
+              sessions: [
+                { id: "first", name: "First", items: [], windows: [], terminals, visitedAt: 10 },
+                { id: "unseen", name: "Unseen", items: [], windows: [], terminals: [] },
+                { id: "last", name: "Last", items: [], windows: [], terminals: [], visitedAt: 20 },
+              ],
+            },
+          ],
+        },
+        defaults,
+      )
+      const project = workspace.projects[0]!
+      expect(project.activeSessionId).toBe("last")
+      expect(project.history.map((session) => session.id)).toEqual(["first", "unseen", "last"])
+    })
   })
 
   context("with a saved state and visit times", () => {

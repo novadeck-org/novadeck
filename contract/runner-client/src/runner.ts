@@ -133,6 +133,20 @@ export type Runner = {
     }): Promise<WorkspaceSession>
     rename(input: { readonly sessionId: string; readonly name: string }): Promise<WorkspaceSession>
     /**
+     * Keeps the person's arrangement of the project's sessions: `order` by id, first to last.
+     * Ids the project doesn't have are ignored, and sessions `order` leaves out follow, in
+     * the order they had.
+     */
+    arrange(input: { readonly projectId: string; readonly order: readonly string[] }): Promise<void>
+    /**
+     * Closes every terminal of the session, whichever connection controls them, keeping each
+     * in History, so watchers see each `removed`, then forgets the session. Rejects with
+     * `NOT_FOUND` for a session the runner doesn't have, as one already removed, with
+     * `CONFLICT` for the project's last session, and with `CLOSING` when the runner shuts
+     * down first.
+     */
+    remove(input: { readonly sessionId: string }): Promise<void>
+    /**
      * Replaces the session's `state`, which the runner stores without reading, and its
      * `visitedAt`: null while the person has never had it open.
      */
@@ -644,6 +658,11 @@ export const connectRunner = async (
       list: (input) => call((client) => client.sessions.list(input)),
       create: (input) => call((client) => client.sessions.create(input)),
       rename: (input) => call((client) => client.sessions.rename(input)),
+      arrange: (input) =>
+        call((client) =>
+          client.sessions.arrange({ projectId: input.projectId, order: [...input.order] }),
+        ),
+      remove: (input) => call((client) => client.sessions.remove(input)),
       save: (input) => call((client) => client.sessions.save(input)),
     },
     terminals: {

@@ -56,6 +56,9 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
       }
     | undefined
   onSessionSelect: (id: string) => void
+  onSessionRename: (id: string, name: string) => void
+  onSessionMove: (id: string, index: number) => void
+  onSessionRemove: (id: string) => void
   onFresh: () => void
   onHide: () => void
   onCreate: () => void
@@ -78,6 +81,9 @@ export const WorkspaceSidebar = ({
   source,
   history,
   onSessionSelect,
+  onSessionRename,
+  onSessionMove,
+  onSessionRemove,
   onFresh,
   onHide,
   onCreate,
@@ -129,6 +135,10 @@ export const WorkspaceSidebar = ({
         activeId={workspaceSessionId}
         onSelect={onSessionSelect}
         onFresh={onFresh}
+        onRename={onSessionRename}
+        onMove={onSessionMove}
+        onRemove={onSessionRemove}
+        historyKept={Boolean(history)}
       />
     </SidebarPanel>
     {history && (

@@ -254,8 +254,8 @@ export class Terminals {
   readonly history: ClosedTerminals
   /** Terminals closed in this runner's lifetime, which no create brings back. */
   private readonly closedIds = new Set<string>()
-  /** Sessions whose project is going or gone, in which no terminal starts again. */
-  private readonly closingSessions = new Set<string>()
+  /** Sessions going or gone, in which no terminal starts again; History keeps a lone one's. */
+  private readonly closingSessions = new Map<string, "project" | "session">()
   private stopping = false
   /** The runner has stopped: its records may be closed, and nothing reads or forgets them. */
   private stopped = false
@@ -1280,14 +1280,20 @@ export class Terminals {
   /**
    * Closes every terminal of a project's sessions, running or kept only as saved, as
    * `close` does but whoever controls them, then forgets its agents' messages: the
-   * project is going. Its records are the caller's to delete.
+   * project is going. Its records are the caller's to delete. With `onlySessions` just those
+   * go, each terminal kept in History, and the project keeps its messages.
    */
-  async closeProject(projectId: string, sessionIds: readonly string[]): Promise<void> {
+  async closeProject(
+    projectId: string,
+    sessionIds: readonly string[],
+    onlySessions = false,
+  ): Promise<void> {
     if (this.stopping) throw new DomainError("CLOSING")
     const sessions = new Set(sessionIds)
     // Marked first, so a restart or create under way can't start a shell behind the close,
     // and left marked once closed: the project and its sessions are going for good.
-    for (const sessionId of sessions) this.closingSessions.add(sessionId)
+    for (const sessionId of sessions)
+      this.closingSessions.set(sessionId, onlySessions ? "session" : "project")
     try {
       await this.closeSessions(sessions)
     } catch (error) {
@@ -1297,12 +1303,13 @@ export class Terminals {
     // Shutting down meanwhile: the project, and what of its terminals was only saved, stay
     // for the next runner to remove.
     if (this.stopping) throw new DomainError("CLOSING")
+    if (onlySessions) return
     this.inbox.forgetProject(projectId)
     this.feedback.forgetProject(projectId)
     this.messaging.forgetProject(projectId)
   }
 
-  /** The project stays after all, as its removal failed: terminals start in it again. */
+  /** The project or session stays after all, as its removal failed: terminals start in it again. */
   projectKept(sessionIds: readonly string[]): void {
     for (const sessionId of sessionIds) this.closingSessions.delete(sessionId)
   }
@@ -1323,6 +1330,8 @@ export class Terminals {
     for (const sessionId of sessions) {
       for (const terminal of this.saves.terminals(sessionId)) {
         this.closedIds.add(terminal.id)
+        const saved = this.saves.saved(terminal.id)
+        if (saved) this.history.closingSaved(saved, null, this.sleepers.resting(terminal.id)?.agent)
         this.forget(terminal.id)
         this.streams.removed(terminal)
         this.streams.end(terminal.id)

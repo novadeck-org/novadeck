@@ -108,13 +108,13 @@ describe("session visits across a restart", () => {
   })
 
   context("when the person adds a session", () => {
-    it("opens it, and the project's earlier session follows", () => {
+    it("opens it, first in the list, and the others keep their order", () => {
       for (const now of [1, 10_000]) {
         const session = createWorkspaceSession({ name: "new", state: state() }, { id: "b3", now })
         const after = apply(start(), { type: "session/add", projectId: "b", session })
         const next = open(reload(after))
         expect(opened(next)).toEqual({ project: "b", sessions: { a: "a1", b: "b3" } })
-        expect(next.projects[1]!.history.map((each) => each.id)).toEqual(["b3", "b2", "b1"])
+        expect(next.projects[1]!.history.map((each) => each.id)).toEqual(["b3", "b1", "b2"])
       }
     })
 

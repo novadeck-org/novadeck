@@ -145,7 +145,12 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
     sessions: {
       list: (input) => runner.sessions.list(input),
       create: (input) => note(`create session ${input.id}`, () => runner.sessions.create(input)),
-      rename: (input) => runner.sessions.rename(input),
+      rename: (input) =>
+        note(`rename session ${input.sessionId}`, () => runner.sessions.rename(input)),
+      arrange: (input) =>
+        note(`arrange sessions ${input.order.join(" ")}`, () => runner.sessions.arrange(input)),
+      remove: (input) =>
+        note(`remove session ${input.sessionId}`, () => runner.sessions.remove(input)),
       save: (input) => note(`save ${input.sessionId}`, () => runner.sessions.save(input)),
     },
     terminals: {

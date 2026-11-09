@@ -1,5 +1,6 @@
 import {
   createTelemetryStore,
+  dropContext,
   dropProject,
   dropTerminal,
   noTelemetry,
@@ -353,6 +354,18 @@ export const withConversations = (
           !workspace.projects.some((project) => project.id === action.projectId)
         )
           turns.telemetry.update((held) => dropProject(held, action.projectId))
+        // A deleted session's too; the reducer keeps a project's last.
+        if (
+          action.type === "session/remove" &&
+          workspace.projects.some(
+            (project) =>
+              project.id === action.projectId &&
+              !project.history.some((each) => each.id === action.workspaceSessionId),
+          )
+        )
+          turns.telemetry.update((held) =>
+            dropContext(held, `${action.projectId}/${action.workspaceSessionId}`),
+          )
       }
     },
     start: (next) => {

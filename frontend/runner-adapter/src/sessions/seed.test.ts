@@ -378,7 +378,7 @@ describe("runner seed", () => {
   })
 
   context("with a session never visited, though its state was saved", () => {
-    it("sorts it last and leaves its project's visit to the others", () => {
+    it("keeps its place and leaves its project's visit to the others", () => {
       const listing: RunnerListing = [
         {
           project: project(1),
@@ -393,13 +393,14 @@ describe("runner seed", () => {
         },
       ]
       const seed = runnerSeed(listing)
-      expect(seed.projects[0]!.sessions.map((session) => session.id)).toEqual([uuid(11), uuid(10)])
+      expect(seed.projects[0]!.sessions.map((session) => session.id)).toEqual([uuid(10), uuid(11)])
       expect(seed.activeProjectId).toBe(uuid(1))
       const workspace = workspaceFromSeed(seed, defaults)
       expect(workspace.projects[0]!.history.map((session) => session.visitedAt)).toEqual([
-        500,
         null,
+        500,
       ])
+      expect(workspace.projects[0]!.activeSessionId).toBe(uuid(11))
       expect(workspace.projects[1]!.history[0]!.visitedAt).toBeNull()
     })
   })
@@ -432,12 +433,17 @@ describe("runner seed", () => {
     ]
     const seed = runnerSeed(listing)
 
-    it("orders sessions by their last visit, with unsaved ones last", () => {
+    it("keeps the runner's order, the person's", () => {
       expect(seed.projects[0]!.sessions.map((session) => session.id)).toEqual([
-        uuid(12),
-        uuid(11),
         uuid(10),
+        uuid(11),
+        uuid(12),
       ])
+    })
+
+    it("opens each project's session visited last", () => {
+      const workspace = workspaceFromSeed(seed, defaults)
+      expect(workspace.projects.map((each) => each.activeSessionId)).toEqual([uuid(12), uuid(13)])
     })
 
     it("opens the project visited most recently", () => {
@@ -445,7 +451,7 @@ describe("runner seed", () => {
     })
 
     it("names the terminals of an unsaved session as the runner does, in its order", () => {
-      expect(seed.projects[0]!.sessions[2]!.terminals.map((terminal) => terminal.name)).toEqual([
+      expect(seed.projects[0]!.sessions[0]!.terminals.map((terminal) => terminal.name)).toEqual([
         "Terminal",
         "Terminal",
       ])

@@ -53,6 +53,14 @@ const panel = () => {
 }
 const row = (container: Element, id: string) =>
   container.querySelector(`[data-workspace-session="${id}"]`)!
+// What a screen reader hears of the row: its own description, ahead of how to reorder it.
+const heard = (container: Element, id: string): string => {
+  const ids = row(container, id)
+    .querySelector(".sidebar-item-select")!
+    .getAttribute("aria-describedby")!
+    .split(" ")
+  return container.ownerDocument.getElementById(ids[0]!)!.textContent!
+}
 
 describe("The Sessions panel's marks", () => {
   it("marks each session with its status, the open one too, and a quiet one with none", () => {
@@ -86,8 +94,7 @@ describe("The Sessions panel's marks", () => {
   })
 
   it("says the status first in the row's description, for a screen reader", () => {
-    const description = (id: string) =>
-      row(panel(), id).querySelector(".sidebar-item-select")!.getAttribute("aria-description")!
+    const description = (id: string) => heard(panel(), id)
     expect(description("a")).toMatch(/^Needs you\. Open now\./)
     expect(description("b")).toMatch(/^Not opened yet\./)
     expect(
@@ -96,9 +103,7 @@ describe("The Sessions panel's marks", () => {
   })
 
   it("names those terminals in the row's description before the terminal list", () => {
-    const description = row(panel(), "a")
-      .querySelector(".sidebar-item-select")!
-      .getAttribute("aria-description")!
+    const description = heard(panel(), "a")
     expect(description).toContain("Needs you: @glint · Polish. One, Two")
   })
 })

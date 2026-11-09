@@ -1,4 +1,4 @@
-import type { Project } from "@novadeck/protocol"
+import type { Project, WorkspaceSession } from "@novadeck/protocol"
 
 import type { CompanionItems } from "../companions/items.js"
 import { DomainError } from "../errors.js"
@@ -6,14 +6,17 @@ import type { Terminals } from "../terminals/index.js"
 import type { WorkspaceStore } from "./store.js"
 
 /**
- * Removing projects, which spans the store, the terminals and their companion items.
- * While a project goes, no session or terminal is created in it; terminals already being
- * created finish first, so its removal closes them too, before its records are deleted.
+ * Removing projects and sessions, which spans the store, the terminals and their companion
+ * items. While a project goes, no session or terminal is created in it, and while a session
+ * goes, no terminal is created in that; terminals already being created finish first, so
+ * the removal closes them too, before its records are deleted.
  */
 export class Projects {
   /** Each project being removed, and its removal. */
   private readonly removing = new Map<string, Promise<void>>()
-  /** Each project's terminals being created. */
+  /** Each session being removed, and its removal. */
+  private readonly removingSessions = new Map<string, Promise<void>>()
+  /** Each project's terminals being created, and each session's. */
   private readonly creating = new Map<string, Set<Promise<unknown>>>()
 
   constructor(
@@ -36,26 +39,42 @@ export class Projects {
     )
   }
 
+  /** The project's sessions in the person's order, but those being removed. */
+  sessions(projectId: string): WorkspaceSession[] {
+    return this.store.sessions(projectId).filter(({ id }) => !this.removingSessions.has(id))
+  }
+
+  /** Keeps the person's arrangement of the project's sessions; one being removed is left out. */
+  arrangeSessions(projectId: string, order: readonly string[]): void {
+    this.store.arrangeSessions(
+      projectId,
+      order.filter((id) => !this.removingSessions.has(id)),
+    )
+  }
+
   /** Refuses anything new in a project being removed, as `NOT_FOUND`: it is as good as gone. */
   ensureNotRemoving(projectId: string): void {
     if (this.removing.has(projectId)) throw new DomainError("NOT_FOUND", "Project not found")
   }
 
   /**
-   * Runs `work`, which creates something in the project, unless it is being removed; a
-   * removal that begins meanwhile waits for it.
+   * Runs `work`, which creates a terminal in the session, unless it or its project is being
+   * removed; a removal that begins meanwhile waits for it.
    */
-  creatingIn<T>(projectId: string, work: () => Promise<T>): Promise<T> {
+  creatingIn<T>(projectId: string, sessionId: string, work: () => Promise<T>): Promise<T> {
     this.ensureNotRemoving(projectId)
+    if (this.removingSessions.has(sessionId))
+      throw new DomainError("NOT_FOUND", "Session not found")
     const created = work()
-    const pending = this.creating.get(projectId) ?? new Set()
-    this.creating.set(projectId, pending.add(created))
-    const settled = () => {
-      pending.delete(created)
-      if (pending.size === 0 && this.creating.get(projectId) === pending)
-        this.creating.delete(projectId)
+    for (const key of [projectId, sessionId]) {
+      const pending = this.creating.get(key) ?? new Set()
+      this.creating.set(key, pending.add(created))
+      const settled = () => {
+        pending.delete(created)
+        if (pending.size === 0 && this.creating.get(key) === pending) this.creating.delete(key)
+      }
+      created.then(settled, settled)
     }
-    created.then(settled, settled)
     return created
   }
 
@@ -85,6 +104,38 @@ export class Projects {
     } catch (error) {
       // It stays, so terminals may start in it again.
       this.terminals.projectKept(sessions)
+      throw error
+    }
+  }
+
+  /**
+   * Closes the session's terminals, keeping each in History, then deletes it with
+   * everything it kept. A second call while it goes shares the first; one after, like one
+   * for a session never created, is `NOT_FOUND`. The project's last session is a `CONFLICT`.
+   */
+  removeSession(sessionId: string): Promise<void> {
+    const removing = this.removingSessions.get(sessionId)
+    if (removing) return removing
+    const { projectId } = this.store.session(sessionId)
+    this.ensureNotRemoving(projectId)
+    if (this.sessions(projectId).length <= 1)
+      throw new DomainError("CONFLICT", "A project keeps at least one session")
+    const removal = this.sessionRemoval(projectId, sessionId).finally(() =>
+      this.removingSessions.delete(sessionId),
+    )
+    this.removingSessions.set(sessionId, removal)
+    return removal
+  }
+
+  private async sessionRemoval(projectId: string, sessionId: string): Promise<void> {
+    await Promise.allSettled(this.creating.get(sessionId) ?? [])
+    await this.terminals.closeProject(projectId, [sessionId], true)
+    try {
+      this.items.sessionsRemoved([sessionId])
+      this.store.removeSession(sessionId)
+    } catch (error) {
+      // It stays, so terminals may start in it again.
+      this.terminals.projectKept([sessionId])
       throw error
     }
   }

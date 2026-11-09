@@ -527,6 +527,17 @@ export const withSource = (
           !workspace.projects.some((project) => project.id === projectId)
         )
           slots.forEach((slot) => source.close(slot.terminalId))
+        if (
+          action.type === "session/remove" &&
+          action.projectId === projectId &&
+          action.workspaceSessionId === session.workspaceSessionId &&
+          workspace.projects.some(
+            (project) =>
+              project.id === projectId &&
+              !project.history.some((each) => each.id === session.workspaceSessionId),
+          )
+        )
+          slots.forEach((slot) => source.close(slot.terminalId))
       }
       // Whatever stopped an agent, a verb or a status dispatched directly (the debug panel's
       // terminal states, a crash), a terminal that no longer shows it working has it write no more.

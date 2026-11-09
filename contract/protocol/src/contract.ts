@@ -142,9 +142,22 @@ export const contract = {
       .output(folderListing),
   },
   sessions: {
+    // In the order the person arranged them; a session created since comes first.
     list: procedure.input(z.strictObject({ projectId: id })).output(z.array(workspaceSession)),
+    // The new session comes first in its project's order.
     create: procedure.input(z.strictObject({ id, projectId: id, name })).output(workspaceSession),
     rename: procedure.input(z.strictObject({ sessionId: id, name })).output(workspaceSession),
+    // Keeps how the person arranged the project's sessions: `order` by id, first to last.
+    // Ids it doesn't have in the project are ignored; sessions `order` leaves out follow,
+    // in the order they had.
+    arrange: procedure
+      .input(z.strictObject({ projectId: id, order: z.array(id).max(1000) }))
+      .output(z.void()),
+    // Closes every terminal of the session, as `terminals.close` does but whichever
+    // connection controls them, keeping each in History, then forgets the session and what
+    // it kept. A session the runner doesn't have, as one removed already, is NOT_FOUND;
+    // the project's last session is CONFLICT, as a project always has one.
+    remove: procedure.input(z.strictObject({ sessionId: id })).output(z.void()),
     // Replaces the session's client state, which the runner stores without reading it, and
     // when the person last visited the session (null: never).
     save: procedure

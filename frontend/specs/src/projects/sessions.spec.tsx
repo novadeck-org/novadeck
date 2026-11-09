@@ -274,9 +274,13 @@ describe("sessions sidebar", () => {
         .toBeVisible()
       // The sample workspace has one session, and it is the one shown.
       await expect
-        .element(savedSessions().getByRole("button"))
+        .element(savedSessions().getByRole("button", { name: /^Open / }))
         .toHaveAttribute("aria-current", "true")
       await expect.element(terminalTab("Runtime")).not.toBeInTheDocument()
+      // A project's last session can't be deleted.
+      await expect
+        .element(savedSessions().getByRole("button", { name: /^Delete / }))
+        .not.toBeInTheDocument()
     })
   })
 
@@ -433,6 +437,130 @@ describe("sessions sidebar", () => {
       await expectCurrentSession(fresh)
       await expect.element(savedSession(original)).toBeVisible()
       await expect.element(emptyWorkspace()).toBeVisible()
+    })
+  })
+
+  context("when renaming a session", () => {
+    it("saves the name typed in its row on Enter", async () => {
+      await openWorkspace()
+      await sidebarPanel("Sessions").click()
+      const original = await currentSessionName()
+
+      await savedSessions()
+        .getByRole("button", { name: `Rename ${original}` })
+        .click()
+      const field = savedSessions().getByRole("textbox", { name: `Rename ${original}` })
+      await expect.element(field).toHaveFocus()
+      await userEvent.fill(field, "Checkout work")
+      await press("{Enter}")
+
+      await expectCurrentSession("Checkout work")
+      await expect.element(field).not.toBeInTheDocument()
+    })
+
+    it("keeps the old name on Escape", async () => {
+      await openWorkspace()
+      await sidebarPanel("Sessions").click()
+      const original = await currentSessionName()
+
+      await savedSession(original).dblClick()
+      const field = savedSessions().getByRole("textbox", { name: `Rename ${original}` })
+      await expect.element(field).toHaveFocus()
+      await userEvent.fill(field, "Something else")
+      await press("{Escape}")
+
+      await expectCurrentSession(original)
+    })
+  })
+
+  context("when deleting a session", () => {
+    it("deletes an empty one at once", async () => {
+      await openWorkspace()
+      await sidebarPanel("Sessions").click()
+      const original = await currentSessionName()
+      await page.getByRole("button", { name: "New session" }).click()
+      await sidebarPanel("Sessions").click()
+      const fresh = await newSessionName(original)
+
+      await savedSessions()
+        .getByRole("button", { name: `Delete ${fresh}` })
+        .click()
+
+      await expect.poll(() => savedSessions().getByRole("listitem").elements()).toHaveLength(1)
+      await expectCurrentSession(original)
+      await expect.element(terminal("Checkout implementation")).toBeVisible()
+    })
+
+    it("asks first when it has terminals, and closes them", async () => {
+      await openWorkspace()
+      await sidebarPanel("Sessions").click()
+      const original = await currentSessionName()
+      await page.getByRole("button", { name: "New session" }).click()
+      await sidebarPanel("Sessions").click()
+      const fresh = await newSessionName(original)
+
+      await savedSessions()
+        .getByRole("button", { name: `Delete ${original}` })
+        .click()
+      const dialog = page.getByRole("alertdialog", { name: "Delete this session?" })
+      await expect.element(dialog).toBeVisible()
+      await expect
+        .element(
+          dialog.getByText("Its 6 terminals close. You can bring them back from History.", {
+            exact: true,
+          }),
+        )
+        .toBeVisible()
+      await dialog.getByRole("button", { name: "Delete session" }).click()
+
+      await expect.poll(() => savedSessions().getByRole("listitem").elements()).toHaveLength(1)
+      await expectCurrentSession(fresh)
+      await expectStaysAbsent(savedSession(original))
+    })
+
+    it("keeps it when the person cancels", async () => {
+      await openWorkspace()
+      await sidebarPanel("Sessions").click()
+      const original = await currentSessionName()
+      await page.getByRole("button", { name: "New session" }).click()
+      await sidebarPanel("Sessions").click()
+      await newSessionName(original)
+
+      await savedSessions()
+        .getByRole("button", { name: `Delete ${original}` })
+        .click()
+      const dialog = page.getByRole("alertdialog", { name: "Delete this session?" })
+      await dialog.getByRole("button", { name: "Cancel" }).click()
+
+      await expect.element(dialog).not.toBeInTheDocument()
+      await expect.poll(() => savedSessions().getByRole("listitem").elements()).toHaveLength(2)
+    })
+  })
+
+  context("when reordering sessions", () => {
+    const listedSessions = (): string[] =>
+      savedSessions()
+        .getByRole("button", { name: /^Open / })
+        .elements()
+        .map((entry) => entry.getAttribute("aria-label")!.replace(/^Open /, ""))
+
+    it("moves the focused session with Space and the arrows, and keeps the focus on it", async () => {
+      await openWorkspace()
+      await sidebarPanel("Sessions").click()
+      const original = await currentSessionName()
+      await page.getByRole("button", { name: "New session" }).click()
+      await sidebarPanel("Sessions").click()
+      const fresh = await newSessionName(original)
+      expect(listedSessions()).toEqual([fresh, original])
+
+      savedSession(fresh).element().focus()
+      await press(" ")
+      await press("{ArrowDown}")
+      await press(" ")
+
+      await expect.poll(listedSessions).toEqual([original, fresh])
+      await expect.element(savedSession(fresh)).toHaveFocus()
+      await expectCurrentSession(fresh)
     })
   })
 
