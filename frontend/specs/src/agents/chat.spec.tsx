@@ -33,7 +33,10 @@ const answeredMs = 500
 // Turns the chat view on or off in Preferences → Experimental, and closes Preferences.
 const setChatView = async (on: boolean): Promise<void> => {
   await closeToasts()
-  await page.getByRole("button", { name: "Workspace preferences" }).click()
+  // A toast landing after them would take the click (the demo raises its asks as it boots);
+  // the keys reach the button under it.
+  ;(page.getByRole("button", { name: "Workspace preferences" }).element() as HTMLElement).focus()
+  await userEvent.keyboard("{Enter}")
   const dialog = page.getByRole("dialog", { name: "Preferences" })
   await dialog.getByRole("tab", { name: "Experimental" }).click()
   const chatView = dialog.getByRole("switch", { name: "Chat view" })
