@@ -126,6 +126,29 @@ describe("A project's status", () => {
     })
   })
 
+  context("while a command runs in an agent's shell mode", () => {
+    const shellCommand = { command: "sleep 15", since: 1 }
+    it("is running, though no turn is, over a standing done report", () => {
+      expect(
+        projectStatus(project("p", [running(1, { working: false, shellCommand })]), noUnread),
+      ).toBe("running")
+      expect(
+        projectStatus(
+          project("p", [running(1, { working: false, reported: true, shellCommand })]),
+          noUnread,
+        ),
+      ).toBe("running")
+      // A plain shell never spins its project, and a dialog still holds the agent.
+      expect(projectStatus(project("p", [running(2)]), noUnread)).toBeUndefined()
+      expect(
+        projectStatus(
+          project("p", [running(3, { shellCommand, attention: { kind: "permission", count: 1 } })]),
+          noUnread,
+        ),
+      ).toBe("unblock")
+    })
+  })
+
   context("when its terminals show several things", () => {
     it("is the most pressing of them", () => {
       const working = running(1, { working: true })

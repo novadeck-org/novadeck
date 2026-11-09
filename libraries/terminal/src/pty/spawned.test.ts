@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process"
 
-import { describe, expect, it, onTestFinished } from "vitest"
+import { describe, expect, it, onTestFinished, vi } from "vitest"
 
 import type { Listed } from "./descendants.js"
 import { parseLstart, processesUnder, startResolutionMs } from "./spawned.js"
@@ -80,6 +80,33 @@ describe("processesUnder", () => {
     )
   })
 
+  it("keeps a Linux key by its ticks and follows the clock for the start", async () => {
+    const rows = [row(10, 1, { started: "100" }), row(20, 10, { started: "5000" })]
+    onTestFinished(() => void vi.useRealTimers())
+    vi.useFakeTimers({ now: 1_000_000_000_000 })
+    const options = {
+      platform: "linux",
+      listing: async () => rows,
+      uptimeMs: async () => 60_000,
+    } as const
+    const [first] = (await processesUnder(10, options))!
+    expect(first).toMatchObject({ key: "20:5000", startedMs: 1_000_000_000_000 - 60_000 + 50_000 })
+    // The wall clock is set forward an hour; the uptime goes on as it was.
+    vi.setSystemTime(1_000_000_000_000 + 3_600_000)
+    const [second] = (await processesUnder(10, options))!
+    expect(second!.key).toBe(first!.key)
+    expect(second!.startedMs).toBe(first!.startedMs + 3_600_000)
+  })
+
+  it("is undefined on Linux where the uptime can't be read, and tries again", async () => {
+    const listing = async () => [row(10, 1, { started: "1" }), row(20, 10, { started: "2" })]
+    let up: number | undefined
+    const uptimeMs = async () => up
+    expect(await processesUnder(10, { platform: "linux", listing, uptimeMs })).toBe(undefined)
+    up = 1000
+    expect(await processesUnder(10, { platform: "linux", listing, uptimeMs })).toHaveLength(1)
+  })
+
   it.skipIf(process.platform !== "linux")(
     "sees a real child of this process, started within a tick of now",
     async () => {
@@ -92,7 +119,6 @@ describe("processesUnder", () => {
       expect(one).toMatchObject({ parent: process.pid, name: "sleep" })
       expect(one!.startedMs).toBeGreaterThanOrEqual(before - startResolutionMs("linux"))
       expect(one!.startedMs).toBeLessThanOrEqual(Date.now() + startResolutionMs("linux"))
-      expect(one!.key).toBe(`${child.pid}:${one!.startedMs}`)
       const again = await processesUnder(process.pid)
       expect(again?.find((each) => each.pid === child.pid)?.key).toBe(one!.key)
     },

@@ -1899,19 +1899,26 @@ Two known gaps in telling the box empty at a binding:
 A command the person runs in the agent's own shell mode (`!sleep 15`) fires no hook, so the
 agent's activity stays idle while it runs, and the doorbell is deliberately left as it is: it
 doesn't count the command as a turn, and a ring typed meanwhile is queued by Claude Code and
-Codex as a prompt typed then would be, and run after it. The terminal still shows as running
+Codex as a prompt typed then would be, and run after it, while Antigravity gives it to the
+model at once and the turn runs beside the command. The terminal still shows as running
 (`TerminalSummary.shellCommand`, set by `terminals/shell-commands.ts`) and the agents listing
-and `send`'s answer call it busy (`Whereabouts.working`), so a sender is told to expect a wait.
+calls it busy (`Whereabouts.working`), as `send` does for an unknown handle's refusal; a successful `send`'s
+route still comes from the recipient's delivery state, which the command doesn't change.
 The command is found by the processes: an Enter reaching an agent's terminal whose box, read
-as it stood before the Enter, was in its shell mode and held text starts two looks, at 750 ms
-and 2 s, at the processes under the terminal's shell (not the agent's, which Codex has none
-of before its first prompt). Those that started since the Enter, less Novadeck's relay and any
-wrapper above it (a status line's `sh -c`), are the command; their tops are watched once a
-second until none lives, or the system twice in a row couldn't tell. An Enter while a turn
-works is held instead, as the turn's own tools start processes too, and looked at once the turn has
-ended (750 ms and 2 s after): Claude Code and Antigravity queue the command until then, so what
-started since the end is it; Codex runs it at once, so what started within 2 s of the Enter
-counts too. A held Enter that finds nothing is dropped; the latest of several is kept.
+as it stood before the Enter, was in its shell mode and held text starts three looks, at 750 ms,
+2 s and 3 s, at the processes under the terminal's shell (not the agent's, which Codex has none
+of before its first prompt). Those that started since the Enter, less Novadeck's helpers (the
+relay, the hook launcher, Windows' console host), what they run (a status line's own command)
+and what runs them (its `sh -c` wrapper), are the command. A process counts only once two
+looks a second apart both found it live, so a helper passing through never shows and the
+command shows about 2 to 3 s after the Enter. A turn that starts after the Enter (a ring's)
+cuts the window off: its tools' processes are not the command. Once one is found the command is looked at every second, and shown until none
+is left, or the system twice in a row couldn't tell (a look that fails is one that can't).
+An Enter while a turn works is held instead, as the turn's own tools start processes too, and
+looked at once the turn has ended (the same looks): Claude Code and Antigravity queue the
+command until then, so what started since the end is it; Codex runs it at once, so what
+started within 2 s of the Enter counts too. A held Enter that finds nothing is dropped; the
+latest of several is kept.
 
 ### Message states
 

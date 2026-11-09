@@ -41,6 +41,26 @@ describe("restart check", () => {
     expect(restartCheck(shells)).toEqual({ resume: 0, reopen: 5, risks: [] })
   })
 
+  context("a command run in an agent's shell mode", () => {
+    const shellCommand = { command: "!sleep 15", since: 1 }
+
+    it("is no turn to resume, and a command the restart stops", () => {
+      const check = restartCheck([agent(1, "claude", { working: false, shellCommand })])
+      expect(check.resume).toBe(0)
+      expect(check.reopen).toBe(1)
+      expect(check.risks).toHaveLength(1)
+      expect(check.risks[0]).toMatchObject({
+        kind: "agent",
+        command: "sleep 15",
+        what: "1 background command stops",
+      })
+    })
+
+    it("leaves a turn under way resuming", () => {
+      expect(restartCheck([agent(1, "claude", { shellCommand })]).resume).toBe(1)
+    })
+  })
+
   context("agents of each harness", () => {
     it("resume mid-turn and reopen otherwise, asleep, idle or paused included", () => {
       const terminals = [

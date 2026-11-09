@@ -1,4 +1,4 @@
-import { terminalPhase } from "@novadeck/core/terminals/ending"
+import { shellCommandLine, terminalPhase } from "@novadeck/core/terminals/ending"
 import { isAgentProgram, isShellProcess, runsAgentCommand } from "@novadeck/core/terminals/process"
 import type { TerminalMetadata } from "@novadeck/core/types"
 
@@ -133,15 +133,29 @@ const plural = (count: number, one: string, many = `${one}s`): string =>
 
 // What an agent's work that a restart stops says, from the jobs it waits on and the background
 // work its harness counts: the one command, or words.
+const withoutShellCommand = (terminal: TerminalMetadata): TerminalMetadata => {
+  if (terminal.state !== "running" || !terminal.agent?.shellCommand) return terminal
+  const { shellCommand: _shellCommand, ...agent } = terminal.agent
+  return { ...terminal, agent }
+}
+
 const agentWork = (
   terminal: TerminalMetadata,
 ): { readonly command?: string; readonly what: string } | undefined => {
   if (terminal.state !== "running" || !terminal.agent) return undefined
   const jobs = terminal.agent.waiting?.jobs ?? []
   const { tasks = 0, agents = 0 } = terminal.agent.background ?? {}
-  const commands = Math.max(jobs.length, jobs.length > 0 ? 0 : tasks)
+  const shell = shellCommandLine(terminal)
+  const commands =
+    Math.max(jobs.length, jobs.length > 0 ? 0 : tasks) + (shell === undefined ? 0 : 1)
   if (commands === 0 && agents === 0) return undefined
-  const only = jobs.length === 1 && agents === 0 ? commandString(jobs[0]!.command) : undefined
+  const one =
+    shell !== undefined && jobs.length === 0 && tasks === 0
+      ? shell
+      : jobs.length === 1 && shell === undefined
+        ? jobs[0]!.command
+        : undefined
+  const only = one !== undefined && agents === 0 ? commandString(one) : undefined
   const parts = [
     commands > 0 && plural(commands, "background command"),
     agents > 0 && plural(agents, "subagent"),
@@ -189,7 +203,8 @@ export const restartCheck = (
     if (terminal.state === "exited" || terminal.state === "failed") continue
     const { id, name: title } = terminal
     if (runsAgent(terminal)) {
-      const phase = terminalPhase(terminal, false, now)
+      // A shell command is no turn: the phase counts what the agent's turn does.
+      const phase = terminalPhase(withoutShellCommand(terminal), false, now)
       if (phase === "running" || phase === "waiting") resume += 1
       else reopen += 1
       const work = agentWork(terminal)

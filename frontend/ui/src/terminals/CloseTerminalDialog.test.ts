@@ -21,6 +21,18 @@ describe("what the close question says", () => {
     ).toMatch(/working on a turn/)
   })
 
+  it("names the command run in the agent's shell mode, not a turn", () => {
+    const text = closeDescription(
+      terminal({
+        agent: { working: false, shellCommand: { command: "!sleep 15", since: 1 } },
+        restorable: true,
+      } as never),
+      true,
+    )
+    expect(text).toMatch(/runs `sleep 15`.*stops the command/)
+    expect(text).not.toMatch(/turn/)
+  })
+
   it("does not claim a program runs once the agent's turn has ended", () => {
     const text = closeDescription(
       terminal({ agent: { working: false }, restorable: true, busy: true } as never),

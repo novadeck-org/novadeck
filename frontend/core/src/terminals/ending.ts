@@ -167,11 +167,19 @@ const shellCommandWidth = 60
 // What a terminal runs in its agent's shell mode, in words for its tab's description:
 // "Runs ! sleep 15", cut to fit. Undefined when it runs none.
 export const shellCommandText = (terminal: TerminalMetadata): string | undefined => {
+  const line = shellCommandLine(terminal)
+  if (line === undefined) return undefined
+  const chars = [...line]
+  const cut =
+    chars.length > shellCommandWidth ? `${chars.slice(0, shellCommandWidth - 1).join("")}…` : line
+  return cut ? `Runs ! ${cut}` : "Runs a shell command"
+}
+
+// The command a terminal runs in its agent's shell mode as one line, without the `!` it was
+// typed with; undefined when it runs none, empty when the box held only the `!`.
+export const shellCommandLine = (terminal: TerminalMetadata): string | undefined => {
   const shell = terminal.state === "running" ? terminal.agent?.shellCommand : undefined
-  if (!shell) return undefined
-  const line = shell.command.replace(/\s+/g, " ").trim().replace(/^!\s*/, "")
-  const cut = line.length > shellCommandWidth ? `${line.slice(0, shellCommandWidth - 1)}…` : line
-  return `Runs ! ${cut}`
+  return shell?.command.replace(/\s+/g, " ").trim().replace(/^!\s*/, "")
 }
 
 // What a sleeping terminal says: its agent has a saved session and no process, and starts again
@@ -357,7 +365,7 @@ export const terminalNote = (
     unheardText(terminal) ??
     (phase === "paused" ? pausedText(terminal, now) : undefined) ??
     (phase === "waiting" ? waitingNote(terminal, now) : undefined) ??
-    shellCommandText(terminal) ??
+    (phase === "running" ? shellCommandText(terminal) : undefined) ??
     (phase === "done" ? doneText(failed) : undefined) ??
     (phase === "waking" ? wakingText : undefined) ??
     (brightened && phase !== "sleeping" ? "Reply unread" : undefined)

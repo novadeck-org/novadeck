@@ -1,4 +1,5 @@
 import { closeReasons, type CloseReason } from "@novadeck/core/terminals/closing"
+import { shellCommandLine } from "@novadeck/core/terminals/ending"
 import { handleText } from "@novadeck/core/terminals/handle"
 import type { TerminalMetadata } from "@novadeck/core/types"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
@@ -36,6 +37,9 @@ const restingWords = (terminal: TerminalMetadata, then: string): string | undefi
 const sentences = (terminal: TerminalMetadata): Readonly<Record<CloseReason, string>> => ({
   program: `${terminal.process || "A program"} is still running in it.`,
   working: "Its agent is working on a turn, and closing it stops the turn.",
+  command: shellCommandLine(terminal)
+    ? `It runs \`${shellCommandLine(terminal)}\` in its agent's shell mode, and closing it stops the command.`
+    : "It runs a command in its agent's shell mode, and closing it stops the command.",
   background:
     "Its agent is waiting on a job or a wake-up it set, or has tasks running in the background. Closing it ends them, and restoring it doesn't start them again.",
   leads: "",

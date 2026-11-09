@@ -13,7 +13,10 @@ import type { Record } from "./record.js"
  * the command it started: a command takes the harness a moment to spawn, and a slow one
  * (a wrapper that sources a snapshot first) a little more.
  */
-export const lookMs: readonly number[] = [750, 2_000]
+export const lookMs: readonly number[] = [750, 2_000, 3_000]
+
+/** How long a process must be seen to live, between two looks, before it counts: a helper that passes never shows. */
+export const aliveMs = 1_000
 
 /** How often a command shown running is looked at again, in milliseconds. */
 export const pollMs = 1_000
@@ -54,13 +57,22 @@ type Watch = {
   poll: NodeJS.Timeout | undefined
   /** How many looks in a row could not tell. */
   unknown: number
+  /** How many looks and polls are awaiting the system: none may be left behind by a settle. */
+  inflight: number
+  /** When each candidate was first seen live, by `Spawn.key`; only those still listed stay. */
+  readonly seen: Map<string, number>
+  /** When a turn first started after the Enter being looked for: the new turn's tools are not it. */
+  cutoff: number | undefined
   /** The latest Enter that came while a turn worked, until that turn ends. */
   pending: Attempt | undefined
 }
 
 // Novadeck's own helper, which an agent's status line or hooks start beside a command.
+// (the relay, the hook's launcher, whose posix fallback keeps its comm `hook`, and Windows'
+// console host), and what they run: a status line's own command is their child.
+const helpers = new Set(["novadeck-relay", "hook", "hook.cmd", "conhost"])
 const helper = (spawn: Spawn): boolean =>
-  (spawn.name ?? "").toLowerCase().replace(/\.exe$/, "") === "novadeck-relay"
+  helpers.has((spawn.name ?? "").toLowerCase().replace(/\.exe$/, ""))
 
 /**
  * The commands a person runs in an agent's own shell mode (`!sleep 15`), which fire no hook:
@@ -78,8 +90,15 @@ export class ShellCommands<R extends ShellRecord> {
 
   constructor(private readonly host: ShellCommandsHost<R>) {}
 
-  private under(pid: number): Promise<readonly Spawn[] | undefined> {
-    return (this.host.under ?? ((root) => processesUnder(root, { trees: this.host.trees() })))(pid)
+  // A look that fails is one that can't tell.
+  private async under(pid: number): Promise<readonly Spawn[] | undefined> {
+    try {
+      return await (
+        this.host.under ?? ((root) => processesUnder(root, { trees: this.host.trees() }))
+      )(pid)
+    } catch {
+      return undefined
+    }
   }
 
   /** The records with a look or a poll pending; none for terminals that run nothing. */
@@ -124,7 +143,7 @@ export class ShellCommands<R extends ShellRecord> {
   }
 
   private hide(record: R, announce: boolean): void {
-    if (record.summary.shellCommand === null) return
+    if (record.summary.shellCommand == null) return
     record.summary = { ...record.summary, shellCommand: null }
     if (announce) this.host.announce(record)
   }
@@ -137,9 +156,13 @@ export class ShellCommands<R extends ShellRecord> {
   /** The record's activity changed: a turn that ended brings the looks for the command waiting on it. */
   changed(record: R): void {
     const watch = this.watches.get(record)
-    if (!watch?.pending || record.summary.activity?.state === "working") return
+    const working = record.summary.activity?.state === "working"
+    // A turn that starts once the looks began: its tools' processes are not the command.
+    if (watch && !watch.pending && working) watch.cutoff ??= Date.now()
+    if (!watch?.pending || working) return
     const attempt = { ...watch.pending, ended: Date.now() }
     watch.pending = undefined
+    watch.cutoff = undefined
     this.schedule(record, watch, attempt)
   }
 
@@ -158,6 +181,9 @@ export class ShellCommands<R extends ShellRecord> {
         looks: new Set(),
         poll: undefined,
         unknown: 0,
+        inflight: 0,
+        seen: new Map(),
+        cutoff: undefined,
         pending: undefined,
       }
       this.watches.set(record, watch)
@@ -176,10 +202,11 @@ export class ShellCommands<R extends ShellRecord> {
   }
 
   private schedule(record: R, watch: Watch, attempt: Attempt): void {
+    if (watch.looks.size === 0) watch.cutoff = undefined
     for (const ms of lookMs) {
       const look = setTimeout(() => {
         watch.looks.delete(look)
-        void this.look(record, watch, attempt).finally(() => this.settle(record, watch))
+        this.run(record, watch, () => this.look(record, watch, attempt))
       }, ms)
       look.unref()
       watch.looks.add(look)
@@ -204,12 +231,30 @@ export class ShellCommands<R extends ShellRecord> {
     return this.watches.get(record) === watch && this.current(record, watch.run, watch.pid)
   }
 
+  /** Runs a look or poll, counted until it ends, then settles the watch. */
+  private run(record: R, watch: Watch, work: () => Promise<void>): void {
+    watch.inflight += 1
+    void work()
+      .catch(() => undefined)
+      .finally(() => {
+        watch.inflight -= 1
+        this.settle(record, watch)
+      })
+  }
+
   /** Lets go of a watch no look or poll of which is left. */
   private settle(record: R, watch: Watch): void {
     if (this.watches.get(record) !== watch) return
     if (!this.alive(record, watch)) this.end(record)
-    else if (watch.looks.size === 0 && watch.poll === undefined && !watch.pending)
-      this.watches.delete(record)
+    else if (
+      watch.inflight === 0 &&
+      watch.looks.size === 0 &&
+      watch.poll === undefined &&
+      !watch.pending
+    ) {
+      // Nothing left to see it end: a command still shown would never clear.
+      this.end(record)
+    }
   }
 
   private drop(record: R, watch: Watch): void {
@@ -223,11 +268,19 @@ export class ShellCommands<R extends ShellRecord> {
   private async look(record: R, watch: Watch, attempt: Attempt): Promise<void> {
     const spawns = await this.under(watch.pid)
     if (!this.alive(record, watch) || spawns === undefined) return
-    const fresh = this.started(spawns, attempt).filter(({ key }) => !watch.held.has(key))
+    const now = Date.now()
+    const found = this.started(spawns, attempt, watch.cutoff)
+    // Only a process seen live a second apart counts: a helper passing through never shows.
+    const before = new Map(watch.seen)
+    watch.seen.clear()
+    for (const { key } of found) watch.seen.set(key, before.get(key) ?? now)
+    const fresh = found.filter(
+      ({ key }) => !watch.held.has(key) && now - (watch.seen.get(key) ?? now) >= aliveMs,
+    )
     if (fresh.length === 0) return
     for (const { key } of fresh) watch.held.add(key)
     const shown = record.summary.shellCommand
-    if (shown === null || shown.since !== attempt.at || shown.command !== attempt.command) {
+    if (shown == null || shown.since !== attempt.at || shown.command !== attempt.command) {
       record.summary = {
         ...record.summary,
         shellCommand: { command: attempt.command, since: attempt.at },
@@ -238,15 +291,21 @@ export class ShellCommands<R extends ShellRecord> {
   }
 
   /** The top-level processes started since `at`, less Novadeck's helpers and what runs them. */
-  private started(spawns: readonly Spawn[], { at, ended }: Attempt): readonly Spawn[] {
+  private started(
+    spawns: readonly Spawn[],
+    { at, ended }: Attempt,
+    cutoff: number | undefined,
+  ): readonly Spawn[] {
     const res = this.host.resolutionMs?.() ?? startResolutionMs()
     // After a turn's end: what started right after the Enter (Codex runs it at once), or
     // since the turn ended (the others queue it); not what the turn's tools started between.
     const candidates = spawns.filter(
       ({ startedMs }) =>
-        startedMs >= (ended ?? at) - res ||
-        (ended !== undefined && startedMs >= at - res && startedMs <= at + midTurnMs),
+        (cutoff === undefined || startedMs < cutoff) &&
+        (startedMs >= (ended ?? at) - res ||
+          (ended !== undefined && startedMs >= at - res && startedMs <= at + midTurnMs)),
     )
+    const all = new Map(spawns.map((spawn) => [spawn.pid, spawn]))
     const byPid = new Map(candidates.map((spawn) => [spawn.pid, spawn]))
     const excluded = new Set<number>()
     for (const spawn of candidates.filter(helper)) {
@@ -258,6 +317,15 @@ export class ShellCommands<R extends ShellRecord> {
       )
         excluded.add(up.pid)
     }
+    // What a helper runs: any process with one above it.
+    for (const spawn of candidates) {
+      for (
+        let up = spawn.parent === null ? undefined : all.get(spawn.parent), steps = 0;
+        up && steps < 64;
+        up = up.parent === null ? undefined : all.get(up.parent), steps += 1
+      )
+        if (helper(up)) excluded.add(spawn.pid)
+    }
     const kept = candidates.filter(({ pid }) => !excluded.has(pid))
     const pids = new Set(kept.map(({ pid }) => pid))
     return kept.filter(({ parent }) => parent === null || !pids.has(parent))
@@ -267,7 +335,7 @@ export class ShellCommands<R extends ShellRecord> {
     if (watch.poll !== undefined) return
     watch.poll = setTimeout(() => {
       watch.poll = undefined
-      void this.poll(record, watch).finally(() => this.settle(record, watch))
+      this.run(record, watch, () => this.poll(record, watch))
     }, pollMs)
     watch.poll.unref()
   }

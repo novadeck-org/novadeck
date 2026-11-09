@@ -240,6 +240,14 @@ describe("a command run in the agent's shell mode", () => {
     expect(long).toHaveLength("Runs ! ".length + 60)
     expect(long?.endsWith("…")).toBe(true)
     expect(note(agent({}, false))).toBeUndefined()
+    // A dialog holds the agent: its glyph rests, so the note does not say a command runs.
+    expect(note(agent({ attention: { kind: "permission", count: 1 } }))).not.toMatch(/Runs/)
+    // Cut by characters, not code units, and an empty box leaves no trailing space.
+    const emoji = shellCommandText(agent({ shellCommand: { command: "😀".repeat(100), since: 1 } }))
+    expect(emoji).toBe(`Runs ! ${"😀".repeat(59)}…`)
+    expect(shellCommandText(agent({ shellCommand: { command: "!", since: 1 } }))).toBe(
+      "Runs a shell command",
+    )
   })
 })
 

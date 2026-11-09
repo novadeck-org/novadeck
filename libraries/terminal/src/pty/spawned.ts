@@ -6,7 +6,10 @@ import { relayMs, type Member } from "./trees.js"
 
 /** A live process under a root, named by its pid and start together. */
 export type Spawn = {
-  /** `${pid}:${startedMs}`: stable for one process across looks. */
+  /**
+   * `${pid}:${startedMs}`, stable for one process across looks; on Linux the start is its raw
+   * clock ticks instead, as `startedMs` follows the wall clock and moves when it is set.
+   */
   readonly key: string
   readonly pid: number
   /** Null where the OS or the relay didn't tell. */
@@ -29,19 +32,15 @@ export const startResolutionMs = (platform: NodeJS.Platform = process.platform):
 
 const ticksMs = 1000 / 100
 
-/** When the system booted, in epoch ms, as read once: the clock the ticks count from. */
-let booted: Promise<number | undefined> | undefined
-
-// /proc/stat's btime is whole seconds, too coarse to compare with a caller's clock; uptime
-// has 10 ms. Read once, so one process's key never changes with the clock being set.
-const bootMs = (): Promise<number | undefined> =>
-  (booted ??= readFile("/proc/uptime", "utf8").then(
-    (text) => {
-      const up = Number.parseFloat(text)
-      return Number.isFinite(up) ? Math.round(Date.now() - up * 1000) : undefined
-    },
-    () => undefined,
-  ))
+/** How long the system has been up, in ms; undefined where it can't be read. */
+const readUptimeMs = async (): Promise<number | undefined> => {
+  try {
+    const up = Number.parseFloat(await readFile("/proc/uptime", "utf8"))
+    return Number.isFinite(up) ? up * 1000 : undefined
+  } catch {
+    return undefined
+  }
+}
 
 /** The epoch ms of macOS's `lstart` (`Fri Nov  6 15:20:11 2026`, local time); undefined if it isn't one. */
 export const parseLstart = (lstart: string): number | undefined => {
@@ -65,13 +64,15 @@ const spawn = (
   parent: number | null,
   name: string | null,
   startedMs: number,
-): Spawn => ({ key: `${pid}:${startedMs}`, pid, parent, name, startedMs })
+  start: string | number = startedMs,
+): Spawn => ({ key: `${pid}:${start}`, pid, parent, name, startedMs })
 
 const fromListing = (
   rows: readonly Listed[],
   root: number,
   platform: NodeJS.Platform,
-  boot: number | undefined,
+  now: number,
+  uptime: number | undefined,
 ): readonly Spawn[] | undefined => {
   const top = rows.find((row) => row.pid === root)
   if (!top || top.zombie) return undefined
@@ -80,13 +81,21 @@ const fromListing = (
     if (row.pid === root || row.zombie) continue
     const at =
       platform === "linux"
-        ? boot === undefined
+        ? uptime === undefined
           ? undefined
-          : boot + Number(row.started) * ticksMs
+          : now - uptime + Number(row.started) * ticksMs
         : parseLstart(row.started)
     if (at === undefined || !Number.isFinite(at)) continue
     const name = row.command?.split("/").pop() || null
-    found.push(spawn(row.pid, row.parent, name, Math.round(at)))
+    found.push(
+      spawn(
+        row.pid,
+        row.parent,
+        name,
+        Math.round(at),
+        platform === "linux" ? row.started : undefined,
+      ),
+    )
   }
   return found
 }
@@ -113,6 +122,8 @@ export const processesUnder = async (
     readonly platform?: NodeJS.Platform
     readonly listing?: Listing
     readonly trees?: Pick<ProcessTrees, "read">
+    /** How long the system has been up, in ms, where Linux's /proc/uptime isn't read. */
+    readonly uptimeMs?: () => Promise<number | undefined>
   } = {},
 ): Promise<readonly Spawn[] | undefined> => {
   const platform = options.platform ?? process.platform
@@ -128,5 +139,8 @@ export const processesUnder = async (
   }
   const rows = await listing()
   if (!rows) return undefined
-  return fromListing(rows, root, platform, platform === "linux" ? await bootMs() : undefined)
+  // Read at each look, with the clock, as the boot moment moves when the wall clock is set.
+  const uptime = platform === "linux" ? await (options.uptimeMs ?? readUptimeMs)() : undefined
+  if (platform === "linux" && uptime === undefined) return undefined
+  return fromListing(rows, root, platform, Date.now(), uptime)
 }

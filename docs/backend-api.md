@@ -1402,7 +1402,7 @@ one from an earlier runner.
     runner finds its process under the terminal's shell; it is no turn, and `activity` is
     unchanged by it. It clears when the process ends, when the system can't tell twice in a
     row, and when the agent leaves or the terminal exits, restarts or rests. The agents
-    listing counts it as working.
+    listing counts it as working. The field may be absent, which reads as null.
 
 - `companions.*` keeps what agents show and the person attaches beside terminals: items,
   each a pointer to a file, a page or a plan, never a copy of it, held by exactly one

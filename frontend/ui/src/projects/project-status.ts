@@ -87,7 +87,7 @@ const terminalStatus = (
         ? "failed"
         : "done"
       : phase === "running"
-        ? agentWorking(terminal)
+        ? agentWorking(terminal) || runsShellCommand(terminal)
           ? "running"
           : undefined
         : phase === "paused" || phase === "waiting" || phase === "unheard"
@@ -95,6 +95,10 @@ const terminalStatus = (
           : undefined)
   )
 }
+
+// Whether the person runs a command in the agent's shell mode: it is busy, though no turn.
+const runsShellCommand = (terminal: TerminalMetadata): boolean =>
+  terminal.state === "running" && terminal.agent?.shellCommand !== undefined
 
 // What each terminal of a session shows, the terminals that show nothing left out, in the
 // roster's order: what the Sessions panel marks, and what a project's status is made of.
