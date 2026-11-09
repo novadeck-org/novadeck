@@ -392,6 +392,7 @@ export const ChatView = ({
                 blocks={shown}
                 agent={name}
                 working={working}
+                gone={agent === undefined}
                 sent={bubbles}
                 looks={peerLooks}
                 {...(plain &&

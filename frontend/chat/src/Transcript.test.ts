@@ -10,7 +10,12 @@ import { Transcript, type PeerLooks } from "./Transcript"
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
 
-const show = (blocks: readonly ChatBlock[], sent?: readonly SentBubble[], looks?: PeerLooks) => {
+const show = (
+  blocks: readonly ChatBlock[],
+  sent?: readonly SentBubble[],
+  looks?: PeerLooks,
+  gone?: boolean,
+) => {
   const { container, unmount } = render(
     createElement(Transcript, {
       blocks,
@@ -18,6 +23,7 @@ const show = (blocks: readonly ChatBlock[], sent?: readonly SentBubble[], looks?
       working: false,
       ...(sent && { sent }),
       ...(looks && { looks }),
+      ...(gone && { gone }),
     }),
   )
   unmounts.push(unmount)
@@ -281,6 +287,21 @@ describe("the scrollback", () => {
       expect(running.querySelector(".chat-subagent")?.hasAttribute("data-running")).toBe(true)
       const failed = show([report({ failed: true })])
       expect(failed.querySelector(".chat-subagent")?.hasAttribute("data-failed")).toBe(true)
+    })
+
+    it("says it stopped with its session where the agent has gone before it reported", async () => {
+      const container = show([report({ text: null, running: true })], undefined, undefined, true)
+      expect(container.querySelector(".chat-subagent-said")?.textContent).toBe(
+        "stopped with its session",
+      )
+      expect(container.querySelector(".chat-subagent")?.hasAttribute("data-running")).toBe(false)
+      expect(container.querySelector(".chat-subagent")?.hasAttribute("data-stopped")).toBe(true)
+      expect(line(container).getAttribute("aria-label")).toBe("explorer 1, subagent, stopped")
+      await act(async () => line(container).click())
+      expect(container.querySelector(".chat-tool-note")?.textContent).toContain("stopped")
+      // A report that came still reads as it was.
+      const done = show([report()], undefined, undefined, true)
+      expect(done.querySelector(".chat-subagent")?.hasAttribute("data-stopped")).toBe(false)
     })
 
     it("says in words that it failed, open as well as shut", async () => {

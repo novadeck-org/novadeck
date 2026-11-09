@@ -144,22 +144,34 @@ const oneLine = (text: string): string => text.replace(/\s+/g, " ").trim()
 // What core names the parent `/root` in a Codex subagent's own rollout.
 const parentAgent = "parent agent"
 
-const SubagentLine = ({ block }: { readonly block: Subagent }): React.JSX.Element => {
+const SubagentLine = ({
+  block,
+  gone,
+}: {
+  readonly block: Subagent
+  // The agent's session has ended: what still ran stopped with it, saying nothing more.
+  readonly gone: boolean
+}): React.JSX.Element => {
   const [open, setOpen] = useState(false)
   const body = useId()
-  const said = block.text === null ? "running…" : oneLine(block.text)
+  const running = block.running && !gone
+  const stopped = block.running && gone
+  const said =
+    block.text !== null ? oneLine(block.text) : stopped ? "stopped with its session" : "running…"
   const subagent = block.name !== parentAgent
   // Named by who and how it stands, not by the whole report its line holds.
   const label = [
     shownControls(block.name),
     ...(subagent ? ["subagent"] : []),
-    ...(block.running ? ["running"] : []),
+    ...(running ? ["running"] : []),
+    ...(stopped ? ["stopped"] : []),
     ...(block.failed ? ["failed"] : []),
   ].join(", ")
   return (
     <div
       className="chat-subagent"
-      data-running={block.running || undefined}
+      data-running={running || undefined}
+      data-stopped={stopped || undefined}
       data-failed={block.failed || undefined}
       aria-label={`Subagent ${block.name}`}
       role="group"
@@ -186,7 +198,9 @@ const SubagentLine = ({ block }: { readonly block: Subagent }): React.JSX.Elemen
       {open && (
         <div id={body} className="chat-tool-body">
           {block.text === null ? (
-            <p className="chat-tool-note">Running…</p>
+            <p className="chat-tool-note">
+              {stopped ? "It stopped with its session, before it reported." : "Running…"}
+            </p>
           ) : (
             <Markdown text={block.text} />
           )}
@@ -277,6 +291,7 @@ const BlockView = memo(
     agent,
     live,
     looks,
+    gone,
   }: {
     readonly block: ChatBlock
     // The agent's name, for what it said.
@@ -284,6 +299,8 @@ const BlockView = memo(
     // The latest block of a conversation whose agent works.
     readonly live: boolean
     readonly looks: PeerLooks | undefined
+    // The agent's session has ended.
+    readonly gone: boolean
   }): React.JSX.Element => {
     switch (block.kind) {
       case "user":
@@ -371,7 +388,7 @@ const BlockView = memo(
           />
         )
       case "subagent":
-        return <SubagentLine block={block} />
+        return <SubagentLine block={block} gone={gone} />
       case "tools":
         return <ToolCalls entries={block.entries} live={live} />
     }
@@ -381,6 +398,7 @@ const BlockView = memo(
   (before, after) =>
     before.agent === after.agent &&
     before.live === after.live &&
+    (before.gone === after.gone || after.block.kind !== "subagent") &&
     (before.looks === after.looks || !drawsPeers(after.block)) &&
     sameBlock(before.block, after.block),
 )
@@ -482,6 +500,7 @@ export const Transcript = ({
   blocks,
   agent,
   working,
+  gone = false,
   sent = noBubbles,
   looks,
   onResend,
@@ -491,6 +510,8 @@ export const Transcript = ({
   readonly blocks: readonly ChatBlock[]
   readonly agent: string
   readonly working: boolean
+  // The agent's session has ended: a subagent still running shows it stopped with it.
+  readonly gone?: boolean
   readonly sent?: readonly SentBubble[]
   // How other Novadeck agents look, where the app knows them (see `PeerLooks`).
   readonly looks?: PeerLooks | undefined
@@ -510,6 +531,7 @@ export const Transcript = ({
             agent={agent}
             live={working && each.block === last}
             looks={looks}
+            gone={gone}
           />
         ) : (
           <SentView
