@@ -173,6 +173,13 @@ export const agentTelemetry = z.strictObject({
 // never see a harness's own ids.
 export const agentRef = z.string().regex(/^[A-Za-z0-9_-]{16}$/)
 
+/**
+ * The requests a chat's own Send or Stop sets aside (`agents.prompt`'s and
+ * `agents.interrupt`'s `setAside`): the refs of the questions the person saw waiting, as
+ * `agents.detail` lists them. Only those are set aside; any other request waiting refuses.
+ */
+export const setAsideRefs = z.array(agentRef).min(1).max(8)
+
 // How much of a feature Novadeck can tell of an agent: all of it, some, or nothing.
 const coverageLevel = z.enum(["unsupported", "partial", "complete"])
 const agentCoverage = z.strictObject({
