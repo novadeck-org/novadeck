@@ -4,7 +4,7 @@ import type { ScreenText } from "@novadeck/emulator/headless"
 import { describe, expect, it } from "vitest"
 
 import type { BoxProfile, InputBox } from "./box/box.js"
-import { PromptRefusal, Prompts, type PromptHost } from "./prompts.js"
+import { PromptRefusal, Prompts, tooTall, type PromptHost } from "./prompts.js"
 import { InputQueue, type HoldBudget, type InputEntry, type InputHold } from "./queue.js"
 import { screen as screenOf } from "./testing/screens.js"
 
@@ -503,6 +503,15 @@ describe("prompts", () => {
       const text = Array.from({ length: 6 }, () => "w".repeat(77)).join("\n")
       expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", text))).toBe("too-tall")
       expect(written).toEqual([])
+    })
+
+    it("is told apart before any prompt, as one that makes way for it needs (tooTall)", () => {
+      const fifteen = screenOf({ rows: Array.from({ length: 15 }, () => ""), columns: 40 })
+      const profile = profileOf(false)
+      expect(tooTall(profile, lines(13), fifteen)).toBe(true)
+      expect(tooTall(profile, `\r\n${lines(11)}\r\n`, fifteen)).toBe(false)
+      // A text the program collapses to a placeholder always fits.
+      expect(tooTall(profile, "w".repeat(600), fifteen)).toBe(false)
     })
 
     it("is sent where it fits", async () => {

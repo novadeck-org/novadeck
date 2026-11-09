@@ -1120,13 +1120,15 @@ describe("setting a question aside, as the chat's Send or Stop does over it", ()
   ) => {
     let waiting = true
     let escapes = 0
+    // Another request that came, as an approval asked while the answer waits.
+    let other: { ref: string; kind: string } | undefined
     const leave = () => (waiting = false)
     const { kind = "question", onEscape, ...rest } = options
     const made = terminal({
       chat: "prompt",
       escape: "interrupts",
       waiting: () => waiting,
-      asking: () => (waiting ? [{ ref: "r1", kind }] : []),
+      asking: () => [...(waiting ? [{ ref: "r1", kind }] : []), ...(other ? [other] : [])],
       after: (tui) => {
         if (tui.written.at(-1) !== "\x1b") return
         escapes += 1
@@ -1136,9 +1138,15 @@ describe("setting a question aside, as the chat's Send or Stop does over it", ()
       },
       ...rest,
     })
-    const setAside = (text?: string, images = false) =>
-      made.queue.run("t", (entry) => made.answers.setAside(entry, "t", text, images))
-    return { ...made, setAside, waiting: () => waiting }
+    const setAside = (text?: string, images = false, refs: readonly string[] = ["r1"]) =>
+      made.queue.run("t", (entry) => made.answers.setAside(entry, "t", refs, text, images))
+    return {
+      ...made,
+      setAside,
+      waiting: () => waiting,
+      leave,
+      ask: (ref: string, asked: string) => (other = { ref, kind: asked }),
+    }
   }
 
   const reason = async (run: Promise<unknown>): Promise<string | undefined> => {
@@ -1153,7 +1161,7 @@ describe("setting a question aside, as the chat's Send or Stop does over it", ()
 
   it("does nothing where nothing waits", async () => {
     const { tui, answers, queue } = terminal({ escape: "interrupts" })
-    expect(await queue.run("t", (entry) => answers.setAside(entry, "t", "hi"))).toBe("none")
+    expect(await queue.run("t", (entry) => answers.setAside(entry, "t", ["r1"], "hi"))).toBe("none")
     expect(tui.written).toEqual([])
   })
 
@@ -1194,6 +1202,12 @@ describe("setting a question aside, as the chat's Send or Stop does over it", ()
     const permission = asking({ kind: "permission" })
     expect(await reason(permission.setAside("hi"))).toBe("CONFLICT pending")
     expect(permission.tui.written).toEqual([])
+    // One that showed and no longer reads is left for the person, not locked raw.
+    const unread = asking()
+    unread.tui.state = "other"
+    expect(await reason(unread.setAside("hi"))).toBe("CONFLICT pending")
+    expect(unread.tui.written).toEqual([])
+    expect(unread.locks).toEqual([])
     const raw = asking({ raw: true })
     expect(await reason(raw.setAside("hi"))).toBe("CONFLICT pending")
     expect(raw.tui.written).toEqual([])
@@ -1226,5 +1240,61 @@ describe("setting a question aside, as the chat's Send or Stop does over it", ()
     expect(await setAside()).toBe("dismissed")
     expect(tui.written).toEqual(["\x1b", "\x1b"])
     expect(waiting()).toBe(false)
+  })
+
+  it("refuses a question the Send didn't name, pressing nothing", async () => {
+    const { tui, setAside } = asking()
+    expect(await reason(setAside("hi", false, ["r9"]))).toBe("CONFLICT pending")
+    expect(tui.written).toEqual([])
+  })
+
+  it("presses nothing where an approval came while it waited for the turn to settle", () =>
+    timed(async () => {
+      for (const how of [
+        { escape: "interrupts" as const },
+        { escape: "skips" as const, chat: "field" as const },
+      ]) {
+        const made = asking({ ...how, settleMs: 100, turnStartedAt: () => began })
+        const began = Date.now()
+        setTimeout(() => made.ask("r2", "permission"), 20)
+        // eslint-disable-next-line no-await-in-loop -- One after the other, as timed.
+        expect(await reason(made.setAside("hi"))).toBe("CONFLICT pending")
+        expect(made.tui.written).toEqual([])
+        expect(made.locks).toEqual([])
+      }
+    }))
+
+  it("presses no further Escape where an approval came after one skipped a question", async () => {
+    const made = asking({
+      escape: "skips",
+      chat: "field",
+      questions: 2,
+      onEscape: (each) => {
+        each.noise += 1
+        made.ask("r2", "permission")
+      },
+    })
+    expect(await reason(made.setAside())).toBe("CONFLICT pending")
+    expect(made.tui.written).toEqual(["\x1b"])
+  })
+
+  it("lets a prompt go where the person answered the question in the terminal as it began", () =>
+    timed(async () => {
+      const made = asking({ settleMs: 100, turnStartedAt: () => began })
+      const began = Date.now()
+      setTimeout(() => {
+        made.tui.state = "gone"
+        made.leave()
+      }, 20)
+      expect(await made.setAside("hi")).toBe("none")
+      expect(made.tui.written).toEqual([])
+    }))
+
+  it("lets it go where the question left the screen and its hook comes a moment later", async () => {
+    const made = asking({ settleMs: 300 })
+    made.tui.state = "gone"
+    setTimeout(made.leave, 150)
+    expect(await made.setAside("hi")).toBe("none")
+    expect(made.tui.written).toEqual([])
   })
 })

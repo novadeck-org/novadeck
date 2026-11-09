@@ -28,7 +28,7 @@ import {
   type Activity,
 } from "../harnesses/activity.js"
 import { versionOf } from "../harnesses/bindings.js"
-import { rootRef } from "../harnesses/detail.js"
+import { requestRef, rootRef } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
 import { followRoot } from "../harnesses/roots.js"
 import { limitGraceMs } from "../harnesses/telemetry.js"
@@ -322,7 +322,7 @@ describe("an answer's own keys", () => {
 })
 
 describe("a question set aside by the chat's own Send or Stop", () => {
-  it("lets it past questions only, and only with setAside", async ({ terminals }) => {
+  it("lets it past the questions it names only, and only with setAside", async ({ terminals }) => {
     const manager = terminals.manager(ptyOptions)
     const terminal = await manager.create(
       { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
@@ -330,28 +330,34 @@ describe("a question set aside by the chat's own Send or Stop", () => {
     )
     const inside = manager as unknown as {
       records: Map<string, { bound: Bound | null }>
-      typing: { promptable: (id: string, setAside?: true) => unknown }
+      typing: { promptable: (id: string, setAside?: readonly string[]) => unknown }
     }
     const record = inside.records.get(terminal.id)!
+    const binding = { agent: "claude", sessionId: "s", instance: null } as const
+    const request = (kind: string, n: number) =>
+      ({ kind, requestId: `q${n}`, askedAt: n }) as Activity["pending"][number]
+    const refOf = (kind: string, n: number) => requestRef(binding, request(kind, n))
     const waiting = (...kinds: string[]) => {
       record.bound = {
-        binding: { agent: "claude", sessionId: "s", instance: null },
-        activity: {
-          ...fresh(0),
-          pending: kinds.map((kind) => ({ kind }) as Activity["pending"][number]),
-        },
+        binding,
+        activity: { ...fresh(0), pending: kinds.map((kind, n) => request(kind, n)) },
         telemetry: null,
       }
     }
     const { typing } = inside
     const pending = expect.objectContaining({ code: "CONFLICT", reason: "pending" })
     waiting("question")
+    const named = [refOf("question", 0)]
     expect(() => typing.promptable(terminal.id)).toThrow(pending)
-    expect(typing.promptable(terminal.id, true)).toBe(record)
+    expect(typing.promptable(terminal.id, named)).toBe(record)
+    expect(() => typing.promptable(terminal.id, [refOf("question", 7)])).toThrow(pending)
+    waiting("question", "question")
+    expect(() => typing.promptable(terminal.id, named)).toThrow(pending)
+    expect(typing.promptable(terminal.id, [...named, refOf("question", 1)])).toBe(record)
     waiting("question", "permission")
-    expect(() => typing.promptable(terminal.id, true)).toThrow(pending)
-    waiting("permission")
-    expect(() => typing.promptable(terminal.id, true)).toThrow(pending)
+    expect(() => typing.promptable(terminal.id, [...named, refOf("permission", 1)])).toThrow(
+      pending,
+    )
   })
 })
 

@@ -628,9 +628,9 @@ for (const setup of setups) {
           await setup.asking!.enter?.(t1)
 
           await t1.prompt("Ask me about the button")
-          await questionOf(t1)
+          const ref = await questionOf(t1)
           const since = Date.now()
-          const stopped = await t1.interrupt(true)
+          const stopped = await t1.interrupt([ref])
           const took = Date.now() - since
           expect(stopped.returned).toBeNull()
           expect((await t1.detail()).requests).toHaveLength(0)
@@ -659,11 +659,13 @@ for (const setup of setups) {
   })
 }
 
-/** Waits until the terminal's first request shows its questions' dialog. */
+/** Waits until the terminal's first request shows its questions' dialog; its ref. */
 const questionOf = (terminal: DeckTerminal) =>
   terminal.poll(
-    async () =>
-      (await terminal.detail()).requests[0]?.dialog?.type === "questions" ? true : undefined,
+    async () => {
+      const [request] = (await terminal.detail()).requests
+      return request?.dialog?.type === "questions" ? request.ref : undefined
+    },
     "its question's dialog",
     60_000,
   )

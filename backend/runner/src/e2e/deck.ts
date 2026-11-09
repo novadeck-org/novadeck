@@ -119,14 +119,14 @@ export type DeckTerminal = {
     text: string,
     images?: readonly DeckImage[],
     at?: readonly number[],
-    /** As the chat's own Send gives it, setting aside a question the agent waits on. */
-    setAside?: true,
+    /** As the chat's own Send gives it, setting aside the questions these refs name. */
+    setAside?: readonly string[],
   ) => Promise<Prompted>
   /**
    * Presses Escape in its agent as the chat does, `agents.interrupt`; with `setAside`, as its
-   * own Stop does, setting aside a question the agent waits on.
+   * own Stop does, setting aside the questions these refs name.
    */
-  readonly interrupt: (setAside?: true) => Promise<InterruptResult>
+  readonly interrupt: (setAside?: readonly string[]) => Promise<InterruptResult>
   /**
    * Answers a request through its dialog as the chat does, `agents.answer`: resolves once
    * the dialog went as the answer should have it go, rejects as the call would.

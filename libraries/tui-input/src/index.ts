@@ -4,7 +4,7 @@ export { Handovers } from "./handover.js"
 export type { HandoverHost, HandoverNote, HandoverOptions } from "./handover.js"
 export { keysOf } from "./keys.js"
 export type { Key, KeyKind } from "./keys.js"
-export { collapsible, PromptRefusal, Prompts, WordsTaken } from "./prompts.js"
+export { collapsible, PromptRefusal, Prompts, tooTall, WordsTaken } from "./prompts.js"
 export type {
   BoxNote,
   PromptGiven,

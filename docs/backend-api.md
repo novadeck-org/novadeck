@@ -1011,11 +1011,15 @@ one from an earlier runner.
   the rows the TUI means. The person's keys are held from before the box is looked at until
   the Enter is out, at most the wait for an empty box, a shell command's switch (up to 5 s), the paste's 5 s and a margin of 2 s.
 
-  `setAside: true`, which only the person's own Send in a chat gives (an automatic prompt or
-  a doorbell ring never does), sends over a question the agent waits on (Claude Code's
-  AskUserQuestion, Codex's request_user_input, Antigravity's ask_question) instead of
-  refusing it `pending`: in the prompt's own turn of the terminal's input queue, so nothing
-  comes between, the question is set aside and the words go. How depends on what the
+  `setAside`, which only the person's own Send in a chat gives (an automatic prompt or a
+  doorbell ring never does), is the refs of the questions the person saw waiting (1 to 8 of
+  `agents.detail`'s `requests[].ref`, `setAsideRefs`). It sends over those questions (Claude
+  Code's AskUserQuestion, Codex's request_user_input, Antigravity's ask_question) instead of
+  refusing them `pending`: in the prompt's own turn of the terminal's input queue, so nothing
+  comes between, they are set aside and the words go. A ref no longer waiting is no matter;
+  any request waiting that it doesn't name is still `pending`, so a question that came after
+  the person looked is never set aside unseen. A text the box has no room for is refused
+  (`too-tall`) before the question is touched. How depends on what the
   harness's Escape does in its question dialog (`MessagingProfile.questionEscape`), never on
   its name, and goes through the answer driver's bookkeeping (the person's keys held, the
   dialog read off a settled screen first, a turn that just put it up given its settle time).
@@ -1028,10 +1032,14 @@ one from an earlier runner.
   skipped: one call, the words in the tool's result, so no prompt is typed and `tracked` is
   false; images there are a `CONFLICT` with reason `question-words-only`, pressing nothing.
   The words must be a message either way (`promptRefusal` without the shell form: a leading
-  `!` is `PROMPT_REFUSED`). A request that is no question (an approval, a form, a plan), or
-  a question whose dialog isn't read (raw), is still a `CONFLICT` `pending`, pressing
-  nothing; Escape pressed without the question going is `ANSWER_FAILED`, the dialog turning
-  `raw`. Measured with the fake model, a Send right after the question showed took about
+  `!` is `PROMPT_REFUSED`). A request that is no question (an approval, a form, a plan),
+  even named, or a question whose dialog isn't read (raw, or one that doesn't read now, as
+  Codex's with its notes field open, which is left as it is), is still a `CONFLICT`
+  `pending`, pressing nothing. What holds the agent is looked at again right before each key,
+  as an approval may come while the runner waits for the screen to settle: one came, and
+  nothing more is pressed (`pending`), as Escape would deny it. A question the person
+  answered in the terminal as the Send began is gone, and the words go as a plain prompt.
+  Escape pressed without the question going is `ANSWER_FAILED`, the dialog turning `raw`. Measured with the fake model, a Send right after the question showed took about
   1.1 to 1.3 s in all three, most of it the wait for the turn that put the question up to
   settle (1 s from its start); later it is a few hundred milliseconds.
 
@@ -1441,8 +1449,9 @@ one from an earlier runner.
   second longer where nothing comes back, and a few seconds more with queued messages. The
   client's `agents.interrupt(terminalId)` is that call, and resolves with the result.
 
-  `setAside: true`, only the person's own Stop in a chat, stops over a question the agent
-  waits on instead of refusing it `pending`, in the Stop's own turn of the input queue:
+  `setAside`, only the person's own Stop in a chat, names the questions the person saw, as
+  `agents.prompt`'s does, and stops over them instead of refusing them `pending`, in the
+  Stop's own turn of the input queue:
   Escape is pressed in the question's dialog, once where it ends the turn (Claude Code,
   Codex), else once per question until the request is gone (Antigravity, whose Escape skips
   one question a press, the tool returning "User Skipped" and the turn going on). Where that

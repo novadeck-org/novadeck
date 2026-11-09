@@ -205,6 +205,18 @@ export const collapsible = (text: string): boolean => /[\r\n]/.test(text) || tex
 /** Rows added to the estimate of a text's height, as TUIs' wrapping may differ a little. */
 const wrapMargin = 1
 
+/**
+ * Whether a message alone in an empty box has no room on `screen`, as a prompt refuses it
+ * (`too-tall`): for a caller to tell before it does anything to make way for the prompt.
+ */
+export const tooTall = (profile: BoxProfile, text: string, screen: ScreenText): boolean => {
+  const typed = normalised(text).trim()
+  return (
+    !profile.collapses(typed) &&
+    wrappedRows(typed, screen.columns) + wrapMargin > profile.room(screen.rows.length)
+  )
+}
+
 /** A prompt's lines as a terminal takes them in a paste: its line breaks are bare returns. */
 const inPaste = (text: string): string => text.replace(/\r\n?|\n/g, "\r")
 

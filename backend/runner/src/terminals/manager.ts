@@ -1046,7 +1046,10 @@ export class Terminals {
    * their settle wait (`InterruptOptions`) after the last to show its turn ended before
    * the next looks.
    */
-  interrupt(input: { terminalId: string; setAside?: true | undefined }): Promise<InterruptResult> {
+  interrupt(input: {
+    terminalId: string
+    setAside?: readonly string[] | undefined
+  }): Promise<InterruptResult> {
     return this.typing.interrupt(input.terminalId, input.setAside)
   }
 

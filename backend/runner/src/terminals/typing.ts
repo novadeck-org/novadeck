@@ -12,7 +12,7 @@ import {
   type RequestAnswer,
 } from "@novadeck/protocol"
 import { noHold } from "@novadeck/terminal/host"
-import { Handovers, InputQueue } from "@novadeck/tui-input"
+import { Handovers, InputQueue, PromptRefusal, tooTall } from "@novadeck/tui-input"
 import type {
   BoxNote,
   HandoverNote,
@@ -128,8 +128,11 @@ export type PromptInput = {
   readonly files?: readonly string[] | undefined
   /** Where each image goes in `text` (`agents.prompt`'s `at`); absent, they lead it. */
   readonly at?: readonly number[] | undefined
-  /** Sets aside the question the agent waits on, as the person's own Send does (see `setAside`). */
-  readonly setAside?: true | undefined
+  /**
+   * The refs of the questions the person saw waiting, which the person's own Send sets aside
+   * (see `Answers.setAside`).
+   */
+  readonly setAside?: readonly string[] | undefined
 }
 
 /**
@@ -281,9 +284,9 @@ export class Typing {
    * `ref` until the agent's record has it (see `Receipts`). With `along`, which only a client
    * showing the box asks for, what the box holds doesn't stop it, where the screen shows that's
    * safe: it goes along, or out, the words handed back. Without it, it goes into an empty box.
-   * With `setAside`, a question the agent waits on is set aside first, in the prompt's own
-   * turn of the queue (see `Answers.setAside`): where the words go as its answer, nothing is
-   * typed as a prompt and no receipt follows.
+   * With `setAside`, the questions it names that the agent waits on are set aside first, in
+   * the prompt's own turn of the queue (see `Answers.setAside`), once the text is known to fit
+   * the box: where the words go as an answer, nothing is typed as a prompt and no receipt follows.
    */
   async prompt(
     terminalId: string,
@@ -294,7 +297,7 @@ export class Typing {
     images: readonly string[] = [],
     files: readonly string[] = images,
     at?: readonly number[],
-    setAside?: true,
+    setAside?: readonly string[],
   ): Promise<Prompted> {
     // Words that set a question aside are a message, never a shell command, whichever way
     // they go: refused before anything waits, as any prompt's shape is.
@@ -333,7 +336,15 @@ export class Typing {
           ),
         setAside &&
           (async (entry) => {
-            const done = await this.answers.setAside(entry, terminalId, text, images.length > 0)
+            // A text the box has no room for is refused before the question is touched.
+            await this.fits(terminalId, text)
+            const done = await this.answers.setAside(
+              entry,
+              terminalId,
+              setAside,
+              text,
+              images.length > 0,
+            )
             answered = done === "answered"
             return answered ? { returned: undefined } : undefined
           }),
@@ -446,11 +457,11 @@ export class Typing {
 
   /**
    * Presses Escape in the terminal's agent as the person would (see `Terminals.interrupt`).
-   * With `setAside`, a question the agent waits on is set aside first, in the same turn of
-   * the queue (see `Answers.setAside`): where that Escape ended the turn, the Stop finds it
-   * over once its activity says so, and presses nothing more.
+   * With `setAside`, the questions it names that the agent waits on are set aside first, in
+   * the same turn of the queue (see `Answers.setAside`): where that Escape ended the turn, the
+   * Stop finds it over once its activity says so, and presses nothing more.
    */
-  async interrupt(terminalId: string, setAside?: true): Promise<InterruptResult> {
+  async interrupt(terminalId: string, setAside?: readonly string[]): Promise<InterruptResult> {
     this.promptable(terminalId, setAside)
     let since = Date.now()
     let ended = noStop
@@ -461,7 +472,7 @@ export class Typing {
       .run(terminalId, async (entry) => {
         since = Date.now()
         ended = this.givenBack.begin(terminalId, since)
-        if (setAside && (await this.answers.setAside(entry, terminalId)) === "dismissed")
+        if (setAside && (await this.answers.setAside(entry, terminalId, setAside)) === "dismissed")
           await this.asideEnded(terminalId)
         return await this.interrupts.interrupt(terminalId, entry, (words) => (boxed = words))
       })
@@ -569,9 +580,9 @@ export class Typing {
    * The record of a terminal whose agent takes the person's keys, or the error saying why
    * not: no agent bound, nor its own prompt shown before its first session binds, or one
    * that waits on the person's answer to a request, whose dialog would take them. With
-   * `setAside`, requests that are all questions don't refuse: the caller sets them aside.
+   * `setAside`, requests that are all questions it names don't refuse: the caller sets them aside.
    */
-  promptable(terminalId: string, setAside?: true): Record {
+  promptable(terminalId: string, setAside?: readonly string[]): Record {
     if (this.host.stopping()) throw new DomainError("CLOSING")
     const record = this.host.record(terminalId)
     this.host.running(record)
@@ -583,9 +594,22 @@ export class Typing {
         "no-agent",
       )
     const asking = blocking(record.bound?.activity.pending)
-    if (asking.length > 0 && !(setAside && asking.every(({ kind }) => kind === "question")))
-      throw waitsOnPerson()
+    const { binding } = record.bound ?? {}
+    const aside = (request: (typeof asking)[number]) =>
+      binding !== undefined &&
+      request.kind === "question" &&
+      setAside?.includes(requestRef(binding, request)) === true
+    if (!asking.every(aside)) throw waitsOnPerson()
     return record
+  }
+
+  /** Refuses as `too-tall`, before anything is pressed, a text the agent's box has no room for. */
+  private async fits(terminalId: string, text: string): Promise<void> {
+    const screen = await this.screenOf(terminalId)
+    const record = this.host.live(terminalId)
+    const profile = record && this.boxOf(record)
+    if (screen && profile && text.trim() !== "" && tooTall(profile, text, screen))
+      throw new PromptRefusal("too-tall", "The text is too tall for the input box on this screen.")
   }
 
   /** The screen of a running terminal once it has drawn what its shell already sent. */

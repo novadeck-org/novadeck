@@ -702,10 +702,10 @@ for (const setup of setups) {
           await asking!.enter?.(t1)
 
           await t1.prompt("Ask me about the button")
-          await dialogOf(t1, "questions")
+          const request = await dialogOf(t1, "questions")
           const calls = run.model.mark()
           const since = Date.now()
-          const given = await t1.prompt(words, [], undefined, true)
+          const given = await t1.prompt(words, [], undefined, [request.ref])
           const took = Date.now() - since
 
           // The model's first call after the Send carries the words: no turn ran on before them.
@@ -741,6 +741,12 @@ for (const setup of setups) {
         const pending = { code: "CONFLICT", reason: "pending" }
         await expect(t1.prompt("Something else")).rejects.toMatchObject(pending)
         await expect(t1.interrupt()).rejects.toMatchObject(pending)
+        // Nor does a Send or Stop that names another question than the one waiting.
+        const other = "Aaaaaaaaaaaaaaaa"
+        await expect(t1.prompt("Something else", [], undefined, [other])).rejects.toMatchObject(
+          pending,
+        )
+        await expect(t1.interrupt([other])).rejects.toMatchObject(pending)
         // The question still waits, its dialog as it was, and the model heard nothing.
         await sleep(500)
         const [still] = (await t1.detail()).requests
@@ -762,10 +768,11 @@ for (const setup of setups) {
         await t1.prompt("Make the file")
         const request = await dialogOf(t1, "choices")
         const pending = { code: "CONFLICT", reason: "pending" }
-        await expect(t1.prompt("Something else", [], undefined, true)).rejects.toMatchObject(
-          pending,
-        )
-        await expect(t1.interrupt(true)).rejects.toMatchObject(pending)
+        // Even named, an approval is no question to set aside.
+        await expect(
+          t1.prompt("Something else", [], undefined, [request.ref]),
+        ).rejects.toMatchObject(pending)
+        await expect(t1.interrupt([request.ref])).rejects.toMatchObject(pending)
         // Nothing was pressed: the approval still waits, as it showed.
         await sleep(500)
         expect((await t1.detail()).requests[0]?.ref).toBe(request.ref)
@@ -791,7 +798,7 @@ for (const setup of setups) {
         const request = await dialogOf(t1, "questions")
         const image = [{ name: "shot.png", data: picture }]
         if (harnesses[setup.agent].messaging.questionEscape === "skips") {
-          await expect(t1.prompt(words, image, undefined, true)).rejects.toMatchObject({
+          await expect(t1.prompt(words, image, undefined, [request.ref])).rejects.toMatchObject({
             code: "CONFLICT",
             reason: "question-words-only",
           })
@@ -801,7 +808,7 @@ for (const setup of setups) {
           return
         }
         const calls = run.model.mark()
-        await t1.prompt(words, image, undefined, true)
+        await t1.prompt(words, image, undefined, [request.ref])
         const heard = await run.model.waitFor((call) => text(call).includes(words), {
           after: calls,
         })
