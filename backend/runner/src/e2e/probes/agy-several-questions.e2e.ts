@@ -57,7 +57,13 @@ const on = (label: string) => new RegExp(`\\[[^ \\]]\\] ${label}`)
 const words = "Let's discuss this first: tell me about the footer"
 
 // Each case: its questions, and the steps taken in turn, each with a name for its screen.
-const cases: readonly { name: string; questions: readonly Question[]; steps: readonly Step[] }[] = [
+// `command` asks for a command's confirmation instead of the questions.
+const cases: readonly {
+  name: string
+  questions: readonly Question[]
+  steps: readonly Step[]
+  command?: true
+}[] = [
   {
     name: "single-multi-enter",
     questions: [colour, features],
@@ -115,6 +121,22 @@ const cases: readonly { name: string; questions: readonly Question[]; steps: rea
     ],
   },
   {
+    name: "multi-alone-writein",
+    questions: [features],
+    steps: [
+      ["down", Down],
+      ["down", Down],
+      ["down-enter", Down, /> 4\. Write-in/],
+      ["type-enter", words, /footer/],
+    ],
+  },
+  {
+    name: "command-esc",
+    questions: [],
+    command: true,
+    steps: [["esc", Esc]],
+  },
+  {
     name: "multi-esc-esc",
     questions: [features, colour],
     steps: [
@@ -129,12 +151,14 @@ describe.skipIf(!supported)("Antigravity several questions", () => {
   for (const each of cases)
     it(each.name, async ({ e2e: run }) => {
       run.model.use(
-        answers("Ask me", (call) => agy.asking!.questions(call, each.questions)),
+        answers("Ask me", (call) =>
+          each.command ? agy.approval!.request(call) : agy.asking!.questions(call, each.questions),
+        ),
         own((call) => (result(call) !== undefined ? { text: "Noted." } : undefined)),
       )
       const t1 = await start(run, agy)
       await t1.prompt("Ask me about the button")
-      await t1.until(/Question 1\/\d+:/, 60_000)
+      await t1.until(each.command ? agy.approval!.shows : /Question 1\/\d+:/, 60_000)
       await sleep(800)
       const screens: { after: string; rows: unknown; detail: unknown }[] = []
       const shot = async (after: string) => {
@@ -164,9 +188,14 @@ describe.skipIf(!supported)("Antigravity several questions", () => {
         .filter((call) => !call.side)
         .map((call) => result(call))
         .filter((text) => text !== undefined)
+      // Whether the turn went on: the model called again after the key, and what Novadeck says.
+      const after = {
+        calls: run.model.calls.filter((call) => !call.side).length,
+        screen: await t1.screen(),
+      }
       writeFileSync(
         join(out, `${each.name}.json`),
-        JSON.stringify({ name: each.name, told, screens }, null, 2),
+        JSON.stringify({ name: each.name, told, after, screens }, null, 2),
       )
       expect(screens.length).toBeGreaterThan(1)
     })

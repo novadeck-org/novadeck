@@ -89,6 +89,16 @@ describe("Antigravity's ask_question", () => {
     const next = waits(aside)!.at(-1)!
     expect(next(ask.twoQuestions.q1!.rows)).toBe(false)
     expect(next(ask.twoQuestions.q2!.rows)).toBe(true)
+    // Once the person skipped the first, the words answer the one on screen.
+    const later = read(ask.twoQuestions.q2!.rows, questionFacts(two))
+    expect(later.keys(questionsAnswer({ question: "1", options: ["1"] }))).toBeUndefined()
+    expect(sent(later.keys(chat("hm")))).toEqual([
+      "\x1b[B",
+      "\x1b[B",
+      "\r",
+      `"Let's discuss this first: hm"`,
+      "\r",
+    ])
     // A multi-select's Write-in takes them too.
     const multi = read(
       ask.multiSelect.screen!.rows,

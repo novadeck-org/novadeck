@@ -140,18 +140,19 @@ export const questions = (
   const callQuestions = questionsOf(request.input)
   if (!read || !callQuestions || read.total !== callQuestions.length) return undefined
   // Any state of the dialog reads as the same one, as the driver reads it again before
-  // each key; only where it stands at its start do answers have keys.
+  // each key; only where it stands at its start do answers have keys, and the talk only
+  // where the question on screen does.
   const shown = callQuestions[read.index - 1]!
   if (read.multi !== shown.multi || squash(read.question) !== squash(shown.question))
     return undefined
   const labels = [...shown.options, writeIn].map(squash)
   if (read.options.length !== labels.length) return undefined
   if (!read.options.every(({ label }, index) => squash(label) === labels[index])) return undefined
-  const start =
-    read.index === 1 &&
+  const fresh =
     !read.writing &&
     read.options[0]!.marked &&
     !read.options.some(({ checked }) => checked === true)
+  const start = read.index === 1 && fresh
   // Words answer only a lone single-choice question.
   const text = callQuestions.length === 1 && !callQuestions[0]!.multi
   const dialog: AnswerableDialog = {
@@ -164,23 +165,24 @@ export const questions = (
       multiSelect: multi,
       text,
     })),
-    // Set aside to talk over: the words as the first question's answer, through its
-    // Write-in, and every later question skipped.
+    // Set aside to talk over: the words as the answer to the question on screen (the first,
+    // or a later one once the person skipped those before it), through its Write-in, and
+    // every later question skipped.
     chat: "field",
   }
   return {
     dialog,
     keys: (answer) => {
-      if (!start) return undefined
-      if (answer.type !== "chat") return keysFor(answer, callQuestions)
+      if (answer.type !== "chat") return start ? keysFor(answer, callQuestions) : undefined
       // The words, said to open the talk, as the answer the agent reads.
-      if (answer.text === undefined || !typeable(answer.text) || squash(answer.text) === "")
-        return undefined
+      if (!fresh || answer.text === undefined || !typeable(answer.text)) return undefined
+      if (squash(answer.text) === "") return undefined
+      const at = read.index
       return [
-        ...writeInSteps(1, callQuestions[0]!.options.length, `${chatPrefix}${answer.text}`),
+        ...writeInSteps(at, shown.options.length, `${chatPrefix}${answer.text}`),
         ...callQuestions
-          .slice(1)
-          .flatMap((question, at) => [nextShown(at + 2, question), { press: escape }]),
+          .slice(at)
+          .flatMap((question, k) => [nextShown(at + k + 1, question), { press: escape }]),
       ]
     },
     answered: (later) => {

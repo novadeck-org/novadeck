@@ -394,13 +394,13 @@ export type MessagingProfile = {
   /** Whether a failed turn fires nothing, so its turn may only end with its next prompt. */
   readonly silentOnFailure: boolean
   /**
-   * What an Escape in one of its dialogs does while its turn runs: `interrupts`, as Claude
-   * Code's and Codex's end the turn there, or `answers`, as Antigravity's skips the question
-   * on screen or cancels the command, and the turn goes on with that answer (see
-   * docs/harness-coverage.md). Only an interrupting Escape may end the turn for delivery
-   * and the agent's activity.
+   * What an Escape in its question dialog does: `interrupts`, as Claude Code's and Codex's
+   * end the turn there, or `skips`, as Antigravity's skips the question on screen and the
+   * turn goes on with that answer (see docs/harness-coverage.md). A skipping Escape ends
+   * no turn for delivery or the agent's activity. An Escape in a confirmation ends the turn
+   * in all three.
    */
-  readonly dialogEscape: "interrupts" | "answers"
+  readonly questionEscape: "interrupts" | "skips"
   /**
    * Whether its box takes a prompt at once while only work a stopped turn left running
    * runs (background subagents and shells): the doorbell may ring it then, once its screen

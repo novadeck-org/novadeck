@@ -4,7 +4,6 @@ import type { AgentName } from "@novadeck/protocol"
 import type { KeyKind } from "@novadeck/tui-input"
 
 import type { Binding } from "../harnesses/bindings.js"
-import { harnesses } from "../harnesses/registry.js"
 import { rootedIn } from "../harnesses/roots.js"
 import {
   firing,
@@ -188,14 +187,8 @@ export class Deliveries {
     live.keyedAt = at
     // Novadeck's own keys answering the request, as `pressing` tells; never once none waits.
     const pressed = asked && this.pressed.has(terminalId)
-    // An Escape in the dialog of a harness where it answers that dialog (a skip) ends no
-    // turn and types nothing in the box: delivery has nothing to take from it.
-    const answers =
-      asked && live.root !== null && harnesses[live.root.agent].messaging.dialogEscape === "answers"
-    for (const key of kinds) {
-      if (answers && key === "escape") continue
+    for (const key of kinds)
       this.step(live, pressed ? { type: "pressed", key, at } : { type: "key", key, asked, at })
-    }
   }
 
   /**

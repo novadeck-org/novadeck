@@ -650,11 +650,11 @@ for (const setup of setups) {
     gated(
       it,
       lacking(setup, "questions", "multiSelect") ??
-        (harnesses[setup.agent].messaging.dialogEscape === "interrupts"
-          ? "its Escape in a dialog ends the turn"
+        (harnesses[setup.agent].messaging.questionEscape === "interrupts"
+          ? "its Escape in a question ends the turn"
           : undefined),
     )(
-      "keeps the request through an Escape that skips one of its questions",
+      "keeps the request through an Escape that skips one of its questions, and sets the rest aside",
       async ({ e2e: run }) => {
         run.model.use(
           answers("Ask me", (call) => asking!.questions(call, [colour, features])),
@@ -670,10 +670,12 @@ for (const setup of setups) {
         await sleep(2000)
         expect((await t1.detail()).requests).toHaveLength(1)
         expect(t1.summary().activity?.state).toBe("working")
-        // Its dialog is still read, and the next Escape skips the last.
-        await dialogOf(t1, "questions")
-        t1.press("\x1b")
-        await t1.until("Noted.")
+        // Its dialog is still read, and the chat sets the question left aside with words.
+        const calls = run.model.mark()
+        const request = await dialogOf(t1, "questions")
+        const words = "Before I choose, what do the features cost?"
+        await t1.answer(request.ref, { dialog: idOf(request), type: "chat", text: words })
+        await run.model.waitFor((call) => text(call).includes(words), { after: calls })
         await unrequested(t1)
       },
     )
