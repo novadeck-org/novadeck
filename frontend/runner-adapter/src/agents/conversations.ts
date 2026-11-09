@@ -285,6 +285,15 @@ const failure = (
       ),
       wordsOf(error),
     )
+  // Keys went to set a question aside and it didn't go as expected: the question may still be
+  // up, or no longer readable, and the terminal is where it is settled.
+  if (hasCode(error, "ANSWER_FAILED", "DIALOG_CHANGED"))
+    return withReturned(
+      new SettleInTerminal(
+        `The question couldn't be set aside. Answer it in the terminal, then ${action === "stop" ? "stop it" : "send"} again.`,
+      ),
+      wordsOf(error),
+    )
   return new Error(`Couldn't ${what} the agent.`)
 }
 

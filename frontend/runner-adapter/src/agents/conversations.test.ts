@@ -889,6 +889,21 @@ describe("the runner's conversations", () => {
       expect(streams.interrupt).toHaveBeenCalledWith("t", { setAside: ["r1"] })
     })
 
+    it("sends the person to the terminal where setting a question aside went wrong", async () => {
+      const { conversations, streams } = setup()
+      const failed = new WireError("ANSWER_FAILED", "The dialog didn't go.", {
+        data: { returned: "my words" },
+      })
+      streams.prompt.mockRejectedValue(failed)
+      await expect(conversations.send(key, "my words", { setAside: ["q1"] })).rejects.toThrow(
+        "The question couldn't be set aside. Answer it in the terminal, then send again.",
+      )
+      streams.interrupt.mockRejectedValue(new WireError("DIALOG_CHANGED", "It changed."))
+      await expect(conversations.interrupt(key, { setAside: ["q1"] })).rejects.toThrow(
+        "The question couldn't be set aside. Answer it in the terminal, then stop it again.",
+      )
+    })
+
     it("says a question taking only words can't be set aside by images", async () => {
       const { conversations, streams } = setup()
       streams.prompt.mockRejectedValue(

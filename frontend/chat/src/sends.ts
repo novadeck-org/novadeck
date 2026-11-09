@@ -19,7 +19,8 @@ import type { ChatReply } from "./replies"
 //   whether the record has it; `settled` once the record has it, kept only for its words
 //   until the conversation holds its item;
 // - `setAside`: the ids of the questions the agent asked as the person pressed Send
-//   (`questionWaits`), which the words go over, setting them aside: their cards go meanwhile.
+//   (`questionsToSetAside`), which the words go over, setting them aside: their cards go
+//   meanwhile.
 export type ChatSend = {
   readonly ref: string
   readonly draft: string

@@ -1020,8 +1020,10 @@ one from an earlier runner.
   refusing them `pending`: in the prompt's own turn of the terminal's input queue, so nothing
   comes between, they are set aside and the words go. A ref no longer waiting is no matter;
   any request waiting that it doesn't name is still `pending`, so a question that came after
-  the person looked is never set aside unseen. A text the box has no room for is refused
-  (`too-tall`) before the question is touched. How depends on what the
+  the person looked is never set aside unseen. Where the words will go as a prompt (`interrupts`), a text the
+  box has no room for is refused (`too-tall`) before the question is touched; where they go
+  as the question's answer (`skips`) the box isn't used, and the rare fallback below checks
+  it only as it gives the prompt, the words coming back. How depends on what the
   harness's Escape does in its question dialog (`MessagingProfile.questionEscape`), never on
   its name, and goes through the answer driver's bookkeeping (the person's keys held, the
   dialog read off a settled screen first, a turn that just put it up given its settle time).
@@ -1041,7 +1043,11 @@ one from an earlier runner.
   as an approval may come while the runner waits for the screen to settle: one came, and
   nothing more is pressed (`pending`), as Escape would deny it. A question the person
   answered in the terminal as the Send began is gone, and the words go as a plain prompt.
-  Escape pressed without the question going is `ANSWER_FAILED`, the dialog turning `raw`. Measured with the fake model, a Send right after the question showed took about
+  Escape pressed without the question going is `ANSWER_FAILED`, the dialog turning `raw`; the
+  dialog gone but its hook not clearing within 10 s is the `CONFLICT` `pending` above, though
+  the Escape went. Where Antigravity's Write-in fails after a key but before the words went in,
+  and the request is gone (a key landed on an option, answering it), the words follow as a
+  prompt, never lost and never twice. Measured with the fake model, a Send right after the question showed took about
   1.1 to 1.3 s in all three, most of it the wait for the turn that put the question up to
   settle (1 s from its start); later it is a few hundred milliseconds.
 

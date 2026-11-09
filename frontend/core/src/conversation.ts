@@ -231,10 +231,6 @@ export const questionsToSetAside = (requests: readonly ChatRequest[]): readonly 
     .slice(0, maxSetAside)
     .map((request) => request.id)
 
-// Whether the agent waits on such a question (`openQuestion`).
-export const questionWaits = (requests: readonly ChatRequest[]): boolean =>
-  requests.some(openQuestion)
-
 // A prompt given the agent through `Conversations.send`, and whether its own record has it
 // yet, as the backend reads that record (where it tells, `SendResult.tracked`): `pending`
 // until it does; `settled` once it does, as the person's words of the item at `item` (its

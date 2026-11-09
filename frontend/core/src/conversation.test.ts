@@ -7,7 +7,6 @@ import {
   type ChatRequest,
   maxSetAside,
   questionsToSetAside,
-  questionWaits,
   type ToolOutcome,
   type ToolRun,
 } from "./conversation"
@@ -44,7 +43,9 @@ describe("the core's ToolOutcome", () => {
   })
 })
 
-describe("questionWaits", () => {
+describe("the questions a Send or Stop sets aside", () => {
+  const questionWaits = (requests: readonly ChatRequest[]): boolean =>
+    questionsToSetAside(requests).length > 0
   const request = (change: Partial<ChatRequest> = {}): ChatRequest => ({
     id: "r1",
     kind: "question",
