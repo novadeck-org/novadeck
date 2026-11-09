@@ -114,7 +114,7 @@ for (const setup of setups) {
           const placed = new RegExp(
             held
               ? pieces.map(flat).join("\\s*\\[Image #\\d+\\]\\s*")
-              : `(?:\\s*\\[Image #\\d+\\])+\\s*${flat(pieces.join(" "))}`,
+              : `(?:\\s*\\[Image #\\d+\\])+\\s*${flat(pieces.filter(Boolean).join(" "))}`,
           )
           const call = await run.model.waitFor(
             (each) =>
