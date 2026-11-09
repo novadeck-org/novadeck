@@ -39,6 +39,7 @@ import {
   hasTerminal,
   hasTile,
   hasWindow,
+  listFirst,
   listUnderOpener,
   removeWindow,
   renameTerminal,
@@ -123,6 +124,9 @@ export type WorkspaceAction =
       gridLayouts?: GridLayouts
       // The terminal that opened it, which it is listed under in the sidebar.
       anchor?: string
+      // Listed first in the sidebar, as a terminal the person makes is; without it, or an
+      // anchor, it goes last.
+      first?: boolean
       // Whether it becomes the session's selection, as it does by default.
       select?: boolean
     }
@@ -502,11 +506,13 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
         const added = addTerminal(roster, action.terminal)
         return {
           ...state,
-          // Under the terminal that opened it in the sidebar; the person's own go last.
+          // Under the terminal that opened it in the sidebar; the person's own go first.
           roster:
-            action.anchor === undefined
-              ? added
-              : listUnderOpener(added, action.terminal.id, action.anchor),
+            action.anchor !== undefined
+              ? listUnderOpener(added, action.terminal.id, action.anchor)
+              : action.first
+                ? listFirst(added, action.terminal.id)
+                : added,
           layout: placeTerminal(state.layout, {
             terminal: action.terminal,
             terminals: tiles,

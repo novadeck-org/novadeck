@@ -66,10 +66,23 @@ export const addTerminal = (
   terminals: [...roster.terminals, terminal],
 })
 
+// Lists a terminal first in the sidebar, as the person's own new ones are, above all the
+// rest in the order they had. Every terminal's place is saved, so the ones it went above
+// keep their places when the next one comes; a window's only once the person placed it,
+// so windows still follow the terminals that come later.
+export const listFirst = (roster: TerminalRoster, terminalId: string): TerminalRoster => {
+  if (!hasTerminal(roster, terminalId)) return roster
+  const placed = new Set(roster.order)
+  const rest = orderedTiles(roster)
+    .filter((tile) => tile.id !== terminalId && (!isWindow(tile) || placed.has(tile.id)))
+    .map((tile) => tile.id)
+  return { ...roster, order: [terminalId, ...rest] }
+}
+
 // Lists a terminal under the terminal `openerId` in the sidebar, after the terminals that
 // one opened before and theirs, so a lead's teammates follow it rather than trailing the
 // list. Without such a terminal, it keeps its place at the end. Only as much of the order
-// as it needs is saved, so the rest still follows creation order, windows last.
+// as it needs is saved; what isn't follows it, terminals in creation order, windows last.
 export const listUnderOpener = (
   roster: TerminalRoster,
   terminalId: string,

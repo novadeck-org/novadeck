@@ -3,7 +3,13 @@ import { page, userEvent } from "vitest/browser"
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 import { closeConfirmation, confirmClose, tabAction } from "../support/terminals"
-import { openWorkspace, sidebarPanel, terminal, terminalTab } from "../support/workspace"
+import {
+  openWorkspace,
+  sidebarPanel,
+  terminal,
+  terminalTab,
+  terminalTabNames,
+} from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
 // The agents demo keeps closed terminals: the storefront's rows, one for each state, and what
@@ -148,6 +154,14 @@ describe("The History panel", () => {
         .element(closed().getByRole("button", { name: "Restore Coupon codes" }))
         .not.toBeInTheDocument()
       await expect.element(page.getByRole("heading", { name: /^History 13$/ })).toBeVisible()
+    })
+
+    it("lists the restored terminal at the top of the Terminals list", async () => {
+      await openHistory()
+      await closed().getByRole("button", { name: "Restore Coupon codes" }).click()
+      await expect.element(terminal("Coupon codes")).toBeVisible()
+      await sidebarPanel("Terminals").click()
+      await expect.poll(() => terminalTabNames()[0]).toBe("Coupon codes")
     })
   })
 

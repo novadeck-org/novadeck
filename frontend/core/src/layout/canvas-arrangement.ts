@@ -2,8 +2,12 @@ import { canvasWindowSize as size } from "./terminal-size"
 
 // Where Canvas puts its windows. Nobody arranges them: the place of each follows from the
 // sidebar's order and from who leads whom. Windows on no team sit in one compact block, in
-// that order. Each team is an island that reads left to right: its lead, then its team in
-// the next column, a teammate that leads one step further right with its own team.
+// that order, filled from its end: its last row is full and its first row is the short
+// one, against the right. A new terminal, which the sidebar lists first, so takes the next
+// place at the block's start, moving no other window while the visit lasts, nor on the
+// next while the block keeps its width. Each team is an island that reads left to right:
+// its lead, then its team in the next column, a teammate that leads one step further right
+// with its own team.
 //
 // An arrangement lasts for one visit to Canvas. While it lasts, what grows moves at once
 // and only as far as it must, and what shrinks moves nothing: a window that closes leaves
@@ -22,7 +26,8 @@ type Room = { readonly width: number; readonly height: number }
 type Cell = string | null
 
 export type CanvasArrangement = {
-  // The block's slots in reading order.
+  // The block's slots in reading order, placed from the last: the last slot is the bottom
+  // right corner.
   readonly block: readonly Cell[]
   // The islands' leads, in the islands' order.
   readonly islands: readonly string[]
@@ -33,6 +38,10 @@ export type CanvasArrangement = {
   // block or the largest island ran when it was arranged afresh, or without end. Set then
   // and kept, so that what grows later never undoes a wrap.
   readonly columns: number
+  // How many rows the block had when it was arranged afresh, which the islands are packed
+  // beside or below. Rows that grow at the block's start later go above them, so that
+  // nothing placed moves.
+  readonly rows: number
   readonly beside: boolean
   readonly limit: number
 }
@@ -94,12 +103,16 @@ const island = (teams: CanvasArrangement["teams"], lead: string): Box => {
   return { w: left + width, h: Math.max(size.height, y - gap), at }
 }
 
-// The block's box: its slots, `columns` across.
-const blockBox = (slots: number, columns: number): { w: number; h: number } | undefined =>
-  slots
+// The block's box: its slots, `columns` across, `rows` down.
+const blockBox = (
+  slots: number,
+  columns: number,
+  rows = Math.ceil(slots / columns),
+): { w: number; h: number } | undefined =>
+  slots && rows
     ? {
         w: Math.min(columns, slots) * pitch.x - gap,
-        h: Math.ceil(slots / columns) * pitch.y - gap,
+        h: rows * pitch.y - gap,
       }
     : undefined
 
@@ -143,7 +156,7 @@ const pack = (
   }
 }
 
-type Packing = Pick<CanvasArrangement, "columns" | "beside" | "limit">
+type Packing = Pick<CanvasArrangement, "columns" | "rows" | "beside" | "limit">
 
 const packed = (
   arrangement: Pick<CanvasArrangement, "block" | "islands" | "teams"> & Packing,
@@ -152,7 +165,7 @@ const packed = (
   return {
     boxes,
     ...pack(
-      blockBox(arrangement.block.length, arrangement.columns),
+      blockBox(arrangement.block.length, arrangement.columns, arrangement.rows),
       boxes,
       arrangement.beside,
       arrangement.limit,
@@ -186,7 +199,8 @@ export const arrangeCanvas = (tiles: readonly Arranged[], room: Room): CanvasArr
       for (const wrap of [true, false]) {
         const boxes = placed.islands.map((lead) => island(placed.teams, lead))
         const limit = wrap ? reach(blockBox(placed.block.length, columns), boxes, beside) : Infinity
-        const packing = { columns, beside, limit }
+        const rows = Math.ceil(placed.block.length / columns)
+        const packing = { columns, rows, beside, limit }
         const { w, h } = packed({ ...placed, ...packing })
         const zoom = Math.min(room.width / Math.max(w, 1), room.height / Math.max(h, 1))
         if (!best || zoom > best.zoom * 1.03) best = { zoom, packing }
@@ -195,7 +209,8 @@ export const arrangeCanvas = (tiles: readonly Arranged[], room: Room): CanvasArr
 }
 
 // The arrangement once the windows have changed during a visit. A window new to the canvas
-// goes last in the block, or last in its lead's team. One that starts to lead leaves the
+// goes first in the block, where the sidebar lists a new terminal, or last in its lead's
+// team. One that starts to lead leaves the
 // block for a new island after the others, and one that gets a lead joins that lead's
 // team; each leaves its slot empty. Nothing else moves: a window that is gone keeps its
 // place, empty, and one whose lead is gone or leads no more stays where it was. The same
@@ -228,8 +243,11 @@ const settled = (arrangement: CanvasArrangement, tiles: readonly Arranged[]): Ca
   const under = new Map<string, string>()
   for (const [lead, cells] of Object.entries(teams))
     for (const cell of cells) if (held(cell)) under.set(cell, lead)
-  const has = (id: string): boolean => block.includes(id) || islands.includes(id) || under.has(id)
+  const has = (id: string): boolean =>
+    block.includes(id) || arrived.includes(id) || islands.includes(id) || under.has(id)
   let moved = false
+  // Windows new to the block, in order, which go before the rest.
+  const arrived: string[] = []
   const leave = (id: string): void => {
     const slot = block.indexOf(id)
     const lead = under.get(id)
@@ -254,7 +272,7 @@ const settled = (arrangement: CanvasArrangement, tiles: readonly Arranged[]): Ca
     if (lead === undefined) {
       if (!has(id)) {
         if (leading.has(id)) islands.push(id)
-        else block.push(id)
+        else arrived.push(id)
         moved = true
       } else if (block.includes(id) && leading.has(id)) startIsland(id)
       return
@@ -269,7 +287,7 @@ const settled = (arrangement: CanvasArrangement, tiles: readonly Arranged[]): Ca
     moved = true
   }
   for (const { id } of tiles) settle(id)
-  return moved ? { ...arrangement, block, islands, teams } : arrangement
+  return moved ? { ...arrangement, block: [...arrived, ...block], islands, teams } : arrangement
 }
 
 // Where each window's top left corner is, by id. A window that is gone has its place too,
@@ -277,11 +295,14 @@ const settled = (arrangement: CanvasArrangement, tiles: readonly Arranged[]): Ca
 export const canvasPlaces = (arrangement: CanvasArrangement): ReadonlyMap<string, Point> => {
   const { boxes, places } = packed(arrangement)
   const at = new Map<string, Point>()
-  arrangement.block.forEach((cell, n) => {
+  const { block, columns, rows } = arrangement
+  block.forEach((cell, n) => {
+    // Counted from the last slot, which sits in the bottom row's right corner.
+    const back = block.length - 1 - n
     if (held(cell))
       at.set(cell, {
-        x: (n % arrangement.columns) * pitch.x,
-        y: Math.floor(n / arrangement.columns) * pitch.y,
+        x: (columns - 1 - (back % columns)) * pitch.x,
+        y: (rows - 1 - Math.floor(back / columns)) * pitch.y,
       })
   })
   boxes.forEach((box, n) => {
