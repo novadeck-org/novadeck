@@ -777,18 +777,6 @@ describe("workspace commands", () => {
     })
   })
 
-  context("when a view saves its layout after the session changed", () => {
-    it("saves it to the session the view showed", () => {
-      const app = openCommands({ workspace: workspaceFixture({ sessions: ["initial", "other"] }) })
-      const shown = { projectId: "project", workspaceSessionId: "initial" }
-      app.commands.switchSession("other")
-      app.commands.setGridLayouts(shown, { desktop: [{ i: "01", x: 3, y: 0, w: 3, h: 4 }] })
-      const [initial, other] = app.workspace.getSnapshot().projects[0]!.history
-      expect(initial!.state.layout.grid.desktop).toEqual([{ i: "01", x: 3, y: 0, w: 3, h: 4 }])
-      expect(other!.state.layout.grid).toEqual({})
-    })
-  })
-
   context("when choosing from the recent switcher", () => {
     it("hands keyboard focus to the terminal only for a click-mode switcher", () => {
       const app = openCommands()
@@ -816,7 +804,7 @@ describe("workspace commands", () => {
       ])
       const added = terminal(app, "new-3")
       expect(added).toMatchObject({ directory: "/work/app" })
-      expect(app.state().layout.grid.desktop?.some((item) => item.i === "new-3")).toBe(true)
+      expect(orderedTiles(app.state().roster).map((tile) => tile.id)).toContain("new-3")
       // The selection, the URL and any rename stay as they were.
       expect(app.state().selected).toBe("01")
       expect(app.urls).toHaveLength(urls)

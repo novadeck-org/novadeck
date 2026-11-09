@@ -1,8 +1,7 @@
 import { isOnBar, type Item } from "./items"
 import { arrive, emptyBar, messagesKey, settle, type Bar, type BarKey } from "./items/companion-bar"
-import { addCompactGridTerminal, initialGridLayouts } from "./layout/grid-placement"
-import { placeTerminal, removeFromLayout } from "./layout/workspace-layout"
-import { addTerminal, addWindow, isWindow, tilesOf } from "./roster"
+import { removeFromLayout } from "./layout/workspace-layout"
+import { addTerminal, addWindow, isWindow } from "./roster"
 import {
   createTerminalState,
   createWorkspace,
@@ -57,8 +56,8 @@ export type SessionSeed = {
   readonly canvasLayout?: CanvasLayout
   // When the session was last visited; omitted or null if never, which stamps nothing.
   readonly visitedAt?: number | null
-  // How the session was shown, as saved earlier: terminals it laid out keep their place,
-  // order and layout, and the others are laid out after them as new terminals would be.
+  // How the session was shown, as saved earlier: terminals it listed keep their place,
+  // order and layout, and the others follow them as new terminals would.
   // What it kept of terminals, windows and items the backend no longer has goes.
   // `canvasLayout` is ignored.
   readonly restored?: RestoredView
@@ -86,18 +85,10 @@ const validate = (seed: WorkspaceSeed): void => {
   if (empty) throw new WorkspaceSeedError(`Project "${empty.id}" in the seed has no session`)
 }
 
-const appendTile = (state: WorkspaceState, tile: Tile): WorkspaceState => {
-  const tiles = tilesOf(state.roster)
-  return {
-    ...state,
-    roster: isWindow(tile) ? addWindow(state.roster, tile) : addTerminal(state.roster, tile),
-    layout: placeTerminal(state.layout, {
-      terminal: tile,
-      terminals: tiles,
-      gridLayouts: addCompactGridTerminal(tiles, state.layout.grid, tile),
-    }),
-  }
-}
+const appendTile = (state: WorkspaceState, tile: Tile): WorkspaceState => ({
+  ...state,
+  roster: isWindow(tile) ? addWindow(state.roster, tile) : addTerminal(state.roster, tile),
+})
 
 // The session's items, and each terminal's bar: as saved, less what's gone, with what the
 // save didn't know after, oldest first. An item whose terminal or window isn't known is
@@ -125,15 +116,8 @@ const withItems = (
 }
 
 // Every terminal a saved view kept something of, in any view.
-const laidOutIds = (layout: WorkspaceState["layout"], order: readonly string[]): Set<string> =>
-  new Set([
-    ...order,
-    ...Object.keys(layout.canvas.geometry),
-    ...Object.values(layout.grid).flatMap((items) => (items ?? []).map((item) => item.i)),
-    ...Object.keys(layout.gridRestoreWidths),
-    ...Object.keys(layout.sizePresets.grid),
-    ...Object.keys(layout.hidden),
-  ])
+const savedIds = (layout: WorkspaceState["layout"], order: readonly string[]): Set<string> =>
+  new Set([...order, ...Object.keys(layout.canvas.geometry), ...Object.keys(layout.hidden)])
 
 const restoredState = (
   { order, bars = {}, ...restored }: RestoredView,
@@ -143,30 +127,25 @@ const restoredState = (
 ): WorkspaceState => {
   const tiles: readonly Tile[] = [...terminals, ...windows]
   const present = new Set(tiles.map((tile) => tile.id))
-  const laidOut = laidOutIds(restored.layout, order)
-  const gone = [...laidOut, ...order].filter((id) => !present.has(id))
+  const gone = [...savedIds(restored.layout, order)].filter((id) => !present.has(id))
   const layout = gone.reduce(removeFromLayout, restored.layout)
   const sorted = order.filter((id) => present.has(id))
   // A selected terminal that is gone hands selection on.
   const selected = present.has(restored.selected)
     ? restored.selected
     : ([...sorted, ...tiles.map((tile) => tile.id)][0] ?? "")
+  // Terminals and windows the save didn't know follow the others in the sidebar, as new ones.
   const base: WorkspaceState = {
     ...restored,
     layout,
     selected,
-    roster: {
-      terminals: terminals.filter((terminal) => laidOut.has(terminal.id)),
-      windows: windows.filter((window) => laidOut.has(window.id)),
-      order: sorted,
-    },
+    roster: { terminals: [...terminals], windows, order: sorted },
     items: [],
     bars: {},
     fresh: {},
     waiting: [],
   }
-  const laid = tiles.filter((tile) => !laidOut.has(tile.id)).reduce(appendTile, base)
-  return withItems(laid, items, bars)
+  return withItems(base, items, bars)
 }
 
 type SeedDefaults = {
@@ -195,10 +174,12 @@ export const workspaceFromSeed = (seed: WorkspaceSeed, defaults: SeedDefaults): 
           : withItems(
               windows.reduce(
                 appendTile,
-                createTerminalState(terminals, defaults.view, defaults.windowedView, {
-                  ...(session.canvasLayout ? { canvasLayout: session.canvasLayout } : {}),
-                  gridLayouts: initialGridLayouts(terminals, session.canvasLayout?.geometry),
-                }),
+                createTerminalState(
+                  terminals,
+                  defaults.view,
+                  defaults.windowedView,
+                  session.canvasLayout ? { canvasLayout: session.canvasLayout } : {},
+                ),
               ),
               items,
               {},

@@ -774,7 +774,7 @@ describe("Undocking an item into a window of its own", () => {
     })
   })
 
-  context("when dragged onto the Grid's free space", () => {
+  context("when dragged onto the Grid between its tiles", () => {
     it("opens a window there", async () => {
       watchBarDrag()
       await openShowcase()
@@ -787,7 +787,7 @@ describe("Undocking an item into a window of its own", () => {
     })
   })
 
-  context("when dropped on the Grid's free space by the move that starts the drag", () => {
+  context("when dropped on the Grid between its tiles by the move that starts the drag", () => {
     it("opens a window there", async () => {
       watchBarDrag()
       await openShowcase()

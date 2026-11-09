@@ -11,12 +11,11 @@ import { useDesktop } from "../shell/desktop"
 import { sidebarVisible } from "../shell/shell-state"
 import { WorkspaceSidebar } from "../shell/WorkspaceSidebar"
 import { latestTurnEnd } from "../sidebar/source-turns"
-import { keepFoldsTogether } from "../terminals/team-fold"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useStoreSelector } from "./controller/useStoreSelector"
 import { historyShown, sourceShown } from "./routing"
 import { currentState, currentTarget, sameItems, sameTarget } from "./selectors"
-import { foldsOf } from "./team-fold"
+import { useReorderTiles } from "./team-fold"
 import { useSessionMarks } from "./useSessionMarks"
 import { renderTab } from "./WorkspaceTab"
 
@@ -49,8 +48,9 @@ const sameRows = (a: readonly ClosedTerminal[], b: readonly ClosedTerminal[]): b
 
 // The sidebar wired to the workspace: terminal tabs and workspace sessions.
 export const SidebarSection = memo((): React.JSX.Element => {
-  const { commands, backend, workspace: workspaceStore, ui } = useWorkspaceServices()
-  const { switchSession, startFresh, hideSidebar, add, reorder } = commands
+  const { commands, backend } = useWorkspaceServices()
+  const { switchSession, startFresh, hideSidebar, add } = commands
+  const reorderTiles = useReorderTiles()
   const desktop = useDesktop()
   const projectId = useWorkspaceState((workspace) => workspace.activeProjectId)
   const workspaceSessions = useWorkspaceState(
@@ -170,14 +170,7 @@ export const SidebarSection = memo((): React.JSX.Element => {
       onHide={hideSidebar}
       onCreate={() => add()}
       renderTab={renderTab}
-      // A drag past a folded lead keeps its hidden team right after it.
-      onReorder={(tabOrder) => {
-        const saved = keepFoldsTogether(
-          tabOrder,
-          foldsOf(workspaceStore.getSnapshot(), ui.getSnapshot()),
-        )
-        reorder(target, saved)
-      }}
+      onReorder={reorderTiles}
     />
   )
 })

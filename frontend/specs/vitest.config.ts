@@ -30,7 +30,6 @@ const optimizedUpFront = [
   "@novadeck/wire > @orpc/client/standard",
   "@novadeck/wire > @orpc/standard-server-peer",
   "@xyflow/react",
-  "react-grid-layout",
   // The setup file's cleanup, loaded in its hook, after a spec file's own imports.
   "vitest-browser-react/pure",
 ]

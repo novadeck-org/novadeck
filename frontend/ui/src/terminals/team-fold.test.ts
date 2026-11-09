@@ -5,7 +5,6 @@ import {
   foldedTeamsStorageKey,
   foldsAway,
   isFolded,
-  keepFoldsTogether,
   noFoldedTeams,
   readFoldedTeams,
   toggleFolded,
@@ -65,22 +64,6 @@ describe("which tabs fold away", () => {
     expect(foldsAway(noFoldedTeams, "p/s", ["lead"], false)).toBe(false)
     expect(foldsAway(folded, "p/other", ["lead"], false)).toBe(false)
     expect(foldsAway(folded, "p/s", [], false)).toBe(false)
-  })
-})
-
-describe("a drag past a folded lead", () => {
-  const folds = [{ lead: "L", hidden: ["a", "b"] }]
-
-  it("takes its hidden team along when the lead is dragged away", () => {
-    expect(keepFoldsTogether(["a", "b", "X", "L"], folds)).toEqual(["X", "L", "a", "b"])
-  })
-
-  it("keeps a tab dropped on the lead out of its hidden team", () => {
-    expect(keepFoldsTogether(["L", "X", "a", "b"], folds)).toEqual(["L", "a", "b", "X"])
-  })
-
-  it("leaves an order with nothing folded as it is", () => {
-    expect(keepFoldsTogether(["X", "L", "a"], [])).toEqual(["X", "L", "a"])
   })
 })
 

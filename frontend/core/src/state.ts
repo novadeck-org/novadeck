@@ -26,13 +26,7 @@ import {
   barOf,
   withBar,
 } from "./items/transitions"
-import {
-  emptyLayout,
-  placeTerminal,
-  pruneCanvasLayout,
-  pruneGridLayouts,
-  resizeGridTerminal,
-} from "./layout/workspace-layout"
+import { emptyLayout, pruneCanvasLayout } from "./layout/workspace-layout"
 import {
   addTerminal,
   createRoster,
@@ -52,8 +46,6 @@ import {
 import type {
   CanvasLayout,
   CompanionWindowMeta,
-  GridLayouts,
-  GridRestoreWidths,
   PreferencesValue,
   Project,
   TerminalLayout,
@@ -121,7 +113,6 @@ export type WorkspaceAction =
       type: "terminal/add"
       target: WorkspaceTarget
       terminal: TerminalMetadata
-      gridLayouts?: GridLayouts
       // The terminal that opened it, which it is listed under in the sidebar.
       anchor?: string
       // Listed first in the sidebar, as a terminal the person makes is; without it, or an
@@ -165,7 +156,6 @@ export type WorkspaceAction =
       target: WorkspaceTarget
       itemId: ItemId
       window: CompanionWindowMeta
-      gridLayouts?: GridLayouts
       canvasGeometry?: CanvasLayout["geometry"][string]
     }
   // The person opened a file in the session's project window, as the backend now has it:
@@ -175,7 +165,6 @@ export type WorkspaceAction =
       target: WorkspaceTarget
       item: Item
       window: CompanionWindowMeta
-      gridLayouts?: GridLayouts
       // The session had no such window before this open, so it is placed as asked even if
       // the watch placed it a moment earlier, which the person has not touched.
       made?: boolean
@@ -228,13 +217,6 @@ export type WorkspaceAction =
     }
   | { type: "preferences/reconcile"; target: WorkspaceTarget; preferences: PreferencesValue }
   | { type: "canvas/layout"; target: WorkspaceTarget; layout: ValueUpdate<CanvasLayout> }
-  | { type: "grid/layouts"; target: WorkspaceTarget; layouts: ValueUpdate<GridLayouts> }
-  | {
-      type: "grid/size-toggle"
-      target: WorkspaceTarget
-      terminalId: string
-      change: { layouts: GridLayouts; restoreWidths: GridRestoreWidths | null }
-    }
 
 export const createWorkspaceSession = (
   input: WorkspaceSessionInput,
@@ -250,13 +232,10 @@ export const createTerminalState = (
   terminals: TerminalMetadata[],
   view: ViewMode,
   windowedView: WindowedView,
-  initial: { canvasLayout?: CanvasLayout; gridLayouts?: GridLayouts } = {},
+  initial: { canvasLayout?: CanvasLayout } = {},
 ): WorkspaceState => ({
   roster: createRoster(terminals),
-  layout: emptyLayout({
-    ...(initial.canvasLayout ? { canvas: initial.canvasLayout } : {}),
-    ...(initial.gridLayouts ? { grid: initial.gridLayouts } : {}),
-  }),
+  layout: emptyLayout(initial.canvasLayout ? { canvas: initial.canvasLayout } : {}),
   view,
   windowedView,
   selected: terminals[0]?.id ?? "",
@@ -502,7 +481,6 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
       return updateTarget(workspace, action.target, (state) => {
         const { roster } = state
         if (!action.terminal.id || hasTerminal(roster, action.terminal.id)) return state
-        const tiles = tilesOf(roster)
         const added = addTerminal(roster, action.terminal)
         return {
           ...state,
@@ -513,11 +491,6 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
               : action.first
                 ? listFirst(added, action.terminal.id)
                 : added,
-          layout: placeTerminal(state.layout, {
-            terminal: action.terminal,
-            terminals: tiles,
-            gridLayouts: action.gridLayouts,
-          }),
           selected: action.select === false ? state.selected : action.terminal.id,
         }
       })
@@ -679,21 +652,6 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
           )
           return canvas === layout.canvas ? layout : { ...layout, canvas }
         }),
-      )
-    case "grid/layouts":
-      return updateTarget(workspace, action.target, (state) =>
-        updateLayout(state, (layout) => {
-          const grid = pruneGridLayouts(apply(layout.grid, action.layouts), tilesOf(state.roster))
-          return grid === layout.grid ? layout : { ...layout, grid }
-        }),
-      )
-    case "grid/size-toggle":
-      return updateTarget(workspace, action.target, (state) =>
-        hasTile(state.roster, action.terminalId)
-          ? updateLayout(state, (layout) =>
-              resizeGridTerminal(layout, action.terminalId, action.change, tilesOf(state.roster)),
-            )
-          : state,
       )
   }
 }

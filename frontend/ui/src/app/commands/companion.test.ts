@@ -1,4 +1,5 @@
 import { messagesKey } from "@novadeck/core/items/companion-bar"
+import { orderedTiles } from "@novadeck/core/roster"
 import { workspaceReducer, type WorkspaceAction } from "@novadeck/core/state"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 import type { Workspace } from "@novadeck/core/types"
@@ -25,7 +26,9 @@ const open = (options: Parameters<typeof openCommands>[0] = {}) => {
   const item = (id: string) => app.state().items.find((each) => each.id === id)
   const windows = () => app.state().roster.windows
   const bar = (terminalId: string) => app.state().bars[terminalId]
-  return { ...app, item, windows, bar }
+  // The terminals and windows in the sidebar's order, as Grid lays them out.
+  const listed = () => orderedTiles(app.state().roster).map((tile) => tile.id)
+  return { ...app, item, windows, bar, listed }
 }
 
 describe("companion commands", () => {
@@ -83,15 +86,48 @@ describe("companion commands", () => {
       })
     })
 
-    it("opens its window in the cell it was dropped in on the grid, in the layout it made", () => {
+    it("opens its window before the tile it was dropped on in the grid, in the sidebar's order", () => {
       const app = open()
-      const cell = { x: 6, y: 24, w: 6, h: 18 }
-      const moved = { i: "02", x: 0, y: 48, w: 4, h: 18 }
-      app.commands.undock(hero.id, { grid: { breakpoint: "desktop", layout: [moved], cell } })
-      expect(app.state().layout.grid.desktop).toEqual([
-        moved,
-        expect.objectContaining({ i: "session-1", ...cell }),
-      ])
+      app.commands.undock(hero.id, { grid: { before: "02" } })
+      expect(app.listed()).toEqual(["01", "session-1", "02"])
+      expect(app.shell().reordered).toBe(1)
+      expect(app.state().selected).toBe("session-1")
+    })
+
+    it("opens its window last when it was dropped after the last tile in the grid", () => {
+      const app = open()
+      app.commands.undock(hero.id, { grid: { before: null } })
+      expect(app.listed()).toEqual(["01", "02", "session-1"])
+    })
+
+    it("moves a window already open to where it was dropped in the grid", () => {
+      const app = open()
+      app.commands.undock(hero.id, { grid: { before: null } })
+      app.commands.undock(hero.id, { grid: { before: "01" } })
+      expect(app.listed()).toEqual(["session-1", "01", "02"])
+      expect(app.shell().reordered).toBe(2)
+    })
+
+    it("keeps a folded team together, listing a window dropped inside it after the team", () => {
+      const workspace = withItems(workspaceFixture({ terminals: 4 }))
+      const { terminals } = workspace.projects[0]!.history[0]!.state.roster
+      terminals[0] = { ...terminals[0]!, handle: "moth" }
+      terminals[1] = { ...terminals[1]!, handle: "fox", ledBy: "moth" }
+      terminals[2] = { ...terminals[2]!, handle: "owl", ledBy: "moth" }
+      const app = open({ workspace })
+      app.ui.update((state) => ({ ...state, foldedTeams: { "project/initial": ["01"] } }))
+
+      app.commands.undock(hero.id, { grid: { before: "02" } })
+
+      expect(app.listed()).toEqual(["01", "02", "03", "session-1", "04"])
+    })
+
+    it("leaves a window dropped on its own place where it is", () => {
+      const app = open()
+      app.commands.undock(hero.id, { grid: { before: "02" } })
+      app.commands.undock(hero.id, { grid: { before: "02" } })
+      expect(app.listed()).toEqual(["01", "session-1", "02"])
+      expect(app.shell().reordered).toBe(1)
     })
   })
 

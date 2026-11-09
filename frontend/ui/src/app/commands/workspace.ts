@@ -2,9 +2,7 @@ import { resetAnswering } from "@novadeck/chat/state"
 import { descendantsOf } from "@novadeck/core/derivations"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { ClosedTerminal } from "@novadeck/core/history"
-import { addCompactGridTerminal } from "@novadeck/core/layout/grid-placement"
 import type { TerminalRequest } from "@novadeck/core/port"
-import { tilesOf } from "@novadeck/core/roster"
 import { activeProject, type WorkspaceAction } from "@novadeck/core/state"
 import { closeReasons } from "@novadeck/core/terminals/closing"
 import type {
@@ -463,7 +461,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       recent.setSwitcher(null)
       const snapshot = workspace.getSnapshot()
       const project = activeProject(snapshot)!
-      const { roster, layout, view } = currentState(snapshot)
+      const { view } = currentState(snapshot)
       const target = currentTarget(snapshot)
       const terminal = newTerminal({ target, directory: project.directory })
       const active = rename.activeRename()
@@ -475,7 +473,6 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
           type: "terminal/add",
           target,
           terminal,
-          gridLayouts: addCompactGridTerminal(tilesOf(roster), layout.grid, terminal),
           first: true,
         },
       ]
@@ -492,7 +489,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         return request.answer({ reason: "The terminal that asked isn't open in Novadeck." })
       const { project, session } = found
       const target = { projectId: project.id, workspaceSessionId: session.id }
-      const { roster, layout } = session.state
+      const { roster } = session.state
       const opener = roster.terminals.find((each) => each.id === request.from)?.handle
       // Opened by the asking terminal, as its backend will say, so it lists under it at once,
       // after any it opened just before.
@@ -508,7 +505,6 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         type: "terminal/add",
         target,
         terminal,
-        gridLayouts: addCompactGridTerminal(tilesOf(roster), layout.grid, terminal),
         anchor: request.from,
         select: request.focus,
       }
@@ -544,7 +540,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       if (restoring.has(row.id)) return
       recent.setSwitcher(null)
       const snapshot = workspace.getSnapshot()
-      const { roster, layout, view } = currentState(snapshot)
+      const { view } = currentState(snapshot)
       const target = currentTarget(snapshot)
       // The backend names and starts it from the row; until it says more the terminal shows
       // the row's folder. No `title`: that would make the row's name the person's own.
@@ -560,7 +556,6 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
           type: "terminal/add",
           target,
           terminal,
-          gridLayouts: addCompactGridTerminal(tilesOf(roster), layout.grid, terminal),
           first: true,
         },
       ])

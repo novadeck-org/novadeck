@@ -1,186 +1,89 @@
-import { gridColumns } from "@novadeck/core/layout/grid-placement"
-import { gridPresetWidth, gridTileHeight } from "@novadeck/core/layout/terminal-size"
-import type { GridCell } from "@novadeck/core/layout/window-place"
-import type {
-  GridBreakpoint,
-  GridItem,
-  GridLayouts,
-  GridRestoreWidths,
-  Placed,
-} from "@novadeck/core/types"
-import { verticalCompactor } from "react-grid-layout"
+import type { TileBox } from "./team-route"
 
-// The grid's rows and the space between windows, in pixels: a row is its height and the
-// margin below it.
-export const gridRowHeight = 8
-export const gridMargin = 16
-export const gridRow = gridRowHeight + gridMargin
+// How Grid lays its tiles out: from the sidebar's order alone, so nothing about it is saved.
+// Every tile has one size however many there are, so opening or closing a terminal never
+// resizes another's (that would resize its program's screen): the columns come from the
+// Grid's width, the rows from the count, and the Grid scrolls.
 
-// A new tile's height in rows.
-const defaultHeight = Math.ceil((gridTileHeight + gridMargin) / gridRow)
+// The space between tiles, in pixels.
+export const gridGap = 16
 
-export const visibleGridLayouts = (
-  // The windows it lays out, by id.
-  terminals: readonly Placed[],
-  layouts: GridLayouts,
-  hidden: Record<string, boolean> = {},
-): GridLayouts => {
-  const result: GridLayouts = {}
-  for (const breakpoint of Object.keys(gridColumns) as GridBreakpoint[]) {
-    const saved = layouts[breakpoint] ?? []
-    const bottom = saved.reduce((end, item) => Math.max(end, item.y + item.h), 0)
-    result[breakpoint] = verticalCompactor.compact(
-      terminals
-        .map((terminal, index) => {
-          const previous = saved.find((item) => item.i === terminal.id)
-          return (
-            previous ?? {
-              i: terminal.id,
-              x: (index % (gridColumns[breakpoint] / 4)) * 4,
-              y: bottom + Math.floor(index / (gridColumns[breakpoint] / 4)) * 100,
-              w: 4,
-              h: defaultHeight,
-              minW: 4,
-              minH: 10,
-            }
-          )
-        })
-        .filter((item) => !hidden[item.i]),
-      gridColumns[breakpoint],
-    )
-  }
-  return result
+// Every tile's height, the same a new tile had before Grid laid itself out.
+export const gridTileHeight = 416
+
+// The narrowest a tile gets: as many columns fit as leave each tile this wide, and the tiles
+// then stretch to fill the row. Below it, which is a phone's width, one column takes the
+// whole width.
+export const gridTileMinWidth = 480
+
+export const gridColumnCount = (width: number): number =>
+  Math.max(1, Math.floor((width + gridGap) / (gridTileMinWidth + gridGap)))
+
+export type GridArrangement = {
+  readonly columns: number
+  readonly tileWidth: number
+  // Each tile, in reading order: left to right, then top to bottom.
+  readonly boxes: readonly TileBox[]
+  // How tall they stand together.
+  readonly height: number
 }
 
-const sameGeometry = (next: GridLayouts, projected: GridLayouts): boolean =>
-  (Object.keys(next) as GridBreakpoint[]).every((breakpoint) => {
-    const actual = next[breakpoint] ?? []
-    const expected = projected[breakpoint] ?? []
-    return (
-      actual.length === expected.length &&
-      actual.every((item) => {
-        const match = expected.find((entry) => entry.i === item.i)
-        return match?.x === item.x && match.y === item.y && match.w === item.w && match.h === item.h
-      })
-    )
-  })
-
-export const savedGridLayouts = (
-  next: GridLayouts,
-  previous: GridLayouts,
-  terminals: readonly Placed[],
-  hidden: Record<string, boolean> = {},
-): GridLayouts => {
-  // Hiding changes the projected layout without changing the saved arrangement.
-  const projected = Object.values(hidden).some(Boolean)
-    ? visibleGridLayouts(terminals, previous, hidden)
-    : undefined
-  if (projected && sameGeometry(next, projected)) return previous
-
-  const result: GridLayouts = {}
-  for (const breakpoint of new Set([
-    ...(Object.keys(previous) as GridBreakpoint[]),
-    ...(Object.keys(next) as GridBreakpoint[]),
-  ])) {
-    if (
-      projected &&
-      sameGeometry({ [breakpoint]: next[breakpoint] }, { [breakpoint]: projected[breakpoint] })
-    ) {
-      if (previous[breakpoint]) result[breakpoint] = previous[breakpoint]
-      continue
-    }
-    const visible = next[breakpoint]
-    result[breakpoint] = visible
-      ? [...visible, ...(previous[breakpoint]?.filter((item) => hidden[item.i]) ?? [])]
-      : (previous[breakpoint] ?? [])
-  }
-  return result
-}
-
-// The placeholder for a window dropped on the grid, in the layout it makes there.
-export const dropPlaceholder = "drop-placeholder"
-
-// The grid as it shows, `visible`, with a window of `size` dropped at a cell under the
-// pointer, `at`: the layout it makes there, the placeholder in it and the windows it
-// moves aside as the grid makes room, and the placeholder's cell. It goes below a window
-// that starts above it and reaches down to it, never over it: pushing that window down
-// would let the placeholder float up into its place. Pinned there, it pushes what's below
-// it further down; then the grid packs everything up.
-export const dropLayout = (
-  visible: readonly GridItem[],
-  columns: number,
-  at: { readonly column: number; readonly row: number },
-  size: { readonly w: number; readonly h: number },
-): { readonly layout: readonly GridItem[]; readonly cell: GridCell } | null => {
-  const { w, h } = size
-  const column = Math.min(Math.max(0, at.column), columns - w)
-  const existing = visible.filter((item) => item.i !== dropPlaceholder)
-  const across = (item: GridItem): boolean => item.x < column + w && column < item.x + item.w
-  let top = Math.max(0, at.row)
-  for (let moved = true; moved;) {
-    moved = false
-    for (const item of existing)
-      if (across(item) && item.y < top && item.y + item.h > top) {
-        top = item.y + item.h
-        moved = true
-      }
-  }
-  const pinned = verticalCompactor.compact(
-    [
-      ...existing.map((item) => ({ ...item })),
-      { i: dropPlaceholder, x: column, y: top, w, h, minW: 4, minH: 10, static: true },
-    ],
-    columns,
-  )
-  const layout: readonly GridItem[] = verticalCompactor.compact(
-    pinned.map(({ static: _pinned, ...item }) => ({ ...item })),
-    columns,
-  )
-  const placed = layout.find((item) => item.i === dropPlaceholder)
-  return placed ? { layout, cell: { x: placed.x, y: placed.y, w: placed.w, h: placed.h } } : null
-}
-
-export type GridWidthToggle = {
-  layouts: GridLayouts
-  restoreWidths: GridRestoreWidths | null
-}
-
-export const toggleGridWidth = (
-  id: string,
-  expand: boolean,
-  terminals: readonly Placed[],
-  layouts: GridLayouts,
-  hidden: Record<string, boolean>,
-  savedWidths: GridRestoreWidths = {},
-): GridWidthToggle => {
-  const visible = visibleGridLayouts(terminals, layouts, hidden)
-  const next: GridLayouts = {}
-  const restoreWidths: GridRestoreWidths = {}
-  for (const breakpoint of Object.keys(gridColumns) as GridBreakpoint[]) {
-    const columns = gridColumns[breakpoint]
-    const current = visible[breakpoint]?.find((item) => item.i === id)
-    restoreWidths[breakpoint] =
-      current?.w ??
-      layouts[breakpoint]?.find((item) => item.i === id)?.w ??
-      gridPresetWidth(columns, "small")
-    const width = expand
-      ? columns
-      : Math.max(4, Math.min(columns, savedWidths[breakpoint] ?? gridPresetWidth(columns, "small")))
-    next[breakpoint] = verticalCompactor.compact(
-      (visible[breakpoint] ?? []).map((item) =>
-        item.i === id
-          ? {
-              ...item,
-              x: Math.min(item.x, columns - width),
-              w: width,
-            }
-          : item,
-      ),
-      columns,
-    )
-  }
+// Where each of the tiles `ids` goes in a Grid `width` pixels wide, in the frame of the Grid.
+export const arrangeGrid = (ids: readonly string[], width: number): GridArrangement => {
+  const columns = gridColumnCount(width)
+  const tileWidth = (width - gridGap * (columns - 1)) / columns
+  const boxes = ids.map((id, index) => ({
+    id,
+    left: (index % columns) * (tileWidth + gridGap),
+    top: Math.floor(index / columns) * (gridTileHeight + gridGap),
+    width: tileWidth,
+    height: gridTileHeight,
+  }))
+  const rows = Math.ceil(ids.length / columns)
   return {
-    layouts: savedGridLayouts(next, layouts, terminals, hidden),
-    restoreWidths: expand ? restoreWidths : null,
+    columns,
+    tileWidth,
+    boxes,
+    height: rows ? rows * gridTileHeight + (rows - 1) * gridGap : 0,
   }
+}
+
+// The place in the order a tile held at `point`, in the frame of the Grid, takes: the cell
+// the point is in, or the last place for a point past the tiles. `last` is the highest place
+// there is, one past the tiles for a tile that isn't among them.
+export const slotAt = (
+  point: { readonly x: number; readonly y: number },
+  width: number,
+  last: number,
+): number => {
+  const { columns, tileWidth } = arrangeGrid([], width)
+  const column = Math.min(Math.max(Math.floor(point.x / (tileWidth + gridGap)), 0), columns - 1)
+  const row = Math.max(Math.floor(point.y / (gridTileHeight + gridGap)), 0)
+  return Math.min(row * columns + column, Math.max(last, 0))
+}
+
+// `ids` with `id` moved to place `to`, or put there if it isn't among them.
+export const moveToSlot = (ids: readonly string[], id: string, to: number): string[] => {
+  const rest = ids.filter((each) => each !== id)
+  return [...rest.slice(0, to), id, ...rest.slice(to)]
+}
+
+// The sidebar's whole order, `all`, once the tile `id` of those the Grid shows, `shown`, is
+// dragged to place `to` among them. Tiles the Grid doesn't show (the hidden ones) keep
+// their places among the others; the dragged tile goes right after the shown tile that now
+// precedes it, or, first of all, right before the one that follows. The same order, `all`
+// itself, when the drag leaves the shown tiles as they were.
+export const orderAfterDrag = (
+  all: readonly string[],
+  shown: readonly string[],
+  id: string,
+  to: number,
+): readonly string[] => {
+  const next = moveToSlot(shown, id, to)
+  if (next.every((each, index) => each === shown[index])) return all
+  const at = next.indexOf(id)
+  const rest = all.filter((each) => each !== id)
+  const after = next[at - 1]
+  const index = after === undefined ? rest.indexOf(next[at + 1]!) : rest.indexOf(after) + 1
+  return [...rest.slice(0, index), id, ...rest.slice(index)]
 }

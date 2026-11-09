@@ -63,20 +63,19 @@ import { useTerminalMarks } from "./useTerminalMarks"
 // undocked from a companion: its header, its menu, and the controls its layout offers.
 const useWindowFrame = (
   tile: Tile,
-  { onFlyTo, onResizePreset }: TerminalLayoutControls,
+  { onFlyTo }: TerminalLayoutControls,
 ): Omit<WindowShellProps, "children" | "icon"> => {
   const { backend, commands } = useWorkspaceServices()
-  const { setSelected, openWindowed, openFocus, close, startRename, openSwitcher } = commands
+  const { openWindowed, openFocus, close, startRename, openSwitcher } = commands
   const { resetTitle, changeRenameDraft, saveRename, cancelRename } = commands
   const id = tile.id
-  const { context, view, windowedView, active, large } = useWorkspaceState((workspace) => {
+  const { context, view, windowedView, active } = useWorkspaceState((workspace) => {
     const state = currentState(workspace)
     return {
       context: currentContext(workspace),
       view: state.view,
       windowedView: state.windowedView,
       active: state.selected === id,
-      large: state.view === "grid" && state.layout.sizePresets.grid[id] === "large",
     }
   }, shallowEqual)
   const { fresh, rename, enabledViews, unread } = useUiState(
@@ -130,15 +129,6 @@ const useWindowFrame = (
     switcher: { onOpen: (button) => openSwitcher(id, button) },
     onClose: () => close(id),
     ...(onFlyTo ? { onFlyTo } : {}),
-    ...(onResizePreset
-      ? {
-          onResizePreset: (button: HTMLButtonElement) => {
-            setSelected(id)
-            onResizePreset(button)
-          },
-        }
-      : {}),
-    large,
     ...(compact && enabledViews.includes("focus")
       ? { onFocus: () => openFocus(id) }
       : !compact && destination

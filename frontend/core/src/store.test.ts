@@ -93,85 +93,47 @@ describe("workspace commands", () => {
     expect(terminalState.roster).toEqual({ terminals: [terminal], windows: [], order: [] })
   })
 
-  it("adding a terminal selects it and places it in Grid's layouts", () => {
+  it("adding a terminal selects it and leaves it for Grid and Canvas to arrange", () => {
     const store = createWorkspaceStore(initial())
     const before = state(store.getSnapshot())
-    store.dispatch({
-      type: "terminal/add",
-      target,
-      terminal: terminalFixture(2, "~/project"),
-      gridLayouts: {
-        desktop: [
-          { i: "02", x: 0, y: 0, w: 3, h: 4 },
-          { i: "obsolete", x: 3, y: 0, w: 3, h: 4 },
-        ],
-      },
-    })
+    store.dispatch({ type: "terminal/add", target, terminal: terminalFixture(2, "~/project") })
     const added = state(store.getSnapshot())
     expect(added.selected).toBe("02")
     expect(added.roster.terminals).toHaveLength(before.roster.terminals.length + 1)
-    expect(added.layout.grid.desktop!.map((item) => item.i)).toEqual(["02"])
-    expect(added.layout.sizePresets).toEqual({ grid: { "02": "small" } })
-    expect(added.layout).toMatchObject({ hidden: {}, gridRestoreWidths: {} })
+    expect(added.layout).toEqual({ canvas: before.layout.canvas, hidden: {} })
   })
 
-  it("leaves a terminal added without geometry for Canvas to arrange", () => {
-    const store = createWorkspaceStore(initial())
-    store.dispatch({ type: "terminal/add", target, terminal: terminalFixture(2, "~/project") })
-    const { layout } = state(store.getSnapshot())
-    expect(layout.canvas.geometry).not.toHaveProperty("02")
-    expect(layout.grid).toEqual({})
-  })
-
-  it("closing removes every saved reference and ignores delayed layout items", () => {
+  it("closing removes every saved reference and ignores delayed Canvas layout items", () => {
     const workspace = initial()
     const seeded = state(workspace)
     const canvas = {
       geometry: { "01": { position: { x: 1, y: 1 } } },
     }
-    const grid = { desktop: [{ i: "01", x: 0, y: 0, w: 3, h: 4 }] }
     workspace.projects[0]!.history[0]!.state = {
       ...seeded,
       roster: { ...seeded.roster, order: ["01"] },
-      layout: {
-        canvas,
-        grid,
-        hidden: { "01": true },
-        gridRestoreWidths: { "01": { desktop: 3 } },
-        sizePresets: { grid: { "01": "large" } },
-      },
+      layout: { canvas, hidden: { "01": true } },
     }
     const closed = workspaceReducer(workspace, { type: "terminal/close", target, terminalId: "01" })
     expect(state(closed)).toEqual({
       ...seeded,
       selected: "",
       roster: { terminals: [], windows: [], order: [] },
-      layout: {
-        canvas: { geometry: {} },
-        grid: { desktop: [] },
-        hidden: {},
-        gridRestoreWidths: {},
-        sizePresets: { grid: {} },
-      },
+      layout: { canvas: { geometry: {} }, hidden: {} },
     })
-    const delayed = workspaceReducer(closed, { type: "grid/layouts", target, layouts: grid })
-    expect(state(delayed).layout.grid).toEqual({ desktop: [] })
-    const delayedCanvas = workspaceReducer(delayed, {
+    const delayedCanvas = workspaceReducer(closed, {
       type: "canvas/layout",
       target,
       layout: canvas,
     })
     expect(state(delayedCanvas).layout.canvas).toEqual({ geometry: {} })
-    const late: WorkspaceAction[] = [
-      { type: "terminal/visibility", target, terminalId: "01", hidden: true },
-      {
-        type: "grid/size-toggle",
-        target,
-        terminalId: "01",
-        change: { layouts: grid, restoreWidths: { desktop: 6 } },
-      },
-    ]
-    for (const action of late) expect(workspaceReducer(delayedCanvas, action)).toBe(delayedCanvas)
+    const late: WorkspaceAction = {
+      type: "terminal/visibility",
+      target,
+      terminalId: "01",
+      hidden: true,
+    }
+    expect(workspaceReducer(delayedCanvas, late)).toBe(delayedCanvas)
   })
 })
 

@@ -1,17 +1,22 @@
 import { isOnBar, kindRules, windowOfItem, type ItemId } from "@novadeck/core/items"
-import { addCompactGridTerminal } from "@novadeck/core/layout/grid-placement"
 import {
   droppedCanvasGeometry,
-  dropOnGrid,
   moveOnCanvas,
   type WindowPlace,
 } from "@novadeck/core/layout/window-place"
-import { hasTerminal, hasWindow, tilesOf } from "@novadeck/core/roster"
+import {
+  hasTerminal,
+  hasWindow,
+  keepFoldsTogether,
+  orderBefore,
+  orderedTiles,
+} from "@novadeck/core/roster"
 import type { WorkspaceAction } from "@novadeck/core/state"
 import type { CompanionWindowMeta } from "@novadeck/core/types"
 import type { CompanionActions } from "@novadeck/items/actions"
 
-import { currentContext, currentState, currentTarget } from "../selectors"
+import { markReordered } from "../../shell/shell-state"
+import { currentContext, currentState, currentTarget, foldsOf } from "../selectors"
 import type { CommandContext } from "./context"
 
 // What the person does with companion items and the bars that hold them: the companion
@@ -29,26 +34,41 @@ export const createCompanionCommands = (
   ctx: CommandContext,
   { select, setSelected, markCreated, pulse }: CompanionDependencies,
 ): CompanionCommands => {
-  const { workspace, navigation, effects } = ctx
+  const { workspace, ui, navigation, effects } = ctx
   const itemOf = (id: ItemId) =>
     currentState(workspace.getSnapshot()).items.find((item) => item.id === id)
   const commit = (actions: readonly WorkspaceAction[]): void => void workspace.transact(actions)
 
+  // The sidebar's order with window `id` listed just before the tile `before`, or last: where
+  // a window dropped on Grid goes, with a folded team's tabs kept together as a drag keeps them.
+  const orderWith = (id: string, before: string | null): string[] => {
+    const snapshot = workspace.getSnapshot()
+    const ids = orderedTiles(currentState(snapshot).roster).map((tile) => tile.id)
+    return keepFoldsTogether(
+      orderBefore(ids, id, before),
+      foldsOf(snapshot, ui.getSnapshot().foldedTeams),
+    )
+  }
+  // Canvas arranges its windows by the sidebar's order, afresh once it has changed.
+  const markListed = (): void =>
+    void ui.update((state) => ({ ...state, shell: markReordered(state.shell) }))
+
   const moveTo = (id: string, place: WindowPlace): void => {
     const target = currentTarget(workspace.getSnapshot())
-    commit([
-      "canvas" in place
-        ? {
-            type: "canvas/layout",
-            target,
-            layout: (canvas) => moveOnCanvas(canvas, id, place.canvas),
-          }
-        : {
-            type: "grid/layouts",
-            target,
-            layouts: (layouts) => dropOnGrid(layouts, id, place.grid),
-          },
-    ])
+    if ("canvas" in place)
+      commit([
+        {
+          type: "canvas/layout",
+          target,
+          layout: (canvas) => moveOnCanvas(canvas, id, place.canvas),
+        },
+      ])
+    else {
+      const before = workspace.getSnapshot()
+      const order = orderWith(id, place.grid.before)
+      if (workspace.dispatch({ type: "terminal/reorder", target, tabOrder: order }) !== before)
+        markListed()
+    }
     // Placed where the person dropped it, in view: selected without moving the camera.
     setSelected(id)
   }
@@ -56,7 +76,7 @@ export const createCompanionCommands = (
   const commands = {
     undock: (itemId, place) => {
       const snapshot = workspace.getSnapshot()
-      const { roster, layout } = currentState(snapshot)
+      const { roster } = currentState(snapshot)
       const item = itemOf(itemId)
       if (!item) return
       const open = windowOfItem(item)
@@ -68,7 +88,6 @@ export const createCompanionCommands = (
         name: item.name,
         titleSource: { kind: "default" },
       }
-      const grid = addCompactGridTerminal(tilesOf(roster), layout.grid, window)
       markCreated({ context: currentContext(snapshot), id: window.id })
       navigation.navigateWorkspace(
         [
@@ -77,14 +96,23 @@ export const createCompanionCommands = (
             target: currentTarget(snapshot),
             itemId,
             window,
-            gridLayouts: place && "grid" in place ? dropOnGrid(grid, window.id, place.grid) : grid,
             ...(place && "canvas" in place
               ? { canvasGeometry: droppedCanvasGeometry(place.canvas) }
               : {}),
           },
+          ...(place && "grid" in place
+            ? [
+                {
+                  type: "terminal/reorder" as const,
+                  target: currentTarget(snapshot),
+                  tabOrder: orderWith(window.id, place.grid.before),
+                },
+              ]
+            : []),
         ],
         { panel: "terminals" },
       )
+      if (place && "grid" in place) markListed()
       if (!place) pulse()
     },
     dock: (windowId) => {

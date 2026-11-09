@@ -38,7 +38,6 @@ export const roles: Record<string, Role> = {
   "lucide-react": { role: "Icons", category: "UI" },
   allotment: { role: "Resizable split panes", category: "UI" },
   "@dnd-kit/*": { role: "Drag and drop", category: "UI" },
-  "react-grid-layout": { role: "The Grid view's layout", category: "Canvas" },
   "@xyflow/react": { role: "The Canvas view's pan and zoom", category: "Canvas", lead: true },
   "@xterm/xterm": { role: "Terminal renderer", category: "Terminal", lead: true },
   "@xterm/headless": { role: "Terminal state without a screen", category: "Terminal", lead: true },

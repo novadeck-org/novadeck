@@ -37,7 +37,7 @@ Codex may ask you to trust Novadeck's hooks. Do it with `/hooks`, or messages wo
 
 ![Grid: four agents side by side.](assets/grid.webp)
 
-**Grid**: everything side by side.
+**Grid**: everything side by side, in the order of the Terminals list. Drag a terminal by its header to reorder.
 
 ![Canvas: eleven terminals arranged on a board.](assets/guide/canvas.webp)
 
