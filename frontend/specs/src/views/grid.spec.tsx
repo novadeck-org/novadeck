@@ -341,6 +341,28 @@ describe("Grid view", () => {
         .toBe(true)
     })
 
+    it("scrolls the Grid while its corner is held near the bottom, so the tile can grow past the screen", async () => {
+      await openGrid(700)
+      const [first] = terminalTabNames()
+      const one = bounds(terminal(first!))
+      const stage = gridView().element().querySelector<HTMLElement>(".grid-stage")!
+      const box = bounds(corner(first!))
+
+      await pinPointer("press", { x: box.left + box.width / 2, y: box.top + box.height / 2 })
+      await pinPointer("move", {
+        x: box.left + box.width / 2,
+        y: stage.getBoundingClientRect().bottom - 8,
+      })
+      await expect.poll(() => stage.scrollTop).toBeGreaterThan(100)
+      await expect.poll(() => bounds(terminal(first!)).height).toBeGreaterThan(one.height + 100)
+      await pinPointer("release")
+
+      await expectStaysTrue(
+        () => bounds(terminal(first!)).height > one.height + 100,
+        "the taller size, saved",
+      )
+    })
+
     it("keeps a sized tile's size when a terminal is made", async () => {
       await openGrid()
       const [first] = terminalTabNames()

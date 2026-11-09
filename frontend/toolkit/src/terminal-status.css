@@ -82,7 +82,8 @@
 .canvas-node .terminal-ending {
   padding-right: calc(28px * var(--_canvas-chrome-scale, 1) + 4px);
 }
-/* Grid's resize corner is 28px too, at the tile's bottom-right corner. */
+/* Grid's resize corner, 28px at the tile's bottom-right corner: the bar keeps its Restart
+   button clear of it. */
 .grid-terminal .terminal-ending {
   padding-right: calc(28px + 4px);
 }
