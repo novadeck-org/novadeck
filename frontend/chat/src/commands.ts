@@ -136,6 +136,11 @@ export const ringWaitMs = 60_000
 // line a ring left in the box can stand there with no ring under way.
 export const ringRetryMs = 1_000
 
+// Why a reply or a shell command can't go while the box holds images.
+export const replyImagesNote = "A reply can't take images. Remove them, or send them as a message."
+export const shellImagesNote =
+  "A shell command can't take images. Remove them, or send them as a message."
+
 // The session context a terminal's chat state is kept under.
 const contextOf = (key: TerminalKey) => `${key.projectId}/${key.workspaceSessionId}`
 
@@ -501,12 +506,9 @@ export const createChatCommands = ({
     // The draft as typed goes back on a failure, not the words as sent, trimmed.
     const draft = chatDraftOf(chat.store.getSnapshot().drafts, context, terminalId) || text
     const ref = promptRef()
-    // A reply takes words only, so the images whose placeholders were in the draft go with it.
-    releaseImages(chatAttachmentsOf(chat.store.getSnapshot().attachments, context, terminalId))
     chat.update((state) => ({
       ...state,
       drafts: setChatDraft(state.drafts, context, terminalId, ""),
-      attachments: setChatAttachments(state.attachments, context, terminalId, []),
       sends: setChatSends(state.sends, context, terminalId, [
         ...chatSendsOf(state.sends, context, terminalId),
         { ref, draft, text, images: [], at: [], to, phase: "typing" },
@@ -766,9 +768,16 @@ export const createChatCommands = ({
     },
     sendChat: async (key, text, to, given) => {
       if (!conversations) throw new Error("This backend can't reach the agent.")
-      if (to) return await sendReply(key, text, to)
       const context = contextOf(key)
       const { terminalId } = key
+      // Neither a reply nor a shell command takes images: the draft and its images stay as they
+      // are, for the person to remove them or send them as a message.
+      const imaged =
+        chatAttachmentsOf(chat.store.getSnapshot().attachments, context, terminalId).length > 0
+      if (to && imaged && given === undefined) throw new Error(replyImagesNote)
+      if (to) return await sendReply(key, text, to)
+      if (imaged && given === undefined && shellCommand(text) !== undefined)
+        throw new Error(shellImagesNote)
       const own = given === undefined
       const held = own
         ? chatAttachmentsOf(chat.store.getSnapshot().attachments, context, terminalId)
@@ -788,7 +797,6 @@ export const createChatCommands = ({
       const images = split?.images ?? []
       const sentText = split ? split.text : text
       const places = split?.at ?? []
-      if (shell) releaseImages(held)
       const ref = promptRef()
       const sent = new Promise<boolean>((resolve, reject) => settles.set(ref, { resolve, reject }))
       chat.update((state) => ({

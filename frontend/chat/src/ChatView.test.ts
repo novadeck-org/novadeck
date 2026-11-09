@@ -51,10 +51,13 @@ const inApp = (
     upload,
     interrupt,
     takeBox,
+    refuse = [],
   }: {
     readonly draft?: string
     readonly program?: string
     readonly onKeys?: (keys: string) => Promise<void>
+    // Words the backend's rule refuses as a message.
+    readonly refuse?: readonly string[]
     readonly interrupt?: () => Promise<BoxReturn>
     readonly takeBox?: () => Promise<BoxReturn>
     // Saves a pasted image, as the backend would; without it the backend takes no images.
@@ -87,7 +90,7 @@ const inApp = (
     interrupt: interrupt ?? (async () => ({ words: null })),
     ...(takeBox && { takeBox }),
     answer: (_key, request, reply) => answered(request, reply),
-    refused: refusing(),
+    refused: refusing(...refuse),
   }
   const chat = createChat()
   const commands = createChatCommands({
@@ -1624,6 +1627,117 @@ describe("a chat with images pasted into its box", () => {
     act(() => void box(container).dispatchEvent(event))
     expect(chat.draft()).toBe("[Image #1] ")
     expect(chips(container)).toHaveLength(1)
+  })
+
+  const pressKey = (container: HTMLElement, name: string): void =>
+    act(() => {
+      box(container).dispatchEvent(
+        new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true }),
+      )
+    })
+
+  it("takes a placeholder whole on Backspace after it or its space, and on Delete before it", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+      draft: "look",
+    })
+    const { container } = chat
+    caretAt(container, 4)
+    paste(container, { files: [png()] })
+    await settle()
+    expect(chat.draft()).toBe("look [Image #1] ")
+    expect(box(container).selectionStart).toBe(16)
+    pressKey(container, "Backspace")
+    expect(chat.draft()).toBe("look ")
+    expect(chips(container)).toEqual([])
+    caretAt(container, 4)
+    paste(container, { files: [png()] })
+    await settle()
+    caretAt(container, 5)
+    pressKey(container, "Delete")
+    expect(chat.draft()).toBe("look ")
+    expect(chips(container)).toEqual([])
+    // Right after the mark itself, with words behind it.
+    set(box(container), "look ")
+    caretAt(container, 5)
+    paste(container, { files: [png()] })
+    await settle()
+    set(box(container), "look [Image #1]x")
+    expect(chips(container)).toHaveLength(1)
+    caretAt(container, 15)
+    pressKey(container, "Backspace")
+    expect(chat.draft()).toBe("look x")
+    expect(chips(container)).toEqual([])
+  })
+
+  it("takes the whole placeholder when an edit would leave a part of it", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+      draft: "look",
+    })
+    const { container } = chat
+    caretAt(container, 4)
+    paste(container, { files: [png()] })
+    await settle()
+    // The closing bracket and the space went, as two Backspaces would do natively.
+    set(box(container), "look [Image #1")
+    expect(chat.draft()).toBe("look ")
+    expect(chips(container)).toEqual([])
+    caretAt(container, 5)
+    paste(container, { files: [png()] })
+    await settle()
+    // Typing over a selection that covers the end of it and some words after.
+    set(box(container), "look [Image #X")
+    expect(chat.draft()).toBe("look X")
+    expect(chips(container)).toEqual([])
+  })
+
+  it("judges the words without the placeholders, as the runner does", async () => {
+    const chat = inApp(createStore<Conversation>(live), {
+      upload: async () => "/runner/a.png",
+      draft: "/review this",
+      refuse: ["/review this"],
+    })
+    const { container } = chat
+    caretAt(container, 0)
+    paste(container, { files: [png()] })
+    await settle()
+    expect(chat.draft()).toBe("[Image #1] /review this")
+    expect(sendButton(container).disabled).toBe(true)
+    await send(container)
+    expect(chat.sent).not.toHaveBeenCalled()
+  })
+
+  it("refuses a reply while the box holds images, and keeps both", async () => {
+    const chat = inApp(createStore<Conversation>(questioning), {
+      upload: async () => "/runner/a.png",
+      draft: "look",
+      program: "agy",
+    })
+    const { container } = chat
+    caretAt(container, 4)
+    paste(container, { files: [png()] })
+    await settle()
+    press(container, "Chat about this")
+    expect(sendButton(container).disabled).toBe(true)
+    expect(container.textContent).toContain("A reply can't take images")
+    expect(container.textContent).not.toContain("The images wait")
+    await send(container)
+    expect(chat.draft()).toBe("look [Image #1] ")
+    expect(chips(container)).toEqual(["shot.png:ready"])
+  })
+
+  it("refuses a shell command while the box holds images, and keeps both", async () => {
+    const chat = inApp(createStore<Conversation>(live), { upload: async () => "/runner/a.png" })
+    const { container } = chat
+    paste(container, { files: [png()] })
+    await settle()
+    set(box(container), "!ls [Image #1]")
+    expect(sendButton(container).disabled).toBe(true)
+    expect(container.textContent).toContain("A shell command can't take images")
+    await send(container)
+    expect(chat.sent).not.toHaveBeenCalled()
+    expect(chips(container)).toEqual(["shot.png:ready"])
   })
 
   it("refuses them in a shell command, which has no placeholder for one to stay by", async () => {

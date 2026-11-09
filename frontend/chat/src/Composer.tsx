@@ -12,11 +12,12 @@ import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
 import type { Attachment } from "./attachments"
+import { replyImagesNote, shellImagesNote } from "./commands"
 import type { ComposerMode } from "./composer-mode"
 import { Hint } from "./Hint"
 import { recall, walksAt, type Walk } from "./history"
 import { Mark } from "./Mark"
-import { splitDraft } from "./placeholders"
+import { cleaned, splitDraft, unitEdit } from "./placeholders"
 import { submitOnEnter } from "./submit-on-enter"
 import { useMounted } from "./use-mounted"
 
@@ -182,10 +183,15 @@ export const Composer = ({
   // Whether the words are only the images' placeholders.
   const bare =
     carries && attachments.length > 0 && splitDraft(draft, attachments).text === "" && !imagesAlone
+  // Images the box holds that this mode can't send.
+  const stuck = attachments.length > 0 && !carries && !passing && (replying || mode === "shell")
+  // What goes to the agent is judged without the placeholders, as the runner judges it.
+  const sentWords = carries && attachments.length > 0 ? splitDraft(draft, attachments).text : draft
   const refused =
     held ||
     bare ||
-    (replying ? hasControlCharacters(draft) || long : refuses(draft, { shell: true }))
+    stuck ||
+    (replying ? hasControlCharacters(draft) || long : refuses(sentWords, { shell: true }))
   const command = mode === "shell" ? shellCommand(draft) : undefined
   const uploading = attachments.some((each) => each.state === "uploading")
   const imaged = carries && attachments.length > 0
@@ -358,13 +364,17 @@ export const Composer = ({
         className="chat-error"
         text={
           refused && !awaitingCommand && !held
-            ? bare
-              ? `${label} needs a few words with the images.`
-              : replying
-                ? long
-                  ? "A reply takes at most 16,384 characters."
-                  : controlHint
-                : messageHint(draft)
+            ? stuck
+              ? replying
+                ? replyImagesNote
+                : shellImagesNote
+              : bare
+                ? `${label} needs a few words with the images.`
+                : replying
+                  ? long
+                    ? "A reply takes at most 16,384 characters."
+                    : controlHint
+                  : messageHint(sentWords)
             : ""
         }
       />
@@ -417,7 +427,7 @@ export const Composer = ({
           ),
       )}
       {imageNote && <p className="chat-reply">{imageNote}</p>}
-      {attachments.length > 0 && !carries && (
+      {attachments.length > 0 && !carries && !stuck && (
         <p className="chat-reply">
           <span>The images wait for a message of your own.</span>
         </p>
@@ -442,10 +452,36 @@ export const Composer = ({
           spellCheck
           onPaste={pasted}
           onChange={(event) => {
-            onDraft(event.target.value)
+            // An edit that would leave part of a placeholder takes the whole of it.
+            const fixed = cleaned(draft, event.target.value, attachments)
+            if (fixed) caretAt.current = fixed.caret
+            onDraft(fixed ? fixed.text : event.target.value)
             if (error) setError(null)
           }}
           onKeyDown={(event) => {
+            // Backspace after a placeholder, or Delete before one, takes it whole.
+            if (
+              (event.key === "Backspace" || event.key === "Delete") &&
+              !passing &&
+              !event.nativeEvent.isComposing &&
+              !(event.shiftKey || event.ctrlKey || event.metaKey || event.altKey)
+            ) {
+              const field = event.currentTarget
+              const unit = unitEdit(
+                draft,
+                field.selectionStart,
+                field.selectionEnd,
+                event.key,
+                attachments,
+              )
+              if (unit) {
+                event.preventDefault()
+                caretAt.current = unit.caret
+                onDraft(unit.text)
+                if (error) setError(null)
+                return
+              }
+            }
             if (passing && !event.nativeEvent.isComposing) {
               // A modified key stays the app's, and the field's; Shift+Enter has no line to start.
               if (event.key === "Enter" && event.shiftKey) event.preventDefault()
