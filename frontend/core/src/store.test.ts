@@ -100,7 +100,7 @@ describe("workspace commands", () => {
     const added = state(store.getSnapshot())
     expect(added.selected).toBe("02")
     expect(added.roster.terminals).toHaveLength(before.roster.terminals.length + 1)
-    expect(added.layout).toEqual({ canvas: before.layout.canvas, hidden: {} })
+    expect(added.layout).toEqual({ canvas: before.layout.canvas, hidden: {}, spans: {} })
   })
 
   it("closing removes every saved reference and ignores delayed Canvas layout items", () => {
@@ -112,14 +112,14 @@ describe("workspace commands", () => {
     workspace.projects[0]!.history[0]!.state = {
       ...seeded,
       roster: { ...seeded.roster, order: ["01"] },
-      layout: { canvas, hidden: { "01": true } },
+      layout: { canvas, hidden: { "01": true }, spans: { "01": { columns: 2, rows: 2 } } },
     }
     const closed = workspaceReducer(workspace, { type: "terminal/close", target, terminalId: "01" })
     expect(state(closed)).toEqual({
       ...seeded,
       selected: "",
       roster: { terminals: [], windows: [], order: [] },
-      layout: { canvas: { geometry: {} }, hidden: {} },
+      layout: { canvas: { geometry: {} }, hidden: {}, spans: {} },
     })
     const delayedCanvas = workspaceReducer(closed, {
       type: "canvas/layout",

@@ -9,6 +9,7 @@ import {
   moveToSlot,
   orderAfterDrag,
   slotAt,
+  spanAt,
 } from "./layout"
 
 const ids = (count: number): string[] => Array.from({ length: count }, (_, index) => `t${index}`)
@@ -31,7 +32,7 @@ describe("the columns Grid has", () => {
 
 describe("Grid's arrangement", () => {
   it("lays the tiles out in reading order, equal in size, stretched to fill the row", () => {
-    const { boxes, columns, tileWidth } = arrangeGrid(ids(5), 1170)
+    const { boxes, columns, cellWidth: tileWidth } = arrangeGrid(ids(5), 1170)
     expect(columns).toBe(2)
     expect(tileWidth).toBe((1170 - gridGap) / 2)
     expect(boxes.map((box) => [box.id, box.left, box.top])).toEqual([
@@ -74,24 +75,121 @@ describe("Grid's arrangement", () => {
 
 describe("the place a tile held at a point takes", () => {
   const width = 1170
-  const { tileWidth } = arrangeGrid([], width)
   const row = gridTileHeight + gridGap
+  const six = ids(6)
+  const three = ids(3)
+  const { cellWidth } = arrangeGrid([], width)
 
-  it("is the cell the point is in, counting across and then down", () => {
-    expect(slotAt({ x: 10, y: 10 }, width, 5)).toBe(0)
-    expect(slotAt({ x: tileWidth + gridGap + 10, y: 10 }, width, 5)).toBe(1)
-    expect(slotAt({ x: 10, y: row + 10 }, width, 5)).toBe(2)
-    expect(slotAt({ x: width - 1, y: 2 * row + 10 }, width, 5)).toBe(5)
+  it("is the place of the tile whose cell the point is in, counting across and then down", () => {
+    const grid = arrangeGrid(six, width)
+    expect(slotAt({ x: 10, y: 10 }, grid, six, 5)).toBe(0)
+    expect(slotAt({ x: cellWidth + gridGap + 10, y: 10 }, grid, six, 5)).toBe(1)
+    expect(slotAt({ x: 10, y: row + 10 }, grid, six, 5)).toBe(2)
+    expect(slotAt({ x: width - 1, y: 2 * row + 10 }, grid, six, 5)).toBe(5)
   })
 
-  it("is the last place past the tiles or the Grid's edges", () => {
-    expect(slotAt({ x: 10, y: 10 * row }, width, 3)).toBe(3)
-    expect(slotAt({ x: -50, y: -50 }, width, 3)).toBe(0)
-    expect(slotAt({ x: width + 200, y: 10 }, width, 3)).toBe(1)
+  it("is the last place past the tiles, and the nearest cell past the Grid's edges", () => {
+    const grid = arrangeGrid(three, width)
+    expect(slotAt({ x: 10, y: 10 * row }, grid, three, 3)).toBe(3)
+    expect(slotAt({ x: -50, y: -50 }, grid, three, 3)).toBe(0)
+    expect(slotAt({ x: width + 200, y: 10 }, grid, three, 3)).toBe(1)
   })
 
   it("is the only place in one column", () => {
-    expect(slotAt({ x: 100, y: row + 10 }, 390, 4)).toBe(1)
+    const four = ids(4)
+    expect(slotAt({ x: 100, y: row + 10 }, arrangeGrid(four, 390), four, 4)).toBe(1)
+  })
+
+  it("is a big tile's place anywhere over the cells it spans", () => {
+    const grid = arrangeGrid(three, width, { t0: { columns: 2, rows: 2 } })
+    expect(slotAt({ x: width - 10, y: row + 10 }, grid, three, 3)).toBe(0)
+    expect(slotAt({ x: 10, y: 2 * row + 10 }, grid, three, 3)).toBe(1)
+  })
+})
+
+describe("tiles sized to span several cells", () => {
+  const width = 1760
+  const { cellWidth } = arrangeGrid([], width)
+  const across = cellWidth + gridGap
+  const down = gridTileHeight + gridGap
+
+  it("span the cells and the gaps between them", () => {
+    const [box] = arrangeGrid(["big"], width, { big: { columns: 2, rows: 2 } }).boxes
+    expect(box).toMatchObject({
+      left: 0,
+      top: 0,
+      width: 2 * cellWidth + gridGap,
+      height: 2 * gridTileHeight + gridGap,
+    })
+  })
+
+  it("take the first place each fits in, in order, so a small one after a big one fills the gap it left", () => {
+    // Three columns: a, then big two wide and two tall beside it, then c under a.
+    const order = ["a", "big", "c", "d"]
+    const { boxes, cells } = arrangeGrid(order, width, { big: { columns: 2, rows: 2 } })
+    expect(boxes.map((box) => [box.id, box.left, box.top])).toEqual([
+      ["a", 0, 0],
+      ["big", across, 0],
+      ["c", 0, down],
+      ["d", 0, 2 * down],
+    ])
+    expect(cells).toEqual([
+      ["a", "big", "big"],
+      ["c", "big", "big"],
+      ["d", undefined, undefined],
+    ])
+  })
+
+  it("leave a tile too wide for what is left of a row to the next, a later small one filling in", () => {
+    const order = ["a", "b", "wide", "c"]
+    const { boxes } = arrangeGrid(order, width, { wide: { columns: 2, rows: 1 } })
+    expect(boxes.map((box) => [box.id, box.left, box.top])).toEqual([
+      ["a", 0, 0],
+      ["b", across, 0],
+      ["wide", 0, down],
+      ["c", 2 * across, 0],
+    ])
+  })
+
+  it("take every column there is when they are wider than the Grid", () => {
+    const [box] = arrangeGrid(["wide"], 1170, { wide: { columns: 3, rows: 1 } }).boxes
+    expect(box).toMatchObject({ left: 0, width: 1170 })
+  })
+
+  it("keep their size when a tile is added before them", () => {
+    const spans = { big: { columns: 2, rows: 2 } }
+    const before = arrangeGrid(["big", "a"], width, spans).boxes[0]!
+    const after = arrangeGrid(["new", "big", "a"], width, spans).boxes[1]!
+    expect([after.width, after.height]).toEqual([before.width, before.height])
+  })
+
+  it("stand the Grid as tall as the rows they reach", () => {
+    expect(arrangeGrid(["tall"], width, { tall: { columns: 1, rows: 3 } }).height).toBe(
+      3 * gridTileHeight + 2 * gridGap,
+    )
+  })
+})
+
+describe("the span a tile's corner held at a point gives", () => {
+  const grid = arrangeGrid([], 1760)
+  const across = grid.cellWidth + gridGap
+  const down = gridTileHeight + gridGap
+
+  it("is the nearest whole cells across and down", () => {
+    expect(spanAt(grid.cellWidth, gridTileHeight, grid)).toEqual({ columns: 1, rows: 1 })
+    expect(spanAt(grid.cellWidth + across * 0.6, gridTileHeight, grid)).toEqual({
+      columns: 2,
+      rows: 1,
+    })
+    expect(spanAt(grid.cellWidth + across * 0.4, gridTileHeight + down, grid)).toEqual({
+      columns: 1,
+      rows: 2,
+    })
+  })
+
+  it("is at least one cell, no wider than the columns, and at most three tall", () => {
+    expect(spanAt(-500, -500, grid)).toEqual({ columns: 1, rows: 1 })
+    expect(spanAt(10 * across, 10 * down, grid)).toEqual({ columns: 3, rows: 3 })
   })
 })
 

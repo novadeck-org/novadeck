@@ -105,13 +105,51 @@ describe("saved session state", () => {
     it("reads it, and carries on none of what Grid took from the sidebar", () => {
       const saved = decodeSession(old())
       expect(saved?.state).toMatchObject({ order: ["02", "01"], selected: "02" })
-      expect(Object.keys(saved!.state.layout).toSorted()).toEqual(["canvas", "hidden"])
+      expect(Object.keys(saved!.state.layout).toSorted()).toEqual(["canvas", "hidden", "spans"])
+      expect(saved?.state.layout.spans).toEqual({})
       expect(saved?.state.layout.canvas.geometry["01"]?.position).toEqual({ x: 10, y: 20 })
       // What it wrote of them is empty, so none of the old cells comes back.
       const again = JSON.parse(
         encodeSession({ ...session(), state: { ...session().state, layout: saved!.state.layout } }),
       ) as { state: { layout: Record<string, unknown> } }
       expect(again.state.layout).toMatchObject({ grid: {}, sizePresets: { grid: {} } })
+    })
+  })
+
+  context("with tiles sized to span several of Grid's cells", () => {
+    const sized = (spans: Record<string, unknown>): string => {
+      const current = JSON.parse(encodeSession(session())) as {
+        state: { layout: Record<string, unknown> }
+      }
+      current.state.layout = { ...current.state.layout, spans }
+      return JSON.stringify(current)
+    }
+
+    it("keeps each tile's span through a save", () => {
+      const before = session()
+      const layout = { ...before.state.layout, spans: { "01": { columns: 2, rows: 2 } } }
+      const saved = decodeSession(encodeSession({ ...before, state: { ...before.state, layout } }))
+      expect(saved?.state.layout.spans).toEqual({ "01": { columns: 2, rows: 2 } })
+    })
+
+    it("reads a save from before tiles had spans as none", () => {
+      const current = JSON.parse(encodeSession(session())) as {
+        state: { layout: Record<string, unknown> }
+      }
+      delete current.state.layout.spans
+      expect(decodeSession(JSON.stringify(current))?.state.layout.spans).toEqual({})
+    })
+
+    it("leaves out a span that isn't whole cells, and holds one too tall to three", () => {
+      const saved = decodeSession(
+        sized({
+          "01": { columns: 2, rows: 9 },
+          "02": { columns: 0, rows: 1 },
+          "03": { columns: 1.5, rows: 1 },
+          "04": "wide",
+        }),
+      )
+      expect(saved?.state.layout.spans).toEqual({ "01": { columns: 2, rows: 3 } })
     })
   })
 

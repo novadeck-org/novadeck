@@ -233,11 +233,16 @@ export type TerminalRoster = {
   readonly windows: readonly CompanionWindowMeta[]
   readonly order: string[]
 }
-// What each view keeps of where a terminal sits. Grid keeps nothing: it lays itself out from
-// the sidebar's order.
+// How many of Grid's cells a tile spans, across and down; a tile the person never sized spans
+// one of each, and has none saved.
+export type GridSpan = { readonly columns: number; readonly rows: number }
+
+// What each view keeps of where a terminal sits. Grid keeps only how many cells a tile spans:
+// where it goes follows from the sidebar's order.
 export type TerminalLayout = {
   readonly canvas: CanvasLayout
   readonly hidden: Record<string, boolean>
+  readonly spans: Record<string, GridSpan>
 }
 export type WorkspaceState = {
   readonly roster: TerminalRoster
