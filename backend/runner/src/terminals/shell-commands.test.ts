@@ -9,6 +9,7 @@ import {
   lookEveryMs,
   pollMs,
   ShellCommands,
+  unknownMs,
   type ShellCommandsHost,
   type ShellRecord,
 } from "./shell-commands.js"
@@ -367,14 +368,14 @@ describe("shell commands", () => {
     await settle(findMs)
     expect(rec.summary.shellCommand).not.toBeNull()
     fail = true
-    await settle(pollMs)
+    await settle(unknownMs - pollMs)
     expect(rec.summary.shellCommand).not.toBeNull()
-    await settle(pollMs)
+    await settle(2 * pollMs)
     expect(rec.summary.shellCommand).toBeNull()
     shells.stop()
   })
 
-  it("clears when the system can't tell twice in a row, not once", async () => {
+  it("hides a command only after about five seconds of polls that can't tell", async () => {
     const s = setup()
     const at = await s.press()
     const started = at + 5
@@ -382,15 +383,51 @@ describe("shell commands", () => {
     await settle(findMs)
     expect(s.rec.summary.shellCommand).not.toBeNull()
     s.processes.current = undefined
-    await settle(pollMs)
+    await settle(unknownMs - pollMs)
     expect(s.rec.summary.shellCommand).not.toBeNull()
+    // One look that could tell starts the count again.
     s.processes.current = [spawn(7, started)]
     await settle(pollMs)
     s.processes.current = undefined
-    await settle(pollMs)
+    await settle(unknownMs - pollMs)
     expect(s.rec.summary.shellCommand).not.toBeNull()
-    await settle(pollMs)
+    await settle(2 * pollMs)
     expect(s.rec.summary.shellCommand).toBeNull()
+  })
+
+  it("polls every shown command from one tick, so their listings coincide", async () => {
+    const recs = [record(), record()]
+    recs.forEach((rec, index) => {
+      rec.box = shellBox("sleep 15")
+      ;(rec.terminal.pty as { pid: number }).pid = 200 + index
+    })
+    const calls: { pid: number; at: number }[] = []
+    const shells = new ShellCommands<Fake>({
+      profile: () =>
+        ({ read: () => recs[0]!.box, overlay: () => false, shell: {} }) as unknown as BoxProfile,
+      announce: () => undefined,
+      trees: () => ({ read: async () => undefined }),
+      under: async (pid) => {
+        calls.push({ pid, at: Date.now() })
+        return [spawn(pid, pid === 200 ? 1_000_005 : 1_000_310, 10)]
+      },
+      resolutionMs: () => 10,
+      stopping: () => false,
+    })
+    shells.entered(recs[0]!)
+    await settle(0)
+    await settle(300)
+    shells.entered(recs[1]!)
+    await settle(findMs)
+    expect(recs.map((rec) => rec.summary.shellCommand !== null)).toEqual([true, true])
+    calls.length = 0
+    await settle(3 * pollMs)
+    // Each tick lists for both at the same moment.
+    const ticks = new Map<number, number>()
+    for (const { at } of calls) ticks.set(at, (ticks.get(at) ?? 0) + 1)
+    expect([...ticks.values()]).toEqual([2, 2, 2])
+    shells.stop()
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it("keeps no timer for a terminal with no candidate", async () => {
@@ -727,6 +764,59 @@ describe("shell commands", () => {
     await settle(findMs + 1_000)
     expect(s.rec.summary.shellCommand).toBeNull()
     expect(s.shells.watching).toBe(0)
+  })
+
+  describe("at macOS's resolution", () => {
+    const mac = () => setup({ resolutionMs: 1_000 })
+
+    it("keeps a queued command started just after the end, whose working report comes first, if a look saw it", async () => {
+      const s = mac()
+      activity(s.rec, "working")
+      await s.press()
+      await settle(20_000)
+      const e = await s.ends()
+      // Truncated to the second, it reads up to a second early.
+      s.processes.current = [spawn(7, e - 700)]
+      await settle(lookEveryMs)
+      // A look saw it; then the turn's working report lands.
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
+    })
+
+    it("judges one no look saw by its latest possible start", async () => {
+      const s = mac()
+      activity(s.rec, "working")
+      await s.press()
+      await settle(20_000)
+      const e = await s.ends()
+      // Reads 700 ms early: started at the latest 300 ms after the end, before the report at 400.
+      await settle(400)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      const w = Date.now()
+      s.processes.current = [spawn(7, e - 700)]
+      expect(e - 700 + 1_000).toBeLessThan(w)
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
+    })
+
+    it("takes no tool started after the working report", async () => {
+      const s = mac()
+      activity(s.rec, "working")
+      await s.press()
+      await settle(20_000)
+      await s.ends()
+      await settle(100)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      const w = Date.now()
+      // Truncated to the second, it reads up to 800 ms early, so no earlier than the report.
+      s.processes.current = [spawn(9, w - 800)]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toBeNull()
+    })
   })
 
   it("ends and stops every timer when the agent leaves, the terminal exits or restarts, or it rests", async () => {

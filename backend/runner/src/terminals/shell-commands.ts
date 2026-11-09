@@ -24,8 +24,8 @@ export const confirmMs = 900
 /** How often a command shown running is looked at again, in milliseconds. */
 export const pollMs = 1_000
 
-/** How many looks in a row that could not tell end the command shown: no evidence, no busy. */
-export const unknownLooks = 2
+/** How long polls that could not tell, one after another, take before they hide the command shown: no evidence, no busy. */
+export const unknownMs = 5_000
 
 /** How many turn ends re-arm an unconfirmed attempt (a continued Stop makes two): then it is dropped. */
 export const rearmMax = 2
@@ -86,9 +86,12 @@ type Watch = {
   look: NodeJS.Timeout | undefined
   /** Whether a look is under way: one at a time, so a staler snapshot never resets `seen`. */
   looking: boolean
-  poll: NodeJS.Timeout | undefined
-  /** How many polls in a row could not tell. */
-  unknown: number
+  /** Whether a poll of it is under way. */
+  pollBusy: boolean
+  /** Whether the shared tick polls it: a command is shown. */
+  polling: boolean
+  /** When the polls that could not tell began, until one could. */
+  unknownSince: number | undefined
   /** How many looks and polls are awaiting the system: none may be left behind by a settle. */
   inflight: number
   /** The latest Enter that came while a turn worked (a harness that queues it, or runs it), until that turn ends. */
@@ -117,10 +120,12 @@ const shells = new Set(["sh", "bash", "dash", "zsh", "fish", "cmd", "powershell"
  * less Novadeck's helpers, what they run and
  * the shells they run under, and with the bound agent as the parent of each top one, are
  * the command, once seen live a second apart. Once one is found it is looked at every
- * second, and shown until none is left, or the system twice could not tell.
+ * second, and shown until none is left, or the system could not tell for about five seconds.
  */
 export class ShellCommands<R extends ShellRecord> {
   private readonly watches = new Map<R, Watch>()
+  /** The one tick that polls every watch with a command shown, so their listings are one. */
+  private ticker: NodeJS.Timeout | undefined
 
   constructor(private readonly host: ShellCommandsHost<R>) {}
 
@@ -186,6 +191,7 @@ export class ShellCommands<R extends ShellRecord> {
   /** Stops every look and poll: the runner is shutting down. */
   stop(): void {
     for (const [record, watch] of this.watches) this.drop(record, watch)
+    this.disarm()
   }
 
   private resolution(): number {
@@ -226,7 +232,7 @@ export class ShellCommands<R extends ShellRecord> {
     if (record.summary.activity?.state === "working") {
       for (const attempt of watch.attempts) {
         // Confirmed or not: what a turn starts is none of its command.
-        for (const interval of attempt.intervals) interval.to ??= now - res
+        for (const interval of attempt.intervals) interval.to ??= now
         if (!attempt.confirmed) attempt.cut = true
       }
       return
@@ -269,8 +275,9 @@ export class ShellCommands<R extends ShellRecord> {
         attempts: [],
         look: undefined,
         looking: false,
-        poll: undefined,
-        unknown: 0,
+        polling: false,
+        pollBusy: false,
+        unknownSince: undefined,
         inflight: 0,
         pending: undefined,
       }
@@ -343,7 +350,7 @@ export class ShellCommands<R extends ShellRecord> {
     else if (
       watch.inflight === 0 &&
       watch.look === undefined &&
-      watch.poll === undefined &&
+      !watch.polling &&
       watch.attempts.length === 0 &&
       !watch.pending
     ) {
@@ -355,9 +362,14 @@ export class ShellCommands<R extends ShellRecord> {
   private drop(record: R, watch: Watch): void {
     if (watch.look) clearTimeout(watch.look)
     watch.look = undefined
-    if (watch.poll) clearTimeout(watch.poll)
-    watch.poll = undefined
+    watch.polling = false
     if (this.watches.get(record) === watch) this.watches.delete(record)
+    if (![...this.watches.values()].some(({ polling }) => polling)) this.disarm()
+  }
+
+  private disarm(): void {
+    if (this.ticker) clearTimeout(this.ticker)
+    this.ticker = undefined
   }
 
   /** One look at the shell's processes, for every attempt whose window is open. */
@@ -385,7 +397,7 @@ export class ShellCommands<R extends ShellRecord> {
         for (const { key } of fresh) watch.held.add(key)
         attempt.confirmed = true
         // Later processes are none of its command: its intervals end here.
-        for (const interval of attempt.intervals) interval.to ??= now - this.resolution()
+        for (const interval of attempt.intervals) interval.to ??= now
         // Two confirmed in one look, or an older one after a newer: the newest is shown.
         const was = record.summary.shellCommand
         if (!shown && (was == null || attempt.at >= was.since)) {
@@ -424,11 +436,18 @@ export class ShellCommands<R extends ShellRecord> {
    */
   private started(
     spawns: readonly Spawn[],
-    { intervals }: Attempt,
+    { intervals, seen }: Attempt,
     agent: number | undefined,
   ): readonly Spawn[] {
-    const candidates = spawns.filter(({ startedMs }) =>
-      intervals.some(({ from, to }) => startedMs >= from && (to === undefined || startedMs < to)),
+    const res = this.resolution()
+    // Started before an interval's end if a look that ran before it saw it, or if even the
+    // latest its start time may truly be (the platform's resolution on) falls before it.
+    const candidates = spawns.filter(({ key, startedMs }) =>
+      intervals.some(
+        ({ from, to }) =>
+          startedMs >= from &&
+          (to === undefined || startedMs + res < to || (seen.get(key) ?? Infinity) <= to),
+      ),
     )
     const all = new Map(spawns.map((spawn) => [spawn.pid, spawn]))
     const byPid = new Map(candidates.map((spawn) => [spawn.pid, spawn]))
@@ -464,28 +483,46 @@ export class ShellCommands<R extends ShellRecord> {
   }
 
   private polling(record: R, watch: Watch): void {
-    if (watch.poll !== undefined) return
-    watch.poll = setTimeout(() => {
-      watch.poll = undefined
-      this.run(record, watch, () => this.poll(record, watch))
+    watch.polling = true
+    this.tick()
+  }
+
+  /** Arms the shared tick, if none is. */
+  private tick(): void {
+    if (this.ticker !== undefined) return
+    this.ticker = setTimeout(() => {
+      this.ticker = undefined
+      const due = [...this.watches].filter(([, { polling, pollBusy }]) => polling && !pollBusy)
+      // Every watch's poll starts at once: the system lists its processes once for them all.
+      for (const [record, watch] of due) {
+        watch.pollBusy = true
+        this.run(record, watch, () => this.poll(record, watch))
+      }
+      if ([...this.watches.values()].some(({ polling }) => polling)) this.tick()
     }, pollMs)
-    watch.poll.unref()
+    this.ticker.unref()
   }
 
   private async poll(record: R, watch: Watch): Promise<void> {
-    const spawns = await this.under(watch.pid)
-    if (!this.alive(record, watch)) return
-    if (spawns === undefined) watch.unknown += 1
-    else watch.unknown = 0
-    const over =
-      spawns === undefined
-        ? watch.unknown >= unknownLooks
-        : !spawns.some(({ key }) => watch.held.has(key))
-    if (over) {
-      // Attempts still looking may find the next command; those that found this one are done.
-      watch.held.clear()
-      watch.attempts = watch.attempts.filter(({ confirmed }) => !confirmed)
-      this.hide(record, true)
-    } else this.polling(record, watch)
+    try {
+      const spawns = await this.under(watch.pid)
+      if (!this.alive(record, watch)) return
+      const now = Date.now()
+      if (spawns === undefined) watch.unknownSince ??= now
+      else watch.unknownSince = undefined
+      const over =
+        spawns === undefined
+          ? now - (watch.unknownSince ?? now) >= unknownMs
+          : !spawns.some(({ key }) => watch.held.has(key))
+      if (over) {
+        // Attempts still looking may find the next command; those that found this one are done.
+        watch.held.clear()
+        watch.attempts = watch.attempts.filter(({ confirmed }) => !confirmed)
+        watch.polling = false
+        this.hide(record, true)
+      }
+    } finally {
+      watch.pollBusy = false
+    }
   }
 }

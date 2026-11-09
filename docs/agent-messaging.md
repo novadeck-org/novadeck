@@ -1923,8 +1923,10 @@ starts.
 
 The Enter looks until its first window of five seconds ends, and only then waits. A turn that
 starts while it is unconfirmed (a ring's, one the runner heard of late, or the doorbell
-continuing a turn at its Stop) closes its interval at the turn's start less the resolution,
-so the turn's tools are not taken for the command; its looks go on to the end of that window,
+continuing a turn at its Stop) closes its interval at the turn's start: a process counts as started before it if a look
+before it saw it, or if even its latest possible start (its reading plus the resolution) falls
+before it, so the turn's tools are not taken for the command while a command started just
+before the report is kept, also at macOS's 1 s resolution; its looks go on to the end of that window,
 and then it waits the turn out with no looks. When the turn ends, a harness that queues the
 command (Claude Code, Antigravity) gets a new interval from the end less the resolution, and
 a find window of its own; on macOS that reaches up to 1 s into the turn, so a hook's process
@@ -1935,15 +1937,22 @@ idle), and then dropped, so a queued command that never ran (Escape took it out)
 nothing later. Once an Enter's command is found its interval ends there: later processes are
 none of it, and later turns change nothing for it; when its processes end it is done. Two
 Enters confirmed in one look show the newest, and one confirmed later never replaces a newer
-one shown. Once one is found the command is looked at every second, and shown until none is
-left, or the system twice in a row couldn't tell (a look that fails is one that can't).
+one shown. Once one is found the command is polled every second, all the terminals' from one shared tick so
+the system lists its processes once for them, and shown until none is left. Polls that
+couldn't tell (a look that fails is one that can't) hide it only after about five seconds of
+them in a row, so two slow listings never clear a running command.
 
 An Enter while a turn works is held instead, as the turn's own tools start processes too, and
 looked for once the turn has ended: Claude Code and Antigravity queue the command until then
 (`BoxProfile.shell.midTurn` is `queues`), so only what started since the end is it; Codex
 runs it at once (`runs`), so what started within 2 s of the Enter counts too. A held Enter
 that finds nothing is dropped; the latest of several is kept. For Codex a long-lived tool the
-model started within 2 s of such an Enter can be shown as the command until it ends. Known
+model started within 2 s of such an Enter can be shown as the command until it ends. Two
+queued Enters in one turn show the first command under the second's label, and the second may
+not show. A long-lived child of the agent (an MCP server restarting, a language server
+started lazily) that starts within an Enter's window can be taken for the command and shown
+until it exits; the parent rule narrows this to the agent's children, and before a first
+prompt there is none. Known
 limits: a queued command forked before the runner hears of the turn's end, by more than the
 resolution, is not found (not seen in the Linux e2e), and on macOS the interval after a
 turn's end reaches back a second.

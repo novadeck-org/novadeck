@@ -1400,8 +1400,8 @@ one from an earlier runner.
     their agent's own shell mode (`!sleep 15`) runs, and null otherwise: `command` is the box's
     text at the Enter, `since` that Enter in epoch milliseconds. No hook tells of it, so the
     runner finds its process under the terminal's shell; it is no turn, and `activity` is
-    unchanged by it. It clears when the process ends, when the system can't tell twice in a
-    row, and when the agent leaves or the terminal exits, restarts or rests. The agents
+    unchanged by it. It clears when the process ends, when the system can't tell for about
+    five seconds, and when the agent leaves or the terminal exits, restarts or rests. The agents
     listing counts it as working. The field may be absent, which reads as null.
 
 - `companions.*` keeps what agents show and the person attaches beside terminals: items,

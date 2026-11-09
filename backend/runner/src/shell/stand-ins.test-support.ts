@@ -430,6 +430,12 @@ if (mode !== "bg") {
         box = box.slice(0, -1) + "\n"
         return draw()
       }
+      // With "shellmode", a message in its prompt mode starts a process too (a tool of its
+      // own), so only its box's mode tells a message from a shell command.
+      if (mode === "shellmode" && box && !busy) {
+        const [program, ...args] = box.trim().split(" ")
+        spawn(program, args, { stdio: "ignore" }).on("error", () => {})
+      }
       // Busy, or an empty box: Enter submits nothing.
       if (busy || !box) return
       const prompt = box

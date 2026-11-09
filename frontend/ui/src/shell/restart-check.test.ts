@@ -53,7 +53,7 @@ describe("restart check", () => {
         kind: "agent",
         command: "sleep 15",
         what: "1 shell command stops",
-        shellOnly: true,
+        shell: "only",
       })
     })
 
@@ -66,7 +66,7 @@ describe("restart check", () => {
         }),
       ]).risks
       expect(risk).toMatchObject({ what: "1 shell command and 2 background commands stop" })
-      expect(risk).not.toHaveProperty("shellOnly")
+      expect(risk).toMatchObject({ shell: "mixed" })
     })
 
     it("leaves a turn under way resuming", () => {

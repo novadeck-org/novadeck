@@ -33,8 +33,9 @@ export type Risk =
       // The one command it waits on, when it is one; else `what` says it in words.
       readonly command?: string
       readonly what: string
-      // All of it is a command the person ran in its agent's shell mode, not work it waits on.
-      readonly shellOnly?: true
+      // Whether the work includes a command the person ran in its agent's shell mode, not work
+      // it waits on: all of it ("only") or beside work it does wait on ("mixed").
+      readonly shell?: "only" | "mixed"
     }
   | { readonly kind: "unknown"; readonly id: string; readonly title: string }
 
@@ -133,17 +134,20 @@ const commandString = (command: string): string | undefined => {
 const plural = (count: number, one: string, many = `${one}s`): string =>
   `${count} ${count === 1 ? one : many}`
 
-// What an agent's work that a restart stops says, from the jobs it waits on and the background
-// work its harness counts: the one command, or words.
+// The terminal with the command the person runs in its shell mode left out, as no turn.
 const withoutShellCommand = (terminal: TerminalMetadata): TerminalMetadata => {
   if (terminal.state !== "running" || !terminal.agent?.shellCommand) return terminal
   const { shellCommand: _shellCommand, ...agent } = terminal.agent
   return { ...terminal, agent }
 }
 
+// What an agent's work that a restart stops says, from the jobs it waits on and the background
+// work its harness counts: the one command, or words.
 const agentWork = (
   terminal: TerminalMetadata,
-): { readonly command?: string; readonly what: string; readonly shellOnly?: true } | undefined => {
+):
+  | { readonly command?: string; readonly what: string; readonly shell?: "only" | "mixed" }
+  | undefined => {
   if (terminal.state !== "running" || !terminal.agent) return undefined
   const jobs = terminal.agent.waiting?.jobs ?? []
   const { tasks = 0, agents = 0 } = terminal.agent.background ?? {}
@@ -167,7 +171,7 @@ const agentWork = (
   return {
     ...(only !== undefined ? { command: only } : {}),
     what: `${parts.join(" and ")} ${own + commands + agents === 1 ? "stops" : "stop"}`,
-    ...(own > 0 && commands + agents === 0 ? { shellOnly: true as const } : {}),
+    ...(own > 0 ? { shell: commands + agents === 0 ? ("only" as const) : ("mixed" as const) } : {}),
   }
 }
 
