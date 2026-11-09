@@ -64,6 +64,10 @@ const messaging: MessagingProfile = {
   lasting: ["stop", "prompt", "tool"],
   root: "binding",
   silentOnFailure: false,
+  // Escape denies a permission or sets questions aside, and ends the turn with
+  // "[Request interrupted by user for tool use]" (probed 2026-11-09, 2.1.316,
+  // e2e/probes/question-dismiss.e2e.ts).
+  dialogEscape: "interrupts",
   // A background agent and shell running, it took a typed prompt (fixture
   // `background-prompt.probe.json`, probed 2026-10-19, 2.1.287).
   promptsInBackground: true,

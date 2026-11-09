@@ -3195,6 +3195,30 @@ describe("keys while a request waits on the person", () => {
     expect(messaging.delivery("B")?.state).toBe("settled")
   })
 
+  it("end no turn on an Escape in a dialog where it answers that dialog, as Antigravity's skips a question", () => {
+    const { messaging, follow, prompt, stop, clock: time } = create()
+    const agy = binding("agy", "c-root", "7")
+    messaging.register("C", here, "owl", null)
+    follow("C", agy)
+    messaging.keys("C", ["enter"], false)
+    prompt("C", agy)
+    time.now += 1_000
+    // The person's Escape and an answer's alike: the turn goes on with the skip.
+    messaging.keys("C", ["escape"], true)
+    messaging.pressing("C", () => messaging.keys("C", ["escape"], true))
+    expect(messaging.delivery("C")?.state).toBe("working")
+    expect(messaging.escaped("C", agy)).toBeUndefined()
+    messaging.askedCleared("C")
+    stop("C", agy)
+    expect(messaging.delivery("C")?.state).toBe("settled")
+    // Outside a dialog its Escape still stops the turn.
+    messaging.keys("C", ["enter"], false)
+    prompt("C", agy)
+    time.now += 1_000
+    messaging.keys("C", ["escape"], false)
+    expect(messaging.delivery("C")).toMatchObject({ state: "unknown", escapedAt: time.now })
+  })
+
   it("take keys pressed with no request waiting as the person's, as they may land in the box", () => {
     const { messaging, prompt, stop, codex } = create()
     messaging.keys("B", ["enter"], false)

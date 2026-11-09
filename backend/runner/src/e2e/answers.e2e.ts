@@ -113,6 +113,15 @@ const colour: Question = {
     { label: "Green", description: "Calmer." },
   ],
 }
+const size: Question = {
+  question: "Which size should the button be?",
+  header: "Size",
+  multiSelect: false,
+  options: [
+    { label: "Small", description: "Compact." },
+    { label: "Large", description: "Roomy." },
+  ],
+}
 const features: Question = {
   question: "Which features should be enabled?",
   header: "Features",
@@ -576,6 +585,96 @@ for (const setup of setups) {
         const words = "Before I choose, what do the colours cost?"
         await t1.prompt(words)
         await run.model.waitFor((call) => text(call).includes(words), { after: calls })
+      },
+    )
+
+    gated(it, lacking(setup, "questions", "multiSelect"))(
+      "answers two questions of one call from the chat, the first a multi-select",
+      async ({ e2e: run }) => {
+        run.model.use(
+          answers("Ask me", (call) => asking!.questions(call, [features, colour])),
+          noted,
+        )
+        const t1 = await start(run, setup)
+        await asking!.enter?.(t1)
+        const calls = run.model.mark()
+
+        await t1.prompt("Ask me about the button")
+        const request = await dialogOf(t1, "questions")
+        const [many, one] = questionsOf(request).questions
+        expect(many!.multiSelect).toBe(true)
+        const id = (question: typeof many, label: string) =>
+          question!.options.find((each) => each.label === label)!.id
+        await t1.answer(request.ref, {
+          dialog: idOf(request),
+          type: "questions",
+          answers: [
+            { question: many!.id, options: [id(many, "Auth"), id(many, "Search")] },
+            { question: one!.id, options: [id(one, "Green")] },
+          ],
+        })
+
+        const told = await resulting(run.model, "Green", calls)
+        expect(result(told)).toContain("Auth")
+        expect(result(told)).toContain("Search")
+        expect(result(told)).not.toContain("Billing")
+        await t1.until("Noted.")
+        await unrequested(t1)
+      },
+    )
+
+    gated(it, lacking(setup, "questions"))(
+      "sets two questions aside to talk them over from the chat",
+      async ({ e2e: run }) => {
+        // The second a multi-select where the harness has them.
+        const second = asking?.multiSelect === true ? features : size
+        run.model.use(
+          answers("Ask me", (call) => asking!.questions(call, [colour, second])),
+          noted,
+        )
+        const t1 = await start(run, setup)
+        await asking!.enter?.(t1)
+        const calls = run.model.mark()
+
+        await t1.prompt("Ask me about the button")
+        const request = await dialogOf(t1, "questions")
+        expect(questionsOf(request).chat).not.toBeNull()
+        const words = "Before I choose, what do the colours cost?"
+        await t1.answer(request.ref, { dialog: idOf(request), type: "chat", text: words })
+
+        await run.model.waitFor((call) => text(call).includes(words), { after: calls })
+        await unrequested(t1)
+      },
+    )
+
+    gated(
+      it,
+      lacking(setup, "questions", "multiSelect") ??
+        (harnesses[setup.agent].messaging.dialogEscape === "interrupts"
+          ? "its Escape in a dialog ends the turn"
+          : undefined),
+    )(
+      "keeps the request through an Escape that skips one of its questions",
+      async ({ e2e: run }) => {
+        run.model.use(
+          answers("Ask me", (call) => asking!.questions(call, [colour, features])),
+          noted,
+        )
+        const t1 = await start(run, setup)
+        await asking!.enter?.(t1)
+
+        await t1.prompt("Ask me about the button")
+        await dialogOf(t1, "questions")
+        // The person's Escape skips the first question; the second still waits on them.
+        t1.press("\x1b")
+        await sleep(2000)
+        expect((await t1.detail()).requests).toHaveLength(1)
+        expect(t1.summary().activity?.state).toBe("working")
+        // Its dialog is still read, and the next Escape skips the last.
+        await dialogOf(t1, "questions")
+        t1.press("\x1b")
+        await t1.until("Noted.")
+        await unrequested(t1)
       },
     )
 
