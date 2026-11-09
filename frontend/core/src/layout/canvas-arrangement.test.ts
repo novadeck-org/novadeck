@@ -30,6 +30,20 @@ describe("the canvas's arrangement", () => {
       )
     })
 
+    it("fills the block from its end, the short row first and against the right", () => {
+      const arrangement = arrangeCanvas(["a", "b", "c"].map(solo), room)
+      expect(arrangement.columns).toBe(2)
+      expect(places(arrangement, ["a", "b", "c"])).toBe("a 924,0 | b 0,636 | c 924,636")
+    })
+
+    it("moves none of the others for a new window first in the order, arranged afresh", () => {
+      const before = arrangeCanvas(["a", "b", "c"].map(solo), room)
+      const after = arrangeCanvas(["new", "a", "b", "c"].map(solo), room)
+      expect(after.columns).toBe(before.columns)
+      expect(places(after, ["a", "b", "c"])).toBe(places(before, ["a", "b", "c"]))
+      expect(at(after, "new")).toEqual({ x: 0, y: 0 })
+    })
+
     it("makes each team an island beside the block: its lead, then its team to the right", () => {
       const arrangement = arrangeCanvas(
         [solo("a"), solo("lead"), led("one", "lead"), led("two", "lead"), solo("b")],
@@ -99,17 +113,43 @@ describe("the canvas's arrangement", () => {
       ).toBe(before)
     })
 
-    it("puts a window new to the canvas last in the block", () => {
+    it("puts a window new to the canvas first in the block, where the sidebar lists it", () => {
       const grown = growCanvas(before, [
-        solo("a"),
         solo("new"),
+        solo("a"),
         solo("b"),
         solo("lead"),
         led("one", "lead"),
         solo("c"),
       ])
-      expect(grown.block).toEqual(["a", "b", "c", "new"])
-      expect(places(grown, ["a", "b", "c"])).toBe(places(before, ["a", "b", "c"]))
+      expect(grown.block).toEqual(["new", "a", "b", "c"])
+      const others = ["a", "b", "c", "lead", "one"]
+      expect(places(grown, others)).toBe(places(before, others))
+      // The block is one row three across: the new one starts a row above, at the right.
+      expect(at(grown, "new")).toEqual({ x: 1848, y: -636 })
+    })
+
+    it("fills the start of the block's first row, right to left, moving nothing", () => {
+      const once = growCanvas(before, [solo("x"), ...before.block.map((id) => solo(id!))])
+      const twice = growCanvas(once, [solo("y"), solo("x"), ...before.block.map((id) => solo(id!))])
+      expect(twice.block).toEqual(["y", "x", "a", "b", "c"])
+      expect(places(twice, ["x", "a", "b", "c", "lead"])).toBe(
+        places(once, ["x", "a", "b", "c", "lead"]),
+      )
+      expect(at(twice, "y")).toEqual({ x: 924, y: -636 })
+    })
+
+    it("puts several new at once first, in the order given", () => {
+      const grown = growCanvas(before, [
+        solo("x"),
+        solo("y"),
+        solo("a"),
+        solo("b"),
+        solo("lead"),
+        led("one", "lead"),
+        solo("c"),
+      ])
+      expect(grown.block).toEqual(["x", "y", "a", "b", "c"])
     })
 
     it("moves a window that starts to lead to an island after the others, its slot left empty", () => {
@@ -274,7 +314,7 @@ describe("the canvas's arrangement", () => {
       expect(places(back, all)).toBe(places(before, all))
     })
 
-    it("puts a window opened afterwards last, not in the empty slot", () => {
+    it("puts a window opened afterwards first, not in the empty slot", () => {
       const grown = growCanvas(before, [
         solo("a"),
         solo("lead"),
@@ -283,7 +323,7 @@ describe("the canvas's arrangement", () => {
         solo("c"),
         solo("new"),
       ])
-      expect(grown.block).toEqual(["a", "b", "c", "new"])
+      expect(grown.block).toEqual(["new", "a", "b", "c"])
     })
   })
 })

@@ -73,10 +73,14 @@ const samePlaces = (
     ([name, place]) => near(actual[name]!.x, place.x) && near(actual[name]!.y, place.y),
   )
 
-/** `next` follows `previous` in a block's reading order: beside it, or at the first column below. */
-const followsInBlock = (previous: Box, next: Box, first: Box): boolean =>
+/**
+ * `next` follows `previous` in a block's reading order: beside it, or at the block's left
+ * edge in the row below. The block fills from its end, so only its first row can be short.
+ */
+const followsInBlock = (previous: Box, next: Box, block: readonly Box[]): boolean =>
   (near(next.top, previous.top) && next.left > previous.left + previous.width) ||
-  (next.top > previous.top + previous.height && near(next.left, first.left))
+  (next.top > previous.top + previous.height &&
+    near(next.left, Math.min(...block.map((box) => box.left))))
 
 /**
  * Drags a tab by pointer onto the top quarter of another tab, clearly past the
@@ -109,7 +113,7 @@ describe("Canvas's arrangement", () => {
       const boxes = boxesOf(inOrder)
       inOrder.slice(1).forEach((name, n) => {
         expect(
-          followsInBlock(boxes[inOrder[n]!]!, boxes[name]!, boxes[inOrder[0]!]!),
+          followsInBlock(boxes[inOrder[n]!]!, boxes[name]!, Object.values(boxes)),
           `${name} follows ${inOrder[n]} in the block`,
         ).toBe(true)
       })
@@ -132,7 +136,7 @@ describe("Canvas's arrangement", () => {
   })
 
   context("when a terminal is opened while Canvas is open", () => {
-    it("goes first in the sidebar but last in the block, and no other window moves", async () => {
+    it("goes first in the sidebar and first in the block, and no other window moves", async () => {
       await openWorkspace()
       await openCanvas()
       const before = placesFrom(storefront, "Checkout implementation")
@@ -144,13 +148,17 @@ describe("Canvas's arrangement", () => {
       expect(terminalTabNames()[0]).toBe(newTerminalName)
       const after = await settled(() => placesFrom(storefront, "Checkout implementation"))
       expect(samePlaces(after, before)).toBe(true)
-      const boxes = await settled(() => boxesOf([...storefront, newTerminalName]))
+      const boxes = await settled(() => boxesOf([newTerminalName, ...storefront]))
       expect(
-        followsInBlock(boxes.Build!, boxes[newTerminalName]!, boxes["Checkout implementation"]!),
+        followsInBlock(
+          boxes[newTerminalName]!,
+          boxes["Checkout implementation"]!,
+          Object.values(boxes),
+        ),
       ).toBe(true)
     })
 
-    it("is first in the block the next time Canvas opens, as it is in the sidebar", async () => {
+    it("is still first in the block the next time Canvas opens", async () => {
       await openWorkspace()
       await openCanvas()
       await page.getByRole("button", { name: "New terminal", exact: true }).click()
@@ -159,9 +167,14 @@ describe("Canvas's arrangement", () => {
       await chooseView("Grid")
       await chooseView("Canvas")
 
-      const boxes = await settled(() => boxesOf([...storefront, newTerminalName]))
-      const first = boxes[newTerminalName]!
-      expect(followsInBlock(first, boxes["Dev server"]!, first)).toBe(true)
+      const boxes = await settled(() => boxesOf([newTerminalName, ...storefront]))
+      expect(
+        followsInBlock(
+          boxes[newTerminalName]!,
+          boxes["Checkout implementation"]!,
+          Object.values(boxes),
+        ),
+      ).toBe(true)
     })
   })
 
