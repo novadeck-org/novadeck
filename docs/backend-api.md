@@ -1043,7 +1043,7 @@ one from an earlier runner.
   harness would show as a placeholder (Claude Code over three lines or about 900 characters,
   Codex over 1,024, Antigravity over 15 lines) can't be checked in the box, so the prompt goes as
   if `at` were absent: every image first, then the words, nothing typed for Antigravity, the
-  receipt and a later Stop treating it as a leading one; only the placement is lost. A failure takes back what landed, the words ahead of an image too. The
+  receipt and a later Stop treating it as a leading one; only the placement is lost. The same goes for Codex on Windows, which reads a paste as keys, so a path pasted after words stays text there (CI, 2026-11-09, `BoxProfile.pastesAsKeys`): any prompt with `at` goes images first. A failure takes back what landed, the words ahead of an image too. The
   receipt settles on a record item that holds the prompt's words whatever the placeholders and
   their spacing are.
 

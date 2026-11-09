@@ -415,10 +415,21 @@ describe("a prompt with images among its words", () => {
     )
     expect(told).toBe(1)
     expect(written[0]).toBe("\x1b[200~/up/a/one.png\x1b[201~")
-    // One line, or a long first one, goes among the words as before.
-    const whole = terminal("inline", { asKeys: true })
-    await whole.prompts.prompt("t", see, "alone", undefined, ["/up/a/one.png"], [10])
-    expect(whole.written[0]).toBe("\x1b[200~See this: \x1b[201~")
+    // Nor can an image go after words where pastes are keys, even on one line: a path pasted
+    // after words stays text there (Codex on Windows, CI 2026-11-09).
+    const one = terminal("inline", { asKeys: true })
+    let again = 0
+    await one.prompts.prompt(
+      "t",
+      see,
+      "alone",
+      undefined,
+      ["/up/a/one.png"],
+      [10],
+      () => (again += 1),
+    )
+    expect(again).toBe(1)
+    expect(one.written[0]).toBe("\x1b[200~/up/a/one.png\x1b[201~")
   })
 
   it("takes back the words and images that landed when an image never shows", async () => {

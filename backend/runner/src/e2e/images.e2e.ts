@@ -1,4 +1,6 @@
 /* eslint-disable no-await-in-loop -- A scenario's steps run in order, each after the one before. */
+import { box as codexBox } from "@novadeck/harness-codex/box"
+
 import { setups } from "./agents/index.js"
 import { item, prompted } from "./chat-prompts.js"
 import { describe, e2e, expect, gated, supported } from "./fixture.js"
@@ -104,10 +106,15 @@ for (const setup of setups) {
           const pieces = [...at, words.length].map((end, index) =>
             words.slice(index === 0 ? 0 : at[index - 1], end).trim(),
           )
+          // Where the harness reads a paste as keys (Codex on Windows) a path after words is only
+          // text, so the runner sends the images first, and the record holds them ahead.
+          const held = !(setup.agent === "codex" && codexBox.pastesAsKeys?.() === true)
+          const flat = (text: string) =>
+            text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+")
           const placed = new RegExp(
-            pieces
-              .map((piece) => piece.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+"))
-              .join("\\s*\\[Image #\\d+\\]\\s*"),
+            held
+              ? pieces.map(flat).join("\\s*\\[Image #\\d+\\]\\s*")
+              : `(?:\\s*\\[Image #\\d+\\])+\\s*${flat(pieces.join(" "))}`,
           )
           const call = await run.model.waitFor(
             (each) =>

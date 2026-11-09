@@ -398,9 +398,13 @@ export class Prompts {
         )
       // A run it shows as a placeholder is no text to check the box against, among images:
       // the images go first, as when they have no places, and the caller is told.
-      // A run a program that reads pastes as keys would take for an Enter (`pastesWhole`) can't
-      // be pasted among the words either.
-      if (runs?.some((run) => profile.collapses(run) || !pastesWhole(profile, run))) {
+      // A program that reads pastes as keys (Codex on Windows) takes a path pasted after words as
+      // text, not as an image, so none can go among them; and a run it would take for an Enter
+      // (`pastesWhole`) can't be pasted either.
+      if (
+        runs?.some((run) => profile.collapses(run) || !pastesWhole(profile, run)) ||
+        (runs && profile.pastesAsKeys?.() === true)
+      ) {
         runs = undefined
         unplaced?.()
       }
