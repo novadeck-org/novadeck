@@ -378,6 +378,27 @@ const answerWords = (question: ChatQuestion, pick: Pick | undefined): string => 
 const hasModifier = (event: React.KeyboardEvent): boolean =>
   event.altKey || event.ctrlKey || event.metaKey
 
+// Focus to a page's row the person is on, or its first control.
+const focusPage = (pages: HTMLElement | null, page: number): void =>
+  pages
+    ?.querySelector<HTMLElement>(
+      `[data-page="${page}"] :is(input, button):not([tabindex="-1"], :disabled)`,
+    )
+    ?.focus({ preventScroll: true })
+
+// Whether focus is free for a dialog that appears in `within`: on nothing, or in its chat on
+// what holds no words of the person's.
+const askedFree = (within: Element | null): boolean => {
+  const active = document.activeElement
+  if (!active || active === document.body) return true
+  if (!within?.closest(".chat")?.contains(active)) return false
+  return !(
+    (active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement) &&
+    isTyping(active) &&
+    active.value !== ""
+  )
+}
+
 const headerOf = (question: ChatQuestion, index: number): string =>
   question.header ?? `Question ${index + 1}`
 
@@ -496,15 +517,24 @@ const Questions = ({
   useEffect(() => {
     if (!moved.current) return
     moved.current = false
-    pages.current
-      ?.querySelector<HTMLElement>(
-        `[data-page="${page}"] :is(input, button):not([tabindex="-1"], :disabled)`,
-      )
-      ?.focus({ preventScroll: true })
+    focusPage(pages.current, page)
     // The pages share a cell as tall as the tallest: this one starts at its top.
     const scroller = pages.current?.closest(".chat-requests")
     if (scroller) scroller.scrollTop = 0
   }, [page])
+  // The questions take the keys as they appear, as a harness's own do, unless the person is
+  // writing something or is elsewhere: then what they type stays where they type it.
+  const now = useRef({ page, held: replying || sending })
+  useEffect(() => {
+    now.current = { page, held: replying || sending }
+  })
+  useEffect(() => {
+    // A dialog read again leaves the person where they are in it.
+    const form = pages.current?.closest("form")
+    if (now.current.held || form?.contains(document.activeElement)) return
+    if (askedFree(pages.current)) focusPage(pages.current, now.current.page)
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Only as the dialog comes.
+  }, [dialog.id])
   const turnTo = (to: number): void => {
     moved.current = true
     setTurned(to)

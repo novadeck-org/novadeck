@@ -732,6 +732,58 @@ describe("a dialog of questions", () => {
     expect(input(container, "Keep it").name).toBe("")
   })
 
+  // The questions appearing in a chat whose box holds `words`, with focus on the box, or on a
+  // field outside the chat.
+  const appear = (words: string, where: "box" | "elsewhere") => {
+    const element = (requests: readonly ChatRequest[]) =>
+      createElement(
+        "div",
+        { className: "chat" },
+        createElement("textarea", { className: "chat-input", defaultValue: words }),
+        createElement(Requests, {
+          requests,
+          slice: null,
+          agent: "Claude",
+          onAnswer: async () => {},
+          onAnswerInTerminal: () => {},
+          onSettled,
+          replying: null,
+          replySending: false,
+          onReply,
+          refused: refusing("/tmp is full", "x @a "),
+          onChatting,
+        }),
+      )
+    const { container, rerender, unmount } = render(element([]))
+    unmounts.push(unmount)
+    const elsewhere = document.body.appendChild(document.createElement("textarea"))
+    unmounts.push(() => elsewhere.remove())
+    const box = container.querySelector<HTMLTextAreaElement>(".chat-input")!
+    ;(where === "box" ? box : elsewhere).focus()
+    rerender(element([request(dialog)]))
+    return { container, box, elsewhere }
+  }
+
+  it("takes the keys as it appears, on its first row", () => {
+    const { container } = show(dialog, async () => {})
+    expect(document.activeElement).toBe(input(container, "Keep it"))
+  })
+
+  it("takes the keys from the chat's box while it holds no words", () => {
+    const { container } = appear("", "box")
+    expect(document.activeElement).toBe(input(container, "Keep it"))
+  })
+
+  it("leaves the keys in the chat's box while the person is writing there", () => {
+    const { box } = appear("half a thought", "box")
+    expect(document.activeElement).toBe(box)
+  })
+
+  it("leaves the keys where they are outside the chat", () => {
+    const { elsewhere } = appear("", "elsewhere")
+    expect(document.activeElement).toBe(elsewhere)
+  })
+
   it("turns the page with left and right, picking nothing, focus going along", async () => {
     const { container } = show(dialog, async () => {})
     const keep = input(container, "Keep it")
