@@ -109,6 +109,8 @@ const terminal = (
     questions?: number
     /** Runs as the request is locked, after the driver's failure. */
     onLock?: () => void
+    /** Its `chat` takes the words through its field, as a Write-in: option 3, then the words. */
+    writeIn?: boolean
   } = {},
 ) => {
   const tui = new FakeTui()
@@ -173,7 +175,24 @@ const terminal = (
                 })),
                 chat,
               },
-              keys: () => [{ press: "1" }],
+              keys: (answer) =>
+                options.writeIn && answer.type === "chat" && answer.text !== undefined
+                  ? [
+                      { press: "3" },
+                      {
+                        until: (shown) => shown.includes("FAKE FIELD"),
+                        timeoutMs: 100,
+                        why: "the field",
+                      },
+                      { type: answer.text },
+                      {
+                        until: (shown) => shown.includes(`> ${answer.text}`),
+                        timeoutMs: 100,
+                        why: "the words",
+                      },
+                      { press: "\r" },
+                    ]
+                  : [{ press: "1" }],
             }
           )
         },
@@ -1301,11 +1320,33 @@ describe("setting a question aside, as the chat's Send or Stop does over it", ()
     expect(made.tui.written).toEqual([])
   })
 
-  it("never gives the words again where its keys went and the request is gone, though the dialog didn't show it", async () => {
-    const made = asking({ escape: "skips", chat: "field", onLock: () => made.leave() })
-    made.tui.ignores = true
+  it("never gives the words again where they went into the field and the request is gone, though the dialog didn't show it", async () => {
+    const made = asking({
+      escape: "skips",
+      chat: "field",
+      writeIn: true,
+      onLock: () => made.leave(),
+      // The field takes the words, and then no Enter: the dialog never shows it answered.
+      after: (tui) => {
+        if (tui.field !== "") tui.ignores = true
+      },
+    })
     expect(await made.setAside("talk about the footer")).toBe("answered")
-    expect(made.tui.written).toEqual(["1"])
+    expect(made.tui.written).toEqual(["3", "\x1b[200~talk about the footer\x1b[201~", "\r"])
+    expect(made.locks).toEqual(["failed"])
+  })
+
+  it("lets the words follow as a prompt where a key went but they never reached the field, and the request is gone", async () => {
+    const made = asking({
+      escape: "skips",
+      chat: "field",
+      writeIn: true,
+      onLock: () => made.leave(),
+    })
+    // The key went, and the field never opened: as an Enter that picked an option instead.
+    made.tui.ignores = true
+    expect(await made.setAside("talk about the footer")).toBe("dismissed")
+    expect(made.tui.written).toEqual(["3"])
     expect(made.locks).toEqual(["failed"])
   })
 

@@ -135,6 +135,8 @@ type Aside = {
    * set aside: asked right before each key, as a request may come while the answer waits.
    */
   readonly guard: () => void
+  /** Told once the words went into the dialog's field, whatever comes of them after. */
+  readonly typed: () => void
 }
 
 /** What `setAside` did: nothing waited, the questions went, or the words went as the answer. */
@@ -254,6 +256,8 @@ export class Answers {
     images = false,
   ): Promise<SetAside> {
     const guard = () => this.onlyAside(terminalId, refs)
+    // Whether the words went into the dialog's field, as its answer.
+    let wordsIn = false
     // Whether a question went by its keys, not by the person's in the terminal.
     let dismissed = false
     for (let round = 0; ; round += 1) {
@@ -277,15 +281,17 @@ export class Answers {
           type: "aside",
           escape,
           guard,
+          typed: () => (wordsIn = true),
           ...(text !== undefined && { text }),
         })
       } catch (error) {
         if (!(error instanceof DomainError)) throw error
         if (!this.waits(terminalId, ref)) {
-          // Its keys went and it is gone: as far as can be told, it went by them, and words that
-          // were its answer are never given again as a prompt.
+          // Its keys went and it is gone: as far as can be told, it went by them. Words typed
+          // in as its answer are never given again as a prompt; words that never went in, as
+          // where a key before them answered an option, follow as one.
           if (error.code === "ANSWER_FAILED") {
-            if (answers) return "answered"
+            if (answers && wordsIn) return "answered"
             dismissed = true
           }
           // Otherwise gone meanwhile, as one the person answered in the terminal as the entry
@@ -460,7 +466,7 @@ export class Answers {
         const pressedAt = await this.run(terminalId, ref, steps, {
           adapter,
           id: given.dialog,
-          ...(answer.type === "aside" && { guard: answer.guard }),
+          ...(answer.type === "aside" && { guard: answer.guard, typed: answer.typed }),
         })
         const taken = await this.confirmed(
           terminalId,
@@ -697,6 +703,8 @@ export class Answers {
       readonly id: string
       /** Throws where the keys must not go now, asked before the first. */
       readonly guard?: () => void
+      /** Told once a `type` step's words were pressed. */
+      readonly typed?: () => void
     },
   ): Promise<number> {
     // Words typed into a field are checked by the adapter's own `until` right after, which
@@ -732,6 +740,7 @@ export class Answers {
       if (!this.host.press(terminalId, text))
         throw new Failed("The terminal went away before the keys were pressed.", pressed)
       pressed = true
+      if ("type" in step) check.typed?.()
     }
     return pressedAt
   }
