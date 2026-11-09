@@ -521,6 +521,18 @@ describe("a dialog's menu", () => {
     expect(on(container)).toEqual([second])
   })
 
+  it("leaves focus in a field the person opened to write in, the bar moving alone", async () => {
+    const { container } = show(choices, async () => {})
+    click(button(container, "No, and tell it"))
+    await settle()
+    const field = container.querySelector("textarea")!
+    expect(document.activeElement).toBe(field)
+    const [first] = rows(container) as HTMLElement[]
+    pointerMove(first!)
+    expect(document.activeElement).toBe(field)
+    expect(on(container)).toEqual([first])
+  })
+
   it("moves nothing for a touch, whose tap presses the row", () => {
     const { container } = show(choices, async () => {})
     const [first, second] = rows(container) as HTMLElement[]

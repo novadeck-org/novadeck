@@ -64,7 +64,13 @@ export const useMenu = (count: number): Menu => {
       const row = rows[index]
       if (!row || index === at || row.matches(":disabled")) return
       const active = document.activeElement
-      if (active && option.closest(".chat-dialog")?.contains(active) && !holdsWords(active))
+      // Focus goes along only from another row the keys pick with: never out of a field the
+      // person is about to write in, where their words would land on a row instead.
+      if (
+        active?.hasAttribute(rowMark) &&
+        option.closest(".chat-dialog")?.contains(active) &&
+        !isTyping(active)
+      )
         row.focus({ preventScroll: true })
       else setCursor(index)
     },

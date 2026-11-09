@@ -713,7 +713,8 @@ export const connectRunner = async (
             ...(along && { along }),
             ...(ref !== undefined && { ref }),
             ...(images && images.length > 0 && { images: [...images] }),
-            ...(images && images.length > 0 && at && at.length > 0 && { at: [...at] }),
+            // Images that all lead need no places: a runner from before them takes the call as ever.
+            ...(images && images.length > 0 && at?.some((offset) => offset > 0) && { at: [...at] }),
           }),
         ),
       answer: (terminalId, request, answer) =>
