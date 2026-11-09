@@ -23,7 +23,7 @@ import type { TerminalLayoutControls } from "../../terminals/WindowShell"
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
 import { GridTeamWire } from "./GridTeamWire"
-import { arrangeGrid, gridGap, moveToSlot, orderAfterDrag, slotAt } from "./layout"
+import { arrangeGrid, gridGap, gridTileHeight, moveToSlot, orderAfterDrag, slotAt } from "./layout"
 import type { TileBox } from "./team-route"
 
 // The wheel over a window scrolls the grid, unless the window is the selected one and holds
@@ -160,8 +160,14 @@ type Held = {
 }
 
 type Props = {
-  // Every terminal and window in the sidebar's order, which the grid follows.
+  // Every terminal and window, in an order that holds still as the sidebar's is changed: the
+  // tiles are rendered in it, so a tile's page or terminal is never moved in the document,
+  // which would reload a page in its own frame.
   terminals: readonly Tile[]
+  // The same, by id, in the sidebar's order, which the grid lays them out by.
+  listed: readonly string[]
+  // The order with each folded team's tabs kept together, as saving a drag would leave it.
+  keepFolds: (order: readonly string[]) => string[]
   navigation: number
   selected: string
   // Every team's wire runs through the gutters, at rest; the selected terminal's team's lights.
@@ -182,6 +188,8 @@ const dropGhost = "drop-placeholder"
 
 export const Grid = ({
   terminals,
+  listed,
+  keepFolds,
   selected,
   teams,
   team,
@@ -203,12 +211,15 @@ export const Grid = ({
     stage.addEventListener("wheel", onWheel, { capture: true, passive: false })
     return () => stage.removeEventListener("wheel", onWheel, { capture: true })
   }, [])
-  // The tiles on show, in the sidebar's order.
+  // The tiles on show, and their ids in the sidebar's order.
   const shown = useMemo(
     () => terminals.filter((terminal) => !removed[terminal.id]),
     [terminals, removed],
   )
-  const ids = useMemo(() => shown.map((terminal) => terminal.id), [shown])
+  const ids = useMemo(() => {
+    const on = new Set(shown.map((terminal) => terminal.id))
+    return listed.filter((id) => on.has(id))
+  }, [shown, listed])
 
   // Something dragged off a terminal's taskbar can be dropped on the grid. While it's over
   // the grid, a placeholder sits among the tiles where it would go, and they make room for
@@ -244,7 +255,9 @@ export const Grid = ({
   // A tile dragged by its header: it follows the pointer and the others make room as it
   // goes, as the sidebar's list does. The pointer is read in the grid's frame each time it
   // moves and as the grid scrolls under it.
-  const [held, setHeld] = useState<Held | null>(null)
+  const [dragged, setHeld] = useState<Held | null>(null)
+  // A tile closed in the hand is not held any more, and leaves no place behind it.
+  const held = dragged !== null && ids.includes(dragged.id) ? dragged : null
   const live = useRef<{
     held: Held
     grab: { x: number; y: number }
@@ -259,11 +272,16 @@ export const Grid = ({
       const point = { x: pointer.x - bounds.left, y: pointer.y - bounds.top }
       const { id } = live.current.held
       live.current.pointer = pointer
+      // Held within the grid, so the tile never makes it scroll where there is nothing.
+      const { tileWidth, height } = arrangeGrid(ids, width)
       live.current.held = {
         id,
         to: slotAt(point, width, ids.length - 1),
-        x: point.x - live.current.grab.x,
-        y: point.y - live.current.grab.y,
+        x: Math.min(Math.max(point.x - live.current.grab.x, 0), width - tileWidth),
+        y: Math.min(
+          Math.max(point.y - live.current.grab.y, 0),
+          Math.max(height - gridTileHeight, 0),
+        ),
       }
       setHeld(live.current.held)
     },
@@ -280,11 +298,16 @@ export const Grid = ({
   }, [dragging, follow])
 
   const order = useMemo(() => {
-    if (held) return moveToSlot(ids, held.id, held.to)
+    // What a drop would save: with a folded team's tabs together, so the tiles shown making
+    // room are those that move.
+    if (held) {
+      const on = new Set(ids)
+      return keepFolds(orderAfterDrag(listed, ids, held.id, held.to)).filter((id) => on.has(id))
+    }
     if (!dropPlace) return ids
     const at = dropPlace.grid.before === null ? -1 : ids.indexOf(dropPlace.grid.before)
     return moveToSlot(ids, dropGhost, at < 0 ? ids.length : at)
-  }, [ids, held, dropPlace])
+  }, [ids, listed, keepFolds, held, dropPlace])
   const { boxes, height } = useMemo(() => arrangeGrid(order, width), [order, width])
   const boxOf = useMemo(() => new Map(boxes.map((box) => [box.id, box])), [boxes])
   // The wire is drawn from the tiles at rest, not from where a drag or a drop makes room.
@@ -445,13 +468,16 @@ export const Grid = ({
       }}
       onDragMove={(event) => follow(event.operation.position.current)}
       onDragEnd={(event) => {
-        const dragged = live.current?.held
+        const lifted = live.current?.held
         live.current = null
         setHeld(null)
-        if (!dragged || event.canceled) return
-        const all = terminals.map((terminal) => terminal.id)
-        const next = orderAfterDrag(all, ids, dragged.id, dragged.to)
-        if (next !== all) onReorder([...next])
+        if (!lifted || event.canceled || !ids.includes(lifted.id)) return
+        // Let go outside the grid, it is not a drop on it.
+        const { x, y } = event.operation.position.current
+        const stage = stageRef.current?.getBoundingClientRect()
+        if (!stage || x < stage.left || x > stage.right || y < stage.top || y > stage.bottom) return
+        const next = orderAfterDrag(listed, ids, lifted.id, lifted.to)
+        if (next !== listed) onReorder([...next])
       }}
     >
       <ContextMenu

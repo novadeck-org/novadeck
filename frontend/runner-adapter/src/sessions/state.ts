@@ -23,8 +23,16 @@ export type SavedSession = {
 // Canvas marks a node while a gesture runs; a saved layout never resumes one. Of the
 // canvas, only where windows were dropped is saved: the camera an older build saved is
 // left out.
-const settled = (layout: TerminalLayout): TerminalLayout => ({
+//
+// A build before Grid took its layout from the sidebar needs `grid`, `gridRestoreWidths` and
+// `sizePresets.grid` to read a saved view at all, and drops the whole view without them, as a
+// rolled-back or older portable build would. They are written empty so it still loads; this
+// build reads past them. They can go once no build that is supported reads them.
+const settled = (layout: TerminalLayout) => ({
   ...layout,
+  grid: {},
+  gridRestoreWidths: {},
+  sizePresets: { grid: {} },
   canvas: {
     geometry: Object.fromEntries(
       Object.entries(layout.canvas.geometry).map(

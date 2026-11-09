@@ -108,6 +108,20 @@ describe("companion commands", () => {
       expect(app.shell().reordered).toBe(2)
     })
 
+    it("keeps a folded team together, listing a window dropped inside it after the team", () => {
+      const workspace = withItems(workspaceFixture({ terminals: 4 }))
+      const { terminals } = workspace.projects[0]!.history[0]!.state.roster
+      terminals[0] = { ...terminals[0]!, handle: "moth" }
+      terminals[1] = { ...terminals[1]!, handle: "fox", ledBy: "moth" }
+      terminals[2] = { ...terminals[2]!, handle: "owl", ledBy: "moth" }
+      const app = open({ workspace })
+      app.ui.update((state) => ({ ...state, foldedTeams: { "project/initial": ["01"] } }))
+
+      app.commands.undock(hero.id, { grid: { before: "02" } })
+
+      expect(app.listed()).toEqual(["01", "02", "03", "session-1", "04"])
+    })
+
     it("leaves a window dropped on its own place where it is", () => {
       const app = open()
       app.commands.undock(hero.id, { grid: { before: "02" } })

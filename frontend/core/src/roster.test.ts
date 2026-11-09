@@ -1,4 +1,10 @@
-import { createRoster, orderBefore, setTerminalProcess, setTerminalStatus } from "./roster"
+import {
+  createRoster,
+  keepFoldsTogether,
+  orderBefore,
+  setTerminalProcess,
+  setTerminalStatus,
+} from "./roster"
 import { describe, expect, it } from "./test"
 import type { TerminalMetadata, TerminalStatus } from "./types"
 
@@ -83,5 +89,21 @@ describe("where a tile dropped between two others goes", () => {
     expect(orderBefore(order, "a", null)).toEqual(["b", "c", "a"])
     expect(orderBefore(order, "x", "gone")).toEqual(["a", "b", "c", "x"])
     expect(orderBefore(order, "b", "b")).toEqual(order)
+  })
+})
+
+describe("a drag past a folded lead", () => {
+  const folds = [{ lead: "L", hidden: ["a", "b"] }]
+
+  it("takes its hidden team along when the lead is dragged away", () => {
+    expect(keepFoldsTogether(["a", "b", "X", "L"], folds)).toEqual(["X", "L", "a", "b"])
+  })
+
+  it("keeps a tab dropped on the lead out of its hidden team", () => {
+    expect(keepFoldsTogether(["L", "X", "a", "b"], folds)).toEqual(["L", "a", "b", "X"])
+  })
+
+  it("leaves an order with nothing folded as it is", () => {
+    expect(keepFoldsTogether(["X", "L", "a"], [])).toEqual(["X", "L", "a"])
   })
 })

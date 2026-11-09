@@ -17,7 +17,7 @@ import {
   sameTarget,
   shallowEqual,
 } from "./selectors"
-import { useReorderTiles } from "./team-fold"
+import { useFoldedOrder, useReorderTiles } from "./team-fold"
 import { renderTerminal } from "./WorkspaceTerminal"
 
 const useLayoutHidden = (hidden: Record<string, boolean>, preview: string) =>
@@ -92,6 +92,8 @@ export const WorkspaceStage = memo(
     const displayed = activeTerminal(terminals, selected, context, focusPreview)?.id
     const { setSelected, add, showSessions, showAll } = commands
     const reorderTiles = useReorderTiles()
+    const keepFolds = useFoldedOrder()
+    const listedIds = useMemo(() => listed.map((tile) => tile.id), [listed])
     const preview = hidden[selected] ? selected : ""
     const layoutHidden = useLayoutHidden(hidden, preview)
     return (
@@ -124,7 +126,9 @@ export const WorkspaceStage = memo(
           )}
           {view === "grid" && (
             <Grid
-              terminals={listed}
+              terminals={terminals}
+              listed={listedIds}
+              keepFolds={keepFolds}
               hidden={layoutHidden}
               preview={preview}
               selected={selected}

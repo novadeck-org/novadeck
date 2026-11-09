@@ -1,6 +1,7 @@
 import { afterEach } from "vitest"
-import { page, userEvent } from "vitest/browser"
+import { page, userEvent, type Locator } from "vitest/browser"
 
+import { windowMenu } from "../support/companions"
 import { jump } from "../support/keyboard"
 import {
   bounds,
@@ -13,7 +14,8 @@ import {
   sameBox,
 } from "../support/layouts"
 import { openMessagesDemo } from "../support/messages"
-import { confirmClose, headerAction } from "../support/terminals"
+import { pinPointer } from "../support/pointer"
+import { closeConfirmation, confirmClose, headerAction } from "../support/terminals"
 import {
   chooseView,
   clickInto,
@@ -28,6 +30,7 @@ import {
   openWorkspace,
   press,
   recordAppearance,
+  sidebar,
   terminal,
   terminalTab,
   terminalTabNames,
@@ -238,6 +241,163 @@ describe("Grid view", () => {
       await dragTileOnto(before[0]!, before[0]!)
 
       await expectStaysTrue(() => terminalTabNames().join() === before.join(), "the sidebar order")
+    })
+  })
+
+  context("when tiles are moved in the sidebar's order", () => {
+    /** Marks each tile's element, to see afterwards which kept its place in the page. */
+    const markTiles = (): Map<string, Element> => {
+      const marks = new Map<string, Element>()
+      for (const tile of document.querySelectorAll("[data-grid-terminal]"))
+        marks.set(tile.getAttribute("data-grid-terminal")!, tile)
+      return marks
+    }
+    const sameElements = (marks: Map<string, Element>): boolean =>
+      [...marks].every(
+        ([id, tile]) => document.querySelector(`[data-grid-terminal="${id}"]`) === tile,
+      )
+    const documentOrder = (): string[] =>
+      [...document.querySelectorAll("[data-grid-terminal]")].map((tile) =>
+        tile.getAttribute("data-grid-terminal")!,
+      )
+
+    it("keeps every tile's element, and its place in the page, when the sidebar is reordered", async () => {
+      await openGrid()
+      const marks = markTiles()
+      const before = documentOrder()
+      const [first, second] = terminalTabNames()
+
+      await dragTabOnto(second!, first!)
+      await expect.poll(() => readingOrder().slice(0, 2)).toEqual([second, first])
+
+      expect(sameElements(marks)).toBe(true)
+      expect(documentOrder()).toEqual(before)
+    })
+
+    it("keeps every tile's element when a tile is dragged in the Grid", async () => {
+      await openGrid()
+      const marks = markTiles()
+      const [first, , third] = terminalTabNames()
+
+      await dragTileOnto(third!, first!)
+      await expect.poll(() => readingOrder()[0]).toBe(third)
+
+      expect(sameElements(marks)).toBe(true)
+    })
+  })
+
+  context("when a tile is held at the edge of the Grid", () => {
+    const stage = (): HTMLElement => gridView().element().querySelector(".grid-stage")!
+    const grip = (name: string) => {
+      const box = bounds(terminal(name))
+      const gap = headerGap(name)
+      return { x: box.left + gap.x, y: box.top + gap.y }
+    }
+    const wait = (ms: number): Promise<void> => new Promise((done) => setTimeout(done, ms))
+
+    it("scrolls no further than the tiles go, and never sideways", async () => {
+      await openGrid(560)
+      const [first] = terminalTabNames()
+      const content = stage().scrollHeight
+      const area = bounds(gridView())
+
+      await pinPointer("press", grip(first!))
+      await pinPointer("move", { x: area.right - 2, y: area.bottom - 2 })
+      await wait(1500)
+
+      expect(stage().scrollHeight).toBeLessThanOrEqual(content)
+      expect(stage().scrollLeft).toBe(0)
+      await pinPointer("move", { x: area.right - 2, y: area.top + 2 })
+      await wait(500)
+      expect(stage().scrollLeft).toBe(0)
+      await pinPointer("release")
+    })
+
+    it("leaves the order alone when it is let go outside the Grid", async () => {
+      await openGrid()
+      const before = terminalTabNames()
+      const [first, , third] = before
+      const to = bounds(terminal(third!))
+
+      await pinPointer("press", grip(first!))
+      await pinPointer("move", { x: to.left + 60, y: to.top + 30 })
+      await wait(200)
+      // Over the sidebar, outside the Grid's stage.
+      await pinPointer("move", { x: 100, y: to.top + 30 })
+      await wait(200)
+      await pinPointer("release")
+
+      await expectStaysTrue(() => terminalTabNames().join() === before.join(), "the sidebar order")
+    })
+  })
+
+  context("when a terminal is closed while it is held", () => {
+    it("leaves no place for it behind", async () => {
+      await openGrid()
+      const [, held] = terminalTabNames()
+      const box = bounds(terminal(held!))
+      const gap = headerGap(held!)
+      const to = bounds(terminal(terminalTabNames()[3]!))
+
+      await pinPointer("press", { x: box.left + gap.x, y: box.top + gap.y })
+      await pinPointer("move", { x: to.left + 60, y: to.top + 30 })
+      await expect.poll(() => document.querySelector(".grid-placeholder")).not.toBeNull()
+      // By the DOM, as the pointer stays where it is.
+      const clickNow = (button: Locator): void => (button.element() as HTMLElement).click()
+      clickNow(sidebar().getByRole("button", { name: labelled("Close ", held!) }))
+      const confirm = closeConfirmation().getByRole("button", { name: "Close terminal" })
+      await expect.element(confirm).toBeVisible()
+      clickNow(confirm)
+
+      await expect.poll(() => gridTerminalNames()).not.toContain(held)
+      await expect.poll(() => document.querySelector(".grid-placeholder")).toBeNull()
+      // The tiles that are left fill the cells from the first, none of them held back.
+      const rest = Object.values(tileBoxes()).map(
+        (tile) => `${Math.round(tile.left)},${Math.round(tile.top)}`,
+      )
+      expect(new Set(rest).size).toBe(rest.length)
+      expect(readingOrder()).toEqual(terminalTabNames())
+      await pinPointer("release")
+    })
+  })
+
+  context("when a folded team's tile is dragged", () => {
+    it("shows the order a drop will leave, the team together", async () => {
+      await page.viewport(1440, 900)
+      await openMessagesDemo()
+      const lead = "Checkout implementation"
+      const worker = "Checkout review"
+      await terminalTab(lead).click()
+      await chooseView("Grid")
+      const menu = await windowMenu(lead)
+      await menu.getByRole("menuitem", { name: "Fold 1 teammate", exact: true }).click()
+      await terminal("Dev server").click({ position: { x: 150, y: 150 } })
+      await expectSelected("Dev server")
+      const tabs = (): string[] =>
+        [...document.querySelectorAll<HTMLElement>("[data-terminal-tab-id]")].map(
+          (tab) => tab.querySelector("strong")?.textContent ?? "",
+        )
+      const box = bounds(terminal("Dev server"))
+      const gap = headerGap("Dev server")
+      const onto = bounds(terminal(worker))
+
+      await pinPointer("press", { x: box.left + gap.x, y: box.top + gap.y })
+      await pinPointer("move", { x: onto.left + 60, y: onto.top + 30 })
+      await new Promise((done) => setTimeout(done, 400))
+
+      // The other tiles and the place held for the dragged one, in reading order.
+      const placeholder = document.querySelector(".grid-placeholder")!.getBoundingClientRect()
+      const slots = [
+        ...Object.entries(tileBoxes()).filter(([name]) => name !== "Dev server"),
+        ["held", placeholder] as const,
+      ]
+        .toSorted(([, a], [, b]) => (Math.abs(a.top - b.top) > 1 ? a.top - b.top : a.left - b.left))
+        .map(([name]) => name)
+      const named = (name: string): number => slots.indexOf(name)
+      expect(named(lead)).toBeGreaterThanOrEqual(0)
+      expect(named(worker) - named(lead)).toBe(1)
+      await pinPointer("release")
+      await expect.poll(() => tabs().indexOf(worker) - tabs().indexOf(lead)).toBe(1)
     })
   })
 

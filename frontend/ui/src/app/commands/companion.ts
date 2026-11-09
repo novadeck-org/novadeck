@@ -4,13 +4,19 @@ import {
   moveOnCanvas,
   type WindowPlace,
 } from "@novadeck/core/layout/window-place"
-import { hasTerminal, hasWindow, orderBefore, orderedTiles } from "@novadeck/core/roster"
+import {
+  hasTerminal,
+  hasWindow,
+  keepFoldsTogether,
+  orderBefore,
+  orderedTiles,
+} from "@novadeck/core/roster"
 import type { WorkspaceAction } from "@novadeck/core/state"
 import type { CompanionWindowMeta } from "@novadeck/core/types"
 import type { CompanionActions } from "@novadeck/items/actions"
 
 import { markReordered } from "../../shell/shell-state"
-import { currentContext, currentState, currentTarget } from "../selectors"
+import { currentContext, currentState, currentTarget, foldsOf } from "../selectors"
 import type { CommandContext } from "./context"
 
 // What the person does with companion items and the bars that hold them: the companion
@@ -34,13 +40,15 @@ export const createCompanionCommands = (
   const commit = (actions: readonly WorkspaceAction[]): void => void workspace.transact(actions)
 
   // The sidebar's order with window `id` listed just before the tile `before`, or last: where
-  // a window dropped on Grid goes.
-  const orderWith = (id: string, before: string | null): string[] =>
-    orderBefore(
-      orderedTiles(currentState(workspace.getSnapshot()).roster).map((tile) => tile.id),
-      id,
-      before,
+  // a window dropped on Grid goes, with a folded team's tabs kept together as a drag keeps them.
+  const orderWith = (id: string, before: string | null): string[] => {
+    const snapshot = workspace.getSnapshot()
+    const ids = orderedTiles(currentState(snapshot).roster).map((tile) => tile.id)
+    return keepFoldsTogether(
+      orderBefore(ids, id, before),
+      foldsOf(snapshot, ui.getSnapshot().foldedTeams),
     )
+  }
   // Canvas arranges its windows by the sidebar's order, afresh once it has changed.
   const markListed = (): void =>
     void ui.update((state) => ({ ...state, shell: markReordered(state.shell) }))

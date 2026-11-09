@@ -1,13 +1,20 @@
 import { descendantsOf, leadChain } from "@novadeck/core/derivations"
-import { isWindow } from "@novadeck/core/roster"
-import type { Tile, Workspace } from "@novadeck/core/types"
+import { isWindow, keepFoldsTogether } from "@novadeck/core/roster"
+import type { Tile } from "@novadeck/core/types"
 import { useCallback } from "react"
 
-import { foldsAway, isFolded, keepFoldsTogether, toggleFolded } from "../terminals/team-fold"
+import { foldsAway, isFolded, toggleFolded } from "../terminals/team-fold"
 import type { FoldTeam } from "../terminals/window-menu"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
-import { currentContext, currentState, currentTarget, sameItems, sameTarget } from "./selectors"
-import type { UiState, UiStore } from "./ui-store"
+import {
+  currentContext,
+  currentState,
+  currentTarget,
+  foldsOf,
+  sameItems,
+  sameTarget,
+} from "./selectors"
+import type { UiStore } from "./ui-store"
 
 // How long a team counts as folding or unfolding once the person turned it over: past the
 // motion, so a tab or row that mounts later, as on a session switch or the sidebar shown
@@ -50,34 +57,24 @@ export const previewTeamFold = (ui: UiStore, preview: UiStoreFoldPreview): void 
 
 type UiStoreFoldPreview = { readonly context: string; readonly lead: string } | null
 
-// The current session's folds, each lead with the tabs its fold hides (not the one the person is
-// on, nor the leads above it, which show in place): what a drag keeps together.
-export const foldsOf = (
-  workspace: Workspace,
-  ui: UiState,
-): { readonly lead: string; readonly hidden: readonly string[] }[] => {
-  const context = currentContext(workspace)
-  const { selected } = currentState(workspace)
-  const kept = new Set([selected, ...leadChain(workspace, selected)])
-  return (ui.foldedTeams[context] ?? []).map((lead) => ({
-    lead,
-    hidden: descendantsOf(workspace, lead).filter((id) => !kept.has(id)),
-  }))
+// Applies the folds to an order: each folded lead's hidden tabs right after it, as a drag of the
+// Terminals list or of a tile in Grid saves it, so Grid shows the order a drop will save.
+export const useFoldedOrder = (): ((order: readonly string[]) => string[]) => {
+  const { workspace, ui } = useWorkspaceServices()
+  return useCallback(
+    (order) =>
+      keepFoldsTogether(order, foldsOf(workspace.getSnapshot(), ui.getSnapshot().foldedTeams)),
+    [workspace, ui],
+  )
 }
 
 // Saves the order a drag of the Terminals list, or of a tile in Grid, ended on: a drag past a
 // folded lead keeps its hidden team right after it.
 export const useReorderTiles = (): ((order: string[]) => void) => {
-  const { commands, workspace, ui } = useWorkspaceServices()
+  const { commands } = useWorkspaceServices()
   const target = useWorkspaceState(currentTarget, sameTarget)
-  return useCallback(
-    (order) =>
-      commands.reorder(
-        target,
-        keepFoldsTogether(order, foldsOf(workspace.getSnapshot(), ui.getSnapshot())),
-      ),
-    [commands, workspace, ui, target],
-  )
+  const folded = useFoldedOrder()
+  return useCallback((order) => commands.reorder(target, folded(order)), [commands, target, folded])
 }
 
 // The current session's folded leads.

@@ -1,3 +1,4 @@
+import { descendantsOf, leadChain } from "@novadeck/core/derivations"
 import { activeProject, activeSession } from "@novadeck/core/state"
 import type {
   TerminalMetadata,
@@ -10,6 +11,7 @@ import type {
 } from "@novadeck/core/types"
 
 import { sidebarVisible, type FocusPreview } from "../shell/shell-state"
+import type { FoldedTeams } from "../terminals/team-fold"
 import type { UiState } from "./ui-store"
 
 // The active session's state; the workspace always has one once seeded.
@@ -116,3 +118,18 @@ export const mayToast = (ui: UiState, desktop: () => boolean): boolean =>
 // The OS ping defers the same items, so that one never rings for what no toast waits for.
 export const heldForToast = (ui: UiState, desktop: () => boolean): boolean =>
   modalOpen(ui) && mayToast(ui, desktop)
+
+// The current session's folds, each lead with the tabs its fold hides (not the one the person is
+// on, nor the leads above it, which show in place): what a drag keeps together.
+export const foldsOf = (
+  workspace: Workspace,
+  foldedTeams: FoldedTeams,
+): { readonly lead: string; readonly hidden: readonly string[] }[] => {
+  const context = currentContext(workspace)
+  const { selected } = currentState(workspace)
+  const kept = new Set([selected, ...leadChain(workspace, selected)])
+  return (foldedTeams[context] ?? []).map((lead) => ({
+    lead,
+    hidden: descendantsOf(workspace, lead).filter((id) => !kept.has(id)),
+  }))
+}
