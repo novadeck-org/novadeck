@@ -314,6 +314,33 @@ describe("Grid view", () => {
         .toBe(true)
     })
 
+    it("keeps the width it was given when, too narrow for it, the Grid can show no change", async () => {
+      await openGrid()
+      const [first] = terminalTabNames()
+      const one = bounds(terminal(first!))
+      ;(corner(first!).element() as HTMLElement).focus()
+      await userEvent.keyboard("{ArrowRight}")
+      await expect.poll(() => bounds(terminal(first!)).width).toBeGreaterThan(one.width + 100)
+
+      await page.viewport(1000, 900)
+      await expect.poll(() => bounds(terminal(first!)).width).toBeLessThan(900)
+      // Wider than one column can't show; then the corner dragged straight down a cell.
+      ;(corner(first!).element() as HTMLElement).focus()
+      await userEvent.keyboard("{ArrowRight}")
+      await holdCorner(first!, 0, one.height * 0.7)
+      await pinPointer("release")
+      await page.viewport(twoColumns.width, twoColumns.height)
+
+      await expect
+        .poll(() =>
+          sameSize(bounds(terminal(first!)), {
+            width: 2 * one.width + 16,
+            height: 2 * one.height + 16,
+          }),
+        )
+        .toBe(true)
+    })
+
     it("keeps a sized tile's size when a terminal is made", async () => {
       await openGrid()
       const [first] = terminalTabNames()

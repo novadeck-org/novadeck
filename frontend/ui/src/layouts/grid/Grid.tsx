@@ -349,6 +349,8 @@ export const Grid = ({
     null,
   )
   const resizing = sizing !== null && ids.includes(sizing.id) ? sizing : null
+  // Forgotten as soon as its tile goes, so it doesn't come back with the tile.
+  if (sizing !== null && resizing === null) setResizing(null)
   const sized = useMemo(
     () => (resizing ? { ...spans, [resizing.id]: resizing.span } : spans),
     [spans, resizing],
@@ -370,8 +372,12 @@ export const Grid = ({
             }
           : // Down or up keeps the width it was given, wider than the Grid holds now or not.
             { columns: saved.columns, rows: saved.rows + (key === "taller" ? 1 : -1) }
-      const span =
+      const asked =
         change.kind === "keys" ? keyed(change.key) : spanAt(change.across, change.down, rest)
+      // A width the Grid shows no differently keeps the one it was given, which may be wider
+      // than the Grid holds now: only a change the person can see is saved.
+      const across = Math.max(1, asked.columns)
+      const span = { ...asked, columns: across === showing.columns ? saved.columns : across }
       if (change.kind === "held")
         return setResizing((was) =>
           was?.id === id && was.span.columns === span.columns && was.span.rows === span.rows
@@ -379,9 +385,6 @@ export const Grid = ({
             : { id, span },
         )
       setResizing(null)
-      // Let go where it shows, as with a click on the corner, it keeps what it was given.
-      if (change.kind === "done" && span.columns === showing.columns && span.rows === showing.rows)
-        return
       onResize(id, span)
     },
     [rest, spans, onResize],
