@@ -81,7 +81,8 @@ prereleases, the experimental channel, are on the
 Canvas arranges its windows itself, from the Terminals list. Terminals on no team sit
 together in one block, in the list's order, filled from the end: the last row is full and
 the first row is the short one, against the right. A new terminal, which goes at the top
-of the list, takes the next place at the block's start, so no other window moves. Each team is a group of its own: the lead on
+of the list, takes the next place at the block's start, so no other window moves while
+Canvas is open, nor when it opens again unless the block takes a different width. Each team is a group of its own: the lead on
 the left and its team to the right, a teammate that leads others one step further right
 with its own team. Reorder the list and Canvas follows. While Canvas is open, a new
 terminal or a growing team moves only the windows that have to make room, and closing a

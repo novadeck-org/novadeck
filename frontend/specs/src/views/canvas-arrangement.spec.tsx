@@ -273,7 +273,7 @@ describe("Canvas's arrangement", () => {
       await expect.element(terminal("Tests")).toBeVisible()
       const during = await settled(() => placesFrom(rest, "Checkout implementation"))
       expect(samePlaces(during, before)).toBe(true)
-      // It shows where it would go, last in the block, over no other window.
+      // It shows where it would go, first in the block, over no other window.
       const shown = boxOf(terminal("Tests"))
       for (const name of rest)
         expect(overlaps(asRect(shown), asRect(boxOf(terminal(name))))).toBe(false)

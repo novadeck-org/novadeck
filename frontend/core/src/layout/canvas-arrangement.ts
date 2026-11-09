@@ -4,8 +4,10 @@ import { canvasWindowSize as size } from "./terminal-size"
 // sidebar's order and from who leads whom. Windows on no team sit in one compact block, in
 // that order, filled from its end: its last row is full and its first row is the short
 // one, against the right. A new terminal, which the sidebar lists first, so takes the next
-// place at the start and moves no other window, then or on the next visit. Each team is an island that reads left to right: its lead, then its team in
-// the next column, a teammate that leads one step further right with its own team.
+// place at the block's start, moving no other window while the visit lasts, nor on the
+// next while the block keeps its width. Each team is an island that reads left to right:
+// its lead, then its team in the next column, a teammate that leads one step further right
+// with its own team.
 //
 // An arrangement lasts for one visit to Canvas. While it lasts, what grows moves at once
 // and only as far as it must, and what shrinks moves nothing: a window that closes leaves

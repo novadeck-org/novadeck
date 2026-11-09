@@ -851,6 +851,22 @@ describe("terminals the person makes", () => {
     })
     expect(order(run(undocked, own(3)))).toEqual(["03", "01", "02", "w1"])
   })
+
+  it("leaves windows after a terminal that comes later from elsewhere", () => {
+    const undocked = apply(shown(hero), {
+      type: "item/undock",
+      target,
+      itemId: hero.id,
+      window: windowFor(hero),
+    })
+    const adopted: WorkspaceAction = {
+      type: "terminal/add",
+      target,
+      terminal: terminalFixture(5, "~/project"),
+      select: false,
+    }
+    expect(order(run(undocked, own(3), adopted))).toEqual(["03", "01", "02", "05", "w1"])
+  })
 })
 
 describe("removing a project", () => {

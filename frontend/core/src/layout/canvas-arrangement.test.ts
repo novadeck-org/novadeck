@@ -36,7 +36,7 @@ describe("the canvas's arrangement", () => {
       expect(places(arrangement, ["a", "b", "c"])).toBe("a 924,0 | b 0,636 | c 924,636")
     })
 
-    it("moves none of the others for a new window first in the order, arranged afresh", () => {
+    it("moves none of the others for a new window first in the order, arranged afresh at the same width", () => {
       const before = arrangeCanvas(["a", "b", "c"].map(solo), room)
       const after = arrangeCanvas(["new", "a", "b", "c"].map(solo), room)
       expect(after.columns).toBe(before.columns)
