@@ -107,6 +107,8 @@ const terminal = (
     escape?: "interrupts" | "skips"
     /** How many questions its `chat` dialog asks; one by default. */
     questions?: number
+    /** Runs as the request is locked, after the driver's failure. */
+    onLock?: () => void
   } = {},
 ) => {
   const tui = new FakeTui()
@@ -283,6 +285,7 @@ const terminal = (
     lock: (_terminal, _ref, reason) => {
       locks.push(reason)
       closed = true
+      options.onLock?.()
     },
     done: () => {
       closed = true
@@ -1296,5 +1299,20 @@ describe("setting a question aside, as the chat's Send or Stop does over it", ()
     setTimeout(made.leave, 150)
     expect(await made.setAside("hi")).toBe("none")
     expect(made.tui.written).toEqual([])
+  })
+
+  it("never gives the words again where its keys went and the request is gone, though the dialog didn't show it", async () => {
+    const made = asking({ escape: "skips", chat: "field", onLock: () => made.leave() })
+    made.tui.ignores = true
+    expect(await made.setAside("talk about the footer")).toBe("answered")
+    expect(made.tui.written).toEqual(["1"])
+    expect(made.locks).toEqual(["failed"])
+  })
+
+  it("says its Escape went where the request is gone though the screen never showed it, so a Stop presses no second one at once", async () => {
+    const made = asking({ onEscape: () => undefined, onLock: () => made.leave() })
+    expect(await made.setAside()).toBe("dismissed")
+    expect(made.tui.written).toEqual(["\x1b"])
+    expect(made.locks).toEqual(["failed"])
   })
 })

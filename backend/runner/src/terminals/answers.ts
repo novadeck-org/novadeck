@@ -281,9 +281,17 @@ export class Answers {
         })
       } catch (error) {
         if (!(error instanceof DomainError)) throw error
-        // Gone meanwhile, as one the person answered in the terminal as the entry began: what
-        // holds the agent now is looked at again.
-        if (!this.waits(terminalId, ref)) continue
+        if (!this.waits(terminalId, ref)) {
+          // Its keys went and it is gone: as far as can be told, it went by them, and words that
+          // were its answer are never given again as a prompt.
+          if (error.code === "ANSWER_FAILED") {
+            if (answers) return "answered"
+            dismissed = true
+          }
+          // Otherwise gone meanwhile, as one the person answered in the terminal as the entry
+          // began: what holds the agent now is looked at again.
+          continue
+        }
         if (error.code !== "CONFLICT" || error.reason !== undefined) throw error
         // Its dialog went from the screen, and its hook may be a moment behind.
         // eslint-disable-next-line no-await-in-loop -- As above.

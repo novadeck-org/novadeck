@@ -336,8 +336,9 @@ export class Typing {
           ),
         setAside &&
           (async (entry) => {
-            // A text the box has no room for is refused before the question is touched.
-            await this.fits(terminalId, text)
+            // A text the box has no room for is refused before the question is touched; where
+            // the words go as the question's answer, they never reach the box.
+            if (this.questionEscape(terminalId) !== "skips") await this.fits(terminalId, text)
             const done = await this.answers.setAside(
               entry,
               terminalId,
@@ -601,6 +602,12 @@ export class Typing {
       setAside?.includes(requestRef(binding, request)) === true
     if (!asking.every(aside)) throw waitsOnPerson()
     return record
+  }
+
+  /** What an Escape in the question dialog of the terminal's agent does (`questionEscape`). */
+  private questionEscape(terminalId: string): "interrupts" | "skips" | undefined {
+    const agent = this.host.live(terminalId)?.bound?.binding.agent
+    return agent && harnesses[agent].messaging.questionEscape
   }
 
   /** Refuses as `too-tall`, before anything is pressed, a text the agent's box has no room for. */
@@ -984,10 +991,7 @@ export class Typing {
           kind: request.kind,
         }))
       },
-      questionEscape: (terminalId) => {
-        const agent = this.host.live(terminalId)?.bound?.binding.agent
-        return agent && harnesses[agent].messaging.questionEscape
-      },
+      questionEscape: (terminalId) => this.questionEscape(terminalId),
     }
   }
 
