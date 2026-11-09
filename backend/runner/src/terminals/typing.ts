@@ -116,6 +116,12 @@ const queueGoneMs = 200
 const asideEndMs = 1_500
 
 /** What `agents.prompt` gives: the text, and whether it is automatic, under which ref. */
+/** What `agents.interrupt` takes: the terminal, and the questions the person saw to set aside. */
+export type InterruptInput = {
+  readonly terminalId: string
+  readonly setAside?: readonly string[] | undefined
+}
+
 export type PromptInput = {
   readonly terminalId: string
   readonly text: string
