@@ -170,7 +170,7 @@ describe("restart to update", () => {
       open(page)
       expect(card(page)?.textContent).toContain("Checkout · run in its agent's shell mode")
       expect(card(page)?.textContent).toContain(
-        "Orders · run in its agent's shell mode; its agent waits on the rest",
+        "Orders · its agent waits on all but its shell command",
       )
     })
   })

@@ -66,7 +66,7 @@ const words = (risk: Risk): { readonly main: React.ReactNode; readonly where: st
               <code>{risk.command}</code> stops
             </>
           ),
-        where: `${risk.title} · ${risk.shell === "only" ? "run in its agent's shell mode" : risk.shell === "mixed" ? "run in its agent's shell mode; its agent waits on the rest" : "its agent waits on it"}`,
+        where: `${risk.title} · ${risk.shell === "only" ? "run in its agent's shell mode" : risk.shell === "mixed" ? "its agent waits on all but its shell command" : "its agent waits on it"}`,
       }
     case "unknown":
       return { main: "Can't see what runs", where: `${risk.title} · it may stop` }

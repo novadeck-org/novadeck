@@ -71,6 +71,11 @@ type Attempt = {
   waiting: boolean
   /** When its find window closes. */
   deadline: number
+  /**
+   * When a turn started while it was unconfirmed, until the look taken at once for it has
+   * run: what that look lists is counted as seen then, before the turn's tools.
+   */
+  snap: number | undefined
   /** When each candidate was first seen live, by `Spawn.key`; only those still listed stay. */
   seen: Map<string, number>
 }
@@ -209,6 +214,7 @@ export class ShellCommands<R extends ShellRecord> {
       cut: false,
       confirmed: false,
       rearms: 0,
+      snap: undefined,
       waiting: false,
       deadline: anchor + findMs,
       seen: new Map(),
@@ -217,12 +223,14 @@ export class ShellCommands<R extends ShellRecord> {
 
   /**
    * The record's activity changed. A turn that started closes the open start interval of
-   * each attempt still unconfirmed, at its start less the platform's resolution (a start
-   * time may read that much early, so what a turn's tools started is left out rather than
-   * taken for the command: no busy on no evidence), and it waits out the turn. A turn that
-   * ended opens a new interval for a command its harness queued, from its end, and a find
-   * window of its own; a command run at once (Codex) is in the first interval. A held Enter's
-   * attempt begins at that end.
+   * every attempt at that moment (a process counts as started before it if a look before it
+   * saw it, or its latest possible start falls before it), so what a turn's tools start is
+   * left out rather than taken for the command: no busy on no evidence. Each attempt still
+   * unconfirmed takes one look at once and counts what it lists as seen then, as the turn's
+   * tools start later, and waits out the turn. A turn that ended opens a new interval for a
+   * command its harness queued, from its end less the resolution, and a find window of its
+   * own; a command run at once (Codex) is in the first interval. A held Enter's attempt
+   * begins at that end.
    */
   changed(record: R): void {
     const watch = this.watches.get(record)
@@ -233,8 +241,12 @@ export class ShellCommands<R extends ShellRecord> {
       for (const attempt of watch.attempts) {
         // Confirmed or not: what a turn starts is none of its command.
         for (const interval of attempt.intervals) interval.to ??= now
-        if (!attempt.confirmed) attempt.cut = true
+        if (!attempt.confirmed) {
+          attempt.cut = true
+          attempt.snap ??= now
+        }
       }
+      this.looking(record, watch)
       return
     }
     watch.attempts = watch.attempts.filter((attempt) => {
@@ -251,9 +263,10 @@ export class ShellCommands<R extends ShellRecord> {
     const { pending } = watch
     if (pending) {
       watch.pending = undefined
-      // At once (Codex): what started in the first moments after its Enter; queued: since the end.
+      // At once (Codex): what started within `midTurnMs` after its Enter (a start time bound,
+      // as its reading may be `res` early); queued: since the end.
       const intervals = pending.runs
-        ? [{ from: pending.at - res, to: pending.at + midTurnMs }]
+        ? [{ from: pending.at - res, to: pending.at + midTurnMs + res }]
         : [{ from: now - res }]
       watch.attempts.push(this.attempt(pending, intervals, now))
     }
@@ -300,17 +313,20 @@ export class ShellCommands<R extends ShellRecord> {
 
   /** Arms the watch's one look timer, if an attempt's window is open and none is. */
   private looking(record: R, watch: Watch): void {
-    if (
-      watch.look !== undefined ||
-      watch.looking ||
-      !watch.attempts.some(({ waiting }) => !waiting)
-    )
+    if (watch.looking) return
+    const urgent = watch.attempts.some(({ snap }) => snap !== undefined)
+    if (!urgent && (watch.look !== undefined || !watch.attempts.some(({ waiting }) => !waiting)))
       return
-    watch.look = setTimeout(() => {
-      watch.look = undefined
-      watch.looking = true
-      this.run(record, watch, () => this.look(record, watch))
-    }, lookEveryMs)
+    // A turn's start asks for a look at once, in place of one waiting.
+    if (watch.look !== undefined) clearTimeout(watch.look)
+    watch.look = setTimeout(
+      () => {
+        watch.look = undefined
+        watch.looking = true
+        this.run(record, watch, () => this.look(record, watch))
+      },
+      urgent ? 0 : lookEveryMs,
+    )
     watch.look.unref()
   }
 
@@ -374,6 +390,8 @@ export class ShellCommands<R extends ShellRecord> {
 
   /** One look at the shell's processes, for every attempt whose window is open. */
   private async look(record: R, watch: Watch): Promise<void> {
+    // The attempts whose turn-start look this is: it starts after the turn did.
+    const snaps = new Set(watch.attempts.filter(({ snap }) => snap !== undefined))
     try {
       const spawns = await this.under(watch.pid)
       if (!this.alive(record, watch) || spawns === undefined) return
@@ -383,9 +401,11 @@ export class ShellCommands<R extends ShellRecord> {
       const claimed = new Set<string>()
       let shown = false
       for (const attempt of watch.attempts.toReversed()) {
-        const found = this.started(spawns, attempt, agent)
+        const snapped = snaps.has(attempt)
+        const found = this.started(spawns, attempt, agent, snapped)
         const before = attempt.seen
-        attempt.seen = new Map(found.map(({ key }) => [key, before.get(key) ?? now]))
+        const stamp = snapped ? (attempt.snap ?? now) : now
+        attempt.seen = new Map(found.map(({ key }) => [key, before.get(key) ?? stamp]))
         const fresh = found.filter(
           ({ key }) =>
             !claimed.has(key) &&
@@ -413,6 +433,7 @@ export class ShellCommands<R extends ShellRecord> {
         this.polling(record, watch)
       }
     } finally {
+      for (const attempt of snaps) attempt.snap = undefined
       watch.looking = false
       // The windows that have closed are over, but an unconfirmed attempt whose window
       // closed in a turn waits for that turn's end, when a queued command runs.
@@ -438,6 +459,7 @@ export class ShellCommands<R extends ShellRecord> {
     spawns: readonly Spawn[],
     { intervals, seen }: Attempt,
     agent: number | undefined,
+    snapshot: boolean,
   ): readonly Spawn[] {
     const res = this.resolution()
     // Started before an interval's end if a look that ran before it saw it, or if even the
@@ -446,7 +468,10 @@ export class ShellCommands<R extends ShellRecord> {
       intervals.some(
         ({ from, to }) =>
           startedMs >= from &&
-          (to === undefined || startedMs + res < to || (seen.get(key) ?? Infinity) <= to),
+          (to === undefined ||
+            snapshot ||
+            startedMs + res < to ||
+            (seen.get(key) ?? Infinity) <= to),
       ),
     )
     const all = new Map(spawns.map((spawn) => [spawn.pid, spawn]))
@@ -483,6 +508,7 @@ export class ShellCommands<R extends ShellRecord> {
   }
 
   private polling(record: R, watch: Watch): void {
+    if (!watch.polling) watch.unknownSince = undefined
     watch.polling = true
     this.tick()
   }
@@ -519,6 +545,7 @@ export class ShellCommands<R extends ShellRecord> {
         watch.held.clear()
         watch.attempts = watch.attempts.filter(({ confirmed }) => !confirmed)
         watch.polling = false
+        watch.unknownSince = undefined
         this.hide(record, true)
       }
     } finally {

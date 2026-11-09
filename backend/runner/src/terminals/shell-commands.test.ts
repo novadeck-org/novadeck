@@ -430,6 +430,27 @@ describe("shell commands", () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
+  it("starts the next command's unknown count afresh after one was hidden", async () => {
+    const s = setup()
+    const first = await s.press()
+    s.processes.current = [spawn(7, first + 5)]
+    await settle(2_000)
+    expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
+    // The relay fails; a second Enter keeps the watch open past the first command's hide.
+    s.processes.current = undefined
+    await settle(3_500)
+    const second = await s.press(shellBox("sleep 30"))
+    await settle(2_400)
+    expect(s.rec.summary.shellCommand).toBeNull()
+    // The system recovers, and the second command shows; one failed poll must not hide it.
+    s.processes.current = [spawn(8, Date.now())]
+    await settle(1_500)
+    expect(s.rec.summary.shellCommand).toEqual({ command: "sleep 30", since: second })
+    s.processes.current = undefined
+    await settle(pollMs + 100)
+    expect(s.rec.summary.shellCommand).not.toBeNull()
+  })
+
   it("keeps no timer for a terminal with no candidate", async () => {
     const s = setup()
     await s.press()
@@ -802,6 +823,45 @@ describe("shell commands", () => {
       expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
     })
 
+    // A queued command really starts 100 ms after the turn's end, and reads truncated to the
+    // second; a working report follows at `report` ms after the end, at several clock fractions.
+    for (const fraction of [0, 250, 950]) {
+      for (const report of [300, 450, 500, 600, 900]) {
+        it(`keeps a queued command whose turn is reported working ${report} ms after the end (clock at .${fraction})`, async () => {
+          vi.setSystemTime(1_000_000 + fraction)
+          const s = mac()
+          activity(s.rec, "working")
+          await s.press()
+          await settle(20_000)
+          const e = await s.ends()
+          await settle(100)
+          s.processes.current = [spawn(7, Math.floor((e + 100) / 1000) * 1000)]
+          await settle(report - 100)
+          activity(s.rec, "working")
+          s.shells.changed(s.rec)
+          await settle(findMs + 2_000)
+          expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
+        })
+      }
+    }
+
+    it("finds a Codex command started up to 2 s after a mid-turn Enter, at 1 s resolution", async () => {
+      for (const delay of [200, 1_300, 1_800]) {
+        for (const fraction of [0, 500]) {
+          vi.setSystemTime(1_000_000 + fraction)
+          const s = setup({ resolutionMs: 1_000, midTurn: "runs" })
+          activity(s.rec, "working")
+          const at = await s.press()
+          await settle(delay)
+          s.processes.current = [spawn(7, Math.floor((at + delay) / 1000) * 1000)]
+          await settle(10_000 - delay)
+          await s.ends()
+          await settle(findMs)
+          expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
+        }
+      }
+    })
+
     it("takes no tool started after the working report", async () => {
       const s = mac()
       activity(s.rec, "working")
@@ -812,6 +872,8 @@ describe("shell commands", () => {
       activity(s.rec, "working")
       s.shells.changed(s.rec)
       const w = Date.now()
+      // The look taken at the report's moment ran first; the tool comes after it.
+      await settle(0)
       // Truncated to the second, it reads up to 800 ms early, so no earlier than the report.
       s.processes.current = [spawn(9, w - 800)]
       await settle(findMs)

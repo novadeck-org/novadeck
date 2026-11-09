@@ -1926,7 +1926,10 @@ starts while it is unconfirmed (a ring's, one the runner heard of late, or the d
 continuing a turn at its Stop) closes its interval at the turn's start: a process counts as started before it if a look
 before it saw it, or if even its latest possible start (its reading plus the resolution) falls
 before it, so the turn's tools are not taken for the command while a command started just
-before the report is kept, also at macOS's 1 s resolution; its looks go on to the end of that window,
+before the report is kept, also at macOS's 1 s resolution. Each unconfirmed Enter takes one look
+at once when the report comes and counts what that lists as seen at the report, since the
+turn's tools start later: one a tool starts within that look's own delay can be taken for the
+command; its looks go on to the end of that window,
 and then it waits the turn out with no looks. When the turn ends, a harness that queues the
 command (Claude Code, Antigravity) gets a new interval from the end less the resolution, and
 a find window of its own; on macOS that reaches up to 1 s into the turn, so a hook's process
@@ -1937,10 +1940,12 @@ idle), and then dropped, so a queued command that never ran (Escape took it out)
 nothing later. Once an Enter's command is found its interval ends there: later processes are
 none of it, and later turns change nothing for it; when its processes end it is done. Two
 Enters confirmed in one look show the newest, and one confirmed later never replaces a newer
-one shown. Once one is found the command is polled every second, all the terminals' from one shared tick so
-the system lists its processes once for them, and shown until none is left. Polls that
-couldn't tell (a look that fails is one that can't) hide it only after about five seconds of
-them in a row, so two slow listings never clear a running command.
+one shown. Once one is found the command is polled every second, every terminal's from one shared tick:
+on Linux and macOS the system lists its processes once for all of them, while on Windows the
+relay is read for each terminal. It is shown until none of its processes is left. Polls that
+couldn't tell (a look that fails is one that can't) hide it only once they have run for five
+seconds in a row, which with a poll's second between them is 5.5 to 6 s, and longer where
+a Windows relay times out; so two slow listings never clear a running command.
 
 An Enter while a turn works is held instead, as the turn's own tools start processes too, and
 looked for once the turn has ended: Claude Code and Antigravity queue the command until then
