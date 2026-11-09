@@ -50,6 +50,26 @@ describe("processesUnder", () => {
     ])
   })
 
+  it("tells what is in the root's terminal foreground group", async () => {
+    const rows = [
+      row(10, 1, { foreground: 20 }),
+      row(20, 10, { group: 20 }),
+      row(21, 20, { group: 20 }),
+      row(30, 20, { group: 30 }),
+    ]
+    const found = await processesUnder(10, { platform: "darwin", listing: async () => rows })
+    expect(found?.map(({ pid, inForeground }) => [pid, inForeground])).toEqual([
+      [20, true],
+      [21, true],
+      [30, false],
+    ])
+    const none = await processesUnder(10, {
+      platform: "darwin",
+      listing: async () => [row(10, 1), row(20, 10)],
+    })
+    expect(none?.[0]?.inForeground).toBeUndefined()
+  })
+
   it("is undefined with no listing or a root that is gone", async () => {
     expect(await processesUnder(10, { platform: "darwin", listing: async () => undefined })).toBe(
       undefined,

@@ -508,17 +508,22 @@ export class ShellCommands<R extends ShellRecord> {
     const res = this.resolution()
     // Started before an interval's end if a look that ran before it saw it, or if even the
     // latest its start time may truly be (the platform's resolution on) falls before it.
-    const candidates = spawns.filter(({ key, startedMs }) =>
-      intervals.some(
-        ({ from, to, pre }) =>
-          startedMs >= from &&
-          (to === undefined ||
-            // The listing of the look at the turn start that closed this interval.
-            (snapAt === to && this.beforeTurn(startedMs, snapAt)) ||
-            pre?.has(key) === true ||
-            startedMs + res < to ||
-            (seen.get(key) ?? Infinity) <= to),
-      ),
+    // What holds the terminal's foreground (the agent, its launcher) is never a command it
+    // runs for the person, which gets a process group of its own; on Windows no groups are
+    // told, and start times are precise to 16 ms, so the interval alone decides there.
+    const candidates = spawns.filter(
+      ({ key, startedMs, inForeground }) =>
+        inForeground !== true &&
+        intervals.some(
+          ({ from, to, pre }) =>
+            startedMs >= from &&
+            (to === undefined ||
+              // The listing of the look at the turn start that closed this interval.
+              (snapAt === to && this.beforeTurn(startedMs, snapAt)) ||
+              pre?.has(key) === true ||
+              startedMs + res < to ||
+              (seen.get(key) ?? Infinity) <= to),
+        ),
     )
     const all = new Map(spawns.map((spawn) => [spawn.pid, spawn]))
     const byPid = new Map(candidates.map((spawn) => [spawn.pid, spawn]))

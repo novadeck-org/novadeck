@@ -1912,7 +1912,7 @@ the top-level processes whose start falls in the Enter's interval, which begins 
 less the platform's start-time resolution (1 s on macOS), less Novadeck's helpers: the relay
 and the hook launcher, what they run (a status line's own command), and the shells they run
 under (its `sh -c`), while a nested agent keeping its own relay under it leaves the command;
-and Windows' console host, itself alone. With the agent bound, a top one's parent must be the
+and Windows' console host, itself alone. A process in the terminal's foreground process group is never the command: the agent and its launcher (`npx`, `node`) are in it, and the harnesses start the command in a group of its own (measured on Linux for all three), so an agent that started within macOS's second before the Enter is not taken. Windows tells no groups, and its start times are precise to 16 ms, so the interval alone decides there. With the agent bound, a top one's parent must be the
 agent's process (`binding.instance`: Claude Code's `CLAUDE_PID`, otherwise the nearest
 ancestor named as the agent), so what the agent left running before, as a dev server's
 watcher restarting its child after a `!git pull`, is not the command; before a first prompt

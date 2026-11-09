@@ -40,12 +40,19 @@ const record = (instance: string | null = null): Fake => {
 
 const shellBox = (text: string): InputBox => ({ text, mode: "shell", first: 0, last: 0 })
 
-const spawn = (pid: number, startedMs: number, parent = AGENT, name = "sleep"): Spawn => ({
+const spawn = (
+  pid: number,
+  startedMs: number,
+  parent = AGENT,
+  name = "sleep",
+  inForeground?: boolean,
+): Spawn => ({
   key: `${pid}:${startedMs}`,
   pid,
   parent,
   name,
   startedMs,
+  ...(inForeground === undefined ? {} : { inForeground }),
 })
 
 const activity = (rec: Fake, state: "working" | "idle"): void => {
@@ -1102,6 +1109,29 @@ describe("shell commands", () => {
       // The look at the report lists after a second; that is a first sighting, not a second.
       await settle(1_150)
       expect(s.rec.summary.shellCommand).toBeNull()
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
+    })
+  })
+
+  describe("the terminal's foreground group", () => {
+    it("never takes the agent or its launcher, started within macOS's second before the Enter", async () => {
+      const s = setup({ resolutionMs: 1_000 })
+      const at = await s.press()
+      // npx, node and the agent, all in the foreground group, floored to the second.
+      s.processes.current = [
+        spawn(60, at - 800, SHELL, "npx", true),
+        spawn(61, at - 800, 60, "node", true),
+        spawn(62, at - 800, 61, "codex", true),
+      ]
+      await settle(findMs + 2_000)
+      expect(s.rec.summary.shellCommand).toBeNull()
+      // The command, in a group of its own, is taken beside them.
+      const second = await s.press()
+      s.processes.current = [
+        ...(s.processes.current ?? []),
+        spawn(63, second + 200, 62, "sleep", false),
+      ]
       await settle(findMs)
       expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
     })

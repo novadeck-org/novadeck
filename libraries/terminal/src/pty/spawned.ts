@@ -18,6 +18,12 @@ export type Spawn = {
   readonly name: string | null
   /** Epoch milliseconds, at the OS's resolution (`startResolutionMs`). */
   readonly startedMs: number
+  /**
+   * Whether it is in the foreground process group of the root's terminal, which an agent and
+   * its launcher are in and the commands it runs for the person are not; undefined where
+   * groups aren't told (Windows) or the root has no foreground.
+   */
+  readonly inForeground?: boolean
 }
 
 /**
@@ -65,7 +71,15 @@ const spawn = (
   name: string | null,
   startedMs: number,
   start: string | number = startedMs,
-): Spawn => ({ key: `${pid}:${start}`, pid, parent, name, startedMs })
+  inForeground?: boolean,
+): Spawn => ({
+  key: `${pid}:${start}`,
+  pid,
+  parent,
+  name,
+  startedMs,
+  ...(inForeground === undefined ? {} : { inForeground }),
+})
 
 const fromListing = (
   rows: readonly Listed[],
@@ -94,6 +108,7 @@ const fromListing = (
         name,
         Math.round(at),
         platform === "linux" ? row.started : undefined,
+        top.foreground > 1 ? row.group === top.foreground : undefined,
       ),
     )
   }

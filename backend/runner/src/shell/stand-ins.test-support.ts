@@ -414,7 +414,7 @@ if (mode !== "bg") {
     if (mode === "shellmode" && data === "!" && box === "" && !shellMode) shellMode = true
     else if (mode === "shellmode" && data === "\r" && shellMode) {
       const [program, ...args] = box.trim().split(" ")
-      spawn(program, args, { stdio: "ignore" }).on("error", () => {})
+      spawn(program, args, { stdio: "ignore", detached: true }).on("error", () => {})
       shellMode = false
       box = ""
       process.stdout.write("\r\n")
@@ -434,7 +434,7 @@ if (mode !== "bg") {
       // own), so only its box's mode tells a message from a shell command.
       if (mode === "shellmode" && box && !busy) {
         const [program, ...args] = box.trim().split(" ")
-        spawn(program, args, { stdio: "ignore" }).on("error", () => {})
+        spawn(program, args, { stdio: "ignore", detached: true }).on("error", () => {})
       }
       // Busy, or an empty box: Enter submits nothing.
       if (busy || !box) return
