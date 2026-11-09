@@ -205,6 +205,18 @@ export const collapsible = (text: string): boolean => /[\r\n]/.test(text) || tex
 /** Rows added to the estimate of a text's height, as TUIs' wrapping may differ a little. */
 const wrapMargin = 1
 
+/**
+ * Whether a message alone in an empty box has no room on `screen`, as a prompt refuses it
+ * (`too-tall`): for a caller to tell before it does anything to make way for the prompt.
+ */
+export const tooTall = (profile: BoxProfile, text: string, screen: ScreenText): boolean => {
+  const typed = normalised(text).trim()
+  return (
+    !profile.collapses(typed) &&
+    wrappedRows(typed, screen.columns) + wrapMargin > profile.room(screen.rows.length)
+  )
+}
+
 /** A prompt's lines as a terminal takes them in a paste: its line breaks are bare returns. */
 const inPaste = (text: string): string => text.replace(/\r\n?|\n/g, "\r")
 
@@ -296,6 +308,11 @@ export class Prompts {
    * program shows as a placeholder, the box could not be checked against it: the prompt goes
    * as if `at` were absent (all images first, nothing typed for them), and `unplaced` is told
    * before any key.
+   *
+   * `first` runs in the prompt's own entry of the queue before anything of it, once the text
+   * passed its checks, so nothing comes between the two: what makes way for the prompt, such
+   * as setting a question aside. Where it gives the words another way it says how, and the
+   * prompt types nothing.
    */
   async prompt(
     terminalId: string,
@@ -305,12 +322,16 @@ export class Prompts {
     images: readonly string[] = [],
     at?: readonly number[],
     unplaced?: () => void,
+    first?: (entry: InputEntry) => Promise<PromptGiven | undefined>,
   ): Promise<PromptGiven> {
     this.refuse(text, images.length > 0)
     if (at !== undefined && !placesFit(text, images.length, at))
       throw new PromptRefusal("refused", "Each image needs a place in the text, in order.")
-    return await this.queue.run(terminalId, (entry) =>
-      this.give(entry, terminalId, text, mode, joined, images, at, unplaced),
+    return await this.queue.run(
+      terminalId,
+      async (entry) =>
+        (await first?.(entry)) ??
+        (await this.give(entry, terminalId, text, mode, joined, images, at, unplaced)),
     )
   }
 

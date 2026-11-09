@@ -332,6 +332,48 @@ describe("the runner's conversations", () => {
       ])
     })
 
+    it("marks those the runner says ask without waiting", async () => {
+      const { details, store } = setup()
+      store.subscribe(() => {})
+      const asked = (ref: string, detached = false): AgentDetail["requests"][number] => ({
+        ...(detached && { detached: true as const }),
+        ref,
+        actor: root,
+        kind: "question",
+        tool: "request_user_input",
+        subject: null,
+        choices: [],
+        dialog: { type: "questions", id: `${ref}:d`, chat: "prompt", questions: [] },
+        answered: false,
+        askedAt: 1,
+      })
+      details.push(
+        detail({
+          activity: {
+            state: "working",
+            background: null,
+            planning: false,
+            waiting: null,
+            attention: { pending: 3, kind: "question", detached: 2 },
+            subagents: [],
+            lastTurn: null,
+          },
+          // In any order: the runner marks each one.
+          requests: [
+            asked("det1det1det1det1", true),
+            asked("holdholdholdhold"),
+            asked("det2det2det2det2", true),
+          ],
+        }),
+      )
+      await settle()
+      expect(store.getSnapshot().requests.map(({ id, detached }) => [id, detached])).toEqual([
+        ["det1det1det1det1", true],
+        ["holdholdholdhold", undefined],
+        ["det2det2det2det2", true],
+      ])
+    })
+
     it("shows a dialog that turned raw, and keeps the store for one that read the same", async () => {
       const { details, store } = setup()
       const listener = vi.fn<() => void>()
@@ -833,7 +875,58 @@ describe("the runner's conversations", () => {
       })
       await conversations.interrupt(key)
       expect(streams.prompt).toHaveBeenCalledWith("t", "hello", undefined)
-      expect(streams.interrupt).toHaveBeenCalledWith("t")
+      expect(streams.interrupt).toHaveBeenCalledWith("t", undefined)
+    })
+
+    it("asks the runner to set a question aside for the person's own Send and Stop", async () => {
+      const { conversations, streams } = setup()
+      await conversations.send(key, "Do this instead", { along: true, setAside: ["r1"] })
+      expect(streams.prompt).toHaveBeenCalledWith("t", "Do this instead", {
+        along: true,
+        setAside: ["r1"],
+      })
+      await conversations.interrupt(key, { setAside: ["r1"] })
+      expect(streams.interrupt).toHaveBeenCalledWith("t", { setAside: ["r1"] })
+    })
+
+    it("sends the person to the terminal where setting a question aside went wrong", async () => {
+      const { conversations, streams } = setup()
+      const failed = new WireError("ANSWER_FAILED", "The dialog didn't go.", {
+        data: { returned: "my words" },
+      })
+      streams.prompt.mockRejectedValue(failed)
+      await expect(conversations.send(key, "my words", { setAside: ["q1"] })).rejects.toThrow(
+        "The question couldn't be set aside. Answer it in the terminal, then send again.",
+      )
+      streams.interrupt.mockRejectedValue(new WireError("DIALOG_CHANGED", "It changed."))
+      await expect(conversations.interrupt(key, { setAside: ["q1"] })).rejects.toThrow(
+        "The question couldn't be set aside. Answer it in the terminal, then stop it again.",
+      )
+    })
+
+    it("says a question taking only words can't be set aside by images", async () => {
+      const { conversations, streams } = setup()
+      streams.prompt.mockRejectedValue(
+        new WireError("CONFLICT", "The question takes words only.", {
+          data: { reason: "question-words-only" },
+        }),
+      )
+      await expect(conversations.send(key, "see this", { setAside: ["r1"] })).rejects.toThrow(
+        "The agent's question takes only words in its answer. Remove the images, or answer it first.",
+      )
+    })
+
+    it("still says to answer a permission first, which a Send or Stop over it never sets aside", async () => {
+      const { conversations, streams } = setup()
+      const pending = new WireError("CONFLICT", "A request waits.", { data: { reason: "pending" } })
+      streams.prompt.mockRejectedValue(pending)
+      await expect(conversations.send(key, "hi", { setAside: ["r1"] })).rejects.toThrow(
+        "The agent is waiting for your answer. Answer it here, then send again.",
+      )
+      streams.interrupt.mockRejectedValue(pending)
+      await expect(conversations.interrupt(key, { setAside: ["r1"] })).rejects.toThrow(
+        "The agent is waiting for your answer. Answer it first, then stop it.",
+      )
     })
 
     it("saves a pasted image on the runner and sends its path with the prompt", async () => {

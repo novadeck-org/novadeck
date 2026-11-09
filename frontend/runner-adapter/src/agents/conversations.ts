@@ -53,6 +53,7 @@ export type ConversationStreams = {
     options?: {
       readonly automatic?: true
       readonly along?: true
+      readonly setAside?: readonly string[]
       readonly ref?: string
       readonly images?: readonly string[]
       readonly at?: readonly number[]
@@ -67,7 +68,10 @@ export type ConversationStreams = {
     terminalId: string,
     file: { readonly name: string; readonly data: Uint8Array },
   ) => Promise<string>
-  readonly interrupt: (terminalId: string) => Promise<{
+  readonly interrupt: (
+    terminalId: string,
+    options?: { readonly setAside?: readonly string[] },
+  ) => Promise<{
     readonly returned: string | null
     readonly images?: readonly string[] | undefined
     readonly at?: readonly number[] | undefined
@@ -154,7 +158,8 @@ export const withBatch = (
 export const rootOf = (detail: AgentDetail): string | null =>
   detail.actors.find((actor) => actor.role === "root")?.ref ?? null
 
-// A request of the agent's detail, as the chat has it; `root` is the root agent's ref.
+// A request of the agent's detail, as the chat has it; `root` is the root agent's ref. One
+// that asks without holding the agent (Codex's async questions) is marked `detached`.
 export const requestOf = (
   request: AgentDetail["requests"][number],
   root: string | null,
@@ -167,6 +172,7 @@ export const requestOf = (
   subagent: request.actor !== root,
   dialog: request.dialog,
   answered: request.answered,
+  ...(request.detached && { detached: true as const }),
 })
 
 const requestsOf = (detail: AgentDetail, root: string | null): readonly ChatRequest[] =>
@@ -276,6 +282,15 @@ const failure = (
     return withReturned(
       new SettleInTerminal(
         "The prompt didn't land in the agent's box. It may be there as a draft.",
+      ),
+      wordsOf(error),
+    )
+  // Keys went to set a question aside and it didn't go as expected: the question may still be
+  // up, or no longer readable, and the terminal is where it is settled.
+  if (hasCode(error, "ANSWER_FAILED", "DIALOG_CHANGED"))
+    return withReturned(
+      new SettleInTerminal(
+        `The question couldn't be set aside. Answer it in the terminal, then ${action === "stop" ? "stop it" : "send"} again.`,
       ),
       wordsOf(error),
     )
@@ -688,8 +703,8 @@ export const createRunnerConversations = (
           throw failure(error, "reach", "send")
         },
       ),
-    interrupt: ({ terminalId }) =>
-      track(streams.interrupt(terminalId)).then(
+    interrupt: ({ terminalId }, options) =>
+      track(streams.interrupt(terminalId, options)).then(
         ({ returned, images, at }) => ({
           words: returned,
           ...(images && { images }),

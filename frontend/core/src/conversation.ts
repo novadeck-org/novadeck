@@ -205,7 +205,31 @@ export type ChatRequest = {
   readonly dialog: ChatDialog | null
   // Whether it was answered from the chat and the agent has yet to report it settled.
   readonly answered: boolean
+  // Whether it asks without waiting, as Codex's async questions: the agent works on and
+  // takes prompts, and the request may outlast its turn.
+  readonly detached?: true
 }
+
+// Whether a request is a question of the agent's own in a dialog the chat reads, not yet
+// answered, that holds the agent: the person's own Send and Stop set it aside (`setAside`)
+// rather than being refused for it, as a permission or a plan still refuses them, to be
+// answered first. One that asks without waiting (`detached`) holds nothing to set aside.
+export const openQuestion = (request: ChatRequest): boolean =>
+  request.kind === "question" &&
+  !request.answered &&
+  request.detached !== true &&
+  request.dialog?.type === "questions"
+
+// The most questions one Send or Stop sets aside, as the protocol takes them.
+export const maxSetAside = 8
+
+// The ids of the questions the person's own Send or Stop sets aside (`openQuestion`), as
+// many as one takes, the first first: should more wait, the backend refuses for the rest.
+export const questionsToSetAside = (requests: readonly ChatRequest[]): readonly string[] =>
+  requests
+    .filter(openQuestion)
+    .slice(0, maxSetAside)
+    .map((request) => request.id)
 
 // A prompt given the agent through `Conversations.send`, and whether its own record has it
 // yet, as the backend reads that record (where it tells, `SendResult.tracked`): `pending`
@@ -345,13 +369,17 @@ export type Conversations = {
   // backend follows it. `along` is the chat's own send, whose person can see what the agent's
   // box holds (`Conversation.box`): that goes out with it where it can. Without it, the box must
   // be empty. `images` are paths `uploadImage` answered, which go with the prompt as its
-  // images; `text` may be empty then.
+  // images; `text` may be empty then. `setAside` is the person's own Send over the questions the
+  // agent asks (`openQuestion`), by their ids, as the person saw them: those are set aside and
+  // the words go, in one step, where a request waiting on the person otherwise refuses them.
+  // Any other request still does.
   readonly send: (
     key: TerminalKey,
     text: string,
     options?: {
       readonly automatic?: true
       readonly along?: true
+      readonly setAside?: readonly string[]
       readonly ref?: string
       readonly images?: readonly string[]
       // Where each image goes in `text` (UTF-16 offsets, one per image, never back); absent,
@@ -373,8 +401,13 @@ export type Conversations = {
   readonly maxImages?: number
   // Stops the agent's turn, as Escape in its TUI does. Resolves with the words the person
   // had queued behind the turn, with the images that were in the box with them, which the
-  // agent gave back and the chat's box takes again. Rejects as `send` does.
-  readonly interrupt: (key: TerminalKey) => Promise<BoxReturn>
+  // agent gave back and the chat's box takes again. Rejects as `send` does. `setAside`, the
+  // person's own Stop over the questions the agent asks, by their ids, sets those aside and
+  // stops the agent.
+  readonly interrupt: (
+    key: TerminalKey,
+    options?: { readonly setAside?: readonly string[] },
+  ) => Promise<BoxReturn>
   // Writes keys to the agent's terminal as the person's, for what shows in `slice`: a key or
   // an edit a call, in order. Where the backend has none, the chat keeps to its own menus' rule
   // (`refused`). Rejects as `send` does.
@@ -434,6 +467,7 @@ export type ConflictReason =
   | "shell"
   | "no-paste"
   | "command"
+  | "question-words-only"
 
 // What the person did that the agent couldn't take: sent a message, pressed Stop, or picked
 // an option of a request.
@@ -496,6 +530,11 @@ export const conflictFailure = (reason: ConflictReason | undefined, action: Chat
         action === "stop"
           ? "The agent is waiting for your answer. Answer it first, then stop it."
           : "The agent is waiting for your answer. Answer it here, then send again.",
+      )
+    case "question-words-only":
+      // A question set aside by words that answer it in its own field, which takes no images.
+      return new Error(
+        "The agent's question takes only words in its answer. Remove the images, or answer it first.",
       )
     case "ringing":
       return action === "send"

@@ -266,3 +266,35 @@ describe("a prompt with images", () => {
     expect(await sent([10])).toMatchObject({ images: ["/u/a.png"], at: [10] })
   })
 })
+
+describe("the person's Send or Stop over a question", () => {
+  const inputs = async () => {
+    const seen: unknown[] = []
+    const { runner } = await fakeRunner({
+      agents: {
+        prompt: api.agents.prompt.handler(({ input }) => {
+          seen.push(input)
+          return { ref: "r1r1r1r1r1r1r1r1", tracked: true }
+        }),
+        interrupt: api.agents.interrupt.handler(({ input }) => {
+          seen.push(input)
+          return { returned: null }
+        }),
+      },
+    })
+    return { runner, seen }
+  }
+
+  it("asks the runner to set the question aside only where the caller says so", async () => {
+    const { runner, seen } = await inputs()
+    const terminalId = crypto.randomUUID()
+    await runner.agents.prompt(terminalId, "Do this instead", { setAside: ["q1q1q1q1q1q1q1q1"] })
+    await runner.agents.prompt(terminalId, "Continue")
+    await runner.agents.interrupt(terminalId, { setAside: ["q1q1q1q1q1q1q1q1"] })
+    await runner.agents.interrupt(terminalId)
+    expect(seen[0]).toMatchObject({ setAside: ["q1q1q1q1q1q1q1q1"] })
+    expect(seen[1]).not.toHaveProperty("setAside")
+    expect(seen[2]).toMatchObject({ setAside: ["q1q1q1q1q1q1q1q1"] })
+    expect(seen[3]).not.toHaveProperty("setAside")
+  })
+})

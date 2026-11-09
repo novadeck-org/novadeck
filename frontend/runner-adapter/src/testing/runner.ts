@@ -175,8 +175,8 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       transcript: (terminalId, actor) => runner.agents.transcript(terminalId, actor),
       prompt: (terminalId, text, options) =>
         note(`prompt ${terminalId}`, () => runner.agents.prompt(terminalId, text, options)),
-      interrupt: (terminalId) =>
-        note(`interrupt ${terminalId}`, () => runner.agents.interrupt(terminalId)),
+      interrupt: (terminalId, options) =>
+        note(`interrupt ${terminalId}`, () => runner.agents.interrupt(terminalId, options)),
       keys: (terminalId, keys) =>
         note(`keys ${terminalId}`, () => runner.agents.keys(terminalId, keys)),
       takeBox: (terminalId) =>

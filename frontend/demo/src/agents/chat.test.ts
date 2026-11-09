@@ -214,6 +214,72 @@ describe("demo conversations", () => {
     await expect(chat.send(key("04"), "hello")).rejects.toThrow("waiting for your answer")
   })
 
+  it("sets a question aside for the person's own Send, and takes the words as its next turn", async () => {
+    const { chat, turns, agent, said } = open()
+    turns.ask(key("06"), agent("06"), "question", 1)
+    const conversation = chat.conversation(key("06"))
+    const [asked] = conversation.getSnapshot().requests
+    expect(asked).toBeDefined()
+    // Without `setAside`, as an automatic prompt sends, it waits for the answer.
+    await expect(chat.send(key("06"), "Do this instead")).rejects.toThrow("waiting for your answer")
+    // Nor for a question it didn't see.
+    await expect(chat.send(key("06"), "Do this instead", { setAside: ["gone"] })).rejects.toThrow(
+      "waiting for your answer",
+    )
+    await chat.send(key("06"), "Do this instead", { setAside: [asked!.id] })
+    expect(conversation.getSnapshot().requests).toEqual([])
+    expect(said("06").at(-1)).toBe("Do this instead")
+    expect(agent("06")).toMatchObject({ agent: { working: true } })
+    expect(agent("06")).not.toHaveProperty("agent.attention")
+    await vi.advanceTimersByTimeAsync(demoTurnMs)
+    expect(conversation.getSnapshot().items.at(-1)?.text).toBe(
+      "Done: Do this instead. Nothing else changed.",
+    )
+  })
+
+  it("answers Antigravity's question with the words instead, in its own field, with no prompt", async () => {
+    const { chat, said } = open()
+    const conversation = chat.conversation(key("05"))
+    const before = said("05")
+    // Its field takes no images.
+    await expect(
+      chat.send(key("05"), "", { setAside: ["05:question"], images: ["/tmp/a.png"] }),
+    ).rejects.toThrow("only words")
+    const going = chat.send(key("05"), "Only the unit tests", { setAside: ["05:question"] })
+    await vi.advanceTimersByTimeAsync(answerMs + answeredMs)
+    await expect(going).resolves.toBeUndefined()
+    expect(conversation.getSnapshot().requests.map((request) => request.id)).toEqual([
+      "05:form",
+      "05:raw",
+    ])
+    // No prompt of the person's: the words are the question's answer.
+    expect(said("05")).toEqual(before)
+    expect(
+      conversation.getSnapshot().items.some((item) => item.text.includes("Only the unit tests")),
+    ).toBe(true)
+  })
+
+  it("never sets a permission aside, though the Send asks", async () => {
+    const { chat, turns, agent } = open()
+    turns.ask(key("06"), agent("06"), "permission", 1)
+    const [asked] = chat.conversation(key("06")).getSnapshot().requests
+    await expect(chat.send(key("06"), "Go on", { setAside: [asked!.id] })).rejects.toThrow(
+      "waiting for your answer",
+    )
+    expect(chat.conversation(key("06")).getSnapshot().requests).toHaveLength(1)
+  })
+
+  it("sets a question aside for the person's own Stop, stopping the agent", async () => {
+    const { chat, turns, agent } = open()
+    turns.ask(key("06"), agent("06"), "question", 1)
+    const [asked] = chat.conversation(key("06")).getSnapshot().requests
+    await chat.interrupt(key("06"), { setAside: [asked!.id] })
+    expect(chat.conversation(key("06")).getSnapshot().requests).toEqual([])
+    expect(agent("06")).toMatchObject({
+      agent: { working: false, lastTurn: { outcome: "interrupted" } },
+    })
+  })
+
   it("queues what is sent while the agent works, and takes it once the turn ends", async () => {
     const { chat, agent } = open()
     const conversation = chat.conversation(key("06"))

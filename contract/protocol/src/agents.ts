@@ -173,6 +173,13 @@ export const agentTelemetry = z.strictObject({
 // never see a harness's own ids.
 export const agentRef = z.string().regex(/^[A-Za-z0-9_-]{16}$/)
 
+/**
+ * The requests a chat's own Send or Stop sets aside (`agents.prompt`'s and
+ * `agents.interrupt`'s `setAside`): the refs of the questions the person saw waiting, as
+ * `agents.detail` lists them. Only those are set aside; any other request waiting refuses.
+ */
+export const setAsideRefs = z.array(agentRef).min(1).max(8)
+
 // How much of a feature Novadeck can tell of an agent: all of it, some, or nothing.
 const coverageLevel = z.enum(["unsupported", "partial", "complete"])
 const agentCoverage = z.strictObject({
@@ -263,6 +270,9 @@ export const agentDetail = z.strictObject({
         answered: z.boolean(),
         // When the request's hook started, on the runner's clock, in epoch milliseconds.
         askedAt: z.number(),
+        // A request that asks without holding the agent (Codex's async questions): its
+        // prompt stays free, and it is listed after those that hold it. Absent otherwise.
+        detached: z.literal(true).optional(),
       }),
     )
     .max(agentLimits.requests),
@@ -295,7 +305,10 @@ export const agentIntegration = z.strictObject({
  * - `no-box`: no input box is found on the agent's screen;
  * - `too-tall`: the text has no room in the box on this screen;
  * - `shell`: the box is in its shell mode;
- * - `no-paste`: the screen takes no bracketed paste yet.
+ * - `no-paste`: the screen takes no bracketed paste yet;
+ * - `question-words-only`: a prompt with images would set aside a question that takes the
+ *   words as its answer (`setAside` over Antigravity's ask_question, whose Write-in takes
+ *   words only): nothing was pressed, and the question still waits.
  * Other conflicts carry no data; a client must take a reason it doesn't know as none.
  */
 export const conflictReason = z.strictObject({
@@ -309,6 +322,7 @@ export const conflictReason = z.strictObject({
     "shell",
     "no-paste",
     "command",
+    "question-words-only",
   ]),
   // The words a prompt took out of the agent's box before it failed (see `promptFailure`).
   returned: z.string().optional(),

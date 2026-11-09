@@ -45,6 +45,7 @@ export {
   agentSessionId,
   type AgentTelemetry,
   conflictReason,
+  setAsideRefs,
   imagePlaces,
   type InterruptResult,
   placesFit,

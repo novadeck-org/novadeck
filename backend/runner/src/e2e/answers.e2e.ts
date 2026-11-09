@@ -11,6 +11,7 @@ import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported } from "./fixture.js"
 import { asked, text, type Rule } from "./model/script.js"
 import type { FakeModel } from "./model/server.js"
+import { picture } from "./pictures.js"
 import {
   answers,
   deliveries,
@@ -676,6 +677,146 @@ for (const setup of setups) {
         const words = "Before I choose, what do the features cost?"
         await t1.answer(request.ref, { dialog: idOf(request), type: "chat", text: words })
         await run.model.waitFor((call) => text(call).includes(words), { after: calls })
+        await unrequested(t1)
+      },
+    )
+
+    // The chat's own Send while a question waits sets it aside and gives the words, in one
+    // step (`agents.prompt` with `setAside`): Escape, then the words as a prompt, where Escape
+    // ends the turn (Claude Code, Codex); the words as the answer of the question on screen,
+    // through its Write-in, where Escape only skips it (Antigravity).
+    for (const [shape, extra] of [
+      ["one question", []],
+      ["two questions", [size]],
+    ] as const)
+      gated(it, lacking(setup, "questions"))(
+        `sends over ${shape} from the chat, setting it aside`,
+        async ({ e2e: run }) => {
+          const words = "Forget the button, tell me about the footer instead."
+          run.model.use(
+            own((call) => (text(call).includes(words) ? { text: "Heard you." } : undefined)),
+            answers("Ask me", (call) => asking!.questions(call, [colour, ...extra])),
+            noted,
+          )
+          const t1 = await start(run, setup)
+          await asking!.enter?.(t1)
+
+          await t1.prompt("Ask me about the button")
+          const request = await dialogOf(t1, "questions")
+          const calls = run.model.mark()
+          const since = Date.now()
+          const given = await t1.prompt(words, [], undefined, [request.ref])
+          const took = Date.now() - since
+
+          // The model's first call after the Send carries the words: no turn ran on before them.
+          const heard = await run.model.waitFor((call) => !call.side, { after: calls })
+          expect(text(heard)).toContain(words)
+          await t1.until("Heard you.")
+          await unrequested(t1)
+          if (harnesses[setup.agent].messaging.questionEscape === "skips") {
+            // The words are the question's answer, in the tool's own result: no prompt.
+            expect(result(heard)).toContain(words)
+            expect(given.tracked).toBe(false)
+          } else {
+            expect(result(heard)).toBeUndefined()
+            expect(given.tracked).toBe(true)
+          }
+          console.info(`${setup.name}: sent over ${shape} in ${took} ms`)
+        },
+      )
+
+    gated(it, lacking(setup, "questions"))(
+      "still refuses a prompt or a Stop over a question without setting it aside",
+      async ({ e2e: run }) => {
+        run.model.use(
+          answers("Ask me", (call) => asking!.questions(call, [colour])),
+          noted,
+        )
+        const t1 = await start(run, setup)
+        await asking!.enter?.(t1)
+
+        await t1.prompt("Ask me about the button")
+        const request = await dialogOf(t1, "questions")
+        const calls = run.model.mark()
+        const pending = { code: "CONFLICT", reason: "pending" }
+        await expect(t1.prompt("Something else")).rejects.toMatchObject(pending)
+        await expect(t1.interrupt()).rejects.toMatchObject(pending)
+        // Nor does a Send or Stop that names another question than the one waiting.
+        const other = "Aaaaaaaaaaaaaaaa"
+        await expect(t1.prompt("Something else", [], undefined, [other])).rejects.toMatchObject(
+          pending,
+        )
+        await expect(t1.interrupt([other])).rejects.toMatchObject(pending)
+        // The question still waits, its dialog as it was, and the model heard nothing.
+        await sleep(500)
+        const [still] = (await t1.detail()).requests
+        expect(still?.ref).toBe(request.ref)
+        expect(still?.dialog?.type).toBe("questions")
+        expect(run.model.calls.slice(calls).filter((call) => !call.side)).toHaveLength(0)
+      },
+    )
+
+    gated(it, lacking(setup, "approval"))(
+      "refuses to set a permission request aside, for a Send or a Stop",
+      async ({ e2e: run }) => {
+        run.model.use(
+          answers("Make the file", (call) => approval!.request(call)),
+          noted,
+        )
+        const t1 = await start(run, setup)
+
+        await t1.prompt("Make the file")
+        const request = await dialogOf(t1, "choices")
+        const pending = { code: "CONFLICT", reason: "pending" }
+        // Even named, an approval is no question to set aside.
+        await expect(
+          t1.prompt("Something else", [], undefined, [request.ref]),
+        ).rejects.toMatchObject(pending)
+        await expect(t1.interrupt([request.ref])).rejects.toMatchObject(pending)
+        // Nothing was pressed: the approval still waits, as it showed.
+        await sleep(500)
+        expect((await t1.detail()).requests[0]?.ref).toBe(request.ref)
+        expect(await t1.screen()).toMatch(approval!.shows)
+        t1.press(approval!.deny)
+        await t1.until(approval!.denied)
+      },
+    )
+
+    gated(it, lacking(setup, "questions"))(
+      "sends words with an image over a question where they go as a prompt, and refuses them where they go as its answer",
+      async ({ e2e: run }) => {
+        const words = "Look at this instead."
+        run.model.use(
+          own((call) => (text(call).includes(words) ? { text: "Heard you." } : undefined)),
+          answers("Ask me", (call) => asking!.questions(call, [colour])),
+          noted,
+        )
+        const t1 = await start(run, setup)
+        await asking!.enter?.(t1)
+
+        await t1.prompt("Ask me about the button")
+        const request = await dialogOf(t1, "questions")
+        const image = [{ name: "shot.png", data: picture }]
+        if (harnesses[setup.agent].messaging.questionEscape === "skips") {
+          await expect(t1.prompt(words, image, undefined, [request.ref])).rejects.toMatchObject({
+            code: "CONFLICT",
+            reason: "question-words-only",
+          })
+          // Nothing was pressed: the question still waits.
+          await sleep(500)
+          expect((await t1.detail()).requests[0]?.ref).toBe(request.ref)
+          return
+        }
+        const calls = run.model.mark()
+        await t1.prompt(words, image, undefined, [request.ref])
+        const heard = await run.model.waitFor((call) => text(call).includes(words), {
+          after: calls,
+        })
+        const turn = heard.turns.findLast(
+          (each) => each.role === "user" && each.text.includes(words),
+        )
+        expect(turn?.role === "user" ? (turn.images ?? 0) : 0).toBeGreaterThan(0)
+        await t1.until("Heard you.")
         await unrequested(t1)
       },
     )

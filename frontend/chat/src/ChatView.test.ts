@@ -72,6 +72,8 @@ const inApp = (
   const sentImages: (readonly string[] | undefined)[] = []
   // Where each went among its words.
   const sentAt: (readonly number[] | undefined)[] = []
+  // Whether each set a question aside.
+  const setAside: (readonly string[] | undefined)[] = []
   const answered = vi.fn<(request: string, answer: ChatAnswer) => Promise<void>>(answer)
   const conversations: Conversations = {
     conversation: () => conversation,
@@ -79,6 +81,7 @@ const inApp = (
       if (options?.ref) onRef(options.ref)
       sentImages.push(options?.images)
       sentAt.push(options?.at)
+      setAside.push(options?.setAside)
       return sent(text)
     },
     ...(upload && {
@@ -142,6 +145,7 @@ const inApp = (
     sent,
     sentImages,
     sentAt,
+    setAside,
     answered,
     show: (mounted: boolean) => rerender(createElement(App, { mounted })),
     draft: () => chatDraftOf(chat.store.getSnapshot().drafts, context, "01"),
@@ -746,6 +750,90 @@ describe("a chat about the agent's question, where its words go on as a prompt",
   })
 })
 
+describe("a message sent over the agent's question", () => {
+  const asked = (agent: "claude" | "codex" | "agy", chat: "prompt" | "field") =>
+    createStore<Conversation>({
+      ...questioning,
+      agent,
+      requests: questioning.requests.map((request) =>
+        request.dialog?.type === "questions"
+          ? { ...request, dialog: { ...request.dialog, chat } }
+          : request,
+      ),
+    })
+
+  it("sets the question aside, its card gone while the words go and after", async () => {
+    const goes: ((result: SendResult) => void)[] = []
+    const store = asked("claude", "prompt")
+    const chat = inApp(store, {
+      draft: "Do this instead",
+      send: () => new Promise<SendResult>((resolve) => goes.push(resolve)),
+    })
+    const { container } = chat
+    expect(container.querySelector(".chat-request")).not.toBeNull()
+    await send(container)
+    expect(chat.setAside).toEqual([["r1"]])
+    expect(chat.draft()).toBe("")
+    expect(container.querySelector(".chat-request")).toBeNull()
+    expect(bubbles(container)).toEqual([["Do this instead", "sending", "sending"]])
+    await act(async () => goes[0]!({ tracked: true }))
+    expect(container.querySelector(".chat-request")).toBeNull()
+    // The runner set it aside: the request goes, and the card stays gone.
+    act(() => store.update((conversation) => ({ ...conversation, requests: [] })))
+    expect(container.querySelector(".chat-request")).toBeNull()
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+  })
+
+  it("puts the card back with the words and why, should the runner turn them away", async () => {
+    const fails: ((failure: unknown) => void)[] = []
+    const chat = inApp(asked("claude", "prompt"), {
+      draft: "Do this instead",
+      send: () => new Promise<SendResult>((_resolve, reject) => fails.push(reject)),
+    })
+    const { container } = chat
+    await send(container)
+    expect(container.querySelector(".chat-request")).toBeNull()
+    await act(async () => fails[0]!(new Error("The agent isn't ready for a message yet.")))
+    expect(container.querySelector(".chat-request")).not.toBeNull()
+    expect(chat.draft()).toBe("Do this instead")
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("isn't ready")
+    expect(bubbles(container)).toEqual([])
+  })
+
+  it("sets it aside from a plain message where the dialog's own field takes the words too", async () => {
+    const chat = inApp(asked("agy", "field"), { draft: "Do this instead", program: "agy" })
+    await send(chat.container)
+    expect(chat.answered).not.toHaveBeenCalled()
+    expect(chat.sent).toHaveBeenCalledWith("Do this instead")
+    expect(chat.setAside).toEqual([["r1"]])
+  })
+
+  it("leaves a question that asks without waiting showing, never setting it aside", async () => {
+    const store = asked("codex", "prompt")
+    act(() =>
+      store.update((conversation) => ({
+        ...conversation,
+        requests: conversation.requests.map((request) => ({ ...request, detached: true })),
+      })),
+    )
+    const chat = inApp(store, {
+      draft: "Go on",
+      program: "codex",
+      send: () => new Promise<void>(() => {}),
+    })
+    await send(chat.container)
+    expect(chat.setAside).toEqual([undefined])
+    expect(chat.container.querySelector(".chat-request")).not.toBeNull()
+  })
+
+  it("never sets a permission aside", async () => {
+    const chat = inApp(createStore<Conversation>(asking), { draft: "Go on" })
+    await send(chat.container)
+    expect(chat.setAside).toEqual([undefined])
+    expect(chat.container.querySelector(".chat-request")).not.toBeNull()
+  })
+})
+
 describe("a shell command sent to an agent that keeps no record of it", () => {
   it("says its output shows only in the terminal, until the person types again", async () => {
     const chat = inApp(createStore<Conversation>({ ...questioning, requests: [] }), {
@@ -867,7 +955,8 @@ describe("a reply to the agent's question, as its dialog changes", () => {
   })
 
   it("lets an edit release words held while an unrelated message is on its way", async () => {
-    const store = createStore<Conversation>(withDialog("q1"))
+    // The question comes after the message went: the message doesn't set it aside.
+    const store = createStore<Conversation>(withDialog(null))
     const sends: (() => void)[] = []
     const chat = inApp(store, {
       draft: "first",
@@ -876,6 +965,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
     })
     const { container } = chat
     await send(container)
+    act(() => store.update(() => withDialog("q1")))
     press(container, "Chat about this")
     // The reply's Cancel isn't locked by the message on its way.
     expect(button(container, "cancel").disabled).toBe(false)

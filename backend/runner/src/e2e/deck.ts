@@ -119,9 +119,14 @@ export type DeckTerminal = {
     text: string,
     images?: readonly DeckImage[],
     at?: readonly number[],
+    /** As the chat's own Send gives it, setting aside the questions these refs name. */
+    setAside?: readonly string[],
   ) => Promise<Prompted>
-  /** Presses Escape in its agent as the chat does, `agents.interrupt`. */
-  readonly interrupt: () => Promise<InterruptResult>
+  /**
+   * Presses Escape in its agent as the chat does, `agents.interrupt`; with `setAside`, as its
+   * own Stop does, setting aside the questions these refs name.
+   */
+  readonly interrupt: (setAside?: readonly string[]) => Promise<InterruptResult>
   /**
    * Answers a request through its dialog as the chat does, `agents.answer`: resolves once
    * the dialog went as the answer should have it go, rejects as the call would.
@@ -818,11 +823,12 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
             messaging: { personPrompt: (id: string) => string | undefined }
           }
         ).messaging.personPrompt(id),
-      prompt: async (text, images = [], at) => {
+      prompt: async (text, images = [], at, setAside) => {
         prompted = undefined
         // Without images it joins the terminal's input queue in this same tick, as the router's
         // does: prompts given at once keep their order.
-        if (images.length === 0) return terminals.prompt({ terminalId: id, text, along: true })
+        if (images.length === 0)
+          return terminals.prompt({ terminalId: id, text, along: true, setAside })
         // As the router does for the chat: the images saved by an upload, then checked.
         const paths = await Promise.all(
           images.map((image) =>
@@ -837,11 +843,12 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
           images: checked,
           files: paths,
           ...(at && { at }),
+          setAside,
         })
       },
-      interrupt: async () => {
+      interrupt: async (setAside) => {
         prompted = undefined
-        return await terminals.interrupt({ terminalId: id })
+        return await terminals.interrupt({ terminalId: id, setAside })
       },
       answer: async (request, answer) => {
         prompted = undefined

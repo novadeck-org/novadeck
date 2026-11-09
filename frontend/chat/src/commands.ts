@@ -3,6 +3,7 @@ import {
   returnedBy,
   RingUnderWay,
   promptRef,
+  questionsToSetAside,
   type ChatPrompt,
   type Conversation,
   type Conversations,
@@ -212,6 +213,10 @@ export const createChatCommands = ({
   // What follows each prompt sent until its receipt says whether the record has it, by ref.
   const watches = new Map<string, () => void>()
 
+  // The ids of the questions the terminal's agent asks now and waits on, which the person's
+  // own Send or Stop sets aside (`questionsToSetAside`).
+  const questionsAsked = (key: TerminalKey): readonly string[] =>
+    questionsToSetAside(conversations!.conversation(key).getSnapshot().requests)
   const sendsOf = (key: TerminalKey) =>
     chatSendsOf(chat.store.getSnapshot().sends, contextOf(key), key.terminalId)
   // How many images a message carries, as the backend says; everything the box holds went in
@@ -446,10 +451,15 @@ export const createChatCommands = ({
     // others may go once the person has gone to the terminal, and may be typing there.
     const answering = answeringInTerminal(chat.store.getSnapshot().answering, context, terminalId)
     const shown = chatView() && !answering
+    // It sets aside only a question the person saw as they sent it that still waits: one asked
+    // since, while it waited its turn, is no question its words were written over.
+    const asked = questionsAsked(key)
+    const setAside = next.setAside?.filter((id) => asked.includes(id)) ?? []
     conversations!
       .send(key, next.text, {
         ref: next.ref,
         ...(shown && { along: true }),
+        ...(setAside.length > 0 && { setAside }),
         ...(next.images.length > 0 && {
           images: next.images.map(({ path }) => path!),
           at: next.at,
@@ -799,6 +809,9 @@ export const createChatCommands = ({
       const places = split?.at ?? []
       const ref = promptRef()
       const sent = new Promise<boolean>((resolve, reject) => settles.set(ref, { resolve, reject }))
+      // A message sent while the agent asks a question goes over it, setting it aside, as the
+      // person saw it asked; a shell command never does, nor words queued before it was asked.
+      const setAside = shell ? [] : questionsAsked(key)
       chat.update((state) => ({
         ...state,
         drafts: setChatDraft(state.drafts, context, terminalId, ""),
@@ -810,7 +823,16 @@ export const createChatCommands = ({
         imageNotes: withValue(state.imageNotes, context, terminalId, undefined),
         sends: setChatSends(state.sends, context, terminalId, [
           ...chatSendsOf(state.sends, context, terminalId),
-          { ref, draft, text: sentText, images, at: places, to: null, phase: "queued" },
+          {
+            ref,
+            draft,
+            text: sentText,
+            images,
+            at: places,
+            to: null,
+            phase: "queued",
+            ...(setAside.length > 0 && { setAside }),
+          },
         ]),
       }))
       const at = Date.now()
@@ -845,7 +867,12 @@ export const createChatCommands = ({
       let handed: readonly string[] | undefined
       let places: readonly number[] | undefined
       try {
-        const result = await conversations.interrupt(key)
+        // A Stop while the agent asks questions sets those aside and stops the agent.
+        const asked = questionsAsked(key)
+        const result = await conversations.interrupt(
+          key,
+          asked.length > 0 ? { setAside: asked } : undefined,
+        )
         returned = result.words
         handed = result.images
         places = result.at

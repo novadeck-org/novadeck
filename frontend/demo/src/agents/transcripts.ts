@@ -878,6 +878,7 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
                     ...(each.text ? [each.text] : []),
                   ].join(", "),
                 )
+                .filter((each) => each !== "")
                 .join("; ")
             : ""
         return {

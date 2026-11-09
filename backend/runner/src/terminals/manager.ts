@@ -88,7 +88,7 @@ import { Streams } from "./streams.js"
 import { noAgent, summaryOf, type AgentSummary } from "./summary.js"
 import { openedWith, renamed as renamedTo, summaryTitle, unnamed, type Naming } from "./titles.js"
 import { followTranscript } from "./transcripts.js"
-import { Typing, type Prompted, type PromptInput } from "./typing.js"
+import { Typing, type InterruptInput, type Prompted, type PromptInput } from "./typing.js"
 
 type Create = {
   id: string
@@ -1054,8 +1054,8 @@ export class Terminals {
    * their settle wait (`InterruptOptions`) after the last to show its turn ended before
    * the next looks.
    */
-  interrupt(input: { terminalId: string }): Promise<InterruptResult> {
-    return this.typing.interrupt(input.terminalId)
+  interrupt(input: InterruptInput): Promise<InterruptResult> {
+    return this.typing.interrupt(input.terminalId, input.setAside)
   }
 
   /**

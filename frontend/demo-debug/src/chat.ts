@@ -3,14 +3,18 @@ import {
   type ConflictReason,
   type Conversations,
   notCleared,
+  openQuestion,
 } from "@novadeck/core/conversation"
+import type { TerminalKey } from "@novadeck/core/types"
 
 import type { DemoAction } from "./types"
 
 // The ways the runner turns a chat's send away, which the demo's agents never do of their
 // own accord: one can be armed for the next send, which fails as the runner's would. The
 // next Stop can be armed to fail as the runner's does when the queued words stay in the
-// box, or when a request waits on the person.
+// box, or when a request waits on the person. A request armed as waiting is a permission's, as
+// the runner refuses it; the person's own Send or Stop over a question the agent asks sets that
+// aside (`setAside`) all the same, as the runner does.
 const failures: readonly {
   // No reason: as an older runner, or one this client doesn't know, says nothing of why.
   readonly reason: ConflictReason | null
@@ -48,6 +52,11 @@ const failures: readonly {
     hint: "Says to answer it first",
   },
   {
+    reason: "question-words-only",
+    label: "Question takes only words",
+    hint: "Images over Antigravity's question · Remove them",
+  },
+  {
     reason: "no-paste",
     label: "Screen not ready",
     hint: "Says to retry in a moment",
@@ -73,22 +82,33 @@ export const createChatFailures = (): {
   // How the next Stop fails: its queued words left in the box, or a request waiting.
   let stopping: "not-cleared" | "pending" | undefined
   return {
-    wrap: (conversations) => ({
-      ...conversations,
-      send: async (key, text, options) => {
-        const reason = armed
-        armed = undefined
-        if (reason !== undefined) throw conflictFailure(reason ?? undefined, "send")
-        return conversations.send(key, text, options)
-      },
-      interrupt: async (key) => {
-        const failing = stopping
-        stopping = undefined
-        if (failing === "not-cleared") throw notCleared()
-        if (failing === "pending") throw conflictFailure("pending", "stop")
-        return conversations.interrupt(key)
-      },
-    }),
+    wrap: (conversations) => {
+      // Whether a request armed as waiting gives way: the person's own Send or Stop is over a
+      // question the agent asks, which the runner sets aside.
+      const givesWay = (key: TerminalKey, setAside?: readonly string[]): boolean =>
+        conversations
+          .conversation(key)
+          .getSnapshot()
+          .requests.some((request) => openQuestion(request) && setAside?.includes(request.id))
+      return {
+        ...conversations,
+        send: async (key, text, options) => {
+          const reason = armed
+          armed = undefined
+          if (reason !== undefined && !(reason === "pending" && givesWay(key, options?.setAside)))
+            throw conflictFailure(reason ?? undefined, "send")
+          return conversations.send(key, text, options)
+        },
+        interrupt: async (key, options) => {
+          const failing = stopping
+          stopping = undefined
+          if (failing === "not-cleared") throw notCleared()
+          if (failing === "pending" && !givesWay(key, options?.setAside))
+            throw conflictFailure("pending", "stop")
+          return conversations.interrupt(key, options)
+        },
+      }
+    },
     actions: [
       ...failures.map(({ reason, label, hint }) => ({
         label,

@@ -4,7 +4,7 @@ import type { ScreenText } from "@novadeck/emulator/headless"
 import { describe, expect, it } from "vitest"
 
 import type { BoxProfile, InputBox } from "./box/box.js"
-import { PromptRefusal, Prompts, type PromptHost } from "./prompts.js"
+import { PromptRefusal, Prompts, tooTall, type PromptHost } from "./prompts.js"
 import { InputQueue, type HoldBudget, type InputEntry, type InputHold } from "./queue.js"
 import { screen as screenOf } from "./testing/screens.js"
 
@@ -505,6 +505,15 @@ describe("prompts", () => {
       expect(written).toEqual([])
     })
 
+    it("is told apart before any prompt, as one that makes way for it needs (tooTall)", () => {
+      const fifteen = screenOf({ rows: Array.from({ length: 15 }, () => ""), columns: 40 })
+      const profile = profileOf(false)
+      expect(tooTall(profile, lines(13), fifteen)).toBe(true)
+      expect(tooTall(profile, `\r\n${lines(11)}\r\n`, fifteen)).toBe(false)
+      // A text the program collapses to a placeholder always fits.
+      expect(tooTall(profile, "w".repeat(600), fifteen)).toBe(false)
+    })
+
     it("is sent where it fits", async () => {
       const { host, written } = terminal()
       await new Prompts(host, host.queue, fast).prompt("t", lines(11))
@@ -642,6 +651,56 @@ describe("prompts", () => {
     const prompts = new Prompts(host, host.queue, fast)
     await Promise.all([prompts.prompt("t", "First"), prompts.prompt("t", "Second")])
     expect(written).toEqual(["\x1b[200~First\x1b[201~", "\r", "\x1b[200~Second\x1b[201~", "\r"])
+  })
+
+  it("run what makes way for a prompt first, in its own turn, nothing coming between", async () => {
+    const { host, written } = terminal()
+    const prompts = new Prompts(host, host.queue, fast)
+    const order: string[] = []
+    const first = prompts.prompt("t", "First", "alone", undefined, [], undefined, undefined, () => {
+      order.push(`before ${written.length}`)
+      // A prompt given meanwhile waits for this one's turn to end.
+      void prompts.prompt("t", "Second").then(() => order.push("second"))
+      return Promise.resolve(undefined)
+    })
+    await first
+    order.push("first")
+    await host.queue.run("t", () => Promise.resolve())
+    expect(order).toEqual(["before 0", "first", "second"])
+    expect(written.slice(0, 2)).toEqual(["\x1b[200~First\x1b[201~", "\r"])
+  })
+
+  it("type nothing where what came first gave the words another way, and check them before it", async () => {
+    const { host, written } = terminal()
+    const prompts = new Prompts(host, host.queue, fast)
+    const given = await prompts.prompt(
+      "t",
+      "Hello",
+      "alone",
+      undefined,
+      [],
+      undefined,
+      undefined,
+      () => Promise.resolve({ returned: undefined }),
+    )
+    expect(given).toEqual({ returned: undefined })
+    expect(written).toEqual([])
+    let ran = false
+    const refused = new Prompts(host, host.queue, { ...fast, refuse: () => "no" }).prompt(
+      "t",
+      "Hello",
+      "alone",
+      undefined,
+      [],
+      undefined,
+      undefined,
+      () => {
+        ran = true
+        return Promise.resolve(undefined)
+      },
+    )
+    expect(await refusal(refused)).toBe("refused")
+    expect(ran).toBe(false)
   })
 
   it("hold the next prompt until the session of a first one binds", async () => {

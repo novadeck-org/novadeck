@@ -179,6 +179,16 @@ export const ChatView = ({
     () => sentBubbles(sending, prompts, items.length).filter(({ ref }) => !settled.has(ref)),
     [sending, prompts, items.length, settled],
   )
+  // The requests whose cards show: a question that a message on its way sets aside goes as
+  // the message goes, and comes back only should it not go.
+  const asked = useMemo(() => {
+    const aside = new Set(
+      sending.flatMap((send) =>
+        send.phase === "typing" || send.phase === "sent" ? (send.setAside ?? []) : [],
+      ),
+    )
+    return aside.size > 0 ? requests.filter((request) => !aside.has(request.id)) : requests
+  }, [requests, sending])
 
   // The agent whose menus the box calls up, as passing names it.
   const menuAgent = harness ?? program
@@ -243,8 +253,9 @@ export const ChatView = ({
     [onAnswer, onWordsLost],
   )
 
-  // What the box does with its words. Its agent's requests are known once its agent is.
-  const mode = composerMode(draft, replyTo, requests, harness !== null)
+  // What the box does with its words. Its agent's requests are known once its agent is; a
+  // question a message on its way sets aside is gone for a reply, as its card is.
+  const mode = composerMode(draft, replyTo, asked, harness !== null)
   const reply = mode === "reply" && replyTo !== null && replyTo !== "held" ? replyTo : null
   // A reply ends with its dialog, for good: the same dialog read again doesn't bring it
   // back. Words still in the box are held, as a reply whose question went, until the
@@ -446,7 +457,7 @@ export const ChatView = ({
           />
         )}
         <Requests
-          requests={requests}
+          requests={asked}
           slice={slice}
           agent={name}
           onAnswer={answer}
