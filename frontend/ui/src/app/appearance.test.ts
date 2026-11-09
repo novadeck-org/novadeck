@@ -76,6 +76,7 @@ const uiWith = (appearance: PreferencesValue["appearance"]): UiStore =>
         soundChoice: "theme",
         ligatures: false,
         chatView: false,
+        agentAvatars: false,
       },
     }),
   )

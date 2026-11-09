@@ -970,6 +970,7 @@ describe("workspace commands", () => {
         soundChoice: "theme",
         ligatures: false,
         chatView: false,
+        agentAvatars: false,
       })
       expect(app.state().view).not.toBe("grid")
       expect(app.shell().revealCanvas).toBe(false)

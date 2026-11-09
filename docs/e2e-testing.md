@@ -146,11 +146,11 @@ again without it. These tests skip anywhere else. Its traces upload as
 
 `backend/runner/src/e2e/harnesses.json` pins each harness's release:
 
-| Harness     | Published as                                          | Version |
-| ----------- | ----------------------------------------------------- | ------- |
-| Claude Code | npm, `@anthropic-ai/claude-code`                      | 2.1.316 |
-| Codex       | npm, `@openai/codex`                                  | 0.167.0 |
-| Antigravity | an archive, by its address and SHA-512 (Linux x86-64) | 1.5.2   |
+| Harness     | Published as                                                                               | Version |
+| ----------- | ------------------------------------------------------------------------------------------ | ------- |
+| Claude Code | npm, `@anthropic-ai/claude-code`                                                           | 2.1.316 |
+| Codex       | npm, `@openai/codex`                                                                       | 0.167.0 |
+| Antigravity | an archive, by its address and SHA-512 (Linux, macOS, Windows; x86-64, and arm64 on macOS) | 1.5.3   |
 
 `install.ts` installs each harness into `<cache>/<harness>-<version>`, staging it first
 in a folder with a random name so an interrupted install never counts as done, and
@@ -886,13 +886,15 @@ probe output, and keep their own loader.
 ### Probes and CI
 
 Pull requests' E2E jobs leave the probes out (`vitest.e2e.config.ts` runs them only when
-`NOVADECK_E2E_PROBES` is set); the nightly runs them, in a Probes job per harness on Linux,
+`NOVADECK_E2E_PROBES` is set); the nightly runs them, in five Probes jobs per harness on
+Linux (the held reply's two halves, the box probes, the ask probes, and the rest: a job's
+files run one after another, and in one job they took over 90 minutes),
 against each harness's latest release (a dispatch with `probes` runs them too, at the
 versions it names). That's where they pay:
 
 - Most record rather than check. Beyond setup (the pinned version, a tool list that isn't
   empty) they fail only on a timeout; what they find goes to the files a person reads
-  (`PROBE_OUT` and its siblings). The job keeps those as its `probes-<harness>` artifact,
+  (`PROBE_OUT` and its siblings). The job keeps those as its `probes-<harness>-<slice>` artifact,
   with a `fixtures.diff` of the fixtures the probes rewrote in the tree, and its summary
   says which changed: against the latest release, that is the harness's drift, before a
   pin moves. Two assert what the code relies on, so a release that changes it fails the night

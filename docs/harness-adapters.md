@@ -633,6 +633,12 @@ type MessagingProfile = {
   /** Whether a failed turn fires nothing, so its turn may only end with its next prompt. */
   readonly silentOnFailure: boolean
   /**
+   * What an Escape in its question dialog does: ends the turn (`interrupts`), or skips the
+   * question on screen, the turn going on (`skips`), which ends no turn for delivery or the
+   * agent's activity. An Escape in a confirmation ends the turn in all three.
+   */
+  readonly questionEscape: "interrupts" | "skips"
+  /**
    * Whether its box takes a prompt while only work a stopped turn left running runs: the
    * doorbell may ring it then, once its screen shows the box empty.
    */
@@ -651,11 +657,11 @@ type MessagingProfile = {
 }
 ```
 
-| Harness     | `asks`                                                                                    | `call` | `reinjectPerCall` | `root`        | `queueKey` | `silentOnFailure` | `promptsInBackground` | `toolsAtTurnStart` | `typedEntry`             |
-| ----------- | ----------------------------------------------------------------------------------------- | ------ | ----------------- | ------------- | ---------- | ----------------- | --------------------- | ------------------ | ------------------------ |
-| Claude Code | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` and `PostToolUseFailure` (tool) | yes    | no                | `binding`     | none       | no                | yes                   | no                 | none: hooks name prompts |
-| Codex       | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` (tool)                          | yes    | no                | `binding`     | Tab        | yes               | yes                   | no                 | none: hooks name prompts |
-| Antigravity | `Stop` (stop), `PreInvocation` (prompt)                                                   | none   | yes               | `status-line` | none       | no                | yes                   | yes                | `USER_INPUT` steps       |
+| Harness     | `asks`                                                                                    | `call` | `reinjectPerCall` | `root`        | `queueKey` | `silentOnFailure` | `questionEscape` | `promptsInBackground` | `toolsAtTurnStart` | `typedEntry`             |
+| ----------- | ----------------------------------------------------------------------------------------- | ------ | ----------------- | ------------- | ---------- | ----------------- | ---------------- | --------------------- | ------------------ | ------------------------ |
+| Claude Code | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` and `PostToolUseFailure` (tool) | yes    | no                | `binding`     | none       | no                | interrupts       | yes                   | no                 | none: hooks name prompts |
+| Codex       | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` (tool)                          | yes    | no                | `binding`     | Tab        | yes               | interrupts       | yes                   | no                 | none: hooks name prompts |
+| Antigravity | `Stop` (stop), `PreInvocation` (prompt)                                                   | none   | yes               | `status-line` | none       | no                | skips            | yes                   | yes                | `USER_INPUT` steps       |
 
 `call` exists exactly when `asks` has a `tool` entry. A `tool` event fires as a root tool
 call finishes, and delivers only the lead's messages, beside the tool's result (see

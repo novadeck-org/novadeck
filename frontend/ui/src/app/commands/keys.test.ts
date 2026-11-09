@@ -291,6 +291,7 @@ describe("key commands", () => {
           soundChoice: "theme",
           ligatures: false,
           chatView: false,
+          agentAvatars: false,
         },
         workspace: workspaceFixture({ view: "canvas" }),
         url: "/projects/project/sessions/initial/canvas?terminal=01",
@@ -438,6 +439,7 @@ describe("key commands", () => {
           soundChoice: "theme",
           ligatures: false,
           chatView: false,
+          agentAvatars: false,
         },
       })
       expect(app.keydown({ key: "Enter", ctrlKey: true, shiftKey: true })).toBe("passed")

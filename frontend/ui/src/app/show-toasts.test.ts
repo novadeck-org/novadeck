@@ -40,6 +40,7 @@ const setup = () => {
         soundChoice: "theme",
         ligatures: false,
         chatView: false,
+        agentAvatars: false,
       },
     }),
   )

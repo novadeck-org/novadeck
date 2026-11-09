@@ -441,6 +441,15 @@ export const rule = (row: string | undefined): boolean => /^─{8,}$/.test((row 
 const frameRule = (row: string | undefined): boolean => /^─{8,}\s*$/.test(row ?? "")
 
 /**
+ * The rows a ruled box would lie between: the lowest rule, and the nearest rule from the first
+ * column above it; -1 for one not found.
+ */
+export const boxRules = (rows: readonly string[]): { top: number; bottom: number } => {
+  const bottom = rows.findLastIndex(rule)
+  return { top: bottom < 0 ? -1 : rows.slice(0, bottom).findLastIndex(frameRule), bottom }
+}
+
+/**
  * A box drawn between two horizontal rules, its first row led by one of `markers` (`❯`, `>`): the
  * lowest rule on the screen and the nearest rule from the first column above it, the cursor
  * between them.
@@ -450,9 +459,7 @@ const frameRule = (row: string | undefined): boolean => /^─{8,}\s*$/.test(row 
  * rules, a spinner, and the footer below do not matter.
  */
 export const ruledBox = (screen: ScreenText, markers: Markers): InputBox | undefined => {
-  const bottom = screen.rows.findLastIndex(rule)
-  if (bottom < 0) return undefined
-  const top = screen.rows.slice(0, bottom).findLastIndex(frameRule)
+  const { top, bottom } = boxRules(screen.rows)
   if (top < 0 || bottom - top < 2) return undefined
   const { cursor } = screen
   if (cursor.row <= top || cursor.row >= bottom) return undefined

@@ -34,6 +34,9 @@ export type PreferencesValue = {
   // Whether a terminal an agent runs in shows its conversation rather than its screen, on
   // a backend that reads conversations.
   chatView: boolean
+  // Whether a terminal's tab and window header show its handle's critter, the avatar the
+  // Messages pane draws, in its program's place.
+  agentAvatars: boolean
 }
 export type Project = { id: string; name: string; directory: string }
 

@@ -79,7 +79,10 @@ prereleases, the experimental channel, are on the
 ## Working in Novadeck
 
 Canvas arranges its windows itself, from the Terminals list. Terminals on no team sit
-together in one block, in the list's order. Each team is a group of its own: the lead on
+together in one block, in the list's order, filled from the end: the last row is full and
+the first row is the short one, against the right. A new terminal, which goes at the top
+of the list, takes the next place at the block's start, so no other window moves while
+Canvas is open, nor when it opens again unless the block takes a different width. Each team is a group of its own: the lead on
 the left and its team to the right, a teammate that leads others one step further right
 with its own team. Reorder the list and Canvas follows. While Canvas is open, a new
 terminal or a growing team moves only the windows that have to make room, and closing a
@@ -105,10 +108,10 @@ gesture on the header returns to. The header's maximize button opens Focus view;
 minimize button opens Grid or Canvas.
 
 Click **New terminal** or use its keyboard shortcut to create and select a terminal
-immediately in any view, with or without Zen, ready to type in; F2 renames it. Focus
-shows it right away. Grid uses
-an available slot and scrolls it into view. Canvas puts it last in its block, as the
-Terminals list does, and pans only as needed to reveal it without changing zoom.
+immediately in any view, with or without Zen, ready to type in; F2 renames it. It goes
+at the top of the Terminals list. Focus shows it right away. Grid uses
+an available slot and scrolls it into view. Canvas puts it first in its block, where no
+other window moves, and pans only as needed to reveal it without changing zoom.
 Right-click the Grid background and choose **Terminal** to create one without entering
 rename mode. Terminals created with the New terminal control open in rename mode with their name
 selected: in the sidebar when visible, or in the terminal header otherwise. Enter or clicking
@@ -429,8 +432,8 @@ doesn't show it) or a summary, and the count
 beside the title reads matches over total. A row found only by its summary shows it,
 with the match lit. With nothing closed there is no search box.
 
-Clicking a row restores it: a new terminal in the session on screen, selected, in the
-folder it ran in. A plain terminal gets a fresh shell with its saved output above; an
+Clicking a row restores it: a new terminal in the session on screen, selected, at the
+top of the Terminals list, in the folder it ran in. A plain terminal gets a fresh shell with its saved output above; an
 agent resumes its conversation. The row stays, showing a spinner, until the restore is
 confirmed, and leaves then. If the resume fails, the terminal stays as a plain shell
 with a note and the row stays. A restored terminal comes back on its own, with no lead,

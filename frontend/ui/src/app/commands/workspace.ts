@@ -476,6 +476,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
           target,
           terminal,
           gridLayouts: addCompactGridTerminal(tilesOf(roster), layout.grid, terminal),
+          first: true,
         },
       ]
       navigateWorkspace(actions, { panel: "terminals" })
@@ -560,6 +561,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
           target,
           terminal,
           gridLayouts: addCompactGridTerminal(tilesOf(roster), layout.grid, terminal),
+          first: true,
         },
       ])
       pulse()

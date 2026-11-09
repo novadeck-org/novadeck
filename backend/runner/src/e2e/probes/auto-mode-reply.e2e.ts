@@ -31,9 +31,15 @@ describe.skipIf(!supported || !probing)(setup.name, () => {
     const path = join(run.sandbox.home, ".claude", "settings.json")
     const settings = JSON.parse(readFileSync(path, "utf8")) as {
       permissions: Record<string, unknown>
+      env?: Record<string, string>
     }
     delete settings.permissions.disableAutoMode
     settings.permissions.defaultMode = "auto"
+    // Since 2.1.319 the check runs on the server, in the Messages API's own answer, which a
+    // gateway must pass through; the fake model gives none, and the session stops on "Auto
+    // mode can't check actions in this session". This asks for the check the harness
+    // runs itself, as 2.1.316 did, in a request of its own to the model.
+    settings.env = { ...settings.env, CLAUDE_CODE_AUTO_MODE_SERVER: "0" }
     writeFileSync(path, JSON.stringify(settings))
     const finishing = gate()
     let pushed = false
@@ -69,8 +75,13 @@ describe.skipIf(!supported || !probing)(setup.name, () => {
     )
     const terminal = await run.deck.open(setup.agent)
     await terminal.reached("ready", { timeoutMs: 60_000 })
-    // Its first check shows a notice about its billing through a gateway, once.
-    await terminal.confirm(/Enter to continue/, () => terminal.submit("Warm up"))
+    // Its first check shows a notice about its billing through a gateway, once, up to 2.1.318
+    // at least; 2.1.319 checks locally here and shows none.
+    await terminal
+      .confirm(/Enter to continue/, () => terminal.submit("Warm up"), { timeoutMs: 15_000 })
+      .catch((error: unknown) => {
+        if (!String(error).includes("Timed out")) throw error
+      })
     await terminal.reached("settled", { timeoutMs: 30_000 })
     const calls = run.model.mark()
     const warmUp = transcripts(run.model.calls).length

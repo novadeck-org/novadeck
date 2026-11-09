@@ -63,6 +63,7 @@ export const openCommands = ({
     soundChoice: "theme",
     ligatures: false,
     chatView: false,
+    agentAvatars: false,
   },
   desktop = true,
   canvas,

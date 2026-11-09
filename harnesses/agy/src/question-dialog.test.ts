@@ -68,26 +68,107 @@ describe("Antigravity's ask_question", () => {
     expect(found.keys(chat())).toBeUndefined()
     expect(found.keys(chat("a\nb"))).toBeUndefined()
     expect(found.keys(chat("  "))).toBeUndefined()
-    // Not where Write-in isn't offered: several questions, a multi-select.
+    // With several questions, the words answer the first, and Esc skips each later one
+    // once it shows.
     const two = asking(colours(["Red", "Green"]), {
       question: "Which size?",
       options: ["Small", "Large"],
       is_multi_select: false,
     })
     const several = read(ask.twoQuestions.q1!.rows, questionFacts(two))
-    expect(several.dialog).toMatchObject({ chat: null })
-    expect(several.keys(chat("hm"))).toBeUndefined()
+    expect(several.dialog).toMatchObject({ chat: "field" })
+    const aside = several.keys(chat("hm"))
+    expect(sent(aside)).toEqual([
+      "\x1b[B",
+      "\x1b[B",
+      "\r",
+      `"Let's discuss this first: hm"`,
+      "\r",
+      "\x1b",
+    ])
+    const next = waits(aside)!.at(-1)!
+    expect(next(ask.twoQuestions.q1!.rows)).toBe(false)
+    expect(next(ask.twoQuestions.q2!.rows)).toBe(true)
+    // Once the person skipped the first, the words answer the one on screen.
+    const later = read(ask.twoQuestions.q2!.rows, questionFacts(two))
+    expect(later.keys(questionsAnswer({ question: "1", options: ["1"] }))).toBeUndefined()
+    expect(sent(later.keys(chat("hm")))).toEqual([
+      "\x1b[B",
+      "\x1b[B",
+      "\r",
+      `"Let's discuss this first: hm"`,
+      "\r",
+    ])
+    // A multi-select's Write-in takes them too.
     const multi = read(
       ask.multiSelect.screen!.rows,
       questionFacts(asking(colours(["Red", "Green", "Blue"], true))),
     )
-    expect(multi.dialog).toMatchObject({ chat: null })
-    expect(multi.keys(chat("hm"))).toBeUndefined()
+    expect(multi.dialog).toMatchObject({ chat: "field" })
+    expect(sent(multi.keys(chat("hm")))).toEqual([
+      "\x1b[B",
+      "\x1b[B",
+      "\x1b[B",
+      "\r",
+      `"Let's discuss this first: hm"`,
+      "\r",
+    ])
     // Nor from a state that isn't the start.
     const moved = ask.pending.screen120!.rows.map((row) =>
       row.replace(/^> 1\. /, "  1. ").replace(/^ {2}2\. /, "> 2. "),
     )
     expect(read(moved, questionFacts(colour)).keys(chat("hm"))).toBeUndefined()
+  })
+
+  it("answers several questions with a multi-select among them, each Enter moving on", () => {
+    // As 1.5.3 draws them (probed 2026-11-09, e2e/probes/agy-several-questions.e2e.ts).
+    const screen = (index: number, question: string, options: string[], footer: string) => [
+      "Question",
+      "─".repeat(60),
+      "",
+      `Question ${index}/2: ${question}`,
+      "",
+      ...[...options, "Write-in..."].map(
+        (label, at) => `${at === 0 ? ">" : " "} ${at + 1}. ${label}`,
+      ),
+      "",
+      `  ↑/↓ Navigate · ${footer} · esc Skip`,
+      "esc to cancel",
+    ]
+    const features = {
+      question: "Which features?",
+      options: ["Auth", "Billing", "Search"],
+      is_multi_select: true,
+    }
+    const color = { question: "Which colour?", options: ["Blue", "Green"], is_multi_select: false }
+    const boxes = ["[ ] Auth", "[ ] Billing", "[ ] Search"]
+    const multiFirst = screen(1, "Which features?", boxes, "→ Next · space Toggle · enter Submit")
+    const colorLast = screen(2, "Which colour?", ["Blue", "Green"], "← Back · enter Submit All")
+    const found = read(multiFirst, questionFacts(asking(features, color)))
+    expect(found.dialog).toMatchObject({
+      type: "questions",
+      chat: "field",
+      questions: [{ multiSelect: true }, { multiSelect: false }],
+    })
+    const steps = found.keys({
+      type: "questions",
+      dialog: "x",
+      answers: [
+        { question: "1", options: ["1", "3"] },
+        { question: "2", options: ["2"] },
+      ],
+    })
+    expect(sent(steps)).toEqual(["1", "3", "\r", "\x1b[B", "\r"])
+    // After the multi-select's Enter it waits for the next question before moving on.
+    const next = waits(steps)![2]!
+    expect(next(multiFirst)).toBe(false)
+    expect(next(colorLast)).toBe(true)
+    // The other way round: the single-select first, the multi-select last.
+    const colorFirst = screen(1, "Which colour?", ["Blue", "Green"], "→ Next · enter Select")
+    const other = read(colorFirst, questionFacts(asking(color, features)))
+    expect(other.dialog).toMatchObject({
+      questions: [{ multiSelect: false }, { multiSelect: true }],
+    })
   })
 
   it("picks an option with Down and Enter, waiting for the highlight to land", () => {

@@ -79,6 +79,7 @@ const setup = ({
       soundChoice: "theme",
       ligatures: false,
       chatView: false,
+      agentAvatars: false,
     },
   })
   const ui = createUiStore({ ...initial, pageFocused: focused })

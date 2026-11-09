@@ -253,12 +253,16 @@ jobs:
   # job's artifact, with the fixtures the probes rewrote in place as a diff, and the
   # summary says which changed. Linux only, in the e2e jobs' network namespace: macOS and
   # Windows runners queue longest, and the probes' findings are about the harness, not the
-  # system.
+  # system. A harness's probes run in five jobs (`slice`), as in one they took over 90
+  # minutes (`interrupt-held-reply` alone 35 to 40, the ask probes and `box-leftover`
+  # 10 to 20 each; the files run one after another): the held reply's runs in halves, then
+  # the box probes, the ask probes, and the rest, so a new probe lands in `rest`, and no job
+  # takes much over 30 minutes.
   probes:
     if: github.event_name == 'schedule' || inputs.probes
-    name: Probes (${{ matrix.setup.name }})
+    name: Probes (${{ matrix.setup.name }}, ${{ matrix.slice.name }})
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
     defaults:
       run:
         shell: bash
@@ -269,12 +273,44 @@ jobs:
           - { name: Claude Code, agents: claude }
           - { name: Codex, agents: codex }
           - { name: Antigravity, agents: agy }
+        # `files` are what vitest runs: paths it matches by substring, and `--exclude` globs
+        # for the rest, which keeps exactly what the others leave. `part` is the held
+        # reply's share of its runs (PROBE_PART).
+        slice:
+          - {
+              id: held-1,
+              name: held reply 1/2,
+              part: 1/2,
+              files: src/e2e/probes/interrupt-held-reply.e2e.ts,
+            }
+          - {
+              id: held-2,
+              name: held reply 2/2,
+              part: 2/2,
+              files: src/e2e/probes/interrupt-held-reply.e2e.ts,
+            }
+          - {
+              id: boxes,
+              name: boxes,
+              files: src/e2e/probes/box-leftover.e2e.ts src/e2e/probes/ring-reading.e2e.ts,
+            }
+          - {
+              id: asks,
+              name: asks,
+              files: src/e2e/probes/claude-ask src/e2e/probes/claude-elicit src/e2e/probes/codex-ask src/e2e/probes/agy-ask,
+            }
+          - {
+              id: rest,
+              name: rest,
+              files: src/e2e/probes --exclude **/interrupt-held-reply.e2e.ts --exclude **/box-leftover.e2e.ts --exclude **/ring-reading.e2e.ts --exclude **/claude-ask* --exclude **/claude-elicit* --exclude **/codex-ask* --exclude **/agy-ask*,
+            }
     env:
       NOVADECK_E2E_CACHE: ${{ github.workspace }}/.e2e-cache
       NOVADECK_E2E_TRACES: ${{ github.workspace }}/e2e-traces
       NOVADECK_E2E_AGENTS: ${{ matrix.setup.agents }}
       NOVADECK_E2E_HARNESS: ${{ (github.event_name == 'schedule' || inputs.harness == 'latest') && 'latest' || 'pinned' }}
       NOVADECK_E2E_PROBES: "1"
+      PROBE_PART: ${{ matrix.slice.part }}
       # Each probe's findings, by the variable it reads, all in one folder.
       PROBE_OUT: ${{ github.workspace }}/probe-out
       AGY_PROBE_OUT: ${{ github.workspace }}/probe-out/agy
@@ -321,11 +357,16 @@ jobs:
       - name: Install Harnesses
         run: node scripts/e2e/install/main.ts
 
-      # Every probe, each skipping what isn't its harness's.
+      # The slice's probes, each skipping what isn't its harness's. No globbing: the
+      # `--exclude` patterns are vitest's.
       - name: Run Probes
+        env:
+          FILES: ${{ matrix.slice.files }}
         run: |
+          set -f
           mkdir -p "$PROBE_OUT"
-          node scripts/e2e/isolated/main.ts -- pnpm --filter @novadeck/runner test:e2e src/e2e/probes
+          # shellcheck disable=SC2086
+          node scripts/e2e/isolated/main.ts -- pnpm --filter @novadeck/runner test:e2e $FILES
 
       # What the probes rewrote of the fixtures in the tree, as a person's run would leave it
       # to commit: against the pins' fixtures, a change there is the harness's drift.
@@ -333,6 +374,7 @@ jobs:
         if: ${{ !cancelled() }}
         env:
           HARNESS_NAME: ${{ matrix.setup.name }}
+          SLICE_NAME: ${{ matrix.slice.name }}
         run: |
           mkdir -p "$PROBE_OUT"
           git add --intent-to-add --all harnesses backend/runner/src
@@ -341,7 +383,7 @@ jobs:
           git diff --name-only -z -- harnesses backend/runner/src | xargs -0 -r pnpm exec oxfmt --write || true
           git diff -- harnesses backend/runner/src > "$PROBE_OUT/fixtures.diff"
           {
-            echo "## Probes: $HARNESS_NAME ($NOVADECK_E2E_HARNESS)"
+            echo "## Probes: $HARNESS_NAME, $SLICE_NAME ($NOVADECK_E2E_HARNESS)"
             echo
             if [ -s "$PROBE_OUT/fixtures.diff" ]; then
               echo "The probes changed these fixtures (\`fixtures.diff\` in the artifact):"
@@ -356,7 +398,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: probes-${{ matrix.setup.agents }}
+          name: probes-${{ matrix.setup.agents }}-${{ matrix.slice.id }}
           path: |
             ${{ env.PROBE_OUT }}
             ${{ env.NOVADECK_E2E_TRACES }}

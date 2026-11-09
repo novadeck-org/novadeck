@@ -312,6 +312,11 @@ export const watchUpdates = (updates: Backend["updates"], ui: UiStore): (() => v
 export const chatViewOn = (state: Pick<UiState, "preferences" | "flags">): boolean =>
   state.flags.IS_EXPERIMENTAL && state.preferences.chatView
 
+// Whether tabs and window headers show terminals' critters: the person turned Agent avatars
+// on, one of the experimental features, so they show only while IS_EXPERIMENTAL is on.
+export const agentAvatarsOn = (state: Pick<UiState, "preferences" | "flags">): boolean =>
+  state.flags.IS_EXPERIMENTAL && state.preferences.agentAvatars
+
 // Turns one feature flag on or off, as is: `setFeatureFlag` of the workspace's commands also
 // starts terminals afresh on the chat view where the flag turns it on or off.
 export const setFeatureFlag = (ui: UiStore, flag: FeatureFlag, on: boolean): void => {

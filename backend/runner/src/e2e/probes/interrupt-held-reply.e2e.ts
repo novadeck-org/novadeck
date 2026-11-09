@@ -5,7 +5,9 @@
 // Each case is run several times; each run records the activity's states after Escape, and
 // whether the reply was drawn once the gate opened, and which facts reached the activity
 // (hooks, records, status lines, the runner's own Escape) and when, relative to the key.
-// PROBE_SHAPE and PROBE_CASE keep only the shapes and cases whose names contain them. Runs only with NOVADECK_E2E_PROBES=1, by
+// PROBE_SHAPE and PROBE_CASE keep only the shapes and cases whose names contain them.
+// PROBE_PART=<n>/<of> keeps every <of>th (shape, case) pair from the <n>th, so CI runs the
+// 420 runs (35 minutes) in a few jobs, each with its own output. Runs only with NOVADECK_E2E_PROBES=1, by
 // path; writes $PROBE_OUT/<agent>-interrupt-held-reply-<pin|latest>.json.
 /* eslint-disable no-await-in-loop -- A probe's steps run in order, each after the screen settles. */
 import { mkdirSync, writeFileSync } from "node:fs"
@@ -22,6 +24,7 @@ import { sleep, probing } from "./support.js"
 const runs = Number(process.env.PROBE_RUNS ?? 3)
 const onlyShape = process.env.PROBE_SHAPE
 const onlyCase = process.env.PROBE_CASE
+const [part, parts] = (process.env.PROBE_PART || "1/1").split("/").map(Number) as [number, number]
 
 type Facts = { applyFact: (record: unknown, fact: Record<string, unknown>) => boolean }
 
@@ -89,9 +92,12 @@ for (const setup of setups) {
         told.push({ at: Date.now(), fact: { ...fact, input: undefined }, applied })
         return applied
       }
+      let pair = -1
       for (const shape of shapes) {
         if (onlyShape && !shape.name.includes(onlyShape)) continue
         for (const { how, pause, wait } of cases) {
+          pair += 1
+          if (pair % parts !== part - 1) continue
           const key = `${shape.name}, ${how} ${pause} ms after the call, gate opens ${
             wait < 0 ? `${-wait} ms before` : `${wait} ms later`
           }`

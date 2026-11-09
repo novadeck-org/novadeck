@@ -858,4 +858,22 @@ describe("a look and the gate on it", () => {
     await typist.ready((await typist.look())!, () => true)
     expect(lines).toEqual(["gate vetoed (foreground true, input box true, bracketed paste true)"])
   })
+
+  it("tells where the cursor stood when it reads no box, and none of the screen's text", async () => {
+    const lines: string[] = []
+    const fake = terminal({ inputBox: [false] })
+    const typist = createTypist(fake.target, {
+      profile: fake.inputBox,
+      timing: fast,
+      trace: (text) => lines.push(text),
+    })
+    await typist.look()
+    await sleep(40)
+    expect(await typist.ready((await typist.look())!)).toBe("no-input-box")
+    const [gate] = lines
+    expect(gate).toMatch(
+      /^gate no-input-box \(.*, cursor \d+,\d+ of 9x\d+, box rules -1,-1, cursor outside\)$/,
+    )
+    for (const text of ["header", "footer", ">"]) expect(gate).not.toContain(text)
+  })
 })
