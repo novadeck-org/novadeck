@@ -281,3 +281,62 @@ describe("the transcript read", () => {
     expect(store.file.test("c/.system_generated/logs/transcript.jsonl")).toBe(false)
   })
 })
+
+describe("a background subagent, as captured", () => {
+  const { root } = loadProbe(import.meta.dirname, "subagent-transcript.probe.json") as {
+    root: { step_index: number; source: string; type: string; content?: string }[]
+  }
+  const decoded = root.flatMap((step) => transcripts.items(JSON.stringify(step)))
+  const launch = decoded.find(({ kind }) => kind === "tool-call")!.call
+
+  it("takes the launch as its call's result while the subagent runs", () => {
+    const call = decoded.find(({ kind }) => kind === "tool-call")
+    expect(call).toMatchObject({ tool: "invoke_subagent", run: { subagent: true } })
+    const result = decoded.find(({ kind }) => kind === "tool-result")
+    expect(result).toMatchObject({ call: launch, outcome: { running: true } })
+    expect(result?.text).toContain("Created the following subagent")
+  })
+
+  it("takes its going idle as its call's report, its last words", () => {
+    const results = decoded.filter(({ kind }) => kind === "tool-result")
+    expect(results).toHaveLength(2)
+    expect(results[1]).toMatchObject({
+      role: "tool",
+      call: launch,
+      text: "Helper report: the build is green.",
+      outcome: { failed: false },
+    })
+    expect(results[1]?.outcome?.running).toBeFalsy()
+    // The wake turn's words follow it, the message itself no prompt of the person's.
+    expect(decoded.at(-1)).toMatchObject({ role: "assistant", kind: "text", text: "Woken." })
+    expect(decoded.filter(({ role }) => role === "user")).toHaveLength(1)
+  })
+
+  it("reads no report from an idle message whose launch it never read, nor any other", () => {
+    const wake = root.find(({ type }) => type === "SYSTEM_MESSAGE")!
+    const stranger = {
+      ...wake,
+      content: wake.content!.replaceAll(
+        "00000000-0000-4000-8000-000000000002",
+        "00000000-0000-4000-8000-000000000099",
+      ),
+    }
+    expect(transcripts.items(JSON.stringify(stranger))).toEqual([])
+    const message = {
+      ...wake,
+      content: wake.content!.replace(/content=.*/, "content=Work in the background."),
+    }
+    expect(transcripts.items(JSON.stringify(message))).toEqual([])
+  })
+
+  it("reports a subagent that went idle saying nothing all the same", () => {
+    const wake = root.find(({ type }) => type === "SYSTEM_MESSAGE")!
+    const bare = {
+      ...wake,
+      content: wake.content!.replace(/ This was the subagent's most recent response: [^\n]*/, ""),
+    }
+    expect(transcripts.items(JSON.stringify(bare))).toMatchObject([
+      { role: "tool", kind: "tool-result", call: launch, text: "Went idle." },
+    ])
+  })
+})

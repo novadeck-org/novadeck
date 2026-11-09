@@ -43,6 +43,10 @@ export const turn = (
   ),
 ]
 
+// What invoke_subagent's result says: the subagent it started.
+const launch = (conversation: string): string =>
+  `Created At: 2026-11-09T14:54:49+01:00\nCompleted At: 2026-11-09T14:54:49+01:00\nCreated the following subagent:\n{\n  "conversationId":  "${conversation}",\n  "workspaceUris":  [\n    "file:///home/user/project"\n  ]\n}\nThe subagent will send you a message when it has completed its task or requires guidance. There is no need to poll for its response.`
+
 const novadeck = "mcp_novadeck_novadeck_"
 
 export const agyVocabulary: readonly Written[] = [
@@ -123,40 +127,58 @@ export const agyVocabulary: readonly Written[] = [
   },
   {
     name: "subagents-and-asking",
-    records: turn(
-      "Split it up.",
-      "Delegating.",
-      [
+    // invoke_subagent's result is only the launch, the subagent's report coming as the
+    // message its going idle wakes the root with: one reports, one still runs (probed
+    // 2026-11-09, 1.5.2, harnesses/agy's fixtures/subagent-transcript.probe.json).
+    records: [
+      ...turn(
+        "Split it up.",
+        "Delegating.",
         [
-          "invoke_subagent",
-          {
-            TypeName: "self",
-            Role: "Background helper",
-            Prompt: "Work in the background.",
-          },
-          "Started",
+          [
+            "invoke_subagent",
+            {
+              TypeName: "self",
+              Role: "Background helper",
+              Prompt: "Work in the background.",
+            },
+            launch("00000000-0000-4000-8000-000000000002"),
+          ],
+          [
+            "invoke_subagent",
+            { TypeName: "self", Role: "Slow helper", Prompt: "Take your time." },
+            launch("00000000-0000-4000-8000-000000000003"),
+          ],
+          ["define_subagent", { TypeName: "tester", Role: "Runs the tests" }, "Defined"],
+          ["manage_subagents", { Action: "list" }, "tester"],
+          ["send_message", { Message: "Also the lint\nplease", toolSummary: "Message" }, "Sent"],
+          ["manage_task", { Action: "kill", toolSummary: "Stop it" }, "Killed"],
+          ["schedule", { DurationSeconds: 60, Prompt: "Check the build" }, "Scheduled"],
+          [
+            "ask_question",
+            {
+              questions: [
+                {
+                  question: "Which branch?",
+                  options: ["main", "dev"],
+                  is_multi_select: false,
+                },
+              ],
+            },
+            "main",
+          ],
         ],
-        ["define_subagent", { TypeName: "tester", Role: "Runs the tests" }, "Defined"],
-        ["manage_subagents", { Action: "list" }, "tester"],
-        ["send_message", { Message: "Also the lint\nplease", toolSummary: "Message" }, "Sent"],
-        ["manage_task", { Action: "kill", toolSummary: "Stop it" }, "Killed"],
-        ["schedule", { DurationSeconds: 60, Prompt: "Check the build" }, "Scheduled"],
-        [
-          "ask_question",
-          {
-            questions: [
-              {
-                question: "Which branch?",
-                options: ["main", "dev"],
-                is_multi_select: false,
-              },
-            ],
-          },
-          "main",
-        ],
-      ],
-      0,
-    ),
+        0,
+      ),
+      {
+        step_index: 20,
+        source: "SYSTEM",
+        type: "SYSTEM_MESSAGE",
+        status: "DONE",
+        content:
+          "The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.\n\n<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-09T13:54:53Z sender=system priority=MESSAGE_PRIORITY_HIGH content=Subagent 00000000-0000-4000-8000-000000000002 has gone idle. This was the subagent's most recent response: The build is green.\n</SYSTEM_MESSAGE>",
+      },
+    ],
   },
   {
     name: "novadeck-eager",

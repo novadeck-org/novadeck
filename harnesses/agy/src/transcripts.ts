@@ -1,10 +1,11 @@
 import { presence, reportedOr, sessionName } from "@novadeck/harness-core/conversation"
 import { parseFields, type Fields } from "@novadeck/harness-core/fields"
-import type { TranscriptDecoder, UserEntry } from "@novadeck/harness-core/harness"
+import type { TranscriptDecoder, TranscriptEntry, UserEntry } from "@novadeck/harness-core/harness"
 import { at, entry, noteEntry, textOf } from "@novadeck/harness-core/items"
+import { outcome } from "@novadeck/harness-core/outcomes"
 import { flavourOf } from "@novadeck/harness-core/paths"
 
-import { callChange, stepOutcome } from "./outcomes.js"
+import { callChange, launchedSubagent, stepOutcome } from "./outcomes.js"
 import { describe } from "./tools.js"
 
 // The person's words within the context Antigravity wraps a prompt in.
@@ -12,6 +13,45 @@ const request = /<USER_REQUEST>\n?([\s\S]*?)\n?<\/USER_REQUEST>/
 
 // How the plan review's Approve goes in, as a prompt (probed 2026-11-07, 1.5.2).
 const planApproved = /^\[Approved\] \S+$/
+
+// The message a background subagent's going idle wakes the root with, naming its
+// conversation and, where it said something, its last words: its report (probed
+// 2026-11-09, 1.5.2, fixtures/subagent-transcript.probe.json).
+const wentIdle =
+  /<SYSTEM_MESSAGE>\n\[Message\] [^\n]*?\bsender=system\b[^\n]*? content=Subagent (\S+) has gone idle\.(?: This was the subagent's most recent response: ([\s\S]*?))?\n<\/SYSTEM_MESSAGE>/
+
+// The call that started each subagent, by its conversation: the launch's step comes before
+// its idle message in the file, which is read from its start. Conversation ids are unique,
+// so every session's transcripts share it; the oldest go past a bound.
+const launches = new Map<string, string>()
+const launchesKept = 1000
+
+const launched = (conversation: string, call: string): void => {
+  launches.delete(conversation)
+  launches.set(conversation, call)
+  if (launches.size > launchesKept) launches.delete(launches.keys().next().value!)
+}
+
+/** The conversation of the subagent a message says went idle; none for any other text. */
+export const idleSubagent = (content: string): string | undefined => wentIdle.exec(content)?.[1]
+
+/**
+ * A subagent's going idle as the result of the call that started it, which pairs with it
+ * by the call's id: its last words, its report. None for any other message, or for one
+ * whose launch wasn't read.
+ */
+const idleReport = (content: string, time: number | null): TranscriptEntry[] => {
+  const idle = wentIdle.exec(content)
+  const call = idle && launches.get(idle[1]!)
+  if (!idle || !call) return []
+  return [
+    entry("tool", "tool-result", idle[2]?.trim() || "Went idle.", {
+      at: time,
+      call,
+      outcome: outcome({ failed: false }),
+    }),
+  ]
+}
 
 const contentOf = (fields: Fields): string =>
   typeof fields.content === "string" ? fields.content : ""
@@ -46,8 +86,9 @@ const inOwnFolder = async (reported: string, sessionId: string): Promise<string 
 /**
  * Antigravity's transcript: a JSONL of the conversation's steps, which hooks name. The
  * person's input, the model's responses with their tool calls, and each call's result
- * as the next step, as many steps on as it came in its call's list; its reasoning and
- * its own system steps stay out. It names no subagents.
+ * as the next step, as many steps on as it came in its call's list, and a background
+ * subagent's report, from the message its going idle wakes the root with, as its launch's
+ * result; its reasoning and its other system steps stay out. It names no subagents.
  */
 export const transcripts: TranscriptDecoder = {
   locate: async (reported, sessionId, subagent) =>
@@ -77,8 +118,12 @@ export const transcripts: TranscriptDecoder = {
     }
     if (fields.source === "SYSTEM" && fields.type === "CHECKPOINT")
       return [noteEntry({ type: "compaction" }, time, content)]
+    if (fields.source === "SYSTEM" && fields.type === "SYSTEM_MESSAGE")
+      return idleReport(content, time)
     if (fields.source !== "MODEL") return []
-    if (fields.type === "GENERIC")
+    if (fields.type === "GENERIC") {
+      const subagent = launchedSubagent(content)
+      if (subagent !== undefined && step !== undefined) launched(subagent, `step:${step}`)
       return [
         entry("tool", "tool-result", content, {
           at: time,
@@ -86,6 +131,7 @@ export const transcripts: TranscriptDecoder = {
           outcome: stepOutcome(fields.status, fields.error, content),
         }),
       ]
+    }
     if (fields.type !== "PLANNER_RESPONSE") return []
     const calls = (Array.isArray(fields.tool_calls) ? fields.tool_calls : []).map((call, index) => {
       const { name, args } = (call ?? {}) as { name?: unknown; args?: unknown }
