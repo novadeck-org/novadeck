@@ -132,7 +132,7 @@ describe("Canvas's arrangement", () => {
   })
 
   context("when a terminal is opened while Canvas is open", () => {
-    it("goes last in the block and last in the sidebar, and no other window moves", async () => {
+    it("goes first in the sidebar but last in the block, and no other window moves", async () => {
       await openWorkspace()
       await openCanvas()
       const before = placesFrom(storefront, "Checkout implementation")
@@ -141,13 +141,27 @@ describe("Canvas's arrangement", () => {
 
       await expect.element(terminal(newTerminalName)).toBeVisible()
       await expectSelected(newTerminalName)
-      expect(terminalTabNames().at(-1)).toBe(newTerminalName)
+      expect(terminalTabNames()[0]).toBe(newTerminalName)
       const after = await settled(() => placesFrom(storefront, "Checkout implementation"))
       expect(samePlaces(after, before)).toBe(true)
       const boxes = await settled(() => boxesOf([...storefront, newTerminalName]))
       expect(
         followsInBlock(boxes.Build!, boxes[newTerminalName]!, boxes["Checkout implementation"]!),
       ).toBe(true)
+    })
+
+    it("is first in the block the next time Canvas opens, as it is in the sidebar", async () => {
+      await openWorkspace()
+      await openCanvas()
+      await page.getByRole("button", { name: "New terminal", exact: true }).click()
+      await expect.element(terminal(newTerminalName)).toBeVisible()
+
+      await chooseView("Grid")
+      await chooseView("Canvas")
+
+      const boxes = await settled(() => boxesOf([...storefront, newTerminalName]))
+      const first = boxes[newTerminalName]!
+      expect(followsInBlock(first, boxes["Dev server"]!, first)).toBe(true)
     })
   })
 

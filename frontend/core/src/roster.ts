@@ -66,6 +66,17 @@ export const addTerminal = (
   terminals: [...roster.terminals, terminal],
 })
 
+// Lists a terminal first in the sidebar, as the person's own new ones are, above all the
+// rest in the order they had. The whole order is saved, so the ones it went above keep
+// their places when the next one comes.
+export const listFirst = (roster: TerminalRoster, terminalId: string): TerminalRoster => {
+  if (!hasTerminal(roster, terminalId)) return roster
+  const rest = orderedTiles(roster)
+    .map((tile) => tile.id)
+    .filter((id) => id !== terminalId)
+  return { ...roster, order: [terminalId, ...rest] }
+}
+
 // Lists a terminal under the terminal `openerId` in the sidebar, after the terminals that
 // one opened before and theirs, so a lead's teammates follow it rather than trailing the
 // list. Without such a terminal, it keeps its place at the end. Only as much of the order

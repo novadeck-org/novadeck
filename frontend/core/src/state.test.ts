@@ -788,14 +788,68 @@ describe("terminals agents open", () => {
     expect(order(after)).toEqual(["01", "03", "02", "04", "w1"])
   })
 
-  it("goes last when its opener isn't in the session, as the person's own do", () => {
+  it("goes last when its opener isn't in the session, as one from elsewhere does", () => {
     expect(order(run(handled, ...opened(3, "gone")))).toEqual(["01", "02", "03"])
-    const own = terminalFixture(3, "~/project")
-    expect(order(run(handled, { type: "terminal/add", target, terminal: own }))).toEqual([
+    const adopted = terminalFixture(3, "~/project")
+    expect(order(run(handled, { type: "terminal/add", target, terminal: adopted }))).toEqual([
       "01",
       "02",
       "03",
     ])
+  })
+})
+
+describe("terminals the person makes", () => {
+  const own = (number: number): WorkspaceAction => ({
+    type: "terminal/add",
+    target,
+    terminal: terminalFixture(number, "~/project"),
+    first: true,
+  })
+  const order = (state: WorkspaceState) => orderedTiles(state.roster).map((tile) => tile.id)
+
+  it("lists each first, the newest on top", () => {
+    expect(order(run(workspaceFixture(), own(3), own(4)))).toEqual(["04", "03", "01", "02"])
+  })
+
+  it("keeps the order the person dragged the list into below it", () => {
+    const dragged = apply(workspaceFixture(), {
+      type: "terminal/reorder",
+      target,
+      tabOrder: ["02", "01"],
+    })
+    expect(order(run(dragged, own(3)))).toEqual(["03", "02", "01"])
+  })
+
+  it("keeps a lead's team under it, and one from elsewhere still goes last", () => {
+    const handled = apply(
+      workspaceFixture(),
+      { type: "terminal/update", target, terminalId: "01", handle: "moth" },
+      {
+        type: "terminal/add",
+        target,
+        terminal: { ...terminalFixture(3, "~/project"), openedBy: "moth" },
+        anchor: "01",
+        select: false,
+      },
+    )
+    const adopted: WorkspaceAction = {
+      type: "terminal/add",
+      target,
+      terminal: terminalFixture(5, "~/project"),
+      select: false,
+    }
+    expect(order(run(handled, own(4), adopted))).toEqual(["04", "01", "03", "02", "05"])
+  })
+
+  it("lists windows after it, where they were", () => {
+    const undocked = apply(shown(hero), {
+      type: "item/undock",
+      target,
+      itemId: hero.id,
+      window: windowFor(hero),
+    })
+    expect(order(run(undocked, own(3)))).toEqual(["03", "01", "02", "w1"])
   })
 })
 
