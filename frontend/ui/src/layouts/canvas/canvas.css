@@ -94,6 +94,70 @@
     transform-origin: top left;
     cursor: move;
   }
+  /* Agent avatars (experimental). A window's critter, the header's 16px one, grows on a
+     zoomed-out Canvas as `--_canvas-avatar-grow` rises past 1 (Canvas.tsx sets it with the
+     chrome scale). It can't grow inside the header, which the window clips, so its twin
+     (`.canvas-avatar`, CanvasAvatars.tsx) sits in one layer over every window, placed at its
+     window's corner (`.canvas-avatar-at`), then on the header critter's place: the header's
+     padding (16px, 7px) and the 32px switch button it's centred in, under a header 52px tall
+     less its bottom border, every length scaled by the chrome scale, past the window's
+     border. Pinned at its lower right corner, it grows up and to the left, past the
+     window's corner and clear of the title. While it grows the twin shows and the header's
+     critter doesn't; at 1, the other way round. It recedes and hides as its window does. */
+  .canvas-avatars {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 100000;
+    pointer-events: none;
+  }
+  /* It glides with its window as the canvas moves it, and follows a dragged one at once. */
+  .canvas-avatar-at {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transition: transform 160ms ease-out;
+  }
+  .canvas-avatar-at[data-dragging] {
+    transition: none;
+  }
+  .canvas-avatar {
+    --_c: var(--_canvas-chrome-scale, 1);
+    --_grow: var(--_canvas-avatar-grow, 1);
+    --_recede: var(--terminal-idle-opacity);
+    position: absolute;
+    top: calc(var(--border-width) + (34px - var(--border-width) / 2) * var(--_c) - 16px);
+    left: calc(var(--border-width) + 40px * var(--_c) - 16px);
+    display: flex;
+    width: 16px;
+    height: 16px;
+    transform: scale(calc(var(--_c) * var(--_grow)));
+    transform-origin: 100% 100%;
+    opacity: clamp(0, calc((var(--_grow) - 1) * 1000), 1);
+  }
+  .canvas-avatar[data-selected] {
+    --_recede: 1;
+  }
+  .canvas-avatar[data-selected][data-preview] {
+    --_recede: 0.5;
+  }
+  .canvas-avatar[data-team]:not([data-preview]),
+  .canvas-viewport[data-has-selection="false"] .canvas-avatar {
+    --_recede: 1;
+  }
+  /* Last and as specific as any rule above, so a hiding window's face fades out with it. */
+  .canvas-viewport .canvas-avatar[data-hiding] {
+    --_recede: 0;
+  }
+  /* A ring of the canvas's ground, 2px on screen, parts it from the windows it overhangs. */
+  .canvas-avatar > .message-av {
+    box-shadow: 0 0 0 calc(2px * var(--_c) / var(--_grow)) var(--workspace-bg, var(--color-canvas));
+    opacity: var(--_recede);
+    transition: opacity var(--motion-state) var(--ease-interface);
+  }
+  .canvas-node .terminal-switch > .message-av {
+    opacity: clamp(0, calc((1 - var(--_canvas-avatar-grow, 1)) * 1000 + 1), 1);
+  }
   .canvas-node .terminal-content {
     overscroll-behavior: contain;
   }

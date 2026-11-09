@@ -9,6 +9,7 @@ import type { ProjectArrangement } from "../projects/project-arrangement"
 import { projectArrangementStorageKey } from "../projects/project-arrangement-storage"
 import { context, describe, expect, it } from "../test"
 import {
+  agentAvatarsOn,
   chatViewOn,
   createUiStore,
   dismissWhatsNew,
@@ -57,6 +58,7 @@ const initial = (): UiState =>
       soundChoice: "theme",
       ligatures: false,
       chatView: false,
+      agentAvatars: false,
     },
   })
 
@@ -399,6 +401,14 @@ describe("the IS_EXPERIMENTAL flag", () => {
     expect(chatViewOn({ preferences: on, flags: { IS_EXPERIMENTAL: false } })).toBe(false)
     expect(chatViewOn({ preferences: on, flags: { IS_EXPERIMENTAL: true } })).toBe(true)
     expect(chatViewOn({ preferences, flags: { IS_EXPERIMENTAL: true } })).toBe(false)
+  })
+
+  it("holds agent avatars back while it is off", () => {
+    const { preferences } = initial()
+    const on = { ...preferences, agentAvatars: true }
+    expect(agentAvatarsOn({ preferences: on, flags: { IS_EXPERIMENTAL: false } })).toBe(false)
+    expect(agentAvatarsOn({ preferences: on, flags: { IS_EXPERIMENTAL: true } })).toBe(true)
+    expect(agentAvatarsOn({ preferences, flags: { IS_EXPERIMENTAL: true } })).toBe(false)
   })
 })
 

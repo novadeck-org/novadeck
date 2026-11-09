@@ -19,6 +19,7 @@ export const readPreferences = (): PreferencesValue => {
     soundChoice: "theme",
     ligatures: false,
     chatView: false,
+    agentAvatars: false,
   }
   try {
     const saved = JSON.parse(
@@ -43,6 +44,8 @@ export const readPreferences = (): PreferencesValue => {
       soundChoice: soundChoiceOf(saved?.soundChoice),
       ligatures: typeof saved?.ligatures === "boolean" ? saved.ligatures : defaults.ligatures,
       chatView: typeof saved?.chatView === "boolean" ? saved.chatView : defaults.chatView,
+      agentAvatars:
+        typeof saved?.agentAvatars === "boolean" ? saved.agentAvatars : defaults.agentAvatars,
     }
   } catch {
     return defaults

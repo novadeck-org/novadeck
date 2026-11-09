@@ -77,6 +77,7 @@ const setup = (items: InboxRow[] = [], pings = true) => {
         soundChoice: "theme",
         ligatures: false,
         chatView: false,
+        agentAvatars: false,
       },
     }),
   )

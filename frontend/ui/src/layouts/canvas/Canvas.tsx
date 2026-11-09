@@ -3,6 +3,7 @@ import type { Arranged } from "@novadeck/core/layout/canvas-arrangement"
 import { canvasPointPosition } from "@novadeck/core/layout/window-place"
 import { isWindow } from "@novadeck/core/roster"
 import type { Tile } from "@novadeck/core/types"
+import { rescaleAvatars } from "@novadeck/items/Avatar"
 import { useDrag, useDragSession } from "@novadeck/items/drag-session"
 import {
   Background,
@@ -33,8 +34,10 @@ import { workspaceOverlayOpen, workspaceShortcutTarget } from "../../interaction
 import { backgroundPointerHandlers } from "../background"
 import { legibleZoom } from "../useSeen"
 import { useTerminalVisibility } from "../useTerminalVisibility"
+import { CanvasAvatars } from "./CanvasAvatars"
 import { CanvasTeamWire } from "./CanvasTeamWire"
 import {
+  avatarGrowAt,
   canvasStep,
   chromeScaleAt,
   fitOptions,
@@ -65,7 +68,7 @@ import { useCanvasVisit } from "./useCanvasVisit"
 export type { CanvasHandle } from "./types"
 
 // The chrome that reads `--_canvas-chrome-scale` (canvas.css, terminal-status.css).
-const chromeReaders = ".terminal-heading, .terminal-ending"
+const chromeReaders = ".terminal-heading, .terminal-ending, .canvas-avatar"
 
 // How long a window dropped from a taskbar takes to settle onto the canvas's grid.
 const settleMs = 160
@@ -91,6 +94,7 @@ const TerminalCanvas = ({
   selected,
   team,
   teams,
+  avatars,
   keyboardFocusRequest,
   navigation,
   onSelect,
@@ -142,15 +146,26 @@ const TerminalCanvas = ({
     if (!element) return
     let zoom = store.getState().transform[2]
     let resting: ReturnType<typeof setTimeout> | undefined
-    element.style.setProperty("--_canvas-chrome-scale", String(chromeScaleAt(zoom)))
+    // With it, how much the windows' critters grow (Agent avatars), which follows the zoom
+    // the same way.
+    const apply = (target: HTMLElement, scale: string, grow: string): void => {
+      target.style.setProperty("--_canvas-chrome-scale", scale)
+      target.style.setProperty("--_canvas-avatar-grow", grow)
+    }
+    apply(element, String(chromeScaleAt(zoom)), String(avatarGrowAt(zoom)))
     const unsubscribe = store.subscribe((state) => {
       if (state.transform[2] === zoom) return
       zoom = state.transform[2]
       const scale = String(chromeScaleAt(zoom))
+      const grow = String(avatarGrowAt(zoom))
       for (const chrome of element.querySelectorAll<HTMLElement>(chromeReaders))
-        chrome.style.setProperty("--_canvas-chrome-scale", scale)
+        apply(chrome, scale, grow)
       clearTimeout(resting)
-      resting = setTimeout(() => element.style.setProperty("--_canvas-chrome-scale", scale), 150)
+      resting = setTimeout(() => {
+        apply(element, scale, grow)
+        // The critters' LEDs (Agent avatars) lie on whole device pixels at the zoom at rest.
+        rescaleAvatars()
+      }, 150)
     })
     return () => {
       unsubscribe()
@@ -167,6 +182,18 @@ const TerminalCanvas = ({
         (terminal) => Boolean(hidden[terminal.id]) || terminal.id === preview,
       ),
     [terminals, hidden, preview],
+  )
+  // The handle of each terminal whose window draws its critter (Agent avatars).
+  const faces = useMemo(
+    () =>
+      new Map(
+        avatars
+          ? terminals.flatMap((tile): [string, string][] =>
+              !isWindow(tile) && tile.handle ? [[tile.id, tile.handle]] : [],
+            )
+          : [],
+      ),
+    [avatars, terminals],
   )
   // The room the canvas has, which decides how its windows are packed. Read when they are
   // arranged afresh, never followed: it changes every frame while the sidebar slides.
@@ -673,6 +700,7 @@ const TerminalCanvas = ({
                 bgColor="transparent"
               />
               <CanvasTeamWire teams={teams} team={team} selected={selected} />
+              <CanvasAvatars avatars={faces} />
               {ghost && (
                 <ViewportPortal>
                   <div

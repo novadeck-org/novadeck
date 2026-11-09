@@ -20,9 +20,14 @@ import {
   wakePassed,
 } from "@novadeck/core/terminals/waiting"
 import type { Tile } from "@novadeck/core/types"
+import { Avatar } from "@novadeck/items/Avatar"
 import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
-import { SidebarItem } from "@novadeck/toolkit/SidebarItem"
+import {
+  SidebarItem,
+  sidebarRowIconClasses,
+  sidebarRowWideIconClasses,
+} from "@novadeck/toolkit/SidebarItem"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { BellOff, Check, Eye, EyeOff, Pencil, X, type LucideIcon } from "lucide-react"
 import { lazy, Suspense, type ReactNode } from "react"
@@ -59,6 +64,7 @@ const revealedActionClasses = `${actionClasses} terminal-tab-revealed`
 export const TerminalTab = ({
   terminal,
   icon: Icon,
+  avatar,
   index,
   selected,
   team,
@@ -94,6 +100,8 @@ export const TerminalTab = ({
   terminal: Tile
   // What it presents as: its program, or what the window shows.
   icon: LucideIcon
+  // The handle whose critter stands in the icon's place (Agent avatars, experimental).
+  avatar?: string | undefined
   index: number
   selected: boolean
   // Its place in the selected terminal's team: the lead or one of its workers (tabs.css).
@@ -148,7 +156,8 @@ export const TerminalTab = ({
 }): React.JSX.Element => {
   const editing = Boolean(rename)
   const shell = isWindow(terminal) ? undefined : terminal
-  const icon = <Icon size={14} strokeWidth={1.5} />
+  // A critter only blinks here: the detail line says how the terminal stands.
+  const icon = avatar ? <Avatar handle={avatar} size={18} /> : <Icon size={14} strokeWidth={1.5} />
   const label = terminalLabel(terminal.name, shell?.handle)
   // The detail line shows the state: a glyph (a spinner while a program runs) before the
   // program, what the agent needs of the person right after it, or a note while the shell
@@ -240,6 +249,7 @@ export const TerminalTab = ({
         handleRef={handleRef}
         name={terminal.name}
         icon={icon}
+        wideIcon={Boolean(avatar)}
         detail={
           <>
             {/* One glyph wide in every phase, so the text beside it never shifts. */}
@@ -338,7 +348,7 @@ export const TerminalTab = ({
                 if (event.pointerType !== "mouse") event.stopPropagation()
               }}
             >
-              <span className="sidebar-item-icon flex h-[18px] w-3.5 shrink-0 items-center justify-center">
+              <span className={avatar ? sidebarRowWideIconClasses : sidebarRowIconClasses}>
                 {icon}
               </span>
               <div className="flex min-w-0 flex-1 flex-col gap-1">
