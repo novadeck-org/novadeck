@@ -1043,6 +1043,24 @@ describe("shell commands", () => {
       }
     })
 
+    it("keeps a command when the turn ends and another starts while the look at the first one's start is listing", async () => {
+      const s = setup({ agent: true, delay: 250 })
+      await s.press()
+      await settle(lookEveryMs + 260)
+      const started = Date.now() + 5
+      s.processes.current = [spawn(7, started - 3, AGENT, "sleep")]
+      await settle(5)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      await settle(100)
+      await s.ends()
+      await settle(50)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      await settle(5_000)
+      expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
+    })
+
     it("confirms with two real sightings, not on the one its slow listing made", async () => {
       const s = setup({ delay: 1_000 })
       const at = await s.press()

@@ -401,7 +401,11 @@ export class ShellCommands<R extends ShellRecord> {
   /** One look at the shell's processes, for every attempt whose window is open. */
   private async look(record: R, watch: Watch): Promise<void> {
     // The attempts whose turn-start look this is: it starts after the turn did.
-    const snaps = new Set(watch.attempts.filter(({ snap }) => snap !== undefined))
+    const snaps = new Map(
+      watch.attempts.flatMap((attempt) =>
+        attempt.snap === undefined ? [] : [[attempt, attempt.snap] as const],
+      ),
+    )
     try {
       const spawns = await this.under(watch.pid)
       if (!this.alive(record, watch) || spawns === undefined) return
@@ -411,10 +415,12 @@ export class ShellCommands<R extends ShellRecord> {
       const claimed = new Set<string>()
       let shown = false
       for (const attempt of watch.attempts.toReversed()) {
-        const snapped = snaps.has(attempt)
-        const found = this.started(spawns, attempt, agent, snapped ? attempt.snap : undefined)
+        // The turn start it was taken for, as it was when this look began: a later turn's
+        // start, reported while it listed, has a look of its own.
+        const snapAt = snaps.get(attempt)
+        const found = this.started(spawns, attempt, agent, snapAt)
         // Sightings are real looks': the turn-start look confirms nothing alone.
-        if (snapped) this.recorded(attempt, found, attempt.snap)
+        this.recorded(attempt, found, snapAt)
         const before = attempt.seen
         attempt.seen = new Map(found.map(({ key }) => [key, before.get(key) ?? now]))
         const fresh = found.filter(
@@ -446,7 +452,7 @@ export class ShellCommands<R extends ShellRecord> {
     } finally {
       // A turn-start look that could not list is not made up: the attempt waits the turn
       // out, which is the conservative end of it.
-      for (const attempt of snaps) attempt.snap = undefined
+      for (const [attempt, at] of snaps) if (attempt.snap === at) attempt.snap = undefined
       watch.looking = false
       // The windows that have closed are over, but an unconfirmed attempt whose window
       // closed in a turn waits for that turn's end, when a queued command runs.

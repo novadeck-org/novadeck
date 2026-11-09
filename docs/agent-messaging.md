@@ -1935,7 +1935,8 @@ one), and it is also a first sighting, in real time like any look's, which count
 what started before the report; on macOS the floor also admits what started within the
 listing's own delay after it: up to 0.3 s, and up to about two listings (0.6 s) when a look
 was already under way at the turn's start, which a tool of the turn can be taken for. A
-listing that fails is not made up: the Enter then rests on what earlier looks saw. Its looks go on to the end of that window,
+listing that fails is not made up: the Enter then rests on what earlier looks saw.
+Its looks go on to the end of the Enter's find window (five seconds),
 and then it waits the turn out with no looks. When the turn ends, a harness that queues the
 command (Claude Code, Antigravity) gets a new interval from the end less the resolution, and
 a find window of its own; on macOS that reaches up to 1 s into the turn, so a hook's process
