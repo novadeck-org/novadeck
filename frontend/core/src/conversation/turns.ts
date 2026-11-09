@@ -214,6 +214,11 @@ export const groupItems = (
     if (item.kind === "tool-result" && item.call && !results.has(item.call))
       results.set(item.call, item)
   }
+  // Every result of a subagent's call: a background one has a launch note, then its report.
+  const answers = new Map<string, ChatItem[]>()
+  for (const item of items)
+    if (item.kind === "tool-result" && item.call)
+      answers.set(item.call, [...(answers.get(item.call) ?? []), item])
   const blocks: ChatBlock[] = []
   let mode: string | undefined
   // The run of tool calls the latest items continue, if they do.
@@ -230,14 +235,18 @@ export const groupItems = (
       const result = item.call ? results.get(item.call) : undefined
       if (item.run?.subagent) {
         open.run = null
-        const outcome = result ? outcomeOf(item.run, null, result) : null
+        // The report is the last result that isn't a launch note, which says it still runs.
+        const report = (item.call ? (answers.get(item.call) ?? []) : []).findLast(
+          (each) => !outcomeOf(item.run, null, each)?.running,
+        )
+        const outcome = report ? outcomeOf(item.run, null, report) : null
         blocks.push({
           kind: "subagent",
           id: item.id,
           name: item.run.detail || "subagent",
-          text: result?.text ?? null,
-          truncated: result?.truncated ?? false,
-          running: !result || outcome?.running === true,
+          text: report?.text ?? null,
+          truncated: report?.truncated ?? false,
+          running: !report,
           failed: outcome?.failed === true,
           at: item.at,
           call: item.call,

@@ -341,6 +341,28 @@ describe("a subagent's report", () => {
     })
   })
 
+  it("keeps running past a background launch note, and takes the later notice as its report", () => {
+    const launch = item({
+      role: "tool",
+      kind: "tool-result",
+      call: "t",
+      text: "Async agent launched",
+      outcome: told({ running: true }),
+    })
+    const report = item({
+      role: "tool",
+      kind: "tool-result",
+      call: "t",
+      text: "the report",
+      outcome: told({ failed: false }),
+    })
+    expect(groupItems([sub("t", "x"), launch])[0]).toMatchObject({ text: null, running: true })
+    expect(groupItems([sub("t", "x"), launch, call("Bash", "b"), report])).toMatchObject([
+      { kind: "subagent", text: "the report", running: false },
+      { kind: "tools" },
+    ])
+  })
+
   it("says it failed when its result does", () => {
     const failed = item({
       role: "tool",
