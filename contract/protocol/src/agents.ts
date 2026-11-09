@@ -295,7 +295,10 @@ export const agentIntegration = z.strictObject({
  * - `no-box`: no input box is found on the agent's screen;
  * - `too-tall`: the text has no room in the box on this screen;
  * - `shell`: the box is in its shell mode;
- * - `no-paste`: the screen takes no bracketed paste yet.
+ * - `no-paste`: the screen takes no bracketed paste yet;
+ * - `question-words-only`: a prompt with images would set aside a question that takes the
+ *   words as its answer (`setAside` over Antigravity's ask_question, whose Write-in takes
+ *   words only): nothing was pressed, and the question still waits.
  * Other conflicts carry no data; a client must take a reason it doesn't know as none.
  */
 export const conflictReason = z.strictObject({
@@ -309,6 +312,7 @@ export const conflictReason = z.strictObject({
     "shell",
     "no-paste",
     "command",
+    "question-words-only",
   ]),
   // The words a prompt took out of the agent's box before it failed (see `promptFailure`).
   returned: z.string().optional(),

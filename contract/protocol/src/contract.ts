@@ -352,6 +352,16 @@ export const contract = {
     // (by `terminals.upload`), or whose file is gone, is PROMPT_REFUSED, writing nothing; an
     // image the agent never shows is PROMPT_FAILED with data `{ reason: "image-not-shown" }`,
     // and what landed is cleared.
+    // With `setAside`, a question the agent waits on (Claude Code's AskUserQuestion, Codex's
+    // request_user_input, Antigravity's ask_question) doesn't refuse the prompt: in the same
+    // turn of the terminal's input, with nothing between, it is set aside and the words go.
+    // Where the harness's Escape ends the turn there (Claude Code, Codex), Escape dismisses
+    // it and the words follow as a prompt, images and all; where it only skips the question
+    // (Antigravity), the words go as the answer to the question on screen, through its
+    // Write-in, the rest skipped: no prompt, so `tracked` is false, and images there are a
+    // CONFLICT (`question-words-only`), pressing nothing. Any other request (an approval), a dialog not read as a question,
+    // or one that doesn't go is still a CONFLICT (`pending`), pressing nothing; Escape pressed
+    // without the question going is ANSWER_FAILED, the dialog turning `raw`.
     prompt: procedure
       .input(
         z
@@ -369,6 +379,9 @@ export const contract = {
             // person can see it, as the chat shows it. Without it the box must be empty.
             along: z.literal(true).optional(),
             ref: agentRef.optional(),
+            // Sets aside the question the agent waits on, if one does, and gives the words
+            // (see below): only the person's own Send in a chat, never an automatic prompt.
+            setAside: z.literal(true).optional(),
           })
           .refine((prompt) => prompt.text.length > 0 || prompt.images !== undefined, {
             message: "A prompt holds text, images, or both.",
@@ -431,8 +444,15 @@ export const contract = {
     // takes back out of the agent's box what stopping put there (see `interruptResult`). A
     // terminal without an agent bound is a CONFLICT; a box that still holds the queued
     // messages, which could not be read or cleared with certainty, is BOX_NOT_CLEARED: the
-    // turn is stopped, and the person is to clear the box in the terminal.
-    interrupt: procedure.input(z.strictObject({ terminalId: id })).output(interruptResult),
+    // turn is stopped, and the person is to clear the box in the terminal. With `setAside`,
+    // only the person's own Stop in a chat, a question the agent waits on is set aside first,
+    // in the same turn of the input: Escape until it is gone (one ends the turn in Claude
+    // Code and Codex; Antigravity's skips one question a press), then the turn is stopped as
+    // above if it still runs. Otherwise, and for any other request, a request waiting is a
+    // CONFLICT (`pending`), as for `agents.prompt`.
+    interrupt: procedure
+      .input(z.strictObject({ terminalId: id, setAside: z.literal(true).optional() }))
+      .output(interruptResult),
     // Installs or removes the plugin through the agent's own commands.
     set: procedure
       .input(z.strictObject({ agent: agentName, connected: z.boolean() }))
