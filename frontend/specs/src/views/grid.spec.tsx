@@ -363,6 +363,27 @@ describe("Grid view", () => {
       )
     })
 
+    it("doesn't scroll the Grid for a corner taken near its bottom and moved along it", async () => {
+      await openGrid(700)
+      const [, , third] = terminalTabNames()
+      const one = bounds(terminal(third!))
+      const stage = gridView().element().querySelector<HTMLElement>(".grid-stage")!
+      // The third tile's corner 20 px above the bottom of the Grid, inside the band that
+      // scrolls it.
+      stage.scrollTop += bounds(corner(third!)).bottom - (stage.getBoundingClientRect().bottom - 20)
+      await expect.poll(() => bounds(corner(third!)).bottom).toBeGreaterThan(0)
+      const scrolled = stage.scrollTop
+      const box = bounds(corner(third!))
+
+      await pinPointer("press", { x: box.left + box.width / 2, y: box.top + box.height / 2 })
+      await pinPointer("move", { x: box.left + box.width / 2 - 6, y: box.top + box.height / 2 })
+      await new Promise((done) => setTimeout(done, 600))
+
+      expect(stage.scrollTop).toBe(scrolled)
+      expect(sameSize(bounds(terminal(third!)), one)).toBe(true)
+      await pinPointer("release")
+    })
+
     it("keeps a sized tile's size when a terminal is made", async () => {
       await openGrid()
       const [first] = terminalTabNames()

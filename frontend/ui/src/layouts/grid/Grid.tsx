@@ -361,8 +361,12 @@ export const Grid = ({
   const corner = useRef<{ readonly id: string; readonly x: number; readonly y: number } | null>(
     null,
   )
+  // Whether the pointer holding a corner has been clear of the Grid's top and bottom edges:
+  // only a pointer that comes to an edge scrolls the Grid, not a corner taken there.
+  const armed = useRef(false)
   const resize = useCallback<Resize>(
     (id, change) => {
+      if (corner.current === null) armed.current = false
       corner.current = change.kind === "held" ? { id, x: change.x, y: change.y } : null
       if (change.kind === "cancel") return setSizing(null)
       // The span saved, and the one showing, no wider than the columns there are.
@@ -418,8 +422,10 @@ export const Grid = ({
       const pointer = corner.current
       const bounds = stage.getBoundingClientRect()
       if (pointer) {
-        if (pointer.y > bounds.bottom - edge) stage.scrollBy({ top: 12, behavior: "instant" })
-        else if (pointer.y < bounds.top + edge) stage.scrollBy({ top: -12, behavior: "instant" })
+        const low = pointer.y > bounds.bottom - edge
+        const high = pointer.y < bounds.top + edge
+        if (!low && !high) armed.current = true
+        else if (armed.current) stage.scrollBy({ top: low ? 12 : -12, behavior: "instant" })
       }
       frame = requestAnimationFrame(step)
     }
