@@ -48,6 +48,10 @@ export const lists: ShapeLists = {
     // A paste Claude Code wrapped, which the decoder unwraps.
     "tag:pasted_content",
     "wrap:pasted_content",
+    // A background task's notice, as the person's message or queued into a running turn: a
+    // subagent's is the result of the call that started it; any other task's stays out.
+    "tag:task-notification",
+    "attachment:queued_command/task-notification/task-notification",
   ],
   skipped: [
     // The model's reasoning stays out of the chat.
@@ -55,13 +59,10 @@ export const lists: ShapeLists = {
     "block:assistant/redacted_thinking",
     // An image the person gave shows as its place in their words.
     "block:user/image",
-    // A background task's notice, which Claude Code hands the model as the person's message,
-    // and agents' messages Novadeck handed it as a prompt.
-    "tag:task-notification",
+    // Agents' messages Novadeck handed it as a prompt.
     "tag:novadeck-messages",
-    // Queued prompts that aren't the person's: a background task's notice, a peer's or a
-    // coordinator's message, which Claude Code hands the turn the same way.
-    "attachment:queued_command/task-notification/task-notification",
+    // Queued prompts that aren't the person's: a background task's notice with no origin, a
+    // peer's or a coordinator's message, which Claude Code hands the turn the same way.
     "attachment:queued_command/none/task-notification",
     "attachment:queued_command/peer/prompt/meta",
     "attachment:queued_command/coordinator/none/meta",

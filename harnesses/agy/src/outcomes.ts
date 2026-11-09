@@ -11,11 +11,26 @@ const readLine = new RegExp(String.raw`${opening}Showing lines (\d{1,10})-(\d{1,
 const editLine = new RegExp(
   String.raw`${opening}Made \d+ replacements? in .+ starting at line \d+ \(\+(\d{1,10})/-(\d{1,10}) lines\)\.`,
 )
+// What invoke_subagent's result says: the subagent it started, which runs on in the
+// background and tells the root once it goes idle (probed 2026-11-09, 1.5.2,
+// fixtures/subagent-transcript.probe.json).
+const launchLine = new RegExp(
+  String.raw`${opening}Created the following subagent:\n\{[^}]*?"conversationId":\s*"([^"\n]+)"`,
+)
+
+/**
+ * The conversation of the subagent a result step says it started: invoke_subagent's
+ * result is only that launch, the subagent's report coming later as a message (see
+ * `endedSubagents` in transcripts.ts).
+ */
+export const launchedSubagent = (content: string): string | undefined =>
+  launchLine.exec(content)?.[1]
 
 /**
  * What a result step says of its call: its `status` (`DONE`; `ERROR` or `INVALID`, with
  * `error`; `RUNNING` for a command gone to the background) and the line it opens with. A
- * command's step is `DONE` whatever its exit code, so its code decides.
+ * command's step is `DONE` whatever its exit code, so its code decides; a subagent's launch
+ * is `DONE` while the subagent still runs, so it is running.
  */
 export const stepOutcome = (
   status: unknown,
@@ -26,6 +41,7 @@ export const stepOutcome = (
   if (status === "ERROR" || status === "INVALID" || (typeof error === "string" && error))
     return outcome({ failed: true })
   if (status !== "DONE") return null
+  if (launchLine.test(content)) return outcome({ running: true })
   const code = exitLine.exec(content)?.[1]
   if (code !== undefined) return exited(Number(code))
   const read = readLine.exec(content)

@@ -802,7 +802,9 @@ describe("the tool vocabulary split by harness", () => {
             if (!lines) continue
             compared += 1
             const call = callOf(harness, lines)
-            if (JSON.stringify(call.run) === JSON.stringify(oldOf(call))) continue
+            // The flag that pulls a subagent's call out of the tool runs is not part of the old table.
+            const { subagent: _subagent, ...run } = (call.run ?? {}) as { subagent?: true }
+            if (JSON.stringify(call.run && run) === JSON.stringify(oldOf(call))) continue
             differed.add(tool ?? "")
             // The decoder cuts the name; the cut name is what the old chat read.
             if (emitted(harness, tool) && emitted(harness, call.tool ?? "tool"))

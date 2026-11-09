@@ -78,6 +78,23 @@ export type ChatBlock =
       readonly raw: string
       readonly truncated: boolean
     }
+  // A subagent's report, apart from the commands and from other agents' messages. Claude Code
+  // and Antigravity: the subagent's tool call (`ToolRun.subagent`) with its result as `text`,
+  // null while it runs; `name` is its description, else its type, else "subagent". Codex: a
+  // message from `/root/<name>`, `name` that last segment with "_" as a space; one from the
+  // parent `/root` (in a subagent's own rollout) is named "parent agent". `id` is the call's
+  // (or message's) item id, `call` the tool call's id where there is one.
+  | {
+      readonly kind: "subagent"
+      readonly id: string
+      readonly name: string
+      readonly text: string | null
+      readonly truncated: boolean
+      readonly running: boolean
+      readonly failed: boolean
+      readonly at: number | null
+      readonly call: string | null
+    }
   // Consecutive tool calls, which the chat folds into one run.
   | {
       readonly kind: "tools"
@@ -177,6 +194,15 @@ const modeWords: Readonly<Record<string, string>> = {
   untrusted: "asks for untrusted commands",
 }
 
+// The name of the subagent a Codex agent message comes from, by the path its rollout gives
+// (`/root/explorer_1`: "explorer 1"); its parent, `/root`, in a subagent's own rollout. Null for
+// an author that isn't a path of the agent tree.
+const codexSubagent = (author: string | null): string | null => {
+  if (author === null || !/^\/root(\/|$)/.test(author)) return null
+  const last = author.slice(author.lastIndexOf("/") + 1)
+  return last === "root" ? "parent agent" : last.replaceAll("_", " ")
+}
+
 export const groupItems = (
   items: readonly ChatItem[],
   delivered: readonly AgentMessage[] = [],
@@ -188,6 +214,11 @@ export const groupItems = (
     if (item.kind === "tool-result" && item.call && !results.has(item.call))
       results.set(item.call, item)
   }
+  // Every result of a subagent's call: a background one has a launch note, then its report.
+  const answers = new Map<string, ChatItem[]>()
+  for (const item of items)
+    if (item.kind === "tool-result" && item.call)
+      answers.set(item.call, [...(answers.get(item.call) ?? []), item])
   const blocks: ChatBlock[] = []
   let mode: string | undefined
   // The run of tool calls the latest items continue, if they do.
@@ -202,6 +233,26 @@ export const groupItems = (
   for (const item of items) {
     if (item.kind === "tool-call") {
       const result = item.call ? results.get(item.call) : undefined
+      if (item.run?.subagent) {
+        open.run = null
+        // The report is the last result that isn't a launch note, which says it still runs.
+        const report = (item.call ? (answers.get(item.call) ?? []) : []).findLast(
+          (each) => !outcomeOf(item.run, null, each)?.running,
+        )
+        const outcome = report ? outcomeOf(item.run, null, report) : null
+        blocks.push({
+          kind: "subagent",
+          id: item.id,
+          name: item.run.detail || "subagent",
+          text: report?.text ?? null,
+          truncated: report?.truncated ?? false,
+          running: !report,
+          failed: outcome?.failed === true,
+          at: item.at,
+          call: item.call,
+        })
+        continue
+      }
       entryBlock({
         id: item.id,
         call: item.call,
@@ -284,7 +335,19 @@ export const groupItems = (
                 at: item.at,
               },
       )
-    } else if (item.role === "agent")
+    } else if (item.role === "agent" && codexSubagent(item.author))
+      blocks.push({
+        kind: "subagent",
+        id: item.id,
+        name: codexSubagent(item.author)!,
+        text: item.text,
+        truncated: item.truncated,
+        running: false,
+        failed: false,
+        at: item.at,
+        call: null,
+      })
+    else if (item.role === "agent")
       blocks.push({
         kind: "agent",
         id: item.id,
@@ -334,6 +397,17 @@ export const sameBlock = (a: ChatBlock, b: ChatBlock): boolean => {
       a.id === b.id &&
       a.entries.length === b.entries.length &&
       a.entries.every((entry, index) => sameEntry(entry, b.entries[index]!))
+    )
+  if (a.kind === "subagent" || b.kind === "subagent")
+    return (
+      a.kind === "subagent" &&
+      b.kind === "subagent" &&
+      a.id === b.id &&
+      a.name === b.name &&
+      a.text === b.text &&
+      a.truncated === b.truncated &&
+      a.running === b.running &&
+      a.failed === b.failed
     )
   if (a.kind === "note" || b.kind === "note")
     return a.kind === "note" && b.kind === "note" && a.id === b.id && a.text === b.text

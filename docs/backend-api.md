@@ -908,9 +908,18 @@ one from an earlier runner.
   without the context either harness writes in the person's place, their developer or
   meta records, and Antigravity's (the step log its hooks name: the person's request
   without the context wrapped around it, the agent's words, each tool call and its
-  result, never its reasoning or system steps). A Codex agent's transcript also holds
+  result, never its reasoning or its other system steps). A Codex agent's transcript also holds
   the messages other agents sent it, as role `agent` with `author` naming the sender's
-  path (`/root`, `/root/<name>`). A user item marked `interrupted` is where the person
+  path (`/root`, `/root/<name>`), which the chat shows as its subagents' reports. A call that
+  starts a subagent (Claude Code's Task/Agent, Antigravity's `invoke_subagent`; not Codex's
+  `spawn_agent`, whose reports come as those messages) has `run.subagent: true`, and the chat
+  draws it apart from the commands, with its result as the report. One started in the
+  background answers at once with a launch note, whose `outcome.running` is true; its report
+  comes later as a second result of the same `call`: Claude Code's task notice (a user record
+  or, while a turn runs, a queued attachment), Antigravity's system message that the subagent
+  went idle (or failed: `failed` true, as for one killed by `manage_subagents`). The chat
+  takes the last result that doesn't say `running` as the report. Nothing is recorded for a
+  background subagent when its session exits. A user item marked `interrupted` is where the person
   interrupted the turn: Claude Code's and Codex's records hold their own, and for
   Antigravity, whose record holds none, the runner adds one where an Escape that stood
   came: after the turn's last steps, before the person's next prompt written after the key.

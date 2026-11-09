@@ -10,6 +10,7 @@ import {
 import { isFields, parseFields } from "@novadeck/harness-core/fields"
 import type { TranscriptDecoder, TranscriptEntry } from "@novadeck/harness-core/harness"
 import { at, entry, joined, noteEntry, textOf } from "@novadeck/harness-core/items"
+import { outcome } from "@novadeck/harness-core/outcomes"
 import { shellCall } from "@novadeck/harness-core/tools"
 
 import { taskNotification } from "./decode.js"
@@ -134,6 +135,45 @@ export const queuedPrompt = (
   return { text, at: queued.timestamp ?? fields.timestamp }
 }
 
+// A background task's notice a `queued_command` attachment carries (origin `task-notification`),
+// and when it came.
+const queuedNotice = (
+  fields: Record<string, unknown>,
+): { readonly text: string; readonly at: unknown } | undefined => {
+  const queued = (fields.attachment ?? {}) as Record<string, unknown>
+  const { origin, prompt } = queued
+  if (
+    queued.type !== "queued_command" ||
+    (origin as { kind?: unknown } | undefined)?.kind !== "task-notification" ||
+    typeof prompt !== "string" ||
+    !taskNotification.test(prompt)
+  )
+    return undefined
+  return { text: prompt, at: queued.timestamp ?? fields.timestamp }
+}
+
+const tagged = (text: string, tag: string): string | undefined =>
+  new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`).exec(text)?.[1]?.trim()
+
+// A subagent's task notice as the result of the call that started it, which pairs with it by
+// the call's id: its report, or where it has none its summary. A notice of any other task (a
+// command, a monitor) stays out of the chat.
+const notified = (notice: string, time: number | null): TranscriptEntry[] => {
+  const call = tagged(notice, "tool-use-id")
+  const report = tagged(notice, "result")
+  const summary = tagged(notice, "summary")
+  const text = report ?? (summary && /^Agent\b/.test(summary) ? summary : undefined)
+  if (!call || !text) return []
+  const status = tagged(notice, "status")
+  return [
+    entry("tool", "tool-result", text, {
+      at: time,
+      call,
+      outcome: outcome({ failed: status === "failed" || status === "killed" }),
+    }),
+  ]
+}
+
 // The items of a record's text content: the person's shell-mode command or its output, or
 // the text itself unless it is a background task's notice.
 const textItems = (
@@ -177,6 +217,7 @@ const textItems = (
         { at: time, call: fields.parentUuid },
       ),
     ]
+  if (role === "user" && taskNotification.test(content)) return notified(content, time)
   return content && !taskNotification.test(content) && !delivery.test(content)
     ? [entry(role, "text", content, { at: time, interrupted: interruption(content) })]
     : []
@@ -208,6 +249,10 @@ export const transcripts: TranscriptDecoder = {
     }
     if (fields.type === "permission-mode") return modeNote(fields.permissionMode, null)
     if (fields.type === "attachment") {
+      // A task's notice that came while a turn ran is queued the same way, and is most often
+      // how a background subagent's report arrives (2.1.319): it is that call's result.
+      const notice = queuedNotice(fields)
+      if (notice) return notified(notice.text, at(notice.at))
       const queued = queuedPrompt(fields)
       return queued ? textItems("user", queued.text, at(queued.at), fields) : []
     }

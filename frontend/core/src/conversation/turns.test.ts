@@ -194,8 +194,8 @@ describe("grouping a conversation's items", () => {
   })
 
   it("shows another agent's message with its author", () => {
-    const [block] = groupItems([item({ role: "agent", author: "/root/reviewer", text: "done" })])
-    expect(block).toMatchObject({ kind: "agent", author: "/root/reviewer", text: "done" })
+    const [block] = groupItems([item({ role: "agent", author: "reviewer", text: "done" })])
+    expect(block).toMatchObject({ kind: "agent", author: "reviewer", text: "done" })
   })
 
   it("pairs a result with its call and folds consecutive calls into one run", () => {
@@ -269,6 +269,137 @@ describe("grouping a conversation's items", () => {
       ["Bash", run],
       ["tool", null],
     ])
+  })
+})
+
+describe("a subagent's report", () => {
+  const sub = (id: string | null, detail: string, tool = "Task") =>
+    item({
+      kind: "tool-call",
+      tool,
+      call: id,
+      run: { kind: "agent", title: "Subagent", detail, subagent: true },
+    })
+  const kinds = (items: readonly ChatItem[]) => groupItems(items).map((block) => block.kind)
+
+  it("is a Codex message from a path of the agent tree, named by its last segment", () => {
+    const [block] = groupItems([
+      item({ role: "agent", author: "/root/explorer_1", text: "found it", at: 5 }),
+    ])
+    expect(block).toMatchObject({
+      kind: "subagent",
+      name: "explorer 1",
+      text: "found it",
+      running: false,
+      failed: false,
+      at: 5,
+    })
+  })
+
+  it("is not the person's or a peer's: the parent speaking to a subagent is named so", () => {
+    expect(groupItems([item({ role: "agent", author: "/root", text: "go" })])[0]).toMatchObject({
+      kind: "subagent",
+      name: "parent agent",
+    })
+    expect(groupItems([item({ role: "agent", author: null, text: "hi" })])[0]).toMatchObject({
+      kind: "agent",
+      author: "Another agent",
+    })
+  })
+
+  it("comes out of a run of commands, which go on either side of it in order", () => {
+    const blocks = groupItems([
+      call("Bash", "a"),
+      result("a"),
+      sub("t", "Survey the repo"),
+      result("t", "the report"),
+      call("Bash", "b"),
+      result("b"),
+    ])
+    expect(blocks.map((block) => block.kind)).toEqual(["tools", "subagent", "tools"])
+    expect(blocks[1]).toMatchObject({
+      name: "Survey the repo",
+      text: "the report",
+      running: false,
+      call: "t",
+    })
+    expect(blocks[0]).toMatchObject({ entries: [{ call: "a" }] })
+    expect(blocks[2]).toMatchObject({ entries: [{ call: "b" }] })
+  })
+
+  it("keeps consecutive subagents as blocks of their own, and works for Antigravity's tool", () => {
+    expect(
+      kinds([sub("x", "one", "invoke_subagent"), sub("y", "two", "invoke_subagent"), result("y")]),
+    ).toEqual(["subagent", "subagent"])
+  })
+
+  it("is running, with no report, until its result comes", () => {
+    expect(groupItems([sub("t", "")])[0]).toMatchObject({
+      name: "subagent",
+      text: null,
+      running: true,
+    })
+  })
+
+  it("keeps running past a background launch note, and takes the later notice as its report", () => {
+    const launch = item({
+      role: "tool",
+      kind: "tool-result",
+      call: "t",
+      text: "Async agent launched",
+      outcome: told({ running: true }),
+    })
+    const report = item({
+      role: "tool",
+      kind: "tool-result",
+      call: "t",
+      text: "the report",
+      outcome: told({ failed: false }),
+    })
+    expect(groupItems([sub("t", "x"), launch])[0]).toMatchObject({ text: null, running: true })
+    expect(groupItems([sub("t", "x"), launch, call("Bash", "b"), report])).toMatchObject([
+      { kind: "subagent", text: "the report", running: false },
+      { kind: "tools" },
+    ])
+  })
+
+  it("says it failed when its result does", () => {
+    const failed = item({
+      role: "tool",
+      kind: "tool-result",
+      call: "t",
+      text: "boom",
+      outcome: told({ failed: true }),
+    })
+    expect(groupItems([sub("t", "x"), failed])[0]).toMatchObject({ failed: true, text: "boom" })
+  })
+
+  it("is only a call that starts one: messaging or spawning one stays a command", () => {
+    const messaged = item({
+      kind: "tool-call",
+      tool: "SendMessage",
+      call: "m",
+      run: { kind: "agent", title: "Messaged @fox", detail: "hi" },
+    })
+    const spawned = item({
+      kind: "tool-call",
+      tool: "spawn_agent",
+      call: "s",
+      run: { kind: "agent", title: "Subagent", detail: "lint" },
+    })
+    expect(kinds([messaged, spawned])).toEqual(["tools"])
+  })
+
+  it("leaves a peer's doorbell message a doorbell", () => {
+    const ring = item({ role: "user", text: "[line]", ring: { nonce: "n7Q2", replies: false } })
+    expect(kinds([ring])).toEqual(["doorbell"])
+  })
+
+  it("is told apart by what it says", () => {
+    const one = groupItems([sub("t", "x")])[0]!
+    const two = groupItems([sub("t", "x"), result("t", "done")])[0]!
+    expect(sameBlock(one, one)).toBe(true)
+    expect(sameBlock(one, two)).toBe(false)
   })
 })
 

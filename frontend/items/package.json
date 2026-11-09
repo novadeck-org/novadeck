@@ -7,9 +7,10 @@
   "type": "module",
   "exports": {
     "./actions": "./src/actions.ts",
-    "./artifact.css": "./src/artifact.css",
     "./Avatar": "./src/homes/terminal/messages/avatars/Avatar.tsx",
+    "./artifact.css": "./src/artifact.css",
     "./bar": "./src/bar/bar.ts",
+    "./critters": "./src/homes/terminal/messages/avatars/critters.ts",
     "./drag-session": "./src/bar/drag-session.ts",
     "./messages": "./src/homes/terminal/messages/messages.ts",
     "./messages.css": "./src/messages.css",
