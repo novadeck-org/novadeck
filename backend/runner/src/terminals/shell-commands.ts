@@ -39,7 +39,12 @@ export type ShellRecord = Pick<Record, "summary" | "terminal" | "hibernating" | 
 export type ShellCommandsHost<R extends ShellRecord> = {
   /** The harness box of the agent in the record's terminal, if it runs one. */
   readonly profile: (record: R) => BoxProfile | undefined
-  /** Reports the record's summary to every watcher. */
+  /**
+   * Reports the record's summary to every watcher. The manager's announce calls `changed()`
+   * back, which is safe here: `look()` walks a copy of the attempts, `changed()` only marks
+   * attempts and arms the one look timer, whose `looking` guard keeps a look from starting
+   * inside another, and no announce is made from `changed()` itself.
+   */
   readonly announce: (record: R) => void
   /** The relay's trees, which Windows reads the processes under a shell from. */
   readonly trees: () => Pick<ProcessTrees, "read">
@@ -90,7 +95,7 @@ type Watch = {
   readonly run: number
   readonly pid: number
   /** The processes the command started, top-level, by `Spawn.key`. */
-  readonly held: Set<string>
+  readonly held: Map<string, Attempt>
   /** The Enters whose find window is open. */
   attempts: Attempt[]
   /** The one timer of their looks. */
@@ -128,9 +133,8 @@ const shells = new Set(["sh", "bash", "dash", "zsh", "fish", "cmd", "powershell"
  * Enter) is in shell mode and holds a command opens a window of five seconds in which the
  * shell's processes are looked at every half second. The processes started since the Enter
  * (and, where a turn came between, since its end, for a harness that queues the command),
- * less Novadeck's helpers, what they run and
- * the shells they run under, and with the bound agent as the parent of each top one, are
- * the command, once seen live a second apart. Once one is found it is looked at every
+ * less Novadeck's helpers, what they run and the shells they run under, and with the bound
+ * agent as the parent of each top one, are the command, once seen live a second apart. Once one is found it is looked at every
  * second, and shown until none is left, or the system could not tell for about five seconds.
  */
 export class ShellCommands<R extends ShellRecord> {
@@ -294,7 +298,7 @@ export class ShellCommands<R extends ShellRecord> {
       watch = {
         run,
         pid,
-        held: new Set(),
+        held: new Map(),
         attempts: [],
         look: undefined,
         looking: false,
@@ -431,7 +435,7 @@ export class ShellCommands<R extends ShellRecord> {
         )
         for (const { key } of found) claimed.add(key)
         if (fresh.length === 0) continue
-        for (const { key } of fresh) watch.held.add(key)
+        for (const { key } of fresh) watch.held.set(key, attempt)
         attempt.confirmed = true
         // Later processes are none of its command: its intervals end here.
         for (const interval of attempt.intervals) interval.to ??= now
@@ -578,10 +582,27 @@ export class ShellCommands<R extends ShellRecord> {
       const now = Date.now()
       if (spawns === undefined) watch.unknownSince ??= now
       else watch.unknownSince = undefined
+      // The newest confirmed Enter with a process of its own still live is the one shown.
+      let newest: Attempt | undefined
+      if (spawns !== undefined) {
+        const live = new Set(spawns.map(({ key }) => key))
+        for (const [key, owner] of watch.held) {
+          if (!live.has(key)) watch.held.delete(key)
+          else if (newest === undefined || owner.at > newest.at) newest = owner
+        }
+      }
       const over =
-        spawns === undefined
-          ? now - (watch.unknownSince ?? now) >= unknownMs
-          : !spawns.some(({ key }) => watch.held.has(key))
+        spawns === undefined ? now - (watch.unknownSince ?? now) >= unknownMs : newest === undefined
+      if (newest !== undefined) {
+        const was = record.summary.shellCommand
+        if (was == null || was.since !== newest.at || was.command !== newest.command) {
+          record.summary = {
+            ...record.summary,
+            shellCommand: { command: newest.command, since: newest.at },
+          }
+          this.host.announce(record)
+        }
+      }
       if (over) {
         // Attempts still looking may find the next command; those that found this one are done.
         watch.held.clear()

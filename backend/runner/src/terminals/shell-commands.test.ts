@@ -486,6 +486,37 @@ describe("shell commands", () => {
       expect(s.rec.summary.shellCommand).toBeNull()
     })
 
+    it("shows the newest command whose own process still lives, as the others end", async () => {
+      const overlapping = async () => {
+        const s = setup()
+        s.rec.box = shellBox("sleep 100")
+        const first = await s.press()
+        s.processes.current = [spawn(7, first + 5)]
+        await settle(findMs)
+        const second = await s.press(shellBox("sleep 5"))
+        s.processes.current = [spawn(7, first + 5), spawn(8, second + 5)]
+        await settle(findMs)
+        expect(s.rec.summary.shellCommand).toEqual({ command: "sleep 5", since: second })
+        return { s, first, second }
+      }
+      // The newer ends first: the label goes back to the older, still running.
+      const a = await overlapping()
+      a.s.processes.current = [spawn(7, a.first + 5)]
+      await settle(pollMs)
+      expect(a.s.rec.summary.shellCommand).toEqual({ command: "sleep 100", since: a.first })
+      a.s.processes.current = []
+      await settle(pollMs)
+      expect(a.s.rec.summary.shellCommand).toBeNull()
+      // The older ends first: the label stays the newer, until it ends too.
+      const b = await overlapping()
+      b.s.processes.current = [spawn(8, b.second + 5)]
+      await settle(pollMs)
+      expect(b.s.rec.summary.shellCommand).toEqual({ command: "sleep 5", since: b.second })
+      b.s.processes.current = []
+      await settle(pollMs)
+      expect(b.s.rec.summary.shellCommand).toBeNull()
+    })
+
     it("keeps a second Enter's looks when the first command ended meanwhile", async () => {
       const s = setup()
       const first = await s.press()
