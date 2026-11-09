@@ -1,6 +1,7 @@
 import { afterEach } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
+import { near } from "../support/canvas"
 import { windowMenu } from "../support/companions"
 import { jump } from "../support/keyboard"
 import {
@@ -318,13 +319,20 @@ describe("Grid view", () => {
       const before = terminalTabNames()
       const [first, , third] = before
       const to = bounds(terminal(third!))
+      const rest = tileBoxes()
+      const others = before.filter((name) => name !== first)
+      const atRest = (): boolean =>
+        others.every((name) => {
+          const box = bounds(terminal(name))
+          return near(box.left, rest[name]!.left) && near(box.top, rest[name]!.top)
+        })
 
       await pinPointer("press", grip(first!))
       await pinPointer("move", { x: to.left + 60, y: to.top + 30 })
-      await wait(200)
-      // Over the sidebar, outside the Grid's stage.
+      await expect.poll(atRest).toBe(false)
+      // Over the sidebar, outside the Grid's stage: the tiles go back to where they rest.
       await pinPointer("move", { x: 100, y: to.top + 30 })
-      await wait(200)
+      await expect.poll(atRest).toBe(true)
       await pinPointer("release")
 
       await expectStaysTrue(() => terminalTabNames().join() === before.join(), "the sidebar order")
@@ -362,6 +370,32 @@ describe("Grid view", () => {
   })
 
   context("when a folded team's tile is dragged", () => {
+    it("moves no tile while one is held where it lies", async () => {
+      await page.viewport(1440, 900)
+      await openMessagesDemo()
+      const lead = "Checkout implementation"
+      await terminalTab(lead).click()
+      await chooseView("Grid")
+      const menu = await windowMenu(lead)
+      await menu.getByRole("menuitem", { name: "Fold 1 teammate", exact: true }).click()
+      await terminal("Tests").click({ position: { x: 150, y: 150 } })
+      await expectSelected("Tests")
+      const rest = tileBoxes()
+      const box = bounds(terminal("Tests"))
+      const gap = headerGap("Tests")
+
+      await pinPointer("press", { x: box.left + gap.x, y: box.top + gap.y })
+      await pinPointer("move", { x: box.left + gap.x + 30, y: box.top + gap.y + 10 })
+      await new Promise((done) => setTimeout(done, 400))
+
+      for (const [name, was] of Object.entries(rest)) {
+        if (name === "Tests") continue
+        const now = bounds(terminal(name))
+        expect(near(now.left, was.left) && near(now.top, was.top), `${name} stays`).toBe(true)
+      }
+      await pinPointer("release")
+    })
+
     it("shows the order a drop will leave, the team together", async () => {
       await page.viewport(1440, 900)
       await openMessagesDemo()

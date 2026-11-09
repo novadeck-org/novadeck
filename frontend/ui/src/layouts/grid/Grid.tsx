@@ -3,6 +3,7 @@ import { Accessibility, Feedback, PointerActivationConstraints, PointerSensor } 
 import { DragDropProvider, useDraggable } from "@dnd-kit/react"
 import type { Team } from "@novadeck/core/derivations"
 import type { WindowPlace } from "@novadeck/core/layout/window-place"
+import { orderBefore } from "@novadeck/core/roster"
 import type { Tile } from "@novadeck/core/types"
 import { useDrag, useDragSession } from "@novadeck/items/drag-session"
 import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
@@ -23,7 +24,7 @@ import type { TerminalLayoutControls } from "../../terminals/WindowShell"
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
 import { GridTeamWire } from "./GridTeamWire"
-import { arrangeGrid, gridGap, gridTileHeight, moveToSlot, orderAfterDrag, slotAt } from "./layout"
+import { arrangeGrid, gridGap, gridTileHeight, orderAfterDrag, slotAt } from "./layout"
 import type { TileBox } from "./team-route"
 
 // The wheel over a window scrolls the grid, unless the window is the selected one and holds
@@ -274,9 +275,17 @@ export const Grid = ({
       live.current.pointer = pointer
       // Held within the grid, so the tile never makes it scroll where there is nothing.
       const { tileWidth, height } = arrangeGrid(ids, width)
+      // Outside the grid it is no drop, so the tiles go back to where they rest.
+      const stage = stageRef.current?.getBoundingClientRect()
+      const outside =
+        !stage ||
+        pointer.x < stage.left ||
+        pointer.x > stage.right ||
+        pointer.y < stage.top ||
+        pointer.y > stage.bottom
       live.current.held = {
         id,
-        to: slotAt(point, width, ids.length - 1),
+        to: outside ? ids.indexOf(id) : slotAt(point, width, ids.length - 1),
         x: Math.min(Math.max(point.x - live.current.grab.x, 0), width - tileWidth),
         y: Math.min(
           Math.max(point.y - live.current.grab.y, 0),
@@ -285,7 +294,7 @@ export const Grid = ({
       }
       setHeld(live.current.held)
     },
-    [containerRef, width, ids],
+    [containerRef, stageRef, width, ids],
   )
   useEffect(() => {
     const stage = stageRef.current
@@ -299,14 +308,18 @@ export const Grid = ({
 
   const order = useMemo(() => {
     // What a drop would save: with a folded team's tabs together, so the tiles shown making
-    // room are those that move.
+    // room are those that move. A tile held where it lies saves nothing, so nothing moves.
+    const on = new Set(ids)
     if (held) {
-      const on = new Set(ids)
-      return keepFolds(orderAfterDrag(listed, ids, held.id, held.to)).filter((id) => on.has(id))
+      const next = orderAfterDrag(listed, ids, held.id, held.to)
+      return next === listed ? ids : keepFolds(next).filter((id) => on.has(id))
     }
     if (!dropPlace) return ids
-    const at = dropPlace.grid.before === null ? -1 : ids.indexOf(dropPlace.grid.before)
-    return moveToSlot(ids, dropGhost, at < 0 ? ids.length : at)
+    // A window dropped here goes where its placeholder shows it, its folds kept together as
+    // the drop saves them.
+    return keepFolds(orderBefore(listed, dropGhost, dropPlace.grid.before)).filter(
+      (id) => id === dropGhost || on.has(id),
+    )
   }, [ids, listed, keepFolds, held, dropPlace])
   const { boxes, height } = useMemo(() => arrangeGrid(order, width), [order, width])
   const boxOf = useMemo(() => new Map(boxes.map((box) => [box.id, box])), [boxes])
