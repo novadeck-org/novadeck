@@ -8,8 +8,8 @@
    `.chat-agent-face` in the gutter, the handle `.chat-author` in their hue and where they run
    `.chat-agent-where` beside it, a long one folded to `.chat-more`), subagents' reports
    (`.chat-subagent`, a dim line each on a dotted rule, `.chat-subagent-summary` holding its
-   `.chat-subagent-name`, `.chat-subagent-tag` and what it said `.chat-subagent-said`, opening
-   to `.chat-tool-body`), runs of tool calls (`.chat-tools`, a dim line `.chat-tool` each on a
+   `.chat-subagent-name`, `.chat-subagent-tag`, `.chat-subagent-failed` where it failed and
+   what it said `.chat-subagent-said`, opening to `.chat-tool-body`), runs of tool calls (`.chat-tools`, a dim line `.chat-tool` each on a
    solid rule, opening to `.chat-tool-body`), notes (`.chat-note`) and the agent's state (`.chat-status`, with its
    spinner `.chat-spin`). Under it sit what waits on the person (`.chat-requests`) and the
    prompt (`.chat-composer`), one line under a hairline. What the harness shows at its input
@@ -63,6 +63,9 @@
   --_work: color-mix(in srgb, var(--_muted) 85%, transparent);
   --_pad: 30px;
   --_lh: 21px;
+  /* The work's voice, tools and subagents: a step under the chat's own, in either size. */
+  --_work-size: 12px;
+  --_work-lh: 18px;
   --_measure: var(--chat-measure, 92ch);
   /* The most a region that starts at the chat's left edge spans: its gutter, the mark's cells,
      the reading width, and the gutter after it. */
@@ -85,6 +88,8 @@
 .chat[data-compact] {
   --_pad: 14px;
   --_lh: 18px;
+  --_work-size: 11px;
+  --_work-lh: 16px;
   --_mark-width: 5px;
   --_mark-height: 11px;
   font-size: 12px;
@@ -259,6 +264,10 @@
   overflow-wrap: anywhere;
   color: var(--_agent, var(--_muted));
   font-weight: 600;
+}
+/* A handle on its own head line is never cut or wrapped. */
+.chat-agent-head .chat-author {
+  max-width: none;
 }
 .chat-agent-where {
   color: var(--_muted);
@@ -435,8 +444,8 @@
   padding-left: 1.5ch;
   border-left: 1px solid var(--_line);
   color: var(--_work);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--_work-size);
+  line-height: var(--_work-lh);
 }
 .chat-tools .chat-tool-title {
   color: var(--_work);
@@ -466,8 +475,8 @@
   padding-left: 1.5ch;
   border-left: 1px dotted var(--_mid);
   color: var(--_work);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--_work-size);
+  line-height: var(--_work-lh);
 }
 /* Right under the prose it serves, it's pulled up as a tool run is. */
 .chat-thread > .chat-message[data-role="assistant"] + .chat-subagent {
@@ -515,7 +524,8 @@
   color: var(--_muted);
   text-overflow: ellipsis;
 }
-.chat-subagent[data-failed] .chat-subagent-said {
+.chat-subagent-failed {
+  flex-shrink: 0;
   color: var(--_red);
 }
 @media (hover: hover) {

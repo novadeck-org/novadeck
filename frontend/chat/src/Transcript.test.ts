@@ -202,6 +202,16 @@ describe("the scrollback", () => {
         expect(said.hasAttribute("data-folded")).toBe(true)
       })
 
+      it("opens when focus goes into its cut-off lines", async () => {
+        lay(9)
+        const container = show([moth("See [the diff](https://example.com/d).")], undefined, looks)
+        const said = container.querySelector(".chat-words")!
+        expect(said.hasAttribute("data-folded")).toBe(true)
+        await act(async () => said.querySelector<HTMLElement>("a")!.focus())
+        expect(said.hasAttribute("data-folded")).toBe(false)
+        expect(key(container)?.getAttribute("aria-expanded")).toBe("true")
+      })
+
       it("does not fold at five lines", () => {
         lay(5)
         const container = show([moth("five lines")], undefined, looks)
@@ -255,6 +265,26 @@ describe("the scrollback", () => {
       expect(running.querySelector(".chat-subagent")?.hasAttribute("data-running")).toBe(true)
       const failed = show([report({ failed: true })])
       expect(failed.querySelector(".chat-subagent")?.hasAttribute("data-failed")).toBe(true)
+    })
+
+    it("says in words that it failed, open as well as shut", async () => {
+      const container = show([report({ failed: true })])
+      expect(container.querySelector(".chat-subagent-failed")?.textContent).toBe("· failed")
+      await act(async () => line(container).click())
+      expect(container.querySelector(".chat-subagent-failed")?.textContent).toBe("· failed")
+      expect(show([report()]).querySelector(".chat-subagent-failed")).toBeNull()
+    })
+
+    it("names its line by who and how it stands, not by the whole report", () => {
+      const label = (over: Partial<Extract<ChatBlock, { kind: "subagent" }>>) =>
+        line(show([report(over)])).getAttribute("aria-label")
+      expect(label({})).toBe("explorer 1, subagent")
+      expect(label({ text: null, running: true })).toBe("explorer 1, subagent, running")
+      expect(label({ failed: true })).toBe("explorer 1, subagent, failed")
+      expect(label({ name: "parent agent" })).toBe("parent agent")
+      expect(
+        show([report()]).querySelector(".chat-subagent-said")?.getAttribute("aria-hidden"),
+      ).toBe("true")
     })
 
     it("tags its parent's words, in a subagent's own record, as no subagent's", () => {

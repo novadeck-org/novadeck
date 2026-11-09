@@ -99,6 +99,8 @@ const PeerMessage = ({
         id={id}
         className="chat-words"
         data-folded={(folds && !open) || undefined}
+        // A link or a field in the cut-off lines takes focus out of sight: the rest opens to it.
+        onFocus={folds && !open ? () => setOpen(true) : undefined}
         style={
           folds && !open
             ? ({ "--_shown": `calc(${shownLines} * var(--_lh))` } as React.CSSProperties)
@@ -135,6 +137,14 @@ const SubagentLine = ({ block }: { readonly block: Subagent }): React.JSX.Elemen
   const [open, setOpen] = useState(false)
   const body = useId()
   const said = block.text === null ? "running…" : oneLine(block.text)
+  const subagent = block.name !== parentAgent
+  // Named by who and how it stands, not by the whole report its line holds.
+  const label = [
+    block.name,
+    ...(subagent ? ["subagent"] : []),
+    ...(block.running ? ["running"] : []),
+    ...(block.failed ? ["failed"] : []),
+  ].join(", ")
   return (
     <div
       className="chat-subagent"
@@ -148,12 +158,19 @@ const SubagentLine = ({ block }: { readonly block: Subagent }): React.JSX.Elemen
         className="chat-subagent-summary nodrag nopan"
         aria-expanded={open}
         aria-controls={open ? body : undefined}
+        aria-label={label}
         onClick={() => setOpen((value) => !value)}
       >
         <span className="chat-subagent-name">{shownControls(block.name)}</span>
         {/* Inside a subagent's own record, its parent's words: not a subagent's. */}
-        {block.name !== parentAgent && <span className="chat-subagent-tag">· subagent</span>}
-        {said && <span className="chat-subagent-said">{shownControls(said)}</span>}
+        {subagent && <span className="chat-subagent-tag">· subagent</span>}
+        {/* In words as well as red, and still there open. */}
+        {block.failed && <span className="chat-subagent-failed">· failed</span>}
+        {said && (
+          <span className="chat-subagent-said" aria-hidden="true">
+            {shownControls(said)}
+          </span>
+        )}
       </button>
       {open && (
         <div id={body} className="chat-tool-body">
@@ -238,6 +255,10 @@ const RecordLine = ({
     </div>
   )
 }
+
+// Whether a block draws other agents, and so their looks.
+const drawsPeers = (block: ChatBlock): boolean =>
+  block.kind === "agent" || (block.kind === "doorbell" && fromAgents(block).length > 0)
 
 const BlockView = memo(
   ({
@@ -344,11 +365,12 @@ const BlockView = memo(
         return <ToolCalls entries={block.entries} live={live} />
     }
   },
-  // Grouping makes new blocks each time; a block drawn again only when its content changed.
+  // Grouping makes new blocks each time; a block drawn again only when its content changed. The
+  // looks change as any agent starts or stops work, so only blocks that draw them heed that.
   (before, after) =>
     before.agent === after.agent &&
     before.live === after.live &&
-    before.looks === after.looks &&
+    (before.looks === after.looks || !drawsPeers(after.block)) &&
     sameBlock(before.block, after.block),
 )
 
