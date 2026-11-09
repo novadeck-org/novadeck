@@ -48,6 +48,24 @@
   .terminal-grid [data-held] .terminal-header {
     cursor: grabbing;
   }
+  /* The corner a tile is sized by in whole cells (Grid.tsx); its look is the workspace
+     recipe's. It isn't there on a tile in the hand or one hidden. */
+  .terminal-grid .grid-resize {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    @apply size-7;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: nwse-resize;
+    touch-action: none;
+    user-select: none;
+  }
+  .terminal-grid .grid-terminal:is([data-held], [aria-hidden="true"]) > .grid-resize {
+    visibility: hidden;
+  }
   /* Where the tile in the hand will land: it moves as the pointer crosses the tiles, with
      them. */
   .terminal-grid .grid-placeholder {

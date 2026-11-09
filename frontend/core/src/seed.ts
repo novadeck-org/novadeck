@@ -117,7 +117,12 @@ const withItems = (
 
 // Every terminal a saved view kept something of, in any view.
 const savedIds = (layout: WorkspaceState["layout"], order: readonly string[]): Set<string> =>
-  new Set([...order, ...Object.keys(layout.canvas.geometry), ...Object.keys(layout.hidden)])
+  new Set([
+    ...order,
+    ...Object.keys(layout.canvas.geometry),
+    ...Object.keys(layout.hidden),
+    ...Object.keys(layout.spans),
+  ])
 
 const restoredState = (
   { order, bars = {}, ...restored }: RestoredView,

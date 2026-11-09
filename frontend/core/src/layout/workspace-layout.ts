@@ -1,10 +1,11 @@
-import type { CanvasLayout, Placed, TerminalLayout } from "../types"
+import type { CanvasLayout, GridSpan, Placed, TerminalLayout } from "../types"
 
 type CanvasGeometry = CanvasLayout["geometry"][string]
 
 export const emptyLayout = (initial: { canvas?: CanvasLayout } = {}): TerminalLayout => ({
   canvas: initial.canvas ?? { geometry: {} },
   hidden: {},
+  spans: {},
 })
 
 const withoutKey = <Value>(values: Record<string, Value>, key: string): Record<string, Value> => {
@@ -51,5 +52,35 @@ export const removeFromLayout = (layout: TerminalLayout, terminalId: string): Te
     ...layout,
     canvas: geometry === layout.canvas.geometry ? layout.canvas : { ...layout.canvas, geometry },
     hidden: withoutKey(layout.hidden, terminalId),
+    spans: withoutKey(layout.spans, terminalId),
   }
+}
+
+// The most cells down a Grid tile spans: past that it stands taller than most screens.
+export const gridSpanRows = 3
+
+// A count of whole cells, at least one: one for anything that isn't a number.
+const cells = (count: number): number =>
+  Number.isFinite(count) ? Math.max(1, Math.round(count)) : 1
+
+// A span as Grid keeps it: whole cells, at least one of each and at most `gridSpanRows` down.
+// How many columns fit is the Grid's width's to say, so the span across is limited where it
+// is laid out.
+export const gridSpan = (span: GridSpan): GridSpan => ({
+  columns: cells(span.columns),
+  rows: Math.min(gridSpanRows, cells(span.rows)),
+})
+
+// The layout with the tile `terminalId` spanning `span`, or none saved for one cell.
+export const spanTerminal = (
+  layout: TerminalLayout,
+  terminalId: string,
+  span: GridSpan,
+): TerminalLayout => {
+  const next = gridSpan(span)
+  const was = layout.spans[terminalId]
+  if (next.columns === 1 && next.rows === 1)
+    return was ? { ...layout, spans: withoutKey(layout.spans, terminalId) } : layout
+  if (was?.columns === next.columns && was.rows === next.rows) return layout
+  return { ...layout, spans: { ...layout.spans, [terminalId]: next } }
 }

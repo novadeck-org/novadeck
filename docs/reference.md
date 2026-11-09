@@ -231,11 +231,17 @@ region override left out), as Terminal.app does (`en_US.UTF-8` when the system h
 locale), so typing a character such as "ż" works in bash.
 
 Grid lays its terminals out from the Terminals list, as Canvas does: in the list's order,
-left to right and then top to bottom, skipping hidden ones. Every terminal has the same
+left to right and then top to bottom, skipping hidden ones. Grid is made of cells of one
 size, 416 px tall, and as many columns fit as leave each at least 480 px wide, stretching to
-fill the row (one column at the full width on a narrow window). Opening or closing a terminal
-never resizes another, which would resize its program's screen; the later ones shift along.
-Only a change to the window's width does. Drag a terminal by its header to reorder: the others
+fill the row (one column at the full width on a narrow window). A terminal takes one cell
+until you size it: drag the corner at its bottom right and it snaps to whole cells, as wide
+as the columns there are and up to three tall, or focus the corner and press the arrow keys
+to widen, narrow, lengthen or shorten it a cell at a time. Escape while dragging the corner
+leaves it as it was. Each terminal keeps its size in the session. In the list's order, each
+terminal takes the first place it fits, so a small one after a big one fills the gap the big
+one left beside it. Opening or closing a terminal never resizes another, which would resize
+its program's screen; the later ones shift along. Only sizing a terminal yourself, or a
+change to the window's width, does. Drag a terminal by its header to reorder: the others
 make room as you go, and on release the Terminals list changes to match, as if you had dragged
 its tab, and Canvas follows it too. Reordering the list reflows Grid at once.
 

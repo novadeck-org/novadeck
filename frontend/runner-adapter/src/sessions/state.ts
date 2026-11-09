@@ -1,7 +1,9 @@
 import { isOnBar } from "@novadeck/core/items"
 import { messagesKey, settle, type Bar, type BarKey } from "@novadeck/core/items/companion-bar"
+import { gridSpan } from "@novadeck/core/layout/workspace-layout"
 import type { RestoredView } from "@novadeck/core/seed"
 import type {
+  GridSpan,
   TerminalLayout,
   ViewMode,
   WorkspaceSession,
@@ -100,6 +102,22 @@ const isObject = (value: unknown): value is Json =>
 const isString = (value: unknown): value is string => typeof value === "string"
 const views: readonly unknown[] = ["focus", "grid", "canvas"] satisfies ViewMode[]
 
+const isCount = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value >= 1
+
+// How many cells each Grid tile spans. A save from before tiles could span cells has none,
+// and an entry that isn't whole cells is left out, its tile one cell.
+const spansOf = (value: unknown): TerminalLayout["spans"] =>
+  isObject(value)
+    ? Object.fromEntries(
+        Object.entries(value).flatMap(([id, span]): [string, GridSpan][] =>
+          isObject(span) && isCount(span.columns) && isCount(span.rows)
+            ? [[id, gridSpan({ columns: span.columns, rows: span.rows })]]
+            : [],
+        ),
+      )
+    : {}
+
 // Layout records are the UI's own output; checking their shape one level deep is
 // enough to keep a hand-edited or truncated value from reaching the views. What an older
 // build saved for Grid (each window's cell and width, which Grid now takes from the sidebar's
@@ -110,6 +128,7 @@ const layout = (value: unknown): TerminalLayout | undefined => {
   return {
     canvas: value.canvas as TerminalLayout["canvas"],
     hidden: value.hidden as TerminalLayout["hidden"],
+    spans: spansOf(value.spans),
   }
 }
 
