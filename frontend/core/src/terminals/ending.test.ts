@@ -9,6 +9,7 @@ import {
   joinNote,
   pausedText,
   pausedUntil,
+  shellCommandText,
   terminalEnding,
   terminalGlance,
   terminalNeedMark,
@@ -203,6 +204,42 @@ describe("terminal ending", () => {
     expect(waiting("permission", 1)).toBe("Needs permission")
     expect(waiting("question", 2)).toBe("Asks a question · 2 waiting")
     expect(attentionText({ ...terminal, state: "running" })).toBeUndefined()
+  })
+})
+
+describe("a command run in the agent's shell mode", () => {
+  const shellCommand = { command: "sleep 15", since: 1 }
+  const agent = (status: Partial<AgentStatus> = {}, shell = true): TerminalMetadata => ({
+    ...terminal,
+    state: "running",
+    process: "claude",
+    agent: { working: false, ...(shell ? { shellCommand } : {}), ...status },
+  })
+
+  it("reads as running while it runs, whether the turn is idle or its done mark stands", () => {
+    expect(terminalPhase(agent())).toBe("running")
+    expect(terminalPhase(agent(), true)).toBe("running")
+    expect(terminalPhase(agent({}, false))).toBe("idle")
+    expect(terminalPhase(agent({}, false), true)).toBe("done")
+  })
+
+  it("is no turn: the agent does not work, and a dialog still holds it", () => {
+    const held = agent({ attention: { kind: "permission", count: 1 } })
+    expect(terminalPhase(held)).toBe("idle")
+    expect(terminalPhase(agent())).toBe("running")
+  })
+
+  it("is described cut to fit, and only while it runs", () => {
+    const note = (each: TerminalMetadata) => terminalNote(each, { need: undefined }, undefined).text
+    expect(shellCommandText(agent())).toBe("Runs ! sleep 15")
+    expect(note(agent())).toBe("Runs ! sleep 15")
+    expect(shellCommandText(agent({ shellCommand: { command: "!  echo\n  hi", since: 1 } }))).toBe(
+      "Runs ! echo hi",
+    )
+    const long = shellCommandText(agent({ shellCommand: { command: "x".repeat(200), since: 1 } }))
+    expect(long).toHaveLength("Runs ! ".length + 60)
+    expect(long?.endsWith("…")).toBe(true)
+    expect(note(agent({}, false))).toBeUndefined()
   })
 })
 

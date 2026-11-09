@@ -79,7 +79,7 @@ const peersOf = remembered((roster): Readonly<Record<string, MessagePeer>> =>
                     ? "idle"
                     : each.state !== "running" || !(each.agent || isAgentProgram(each.process))
                       ? "gone"
-                      : each.agent?.working
+                      : each.agent?.working || each.agent?.shellCommand
                         ? "working"
                         : "idle",
               },

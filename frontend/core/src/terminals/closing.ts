@@ -52,7 +52,7 @@ export const closeReasons = (
     // The runner counts an agent as a running program too, so only a plain one is asked about.
     // A waking agent is busy only for its resume, and a sleeper has no program: neither is one.
     ...(!agent && !resting && terminal.busy ? (["program"] as const) : []),
-    ...(agent?.working ? (["working"] as const) : []),
+    ...(agent?.working || agent?.shellCommand ? (["working"] as const) : []),
     // The waiting the tab shows: a wake-up or a monitor that has passed is over, though the
     // runner keeps it until the next turn.
     ...(agent && !agent.working && (waitingOf(terminal, now) || agent.background)

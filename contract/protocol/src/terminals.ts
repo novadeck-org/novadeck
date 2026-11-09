@@ -151,6 +151,11 @@ export const terminalSummary = z.strictObject({
   startup: z.strictObject({ agent: agentName, screen: startupScreen }).nullable(),
   // What that agent is doing; null without one.
   activity: agentActivity.nullable(),
+  // A command the person runs in the agent's own shell mode (`!sleep 15`), which no hook
+  // tells: `command` as its box held it when Enter ran it, `since` that Enter, in epoch
+  // milliseconds. Set while a process it started under the agent runs, bound or not; null
+  // otherwise. It is no turn of the agent's: its activity is unchanged by it.
+  shellCommand: z.strictObject({ command: z.string().max(4096), since: z.number() }).nullable(),
   // Its tokens and quotas, once its records named any; null otherwise.
   telemetry: agentTelemetry.nullable(),
   // The agent's latest `done` that still stands, read or not: nothing the person prompted

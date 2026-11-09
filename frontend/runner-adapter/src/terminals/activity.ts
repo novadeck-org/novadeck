@@ -141,7 +141,8 @@ export const terminalActivity = (
   // A launcher script of the shell's own may hold the foreground over the agent it started.
   const program = startup && isShellProcess(named) ? startup.agent : named
   if (!program || isShellProcess(program)) return { status: { state: "idle" }, process: program }
-  const agent =
+  const shell = summary.shellCommand ? { shellCommand: summary.shellCommand } : {}
+  const base =
     summary.agent && summary.activity
       ? {
           ...agentStatus(summary.activity),
@@ -152,6 +153,8 @@ export const terminalActivity = (
         : !summary.agent && summary.ready === program
           ? { working: false, ...(summary.reported ? { reported: true as const } : {}) }
           : undefined
+  // A shell command shows even where no agent object would stand.
+  const agent = base || summary.shellCommand ? { working: false, ...base, ...shell } : undefined
   const usage = summary.agent && summary.activity ? usageOf(summary.telemetry) : undefined
   return {
     status: { state: "running", ...(agent ? { agent } : {}) },

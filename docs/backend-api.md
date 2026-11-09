@@ -1396,6 +1396,13 @@ one from an earlier runner.
     be restored now is `CONFLICT`.
   - `TerminalSummary` carries `restorable` (closing it can be undone) and `busy` (a program runs
     in its shell besides the prompt); an absent one reads as false.
+  - `TerminalSummary.shellCommand` is `{ command, since }` while a command the person ran in
+    their agent's own shell mode (`!sleep 15`) runs, and null otherwise: `command` is the box's
+    text at the Enter, `since` that Enter in epoch milliseconds. No hook tells of it, so the
+    runner finds its process under the terminal's shell; it is no turn, and `activity` is
+    unchanged by it. It clears when the process ends, when the system can't tell twice in a
+    row, and when the agent leaves or the terminal exits, restarts or rests. The agents
+    listing counts it as working.
 
 - `companions.*` keeps what agents show and the person attaches beside terminals: items,
   each a pointer to a file, a page or a plan, never a copy of it, held by exactly one
