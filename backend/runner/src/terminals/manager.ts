@@ -31,7 +31,7 @@ import type { ItemRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
 import { blocking } from "../harnesses/activity.js"
 import { agentDetail } from "../harnesses/detail.js"
-import { harnesses } from "../harnesses/registry.js"
+import { deliveredKeys, harnesses } from "../harnesses/registry.js"
 import { Feedback } from "../messaging/feedback.js"
 import { Inbox } from "../messaging/inbox.js"
 import { Messaging } from "../messaging/messaging.js"
@@ -1088,11 +1088,8 @@ export class Terminals {
     if (markBusy(record)) this.announce(record)
     if (keys.some(({ kind }) => kind === "enter") && this.bindings.readyOf(record))
       this.bindings.readyEnter(record)
-    this.messaging.keys(
-      record.summary.id,
-      keys.map(({ kind }) => kind),
-      blocking(record.bound?.activity.pending).length > 0,
-    )
+    const waiting = blocking(record.bound?.activity.pending)
+    this.messaging.keys(record.summary.id, deliveredKeys(agent, waiting, keys), waiting.length > 0)
     this.bindings.keyed(record, data)
     if (this.messaging.untrustedAgent(record.summary.id)) this.shown.recheckTrust(record)
   }

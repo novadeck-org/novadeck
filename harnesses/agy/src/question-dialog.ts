@@ -23,12 +23,18 @@ import { toolCall } from "./tools.js"
  * Antigravity's ask_question (probed 2026-10-06, 1.2.14; fixtures/ask.probe.json):
  * `Question i/n: <question>`, its options, then `Write-in...`. Down and Enter pick one (a
  * digit selects at once too, but it is Down and Enter that were probed through every
- * question of several); in a multi-select a digit toggles and Enter submits; Write-in is
- * Down to its row, Enter, then `Your answer:` takes text and Enter.
+ * question of several); in a multi-select a digit toggles and Enter submits, which, before
+ * the last question, moves on to the next ("enter Submit", the last's "enter Submit All");
+ * Write-in is Down to its row, Enter, then `Your answer:` takes text and Enter, and moves
+ * on as well. Esc skips the question on screen ("User Skipped") and shows the next; the
+ * turn goes on (probed 2026-11-09, 1.5.2 and 1.5.3, e2e/probes/agy-several-questions.e2e.ts).
  */
 
 // A key that moves the highlight down.
 const down = "\x1b[B"
+
+// The key that skips the question on screen.
+const escape = "\x1b"
 
 // The row over ask_question's open write-in field.
 const answerField = "Your answer:"
@@ -134,19 +140,19 @@ export const questions = (
   const callQuestions = questionsOf(request.input)
   if (!read || !callQuestions || read.total !== callQuestions.length) return undefined
   // Any state of the dialog reads as the same one, as the driver reads it again before
-  // each key; only where it stands at its start do answers have keys.
+  // each key; only where it stands at its start do answers have keys, and the talk only
+  // where the question on screen does.
   const shown = callQuestions[read.index - 1]!
-  if (callQuestions.length > 1 && callQuestions.some(({ multi }) => multi)) return undefined
   if (read.multi !== shown.multi || squash(read.question) !== squash(shown.question))
     return undefined
   const labels = [...shown.options, writeIn].map(squash)
   if (read.options.length !== labels.length) return undefined
   if (!read.options.every(({ label }, index) => squash(label) === labels[index])) return undefined
-  const start =
-    read.index === 1 &&
+  const fresh =
     !read.writing &&
     read.options[0]!.marked &&
     !read.options.some(({ checked }) => checked === true)
+  const start = read.index === 1 && fresh
   // Words answer only a lone single-choice question.
   const text = callQuestions.length === 1 && !callQuestions[0]!.multi
   const dialog: AnswerableDialog = {
@@ -159,19 +165,25 @@ export const questions = (
       multiSelect: multi,
       text,
     })),
-    // Set aside to talk over: the words as its answer, through Write-in.
-    chat: text ? ("field" as const) : null,
+    // Set aside to talk over: the words as the answer to the question on screen (the first,
+    // or a later one once the person skipped those before it), through its Write-in, and
+    // every later question skipped.
+    chat: "field",
   }
   return {
     dialog,
     keys: (answer) => {
-      if (!start) return undefined
-      if (answer.type !== "chat") return keysFor(answer, callQuestions)
+      if (answer.type !== "chat") return start ? keysFor(answer, callQuestions) : undefined
       // The words, said to open the talk, as the answer the agent reads.
-      const words = answer.text === undefined ? undefined : `${chatPrefix}${answer.text}`
-      return text && words !== undefined && typeable(answer.text!) && squash(answer.text!) !== ""
-        ? writeInSteps(1, callQuestions[0]!.options.length, words)
-        : undefined
+      if (!fresh || answer.text === undefined || !typeable(answer.text)) return undefined
+      if (squash(answer.text) === "") return undefined
+      const at = read.index
+      return [
+        ...writeInSteps(at, shown.options.length, `${chatPrefix}${answer.text}`),
+        ...callQuestions
+          .slice(at)
+          .flatMap((question, k) => [nextShown(at + k + 1, question), { press: escape }]),
+      ]
     },
     answered: (later) => {
       // Its write-in field is still it; any other question of the call, or a later one
@@ -217,6 +229,13 @@ const showsQuestion = (rows: readonly string[], index: number, question: Questio
   )
 }
 
+// A wait for question `index` to show as the call asked it, after the one before went.
+const nextShown = (index: number, question: Question): KeyStep => ({
+  until: (rows) => showsQuestion(rows, index, question),
+  timeoutMs,
+  why: `question ${index} shown, with its text and options`,
+})
+
 const keysFor = (
   answer: RequestAnswer,
   callQuestions: readonly Question[],
@@ -253,6 +272,7 @@ const keysFor = (
         )
       }
       steps.push({ press: "\r" })
+      if (index < callQuestions.length) steps.push(nextShown(index + 1, callQuestions[index]!))
     } else if (given.text !== undefined) {
       // Its Write-in row: Down to it, Enter opens `Your answer:`, which takes the words.
       if (
@@ -266,12 +286,7 @@ const keysFor = (
     } else {
       if (picked.length !== 1) return undefined
       steps.push(...moveTo(index, picked[0]!), { press: "\r" })
-      if (index < callQuestions.length)
-        steps.push({
-          until: (rows) => showsQuestion(rows, index + 1, callQuestions[index]!),
-          timeoutMs,
-          why: `question ${index + 1} shown, with its text and options`,
-        })
+      if (index < callQuestions.length) steps.push(nextShown(index + 1, callQuestions[index]!))
     }
   }
   return steps

@@ -51,6 +51,11 @@ const messaging: MessagingProfile = {
   lasting: [],
   root: "status-line",
   silentOnFailure: false,
+  // Escape skips the question on screen ("A1: User Skipped"; with several, one per press),
+  // and the model's turn goes on; in a command's confirmation it interrupts the turn
+  // (probed 2026-11-09, 1.5.2 and 1.5.3, e2e/probes/question-dismiss.e2e.ts and
+  // agy-several-questions.e2e.ts).
+  questionEscape: "skips",
   // A subagent running, it took a typed prompt (fixture
   // `background-prompt.probe.json`, probed 2026-10-19, 1.2.14).
   promptsInBackground: true,
