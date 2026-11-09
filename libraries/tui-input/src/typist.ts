@@ -2,7 +2,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 
-import { isEmpty, tailOf, type BoxProfile } from "./box/box.js"
+import { isEmpty, rule, tailOf, type BoxProfile } from "./box/box.js"
 import { changedRows, checkPaste } from "./box/paste.js"
 import { sameText } from "./box/text.js"
 import type { InputEntry } from "./queue.js"
@@ -50,6 +50,18 @@ export type Trace = (line: string) => void
  * Windows runner stalls the runner for a second at a time (probed on CI), so the screen is
  * looked at less often than the test paste's check needs: more time there.
  */
+/** Where the cursor stood on a screen, and whether it lay between its two lowest rules: facts, no text. */
+const cursorFact = (screen: ScreenText): string => {
+  const rules = screen.rows.flatMap((row, at) => (rule(row) ? [at] : []))
+  const [top, bottom] = rules.slice(-2)
+  const inside =
+    top !== undefined &&
+    bottom !== undefined &&
+    screen.cursor.row > top &&
+    screen.cursor.row < bottom
+  return `cursor ${screen.cursor.row},${screen.cursor.column} of ${screen.rows.length}x${screen.columns}, ${rules.length} rules, cursor ${inside ? "between" : "not between"} the lowest two`
+}
+
 export const pasteMsOn = (platform: NodeJS.Platform): number =>
   platform === "win32" ? 4_000 : 1_500
 
@@ -309,12 +321,10 @@ export const createTypist = (
       },
       timing.calmMs,
     )
-    // Where the cursor stood and the rows as they were, when no box read: a box the cursor isn't in
-    // reads as none, and a trace is all a failed run on another machine leaves.
-    const shown =
-      inputBox === false
-        ? `, cursor ${screen.cursor.row},${screen.cursor.column} of ${screen.rows.length}x${screen.columns}, rows ${JSON.stringify(screen.rows)}`
-        : ""
+    // Facts alone, as the doorbell's line holds, never what the screen shows: where the cursor
+    // stood against the screen's size and whether it lay between the two lowest rules, as a box
+    // the cursor isn't in reads as none.
+    const shown = inputBox === false ? `, ${cursorFact(screen)}` : ""
     trace(
       `gate ${verdict} (foreground ${String(foreground)}, input box ${String(inputBox)}, bracketed paste ${screen.bracketedPaste}${shown})`,
     )
