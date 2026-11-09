@@ -719,6 +719,82 @@ describe("runner backend", () => {
     })
   })
 
+  context("when the person arranges a project's sessions", () => {
+    // A second session in a new project, opened, beside its first.
+    const twoSessions = (app: ReturnType<typeof open>) => {
+      const project = openProject(app)
+      const second = {
+        id: crypto.randomUUID(),
+        name: "Second",
+        visitedAt: Date.now(),
+        state: createTerminalState([], "grid", "grid"),
+      }
+      app.commit([{ type: "session/add", projectId: project.id, session: second }])
+      return { ...project, second }
+    }
+    const listedSessions = async (projectId: string) =>
+      (await runner.client.sessions.list({ projectId })).map((each) => each.name)
+
+    it("renames one on the runner", async () => {
+      const io: string[] = []
+      const app = open(runner.listing, {}, recordingRunner(runner.client, io))
+      const { id, session, remove } = twoSessions(app)
+      await app.idle()
+      app.commit([
+        { type: "session/rename", projectId: id, workspaceSessionId: session.id, name: "Reviews" },
+      ])
+      await app.idle()
+      expect(io).toContain(`rename session ${session.id}`)
+      expect(await listedSessions(id)).toEqual(["Second", "Reviews"])
+      remove()
+      await app.idle()
+      app.stop()
+    })
+
+    it("keeps the order a move leaves, so a reload lists them so", async () => {
+      const app = open()
+      const { id, session, second, remove } = twoSessions(app)
+      await app.idle()
+      expect(await listedSessions(id)).toEqual(["Second", "First"])
+      app.commit([{ type: "session/move", projectId: id, workspaceSessionId: second.id, index: 1 }])
+      await app.idle()
+      expect(await listedSessions(id)).toEqual(["First", "Second"])
+      // The reload opens the session visited last, wherever it is listed.
+      const reloaded = workspaceFromSeed(runnerSeed(await runner.reload()), {
+        view: "grid",
+        windowedView: "grid",
+        now: 2,
+      }).projects.find((project) => project.id === id)!
+      expect(reloaded.history.map((each) => each.id)).toEqual([session.id, second.id])
+      expect(reloaded.activeSessionId).toBe(second.id)
+      remove()
+      await app.idle()
+      app.stop()
+    })
+
+    it("deletes one on the runner, which closes its terminals", async () => {
+      const io: string[] = []
+      const app = open(runner.listing, {}, recordingRunner(runner.client, io))
+      const { id, second, remove } = twoSessions(app)
+      const terminal = app.addTerminal()
+      await app.idle()
+      app.commit([
+        { type: "session/remove", projectId: id, workspaceSessionId: second.id, now: Date.now() },
+      ])
+      await app.idle()
+      expect(io).toContain(`remove session ${second.id}`)
+      // The runner closes them as it removes the session, so the app closes none itself.
+      expect(io).not.toContain(`close ${terminal.id}`)
+      expect(await listedSessions(id)).toEqual(["First"])
+      await expect(runner.client.terminals.list({ sessionId: second.id })).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      })
+      remove()
+      await app.idle()
+      app.stop()
+    })
+  })
+
   context("when the person removes a project", () => {
     it("removes it on the runner, which closes its terminals, so a reload leaves it out", async () => {
       const io: string[] = []

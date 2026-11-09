@@ -110,6 +110,19 @@ export type WorkspaceAction =
       now: number
       enabledViews?: ViewMode[]
     }
+  // The person renames a session.
+  | { type: "session/rename"; projectId: string; workspaceSessionId: string; name: string }
+  // The person moves a session to a place in its project's list, as a drag drops it.
+  | { type: "session/move"; projectId: string; workspaceSessionId: string; index: number }
+  // The person deletes a session, closing its terminals. A project's last one stays: a
+  // project always has a session. Deleting the open one opens the one visited last.
+  | {
+      type: "session/remove"
+      projectId: string
+      workspaceSessionId: string
+      now: number
+      enabledViews?: ViewMode[]
+    }
   | {
       type: "terminal/add"
       target: WorkspaceTarget
@@ -480,6 +493,65 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
           ),
         }
       })
+    case "session/rename": {
+      const name = action.name.trim()
+      if (!name) return workspace
+      return updateProject(workspace, action.projectId, (project) =>
+        project.history.some(
+          (session) => session.id === action.workspaceSessionId && session.name !== name,
+        )
+          ? {
+              ...project,
+              history: project.history.map((session) =>
+                session.id === action.workspaceSessionId ? { ...session, name } : session,
+              ),
+            }
+          : project,
+      )
+    }
+    case "session/move":
+      return updateProject(workspace, action.projectId, (project) => {
+        const from = project.history.findIndex(
+          (session) => session.id === action.workspaceSessionId,
+        )
+        if (from < 0) return project
+        const to = Math.max(0, Math.min(project.history.length - 1, Math.trunc(action.index)))
+        if (to === from) return project
+        const history = project.history.toSpliced(from, 1)
+        return { ...project, history: history.toSpliced(to, 0, project.history[from]!) }
+      })
+    case "session/remove": {
+      const project = workspace.projects.find((item) => item.id === action.projectId)
+      if (!project) return workspace
+      const others = project.history.filter((session) => session.id !== action.workspaceSessionId)
+      if (others.length === project.history.length || !others.length) return workspace
+      // The open session's place goes to the one visited last, else the first listed.
+      const next =
+        project.activeSessionId === action.workspaceSessionId
+          ? (others.toSorted(
+              (a, b) => (b.visitedAt ?? -Infinity) - (a.visitedAt ?? -Infinity),
+            )[0] ?? others[0]!)
+          : undefined
+      const selected =
+        next && project.id === workspace.activeProjectId
+          ? workspaceReducer(workspace, {
+              type: "session/select",
+              projectId: project.id,
+              workspaceSessionId: next.id,
+              now: action.now,
+              ...(action.enabledViews ? { enabledViews: action.enabledViews } : {}),
+            })
+          : next
+            ? updateProject(workspace, project.id, (item) => ({
+                ...item,
+                activeSessionId: next.id,
+              }))
+            : workspace
+      return updateProject(selected, project.id, (item) => ({
+        ...item,
+        history: item.history.filter((session) => session.id !== action.workspaceSessionId),
+      }))
+    }
     case "terminal/add":
       return updateTarget(workspace, action.target, (state) => {
         const { roster } = state

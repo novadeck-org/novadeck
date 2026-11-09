@@ -67,7 +67,9 @@ const projectOf = ({ pinned, ...project }: ProjectRow): Project => ({
 // naming above the default.
 // 11: a closed terminal is kept in History (`closed_terminals`) for 30 days, and a terminal
 // remembers whether anything was ever run in it (`ran`).
-const schemaVersion = 11
+// 12: a session keeps where the person put it among its project's (`rank`); `position`
+// stays the order it was created in.
+const schemaVersion = 12
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -86,7 +88,10 @@ const schema = `
     -- Opaque client state, such as a UI layout; null until the first save.
     client_state TEXT,
     -- When the person last visited it, in epoch milliseconds; null until they first do.
-    visited_at REAL
+    visited_at REAL,
+    -- Its place among its project's sessions; null until the person arranges them, after
+    -- the ranked ones, in the order they were created.
+    rank INTEGER
   ) STRICT;
   CREATE INDEX sessions_project ON sessions(project_id);
   -- Every terminal, until it is closed, and what restores it after its shell is gone:
@@ -318,6 +323,18 @@ type Step = string | ((database: DatabaseSync, path: string) => void)
  * dropping it first deletes their rows through ON DELETE CASCADE.
  */
 const migrations: Readonly<Record<number, Step>> = {
+  // The order the person saw until now: the session visited last first, those never
+  // visited after them in the order they were created.
+  11: `
+    ALTER TABLE sessions ADD COLUMN rank INTEGER;
+    UPDATE sessions SET rank = (
+      SELECT ordered.place FROM (
+        SELECT id, ROW_NUMBER() OVER (
+          PARTITION BY project_id ORDER BY visited_at IS NULL, visited_at DESC, position
+        ) - 1 AS place FROM sessions
+      ) AS ordered WHERE ordered.id = sessions.id
+    );
+  `,
   // Nothing was ever kept after a close, and every open terminal counts as having run.
   10: `
     ALTER TABLE terminals ADD COLUMN ran INTEGER NOT NULL DEFAULT 1 CHECK (ran IN (0, 1));
@@ -1429,11 +1446,44 @@ export class WorkspaceStore
     this.project(projectId)
     return this.queries.all`
       SELECT id, project_id AS projectId, name, client_state AS state, visited_at AS visitedAt
-      FROM sessions WHERE project_id = ${projectId} ORDER BY position
+      FROM sessions WHERE project_id = ${projectId} ORDER BY rank IS NULL, rank, position
     ` as WorkspaceSession[]
   }
 
-  /** Creates a session in an existing project; a taken `id` is a `CONFLICT`. */
+  /**
+   * Keeps the person's arrangement of the project's sessions: each one's rank is its place
+   * in `order` (ids the project doesn't have, and repeats, are ignored; sessions it leaves
+   * out follow, in the order they had). An unknown project is `NOT_FOUND`.
+   */
+  arrangeSessions(projectId: string, order: readonly string[]): void {
+    const had = this.sessions(projectId).map(({ id }) => id)
+    const known = new Set(had)
+    const ranked = [...new Set(order)].filter((id) => known.has(id))
+    const left = new Set(ranked)
+    const placed = [...ranked, ...had.filter((id) => !left.has(id))]
+    this.transaction(() => {
+      placed.forEach((id, rank) => {
+        void this.queries.run`UPDATE sessions SET rank = ${rank} WHERE id = ${id}`
+      })
+    })
+  }
+
+  /**
+   * Deletes the session and what it kept: its terminals' saved records, handles, items and
+   * windows, by their foreign keys. Its terminals' shells are the caller's to end first. An
+   * unknown session is `NOT_FOUND`; the project's last one is a `CONFLICT`.
+   */
+  removeSession(sessionId: string): void {
+    const { projectId } = this.session(sessionId)
+    if (this.sessions(projectId).length === 1)
+      throw new DomainError("CONFLICT", "A project keeps at least one session")
+    this.forget(() => this.queries.run`DELETE FROM sessions WHERE id = ${sessionId}`)
+  }
+
+  /**
+   * Creates a session in an existing project, first in its order; a taken `id` is a
+   * `CONFLICT`.
+   */
   createSession(input: { id: string; projectId: string; name: string }): WorkspaceSession {
     this.project(input.projectId)
     const session = { ...input, state: null, visitedAt: null }
@@ -1441,7 +1491,7 @@ export class WorkspaceStore
       throw new DomainError("CONFLICT", "Session id is already taken")
     }
     void this.queries
-      .run`INSERT INTO sessions (id, project_id, name) VALUES (${session.id}, ${session.projectId}, ${session.name})`
+      .run`INSERT INTO sessions (id, project_id, name, rank) VALUES (${session.id}, ${session.projectId}, ${session.name}, (SELECT MIN(COALESCE(MIN(rank), 0), 0) - 1 FROM sessions WHERE project_id = ${session.projectId}))`
     return session
   }
 

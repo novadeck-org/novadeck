@@ -418,6 +418,14 @@ windows undocked from them, and its agents' messages, so it stays gone after a r
 answers or the app quits; quitting waits briefly for it. A reload before the runner
 answers leaves the project there, and it comes back.
 
+Sessions group a project's terminals, and the Sessions panel lists them in the order you
+put them in. Drag a session to move it, or focus it and press Space, the arrows, then Space
+again. A new session goes first. Rename one with its pencil or a double-click on it: Enter
+saves and Escape keeps the old name. Its trash icon deletes it, asking first when it has
+terminals. They close and go to History, and you can restore them into another session.
+A project's last session can't be deleted. The order, names and deletions are the runner's,
+so they stay after a reload, and the project opens the session you were in last.
+
 ## History
 
 Closing a terminal doesn't end it for good. It moves to **History**, a panel on the

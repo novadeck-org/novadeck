@@ -192,23 +192,25 @@ export const runnerTelemetry = (
     noTelemetry,
   )
 
-// The workspace as the runner left it: sessions most recently visited first, and the
-// project visited last opens. Sessions never visited follow in the runner's order.
+// The workspace as the runner left it: sessions in the order the person arranged them,
+// and the project visited last opens.
 export const runnerSeed = (
   listing: RunnerListing,
   quickExitMs = defaultQuickExitMs,
 ): WorkspaceSeed => {
-  const ranked = listing.map(({ project, sessions }) => ({
-    project,
-    sessions: sessions
-      .map(({ session, terminals, companions }) =>
-        sessionSeed(session, terminals, quickExitMs, companions),
-      )
-      .toSorted((a, b) => later(b, a)),
-  }))
+  const ranked = listing.map(({ project, sessions }) => {
+    const seeds = sessions.map(({ session, terminals, companions }) =>
+      sessionSeed(session, terminals, quickExitMs, companions),
+    )
+    // The session visited last, which the project opens (workspaceFromSeed).
+    const last = seeds.reduce<Visited | undefined>(
+      (best, seed) => (later(seed, best) > 0 ? seed : best),
+      undefined,
+    )
+    return { project, sessions: seeds, last }
+  })
   const latest = ranked.reduce<(typeof ranked)[number] | undefined>(
-    (best, item) =>
-      best?.sessions[0] && later(item.sessions[0], best.sessions[0]) <= 0 ? best : item,
+    (best, item) => (best?.last && later(item.last, best.last) <= 0 ? best : item),
     undefined,
   )
   const projects = ranked.map(({ project, sessions }) => ({
@@ -218,7 +220,7 @@ export const runnerSeed = (
     pinned: project.pinned,
     sessions: sessions.map((session) => session.seed),
   }))
-  return latest?.sessions[0] && latest.sessions[0].visitedAt !== null
+  return latest?.last && latest.last.visitedAt !== null
     ? { projects, activeProjectId: latest.project.id }
     : { projects }
 }

@@ -17,6 +17,7 @@ import type {
   ViewMode,
   WindowedView,
   Workspace,
+  WorkspaceSession,
   WorkspaceState,
 } from "./types"
 
@@ -160,8 +161,8 @@ type SeedDefaults = {
 }
 
 // Builds the starting workspace through the same reducer path as new sessions.
-// The seed's active project (else the first) is active, and each project opens its
-// first listed session.
+// The seed's active project (else the first) is active, and each project opens the
+// session visited last (else its first listed), keeping the listed order.
 // Throws WorkspaceSeedError for a seed without projects or a project without sessions.
 export const workspaceFromSeed = (seed: WorkspaceSeed, defaults: SeedDefaults): Workspace => {
   validate(seed)
@@ -211,12 +212,19 @@ export const workspaceFromSeed = (seed: WorkspaceSeed, defaults: SeedDefaults): 
   )
   return {
     ...seeded,
-    projects: seeded.projects.map((project) => ({
-      ...project,
-      history: project.history.map((session) => ({
+    projects: seeded.projects.map((project) => {
+      const history = project.history.map((session) => ({
         ...session,
         visitedAt: visited.get(JSON.stringify([project.id, session.id])) ?? null,
-      })),
-    })),
+      }))
+      const last = history.reduce<WorkspaceSession | undefined>(
+        (best, session) =>
+          session.visitedAt !== null && (best?.visitedAt ?? -Infinity) < session.visitedAt
+            ? session
+            : best,
+        undefined,
+      )
+      return { ...project, history, activeSessionId: last?.id ?? project.activeSessionId }
+    }),
   }
 }

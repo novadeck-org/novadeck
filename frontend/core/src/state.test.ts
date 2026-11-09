@@ -958,3 +958,118 @@ describe("sizing a Grid tile", () => {
     expect(apply(sized, span("gone", 2, 1))).toBe(sized)
   })
 })
+
+describe("arranging a project's sessions", () => {
+  // A session named after its id, last visited at `visitedAt`.
+  const session = (id: string, visitedAt: number | null): WorkspaceProject["history"][number] => ({
+    id,
+    name: id,
+    visitedAt,
+    state: createTerminalState([terminalFixture(1, "~/studio")], "grid", "grid"),
+  })
+  const studio = (activeSessionId: string, ...history: WorkspaceProject["history"]): Workspace => ({
+    activeProjectId: "studio",
+    projects: [
+      { id: "studio", name: "studio", directory: "~/studio", activeSessionId, history },
+      {
+        id: "website",
+        name: "website",
+        directory: "~/website",
+        activeSessionId: "site",
+        history: [session("site", 1)],
+      },
+    ],
+  })
+  const ids = (workspace: Workspace): string[] =>
+    workspace.projects[0]!.history.map((each) => each.id)
+
+  context("when the person renames a session", () => {
+    const rename = (from: Workspace, name: string): Workspace =>
+      workspaceReducer(from, {
+        type: "session/rename",
+        projectId: "studio",
+        workspaceSessionId: "docs",
+        name,
+      })
+
+    it("gives it the new name, trimmed", () => {
+      const after = rename(studio("main", session("main", 5), session("docs", 3)), "  Reviews ")
+      expect(after.projects[0]!.history[1]!.name).toBe("Reviews")
+    })
+
+    it("keeps the old name for a blank one", () => {
+      const before = studio("main", session("main", 5), session("docs", 3))
+      expect(rename(before, "   ")).toBe(before)
+    })
+  })
+
+  context("when the person moves a session", () => {
+    const move = (from: Workspace, id: string, index: number): Workspace =>
+      workspaceReducer(from, {
+        type: "session/move",
+        projectId: "studio",
+        workspaceSessionId: id,
+        index,
+      })
+    const before = studio("a", session("a", 5), session("b", 3), session("c", null))
+
+    it("puts it at the place it was dropped on", () => {
+      expect(ids(move(before, "c", 0))).toEqual(["c", "a", "b"])
+      expect(ids(move(before, "a", 2))).toEqual(["b", "c", "a"])
+    })
+
+    it("keeps the list past its ends", () => {
+      expect(ids(move(before, "b", 9))).toEqual(["a", "c", "b"])
+    })
+
+    it("leaves which session is open alone", () => {
+      expect(move(before, "a", 2).projects[0]!.activeSessionId).toBe("a")
+    })
+
+    it("ignores a session it doesn't have", () => {
+      expect(move(before, "nowhere", 0)).toBe(before)
+    })
+  })
+
+  context("when the person deletes a session", () => {
+    const remove = (from: Workspace, id: string, projectId = "studio"): Workspace =>
+      workspaceReducer(from, {
+        type: "session/remove",
+        projectId,
+        workspaceSessionId: id,
+        now: 100,
+      })
+
+    it("drops one that isn't open, leaving the open one as it was", () => {
+      const before = studio("a", session("a", 5), session("b", 3))
+      const after = remove(before, "b")
+      expect(ids(after)).toEqual(["a"])
+      expect(after.projects[0]!.activeSessionId).toBe("a")
+      expect(after.projects[0]!.history[0]).toBe(before.projects[0]!.history[0])
+    })
+
+    it("opens the session visited last among the others when it's the open one", () => {
+      const before = studio("a", session("a", 9), session("b", 2), session("c", 7))
+      const after = remove(before, "a")
+      expect(ids(after)).toEqual(["b", "c"])
+      expect(after.projects[0]!.activeSessionId).toBe("c")
+      // Opening it is a visit.
+      expect(after.projects[0]!.history[1]!.visitedAt).toBeGreaterThan(9)
+    })
+
+    it("opens the first listed when none of the others was visited", () => {
+      const before = studio("a", session("a", 9), session("b", null), session("c", null))
+      expect(remove(before, "a").projects[0]!.activeSessionId).toBe("b")
+    })
+
+    it("keeps a project's last session, as a project always has one", () => {
+      const before = studio("a", session("a", 1))
+      expect(remove(before, "a")).toBe(before)
+    })
+
+    it("ignores a session it doesn't have", () => {
+      const before = studio("a", session("a", 1), session("b", 1))
+      expect(remove(before, "nowhere")).toBe(before)
+    })
+  })
+})

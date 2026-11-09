@@ -186,6 +186,25 @@ second call while it goes shares the first, and one after it, like one for a pro
 the runner never had, rejects with `NOT_FOUND`. A runner that shuts down before the
 removal is done rejects it with `CLOSING` and keeps the project, for a client to
 remove again from the next runner.
+`sessions.list` gives a project's sessions in the order the person arranged them,
+sessions never arranged after those that were, in the order they were created; a session
+created with `sessions.create` comes first.
+`sessions.arrange({ projectId, order })` keeps that arrangement: `order` is session ids,
+first to last. Ids the project doesn't have, and repeats, are ignored, sessions `order`
+leaves out follow in the order they had, and a session being removed is left out. An
+unknown project rejects with `NOT_FOUND`.
+`sessions.remove({ sessionId })` closes every terminal of the session, running or kept
+only as saved, whichever connection controls them, so watchers see each `removed`; unlike
+a project's removal, each stays in the project's History, to restore into any session of
+the project (`terminals.create` with `closed`). Then it deletes the session and what the
+runner kept of it: its terminals' saved records and handles, and its companion items and
+windows (`companions.watch` reports each `itemRemoved` and `windowRemoved`). Terminals
+being created in the session as it begins finish first and close with the rest; while it
+goes, `sessions.list` leaves it out and creating a terminal in it rejects with
+`NOT_FOUND`. A second call while it goes shares the first; one after it, like one for a
+session the runner never had, rejects with `NOT_FOUND`; the project's last remaining
+session rejects with `CONFLICT`, as a project always has one. A runner that shuts down
+before the removal is done rejects it with `CLOSING` and keeps the session.
 `projects.list` gives the projects in the order the person arranged them, each with
 `pinned`; `projects.arrange({ order, pinned })` keeps that arrangement: `order` is project
 ids, first to last, and `pinned` the ones pinned, at most nine, the first in `order` (one

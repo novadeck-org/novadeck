@@ -55,6 +55,12 @@ export type WorkspaceCommands = ShellCommands &
   LayoutCommands & {
     readonly switchSession: (id: string) => void
     readonly startFresh: () => void
+    // Renames a session of the open project; a blank name keeps the old one.
+    readonly renameSession: (id: string, name: string) => void
+    // Moves a session of the open project to this place in its list.
+    readonly moveSession: (id: string, index: number) => void
+    // Deletes a session of the open project and closes its terminals; the last one stays.
+    readonly removeSession: (id: string) => void
     readonly switchProject: (next: Project) => void
     // Asks the backend for a folder and opens it as a new project; no-op without one.
     readonly openFolder: () => Promise<void>
@@ -322,6 +328,37 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       navigateWorkspace([
         {
           type: "session/select",
+          projectId: project.id,
+          workspaceSessionId: id,
+          now: effects.now(),
+          enabledViews: preferences().enabledViews,
+        },
+      ])
+    },
+    renameSession: (id, name) => {
+      const project = activeProject(workspace.getSnapshot())!
+      workspace.dispatch({
+        type: "session/rename",
+        projectId: project.id,
+        workspaceSessionId: id,
+        name,
+      })
+    },
+    moveSession: (id, index) => {
+      const project = activeProject(workspace.getSnapshot())!
+      workspace.dispatch({
+        type: "session/move",
+        projectId: project.id,
+        workspaceSessionId: id,
+        index,
+      })
+    },
+    removeSession: (id) => {
+      const project = activeProject(workspace.getSnapshot())!
+      if (project.history.length < 2) return
+      navigateWorkspace([
+        {
+          type: "session/remove",
           projectId: project.id,
           workspaceSessionId: id,
           now: effects.now(),

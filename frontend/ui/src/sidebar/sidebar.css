@@ -48,3 +48,21 @@
 .session-status > .project-status-mark {
   line-height: 18px;
 }
+/* A session row's actions, `.session-action` (an `.icon-button.small.dim.quiet`): Rename
+   and Delete, `.session-action-revealed`, show under the pointer or with keyboard focus;
+   Save and Cancel stay while it is renamed (`.editing`, its `.session-rename-input`). */
+.icon-button.session-action:focus-visible {
+  outline-offset: -2px;
+}
+.icon-button.session-action-revealed {
+  transition: opacity var(--motion-feedback) var(--ease-interface);
+}
+@media (hover: hover) {
+  .sessions-panel-entry:not(:hover, :has(:focus-visible), .editing)
+    .icon-button.session-action-revealed {
+    opacity: 0;
+  }
+  .sessions-panel-entry:hover .session-action-revealed {
+    transition-delay: 60ms;
+  }
+}

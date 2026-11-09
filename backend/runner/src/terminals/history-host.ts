@@ -17,7 +17,7 @@ export type HistoryParts = {
   readonly kept: TerminalRecords | undefined
   readonly closed: HistoryHost["records"]
   readonly projects: (() => readonly string[]) | undefined
-  readonly closingSessions: ReadonlySet<string>
+  readonly closingSessions: ReadonlyMap<string, "project" | "session">
   readonly stopping: () => boolean
   readonly projectOf: (sessionId: string) => string
   readonly install: (agent: AgentName) => Promise<Install | undefined>
@@ -61,7 +61,8 @@ export const historyHost = (parts: HistoryParts): HistoryHost => ({
   records: parts.closed,
   projects: () => parts.projects?.() ?? [],
   projectOf: parts.projectOf,
-  going: (sessionId) => parts.closingSessions.has(sessionId),
+  // Only a project's own removal forgets its terminals; a session's keeps them.
+  going: (sessionId) => parts.closingSessions.get(sessionId) === "project",
   stopping: parts.stopping,
   install: parts.install,
   connected: parts.connected,

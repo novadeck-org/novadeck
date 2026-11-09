@@ -733,6 +733,68 @@ export const runnerBackend = (
     void removal.finally(() => removals.delete(removal))
     return track(removal)
   }
+  // Sessions the person deleted, whose terminals the runner closes as it removes them.
+  const removedSessions = new Set<string>()
+  // Removes the session on the runner once it has it, as a project's removal does. One
+  // already gone, as removed from another window, is left as it is, and so is a project's
+  // last session, which the runner keeps (the workspace never removes it).
+  const removeSessionOnRunner = (sessionId: string): Promise<void> => {
+    const removal = (async () => {
+      if (!(await (sessions.get(sessionId) ?? created))) return
+      await untilAnswered(() => runner.sessions.remove({ sessionId }), {
+        done: ["NOT_FOUND", "CONFLICT"],
+        again: ["CLOSING"],
+      }).catch((error: unknown) => {
+        if (!(error instanceof Cancelled))
+          console.error("Novadeck could not remove the session on the runner:", error)
+      })
+    })()
+    removals.add(removal)
+    void removal.finally(() => removals.delete(removal))
+    return track(removal)
+  }
+  // Keeps the project's sessions in the order the workspace lists them, once the runner
+  // has each; a later order sent meanwhile stands in its place.
+  const arranging = new Map<string, readonly string[]>()
+  const arrangeOnRunner = async (project: WorkspaceProject): Promise<void> => {
+    const order = project.history.map((session) => session.id)
+    arranging.set(project.id, order)
+    const ready = await Promise.all(
+      project.history.map((session) => sessionReady(project, session)),
+    )
+    if (arranging.get(project.id) !== order || !ready.every(Boolean)) return
+    await untilAnswered(() => runner.sessions.arrange({ projectId: project.id, order }), {
+      done: ["NOT_FOUND"],
+      cancelled: () => arranging.get(project.id) !== order,
+    }).catch((error: unknown) => {
+      if (!(error instanceof Cancelled))
+        console.error("Novadeck could not keep the sessions' order on the runner:", error)
+    })
+    if (arranging.get(project.id) === order) arranging.delete(project.id)
+  }
+  // Renames the session on the runner once it has it; a later name stands in its place.
+  const sessionNames = new Map<string, string>()
+  const renameSessionOnRunner = async (
+    project: WorkspaceProject,
+    session: WorkspaceSession,
+  ): Promise<void> => {
+    const { id, name } = session
+    sessionNames.set(id, name)
+    const stale = (): boolean => sessionNames.get(id) !== name
+    if (!(await sessionReady(project, session)) || stale()) return
+    await untilAnswered(() => runner.sessions.rename({ sessionId: id, name }), {
+      done: ["NOT_FOUND"],
+      cancelled: stale,
+    })
+      .finally(() => {
+        if (!stale()) sessionNames.delete(id)
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof Cancelled))
+          console.error("Novadeck could not rename the session on the runner:", error)
+      })
+  }
+
   // Shells being ended on the runner, which a quit waits for too: it stops the runner
   // right after, and a close it hasn't heard of by then leaves the terminal saved, to
   // come back with the next listing.
@@ -1377,7 +1439,9 @@ export const runnerBackend = (
       closedHere.add(key.terminalId)
       entries.delete(key.terminalId)
       // A removed project's terminals are closed by the runner, as it removes the project.
-      if (!removedProjects.has(key.projectId)) void track(endShell(entry))
+      // A deleted session's are too, as it removes the session.
+      if (!removedProjects.has(key.projectId) && !removedSessions.has(key.workspaceSessionId))
+        void track(endShell(entry))
       // After the shell's end is under way, and once this commit is done: what it tells
       // its stores' readers, who may start a transaction of their own, as the companion's
       // messages do, must never stand between a close and the runner.
@@ -1426,8 +1490,30 @@ export const runnerBackend = (
         : [],
     )
     for (const projectId of removed) removedProjects.add(projectId)
+    // The same for a session, which the reducer keeps as its project's last.
+    const deleted = actions.flatMap((action) =>
+      action.type === "session/remove" &&
+      workspace.projects.some(
+        (project) =>
+          project.id === action.projectId &&
+          !project.history.some((session) => session.id === action.workspaceSessionId),
+      )
+        ? [action.workspaceSessionId]
+        : [],
+    )
+    for (const sessionId of deleted) removedSessions.add(sessionId)
     registry.reconcile(workspace, actions)
     for (const projectId of removed) void removeOnRunner(projectId)
+    for (const sessionId of deleted) void removeSessionOnRunner(sessionId)
+    // The person's renames and arrangements of sessions, as the workspace has them now.
+    for (const action of actions) {
+      if (action.type !== "session/rename" && action.type !== "session/move") continue
+      const project = workspace.projects.find((each) => each.id === action.projectId)
+      const session = project?.history.find((each) => each.id === action.workspaceSessionId)
+      if (!project || !session) continue
+      if (action.type === "session/rename") void track(renameSessionOnRunner(project, session))
+      else void track(arrangeOnRunner(project))
+    }
     saves.note(workspace)
     // What the person did to items and windows, renames of windows among it.
     items.commit(actions)

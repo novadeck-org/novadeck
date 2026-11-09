@@ -166,6 +166,8 @@ export const scriptedRunner = ({
       list: api.sessions.list.handler(() => [session]),
       create: api.sessions.create.handler(unplayed("sessions.create")),
       rename: api.sessions.rename.handler(unplayed("sessions.rename")),
+      arrange: api.sessions.arrange.handler(() => {}),
+      remove: api.sessions.remove.handler(unplayed("sessions.remove")),
       save: api.sessions.save.handler(() => {}),
     },
     terminals: {

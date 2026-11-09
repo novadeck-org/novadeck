@@ -51,6 +51,7 @@ export const SidebarSection = memo((): React.JSX.Element => {
   const { commands, backend } = useWorkspaceServices()
   const { switchSession, startFresh, hideSidebar, add } = commands
   const reorderTiles = useReorderTiles()
+  const { renameSession, moveSession, removeSession } = commands
   const desktop = useDesktop()
   const projectId = useWorkspaceState((workspace) => workspace.activeProjectId)
   const workspaceSessions = useWorkspaceState(
@@ -166,6 +167,9 @@ export const SidebarSection = memo((): React.JSX.Element => {
       source={source}
       history={history}
       onSessionSelect={switchSession}
+      onSessionRename={renameSession}
+      onSessionMove={moveSession}
+      onSessionRemove={removeSession}
       onFresh={startFresh}
       onHide={hideSidebar}
       onCreate={() => add()}
