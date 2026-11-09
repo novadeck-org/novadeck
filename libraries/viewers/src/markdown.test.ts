@@ -16,9 +16,9 @@ afterEach(() => {
 })
 
 // A scroller to mount into, as an app's pane is: it scrolls, the viewer doesn't.
-const paneIn = (): HTMLElement => {
+const paneIn = (height = 300): HTMLElement => {
   const pane = document.createElement("div")
-  pane.style.cssText = "height: 300px; width: 600px; overflow: auto"
+  pane.style.cssText = `height: ${height}px; width: 600px; overflow: auto`
   document.body.append(pane)
   panes.push(pane)
   return pane
@@ -293,27 +293,32 @@ describe("the markdown viewer", () => {
 
   it("draws a code block in a list at the item's hang, its rows and wrapped rows inside it", () => {
     const long = "words that run on ".repeat(8)
-    const { pane } = mount({
-      text: [
-        "- [ ] A task, its prompt:",
-        "",
-        "  ```",
-        `  ${long}`,
-        `    ${long}`,
-        "  ```",
-        "",
-        "- An item:",
-        "",
-        "  ```",
-        `  ${long}`,
-        "  ```",
-        "",
-        "```",
-        `${long}`,
-        "```",
-        "",
-      ].join("\n"),
-    })
+    // A pane tall enough for the whole text: the editor draws only the lines in view, and where a
+    // platform's fonts make the wrapped rows taller, the last blocks fell below them.
+    const { pane } = mount(
+      {
+        text: [
+          "- [ ] A task, its prompt:",
+          "",
+          "  ```",
+          `  ${long}`,
+          `    ${long}`,
+          "  ```",
+          "",
+          "- An item:",
+          "",
+          "  ```",
+          `  ${long}`,
+          "  ```",
+          "",
+          "```",
+          `${long}`,
+          "```",
+          "",
+        ].join("\n"),
+      },
+      { pane: paneIn(3000) },
+    )
     const lines = [...pane.querySelectorAll<HTMLElement>(".cm-md-codeblock:not(.cm-md-fence)")]
     expect(lines).toHaveLength(4)
     const rowsOf = (line: HTMLElement): DOMRect[] => {

@@ -910,7 +910,6 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const client = (async () => {
         for await (const request of manager.requests("client", controller.signal)) {
           const id = randomUUID()
-          created.push(id)
           // eslint-disable-next-line no-await-in-loop -- Requests are opened in turn.
           await manager.create(
             {
@@ -924,6 +923,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
             },
             "client",
           )
+          // Listed once its record exists: a test that attaches by this id before then finds none.
+          created.push(id)
           manager.answerRequest({ requestId: request.requestId, terminalId: id }, "client")
         }
       })()
@@ -1034,7 +1035,6 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const client = (async () => {
         for await (const request of manager.requests("client", controller.signal)) {
           const id = randomUUID()
-          created.push(id)
           // eslint-disable-next-line no-await-in-loop -- Requests are opened in turn.
           await manager.create(
             {
@@ -1048,6 +1048,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
             },
             "client",
           )
+          // Listed once its record exists: a test that attaches by this id before then finds none.
+          created.push(id)
           manager.answerRequest({ requestId: request.requestId, terminalId: id }, "client")
         }
       })()
