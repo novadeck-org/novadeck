@@ -4,9 +4,14 @@
 // it, the foreground program, and the row of the shell's latest prompt. Runs only with
 // NOVADECK_E2E_PROBES=1 and PROBE_OUT set, by path; writes $PROBE_OUT/<harness>-<case>.json,
 // which `harnesses/<harness>/src/fixtures/startup.probe.json` keeps the last screen of. Codex's
-// sign-in case fails once it has written its file, as its screen asks chatgpt.com, which the
-// fake model's proxy refuses; its update and slow-MCP cases fail the same way, on the app
-// server and the `sleep` that outlive the deck, which its teardown ends. Claude Code without
+// sign-in case runs in a home of its own, which keeps the sandbox's empty copy of the curated
+// plugins (without one, Codex fetches an archive of them from chatgpt.com, which the fake
+// model's proxy refuses) and names the fake model as its ChatGPT backend; its update and slow-MCP cases quit Codex once they have watched, as Codex
+// ends the servers it started only when it exits, and the deck's teardown (a hangup, then a
+// kill) leaves the `sleep` of the slow server behind. With an update to offer, Codex also
+// starts a managed app server and its updater, which stay after it exits: the update case
+// ends them by their pid files.
+// Claude Code without
 // a key stops at its connectivity check before its sign-in screen, and nothing here raises an
 // update screen of its, so neither is probed. With PROBE_RESUME_TURNS set too, each harness
 // plays that many turns of PROBE_RESUME_KB kB against the fake model, so each writes its own
@@ -16,6 +21,7 @@
 import {
   appendFileSync,
   chmodSync,
+  cpSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -106,6 +112,17 @@ const watch = async (
 }
 
 const trusted = { folderTrusted: true }
+
+/** Quits what the terminal runs with Ctrl-C, and waits for its shell, so it ends what it started. */
+const quit = async (run: E2E, terminal: DeckTerminal): Promise<void> => {
+  const inside = run.deck.terminals as unknown as Inside
+  const started = Date.now()
+  while (inside.records.get(terminal.id)?.summary.process?.name !== "bash") {
+    if (Date.now() - started > 20_000) throw new Error("Codex didn't quit on Ctrl-C")
+    terminal.press("\x03")
+    await sleep(1000)
+  }
+}
 
 const resumeTurns = Number(process.env.PROBE_RESUME_TURNS ?? 0)
 const resumeKb = Number(process.env.PROBE_RESUME_KB ?? 1)
@@ -202,8 +219,12 @@ describe.skipIf(!out || !supported)("probe: startup screens", () => {
       mkdirSync(home, { recursive: true })
       writeFileSync(
         join(home, "config.toml"),
-        'check_for_update_on_startup = false\ncli_auth_credentials_store = "file"\n',
+        `chatgpt_base_url = ${JSON.stringify(`${run.model.url}/backend-api/`)}\n` +
+          'check_for_update_on_startup = false\ncli_auth_credentials_store = "file"\n',
       )
+      // The sandbox's empty copy of the curated plugins: without one, Codex fetches an
+      // archive of them from chatgpt.com, which the fake model's proxy refuses.
+      cpSync(join(run.sandbox.home, ".codex", ".tmp"), join(home, ".tmp"), { recursive: true })
       const terminal = await run.deck.open(`env -u OPENAI_API_KEY CODEX_HOME=${home} codex`)
       await watch(run, codex, terminal, "codex-sign-in")
     })
@@ -230,7 +251,19 @@ describe.skipIf(!out || !supported)("probe: startup screens", () => {
       symlinkSync(process.execPath, join(path, "node"))
       symlinkSync(join(bin, "codex"), join(path, "codex"))
       symlinkSync("/usr/bin/ps", join(path, "ps"))
-      await watch(run, codex, await run.deck.open(`env PATH=${path} codex`), "codex-update")
+      const terminal = await run.deck.open(`env PATH=${path} codex`)
+      await watch(run, codex, terminal, "codex-update")
+      await quit(run, terminal)
+      // The app server and updater it started, which a managed install keeps running after
+      // the TUI exits: ended by the pids in its own files, in the sandbox's home.
+      const daemon = join(home, "app-server-daemon")
+      for (const pidFile of ["daemon.pid", "daemon-updater.pid"])
+        try {
+          process.kill(JSON.parse(readFileSync(join(daemon, pidFile), "utf8")).pid, "SIGTERM")
+        } catch {
+          // Not started, or gone already.
+        }
+      await sleep(1000)
     })
     e2e.seeded(trusted, codex)("mcp slow", async ({ e2e: run }) => {
       const file = join(run.sandbox.home, ".codex", "config.toml")
@@ -238,7 +271,9 @@ describe.skipIf(!out || !supported)("probe: startup screens", () => {
         file,
         `\n[mcp_servers.slow]\ncommand = "sleep"\nargs = ["30"]\nstartup_timeout_sec = 30\n`,
       )
-      await watch(run, codex, await run.deck.open("codex"), "codex-mcp")
+      const terminal = await run.deck.open("codex")
+      await watch(run, codex, terminal, "codex-mcp")
+      await quit(run, terminal)
     })
     e2e.seeded(trusted, codex)("resume picker", async ({ e2e: run }) => {
       await watch(run, codex, await run.deck.open("codex resume"), "codex-resume")
