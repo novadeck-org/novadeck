@@ -662,6 +662,73 @@ describe("shell commands", () => {
     })
   })
 
+  describe("after a command is found", () => {
+    it("adopts no later process: not a tool started while it runs, nor after it ended", async () => {
+      const s = setup()
+      const at = await s.press()
+      s.processes.current = [spawn(7, at + 5)]
+      await settle(2_000)
+      expect(s.rec.summary.shellCommand?.command).toBe("sleep 15")
+      // A turn's tool, started inside the window while the command runs.
+      s.processes.current = [spawn(7, at + 5), spawn(9, Date.now() + 5)]
+      await settle(findMs)
+      s.processes.current = [spawn(9, Date.now() - 1_000)]
+      await settle(pollMs)
+      expect(s.rec.summary.shellCommand).toBeNull()
+      // Nor does it come back for the tool once the command's attempt is over.
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toBeNull()
+      expect(s.shells.watching).toBe(0)
+    })
+
+    it("closes a confirmed attempt's interval when a turn starts", async () => {
+      const s = setup()
+      const at = await s.press()
+      s.processes.current = [spawn(7, at + 5)]
+      await settle(2_000)
+      s.processes.current = []
+      await settle(pollMs)
+      expect(s.rec.summary.shellCommand).toBeNull()
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+      s.processes.current = [spawn(9, Date.now() + 5)]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toBeNull()
+    })
+
+    it("shows the newest Enter, though an older one confirms in a later look", async () => {
+      const s = setup()
+      const first = await s.press()
+      await settle(600)
+      const second = await s.press(shellBox("sleep 30"))
+      s.processes.current = [spawn(8, second + 5)]
+      await settle(1_100)
+      s.processes.current = [spawn(8, second + 5), spawn(7, first + 100)]
+      await settle(findMs)
+      expect(s.rec.summary.shellCommand).toEqual({ command: "sleep 30", since: second })
+    })
+  })
+
+  it("gives up on a held command that never runs after the turns chained around it", async () => {
+    const s = setup()
+    activity(s.rec, "working")
+    await s.press()
+    // Turn ends, and the turn goes on, three times over: Esc on the queued command took it out.
+    for (let turn = 0; turn < 3; turn += 1) {
+      await settle(1_000)
+      await s.ends()
+      await settle(100)
+      activity(s.rec, "working")
+      s.shells.changed(s.rec)
+    }
+    await settle(1_000)
+    const end = await s.ends()
+    s.processes.current = [spawn(7, end + 100)]
+    await settle(findMs + 1_000)
+    expect(s.rec.summary.shellCommand).toBeNull()
+    expect(s.shells.watching).toBe(0)
+  })
+
   it("ends and stops every timer when the agent leaves, the terminal exits or restarts, or it rests", async () => {
     const cases: ((rec: Fake) => void)[] = [
       (rec) => ((rec.terminal as { exit: unknown }).exit = { code: 0 }),

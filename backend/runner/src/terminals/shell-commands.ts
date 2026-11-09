@@ -27,6 +27,9 @@ export const pollMs = 1_000
 /** How many looks in a row that could not tell end the command shown: no evidence, no busy. */
 export const unknownLooks = 2
 
+/** How many turn ends re-arm an unconfirmed attempt (a continued Stop makes two): then it is dropped. */
+export const rearmMax = 2
+
 /** How long after an Enter mid-turn a command that the harness runs at once (Codex) starts, in ms. */
 export const midTurnMs = 2_000
 
@@ -60,8 +63,10 @@ type Attempt = {
   intervals: Interval[]
   /** Whether a turn started while it was unconfirmed, so a queued command may run after it. */
   cut: boolean
-  /** Whether it found its process: later turns change nothing for it. */
+  /** Whether it found its process: its intervals are closed then, and later turns change nothing. */
   confirmed: boolean
+  /** How many turn ends re-armed it: past `rearmMax` it is dropped. */
+  rearms: number
   /** Whether its window passed during a turn: it looks no more until that turn ends. */
   waiting: boolean
   /** When its find window closes. */
@@ -197,6 +202,7 @@ export class ShellCommands<R extends ShellRecord> {
       intervals,
       cut: false,
       confirmed: false,
+      rearms: 0,
       waiting: false,
       deadline: anchor + findMs,
       seen: new Map(),
@@ -219,19 +225,23 @@ export class ShellCommands<R extends ShellRecord> {
     const res = this.resolution()
     if (record.summary.activity?.state === "working") {
       for (const attempt of watch.attempts) {
-        if (attempt.confirmed) continue
-        attempt.cut = true
+        // Confirmed or not: what a turn starts is none of its command.
         for (const interval of attempt.intervals) interval.to ??= now - res
+        if (!attempt.confirmed) attempt.cut = true
       }
       return
     }
-    for (const attempt of watch.attempts) {
-      if (attempt.confirmed || !attempt.cut) continue
+    watch.attempts = watch.attempts.filter((attempt) => {
+      if (attempt.confirmed || !attempt.cut) return true
+      // Chained turns around a command that never runs (Esc on a queued one): give up.
+      if (attempt.rearms >= rearmMax) return false
+      attempt.rearms += 1
       attempt.cut = false
       attempt.waiting = false
       attempt.deadline = now + findMs
       if (!attempt.runs) attempt.intervals.push({ from: now - res })
-    }
+      return true
+    })
     const { pending } = watch
     if (pending) {
       watch.pending = undefined
@@ -374,10 +384,12 @@ export class ShellCommands<R extends ShellRecord> {
         if (fresh.length === 0) continue
         for (const { key } of fresh) watch.held.add(key)
         attempt.confirmed = true
-        // Two confirmed in one look: the newest, first here, is the one shown.
-        if (!shown) {
+        // Later processes are none of its command: its intervals end here.
+        for (const interval of attempt.intervals) interval.to ??= now - this.resolution()
+        // Two confirmed in one look, or an older one after a newer: the newest is shown.
+        const was = record.summary.shellCommand
+        if (!shown && (was == null || attempt.at >= was.since)) {
           shown = true
-          const was = record.summary.shellCommand
           if (was == null || was.since !== attempt.at || was.command !== attempt.command) {
             record.summary = {
               ...record.summary,
@@ -470,8 +482,9 @@ export class ShellCommands<R extends ShellRecord> {
         ? watch.unknown >= unknownLooks
         : !spawns.some(({ key }) => watch.held.has(key))
     if (over) {
-      // Attempts still looking may find the next command.
+      // Attempts still looking may find the next command; those that found this one are done.
       watch.held.clear()
+      watch.attempts = watch.attempts.filter(({ confirmed }) => !confirmed)
       this.hide(record, true)
     } else this.polling(record, watch)
   }

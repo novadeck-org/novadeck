@@ -1905,37 +1905,48 @@ model at once and the turn runs beside the command. The terminal still shows as 
 calls it busy (`Whereabouts.working`), as `send` does for an unknown handle's refusal; a successful `send`'s
 route still comes from the recipient's delivery state, which the command doesn't change.
 The command is found by the processes: an Enter reaching an agent's terminal whose box, read
-as it stood before the Enter, was in its shell mode and held text opens a window of five
-seconds, in which the processes under the terminal's shell (not the agent's, which Codex has
-none of before its first prompt) are looked at every half second, once for all the windows
-open. The command is the top-level processes that started since the Enter (a platform's
-start-time resolution before it), less Novadeck's helpers: the relay and the hook launcher,
-what they run (a status line's own command), and the shells they run under (its `sh -c`),
-while a nested agent keeping its own relay under it leaves the command; and Windows'
-console host, itself alone. With the agent bound, a top one's parent must be the agent's
-process (`binding.instance`: Claude Code's `CLAUDE_PID`, otherwise the nearest ancestor named
-as the agent), so what the agent left running before, as a dev server's watcher restarting
-its child after a `!git pull`, is not the command; before a first prompt no turn has run, and
-there is no such rule. A process shows only once two looks at least 0.9 s apart found it
-live: a helper passing through never does, nor does a command that ends within about a second
-(`!ls`), and one that keeps running shows about 1 to 2 s after it starts. Each Enter keeps the start times a process may have to be its command: from the Enter
-(less the platform's resolution, 1 s on macOS) on. A turn that starts while it is still
-unconfirmed (a ring's, one the runner heard of late, or the doorbell continuing a turn at its
-Stop) closes that interval at the turn's start less the resolution, so the turn's tools are
-not taken for the command, and the Enter waits the turn out with no looks. When the turn ends,
-a harness that queues the command (Claude Code, Antigravity) gets a new interval from the end
-and a find window of its own; a command already running when the turn began is found by
-the first interval, as Codex's, which runs at once, always is. On macOS a command started
-within a second before a turn's start is therefore not shown. A confirmed Enter is unaffected
-by later turns. Two confirmed in one look show the newest, and one look runs at a time. Once one is found it is looked at every second, and
-shown until none is left, or the system twice in a row couldn't tell (a look that fails is
-one that can't). The latest of several Enters is the one shown.
+as it stood before the Enter, was in its shell mode and held text starts looking at the
+processes under the terminal's shell (not the agent's, which Codex has none of before its
+first prompt), every half second, one look at a time for all the Enters open. The command is
+the top-level processes whose start falls in the Enter's interval, which begins at the Enter
+less the platform's start-time resolution (1 s on macOS), less Novadeck's helpers: the relay
+and the hook launcher, what they run (a status line's own command), and the shells they run
+under (its `sh -c`), while a nested agent keeping its own relay under it leaves the command;
+and Windows' console host, itself alone. With the agent bound, a top one's parent must be the
+agent's process (`binding.instance`: Claude Code's `CLAUDE_PID`, otherwise the nearest
+ancestor named as the agent), so what the agent left running before, as a dev server's
+watcher restarting its child after a `!git pull`, is not the command; before a first prompt
+no turn has run, and there is no such rule. A process shows only once two looks at least
+0.9 s apart found it live: a helper passing through never does, nor does a command that ends
+within about a second (`!ls`), and one that keeps running shows about 1 to 2 s after it
+starts.
+
+The Enter looks until its first window of five seconds ends, and only then waits. A turn that
+starts while it is unconfirmed (a ring's, one the runner heard of late, or the doorbell
+continuing a turn at its Stop) closes its interval at the turn's start less the resolution,
+so the turn's tools are not taken for the command; its looks go on to the end of that window,
+and then it waits the turn out with no looks. When the turn ends, a harness that queues the
+command (Claude Code, Antigravity) gets a new interval from the end less the resolution, and
+a find window of its own; on macOS that reaches up to 1 s into the turn, so a hook's process
+from the turn's last second can briefly show. Codex runs the command at once, so its command
+is in the first interval, except when a turn's start was reported first and closed it. An
+Enter is re-armed at most twice by turn ends, which covers a continued Stop (idle, working,
+idle), and then dropped, so a queued command that never ran (Escape took it out) adopts
+nothing later. Once an Enter's command is found its interval ends there: later processes are
+none of it, and later turns change nothing for it; when its processes end it is done. Two
+Enters confirmed in one look show the newest, and one confirmed later never replaces a newer
+one shown. Once one is found the command is looked at every second, and shown until none is
+left, or the system twice in a row couldn't tell (a look that fails is one that can't).
+
 An Enter while a turn works is held instead, as the turn's own tools start processes too, and
-its window opens once the turn has ended: Claude Code and Antigravity queue the command until
-then (`BoxProfile.shell.midTurn` is `queues`), so only what started since the end is it; Codex
+looked for once the turn has ended: Claude Code and Antigravity queue the command until then
+(`BoxProfile.shell.midTurn` is `queues`), so only what started since the end is it; Codex
 runs it at once (`runs`), so what started within 2 s of the Enter counts too. A held Enter
 that finds nothing is dropped; the latest of several is kept. For Codex a long-lived tool the
-model started within 2 s of such an Enter can be shown as the command until it ends.
+model started within 2 s of such an Enter can be shown as the command until it ends. Known
+limits: a queued command forked before the runner hears of the turn's end, by more than the
+resolution, is not found (not seen in the Linux e2e), and on macOS the interval after a
+turn's end reaches back a second.
 
 ### Message states
 
