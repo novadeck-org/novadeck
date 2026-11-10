@@ -509,34 +509,38 @@ for (const setup of setups) {
       },
     )
 
-    gated(it, lacking(setup, "questions"))(
-      "answers a question in the person's own words from the chat",
-      async ({ e2e: run }) => {
-        run.model.use(
-          answers("Ask me", (call) => asking!.questions(call, [colour])),
-          noted,
-        )
-        const t1 = await start(run, setup)
-        await asking!.enter?.(t1)
-        const calls = run.model.mark()
+    // Narrow, as a chat beside others leaves its terminal: a harness's footer wraps there.
+    for (const columns of [null, 52]) {
+      gated(it, lacking(setup, "questions"))(
+        `answers a question in the person's own words from the chat${columns ? ` on ${columns} columns` : ""}`,
+        async ({ e2e: run }) => {
+          run.model.use(
+            answers("Ask me", (call) => asking!.questions(call, [colour])),
+            noted,
+          )
+          const t1 = await start(run, setup)
+          if (columns) t1.resize(columns, 40)
+          await asking!.enter?.(t1)
+          const calls = run.model.mark()
 
-        await t1.prompt("Ask me about the button")
-        const request = await dialogOf(t1, "questions")
-        const [question] = questionsOf(request).questions
-        expect(question!.text).toBe(true)
-        const words = "Purple with sparkles"
-        const answer: RequestAnswer = {
-          dialog: idOf(request),
-          type: "questions",
-          answers: [{ question: question!.id, options: [], text: words }],
-        }
-        await t1.answer(request.ref, answer)
+          await t1.prompt("Ask me about the button")
+          const request = await dialogOf(t1, "questions")
+          const [question] = questionsOf(request).questions
+          expect(question!.text).toBe(true)
+          const words = "Purple with sparkles"
+          const answer: RequestAnswer = {
+            dialog: idOf(request),
+            type: "questions",
+            answers: [{ question: question!.id, options: [], text: words }],
+          }
+          await t1.answer(request.ref, answer)
 
-        await resulting(run.model, words, calls)
-        await t1.until("Noted.")
-        await unrequested(t1)
-      },
-    )
+          await resulting(run.model, words, calls)
+          await t1.until("Noted.")
+          await unrequested(t1)
+        },
+      )
+    }
 
     gated(it, lacking(setup, "questions"))(
       "sets a question aside to talk it over from the chat",

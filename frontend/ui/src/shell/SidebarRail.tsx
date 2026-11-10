@@ -16,6 +16,7 @@ import { useCallback, useLayoutEffect, useRef, useState, type ComponentProps } f
 
 import { shortcutBindings, type ShortcutName } from "../interaction/shortcuts"
 import { BellDot } from "./BellDot"
+import { HistoryDot, recentDropMs, useRecentDrop } from "./HistoryDot"
 import type { InboxBadge } from "./inbox-badge"
 import { movedPanel } from "./rail-order"
 import { stepBack, type SidebarStep } from "./shell-state"
@@ -95,6 +96,8 @@ export const SidebarRail = ({
   zen,
   badge,
   bellRings,
+  historyDrops = 0,
+  lastDrop,
   sessionsAsk,
   hasSource = false,
   hasHistory = false,
@@ -111,6 +114,10 @@ export const SidebarRail = ({
   badge: InboxBadge | undefined
   // How many new Inbox rows the bell has rung for, which its dot rings with.
   bellRings: number
+  // How many times a closed terminal landed in History, which its toggle's dot flares for,
+  // and, in words, the one that landed last, which its tooltip names for a while.
+  historyDrops?: number
+  lastDrop?: string | undefined
   // What the sessions other than the open one ask of the person, in words, while any does: the
   // Sessions toggle's dot, name and tooltip.
   sessionsAsk?: string | undefined
@@ -173,6 +180,7 @@ export const SidebarRail = ({
             back={stepBack(sidebarBack, id)}
             badge={id === "inbox" ? badge : undefined}
             bellRings={bellRings}
+            drops={id === "history" ? { count: historyDrops, last: lastDrop } : undefined}
             sessionsAsk={id === "sessions" ? sessionsAsk : undefined}
             dragging={dragging}
             focusRequest={focusRequest}
@@ -198,6 +206,7 @@ const RailToggle = ({
   back,
   badge,
   bellRings,
+  drops,
   sessionsAsk,
   dragging,
   focusRequest,
@@ -215,6 +224,8 @@ const RailToggle = ({
   badge: InboxBadge | undefined
   // How many new Inbox rows the bell has rung for, which its dot rings with.
   bellRings: number
+  // On the History toggle, how many closed terminals landed there and the last one, in words.
+  drops: { count: number; last: string | undefined } | undefined
   // What the other sessions ask of the person, on the Sessions toggle.
   sessionsAsk: string | undefined
   // Some toggle is being dragged, which leaves no tooltip open.
@@ -241,6 +252,8 @@ const RailToggle = ({
     return () => cancelAnimationFrame(frame)
   }, [focusRequest, value, isDragSource, onFocused])
   const { label, icon: Icon } = panels[value]
+  // A landing is named in the tooltip for a while; while History shows, the row says it.
+  const recentDrop = useRecentDrop(drops?.count ?? 0, recentDropMs) && !open
   return (
     <ToggleGroupItem
       ref={(node) => {
@@ -249,7 +262,11 @@ const RailToggle = ({
       }}
       tooltip={railTooltip({
         panel: value,
-        detail: badge ? `${badge.count} waiting` : sessionsAsk,
+        detail: badge
+          ? `${badge.count} waiting`
+          : recentDrop && drops?.last
+            ? drops.last
+            : sessionsAsk,
         open,
         back,
       })}
@@ -279,6 +296,7 @@ const RailToggle = ({
       <Icon size={16} />
       {badge && <BellDot rings={bellRings} />}
       {sessionsAsk && <BellDot rings={0} />}
+      {drops && !open && <HistoryDot drops={drops.count} />}
     </ToggleGroupItem>
   )
 }

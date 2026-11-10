@@ -49,6 +49,7 @@ import { useChatTakesFocus } from "./chat-focus"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { DictationContext, useMicButton } from "./controller/dictation"
 import { useDockTarget } from "./dock-target"
+import { closeTip } from "./history-drops"
 import { useMessageLinks } from "./message-links"
 import { MountedTerminal } from "./MountedTerminal"
 import { plainTitle } from "./murmur-offer"
@@ -137,6 +138,7 @@ const useWindowFrame = (
     compact,
     switcher: { onOpen: (button) => openSwitcher(id, button) },
     onClose: () => close(id),
+    closeTip: closeTip(backend, tile),
     ...(onFlyTo ? { onFlyTo } : {}),
     ...(compact && enabledViews.includes("focus")
       ? { onFocus: () => openFocus(id) }

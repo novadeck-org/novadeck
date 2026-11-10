@@ -60,6 +60,8 @@ export type WindowShellProps = {
   onFlyTo?: () => void
   windowed?: { destination: string; onOpen: () => void }
   onClose?: () => void
+  // The close button's tooltip, which says where a closed terminal goes.
+  closeTip?: string | undefined
   dictation?: DictationControls
   compact?: boolean
   active?: boolean
@@ -101,6 +103,7 @@ export const WindowShell = ({
   switcher,
   onFlyTo,
   onClose,
+  closeTip = "Close",
   windowed,
   dictation,
   compact = false,
@@ -398,7 +401,7 @@ export const WindowShell = ({
           </Tooltip>
         )}
         {onClose && (
-          <Tooltip content="Close">
+          <Tooltip content={closeTip}>
             <button
               className={`${headerActionClasses} terminal-close nodrag nopan`}
               aria-label={`Close ${label}`}

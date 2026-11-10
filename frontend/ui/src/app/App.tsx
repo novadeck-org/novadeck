@@ -17,6 +17,7 @@ import { dictationKeys } from "../interaction/shortcuts"
 import { cancelTerminalTransition } from "../layouts/transition"
 import { elsewhereSessionsText } from "../projects/session-marks"
 import { useDesktop } from "../shell/desktop"
+import { HistoryDropNotice } from "../shell/HistoryDot"
 import { panelLabels } from "../shell/panels"
 import { sidebarVisible } from "../shell/shell-state"
 import { readSidebarOrder, writeSidebarOrder } from "../shell/shell-storage"
@@ -35,6 +36,7 @@ import { useWorkspaceEffects } from "./controller/useWorkspaceEffects"
 import { announceShown, EmbeddedContext, heldInput, holdInputUntilEngaged } from "./embedded"
 import { FooterSection } from "./FooterSection"
 import { HeaderSection } from "./HeaderSection"
+import { dropWords } from "./history-drops"
 import { InboxHost } from "./InboxHost"
 import { historyShown, sourceShown } from "./routing"
 import { currentContext, currentState, currentTarget, sameItems, shallowEqual } from "./selectors"
@@ -201,19 +203,33 @@ const TeamWireSection = ({
 // The rail and the Zen dock read the bell's badge and rings themselves, so an unread change that
 // leaves them as they were re-renders neither them nor the app around them.
 const RailWithBadge = (
-  props: Omit<ComponentProps<typeof SidebarRail>, "badge" | "bellRings" | "sessionsAsk">,
+  props: Omit<
+    ComponentProps<typeof SidebarRail>,
+    "badge" | "bellRings" | "historyDrops" | "lastDrop" | "sessionsAsk"
+  >,
 ): React.JSX.Element => {
   const marks = useSessionMarks()
+  const lastDrop = useUiState((state) => state.lastDrop)
   const openId = useWorkspaceState((workspace) => activeProject(workspace)!.activeSessionId)
   return (
     <SidebarRail
       {...props}
       badge={useInboxBadge()}
       bellRings={useUiState((state) => state.bellRings)}
+      historyDrops={useUiState((state) => state.historyDrops)}
+      lastDrop={lastDrop ? dropWords(lastDrop) : undefined}
       sessionsAsk={elsewhereSessionsText(marks, openId)}
     />
   )
 }
+
+// Tells a screen reader where a closed terminal went (HistoryDropNotice).
+const HistoryDropSection = (): React.JSX.Element => (
+  <HistoryDropNotice
+    drops={useUiState((state) => state.historyDrops)}
+    last={useUiState((state) => state.lastDrop?.title)}
+  />
+)
 
 const ZenDockWithBadge = (
   props: Omit<ComponentProps<typeof ZenDock>, "badge" | "bellRings">,
@@ -326,6 +342,7 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
           </TabListContext.Provider>
           <FooterSection />
           <WorkspaceOverlays />
+          <HistoryDropSection />
           {voice && <DictationOverlay controller={voice} keys={dictationKeys()} />}
           <PanelSection panel={panel} />
         </main>

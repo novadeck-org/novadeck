@@ -205,6 +205,29 @@ describe("The History panel", () => {
         .toBeVisible()
     })
 
+    it("flares a dot on the History toggle for a moment, and names what landed", async () => {
+      await openWorkspace(agents)
+      const toggle = page.getByRole("radio", { name: "History" })
+      await tabAction("Close Dev server").click()
+      await confirmClose()
+      await expect.poll(() => toggle.element().querySelector(".history-dot")).not.toBeNull()
+      await expect
+        .element(
+          page.getByRole("status").filter({ hasText: "Dev server closed. It’s in History." }),
+        )
+        .toBeInTheDocument()
+      // The dot leaves once its flare has played; nothing stays until History is seen.
+      await expect
+        .poll(() => toggle.element().querySelector(".history-dot"), { timeout: 4_000 })
+        .toBeNull()
+    })
+
+    it("says on its × where a closed terminal goes", async () => {
+      await openWorkspace(agents)
+      await tabAction("Close Dev server").hover()
+      await expect.element(page.getByText("Close · stays in History")).toBeVisible()
+    })
+
     it("asks for an agent mid-turn, in words about its turn", async () => {
       await openWorkspace(agents)
       await tabAction("Close Checkout implementation").click()
