@@ -2,6 +2,7 @@ import type { ChatPrompt } from "@novadeck/core/conversation"
 import type { ChatBlock } from "@novadeck/core/conversation/turns"
 
 import type { Attachment } from "./attachments"
+import type { Echo } from "./echoes"
 import { keptDraftOf, keptImagesOf, type ChatSend } from "./sends"
 
 // A prompt the chat shows as the person's before, or instead of, the agent's record showing
@@ -75,30 +76,60 @@ export const sentBubbles = (
 const blockAt = (block: ChatBlock): number | null =>
   block.kind === "user" || block.kind === "assistant" || block.kind === "agent" ? block.at : null
 
-// The blocks with the bubbles among them: each where it was sent, before the first block
-// recorded after it, or at the end, as one not sent yet, or sent after all the blocks.
+// What stands among the blocks by when it went: the person's prompt not in the record yet, or a
+// command run through a harness's own menu, which the record mostly keeps no item of.
+export type Placed =
+  | { readonly kind: "block"; readonly block: ChatBlock }
+  | { readonly kind: "sent"; readonly bubble: SentBubble }
+  | { readonly kind: "echo"; readonly echo: Echo }
+
+const noEchoes: readonly Echo[] = []
+
+// The bubbles and the echoes as one line, in the order they went: a bubble not sent yet after
+// every echo.
+const asides = (
+  bubbles: readonly SentBubble[],
+  echoes: readonly Echo[],
+): readonly Exclude<Placed, { kind: "block" }>[] => {
+  const merged: Exclude<Placed, { kind: "block" }>[] = []
+  let bubble = 0
+  let echo = 0
+  while (bubble < bubbles.length || echo < echoes.length) {
+    const sent = bubbles[bubble]
+    const ran = echoes[echo]
+    if (ran && (!sent || sent.at === null || ran.at < sent.at)) {
+      merged.push({ kind: "echo", echo: ran })
+      echo += 1
+    } else {
+      merged.push({ kind: "sent", bubble: sent! })
+      bubble += 1
+    }
+  }
+  return merged
+}
+
+// The blocks with the bubbles and echoes among them: each where it went, before the first block
+// recorded after it, or at the end, as one not sent yet, or gone after all the blocks.
 export const withBubbles = (
   blocks: readonly ChatBlock[],
   bubbles: readonly SentBubble[],
-): readonly (
-  | { readonly kind: "block"; readonly block: ChatBlock }
-  | { readonly kind: "sent"; readonly bubble: SentBubble }
-)[] => {
-  const placed: (
-    | { readonly kind: "block"; readonly block: ChatBlock }
-    | { readonly kind: "sent"; readonly bubble: SentBubble }
-  )[] = []
+  echoes: readonly Echo[] = noEchoes,
+): readonly Placed[] => {
+  const between = asides(bubbles, echoes)
+  const placed: Placed[] = []
   let next = 0
-  // Whether the next bubble was sent before a block recorded at `at`.
+  // Whether the next one went before a block recorded at `at`.
   const before = (at: number | null): boolean => {
-    const sent = bubbles[next]?.at
-    return at !== null && sent !== undefined && sent !== null && sent < at
+    const aside = between[next]
+    const went =
+      aside === undefined ? null : aside.kind === "echo" ? aside.echo.at : aside.bubble.at
+    return at !== null && went !== null && went < at
   }
   for (const block of blocks) {
     const at = blockAt(block)
-    while (before(at)) placed.push({ kind: "sent", bubble: bubbles[next++]! })
+    while (before(at)) placed.push(between[next++]!)
     placed.push({ kind: "block", block })
   }
-  while (next < bubbles.length) placed.push({ kind: "sent", bubble: bubbles[next++]! })
+  while (next < between.length) placed.push(between[next++]!)
   return placed
 }

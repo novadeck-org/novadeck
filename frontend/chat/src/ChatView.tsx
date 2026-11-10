@@ -28,14 +28,13 @@ import { composerMode } from "./composer-mode"
 import { joinDraft } from "./drafts"
 import { useEchoes } from "./echoes"
 import { promptsOf, type SentShell } from "./history"
-import { Mark } from "./Mark"
 import { otherMenu } from "./other-menu"
 import { usePassing } from "./passing"
 import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
 import { Requests } from "./Requests"
 import { takeSentImages, type ChatSend } from "./sends"
 import { settledSent, settleSent } from "./settled"
-import { LiveSlice, Slice, SliceKeys } from "./Slice"
+import { LiveSlice, SliceKeys } from "./Slice"
 import { Transcript, type PeerLooks } from "./Transcript"
 
 const noShells: readonly SentShell[] = []
@@ -405,6 +404,7 @@ export const ChatView = ({
                 working={working}
                 gone={agent === undefined}
                 sent={bubbles}
+                echoes={echoes.shown}
                 looks={peerLooks}
                 {...(plain &&
                   draft.trim() === "" &&
@@ -412,13 +412,6 @@ export const ChatView = ({
                 {...(plain && { onEdit: edit })}
                 onShowTerminal={onAnswerInTerminal}
               />
-              {echoes.shown.map((echo) => (
-                <div key={echo.id} className="chat-echo">
-                  <Mark />
-                  <p className="chat-echo-text">{echo.text}</p>
-                  {echo.slice && <Slice slice={echo.slice} />}
-                </div>
-              ))}
               {status && (
                 <p
                   className="chat-status"
