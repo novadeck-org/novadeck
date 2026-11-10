@@ -42,14 +42,20 @@ jobs:
           # the host's; and the runner's, whose shell integration test alone takes over three
           # minutes. macOS runs them whole: its concurrency, which E2E's macOS rows fill on most
           # pull requests, not its length, is the limit.
+          # Linux's two browser parts have 25 minutes (22 for the tests): they also run the
+          # specs whose chords differ on a Mac as a Mac (frontend/specs' `eachPlatform`), which
+          # took 2/3 from a median of 9.3 minutes to about 12.8, and a slow runner had already
+          # run 2/3 out of its 17 before that.
           - name: Test (Linux, 1/3)
             os: ubuntu-latest
             browser: true
+            timeout: 25
             shard: 1
             command: npm run test:shard1
           - name: Test (Linux, 2/3)
             os: ubuntu-latest
             browser: true
+            timeout: 25
             shard: 2
             command: npm run test:shard2
           - name: Test (Linux, 3/3)
@@ -58,11 +64,14 @@ jobs:
             command: npm run test:shard3
           # Whole, it took 18m 41s on #292 and ran past 20 minutes on #296. By #405 pull
           # requests took 17 to 27 minutes, and on #407 a runner slower at everything, builds
-          # too, ran the tests out of 27 with none failing.
+          # too, ran the tests out of 27 with none failing. On 2026-11-10 its green jobs took
+          # 25 to 38 minutes (median 34, against 23 the week before), two ran out of their 37
+          # with no test failing, and #840 added the specs' second pass; it has 50 (47 for the
+          # tests) until it runs only the packages that touch the system.
           - name: Test (macOS)
             os: macos-latest
             browser: true
-            timeout: 40
+            timeout: 50
             command: npm run test
           - name: Test (Windows, 1/3)
             os: windows-latest
@@ -210,7 +219,7 @@ jobs:
       # failures' upload below still runs, rather than the whole job being cancelled.
       - name: Run ${{ matrix.name }}
         run: ${{ matrix.command }}
-        timeout-minutes: ${{ matrix.timeout && 37 || (matrix.browser || matrix.shard) && 17 || 7 }}
+        timeout-minutes: ${{ matrix.timeout && (runner.os == 'macOS' && 47 || 22) || (matrix.browser || matrix.shard) && 17 || 7 }}
         env:
           NOVADECK_REQUIRE_FISH: ${{ steps.fish.outcome == 'success' && '1' || '' }}
           # A re-run with debug logging records Playwright traces of failed UI specs.
