@@ -95,9 +95,9 @@ describe("Claude Code's AskUserQuestion", () => {
   })
 
   it("sees the row focused on a narrow screen, whose footer wraps its editor hint", () => {
-    // The same question as k-ask-other-enter, on 52 columns (2.1.322).
+    // k-ask-other-enter's question, on 52 columns (2.1.322).
     const read = (key: string) =>
-      dialogs.read(step("k-ask-other-narrow", key), factsOf("k-ask-other-enter"))
+      dialogs.read(step("k-ask-other-narrow", key), factsOf("k-ask-other-narrow"))
     const keys = need(read("narrow")).keys({
       type: "questions",
       dialog: "d",
