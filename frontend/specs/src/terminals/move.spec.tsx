@@ -67,6 +67,22 @@ const moveMenu = async (name: string, entry = "Move to session") => {
   await menu.getByRole("menuitem", { name: entry, exact: true }).click()
 }
 
+/**
+ * Opens the "Move to session" submenu and waits until it has the keyboard: it shows a moment
+ * before it takes focus, and keys pressed between go to the terminal's menu, where End and
+ * Enter close the terminal (a loaded Linux runner did so).
+ */
+const moveMenuByKeyboard = async (name: string) => {
+  await moveMenu(name)
+  const all = page.getByRole("menuitem", { name: "All sessions…", exact: true })
+  await expect.element(all).toBeVisible()
+  await expect
+    .poll(() => all.element().closest('[role="menu"]')?.contains(document.activeElement) ?? false)
+    .toBe(true)
+}
+
+// The moved toast. The demo's Inbox toasts keep landing over it, and the stack folds it behind
+// them ("+3 more"), so the specs ask that it is there, not that it is in sight.
 const toast = () => page.getByText(/ moved to .*, still running/)
 // A press on one of the moved toast's buttons, until it takes. A press within a moment of the
 // stack moving does nothing, and the demo's Inbox toasts keep landing and moving it; they also
@@ -106,7 +122,7 @@ describe("Moving a terminal to another session", () => {
       await moveMenu("Dev server")
       await page.getByRole("menuitem", { name: named(others[0]!) }).click()
       await expect.element(terminalTab("Dev server")).not.toBeInTheDocument()
-      await expect.element(toast()).toBeVisible()
+      await expect.element(toast()).toBeInTheDocument()
       // The person stays where they are.
       expect(terminalTabNames()).toContain(lead)
 
@@ -154,9 +170,7 @@ describe("Moving a terminal to another session", () => {
   context("picking among all the sessions", () => {
     it("picks from the Sessions panel by keyboard, and Escape gives up and puts the sidebar back", async () => {
       await openWithSessions(listed + 1)
-      await moveMenu("Dev server")
-      const all = page.getByRole("menuitem", { name: "All sessions…", exact: true })
-      await expect.element(all).toBeVisible()
+      await moveMenuByKeyboard("Dev server")
       await userEvent.keyboard("{End}{Enter}")
       await expect.element(strip("Dev server")).toBeVisible()
       await expect.element(sidebarPanel("Sessions")).toBeChecked()
@@ -170,9 +184,7 @@ describe("Moving a terminal to another session", () => {
 
     it("moves the terminal to the session picked there", async () => {
       const { others } = await openWithSessions(listed + 1)
-      await moveMenu("Dev server")
-      const all = page.getByRole("menuitem", { name: "All sessions…", exact: true })
-      await expect.element(all).toBeVisible()
+      await moveMenuByKeyboard("Dev server")
       await userEvent.keyboard("{End}{Enter}")
       await expect.element(strip("Dev server")).toBeVisible()
       // The panel's rows are still settling, so the row is pressed itself.
@@ -180,7 +192,7 @@ describe("Moving a terminal to another session", () => {
       await expect.element(row).toBeVisible()
       const button = row.element() as HTMLElement
       button.click()
-      await expect.element(toast()).toBeVisible()
+      await expect.element(toast()).toBeInTheDocument()
       await expect.element(sidebarPanel("Terminals")).toBeChecked()
       await expect.element(terminalTab("Dev server")).not.toBeInTheDocument()
     })
