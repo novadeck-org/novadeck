@@ -37,6 +37,10 @@
     "zod": "catalog:"
   },
   "novadeck": {
-    "platform": "system"
+    "platform": "system",
+    "reads": [
+      "backend/relay",
+      "frontend/ui"
+    ]
   }
 }

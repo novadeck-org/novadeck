@@ -28,6 +28,10 @@
     "vite": "^7.3.7"
   },
   "novadeck": {
-    "platform": "system"
+    "platform": "system",
+    "reads": [
+      "frontend",
+      "apps"
+    ]
   }
 }

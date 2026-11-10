@@ -7,6 +7,11 @@ import type { Area } from "../src/atlas.ts"
 import { createAnchors } from "./anchors.ts"
 import { extractStacks } from "./stack.ts"
 
+// It reads backend/relay and frontend/ui from the repository's root, through the atlas's
+// extractors: CI sees it by those in package.json's novadeck.reads, as the reach fence
+// (scripts/workspace/reach.ts) can't follow the extractors.
+// oxlint-disable novadeck/reach
+
 const repo = resolve(import.meta.dirname, "../../..")
 
 describe("extractStacks", () => {

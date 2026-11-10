@@ -9,6 +9,7 @@
   "jsPlugins": ["./scripts/workspace/fence.ts"],
   "rules": {
     "novadeck/platform": "error",
+    "novadeck/reach": "error",
     "func-style": [
       "error",
       "expression",

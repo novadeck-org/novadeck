@@ -1,14 +1,10 @@
-import { existsSync, readFileSync } from "node:fs"
-import { dirname, join, relative, sep } from "node:path"
+import { manifestOf, packageOf } from "./lookup.ts"
+import { platformOf, systemImport, systemProperty } from "./platform.ts"
+import { reach } from "./reach.ts"
 
-import {
-  type Declared,
-  platformOf,
-  systemImport,
-  systemProperty,
-  workspaceTrees,
-} from "./platform.ts"
-
+// The lint plugin of the workspace's own rules (`.oxlintrc.json`'s `jsPlugins`): `platform`,
+// here, and `reach` (reach.ts), which keeps a package from reading what the graph can't see.
+//
 // The fence around `neutral` packages, as an oxlint plugin (`.oxlintrc.json`'s `jsPlugins`):
 // in a package that declares itself `neutral` (platform.ts), it refuses what would make it
 // `system`, in its code and its tests alike. It reads each file's package from its
@@ -42,49 +38,14 @@ type Context = {
   readonly report: (problem: { readonly node: Node; readonly message: string }) => void
 }
 
-/** The workspace's root above a folder: the nearest with a `pnpm-workspace.yaml`. */
-const roots = new Map<string, string | undefined>()
-const rootAbove = (folder: string): string | undefined => {
-  if (roots.has(folder)) return roots.get(folder)
-  const parent = dirname(folder)
-  const found = existsSync(join(folder, "pnpm-workspace.yaml"))
-    ? folder
-    : parent === folder
-      ? undefined
-      : rootAbove(parent)
-  roots.set(folder, found)
-  return found
-}
-
-const trees = new Map<string, ReadonlySet<string>>()
-const treesOf = (root: string): ReadonlySet<string> => {
-  const found =
-    trees.get(root) ??
-    new Set(workspaceTrees(readFileSync(join(root, "pnpm-workspace.yaml"), "utf8")))
-  trees.set(root, found)
-  return found
-}
-
-/** A file's workspace package, as its folder relative to the root, or `undefined` outside one. */
-const packageOf = (file: string): { root: string; folder: string } | undefined => {
-  const root = rootAbove(dirname(file))
-  if (!root) return undefined
-  const [tree, name] = relative(root, file).split(sep)
-  if (!tree || !name || !treesOf(root).has(tree)) return undefined
-  const folder = `${tree}/${name}`
-  return existsSync(join(root, folder, "package.json")) ? { root, folder } : undefined
-}
-
 const neutral = new Map<string, boolean>()
 /** The neutral package a file is in, by its folder, or `undefined` where it is in none. */
 const neutralPackageOf = (file: string): string | undefined => {
   const found = packageOf(file)
   if (!found) return undefined
-  const key = join(found.root, found.folder)
-  if (!neutral.has(key)) {
-    const manifest = JSON.parse(readFileSync(join(key, "package.json"), "utf8")) as Declared
-    neutral.set(key, platformOf(manifest) === "neutral")
-  }
+  const key = `${found.root}/${found.folder}`
+  if (!neutral.has(key))
+    neutral.set(key, platformOf(manifestOf(found.root, found.folder)) === "neutral")
   return neutral.get(key) ? found.folder : undefined
 }
 
@@ -153,4 +114,4 @@ const platform = {
   },
 }
 
-export default { meta: { name: "novadeck" }, rules: { platform } }
+export default { meta: { name: "novadeck" }, rules: { platform, reach } }

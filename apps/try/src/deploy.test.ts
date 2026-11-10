@@ -6,6 +6,10 @@ import { describe as context, describe, expect, it } from "vitest"
 
 import { connect, headerRules, hidden } from "./deploy"
 
+// It reads every app's pages under apps/, found by a glob: CI sees it by apps/ in package.json's
+// novadeck.reads, as the reach fence (scripts/workspace/reach.ts) can't follow a glob.
+// oxlint-disable novadeck/reach
+
 const root = join(import.meta.dirname, "../../..")
 
 // Each entry's page, whichever app holds it, found rather than listed so that a new app's is

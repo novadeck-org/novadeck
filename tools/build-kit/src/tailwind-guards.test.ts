@@ -7,6 +7,11 @@ import { describe, expect, it } from "vitest"
 
 import { frontendUtilities, missingUtilities, unguardedFolders } from "./bundle-checks.ts"
 
+// It reads every folder the UI's stylesheet scans, by the names it finds in the sheet: CI sees it
+// by frontend/ and apps/ in package.json's novadeck.reads, as the reach fence
+// (scripts/workspace/reach.ts) can't follow those names.
+// oxlint-disable novadeck/reach
+
 // The guards say a build's CSS lost a folder Tailwind scans only if nothing else can make the
 // guard's class: a copy of it in another scanned file (the UI's own, a config or a comment), a
 // class the stylesheet always makes (`@source inline(...)`), or a rule of that name in a sheet
