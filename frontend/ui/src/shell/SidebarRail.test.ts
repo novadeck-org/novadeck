@@ -79,3 +79,31 @@ describe("the rail's tooltips", () => {
     expect(railTooltip({ panel: "history", open: true, back: null })).toBe("History · hide sidebar")
   })
 })
+
+describe("the rail's History dot", () => {
+  const historyRail = (historyDrops: number, open = false) =>
+    createElement(SidebarRail, {
+      sidebarVisible: open,
+      sidebarPanel: open ? "history" : "terminals",
+      zen: false,
+      badge: undefined,
+      bellRings: 0,
+      hasHistory: true,
+      historyDrops,
+      lastDrop: "Tests closed just now",
+      toggleSidebar: () => {},
+    })
+
+  it("flares for a landing, but not while History shows, nor afterwards for that one", () => {
+    const { container, rerender, unmount } = render(historyRail(0))
+    unmounts.push(unmount)
+    const dot = () => container.querySelector("#history-toggle .history-dot")
+    expect(dot()).toBeNull()
+    rerender(historyRail(1))
+    expect(dot()).not.toBeNull()
+    rerender(historyRail(2, true))
+    expect(dot()).toBeNull()
+    rerender(historyRail(2))
+    expect(dot()).toBeNull()
+  })
+})

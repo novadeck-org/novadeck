@@ -16,6 +16,7 @@ import { useAskFeedback } from "./ask-feedback"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useDockTarget } from "./dock-target"
 import { FoldedTeamRows } from "./FoldedTeamRows"
+import { closeTip } from "./history-drops"
 import { useReleaseLead } from "./release-lead"
 import { currentContext, currentState, currentTarget, sameTarget, shallowEqual } from "./selectors"
 import { useFoldTeam, useTabFold, useTeamLevel } from "./team-fold"
@@ -119,6 +120,7 @@ export const WorkspaceTab = memo(
         onRenameSave={() => commands.saveRename(id)}
         onRenameCancel={() => commands.cancelRename(id)}
         onClose={() => commands.close(id)}
+        closeTip={closeTip(backend, terminal)}
         {...(backend.resetTitle ? { onResetTitle: () => commands.resetTitle(id) } : {})}
         dockIn={dockIn}
         askFeedback={askFeedback}
