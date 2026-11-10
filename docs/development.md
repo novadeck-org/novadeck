@@ -734,6 +734,7 @@ unsure, declare `system`. `pnpm new:library` starts a library as `system`.
 | `system` without an import that says so | Why                                                                        |
 | --------------------------------------- | -------------------------------------------------------------------------- |
 | `engines/whisper`, `engines/murmur`     | Native engines, built for each system.                                     |
+| `libraries/emulator`                    | It parses each system's own PTY output, which differs (Windows' ConPTY).   |
 | `libraries/viewers`                     | Its host side drives Electron's main process, through objects it is given. |
 | `frontend/terminal-views`               | Its specs draw with WebGL and the system's fonts in a real Chromium.       |
 | `frontend/specs`                        | Its browser specs choose keyboard chords by `navigator.platform`.          |
