@@ -27,6 +27,8 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+      # To read the nightlies' runs.
+      actions: read
     outputs:
       tag: ${{ steps.choose.outputs.tag }}
     env:
@@ -114,6 +116,24 @@ jobs:
           else
             echo "There is no stable release yet."
           fi
+
+      - name: Check Out Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set Up Node
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          runtime: node@26
+
+      # A pull request may skip tests its change can't break; the nightlies run everything on
+      # main. So a release goes stable only once Nightly Quality and E2E's nightly (or a run of
+      # either dispatched on main) passed at or after its commit. The error says what to run.
+      - name: Require Green Nightlies
+        env:
+          TAG: ${{ steps.choose.outputs.tag }}
+        run: node scripts/nightly/promotion/main.ts
 
   # The notes are written before the release turns stable, so no install that updates to it
   # finds them missing. They are a job of their own that may fail or run out of time without
