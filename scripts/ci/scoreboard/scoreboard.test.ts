@@ -129,6 +129,40 @@ describe("the CI scoreboard of a recorded week", () => {
     })
   })
 
+  context("a draft whose gate jobs fail on purpose", () => {
+    it("takes no pass or failure from the gates or from the run's conclusion", () => {
+      const draft: Run = { ...runs[0]!, id: 1, conclusion: "failure" }
+      const gate = (name: string): Job => ({
+        run_id: 1,
+        run_attempt: 1,
+        name,
+        labels: ["ubuntu-latest"],
+        conclusion: "failure",
+        created_at: "2026-11-02T10:00:00Z",
+        started_at: "2026-11-02T10:00:01Z",
+        completed_at: "2026-11-02T10:00:05Z",
+      })
+      const macOS: Job = {
+        ...gate("Test (macOS)"),
+        labels: ["macos-latest"],
+        conclusion: "skipped",
+      }
+      const lint: Job = { ...gate("Lint"), conclusion: "success" }
+      const drafted = compute([draft], [gate("Test"), gate("E2E"), macOS, lint], 7)
+      expect(drafted.jobs).toEqual([
+        {
+          workflow: "Quality",
+          job: "Lint",
+          os: "Linux",
+          finished: 1,
+          passRate: 1,
+          cancelled: 0,
+          rerun: 0,
+        },
+      ])
+    })
+  })
+
   context("rendered for a job summary", () => {
     const markdown = render(board)
 
@@ -143,7 +177,15 @@ describe("the CI scoreboard of a recorded week", () => {
 })
 
 describe("the macOS hours of a window", () => {
-  const run: Run = { id: 1, name: "Quality", run_attempt: 1, actor: { login: "someone" } }
+  const run: Run = {
+    id: 1,
+    name: "Quality",
+    event: "pull_request",
+    conclusion: "success",
+    created_at: "2026-11-02T10:00:00Z",
+    run_attempt: 1,
+    actor: { login: "someone" },
+  }
   const mac = (over: Partial<Job>): Job => ({
     run_id: 1,
     run_attempt: 1,

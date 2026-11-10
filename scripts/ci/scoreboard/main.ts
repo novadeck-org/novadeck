@@ -1,22 +1,27 @@
-import { execFileSync } from "node:child_process"
+import { execFile, execFileSync } from "node:child_process"
 import { appendFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { promisify } from "node:util"
 
+import { isNightlyQuality, isPinnedE2e, isPullRequest, mergeQueueBar, renderBar } from "./bar.ts"
 import { headroom, pace } from "./pacing.ts"
-import { compute, render, type Job, type Run } from "./scoreboard.ts"
+import { compute, dependabot, render, type Job, type Run } from "./scoreboard.ts"
 import { parseTally, renderTally } from "./tally.ts"
 
 // `node scripts/ci/scoreboard/main.ts`: the weekly CI scoreboard (scoreboard.ts), computed from
 // the repository's runs of the last SCOREBOARD_DAYS days (default 7) and printed, and added to
-// the job's summary where there is one. GITHUB_REPOSITORY and GH_TOKEN as Actions sets them.
+// the job's summary where there is one, under the merge queue's bar (bar.ts), which is always
+// of the last 14 days. GITHUB_REPOSITORY and GH_TOKEN as Actions sets them.
 //
-// The requests, all reads: the workflow list (1), each workflow's run list (a page per 100
-// runs), and one request per run for the jobs of all its attempts (more only for a run of over
-// 100 jobs). The recorded week of 2026-11 was about 750 runs of Quality and E2E, so about 770
-// requests. The workflow's token has 1000 an hour, shared with every other workflow, so the
-// scoreboard leaves 200 of them (pacing.ts) and, when the budget runs short, waits for the
-// hour to renew and goes on. A run list shows 1000 runs at most.
+// The requests, all reads: the workflow list (1), each workflow's run lists (a page per 100
+// runs, one list for each week and event), one request per run of a pull request or of
+// Nightly Quality for the jobs of all its attempts (more only for a run of over 100 jobs), and
+// one for the first attempt of each night that was rerun. Fourteen days were about 1500 runs of
+// Quality and E2E in 2026-11, so about 1500 requests. The workflow's token has 1000 an hour,
+// shared with every other workflow, so the scoreboard leaves 200 of them (pacing.ts) and,
+// when the budget runs short, waits for the hour to renew and goes on. A run list shows 1000
+// runs at most, which is why it is asked a week at a time.
 
 const required = (name: string): string => {
   const value = process.env[name]
@@ -26,49 +31,83 @@ const required = (name: string): string => {
 
 let requests = 0
 
+const options = { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 } as const
+
 const gh = (...args: string[]): string => {
   requests += 1
-  return execFileSync("gh", args, { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 })
+  return execFileSync("gh", args, options)
 }
 
-/** Every item under `key` of the pages a paginated GET returns. */
-const pages = <T>(path: string, key: string): T[] =>
-  (JSON.parse(gh("api", "--paginate", "--slurp", path)) as Record<string, T[]>[]).flatMap(
-    (page) => page[key] ?? [],
-  )
+const ghAsync = async (...args: string[]): Promise<string> => {
+  requests += 1
+  return (await promisify(execFile)("gh", args, options)).stdout
+}
 
-// The workflows the scoreboard covers, and the events of their runs that count. A pull request
-// is what gets rerun and queued for; Nightly Quality, once it exists, runs on a schedule.
-const watched: { name: string; events: readonly string[] | null }[] = [
-  { name: "Quality", events: ["pull_request"] },
-  { name: "E2E", events: ["pull_request"] },
-  { name: "Nightly Quality", events: ["schedule", "workflow_dispatch"] },
+const itemsOf = <T>(output: string, key: string): T[] =>
+  (JSON.parse(output) as Record<string, T[]>[]).flatMap((page) => page[key] ?? [])
+
+// The runs the scoreboard reads: pull requests', for the tables and the bar's failure rate;
+// Nightly Quality's schedule and E2E's dispatch by Actions, for the bar's nights (once
+// Nightly Quality exists).
+const watched: { name: string; event: string }[] = [
+  { name: "Quality", event: "pull_request" },
+  { name: "E2E", event: "pull_request" },
+  { name: "E2E", event: "workflow_dispatch" },
+  { name: "Nightly Quality", event: "schedule" },
 ]
 
-type Listed = Run & { event: string; conclusion: string | null }
+const day = 24 * 60 * 60 * 1000
+const timestamp = (time: number): string => new Date(time).toISOString().replace(/\.\d+Z$/, "Z")
 
-const runsOf = (repo: string, since: Date): Listed[] => {
-  const known = pages<{ id: number; name: string }>(
-    `repos/${repo}/actions/workflows?per_page=100`,
+/** The completed runs created from `since` to `until`, asked for a week at a time. */
+const runsOf = (repo: string, since: number, until: number): Run[] => {
+  const known = itemsOf<{ id: number; name: string }>(
+    gh("api", "--paginate", "--slurp", `repos/${repo}/actions/workflows?per_page=100`),
     "workflows",
   )
-  const created = encodeURIComponent(`>=${since.toISOString().replace(/\.\d+Z$/, "Z")}`)
-  return watched.flatMap(({ name, events }) => {
+  const weeks: [number, number][] = []
+  for (let from = since; from < until; from += 7 * day)
+    weeks.push([from, Math.min(from + 7 * day, until)])
+  return watched.flatMap(({ name, event }) => {
     const workflow = known.find((candidate) => candidate.name === name)
     if (!workflow) {
       console.log(`No workflow named ${name}: left out.`)
       return []
     }
-    return pages<Listed>(
-      `repos/${repo}/actions/workflows/${workflow.id}/runs?status=completed&created=${created}&per_page=100`,
-      "workflow_runs",
-    ).filter((run) => events === null || events.includes(run.event))
+    return weeks.flatMap(([from, to]) =>
+      itemsOf<Run>(
+        gh(
+          "api",
+          "--paginate",
+          "--slurp",
+          `repos/${repo}/actions/workflows/${workflow.id}/runs?status=completed&event=${event}&created=${encodeURIComponent(`${timestamp(from)}..${timestamp(to)}`)}&per_page=100`,
+        ),
+        "workflow_runs",
+      ),
+    )
   })
 }
 
+/** The night with how its first attempt ended, which a rerun's own conclusion has replaced. */
+const withFirstAttempt = (repo: string, run: Run): Run => {
+  if ((!isNightlyQuality(run) && !isPinnedE2e(run)) || run.run_attempt === 1) return run
+  const first = JSON.parse(gh("api", `repos/${repo}/actions/runs/${run.id}/attempts/1`)) as {
+    conclusion: string | null
+  }
+  return { ...run, first_attempt_conclusion: first.conclusion }
+}
+
 /** The jobs of every attempt of a run: filter=all lists them all in one request. */
-const jobsOf = (repo: string, run: Run): Job[] =>
-  pages<Job>(`repos/${repo}/actions/runs/${run.id}/jobs?filter=all&per_page=100`, "jobs")
+const jobsOf = async (repo: string, run: Run): Promise<Job[]> =>
+  itemsOf<Job>(
+    await ghAsync(
+      "api",
+      "--paginate",
+      "--slurp",
+      `repos/${repo}/actions/runs/${run.id}/jobs?filter=all&per_page=100`,
+    ),
+    "jobs",
+  )
 
 const budget = (): { remaining: number; reset: number } =>
   (
@@ -79,27 +118,6 @@ const budget = (): { remaining: number; reset: number } =>
 
 const sleep = (seconds: number): void => {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, seconds * 1000)
-}
-
-/** The jobs of the runs, a batch at a time as the budget allows. */
-const jobsWithinBudget = (repo: string, runs: readonly Run[]): Job[] => {
-  const jobs: Job[] = []
-  let done = 0
-  while (done < runs.length) {
-    const { remaining, reset } = budget()
-    const step = pace(remaining, reset, runs.length - done)
-    if (step.kind === "wait") {
-      const seconds = Math.max(1, Math.ceil(step.until - Date.now() / 1000)) + 5
-      console.log(
-        `${remaining} requests left, ${headroom} kept for other workflows: waiting ${Math.ceil(seconds / 60)} minutes for the budget to renew.`,
-      )
-      sleep(seconds)
-      continue
-    }
-    for (const run of runs.slice(done, done + step.count)) jobs.push(...jobsOf(repo, run))
-    done += step.count
-  }
-  return jobs
 }
 
 /**
@@ -135,23 +153,64 @@ const tallySection = (repo: string): string => {
   }
 }
 
-export const main = (): void => {
+/** The jobs of the runs, a batch at a time as the budget allows, a few requests at once. */
+const jobsWithinBudget = async (repo: string, runs: readonly Run[]): Promise<Job[]> => {
+  const jobs: Job[] = []
+  let done = 0
+  while (done < runs.length) {
+    const { remaining, reset } = budget()
+    const step = pace(remaining, reset, runs.length - done)
+    if (step.kind === "wait") {
+      const seconds = Math.max(1, Math.ceil(step.until - Date.now() / 1000)) + 5
+      console.log(
+        `${remaining} requests left, ${headroom} kept for other workflows: waiting ${Math.ceil(seconds / 60)} minutes for the budget to renew.`,
+      )
+      sleep(seconds)
+      continue
+    }
+    const batch = runs.slice(done, done + step.count)
+    for (let at = 0; at < batch.length; at += 6)
+      jobs.push(
+        // eslint-disable-next-line no-await-in-loop -- Six requests at a time.
+        ...(await Promise.all(batch.slice(at, at + 6).map((run) => jobsOf(repo, run)))).flat(),
+      )
+    done += step.count
+  }
+  return jobs
+}
+
+export const main = async (): Promise<void> => {
   const repo = required("GITHUB_REPOSITORY")
   required("GH_TOKEN")
   const days = Number(process.env.SCOREBOARD_DAYS || 7)
   if (!Number.isFinite(days) || days <= 0)
     throw new Error("SCOREBOARD_DAYS must be a number above 0")
-  const runs = runsOf(repo, new Date(Date.now() - days * 24 * 60 * 60 * 1000))
-  const fetched = runs.filter((run) => run.actor?.login !== "dependabot[bot]")
-  const jobs = jobsWithinBudget(repo, fetched)
-  const markdown = `${render(compute(runs, jobs, days))}\n${tallySection(repo)}\n${runs.length} runs, ${jobs.length} jobs, ${requests} API requests.\n`
+  const now = Date.now()
+  // The bar is of 14 days whatever the tables' window is, so the window is fetched once, wide.
+  const fetchedDays = Math.max(days, 14)
+  const runs = runsOf(repo, now - fetchedDays * day, now).map((run) => withFirstAttempt(repo, run))
+  const table = runs.filter(
+    (run) =>
+      (isPullRequest(run) || isNightlyQuality(run)) &&
+      Date.parse(run.created_at) >= now - days * day,
+  )
+  const needed = runs.filter(
+    (run) => (isPullRequest(run) || isNightlyQuality(run)) && run.actor?.login !== dependabot,
+  )
+  const jobs = await jobsWithinBudget(repo, needed)
+  const markdown = [
+    renderBar(mergeQueueBar(runs, jobs)),
+    render(compute(table, jobs, days)),
+    tallySection(repo),
+    `${runs.length} runs, ${jobs.length} jobs, ${requests} API requests.\n`,
+  ].join("\n")
   console.log(markdown)
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown)
 }
 
 if (import.meta.main) {
   try {
-    main()
+    await main()
   } catch (error) {
     console.error(error)
     process.exitCode = 1

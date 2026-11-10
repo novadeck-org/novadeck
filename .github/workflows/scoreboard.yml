@@ -5,7 +5,9 @@ name: CI Scoreboard
 # rerun per workflow, the Mac hours a day, and the macOS queue's p90 beside Linux's and
 # Windows'. Nobody sees these otherwise: a flaky job or a Mac queue gets slower a push at a
 # time, and the plan to cut Mac use (architecture/ci-plan) needs a number to be judged by.
-# Pull request runs of Quality and E2E count, and Nightly Quality's runs where it exists.
+# Pull request runs of Quality and E2E count, and Nightly Quality's runs where it exists. Above
+# the tables is the merge queue's bar (architecture/ci-plan/merge-queue.md), of the last 14
+# days: the PR jobs' first-attempt failure rate, and the nights that were green first time.
 on:
   schedule:
     - cron: "7 6 * * 1"
@@ -22,9 +24,10 @@ jobs:
   scoreboard:
     name: Scoreboard
     runs-on: ubuntu-latest
-    # A week takes about 750 requests of the token's 1000 an hour, of which the script leaves
-    # 200 to other workflows, so it may wait out one hour for the budget to renew.
-    timeout-minutes: 90
+    # The bar looks back 14 days, about 1500 requests against the token's 1000 an hour, of
+    # which the script leaves 200 to other workflows: it waits out one hour for the budget to
+    # renew, and the rest takes a quarter of one.
+    timeout-minutes: 120
     permissions:
       contents: read
       # To list the runs and their jobs.

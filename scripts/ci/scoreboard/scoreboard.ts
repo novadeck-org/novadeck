@@ -7,7 +7,12 @@
 export type Run = {
   id: number
   name: string
+  event: string
+  conclusion: string | null
+  created_at: string
   run_attempt: number
+  /** How the run's first attempt ended, where the run has been rerun (the run's own conclusion is its last's). */
+  first_attempt_conclusion?: string | null
   actor: { login: string } | null
 }
 
@@ -66,7 +71,7 @@ export type Scoreboard = {
 const aggregates = new Set(["Plan", "E2E", "Test", "Package", "matrix.job"])
 const placeholder = /\$\{\{|matrix\./
 
-const dependabot = "dependabot[bot]"
+export const dependabot = "dependabot[bot]"
 
 export const osOf = (job: Pick<Job, "labels" | "name">): Os => {
   const text = `${job.labels.join(" ")} ${job.name}`.toLowerCase()
@@ -77,7 +82,7 @@ export const osOf = (job: Pick<Job, "labels" | "name">): Os => {
 }
 
 /** A job that counts: one that ran or was stopped, not a skipped row, a placeholder or a gate. */
-const counted = (job: Job): boolean =>
+export const counted = (job: Job): boolean =>
   job.conclusion !== null &&
   job.conclusion !== "skipped" &&
   !placeholder.test(job.name) &&
@@ -102,11 +107,25 @@ export const percentile = (values: readonly number[], p: number): number | null 
   return Math.round(value * 10) / 10
 }
 
-const group = <T>(items: readonly T[], key: (item: T) => string): Map<string, T[]> => {
+export const group = <T>(items: readonly T[], key: (item: T) => string): Map<string, T[]> => {
   const groups = new Map<string, T[]>()
   for (const item of items) groups.set(key(item), [...(groups.get(key(item)) ?? []), item])
   return groups
 }
+
+/**
+ * The jobs of one run that failed on an attempt and passed on a later one, the later job of
+ * each: the failures a rerun of the same commit cleared.
+ */
+export const recovered = (jobs: readonly Job[]): Job[] =>
+  [...group(jobs.filter(executed), (job) => job.name).values()].flatMap((attempts) => {
+    const history = attempts.toSorted((a, b) => a.run_attempt - b.run_attempt)
+    const last = history.at(-1)!
+    return last.conclusion === "success" &&
+      history.slice(0, -1).some((job) => job.conclusion === "failure")
+      ? [last]
+      : []
+  })
 
 const jobRows = (workflow: string, runs: { run: Run; jobs: Job[] }[]): JobRow[] => {
   const tally = new Map<string, JobRow>()
@@ -138,15 +157,7 @@ const jobRows = (workflow: string, runs: { run: Run; jobs: Job[] }[]): JobRow[] 
         if (first.conclusion === "success") successes.set(entry, (successes.get(entry) ?? 0) + 1)
       }
     }
-    for (const attempts of group(here.filter(executed), (job) => job.name).values()) {
-      const history = attempts.toSorted((a, b) => a.run_attempt - b.run_attempt)
-      const last = history.at(-1)!
-      if (
-        last.conclusion === "success" &&
-        history.slice(0, -1).some((job) => job.conclusion === "failure")
-      )
-        row(last).rerun += 1
-    }
+    for (const last of recovered(here)) row(last).rerun += 1
   }
   return [...tally.values()].map((entry) => ({
     ...entry,
@@ -239,7 +250,7 @@ export const render = (board: Scoreboard): string => {
     "",
     "### Each job's first attempt",
     "",
-    "Pass rate is of the first attempts that finished as a success or a failure; cancelled ones are counted beside it. Reruns is the runs in which the job failed and then passed on a later attempt.",
+    "Pass rate is of the first attempts that finished as a success or a failure; cancelled ones are counted beside it and are not in it. Reruns is the runs in which the job failed and then passed on a later attempt. Only jobs' own results count, never a run's conclusion: the Test and E2E gate jobs, which fail on purpose for a draft that skipped macOS, are left out.",
     "",
     table(
       ["Workflow", "Job", "OS", "Pass rate", "Finished", "Cancelled", "Reruns"],
@@ -253,6 +264,8 @@ export const render = (board: Scoreboard): string => {
         row.rerun,
       ]),
     ),
+    "",
+    "A job's series is keyed by its name, so it breaks when the job is renamed or replaced: on a pull request the macOS E2E rows are replaced by the one job `Core scenarios (macOS)`, and the full five run only on non-pull-request events.",
     "",
     "### The Macs",
     "",

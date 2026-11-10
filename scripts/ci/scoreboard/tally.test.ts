@@ -11,26 +11,26 @@ describe("the retry tally", () => {
   context("when the artifact holds a tally", () => {
     it("is parsed as it was written", () => {
       const tally = parseTally(recorded)
-      expect(tally.runs).toBe(14)
+      expect(tally.runs).toBe(3)
       expect(tally.budget).toEqual({ runs: 3, days: 7 })
-      expect(tally.tests.map((test) => test.retries)).toEqual([7, 4, 1])
-      expect(tally.tests[1]?.flake).toBe("render-scope-timeout")
-      expect(tally.tests[1]?.over).toBeNull()
+      expect(tally.tests.map((test) => test.retries)).toEqual([3, 2])
+      expect(tally.tests[0]?.flake).toBeNull()
+      expect(tally.tests[1]?.flake).toBe("ui-companions-plan-reopen-place")
     })
 
     it("is rendered with the most retried tests and those over budget", () => {
       const markdown = renderTally(parseTally(recorded))
-      expect(markdown).toContain("14 runs retried a test in the 7 days to 2026-11-10T06:00:00Z")
+      expect(markdown).toContain("3 runs retried a test in the 7 days to 2026-11-10T18:54:34.194Z")
       expect(markdown).toContain(
-        "| terminals/clipboard.spec.tsx > Clipboard > pastes after a copy | @novadeck/ui | 5 | 7 | none |",
+        "| src/reap.test.ts > reap on macOS > ends one found through its parent | @novadeck/sandbox | 3 | 3 | none |",
       )
       expect(markdown).toContain(
-        "| workspace/render-scope.test.ts > Render scope > keeps its scope | @novadeck/runner | 3 | 4 | render-scope-timeout |",
+        "| src/companions/companions.spec.tsx > Switching views > opens a plan's editor as it was left | @novadeck/specs | 1 | 2 | ui-companions-plan-reopen-place |",
       )
       expect(markdown).toContain(
-        "- terminals/clipboard.spec.tsx > Clipboard > pastes after a copy (@novadeck/ui): 5 runs in 7 days, over the budget of 3",
+        "- src/reap.test.ts > reap on macOS > ends one found through its parent (@novadeck/sandbox): retried in 3 runs in 7 days",
       )
-      expect(markdown.match(/over the budget/g)).toHaveLength(1)
+      expect(markdown).toContain("(@novadeck/specs): registered as fixed, and retried again")
     })
   })
 
@@ -53,7 +53,7 @@ describe("the retry tally", () => {
   context("when the artifact is not a tally", () => {
     it("names what is wrong", () => {
       expect(() => parseTally(null)).toThrow("the tally is not an object")
-      expect(() => parseTally({ ...(recorded as object), runs: "14" })).toThrow(
+      expect(() => parseTally({ ...(recorded as object), runs: "3" })).toThrow(
         "tally.runs is not a number",
       )
       const broken = structuredClone(recorded) as { tests: Record<string, unknown>[] }
