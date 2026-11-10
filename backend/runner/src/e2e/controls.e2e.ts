@@ -821,7 +821,7 @@ for (const setup of setups) {
             if (asked(call, "Tell fox hello")) return { calls: [{ name: agents, input: {} }] }
             const listing = result(call)
             if (calledLast(call) !== agents || listing === undefined) return undefined
-            if (/- @?fox: no agent Novadeck can deliver to: .*\/hooks/.test(listing))
+            if (/- @?fox(?: · [^:\n]+)?: no agent Novadeck can deliver to: .*\/hooks/.test(listing))
               return { calls: [{ name: send, input: { to: "fox", text: "Hello." } }] }
             looks += 1
             if (looks > 60) return { text: "Gave up." }

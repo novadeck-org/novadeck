@@ -46,8 +46,17 @@
    --chat-error-fg (the terminal's red, then danger-fg): what failed.
    --chat-added-fg (the terminal's green, then success-fg): what an edit added.
    --chat-line-color (line): the hairlines.
-   --chat-measure (92ch): the reading width. Every line the chat shows ends at the same column,
-   this far past the gutter and the mark's two cells, however wide the window.
+   --chat-measure (92ch): the reading width. The words of every row end at the same column,
+   this far past the gutter and the mark's two cells, however wide the window. The rows
+   themselves, and the hairlines, span the window to the right edge, up to 180ch of words
+   (past that the chat caps and centres); there a row's fact sits (`.chat-fact`, in the work's
+   size and dim, a step brighter while live as `data-live`; `data-hover` shows only while its row
+   is pointed at or holds focus; `data-keep` stays where the chat is narrower than ~920px, which
+   hides the others). The chat is a size container (`chat`) for that.
+
+   While the agent works its line is pinned to the log's bottom (`.chat-running`, holding
+   `.chat-status` and `.chat-status-end`: the turn's clock and `.chat-stop`, a `kbd` and its word).
+   The prompt's send is an icon button (`.chat-send`), in the accent.
    */
 
 .chat {
@@ -70,6 +79,8 @@
   /* The most a region that starts at the chat's left edge spans: its gutter, the mark's cells,
      the reading width, and the gutter after it. */
   --_column: calc(var(--_pad) + 2ch + var(--_measure) + var(--_pad));
+  /* Past this the chat stops growing and centres, so a fact stays in reach of its row. */
+  --_ceiling: calc(2 * var(--_pad) + 2ch + 180ch);
   --_mark-width: 6px;
   --_mark-height: 13px;
   --markdown-muted-fg: var(--_muted);
@@ -84,6 +95,7 @@
   color: var(--_ink);
   font: 13px / var(--_lh) var(--_font);
   font-variant-ligatures: none;
+  container: chat / inline-size;
 }
 .chat[data-compact] {
   --_pad: 14px;
@@ -141,17 +153,82 @@
   min-width: 0;
   margin-left: 2ch;
 }
-/* The column: whatever the chat shows ends where the transcript's lines do, so the width is kept
-   here alone. Each region starts at the chat's left edge and keeps its gutters inside, so a cap
-   from that edge, not a scrollbar's, holds them all to one column. A region under a hairline
-   (the prompt, the live rows) keeps it the window's width and caps what it holds, inside its
-   gutter. A new region joins here; `.chat` puts the cap over a row's own max-width, such as the
-   live rows' 100%, which the cap keeps for a narrower window. */
-.chat :is(.chat-thread, .chat-request, .chat-lost) {
-  max-width: min(100%, var(--_column));
+/* The column: rows span the window and the words of each end where `--chat-measure` says, so the
+   width is kept here alone. Past the ceiling every region caps and centres, its hairline with it.
+   A region under a hairline (the prompt, the live rows) keeps it the window's width, and what it
+   holds spans it. A new region joins here. */
+.chat :is(.chat-thread, .chat-request, .chat-lost, .chat-requests, .chat-composer, .chat-live) {
+  width: 100%;
+  max-width: var(--_ceiling);
+  margin-inline: auto;
 }
-.chat :is(.chat-live, .chat-composer) > * {
-  max-width: min(100%, var(--_column) - 2 * var(--_pad));
+.chat-thread
+  > :is(.chat-message, .chat-status):not(.chat-ring)
+  > :not(.chat-fact, .chat-mark, .chat-agent-face, .chat-spin),
+.chat-ring > .chat-message > :not(.chat-fact, .chat-agent-face) {
+  max-width: var(--_measure);
+}
+.chat-request > :not(.chat-request-head) {
+  max-width: calc(var(--_inset) + var(--_measure) + var(--_pad));
+}
+/* Lines of work keep the words' width too, so a long one never runs under its fact. */
+.chat-tool-summary,
+.chat-subagent-summary,
+.chat-tools-fold {
+  max-width: var(--_measure);
+}
+
+/* The fact at a row's right edge: its time, a clock, how long it took. */
+.chat-fact {
+  position: absolute;
+  top: 0;
+  right: 0;
+  color: var(--_muted);
+  font-size: var(--_work-size);
+  font-weight: 400;
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* A clock still running, a step brighter. Facts never take a status colour: a failure says so in
+   its own line. */
+.chat-fact[data-live] {
+  color: var(--_mid);
+}
+.chat-tool > .chat-fact,
+.chat-subagent > .chat-fact {
+  font-size: inherit;
+}
+.chat-tool,
+.chat-subagent {
+  position: relative;
+}
+/* A ring's time ends its dashed rule. */
+.chat-ring > .chat-note > .chat-fact {
+  position: static;
+  order: 2;
+}
+.chat-ring > .chat-note::after {
+  order: 1;
+}
+/* Any other row: its time while it is pointed at or holds focus. */
+.chat-fact[data-hover] {
+  opacity: 0;
+  transition: opacity var(--motion-feedback) var(--ease-interface);
+}
+:is(:hover, :focus-within) > .chat-fact[data-hover] {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-fact[data-hover] {
+    transition: none;
+  }
+}
+/* Too narrow for words and facts side by side: the rows' facts step aside, those with a line of
+   their own (the turn's clock, the dialog's wait) stay. */
+@container chat (max-width: 920px) {
+  .chat-fact:not([data-keep]) {
+    display: none;
+  }
 }
 /* What stands in the gutter, in the first line's height. */
 .chat-mark {
@@ -648,10 +725,45 @@
   color: color-mix(in srgb, var(--_red) 70%, var(--_ink));
 }
 
-/* The agent's state, on the last line. */
+/* The agent's state, on the last line. While the agent works it stays at the log's bottom, over a
+   short fade, as the person reads back: its clock and its stop are at the edge, where they can
+   be found. The log's own padding is under it, so it sits that far down. */
+.chat-running {
+  --_ground: var(--chat-bg, var(--window-bg, var(--color-paper)));
+}
+.chat-thread > .chat-running[data-working] {
+  position: sticky;
+  bottom: calc(var(--_lh) * -1 + 4px);
+  z-index: 1;
+  padding-block: 4px;
+  background: var(--_ground);
+  box-shadow: 0 -10px 10px -2px var(--_ground);
+}
 .chat-status {
   margin-block: 0;
   color: var(--_muted);
+}
+.chat-status-end {
+  position: absolute;
+  top: 4px;
+  right: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 2ch;
+  font-size: var(--_work-size);
+}
+.chat-status-end > .chat-fact {
+  position: static;
+}
+.chat-stop {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--_muted);
+}
+.chat-stop kbd {
+  font-size: 11px;
+  line-height: 15px;
 }
 /* The frames stand in a column, one line of which shows, and the column steps up a line every
    80ms, as a tab's spinner does: a transform, which the compositor runs alone. The spinner alone
@@ -683,7 +795,7 @@
 .chat-jump {
   position: absolute;
   /* Where the column ends, as everything else does. */
-  right: max(var(--_pad), 100% - var(--_column) + var(--_pad));
+  right: max(var(--_pad), (100% - var(--_ceiling)) / 2 + var(--_pad));
   bottom: 0;
   padding: 0 0 0 2ch;
   border: 0;
@@ -691,6 +803,10 @@
   color: var(--_muted);
   font: inherit;
   cursor: pointer;
+}
+/* Over the working line, which is pinned where it would stand. */
+.chat-jump[data-pinned] {
+  bottom: calc(var(--_lh) + 10px);
 }
 @media (hover: hover) {
   .chat-jump:hover {
@@ -735,6 +851,10 @@
   gap: 2ch;
   padding: 0 var(--_pad) 0 var(--_inset);
   color: var(--_muted);
+}
+.chat-request-head > .chat-fact {
+  position: static;
+  margin-left: auto;
 }
 .chat-request-head h3 {
   margin: 0;
@@ -1354,7 +1474,13 @@
 }
 .chat-composer-actions {
   display: flex;
+  align-items: center;
   gap: 2ch;
-  margin-left: 2ch;
+  margin: -2px 0 -2px 2ch;
   color: var(--_muted);
+}
+/* The enter icon: dim without words to send, in the accent once there are. */
+.chat-send {
+  --icon-button-fg: var(--_accent);
+  --icon-button-hover-fg: var(--_accent);
 }

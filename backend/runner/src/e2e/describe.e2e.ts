@@ -61,8 +61,9 @@ for (const setup of setups) {
       const t2 = await start(run, setup)
       await t2.submit("List the team")
       await t2.until("Listed.")
-      expect(listed).toContain(`title: ${title} (set by its own agent, not the user)`)
-      expect(listed).toContain(`described by its agent: ${summary}`)
+      const handle = t1.summary().handle
+      expect(listed).toMatch(new RegExp(`^- @${handle} · ${title}: `, "m"))
+      expect(listed).toContain(`  "${summary}"`)
     })
   })
 }

@@ -35,6 +35,7 @@ const approval = (
     subagent,
     dialog: null,
     answered: false,
+    askedAt: 0,
   },
 })
 

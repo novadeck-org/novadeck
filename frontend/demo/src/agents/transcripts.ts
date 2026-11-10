@@ -327,6 +327,7 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
         ],
         subagent: false,
         answered: false,
+        askedAt: Date.now(),
         dialog: {
           type: "choices",
           id: "01:d",
@@ -524,6 +525,7 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
         ],
         subagent: false,
         answered: false,
+        askedAt: Date.now(),
         dialog: {
           type: "choices",
           id: "04:d",
@@ -734,6 +736,7 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
         choices: [],
         subagent: false,
         answered: false,
+        askedAt: Date.now(),
         dialog: {
           type: "questions",
           id: "05:d",
@@ -778,6 +781,7 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
         choices: [],
         subagent: false,
         answered: false,
+        askedAt: Date.now(),
         dialog: {
           type: "form",
           id: "05:f",
@@ -826,6 +830,7 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
         choices: [],
         subagent: false,
         answered: false,
+        askedAt: Date.now(),
         dialog: {
           type: "raw",
           reason: "unrecognized",
@@ -1052,6 +1057,7 @@ export const showcaseTranscripts = (now: number): Readonly<Record<string, DemoTr
         choices: ["Yes, implement this plan", "No, stay in Plan mode"],
         subagent: false,
         answered: false,
+        askedAt: Date.now(),
         dialog: {
           type: "choices",
           id: "01:d",
@@ -1124,6 +1130,7 @@ export const showcaseTranscripts = (now: number): Readonly<Record<string, DemoTr
         ],
         subagent: false,
         answered: false,
+        askedAt: Date.now(),
         dialog: {
           type: "choices",
           id: "03:d",

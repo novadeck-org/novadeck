@@ -368,14 +368,14 @@ export const WorkspaceTerminal = memo(
       ) : (
         content
       )
-    // The terminal's content, with what its agent runs on floating over its top right while
-    // the terminal shows, not its chat, and voice input's strip along an edge while it
+    // The terminal's content, with what its agent runs on floating over its top right, over the
+    // chat as over the screen, and voice input's strip along an edge while it
     // dictates into the terminal. The host is there whatever runs, so the content never
     // remounts as an agent starts.
     const hosted = (content: ReactNode): ReactNode => (
       <div className="terminal-host relative flex min-h-0 min-w-0 flex-1 flex-col">
         {content}
-        {!showChat && terminal.state === "running" && (
+        {terminal.state === "running" && (
           <TerminalStats context={chatContext} terminalId={terminalId} />
         )}
         {dictation && (

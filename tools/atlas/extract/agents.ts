@@ -16,6 +16,7 @@ const companionFile = "backend/runner/src/terminals/companion.ts"
 const callsFile = "backend/runner/src/terminals/calls.ts"
 const leadsFile = "backend/runner/src/terminals/leads.ts"
 const feedbackFile = "backend/runner/src/messaging/feedback.ts"
+const peersFile = "backend/runner/src/terminals/peers-host.ts"
 const contractFile = "harnesses/core/src/harness.ts"
 // The protocol's limits the tool literals name, by the file that exports each.
 const limitFiles: Record<string, string> = {
@@ -39,6 +40,7 @@ const handlers: Record<string, { readonly file: string; readonly method: string 
   release: { file: leadsFile, method: "release" },
   send: { file: managerFile, method: "send" },
   agents: { file: managerFile, method: "agents" },
+  team: { file: peersFile, method: "team" },
   describe: { file: callsFile, method: "describe" },
   // The Inbox's tools, which the calls' dispatch hands to the Inbox.
   ask: { file: callsFile, method: "call" },

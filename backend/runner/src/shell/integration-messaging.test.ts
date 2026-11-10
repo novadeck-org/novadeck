@@ -103,8 +103,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         .poll(() => manager.messages(claude.id).threads[0]?.messages.map(({ state }) => state))
         .toEqual(["delivered", "delivered"])
       // The agent asked to list sees its peer as Novadeck knows it: busy, the title the
-      // person gave it, where it works, what it was asked and what it wrote; and nothing of
-      // its own still waiting.
+      // person gave it, and the repository and branch it works in; and nothing of its own
+      // still waiting.
       manager.rename({ terminalId: claude.id, title: "API author" })
       await step(claude.id, {
         hook: "PostToolUse",
@@ -114,16 +114,16 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         .poll(async () => JSON.parse(await step(codex.id, { call: "agents", request: {} })))
         .toEqual({
           ok: true,
-          text: [
-            "You are @fox in Novadeck.",
-            "Other terminals in this project and session:",
-            "- @moth: Claude Code, busy, last active just now",
-            "  title: API author",
-            "  folder: ., branch main",
-            "  started with: ask codex",
-            "  works in: src/ (1)",
-            "  with you: you, just now: Looks good & ships.",
-          ].join("\n"),
+          text: expect.stringMatching(
+            new RegExp(
+              [
+                "^You are @fox in Novadeck\\.",
+                "Other terminals in this project and session:",
+                "- @moth · API author: Claude Code, busy for under a minute, peer",
+                "  \\S+ main(?:, [^\\n]+)?$",
+              ].join("\\n"),
+            ),
+          ),
         })
       // Nothing more waits: the next Stop ends Claude's turn.
       await expect(step(claude.id, { hook: "Stop", payload: {} })).resolves.toBe("")

@@ -324,6 +324,7 @@ export const createDemoChat = (
           ...seeded,
           id,
           answered: false,
+          askedAt: Date.now(),
           dialog: { ...seeded.dialog, id: `${id}:d` },
         })
         continue

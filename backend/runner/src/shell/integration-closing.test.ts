@@ -101,8 +101,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const unknown = await call(claude.id, "close", { to: "codex" })
       expect(unknown.ok).toBe(false)
       expect(unknown.reason).toMatch(/^"codex" is no terminal's handle here\./)
-      expect(unknown.reason).toContain("- @fox: Codex")
-      expect(unknown.reason).toContain("- @owl: Claude Code")
+      expect(unknown.reason).toMatch(/^- @fox · Terminal: Codex, /m)
+      expect(unknown.reason).toMatch(/^- @owl · Terminal: Claude Code, /m)
       // Nor with anything more than the tool takes, which the runner refuses all the same,
       // though the tool passes on only what it takes.
       await expect(

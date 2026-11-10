@@ -205,6 +205,8 @@ export type ChatRequest = {
   readonly dialog: ChatDialog | null
   // Whether it was answered from the chat and the agent has yet to report it settled.
   readonly answered: boolean
+  // When the agent asked, epoch milliseconds on the runner's clock, from its own event.
+  readonly askedAt: number
   // Whether it asks without waiting, as Codex's async questions: the agent works on and
   // takes prompts, and the request may outlast its turn.
   readonly detached?: true

@@ -558,7 +558,7 @@ for (const setup of setups) {
       expect(shown).not.toContain("[Novadeck")
     })
 
-    it("lists a peer's done to other agents until its next prompt, then as its latest update", async ({
+    it("shows its done as reported until the person's next prompt gives it more to do", async ({
       e2e: run,
     }) => {
       // A tool is named as any terminal's request offers it: one may go out before its
@@ -568,7 +568,6 @@ for (const setup of setups) {
         if (!found) throw new Error(`Novadeck's ${name} tool is missing`)
         return found
       }
-      const listings: string[] = []
       run.model.use(
         own((call) => {
           if (asked(call, "Finish up"))
@@ -582,30 +581,27 @@ for (const setup of setups) {
             }
           if (/Report [a-f0-9-]+ is in the user's Inbox/.test(result(call) ?? ""))
             return { text: "Reported it done." }
-          if (asked(call, "Look around") || asked(call, "Look again"))
-            return { calls: [{ name: named(call, "agents"), input: {} }] }
-          const listing = result(call)
-          if (listing?.includes("Other terminals in this project and session")) {
-            listings.push(listing)
-            return { text: `Looked ${listings.length}.` }
-          }
           return undefined
         }),
         replies("Next task", "On the next task."),
       )
       const t1 = await start(run, setup)
-      const t2 = await start(run, setup)
 
-      await turn(t2, "Finish up", "Reported it done.")
-      await turn(t1, "Look around", "Looked 1.")
-      expect(listings[0]).toMatch(/\n {2}reported done [^:\n]+: Fixed the login bug\n?/)
-      expect(listings[0]).not.toContain("latest update")
+      await turn(t1, "Finish up", "Reported it done.")
+      const reported = await t1.poll(
+        () => t1.summary().reported ?? undefined,
+        "its done to stand",
+        30_000,
+      )
+      expect(reported.subject).toBe("Fixed the login bug")
 
-      // The person's next prompt gave it more to do: the done is only its latest update now.
-      await turn(t2, "Next task", "On the next task.")
-      await turn(t1, "Look again", "Looked 2.")
-      expect(listings[1]).toMatch(/\n {2}latest update [^:\n]+: Fixed the login bug\n?/)
-      expect(listings[1]).not.toContain("reported done")
+      // The person's next prompt gave it more to do: the done no longer stands.
+      await turn(t1, "Next task", "On the next task.")
+      await t1.poll(
+        () => (t1.summary().reported ? undefined : true),
+        "its done to stop standing",
+        30_000,
+      )
     })
 
     it("shows an action ask and receives its confirmation as a message", async ({ e2e: run }) => {

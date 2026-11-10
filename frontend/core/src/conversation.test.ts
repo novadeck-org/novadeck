@@ -55,6 +55,7 @@ describe("the questions a Send or Stop sets aside", () => {
     subagent: false,
     dialog: { type: "questions", id: "d1", chat: "prompt", questions: [] },
     answered: false,
+    askedAt: 0,
     ...change,
   })
 
@@ -93,6 +94,7 @@ describe("questionsToSetAside", () => {
           subagent: false,
           dialog: { type: "questions", id: `d${index}`, chat: "prompt", questions: [] },
           answered: false,
+          askedAt: 0,
         }) satisfies ChatRequest,
     )
     const named = questionsToSetAside([

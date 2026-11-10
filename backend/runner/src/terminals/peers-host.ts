@@ -1,6 +1,4 @@
-import { realpath } from "node:fs/promises"
-import { homedir } from "node:os"
-import { basename, isAbsolute, join, relative } from "node:path"
+import { basename, isAbsolute, relative } from "node:path"
 
 import type { CompanionItem, TerminalMessages } from "@novadeck/protocol"
 
@@ -9,15 +7,22 @@ import { secrets } from "../companions/secrets.js"
 import { DomainError } from "../errors.js"
 import type { Activity } from "../harnesses/activity.js"
 import type { Messaging } from "../messaging/messaging.js"
-import { waitsOnNote, type Reports, type Waiting, type Whereabouts } from "../messaging/peers.js"
+import {
+  waitsOnNote,
+  type Git,
+  type Happening,
+  type Waiting,
+  type Whereabouts,
+} from "../messaging/peers.js"
 import type { AgentsAnswer, PeerAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.js"
 import { unansweredCalls, type Ack, type Call } from "../shell/reports.js"
 import { shorten } from "../text.js"
-import { tail } from "../text.js"
 import type { HintFacts } from "../voice/hint.js"
 import { gitBranch, gitCheckout } from "./branch.js"
+import { GitStates } from "./git-state.js"
 import type { Facts } from "./nudges.js"
 import type { Bound, Record } from "./record.js"
+import { shownCommand } from "./shown-command.js"
 import type { AgentSummary } from "./summary.js"
 import type { Naming } from "./titles.js"
 import { busiestFolders, currentCheckout, type Work } from "./work.js"
@@ -70,8 +75,8 @@ export type PeersOptions = {
   readonly running: (sessionId: string) => readonly PeerRecord[]
   /** The folder of the project a session belongs to, when one is known. */
   readonly projectFolder: (sessionId: string) => string | undefined
-  /** The latest reports of the agent session bound in a terminal. */
-  readonly reports: (terminalId: string) => Reports
+  /** What the agent session bound in a terminal told the person, and how its turns ended. */
+  readonly happenings: (terminalId: string) => readonly Happening[]
   /** Whether the runner is stopping. */
   readonly stopping: () => boolean
 }
@@ -97,28 +102,12 @@ export const waitingOf = (activity: Pick<Activity, "pending"> | null): Waiting |
     : null
 }
 
-/** A folder with its links resolved, or as it is where that fails. */
-const real = (folder: string): Promise<string> => realpath(folder).catch(() => folder)
-
-/**
- * A path inside the person's home folder from `~`, which names no account; others as they
- * are. Native, as a folder inside the project is here (`~\\.claude\\x` on Windows); the
- * listing writes every path with `/` (see `peerOf`).
- */
-const homeShort = (path: string): string => {
-  const home = homedir()
-  const inside = relative(home, path)
-  return home && inside && !inside.startsWith("..") && !isAbsolute(inside)
-    ? join("~", inside)
-    : path
-}
-
 /** How long a folder's git branch, or its checkout, is trusted once read, in milliseconds. */
 const branchMs = 5_000
 
 /**
  * What the terminal manager answers agents messaging each other, and the runner API about
- * their messages: it reads where each terminal is (its folder, git branch and plan) only
+ * their messages: it reads where each terminal is (its git checkout, branch and state) only
  * when an answer describes the terminals, and passes the rest to messaging.
  */
 export class TerminalPeers {
@@ -132,8 +121,15 @@ export class TerminalPeers {
     string,
     { readonly top: string | null; readonly at: number }
   >()
+  /** Each checkout's commits ahead and uncommitted changes, read by `git status` now and then. */
+  private readonly states: GitStates
 
-  constructor(private readonly options: PeersOptions) {}
+  constructor(
+    private readonly options: PeersOptions,
+    states?: GitStates,
+  ) {
+    this.states = states ?? new GitStates()
+  }
 
   /**
    * Sends another terminal's agent a message, as an agent asked through Novadeck's MCP
@@ -159,7 +155,18 @@ export class TerminalPeers {
     const caller = this.options.caller(call.terminalId, call.token)
     if (!caller) return unansweredCalls.agents
     const about = await this.whereabouts(caller.summary.sessionId)
-    return this.options.messaging.agents(call.terminalId, (id) => about.get(id), call.request)
+    return this.options.messaging.agents(call.terminalId, (id) => about.get(id))
+  }
+
+  /**
+   * The caller's team in its project and session, each member described as `agents`
+   * describes it, with what happened since the caller last asked.
+   */
+  async team(call: Call): Promise<AgentsAnswer> {
+    const caller = this.options.caller(call.terminalId, call.token)
+    if (!caller) return unansweredCalls.team
+    const about = await this.whereabouts(caller.summary.sessionId)
+    return this.options.messaging.team(call.terminalId, (id) => about.get(id), call.request)
   }
 
   /**
@@ -210,58 +217,49 @@ export class TerminalPeers {
 
   /**
    * What Novadeck knows of each running terminal in a session beyond its agent's hooks:
-   * its title and who gave it; its folder, relative to the project when inside it; its
-   * git branch; its agent's current plan's title; what its root session worked on; its
-   * agent's latest reports; and how to shorten the paths it wrote in.
+   * its title and its agent's summary; the git checkout its agent works in now, with its
+   * branch, commits ahead and uncommitted changes; when its agent's turn last started or
+   * ended; what it waits on; what its agent session told the person; and what its shell runs.
    */
   private async whereabouts(sessionId: string): Promise<Map<string, Whereabouts>> {
-    const project = this.options.projectFolder(sessionId)
-    // The project as its links resolve too, as a checkout another folder is in is named.
-    const realProject = project === undefined ? undefined : await real(project)
     const entries = await Promise.all(
       this.options
         .running(sessionId)
         .map(peerOf)
         .map(async (terminal) => {
-          const { cwd } = terminal.summary
-          const realCwd = await real(cwd)
+          const { cwd, activity } = terminal.summary
           // Where its agent works now, when that is another checkout than its terminal's.
           const now = terminal.activity ? await this.current(terminal.work, cwd) : null
-          const [branch, plan] = await Promise.all([this.branch(now ?? cwd), this.plan(terminal)])
-          const place = (path: string): string => {
-            for (const base of [project, realProject, cwd, realCwd]) {
-              if (base === undefined) continue
-              const inside = relative(base, path)
-              if (!inside) return "."
-              if (!inside.startsWith("..") && !isAbsolute(inside)) return inside
-            }
-            return homeShort(path)
-          }
           const where: Whereabouts = {
             title: terminal.summary.title,
-            titleSource: terminal.summary.titleSource,
             summary: terminal.naming.summary,
-            folder: place(now ?? cwd),
-            startedIn: now === null ? null : place(cwd),
-            branch,
-            plan,
-            work: terminal.work,
-            openedBy: terminal.openedBy,
-            working:
-              terminal.summary.activity?.state === "working" ||
-              terminal.summary.shellCommand != null,
+            git: await this.git(now ?? cwd),
+            working: activity?.state === "working" || terminal.summary.shellCommand != null,
+            since: activity?.lastTurn?.at ?? terminal.activity?.turnAt ?? null,
             waiting: waitingOf(terminal.activity),
-            waitsOn: terminal.summary.activity?.waiting
-              ? waitsOnNote(terminal.summary.activity.waiting, Date.now())
-              : null,
+            waitsOn: activity?.waiting ? waitsOnNote(activity.waiting, Date.now()) : null,
             startup: terminal.summary.startup?.screen ?? null,
-            reports: this.options.reports(terminal.summary.id),
-            place: (path) => tail(place(path), 80),
+            happenings: this.options.happenings(terminal.summary.id),
+            shell: {
+              running: terminal.summary.busy,
+              command: terminal.summary.busy ? shownCommand(terminal.summary.process?.argv) : null,
+            },
           }
           return [terminal.summary.id, where] as const
         }),
     )
     return new Map(entries)
+  }
+
+  /**
+   * The git checkout a folder is in, as listings name it: its top folder's name, its
+   * branch, and its state as last read (see `GitStates`); null outside a checkout.
+   */
+  private async git(folder: string): Promise<Git | null> {
+    const top = await this.checkout(folder)
+    if (top === null) return null
+    const [branch, state] = await Promise.all([this.branch(folder), this.states.of(top)])
+    return { repo: basename(top), branch, state }
   }
 
   /**

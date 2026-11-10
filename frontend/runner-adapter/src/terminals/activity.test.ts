@@ -182,6 +182,28 @@ describe("terminal activity", () => {
       })
     })
 
+    it("carries the background shells it left running and how the last ones ended", () => {
+      const shells = [
+        { id: "a", command: "sleep 600", since: 1000, exit: null },
+        { id: "b", command: "exit 3", since: 1100, exit: { at: 2000, code: 3 } },
+      ]
+      const base = {
+        state: "idle" as const,
+        attention: { pending: 0, kind: null },
+        subagents: [],
+        planning: false,
+        background: null,
+        waiting: null,
+        lastTurn: null,
+      }
+      expect(claude({ ...base, shells }).status).toEqual({
+        state: "running",
+        agent: { working: false, shells },
+      })
+      // None to carry where the runner reports none.
+      expect(claude(base).status).toEqual({ state: "running", agent: { working: false } })
+    })
+
     it("carries whether it plans", () => {
       expect(
         claude({

@@ -304,6 +304,7 @@ export const chirpTranscripts = (now: number): Readonly<Record<string, DemoTrans
             choices: [],
             subagent: false,
             answered: false,
+            askedAt: Date.now(),
             dialog: {
               type: "choices",
               id: `${id}:d`,

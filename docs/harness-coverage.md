@@ -429,6 +429,27 @@ records name their turn. Antigravity's continuation's model calls after the cont
 Stop are that continuation's own, so an idle status line after them ends it. Claude
 Code's record says nothing of the background, so its running subagents count.
 
+## Background shells
+
+`activity.shells` lists the shells the root agent started that outlive the call that started
+them (a command run in the background, a dev server included, which `waiting.jobs` leaves
+out), the same for every harness: the id its harness names it by, its command, when it
+started, and `exit` (null while it runs; else when it ended and its exit code, null where the
+harness gives none, as for a shell the agent or the person stopped). It stays through turns
+until the harness says the shell ended, then among the last four that did. It is kept in the
+runner's memory only. It carries no output: Codex writes a running shell's output nowhere
+Novadeck can read (probed 2026-11-10, 0.167.0: its rollout, hooks and app-server schema hold
+only the first chunk, and the `/ps` screen the rest), so no harness has an output line.
+
+| Harness     | Start                                                                                                                                              | End                                                                                                                                                                                                                    |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude Code | `PostToolUse` of a Bash with `run_in_background`: `backgroundTaskId`, the call's `command` (a Monitor is no shell, nor is a subagent's call)       | The `<task-notification>` (its transcript's queued record, or the prompt that starts a turn): `status` and `(exit code N)`; `TaskStop`'s `PostToolUse` (no code); `Stop`'s `background_tasks` leaving it out (no code) |
+| Codex       | Rollout: an `exec_command` call, and its output saying `Process running with session ID N`, at the call's time                                     | The `CommandExecution` item of that `process_id`: `exit_code`, which is -1 for `/stop` (no code)                                                                                                                       |
+| Antigravity | Transcript: the `RUNNING` step `Tool is running as a background task with task id: <conversation>/task-N`, its `Task Description` and `created_at` | The system message `Task id "…" finished with result:` and `Command exited with code N.`, or `was canceled` (no code)                                                                                                  |
+
+Only shells started since the runner began following the session count: those of an
+earlier run of a resumed session died with it.
+
 ## A finished turn and its last reply
 
 The done signal (see [the reference](reference.md)) needs to tell how a turn ended and what the agent said

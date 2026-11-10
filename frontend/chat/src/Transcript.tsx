@@ -1,4 +1,4 @@
-import { sameBlock, type ChatBlock } from "@novadeck/core/conversation/turns"
+import { sameBlock, turnsWorked, type ChatBlock } from "@novadeck/core/conversation/turns"
 import type { MessageParty } from "@novadeck/core/messages"
 import { counted } from "@novadeck/core/units"
 import { Markdown } from "@novadeck/toolkit/Markdown"
@@ -6,6 +6,8 @@ import { memo, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { withBubbles, type SentBubble } from "./bubbles"
 import type { Echo } from "./echoes"
+import { Fact, Since, TimeFact } from "./Fact"
+import { longMs, span } from "./facts"
 import { Mark } from "./Mark"
 import { shownControls } from "./shown-controls"
 import { Slice } from "./Slice"
@@ -66,9 +68,12 @@ const PeerMessage = ({
   text,
   truncated,
   looks,
+  at,
 }: {
   // As the harness names it: "@handle" for a Novadeck agent.
   readonly from: string
+  // When it was said, where the record says.
+  readonly at: number | null
   readonly text: string
   readonly truncated: boolean
   readonly looks: PeerLooks | undefined
@@ -106,6 +111,7 @@ const PeerMessage = ({
         <span className="chat-author">{from}</span>
         {look?.where && <span className="chat-agent-where">{look.where}</span>}
       </p>
+      <TimeFact at={at} hover />
       <div
         ref={words}
         id={id}
@@ -162,6 +168,11 @@ const SubagentLine = ({
     block.text !== null ? oneLine(block.text) : stopped ? "stopped with its session" : "running…"
   const subagent = block.name !== parentAgent
   // Named by who and how it stands, not by the whole report its line holds.
+  // A clock while it runs, how long it took once it's done and that was long.
+  const took =
+    block.at !== null && block.doneAt !== null && block.doneAt - block.at >= longMs
+      ? block.doneAt - block.at
+      : null
   const label = [
     shownControls(block.name),
     ...(subagent ? ["subagent"] : []),
@@ -197,6 +208,15 @@ const SubagentLine = ({
           </span>
         )}
       </button>
+      {running && block.at !== null ? (
+        <Fact live>
+          <Since since={block.at} />
+        </Fact>
+      ) : took !== null ? (
+        <Fact>{span(took)}</Fact>
+      ) : (
+        <TimeFact at={block.at} hover />
+      )}
       {open && (
         <div id={body} className="chat-tool-body">
           {block.text === null ? (
@@ -222,8 +242,10 @@ const RecordLine = ({
   said,
   body,
   truncated,
+  at = null,
 }: {
   readonly kind: "compaction" | "gap"
+  readonly at?: number | null
   readonly words: string
   readonly what?: string
   readonly said: string | null
@@ -277,6 +299,7 @@ const RecordLine = ({
               </section>
             </div>
           )}
+          <TimeFact at={at} hover />
         </li>
       </ul>
     </div>
@@ -294,7 +317,9 @@ const BlockView = memo(
     live,
     looks,
     gone,
+    worked,
   }: {
+    readonly worked: number | null
     readonly block: ChatBlock
     // The agent's name, for what it said.
     readonly agent: string
@@ -311,6 +336,7 @@ const BlockView = memo(
             <Mark />
             <p className="chat-text">{block.text}</p>
             {block.truncated && <Shortened />}
+            <TimeFact at={block.at} />
           </article>
         )
       case "assistant":
@@ -318,6 +344,11 @@ const BlockView = memo(
           <article className="chat-message" data-role="assistant" aria-label={agent}>
             <Markdown text={block.text} />
             {block.truncated && <Shortened />}
+            {worked !== null ? (
+              <Fact>worked {span(worked)}</Fact>
+            ) : (
+              <TimeFact at={block.at} hover />
+            )}
           </article>
         )
       case "agent":
@@ -327,6 +358,7 @@ const BlockView = memo(
             text={block.text}
             truncated={block.truncated}
             looks={looks}
+            at={block.at}
           />
         )
       case "note":
@@ -341,7 +373,10 @@ const BlockView = memo(
           >
             {/* The block hollow: a prompt, and not the person's. */}
             <Mark hollow />
-            <p className="chat-note">{brought ? `doorbell · ${brought}` : "doorbell"}</p>
+            <p className="chat-note">
+              {brought ? `doorbell · ${brought}` : "doorbell"}
+              <TimeFact at={block.at} />
+            </p>
             {fromAgents(block).map((message) => (
               <PeerMessage
                 key={message.id}
@@ -349,6 +384,7 @@ const BlockView = memo(
                 text={message.text}
                 truncated={false}
                 looks={looks}
+                at={null}
               />
             ))}
             {fromPerson(block).map((message) => (
@@ -375,6 +411,7 @@ const BlockView = memo(
             what="the conversation"
             // Codex keeps its summary sealed: there is none to open, so none is said to be kept.
             said="summary kept"
+            at={block.at}
             body={block.summary}
             truncated={block.truncated}
           />
@@ -400,6 +437,7 @@ const BlockView = memo(
   (before, after) =>
     before.agent === after.agent &&
     before.live === after.live &&
+    before.worked === after.worked &&
     (before.gone === after.gone || after.block.kind !== "subagent") &&
     (before.looks === after.looks || !drawsPeers(after.block)) &&
     sameBlock(before.block, after.block),
@@ -494,6 +532,10 @@ const SentView = memo(
   },
 )
 
+// A turn's length is a fact only once it was long enough to matter.
+const longWork = (ms: number | undefined): number | null =>
+  ms !== undefined && ms >= longMs ? ms : null
+
 const noBubbles: readonly SentBubble[] = []
 const noEchoes: readonly Echo[] = []
 
@@ -532,6 +574,7 @@ export const Transcript = ({
   readonly looks?: PeerLooks | undefined
 }): React.JSX.Element => {
   const last = blocks.at(-1)
+  const worked = useMemo(() => turnsWorked(blocks, working), [blocks, working])
   const actions = useMemo(
     () => ({ onResend, onEdit, onShowTerminal }),
     [onResend, onEdit, onShowTerminal],
@@ -549,6 +592,7 @@ export const Transcript = ({
             live={working && each.block === last}
             looks={looks}
             gone={gone}
+            worked={longWork(worked.get(each.block.id))}
           />
         ) : (
           <SentView

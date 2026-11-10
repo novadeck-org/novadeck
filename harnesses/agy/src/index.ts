@@ -30,6 +30,7 @@ import {
 } from "./plugin.js"
 import { statusLineLimit, statusLineSettings } from "./settings.js"
 import { conversational, shapes } from "./shapes.js"
+import { followShells } from "./shells.js"
 import { makeCmdShim } from "./shim.js"
 import { shown, startupScreen } from "./status-line.js"
 import { transcripts, typedEntry } from "./transcripts.js"
@@ -215,7 +216,10 @@ export const agy = {
     context: "partial",
   },
   decode: (report) => withLaunch(decode(report), report, launch.kept),
-  watch: followHolds,
+  // The holds that run out, and the background shells its transcript tells of.
+  watch: async (run, signal, emit) => {
+    await Promise.all([followHolds(run, signal, emit), followShells(run, signal, emit)])
+  },
   dialogs,
   commandFields: ["CommandLine"],
   shown,

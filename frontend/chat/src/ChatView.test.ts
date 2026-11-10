@@ -170,6 +170,7 @@ const asking: Conversation = {
       choices: [],
       subagent: false,
       answered: false,
+      askedAt: 0,
       dialog: {
         type: "choices",
         id: "d1",
@@ -235,6 +236,13 @@ const userItem = (text: string): ChatItem => ({
 
 const box = (container: HTMLElement): HTMLTextAreaElement =>
   container.querySelector<HTMLTextAreaElement>(".chat-input")!
+
+// What a line says, without the fact at its edge.
+const wordsOf = (line: Element): string =>
+  [...line.childNodes]
+    .filter((node) => node.nodeType === Node.TEXT_NODE)
+    .map((node) => node.textContent)
+    .join("")
 
 describe("a chat whose answer's words didn't reach the agent", () => {
   it("hands the words back and says so, though the card went before the failure came", async () => {
@@ -512,7 +520,7 @@ describe("a chat sending a message", () => {
       doorbell: { ...noDoorbell, delivered: [message] },
     })
     const { container } = inApp(conversation)
-    expect([...container.querySelectorAll(".chat-note")].map((note) => note.textContent)).toEqual([
+    expect([...container.querySelectorAll(".chat-note")].map((note) => wordsOf(note))).toEqual([
       "doorbell · 1 message",
       "doorbell",
       "doorbell · your reply",
@@ -556,7 +564,7 @@ describe("a chat sending a message", () => {
     })
     const { container } = inApp(conversation)
     const bell = container.querySelector('[data-role="doorbell"]')!
-    expect(bell.querySelector(".chat-note")?.textContent).toBe("doorbell · your reply")
+    expect(wordsOf(bell.querySelector(".chat-note")!)).toBe("doorbell · your reply")
     expect(bell.querySelector('[data-role="agent"]')).toBeNull()
     const reply = bell.querySelector('[data-role="user"]')!
     expect(reply.querySelector(".chat-mark:not([data-hollow])")).not.toBeNull()
@@ -702,6 +710,7 @@ const questioning: Conversation = {
       choices: [],
       subagent: false,
       answered: false,
+      askedAt: 0,
       dialog: {
         type: "questions",
         id: "q1",

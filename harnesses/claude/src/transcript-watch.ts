@@ -5,7 +5,7 @@ import { followLines } from "@novadeck/harness-core/follow"
 import type { Harness, Run, WrittenPlan } from "@novadeck/harness-core/harness"
 import { at } from "@novadeck/harness-core/items"
 
-import { presentedPlan } from "./decode.js"
+import { presentedPlan, shellsEnded } from "./decode.js"
 import { interruptions, mentionsInterruption } from "./interruption.js"
 import { transcripts } from "./transcripts.js"
 
@@ -62,7 +62,9 @@ export const transcriptEvents = (
   const stopped = line.includes('"stop_hook_summary"')
   const called = line.includes('"tool_use"')
   const result = calls.size > 0 && line.includes('"tool_result"')
-  if (!interrupting && !stopped && !called && !result && !line.includes('"usage"')) return []
+  const queued = line.includes('"queue-operation"') && line.includes("<task-notification>")
+  if (!interrupting && !stopped && !called && !result && !queued && !line.includes('"usage"'))
+    return []
   const fields = parseFields(line)
   if (!fields) return []
   const { type, subtype, isSidechain, timestamp, message } = fields
@@ -70,6 +72,11 @@ export const transcriptEvents = (
   const startedAt = Date.parse(timestamp)
   if (!Number.isFinite(startedAt)) return []
   const base: EventBase<"claude"> = { agent: "claude", sessionId, instance, startedAt }
+  // A background task's notice is queued the moment it ends, though the turn it starts
+  // may be later: a shell that ended mid-turn, whose prompt hook comes only after (probed
+  // 2026-11-10, 2.1.316).
+  if (type === "queue-operation" && fields.operation === "enqueue")
+    return typeof fields.content === "string" ? shellsEnded(base, fields.content) : []
   if (type === "system" && subtype === "stop_hook_summary")
     return [{ type: "turn-ended", ...base, outcome: "completed", recorded: true }]
   const { content, usage } = (message ?? {}) as { content?: unknown; usage?: unknown }
