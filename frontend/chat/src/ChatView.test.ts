@@ -329,6 +329,47 @@ describe("a chat over a harness's own menu", () => {
     expect(container.querySelector(".chat-echo")?.textContent).toBe("/status")
   })
 
+  it("keeps a command's echo where it ran, above the prompts that came after it", () => {
+    const { field, down, container, conversation } = open()
+    set(field, "/permissions")
+    down("Enter")
+    act(() =>
+      conversation.update((current) => ({
+        ...current,
+        items: [{ ...userItem("And now this"), id: "s:1", at: Date.now() + 1000 }],
+      })),
+    )
+    const echo = container.querySelector(".chat-echo")!
+    const later = container.querySelector('.chat-message[data-role="user"]')!
+    expect(later.textContent).toContain("And now this")
+    expect(echo.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it("keeps an echo with the earlier messages while only the latest show", () => {
+    const { field, down, container, conversation } = open()
+    set(field, "/permissions")
+    down("Enter")
+    const after = Date.now() + 1000
+    act(() =>
+      conversation.update((current) => ({
+        ...current,
+        items: Array.from({ length: 80 }, (_, at) => ({
+          ...userItem(`Message ${at}`),
+          id: `s:${at}`,
+          at: after + at,
+          role: at % 2 === 0 ? ("user" as const) : ("assistant" as const),
+        })),
+      })),
+    )
+    expect(container.querySelector(".chat-earlier")).not.toBeNull()
+    expect(container.querySelector(".chat-echo")).toBeNull()
+    act(() => void container.querySelector<HTMLElement>(".chat-earlier")!.click())
+    const echo = container.querySelector(".chat-echo")!
+    const first = container.querySelector('.chat-message[data-role="user"]')!
+    expect(first.textContent).toContain("Message 0")
+    expect(echo.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it("follows the terminal's program before a session binds", () => {
     const conversation = createStore(noConversation)
     const keys: string[] = []

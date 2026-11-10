@@ -5,8 +5,10 @@ import { Markdown } from "@novadeck/toolkit/Markdown"
 import { memo, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { withBubbles, type SentBubble } from "./bubbles"
+import type { Echo } from "./echoes"
 import { Mark } from "./Mark"
 import { shownControls } from "./shown-controls"
+import { Slice } from "./Slice"
 import { ToolCalls } from "./ToolCalls"
 
 const Shortened = (): React.JSX.Element => (
@@ -493,15 +495,27 @@ const SentView = memo(
 )
 
 const noBubbles: readonly SentBubble[] = []
+const noEchoes: readonly Echo[] = []
 
-// The blocks of a conversation, in order, with the person's prompts not in the record yet
-// among them (see `withBubbles`).
+// A command run through a harness's own menu, as the person's words, and the last of the view it
+// opened, as what it printed.
+const EchoView = ({ echo }: { readonly echo: Echo }): React.JSX.Element => (
+  <div className="chat-echo">
+    <Mark />
+    <p className="chat-echo-text">{echo.text}</p>
+    {echo.slice && <Slice slice={echo.slice} />}
+  </div>
+)
+
+// The blocks of a conversation, in order, with the person's prompts not in the record yet and
+// the commands they ran through a harness's own menu among them (see `withBubbles`).
 export const Transcript = ({
   blocks,
   agent,
   working,
   gone = false,
   sent = noBubbles,
+  echoes = noEchoes,
   looks,
   onResend,
   onEdit,
@@ -513,6 +527,7 @@ export const Transcript = ({
   // The agent's session has ended: a subagent still running shows it stopped with it.
   readonly gone?: boolean
   readonly sent?: readonly SentBubble[]
+  readonly echoes?: readonly Echo[]
   // How other Novadeck agents look, where the app knows them (see `PeerLooks`).
   readonly looks?: PeerLooks | undefined
 }): React.JSX.Element => {
@@ -523,8 +538,10 @@ export const Transcript = ({
   )
   return (
     <>
-      {withBubbles(blocks, sent).map((each) =>
-        each.kind === "block" ? (
+      {withBubbles(blocks, sent, echoes).map((each) =>
+        each.kind === "echo" ? (
+          <EchoView key={`echo:${each.echo.id}`} echo={each.echo} />
+        ) : each.kind === "block" ? (
           <BlockView
             key={each.block.id}
             block={each.block}

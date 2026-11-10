@@ -10,7 +10,7 @@ import type { RequestAnswer } from "@novadeck/protocol"
 import {
   digit,
   Down,
-  editorHint,
+  editorHintWithin,
   Enter,
   flat,
   idle,
@@ -306,9 +306,17 @@ const checked = (n: number) => (rows: readonly string[]) =>
     return match !== null && Number(match[2]) === n && match[3]!.startsWith("[✔] ")
   })
 
-// The "Type something" row `n` focused, its field taking words.
-const freeTextFocused = (n: number) => (rows: readonly string[]) =>
-  marked(rows, questionOption, n) && rows.some((each) => editorHint.test(each))
+// The "Type something" row `n` focused, its field taking words: the footer offers its editor
+// then. Read whole, as a narrow screen wraps it ("ctrl+g to edit" / "in Vim" on 52 columns,
+// 2.1.322, fixtures/ask.probe.json `k-ask-other-narrow`).
+const freeTextFocused = (n: number) => (rows: readonly string[]) => {
+  const footer = footerAt(rows)
+  return (
+    marked(rows, questionOption, n) &&
+    footer >= 0 &&
+    editorHintWithin.test(flat(rows.slice(footer).join("")))
+  )
+}
 
 const keysFor = (
   asked: readonly Ask[],

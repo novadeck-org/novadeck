@@ -62,9 +62,10 @@ export const landed = (
 }
 
 // The hint for ctrl+g, which names the editor it opens: Vim, unless EDITOR or VISUAL names
-// another, and Notepad on Windows (2.1.287). On a row as shown, and with its spaces gone.
-export const editorHint = /ctrl\+g to edit in \S/
+// another, and Notepad on Windows (2.1.287). With its spaces gone, as a narrow screen may wrap
+// it: leading a footer, and anywhere in one.
 export const editorHintFlat = /^ctrl\+gtoeditin[^·]+·/
+export const editorHintWithin = /ctrl\+gtoeditin[^·]/
 
 /**
  * Whether Claude Code's own input box shows, between its rules above the status row: it
