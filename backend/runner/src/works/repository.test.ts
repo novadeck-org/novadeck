@@ -116,8 +116,10 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
     const names = git(root, "ls-tree", "-r", "--name-only", snapshot!.tree).split("\n")
     expect(names).toContain("a")
     expect(names).toContain("fine")
-    // Root can read it anyway; elsewhere it is left out and the rest is still taken.
-    if (process.getuid?.() !== 0) expect(names).not.toContain("locked")
+    // Root can read it anyway, and Windows has no mode to make it unreadable; elsewhere it
+    // is left out and the rest is still taken.
+    if (process.platform !== "win32" && process.getuid?.() !== 0)
+      expect(names).not.toContain("locked")
   })
 
   it("starts from HEAD when the repository splits its index", async ({ root }) => {

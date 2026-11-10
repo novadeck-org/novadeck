@@ -419,15 +419,24 @@ describe.skipIf(!hasGit)("the works of terminals in git checkouts", () => {
     expect(work.truncated).toBe(true)
   })
 
-  it("keeps a branch name within the protocol's limit", async ({ fixture, resources }) => {
-    const { main } = fixture
-    main.git("checkout", "--quiet", "-b", `${"a".repeat(120)}/${"b".repeat(120)}/${"c".repeat(60)}`)
-    main.write("b.txt", "changed\n")
-    const { works } = open(() => [{ terminalId: terminal(1), root: main.root }])
-    resources.defer(() => works.close())
-    const work = (await current(works)).get(terminal(1))!
-    expect(work.branch).toHaveLength(256)
-  })
+  // Windows can't hold a ref this long: its file path passes the system's limit.
+  it.skipIf(process.platform === "win32")(
+    "keeps a branch name within the protocol's limit",
+    async ({ fixture, resources }) => {
+      const { main } = fixture
+      main.git(
+        "checkout",
+        "--quiet",
+        "-b",
+        `${"a".repeat(120)}/${"b".repeat(120)}/${"c".repeat(60)}`,
+      )
+      main.write("b.txt", "changed\n")
+      const { works } = open(() => [{ terminalId: terminal(1), root: main.root }])
+      resources.defer(() => works.close())
+      const work = (await current(works)).get(terminal(1))!
+      expect(work.branch).toHaveLength(256)
+    },
+  )
 
   it("stops following a file that became ignored", async ({ fixture, resources }) => {
     const { main } = fixture
