@@ -79,6 +79,17 @@ const insideCompanion = (target: EventTarget | null): boolean =>
   within(target, "[data-workspace-companion]")
 // A terminal's chat, which holds text the person selects and a box they type in.
 const insideChat = (target: EventTarget | null): boolean => within(target, "[data-workspace-chat]")
+// The box of the chat a terminal's window shows, from anywhere in that window, as its taskbar,
+// where typing would reach it: not while the agent's own rows there take the keys, nor while a
+// pane covers the terminal (see cover-keys.ts), which a key typed there would uncover.
+export const chatBoxBeside = (target: EventTarget | null): HTMLElement | null => {
+  const frame = target instanceof Element ? target.closest("[data-terminal]") : null
+  const chat = frame?.querySelector("[data-workspace-chat]")
+  if (!frame || !chat || chat.querySelector("[data-takes-keys]")) return null
+  const split = frame.querySelector(".pane-split")
+  if (split && getComputedStyle(split).getPropertyValue("--_pane-cover").trim() === "1") return null
+  return chat.querySelector<HTMLElement>("[data-terminal-input]")
+}
 // Terminal surfaces mark the element that receives typed input.
 const insideTerminalInput = (target: EventTarget | null): boolean =>
   within(target, "[data-terminal-input]")

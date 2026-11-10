@@ -39,6 +39,7 @@ import { takeSentImages, type ChatSend } from "./sends"
 import { settledSent, settleSent } from "./settled"
 import { LiveSlice, Slice, SliceKeys } from "./Slice"
 import { Transcript, type PeerLooks } from "./Transcript"
+import { useBoxReturn } from "./use-box-return"
 import { useMounted } from "./use-mounted"
 
 const noShells: readonly SentShell[] = []
@@ -399,14 +400,19 @@ export const ChatView = ({
     wasTaken.current = taken
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Only as it comes and goes.
   }, [taken])
+  const chatSection = useRef<HTMLElement>(null)
+  const boxReturn = useBoxReturn(chatSection, taken, focusBox)
 
   const empty = items.length === 0 && bubbles.length === 0 && echoes.shown.length === 0
   return (
     <SliceKeys.Provider value={sliceKeys ?? null}>
       <section
+        ref={chatSection}
         className="chat"
         data-compact={compact || undefined}
         aria-label={`${terminalName} chat`}
+        onPointerDown={boxReturn.onPointerDown}
+        onClick={boxReturn.onClick}
         onKeyDown={escape}
       >
         <div className="chat-main">

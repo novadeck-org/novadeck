@@ -277,6 +277,20 @@ export const Composer = ({
       className="chat-composer nodrag nopan"
       data-mode={mode}
       aria-label={`Message ${label}`}
+      // A press anywhere on the band around the box is a press in the box, its caret after the
+      // words where the box hadn't focus; the notes over it keep their text to select, and its
+      // keys their own.
+      onMouseDown={(event) => {
+        const field = input.current
+        const target = event.target as Element
+        if (event.button !== 0 || !field || field.disabled) return
+        if (target !== event.currentTarget && !target.closest(".chat-composer-box")) return
+        if (target.closest("textarea, button, a, input, [role=button]")) return
+        event.preventDefault()
+        if (document.activeElement === field) return
+        field.focus({ preventScroll: true })
+        field.setSelectionRange(field.value.length, field.value.length)
+      }}
       onSubmit={(event) => {
         event.preventDefault()
         send()
