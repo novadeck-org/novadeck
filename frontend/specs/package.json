@@ -37,5 +37,8 @@
     "vite": "^7.3.7",
     "vitest": "^5.0.5",
     "vitest-browser-react": "^2.3.0"
+  },
+  "novadeck": {
+    "platform": "system"
   }
 }

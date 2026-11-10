@@ -33,6 +33,9 @@ export const template = (
     private: true,
     description,
     type: "module",
+    // Where its tests must run (scripts/workspace/platform.ts): every system until its
+    // author says it can't tell them apart.
+    novadeck: { platform: "system" },
     sideEffects: false,
     exports: {
       ".": {

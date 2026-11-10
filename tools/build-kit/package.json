@@ -26,5 +26,8 @@
   },
   "peerDependencies": {
     "vite": "^7.3.7"
+  },
+  "novadeck": {
+    "platform": "system"
   }
 }

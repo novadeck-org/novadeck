@@ -72,5 +72,8 @@
     "ws": {
       "optional": true
     }
+  },
+  "novadeck": {
+    "platform": "system"
   }
 }
