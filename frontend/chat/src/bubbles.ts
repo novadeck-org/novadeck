@@ -73,7 +73,7 @@ export const sentBubbles = (
 }
 
 // When a block was recorded, where its harness said: tool runs and notes take none.
-const blockAt = (block: ChatBlock): number | null =>
+export const blockAt = (block: ChatBlock): number | null =>
   block.kind === "user" || block.kind === "assistant" || block.kind === "agent" ? block.at : null
 
 // What stands among the blocks by when it went: the person's prompt not in the record yet, or a

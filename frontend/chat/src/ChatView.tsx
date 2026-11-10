@@ -22,7 +22,7 @@ import {
 } from "react"
 
 import type { Attachment } from "./attachments"
-import { sentBubbles, type SentBubble } from "./bubbles"
+import { blockAt, sentBubbles, type SentBubble } from "./bubbles"
 import { Composer } from "./Composer"
 import { composerMode } from "./composer-mode"
 import { joinDraft } from "./drafts"
@@ -275,6 +275,13 @@ export const ChatView = ({
       ?.focus({ preventScroll: true })
 
   const echoes = useEchoes(slice, items)
+  // An echo stands where it ran: one from before the blocks shown goes with the earlier ones.
+  const shownEchoes = useMemo(() => {
+    const since = shownFrom > 0 ? shown.map(blockAt).find((at) => at !== null) : undefined
+    return since === undefined || since === null
+      ? echoes.shown
+      : echoes.shown.filter(({ at }) => at >= since)
+  }, [echoes.shown, shown, shownFrom])
   const passing = usePassing({
     // Its program until a session binds, as Codex and Antigravity do only at a first prompt.
     agent: harness ?? program,
@@ -353,7 +360,7 @@ export const ChatView = ({
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Only as it comes and goes.
   }, [taken])
 
-  const empty = items.length === 0 && bubbles.length === 0 && echoes.shown.length === 0
+  const empty = items.length === 0 && bubbles.length === 0 && shownEchoes.length === 0
   return (
     <SliceKeys.Provider value={sliceKeys ?? null}>
       <section
@@ -404,7 +411,7 @@ export const ChatView = ({
                 working={working}
                 gone={agent === undefined}
                 sent={bubbles}
-                echoes={echoes.shown}
+                echoes={shownEchoes}
                 looks={peerLooks}
                 {...(plain &&
                   draft.trim() === "" &&
