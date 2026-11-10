@@ -53,14 +53,14 @@ const gh = (...args: string[]): string => {
   }
 }
 
-const ghAsync = async (...args: string[]): Promise<string> => {
+const ghAsync = async (args: string[], limit = tries): Promise<string> => {
   for (let attempt = 1; ; attempt += 1) {
     requests += 1
     try {
       // eslint-disable-next-line no-await-in-loop -- Each try follows the last one's failure.
       return (await promisify(execFile)("gh", args, options)).stdout
     } catch (error) {
-      if (attempt >= tries) throw error
+      if (attempt >= limit) throw error
       // eslint-disable-next-line no-await-in-loop -- As above.
       await new Promise((resolve) => setTimeout(resolve, 2000 * attempt))
     }
@@ -121,17 +121,36 @@ const withFirstAttempt = (repo: string, run: Run): Run => {
   return { ...run, first_attempt_conclusion: first.conclusion }
 }
 
-/** The jobs of every attempt of a run: filter=all lists them all in one request. */
-const jobsOf = async (repo: string, run: Run): Promise<Job[]> =>
-  itemsOf<Job>(
-    await ghAsync(
-      "api",
-      "--paginate",
-      "--slurp",
-      `repos/${repo}/actions/runs/${run.id}/jobs?filter=all&per_page=100`,
-    ),
-    "jobs",
-  )
+const listing = (path: string): string[] => ["api", "--paginate", "--slurp", path]
+
+/**
+ * The jobs of every attempt of a run: filter=all lists them all in one request. For a run of
+ * many attempts GitHub answers it with a server error, and then the attempts are asked for one
+ * by one.
+ */
+const jobsOf = async (repo: string, run: Run): Promise<Job[]> => {
+  try {
+    return itemsOf<Job>(
+      await ghAsync(
+        listing(`repos/${repo}/actions/runs/${run.id}/jobs?filter=all&per_page=100`),
+        1,
+      ),
+      "jobs",
+    )
+  } catch {
+    const attempts = await Promise.all(
+      Array.from({ length: run.run_attempt }, async (_, index) =>
+        itemsOf<Job>(
+          await ghAsync(
+            listing(`repos/${repo}/actions/runs/${run.id}/attempts/${index + 1}/jobs?per_page=100`),
+          ),
+          "jobs",
+        ),
+      ),
+    )
+    return attempts.flat()
+  }
+}
 
 const budget = (): { remaining: number; reset: number } =>
   (
