@@ -49,7 +49,8 @@ const requestedUpdate = (): UpdateScenario | undefined => {
 }
 
 // Specs open the demo as an app that follows experimental builds, which turns IS_EXPERIMENTAL on
-// (the chat view still needs its own switch), with `?channel=experimental`, beside any other variant.
+// (the chat view still needs its own switch), with `?channel=experimental`, beside any other variant
+// and the showcase.
 const experimentalRequested = (): boolean => addressParams().get("channel") === "experimental"
 
 // The updates a spec asks for: an explicit `?update=` wins, else the release a portable
@@ -449,7 +450,9 @@ const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
     return demo
   }
   if (visitorRequested()) return visitorDemo({ ...visitorTimings(), theme: pageTheme })
-  if (showcaseRequested()) return createShowcaseDemo({ theme: pageTheme })
+  // `?channel=experimental` too, for the chat view beside what the showcase's agents showed.
+  if (showcaseRequested())
+    return demoWithUpdate(undefined, undefined, createShowcaseDemo({ theme: pageTheme }))
   const update = requestedUpdate()
   const sandbox = requestedSandbox()
   const portable = requestedPortable()

@@ -13,6 +13,7 @@ import {
   pasteInto,
   requestCard,
 } from "../support/chat"
+import { companionPane, taskbarIcon } from "../support/companions"
 import { openPreferencesOn, preferencesDialog } from "../support/keyboard"
 import { expectStaysTrue } from "../support/layouts"
 import { switchProject } from "../support/sessions"
@@ -20,6 +21,7 @@ import {
   chooseView,
   commandInput,
   expectStaysAbsent,
+  openWorkspace,
   terminal,
   terminalTab,
   terminalText,
@@ -428,6 +430,58 @@ describe("Reading the chat", () => {
       () => window.getSelection()?.toString().includes("It passes now.") === true,
       "the selection",
     )
+  })
+})
+
+describe("Focus coming back to the chat's box", () => {
+  it("comes back from a click on the conversation's words", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    const row = chat.getByRole("button", { name: /^edited .*total\.ts/ })
+    await row.click()
+    await expect.element(row).toHaveFocus()
+    await conversation(chat).getByText("It passes now.", { exact: false }).click()
+    await expect.element(composer(chat)).toHaveFocus()
+  })
+
+  it("comes back once the words selected are copied, and not before", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    const reply = conversation(chat).getByText("It passes now.", { exact: false })
+    await reply.click({ clickCount: 3 })
+    await expect.poll(() => window.getSelection()?.toString()).toContain("It passes now.")
+    await expectStaysTrue(
+      () => document.activeElement !== composer(chat).element(),
+      "focus away from the box while the words are selected",
+    )
+    // The copy the person's Ctrl+C or Cmd+C makes, which a spec's keys can't on every system.
+    document.activeElement?.dispatchEvent(new ClipboardEvent("copy", { bubbles: true }))
+    await expect.element(composer(chat)).toHaveFocus()
+  })
+
+  it("takes a key typed where nothing takes it on into the box", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    await userEvent.type(composer(chat), "Run the")
+    const row = chat.getByRole("button", { name: /^edited .*total\.ts/ })
+    await row.click()
+    await expect.element(row).toHaveFocus()
+    await userEvent.keyboard("x")
+    await expect.element(composer(chat)).toHaveFocus()
+    await expect.element(composer(chat)).toHaveValue("Run thex")
+  })
+})
+
+describe("A chat beside what its agent showed", () => {
+  it("takes focus back into its box once a click on the taskbar opens a pane", async () => {
+    localStorage.setItem("novadeck.preferences", JSON.stringify({ chatView: true }))
+    await openWorkspace(
+      "/projects/studio/sessions/initial/focus?demo=showcase&channel=experimental",
+    )
+    const chat = await openChat("Build Studio")
+    await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
+    await expect.element(companionPane("Build Studio")).toBeVisible()
+    await expect.element(composer(chat)).toHaveFocus()
   })
 })
 

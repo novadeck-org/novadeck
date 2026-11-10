@@ -79,6 +79,13 @@ const insideCompanion = (target: EventTarget | null): boolean =>
   within(target, "[data-workspace-companion]")
 // A terminal's chat, which holds text the person selects and a box they type in.
 const insideChat = (target: EventTarget | null): boolean => within(target, "[data-workspace-chat]")
+// The box of the chat a terminal's window shows, from anywhere in that window, as its taskbar.
+export const chatBoxBeside = (target: EventTarget | null): HTMLElement | null =>
+  target instanceof Element
+    ? (target
+        .closest("[data-terminal]")
+        ?.querySelector<HTMLElement>("[data-workspace-chat] [data-terminal-input]") ?? null)
+    : null
 // Terminal surfaces mark the element that receives typed input.
 const insideTerminalInput = (target: EventTarget | null): boolean =>
   within(target, "[data-terminal-input]")
