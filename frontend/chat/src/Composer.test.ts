@@ -44,7 +44,7 @@ const show = (
       replySending: false,
       working,
       onSend: send,
-      onStop: async () => {},
+      stopError: null,
       onClearBox: clearBox,
       focusInput: false,
       onInputFocused: () => {},
@@ -213,12 +213,11 @@ describe("the prompt", () => {
   it("has the person's mark, and Send only with a draft", () => {
     expect(show("").querySelector(".chat-composer-box .chat-mark")).not.toBeNull()
     expect(key(show(""), "Send")).toBeNull()
-    expect(key(show("hello"), "Send")?.textContent).toBe("⏎")
+    expect(key(show("hello"), "Send")?.querySelector("svg")).not.toBeNull()
   })
 
-  it("has Stop only while the agent works", () => {
-    expect(key(show(""), "Stop")).toBeNull()
-    expect(key(show("", [], { working: true }), "Stop")?.textContent).toBe("stop")
+  it("has no Stop, which the working line holds", () => {
+    expect(key(show("", [], { working: true }), "Stop")).toBeNull()
   })
 
   it("says it is in shell mode, with the sentence for a screen reader", () => {
@@ -258,7 +257,7 @@ const walking = (history: readonly string[], start = ""): HTMLTextAreaElement =>
       replySending: false,
       working: false,
       onSend: async () => {},
-      onStop: async () => {},
+      stopError: null,
       onClearBox: async () => {},
       focusInput: false,
       onInputFocused: () => {},

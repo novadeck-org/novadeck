@@ -31,6 +31,7 @@ const permission = (
     choices: [],
     subagent: false,
     answered: false,
+    askedAt: 0,
     dialog: { type: "choices", id: "d", title: null, detail: "pnpm add x", options },
   },
 })

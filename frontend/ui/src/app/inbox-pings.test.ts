@@ -44,6 +44,7 @@ const request = (id: string, tool: string, subject: string | null, at = Date.now
     subagent: false,
     dialog: null,
     answered: false,
+    askedAt: 0,
   },
 })
 

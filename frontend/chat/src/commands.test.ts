@@ -512,6 +512,7 @@ describe("a Send or Stop over a question the agent asks", () => {
         ? { type: "questions", id: `${id}:d`, chat: "prompt", questions: [] }
         : { type: "choices", id: `${id}:d`, title: null, detail: null, options: [] },
     answered: false,
+    askedAt: 0,
   })
   const setAsides = (chat: ReturnType<typeof open>["chat"]) =>
     chatSendsOf(chat.store.getSnapshot().sends, context, "01").map((send) => send.setAside)

@@ -92,8 +92,9 @@
     left: 0;
     right: 0;
     bottom: 0;
-    /* Over the chat too, which covers the terminal's content at z-index 10. */
-    z-index: 11;
+    /* Over the chat too, which covers the terminal's content at z-index 10, and over the window's
+       stats, which float over either at 11. */
+    z-index: 12;
     display: flex;
     height: calc(var(--spacing) * 8.5);
     align-items: center;

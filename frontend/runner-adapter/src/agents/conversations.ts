@@ -172,6 +172,7 @@ export const requestOf = (
   subagent: request.actor !== root,
   dialog: request.dialog,
   answered: request.answered,
+  askedAt: request.askedAt,
   ...(request.detached && { detached: true as const }),
 })
 
@@ -227,6 +228,7 @@ const sameRequests = (a: readonly ChatRequest[], b: readonly ChatRequest[]): boo
       request.subject === b[index]!.subject &&
       request.subagent === b[index]!.subagent &&
       request.answered === b[index]!.answered &&
+      request.askedAt === b[index]!.askedAt &&
       request.choices.length === b[index]!.choices.length &&
       request.choices.every((choice, at) => choice === b[index]!.choices[at]) &&
       sameDialog(request.dialog, b[index]!.dialog),
