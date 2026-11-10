@@ -189,6 +189,7 @@ export const agyVocabulary: readonly Written[] = [
         [`${novadeck}send`, { to: "reviewer", text: "Please look" }, "Sent"],
         [`${novadeck}send`, { text: "Anyone?" }, "Sent"],
         [`${novadeck}agents`, {}, "reviewer"],
+        [`${novadeck}team`, { all: true }, "Your team"],
         [`${novadeck}open_agent`, { agent: "agy", message: "Review", effort: "high" }, "Opened"],
         [`${novadeck}open_agent`, { agent: "agy", effort: "high", lead: false }, "Opened"],
         [`${novadeck}open_terminal`, { command: "npm run dev" }, "Opened"],

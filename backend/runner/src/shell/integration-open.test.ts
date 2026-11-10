@@ -283,8 +283,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         const [listed] = (await show(shell, manager, terminal.id, [
           { type: "agents" as "open", request: {} },
         ])) as { ok: true; text: string }[]
+        expect(listed!.text).toContain("- led by you: @fox, @owl, @crow and @kite\n")
         expect(listed!.text).toContain(
-          "- @fox: expecting Claude Code, not started yet\n  title: claude\n  folder: .\n  led by you",
+          "- @fox · claude: expecting Claude Code, not started yet, led by you\n",
         )
         expect(manager.get(created[0]!).ledBy).toBe("moth")
         // Who opened it is kept with the terminal, for a runner that restores it.

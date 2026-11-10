@@ -109,6 +109,8 @@ export const novadeckTool = (tool: string, fields: Fields | undefined): ToolRun 
       }
     case "agents":
       return { kind: "agent", title: "Listed agents", detail: "" }
+    case "team":
+      return { kind: "agent", title: "Checked its team", detail: "" }
     case "open_terminal":
       return {
         kind: "agent",

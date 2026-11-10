@@ -155,6 +155,7 @@ export const codexVocabulary: readonly Written[] = [
         ["send", { to: "reviewer", text: "Please look" }, "Sent", "mcp__novadeck"],
         ["send", { text: "Anyone?" }, "Sent", "mcp__novadeck"],
         ["agents", {}, "reviewer", "mcp__novadeck"],
+        ["team", { all: true }, "Your team", "mcp__novadeck"],
         [
           "open_agent",
           { agent: "codex", message: "Review", effort: "high" },

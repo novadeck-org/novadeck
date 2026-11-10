@@ -11,10 +11,11 @@ import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, text, tool, type Call, type Reply } from "./model/script.js"
 import { delivered, nestedRuns, own, result, start } from "./scenarios.js"
 
-// The agents listing of a lead's team, every harness in it (docs/agent-messaging.md,
-// "agents()"): past five other terminals a line each, and each teammate's folder and
-// branch where its agent works now, as its own shell command tells it, whichever harness
-// runs it. Files ending in `.mixed.e2e.ts` run only when every harness is selected.
+// The agents and team listings of a lead's team, every harness in it (docs/agent-messaging.md,
+// "agents()" and "team()"): every terminal at one level, the team named once at the top,
+// each teammate's repository and branch where its agent works now, as its own shell command
+// tells it, whichever harness runs it; and team, which the lead and each teammate call
+// from its own harness. Files ending in `.mixed.e2e.ts` run only when every harness is selected.
 
 /** What a nested run of a harness is asked, which its seed lets its shell run unasked. */
 const asking = nestedRuns.inTurn
@@ -145,18 +146,18 @@ describe.skipIf(!supported)("a lead's team of every harness", () => {
       ...shells.map((title) => ({ tool: "open_terminal", input: { title } })),
     ]
     const listings: string[] = []
-    // The ui teammate's handle, known once the lead opened it.
-    let ui = ""
-    // Each listing the lead asks for, by its words: what it calls `agents` with.
+    // What each teammate saw of its team, by its title.
+    const views = new Map<string, string>()
+    // Each listing the lead asks for, by its words: the tool it calls, and with what.
     const asks = [
-      { words: "List the team", input: () => ({}) },
-      { words: "List everyone in full", input: () => ({ full: true }) },
-      { words: "Show the ui terminal", input: () => ({ terminal: `@${ui}` }) },
+      { words: "List everyone", name: "agents", input: {} },
+      { words: "Show my team", name: "team", input: {} },
+      { words: "Show my team again", name: "team", input: {} },
     ]
     const lists = own((call) => {
-      const agents = tool(call, "agents")
-      const ask = asks.find(({ words }) => asked(call, words))
-      if (agents && ask) return { calls: [{ name: agents, input: ask.input() }] }
+      const ask = asks.toReversed().find(({ words }) => asked(call, words))
+      const name = ask && tool(call, ask.name)
+      if (ask && name) return { calls: [{ name, input: ask.input }] }
       const listed = result(call)
       if (!listed?.startsWith("You are @moth")) return undefined
       listings.push(listed)
@@ -195,9 +196,18 @@ describe.skipIf(!supported)("a lead's team of every harness", () => {
             !(first >= 0 && call.turns.at(-1)?.role === "tool")
           )
             return undefined
+          // Moved, it looks at its team from its own harness, then says so.
+          const looked = result(call)
+          // Antigravity heads a tool's result with when it ran.
+          if (looked?.includes("You are @")) {
+            views.set(title, looked)
+            return { text: `Moved to ${title}.` }
+          }
           const ran =
             first < 0 ? 0 : call.turns.slice(first).filter((turn) => turn.role === "tool").length
-          return ran >= moves ? { text: `Moved to ${title}.` } : move(project)
+          if (ran < moves) return move(project)
+          const name = tool(call, "team")
+          return name ? { calls: [{ name, input: {} }] } : { text: `Moved to ${title}.` }
         }),
       ),
       lists,
@@ -216,37 +226,57 @@ describe.skipIf(!supported)("a lead's team of every harness", () => {
       team.map((member, index) => opened[index]!.until(`Moved to ${member.title}.`, 120_000)),
     )
 
-    ui = opened[0]!.handle
     for (const [index, { words }] of asks.entries()) {
       // eslint-disable-next-line no-await-in-loop -- One listing after another.
       await lead.submit(words)
       // eslint-disable-next-line no-await-in-loop -- As above.
       await lead.until(`Listing ${index + 1} done.`)
     }
-    const [compact, full, one] = listings
+    const [everyone, mine, again] = listings
     if (process.env.NOVADECK_E2E_LISTING)
-      writeFileSync(process.env.NOVADECK_E2E_LISTING, listings.join("\n\n---\n\n"))
+      writeFileSync(
+        process.env.NOVADECK_E2E_LISTING,
+        [...listings, ...views.values()].join("\n\n---\n\n"),
+      )
 
     const handles = opened.map((terminal) => terminal.handle)
-    // A line each, its title and branch where the agent works now, and no block lines.
-    expect(compact).toContain("Other terminals in this project and session (6). One line each")
-    expect(compact?.split("\n").filter((line) => line.startsWith("  "))).toEqual([])
+    const members = team.map((_, index) => `@${handles[index]}`)
+    const roster = `- led by you: ${members.slice(0, -1).join(", ")} and ${members.at(-1)}`
+    // Every terminal at one level: the team once at the top, then each teammate on two
+    // lines, its repository and branch where its agent works now, and each shell on one.
+    expect(everyone).toContain(`Teams in this project and session:\n${roster}\n`)
     for (const [index, { title }] of team.entries())
-      expect(compact).toMatch(
-        new RegExp(`^- @${handles[index]} · ${title}: [^\\n]*, on task/${title}, led by you`, "m"),
+      expect(everyone).toMatch(
+        new RegExp(
+          `^- @${handles[index]} · ${title}: [^\\n]*, led by you\\n {2}${title} task/${title}$`,
+          "m",
+        ),
       )
     for (const [index, title] of shells.entries())
-      expect(compact).toMatch(new RegExp(`^- @${handles[team.length + index]} · ${title}: `, "m"))
-    // In full: where each works now, where its terminal started, and its lead's title.
-    for (const { title } of team) {
-      expect(full).toContain(
-        `  folder: wt/${title}, branch task/${title} (its agent works here now; its terminal started in .)`,
+      expect(everyone).toMatch(
+        new RegExp(`^- @${handles[team.length + index]} · ${title}: shell, at its prompt$`, "m"),
       )
-      expect(full).toContain(`  title: ${title} (set by @moth, not the user)`)
+    // Its team alone, each teammate with its brief, then nothing new on the next look.
+    expect(mine).toContain(`Your team in this project and session:\n${roster}\n`)
+    expect(mine).not.toContain("shell")
+    for (const [index, { title }] of team.entries()) {
+      expect(mine).toContain(`you → @${handles[index]}: "${brief(title)}"`)
+      expect(again).toMatch(
+        new RegExp(
+          `^- @${handles[index]} · ${title}: [^\\n]*, led by you · nothing new since you last looked$`,
+          "m",
+        ),
+      )
     }
-    // One terminal's details alone.
-    expect(one?.split("\n").filter((line) => line.startsWith("- "))).toEqual([
-      expect.stringMatching(new RegExp(`^- @${handles[0]}: Claude Code, `)),
-    ])
+    // Each teammate, in its own harness, sees its lead and the others it leads.
+    for (const [index, { title }] of team.entries()) {
+      const seen = views.get(title)
+      expect(seen, title).toMatch(/^- @moth(?: · [^:\n]*)?: Claude Code, [^\n]*, your lead$/m)
+      for (const [other, { title: theirs }] of team.entries())
+        if (other !== index)
+          expect(seen, title).toMatch(
+            new RegExp(`^- @${handles[other]} · ${theirs}: [^\\n]*, your teammate$`, "m"),
+          )
+    }
   })
 })

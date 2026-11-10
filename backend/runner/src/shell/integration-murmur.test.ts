@@ -4,6 +4,7 @@ import { join } from "node:path"
 
 import { Terminals } from "../terminals/index.js"
 import { barDigest } from "../terminals/nudges.js"
+import { firstFrom } from "../terminals/work.js"
 import { describe, expect } from "../test.js"
 import { FakeDescriber } from "../testing/describer.js"
 import { bash, it, create, type Fixture } from "./integration.test-support.js"
@@ -94,9 +95,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(agentDigests()[0]).not.toHaveProperty("prompts")
       expect(manager.get(claude.id).title).toBe("Terminal")
       expect(await listed()).toContain(
-        "- @fox: Codex, busy, last active just now\n" +
-          "  title: Login fix (written by Novadeck's local model, not the user)\n" +
-          "  described by its agent: Fixes the login bug. / Then its tests.",
+        "- @fox · Login fix: Codex, busy for under a minute, peer\n" +
+          '  "Fixes the login bug. Then its tests."',
       )
       expect(shell.store.terminalIdentity(codex.id)?.naming).toEqual({
         person: null,
@@ -118,7 +118,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         titleSource: { kind: "person" },
       })
       expect(await listed()).toContain(
-        "  described by its agent: Fixes the login bug. / Then its tests.",
+        "- @fox · Mine: Codex, busy for under a minute, peer\n" +
+          '  "Fixes the login bug. Then its tests."',
       )
       manager.resetTitle({ terminalId: codex.id })
       expect(manager.get(codex.id)).toMatchObject({
@@ -954,9 +955,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         await expect
           .poll(() => manager.messages(opened).delivery, { timeout: 10_000 })
           .toBe("ready")
-        const listed = async () =>
-          (JSON.parse(await step(opener.id, { call: "agents", request: {} })) as { text: string })
-            .text
+        // Whose a terminal's first prompt is, by the rule its work keeps (`firstFrom`).
+        const whose = (terminalId: string) =>
+          firstFrom(shell.store.terminal(terminalId)?.work ?? null, "moth")
         // An Enter the person pressed meanwhile, as at a trust screen, doesn't make it theirs.
         manager.write({ terminalId: opened, data: "\r" }, "client")
         await step(opened, { hook: "UserPromptSubmit", payload: { prompt: "fix-the-build" } })
@@ -969,7 +970,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           title: "claude",
           titleSource: { kind: "default" },
         })
-        expect(await listed()).toContain("  started with (@moth's command): fix-the-build")
+        expect(whose(opened)).toBe("opener")
         // A later root session there is the person's.
         await step(opened, {
           hook: "SessionStart",
@@ -983,7 +984,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           title: "claude",
           titleSource: { kind: "default" },
         })
-        expect(await listed()).toContain("  started with: write the docs")
+        expect(shell.store.terminal(opened)?.work).toMatchObject({ first: "write the docs" })
+        expect(whose(opened)).toBe("user")
 
         // A command that starts no agent, as `echo` here: the session the person starts
         // after it, with its own prompt, is theirs, even one the command's words match.
@@ -1009,7 +1011,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         expect(manager.get(bare.terminalId)).toMatchObject({
           titleSource: { kind: "default" },
         })
-        expect(await listed()).toContain("  started with: fix-the-docs")
+        expect(shell.store.terminal(bare.terminalId)?.work).toMatchObject({ first: "fix-the-docs" })
+        expect(whose(bare.terminalId)).toBe("user")
       } finally {
         controller.abort()
         await client

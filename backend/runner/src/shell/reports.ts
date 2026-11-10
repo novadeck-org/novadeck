@@ -33,7 +33,7 @@ export type Ack = { readonly terminalId: string; readonly token: string; readonl
  * there, `look` pictures a page there and `closeShown` closes what it showed (see `companions/items.ts`), `open` opens a new terminal beside it (see
  * `terminals/opens.ts`), `close` closes another terminal of its project and session (see
  * `terminals/closes.ts`), `lead` asks the person to let it lead another terminal's agent and
- * `release` ends such a lead (see `terminals/leads.ts`), and `send` and `agents` message other terminals' agents and
+ * `release` ends such a lead (see `terminals/leads.ts`), and `send`, `agents` and `team` message other terminals' agents and
  * describe them (see `messaging/sending.ts`), and `describe` names and says what the caller's own
  * terminal works on (see `terminals/describe-request.ts`); the runner reads `request`, and nothing
  * here does.
@@ -56,6 +56,7 @@ const callTypes = [
   "release",
   "send",
   "agents",
+  "team",
   "describe",
   "models",
   "ask",
@@ -80,6 +81,7 @@ export const unansweredCalls = {
   release: { ok: false, reason: "Novadeck couldn't release the terminal." },
   send: { ok: false, reason: "Novadeck couldn't send the message." },
   agents: { ok: false, reason: "Novadeck couldn't list the terminals." },
+  team: { ok: false, reason: "Novadeck couldn't list your team." },
   ask: { ok: false, reason: "Novadeck couldn't save the ask." },
   tell: { ok: false, reason: "Novadeck couldn't save the update." },
   done: { ok: false, reason: "Novadeck couldn't save the report." },

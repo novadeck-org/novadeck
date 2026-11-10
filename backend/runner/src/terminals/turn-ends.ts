@@ -34,6 +34,8 @@ export type TurnEndsHost = {
 /** An end the recorder has seen: waiting out its grace, being stored, or stored. */
 type Seen = {
   readonly at: number
+  /** When its turn started. */
+  readonly from: number
   readonly record: Record
   readonly owner: TurnOwner
   outcome: "completed" | "failed"
@@ -156,6 +158,7 @@ export class TurnEnds {
     if (!owner) return
     const seen: Seen = {
       at,
+      from: last.from,
       record,
       owner,
       outcome: last.outcome === "failed" ? "failed" : "completed",
@@ -270,7 +273,7 @@ export class TurnEnds {
       files: [...seen.files],
     }
     if (seen.row) inbox.amendTurn(seen.owner.terminalId, seen.at, fields)
-    else inbox.recordTurn(seen.owner, seen.at, fields)
+    else inbox.recordTurn(seen.owner, seen.at, fields, seen.from)
     seen.row = true
   }
 

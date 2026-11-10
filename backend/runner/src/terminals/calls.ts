@@ -124,6 +124,7 @@ export type CallsHost = LeadsHost & {
   readonly summarized: (terminalId: string) => void
   readonly send: (call: Call) => Promise<SendAnswer | TeamAnswer>
   readonly agents: (call: Call) => Promise<AgentsAnswer>
+  readonly team: (call: Call) => Promise<AgentsAnswer>
 }
 
 /**
@@ -708,6 +709,8 @@ export class Calls {
         return this.host.send(call)
       case "agents":
         return this.host.agents(call)
+      case "team":
+        return this.host.team(call)
       case "describe":
         return this.describe(call)
       case "models":
