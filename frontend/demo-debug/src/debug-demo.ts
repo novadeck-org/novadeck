@@ -248,6 +248,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     ...(launch.portable ? { portable: createDemoPortable(launch.portable).portable } : {}),
     ...(launch.uninstall ? { uninstall: createDemoUninstall(launch.uninstall).uninstall } : {}),
     pickDirectory: states.pickDirectory,
+    ...(inner.moveTerminal ? { moveTerminal: states.moveTerminal(inner.moveTerminal) } : {}),
     ...(inner.conversations ? { conversations: states.chat(inner.conversations) } : {}),
   }
   panels.set(

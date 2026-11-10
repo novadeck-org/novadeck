@@ -61,6 +61,8 @@ import {
   busyShells,
   terminalSummary,
   terminalTitle,
+  terminalMove,
+  terminalMoved,
 } from "./terminals.js"
 import { transcriptChange } from "./transcripts.js"
 
@@ -242,6 +244,16 @@ export const contract = {
     // and the teammate and the former lead are told. A terminal with no lead is a no-op;
     // one not there is TERMINAL_NOT_FOUND.
     release: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
+    // The person moves a terminal to another session of its project, running or saved,
+    // without restarting it. A lead takes its whole team along, at every depth; a teammate
+    // moved on its own leaves its lead. Each keeps its handle unless the session it goes to
+    // has given it already, then draws that session's next, and its leads' handles follow
+    // in its team's `ledBy`. Its Inbox rows and the companion items its bar holds go with
+    // it, and `watch` tells each move as a `changed` with the new `sessionId`. A terminal
+    // it keeps nothing of is TERMINAL_NOT_FOUND; a session it doesn't have NOT_FOUND; the
+    // terminal's own session, one of another project, one being removed or a new
+    // session's id that is taken, a CONFLICT.
+    move: procedure.input(terminalMove).output(terminalMoved),
     // Every terminal across sessions, running or saved: `changed` for each, `synced`, then
     // later changes (creation, title, size, foreground process, exit, restart, and its
     // shell's record let go, when it is saved again) and `removed` once it is closed.

@@ -150,6 +150,8 @@ export {
   type TerminalEvent,
   type TerminalExit,
   type TerminalRequest,
+  type TerminalMove,
+  type TerminalMoved,
   type TerminalRequestAnswer,
   startupScreen,
   type StartupScreen,

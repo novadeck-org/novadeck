@@ -20,6 +20,7 @@ import {
 } from "../projects/project-arrangement-storage"
 import { initialShell, resetPresentation, type ShellState } from "../shell/shell-state"
 import { writeSidebarCollapsed, writeWindowedView } from "../shell/shell-storage"
+import type { MoveAsk, MoveNotice, MovePick } from "../terminals/move-state"
 import { nextRecent, visibleSwitcher, type RecentSwitcher } from "../terminals/recent"
 import type { RenameSession } from "../terminals/rename-state"
 import { noFoldedTeams, writeFoldedTeams, type FoldedTeams } from "../terminals/team-fold"
@@ -45,6 +46,12 @@ export type UiState = {
   readonly created: { readonly context: string; readonly id: string } | null
   // A close waiting for the person to confirm it, since a program runs in the terminal.
   readonly closing: { readonly context: string; readonly id: string } | null
+  // A terminal on its way to another session while the person picks where (`move-state.ts`).
+  readonly moving: MovePick | null
+  // A teammate's move waiting for the person to say whether it goes alone or with its team.
+  readonly moveAsk: MoveAsk | null
+  // The last move, for its toast; never persisted.
+  readonly moved: MoveNotice | null
   // The agent whose switch Preferences should bring into view when it opens, until it has.
   readonly agentFocus: AgentName | null
   // The person chose "Not now" for this crash loop; it asks again only after the next one.
@@ -131,6 +138,9 @@ export const initialUi = ({
   recent: { switcher: null, byContext: {} },
   created: null,
   closing: null,
+  moving: null,
+  moveAsk: null,
+  moved: null,
   agentFocus: null,
   crashLoopDismissed: false,
   addonOffer: null,
@@ -441,6 +451,27 @@ export const watchClosing = (workspace: Store<Workspace>, ui: UiStore): (() => v
       !currentState(snapshot).roster.terminals.some((terminal) => terminal.id === closing.id)
     )
       ui.update((state) => ({ ...state, closing: null }))
+  })
+
+// A pick of where a terminal goes, and a teammate's move waiting on the person, belong to the
+// session they were asked in, as a close's confirmation does: leaving it, or the terminal
+// going, drops them.
+export const watchMoving = (workspace: Store<Workspace>, ui: UiStore): (() => void) =>
+  workspace.subscribe(() => {
+    const { moving, moveAsk } = ui.getSnapshot()
+    if (!moving && !moveAsk) return
+    const snapshot = workspace.getSnapshot()
+    const context = currentContext(snapshot)
+    const held = (id: string) =>
+      currentState(snapshot).roster.terminals.some((terminal) => terminal.id === id)
+    const keep = (each: { context: string; terminalId: string } | null) =>
+      each !== null && each.context === context && held(each.terminalId)
+    if (keep(moving) === (moving !== null) && keep(moveAsk) === (moveAsk !== null)) return
+    ui.update((state) => ({
+      ...state,
+      moving: keep(state.moving) ? state.moving : null,
+      moveAsk: keep(state.moveAsk) ? state.moveAsk : null,
+    }))
   })
 
 // The terminal the person looks at: the selected one of the session on screen, while the

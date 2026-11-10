@@ -58,6 +58,8 @@ export type CommandContext = {
   readonly pickDirectory?: Backend["pickDirectory"] | undefined
   readonly crashLoop?: Backend["crashLoop"] | undefined
   readonly resetTitle?: Backend["resetTitle"] | undefined
+  // Moves a terminal to another session, where the backend can.
+  readonly moveTerminal?: Backend["moveTerminal"] | undefined
   // The agents' conversations, where the backend reads them, which the chat sends to.
   readonly conversations?: Backend["conversations"] | undefined
   // Where the backend keeps closed terminals, which closing adds to and restoring takes from.

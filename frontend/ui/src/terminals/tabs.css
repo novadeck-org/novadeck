@@ -706,3 +706,15 @@
   animation: terminal-spin 800ms steps(10) infinite;
   animation-delay: inherit;
 }
+
+/* A tab dragged out of its list to another session (app/move-to.tsx): dnd-kit lifts it into
+   the top layer, out of its panel's fade, but the panel's hidden visibility would still carry
+   down to it once the Sessions panel opens under it, so it keeps its own. The rail button it
+   holds over, about to open its panel, is ringed (data-move-spring). */
+.terminal-tab[data-dnd-dragging] {
+  visibility: visible;
+}
+[data-move-spring] {
+  outline: var(--border-width) solid var(--color-strong);
+  outline-offset: 1px;
+}

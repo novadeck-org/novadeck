@@ -163,6 +163,11 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       answerApproval: (answer) =>
         note(`answer approval ${answer.requestId}`, () => runner.terminals.answerApproval(answer)),
       release: (id) => note(`release ${id}`, () => runner.terminals.release(id)),
+      move: (input) =>
+        note(
+          `move ${input.terminalId} to ${"sessionId" in input.to ? input.to.sessionId : "new"}`,
+          () => runner.terminals.move(input),
+        ),
       create: (input) => note(`create terminal ${input.id}`, () => runner.terminals.create(input)),
       close: (id) => note(`close ${id}`, () => runner.terminals.close(id)),
       rename: (id, title) => note(`rename ${id}`, () => runner.terminals.rename(id, title)),

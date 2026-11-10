@@ -498,6 +498,29 @@ export class Sleepers {
     this.publish(terminalId)
   }
 
+  /** Whether the sleeper is being woken, or a `create` of it is under way: it can't be moved. */
+  waking(terminalId: string): boolean {
+    return (
+      this.wakes.has(terminalId) || this.judging.has(terminalId) || this.creating.has(terminalId)
+    )
+  }
+
+  /**
+   * A sleeper's row moved to another session of its project, and was saved there: messaging
+   * and the sleeper's own state follow, and watchers hear of it. Whether it was a sleeper.
+   */
+  move(row: ListedTerminal): boolean {
+    const resting = this.resting(row.id)
+    const projectId = this.host.projectOf(row.sessionId)
+    if (!resting || projectId === undefined) return false
+    this.sessions.set(row.id, row.sessionId)
+    this.host
+      .messaging()
+      .rest(row.id, { projectId, sessionId: row.sessionId }, row.handle, row.ledBy, resting)
+    this.publish(row.id)
+    return true
+  }
+
   /** The sleeper as the agent layer reads a terminal; undefined for any other. */
   peer(terminalId: string): Sleeper | undefined {
     const row = this.resting(terminalId) && this.row(terminalId, this.sessions.get(terminalId))

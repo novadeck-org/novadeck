@@ -36,6 +36,7 @@ import { createChatCommands, type ChatCommands } from "./chat"
 import { createCompanionCommands, type CompanionCommands } from "./companion"
 import type { CommandContext } from "./context"
 import { createLayoutCommands, type LayoutCommands } from "./layout"
+import { createMoveCommands, type MoveCommands } from "./moves"
 import { createRecentCommands, type RecentCommands } from "./recent"
 import { createRenameCommands, type RenameCommands } from "./rename"
 import { folderProject, newWorkspaceSession } from "./sessions"
@@ -48,6 +49,7 @@ type AddTerminalOptions = { fromKeyboard?: boolean }
 // latest stores when it runs, so several in one event keep one another's changes.
 export type WorkspaceCommands = ShellCommands &
   CompanionCommands &
+  MoveCommands &
   SourceCommands &
   ChatCommands &
   RenameCommands &
@@ -306,13 +308,19 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     set("sidebar", false)
   }
 
-  return {
+  const self: WorkspaceCommands = {
     ...shell,
     ...rename,
     ...recent,
     ...createLayoutCommands(ctx),
     ...createChatCommands(ctx),
     ...createSourceCommands(ctx, { markCreated, pulse }),
+    ...createMoveCommands(ctx, {
+      showSessions: shell.showSessions,
+      showTerminals: shell.showTerminals,
+      // Bound once the commands are made: going to a moved terminal is revealing it.
+      revealTerminal: (terminalId, projectId) => self.revealTerminal(terminalId, projectId),
+    }),
     ...createCompanionCommands(ctx, {
       select,
       setSelected,
@@ -689,4 +697,5 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       ),
     portableCardShown: () => notePortableCardShown(ui.getSnapshot().portable),
   }
+  return self
 }

@@ -499,6 +499,13 @@ export const createDemoStates = (
   const updateControls = createDemoUpdates(undefined, pageUpdateChannel)
   const { updates, offer, whatsNew } = updateControls
   const { pickDirectory, failNext: failPick } = createDemoFolders()
+  // The next move of a terminal to another session is refused, as a runner refuses one.
+  let refuseMove = false
+  const moveTerminal: DemoStates["moveTerminal"] = (move) => (key, sessionId, undo) => {
+    if (!refuseMove) return move(key, sessionId, undo)
+    refuseMove = false
+    return Promise.reject(new Error("The runner is restarting it, so it stays where it is."))
+  }
   const chat = createChatFailures()
   const panelAsks: PanelAsks = new Set()
   const waitingActions = createWaitingActions(verbs, inbox, panelAsks)
@@ -670,6 +677,13 @@ export const createDemoStates = (
             ])
             await pause(1_000)
             startFresh()
+          },
+        },
+        {
+          label: "Next move refused",
+          hint: "Moving a terminal to another session fails; a toast says why",
+          run: () => {
+            refuseMove = true
           },
         },
         {
@@ -861,6 +875,7 @@ export const createDemoStates = (
     offer,
     updateControls,
     pickDirectory,
+    moveTerminal,
     chat: chat.wrap,
     screens,
     failPaste: (key) => pasteFails.delete(terminalKeyId(key)),

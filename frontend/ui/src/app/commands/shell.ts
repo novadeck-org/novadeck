@@ -19,6 +19,7 @@ import type { CommandContext } from "./context"
 
 export type ShellCommands = {
   readonly showSessions: () => void
+  readonly showTerminals: () => void
   readonly showInbox: () => void
   // Shows the Inbox for one row, as a click on a toast or a notice does, in place of the page
   // the person was on rather than as a step Back goes through. Returns what puts the sidebar
@@ -87,6 +88,7 @@ export const createShellCommands = (ctx: CommandContext): ShellCommands => {
   }
   return {
     showSessions: () => show("sessions"),
+    showTerminals: () => show("terminals"),
     showInbox: () => show("inbox"),
     peekInbox: () => {
       const desktop = effects.desktop()

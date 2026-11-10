@@ -2617,6 +2617,43 @@ const item = (
   ...fields,
 })
 
+describe("terminals saved together", () => {
+  it("move to another session with their bar items, or none does when one fails", async ({
+    directory,
+    store,
+  }) => {
+    const cwd = directory()
+    const workspace = store(join(cwd, "workspace.sqlite"))
+    const project = await workspace.createProject({ id: randomUUID(), name: "P", cwd })
+    const first = workspace.createSession({ id: randomUUID(), projectId: project.id, name: "A" })
+    const second = workspace.createSession({ id: randomUUID(), projectId: project.id, name: "B" })
+    const lead = keptTerminal(workspace, first.id, "moth")
+    const worker = keptTerminal(workspace, first.id, "fox")
+    const shown = item(first.id, lead, "/work/a.ts")
+    workspace.saveItem(shown)
+    const rows = [lead, worker].map((id) => ({ ...numbered(id, "x"), id }))
+    workspace.saveTerminals([
+      { ...rows[0]!, sessionId: second.id, handle: "moth", ledBy: null },
+      { ...rows[1]!, sessionId: second.id, handle: "owl", ledBy: "moth" },
+    ])
+    expect(workspace.terminals(second.id).map(({ id, handle }) => [id, handle])).toEqual([
+      [lead, "moth"],
+      [worker, "owl"],
+    ])
+    expect(workspace.terminals(first.id)).toEqual([])
+    expect(workspace.item(shown.id)?.sessionId).toBe(second.id)
+    expect(workspace.barItems(lead).map(({ id }) => id)).toEqual([shown.id])
+    // A handle the session's terminal has already fails the whole save.
+    expect(() =>
+      workspace.saveTerminals([
+        { ...rows[0]!, sessionId: first.id, handle: "moth", ledBy: null },
+        { ...rows[1]!, sessionId: first.id, handle: "moth", ledBy: null },
+      ]),
+    ).toThrow()
+    expect(workspace.terminals(first.id)).toEqual([])
+  })
+})
+
 describe("companion items", () => {
   it("keep a changes item, which its kind check allows", async ({ directory, store }) => {
     const cwd = directory()

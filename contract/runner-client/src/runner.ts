@@ -34,6 +34,8 @@ import {
   type TerminalChange,
   type TerminalMessages,
   type TerminalRequest,
+  type TerminalMove,
+  type TerminalMoved,
   type TerminalRequestAnswer,
   type TerminalSummary,
   type TranscriptChange,
@@ -234,6 +236,12 @@ export type Runner = {
      * one the runner doesn't hold.
      */
     release(terminalId: string): Promise<void>
+    /**
+     * Moves a terminal, and the team it leads, to another session of its project without
+     * restarting it (see `terminals.move` in the contract for the handles it keeps and the
+     * failures: `TERMINAL_NOT_FOUND`, `NOT_FOUND` or `CONFLICT`).
+     */
+    move(input: TerminalMove): Promise<TerminalMoved>
     /**
      * Follows every terminal on the runner, across sessions. Each time the stream opens,
      * first and again after every reconnection or retried refusal, it yields `reset`,
@@ -690,6 +698,7 @@ export const connectRunner = async (
         ),
       answerApproval: (answer) => call((client) => client.terminals.answerApproval(answer)),
       release: (terminalId) => call((client) => client.terminals.release({ terminalId })),
+      move: (input) => call((client) => client.terminals.move(input)),
       watch: () =>
         followAll(connection, (client, signal) => client.terminals.watch(undefined, { signal })),
       close: (terminalId) => call((client) => client.terminals.close({ terminalId })),

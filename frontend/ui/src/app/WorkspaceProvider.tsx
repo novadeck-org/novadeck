@@ -34,6 +34,7 @@ import {
   trackRecent,
   watchPresentation,
   watchClosing,
+  watchMoving,
   watchCrashLoop,
   keepProjectArrangement,
   watchSwitcher,
@@ -97,6 +98,7 @@ const createServices = (
     pickDirectory: backend.pickDirectory,
     crashLoop: backend.crashLoop,
     resetTitle: backend.resetTitle,
+    moveTerminal: backend.moveTerminal,
     murmur: backend.murmur,
     conversations: backend.conversations,
     companions: backend.companions,
@@ -174,6 +176,7 @@ export const WorkspaceProvider = ({
   useEffect(() => watchSandbox(services.backend.sandbox, services.ui), [services])
   useEffect(() => watchPortable(services.backend.portable, services.ui), [services])
   useEffect(() => watchClosing(services.workspace, services.ui), [services])
+  useEffect(() => watchMoving(services.workspace, services.ui), [services])
   useEffect(() => watchChat(services.chat, services.workspace), [services])
   useEffect(() => watchPageFocus(services.ui, window, services.backend.windowFocus), [services])
   // Before the watchers below, which read the landed Inbox. The Inbox's own watchers, in child

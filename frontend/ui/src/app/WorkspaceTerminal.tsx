@@ -51,6 +51,7 @@ import { DictationContext, useMicButton } from "./controller/dictation"
 import { useDockTarget } from "./dock-target"
 import { useMessageLinks } from "./message-links"
 import { MountedTerminal } from "./MountedTerminal"
+import { useMoveTo } from "./move-to"
 import { plainTitle } from "./murmur-offer"
 import { NameChip } from "./NameChip"
 import { ChatWithPeers } from "./peer-looks"
@@ -109,6 +110,7 @@ const useWindowFrame = (
   const askFeedback = useAskFeedback(tile)
   const releaseLead = useReleaseLead(tile)
   const foldTeam = useFoldTeam(tile)
+  const moveTo = useMoveTo(tile)
   return {
     terminal: tile,
     active,
@@ -132,6 +134,7 @@ const useWindowFrame = (
       askFeedback,
       releaseLead,
       foldTeam,
+      moveTo,
       onClose: () => close(id),
     }),
     compact,

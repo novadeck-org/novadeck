@@ -1073,3 +1073,72 @@ describe("arranging a project's sessions", () => {
     })
   })
 })
+
+describe("moving a terminal to another session", () => {
+  const lead = { ...terminalFixture(9, "~/project"), id: "09", handle: "lynx" }
+  const helper = { ...terminalFixture(8, "~/project"), id: "08", handle: "sable", ledBy: "lynx" }
+  const workspace = (): Workspace => {
+    const base = workspaceFixture({ sessions: ["initial", "other"] })
+    const other = createTerminalState([lead, helper], "grid", "grid")
+    const project = base.projects[0]!
+    return apply(
+      {
+        ...base,
+        projects: [
+          {
+            ...project,
+            history: [
+              project.history[0]!,
+              { ...project.history[1]!, state: { ...other, roster: { ...other.roster } } },
+            ],
+          },
+        ],
+      },
+      { type: "item/upsert", target, item: hero },
+      { type: "terminal/visibility", target, terminalId: "01", hidden: true },
+      { type: "terminal/select", target, terminalId: "01" },
+    )
+  }
+  const move = (from: Workspace, terminal = terminalFixture(1, "~/project")): Workspace =>
+    workspaceReducer(from, {
+      type: "terminal/move",
+      projectId: "project",
+      from: "initial",
+      to: "other",
+      terminal,
+    })
+  const session = (from: Workspace, id: string): WorkspaceState =>
+    from.projects[0]!.history.find((each) => each.id === id)!.state
+
+  it("leaves its session, whose selection passes to its neighbor", () => {
+    const after = session(move(workspace()), "initial")
+    expect(after.roster.terminals.map((each) => each.id)).toEqual(["02"])
+    expect(after.selected).toBe("02")
+    expect(after.items).toEqual([])
+    expect(after.bars["01"]).toBeUndefined()
+    expect(after.layout.hidden["01"]).toBeUndefined()
+  })
+
+  it("arrives last in the other session with its bar and its hidden state", () => {
+    const after = session(move(workspace()), "other")
+    expect(orderedTiles(after.roster).map((tile) => tile.id)).toEqual(["09", "08", "01"])
+    expect(after.items.map((item) => item.id)).toEqual([hero.id])
+    expect(after.bars["01"]?.order).toEqual([hero.id])
+    expect(after.layout.hidden["01"]).toBe(true)
+    expect(after.selected).toBe("09")
+  })
+
+  it("is listed under its lead there, with the handle the backend gave it", () => {
+    const after = session(
+      move(workspace(), { ...terminalFixture(1, "~/project"), handle: "wren", ledBy: "lynx" }),
+      "other",
+    )
+    expect(orderedTiles(after.roster).map((tile) => tile.id)).toEqual(["09", "08", "01"])
+    expect(after.roster.terminals.find((each) => each.id === "01")?.handle).toBe("wren")
+  })
+
+  it("changes nothing for a terminal the session doesn't hold", () => {
+    const before = workspace()
+    expect(move(before, terminalFixture(5, "~/project"))).toBe(before)
+  })
+})

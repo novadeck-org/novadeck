@@ -40,6 +40,7 @@ import { tabInstructionsId } from "./TerminalTabs"
 import { useRenderAt } from "./useRenderAt"
 import {
   windowMenu,
+  type MoveTo,
   type AskFeedback,
   type DockTarget,
   type FoldTeam,
@@ -93,6 +94,7 @@ export const TerminalTab = ({
   fold,
   level = 0,
   foldTeam,
+  moveTo,
   foldedRows,
   folder,
 }: {
@@ -150,6 +152,8 @@ export const TerminalTab = ({
   level?: number
   // On a lead: its menu's way to fold its teammates out of the list or show them again.
   foldTeam?: FoldTeam | undefined
+  // Its menu's way to move it to another session; absent where it can't move.
+  moveTo?: MoveTo | undefined
   // On a folded lead: its teammates' rows, under its line.
   foldedRows?: ReactNode
   // Where a project window's file is, which its line shows where a terminal's program is.
@@ -221,6 +225,7 @@ export const TerminalTab = ({
     askFeedback,
     releaseLead,
     foldTeam,
+    moveTo,
     onClose,
   })
   // How long ago a done tab's agent finished, beside its program, kept current.

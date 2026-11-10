@@ -10,7 +10,7 @@ import { HeldPill, InboxClear, InboxCount, InboxList, InboxMarkAll } from "../in
 import { shortcutBindings } from "../interaction/shortcuts"
 import { sessionGlance, type SessionMark } from "../projects/session-marks"
 import { HistoryPanel } from "../sidebar/HistoryPanel"
-import { SessionsPanel } from "../sidebar/SessionsPanel"
+import { SessionsPanel, type SessionsMove } from "../sidebar/SessionsPanel"
 import { SidebarPanel, sidebarCreateClasses } from "../sidebar/SidebarPanel"
 import { SourcePanel } from "../sidebar/SourcePanel"
 import { programIcon } from "../terminals/processes/profiles"
@@ -58,6 +58,8 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
   onSessionSelect: (id: string) => void
   onSessionRename: (id: string, name: string) => void
   onSessionMove: (id: string, index: number) => void
+  // A terminal on its way to another session, while the person picks where.
+  moving?: SessionsMove | undefined
   onSessionRemove: (id: string) => void
   onFresh: () => void
   onHide: () => void
@@ -89,6 +91,8 @@ export const WorkspaceSidebar = ({
   onCreate,
   renderTab,
   onReorder,
+  moving,
+  away,
 }: Props): React.JSX.Element => (
   <aside
     id="terminal-sidebar"
@@ -139,6 +143,7 @@ export const WorkspaceSidebar = ({
         onMove={onSessionMove}
         onRemove={onSessionRemove}
         historyKept={Boolean(history)}
+        moving={moving}
       />
     </SidebarPanel>
     {history && (
@@ -175,6 +180,7 @@ export const WorkspaceSidebar = ({
         terminals={ordered}
         renderTab={renderTab}
         onReorder={onReorder}
+        away={away}
       />
     </SidebarPanel>
     <SidebarPanel

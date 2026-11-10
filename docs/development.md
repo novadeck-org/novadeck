@@ -283,7 +283,8 @@ Terminals:
   exited from keep their handles on their tabs; its other plain shells show none. Also a
   burst of 30, a quick failure, a spawn failure and the terminal limit.
 - **Projects and sessions:** mark the selected terminal running, then start a fresh
-  session and open Sessions to see the old one count it; or make the next folder pick fail.
+  session and open Sessions to see the old one count it; make the next folder pick fail; or
+  refuse the next move of a terminal to another session, whose toast says why.
 
 Agents:
 
@@ -772,6 +773,7 @@ folder of `frontend/ui/src/`:
 | `sidebar/`, `projects/`, `preferences/`, `search/`              | Feature components.                                                                                                            |
 | `interaction/`                                                  | Shortcut records, the keymap, and shared DOM focus/overlay contracts.                                                          |
 | `frontend/toolkit/src/`                                         | Reusable controls, direct Ark UI imports, their recipes, the sidebar item and `Markdown`.                                      |
+| `frontend/toolkit/src/drag-pull.ts`                             | The pull-out drag: a list holds what's dragged until it is pulled free (`PullOut`, a dnd-kit modifier), tuned in one place.    |
 | `test/`                                                         | The command harness: the real stores, navigator and commands, for tests.                                                       |
 | `frontend/test-kit/src/`                                        | A jsdom render helper, the port contract suite, and test phase timing.                                                         |
 | `assets/`                                                       | Static files referenced from CSS.                                                                                              |

@@ -35,6 +35,7 @@ import { createDemoInbox, isDemoInbox } from "./inbox"
 import { demoInboxRows, demoEntries, demoPlanStates } from "./inbox/fixtures"
 import { inboxLeadMessages, inboxTranscripts, withInboxLead } from "./inbox/transcripts"
 import { checkoutMessages, createDemoMessages, isDemoMessages } from "./messages"
+import { withMoves } from "./moves"
 import {
   createMockTerminal,
   defaultName,
@@ -770,12 +771,14 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
   const params = addressParams()
   const demo = params.get("demo")
   const turnMs = Number(params.get("turnMs"))
-  const backend = plainDemo(
-    demo === "agents" || demo === "messages" || demo === "inbox" || demo === "welcome"
-      ? demo
-      : "plain",
-    terminals,
-    turnMs > 0 ? turnMs : undefined,
+  const backend = withMoves(
+    plainDemo(
+      demo === "agents" || demo === "messages" || demo === "inbox" || demo === "welcome"
+        ? demo
+        : "plain",
+      terminals,
+      turnMs > 0 ? turnMs : undefined,
+    ),
   )
   if (isDemoInbox(backend.inbox)) {
     const answer = params.get("inboxAnswer")

@@ -252,6 +252,11 @@ export class Messaging {
     this.sessions.unregister(terminalId, forGood, reason)
   }
 
+  /** The terminal moves to another session of its project (see `Sessions.move`). */
+  move(terminalId: string, scope: Scope, handle: string, ledBy: string | null): void {
+    this.sessions.move(terminalId, scope, handle, ledBy)
+  }
+
   /**
    * A terminal rests on its saved session with no process: asleep. Its messages are kept
    * for the session; `register` starts it, `unregister` ends it.

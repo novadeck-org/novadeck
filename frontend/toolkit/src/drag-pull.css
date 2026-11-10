@@ -1,0 +1,43 @@
+/* The pull-out drag's look (drag-pull.ts sets the hooks on the element being dragged): while
+   it resists at its list's edge it leans the way it is pulled and draws in a little, more as
+   the pull tautens; as it breaks free it catches up with the pointer in a quick, overshooting
+   glide rather than a jump, with a small pop, so the person feels it come loose. With reduced
+   motion it neither leans nor glides.
+
+   Hooks: data-pull="taut" | "snapping" | "free"; --pull-tension (0 to 1); --pull-x (-1 to 1),
+   the way it is pulled across; --pull-snap-duration, how long it glides (the pull's feel).
+
+   dnd-kit moves the dragged element by its `translate`, with no transition, through its own
+   `--dnd-transition`, which the glide takes over while it lasts.
+
+   Tokens, each optional (its fallback in brackets):
+   --pull-lean (2deg): how far it leans, fully taut.
+   --pull-squeeze (0.02): how much it draws in, fully taut.
+   --pull-snap-ease (an overshooting curve): the glide to the pointer. */
+[data-pull="taut"] {
+  rotate: calc(var(--pull-x, 0) * var(--pull-tension, 0) * var(--pull-lean, 2deg));
+  scale: calc(1 - var(--pull-tension, 0) * var(--pull-squeeze, 0.02));
+}
+/* The glide takes dnd-kit's own transition only where motion is welcome. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-pull="snapping"] {
+    --dnd-transition: translate var(--pull-snap-duration, 160ms)
+      var(--pull-snap-ease, cubic-bezier(0.2, 1.4, 0.4, 1)) !important;
+    animation: pull-pop var(--pull-snap-duration, 160ms) var(--ease-interface);
+  }
+}
+@keyframes pull-pop {
+  from {
+    scale: 1.04;
+  }
+  to {
+    scale: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-pull] {
+    rotate: none;
+    scale: none;
+    animation: none;
+  }
+}

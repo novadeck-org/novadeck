@@ -13,6 +13,7 @@ import { WorkspaceSidebar } from "../shell/WorkspaceSidebar"
 import { latestTurnEnd } from "../sidebar/source-turns"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useStoreSelector } from "./controller/useStoreSelector"
+import { useMoving, useTabsAway } from "./move-to"
 import { historyShown, sourceShown } from "./routing"
 import { currentState, currentTarget, sameItems, sameTarget } from "./selectors"
 import { useReorderTiles } from "./team-fold"
@@ -152,6 +153,8 @@ export const SidebarSection = memo((): React.JSX.Element => {
         : undefined,
     [historyFeed, historyRows, readHistory, backend.agents, connections, commands, projectId],
   )
+  const moving = useMoving()
+  const away = useTabsAway()
   const sidebarPanel = useUiState((state) => state.location.route.panel)
   const visible = useUiState((state) => sidebarVisible(state.shell, desktop))
   return (
@@ -175,6 +178,8 @@ export const SidebarSection = memo((): React.JSX.Element => {
       onCreate={() => add()}
       renderTab={renderTab}
       onReorder={reorderTiles}
+      moving={moving}
+      away={away}
     />
   )
 })

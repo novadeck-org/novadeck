@@ -1,17 +1,19 @@
 import { isOnBar, ownItemWith, windowOfItem, type Item, type ItemId } from "../items"
 import { placeTerminal, removeFromLayout } from "../layout/workspace-layout"
 import {
+  addTerminal,
   addWindow,
   hasTerminal,
   hasTile,
   hasWindow,
+  listUnderOpener,
   orderedTiles,
   removeTerminal,
   removeWindow,
   updateWindow,
 } from "../roster"
 import type { WorkspaceAction } from "../state"
-import type { CompanionWindowMeta, WorkspaceState } from "../types"
+import type { CompanionWindowMeta, TerminalMetadata, WorkspaceState } from "../types"
 import {
   arrive,
   arriveLast,
@@ -119,6 +121,46 @@ export const closeTerminal = (state: WorkspaceState, terminalId: string): Worksp
     ...gone.reduce((next, item) => unfresh(next, item.id), closed),
     items: gone.length ? state.items.filter((item) => !gone.includes(item)) : state.items,
     bars: without(state.bars, terminalId),
+  }
+}
+
+// A terminal goes from one session to another of its project, still running, with what its
+// bar holds and how the person arranged that bar, and whether it's hidden in Grid and Canvas
+// and how many Grid cells it spans. Where it sat on Canvas stays behind: the other session
+// arranges it among its own. It comes last in the other session's sidebar, or under its lead
+// there, and takes that session's selection only when it had none. In `to` it is `terminal`,
+// as the backend reports it there, with the handle and lead it has now.
+export const moveTerminal = (
+  from: WorkspaceState,
+  to: WorkspaceState,
+  terminal: TerminalMetadata,
+): { readonly from: WorkspaceState; readonly to: WorkspaceState } => {
+  const id = terminal.id
+  if (!hasTerminal(from.roster, id) || hasTerminal(to.roster, id)) return { from, to }
+  const carried = from.items.filter((item) => isOnBar(item, id))
+  const hidden = from.layout.hidden[id]
+  const span = from.layout.spans[id]
+  const bar = from.bars[id]
+  const left = closeTerminal(from, id)
+  const added = addTerminal(to.roster, terminal)
+  const lead = terminal.ledBy
+    ? to.roster.terminals.find((each) => each.handle === terminal.ledBy)
+    : undefined
+  const ids = new Set(carried.map((item) => item.id))
+  return {
+    from: left,
+    to: {
+      ...to,
+      roster: lead ? listUnderOpener(added, id, lead.id) : added,
+      layout: {
+        ...to.layout,
+        hidden: hidden === undefined ? to.layout.hidden : { ...to.layout.hidden, [id]: hidden },
+        spans: span === undefined ? to.layout.spans : { ...to.layout.spans, [id]: span },
+      },
+      items: [...to.items.filter((item) => !ids.has(item.id)), ...carried],
+      bars: bar ? { ...to.bars, [id]: bar } : to.bars,
+      selected: to.selected || id,
+    },
   }
 }
 

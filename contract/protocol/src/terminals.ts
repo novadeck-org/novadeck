@@ -2,7 +2,7 @@ import { columns, exit, rows, terminalEvents } from "@novadeck/terminal"
 import { z } from "zod"
 
 import { agentActivity, agentName, agentTelemetry } from "./agents.js"
-import { directory, id } from "./fields.js"
+import { directory, id, name } from "./fields.js"
 import { asLine, singleLine } from "./text.js"
 
 /** The largest file a client may paste into a terminal, in bytes. */
@@ -199,6 +199,33 @@ export const terminalRequestAnswer = z.union([
   z.strictObject({ requestId: id, terminalId: id }),
   z.strictObject({ requestId: id, reason: z.string().trim().min(1).max(512) }),
 ])
+
+// `terminals.move` input: the terminal the person moves and where it goes, a session of the
+// same project or a new one the runner makes for it there (first in the project's order, as
+// `sessions.create` makes one). `handles` and `lead` undo an earlier move: the handles each
+// moved terminal had before, by id, taken back where no terminal of the session holds them
+// now, and the lead's handle the terminal left, which it rejoins while that lead is there.
+export const terminalMove = z.strictObject({
+  terminalId: id,
+  to: z.union([
+    z.strictObject({ sessionId: id }),
+    z.strictObject({ newSession: z.strictObject({ id, name }) }),
+  ]),
+  handles: z.record(id, handle).optional(),
+  lead: handle.optional(),
+})
+export type TerminalMove = z.infer<typeof terminalMove>
+
+// What a move did: the session the terminals are in now, and each one it moved, the
+// terminal asked for first and then its team, with the handle it has there and the one it
+// had, so the person is told of a change and an undo can take it back.
+export const terminalMoved = z.strictObject({
+  sessionId: id,
+  moved: z.array(z.strictObject({ terminalId: id, handle, was: handle })).min(1),
+  // The lead's handle the terminal left, as it went without it; null when it had none.
+  left: handle.nullable(),
+})
+export type TerminalMoved = z.infer<typeof terminalMoved>
 
 // What an agent asks the person to approve, through Novadeck's MCP server: `close`, a
 // terminal of its session that runs an agent it doesn't lead or a program other than its

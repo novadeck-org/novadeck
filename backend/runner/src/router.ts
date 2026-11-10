@@ -186,6 +186,7 @@ export const createRouter = (options: {
       restart: api.terminals.restart.handler(async ({ input, context }) =>
         terminals.restart(input, context.session.id),
       ),
+      move: api.terminals.move.handler(({ input }) => projects.moveTerminal(input)),
       close: api.terminals.close.handler(({ input }) => terminals.close(input)),
       rename: api.terminals.rename.handler(({ input }) => terminals.rename(input)),
       resetTitle: api.terminals.resetTitle.handler(({ input }) => terminals.resetTitle(input)),

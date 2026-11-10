@@ -16,6 +16,7 @@ import { useAskFeedback } from "./ask-feedback"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useDockTarget } from "./dock-target"
 import { FoldedTeamRows } from "./FoldedTeamRows"
+import { useMoveTo } from "./move-to"
 import { useReleaseLead } from "./release-lead"
 import { currentContext, currentState, currentTarget, sameTarget, shallowEqual } from "./selectors"
 import { useFoldTeam, useTabFold, useTeamLevel } from "./team-fold"
@@ -83,6 +84,7 @@ export const WorkspaceTab = memo(
     const dockIn = useDockTarget(terminal)
     const askFeedback = useAskFeedback(terminal)
     const releaseLead = useReleaseLead(terminal)
+    const moveTo = useMoveTo(terminal)
     // Folding a lead's teammates out of the list: how this tab stands in a fold, and on a
     // lead, its menu's item and, while folded, its teammates' rows.
     const fold = useTabFold(id)
@@ -126,6 +128,7 @@ export const WorkspaceTab = memo(
         fold={fold}
         level={level}
         foldTeam={foldTeam}
+        moveTo={moveTo}
         foldedRows={foldTeam?.folded ? <FoldedTeamRows lead={id} /> : undefined}
         folder={folder}
       />

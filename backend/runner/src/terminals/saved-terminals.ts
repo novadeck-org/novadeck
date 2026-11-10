@@ -149,6 +149,8 @@ export type TerminalRecords = {
   terminalIdentity(terminalId: string): TerminalIdentity | undefined
   /** `transcript` is left as it is when omitted. */
   saveTerminal(terminal: TerminalToSave): void
+  /** Saves each as `saveTerminal` does, all or none; saved one by one where omitted. */
+  saveTerminals?(terminals: readonly TerminalToSave[]): void
   removeTerminal(terminalId: string): void
   clearTranscripts(): void
   /**
