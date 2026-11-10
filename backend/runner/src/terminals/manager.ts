@@ -720,6 +720,7 @@ export class Terminals {
       sleepers: () => this.sleepers,
       messaging: () => this.messaging,
       inbox: () => this.inbox,
+      feedback: () => this.feedback,
       approvals: () => this.confirms,
       opens: () => this.opens,
       items: () => this.options.items,

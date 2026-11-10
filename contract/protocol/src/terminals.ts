@@ -2,7 +2,7 @@ import { columns, exit, rows, terminalEvents } from "@novadeck/terminal"
 import { z } from "zod"
 
 import { agentActivity, agentName, agentTelemetry } from "./agents.js"
-import { directory, id, name } from "./fields.js"
+import { directory, id } from "./fields.js"
 import { asLine, singleLine } from "./text.js"
 
 /** The largest file a client may paste into a terminal, in bytes. */
@@ -67,7 +67,9 @@ export const titleFrom = (text: string): string | undefined => {
 // A terminal's handle: a word its Novadeck session gives it as it is created, such as
 // `moth`, never twice; once a session has given every word, they come again with a
 // letter, as `mothz` (an older session's with a number, as `moth2`). It stays as the
-// terminal is renamed, agents address each other by it, and people read it as `@moth`.
+// terminal is renamed, agents address each other by it, and people read it as `@moth`. It
+// changes only when the person moves the terminal to another session (`terminals.move`),
+// where a terminal may hold it, or lead under it, already.
 export const handle = z.string().regex(/^[a-z]{2,12}(?:[2-9]|[1-9][0-9]{1,8})?$/)
 
 // Who a terminal's title is from: the person; murmur, the local model that describes
@@ -96,7 +98,8 @@ export const terminalSummary = z.strictObject({
   title: terminalTitle,
   // Who the title is from.
   titleSource,
-  // Its handle, which never changes.
+  // Its handle in its session; it changes only when the person moves the terminal
+  // (`terminals.move`).
   handle,
   // Whether the runner started a shell for it in this lifetime. A terminal it keeps only
   // as saved, as after the runner restarted, has none until a client restores it, with
@@ -200,17 +203,15 @@ export const terminalRequestAnswer = z.union([
   z.strictObject({ requestId: id, reason: z.string().trim().min(1).max(512) }),
 ])
 
-// `terminals.move` input: the terminal the person moves and where it goes, a session of the
-// same project or a new one the runner makes for it there (first in the project's order, as
-// `sessions.create` makes one). `handles` and `lead` undo an earlier move: the handles each
-// moved terminal had before, by id, taken back where no terminal of the session holds them
-// now, and the lead's handle the terminal left, which it rejoins while that lead is there.
+// `terminals.move` input: the terminal the person moves and the session of the same project it
+// goes to. `handles` and `lead` undo an earlier move: the handles each moved terminal had
+// before, by id, taken back where no terminal of the session holds them now, nor is led
+// under them, and the lead's handle the terminal left, which it rejoins while that lead is
+// there. A terminal keeps its handle in the new session unless a terminal there holds it or
+// is led under it, or the session gave it to another; it gets that session's next then.
 export const terminalMove = z.strictObject({
   terminalId: id,
-  to: z.union([
-    z.strictObject({ sessionId: id }),
-    z.strictObject({ newSession: z.strictObject({ id, name }) }),
-  ]),
+  to: z.strictObject({ sessionId: id }),
   handles: z.record(id, handle).optional(),
   lead: handle.optional(),
 })

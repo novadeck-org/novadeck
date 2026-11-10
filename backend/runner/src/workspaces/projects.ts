@@ -52,7 +52,7 @@ export class Projects {
     )
   }
 
-  /** Moves a terminal and its team to another session of its project, or one made for it. */
+  /** Moves a terminal and its team to another session of its project. */
   moveTerminal(input: TerminalMove): TerminalMoved {
     return this.terminals.move(input, {
       projectOf: (sessionId) => {
@@ -61,10 +61,6 @@ export class Projects {
         if (this.removingSessions.has(sessionId))
           throw new DomainError("CONFLICT", "The session is being removed.")
         return projectId
-      },
-      create: (session) => {
-        this.ensureNotRemoving(session.projectId)
-        this.store.createSession(session)
       },
     })
   }

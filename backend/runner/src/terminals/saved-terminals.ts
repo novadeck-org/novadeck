@@ -70,7 +70,7 @@ export type KeptInterruption = {
 export type SavedTerminal = {
   readonly id: string
   readonly sessionId: string
-  /** Its handle in its session, a word such as `moth`, which never changes. */
+  /** Its handle in its session, a word such as `moth`; a move to another session may change it. */
   readonly handle: string
   /**
    * What names it: the person's title, an agent's, and its agent's summary of its work;

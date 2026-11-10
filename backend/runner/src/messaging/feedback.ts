@@ -156,6 +156,14 @@ export class Feedback {
     this.publish()
   }
 
+  /** The terminal moved to another session of its project: its draft names it as it is there. */
+  moved(terminalId: string, workspaceSessionId: string, handle: string): void {
+    const draft = this.drafts.get(terminalId)
+    if (!draft) return
+    this.drafts.set(terminalId, { ...draft, workspaceSessionId, handle })
+    this.publish()
+  }
+
   /** The drafts waiting, oldest first. */
   list(): FeedbackDraft[] {
     return [...this.drafts.values()].toSorted((a, b) => a.at - b.at)

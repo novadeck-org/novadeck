@@ -20,6 +20,8 @@ type Spec = {
   readonly hibernating?: true
   /** A brief its lead sent it has not arrived. */
   readonly brief?: true
+  /** An approval the person hasn't answered names it. */
+  readonly approval?: true
 }
 
 const words = ["owl", "crow", "kite", "raven"]
@@ -85,11 +87,11 @@ const setup = (
     ended: [] as string[],
     moved: [] as { id: string; sessionId: string; handle: string; ledBy: string | null }[],
     inbox: [] as { id: string; sessionId: string; handle: string }[],
-    withdrawn: [] as string[],
     items: [] as string[],
     sleepers: [] as string[],
     savedChanged: [] as string[],
-    created: [] as { id: string; projectId: string; name: string }[],
+    feedback: [] as { id: string; sessionId: string; handle: string }[],
+    shadows: [] as { summary?: Record["summary"]; openedBy?: string | null }[],
   }
   let closing = new Set<string>()
   const rowOf = (record: Record) => ({
@@ -122,6 +124,7 @@ const setup = (
           }[],
         ) => {
           for (const each of list) {
+            log.shadows.push(each as never)
             const row = each.summary
               ? {
                   id: each.summary.id,
@@ -164,7 +167,13 @@ const setup = (
         moved: (id: string, sessionId: string, handle: string) =>
           log.inbox.push({ id, sessionId, handle }),
       }) as never,
-    approvals: () => ({ withdraw: (id: string) => log.withdrawn.push(id) }) as unknown as Approvals,
+    feedback: () =>
+      ({
+        moved: (id: string, sessionId: string, handle: string) =>
+          log.feedback.push({ id, sessionId, handle }),
+      }) as never,
+    approvals: () =>
+      ({ involves: (id: string) => terminals[id]?.approval === true }) as unknown as Approvals,
     opens: () => ({ involves: () => false }) as unknown as OpenRequests,
     items: () => ({ terminalMoved: (id: string) => log.items.push(id) }) as never,
     announce: (record) => log.announced.push(record.summary.id),
@@ -191,11 +200,6 @@ const setup = (
       const project = projects.get(sessionId)
       if (!project) throw new DomainError("NOT_FOUND", "Session not found")
       return project
-    },
-    create: (session) => {
-      if (projects.has(session.id)) throw new DomainError("CONFLICT", "Session id is already taken")
-      projects.set(session.id, session.projectId)
-      log.created.push(session)
     },
   }
   const moves = new Moves(host)
@@ -429,31 +433,6 @@ describe("moving a terminal to another session", () => {
     expect(world.records.get("a")!.summary.ledBy).toBeNull()
   })
 
-  it("moves into a new session made for it, after judging everything", () => {
-    const world = setup({ a: { session: "s1", handle: "moth" } })
-    const moved = world.move({ terminalId: "a", to: { newSession: { id: "n1", name: "New" } } })
-    expect(moved.sessionId).toBe("n1")
-    expect(world.log.created).toEqual([{ id: "n1", projectId: "p1", name: "New" }])
-    expect(world.records.get("a")!.summary.sessionId).toBe("n1")
-  })
-
-  it("is a conflict for a new session whose id is taken, and moves nothing", () => {
-    const world = setup({ a: { session: "s1", handle: "moth" } })
-    expect(
-      failure(() => world.move({ terminalId: "a", to: { newSession: { id: "s2", name: "N" } } })),
-    ).toBe("CONFLICT")
-    expect(world.records.get("a")!.summary.sessionId).toBe("s1")
-    expect(world.log.saved).toEqual([])
-  })
-
-  it("makes no session when the terminal can't move", () => {
-    const world = setup({ a: { session: "s1", handle: "moth", hibernating: true } })
-    expect(
-      failure(() => world.move({ terminalId: "a", to: { newSession: { id: "n1", name: "N" } } })),
-    ).toBe("CONFLICT")
-    expect(world.log.created).toEqual([])
-  })
-
   it("fails as the contract says", () => {
     const world = setup(
       {
@@ -486,6 +465,40 @@ describe("moving a terminal to another session", () => {
     expect(failure(() => world.move(to("s2", "lead")))).toBe("CONFLICT")
     expect(failure(() => world.move(to("s2", "worker")))).toBe("CONFLICT")
     expect(world.log.saved).toEqual([])
+  })
+
+  it("is a conflict while an approval names a member, and withdraws nothing", () => {
+    const world = setup({
+      lead: { session: "s1", handle: "moth" },
+      worker: { session: "s1", handle: "fox", ledBy: "moth", approval: true },
+    })
+    expect(failure(() => world.move(to("s2", "lead")))).toBe("CONFLICT")
+    expect(failure(() => world.move(to("s2", "worker")))).toBe("CONFLICT")
+    expect(world.log.saved).toEqual([])
+  })
+
+  it("saves the summary and opener it puts in memory, and tells the feedback draft", () => {
+    const world = setup(
+      {
+        lead: { session: "s1", handle: "moth" },
+        worker: { session: "s1", handle: "fox", ledBy: "moth" },
+        other: { session: "s2", handle: "moth" },
+      },
+      {},
+    )
+    world.records.get("worker")!.openedBy = "moth"
+    world.move(to("s2", "lead"))
+    const saved = world.log.shadows.find((each) => each.summary?.id === "worker")!
+    const worker = world.records.get("worker")!
+    expect(saved.summary).toEqual(worker.summary)
+    expect(saved.openedBy).toBe(worker.openedBy)
+    expect(worker.openedBy).toBe(world.records.get("lead")!.summary.handle)
+    expect(worker.openedBy).not.toBe("moth")
+    expect(world.log.feedback).toContainEqual({
+      id: "worker",
+      sessionId: "s2",
+      handle: "fox",
+    })
   })
 
   it("moves none of a team when one of its members can't move", () => {

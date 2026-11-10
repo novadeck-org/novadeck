@@ -506,17 +506,13 @@ export class Sleepers {
   }
 
   /**
-   * A sleeper's row moved to another session of its project, and was saved there: messaging
-   * and the sleeper's own state follow, and watchers hear of it. Whether it was a sleeper.
+   * A sleeper's row moved to another session of its project, and was saved there: its session
+   * for the wake follows, and watchers hear of it. Its place in messaging is `Moves`'s, which
+   * moves every member alike. Whether it was a sleeper.
    */
   move(row: ListedTerminal): boolean {
-    const resting = this.resting(row.id)
-    const projectId = this.host.projectOf(row.sessionId)
-    if (!resting || projectId === undefined) return false
+    if (!this.resting(row.id)) return false
     this.sessions.set(row.id, row.sessionId)
-    this.host
-      .messaging()
-      .rest(row.id, { projectId, sessionId: row.sessionId }, row.handle, row.ledBy, resting)
     this.publish(row.id)
     return true
   }

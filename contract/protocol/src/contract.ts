@@ -247,12 +247,14 @@ export const contract = {
     // The person moves a terminal to another session of its project, running or saved,
     // without restarting it. A lead takes its whole team along, at every depth; a teammate
     // moved on its own leaves its lead. Each keeps its handle unless the session it goes to
-    // has given it already, then draws that session's next, and its leads' handles follow
-    // in its team's `ledBy`. Its Inbox rows and the companion items its bar holds go with
-    // it, and `watch` tells each move as a `changed` with the new `sessionId`. A terminal
+    // has given it already, or a terminal there holds it or is led under it, then draws that
+    // session's next, and its leads' handles follow in its team's `ledBy`. Its Inbox rows and
+    // the companion items its bar holds go with it, and `watch` tells each move as a `changed` with the new `sessionId`. A terminal
     // it keeps nothing of is TERMINAL_NOT_FOUND; a session it doesn't have NOT_FOUND; the
-    // terminal's own session, one of another project, one being removed or a new
-    // session's id that is taken, a CONFLICT.
+    // terminal's own session, one of another project, or one being removed, a CONFLICT, as
+    // is a move while a terminal of the team is closing, being stopped to rest or woken, has
+    // a brief that hasn't arrived, or waits on a request: one to open a terminal, or an
+    // approval the person hasn't answered.
     move: procedure.input(terminalMove).output(terminalMoved),
     // Every terminal across sessions, running or saved: `changed` for each, `synced`, then
     // later changes (creation, title, size, foreground process, exit, restart, and its

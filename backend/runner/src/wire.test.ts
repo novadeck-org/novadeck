@@ -437,22 +437,6 @@ describe("terminal move API", () => {
       client.terminals.move({ terminalId: terminal.id, to: { sessionId: randomUUID() } }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" })
   })
-
-  it("moves into a new session it makes, in the same project", async ({ resources }) => {
-    const app = await fixture(resources)
-    const { client } = await app.connect()
-    const { project, session } = await app.setup(client)
-    const terminal = await client.terminals.create(shell(session.id))
-    const id = randomUUID()
-    const moved = await client.terminals.move({
-      terminalId: terminal.id,
-      to: { newSession: { id, name: "Fresh" } },
-    })
-    expect(moved.sessionId).toBe(id)
-    expect(
-      (await client.sessions.list({ projectId: project.id })).map((each) => each.id),
-    ).toContain(id)
-  })
 })
 
 describe("terminal title API", () => {

@@ -2,6 +2,7 @@ import type { TerminalMove, TerminalMoved } from "@novadeck/protocol"
 
 import type { CompanionItems } from "../companions/items.js"
 import { DomainError } from "../errors.js"
+import type { Feedback } from "../messaging/feedback.js"
 import type { Inbox } from "../messaging/inbox.js"
 import type { Messaging } from "../messaging/messaging.js"
 import type { Approvals } from "./approvals.js"
@@ -22,8 +23,6 @@ export type MoveSessions = {
    * or its project is going, CONFLICT when the session is being removed.
    */
   readonly projectOf: (sessionId: string) => string
-  /** Creates the session; a taken id is a CONFLICT. */
-  readonly create: (session: { id: string; projectId: string; name: string }) => void
 }
 
 export type MovesHost = {
@@ -40,6 +39,7 @@ export type MovesHost = {
   readonly sleepers: () => Sleepers
   readonly messaging: () => Messaging
   readonly inbox: () => Inbox
+  readonly feedback: () => Feedback
   readonly approvals: () => Approvals
   readonly opens: () => OpenRequests
   readonly items: () => CompanionItems | undefined
@@ -62,8 +62,18 @@ type Member = {
   readonly openedBy: string | null
 }
 
-/** A member of a move with the handle and lead it has in the session it goes to. */
-type Placed = { readonly member: Member; readonly handle: string; readonly ledBy: string | null }
+/**
+ * A member of a move with what it is in the session it goes to, worked out once: the saved
+ * row and the record in memory both take it from here, so they cannot differ. `summary` is a
+ * running terminal's, its title's source following the handles that changed.
+ */
+type Placed = {
+  readonly member: Member
+  readonly handle: string
+  readonly ledBy: string | null
+  readonly openedBy: string | null
+  readonly summary: Record["summary"] | undefined
+}
 
 /** A handle that changed as its terminal moved. */
 type Rename = { readonly was: string; readonly now: string }
@@ -110,8 +120,8 @@ export const moveNotice = {
 /**
  * Moving a terminal to another session of its project, without restarting it: its place in
  * the runner's records, in messaging, in the Inbox and on the companion bar all change at
- * once, in one step with nothing awaited, so nothing sees it half moved. A lead takes its
- * team, and a teammate moved alone leaves its lead.
+ * once, in one step with nothing awaited, so nothing sees it half moved (`apply` lists what
+ * follows a terminal). A lead takes its team, and a teammate moved alone leaves its lead.
  */
 export class Moves {
   constructor(private readonly host: MovesHost) {}
@@ -188,12 +198,14 @@ export class Moves {
       return `${mention(handle)} has a brief from its lead that hasn't arrived yet.`
     if (host.opens().involves(id))
       return `${mention(handle)} has a terminal on its way: it asked its agent to open one.`
+    if (host.approvals().involves(id))
+      return `${mention(handle)} is waiting for you to answer a request in Novadeck.`
     return undefined
   }
 
   /**
-   * Moves the terminal, and the team it leads, to the session `input.to` names, or makes;
-   * see `terminals.move` in the contract for what each failure is.
+   * Moves the terminal, and the team it leads, to the session `input.to` names; see
+   * `terminals.move` in the contract for what each failure is.
    */
   move(input: TerminalMove, sessions: MoveSessions): TerminalMoved {
     const { host } = this
@@ -206,52 +218,22 @@ export class Moves {
     const projectId = sessions.projectOf(source)
     if (host.closingSession(source))
       throw new DomainError("CONFLICT", "The terminal's session is being removed.")
-    const existing = "sessionId" in input.to ? input.to.sessionId : undefined
-    if (existing !== undefined) {
-      if (sessions.projectOf(existing) !== projectId)
-        throw new DomainError("CONFLICT", "A terminal moves only within its project.")
-      if (existing === source)
-        throw new DomainError("CONFLICT", "The terminal is in that session already.")
-      if (host.closingSession(existing))
-        throw new DomainError("CONFLICT", "That session is being removed.")
-    }
+    const target = input.to.sessionId
+    if (sessions.projectOf(target) !== projectId)
+      throw new DomainError("CONFLICT", "A terminal moves only within its project.")
+    if (target === source)
+      throw new DomainError("CONFLICT", "The terminal is in that session already.")
+    if (host.closingSession(target))
+      throw new DomainError("CONFLICT", "That session is being removed.")
     const members = this.team(root, this.inSession(source))
     for (const member of members) {
       const why = this.unfit(member)
       if (why !== undefined) throw new DomainError("CONFLICT", why)
     }
-    // Everything is judged: a session made now is the one thing that stays if the rest fails.
-    const target =
-      existing ??
-      (() => {
-        const made = "newSession" in input.to ? input.to.newSession : undefined
-        sessions.create({ id: made!.id, projectId, name: made!.name })
-        return made!.id
-      })()
     const placed = this.placed(members, target, input)
     const left = root.ledBy
     // The rows of the team move together, so none is left led by a handle that went.
-    const shadows = placed.map(({ member, handle, ledBy }) => {
-      const { record } = member
-      if (!record) return this.rowOf(member, target, handle, ledBy, placed)
-      const openedBy =
-        placed.find((each) => each.member.handle === member.openedBy)?.handle ?? member.openedBy
-      return {
-        ...record,
-        summary: {
-          ...record.summary,
-          sessionId: target,
-          handle,
-          ledBy,
-          ...summaryTitle(record.naming, {
-            handle,
-            command: record.summary.command,
-            openedBy,
-          }),
-        },
-        openedBy,
-      }
-    })
+    const shadows = placed.map((each) => this.shadow(each, target))
     if (!host.saves().saveTogether(shadows)) {
       if (host.stopping()) throw new DomainError("CLOSING")
       throw new Error("Novadeck couldn't save the move of a terminal, so it didn't move it.")
@@ -283,7 +265,7 @@ export class Moves {
     const holds = (handle: string) =>
       claimed.has(handle) || there.some((each) => each.handle === handle || each.ledBy === handle)
     const renamed = new Map<string, string>()
-    return members.map((member, index) => {
+    const named = members.map((member, index) => {
       const back = input.handles?.[member.id]
       let handle: string | undefined
       if (back !== undefined && !holds(back)) {
@@ -301,32 +283,56 @@ export class Moves {
           : (renamed.get(member.ledBy ?? "") ?? member.ledBy)
       return { member, handle, ledBy: lead }
     })
+    // A member opened by one that was renamed is opened by its new handle.
+    return named.map(({ member, handle, ledBy }) => {
+      const openedBy =
+        named.find((each) => each.member.handle === member.openedBy)?.handle ?? member.openedBy
+      const { record } = member
+      const summary = record && {
+        ...record.summary,
+        sessionId: target,
+        handle,
+        ledBy,
+        // The title's source may name the old handle.
+        ...summaryTitle(record.naming, { handle, command: record.summary.command, openedBy }),
+      }
+      return { member, handle, ledBy, openedBy, summary }
+    })
   }
 
-  /** A terminal kept only as saved, as its row says it is in the session. */
-  private rowOf(
-    member: Member,
-    sessionId: string,
-    handle: string,
-    ledBy: string | null,
-    placed: readonly { member: Member; handle: string }[],
-  ) {
+  /** What is saved of a member in the session: its record as it will be, or its row. */
+  private shadow({ member, handle, ledBy, openedBy, summary }: Placed, sessionId: string) {
+    const { record } = member
+    if (record && summary) return { ...record, summary, openedBy }
     const {
       transcript: _transcript,
       savedAt: _savedAt,
       ...row
     } = this.host.saves().saved(member.id)!
-    return {
-      ...row,
-      sessionId,
-      handle,
-      ledBy,
-      openedBy:
-        placed.find((each) => each.member.handle === member.openedBy)?.handle ?? member.openedBy,
-    }
+    return { ...row, sessionId, handle, ledBy, openedBy }
   }
 
-  /** Puts the members in the session in memory, and tells who should hear of it. */
+  /**
+   * Puts the members in the session in memory, and tells who should hear of it, after the
+   * save. Everything that follows a terminal is here, for whoever adds one that keeps its
+   * session or handle:
+   * - the record: summary (sessionId, handle, ledBy, and the title whose source names a
+   *   handle) and openedBy, as `placed` worked them out, announced to watchers;
+   * - the saved row, saved with the others in `move`, and with it the companion bar's items,
+   *   which follow by the foreign key's cascade;
+   * - a sleeper's session for its wake (`Sleepers.move`), with watchers told of it;
+   * - messaging's `Live` for every member, a sleeper's resting one too (`messaging.move`),
+   *   the one writer of a terminal's place there;
+   * - the Inbox's entries (`inbox.moved`) and the feedback draft's session and handle;
+   * - the companion items' watchers (`items.terminalMoved`).
+   * Two orders matter. `messaging.move` comes before `inbox.moved`, as `Inbox.reconcile` reads
+   * the owner from `Live`. The save comes before `items.terminalMoved`, as the cascade has
+   * moved the items by then.
+   * What deliberately does not follow: messages, which are addressed by terminal id within the
+   * project. A brief, an open request and an approval naming a member refuse the move in
+   * `unfit`, so none is in flight to carry. A terminal that leaves its lead ends the lead as
+   * `Bindings.endLead` does, without its save or announcement: the team's save is one.
+   */
   private apply(
     placed: readonly Placed[],
     source: string,
@@ -344,27 +350,15 @@ export class Moves {
         : [...host.records().values()].find(
             (each) => each.summary.sessionId === source && each.summary.handle === left,
           )
-    for (const { member, handle, ledBy } of placed) {
+    for (const { member, handle, ledBy, openedBy, summary } of placed) {
       const { id, record } = member
       if (member === first!.member && left !== null) host.messaging().endLead(id)
-      host.approvals().withdraw(id)
       host.messaging().move(id, { projectId, sessionId: target }, handle, ledBy)
       host.inbox().moved(id, target, handle)
-      if (record) {
-        const renamedOpener = placed.find((each) => each.member.handle === member.openedBy)
-        if (renamedOpener) record.openedBy = renamedOpener.handle
-        // The title's source may name the old handle.
-        record.summary = {
-          ...record.summary,
-          sessionId: target,
-          handle,
-          ledBy,
-          ...summaryTitle(record.naming, {
-            handle,
-            command: record.summary.command,
-            openedBy: record.openedBy,
-          }),
-        }
+      host.feedback().moved(id, target, handle)
+      if (record && summary) {
+        record.openedBy = openedBy
+        record.summary = summary
         if (member === first!.member) record.suspended = null
         host.announce(record)
       } else {
