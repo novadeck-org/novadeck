@@ -744,6 +744,34 @@ unsure, declare `system`. `pnpm new:library` starts a library as `system`.
 | `frontend/terminal-views`               | Its specs draw with WebGL and the system's fonts in a real Chromium.       |
 | `frontend/specs`                        | Its browser specs choose keyboard chords by `navigator.platform`.          |
 
+CI runs a package's tests when the package, or one it depends on, changed. A test that reads
+files by path past its own package can't be seen that way, so the lint rule `novadeck/reach`
+(`scripts/workspace/reach.ts`) refuses a path a package builds from its own place that lands in
+a package it doesn't depend on, in prose outside every package, or in a folder whose
+`ci-scope.json` narrows it (below). Declare such a dependency, or list the path, relative to
+the root, under `reads`, and CI runs the package's tests when anything there changes:
+
+```json
+"novadeck": { "platform": "neutral", "reads": ["backend/runner/src/terminals/handles.ts"] }
+```
+
+A test that finds what it reads as it runs (`readdirSync(join(root, folder))`) can't be
+followed: its package lists the folders under `reads`, and the file turns the rule off with a
+comment that says what it reads (`scripts/workspace/reach.test.ts` holds both to that).
+
+A change outside every package runs everything, but for prose (`*.md`), which reaches only the
+packages that read it, and a folder with a `ci-scope.json` of its own:
+
+```json
+{ "reaches": "repository", "why": "Only the ratchet's own test reads it." }
+```
+
+`repository` means a change there reaches only the repository's own tests, on Linux: the
+folder runs in CI's Linux jobs or as a developer's tool. `scripts/workspace/scopes.test.ts`
+refuses one where a workflow job off Linux names the folder, where an unscoped folder imports
+it, and in `.github/`, `scripts/e2e`, `scripts/package`, `scripts/install`, `scripts/ci` and
+`scripts/workspace`. The nightly full run covers every system for what a pull request skips.
+
 Build an engine locally with `pnpm --filter @novadeck/whisper build:engine` or
 `pnpm --filter @novadeck/murmur build:engine`; the archive and `engine.json` land in
 the package's `dist/`.

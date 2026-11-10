@@ -1,0 +1,4 @@
+{
+  "reaches": "repository",
+  "why": "The release notes, which release.yml and promote.yml write on Linux after a merge: on a pull request only their own tests read them."
+}

@@ -1,0 +1,4 @@
+{
+  "reaches": "repository",
+  "why": "The hubs' line budgets and their check: only the ratchet's own test reads them, among the repository's tests, which run on Linux."
+}

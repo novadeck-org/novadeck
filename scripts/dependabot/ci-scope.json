@@ -1,0 +1,4 @@
+{
+  "reaches": "repository",
+  "why": "Dependabot's auto-merge, which dependabot-automerge.yml runs on Linux: nothing else reads it."
+}
