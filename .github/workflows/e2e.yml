@@ -290,7 +290,10 @@ jobs:
     steps: *e2e-steps
 
   # macOS's jobs, when the plan chose macOS, once every Linux job has passed: a push that
-  # fails there, or is replaced while Linux's run, takes no macOS runner, the scarcest.
+  # fails there, or is replaced while Linux's run, takes no macOS runner, the scarcest. On a
+  # pull request it is one job, the core scenarios of each chosen harness (`Core scenarios
+  # (macOS)`); every other run, the pinned night's dispatch among them, runs the whole suite
+  # on macOS (scripts/e2e/plan/plan.ts, `macosRows`).
   e2e-macos:
     needs: [plan, e2e]
     if: needs.plan.outputs.run == 'true' && contains(fromJSON(needs.plan.outputs.os), 'macos-latest')
