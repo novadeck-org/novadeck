@@ -1,5 +1,13 @@
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -101,6 +109,24 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
     const snapshot = await snapshotTree(root, join(root, ".git", "private-index"))
     expect(git(root, "show", `${snapshot!.tree}:a`)).toBe("3")
     expect(readFileSync(join(root, ".git", "index")).equals(person)).toBe(true)
+  })
+
+  it("sees a file rewritten at the same size in the moment the person's index was written", async ({
+    root,
+  }) => {
+    writeFileSync(join(root, "a"), "1\n")
+    git(root, "add", "a")
+    git(root, "commit", "--quiet", "-m", "first")
+    // The file and the index share one moment, as when an agent writes right after a `git
+    // add`: the index's entry can't vouch for a later write in that moment.
+    const moment = new Date(Math.floor(Date.now() / 1_000) * 1_000 - 60_000)
+    utimesSync(join(root, "a"), moment, moment)
+    git(root, "add", "a")
+    utimesSync(join(root, ".git", "index"), moment, moment)
+    writeFileSync(join(root, "a"), "2\n")
+    utimesSync(join(root, "a"), moment, moment)
+    const snapshot = await snapshotTree(root, join(root, ".git", "private-index"))
+    expect(git(root, "show", `${snapshot!.tree}:a`)).toBe("2")
   })
 
   it("starts from HEAD where the person has no index, and skips a file it can't read", async ({

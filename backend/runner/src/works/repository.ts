@@ -1,4 +1,4 @@
-import { copyFile, lstat, readdir, realpath, rm } from "node:fs/promises"
+import { copyFile, lstat, readdir, realpath, rm, stat, utimes } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 
 import { workLimits } from "@novadeck/protocol"
@@ -112,16 +112,29 @@ const startIndex = async (
   const path = line(await git(root, ["rev-parse", "--git-path", "index"], small))
   if (path) {
     const person = resolve(root, path)
-    const copied =
-      !(await splitIndex(root, person)) &&
-      (await copyFile(person, index).then(
-        () => true,
-        () => false,
-      ))
+    const copied = !(await splitIndex(root, person)) && (await copyIndex(person, index))
     if (copied) return true
     await rm(index, { force: true })
   }
   return (await git(root, ["read-tree", head], { ...small, env, ms: timing.gitMs * 6 })).ok
+}
+
+/**
+ * Copies the person's index to the private one, with the original's times. Git trusts an
+ * entry's stat data only when the file was older than the index itself, and re-reads the rest
+ * ("racily clean" entries); a copy dated now would trust a file rewritten, at the same size,
+ * in the moment the person's index was written. The copy is dated a second earlier still, so
+ * a rounded time only ever makes git re-read more.
+ */
+const copyIndex = async (person: string, index: string): Promise<boolean> => {
+  try {
+    const { atime, mtime } = await stat(person)
+    await copyFile(person, index)
+    await utimes(index, atime, new Date(mtime.getTime() - 1_000))
+    return true
+  } catch {
+    return false
+  }
 }
 
 /** The untracked files of the checkout (.gitignore respected) to add, and whether any was left out. */
