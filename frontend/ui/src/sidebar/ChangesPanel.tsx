@@ -1,9 +1,9 @@
-import { unread, type Work } from "@novadeck/core/works"
+import type { Work } from "@novadeck/core/works"
 import { SidebarItem, sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import { GitCompare } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import { arrivals, changeRows, type ChangeRow, type FileView } from "./changes-rows"
+import { arrivals, changeRows, unreadStates, type ChangeRow, type FileView } from "./changes-rows"
 import { SidebarPanel } from "./SidebarPanel"
 
 // How long a work that has just gained unread lines stays washed, as the Inbox's arrived rows.
@@ -87,6 +87,16 @@ const Branches = ({ row }: { row: ChangeRow }): React.JSX.Element => (
   </span>
 )
 
+// The unread lines in words, for the row's accessible label: "142 lines added, 38 removed unread".
+const unreadWords = (work: Work): string => {
+  const parts = [
+    work.unreadAdded > 0 &&
+      `${work.unreadAdded} ${work.unreadAdded === 1 ? "line" : "lines"} added`,
+    work.unreadRemoved > 0 && `${work.unreadRemoved} removed`,
+  ].filter(Boolean)
+  return `${parts.join(", ")} unread`
+}
+
 const ChangeItem = ({
   row,
   selected,
@@ -98,9 +108,11 @@ const ChangeItem = ({
 }): React.JSX.Element => {
   const { work } = row
   const count = work.files.length
+  const files = `${count}${work.truncated ? "+" : ""} ${count === 1 && !work.truncated ? "file" : "files"} changed`
   const label = [
     row.title,
-    `${count} ${count === 1 ? "file" : "files"} changed`,
+    files,
+    row.unread ? unreadWords(work) : undefined,
     row.conflictWords?.replace(/^C/, "c"),
   ]
     .filter(Boolean)
@@ -141,31 +153,43 @@ const ChangeItem = ({
 // click selects its terminal and shows the work there.
 export const ChangesPanel = ({
   works,
+  synced,
+  watch,
   titles,
   selectedId,
   active,
+  watching,
   onClose,
   onSelect,
 }: {
   works: readonly Work[]
+  // The backend has reported every work since it began following.
+  synced: boolean
+  // Follows the works until the returned release is called.
+  watch: () => () => void
   // Each terminal's title, by id.
   titles: ReadonlyMap<string, string>
   selectedId: string | undefined
   active: boolean
+  // The panel is the one shown: the works are followed only then.
+  watching: boolean
   onClose: () => void
   onSelect: (terminalId: string) => void
 }): React.JSX.Element => {
   const known = useRef<ReadonlyMap<string, boolean> | null>(null)
   const timer = useRef<number | undefined>(undefined)
   const [arrived, setArrived] = useState<readonly string[]>([])
+  useEffect(() => (watching ? watch() : undefined), [watching, watch])
   useEffect(() => {
-    const fresh = arrivals(known.current, works)
-    known.current = new Map(works.map((work) => [work.terminalId, unread(work)]))
+    // Nothing arrives until the works are synced: opening the panel or starting up lists
+    // every row once, which isn't news.
+    const fresh = synced ? arrivals(known.current, works) : []
+    known.current = unreadStates(works, synced)
     if (fresh.length === 0) return
     setArrived((now) => [...new Set([...now, ...fresh])])
     window.clearTimeout(timer.current)
     timer.current = window.setTimeout(() => setArrived([]), arrivedMs)
-  }, [works])
+  }, [works, synced])
   useEffect(() => () => window.clearTimeout(timer.current), [])
   const rows = useMemo(() => changeRows(works, titles, arrived), [works, titles, arrived])
   return (

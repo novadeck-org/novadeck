@@ -1,7 +1,14 @@
 import type { Work, WorkFile } from "@novadeck/core/works"
 
 import { describe, expect, it } from "../test"
-import { arrivals, branchViews, changeRows, conflictWords, orderedFiles } from "./changes-rows"
+import {
+  arrivals,
+  branchViews,
+  changeRows,
+  conflictWords,
+  orderedFiles,
+  unreadStates,
+} from "./changes-rows"
 
 const file = (
   path: string,
@@ -114,5 +121,20 @@ describe("arrivals", () => {
 
   it("marks nothing on the first look", () => {
     expect(arrivals(null, [work("a", 1)])).toEqual([])
+  })
+
+  it("takes the unread rows of a state as the baseline only once it is synced", () => {
+    const works = [work("a", 1), work("b", 2, read)]
+    expect(unreadStates(works, false)).toBeNull()
+    const baseline = unreadStates(works, true)
+    expect(baseline).toEqual(
+      new Map([
+        ["a", true],
+        ["b", false],
+      ]),
+    )
+    // Opening the panel lists every row, which is not news; a later gain is.
+    expect(arrivals(unreadStates(works, false), works)).toEqual([])
+    expect(arrivals(baseline, [work("a", 1), work("b", 2)])).toEqual(["b"])
   })
 })

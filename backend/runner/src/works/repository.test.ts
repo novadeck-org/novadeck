@@ -1,10 +1,10 @@
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { describe, expect, it as base } from "../test.js"
-import { mainBranch, mergeTrees, snapshotCommit, snapshotTree } from "./repository.js"
+import { mainBranch, mergeTrees, snapshotCommit, snapshotTree, treeGone } from "./repository.js"
 
 const hasGit = (() => {
   try {
@@ -33,7 +33,7 @@ const git = (root: string, ...args: string[]) =>
 describe.skipIf(!hasGit)("git, asked about a checkout", () => {
   it("finds no main branch, and takes no snapshot, before the first commit", async ({ root }) => {
     expect(await mainBranch(root)).toBeUndefined()
-    expect(await snapshotTree(root, join(root, ".git", "private"), true)).toBeUndefined()
+    expect(await snapshotTree(root, join(root, ".git", "private"))).toBeUndefined()
   })
 
   it("snapshots the working tree in a private index, leaving the person's own", async ({
@@ -46,7 +46,7 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
     writeFileSync(join(root, "untracked"), "u\n")
     const staged = git(root, "status", "--porcelain")
     const index = join(root, ".git", "private-index")
-    const snapshot = await snapshotTree(root, index, true)
+    const snapshot = await snapshotTree(root, index)
     expect(snapshot).toBeDefined()
     expect(existsSync(index)).toBe(true)
     expect(git(root, "ls-tree", "-r", "--name-only", snapshot!.tree).split("\n")).toEqual([
@@ -54,13 +54,96 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
       "untracked",
     ])
     expect(git(root, "status", "--porcelain")).toBe(staged)
-    // A second snapshot reuses the index and sees the files as they are then.
+    // A second snapshot sees the files as they are then.
     rmSync(join(root, "untracked"))
-    const again = await snapshotTree(root, index, false)
+    const again = await snapshotTree(root, index)
     expect(git(root, "ls-tree", "-r", "--name-only", again!.tree)).toBe("a")
     const commit = await snapshotCommit(root, again!.tree, again!.head)
     expect(git(root, "rev-parse", `${commit}^`)).toBe(again!.head)
     expect(git(root, "rev-parse", `${commit}^{tree}`)).toBe(again!.tree)
+  })
+
+  it("leaves out a file that became ignored, and untracked files over 1 MiB, saying so", async ({
+    root,
+  }) => {
+    writeFileSync(join(root, "a"), "1\n")
+    git(root, "add", "a")
+    git(root, "commit", "--quiet", "-m", "first")
+    writeFileSync(join(root, "gone.log"), "x\n")
+    writeFileSync(join(root, "big.bin"), Buffer.alloc(1024 * 1024 + 1))
+    writeFileSync(join(root, "ok.bin"), Buffer.alloc(1024 * 1024))
+    const index = join(root, ".git", "private-index")
+    const before = await snapshotTree(root, index)
+    expect(git(root, "ls-tree", "-r", "--name-only", before!.tree).split("\n")).toEqual([
+      "a",
+      "gone.log",
+      "ok.bin",
+    ])
+    expect(before!.skipped).toBe(true)
+    writeFileSync(join(root, ".git", "info", "exclude"), "*.log\n")
+    const after = await snapshotTree(root, index)
+    expect(git(root, "ls-tree", "-r", "--name-only", after!.tree).split("\n")).toEqual([
+      "a",
+      "ok.bin",
+    ])
+  })
+
+  it("builds the snapshot from a copy of the person's index, which stays as it was", async ({
+    root,
+  }) => {
+    writeFileSync(join(root, "a"), "1\n")
+    git(root, "add", "a")
+    git(root, "commit", "--quiet", "-m", "first")
+    writeFileSync(join(root, "a"), "2\n")
+    git(root, "add", "a")
+    writeFileSync(join(root, "a"), "3\n")
+    const person = readFileSync(join(root, ".git", "index"))
+    const snapshot = await snapshotTree(root, join(root, ".git", "private-index"))
+    expect(git(root, "show", `${snapshot!.tree}:a`)).toBe("3")
+    expect(readFileSync(join(root, ".git", "index")).equals(person)).toBe(true)
+  })
+
+  it("starts from HEAD where the person has no index, and skips a file it can't read", async ({
+    root,
+  }) => {
+    writeFileSync(join(root, "a"), "1\n")
+    git(root, "add", "a")
+    git(root, "commit", "--quiet", "-m", "first")
+    rmSync(join(root, ".git", "index"))
+    writeFileSync(join(root, "locked"), "secret\n", { mode: 0o000 })
+    writeFileSync(join(root, "fine"), "f\n")
+    const snapshot = await snapshotTree(root, join(root, ".git", "private-index"))
+    const names = git(root, "ls-tree", "-r", "--name-only", snapshot!.tree).split("\n")
+    expect(names).toContain("a")
+    expect(names).toContain("fine")
+    // Root can read it anyway; elsewhere it is left out and the rest is still taken.
+    if (process.getuid?.() !== 0) expect(names).not.toContain("locked")
+  })
+
+  it("starts from HEAD when the repository splits its index", async ({ root }) => {
+    writeFileSync(join(root, "a"), "1\n")
+    git(root, "add", "a")
+    git(root, "commit", "--quiet", "-m", "first")
+    git(root, "config", "core.splitIndex", "true")
+    writeFileSync(join(root, "b"), "b\n")
+    git(root, "add", "b")
+    writeFileSync(join(root, "c"), "c\n")
+    git(root, "add", "c")
+    const snapshot = await snapshotTree(root, join(root, ".git", "private-index"))
+    expect(git(root, "ls-tree", "-r", "--name-only", snapshot!.tree).split("\n")).toEqual([
+      "a",
+      "b",
+      "c",
+    ])
+  })
+
+  it("says a tree is gone only when git has no such object", async ({ root }) => {
+    writeFileSync(join(root, "a"), "1\n")
+    git(root, "add", "a")
+    git(root, "commit", "--quiet", "-m", "first")
+    expect(await treeGone(root, git(root, "rev-parse", "HEAD^{tree}"))).toBe(false)
+    expect(await treeGone(root, "1".repeat(40))).toBe(true)
+    expect(await treeGone(join(root, "missing"), "1".repeat(40))).toBe(false)
   })
 
   it("knows nothing of a merge it can't make", async ({ root }) => {

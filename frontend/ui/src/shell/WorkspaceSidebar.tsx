@@ -63,6 +63,10 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
   changes:
     | {
         works: readonly Work[]
+        // The backend has reported every work since it began following.
+        synced: boolean
+        // Follows the works until the returned release is called.
+        watch: () => () => void
         titles: ReadonlyMap<string, string>
         selectedId: string | undefined
         onSelect: (terminalId: string) => void
@@ -196,6 +200,7 @@ export const WorkspaceSidebar = ({
         key={`changes/${projectId}`}
         {...changes}
         active={sidebarPanel === "changes"}
+        watching={sidebarVisible && sidebarPanel === "changes"}
         onClose={onHide}
       />
     )}

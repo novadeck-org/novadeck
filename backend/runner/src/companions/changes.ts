@@ -39,7 +39,7 @@ const patchBytes = 2 * maxChangesBytes
 // A text file has no NUL byte in this much of its start.
 const sniffBytes = 8 * 1024
 // Untracked files: the largest one read, and how much all of them are read in one look.
-const maxUntrackedBytes = 1024 * 1024
+export const maxUntrackedBytes = 1024 * 1024
 const untrackedReadBytes = 8 * 1024 * 1024
 // What a line of a change costs beyond its text, once encoded: its kind and punctuation.
 const lineOverhead = 30
@@ -96,6 +96,8 @@ export const git = (
     readonly truncate?: boolean
     readonly monitor?: boolean
     readonly env?: NodeJS.ProcessEnv
+    /** Text written to its standard input (a list of paths, say). */
+    readonly input?: string
     /** How long it may take, where that is more than `timing.gitMs`. */
     readonly ms?: number
   },
@@ -125,8 +127,12 @@ export const git = (
       env: { ...gitEnv(), ...limit.env, GIT_LITERAL_PATHSPECS: "1" },
       detached: process.platform !== "win32",
       windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: [limit.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
     })
+    if (limit.input !== undefined) {
+      child.stdin?.on("error", () => {})
+      child.stdin?.end(limit.input)
+    }
     const chunks: Buffer[] = []
     let size = 0
     let capped = false

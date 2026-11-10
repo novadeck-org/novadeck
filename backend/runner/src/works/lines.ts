@@ -51,8 +51,11 @@ export const sum = (files: Iterable<Lines>): Lines => {
   return { added, removed }
 }
 
+const byPath = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
+
 /**
- * The files a work lists: the changed ones in path order, at most `workLimits.files`, each
+ * The files a work lists: the changed ones in path order, at most `workLimits.files` (past
+ * which the conflicting ones stay, then the biggest), each
  * with what of it is unread (all of it where `unread` is undefined, before a first look)
  * and whether it conflicts. The totals are of every file changed, whatever is cut.
  */
@@ -68,10 +71,24 @@ export const listFiles = (
 } => {
   const none: Lines = { added: 0, removed: 0 }
   const all = [...changed]
-    .toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .toSorted(([a], [b]) => byPath(a, b))
     .map(([path, lines]) => ({ path, lines, unread: unread ? (unread.get(path) ?? none) : lines }))
+  // Where more changed than are listed, the ones to keep are the conflicting, then the biggest.
+  const size = (lines: Lines): number => lines.added + lines.removed
+  const kept =
+    all.length <= workLimits.files
+      ? all
+      : all
+          .toSorted(
+            (a, b) =>
+              Number(conflicting.has(b.path)) - Number(conflicting.has(a.path)) ||
+              size(b.lines) - size(a.lines) ||
+              byPath(a.path, b.path),
+          )
+          .slice(0, workLimits.files)
+          .toSorted((a, b) => byPath(a.path, b.path))
   return {
-    files: all.slice(0, workLimits.files).map(({ path, lines, unread: read }) => ({
+    files: kept.map(({ path, lines, unread: read }) => ({
       path,
       added: lines.added,
       removed: lines.removed,

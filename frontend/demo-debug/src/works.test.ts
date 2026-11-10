@@ -45,7 +45,12 @@ describe("the debug panel's Changes group", () => {
   it("is absent where the backend's works aren't the demo's", () => {
     expect(worksGroups(undefined)).toEqual([])
     expect(
-      worksGroups({ state: createDemoWorks([]).state, look: () => {}, show: async () => null }),
+      worksGroups({
+        state: createDemoWorks([]).state,
+        watch: () => () => {},
+        look: () => {},
+        show: async () => null,
+      }),
     ).toEqual([])
   })
 

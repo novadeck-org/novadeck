@@ -84,6 +84,21 @@ describe("the files of a work", () => {
     expect(listed.truncated).toBe(true)
     expect(listed.total).toEqual(lines(workLimits.files + 5, workLimits.files + 5))
   })
+
+  it("keeps the conflicting files, then the biggest, when it must cut", () => {
+    const many = new Map<string, Lines>(
+      Array.from({ length: workLimits.files + 2 }, (_, at) => [`f${at}`, lines(1, 0)] as const),
+    )
+    many.set("z-huge", lines(900, 100))
+    many.set("zz-conflict", lines(1, 0))
+    const listed = listFiles(many, undefined, new Set(["zz-conflict"]))
+    const paths = listed.files.map((file) => file.path)
+    expect(paths).toHaveLength(workLimits.files)
+    expect(paths).toContain("zz-conflict")
+    expect(paths).toContain("z-huge")
+    expect(paths).toEqual(paths.toSorted())
+    expect(listed.truncated).toBe(true)
+  })
 })
 
 describe("which works could conflict", () => {

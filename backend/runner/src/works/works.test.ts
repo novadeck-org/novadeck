@@ -405,6 +405,42 @@ describe.skipIf(!hasGit)("the works of terminals in git checkouts", () => {
     })
   })
 
+  it("marks the work truncated when an untracked file over 1 MiB is left out", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    main.write("small.txt", "s\n")
+    main.write("big.bin", "x".repeat(1024 * 1024 + 1))
+    const { works } = open(() => [{ terminalId: terminal(1), root: main.root }])
+    resources.defer(() => works.close())
+    const work = (await current(works)).get(terminal(1))!
+    expect(work.files.map((file) => file.path)).toEqual(["small.txt"])
+    expect(work.truncated).toBe(true)
+  })
+
+  it("keeps a branch name within the protocol's limit", async ({ fixture, resources }) => {
+    const { main } = fixture
+    main.git("checkout", "--quiet", "-b", `${"a".repeat(120)}/${"b".repeat(120)}/${"c".repeat(60)}`)
+    main.write("b.txt", "changed\n")
+    const { works } = open(() => [{ terminalId: terminal(1), root: main.root }])
+    resources.defer(() => works.close())
+    const work = (await current(works)).get(terminal(1))!
+    expect(work.branch).toHaveLength(256)
+  })
+
+  it("stops following a file that became ignored", async ({ fixture, resources }) => {
+    const { main } = fixture
+    main.write("scratch.log", "x\n")
+    const { works } = open(() => [{ terminalId: terminal(1), root: main.root }])
+    resources.defer(() => works.close())
+    expect((await current(works)).get(terminal(1))?.files.map((file) => file.path)).toEqual([
+      "scratch.log",
+    ])
+    main.write(".git/info/exclude", "*.log\n")
+    expect((await current(works)).size).toBe(0)
+  })
+
   it("shows a work's checkout through the terminal's bar, and has nothing to show without a work", async ({
     fixture,
     resources,

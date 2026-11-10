@@ -43,7 +43,7 @@ const noSource = createStore<SourceState>({ projects: {} })
 // What a backend without History reads in its place; its panel isn't drawn.
 const noHistory = createStore<HistoryState>({ rows: [] })
 // What a backend without works reads in its place; its panel isn't drawn.
-const noWorks = createStore<WorksState>({ works: [] })
+const noWorks = createStore<WorksState>({ works: [], synced: true })
 const noAgents: readonly never[] = []
 const always = (): (() => void) => () => {}
 
@@ -166,6 +166,7 @@ export const SidebarSection = memo((): React.JSX.Element => {
     (state) => state.works.filter((work) => work.projectId === projectId),
     sameWorks,
   )
+  const worksSynced = useStoreSelector(worksFeed?.state ?? noWorks, (state) => state.synced)
   // Titles of the project's terminals, in every session of it, for the rows to name.
   const titles = useWorkspaceState(
     (workspace) =>
@@ -193,8 +194,18 @@ export const SidebarSection = memo((): React.JSX.Element => {
     [worksFeed, revealTerminal, openBarTab, projectId],
   )
   const changes = useMemo(
-    () => (worksFeed ? { works: projectWorks, titles, selectedId, onSelect: showWork } : undefined),
-    [worksFeed, projectWorks, titles, selectedId, showWork],
+    () =>
+      worksFeed
+        ? {
+            works: projectWorks,
+            synced: worksSynced,
+            watch: worksFeed.watch,
+            titles,
+            selectedId,
+            onSelect: showWork,
+          }
+        : undefined,
+    [worksFeed, projectWorks, worksSynced, titles, selectedId, showWork],
   )
   const sidebarPanel = useUiState((state) => state.location.route.panel)
   const visible = useUiState((state) => sidebarVisible(state.shell, desktop))

@@ -92,8 +92,18 @@ export const conflictWords = (
   return `Conflicts with ${names.join(", ")}`
 }
 
+// Each work's unread state as the next `arrivals` compares with, or null while the works
+// aren't synced: what is listed then (the panel just opened, the backend just started) is a
+// baseline, not news.
+export const unreadStates = (
+  works: readonly Work[],
+  synced: boolean,
+): ReadonlyMap<string, boolean> | null =>
+  synced ? new Map(works.map((work) => [work.terminalId, unread(work)])) : null
+
 // Which works have just joined the unread ones since `before` (each work's unread state
-// at the last look; null before the first): a work new to the list, or one that was read.
+// at the last look; null before the first synced one): a work new to the list, or one that
+// was read.
 export const arrivals = (
   before: ReadonlyMap<string, boolean> | null,
   works: readonly Work[],

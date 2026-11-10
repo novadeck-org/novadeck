@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto"
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { dirname } from "node:path"
 
@@ -47,19 +48,52 @@ export const loadRemembered = async (path: string): Promise<Map<string, Remember
   }
 }
 
-/** Writes it whole, by writing beside and renaming, so a stop in between loses nothing. */
-export const saveRemembered = async (
+/** Writes it whole, by writing beside (a file of its own) and renaming, so a stop in between loses nothing. */
+const saveRemembered = async (
   path: string,
   roots: ReadonlyMap<string, Remembered>,
 ): Promise<void> => {
   try {
     await mkdir(dirname(path), { recursive: true })
-    const temporary = `${path}.${process.pid}.tmp`
+    const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`
     await writeFile(temporary, JSON.stringify({ version: 1, roots: Object.fromEntries(roots) }))
     await rename(temporary, path)
   } catch (error) {
     log.warn("works.memory-unsaved", "Novadeck could not save what it remembers of works", {
       err: error,
     })
+  }
+}
+
+/**
+ * The saves of one file, one at a time: while one is being written, later requests collapse
+ * into the latest, which is written after it. `settled` resolves once nothing is left to write.
+ */
+export class RememberedSaves {
+  private running: Promise<void> | undefined
+  private pending: ReadonlyMap<string, Remembered> | undefined
+
+  constructor(private readonly path: string) {}
+
+  save(roots: ReadonlyMap<string, Remembered>): void {
+    this.pending = roots
+    this.running ??= this.drain()
+  }
+
+  async settled(): Promise<void> {
+    await this.running
+  }
+
+  private async drain(): Promise<void> {
+    try {
+      while (this.pending) {
+        const roots = this.pending
+        this.pending = undefined
+        // eslint-disable-next-line no-await-in-loop -- One write after another.
+        await saveRemembered(this.path, roots)
+      }
+    } finally {
+      this.running = undefined
+    }
   }
 }

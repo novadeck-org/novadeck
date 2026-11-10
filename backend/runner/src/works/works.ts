@@ -11,7 +11,7 @@ import { waitAfter } from "../companions/changes.js"
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
 import { attribute, conflictsOf, listFiles, mayConflict, type Claim, type Lines } from "./lines.js"
-import { loadRemembered, saveRemembered, type Remembered } from "./memory.js"
+import { loadRemembered, RememberedSaves, type Remembered } from "./memory.js"
 import {
   branchOf,
   commonDir,
@@ -21,6 +21,7 @@ import {
   numstat,
   snapshotCommit,
   snapshotTree,
+  treeGone,
 } from "./repository.js"
 
 const log = logs.for("works")
@@ -55,6 +56,8 @@ type Read = {
   readonly unread: ReadonlyMap<string, Lines> | undefined
   /** The files conflicting with main; undefined where this git can't tell. */
   readonly conflicts: readonly string[] | undefined
+  /** Untracked files over the size limit were left out of the snapshot. */
+  readonly skipped: boolean
   readonly common: string | undefined
 }
 
@@ -63,8 +66,6 @@ type RootState = {
   read: Read | undefined
   /** Not read again before this time. */
   nextAt: number
-  /** Whether the private index holds the checkout (else it starts from HEAD). */
-  indexed: boolean
 }
 
 /** How long the first sight of the works is waited for before `synced` is told without it. */
@@ -99,17 +100,19 @@ export class Works {
   private folder: Promise<string> | undefined
   private loaded: Promise<void>
   private saved = ""
+  private readonly saves: RememberedSaves | undefined
   private stopped = false
 
   constructor(private readonly options: WorksOptions) {
     this.every = options.everyMs ?? 3000
     this.now = options.now ?? Date.now
+    this.saves = options.memory === undefined ? undefined : new RememberedSaves(options.memory)
     this.loaded =
       options.memory === undefined
         ? Promise.resolve()
         : loadRemembered(options.memory).then((roots) => {
             for (const [root, remembered] of roots)
-              this.roots.set(root, { remembered, read: undefined, nextAt: 0, indexed: false })
+              this.roots.set(root, { remembered, read: undefined, nextAt: 0 })
             this.saved = this.serialized()
           })
   }
@@ -157,8 +160,7 @@ export class Works {
       const state = this.roots.get(work.root)
       if (!state?.remembered) return
       const index = await this.privateIndex(work.root)
-      const snapshot = await snapshotTree(work.root, index, !state.indexed)
-      state.indexed = snapshot !== undefined
+      const snapshot = await snapshotTree(work.root, index)
       const tree = snapshot?.tree ?? state.read?.tree
       if (tree === undefined) return
       state.remembered = { ...state.remembered, watermark: tree }
@@ -179,6 +181,7 @@ export class Works {
     this.loop?.abort()
     for (const watcher of this.watchers.keys()) watcher.finish()
     await this.queue.catch(() => {})
+    await this.saves?.settled()
     const folder = await this.folder?.catch(() => undefined)
     if (folder) await rm(folder, { recursive: true, force: true }).catch(() => {})
   }
@@ -284,7 +287,7 @@ export class Works {
   private async readRoot(root: string): Promise<void> {
     let state = this.roots.get(root)
     if (!state) {
-      state = { remembered: undefined, read: undefined, nextAt: 0, indexed: false }
+      state = { remembered: undefined, read: undefined, nextAt: 0 }
       this.roots.set(root, state)
     }
     const started = this.now()
@@ -314,8 +317,7 @@ export class Works {
     const main = await mainBranch(root)
     if (!main) return null
     const index = await this.privateIndex(root)
-    const snapshot = await snapshotTree(root, index, !state.indexed)
-    state.indexed = snapshot !== undefined
+    const snapshot = await snapshotTree(root, index)
     if (!snapshot) {
       await rm(index, { force: true })
       await rm(`${index}.lock`, { force: true })
@@ -323,7 +325,7 @@ export class Works {
     }
     const branch = await branchOf(root)
     const watermark = state.remembered?.watermark ?? null
-    const key = [main.commit, snapshot.tree, branch, watermark].join(" ")
+    const key = [main.commit, snapshot.tree, branch, watermark, snapshot.skipped].join(" ")
     if (state.read?.key === key) return state.read
     const commit = await snapshotCommit(root, snapshot.tree, snapshot.head)
     if (!commit) return "keep"
@@ -334,12 +336,15 @@ export class Works {
     if (!changed) return "keep"
     // Nothing differs from where it left main (or this git can't merge, and nothing differs).
     if (changed.size === 0) return "merged"
-    let unread: Map<string, Lines> | undefined
+    let unread: ReadonlyMap<string, Lines> | undefined
     if (watermark !== null) {
       const since = await numstat(root, watermark, snapshot.tree)
       if (since) unread = new Map([...since].filter(([path]) => changed.has(path)))
       // The tree it was last read as is gone: all of it reads as unread again.
-      else if (state.remembered) state.remembered = { ...state.remembered, watermark: null }
+      else if (state.remembered && (await treeGone(root, watermark)))
+        state.remembered = { ...state.remembered, watermark: null }
+      // Git was slow or the list too long, not the tree gone: the unread lines stand.
+      else unread = state.read?.unread
     }
     return {
       key,
@@ -351,6 +356,7 @@ export class Works {
       unread,
       conflicts:
         merge.state === "conflict" ? merge.files : merge.state === "clean" ? [] : undefined,
+      skipped: snapshot.skipped,
       common: await commonDir(root),
     }
   }
@@ -393,7 +399,7 @@ export class Works {
         unreadAdded: listed.totalUnread.added,
         unreadRemoved: listed.totalUnread.removed,
         files: listed.files,
-        truncated: listed.truncated,
+        truncated: listed.truncated || read.skipped,
         conflicts: conflictsOf((read.conflicts?.length ?? 0) > 0, [...mine.keys()]),
       })
     }
@@ -417,7 +423,7 @@ export class Works {
     }
     const sets = reads.map(({ read }) => ({
       paths: new Set(read.changed.keys()),
-      truncated: read.changed.size > workLimits.files,
+      truncated: read.changed.size > workLimits.files || read.skipped,
     }))
     for (let first = 0; first < reads.length; first += 1)
       for (let second = first + 1; second < reads.length; second += 1) {
@@ -488,13 +494,11 @@ export class Works {
 
   /** Keeps the first-seen times and last looks, when they changed. */
   private remember(): void {
-    const { memory } = this.options
-    if (memory === undefined) return
+    if (!this.saves) return
     const now = this.serialized()
     if (now === this.saved) return
     this.saved = now
-    void saveRemembered(
-      memory,
+    this.saves.save(
       new Map(
         [...this.roots].flatMap(([root, state]) =>
           state.remembered ? [[root, state.remembered]] : [],

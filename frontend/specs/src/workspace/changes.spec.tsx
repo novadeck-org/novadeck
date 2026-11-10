@@ -38,8 +38,8 @@ describe("The Changes panel", () => {
 
       await expect.element(rows().first()).toBeVisible()
       expect(labels()).toEqual([
-        "Checkout implementation, 4 files changed, conflicts with main, Tests",
-        "Tests, 2 files changed, conflicts with Checkout implementation",
+        "Checkout implementation, 4 files changed, 310 lines added, 56 removed unread, conflicts with main, Tests",
+        "Tests, 2 files changed, 85 lines added, 18 removed unread, conflicts with Checkout implementation",
         "Build, 2 files changed",
         "Checkout review, 1 file changed",
       ])

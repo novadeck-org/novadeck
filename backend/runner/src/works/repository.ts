@@ -1,7 +1,9 @@
-import { realpath } from "node:fs/promises"
-import { resolve } from "node:path"
+import { copyFile, lstat, readdir, realpath, rm } from "node:fs/promises"
+import { dirname, join, resolve } from "node:path"
 
-import { git, timing, type Run } from "../companions/changes.js"
+import { workLimits } from "@novadeck/protocol"
+
+import { git, maxUntrackedBytes, timing, type Run } from "../companions/changes.js"
 import { parseMerge, parseNumstat, type Lines } from "./lines.js"
 
 // Git, asked about a checkout for Works. Every run is the companions' `git`: no shell, literal
@@ -34,14 +36,19 @@ export const mainBranch = async (root: string): Promise<Main | undefined> => {
     // eslint-disable-next-line no-await-in-loop -- Only the one found is asked for its tree.
     const tree = line(await git(root, ["rev-parse", "--verify", "-q", `${commit}^{tree}`], small))
     if (!tree) continue
-    return { name: ref.replace(/^refs\/(?:remotes|heads)\//, ""), commit, tree }
+    return { name: cutName(ref.replace(/^refs\/(?:remotes|heads)\//, "")), commit, tree }
   }
   return undefined
 }
 
 /** The checkout's branch, or null when HEAD is detached. */
-export const branchOf = async (root: string): Promise<string | null> =>
-  line(await git(root, ["symbolic-ref", "-q", "--short", "HEAD"], small)) ?? null
+export const branchOf = async (root: string): Promise<string | null> => {
+  const name = line(await git(root, ["symbolic-ref", "-q", "--short", "HEAD"], small))
+  return name === undefined ? null : cutName(name)
+}
+
+/** A branch name cut to what the protocol carries. */
+const cutName = (name: string): string => name.slice(0, workLimits.branch)
 
 /**
  * The repository's common git folder, as one spelling for all its worktrees; undefined if
@@ -68,26 +75,121 @@ const author = {
   GIT_COMMITTER_DATE: "2000-01-01T00:00:00Z",
 }
 
+// Snapshot runs never run a clean filter of git-lfs, which would copy every file into .git/lfs.
+const noLfs = [
+  "-c",
+  "filter.lfs.clean=",
+  "-c",
+  "filter.lfs.process=",
+  "-c",
+  "filter.lfs.required=false",
+]
+
 /**
- * Takes the checkout's working tree (what `git add -A` would stage, untracked files too,
- * .gitignore respected) as a tree, without touching the person's index: the files are added
- * to a private index file, `index`, which stays between snapshots so git only reads what
- * changed. A fresh one starts from HEAD. Undefined where it can't be taken (no commit yet,
- * a file unreadable, git slow); the private index is then dropped to start afresh.
+ * Whether the repository keeps its index in parts (a split index), which a copy of the index
+ * file alone would not carry.
  */
-export const snapshotTree = async (
+const splitIndex = async (root: string, person: string): Promise<boolean> => {
+  const config = line(await git(root, ["config", "--type=bool", "core.splitIndex"], small))
+  if (config === "true") return true
+  const names = await readdir(dirname(person)).catch(() => [] as string[])
+  return names.some((name) => name.startsWith("sharedindex."))
+}
+
+/**
+ * Starts the private index from a copy of the person's own index (so git finds the stat data
+ * of the files it has hashed and doesn't read them again), or from HEAD where there is no
+ * index, it can't be copied or it is split. The person's index is only read.
+ */
+const startIndex = async (
   root: string,
   index: string,
-  fresh: boolean,
-): Promise<{ readonly tree: string; readonly head: string } | undefined> => {
+  head: string,
+  env: NodeJS.ProcessEnv,
+): Promise<boolean> => {
+  await rm(index, { force: true })
+  await rm(`${index}.lock`, { force: true })
+  const path = line(await git(root, ["rev-parse", "--git-path", "index"], small))
+  if (path) {
+    const person = resolve(root, path)
+    const copied =
+      !(await splitIndex(root, person)) &&
+      (await copyFile(person, index).then(
+        () => true,
+        () => false,
+      ))
+    if (copied) return true
+    await rm(index, { force: true })
+  }
+  return (await git(root, ["read-tree", head], { ...small, env, ms: timing.gitMs * 6 })).ok
+}
+
+/** The untracked files of the checkout (.gitignore respected) to add, and whether any was left out. */
+const untrackedFiles = async (
+  root: string,
+  env: NodeJS.ProcessEnv,
+): Promise<{ readonly paths: string[]; readonly skipped: boolean } | undefined> => {
+  const run = await git(root, ["ls-files", "-o", "--exclude-standard", "-z"], {
+    ...listing,
+    env,
+  })
+  if (!run.ok) return undefined
+  const names = run.out.split("\0").filter((name) => name !== "")
+  const sizes = await Promise.all(
+    names.map((name) =>
+      lstat(join(root, name)).then(
+        (stats) => stats.size,
+        // Gone since it was listed, or unreadable: not added.
+        () => Infinity,
+      ),
+    ),
+  )
+  const paths = names.filter((_, at) => sizes[at]! <= maxUntrackedBytes)
+  return { paths, skipped: paths.length < names.length }
+}
+
+/** The checkout's working tree as a tree; `skipped` where untracked files over the size limit were left out. */
+export type Taken = {
+  readonly tree: string
+  readonly head: string
+  readonly skipped: boolean
+}
+
+/**
+ * Takes the checkout's working tree (what `git add -A` would stage, .gitignore respected) as
+ * a tree, without touching the person's index. Each time a private index file, `index`, is
+ * made afresh from a copy of the person's own (so nothing of an earlier pass lingers and git
+ * hashes only the tracked files whose stat data changed), the tracked changes are staged and
+ * the untracked files too, but those over 1 MiB, which are left out (`skipped`). A file git
+ * can't read is left out too. Undefined where it can't be taken (no commit yet, git slow).
+ */
+export const snapshotTree = async (root: string, index: string): Promise<Taken | undefined> => {
   const head = line(await git(root, ["rev-parse", "--verify", "-q", "HEAD^{commit}"], small))
   if (!head) return undefined
   // Reading every file of a big repository once takes longer than a look at its state.
   const slow = { ...small, env: { GIT_INDEX_FILE: index }, ms: timing.gitMs * 6 }
-  if (fresh && !(await git(root, ["read-tree", head], slow)).ok) return undefined
-  if (!(await git(root, ["add", "-A"], slow)).ok) return undefined
+  if (!(await startIndex(root, index, head, slow.env))) return undefined
+  // A file that can't be read fails the run but not the files before it (`--ignore-errors`).
+  const tracked = await git(root, [...noLfs, "add", "-u", "--ignore-errors"], slow)
+  if (!tracked.ok && tracked.kind !== "exit") return undefined
+  const untracked = await untrackedFiles(root, slow.env)
+  if (!untracked) return undefined
+  if (untracked.paths.length > 0) {
+    const added = await git(
+      root,
+      [...noLfs, "add", "--ignore-errors", "--pathspec-from-file=-", "--pathspec-file-nul"],
+      { ...slow, input: untracked.paths.join("\0") + "\0" },
+    )
+    if (!added.ok && added.kind !== "exit") return undefined
+  }
   const tree = line(await git(root, ["write-tree"], slow))
-  return tree ? { tree, head } : undefined
+  return tree ? { tree, head, skipped: untracked.skipped } : undefined
+}
+
+/** Whether a tree object is in the repository: false only where git says it is not. */
+export const treeGone = async (root: string, tree: string): Promise<boolean> => {
+  const run = await git(root, ["cat-file", "-e", `${tree}^{tree}`], small)
+  return !run.ok && run.kind === "exit" && run.status > 0
 }
 
 /** A commit holding `tree` on top of `head`, to merge. */

@@ -47,10 +47,17 @@ export type Work = {
 export type WorksState = {
   // Every project's works, in no particular order.
   readonly works: readonly Work[]
+  // The backend has reported every work at least once since it began following; until then
+  // `works` may be partial or from before. Always true where nothing is followed.
+  readonly synced: boolean
 }
 
 export type Works = {
   readonly state: Store<WorksState>
+  // Asks the backend to follow the works for as long as someone watches: it starts with the
+  // first watcher and stops when the last releases (the state then stays as it was, no longer
+  // `synced`). Returns the release.
+  readonly watch: () => () => void
   // The person has read the terminal's work as it is now: its unread lines start again
   // from here.
   readonly look: (terminalId: string) => void

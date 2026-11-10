@@ -9,8 +9,7 @@ import { consume } from "./streams"
 
 export type RunnerWorks = {
   readonly works: Works
-  // Follows the works; once started it goes on across reconnections.
-  readonly follow: () => void
+  // Ends the following for good, as the backend closes.
   readonly stop: () => void
 }
 
@@ -19,15 +18,20 @@ export const createRunnerWorks = (
   // Keeps a call the backend waits for before it stops, as its other calls are.
   track: <T>(work: Promise<T>) => Promise<T> = (work) => work,
 ): RunnerWorks => {
-  const state = createStore<WorksState>({ works: [] })
+  const state = createStore<WorksState>({ works: [], synced: false })
   // By terminal.
   const held = new Map<string, Work>()
   // The works of a sequence the runner has yet to finish with `synced`; until then `held` stays.
   let incoming: Map<string, Work> | undefined
   let stream: AsyncIterableIterator<unknown, undefined> | undefined
+  // Whether the runner has reported every work since the following began.
+  let synced = false
+  // How many are watching, and whether the backend has closed.
+  let watchers = 0
+  let closed = false
 
   const publish = (): void => {
-    state.update(() => ({ works: [...held.values()] }))
+    state.update(() => ({ works: [...held.values()], synced }))
   }
 
   const follow = (): void => {
@@ -61,6 +65,7 @@ export const createRunnerWorks = (
             for (const [terminalId, work] of incoming) held.set(terminalId, work)
             incoming = undefined
           }
+          synced = true
           publish()
           break
         }
@@ -68,15 +73,40 @@ export const createRunnerWorks = (
     })
   }
 
-  const stop = (): void => {
+  // Stops following; what was last reported stays, no longer synced.
+  const unfollow = (): void => {
     const done = stream
     stream = undefined
     incoming = undefined
     void done?.return?.()?.catch?.(() => {})
+    if (synced) {
+      synced = false
+      publish()
+    }
+  }
+
+  const stop = (): void => {
+    closed = true
+    watchers = 0
+    unfollow()
   }
 
   const works: Works = {
     state,
+    // Follows the works from the first watcher until the last one lets go, and goes on across
+    // reconnections meanwhile.
+    watch: () => {
+      if (closed) return () => {}
+      watchers += 1
+      if (watchers === 1) follow()
+      let released = false
+      return () => {
+        if (released) return
+        released = true
+        watchers -= 1
+        if (watchers === 0) unfollow()
+      }
+    },
     look: (terminalId) => {
       // Read at once, as the person sees it; the runner's next report of the work confirms it.
       const work = held.get(terminalId)
@@ -92,5 +122,5 @@ export const createRunnerWorks = (
     },
     show: async (terminalId) => (await track(calls.show(terminalId))).itemId,
   }
-  return { works, follow, stop }
+  return { works, stop }
 }

@@ -28,18 +28,19 @@ const work = (n: number, change: Partial<Work> = {}): Work => ({
 const followed = (calls: { look?: (id: string) => Promise<void> } = {}) => {
   const stream = channel<WorkWatchItem>()
   const shown: string[] = []
-  const { works, follow, stop } = createRunnerWorks({
-    watch: () => stream.iterator,
+  let watches = 0
+  const { works, stop } = createRunnerWorks({
+    watch: () => ((watches += 1), stream.iterator),
     look: calls.look ?? (async () => {}),
     show: async (terminalId) => (shown.push(terminalId), { itemId: `item-${terminalId}` }),
   })
-  follow()
+  const release = works.watch()
   const ids = () =>
     works.state
       .getSnapshot()
       .works.map((each) => each.terminalId)
       .toSorted()
-  return { works, stream, stop, ids, shown }
+  return { works, stream, stop, release, ids, shown, watches: () => watches }
 }
 
 describe("Works, as the runner reports them", () => {
@@ -73,6 +74,50 @@ describe("Works, as the runner reports them", () => {
     expect(ids()).toEqual([id(1)])
     stream.push({ type: "synced" })
     await vi.waitFor(() => expect(ids()).toEqual([id(4)]))
+  })
+
+  it("is synced once the first sequence is, and not after the last watcher lets go", async () => {
+    const { works, stream, release } = followed()
+    expect(works.state.getSnapshot().synced).toBe(false)
+    stream.push({ type: "reset" })
+    stream.push({ type: "changed", work: work(1) })
+    stream.push({ type: "synced" })
+    await vi.waitFor(() => expect(works.state.getSnapshot().synced).toBe(true))
+    release()
+    expect(works.state.getSnapshot().synced).toBe(false)
+    // What was last reported stays.
+    expect(works.state.getSnapshot().works).toHaveLength(1)
+  })
+
+  it("follows from the first watcher to the last release, and again when watched anew", async () => {
+    const { works, stream, release, watches } = followed()
+    expect(watches()).toBe(1)
+    const second = works.watch()
+    expect(watches()).toBe(1)
+    release()
+    release()
+    expect(stream.returned()).toBe(0)
+    second()
+    await vi.waitFor(() => expect(stream.returned()).toBe(1))
+    works.watch()
+    expect(watches()).toBe(2)
+  })
+
+  it("does not follow at all until watched", () => {
+    let watches = 0
+    createRunnerWorks({
+      watch: () => ((watches += 1), channel<WorkWatchItem>().iterator),
+      look: async () => {},
+      show: async () => ({ itemId: "x" }),
+    })
+    expect(watches).toBe(0)
+  })
+
+  it("follows no more once the backend has stopped", () => {
+    const { works, stop, watches } = followed()
+    stop()
+    works.watch()
+    expect(watches()).toBe(1)
   })
 
   it("stops following when told to", async () => {

@@ -162,6 +162,17 @@ describe("the demo's works", () => {
     ])
   })
 
+  it("is always synced, watching it is free, and spreading files marks the work truncated", () => {
+    const works = createDemoWorks([])
+    expect(works.state.getSnapshot().synced).toBe(true)
+    expect(() => works.watch()()).not.toThrow()
+    works.spread(at, 9)
+    expect(works.state.getSnapshot()).toMatchObject({
+      synced: true,
+      works: [{ truncated: true }],
+    })
+  })
+
   it("resolves a show to null where the demo has no pane to show it in", async () => {
     const works = createDemoWorks([])
     works.gain(at)

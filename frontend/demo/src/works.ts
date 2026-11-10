@@ -155,9 +155,9 @@ export const gained = (work: Work, lines: number): Work => {
   return summed(work, [file, ...rest])
 }
 
-// It changes `count` more files, all unread: more than its row can list.
-export const spread = (work: Work, count: number): Work =>
-  summed(work, [
+// It changes `count` more files, all unread, more than the work lists.
+export const spread = (work: Work, count: number): Work => ({
+  ...summed(work, [
     ...work.files,
     ...Array.from({ length: count }, (_, index): WorkFile => {
       const lines = 6 + ((index * 7) % 23)
@@ -170,7 +170,10 @@ export const spread = (work: Work, count: number): Work =>
         conflict: false,
       }
     }),
-  ])
+  ]),
+  // So many files that the work lists only some: the row says "and more".
+  truncated: true,
+})
 
 // It has been read as it is.
 export const looked = (work: Work): Work =>
@@ -244,9 +247,10 @@ export const createDemoWorks = (
   } = {},
 ): DemoWorks => {
   const { now = Date.now, show } = options
-  const state = createStore<WorksState>({ works: initial })
+  const state = createStore<WorksState>({ works: initial, synced: true })
   const change = (terminalId: string, step: (work: Work) => Work): void => {
     state.update((current) => ({
+      ...current,
       works: current.works.map((work) => (work.terminalId === terminalId ? step(work) : work)),
     }))
   }
@@ -268,10 +272,12 @@ export const createDemoWorks = (
       truncated: false,
       conflicts: [],
     }
-    state.update((current) => ({ works: [...current.works, fresh] }))
+    state.update((current) => ({ ...current, works: [...current.works, fresh] }))
   }
   return {
     state,
+    // The demo's works are always current.
+    watch: () => () => {},
     look: (terminalId) => change(terminalId, looked),
     show: (terminalId) => {
       const work = find(terminalId)
@@ -302,6 +308,7 @@ export const createDemoWorks = (
     settle: (terminalId) => change(terminalId, settled),
     end: (terminalId) =>
       state.update((current) => ({
+        ...current,
         // Whoever conflicted with it no longer does.
         works: current.works
           .filter((work) => work.terminalId !== terminalId)
