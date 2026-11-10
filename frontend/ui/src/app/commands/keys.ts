@@ -191,6 +191,7 @@ export const createKeyCommands = (
       available: () => Boolean(targeted()),
       run: handled(() => commands.close(targeted()!.id)),
     },
+    "move.cancel": { run: handled(() => commands.cancelPick()) },
     "canvas.returnToOrigin": {
       run: (input) =>
         !input.repeat && state().view === "canvas" && canvas.current?.returnToOrigin()
@@ -352,6 +353,7 @@ export const keyState = (
     held: ui.getSnapshot().recent.switcher?.mode === "held",
     navigate: ui.getSnapshot().shell.navigate,
     dictating: dictation?.active() ?? false,
+    moving: ui.getSnapshot().moving !== null,
   }
 }
 

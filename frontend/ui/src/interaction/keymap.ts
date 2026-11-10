@@ -40,6 +40,7 @@ export type CommandId =
   | "zen.toggle"
   | "terminal.rename"
   | "terminal.close"
+  | "move.cancel"
   | "canvas.returnToOrigin"
   | "navigate.enter"
   | "navigate.exit"
@@ -96,6 +97,8 @@ export type KeyBinding = {
   readonly repeat: "run" | "swallow"
   // Only while the switcher is open in click mode.
   readonly clickSwitcher?: true
+  // Only while a terminal is being moved to another session.
+  readonly moving?: true
 }
 
 export type KeyState = {
@@ -112,6 +115,8 @@ export type KeyState = {
   readonly navigate: boolean
   // A voice clip is recording, held or hands-free, or its transcription is under way.
   readonly dictating: boolean
+  // The person is picking the session a terminal moves to.
+  readonly moving: boolean
 }
 
 // DOM facts routing asks for only when a layer needs them.
@@ -265,7 +270,8 @@ export const routeKey = (
       (binding) =>
         binding.layer === layer &&
         matches(binding.keys, input, phase) &&
-        (!binding.clickSwitcher || state.switcher === "click"),
+        (!binding.clickSwitcher || state.switcher === "click") &&
+        (!binding.moving || state.moving),
     )
     return candidates.length && gates[layer](input, state, environment) ? candidates : []
   })
@@ -298,6 +304,14 @@ export const keymapFor = (platform: Platform): readonly KeyBinding[] => {
       repeat: "run",
     },
     { layer: "dictation", keys: key("Escape", "any"), command: "voice.cancel", repeat: "swallow" },
+    // A pick of where a terminal moves gives up first, wherever focus is in the Sessions panel.
+    {
+      layer: "escape",
+      keys: key("Escape"),
+      command: "move.cancel",
+      moving: true,
+      repeat: "swallow",
+    },
     // Canvas returns to its origin first; otherwise Escape goes back into the terminal.
     { layer: "escape", keys: key("Escape"), command: "canvas.returnToOrigin", repeat: "run" },
     { layer: "escape", keys: key("Escape"), command: "navigate.exit", repeat: "swallow" },

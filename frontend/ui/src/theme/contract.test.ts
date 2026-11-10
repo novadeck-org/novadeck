@@ -681,6 +681,12 @@ const importantExceptions: readonly {
     ],
   },
   {
+    file: "@novadeck/toolkit/drag-pull.css",
+    reason:
+      "dnd-kit sets the dragged element's transition inline, which a pulled-free glide takes over",
+    declarations: ['[data-pull="snapping"] { --dnd-transition }'],
+  },
+  {
     file: "@novadeck/terminal-views/terminal-xterm.css",
     reason: "xterm sets its scrollbar slider's position and width inline",
     declarations: [

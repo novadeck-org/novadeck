@@ -13,6 +13,7 @@ import {
 } from "./items/companion-bar"
 import {
   closeTerminal,
+  moveTerminal,
   dropTile,
   moveItems,
   openInProject,
@@ -154,6 +155,15 @@ export type WorkspaceAction =
       titleSource?: TitleSource
     }
   | { type: "terminal/close"; target: WorkspaceTarget; terminalId: string }
+  // The backend moved a terminal from session `from` to `to` of its project, still running:
+  // `terminal` is it as the backend reports it there, with the handle and lead it has now.
+  | {
+      type: "terminal/move"
+      projectId: string
+      from: string
+      to: string
+      terminal: TerminalMetadata
+    }
   // The person moves items onto a terminal's bar, each last, docking any from its
   // window; `open` opens the bar's pane to the last of them.
   | {
@@ -595,6 +605,24 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
       return updateTarget(workspace, action.target, (state) =>
         closeTerminal(state, action.terminalId),
       )
+    case "terminal/move":
+      return updateProject(workspace, action.projectId, (project) => {
+        const from = project.history.find((session) => session.id === action.from)
+        const to = project.history.find((session) => session.id === action.to)
+        if (!from || !to || from === to) return project
+        const moved = moveTerminal(from.state, to.state, action.terminal)
+        if (moved.from === from.state) return project
+        return {
+          ...project,
+          history: project.history.map((session) =>
+            session === from
+              ? { ...session, state: moved.from }
+              : session === to
+                ? { ...session, state: moved.to }
+                : session,
+          ),
+        }
+      })
     case "item/move":
       return updateTarget(workspace, action.target, (state) => {
         const moved = moveItems(state, action.itemIds, action.terminalId)

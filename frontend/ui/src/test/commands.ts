@@ -17,6 +17,7 @@ import {
   watchClosing,
   watchCrashLoop,
   watchPresentation,
+  watchMoving,
   watchSwitcher,
 } from "../app/ui-store"
 import type { CanvasHandle } from "../layouts/canvas/types"
@@ -44,6 +45,8 @@ export type CommandsOptions = {
   readonly murmur?: CommandContext["murmur"]
   // The backend's closed terminals, when it keeps them.
   readonly history?: CommandContext["history"]
+  // The backend's move of a terminal to another session, when it has one.
+  readonly moveTerminal?: CommandContext["moveTerminal"]
 }
 
 // Real stores, navigator, commands and store subscriptions over a fixture workspace, with effects that
@@ -75,6 +78,7 @@ export const openCommands = ({
   conversations,
   murmur,
   history,
+  moveTerminal,
 }: CommandsOptions = {}) => {
   const [pathname = "", query = ""] = url.split("?")
   const resolved = resolveRoute(
@@ -110,6 +114,7 @@ export const openCommands = ({
     focusZenCreate: () => effects.push("focus zen create"),
     focusZenEnter: () => effects.push("focus zen enter"),
     focusTerminalsCreate: () => effects.push("focus terminals create"),
+    focusMovePick: () => effects.push("focus move pick"),
     focusWorkspaceViewport: () => effects.push("focus viewport"),
     focusTerminalTab: (id) => effects.push(`focus tab ${id}`),
     focusTerminalInput: (id) => (effects.push(`focus input ${id}`), true),
@@ -179,10 +184,11 @@ export const openCommands = ({
     conversations,
     murmur,
     history,
+    moveTerminal,
   }
   const commands = createWorkspaceCommands(context)
   // The subscriptions the provider attaches; nothing persists to storage here.
-  for (const watch of [trackRecent, watchPresentation, watchSwitcher, watchClosing])
+  for (const watch of [trackRecent, watchPresentation, watchSwitcher, watchClosing, watchMoving])
     watch(store, ui)
   watchCrashLoop(crashLoop?.crashes, ui)
   return {

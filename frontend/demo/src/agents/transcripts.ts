@@ -179,25 +179,27 @@ export const written = (
   }))
 
 // The line Novadeck's doorbell types into an idle agent's box, as its record keeps it.
-const rang = (nonce: string): DemoDraft => ({
+const rang = (nonce: string, replies = false): DemoDraft => ({
   role: "user",
   kind: "text",
   text: `[Novadeck: automatic notice, agent messages waiting, ${nonce}]`,
-  ring: { nonce, replies: false },
+  ring: { nonce, replies },
 })
 
-// The messages a ring among `items` delivered, by who sent them, as the Messages pane has them.
+// The messages a ring among `items` delivered, by who sent them, as the Messages pane has them:
+// another agent's by its handle, the person's answer through the Inbox by `null`.
 const deliveredBy = (
   items: readonly ChatItem[],
   nonce: string,
-  messages: readonly (readonly [handle: string, text: string])[],
+  messages: readonly (readonly [handle: string | null, text: string])[],
 ): readonly AgentMessage[] => {
   const at = items.find((item) => item.ring?.nonce === nonce)?.at ?? 0
   return messages.map(([handle, text], index) => ({
     id: `ring-${nonce}-${index}`,
     hop: 1,
-    from: { kind: "agent", handle, agent: "claude" },
+    from: handle === null ? { kind: "person" } : { kind: "agent", handle, agent: "claude" },
     to: { kind: "agent", handle: "crow", agent: "codex" },
+    ...(handle === null && { inbox: "answer" as const }),
     text,
     sentAt: at - 60_000,
     state: "delivered",
@@ -493,6 +495,7 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
       ),
       from("/root/explorer_2", "No other caller depends on the old rounding."),
       rang("k3f9"),
+      rang("p8w2", true),
       use(
         "call_04c",
         "apply_patch",
@@ -1003,7 +1006,7 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
 })
 
 // The agents demo's transcripts, by terminal, with what the doorbell brought Codex's review: a
-// question from @moth, rung in between its turns.
+// question from @moth, rung in between its turns, and the person's answer through the Inbox.
 export const agentTranscripts = (now: number): Readonly<Record<string, DemoTranscript>> => {
   const all = transcriptsAt(now)
   const review = all["04"]!
@@ -1011,9 +1014,12 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
     ...all,
     "04": {
       ...review,
-      delivered: deliveredBy(review.items, "k3f9", [
-        ["moth", "Does the export job still round cents the old way? Check it before you patch."],
-      ]),
+      delivered: [
+        ...deliveredBy(review.items, "k3f9", [
+          ["moth", "Does the export job still round cents the old way? Check it before you patch."],
+        ]),
+        ...deliveredBy(review.items, "p8w2", [[null, "Round half up, the way the invoices do."]]),
+      ],
     },
   }
 }

@@ -8,6 +8,7 @@ import {
   focusZenCreate,
   focusZenEnter,
   focusTerminalsCreate,
+  focusMovePick,
 } from "../../interaction/dom"
 import { cancelTerminalTransition, transitionTerminal } from "../../layouts/transition"
 import { isDesktop } from "../../shell/desktop"
@@ -22,6 +23,7 @@ export const domEffects: CommandEffects = {
   focusZenCreate,
   focusZenEnter,
   focusTerminalsCreate,
+  focusMovePick,
   focusWorkspaceViewport,
   focusTerminalTab,
   focusTerminalInput,

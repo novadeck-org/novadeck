@@ -3,6 +3,7 @@ import type { Backend } from "@novadeck/core/port"
 import { addressParams } from "./address"
 import type { DemoTurns } from "./agents/turns"
 import { plainDemo, type PlainVariant } from "./index"
+import { withMoves } from "./moves"
 import { showcaseDemo } from "./showcase/demo"
 import type { DemoTerminalSetup } from "./terminals/screens"
 
@@ -26,10 +27,14 @@ export const createDemo = (
   variant: DemoVariant,
   terminals?: DemoTerminalSetup,
   turns?: DemoTurns,
-): Backend =>
-  variant === "showcase"
-    ? showcaseDemo(terminals, turns)
-    : plainDemo(variant, terminals, undefined, turns)
+): Backend => {
+  const backend =
+    variant === "showcase"
+      ? showcaseDemo(terminals, turns)
+      : plainDemo(variant, terminals, undefined, turns)
+  // The videos' demos keep their cues by the backend they made, and move nothing.
+  return variant === "babcia" || variant === "launch" ? backend : withMoves(backend)
+}
 
 const remembered = "novadeck.demo-variant"
 

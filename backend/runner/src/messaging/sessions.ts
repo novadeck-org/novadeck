@@ -100,6 +100,18 @@ export class Sessions {
   }
 
   /**
+   * A terminal moves to another Novadeck session of its project, still running or resting:
+   * its record turns in place, as others hold it by identity, and nothing else of it
+   * changes. Its handle and lead there are the ones given. Nothing for a terminal not held.
+   */
+  move(terminalId: string, scope: Scope, handle: string, ledBy: string | null): void {
+    const live = this.live.get(terminalId)
+    if (!live) return
+    Object.assign(live, scope, { handle, ledBy })
+    this.host.store.changed(terminalId)
+  }
+
+  /**
    * A terminal rests on its saved session with no process: new, or one that ran (a stopped
    * idle agent). Its messages are untouched, they wait for the session; it is no root, and
    * never ringable. Resting again while asleep only turns the session it rests on.

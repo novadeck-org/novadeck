@@ -14,6 +14,7 @@ import { dirname, join } from "node:path"
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
+import { lint, probeConfig } from "../workspace/oxlint.ts"
 import { order } from "./order.ts"
 
 const root = join(import.meta.dirname, "..", "..")
@@ -194,35 +195,16 @@ let workspace = ""
 
 beforeAll(() => {
   workspace = mkdtempSync(join(tmpdir(), "novadeck-fence-"))
-  writeFileSync(join(workspace, ".oxlintrc.json"), readFileSync(join(root, ".oxlintrc.json")))
+  writeFileSync(join(workspace, ".oxlintrc.json"), probeConfig())
   for (const { file, form, imports } of probes) {
     mkdirSync(dirname(join(workspace, file)), { recursive: true })
     writeFileSync(join(workspace, file), imports.map(write[form]).join(""))
   }
-  const oxlint = join(root, "node_modules", "oxlint", "bin", "oxlint")
-  // oxlint exits non-zero on the refusals it's here to find.
-  const output = (() => {
-    try {
-      return execFileSync(process.execPath, [oxlint, "--format", "json", "."], {
-        cwd: workspace,
-        encoding: "utf8",
-        maxBuffer: 64 * 1024 * 1024,
-      })
-    } catch (error) {
-      // Only what it printed counts: one that couldn't run printed nothing.
-      const { stdout } = error as { stdout?: string }
-      if (!stdout) throw error
-      return stdout
-    }
-  })()
-  const { diagnostics } = JSON.parse(output) as {
-    diagnostics: readonly { code: string; message: string; filename: string }[]
-  }
+  const diagnostics = lint(workspace)
   const found = new Map<string, string[]>()
-  for (const { code, message, filename } of diagnostics) {
+  for (const { code, message, filename: file } of diagnostics) {
     const name = /^'(.+)' import is restricted/.exec(message)?.[1]
     if (code !== "eslint(no-restricted-imports)" || !name) continue
-    const file = filename.replaceAll("\\", "/")
     found.set(file, [...(found.get(file) ?? []), name])
   }
   refusals = found
