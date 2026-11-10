@@ -11,7 +11,7 @@ import type {
 } from "@novadeck/core/types"
 
 import { chatAgent } from "../samples"
-import type { DemoAgentVerbs, DemoWaiting } from "./link"
+import type { DemoAgentVerbs, DemoShell, DemoWaiting } from "./link"
 
 // How long a demo agent's turn works before it finishes.
 export const demoTurnMs = 1500
@@ -69,9 +69,24 @@ const waitingOf = (waits: DemoWaiting, now: number): AgentWaiting =>
       }
     : { jobs: [], wake: { at: now + waits.inMinutes * 60_000, reason: waits.wake.reason } }
 
+// The background shells an agent reports at `now`, running since their minutes ago.
+const shellsOf = (list: readonly DemoShell[] | undefined, now: number) =>
+  list && list.length > 0
+    ? {
+        shells: list.map(({ command, minutes }, index) => ({
+          id: `demo-shell-${index + 1}`,
+          command,
+          since: now - minutes * 60_000,
+          exit: null,
+        })),
+      }
+    : {}
+
 // What its ended turn left running, which the next status keeps.
-const left = (agent: AgentStatus | undefined) =>
-  agent?.background ? { background: agent.background } : {}
+const left = (agent: AgentStatus | undefined) => ({
+  ...(agent?.background ? { background: agent.background } : {}),
+  ...(agent?.shells ? { shells: agent.shells } : {}),
+})
 
 const contextOf = ({ projectId, workspaceSessionId }: TerminalKey): string =>
   `${projectId}/${workspaceSessionId}`
@@ -257,6 +272,7 @@ export const demoTurns = (requestedMs = demoTurnMs) => {
             working: true,
             ...(how?.planning ? { planning: true as const } : {}),
             ...(how?.subagents ? { subagents } : {}),
+            ...shellsOf(how?.shells, Date.now()),
           },
           program,
         )
@@ -280,7 +296,7 @@ export const demoTurns = (requestedMs = demoTurnMs) => {
         const { program, began } = take(key, terminal)
         const id = terminalKeyId(key)
         const after = Math.min(options?.after ?? turnMs, longestTimerMs)
-        const { background, error, waiting: waits, done, limit } = options ?? {}
+        const { background, error, waiting: waits, done, limit, shells } = options ?? {}
         // A turn that ends in the harness's or the API's error has said nothing of its own.
         const reply = error ? undefined : (options?.reply ?? replies[outcome])
         if (began) emit({ type: "begin", key })
@@ -301,6 +317,7 @@ export const demoTurns = (requestedMs = demoTurnMs) => {
               working: waiting,
               ...(background ? { background } : {}),
               ...(waits ? { waiting: waitingOf(waits, lastTurn.at) } : {}),
+              ...shellsOf(shells, lastTurn.at),
               lastTurn,
             })
             emit({

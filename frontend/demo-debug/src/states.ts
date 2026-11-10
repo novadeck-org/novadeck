@@ -6,7 +6,7 @@ import { createStore } from "@novadeck/core/store"
 import { isAgentProgram } from "@novadeck/core/terminals/process"
 import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
-import type { DemoAgentVerbs, DemoWaiting } from "@novadeck/demo/agents/link"
+import type { DemoAgentVerbs, DemoShell, DemoWaiting } from "@novadeck/demo/agents/link"
 import { isDemoInbox } from "@novadeck/demo/inbox"
 import type { DemoScreenState } from "@novadeck/demo/terminals/runtime"
 import { terminalOf } from "@novadeck/demo/workspace"
@@ -229,6 +229,14 @@ const waitingForWake: DemoWaiting = {
   inMinutes: 8,
 }
 
+// The background shells the shell states leave running, and for how long they have.
+const oneShell: readonly DemoShell[] = [{ command: "pnpm dev --filter storefront", minutes: 4 }]
+const manyShells: readonly DemoShell[] = [
+  { command: "pnpm dev --filter storefront", minutes: 12 },
+  { command: "tail -f logs/api.log", minutes: 7 },
+  { command: "docker compose up postgres", minutes: 3 },
+]
+
 // How long from now the gallery's paused agent's usage limit resets.
 const limitResetMs = 80 * 60_000
 
@@ -267,6 +275,16 @@ const gallery: readonly {
   {
     name: "Subagents",
     agent: (verbs, key) => verbs.work(key, undefined, { subagents: true }),
+  },
+  {
+    name: "Shell running",
+    agent: (verbs, key) =>
+      verbs.finish(key, undefined, "completed", { after: turnMs, shells: oneShell }),
+  },
+  {
+    name: "3 shells running",
+    agent: (verbs, key) =>
+      verbs.finish(key, undefined, "completed", { after: turnMs, shells: manyShells }),
   },
   {
     name: "Asks a question",
@@ -766,6 +784,24 @@ export const createDemoStates = (
           "Works on until its 2 subagents finish",
           (v, k, t) =>
             v.finish(k, t, "completed", { after: turnMs, background: { agents: 2, tasks: 0 } }),
+          verbs,
+        ),
+        verb(
+          "Shell running",
+          "Turn over; one background shell runs on, pinned under the chat's working line",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: oneShell }),
+          verbs,
+        ),
+        verb(
+          "3 shells running",
+          "Turn over; three background shells run on, folded into one line",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: manyShells }),
+          verbs,
+        ),
+        verb(
+          "Working, 3 shells",
+          "Works with three background shells under the working line",
+          (v, k, t) => v.work(k, t, { shells: manyShells }),
           verbs,
         ),
         verb(

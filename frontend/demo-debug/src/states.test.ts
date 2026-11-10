@@ -387,7 +387,7 @@ describe("demo states", () => {
       [
         ...Array<string>(3).fill("ask"),
         ...Array<string>(1).fill("ask"),
-        ...Array<string>(8).fill("finish"),
+        ...Array<string>(10).fill("finish"),
         ...Array<string>(4).fill("work"),
       ].toSorted(),
     )
@@ -626,6 +626,17 @@ describe("demo states", () => {
         "finish",
         ["completed", { after: 3000, background: { agents: 2, tasks: 0 } }],
       ],
+      [
+        "Shell running",
+        "finish",
+        ["completed", { after: 3000, shells: [expect.objectContaining({ minutes: 4 })] }],
+      ],
+      [
+        "3 shells running",
+        "finish",
+        ["completed", { after: 3000, shells: expect.arrayContaining([expect.anything()]) }],
+      ],
+      ["Working, 3 shells", "work", [{ shells: expect.arrayContaining([expect.anything()]) }]],
       ["Rest", "rest", []],
     ])("%s calls %s", (label, verb, args) => {
       const { calls } = verbOf(label)
