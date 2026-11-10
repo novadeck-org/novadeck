@@ -12,6 +12,7 @@ const request = (id: string, answered = false): ChatRequest => ({
   subagent: false,
   dialog: null,
   answered,
+  askedAt: 0,
 })
 
 const choices: ChatDialog = {

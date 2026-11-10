@@ -102,6 +102,7 @@ describe("a request armed as waiting, under the person's own Send or Stop", () =
             subagent: false,
             dialog: { type: "questions", id: "d1", chat: "prompt", questions: [] },
             answered: false,
+            askedAt: 0,
           },
         ],
       }),

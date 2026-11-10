@@ -8,7 +8,6 @@ import type { Refused } from "@novadeck/core/conversation/prompt-refusal"
 import { useContext, useEffect, useRef, useState } from "react"
 
 import { Fact, Since } from "./Fact"
-import { askedAt } from "./facts"
 import { RequestDialog } from "./RequestDialog"
 import { SliceKeys } from "./Slice"
 import { useMounted } from "./use-mounted"
@@ -177,7 +176,7 @@ const Card = ({
         </h3>
         {!request.answered && (
           <Fact keep>
-            <Since since={askedAt(request.id)} before="asked " after=" ago" />
+            <Since since={request.askedAt} before="asked " after=" ago" />
           </Fact>
         )}
         {onlyTheTerminal && (

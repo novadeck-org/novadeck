@@ -57,6 +57,7 @@ const request = (dialog: ChatDialog | null, answered = false): ChatRequest => ({
   subagent: false,
   dialog,
   answered,
+  askedAt: Date.now(),
 })
 
 const questions = (chat: "field" | "prompt"): ChatDialog => ({
@@ -623,11 +624,53 @@ describe("a dialog's menu", () => {
     expect(container.querySelector(".chat-raw-reason")?.className).not.toContain("sr-only")
   })
 
-  it("says how long it has waited, on the card's head", () => {
-    const { container } = show(choices, async () => {})
-    expect(container.querySelector(".chat-request-head .chat-fact")?.textContent).toMatch(
-      /^asked \d+s ago$/,
-    )
+  describe("the wait on the card's head", () => {
+    beforeEach(() => vi.useFakeTimers())
+    afterEach(() => vi.useRealTimers())
+
+    const waiting = (askedAt: number) =>
+      render(
+        createElement(Requests, {
+          requests: [{ ...request(choices), askedAt }],
+          slice: null,
+          agent: "Claude",
+          onAnswer: async () => {},
+          onAnswerInTerminal: () => {},
+          onSettled,
+          replying: null,
+          replySending: false,
+          onReply,
+          refused: refusing(),
+          onChatting,
+        }),
+      )
+    const head = (container: HTMLElement) =>
+      container.querySelector(".chat-request-head .chat-fact")?.textContent
+
+    it("counts from when the agent asked, not from when the chat showed it", () => {
+      const { container, unmount } = waiting(Date.now() - 65_000)
+      unmounts.push(unmount)
+      expect(head(container)).toBe("asked 1m 05s ago")
+    })
+
+    it("keeps counting across a remount, and ticks on", async () => {
+      const askedAt = Date.now() - 10_000
+      const first = waiting(askedAt)
+      expect(head(first.container)).toBe("asked 10s ago")
+      first.unmount()
+      await act(async () => void vi.advanceTimersByTime(5000))
+      const again = waiting(askedAt)
+      unmounts.push(again.unmount)
+      expect(head(again.container)).toBe("asked 15s ago")
+      await act(async () => void vi.advanceTimersByTime(3000))
+      expect(head(again.container)).toBe("asked 18s ago")
+    })
+
+    it("never reads negative where the runner's clock runs ahead", () => {
+      const { container, unmount } = waiting(Date.now() + 30_000)
+      unmounts.push(unmount)
+      expect(head(container)).toBe("asked 0s ago")
+    })
   })
 
   it("names the request's tool to a screen reader, not on its line", () => {

@@ -28,6 +28,7 @@ const approval = (agent: InboxRow["source"]["agent"] = "claude"): InboxRow => ({
     subagent: false,
     dialog: null,
     answered: false,
+    askedAt: 0,
   },
 })
 

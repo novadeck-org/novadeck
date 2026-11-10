@@ -41,6 +41,7 @@ const permission = (tool: string, subject: string | null): InboxRow => ({
     subagent: false,
     dialog: null,
     answered: false,
+    askedAt: 0,
   },
 })
 
@@ -68,6 +69,7 @@ const asking = (subject: string | null, questions: number): InboxRow => ({
       })),
     },
     answered: false,
+    askedAt: 0,
   },
 })
 

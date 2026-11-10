@@ -48,6 +48,7 @@ const request: InboxRow = {
     subagent: false,
     dialog: null,
     answered: false,
+    askedAt: 0,
   },
 }
 

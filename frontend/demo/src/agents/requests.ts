@@ -57,6 +57,7 @@ export const madeRequest = (
         choices: ["Yes, proceed", `No, and tell ${name} what to do differently`],
         subagent: false,
         answered: false,
+        askedAt: Date.now(),
         dialog: {
           type: "choices",
           id: dialog,
@@ -95,6 +96,7 @@ export const madeRequest = (
         ],
         subagent: false,
         answered: false,
+        askedAt: Date.now(),
         dialog: {
           type: "choices",
           id: dialog,
@@ -130,6 +132,7 @@ export const madeRequest = (
       choices: options.map((option) => option.label),
       subagent: false,
       answered: false,
+      askedAt: Date.now(),
       dialog: {
         type: "questions",
         id: dialog,

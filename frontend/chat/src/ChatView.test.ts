@@ -170,6 +170,7 @@ const asking: Conversation = {
       choices: [],
       subagent: false,
       answered: false,
+      askedAt: 0,
       dialog: {
         type: "choices",
         id: "d1",
@@ -668,6 +669,7 @@ const questioning: Conversation = {
       choices: [],
       subagent: false,
       answered: false,
+      askedAt: 0,
       dialog: {
         type: "questions",
         id: "q1",

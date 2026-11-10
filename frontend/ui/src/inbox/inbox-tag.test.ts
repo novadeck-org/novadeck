@@ -27,6 +27,7 @@ const request = (kind: ChatRequest["kind"], tool: string): InboxRow => ({
     subagent: false,
     dialog: null,
     answered: false,
+    askedAt: 0,
   },
 })
 const ask = (shape: AgentAsk["shape"], hardToUndo: string | null = null): InboxRow => ({

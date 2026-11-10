@@ -48,6 +48,7 @@ const permission = (id: string, at: number): InboxRow => ({
     choices: [],
     subagent: false,
     answered: false,
+    askedAt: 0,
     dialog: {
       type: "choices",
       id,

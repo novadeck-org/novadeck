@@ -45,17 +45,3 @@ const subscribe = (listener: () => void): (() => void) => {
   }
 }
 export const useNow = (): number => useSyncExternalStore(subscribe, () => now)
-
-// When the chat first saw each request, which asked how long ago has no record of: the protocol
-// carries no time for a request, so the wait counts from here, and a chat opened after the request
-// came undercounts it.
-const seen = new Map<string, number>()
-const seenMax = 200
-export const askedAt = (id: string): number => {
-  const known = seen.get(id)
-  if (known !== undefined) return known
-  const at = Date.now()
-  seen.set(id, at)
-  if (seen.size > seenMax) seen.delete(seen.keys().next().value!)
-  return at
-}

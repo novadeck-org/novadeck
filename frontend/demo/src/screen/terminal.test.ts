@@ -132,6 +132,7 @@ const permission: ChatRequest = {
   choices: [],
   subagent: false,
   answered: false,
+  askedAt: 0,
   dialog: {
     type: "choices",
     id: "d1",

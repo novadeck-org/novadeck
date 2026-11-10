@@ -11,6 +11,7 @@ const asked = (dialog: string, chat: "field" | "prompt" = "field"): ChatRequest 
   choices: [],
   subagent: false,
   answered: false,
+  askedAt: 0,
   dialog: { type: "questions", id: dialog, chat, questions: [] },
 })
 

@@ -49,6 +49,7 @@ const approve = (id: string, at: number, stopped = true): InboxRow => ({
     subagent: false,
     dialog: null,
     answered: false,
+    askedAt: 0,
   },
 })
 const update = (id: string, at: number): InboxRow => ({
