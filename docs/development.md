@@ -721,8 +721,11 @@ Each package says in its `package.json` whether its tests can tell one system fr
 
 `system` when its code or tests touch the operating system: processes, a PTY, signals,
 native modules, Electron's main process, or shell and filesystem behavior that differs by
-system; `neutral` when it can't behave differently on Linux, Windows and macOS. CI reads it
-to choose where a package's tests run, and reads a missing or misspelled one as `system`.
+system; `neutral` when its tests can't come out differently on Linux, Windows and macOS,
+including through what it depends on. CI runs a `neutral` package's tests on Linux alone, even
+when a `system` package it depends on changed, and reads a missing or misspelled declaration as
+`system`. The fence below sees only a package's own imports; the nightly full run on every
+system covers what it can't see.
 `scripts/workspace/platform.test.ts` fails on a package without one, and the lint fence
 (`scripts/workspace/fence.ts`, an oxlint plugin) refuses in a `neutral` package what would
 make it `system`: `child_process`, `os` (but for `tmpdir`), `net`, `tty`, Electron,

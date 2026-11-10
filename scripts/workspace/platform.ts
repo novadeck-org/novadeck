@@ -7,10 +7,12 @@ import { join } from "node:path"
 //
 // `system`: its code or tests touch the operating system (processes, a PTY, signals, native
 // modules, Electron's main process, shell or filesystem behavior that differs by system).
-// `neutral`: it can't behave differently on Linux, Windows and macOS, so its tests need only
-// one of them. CI reads it to choose where a package's tests run; a declaration missing or
-// misspelled reads as `system`, so a mistake runs more, never less. The lint fence
-// (`fence.ts`) keeps a `neutral` package from importing what would make it `system`.
+// `neutral`: its tests can't come out differently on Linux, Windows and macOS, including through
+// what it depends on, so they run on Linux alone, even when a `system` package it depends on
+// changed. The lint fence (`fence.ts`) keeps a `neutral` package from importing what would make
+// it `system`, but sees only its own imports: the nightly full run on every system covers what
+// it can't see. CI reads the declaration to choose where a package's tests run; one missing or
+// misspelled reads as `system`, so a mistake runs more, never less.
 
 export type Platform = "system" | "neutral"
 
