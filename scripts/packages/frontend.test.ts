@@ -167,6 +167,18 @@ describe("the import rewrite", () => {
     )
   })
 
+  it("leaves a package config's import of the repository's scripts, and refuses one from src", () => {
+    const use = new Set([...tracked, "scripts/flakes/retry/vitest.ts"])
+    const config = 'import { retryOnCi } from "../../scripts/flakes/retry/vitest"\n'
+    const kept = rewrite("frontend/core/vitest.config.ts", config, use)
+    expect(kept.problems).toEqual([])
+    expect(kept.text).toBe(config)
+    const code = 'import { retryOnCi } from "../../../scripts/flakes/retry/vitest"\n'
+    expect(rewrite("frontend/core/src/store.ts", code, use).problems).toEqual([
+      'frontend/core/src/store.ts:1: "../../../scripts/flakes/retry/vitest" names scripts/flakes/retry/vitest.ts, which no package holds',
+    ])
+  })
+
   it("gives each package its own copy of the Vitest re-export, relative to the file", () => {
     const adapter = rewrite(`${ui}/src/backend/runner/index.test.ts`)
     expect(adapter.text).toContain('from "./test"')

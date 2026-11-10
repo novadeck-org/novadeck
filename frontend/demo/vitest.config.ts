@@ -2,7 +2,9 @@ import { unit } from "@novadeck/build-kit/vitest"
 import { playwright } from "@vitest/browser-playwright"
 import { defineConfig } from "vitest/config"
 
-export default defineConfig({
+import { retryOnCi } from "../../scripts/flakes/retry/vitest"
+
+const config = defineConfig({
   test: {
     restoreMocks: true,
     projects: [
@@ -37,3 +39,5 @@ export default defineConfig({
     ],
   },
 })
+
+export default retryOnCi(config)

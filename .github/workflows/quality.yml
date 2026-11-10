@@ -242,6 +242,16 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      # Every test that passed only on a retry (scripts/flakes/retry), which Known Flakes
+      # counts: the run is green, so this is where its flakes show. Only when one did.
+      - name: Upload Retried Tests
+        if: ${{ !cancelled() && hashFiles('test-results/retried/**') != '' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: retried-${{ runner.os }}${{ matrix.shard && format('-{0}', matrix.shard) || '' }}-${{ github.run_attempt }}
+          path: test-results/retried/
+          retention-days: 30
+
   # The pull request's app packaged for all three systems once every check passes, unless
   # it's a draft or its change can't affect the app (Package's Scope job decides). Not
   # part of the required checks.

@@ -1,8 +1,10 @@
 import { defineConfig } from "vitest/config"
 
+import { retryOnCi } from "../../scripts/flakes/retry/vitest"
+
 const hookTimeout = 20_000
 
-export default defineConfig({
+const config = defineConfig({
   test: {
     // Tests normally finish within a second, but a cold worker on a fresh Windows
     // runner spends seconds loading native modules and having new executables
@@ -13,3 +15,5 @@ export default defineConfig({
     provide: { cleanupMs: hookTimeout },
   },
 })
+
+export default retryOnCi(config)

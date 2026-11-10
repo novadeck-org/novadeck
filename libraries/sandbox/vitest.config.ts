@@ -1,6 +1,8 @@
 import { defineConfig } from "vitest/config"
 
-export default defineConfig({
+import { retryOnCi } from "../../scripts/flakes/retry/vitest"
+
+const config = defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
     // Reaping waits seconds for what it ends, and a cold worker on a fresh Windows runner is
@@ -9,3 +11,5 @@ export default defineConfig({
     hookTimeout: 20_000,
   },
 })
+
+export default retryOnCi(config)
