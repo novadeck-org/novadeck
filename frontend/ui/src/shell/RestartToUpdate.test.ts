@@ -202,7 +202,9 @@ describe("restart to update", () => {
     })
 
     it("lets the person press again after a while with no quit", () => {
-      vi.useFakeTimers()
+      // Only timeouts: jsdom runs animation frames and focus fixup on its own setInterval,
+      // and one started on a fake clock never runs, so later frames would never come.
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
       const { page, onRestart } = pressed()
       act(() => vi.advanceTimersByTime(restartingMs - 1))
       expect(named(page, "Restarting…")).toBeDefined()

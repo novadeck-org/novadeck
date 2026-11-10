@@ -42,9 +42,15 @@ const resolvesPaper = (): void => {
     if ((element as HTMLElement).style?.color !== "var(--color-paper)")
       return resolve(element, pseudo)
     const color = paper[root.dataset.scheme as "light" | "dark"]
-    return Object.assign(resolve(element, pseudo), {
-      color,
-      getPropertyValue: (name: string) => (name === "--color-paper" ? color : ""),
+    // A computed style is read-only (jsdom 31 enforces it), so this answers in its place.
+    const getPropertyValue = (name: string) => (name === "--color-paper" ? color : "")
+    return new Proxy(resolve(element, pseudo), {
+      get: (style, key) =>
+        key === "color"
+          ? color
+          : key === "getPropertyValue"
+            ? getPropertyValue
+            : Reflect.get(style, key, style),
     })
   })
 }
