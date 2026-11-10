@@ -2023,7 +2023,11 @@ const about = (terminalId: string): Whereabouts | undefined =>
     ? whereabouts({
         title: "API author",
         summary: "Users API with paging",
-        git: { repo: "api", branch: "feat/paging", state: { ahead: 1, dirty: false } },
+        git: {
+          repo: "api",
+          branch: "feat/paging",
+          state: { detached: false, ahead: 1, gone: false, dirty: false },
+        },
       })
     : terminalId === "C"
       ? whereabouts({ title: "dev server", shell: { running: true, command: "pnpm dev" } })

@@ -1,3 +1,4 @@
+import type { GitState } from "../terminals/git-state.js"
 import { describe, expect, it } from "../test.js"
 import { novadeckSender, type Message } from "./messages.js"
 import {
@@ -85,7 +86,11 @@ describe("an agent's terminal as agents read it", () => {
         title: "ti listing",
         summary: "Splitting the agents listing\ninto session and team views",
         since: now - minutes(4),
-        git: { repo: "novadeck", branch: "task/ti-listing", state: { ahead: 2, dirty: true } },
+        git: {
+          repo: "novadeck",
+          branch: "task/ti-listing",
+          state: { detached: false, ahead: 2, gone: false, dirty: true },
+        },
         happenings: [
           {
             kind: "update",
@@ -112,15 +117,29 @@ describe("an agent's terminal as agents read it", () => {
   })
 
   it("says how its branch stands against its upstream, unless its state is unknown", () => {
-    const where = (state: { ahead: number | null; dirty: boolean } | null, branch = "feat/x") =>
-      read(listing({ where: whereabouts({ git: { repo: "web", branch, state } }) }))[1]
-    expect(where({ ahead: 0, dirty: false })).toBe("  web feat/x")
-    expect(where({ ahead: null, dirty: false })).toBe("  web feat/x, not pushed")
+    const where = (state: Partial<GitState> | null, branch = "feat/x") =>
+      read(
+        listing({
+          where: whereabouts({
+            git: {
+              repo: "web",
+              branch,
+              state: state && { detached: false, ahead: null, gone: false, dirty: false, ...state },
+            },
+          }),
+        }),
+      )[1]
+    expect(where({ ahead: 0 })).toBe("  web feat/x")
+    expect(where({ ahead: 3 })).toBe("  web feat/x, 3 ahead")
+    expect(where({})).toBe("  web feat/x, no upstream")
+    // As once a merged branch is deleted on its remote.
+    expect(where({ gone: true })).toBe("  web feat/x, upstream gone")
     expect(where(null)).toBe("  web feat/x")
-    // A detached head has no upstream to be ahead of.
-    expect(where({ ahead: null, dirty: true }, "1a2b3c4")).toBe(
+    // A detached head has no upstream to be ahead of; a branch named like a commit has.
+    expect(where({ detached: true, dirty: true }, "1a2b3c4")).toBe(
       "  web 1a2b3c4, uncommitted changes",
     )
+    expect(where({}, "deadbee")).toBe("  web deadbee, no upstream")
   })
 
   it("tells how it relates to the reader, from the running leads", () => {

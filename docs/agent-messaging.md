@@ -414,8 +414,8 @@ like them, only inside Novadeck's terminals.
   what it works on. It is for finding a terminal and routing a message to it. The runner
   renders it, as it renders a refused `send`'s listing, and the MCP server prints the text
   as it is. It starts with the caller's own handle, then every team there, each once: "Teams
-  in this project and session:", then "- yours: led by @moth, with @fox, @sable and you" or
-  "- led by @crow, with @owl", from the running leads only, so no entry has to repeat its
+  in this project and session:", then "- led by @moth: @fox, @sable and you" or
+  "- led by you: @owl", from the running leads only, so no entry has to repeat its
   team. Then each terminal:
 
   - an agent's terminal, two lines:
@@ -437,23 +437,29 @@ like them, only inside Novadeck's terminals.
     5. the summary its own agent gave through `describe`, quoted, when it gave one;
     6. its git checkout, where it works now: the checkout's folder name as its repo (a
        uberepo task's worktree is named after its repo, and every repo of a task has the
-       same branch), its branch, how many commits it is ahead of its upstream ("not pushed"
-       with none), "uncommitted changes" when there are, and the latest pull request link
+       same branch), its branch, how many commits it is ahead of its upstream ("no upstream"
+       without one, "upstream gone" once it is deleted on its remote, as after a merge;
+       nothing for a detached head), "uncommitted changes" when there are, and the latest pull request link
        its agent gave in a `tell` or `done`. The checkout is its terminal's folder's unless
        its agent's latest tool calls are mostly in another (see below). Nothing is said
        outside a checkout. Ahead and uncommitted come from one `git status
        --porcelain=v2 --branch`, run with `GIT_OPTIONAL_LOCKS=0` so it never takes the
-       index lock an agent's own git may want; it is cached a few seconds, a listing waits
-       for a fresh one at most a moment, and else shows the last known value while it
-       refreshes. The pull request is never asked of GitHub: no network, sign-in or rate
+       index lock an agent's own git may want, with no file monitor and no submodules; it
+       is cached a few seconds per checkout, a listing waits for a checkout's first read at
+       most a moment (every terminal in it waiting on that one read), and else shows the
+       last known value while it refreshes. The pull request is never asked of GitHub: no network, sign-in or rate
        limit stands between an agent and its listing;
   - a terminal opened to run an agent that hasn't bound: "expecting Codex, not started yet",
     or "waiting on the user: its startup screen" (see [Startup screens](#startup-screens));
     one whose agent's hooks aren't trusted says nothing can deliver to it;
   - a plain shell, one line: `- @crow · dev server: shell, running pnpm dev:web`, or "at
-    its prompt". The command shows only its program and the plain words after it, up to
-    the first that could carry a value (an assignment, an option, a path, an address, a
-    quote), so `TOKEN=… curl -H "Authorization: …"` shows as `curl`.
+    its prompt". The command shows only its program, and for a known tool that takes a
+    subcommand (`pnpm`, `cargo`, `git`, `docker` …) that subcommand, and the script a
+    runner subcommand runs (`npm run test`), each only where it is a plain lowercase word.
+    Any other program's words may be anything, a password among them (`openssl passwd
+    hunter2`), so none shows: `TOKEN=… curl -H "Authorization: …"` shows as `curl`. A
+    script shows as its name without its interpreter or arguments (`python3 deploy.py …`
+    as `deploy`).
 
   Text an agent or the person wrote (titles, summaries, report subjects, message and reply
   excerpts) is flattened to one line and cut short wherever a listing shows it, so it can't
@@ -489,8 +495,9 @@ like them, only inside Novadeck's terminals.
 
 - **`team({ all? })`** is for the caller's team only, and for following its work: its lead
   and the others that lead leads, and the terminals the caller leads (an agent in the
-  middle has both). It starts with "Your team: led by @moth, with @fox, @sable and you."
-  and "You lead @owl." Each member shows its `agents()` entry, with what it waits on the
+  middle has both). It starts with "Your team in this project and session:" and its
+  roster lines, as `agents()` gives them ("- led by @moth: @fox, @sable and you", "- led by
+  you: @owl"). Each member shows its `agents()` entry, with what it waits on the
   person for in full rather than cut short, then what happened since the caller last
   called `team`, oldest first:
 
@@ -500,25 +507,30 @@ like them, only inside Novadeck's terminals.
     since you last looked:
       12 min ago, update: PR opened, CI running
       5 min ago, turn ended without a report: "Should I also migrate the old rows, or leave them?"
-      4 min ago, you → @fox, arrives when its turn ends: "Leave them, add a follow-up issue"
+      4 min ago, you → @fox, on its way: "Leave them, add a follow-up issue"
   - @sable · schema migration: Codex, busy for 3 min, your teammate · nothing new since you last looked
   ```
 
   The entries:
   - its `tell` and `done` reports ("update", "done"): subject and the start of the body;
   - its asks of the person ("asked the user");
-  - each turn it ended without a `tell` or `done` since the turn before ("turn ended without
-    a report", with the start of its reply; "turn failed", with its error): the
+  - each turn it ended without a `tell` or `done` in it, between the turn's start and its
+    end ("turn ended without a report", with the start of its reply; "turn failed", with
+    its error; a turn read back after a restart, whose start isn't known, counts a report
+    since the turn before): the
     silent finish a lead would otherwise not hear of, as a worker's finished turn
     without a `done` leaves its tab read for the person (see [Authority](#authority));
   - messages between the caller and it, either way: one the caller sent in any state, with
-    when it arrives, held, or that it won't; one it sent the caller only once delivered,
-    else "a message from it on its way to you" with no text, so the listing never gets
+    whether it is on its way, held, or won't arrive; one it sent the caller only once
+    delivered, else "a message on its way to you" with no text, so the listing never gets
     past a pause or a delivery.
 
   At most five entries show per member, with "(and N earlier)". A member with no new entry
   and the same state as at the caller's last look is one line, "nothing new since you last
-  looked". What the caller last saw is kept in memory, per caller terminal and agent
+  looked". An entry is new by what it says, not by when it happened: a turn's end is
+  stored a moment after it ends (a lead woken by its worker may look in between), and a
+  message the caller saw on its way shows again once delivered, held or gone. What the
+  caller last saw is kept in memory, per caller terminal and agent
   session: a `/clear` or a new session starts afresh, and a runner restart shows
   everything as new. A lead whose context was compacted calls `team({ all: true })`, which
   shows every member's latest entries whatever it saw; the tool's description says so, in

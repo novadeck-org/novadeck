@@ -68,6 +68,8 @@ export type Happening =
   | {
       readonly kind: "turn"
       readonly at: number
+      /** When the turn started; null where Novadeck didn't see it, as after a restart. */
+      readonly from: number | null
       readonly outcome: "completed" | "failed"
       readonly text: string | null
     }
@@ -348,9 +350,6 @@ export const headLine = (peer: Peer, now: number, viewer: Viewer, full = false):
   return `- ${mention(peer.handle)}${title}: ${statusOf(peer, now, full)}${relation ? `, ${relation}` : ""}`
 }
 
-/** A detached head reads as its short commit, which has no upstream to be ahead of. */
-const detached = (branch: string): boolean => /^[0-9a-f]{7}$/.test(branch)
-
 /**
  * Where an agent works, as listings show it: its repository and branch, how far ahead of
  * its upstream (or that it has none), uncommitted changes, and its reported pull request.
@@ -360,10 +359,12 @@ const gitText = (peer: Peer): string | null => {
   const parts = git
     ? [
         [git.repo, git.branch].filter(Boolean).join(" "),
-        git.state && git.branch && !detached(git.branch)
-          ? git.state.ahead === null
-            ? "not pushed"
-            : git.state.ahead > 0 && `${git.state.ahead} ahead`
+        git.state && git.branch && !git.state.detached
+          ? git.state.ahead !== null
+            ? git.state.ahead > 0 && `${git.state.ahead} ahead`
+            : git.state.gone
+              ? "upstream gone"
+              : "no upstream"
           : null,
         git.state?.dirty && "uncommitted changes",
       ]

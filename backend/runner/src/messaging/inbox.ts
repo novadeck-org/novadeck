@@ -689,7 +689,7 @@ export class Inbox {
    * updates the one stored for that end. `owner` is whose it was when the end was seen.
    * Nothing once closed. The terminal's 51st unread turn removes its oldest.
    */
-  recordTurn(owner: Owner, at: number, fields: TurnFields): void {
+  recordTurn(owner: Owner, at: number, fields: TurnFields, from: number | null = null): void {
     if (this.closed) return
     if (this.turnAt(owner.terminalId, at)) {
       this.amendTurn(owner.terminalId, at, fields)
@@ -703,7 +703,7 @@ export class Inbox {
       state: "open",
     }
     this.save(() => this.records.saveEntry(entry))
-    this.keep(entry)
+    this.keep(entry, from)
     const unread = [...(this.byTerminal.get(owner.terminalId)?.values() ?? [])]
       .filter(isTurn)
       .toSorted((a, b) => a.at - b.at)
@@ -720,16 +720,18 @@ export class Inbox {
 
   /**
    * Changes the stored turn that ended at `at` to `fields`, or removes it for null (the end
-   * turned out otherwise). Nothing where none is stored, as after it was read.
+   * turned out otherwise). Where none is stored, as after it was read, only what `team`
+   * keeps of it changes.
    */
   amendTurn(terminalId: string, at: number, fields: TurnFields | null): void {
     if (this.closed) return
     const entry = this.turnAt(terminalId, at)
+    if (!fields) this.turnLog.drop(terminalId, at)
+    else if (!entry) this.turnLog.amend(terminalId, at, fields)
     if (!entry) return
     if (!fields) {
       this.save(() => this.records.removeEntries([entry.id]))
       this.forgetTurns([entry])
-      this.turnLog.drop(terminalId, at)
       this.publish()
       return
     }
@@ -856,6 +858,7 @@ export class Inbox {
     const turns = this.turnLog.of(terminalId, session).map((turn): Happening => ({
       kind: "turn",
       at: turn.at,
+      from: turn.from,
       outcome: turn.outcome,
       text: turn.outcome === "failed" ? turn.error : turn.reply,
     }))
@@ -1172,7 +1175,7 @@ export class Inbox {
       log.error("inbox.prune-failed", "Novadeck could not prune its Inbox history", { err: error })
     }
   }
-  private keep(entry: StoredEntry): void {
+  private keep(entry: StoredEntry, from: number | null = null): void {
     const { content } = entry
     if (content.kind === "turn")
       this.turnLog.record(entry.terminalId, {
@@ -1180,6 +1183,7 @@ export class Inbox {
         agent: entry.agent,
         sessionId: entry.sessionId,
         at: entry.at,
+        from,
         outcome: content.outcome,
         reply: content.reply,
         error: content.error,

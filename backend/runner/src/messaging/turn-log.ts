@@ -7,6 +7,8 @@ export type LoggedTurn = {
   readonly agent: string
   readonly sessionId: string
   readonly at: number
+  /** When it started; null where that isn't known, as for a turn read back after a restart. */
+  readonly from: number | null
   readonly outcome: "completed" | "failed"
   readonly reply: string | null
   readonly error: string | null
@@ -24,10 +26,31 @@ export const keptTurns = 10
 export class TurnLog {
   private readonly turns = new Map<string, LoggedTurn[]>()
 
-  /** Keeps a turn, or replaces the one that ended at the same moment: oldest first. */
+  /**
+   * Keeps a turn, or replaces the one that ended at the same moment, keeping its start
+   * where the new one doesn't know it: oldest first.
+   */
   record(terminalId: string, turn: LoggedTurn): void {
-    const kept = (this.turns.get(terminalId) ?? []).filter((each) => each.at !== turn.at)
-    this.turns.set(terminalId, [...kept, turn].toSorted((a, b) => a.at - b.at).slice(-keptTurns))
+    const old = this.turns.get(terminalId) ?? []
+    const from = turn.from ?? old.find((each) => each.at === turn.at)?.from ?? null
+    const kept = old.filter((each) => each.at !== turn.at)
+    this.turns.set(
+      terminalId,
+      [...kept, { ...turn, from }].toSorted((a, b) => a.at - b.at).slice(-keptTurns),
+    )
+  }
+
+  /**
+   * Changes how the kept turn that ended at `at` ended, if one is kept: its Inbox row may
+   * be gone, read by the person, while this record still lists it.
+   */
+  amend(
+    terminalId: string,
+    at: number,
+    fields: Pick<LoggedTurn, "outcome" | "reply" | "error">,
+  ): void {
+    const turn = this.turns.get(terminalId)?.find((each) => each.at === at)
+    if (turn) this.record(terminalId, { ...turn, ...fields })
   }
 
   /** Forgets the turn that ended at `at`: it turned out otherwise (an interruption, a limit). */

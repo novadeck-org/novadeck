@@ -6,6 +6,7 @@ const turn = (at: number, fields: Partial<LoggedTurn> = {}): LoggedTurn => ({
   agent: "claude",
   sessionId: "s",
   at,
+  from: null,
   outcome: "completed",
   reply: `reply ${at}`,
   error: null,
@@ -34,5 +35,17 @@ describe("a terminal's latest finished turns", () => {
     expect(log.of("B", { agent: "claude", sessionId: "s" })).toEqual([])
     log.retain((id) => id !== "A")
     expect(log.of("A", { agent: "claude", sessionId: "other" })).toEqual([])
+  })
+
+  it("keep a turn's start when it is stored again without one, and take amends", () => {
+    const log = new TurnLog()
+    log.record("A", turn(5, { from: 2 }))
+    log.record("A", turn(5, { reply: "filled in" }))
+    // Its Inbox row may be gone, read: the log still changes with the end.
+    log.amend("A", 5, { outcome: "failed", reply: null, error: "API error" })
+    log.amend("A", 9, { outcome: "failed", reply: null, error: "none kept" })
+    expect(log.of("A", { agent: "claude", sessionId: "s" })).toEqual([
+      turn(5, { from: 2, outcome: "failed", reply: null, error: "API error" }),
+    ])
   })
 })

@@ -14,10 +14,16 @@ import {
 } from "./peers.js"
 
 /**
- * What a caller saw at its last `team`: when it looked, and each member's state then (see
- * `stateKey`), so a member with nothing new since collapses to one line.
+ * What a caller saw at its last `team`: each member's state then (see `stateKey`) and the
+ * entries it had then (see `entryKey`), so a member with nothing new since collapses to one
+ * line. Entries are told apart by what they say, not by when they happened: a turn's end is
+ * stored a moment after it ends, and a message changes as it goes, so an entry dated before
+ * the look may still be new to it.
  */
-export type Look = { readonly at: number; readonly states: ReadonlyMap<string, string> }
+export type Look = {
+  readonly states: ReadonlyMap<string, string>
+  readonly seen: ReadonlyMap<string, ReadonlySet<string>>
+}
 
 /** What tells a member's state apart for `team`: what runs there, busy or idle, what it waits on. */
 export const stateKey = (peer: Peer): string =>
@@ -36,6 +42,9 @@ export const shownEntries = 5
 /** One line of a member's timeline: when, and what. */
 export type Entry = { readonly at: number; readonly text: string }
 
+/** What tells an entry apart for `team`: when it happened and what it says now. */
+export const entryKey = (entry: Entry): string => `${entry.at}|${entry.text}`
+
 // How much of each kind of text an entry shows, in characters.
 const subjectChars = 160
 const bodyChars = 240
@@ -43,7 +52,8 @@ const textChars = 200
 
 /**
  * A member's reports, asks and turns that ended without a report, as entries. A turn counts
- * as reported when a `tell` or `done` came after the turn before it ended, up to its own end.
+ * as reported when a `tell` or `done` came in it: from its start to its end, or, where its
+ * start is unknown, after the turn before it ended.
  */
 export const happened = (happenings: readonly Happening[]): Entry[] => {
   const reports = happenings.filter(({ kind }) => kind === "update" || kind === "done")
@@ -51,7 +61,10 @@ export const happened = (happenings: readonly Happening[]): Entry[] => {
   return happenings.flatMap((happening): Entry[] => {
     const { at } = happening
     if (happening.kind === "turn") {
-      const reported = reports.some((report) => report.at > previous && report.at <= at)
+      const from = happening.from
+      const reported = reports.some(
+        (report) => (from === null ? report.at > previous : report.at >= from) && report.at <= at,
+      )
       previous = at
       if (reported) return []
       const said = happening.text && flat(happening.text, textChars)
@@ -139,9 +152,17 @@ export const renderTeam = (input: {
     .filter(({ relation }) => relation !== null && relation !== "peer")
     .toSorted((a, b) => rank[a.relation!] - rank[b.relation!])
     .map(({ peer }) => peer)
+  const timelines = new Map(
+    members.map((peer) => [
+      peer.handle,
+      [...happened(peer.happenings), ...input.exchanges(peer)].toSorted((a, b) => a.at - b.at),
+    ]),
+  )
   const look: Look = {
-    at: input.now,
     states: new Map(members.map((peer) => [peer.handle, stateKey(peer)])),
+    seen: new Map(
+      [...timelines].map(([handle, entries]) => [handle, new Set(entries.map(entryKey))]),
+    ),
   }
   if (members.length === 0)
     return {
@@ -152,9 +173,10 @@ export const renderTeam = (input: {
     }
   const before = input.all ? undefined : input.look
   const blocks = members.flatMap((peer) => {
-    const entries = [...happened(peer.happenings), ...input.exchanges(peer)]
-      .filter(({ at }) => before === undefined || at > before.at)
-      .toSorted((a, b) => a.at - b.at)
+    const seen = before?.seen.get(peer.handle)
+    const entries = (timelines.get(peer.handle) ?? []).filter(
+      (entry) => before === undefined || !seen?.has(entryKey(entry)),
+    )
     const head = headLine(peer, input.now, viewer, true)
     if (before && entries.length === 0 && before.states.get(peer.handle) === stateKey(peer))
       return [`${head} · nothing new since you last looked`]

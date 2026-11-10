@@ -79,8 +79,11 @@ describe("what a member's agent session did, as team lists it", () => {
     subject: "Tests pass",
     body: "",
   })
-  const turn = (at: number, text: string | null = "Should I also migrate the old rows?") =>
-    ({ kind: "turn", at, outcome: "completed", text }) as const
+  const turn = (
+    at: number,
+    text: string | null = "Should I also migrate the old rows?",
+    from: number | null = null,
+  ) => ({ kind: "turn", at, from, outcome: "completed", text }) as const
 
   it("lists its reports, its asks, and each turn that ended without a report", () => {
     expect(
@@ -91,7 +94,7 @@ describe("what a member's agent session did, as team lists it", () => {
         { kind: "asked", at: 21, subject: "Which shape?" },
         { kind: "done", at: 25, subject: "Shipped", body: "PR merged\nand released" },
         turn(26),
-        { kind: "turn", at: 30, outcome: "failed", text: "API error" },
+        { kind: "turn", at: 30, from: null, outcome: "failed", text: "API error" },
       ]),
     ).toEqual([
       { at: 10, text: "update: Tests pass" },
@@ -104,6 +107,18 @@ describe("what a member's agent session did, as team lists it", () => {
 
   it("says a silent turn ended even where it has no reply", () => {
     expect(happened([turn(5, null)])).toEqual([{ at: 5, text: "turn ended without a report" }])
+  })
+
+  it("credits a report to the turn it came in, where the turn's start is known", () => {
+    // The update came in a turn that was interrupted, which isn't kept: the next turn,
+    // started after it, still ended without a report.
+    expect(happened([update(100), turn(300, "Should I migrate the rows?", 200)])).toEqual([
+      { at: 100, text: "update: Tests pass" },
+      { at: 300, text: 'turn ended without a report: "Should I migrate the rows?"' },
+    ])
+    expect(happened([turn(300, "Done", 50), update(100)].toSorted((a, b) => a.at - b.at))).toEqual([
+      { at: 100, text: "update: Tests pass" },
+    ])
   })
 })
 
@@ -158,8 +173,14 @@ describe("what team says", () => {
     happenings: [
       { kind: "update", at: now - minutes(12), subject: "PR opened, CI running", body: "" },
       // The turn the update was told in, then one that ended with no report.
-      { kind: "turn", at: now - minutes(10), outcome: "completed", text: "PR is up" },
-      { kind: "turn", at: now - minutes(5), outcome: "completed", text: "Should I migrate?" },
+      { kind: "turn", at: now - minutes(10), from: null, outcome: "completed", text: "PR is up" },
+      {
+        kind: "turn",
+        at: now - minutes(5),
+        from: null,
+        outcome: "completed",
+        text: "Should I migrate?",
+      },
     ],
   })
   const owl = member("owl", "moth", { since: now - minutes(3) }, true)
@@ -196,11 +217,12 @@ describe("what team says", () => {
   })
 
   it("shows only what happened since the caller last looked, a member with nothing new on one line", () => {
-    const first = team({ peers: [fox, owl] })
-    const later = { ...first.look, at: now - minutes(8) }
+    // The caller looked 8 minutes ago, before the last turn ended and its message went.
+    const earlier = { ...fox, happenings: fox.happenings.slice(0, 2) }
+    const { look } = team({ peers: [earlier, owl] })
     const { text } = team({
       peers: [fox, owl],
-      look: later,
+      look,
       exchanges: (peer) =>
         peer.handle === "fox"
           ? exchanged([message()], "MOTH", { terminalId: "FOX", handle: "fox" })
@@ -214,6 +236,35 @@ describe("what team says", () => {
       '    4 min ago, you → @fox, on its way: "Leave them, add a follow-up issue"',
       "- @owl: Claude Code, busy for 3 min, led by you · nothing new since you last looked",
     ])
+  })
+
+  it("shows a turn stored after the caller looked, though it ended before", () => {
+    // A turn's end is stored a moment after it ends: a lead woken by its worker may look
+    // in between.
+    const idle = member("fox", "moth", { since: now - minutes(1) })
+    const { look } = team({ peers: [idle] })
+    const stored = member("fox", "moth", {
+      since: now - minutes(1),
+      happenings: [
+        { kind: "turn", at: now - minutes(1), from: null, outcome: "completed", text: "Hm?" },
+      ],
+    })
+    expect(team({ peers: [stored], look }).text).toContain(
+      '  since you last looked:\n    1 min ago, turn ended without a report: "Hm?"',
+    )
+  })
+
+  it("shows a message again once where it is changed", () => {
+    const quiet = member("fox", "moth")
+    const said = (state: Message["state"]) => () =>
+      exchanged([message({ state })], "MOTH", { terminalId: "FOX", handle: "fox" })
+    const { look } = team({ peers: [quiet], exchanges: said("held") })
+    expect(team({ peers: [quiet], look, exchanges: said("held") }).text).toContain(
+      "nothing new since you last looked",
+    )
+    expect(team({ peers: [quiet], look, exchanges: said("gone") }).text).toContain(
+      "you → @fox, won't arrive:",
+    )
   })
 
   it("shows a member whose state changed, though nothing new happened", () => {

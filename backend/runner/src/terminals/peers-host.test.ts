@@ -274,7 +274,7 @@ describe("where a peer's agent works now", () => {
         happenings: () => [],
         stopping: () => false,
       },
-      new GitStates(async () => ({ ahead: 1, dirty: false })),
+      new GitStates(async () => ({ detached: false, ahead: 1, gone: false, dirty: false })),
     )
     await peers.agents({ type: "agents", terminalId: "t1", token: "k", request: {} })
     return where
@@ -298,7 +298,7 @@ describe("where a peer's agent works now", () => {
     expect(moved?.git).toEqual({
       repo: "repo",
       branch: "task/b",
-      state: { ahead: 1, dirty: false },
+      state: { detached: false, ahead: 1, gone: false, dirty: false },
     })
   })
 
@@ -308,7 +308,13 @@ describe("where a peer's agent works now", () => {
     const root = await folder(resources)
     await project(root)
     const a = join(root, "tasks", "a", "repo")
-    const stayed = { git: { repo: "repo", branch: "task/a", state: { ahead: 1, dirty: false } } }
+    const stayed = {
+      git: {
+        repo: "repo",
+        branch: "task/a",
+        state: { detached: false, ahead: 1, gone: false, dirty: false },
+      },
+    }
     expect(await whereabouts(root, [join(a, "src"), join(root, "scratchpad")])).toMatchObject(
       stayed,
     )

@@ -10,22 +10,38 @@ import { GitStates, parseStatus, readGitState, type GitState } from "./git-state
 
 const run = promisify(execFile)
 
+const state = (fields: Partial<GitState> = {}): GitState => ({
+  detached: false,
+  ahead: null,
+  gone: false,
+  dirty: false,
+  ...fields,
+})
+
 describe("a checkout's git status", () => {
   it("reads commits ahead of its upstream, and any changed or untracked file", () => {
     expect(
       parseStatus(
         "# branch.oid abc\n# branch.head main\n# branch.upstream origin/main\n# branch.ab +2 -1\n",
       ),
-    ).toEqual({ ahead: 2, dirty: false })
+    ).toEqual(state({ ahead: 2 }))
     expect(
       parseStatus("# branch.head main\n1 .M N... 100644 100644 100644 a b src/a.ts\n"),
-    ).toEqual({
-      ahead: null,
-      dirty: true,
-    })
-    expect(parseStatus("# branch.ab +0 -0\n? new.txt\n")).toEqual({ ahead: 0, dirty: true })
+    ).toEqual(state({ dirty: true }))
+    expect(parseStatus("# branch.ab +0 -0\n? new.txt\n")).toEqual(state({ ahead: 0, dirty: true }))
     // Output cut short has more than fit: changed for certain.
-    expect(parseStatus("# branch.ab +0 -0\n", true)).toEqual({ ahead: 0, dirty: true })
+    expect(parseStatus("# branch.ab +0 -0\n", true)).toEqual(state({ ahead: 0, dirty: true }))
+  })
+
+  it("tells an upstream that is gone from none, and a detached head", () => {
+    // As once a merged branch is deleted on its remote: git names it, with no counts.
+    expect(parseStatus("# branch.head feat\n# branch.upstream origin/feat\n")).toEqual(
+      state({ gone: true }),
+    )
+    expect(parseStatus("# branch.head feat\n")).toEqual(state())
+    expect(parseStatus("# branch.oid abc\n# branch.head (detached)\n")).toEqual(
+      state({ detached: true }),
+    )
   })
 
   it.skipIf(!gitPath())(
@@ -38,17 +54,22 @@ describe("a checkout's git status", () => {
       await writeFile(join(repo, "a.txt"), "a")
       await git("add", "a.txt")
       await git("commit", "-q", "-m", "a")
-      expect(await readGitState(repo)).toEqual({ ahead: null, dirty: false })
+      expect(await readGitState(repo)).toEqual(state())
       await writeFile(join(repo, "b.txt"), "b")
-      expect(await readGitState(repo)).toEqual({ ahead: null, dirty: true })
+      expect(await readGitState(repo)).toEqual(state({ dirty: true }))
+      // A branch whose upstream is gone.
+      await git("config", "branch.main.remote", "origin")
+      await git("config", "branch.main.merge", "refs/heads/main")
+      await git("remote", "add", "origin", repo)
+      expect(await readGitState(repo)).toEqual(state({ gone: true, dirty: true }))
       expect(await readGitState(await folder(resources))).toBeNull()
     },
   )
 })
 
 describe("checkouts' states as listings read them", () => {
-  const clean: GitState = { ahead: 0, dirty: false }
-  const changed: GitState = { ahead: 1, dirty: true }
+  const clean = state({ ahead: 0 })
+  const changed = state({ ahead: 1, dirty: true })
 
   it("answer a state read moments ago at once, and read again once it is old", async () => {
     let time = 0
@@ -85,6 +106,17 @@ describe("checkouts' states as listings read them", () => {
     finish(changed)
     await new Promise((done) => setTimeout(done, 0))
     expect(await states.of("/slow")).toEqual(changed)
+  })
+
+  it("give every caller of a checkout never read the same first read", async () => {
+    let reads = 0
+    const states = new GitStates(async () => {
+      reads += 1
+      return changed
+    })
+    // Two terminals in one checkout, listed at once.
+    expect(await Promise.all([states.of("/w"), states.of("/w")])).toEqual([changed, changed])
+    expect(reads).toBe(1)
   })
 
   it("count a read that fails as unknown", async () => {
