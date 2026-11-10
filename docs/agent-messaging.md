@@ -1457,7 +1457,7 @@ terminal whose session resumes: its Live is `resting`, see `Sessions.rest`). The
 to it, or the person looking at it, wakes it on the same session. Every harness, every OS: the
 rule is the same because it reads only the activity, the messaging state and the processes.
 `terminals/hibernation.ts` looks at every terminal each minute (`vetoOf`), after the setting
-"Stop idle agents after" (`hibernateAfterMinutes` in `settings.get`, 30 minutes by default,
+"Stop idle agents after" (`hibernateAfterMinutes` in `settings.get`, an hour by default,
 `null` for off; kept in the settings table, so no schema change). An agent rests only if all hold:
 
 - it is a bound agent whose harness resumes the session it reported, the saved row and the
