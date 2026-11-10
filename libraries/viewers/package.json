@@ -132,5 +132,8 @@
     "react": {
       "optional": true
     }
+  },
+  "novadeck": {
+    "platform": "system"
   }
 }

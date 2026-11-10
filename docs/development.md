@@ -714,6 +714,36 @@ atlas.
 | `tools/atlas`             | Dev-only code map: `pnpm atlas`; agent briefs: `pnpm -s atlas:brief`.                      |
 | `scripts`                 | Repository checks and automation.                                                          |
 
+Each package says in its `package.json` whether its tests can tell one system from another:
+
+```json
+"novadeck": { "platform": "system" }
+```
+
+`system` when its code or tests touch the operating system: processes, a PTY, signals,
+native modules, Electron's main process, or shell and filesystem behavior that differs by
+system; `neutral` when its tests can't come out differently on Linux, Windows and macOS,
+including through what it depends on. CI runs a `neutral` package's tests on Linux alone, even
+when a `system` package it depends on changed, and reads a missing or misspelled declaration as
+`system`. The fence below sees only a package's own imports; the nightly full run on every
+system covers what it can't see.
+`scripts/workspace/platform.test.ts` fails on a package without one, and the lint fence
+(`scripts/workspace/fence.ts`, an oxlint plugin) refuses in a `neutral` package what would
+make it `system`: `child_process`, `os` (but for `tmpdir`), `net`, `tty`, Electron,
+node-pty, koffi, the sandbox, a library's `/pty`, `/host`, `/shell`, `/electron` and
+`/browser/host`, and `process.platform`, `arch` and `kill`. A type alone is erased, so it's
+allowed. Some packages are `system` for what no import shows, and say why below; when
+unsure, declare `system`. `pnpm new:library` starts a library as `system`.
+
+| `system` without an import that says so | Why                                                                        |
+| --------------------------------------- | -------------------------------------------------------------------------- |
+| `engines/whisper`, `engines/murmur`     | Native engines, built for each system.                                     |
+| `frontend/chat-contract`                | It runs the harnesses' decoders, whose code reads `process.platform`.      |
+| `libraries/emulator`                    | It parses each system's own PTY output, which differs (Windows' ConPTY).   |
+| `libraries/viewers`                     | Its host side drives Electron's main process, through objects it is given. |
+| `frontend/terminal-views`               | Its specs draw with WebGL and the system's fonts in a real Chromium.       |
+| `frontend/specs`                        | Its browser specs choose keyboard chords by `navigator.platform`.          |
+
 Build an engine locally with `pnpm --filter @novadeck/whisper build:engine` or
 `pnpm --filter @novadeck/murmur build:engine`; the archive and `engine.json` land in
 the package's `dist/`.

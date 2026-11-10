@@ -60,5 +60,8 @@
     "vitest": "^5.0.5"
   },
   "desktopName": "dev.mzpk.novadeck",
+  "novadeck": {
+    "platform": "system"
+  },
   "productName": "Novadeck"
 }
