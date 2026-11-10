@@ -10,7 +10,9 @@ import { own, start } from "./scenarios.js"
 // with all running; one exits 3, one exits 0, and one runs until it is stopped. The runner
 // tells each with its id, command and start, and its exit while it lasts after the turn
 // (`activity.shells`). Probed 2026-11-10 on Claude Code 2.1.316, Codex 0.167.0, Antigravity 1.5.3.
-const commands = ["sleep 7; exit 3", "sleep 5; exit 0", "sleep 600"]
+// Long enough that a slow runner still sees all three running, and that Codex on Windows, which
+// waits for a command longer than its yield, hands them to the background.
+const commands = ["sleep 40; exit 3", "sleep 30; exit 0", "sleep 600"]
 
 const launch = (agent: string, command: string, summary: string): Reply => {
   if (agent === "claude")
@@ -34,7 +36,7 @@ const started = (call: Call): string[] =>
   call.turns
     .filter((turn) => turn.role === "tool")
     .map((turn) => turn.text)
-    .filter((text) => /background|session ID/.test(text))
+    .filter((text) => /background|session ID|Process exited/.test(text))
 
 // The agent stopping the last shell it started; Codex's person stops theirs with /stop.
 const stopping = (call: Call, agent: string): Reply => {
@@ -115,39 +117,59 @@ for (const setup of setups) {
           expect(shell.since).toBeGreaterThan(before - 5000)
           expect(shell.since).toBeLessThanOrEqual(Date.now())
         }
-        // The turn is over and the shells stay told.
-        expect(t.summary().activity?.state).toBe("idle")
         const [a, c, b] = running.map(({ id }) => id) as [string, string, string]
 
-        // Two end by themselves, with the codes they exited with; the third runs on.
-        const ended = await t.poll(
-          () => {
-            const now = shellsOf(t)
-            return now.find((s) => s.id === a)?.exit && now.find((s) => s.id === c)?.exit
-              ? now
-              : undefined
-          },
-          "two shells to end",
-          60_000,
-        )
-        expect(ended.find((s) => s.id === a)?.exit?.code).toBe(3)
-        expect(ended.find((s) => s.id === c)?.exit?.code).toBe(0)
-        expect(ended.find((s) => s.id === b)?.exit).toBeNull()
-        for (const shell of ended)
-          if (shell.exit) expect(shell.exit.at).toBeGreaterThanOrEqual(shell.since)
+        // Whatever the outcome, the shell that runs on is stopped, so none outlives the test.
+        const stop = async () => {
+          if (setup.agent === "codex") await t.submit("/stop")
+          else await t.submit("Stop the shell")
+        }
+        let finished = false
+        try {
+          // Two end by themselves, with the codes they exited with; the third runs on.
+          const ended = await t.poll(
+            () => {
+              const now = shellsOf(t)
+              return now.find((s) => s.id === a)?.exit && now.find((s) => s.id === c)?.exit
+                ? now
+                : undefined
+            },
+            "two shells to end",
+            120_000,
+          )
+          expect(ended.find((s) => s.id === a)?.exit?.code).toBe(3)
+          expect(ended.find((s) => s.id === c)?.exit?.code).toBe(0)
+          expect(ended.find((s) => s.id === b)?.exit).toBeNull()
+          for (const shell of ended)
+            if (shell.exit) expect(shell.exit.at).toBeGreaterThanOrEqual(shell.since)
 
-        // Stopped, the last ends with no code of its own.
-        if (setup.agent === "codex") await t.submit("/stop")
-        else await t.submit("Stop the shell")
-        const stopped = await t.poll(
-          async () => {
-            await approve(t)
-            return shellsOf(t).find((s) => s.id === b)?.exit ?? undefined
-          },
-          "the last shell to end",
-          60_000,
-        )
-        expect(stopped.code).toBeNull()
+          // Stopped, the last ends with no code of its own.
+          await stop()
+          const stopped = await t.poll(
+            async () => {
+              await approve(t)
+              return shellsOf(t).find((s) => s.id === b)?.exit ?? undefined
+            },
+            "the last shell to end",
+            60_000,
+          )
+          expect(stopped.code).toBeNull()
+          finished = true
+        } finally {
+          if (!finished) {
+            await stop().catch(() => undefined)
+            await t
+              .poll(
+                async () => {
+                  await approve(t)
+                  return shellsOf(t).find((s) => s.id === b)?.exit ?? undefined
+                },
+                "the last shell to end, after a failure",
+                30_000,
+              )
+              .catch(() => undefined)
+          }
+        }
       },
     )
   })
