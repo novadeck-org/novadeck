@@ -274,9 +274,15 @@ for (const setup of setups) {
         await t1.prompt("Queued beta")
         const { pty } = internals(run).live(t1.id).terminal
         pty.write(`\x1b[200~${doorbellLine("abc123def")}\x1b[201~`)
+        // The line in the box before its Enter, and queued before the Stop: "Queued beta" has
+        // the box's queue hint showing already, and on a slow macOS runner the paste landed
+        // only as the Stop read the box, so its Escape met a draft and the late Enter sent it.
+        // (Claude Code puts a no-break space after its ❯.)
+        const line = doorbellLine("abc123def").replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")
+        await t1.until(new RegExp(`❯\\s+${line}`))
         await sleep(300)
         pty.write("\r")
-        await t1.until(/Press up to edit queued messages/)
+        await t1.until(/❯\s+Press up to edit queued messages/)
         const calls = run.model.mark()
         const stopped = await t1.interrupt()
         held.open()
