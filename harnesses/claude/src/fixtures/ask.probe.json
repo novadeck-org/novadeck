@@ -27603,6 +27603,102 @@
       },
       "steps": {},
       "transcriptTail": []
+    },
+    "k-ask-other-narrow": {
+      "what": "k-ask-other-narrow",
+      "version": "2.1.322",
+      "modelSawToolResult": "The user answered: \"Which database should we use?\"=\"MariaDB for the win\". Read the answers carefully — they may request clarification, changes, or that you not proceed — and follow what they actually say.",
+      "screens": {
+        "120x40": {
+          "height": 17,
+          "columns": 120,
+          "rows": {
+            "0": " ▐▛███▛█   Claude Code v2.1.322",
+            "1": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "2": " ▝▝   ▝▝   <sandbox>/project",
+            "3": "❯ Ask now",
+            "4": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "5": " ☐ Database",
+            "6": "Which database should we use?",
+            "7": "❯ 1. Postgres",
+            "8": "     Relational",
+            "9": "  2. SQLite",
+            "10": "     Embedded",
+            "11": "  3. DuckDB",
+            "12": "     Columnar",
+            "13": "  4. Type something.",
+            "14": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "15": "  5. Chat about this",
+            "16": "Enter to select · ↑/↓ to navigate · Esc to cancel"
+          }
+        }
+      },
+      "steps": {
+        "narrow": {
+          "height": 17,
+          "rows": {
+            "0": " ▐▛███▛█   Claude Code v2.1.322",
+            "1": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "2": " ▝▝   ▝▝   <sandbox>/project",
+            "3": "❯ Ask now",
+            "4": "────────────────────────────────────────────────────",
+            "5": " ☐ Database",
+            "6": "Which database should we use?",
+            "7": "❯ 1. Postgres",
+            "8": "     Relational",
+            "9": "  2. SQLite",
+            "10": "     Embedded",
+            "11": "  3. DuckDB",
+            "12": "     Columnar",
+            "13": "  4. Type something.",
+            "14": "────────────────────────────────────────────────────",
+            "15": "  5. Chat about this",
+            "16": "Enter to select · ↑/↓ to navigate · Esc to cancel"
+          }
+        },
+        "focused-other": {
+          "height": 18,
+          "rows": {
+            "0": " ▐▛███▛█   Claude Code v2.1.322",
+            "1": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "2": " ▝▝   ▝▝   <sandbox>/project",
+            "3": "❯ Ask now",
+            "4": "────────────────────────────────────────────────────",
+            "5": " ☐ Database",
+            "6": "Which database should we use?",
+            "7": "  1. Postgres",
+            "8": "     Relational",
+            "9": "  2. SQLite",
+            "10": "     Embedded",
+            "11": "  3. DuckDB",
+            "12": "     Columnar",
+            "13": "❯ 4. Type something.",
+            "14": "────────────────────────────────────────────────────",
+            "15": "  5. Chat about this",
+            "16": "Enter to select · ↑/↓ to navigate · ctrl+g to edit",
+            "17": "in Vim · Esc to cancel"
+          }
+        },
+        "after-enter": {
+          "height": 14,
+          "rows": {
+            "0": " ▐▛███▛█   Claude Code v2.1.322",
+            "1": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "2": " ▝▝   ▝▝   <sandbox>/project",
+            "3": "❯ Ask now",
+            "4": "● User answered Claude's questions:",
+            "5": "  ⎿  · Which database should we use? → MariaDB for",
+            "6": "     the win",
+            "7": "● Done.",
+            "8": "✻ Sautéed for 0s · done 11:04 AM",
+            "9": "                                ◐ medium · /effort",
+            "10": "────────────────────────────────────────────────────",
+            "11": "❯",
+            "12": "────────────────────────────────────────────────────",
+            "13": "  ⏸ manual mode on · ← for agents"
+          }
+        }
+      }
     }
   }
 }

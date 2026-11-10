@@ -139,6 +139,21 @@ surface({
     await shot("after-enter")
   },
 })
+// A narrow terminal, as a chat beside others leaves it: the footer and its editor hint wrap.
+surface({
+  name: "k-ask-other-narrow",
+  reply: ask(q1),
+  shows: askShows,
+  sizes: [],
+  drive: async (t, _p, shot) => {
+    t.resize(52, 40)
+    await shot("narrow", 900)
+    t.press("4")
+    await shot("focused-other", 500)
+    await t.confirm(/MariaDB for the win/, async () => t.press("MariaDB for the win"))
+    await shot("after-enter")
+  },
+})
 surface({
   name: "k-ask-other-then-digit",
   reply: ask(q1),
