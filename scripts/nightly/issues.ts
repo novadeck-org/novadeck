@@ -33,7 +33,7 @@ export const findIssue = (title: string): number | null => {
   return found.find((issue) => issue.title === title)?.number ?? null
 }
 
-/** Opens, comments on or closes the issue, as the action says; `none` does nothing. */
+/** Opens, comments on, closes or rewrites the issue, as the action says; `none` does nothing. */
 export const act = (action: Action): void => {
   if (action.kind === "open")
     gh("issue", "create", "--repo", repo(), "--title", action.title, "--body", action.body)
@@ -41,4 +41,6 @@ export const act = (action: Action): void => {
     gh("issue", "comment", String(action.issue), "--repo", repo(), "--body", action.body)
   else if (action.kind === "close")
     gh("issue", "close", String(action.issue), "--repo", repo(), "--comment", action.body)
+  else if (action.kind === "edit")
+    gh("issue", "edit", String(action.issue), "--repo", repo(), "--body", action.body)
 }

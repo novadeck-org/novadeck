@@ -30,6 +30,8 @@ export type Action =
   | { readonly kind: "open"; readonly title: string; readonly body: string }
   | { readonly kind: "comment"; readonly issue: number; readonly body: string }
   | { readonly kind: "close"; readonly issue: number; readonly body: string }
+  /** The issue's own text replaced, for a report that keeps a current list there; no night does. */
+  | { readonly kind: "edit"; readonly issue: number; readonly body: string }
   | { readonly kind: "none" }
 
 /**
