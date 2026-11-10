@@ -1213,7 +1213,12 @@ question and folder-trust screens as no box, and Codex's as one holding the whol
 question. A Codex note field was not probed; Antigravity's login screen reads as no box. Three rings in a row that
 failed after pasting something stop the doorbell (`failed`) until a root turn event or a
 key of the person's; one given up before it pasted, because the box no longer read empty,
-doesn't count. A terminal made Ready by its screen has had turns, so the ring's allowance
+doesn't count. Any ring its doorbell prompt confirms ends the run, a line submitted from the
+box too, though it carries the nonce of the ring that failed and left it (until 2026-11-10 it
+didn't, so three rings each recovered that way stopped the doorbell). Stopped, it still looks
+at the screen once more, and submits the line a ring left alone in the box ("The line a ring
+left"), as that adds no line; one that fails too leaves the line to the person, whose prompt
+from the chat takes it out of the box (below). A terminal made Ready by its screen has had turns, so the ring's allowance
 for a first screen's logo vanishing (below) is not given to it.
 
 **Refusals and looks.** Every refusal of the gate says why and is looked at again with
@@ -1254,7 +1259,14 @@ doorbell no longer knows leaves the box to them. From Fresh, Drafting or Unknown
 waiting, the doorbell submits
 it with Enter alone under the same gate as a ring, after the same wait a failed ring earns,
 pasting nothing (the terminal is Ringing under that line's own nonce, which its doorbell
-prompt confirms; three that fail stop it as rings do). A line with anything beside it (the
+prompt confirms; three that fail stop it as rings do). A prompt from the chat (`Prompts`,
+any mode) given while no ring is under way erases the plain doorbell line there with the
+box's own keys and goes in its place, noted `ring-line-cleared`: it holds no one's words, and
+the messages it rang for come with the prompt's hook, or, where the hook may run as a prompt is
+queued (Claude Code's) and the terminal was Unknown, with the ring after that turn. A reply
+line, which holds the person's words, still refuses the prompt (`ringing`). Until 2026-11-10
+every such prompt was refused as `ringing`, which left a terminal the doorbell had stopped on
+with no way forward from the chat. A line with anything beside it (the
 person's text, a picker's `@` or `/`) is their draft and is never touched; a menu or an
 approval that swallowed the paste shows no box holding it. Before 2026-10-19 only a ring
 whose paste check had accepted the line, with no key of the person's since, left it

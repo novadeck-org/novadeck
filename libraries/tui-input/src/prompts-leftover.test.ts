@@ -48,6 +48,8 @@ type Options = {
   readonly refusesFrom?: number
   readonly known?: string
   readonly ringLine?: boolean
+  /** Whether the box's text is the doorbell's own line, holding no one's words. */
+  readonly ringNotice?: boolean
 }
 
 /** How long a test sits out what never comes, and how long what comes may take, in milliseconds. */
@@ -207,6 +209,7 @@ const fake = (options: Options = {}) => {
       },
       known: () => options.known,
       ringLine: () => options.ringLine ?? false,
+      ringNotice: () => options.ringNotice ?? false,
       note: (_id, note) => notes.push(note),
     },
     new InputQueue({
@@ -382,6 +385,30 @@ describe("a prompt over text in the box", () => {
     await refused(tui.give("the message"), "ringing")
     expect(tui.typed).toEqual([])
     expect(tui.notes).toEqual(["ringing"])
+  })
+
+  it("takes the doorbell's own line out of the box when no ring is under way, and goes", async () => {
+    // A ring that failed left it, and the doorbell gave up: the prompt's hook carries the
+    // messages it rang for, so it goes instead, whichever way the prompt takes a box.
+    for (const mode of ["freed", "along", "alone"] as const) {
+      const tui = fake({ text: "the doorbell's line", ringLine: true, ringNotice: true })
+      // eslint-disable-next-line no-await-in-loop -- One after another.
+      await tui.give("the message", mode)
+      expect(tui.sent).toEqual(["the message"])
+      expect(tui.notes).toContain("ring-line-cleared")
+    }
+  })
+
+  it("leaves the doorbell's own line where the keys don't empty the box", async () => {
+    const tui = fake({
+      text: "the doorbell's line",
+      ringLine: true,
+      ringNotice: true,
+      noErase: true,
+    })
+    await refused(tui.give("the message"), "ringing")
+    expect(tui.sent).toEqual([])
+    expect(tui.notes).toEqual(["clear-unconfirmed", "ringing"])
   })
 
   it("presses no Enter where it never showed after the text, and says so", async () => {

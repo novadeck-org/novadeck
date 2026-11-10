@@ -1,6 +1,6 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import { newTurn, takesQueue } from "@novadeck/tui-input/box"
+import { checkPaste, newTurn, takesQueue } from "@novadeck/tui-input/box"
 import { describe, expect, it } from "vitest"
 
 import { box, clearPending } from "./box.js"
@@ -315,5 +315,63 @@ describe("Claude Code's images", () => {
 
   it("counts none in an empty box", () => {
     expect(box.images!.attached(screenOf(rule, "❯ ", rule, "  ? for shortcuts"))).toBe(0)
+  })
+})
+
+describe("the doorbell's line landing beside a feedback draft's card", () => {
+  // Its card for a feedback draft stays until it is dismissed, under the box, and its last row
+  // reads by whether the box holds text (bundle of 2.1.322; a terminal whose every ring failed
+  // as `elsewhere` once it drafted one, 2026-11-10). The rest as 2.1.322 drew it at 80 columns
+  // (e2e/probes/ring-footer.e2e.ts).
+  const line = "[Novadeck: automatic notice, agent messages waiting, k3f9Xz]"
+  const wide = "─".repeat(80)
+  const rows = (prompt: string, keys: string, extra = "") => [
+    " ▐▛███▛█   Claude Code v2.1.322",
+    "",
+    "❯ Start the watch",
+    "",
+    "● Started the watch.",
+    "",
+    "✻ Churned for 0s · done 9:47 PM · 1 shell still running",
+    ...Array.from({ length: 6 }, () => ""),
+    wide,
+    prompt,
+    wide,
+    "",
+    "  ⏵⏵ auto mode on (shift+tab to cycle) · 1 feedback draft",
+    "",
+    "✻ Bug report drafted: Doorbell left its line in the box",
+    "  - **What happened:** the line stayed",
+    "  - **Repro:** ring an idle agent",
+    keys,
+    extra,
+  ]
+  const still = box.still!
+  const empty = rows("❯", "1 to review · 2 to send · 0 to dismiss")
+  const landed = rows(`❯ ${line}`, "clear text to review, send, or dismiss")
+
+  it("accepts the line though the card's keys changed, as its reading leaves them", () => {
+    expect(checkPaste(empty, landed, line)).toEqual({ accepted: false, reason: "elsewhere" })
+    expect(checkPaste(empty, landed, line, { still })).toMatchObject({
+      accepted: true,
+    })
+  })
+
+  it("reads the keys alike with more drafts queued", () => {
+    const more = rows("❯", "1 to review · 2 to send · 0 to dismiss · +2 more queued")
+    const typed = rows(`❯ ${line}`, "clear text to review, send, or dismiss · +2 more queued")
+    expect(checkPaste(more, typed, line, { still })).toMatchObject({ accepted: true })
+  })
+
+  it("still rejects any other row that changed far from the box", () => {
+    const listed = rows(
+      `❯ ${line}`,
+      "clear text to review, send, or dismiss",
+      "  /review   Review a pull request",
+    )
+    expect(checkPaste(empty, listed, line, { still })).toEqual({
+      accepted: false,
+      reason: "elsewhere",
+    })
   })
 })

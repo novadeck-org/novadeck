@@ -61,9 +61,24 @@ const overlay = (screen: ScreenText): boolean => {
  */
 const agentRow = /^(\s*(?:❯ )?◯ .*?)\s+(?:\d+d )?(?:\d+h )?(?:\d+m )?\d+(?:\.\d+)?s(?: · .*)?$/
 
-/** The rows without what counts up by itself while it idles: a background agent's elapsed time. */
+/**
+ * The last row of its card for a feedback draft it queued (its `SendFeedback` tool), which stays
+ * until the person dismisses it: `✻ Bug report drafted: <title>`, a preview of the details, then
+ * this row of keys, which reads by whether the box holds text, so every paste rewrites it, far
+ * from the box. Read in its bundle (2.1.322, `yCe`), and seen on a terminal whose rings all failed
+ * as `elsewhere` from its first draft on (2026-11-10): with the box empty `1 to review · 2 to send
+ * · 0 to dismiss`, with text `clear text to review, send, or dismiss`, either with `+N more
+ * queued` after it.
+ */
+const draftKeys =
+  /^(\s*)(?:1 to review · 2 to send · 0 to dismiss|clear text to review, send, or dismiss)((?: · \+\d+ more queued)?)\s*$/
+
+/**
+ * The rows without what changes by itself while it idles, a background agent's elapsed time,
+ * and without what a paste changes that says nothing of where it went: a feedback draft's keys.
+ */
 const still = (rows: readonly string[]): readonly string[] =>
-  rows.map((row) => row.replace(agentRow, "$1"))
+  rows.map((row) => row.replace(agentRow, "$1").replace(draftKeys, "$1feedback draft keys$2"))
 
 /** How its box reads off a screen. */
 const read = (screen: ScreenText) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows))

@@ -29,6 +29,13 @@ export const closingNonce = (text: string): string | undefined =>
 export const holdsRingLine = (text: string): boolean =>
   /\[Novadeck:automaticnotice,agentmessageswaiting,|\[NovadeckInboxreply,/.test(compact(text))
 
+/**
+ * Whether a box's text is the plain doorbell line and nothing else, which holds no one's words,
+ * unlike a reply line.
+ */
+export const ringNotice = (text: string): boolean =>
+  leftoverNonce(text) !== undefined && !replyLeftover(text)
+
 /** Whether a box's text is a reply line rather than the plain doorbell line. */
 export const replyLeftover = (text: string): boolean =>
   compact(text).startsWith("[NovadeckInboxreply,")

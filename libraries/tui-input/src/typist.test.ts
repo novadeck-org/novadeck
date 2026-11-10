@@ -5,7 +5,14 @@ import { markedBox, ruledBox, type BoxProfile, type Markers } from "./box/box.js
 import type { InputEntry } from "./queue.js"
 import { loadFixture } from "./testing/fixtures.js"
 import { screen } from "./testing/screens.js"
-import { createTypist, pasteMsOn, sizeCapMs, type Timing, type Typist } from "./typist.js"
+import {
+  changeFacts,
+  createTypist,
+  pasteMsOn,
+  sizeCapMs,
+  type Timing,
+  type Typist,
+} from "./typist.js"
 
 // The clock is fake, so a timing is the same on every machine: the typist's sleeps go through
 // the faked setTimeout, and `run` and `sleep` fire each timer as it comes due.
@@ -412,6 +419,38 @@ describe("a delivery", () => {
       expect.stringMatching(/^ring [A-Za-z0-9]{6} begins \(ticking rows none\)$/),
       expect.stringMatching(/^ring [A-Za-z0-9]{6}: paste accepted, Enter$/),
     ])
+  })
+})
+
+describe("the trace of a paste its check rejected", () => {
+  it("names the rows that changed and the line's, and none of their text", async () => {
+    const lines: string[] = []
+    const fake = terminal({ takes: "elsewhere" })
+    const typist = createTypist(fake.target, {
+      profile: fake.inputBox,
+      timing: fast,
+      trace: (text) => lines.push(text),
+    })
+    await run(
+      typist.deliver(fake.entry, line, { calmSince: 0, start: () => true, still: () => true }),
+    )
+    const failed = lines.find((text) => text.includes("paste not accepted"))
+    expect(failed).toMatch(
+      /^ring [A-Za-z0-9]{6}: paste not accepted: elsewhere; rows changed 0 changed, 6 changed of 9 \(was 9\); line at 6-6$/,
+    )
+    expect(failed).not.toContain("popup")
+    expect(failed).not.toContain("notice")
+  })
+
+  it("names at most twelve rows, and how many more", () => {
+    const before = Array.from({ length: 20 }, () => "")
+    const after = before.map((_, at) => `row ${at}`)
+    expect(changeFacts(before, after, "[notice abc]")).toBe(
+      "rows changed 0 appeared, 1 appeared, 2 appeared, 3 appeared, 4 appeared, 5 appeared, 6 appeared, 7 appeared, 8 appeared, 9 appeared, 10 appeared, 11 appeared, 8 more of 20 (was 20); line at none",
+    )
+    expect(changeFacts(["a", "b"], ["a", ""], "x")).toBe(
+      "rows changed 1 went of 2 (was 2); line at none",
+    )
   })
 })
 

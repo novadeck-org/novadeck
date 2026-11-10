@@ -217,10 +217,13 @@ export class Doorbell {
   private readonly backoff = new Map<string, number>()
   /** The lines each terminal's latest rings typed, by nonce (see `DoorbellHost.leftover`). */
   private readonly typed = new Map<string, Map<string, string>>()
-  /** How many rings in a row failed in each terminal, and the last failed one's nonce. */
+  /**
+   * How many rings in a row failed in each terminal, and the last failed one's nonce; `tried`
+   * once the look the cap allows for a line left in the box was taken (see `capped`).
+   */
   private readonly failures = new Map<
     string,
-    { count: number; nonce: string; retryAt: number; stamp: string }
+    { count: number; nonce: string; retryAt: number; stamp: string; tried: boolean }
   >()
   /** Before when a stalled terminal's screen is not looked at again, after one that was not calm. */
   private readonly notBefore = new Map<string, number>()
@@ -269,10 +272,11 @@ export class Doorbell {
 
   private poke(terminalId: string): void {
     const pressed = this.pressed.get(terminalId)
-    // Its prompt confirmed the ring, or the ring failed: the app's resizes go on.
+    // Its prompt confirmed the ring: the failures before it are over, and the app's resizes go
+    // on. A ring that failed is no longer pressed (`failed`), so this is a confirmation, a
+    // leftover line's too, though it carries the nonce of the ring that failed and left it.
     if (pressed && this.host.ringing(terminalId) !== pressed.nonce) {
-      // Confirmed (no failure of its nonce was told): the failures before it are over.
-      if (this.failures.get(terminalId)?.nonce !== pressed.nonce) this.failuresOver(terminalId)
+      this.failuresOver(terminalId)
       this.settle(terminalId)
     }
     if (!this.closed) this.schedule(terminalId)
@@ -414,8 +418,10 @@ export class Doorbell {
       return undefined
     }
     // Rings that failed three times in a row wait for a root turn event or a key of the
-    // person's: the doorbell isn't getting through, and trying on would only add lines.
-    if (this.capped(terminalId)) {
+    // person's: the doorbell isn't getting through, and trying on would only add lines. But
+    // its own line left alone in the box adds none: one look for it, and it is submitted.
+    const capped = this.capped(terminalId)
+    if (capped && (!stalled || this.failures.get(terminalId)?.tried)) {
       this.host.blocked(terminalId, "failed")
       return undefined
     }
@@ -467,7 +473,7 @@ export class Doorbell {
       return undefined
     }
     if (stalled) {
-      await this.recover(terminalId, screen, now - calm)
+      await this.recover(terminalId, screen, now - calm, capped)
       return undefined
     }
     this.host.agentGone?.(terminalId)
@@ -507,13 +513,24 @@ export class Doorbell {
     this.later(terminalId, this.nextWait(terminalId))
   }
 
-  /** Whether three rings in a row failed and nothing has happened in the terminal since. */
+  /**
+   * Whether three rings in a row failed and nothing has happened in the terminal since. Then
+   * no ring is tried, but a stalled terminal is looked at once more for the line a ring left
+   * alone in its box, which is submitted: it adds no line, and the messages behind it would
+   * otherwise wait for the person with Novadeck's own line in their way (`failures.tried`).
+   */
   private capped(terminalId: string): boolean {
     const failed = this.failures.get(terminalId)
     if (!failed || failed.count < this.maxFailures) return false
     if (failed.stamp === this.host.stamp(terminalId)) return true
     this.failuresOver(terminalId)
     return false
+  }
+
+  /** The look the cap allows for a line left in the box is over, until the failures are. */
+  private lookedAtCap(terminalId: string): void {
+    const failed = this.failures.get(terminalId)
+    if (failed) this.failures.set(terminalId, { ...failed, tried: true })
   }
 
   /** The terminal's failures in a row are over: its next ring takes its line again. */
@@ -528,6 +545,8 @@ export class Doorbell {
    * it left is found on the screen (`leftover`).
    */
   private failed(terminalId: string, nonce: string, counted = true): void {
+    // A pressed ring that failed is pressed no more: only a confirmed one ends the failures.
+    if (this.pressed.get(terminalId)?.nonce === nonce) this.settle(terminalId)
     const before = this.failures.get(terminalId)
     const count = (before?.count ?? 0) + (counted ? 1 : 0)
     const wait = Math.min(this.recheckMs * 2 ** Math.max(count, 1), this.recheckMaxMs)
@@ -536,6 +555,7 @@ export class Doorbell {
       nonce,
       retryAt: this.now() + wait,
       stamp: this.host.stamp(terminalId),
+      tried: before?.tried ?? false,
     })
     this.note(
       terminalId,
@@ -553,16 +573,24 @@ export class Doorbell {
    * messages waiting), once the screen is calm: its own box empty and
    * taking a prompt makes it Ready, rung as any Ready terminal is; otherwise says why it
    * can't be (text in its box, a dialog, a question) and looks again, with growing waits.
-   * It never types: only the ring's own test paste does, once Ready.
+   * It never types: only the ring's own test paste does, once Ready. `capped`, after three
+   * failed rings, it looks only for a line a ring left, and else waits for the person.
    */
-  private async recover(terminalId: string, screen: ScreenText, calmSince: number): Promise<void> {
+  private async recover(
+    terminalId: string,
+    screen: ScreenText,
+    calmSince: number,
+    capped = false,
+  ): Promise<void> {
     const now = this.now()
     const reading = this.host.reading(terminalId, screen)
-    this.note(terminalId, `reading ${reading}`, screen)
-    // A question open on the person is theirs first, whatever the box shows.
+    this.note(terminalId, `reading ${reading}${capped ? " (capped)" : ""}`, screen)
+    // A question open on the person is theirs first, whatever the box shows; at the cap, its
+    // answer is a turn event, which starts the rings over.
     if (reading === "asking") {
       this.host.blocked(terminalId, "asking")
-      this.later(terminalId, this.nextWait(terminalId))
+      if (capped) this.lookedAtCap(terminalId)
+      else this.later(terminalId, this.nextWait(terminalId))
       return
     }
     // A doorbell line alone in the box, as a failed or abandoned ring left it: Novadeck's
@@ -578,11 +606,22 @@ export class Doorbell {
       this.host.agentGone?.(terminalId)
       const foreground = await this.host.target(terminalId)?.holdsForeground()
       if (foreground === false || !screen.bracketedPaste) {
-        this.refused(terminalId, screen, "away")
+        if (!capped) {
+          this.refused(terminalId, screen, "away")
+          return
+        }
+        this.lookedAtCap(terminalId)
+        this.host.blocked(terminalId, "failed")
         return
       }
       this.host.blocked(terminalId, null)
       this.leftovers.set(terminalId, left)
+      return
+    }
+    if (capped) {
+      // No line of its own to submit: the cap's one look is over.
+      this.lookedAtCap(terminalId)
+      this.host.blocked(terminalId, "failed")
       return
     }
     if (reading === "empty") {
@@ -690,6 +729,9 @@ export class Doorbell {
     if (!screen || this.host.leftover(terminalId, screen, this.typedIn(terminalId)) !== nonce)
       return
     if (!this.host.ringLeftover(terminalId, nonce)) return
+    // At the cap, this is its one try: a failure leaves the line for the person.
+    if ((this.failures.get(terminalId)?.count ?? 0) >= this.maxFailures)
+      this.lookedAtCap(terminalId)
     const typist = this.typist(terminalId)
     if (!typist) return
     const delivered = await typist.submit(

@@ -91,6 +91,8 @@ export type BoxNote =
   | "sent-along"
   /** Its keys emptied the box of text known to be Novadeck's. */
   | "cleared"
+  /** Its keys emptied the box of the doorbell's line a ring left there, with no ring under way. */
+  | "ring-line-cleared"
   /** The box left its shell mode. */
   | "left-shell"
   /** The box didn't read empty after its keys, once: it goes along with what is there. */
@@ -149,6 +151,12 @@ export type PromptHost = {
   readonly known?: (terminalId: string, text: string) => string | undefined
   /** Whether the text is a line a delivery left in the box, which is its own to finish. */
   readonly ringLine?: (terminalId: string, text: string) => boolean
+  /**
+   * Whether the text is the doorbell's own line and nothing else, which holds no one's words: a
+   * prompt given while no delivery is under way takes it out of the box, and its own hook
+   * carries the messages that line rang for. A reply line, which holds the person's, is not.
+   */
+  readonly ringNotice?: (terminalId: string, text: string) => boolean
   /** Says what a prompt did about what the box held. */
   readonly note?: (terminalId: string, note: BoxNote) => void
   /** Says why a prompt was refused, whatever the box held. */
@@ -465,11 +473,12 @@ export class Prompts {
       if (!first) throw this.gone()
       if (!first.bracketedPaste)
         throw new PromptRefusal("no-paste", "The screen takes no bracketed paste.")
+      const unrung = await this.ringNoticeGone(terminalId, profile, first, hold.holding)
       // The box is waited on a while to read empty, in its prompt mode, as the text of the
       // prompt before this one may still show as the TUI clears it after its Enter, and a
       // command's shell mode ends a moment after its Enter. A screen it is not found on,
       // as a shell's after the program exited, refuses the prompt before any key.
-      let before = await this.emptied(terminalId, profile, first, hold.holding, mode !== "alone")
+      let before = await this.emptied(terminalId, profile, unrung, hold.holding, mode !== "alone")
       if (mode !== "alone") {
         // A request may have come while the box was waited on: no key into its dialog.
         this.host.admit(terminalId)
@@ -843,6 +852,44 @@ export class Prompts {
     if (moved) return moved
     this.host.note?.(terminalId, "cursor-unconfirmed")
     throw this.draft()
+  }
+
+  /**
+   * The screen once the doorbell's own line, all the box holds as a ring that failed left it,
+   * is erased, while no delivery is under way: nobody's words, and in the person's way, as a
+   * held terminal's messages would otherwise wait behind it (`PromptHost.ringNotice`). Any
+   * other screen is given back as it is, as is one whose box the keys didn't empty, which the
+   * prompt then meets as it would have.
+   */
+  private async ringNoticeGone(
+    terminalId: string,
+    profile: BoxProfile,
+    screen: ScreenText,
+    holding: () => boolean,
+  ): Promise<ScreenText> {
+    const box = profile.read(screen)
+    if (
+      !box ||
+      box.mode !== "prompt" ||
+      !profile.erase ||
+      profile.overlay(screen) ||
+      this.host.ringing(terminalId) !== undefined ||
+      this.host.ringNotice?.(terminalId, box.text) !== true
+    )
+      return screen
+    const at = await this.cursorEnd(terminalId, profile, box, screen, holding)
+    const emptied = await this.keyed(
+      terminalId,
+      profile.erase(box),
+      holding,
+      (after) => leftoverOf(profile, after).kind === "empty",
+    )
+    if (emptied) {
+      this.host.note?.(terminalId, "ring-line-cleared")
+      return emptied
+    }
+    this.host.note?.(terminalId, "clear-unconfirmed")
+    return (await this.host.screen(terminalId)) ?? at
   }
 
   /** See `pressKeys`. */
