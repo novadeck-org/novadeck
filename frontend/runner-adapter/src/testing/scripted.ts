@@ -143,6 +143,7 @@ export const scripted = ({
   open = () => {},
   answerRequest = async () => {},
   createProject = unused,
+  move = () => new Promise<never>(() => {}),
 }: {
   shown: readonly Saved[]
   background?: readonly Saved[]
@@ -177,6 +178,8 @@ export const scripted = ({
   answerRequest?: (answer: unknown) => Promise<unknown>
   // How the runner answers creating a project this window adds.
   createProject?: () => Promise<unknown>
+  // How the runner answers a move of a terminal to another session; by default it never does.
+  move?: () => Promise<unknown>
 }) => {
   const changes = channel<TerminalWatchItem>()
   const items = channel<CompanionWatchItem>()
@@ -238,8 +241,9 @@ export const scripted = ({
       answerRequest: note("answer request", answerRequest),
       approvals: () => channel<never>().iterator,
       create: note("create", create),
-      close: async () => {},
+      close: note("close", async () => {}),
       rename: note("rename", async () => {}),
+      move: note("move", move),
       restart: note("restart", restart),
       attach: () => new Promise(() => {}),
     },

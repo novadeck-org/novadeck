@@ -1,7 +1,15 @@
 import { Menu as ArkMenu } from "@ark-ui/react/menu"
 import { Portal } from "@ark-ui/react/portal"
 import { ChevronRight } from "lucide-react"
-import { useId, useRef, useState, type ReactElement, type ReactNode, type RefObject } from "react"
+import {
+  Fragment,
+  useId,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+  type RefObject,
+} from "react"
 
 export type ContextMenuAction = {
   readonly value: string
@@ -9,6 +17,10 @@ export type ContextMenuAction = {
   readonly icon?: ReactNode
   // Shown but not chosen, for an action that can't happen now.
   readonly disabled?: boolean
+  // What it says at its end, muted, as a count.
+  readonly detail?: ReactNode
+  // A hairline above it, setting it apart from the items before.
+  readonly separated?: boolean
   // Runs once the menu has closed and focus has settled, so an item that moves focus,
   // as into a field, keeps it.
   readonly onSelect: () => void
@@ -32,16 +44,27 @@ const contentClasses = "floating min-w-40 p-1 text-control"
 // `choose` for one here, `chooseNested` for one in a submenu, which closes only itself.
 const MenuEntries = ({
   items,
+  open,
   choose,
   chooseNested,
 }: {
   readonly items: readonly ContextMenuItem[]
+  // Whether the menu is open: a submenu's own menu runs only then. Mounted with a closed one,
+  // or through its closing, it would stand by on its trigger and hold up a drag that starts
+  // there as the menu closes; its row is drawn alone till then.
+  readonly open: boolean
   readonly choose: (run: () => void) => void
   readonly chooseNested: (run: () => void) => void
 }): React.JSX.Element => (
   <>
     {items.map((item) =>
-      "items" in item ? (
+      "items" in item && !open ? (
+        <div key={item.value} className={itemClasses} aria-hidden="true">
+          {item.icon}
+          <span className="flex-1">{item.label}</span>
+          <ChevronRight size={12} strokeWidth={1.5} aria-hidden />
+        </div>
+      ) : "items" in item ? (
         <ArkMenu.Root
           key={item.value}
           positioning={{ placement: "right-start", gutter: 2, overflowPadding: 12 }}
@@ -56,22 +79,36 @@ const MenuEntries = ({
           <Portal>
             <ArkMenu.Positioner className="z-50!">
               <ArkMenu.Content className={contentClasses}>
-                <MenuEntries items={item.items} choose={chooseNested} chooseNested={chooseNested} />
+                <MenuEntries
+                  items={item.items}
+                  open
+                  choose={chooseNested}
+                  chooseNested={chooseNested}
+                />
               </ArkMenu.Content>
             </ArkMenu.Positioner>
           </Portal>
         </ArkMenu.Root>
       ) : (
-        <ArkMenu.Item
-          key={item.value}
-          value={item.value}
-          disabled={item.disabled}
-          onSelect={() => choose(item.onSelect)}
-          className={itemClasses}
-        >
-          {item.icon}
-          <ArkMenu.ItemText>{item.label}</ArkMenu.ItemText>
-        </ArkMenu.Item>
+        <Fragment key={item.value}>
+          {item.separated && <ArkMenu.Separator className="separator mx-1.5 my-1 h-px" />}
+          <ArkMenu.Item
+            value={item.value}
+            disabled={item.disabled}
+            onSelect={() => choose(item.onSelect)}
+            className={itemClasses}
+          >
+            {item.icon}
+            <ArkMenu.ItemText className={item.detail === undefined ? undefined : "flex-1"}>
+              {item.label}
+            </ArkMenu.ItemText>
+            {item.detail !== undefined && (
+              <span className="item-detail flex shrink-0 items-center gap-1.5 pl-3">
+                {item.detail}
+              </span>
+            )}
+          </ArkMenu.Item>
+        </Fragment>
       ),
     )}
   </>
@@ -142,6 +179,7 @@ export const ContextMenu = ({ label, trigger, items }: ContextMenuProps): React.
             </span>
             <MenuEntries
               items={items}
+              open={open}
               choose={(run) => {
                 chosen.current = run
               }}

@@ -818,6 +818,15 @@ export class CompanionItems {
         this.delete(item.id)
   }
 
+  /**
+   * A terminal moved to another session of its project, and its bar's items with it (the
+   * store moved them with the terminal's row): watchers hear each in its new session.
+   */
+  terminalMoved(terminalId: string): void {
+    if (this.stopping) return
+    for (const item of this.records.barItems(terminalId)) this.changed(item)
+  }
+
   /** A terminal is closed: the items on its bar go with it. Windows stay. */
   terminalClosed(terminalId: string): void {
     if (this.stopping) return

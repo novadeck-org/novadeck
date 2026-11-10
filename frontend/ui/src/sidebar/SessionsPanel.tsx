@@ -13,7 +13,7 @@ import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 import { sidebarListClasses, SidebarItem } from "@novadeck/toolkit/SidebarItem"
 import { SubjectBar, SubjectDetail, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { Check, Layers2, Pencil, Plus, Trash2, X } from "lucide-react"
+import { ArrowRight, Check, Layers2, Pencil, Plus, Trash2, X } from "lucide-react"
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
@@ -53,6 +53,18 @@ type SessionsPanelProps = {
   onRemove?: ((id: string) => void) | undefined
   // Whether closed terminals are kept in History, where a deleted session's come back from.
   historyKept?: boolean
+  // A terminal on its way to another session, while the person picks where: its name, what a
+  // drag of its tab holds over (a session's id, or "new" for the new session's button), and
+  // what picking a session, making a new one with it, or giving up does.
+  moving?: SessionsMove | undefined
+}
+
+export type SessionsMove = {
+  readonly name: string
+  readonly over: string | null
+  readonly onPick: (id: string) => void
+  readonly onCreate: () => void
+  readonly onCancel: () => void
 }
 
 const timestamp = new Intl.DateTimeFormat(undefined, {
@@ -176,10 +188,16 @@ const SessionRow = ({
   onRename,
   onCancelRename,
   onRemove,
+  picking,
+  over,
 }: {
   session: WorkspaceSessionSummary
   index: number
   active: boolean
+  // A terminal is on its way somewhere: the row is a place to put it, unless it's the open
+  // session, where it is now. `over` while a drag of its tab holds over the row.
+  picking: boolean
+  over: boolean
   editing: boolean
   removable: boolean
   renamable: boolean
@@ -192,7 +210,7 @@ const SessionRow = ({
   const { ref, handleRef, isDragSource } = useSortable({
     id: session.id,
     index,
-    disabled: editing,
+    disabled: editing || picking,
     transition: { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
   })
   const terminalCount = session.terminalNames.length
@@ -223,10 +241,17 @@ const SessionRow = ({
       className={`sessions-panel-entry${active ? " active" : ""}${editing ? " editing" : ""}${isDragSource ? " dragging" : ""}`}
       role="listitem"
       data-workspace-session={session.id}
+      data-move-target={picking ? (active ? "here" : over ? "over" : "yes") : undefined}
       name={session.name}
       icon={icon}
       selected={active}
-      selectLabel={`Open ${session.name}`}
+      selectLabel={
+        picking
+          ? active
+            ? `${session.name}, where it is now`
+            : `Move here: ${session.name}`
+          : `Open ${session.name}`
+      }
       describedBy={instructionsId}
       badge={
         status && (
@@ -266,7 +291,14 @@ const SessionRow = ({
         ) : undefined
       }
       actions={
-        renamable || removable ? (
+        picking ? (
+          active ? undefined : (
+            <span className="session-move-here flex items-center gap-1" aria-hidden="true">
+              <ArrowRight size={13} strokeWidth={1.5} />
+              Move here
+            </span>
+          )
+        ) : renamable || removable ? (
           <div className="session-actions flex items-center">
             {editing ? (
               <>
@@ -333,6 +365,19 @@ const SessionRow = ({
   )
 }
 
+// What the panel says while a terminal is on its way: which, and the way out. Escape gives up
+// too, through the keymap (`move.cancel`).
+const MoveStrip = ({ moving }: { readonly moving: SessionsMove }): React.JSX.Element => (
+  <div className="session-move-strip mb-2 flex min-w-0 items-center gap-2">
+    <span className="min-w-0 flex-1 truncate" role="status">
+      Move <strong>{moving.name}</strong> to…
+    </span>
+    <button type="button" className="button quiet session-move-cancel" onClick={moving.onCancel}>
+      Cancel
+    </button>
+  </div>
+)
+
 export const SessionsPanel = ({
   sessions,
   activeId,
@@ -342,6 +387,7 @@ export const SessionsPanel = ({
   onMove,
   onRemove,
   historyKept = false,
+  moving,
 }: SessionsPanelProps): React.JSX.Element => {
   const shortcut = shortcutBindings().newSession.display.join(" ")
   const [list, setList] = useState<HTMLDivElement | null>(null)
@@ -383,18 +429,25 @@ export const SessionsPanel = ({
     else onRemove?.(session.id)
   }
   return (
-    <div className="sessions-panel flex min-h-0 min-w-0 w-full flex-1 flex-col">
-      <Tooltip content={`New session · ${shortcut}`}>
+    <div
+      className="sessions-panel flex min-h-0 min-w-0 w-full flex-1 flex-col"
+      data-moving={moving ? true : undefined}
+    >
+      {moving && <MoveStrip moving={moving} />}
+      <Tooltip content={moving ? `New session with ${moving.name}` : `New session · ${shortcut}`}>
         <button
           className={sidebarCreateClasses}
           type="button"
-          aria-label="New session"
+          aria-label={moving ? `New session with ${moving.name}` : "New session"}
           data-sessions-create
-          onClick={onFresh}
+          data-move-target={moving ? (moving.over === "new" ? "over" : "yes") : undefined}
+          onClick={moving ? moving.onCreate : onFresh}
         >
           <Plus size={14} className="shrink-0" />
-          <span className="min-w-0 truncate">Session</span>
-          <kbd className="hint mb-[-2px] ml-auto shrink-0 whitespace-nowrap">{shortcut}</kbd>
+          <span className="min-w-0 truncate">{moving ? "New session with it" : "Session"}</span>
+          {!moving && (
+            <kbd className="hint mb-[-2px] ml-auto shrink-0 whitespace-nowrap">{shortcut}</kbd>
+          )}
         </button>
       </Tooltip>
       <DragDropProvider
@@ -428,10 +481,18 @@ export const SessionsPanel = ({
                 session={session}
                 index={index}
                 active={session.id === activeId}
+                picking={moving !== undefined}
+                over={moving?.over === session.id}
                 editing={editing === session.id}
                 removable={removable}
                 renamable={Boolean(onRename)}
-                onSelect={() => onSelect(session.id)}
+                onSelect={() =>
+                  moving
+                    ? session.id === activeId
+                      ? undefined
+                      : moving.onPick(session.id)
+                    : onSelect(session.id)
+                }
                 onBeginRename={() => setEditing(session.id)}
                 onRename={(name) => {
                   setEditing(null)

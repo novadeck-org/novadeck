@@ -19,12 +19,14 @@ import type { CommandContext } from "./context"
 
 export type ShellCommands = {
   readonly showSessions: () => void
+  readonly showTerminals: () => void
   readonly showInbox: () => void
-  // Shows the Inbox for one row, as a click on a toast or a notice does, in place of the page
-  // the person was on rather than as a step Back goes through. Returns what puts the sidebar
-  // back as it was: the same panel, hidden, or Zen, with typing back in the selected terminal.
-  // Returns nothing where the Inbox showed already. What it returns does nothing once the
-  // Inbox is no longer the panel that shows.
+  // Shows a panel for a moment, as a click on a toast shows the Inbox for one row, in place of
+  // the page the person was on rather than as a step Back goes through. Returns what puts the
+  // sidebar back as it was: the same panel, hidden, or Zen, with typing back in the selected
+  // terminal. Returns nothing where the panel showed already. What it returns does nothing
+  // once the panel is no longer the one that shows.
+  readonly peek: (panel: SidebarPanel) => (() => void) | undefined
   readonly peekInbox: () => (() => void) | undefined
   readonly hideSidebar: () => void
   // Shows the panel, leaving Zen; when it already shows, goes back to the panel shown just
@@ -85,29 +87,32 @@ export const createShellCommands = (ctx: CommandContext): ShellCommands => {
     if (inZen && effects.desktop())
       effects.afterFrame(() => effects.focusSidebarToggleStranded(next))
   }
+  const peek = (shown: SidebarPanel): (() => void) | undefined => {
+    const desktop = effects.desktop()
+    const { location, shell } = ui.getSnapshot()
+    if (location.route.panel === shown && sidebarVisible(shell, desktop)) return undefined
+    const was = location.route.panel
+    const { sidebar, sidebarCollapsed, sidebarBack, zen } = shell
+    show(shown, true)
+    return () => {
+      const now = ui.getSnapshot()
+      if (now.location.route.panel !== shown || !sidebarVisible(now.shell, effects.desktop()))
+        return
+      change((edited) => ({ ...edited, sidebar, sidebarCollapsed, sidebarBack, zen }))
+      navigation.go({ panel: was }, true)
+      if (!effects.desktop()) return
+      effects.afterFrame(() => {
+        const { selected } = currentState(workspace.getSnapshot())
+        if (selected) effects.focusTerminalInput(selected)
+      })
+    }
+  }
   return {
     showSessions: () => show("sessions"),
+    showTerminals: () => show("terminals"),
     showInbox: () => show("inbox"),
-    peekInbox: () => {
-      const desktop = effects.desktop()
-      const { location, shell } = ui.getSnapshot()
-      if (location.route.panel === "inbox" && sidebarVisible(shell, desktop)) return undefined
-      const was = location.route.panel
-      const { sidebar, sidebarCollapsed, sidebarBack, zen } = shell
-      show("inbox", true)
-      return () => {
-        const now = ui.getSnapshot()
-        if (now.location.route.panel !== "inbox" || !sidebarVisible(now.shell, effects.desktop()))
-          return
-        change((edited) => ({ ...edited, sidebar, sidebarCollapsed, sidebarBack, zen }))
-        navigation.go({ panel: was }, true)
-        if (!effects.desktop()) return
-        effects.afterFrame(() => {
-          const { selected } = currentState(workspace.getSnapshot())
-          if (selected) effects.focusTerminalInput(selected)
-        })
-      }
-    },
+    peek,
+    peekInbox: () => peek("inbox"),
     hideSidebar: hide,
     toggleSidebar: (next) => {
       // Visibility before this command: a panel hidden by Zen shows instead of hiding.

@@ -38,6 +38,7 @@ import { FooterSection } from "./FooterSection"
 import { HeaderSection } from "./HeaderSection"
 import { dropWords } from "./history-drops"
 import { InboxHost } from "./InboxHost"
+import { MoveSessionsProvider } from "./move-to"
 import { historyShown, sourceShown, worksShown } from "./routing"
 import { currentContext, currentState, currentTarget, sameItems, shallowEqual } from "./selectors"
 import { SidebarSection } from "./SidebarSection"
@@ -305,41 +306,46 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
           <VisitorBar />
           <HeaderSection />
           <TabListContext.Provider value={tabList}>
-            <div className="workspace-body relative flex min-h-0 flex-1">
-              {sidebarRail()}
-              <TeamWireSection
-                shown={
-                  !zen && !sidebarCollapsed && shell.sidebarVisible && sidebarPanel === "terminals"
-                }
-                tabList={tabList}
-              />
-              <WorkspacePanels
-                collapsed={zen || sidebarCollapsed}
-                mobileOpen={!zen && sidebar}
-                onMobileOpenChange={(open) => {
-                  if (!open) hideSidebar()
-                }}
-                mobileRail={sidebarRail(true)}
-                mobileLabel={panelLabels[sidebarPanel]}
-                mobileWide={sidebarPanel === "inbox"}
-                mobileFinalFocusEl={() => sidebarToggle(sidebarPanel)}
-                sidebar={<SidebarSection />}
-              >
-                <WorkspaceStage canvas={canvas} />
-              </WorkspacePanels>
-              {zen && (
-                <ZenDockWithBadge
-                  view={view}
-                  enabledViews={enabledViews}
-                  onCreate={() => add()}
-                  onViewChange={(next) => {
-                    if (next !== view) changeView(next)
-                  }}
-                  onInbox={() => toggleSidebar("inbox")}
-                  onExit={exitZen}
+            <MoveSessionsProvider>
+              <div className="workspace-body relative flex min-h-0 flex-1">
+                {sidebarRail()}
+                <TeamWireSection
+                  shown={
+                    !zen &&
+                    !sidebarCollapsed &&
+                    shell.sidebarVisible &&
+                    sidebarPanel === "terminals"
+                  }
+                  tabList={tabList}
                 />
-              )}
-            </div>
+                <WorkspacePanels
+                  collapsed={zen || sidebarCollapsed}
+                  mobileOpen={!zen && sidebar}
+                  onMobileOpenChange={(open) => {
+                    if (!open) hideSidebar()
+                  }}
+                  mobileRail={sidebarRail(true)}
+                  mobileLabel={panelLabels[sidebarPanel]}
+                  mobileWide={sidebarPanel === "inbox"}
+                  mobileFinalFocusEl={() => sidebarToggle(sidebarPanel)}
+                  sidebar={<SidebarSection />}
+                >
+                  <WorkspaceStage canvas={canvas} />
+                </WorkspacePanels>
+                {zen && (
+                  <ZenDockWithBadge
+                    view={view}
+                    enabledViews={enabledViews}
+                    onCreate={() => add()}
+                    onViewChange={(next) => {
+                      if (next !== view) changeView(next)
+                    }}
+                    onInbox={() => toggleSidebar("inbox")}
+                    onExit={exitZen}
+                  />
+                )}
+              </div>
+            </MoveSessionsProvider>
           </TabListContext.Provider>
           <FooterSection />
           <WorkspaceOverlays />

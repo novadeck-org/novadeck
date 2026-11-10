@@ -945,6 +945,18 @@ export class Inbox {
     this.reconcile(terminalId)
   }
 
+  /**
+   * The terminal moved to another Novadeck session, maybe with another handle: its entries
+   * follow it, so its asks stay answerable and its rows show where it is now.
+   */
+  moved(terminalId: string, workspaceSessionId: string, handle: string): void {
+    if (this.closed) return
+    for (const entry of this.byTerminal.get(terminalId)?.values() ?? [])
+      if (entry.workspaceSessionId !== workspaceSessionId || entry.handle !== handle)
+        this.put({ ...entry, workspaceSessionId, handle })
+    this.reconcile(terminalId)
+  }
+
   reconcile(terminalId: string): void {
     if (this.closed) return
     const owner = this.host.owner(terminalId)

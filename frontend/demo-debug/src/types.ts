@@ -87,6 +87,11 @@ export type DemoStates = {
   // What the Updates group plays an installed copy's updates with.
   readonly updateControls: DemoUpdates
   readonly pickDirectory: NonNullable<Backend["pickDirectory"]>
+  // The demo's move of a terminal to another session, wrapped so the panel can refuse the
+  // next one.
+  readonly moveTerminal: (
+    move: NonNullable<Backend["moveTerminal"]>,
+  ) => NonNullable<Backend["moveTerminal"]>
   // The demo's conversations, with what the panel arms for the chat's next send.
   readonly chat: (
     conversations: NonNullable<Backend["conversations"]>,

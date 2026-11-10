@@ -13,6 +13,8 @@ import type {
   TerminalChange,
   TerminalEvent,
   TerminalMessages,
+  TerminalMove,
+  TerminalMoved,
   TerminalRequest,
   RequestAnswer,
   TerminalRequestAnswer,
@@ -60,6 +62,7 @@ import { ClosedTerminals, type Plan } from "./history.js"
 import { restored } from "./interrupted.js"
 import { Launcher, startedIn, startFailed } from "./launching.js"
 import { listTerminals } from "./listing.js"
+import { Moves, type MoveSessions } from "./moves.js"
 import { forgetPrompts, markPrompt, murmurHost } from "./murmur-host.js"
 import { Names } from "./names.js"
 import { noNudges } from "./nudges.js"
@@ -155,6 +158,8 @@ export class Terminals {
     stopping: () => this.stopping,
   })
   private readonly startups: StartupWatch<Record>
+  /** Moves terminals between the sessions of their project. */
+  private readonly moves: Moves
   /** Who reads the terminals: their watchers, and each one's detail and messages readers. */
   private readonly streams: Streams<Record>
   /** Names terminals: their handles, and the titles people give them. */
@@ -704,6 +709,28 @@ export class Terminals {
       send: (call) => this.send(call),
       agents: (call) => this.agents(call),
       team: (call) => this.peers.team(call),
+    })
+    this.moves = new Moves({
+      stopping: () => this.stopping,
+      records: () => this.records,
+      closed: (id) => this.closedIds.has(id),
+      closingNow: (id) => this.host.closing(id),
+      closingSession: (sessionId) => this.closingSessions.has(sessionId),
+      saves: () => this.saves,
+      sleepers: () => this.sleepers,
+      messaging: () => this.messaging,
+      inbox: () => this.inbox,
+      feedback: () => this.feedback,
+      approvals: () => this.confirms,
+      opens: () => this.opens,
+      items: () => this.options.items,
+      announce: (record) => this.announce(record),
+      savedChanged: (row) => this.streams.savedChanged(row),
+      adopt: (sessionId, handle) =>
+        options.closed
+          ? options.closed.adoptHandle(sessionId, handle)
+          : this.names.adopt(sessionId, handle),
+      draw: (sessionId) => this.names.next(sessionId),
     })
     this.launcher.integrate(options.shellFiles)
     this.sleepers.start()
@@ -1592,6 +1619,11 @@ export class Terminals {
   /** The person ends a terminal's lead (see `Leads.releaseByPerson`). */
   releaseLead(terminalId: string): void {
     this.calls.leads.releaseByPerson(terminalId)
+  }
+
+  /** The person moves a terminal and its team to another session (see `Moves.move`). */
+  move(input: TerminalMove, sessions: MoveSessions): TerminalMoved {
+    return this.moves.move(input, sessions)
   }
 
   /** The folder of the session's project; undefined when that cannot be told. */

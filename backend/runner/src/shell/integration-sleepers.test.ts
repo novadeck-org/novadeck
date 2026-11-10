@@ -296,6 +296,83 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(rows.map((each) => each.availability.state)).toEqual(["ready"])
     })
 
+    it("moves a running lead and its sleeping worker where the lead's handle is taken, and the worker wakes there under the lead's new handle", async ({
+      shell,
+    }) => {
+      writeFileSync(join(shell.home, ".bashrc"), 'export PATH="$HOME/bin:$PATH"\n')
+      fakeAgent(shell.home, "claude")
+      // The lead moth is started again; its worker fox, kept with a resumable agent, sleeps.
+      const lead = { id: randomUUID(), handle: "moth" }
+      const worker = sleeper(shell, "claude", "abc-1", { ledBy: lead.handle })
+      shell.store.saveTerminal({
+        ...shell.store.terminal(worker)!,
+        id: lead.id,
+        handle: lead.handle,
+        ledBy: null,
+        openedBy: null,
+        agents: {},
+        lastProgram: null,
+      })
+      const manager = shell.manager()
+      await create(manager, shell, { id: lead.id, restore: true })
+      await vi.waitFor(() =>
+        expect(manager.list(shell.sessionId).find((each) => each.id === worker)).toMatchObject({
+          sleeping: true,
+        }),
+      )
+      // A terminal of the session it goes to already holds the lead's handle.
+      const target = shell.store.createSession({
+        id: randomUUID(),
+        projectId: shell.store.session(shell.sessionId).projectId,
+        name: "T",
+      }).id
+      shell.store.saveTerminal({
+        ...shell.store.terminal(worker)!,
+        id: randomUUID(),
+        sessionId: target,
+        handle: lead.handle,
+        ledBy: null,
+        openedBy: null,
+        agents: {},
+        lastProgram: null,
+      })
+      const moved = manager.move(
+        { terminalId: lead.id, to: { sessionId: target } },
+        { projectOf: (sessionId) => shell.store.session(sessionId).projectId },
+      )
+      const [first, second] = moved.moved
+      expect(first).toMatchObject({ terminalId: lead.id, was: lead.handle })
+      expect(first!.handle).not.toBe(lead.handle)
+      expect(second).toMatchObject({
+        terminalId: worker,
+        handle: shell.store.terminal(worker)!.handle,
+      })
+      // The three places that know the sleeper agree before it wakes.
+      expect(manager.list(target).find((each) => each.id === worker)).toMatchObject({
+        sleeping: true,
+        ledBy: first!.handle,
+      })
+      expect(shell.store.terminal(worker)).toMatchObject({
+        sessionId: target,
+        ledBy: first!.handle,
+      })
+
+      const woken = await create(manager, shell, {
+        id: worker,
+        sessionId: target,
+        restore: true,
+        resume: "claude",
+      })
+      expect(woken).toMatchObject({ sessionId: target, ledBy: first!.handle, sleeping: false })
+      await shell.until(manager, worker, "claude args: --resume abc-1")
+      const sent = (
+        manager as unknown as {
+          messaging: { send: (from: string, request: object) => { ok: boolean } }
+        }
+      ).messaging.send(lead.id, { to: second!.handle, text: "Carry on." })
+      expect(sent.ok).toBe(true)
+    })
+
     it("takes the person's feedback request for a terminal that is waking", async ({ shell }) => {
       const id = sleeper(shell, "claude", "abc-1", { turn: "running" })
       const manager = shell.manager()

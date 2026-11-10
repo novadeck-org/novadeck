@@ -2,7 +2,7 @@ import type { InboxRow } from "@novadeck/core/inbox"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { createToasts, shownToasts, ToastRegion } from "@novadeck/toolkit/Toast"
-import { Eye, Folder, Terminal, type LucideIcon } from "lucide-react"
+import { ArrowRightLeft, Eye, Folder, Terminal, type LucideIcon } from "lucide-react"
 import { useEffect, useMemo } from "react"
 
 import { focusSheetSoon } from "./inbox-dom"
@@ -41,10 +41,27 @@ export type ShowBoard = {
   readonly close: (itemId: string) => void
 }
 
-// A toast is an Inbox row's, or an agent's wish to show something.
+// A terminal the person moved to another session: what the toast says, and whether it can
+// be taken back.
+export type MovedToast = {
+  readonly id: string
+  readonly words: string
+  readonly failed: boolean
+  readonly undo: (() => void) | undefined
+  readonly go: () => void
+}
+
+// What shows the toast of a move: one at a time, the newest replacing the last.
+export type MoveBoard = {
+  readonly show: (moved: MovedToast) => void
+  readonly close: () => void
+}
+
+// A toast is an Inbox row's, an agent's wish to show something, or a move the person made.
 type Toast =
   | { readonly kind: "inbox"; readonly row: InboxRow }
   | { readonly kind: "show"; readonly waiting: ShowWaiting }
+  | { readonly kind: "moved"; readonly moved: MovedToast }
 
 // What the pill past the shown toasts says: `count` toasts are hidden, `inbox` of them the
 // Inbox's, which it says are in the Inbox; show toasts aren't, and aren't counted there.
@@ -53,6 +70,42 @@ export const moreWords = (count: number, inbox: number): string =>
 
 // The key of a row's toast, apart from the terminals' keys of the Inbox's.
 const showKey = (itemId: string): string => `show:${itemId}`
+const movedKey = "moved"
+
+// A move's toast: where the terminal went and that it still runs, or why it couldn't go, and
+// Undo and Go there. A click on the toast goes there too; its buttons' own clicks don't.
+const MovedCard = ({ moved }: { readonly moved: MovedToast }): React.JSX.Element => (
+  <div className="move-toast" data-failed={moved.failed}>
+    <span className="move-toast-icon" aria-hidden="true">
+      <ArrowRightLeft size={15} strokeWidth={1.6} />
+    </span>
+    <span className="move-toast-words">{moved.words}</span>
+    {moved.undo && (
+      <span className="move-toast-actions">
+        <button
+          type="button"
+          className="button quiet move-toast-undo"
+          onClick={(event) => {
+            event.stopPropagation()
+            moved.undo?.()
+          }}
+        >
+          Undo
+        </button>
+        <button
+          type="button"
+          className="button quiet move-toast-go"
+          onClick={(event) => {
+            event.stopPropagation()
+            moved.go()
+          }}
+        >
+          Go there
+        </button>
+      </span>
+    )}
+  </div>
+)
 
 // One toast: the type's icon in its tone; who wants what, and how long ago; the ask, a
 // command in mono; and where it comes from, the terminal at the left and the project at the
@@ -123,6 +176,7 @@ const showText = (waiting: ShowWaiting, now: number): ToastText => ({
 export const InboxToasts = ({
   follow,
   followShows,
+  followMoves,
   showInbox,
   peekInbox,
   showTerminal,
@@ -131,6 +185,8 @@ export const InboxToasts = ({
   readonly follow: (board: ToastBoard) => () => void
   // Tells of what waits to open on the board until the returned stop.
   readonly followShows: (board: ShowBoard) => () => void
+  // Tells of the person's moves on the board until the returned stop.
+  readonly followMoves: (board: MoveBoard) => () => void
   readonly showInbox: () => void
   // Shows the Inbox for one row; returns what puts the sidebar back, unless it showed already.
   readonly peekInbox: () => (() => void) | undefined
@@ -157,20 +213,27 @@ export const InboxToasts = ({
       show: (waiting) => toasts.show(showKey(waiting.itemId), { kind: "show", waiting }),
       close: (itemId) => toasts.close(showKey(itemId)),
     }
+    const moves: MoveBoard = {
+      show: (moved) => toasts.show(movedKey, { kind: "moved", moved }),
+      close: () => toasts.close(movedKey),
+    }
     const stop = follow(board)
     const stopShows = followShows(shows)
+    const stopMoves = followMoves(moves)
     return () => {
       stop()
       stopShows()
+      stopMoves()
       toasts.clear()
     }
-  }, [follow, followShows, toasts])
+  }, [follow, followShows, followMoves, toasts])
   return (
     <ToastRegion
       toasts={toasts}
       label="Inbox"
       onSelect={(toast, { keyboard }) => {
         if (toast.kind === "show") return showTerminal(toast.waiting.terminalId)
+        if (toast.kind === "moved") return toast.moved.failed ? undefined : toast.moved.go()
         open(toast.row.id, { once: true, after: peekInbox() })
         // From the keyboard, on to the sheet that opens, as from a row.
         if (keyboard) focusSheetSoon()
@@ -186,7 +249,9 @@ export const InboxToasts = ({
       }}
     >
       {(toast) =>
-        toast.kind === "show" ? (
+        toast.kind === "moved" ? (
+          <MovedCard moved={toast.moved} />
+        ) : toast.kind === "show" ? (
           <ToastCard text={showText(toast.waiting, now)} Icon={Eye} />
         ) : (
           <InboxToast row={toast.row} now={now} />

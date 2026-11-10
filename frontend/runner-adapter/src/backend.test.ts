@@ -1163,6 +1163,39 @@ describe("runner backend", () => {
     }, 60_000)
   })
 
+  context("when the person moves a terminal to another session", () => {
+    it("moves it there on the runner with its shell still running", async () => {
+      const app = open()
+      const session = (name: string) => ({
+        id: crypto.randomUUID(),
+        name,
+        visitedAt: Date.now(),
+        state: createTerminalState([], "grid", "grid"),
+      })
+      const [here, there] = [session("Here"), session("There")]
+      app.commit([{ type: "session/add", projectId: app.target().projectId, session: there }])
+      app.commit([{ type: "session/add", projectId: app.target().projectId, session: here }])
+      const terminal = app.addTerminal()
+      await app.idle()
+      const key = { ...app.target(), terminalId: terminal.id }
+      const moved = await app.backend.moveTerminal!(key, there.id)
+      expect(moved).toMatchObject({ sessionId: there.id, left: null })
+      await vi.waitFor(
+        () =>
+          expect(app.received).toContainEqual(
+            expect.objectContaining({ type: "terminal/move", from: here.id, to: there.id }),
+          ),
+        eventually,
+      )
+      const listed = await runner.client.terminals.list({ sessionId: there.id })
+      expect(listed.find((each) => each.id === terminal.id)).toMatchObject({
+        started: true,
+        exit: null,
+      })
+      app.stop()
+    })
+  })
+
   context("when a shell exited cleanly while the app was away", () => {
     it("closes what the runner kept of it", async () => {
       const [home] = runner.listing
