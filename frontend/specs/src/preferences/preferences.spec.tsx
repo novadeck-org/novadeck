@@ -145,12 +145,12 @@ describe("Preferences", () => {
   })
 
   context("when choosing how long idle agents run", () => {
-    it("stops them after half an hour by default, and keeps another choice, or never", async () => {
+    it("stops them after an hour by default, and keeps another choice, or never", async () => {
       await openWorkspace()
       await openPreferences()
       const idle = () =>
         preferencesDialog().getByRole("combobox", { name: "Stop idle agents after" })
-      await expect.element(idle()).toHaveTextContent("30 minutes")
+      await expect.element(idle()).toHaveTextContent("1 hour")
       await idle().click()
       await preferencesDialog().getByRole("option", { name: "4 hours" }).click()
       await expect.element(idle()).toHaveTextContent("4 hours")

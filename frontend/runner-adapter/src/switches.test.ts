@@ -43,7 +43,7 @@ describe("the idle agents setting", () => {
   it("shows what the runner said, and changes it there", async () => {
     const app = scripted({ shown: [] })
     const hibernation = app.backend.hibernation!
-    expect(hibernation.after.getSnapshot()).toBe(30)
+    expect(hibernation.after.getSnapshot()).toBe(60)
     hibernation.set(null)
     expect(hibernation.after.getSnapshot()).toBeNull()
     hibernation.set(240)
@@ -65,7 +65,7 @@ describe("the idle agents setting", () => {
     set(15)
     expect(after.getSnapshot()).toBe(15)
     await app.idle()
-    expect(after.getSnapshot()).toBe(30)
+    expect(after.getSnapshot()).toBe(60)
     app.stop()
   })
 })

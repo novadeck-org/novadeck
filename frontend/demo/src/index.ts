@@ -95,8 +95,8 @@ export const demoBackend = (
 ): Backend => {
   const terminals = createDemoTerminals(engine, setup)
   const transcripts = createStore(true)
-  // Idle agents are stopped after half an hour unless the person chooses otherwise, as in the app.
-  const hibernateAfter = createStore<number | null>(30)
+  // Idle agents are stopped after an hour unless the person chooses otherwise, as in the app.
+  const hibernateAfter = createStore<number | null>(60)
   const agents = createStore(sampleAgents)
   const welcomeOpen = createStore(welcome)
   // Installed unless the address asks otherwise (`&voice=uninstalled`), as the try demo shows it,
