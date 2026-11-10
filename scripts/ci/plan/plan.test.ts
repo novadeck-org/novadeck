@@ -126,9 +126,9 @@ describe("the CI plan", () => {
       ])
     })
 
-    it("runs nothing on Windows and macOS, though system packages depend on them", () => {
-      expect(decided.tests.windows).toEqual([])
-      expect(decided.tests.macos).toEqual([])
+    it("runs the system packages that depend on them on Windows and macOS, not them", () => {
+      expect(decided.tests.windows).toEqual(["@novadeck/desktop", "@novadeck/specs"])
+      expect(decided.tests.macos).toEqual(["@novadeck/desktop", "@novadeck/specs"])
     })
 
     it("runs no E2E row where the runner doesn't build on them", () => {
@@ -248,13 +248,6 @@ describe("the CI plan", () => {
     })
   })
 
-  context("without the gate on Windows and macOS, as the replay measures", () => {
-    it("runs every affected system package there for a neutral change", () => {
-      const decided = plan(pullRequest("frontend/core/src/model.ts"), ids, { gate: false })
-      expect(decided.tests.macos).toEqual(["@novadeck/desktop", "@novadeck/specs"])
-    })
-  })
-
   context("for the E2E suite", () => {
     it("runs every harness on every system for a change to the runner", () => {
       const { e2e } = plan(pullRequest("backend/runner/src/manager.ts"), ids)
@@ -281,7 +274,9 @@ describe("the CI plan", () => {
     })
 
     it("runs every harness on Linux alone for a neutral package the runner builds on", () => {
-      const { e2e } = plan(pullRequest("contract/protocol/src/schema.ts"), ids)
+      const { e2e, tests } = plan(pullRequest("contract/protocol/src/schema.ts"), ids)
+      // The runner's own tests still run everywhere: only the suite waits for a system change.
+      expect(tests.macos).toContain("@novadeck/runner")
       expect(e2e.run).toBe(true)
       expect(e2e.os).toEqual([systems.linux])
       expect(e2e.rows.every(({ os }) => os === systems.linux)).toBe(true)

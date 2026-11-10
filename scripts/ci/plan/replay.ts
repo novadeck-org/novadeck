@@ -158,14 +158,13 @@ const systemsOf = (each: { readonly run: boolean; readonly os: readonly string[]
 const runsSystems = (decided: Plan) =>
   decided.tests.windows === "all" || decided.tests.windows.length > 0
 
-// The narrowings, added one at a time, and the gate on Windows and macOS taken off the last,
+// The narrowings, added one at a time,
 // for what each saves.
 const variants = {
   strict: (facts: Facts, ids: readonly string[]) =>
     plan({ ...facts, scopes: [] }, ids, { prose: false }),
   prose: (facts: Facts, ids: readonly string[]) => plan({ ...facts, scopes: [] }, ids),
   scopes: (facts: Facts, ids: readonly string[]) => plan(facts, ids),
-  ungated: (facts: Facts, ids: readonly string[]) => plan(facts, ids, { gate: false }),
 }
 
 export const replay = (count: number, ref: string) => {

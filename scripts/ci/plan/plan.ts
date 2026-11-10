@@ -73,12 +73,10 @@ export type Plan = {
   readonly package: boolean
 }
 
-/** What the replay turns off to measure what each narrowing saves; CI uses neither. */
+/** What the replay turns off to measure what a narrowing saves; CI never does. */
 export type Options = {
   /** Whether prose outside every package reaches only its declared readers. */
   readonly prose?: boolean
-  /** Whether Windows and macOS wait for a changed `system` package. */
-  readonly gate?: boolean
 }
 
 // Files in a package that no build reads: its tests, specs and end-to-end scenarios, and
@@ -141,16 +139,17 @@ const unreadable = (facts: Facts, prose: boolean): string | undefined => {
  * What runs for a change. Linux runs the tests of every affected package (turbo's, and each
  * package that declares it reads a changed path), and the repository's own tests, which read
  * the packages' files and are quick. Windows and macOS run those of every affected `system`
- * package, and only when a changed package is `system`: a `neutral` package's tests can't come
- * out differently by system, so its change shows on Linux, as the E2E plan has always held for
- * the protocol. Prose outside every package reaches only its readers; a folder whose scope is
- * `repository` reaches only the repository's tests, on Linux, and its readers. The E2E rows are each changed harness's,
- * or every harness's where a package the runner builds on changed that is no harness's own, on
- * every system where such a package is `system` and on Linux alone otherwise. The app is
- * packaged where a changed file is one a package it is built from builds.
+ * package, whatever changed: a change to a `neutral` dependency can break the tests a `system`
+ * package runs on one system alone, which Linux skips. A `neutral` package's tests run on Linux
+ * alone. Prose outside every package reaches only its readers; a folder whose scope is
+ * `repository` reaches only the repository's tests, on Linux, and its readers. The E2E rows are
+ * each changed harness's, or every harness's where a package the runner builds on changed that
+ * is no harness's own; they run on Windows and macOS only where such a changed package is
+ * `system` (#240's policy: five macOS jobs), on Linux alone otherwise. The app is packaged where
+ * a changed file is one a package it is built from builds.
  */
 export const plan = (facts: Facts, ids: readonly string[], options: Options = {}): Plan => {
-  const { prose = true, gate = true } = options
+  const { prose = true } = options
   const why = unreadable(facts, prose)
   if (why !== undefined) return everything(why, ids)
   // Read above: every fact is there.
@@ -167,12 +166,11 @@ export const plan = (facts: Facts, ids: readonly string[], options: Options = {}
   const system = new Set(
     packages.filter(({ platform }) => platform === "system").map(({ name }) => name),
   )
-  const onAll = !gate || [...changed].some((name) => system.has(name))
   const linux = packages
     .map(({ name }) => name)
     .filter((name) => affected.has(name))
     .toSorted()
-  const others = onAll ? linux.filter((name) => system.has(name)) : []
+  const others = linux.filter((name) => system.has(name))
 
   const adapters = new Set(ids.map(adapterOf))
   const run = [...changed].filter((name) => suite.has(name))
