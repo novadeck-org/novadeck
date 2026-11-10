@@ -128,8 +128,10 @@ jobs:
           runtime: node@26
 
       # A pull request may skip tests its change can't break; the nightlies run everything on
-      # main. So a release goes stable only once Nightly Quality and E2E's nightly (or a run of
-      # either dispatched on main) passed at or after its commit. The error says what to run.
+      # main. So a release goes stable only once Nightly Quality, and the E2E run on the pinned
+      # harnesses it starts, passed at or after its commit, E2E on all three systems. E2E's own
+      # night runs the latest harnesses, to catch their drift, and counts neither way. The
+      # error says what to run.
       - name: Require Green Nightlies
         env:
           TAG: ${{ steps.choose.outputs.tag }}

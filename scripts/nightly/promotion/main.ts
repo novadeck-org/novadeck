@@ -6,16 +6,19 @@ import {
   explain,
   judge,
   nightlies,
+  passedOn,
   type Nightly,
   type Relation,
   type Run,
+  type System,
 } from "./promotion.ts"
 
 // `node scripts/nightly/promotion/main.ts`: Promote to Stable's check that every full nightly
 // passed at or after the release's commit (promotion.ts), read with gh. TAG names the release;
 // GITHUB_REPOSITORY and GH_TOKEN as Actions sets them. Exits non-zero, with an error for each
-// nightly missing, when the release may not be promoted. About twenty requests: two lists of
-// runs, the release's commit, and a compare for each recent full run's commit.
+// nightly missing, when the release may not be promoted. At most about forty requests: two
+// lists of runs, the release's commit, a compare for each recent full run's commit, and the
+// jobs of each green E2E run at or after the release, for the systems it passed on.
 
 const required = (name: string): string => {
   const value = process.env[name]
@@ -28,25 +31,37 @@ const repo = (): string => required("GITHUB_REPOSITORY")
 const api = <T>(path: string): T =>
   JSON.parse(execFileSync("gh", ["api", path], { encoding: "utf8" })) as T
 
-/** The completed runs of a nightly on main, newest first, as far back as one page reaches. */
+/** The completed runs of a workflow on main, as far back as one page reaches. */
 const runsOf = (nightly: Nightly): readonly Run[] =>
   api<{
     workflow_runs: {
+      id: number
       html_url: string
       head_sha: string
       event: string
+      actor: { login: string } | null
       conclusion: string | null
       created_at: string
     }[]
   }>(
-    `repos/${repo()}/actions/workflows/${nightly.file}/runs?branch=main&status=completed&per_page=50`,
+    `repos/${repo()}/actions/workflows/${nightly.file}/runs?branch=main&status=completed&per_page=100`,
   ).workflow_runs.map((run) => ({
+    id: run.id,
     url: run.html_url,
     sha: run.head_sha,
     event: run.event,
+    actor: run.actor?.login ?? "",
     conclusion: run.conclusion ?? "",
     createdAt: run.created_at,
   }))
+
+/** The systems a run's latest attempt passed on. */
+const systemsOf = (run: Run): ReadonlySet<System> =>
+  passedOn(
+    api<{ jobs: { labels: string[]; conclusion: string | null }[] }>(
+      `repos/${repo()}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`,
+    ).jobs,
+  )
 
 /** How `head` stands to `base` in main's history. */
 const relation = (base: string, head: string): Relation =>
@@ -60,10 +75,18 @@ export const main = (): boolean => {
     let line: string
     let ok = false
     try {
-      const runs = candidates(runsOf(nightly))
+      const runs = candidates(nightly, runsOf(nightly))
       for (const run of runs)
         if (!relations.has(run.sha)) relations.set(run.sha, relation(sha, run.sha))
-      const verdict = judge(runs, relations)
+      const systems = new Map<number, ReadonlySet<System>>()
+      if (nightly.everySystem)
+        for (const run of runs)
+          if (
+            run.conclusion === "success" &&
+            ["identical", "ahead"].includes(relations.get(run.sha)!)
+          )
+            systems.set(run.id, systemsOf(run))
+      const verdict = judge(nightly, runs, relations, systems)
       line = explain(nightly, tag, sha, verdict)
       ok = verdict.ok
     } catch (error) {
