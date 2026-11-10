@@ -1,8 +1,10 @@
 name: E2E
 
 on:
+  # Marking a draft ready runs it again: a draft runs no macOS job, and its gate fails until
+  # the run of the ready pull request has (scripts/quality/plan, scripts/e2e/plan: `held`).
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
   schedule:
     # Nightly, against each harness's latest release, to catch drift before a pin moves.
     - cron: "17 3 * * *"
@@ -40,6 +42,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       run: ${{ steps.plan.outputs.run }}
+      held: ${{ steps.plan.outputs.held }}
       os: ${{ steps.plan.outputs.os }}
       linux: ${{ steps.plan.outputs.linux }}
       windows: ${{ steps.plan.outputs.windows }}
@@ -81,6 +84,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DRAFT: ${{ github.event.pull_request.draft }}
         run: node scripts/e2e/plan/main.ts
 
   # Linux's jobs, for any change the suite runs on. The Linux jobs keep their names; the
@@ -594,7 +598,10 @@ jobs:
 
   # The one check main requires of this workflow. It passes once the plan ran and every job it
   # chose passed, or when it chose none, as for a change that reaches no harness. A job the
-  # plan chose must have passed: macOS's, skipped because Linux's failed, fails it. `always()`,
+  # plan chose must have passed: macOS's, skipped because Linux's failed, fails it. On a draft
+  # whose change needs macOS it fails, saying so, as Quality's `Test` does and for its reason.
+  # Once the merge queue is on, its run guards the merge, and a draft's gate can pass again.
+  # `always()`,
   # not `!cancelled()`: a skipped required check counts as passed, so a cancelled run must
   # fail it.
   gate:
@@ -613,6 +620,7 @@ jobs:
           WINDOWS_RESULT: ${{ needs.e2e-windows.result }}
           MACOS_RESULT: ${{ needs.e2e-macos.result }}
           QUIRKS_RESULT: ${{ needs.quirks.result }}
+          HELD: ${{ needs.plan.outputs.held }}
         run: |
           test "$PLAN_RESULT" = success || { echo "Plan: $PLAN_RESULT"; exit 1; }
           planned() { [ "$RUN" = true ] && case "$OS" in *"\"$1\""*) true ;; *) false ;; esac; }
@@ -622,3 +630,8 @@ jobs:
             if planned "$system"; then expected=success; else expected=skipped; fi
             test "$result" = "$expected" || { echo "$name: $result, planned $expected"; exit 1; }
           done
+          if [ "$HELD" = true ]; then
+            echo "::error title=Draft::draft: macOS not run, mark ready to run it"
+            echo "draft: macOS not run, mark ready to run it" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+            exit 1
+          fi

@@ -14,6 +14,8 @@ export type Facts = {
   readonly runner: readonly string[] | undefined
   /** Paths git calls changed, relative to the repository's root, with `/` as separator. */
   readonly files: readonly string[] | undefined
+  /** Whether the pull request is a draft; anything else reads as not, so macOS runs. */
+  readonly draft?: boolean
 }
 
 // The packages a change in which runs no harness of its own: the runner is reported
@@ -275,6 +277,12 @@ export type Plan = {
    */
   readonly jobs: { readonly [system in keyof typeof systems]: readonly Row[] }
   readonly quirks: readonly Quirk[]
+  /**
+   * Whether macOS's rows were chosen but held back, as the pull request is a draft: marking
+   * it ready runs them. The `E2E` gate fails while they are, so a draft's run can't stand for
+   * the pull request once it can merge.
+   */
+  readonly held: boolean
 }
 
 export const plan = (facts: Facts, ids: readonly string[]): Plan => {
@@ -282,10 +290,14 @@ export const plan = (facts: Facts, ids: readonly string[]): Plan => {
   // With nothing to run the jobs are skipped, but their matrices still name every row: a
   // skipped job's matrix is never run, and an empty one is an error where Actions reads it.
   const chosen = selected.length > 0 ? selected : ids
-  const os = selected.length > 0 ? selectSystems(facts) : everySystem
+  const systemsChosen = selected.length > 0 ? selectSystems(facts) : everySystem
+  // A draft runs no macOS job: its rows wait for the pull request to be marked ready.
+  const held = selected.length > 0 && facts.draft === true && systemsChosen.includes(systems.macos)
+  const os = held ? systemsChosen.filter((system) => system !== systems.macos) : systemsChosen
   const e2e = setups(chosen, ids)
   return {
     run: selected.length > 0,
+    held,
     os,
     e2e,
     rows: rows(os, e2e),

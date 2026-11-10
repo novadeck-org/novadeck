@@ -7,7 +7,8 @@ import { workspacePackages } from "../../workspace/platform.ts"
 import { type Facts, plan } from "./plan.ts"
 
 // `node scripts/quality/plan/main.ts`: decides which systems Quality's tests run on and prints
-// the plan as JSON; in Actions it also sets the job's outputs `windows`, `macos` and `packages`. A pull
+// the plan as JSON; in Actions it also sets the job's outputs `windows`, `macos`, `held` and `packages`. A draft (`DRAFT`)
+// holds macOS back. A pull
 // request reads its changes from `BASE_SHA` and `HEAD_SHA` (the full history must be there);
 // any other event, or anything that can't be read, runs every system.
 
@@ -29,9 +30,11 @@ const run = (args: readonly string[], env: NodeJS.ProcessEnv): string | undefine
 
 const facts = (event: string, base: string | undefined, head: string | undefined): Facts => {
   if (event !== "pull_request") return { event, affected: undefined, files: undefined }
+  // Only a pull request's payload says so; a `merge_group` or anything else runs macOS.
+  const draft = process.env.DRAFT === "true"
   if (!base || !head) {
     console.error("BASE_SHA or HEAD_SHA is missing: running every system.")
-    return { event, affected: undefined, files: undefined }
+    return { event, affected: undefined, files: undefined, draft }
   }
   const env = { ...process.env, TURBO_SCM_BASE: base, TURBO_SCM_HEAD: head }
   const turbo = run(["pnpm", "exec", "turbo", "ls", "--affected", "--output", "json"], env)
@@ -53,6 +56,7 @@ const facts = (event: string, base: string | undefined, head: string | undefined
     event,
     affected: turbo === undefined ? undefined : parseAffected(turbo),
     files: diff?.split("\0").filter(Boolean),
+    draft,
   }
 }
 
@@ -71,7 +75,7 @@ export const main = (): void => {
   if (output)
     appendFileSync(
       output,
-      `windows=${decided.windows}\nmacos=${decided.macos}\npackages=${JSON.stringify(decided.packages)}\n`,
+      `windows=${decided.windows}\nmacos=${decided.macos}\nheld=${decided.held}\npackages=${JSON.stringify(decided.packages)}\n`,
     )
 }
 

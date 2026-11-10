@@ -13,6 +13,8 @@ export type Facts = {
   readonly affected: readonly string[] | undefined
   /** Paths git calls changed, relative to the repository's root, with `/` as separator. */
   readonly files: readonly string[] | undefined
+  /** Whether the pull request is a draft; anything else reads as not, so macOS runs. */
+  readonly draft?: boolean
 }
 
 /**
@@ -47,6 +49,12 @@ export type Plan = {
   readonly windows: boolean
   readonly macos: boolean
   /**
+   * Whether macOS's tests were needed but held back, as the pull request is a draft: marking
+   * it ready runs them. The `Test` gate fails while they are, so a draft's run can't stand
+   * for the pull request once it can merge.
+   */
+  readonly held: boolean
+  /**
    * The folders of the packages macOS's job tests (`test:system`): every `system` package. It
    * is a list so that a plan which knows which of them a change affects can name only those.
    */
@@ -55,13 +63,16 @@ export type Plan = {
 
 /**
  * The systems Quality's tests run on, by E2E's rule (`systemsFor`): every system unless the run
- * is a pull request whose change touches no system; Linux, which runs every test, always.
+ * is a pull request whose change touches no system; Linux, which runs every test, always. A
+ * draft holds macOS's back (`held`), Windows's not.
  */
 export const plan = (facts: Facts, packages: readonly Package[]): Plan => {
   const chosen = systemsFor(facts.event, touchesSystem(facts, packages))
+  const macos = chosen.includes(systems.macos)
   return {
     windows: chosen.includes(systems.windows),
-    macos: chosen.includes(systems.macos),
+    macos: macos && facts.draft !== true,
+    held: macos && facts.draft === true,
     packages: systemPackages(packages).map(({ folder }) => folder),
   }
 }

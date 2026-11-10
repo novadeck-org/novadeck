@@ -566,8 +566,20 @@ describe("E2E's gate", () => {
     WINDOWS_RESULT: "success",
     MACOS_RESULT: "success",
     QUIRKS_RESULT: "success",
+    HELD: "false",
   }
   const gate = (env: Partial<typeof passed>) => runGate("e2e.yml", { ...passed, ...env })
+
+  it("fails on a draft whose macOS rows were held, saying so in one line", () => {
+    const draft = {
+      OS: '["ubuntu-latest","windows-latest"]',
+      MACOS_RESULT: "skipped",
+      HELD: "true",
+    }
+    const { passed: ok, said } = gate(draft)
+    expect(ok).toBe(false)
+    expect(said).toBe("::error title=Draft::draft: macOS not run, mark ready to run it")
+  })
   const skippedElsewhere = {
     OS: '["ubuntu-latest"]',
     WINDOWS_RESULT: "skipped",
@@ -616,5 +628,41 @@ describe("E2E's gate", () => {
     ["Linux was planned alone and was skipped", { ...skippedElsewhere, LINUX_RESULT: "skipped" }],
   ])("fails when %s", (_name, env) => {
     expect(gate(env).passed).toBe(false)
+  })
+})
+
+describe("E2E on a draft", () => {
+  const runnerChange = pullRequest(["@novadeck/runner"], ["backend/runner/src/index.ts"])
+
+  it("holds macOS's rows back where its change needs them, and runs Linux's and Windows's", () => {
+    const planned = plan({ ...runnerChange, draft: true }, ids)
+    expect(planned.held).toBe(true)
+    expect(planned.os).toEqual([systems.linux, systems.windows])
+    expect(planned.rows.some((row) => row.os === systems.macos)).toBe(false)
+    expect(planned.quirks).not.toHaveLength(0)
+  })
+
+  it("holds nothing where its change needs no macOS, or reaches no harness", () => {
+    const protocol = pullRequest(
+      ["@novadeck/protocol", "@novadeck/runner"],
+      ["contract/protocol/src/a.ts"],
+    )
+    expect(plan({ ...protocol, draft: true }, ids).held).toBe(false)
+    expect(plan({ ...pullRequest([], ["docs/a.md"]), draft: true }, ids).held).toBe(false)
+  })
+
+  it("runs macOS once ready, and on every run no payload calls a draft", () => {
+    expect(plan({ ...runnerChange, draft: false }, ids).os).toContain(systems.macos)
+    expect(plan(runnerChange, ids).os).toContain(systems.macos)
+  })
+
+  it("runs again when a draft is marked ready, and reads whether it is one", () => {
+    const workflow = readFileSync(
+      join(import.meta.dirname, "..", "..", "..", ".github", "workflows", "e2e.yml"),
+      "utf8",
+    )
+    expect(workflow).toContain("types: [opened, synchronize, reopened, ready_for_review]")
+    expect(workflow).toContain("DRAFT: ${{ github.event.pull_request.draft }}")
+    expect(workflow).toContain("HELD: ${{ needs.plan.outputs.held }}")
   })
 })

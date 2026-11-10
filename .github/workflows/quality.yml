@@ -1,8 +1,10 @@
 name: Quality
 
 on:
+  # Marking a draft ready runs it again: a draft runs no macOS job, and its gate fails until
+  # the run of the ready pull request has (scripts/quality/plan, scripts/e2e/plan: `held`).
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -24,6 +26,7 @@ jobs:
     outputs:
       windows: ${{ steps.plan.outputs.windows }}
       macos: ${{ steps.plan.outputs.macos }}
+      held: ${{ steps.plan.outputs.held }}
       packages: ${{ steps.plan.outputs.packages }}
     steps:
       # The whole history: turbo and git diff the pull request's base against its head, and
@@ -61,6 +64,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DRAFT: ${{ github.event.pull_request.draft }}
         run: node scripts/quality/plan/main.ts
 
   # The checks and Linux's tests, for every change.
@@ -362,7 +366,12 @@ jobs:
 
   # The one check main requires of the tests. It passes once the plan ran and every job it
   # chose passed: a system's tests the plan left out are skipped, and pass it; one it chose
-  # must have passed, so a job skipped because Linux failed, or cancelled, fails it. `always()`,
+  # must have passed, so a job skipped because Linux failed, or cancelled, fails it. On a
+  # draft whose change needs macOS it fails, saying so: GitHub makes a job's check only once
+  # its `needs` are done, so for the 20 minutes and more after the draft is marked ready, a
+  # draft's passing `Test` would be the only one on the commit, and would let it merge
+  # without macOS. Known Flakes never reruns it (`aggregates` in its register).
+  # Once the merge queue is on, its run guards the merge, and a draft's gate can pass again. `always()`,
   # not `!cancelled()`: a skipped required check counts as passed, so a cancelled run must
   # fail it.
   test:
@@ -380,9 +389,15 @@ jobs:
           WINDOWS_PLANNED: ${{ needs.plan.outputs.windows }}
           MACOS_RESULT: ${{ needs.macos.result }}
           MACOS_PLANNED: ${{ needs.plan.outputs.macos }}
+          MACOS_HELD: ${{ needs.plan.outputs.held }}
         run: |
           test "$PLAN_RESULT" = success || { echo "Plan: $PLAN_RESULT"; exit 1; }
           test "$QUALITY_RESULT" = success || { echo "Checks and Linux tests: $QUALITY_RESULT"; exit 1; }
+          if [ "$MACOS_HELD" = true ]; then
+            echo "::error title=Draft::draft: macOS not run, mark ready to run it"
+            echo "draft: macOS not run, mark ready to run it" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+            exit 1
+          fi
           for job in "Windows $WINDOWS_PLANNED $WINDOWS_RESULT" "macOS $MACOS_PLANNED $MACOS_RESULT"; do
             read -r name planned result <<< "$job"
             case "$planned $result" in

@@ -2,9 +2,9 @@ name: Package
 
 # The app packaged and smoke-tested on Linux, macOS and Windows. Release calls it for main,
 # with the version and the commit; Quality calls it for a pull request once its checks pass,
-# so no runner waits on them. A called workflow runs in its caller's context: for a pull
-# request, its event, its read-only token and no secrets, so it signs nothing. A draft marked
-# ready starts it here, as Quality ran already. For a pull request, its Scope job skips the
+# so no runner waits on them, a draft's once it is marked ready, which runs Quality again. A
+# called workflow runs in its caller's context: for a pull request, its event, its read-only
+# token and no secrets, so it signs nothing. For a pull request, its Scope job skips the
 # packaging when the change can't affect the packaged app.
 on:
   workflow_call:
@@ -17,18 +17,15 @@ on:
         description: The commit to package, when not a pull request's head.
         type: string
         default: ""
-  pull_request:
-    types: [ready_for_review]
 
 permissions:
   actions: read
   contents: read
 
-# A draft marked ready again replaces its own earlier run. A called run is its caller's to
-# cancel, so it takes a group of its own.
+# A called run is its caller's to cancel, so it takes a group of its own.
 concurrency:
-  group: package-${{ github.event.action == 'ready_for_review' && github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ github.event.action == 'ready_for_review' }}
+  group: package-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   # Whether a pull request's change can affect the packaged app (scripts/package/plan): yes
@@ -141,53 +138,6 @@ jobs:
               apps/desktop/release/novadeck-whisper-win32-x64.tar.gz
               apps/desktop/release/novadeck-murmur-win32-x64.tar.gz
     steps:
-      # Only a draft marked ready gets here before its Quality checks are known; Quality
-      # calls this workflow itself once they pass. It waits for Quality's Test check of the
-      # pull request's head, not for the whole run, which may be packaging too.
-      - name: Wait for Quality Checks
-        if: github.event_name == 'pull_request' && github.event.action == 'ready_for_review'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPOSITORY: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-
-          for attempt in {1..10}; do
-            run="$(gh api "repos/${REPOSITORY}/actions/workflows/quality.yml/runs?event=pull_request&head_sha=${HEAD_SHA}&per_page=100" \
-              --jq '[.workflow_runs[] | select(.head_sha == env.HEAD_SHA) |
-                select(any(.pull_requests[]; .number == (env.PR_NUMBER | tonumber) and .base.sha == env.BASE_SHA))] |
-                max_by(.run_number) // empty | .id')"
-
-            if [[ -n "$run" ]]; then
-              test="$(gh api --paginate "repos/${REPOSITORY}/actions/runs/${run}/jobs" \
-                --jq '.jobs[] | select(.name == "Test") | {status, conclusion}' | tail -n 1)"
-              [[ -n "$test" ]] || test='{}'
-              status="$(jq -r '.status // "queued"' <<<"$test")"
-              conclusion="$(jq -r '.conclusion // empty' <<<"$test")"
-              echo "Quality's Test check for ${HEAD_SHA}: ${status}${conclusion:+ (${conclusion})}"
-              if [[ "$status" == "completed" ]]; then
-                if [[ "$conclusion" == "success" ]]; then
-                  exit 0
-                fi
-                echo "::error::Quality's Test check completed with ${conclusion}."
-                exit 1
-              fi
-            else
-              echo "No matching Quality run found yet for PR #${PR_NUMBER} at ${HEAD_SHA}."
-            fi
-
-            if [[ "$attempt" -lt 10 ]]; then
-              sleep 180
-            fi
-          done
-
-          echo "::error::Quality checks did not complete within the wait window."
-          exit 1
-
       - name: Check Out Source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

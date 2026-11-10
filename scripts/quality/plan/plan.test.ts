@@ -34,8 +34,8 @@ const pullRequest = (affected: readonly string[], files: readonly string[]): Fac
   files,
 })
 const systemFolders = systemPackages(packages).map(({ folder }) => folder)
-const every = { windows: true, macos: true, packages: systemFolders }
-const linuxAlone = { windows: false, macos: false, packages: systemFolders }
+const every = { windows: true, macos: true, held: false, packages: systemFolders }
+const linuxAlone = { windows: false, macos: false, held: false, packages: systemFolders }
 
 describe("Quality's systems", () => {
   context("when nobody is waiting on a change", () => {
@@ -94,6 +94,38 @@ describe("Quality's systems", () => {
       ["nothing", [], []],
     ])("runs Linux alone for %s", (_name, affected, files) => {
       expect(plan(pullRequest(affected, files), packages)).toEqual(linuxAlone)
+    })
+  })
+})
+
+describe("Quality on a draft", () => {
+  const runner = { ...pullRequest(["@novadeck/runner"], ["backend/runner/src/a.ts"]), draft: true }
+
+  it("holds macOS back where its change needs macOS, and runs Windows", () => {
+    expect(plan(runner, packages)).toMatchObject({ windows: true, macos: false, held: true })
+  })
+
+  // A ready pull request converted back to a draft and pushed to: its `synchronize` run reads
+  // the payload's draft as any other run does.
+  it("holds macOS back again for a pull request turned back into a draft and pushed to", () => {
+    expect(plan({ ...runner, draft: false }, packages)).toMatchObject({ macos: true, held: false })
+    expect(plan(runner, packages)).toMatchObject({ macos: false, held: true })
+  })
+
+  it("holds nothing where its change needs no macOS", () => {
+    const ui = { ...pullRequest(["@novadeck/specs"], ["frontend/specs/a.spec.tsx"]), draft: true }
+    expect(plan(ui, packages)).toMatchObject({ macos: false, held: false })
+  })
+
+  it("runs macOS once the pull request is ready, and where no payload says draft", () => {
+    expect(plan({ ...runner, draft: false }, packages)).toMatchObject({ macos: true, held: false })
+    const { draft: _, ...unsaid } = runner
+    expect(plan(unsaid, packages)).toMatchObject({ macos: true, held: false })
+    expect(
+      plan({ event: "merge_group", affected: undefined, files: undefined }, packages),
+    ).toMatchObject({
+      macos: true,
+      held: false,
     })
   })
 })
@@ -171,8 +203,24 @@ describe("Quality's Test gate", () => {
     WINDOWS_RESULT: "success",
     MACOS_PLANNED: "true",
     MACOS_RESULT: "success",
+    MACOS_HELD: "false",
   }
   const gate = (env: Partial<typeof passed>) => runGate("quality.yml", { ...passed, ...env })
+  const draft = { MACOS_PLANNED: "false", MACOS_RESULT: "skipped", MACOS_HELD: "true" }
+
+  it("fails on a draft whose change needs macOS, saying so in one line, with Linux green", () => {
+    const { passed: ok, said } = gate(draft)
+    expect(ok).toBe(false)
+    expect(said).toBe("::error title=Draft::draft: macOS not run, mark ready to run it")
+  })
+
+  it("passes on a draft whose change needs no macOS", () => {
+    expect(gate({ ...draft, MACOS_HELD: "false" }).passed).toBe(true)
+  })
+
+  it("names Linux's failure first on a draft", () => {
+    expect(gate({ ...draft, QUALITY_RESULT: "failure" }).said).toContain("Checks and Linux tests")
+  })
 
   it("passes when every job ran and passed", () => {
     expect(gate({}).passed).toBe(true)
@@ -252,6 +300,37 @@ describe("Quality's workflow", () => {
   it("gates Windows's and macOS's tests on the plan", () => {
     expect(job("windows")).toContain("if: needs.plan.outputs.windows == 'true'")
     expect(job("macos")).toContain("if: needs.plan.outputs.macos == 'true'")
+  })
+
+  it("runs again when a draft is marked ready, and reads whether it is one", () => {
+    expect(workflow).toContain("types: [opened, synchronize, reopened, ready_for_review]")
+    expect(job("plan")).toContain("DRAFT: ${{ github.event.pull_request.draft }}")
+    expect(job("test")).toContain("MACOS_HELD: ${{ needs.plan.outputs.held }}")
+  })
+
+  // On every run, a pushed draft's included, and on a ready one that needs no macOS, whose
+  // gate passes: Package starts once, from Quality's gate, never on its own.
+  it("runs Package once a run's gate passes, and from nowhere else", () => {
+    const pkg = readFileSync(join(root, ".github", "workflows", "package.yml"), "utf8")
+    const triggers = pkg.slice(pkg.indexOf("\non:\n"), pkg.indexOf("\npermissions:"))
+    expect(triggers).toContain("workflow_call:")
+    expect(triggers).not.toMatch(/pull_request|push:|ready_for_review/)
+    expect(workflow.match(/uses: \.\/\.github\/workflows\/package\.yml/g)).toHaveLength(1)
+    expect(job("package")).toContain("needs: test")
+    expect(job("package")).toContain("needs.test.result == 'success'")
+  })
+
+  it("passes a ready pull request's gate when its change needs no macOS", () => {
+    const env = {
+      PLAN_RESULT: "success",
+      QUALITY_RESULT: "success",
+      WINDOWS_PLANNED: "false",
+      WINDOWS_RESULT: "skipped",
+      MACOS_PLANNED: "false",
+      MACOS_RESULT: "skipped",
+      MACOS_HELD: "false",
+    }
+    expect(runGate("quality.yml", env).passed).toBe(true)
   })
 
   it("has the gate wait on every test job", () => {

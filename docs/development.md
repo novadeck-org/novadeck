@@ -1198,22 +1198,26 @@ and the runner's, run together, starved the
 smaller CI runners enough to time out. What each task waits for, and why, is in [docs/build-graph.md](build-graph.md).
 Tests use Vitest: UI behaviour specs run in Vitest Browser Mode on Chromium, and
 MSW covers HTTP behavior. The PR workflows run formatting, lint, typechecking,
-builds, and PR metadata checks on Linux. The Test jobs run all package and repository
-tests on Linux, macOS, and Windows, including for draft PRs. Each runs UI tests in
-Chromium alongside backend API, real PTY, and built-CLI tests. The required `Test`
-check passes only when the entire Quality matrix succeeds. Once it has, a PR ready for review
+builds, and PR metadata checks on Linux. Linux runs every package and repository test on
+every pull request, in three parts. Windows and macOS run only when the change affects a
+package that declares `"novadeck": { "platform": "system" }`, or a file outside every package
+(`scripts/quality/plan`): Windows runs every test, and macOS, once every Linux job has passed,
+the system packages' tests, one package at a time (`npm run test:system`). The nightly
+Quality run runs every test on all three. The UI tests run in Chromium alongside backend API,
+real PTY, and built-CLI tests. The required `Test` check passes only when every job the plan
+chose has. A draft PR runs no macOS job, in Quality or E2E, and its `Test` and `E2E` checks
+fail ("draft: macOS not run") while its change needs macOS: open a PR as a draft while you
+iterate, and mark it ready once Linux is green, which runs both workflows again with macOS.
+Once `Test` passes on a PR that isn't a draft, Quality
 packages and smoke-tests the app on Linux, macOS, and Windows, through the
 [Package](../.github/workflows/package.yml) workflow releases use too, which Quality calls: no
 runner waits for the checks. It does so only when the change
 can affect the packaged app (`scripts/package/plan`: the host and every package it's built from,
 apart from their tests and prose, the dependency pins and patches, and the workflows that
-package). Draft PRs skip packaging; PR checks never create tags or publish releases.
-Quality checks run on PR opening, reopening, and commits. A PR reads only its own and
+package). PR checks never create tags or publish releases.
+Quality checks run on PR opening, reopening, commits, and marking a draft ready. A PR reads only its own and
 its base branch's caches, so the [Warm Caches](../.github/workflows/warm.yml) workflow fills main's test
-browser and Rust build caches on each push to main, under Quality's keys, and runs no tests.
-Marking a draft PR ready
-starts only the Package workflow, which waits for Quality's `Test` check of its head,
-usually already there, before packaging and smoke testing. Release preparation, tagging, and publishing are
+browser and Rust build caches on each push to main, under Quality's keys, and runs no tests. Release preparation, tagging, and publishing are
 disabled for PR runs.
 
 ### Known flakes
