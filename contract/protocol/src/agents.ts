@@ -21,13 +21,14 @@ export const maxTurnFiles = 16
 export const maxTurnFilePath = 1024
 
 // How much an agent's activity and detail carry at most: its subagents running, the jobs it
-// waits on, its actors (the root and its subagents) and the requests waiting on the person,
+// waits on, the background shells it started, its actors (the root and its subagents) and the requests waiting on the person,
 // a request's choices; and, in UTF-16 code units, a name (an id, a kind, a tool, a choice),
-// a description (a job's, a wake's reason), a request's subject and a waited job's command;
+// a description (a job's, a wake's reason), a request's subject and a waited job's or shell's command;
 // and the prompts given through `agents.prompt` whose receipts it keeps.
 export const agentLimits = {
   subagents: 32,
   jobs: 16,
+  shells: 16,
   actors: 33,
   requests: 32,
   choices: 16,
@@ -88,6 +89,24 @@ export const agentActivity = z.strictObject({
         .nullable(),
     })
     .nullable(),
+  // The background shells the agent started that run on beyond the call that started them,
+  // with those that ended last, oldest first: the same for every harness, and kept across
+  // turns until the harness says each ended. Each has the id its harness names it by, its
+  // command, when it started (epoch milliseconds), and `exit`: null while it runs, else when
+  // it ended and its exit code, null where its harness gives none (a shell the agent or the
+  // person stopped). Absent while there is none. It carries no output: Codex writes a
+  // running shell's output nowhere Novadeck can read.
+  shells: z
+    .array(
+      z.strictObject({
+        id: z.string().min(1).max(agentLimits.name),
+        command: z.string().max(agentLimits.command),
+        since: z.number(),
+        exit: z.strictObject({ at: z.number(), code: z.number().int().nullable() }).nullable(),
+      }),
+    )
+    .max(agentLimits.shells)
+    .optional(),
   attention: z.strictObject({
     pending: z.number().int().nonnegative(),
     kind: z.enum(["permission", "question", "plan"]).nullable(),

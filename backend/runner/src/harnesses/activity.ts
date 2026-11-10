@@ -11,6 +11,7 @@ import {
 
 import { cut } from "../text.js"
 import type { Binding } from "./bindings.js"
+import { shellEnded, shellStarted, shellsListed, shellsOf, type Shell } from "./shells.js"
 import { endless } from "./waits.js"
 
 /** The reference clients know a subagent by. */
@@ -124,6 +125,11 @@ export type Activity = {
   /** The task whose end sets the wake-up off. */
   readonly wakeId: string | null
   readonly waits: Waiting | null
+  /**
+   * The background shells the root agent started that run on or ended last (see
+   * `AgentActivity.shells`); a turn's start or end changes none, only their own events do.
+   */
+  readonly shells: readonly Shell[]
   /**
    * How many subagents the running turn's latest working status line counts running; zero
    * once the turn ends, whose `background` tells what runs on then.
@@ -259,6 +265,7 @@ export const started = (at: number, wakes = true, records = true): Activity => (
   wake: null,
   wakeId: null,
   waits: null,
+  shells: [],
   running: 0,
   wakes,
   records,
@@ -745,6 +752,18 @@ export const apply = (
         waits: jobs.length > 0 || kept ? { jobs, wake: kept } : null,
       }
     }
+    case "shell-started": {
+      const shells = shellStarted(activity.shells, event.id, event.command, event.startedAt)
+      return shells === activity.shells ? undefined : { ...activity, shells }
+    }
+    case "shell-ended": {
+      const shells = shellEnded(activity.shells, event.id, event.code, event.startedAt)
+      return shells === activity.shells ? undefined : { ...activity, shells }
+    }
+    case "shells-listed": {
+      const shells = shellsListed(activity.shells, event.ids, event.startedAt)
+      return shells === activity.shells ? undefined : { ...activity, shells }
+    }
     case "wake-scheduled":
       // Only the turn running sets one; a later one replaces it.
       if (activity.state !== "working" || event.startedAt < activity.turnAt) return undefined
@@ -1096,6 +1115,7 @@ export const summary = ({
   planning,
   background,
   waits,
+  shells,
   running,
   listed,
   lastTurn,
@@ -1124,6 +1144,7 @@ export const summary = ({
       kind: ordered(pending)[0]?.kind ?? null,
       ...(detached > 0 && { detached }),
     },
+    ...shellsOf(shells),
     subagents: subagents.map(({ id, type }) => ({ id: subagentRef(id), type })),
     lastTurn:
       state === "working" || !lastTurn

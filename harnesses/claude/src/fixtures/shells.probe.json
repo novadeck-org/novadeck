@@ -1,0 +1,155 @@
+{
+  "harness": "claude",
+  "version": "2.1.316",
+  "source": "captured against the fake model (2026-11-10), by backend/runner/src/e2e/shells.e2e.ts's script; ids and paths replaced. The transcript lines and TaskStop's result are the real run's; the hook payloads take the shapes of waiting.probe.json's (Bash's PostToolUse, Stop's background_tasks, a notification as a prompt) with the real run's ids and commands",
+  "how": "The agent starts three Bash commands with run_in_background in one turn (a loop A that exits 3, a loop C that exits 0, and a loop B that never ends), ends its turn, and later stops B with TaskStop. Each Bash's PostToolUse carries backgroundTaskId; the Stop lists the three as shell tasks; when C and A end Claude Code queues a <task-notification> (`queue-operation` enqueue in the transcript) and starts a turn with it (UserPromptSubmit); the summary says `completed (exit code 0)` or `failed with exit code 3`. TaskStop's result names the task it stopped and writes no notification. `ids` are the three task ids in start order.",
+  "scenarios": {
+    "three-shells": {
+      "ids": ["bh3wba1m4", "b4755f2nx", "b8789gl42"],
+      "commands": [
+        "i=0; while [ $i -lt 6 ]; do echo \"tick $i\"; i=$((i+1)); sleep 2; done; exit 3",
+        "i=0; while [ $i -lt 3 ]; do echo \"tick $i\"; i=$((i+1)); sleep 2; done; exit 0",
+        "while true; do echo \"up $(date +%s)\"; sleep 2; done"
+      ],
+      "hooks": [
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/home/user/project",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "i=0; while [ $i -lt 6 ]; do echo \"tick $i\"; i=$((i+1)); sleep 2; done; exit 3",
+              "description": "Server A",
+              "run_in_background": true
+            },
+            "tool_response": {
+              "stdout": "",
+              "stderr": "",
+              "interrupted": false,
+              "isImage": false,
+              "noOutputExpected": false,
+              "backgroundTaskId": "bh3wba1m4"
+            },
+            "tool_use_id": "toolu_bh3wba1m4"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/home/user/project",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "i=0; while [ $i -lt 3 ]; do echo \"tick $i\"; i=$((i+1)); sleep 2; done; exit 0",
+              "description": "Server C",
+              "run_in_background": true
+            },
+            "tool_response": {
+              "stdout": "",
+              "stderr": "",
+              "interrupted": false,
+              "isImage": false,
+              "noOutputExpected": false,
+              "backgroundTaskId": "b4755f2nx"
+            },
+            "tool_use_id": "toolu_b4755f2nx"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/home/user/project",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "while true; do echo \"up $(date +%s)\"; sleep 2; done",
+              "description": "Server B",
+              "run_in_background": true
+            },
+            "tool_response": {
+              "stdout": "",
+              "stderr": "",
+              "interrupted": false,
+              "isImage": false,
+              "noOutputExpected": false,
+              "backgroundTaskId": "b8789gl42"
+            },
+            "tool_use_id": "toolu_b8789gl42"
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/home/user/project",
+            "stop_hook_active": false,
+            "last_assistant_message": "Shells started.",
+            "background_tasks": [
+              {
+                "id": "bh3wba1m4",
+                "type": "shell",
+                "status": "running",
+                "description": "Server A",
+                "command": "i=0; while [ $i -lt 6 ]; do echo \"tick $i\"; i=$((i+1)); sleep 2; done; exit 3"
+              },
+              {
+                "id": "b4755f2nx",
+                "type": "shell",
+                "status": "running",
+                "description": "Server C",
+                "command": "i=0; while [ $i -lt 3 ]; do echo \"tick $i\"; i=$((i+1)); sleep 2; done; exit 0"
+              },
+              {
+                "id": "b8789gl42",
+                "type": "shell",
+                "status": "running",
+                "description": "Server B",
+                "command": "while true; do echo \"up $(date +%s)\"; sleep 2; done"
+              }
+            ],
+            "session_crons": []
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/home/user/project",
+            "prompt": "<task-notification>\n<task-id>b4755f2nx</task-id>\n<tool-use-id>toolu_b9681b51e95064c824673b03</tool-use-id>\n<output-file>/tmp/claude-1000/-home-user-project/c0000000-0000-4000-8000-000000000001/tasks/b4755f2nx.output</output-file>\n<status>completed</status>\n<summary>Background command \"Server C\" completed (exit code 0)</summary>\n</task-notification>"
+          }
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/home/user/project",
+            "prompt": "<task-notification>\n<task-id>bh3wba1m4</task-id>\n<tool-use-id>toolu_f9dea0f8028e5cfb79e74343</tool-use-id>\n<output-file>/tmp/claude-1000/-home-user-project/c0000000-0000-4000-8000-000000000001/tasks/bh3wba1m4.output</output-file>\n<status>failed</status>\n<summary>Background command \"Server A\" failed with exit code 3</summary>\n</task-notification>"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "session-1",
+            "cwd": "/home/user/project",
+            "tool_name": "TaskStop",
+            "tool_input": {
+              "task_id": "b8789gl42"
+            },
+            "tool_response": {
+              "message": "Successfully stopped task: b8789gl42 (while true; do echo \"up $(date +%s)\"; sleep 2; done)",
+              "task_id": "b8789gl42",
+              "task_type": "local_bash",
+              "command": "while true; do echo \"up $(date +%s)\"; sleep 2; done"
+            },
+            "tool_use_id": "toolu_stop"
+          }
+        }
+      ],
+      "queued": [
+        "{\"type\":\"queue-operation\",\"operation\":\"enqueue\",\"timestamp\":\"2026-11-09T23:31:20.695Z\",\"sessionId\":\"c0000000-0000-4000-8000-000000000001\",\"content\":\"<task-notification>\\n<task-id>b4755f2nx</task-id>\\n<tool-use-id>toolu_b9681b51e95064c824673b03</tool-use-id>\\n<output-file>/tmp/claude-1000/-home-user-project/c0000000-0000-4000-8000-000000000001/tasks/b4755f2nx.output</output-file>\\n<status>completed</status>\\n<summary>Background command \\\"Server C\\\" completed (exit code 0)</summary>\\n</task-notification>\"}",
+        "{\"type\":\"queue-operation\",\"operation\":\"enqueue\",\"timestamp\":\"2026-11-09T23:31:26.651Z\",\"sessionId\":\"c0000000-0000-4000-8000-000000000001\",\"content\":\"<task-notification>\\n<task-id>bh3wba1m4</task-id>\\n<tool-use-id>toolu_f9dea0f8028e5cfb79e74343</tool-use-id>\\n<output-file>/tmp/claude-1000/-home-user-project/c0000000-0000-4000-8000-000000000001/tasks/bh3wba1m4.output</output-file>\\n<status>failed</status>\\n<summary>Background command \\\"Server A\\\" failed with exit code 3</summary>\\n</task-notification>\"}"
+      ]
+    }
+  }
+}
