@@ -52,7 +52,10 @@ const inApp = (
     interrupt,
     takeBox,
     refuse = [],
+    personFace,
   }: {
+    // The person's face, as the app gives it.
+    readonly personFace?: React.ReactNode
     readonly draft?: string
     readonly program?: string
     readonly onKeys?: (keys: string) => Promise<void>
@@ -135,6 +138,7 @@ const inApp = (
           onInputFocused: () => {},
           refused: conversations.refused,
           ...(onKeys && { onKeys }),
+          ...(personFace !== undefined && { personFace }),
         })
       : null
   }
@@ -495,7 +499,7 @@ describe("a chat sending a message", () => {
     expect(bubbles(container).map(([text]) => text)).toEqual(["second"])
   })
 
-  it("shows a turn the doorbell started as a dim line, how many it brought where known", async () => {
+  it("lets what the doorbell brought speak for itself, with a line only where it can't", async () => {
     const ring = (id: string, at: number, replies = false): ChatItem => ({
       ...userItem("[Novadeck: automatic notice, agent messages waiting, n7Q2]"),
       id,
@@ -520,20 +524,26 @@ describe("a chat sending a message", () => {
       doorbell: { ...noDoorbell, delivered: [message] },
     })
     const { container } = inApp(conversation)
+    // A message needs no line over it; a ring that brought nothing known, or a reply whose words
+    // the record lacks, has one.
     expect([...container.querySelectorAll(".chat-note")].map((note) => wordsOf(note))).toEqual([
-      "doorbell · 1 message",
       "doorbell",
       "doorbell · your reply",
     ])
     expect(container.textContent).not.toContain("automatic notice")
-    // Where a prompt would stand, with the mark hollow: a prompt, and not the person's.
+    // Screen readers still hear what rang. Where the line stands, its mark is hollow: a prompt,
+    // and not the person's.
     const rings = [...container.querySelectorAll('[data-role="doorbell"]')]
     expect(rings.map((each) => each.getAttribute("aria-label"))).toEqual([
       "Doorbell, 1 message",
       "Doorbell",
       "Doorbell, your reply",
     ])
-    expect(rings.every((each) => each.querySelector(".chat-mark[data-hollow]"))).toBe(true)
+    expect(rings.map((each) => each.querySelector(".chat-mark[data-hollow]") !== null)).toEqual([
+      false,
+      true,
+      true,
+    ])
     // What it brought follows in ink, under the handle that sent it.
     const brought = rings[0]!.querySelector('[data-role="agent"]')
     expect(brought?.getAttribute("aria-label")).toBe("Message from @moth")
@@ -564,11 +574,53 @@ describe("a chat sending a message", () => {
     })
     const { container } = inApp(conversation)
     const bell = container.querySelector('[data-role="doorbell"]')!
-    expect(wordsOf(bell.querySelector(".chat-note")!)).toBe("doorbell · your reply")
+    // Their words speak for the ring: no line over them.
+    expect(bell.querySelector(".chat-note")).toBeNull()
     expect(bell.querySelector('[data-role="agent"]')).toBeNull()
     const reply = bell.querySelector('[data-role="user"]')!
     expect(reply.querySelector(".chat-mark:not([data-hollow])")).not.toBeNull()
-    expect(reply.querySelector(".chat-text")?.textContent).toBe("Use green, please. from the Inbox")
+    // Headed as an agent's message is: who, and the way it came.
+    expect(reply.querySelector(".chat-author")?.textContent).toBe("you")
+    expect(reply.querySelector(".chat-agent-where")?.textContent).toBe("from the Inbox")
+    expect(reply.querySelector(".chat-text")?.textContent).toBe("Use green, please.")
+  })
+
+  it("puts the person's face, in their hue, at their Inbox answers, not at their prompts", () => {
+    const ring: ChatItem = {
+      ...userItem("[Novadeck: automatic notice, agent messages waiting, f4Q2]"),
+      id: "r",
+      at: 20_000,
+      ring: { nonce: "f4Q2", replies: true },
+    }
+    const answer = {
+      id: "m-3",
+      deliveredAt: 20_000,
+      inbox: "answer",
+      from: { kind: "person" },
+      text: "Yes.",
+    } as unknown as AgentMessage
+    const conversation = createStore<Conversation>({
+      ...asking,
+      requests: [],
+      items: [{ ...userItem("mine"), id: "u", at: 10_000 }, ring],
+      doorbell: { ...noDoorbell, delivered: [answer] },
+    })
+    const face = createElement("i", { className: "face" })
+    const { container } = inApp(conversation, { personFace: face })
+    const [prompt, inbox] = [...container.querySelectorAll('[data-role="user"]')]
+    // Typed at the prompt: the mark, as ever.
+    expect(prompt!.getAttribute("data-hue")).toBeNull()
+    expect(prompt!.querySelector(".chat-mark")).not.toBeNull()
+    expect(prompt!.querySelector(".face")).toBeNull()
+    // Through the Inbox: their face, in their hue.
+    expect(inbox!.getAttribute("aria-label")).toBe("You, from the Inbox")
+    expect(inbox!.getAttribute("data-hue")).toBe("you")
+    expect(inbox!.querySelector(".chat-person-face > .face")).not.toBeNull()
+    expect(inbox!.querySelector(".chat-mark")).toBeNull()
+    // Without one, the block mark there too, and no hue.
+    const plain = inApp(conversation).container.querySelector(".chat-ring-reply")!
+    expect(plain.getAttribute("data-hue")).toBeNull()
+    expect(plain.querySelector(".chat-mark")).not.toBeNull()
   })
 
   it("shows no message that a Stop handed back, though the record wrote it", async () => {
