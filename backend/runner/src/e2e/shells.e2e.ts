@@ -12,7 +12,12 @@ import { own, start } from "./scenarios.js"
 // (`activity.shells`). Probed 2026-11-10 on Claude Code 2.1.316, Codex 0.167.0, Antigravity 1.5.3.
 // Long enough that a slow runner still sees all three running, and that Codex on Windows, which
 // waits for a command longer than its yield, hands them to the background.
-const commands = ["sleep 40; exit 3", "sleep 30; exit 0", "sleep 600"]
+const commands = (agent: string) => [
+  "sleep 40; exit 3",
+  "sleep 30; exit 0",
+  // Claude Code on Windows stops the loop but leaves the sleep it was in running: short ones.
+  agent === "claude" ? "while true; do sleep 1; done" : "sleep 600",
+]
 
 const launch = (agent: string, command: string, summary: string): Reply => {
   if (agent === "claude")
@@ -89,7 +94,7 @@ for (const setup of setups) {
             ) {
               const done = started(call).length
               return done < 3
-                ? launch(setup.agent, commands[done]!, ["Server A", "Server C", "Server B"][done]!)
+                ? launch(setup.agent, commands(setup.agent)[done]!, ["Server A", "Server C", "Server B"][done]!)
                 : { text: "Shells started." }
             }
             return { text: "Noted." }
@@ -110,7 +115,7 @@ for (const setup of setups) {
         )
         // Running: each with a harness id of its own, its command and when it started.
         const running = shellsOf(t)
-        expect(running.map(({ command }) => command)).toEqual(commands)
+        expect(running.map(({ command }) => command)).toEqual(commands(setup.agent))
         expect(new Set(running.map(({ id }) => id)).size).toBe(3)
         for (const shell of running) {
           expect(shell.exit).toBeNull()
@@ -154,6 +159,8 @@ for (const setup of setups) {
             60_000,
           )
           expect(stopped.code).toBeNull()
+        // Claude Code's loop ends within the second of its sleep it was in.
+        await new Promise((resolve) => setTimeout(resolve, 3000))
           finished = true
         } finally {
           if (!finished) {
