@@ -251,7 +251,7 @@ jobs:
       # failures' upload below still runs, rather than the whole job being cancelled.
       - name: Run ${{ matrix.name }}
         run: ${{ matrix.command }}
-        timeout-minutes: ${{ runner.os == 'macOS' && 27 || matrix.browser && matrix.shard && 22 || (matrix.browser || matrix.shard) && 17 || 7 }}
+        timeout-minutes: ${{ runner.os == 'macOS' && 37 || matrix.browser && matrix.shard && 22 || (matrix.browser || matrix.shard) && 17 || 7 }}
         env:
           NOVADECK_REQUIRE_FISH: ${{ steps.fish.outcome == 'success' && '1' || '' }}
           # A re-run with debug logging records Playwright traces of failed UI specs.
@@ -329,14 +329,18 @@ jobs:
   # runner. Only the packages that declare themselves `system` (`test:system`), one at a time:
   # the `neutral` ones, the UI and the browser packages, run the same on every system but for
   # the browser's rendering, so they run on Linux, the specs' Mac chords too (frontend/specs'
-  # `eachPlatform`), and on macOS in the nightly run. Whole, the job took 17 to 27 minutes, 13 of them the specs;
-  # its packages ran 23 at once on a 3-core runner, where real-process tests failed (#784).
+  # `eachPlatform`), and on macOS in the nightly run. Whole, its tests took 45m58s on #847, 33
+  # minutes of them the specs; its packages ran 23 at once on a 3-core runner, where
+  # real-process tests failed (#784).
   macos:
     needs: [plan, quality]
     if: needs.plan.outputs.macos == 'true'
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    # The limit from before the specs' second pass (main has 50, 47 for the tests, for the whole
+    # suite), which the rest of it fits: about 13 of #847's 46 minutes. Lower it once its first
+    # runs measure the serial system packages on a loaded macOS runner.
+    timeout-minutes: 40
     env:
       # The packages the plan says to test, which `test:system` reads.
       NOVADECK_TEST_PACKAGES: ${{ needs.plan.outputs.packages }}
