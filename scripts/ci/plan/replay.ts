@@ -158,13 +158,62 @@ const systemsOf = (each: { readonly run: boolean; readonly os: readonly string[]
 const runsSystems = (decided: Plan) =>
   decided.tests.windows === "all" || decided.tests.windows.length > 0
 
-// The narrowings, added one at a time,
-// for what each saves.
+// The narrowings, added one at a time, for what each saves, and the rule once Mac diet's platform
+// parameter lets the specs declare themselves neutral.
 const variants = {
   strict: (facts: Facts, ids: readonly string[]) =>
     plan({ ...facts, scopes: [] }, ids, { prose: false }),
   prose: (facts: Facts, ids: readonly string[]) => plan({ ...facts, scopes: [] }, ids),
-  scopes: (facts: Facts, ids: readonly string[]) => plan(facts, ids),
+  plan: (facts: Facts, ids: readonly string[]) => plan(facts, ids),
+  specsNeutral: (facts: Facts, ids: readonly string[]) =>
+    plan(
+      {
+        ...facts,
+        packages: facts.packages?.map((each) =>
+          each.name === "@novadeck/specs" ? { ...each, platform: "neutral" as const } : each,
+        ),
+      },
+      ids,
+    ),
+}
+
+// Each package's test time on each system, the median of green Quality runs (durations.ts).
+// The relay's Rust tests print no Vitest line and count as nothing.
+const durations = (
+  JSON.parse(readFileSync(join(import.meta.dirname, "durations.json"), "utf8")) as {
+    seconds: Record<"linux" | "windows" | "macos", Record<string, number>>
+  }
+).seconds
+const whole = (system: "windows" | "macos") =>
+  Object.values(durations[system]).reduce((sum, each) => sum + each, 0)
+
+/** The seconds of tests a plan runs on a system: every package's for `all`. */
+const secondsOn = (decided: Plan, system: "windows" | "macos"): number => {
+  const tests = decided.tests[system]
+  return tests === "all"
+    ? whole(system)
+    : tests.reduce((sum, name) => sum + (durations[system][name] ?? 0), 0)
+}
+
+const minutes = (value: number) => Math.round(value / 6) / 10
+
+/** How a set of per-merge times spreads: its median, mean, 90th percentile, and in bands. */
+const spread = (values: readonly number[], all: number) => {
+  const sorted = values.toSorted((a, b) => a - b)
+  const at = (share: number) =>
+    sorted[Math.min(sorted.length - 1, Math.floor(share * sorted.length))]!
+  const count = (test: (value: number) => boolean) => sorted.filter(test).length
+  return {
+    medianMinutes: minutes(at(0.5)),
+    meanMinutes: minutes(sorted.reduce((sum, each) => sum + each, 0) / sorted.length),
+    p90Minutes: minutes(at(0.9)),
+    none: count((value) => value === 0),
+    underOneMinute: count((value) => value > 0 && value < 60),
+    oneToFive: count((value) => value >= 60 && value < 300),
+    fiveToFifteen: count((value) => value >= 300 && value < 900),
+    fifteenOrMore: count((value) => value >= 900 && value < all),
+    everything: count((value) => value >= all),
+  }
 }
 
 export const replay = (count: number, ref: string) => {
@@ -210,8 +259,14 @@ export const replay = (count: number, ref: string) => {
       linux: decided.tests.linux === "all" ? "all" : decided.tests.linux.length,
       windows: decided.tests.windows === "all" ? "all" : decided.tests.windows,
       systemTests: differences.systemTests,
-      variants: Object.fromEntries(
-        Object.entries(variants).map(([name, each]) => [name, runsSystems(each(facts, ids))]),
+      seconds: Object.fromEntries(
+        Object.entries(variants).map(([name, each]) => {
+          const variant = each(facts, ids)
+          return [
+            name,
+            { macos: secondsOn(variant, "macos"), windows: secondsOn(variant, "windows") },
+          ]
+        }),
       ),
       disagree: Object.fromEntries(
         Object.entries(differences).filter(([, [before, after]]) => before !== after),
@@ -223,15 +278,29 @@ export const replay = (count: number, ref: string) => {
   return {
     range: `${merges.at(-1)?.date} to ${merges[0]?.date}`,
     merges: rows.length,
-    skipsSystemTests: {
-      old: share(rows.filter(({ systemTests: [before] }) => !before).length),
-      ...Object.fromEntries(
-        Object.keys(variants).map((name) => [
-          name,
-          share(rows.filter(({ variants: ran }) => !ran[name]).length),
-        ]),
-      ),
-    },
+    // Seconds of unit tests per merge on macOS and Windows, against the whole suite every merge
+    // runs today, and the old rule's (step 1d: the whole suite, or none).
+    testTime: Object.fromEntries(
+      (["macos", "windows"] as const).map((system) => [
+        system,
+        {
+          wholeSuiteMinutes: minutes(whole(system)),
+          old: spread(
+            rows.map(({ systemTests: [before] }) => (before ? whole(system) : 0)),
+            whole(system),
+          ),
+          ...Object.fromEntries(
+            Object.keys(variants).map((name) => [
+              name,
+              spread(
+                rows.map(({ seconds: each }) => each[name]![system]),
+                whole(system),
+              ),
+            ]),
+          ),
+        },
+      ]),
+    ),
     everything: share(rows.filter(({ everything }) => everything !== undefined).length),
     disagreements: rows.filter(({ disagree }) => Object.keys(disagree).length > 0),
     rows,
