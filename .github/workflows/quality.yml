@@ -251,7 +251,7 @@ jobs:
       # failures' upload below still runs, rather than the whole job being cancelled.
       - name: Run ${{ matrix.name }}
         run: ${{ matrix.command }}
-        timeout-minutes: ${{ runner.os == 'macOS' && 27 || runner.os == 'Linux' && matrix.browser && matrix.shard && 22 || (matrix.browser || matrix.shard) && 17 || 7 }}
+        timeout-minutes: ${{ runner.os == 'macOS' && 27 || matrix.browser && matrix.shard && 22 || (matrix.browser || matrix.shard) && 17 || 7 }}
         env:
           NOVADECK_REQUIRE_FISH: ${{ steps.fish.outcome == 'success' && '1' || '' }}
           # A re-run with debug logging records Playwright traces of failed UI specs.
@@ -299,7 +299,9 @@ jobs:
     if: needs.plan.outputs.windows == 'true'
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    # Its two browser parts run the specs' Mac pass too (frontend/specs' `eachPlatform`), about
+    # three minutes on Windows 2/3's 11.5, so they have 25 minutes (22 for the tests), as Linux's.
+    timeout-minutes: ${{ matrix.browser && 25 || 20 }}
     strategy:
       fail-fast: false
       matrix:
