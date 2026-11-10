@@ -23,8 +23,12 @@ on:
 permissions:
   contents: read
 
+# A pull request's newer push cancels its run in progress. Every other run is a group of its
+# own: the pinned night's dispatch on main, the scheduled latest-harness night and anyone's
+# dispatch would otherwise cancel each other, and a cancelled pinned night is one the
+# promotion check can't count.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:

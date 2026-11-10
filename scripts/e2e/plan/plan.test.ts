@@ -551,6 +551,14 @@ describe("E2E's workflow", () => {
     expect(job("e2e-windows")).toContain("needs: plan\n")
   })
 
+  // The pinned night, the latest-harness night and a dispatch, all on main, must not cancel
+  // one another; a pull request's newer push still cancels its older run.
+  it("cancels a pull request's superseded run, and no run that isn't a pull request's", () => {
+    expect(workflow).toContain(
+      "  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}\n  cancel-in-progress: true\n",
+    )
+  })
+
   it("has the gate wait on every job the plan can choose", () => {
     expect(job("gate")).toContain("needs: [plan, e2e, e2e-windows, e2e-macos, quirks]")
   })
