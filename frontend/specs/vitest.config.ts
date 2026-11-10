@@ -54,6 +54,7 @@ export const eachPlatform = [
   "src/projects/sessions.spec.tsx",
   "src/terminals/clipboard.spec.tsx",
   "src/terminals/keys.spec.tsx",
+  "src/terminals/move.spec.tsx",
   "src/terminals/team-fold.spec.tsx",
   "src/terminals/terminals.spec.tsx",
   "src/views/canvas-sessions.spec.tsx",
