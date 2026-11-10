@@ -289,11 +289,11 @@ describe("dictation", () => {
       const overflow = (): number => win().scrollHeight - win().clientHeight
       expect(win().clientHeight).toBeGreaterThan(0)
       const without = overflow()
-      await terminal("Checkout implementation")
-        .getByRole("button", {
+      await clickPastToasts(
+        terminal("Checkout implementation").getByRole("button", {
           name: labelled("Set up voice input for ", "Checkout implementation"),
-        })
-        .click()
+        }),
+      )
       await expect.element(offer()).toBeVisible()
       const strip = win().querySelector<HTMLElement>(".dictation-strip:not([hidden])")!
       const host = strip.parentElement!.getBoundingClientRect()
@@ -358,7 +358,7 @@ describe("dictation", () => {
       const mic = terminal("Checkout implementation").getByRole("button", {
         name: labelled("Set up voice input for ", "Checkout implementation"),
       })
-      await mic.click()
+      await clickPastToasts(mic)
       await expect.element(offer()).toBeVisible()
       expect(microphone.live()).toBe(0)
 

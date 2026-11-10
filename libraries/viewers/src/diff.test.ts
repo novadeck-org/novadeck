@@ -46,6 +46,11 @@ const eventually = async (check: () => void, looks = 100): Promise<void> => {
   }
 }
 
+// A budget for a test that waits on a busy page. A busy macOS runner's page drew many rows 20 or
+// more times slower than an idle one, and went seconds between frames, so a test's `eventually`
+// waits ran past the default 15 s, which cut short their own, longer budgets.
+const drawingMs = 60_000
+
 const hunkOf = (start: number, lines: DiffHunk["lines"]): DiffHunk => ({
   oldStart: start,
   oldCount: lines.filter((line) => line.kind !== "add").length,
@@ -322,17 +327,23 @@ describe("the diff viewer", () => {
       )
     })
 
-    it("keeps the colours of the files that didn't change, as a new change arrives", async () => {
-      const content = change([json('{ "slug": 1 }'), sized("plain.txt", 3)])
-      const { pane, viewer } = mount(content)
-      await eventually(() =>
-        expect(pane.querySelector(".tok-propertyName")?.textContent).toBe('"slug"'),
-      )
-      viewer.update(change([json('{ "slug": 1 }'), sized("plain.txt", 4)]))
-      // At once: its rows were kept, not drawn plain and parsed again.
-      expect(pane.querySelector(".tok-propertyName")?.textContent).toBe('"slug"')
-      expect(pane.querySelectorAll(".diff-file")[1]!.querySelectorAll(".diff-line")).toHaveLength(4)
-    })
+    it(
+      "keeps the colours of the files that didn't change, as a new change arrives",
+      { timeout: drawingMs },
+      async () => {
+        const content = change([json('{ "slug": 1 }'), sized("plain.txt", 3)])
+        const { pane, viewer } = mount(content)
+        await eventually(() =>
+          expect(pane.querySelector(".tok-propertyName")?.textContent).toBe('"slug"'),
+        )
+        viewer.update(change([json('{ "slug": 1 }'), sized("plain.txt", 4)]))
+        // At once: its rows were kept, not drawn plain and parsed again.
+        expect(pane.querySelector(".tok-propertyName")?.textContent).toBe('"slug"')
+        expect(pane.querySelectorAll(".diff-file")[1]!.querySelectorAll(".diff-line")).toHaveLength(
+          4,
+        )
+      },
+    )
 
     it("shows a hunk highlighted at once when a new viewer has seen it", async () => {
       const content = change([json('{ "kept": 1 }')])
@@ -596,50 +607,49 @@ describe("the diff viewer", () => {
       }
     }, 60_000)
 
-    it("keeps each file's sideways scroll, by its path, across updates, hiding and a new viewer", async () => {
-      const wide = () => [
-        sized("a.txt", 40, ` ${"x".repeat(400)}`),
-        sized("b.txt", 40),
-        sized("a.txt", 40, ` ${"y".repeat(400)}`),
-      ]
-      const first = mount(change(wide()))
-      await frame()
-      const [one, , other] = first.root.querySelectorAll<HTMLElement>(".diff-lines")
-      one!.scrollLeft = 200
-      other!.scrollLeft = 120
-      await frame()
-      first.pane.style.display = "none"
-      first.viewer.update(change([...wide(), sized("c.txt", 3)]))
-      const state = first.viewer.state()
-      first.pane.style.display = "flex"
-      await eventually(() =>
-        expect(
-          [...first.root.querySelectorAll<HTMLElement>(".diff-lines")].map(
-            (each) => each.scrollLeft,
-          ),
-        ).toEqual([200, 0, 120, 0]),
-      )
-      first.viewer.destroy()
-      const pane = paneIn()
-      mountDiff(pane, { content: change(wide()), label: "Changes", saved: state })
-      const root = pane.querySelector<HTMLElement>(".diff-viewer")!
-      // A file's sideways scroll is put back as it comes into view.
-      await eventually(() =>
-        expect(root.querySelector<HTMLElement>(".diff-lines")!.scrollLeft).toBe(200),
-      )
-      root.scrollTop = root.scrollHeight
-      await eventually(() =>
-        expect(
-          [...root.querySelectorAll<HTMLElement>(".diff-lines")].map((each) => each.scrollLeft),
-        ).toEqual([200, 0, 120]),
-      )
-    })
+    it(
+      "keeps each file's sideways scroll, by its path, across updates, hiding and a new viewer",
+      { timeout: drawingMs },
+      async () => {
+        const wide = () => [
+          sized("a.txt", 40, ` ${"x".repeat(400)}`),
+          sized("b.txt", 40),
+          sized("a.txt", 40, ` ${"y".repeat(400)}`),
+        ]
+        const first = mount(change(wide()))
+        await frame()
+        const [one, , other] = first.root.querySelectorAll<HTMLElement>(".diff-lines")
+        one!.scrollLeft = 200
+        other!.scrollLeft = 120
+        await frame()
+        first.pane.style.display = "none"
+        first.viewer.update(change([...wide(), sized("c.txt", 3)]))
+        const state = first.viewer.state()
+        first.pane.style.display = "flex"
+        await eventually(() =>
+          expect(
+            [...first.root.querySelectorAll<HTMLElement>(".diff-lines")].map(
+              (each) => each.scrollLeft,
+            ),
+          ).toEqual([200, 0, 120, 0]),
+        )
+        first.viewer.destroy()
+        const pane = paneIn()
+        mountDiff(pane, { content: change(wide()), label: "Changes", saved: state })
+        const root = pane.querySelector<HTMLElement>(".diff-viewer")!
+        // A file's sideways scroll is put back as it comes into view.
+        await eventually(() =>
+          expect(root.querySelector<HTMLElement>(".diff-lines")!.scrollLeft).toBe(200),
+        )
+        root.scrollTop = root.scrollHeight
+        await eventually(() =>
+          expect(
+            [...root.querySelectorAll<HTMLElement>(".diff-lines")].map((each) => each.scrollLeft),
+          ).toEqual([200, 0, 120]),
+        )
+      },
+    )
   })
-
-  // Drawing many rows is what these tests are about, and a busy macOS runner's page drew them 20
-  // or more times slower than an idle one: past the file's 15 s, which cut short their waits'
-  // longer budgets.
-  const drawingMs = 60_000
 
   context("with many files", () => {
     it(
@@ -655,18 +665,30 @@ describe("the diff viewer", () => {
         await frame()
         pane.querySelector<HTMLElement>(".diff-viewer")!.scrollTop = 50_000
         await frame()
-        const measured = performance.now()
-        viewer.state()
-        const state = performance.now() - measured
         const next = [...files]
         next[70] = sized("f70.txt", 1_001)
-        const updated = performance.now()
-        viewer.update(change(next))
-        const update = performance.now() - updated
-        // Laying out every file took seconds here (1.3–9.5 s); the bounds catch that with room
-        // for a slow shared CI machine, where this takes 60–160 ms.
-        expect(state).toBeLessThan(500)
-        expect(update).toBeLessThan(750)
+        // Counted, not timed: the layout reads each call makes, on any machine the same. The
+        // place is found by halving, a few dozen reads; laying out every file read each of the
+        // hundred at least.
+        const measuring = Element.prototype.getBoundingClientRect
+        let reads = 0
+        Element.prototype.getBoundingClientRect = function (this: Element) {
+          reads += 1
+          return measuring.call(this)
+        }
+        let state: number
+        let update: number
+        try {
+          viewer.state()
+          state = reads
+          reads = 0
+          viewer.update(change(next))
+          update = reads
+        } finally {
+          Element.prototype.getBoundingClientRect = measuring
+        }
+        expect(state).toBeLessThan(50)
+        expect(update).toBeLessThan(50)
         viewer.destroy()
       },
     )

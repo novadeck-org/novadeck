@@ -254,11 +254,16 @@ describe("a project's folder", () => {
 
   it("lists no more than it may, and says so", async ({ resources }) => {
     const root = project(resources)
-    for (let index = 0; index < maxFolderEntries + 5; index++)
+    // The limit is lowered for the test: writing 2000 files times out on a slow Windows disk.
+    const limit = 20
+    expect(maxFolderEntries).toBeGreaterThan(limit)
+    for (let index = 0; index < limit + 5; index++)
       writeFileSync(join(root, `f${String(index).padStart(5, "0")}`), "")
-    const { entries, truncated } = await listFolder(root, "")
+    const { entries, truncated } = await listFolder(root, "", limit)
     expect(truncated).toBe(true)
-    expect(entries).toHaveLength(maxFolderEntries)
+    expect(entries).toHaveLength(limit)
     expect(entries[0]!.name).toBe("f00000")
+    // At exactly the limit nothing is cut.
+    expect((await listFolder(root, "", limit + 5)).truncated).toBe(false)
   })
 })

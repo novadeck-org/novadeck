@@ -125,9 +125,14 @@ const kindOf = async (directory: string, dirent: Dirent): Promise<Found | undefi
  * One folder of a project's directory, `folder` being its path from the project's root
  * (`src/cart`, or "" for the root). Folders come first, then files, each by name without case or a leading dot; git's own
  * `.git` is left out. `INVALID_DIRECTORY` for a path that is badly formed, a folder that is
- * missing or no folder, or one that leads out of the root, as through a link.
+ * missing or no folder, or one that leads out of the root, as through a link. `limit` is
+ * `maxFolderEntries` but for a test, which lowers it rather than write that many files.
  */
-export const listFolder = async (root: string, folder: string): Promise<FolderListing> => {
+export const listFolder = async (
+  root: string,
+  folder: string,
+  limit: number = maxFolderEntries,
+): Promise<FolderListing> => {
   const names = segments(folder)
   const real = await realpath(root).catch(() => undefined)
   if (real === undefined) throw invalid("The project's folder is gone.")
@@ -143,7 +148,7 @@ export const listFolder = async (root: string, folder: string): Promise<FolderLi
   )
   const listed = found.filter((entry) => entry !== undefined)
   listed.sort(byOrder)
-  const entries = listed.slice(0, maxFolderEntries)
+  const entries = listed.slice(0, limit)
   const ignored = await ignoredNames(directory, entries)
   return {
     entries: entries.map(({ name, folder: isFolder }) => ({

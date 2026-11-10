@@ -566,19 +566,48 @@ describe("secrets longer than the window rows are read in", () => {
     expect(result.join("")).not.toContain(part.slice(900, 940))
   })
 
+  // The regex runs redaction makes, counted instead of timed: a loaded runner's clock says nothing
+  // about the work, and the count does not move between runs.
+  const execCalls = (run: () => unknown): number => {
+    const exec = RegExp.prototype.exec
+    let calls = 0
+    const counting = vi.spyOn(RegExp.prototype, "exec").mockImplementation(function (
+      this: RegExp,
+      text,
+    ) {
+      calls += 1
+      // The spy keeps every call's arguments, millions of them here.
+      counting.mockClear()
+      return exec.call(this, text)
+    })
+    try {
+      run()
+    } finally {
+      counting.mockRestore()
+    }
+    return calls
+  }
+
   it.each([
-    ["hex", () => "9f86d081884c7d65".repeat(10_000)],
-    ["base64", () => b64(160_000)],
-    ["a=b", () => "a=b".repeat(53_000)],
-    ["quotes", () => '"a: '.repeat(40_000)],
-    ["Ab1+", () => "Ab1+".repeat(40_000)],
+    ["hex", (length: number) => "9f86d081884c7d65".repeat(length / 16)],
+    ["base64", (length: number) => b64(length)],
+    ["a=b", (length: number) => "a=b".repeat(length / 3)],
+    ["quotes", (length: number) => '"a: '.repeat(length / 4)],
+    ["Ab1+", (length: number) => "Ab1+".repeat(length / 4)],
   ])(
-    "is quick for a 2,000-row group of one wrapped line of %s",
+    "grows with the rows, not their square, for a group of one wrapped line of %s",
     { timeout: 60_000 },
     (_name, line) => {
-      const screen = chop(line(), 80)
-      // A budget to catch the cost growing with the square of the rows (it was 12 to 45 s; about 1 s now).
-      expect(cpuTime(() => redactScreen(screen, continuing(screen)))).toBeLessThan(15_000)
+      const calls = (rowCount: number): number => {
+        const screen = chop(line(rowCount * 80), 80)
+        return execCalls(() => redactScreen(screen, continuing(screen)))
+      }
+      const half = calls(200)
+      const full = calls(400)
+
+      // Twice the rows takes about twice the regex runs (2.0 to 2.1 times); each row going over the
+      // rows before it again, as it once did, makes it four.
+      expect(full).toBeLessThan(3 * half)
     },
   )
 })

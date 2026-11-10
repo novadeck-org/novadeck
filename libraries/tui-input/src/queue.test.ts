@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { InputQueue, type HoldBudget, type InputHold } from "./queue.js"
 
@@ -59,10 +59,21 @@ describe("the input queue", () => {
 
   it("lets the entries of different terminals go side by side", async () => {
     const { queue, events } = queued()
-    await Promise.all([
-      queue.run("a", entry(events, "a", 30)),
-      queue.run("b", entry(events, "b", 5)),
-    ])
+    // Entries held open until released, so the order is the test's, not a runner's clock.
+    const gates = new Map<string, () => void>()
+    const gated = (name: string) => async () => {
+      events.push(`${name} starts`)
+      await new Promise<void>((resolve) => gates.set(name, resolve))
+      events.push(`${name} ends`)
+      return name
+    }
+    const both = Promise.all([queue.run("a", gated("a")), queue.run("b", gated("b"))])
+    // Both are under way while neither has ended: b did not wait for a.
+    await vi.waitFor(() => expect(events).toEqual(["a starts", "b starts"]))
+    gates.get("b")!()
+    await vi.waitFor(() => expect(events).toEqual(["a starts", "b starts", "b ends"]))
+    gates.get("a")!()
+    await both
     expect(events).toEqual(["a starts", "b starts", "b ends", "a ends"])
   })
 
