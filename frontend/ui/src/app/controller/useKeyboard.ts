@@ -121,14 +121,15 @@ export const useKeyboard = (dictation?: Dictation): void => {
       // hiding what it shows does, hands typing back to the box of the chat the terminal
       // shows, where the person writes. A pane's own content keeps the focus it took, and a
       // menu its own.
-      const box = on.companion && !insideOwnKeys(event.target) && chatBoxBeside(event.target)
-      if (box && !(event.target as Element).closest("[aria-haspopup]")) {
+      const pressed = event.target as Element
+      if (on.companion && !insideOwnKeys(pressed) && !pressed.closest("[aria-haspopup]")) {
+        // Once the pane opened or hid, as it is then.
         requestAnimationFrame(() => {
           const now = document.activeElement
           if (now && now !== document.body && !now.closest("[data-taskbar]")) return
           if (keyState({ ...services, dictation }, commands).dialog || environment.overlayOpen())
             return
-          if (box.isConnected) box.focus({ preventScroll: true })
+          chatBoxBeside(pressed)?.focus({ preventScroll: true })
         })
         return
       }
