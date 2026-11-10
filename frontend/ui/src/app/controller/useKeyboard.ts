@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 
 import {
+  chatBoxBeside,
   classifyKeyTarget,
   insideOwnKeys,
   modalDialogOpen,
@@ -116,6 +117,22 @@ export const useKeyboard = (dictation?: Dictation): void => {
       if (by !== "mouse") return
       const clicked = document.activeElement
       const on = classifyKeyTarget(event.target)
+      // A click on a terminal's companion that leaves focus on its taskbar, as opening or
+      // hiding what it shows does, hands typing back to the box of the chat the terminal
+      // shows, where the person writes. A pane's own content keeps the focus it took, and a
+      // menu its own.
+      const pressed = event.target as Element
+      if (on.companion && !insideOwnKeys(pressed) && !pressed.closest("[aria-haspopup]")) {
+        // Once the pane opened or hid, as it is then.
+        requestAnimationFrame(() => {
+          const now = document.activeElement
+          if (now && now !== document.body && !now.closest("[data-taskbar]")) return
+          if (keyState({ ...services, dictation }, commands).dialog || environment.overlayOpen())
+            return
+          chatBoxBeside(pressed)?.focus({ preventScroll: true })
+        })
+        return
+      }
       // A chat holds text to select and controls that keep the focus they take.
       if (on.companion || on.zenDock || on.chat || insideOwnKeys(event.target)) return
       if (window.getSelection()?.isCollapsed === false) return

@@ -110,7 +110,12 @@ export const LiveSlice = ({
 }): React.JSX.Element => {
   const keys = useContext(SliceKeys)
   return (
-    <section className="chat-live" aria-label={`${agent}'s own ${whats[slice.reason]}`}>
+    <section
+      className="chat-live"
+      // The rows take the keys, but for a menu of the harness's, which the box passes them to.
+      data-takes-keys={slice.reason !== "menu" || undefined}
+      aria-label={`${agent}'s own ${whats[slice.reason]}`}
+    >
       <div className="chat-live-title">
         <span>
           {agent}'s own {whats[slice.reason]} · live from its terminal

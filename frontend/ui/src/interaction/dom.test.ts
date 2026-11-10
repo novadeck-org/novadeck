@@ -1,7 +1,13 @@
 import { afterEach } from "vitest"
 
 import { context, describe, expect, it } from "../test"
-import { classifyKeyTarget, focusSidebarToggle, focusZenCreate, insideOwnKeys } from "./dom"
+import {
+  chatBoxBeside,
+  classifyKeyTarget,
+  focusSidebarToggle,
+  focusZenCreate,
+  insideOwnKeys,
+} from "./dom"
 
 afterEach(() => document.body.replaceChildren())
 
@@ -144,5 +150,36 @@ describe("the sidebar toggle's focus as the sidebar hides", () => {
     document.getElementById("terminal")!.focus()
     focusSidebarToggle("terminals")
     expect(document.activeElement?.id).toBe("terminal")
+  })
+})
+
+describe("the chat box beside a terminal's taskbar", () => {
+  const terminalWindow = (chat: string, split = ""): HTMLElement =>
+    mount(
+      `<div data-terminal="t1"><div class="pane-split"${split}><div data-workspace-chat>${chat}<textarea data-terminal-input aria-label="box"></textarea></div></div><div data-taskbar><button data-target type="button">Plan</button></div></div>`,
+    )
+
+  it("is the box of the chat in the same window", () => {
+    expect(chatBoxBeside(terminalWindow(""))?.getAttribute("aria-label")).toBe("box")
+  })
+
+  it("is none while the agent's own rows take the keys", () => {
+    expect(
+      chatBoxBeside(terminalWindow('<section class="chat-live" data-takes-keys></section>')),
+    ).toBe(null)
+  })
+
+  it("is the box while the rows are a menu the box passes keys to", () => {
+    expect(chatBoxBeside(terminalWindow('<section class="chat-live"></section>'))).not.toBe(null)
+  })
+
+  it("is none while a pane covers the terminal", () => {
+    expect(chatBoxBeside(terminalWindow("", ' style="--_pane-cover: 1"'))).toBe(null)
+  })
+
+  it("is none for a terminal without a chat", () => {
+    expect(
+      chatBoxBeside(mount('<div data-terminal="t1"><button data-target></button></div>')),
+    ).toBe(null)
   })
 })
