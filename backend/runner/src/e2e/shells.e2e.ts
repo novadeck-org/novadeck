@@ -94,7 +94,11 @@ for (const setup of setups) {
             ) {
               const done = started(call).length
               return done < 3
-                ? launch(setup.agent, commands(setup.agent)[done]!, ["Server A", "Server C", "Server B"][done]!)
+                ? launch(
+                    setup.agent,
+                    commands(setup.agent)[done]!,
+                    ["Server A", "Server C", "Server B"][done]!,
+                  )
                 : { text: "Shells started." }
             }
             return { text: "Noted." }
@@ -159,8 +163,8 @@ for (const setup of setups) {
             60_000,
           )
           expect(stopped.code).toBeNull()
-        // Claude Code's loop ends within the second of its sleep it was in.
-        await new Promise((resolve) => setTimeout(resolve, 3000))
+          // Claude Code's loop ends within the second of its sleep it was in.
+          await new Promise((resolve) => setTimeout(resolve, 3000))
           finished = true
         } finally {
           if (!finished) {
