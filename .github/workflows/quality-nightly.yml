@@ -80,8 +80,10 @@ jobs:
             os: macos-latest
             browser: true
             whole: true
-            timeout: 40
-            step: 37
+            # More than Quality's 37/40: the whole suite took 35 and 37 minutes on 11-10, and
+            # a night that runs out of time reports nothing about the code.
+            timeout: 55
+            step: 50
             command: npm run test
           - name: Test (Windows, 1/3)
             os: windows-latest
