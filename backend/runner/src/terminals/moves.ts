@@ -99,7 +99,7 @@ export const moveNotice = {
   alone: (): string =>
     notice +
     "The user moved you to another session in Novadeck: the agents you knew there are out of " +
-    "reach, and you see this session's agents now.",
+    "reach, but for your team if it came along, and you see this session's agents now.",
   // To the lead an undo of a move puts back over the terminal.
   leadsAgain: (handle: string, title: string): string =>
     notice +
@@ -380,8 +380,9 @@ export class Moves {
   }
 
   /**
-   * The agents that run now hear what changed for them, in one notice each; a sleeper hears
-   * it when it wakes, but for the lead of a sleeper moved alone, who hears at once.
+   * The agents that run now hear what changed for them, in one notice each, or that they moved
+   * when nothing else did. A sleeper hears nothing, as a notice would wake it: it finds the new
+   * session's agents when it wakes. The lead of a sleeper moved alone hears at once.
    */
   private tell(
     placed: readonly Placed[],
@@ -430,10 +431,8 @@ export class Moves {
             ? leadNotice.nowLed(ledBy) + (renames.length === 0 ? "" : " " + changes(renames))
             : renames.length > 0
               ? moveNotice.renamed(handle, renames)
-              : placed.length === 1
-                ? moveNotice.alone()
-                : undefined
-      if (text !== undefined) messaging.notice(member.id, text, { always: true })
+              : moveNotice.alone()
+      messaging.notice(member.id, text, { always: true })
     })
   }
 }

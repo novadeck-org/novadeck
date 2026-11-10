@@ -309,9 +309,10 @@ session gave it to another): it then draws that session's next, and its workers'
 terminal of the session holds it or is led under it, and the terminal rejoins the lead with
 that handle if one is there, without asking. `terminals.watch` tells each moved terminal as a
 `changed` with its new `sessionId`; its Inbox rows and its companion bar's items go with it,
-and its agent hears of a new handle, or of the lead it left, as a notice (a sleeping agent when
-it wakes). A terminal that is closing, stopping to rest, being woken, or whose agent has a
-terminal on its way (`open_agent`) is a `CONFLICT`, as are the terminal's own session, a session
+and each running agent hears of it as a notice, with any new handles and the lead it left (a
+sleeping agent isn't woken for it). A terminal that is closing, stopping to rest, being woken,
+whose agent has a terminal on its way (`open_agent`), or whose lead's brief to it hasn't arrived
+yet is a `CONFLICT`, as are the terminal's own session, a session
 of another project, a session being removed, and a new session's id that is taken; an unknown
 terminal is `TERMINAL_NOT_FOUND` and an unknown session `NOT_FOUND`. A pending approval that names
 a moved terminal is withdrawn.

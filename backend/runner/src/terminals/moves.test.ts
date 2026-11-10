@@ -245,6 +245,18 @@ describe("moving a terminal to another session", () => {
     expect(world.log.notices).toEqual([{ to: "a", text: moveNotice.alone() }])
   })
 
+  it("tells a team that moved with every handle kept that it moved, each of its agents", () => {
+    const world = setup({
+      lead: { session: "s1", handle: "moth" },
+      worker: { session: "s1", handle: "fox", ledBy: "moth" },
+    })
+    world.move(to("s2", "lead"))
+    expect(world.log.notices).toEqual([
+      { to: "lead", text: moveNotice.alone() },
+      { to: "worker", text: moveNotice.alone() },
+    ])
+  })
+
   it("draws the next handle of the session where a terminal there has it", () => {
     const world = setup({
       a: { session: "s1", handle: "moth" },
