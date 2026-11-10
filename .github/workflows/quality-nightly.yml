@@ -56,8 +56,8 @@ jobs:
           - name: Shell
             os: ubuntu-latest
             command: shellcheck -s sh scripts/install/install.sh
-          # The parts and limits Quality gives them (see its comments for why). Linux's first
-          # two parts run the specs a second time as a Mac since #840, so they have longer.
+          # The parts and limits Quality gives them (see its comments for why). The browser
+          # parts on Linux and Windows run the specs a second time as a Mac, so they have longer.
           - name: Test (Linux, 1/3)
             os: ubuntu-latest
             browser: true
@@ -87,11 +87,15 @@ jobs:
             os: windows-latest
             browser: true
             shard: 1
+            timeout: 25
+            step: 22
             command: npm run test:shard1
           - name: Test (Windows, 2/3)
             os: windows-latest
             browser: true
             shard: 2
+            timeout: 25
+            step: 22
             command: npm run test:shard2
           - name: Test (Windows, 3/3)
             os: windows-latest
