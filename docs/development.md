@@ -282,6 +282,15 @@ Terminals:
   marks land on the others as you look away. Its shell an agent opened and its shell an agent
   exited from keep their handles on their tabs; its other plain shells show none. Also a
   burst of 30, a quick failure, a spawn failure and the terminal limit.
+- **Changes:** acts on the selected terminal's work in the Changes panel (every demo seeds a few
+  works from its own terminals: unread and read, one in conflict with main, two with each other;
+  a demo agent that starts a turn gains unread lines in its work). New lines make the work at a
+  terminal's first change, or bring a read row back above the line with the brief wash; Many files
+  changed gives the unfolded row its "+N more"; the conflict actions turn the icon and the file
+  names red, with what it conflicts with on hover; merged and discarded take the row away, and Mark
+  read moves it below the line. "Every state in Changes" gives the session's first four terminals a
+  work each. In the showcase, selecting a row shows its work as a changes item on the terminal's
+  bar; in the other demos there is no pane to show it in.
 - **Projects and sessions:** mark the selected terminal running, then start a fresh
   session and open Sessions to see the old one count it; or make the next folder pick fail.
 

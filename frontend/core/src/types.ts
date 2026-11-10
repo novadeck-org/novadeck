@@ -7,7 +7,14 @@ import type { NoticeSound } from "./sounds"
 export type SchemePreference = "system" | "light" | "dark"
 export type ViewMode = "focus" | "grid" | "canvas"
 // The sidebar's panels, each with a toggle on the rail.
-export const sidebarPanels = ["terminals", "source", "sessions", "history", "inbox"] as const
+export const sidebarPanels = [
+  "terminals",
+  "source",
+  "sessions",
+  "history",
+  "inbox",
+  "changes",
+] as const
 export type SidebarPanel = (typeof sidebarPanels)[number]
 export type WindowedView = Exclude<ViewMode, "focus">
 export type PreferencesValue = {

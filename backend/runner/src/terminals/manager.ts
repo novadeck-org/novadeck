@@ -49,7 +49,7 @@ import { Calls } from "./calls.js"
 import { type CloseAnswer } from "./closes.js"
 import { coalesced } from "./coalesce.js"
 import { expectedAgent } from "./commands.js"
-import { Companion } from "./companion.js"
+import { Companion, type Checkout } from "./companion.js"
 import { Murmur } from "./descriptions.js"
 import { agentWorking } from "./doorbell-host.js"
 import { agentProcess, shutdownTreeGraceMs, shutdownTreesMs, treeGraceMs } from "./ending.js"
@@ -1366,6 +1366,11 @@ export class Terminals {
    */
   place(terminalId: string): TerminalPlace | undefined {
     return this.companion.place(terminalId)
+  }
+
+  /** The git checkout each open terminal works in now, for the Changes panel. */
+  checkouts(): Promise<Checkout[]> {
+    return this.companion.checkouts(this.list())
   }
 
   /**

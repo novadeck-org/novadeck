@@ -72,6 +72,7 @@
 @import "./sidebar/sidebar.css" layer(components);
 @import "./sidebar/source.css" layer(components);
 @import "./sidebar/history.css" layer(components);
+@import "./sidebar/changes.css" layer(components);
 @import "./inbox/inbox.css" layer(components);
 @import "./inbox/inbox-toast.css" layer(components);
 @import "./projects/project-status.css" layer(components);

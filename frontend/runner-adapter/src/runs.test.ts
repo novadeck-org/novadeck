@@ -15,7 +15,7 @@ import { encodeSession } from "./sessions/state"
 import { context, describe, expect, it } from "./test"
 import { channel } from "./testing/channel"
 import { startTestRunner } from "./testing/runner"
-import { noCompanions, noHistory } from "./testing/scripted"
+import { noCompanions, noHistory, noWorks } from "./testing/scripted"
 
 const unused = (): never => {
   throw new Error("not used here")
@@ -80,6 +80,7 @@ const scripted = (reported: TerminalSummary, lastProgram = "") => {
     },
     companions: noCompanions,
     history: noHistory,
+    works: noWorks,
   } as unknown as RunnerApi
   const session = {
     id: "s",

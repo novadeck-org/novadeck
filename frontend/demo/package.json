@@ -29,6 +29,8 @@
     "./videos/launch": "./src/videos/launch.ts",
     "./visitor/connect": "./src/visitor/connect.ts",
     "./visitor/index": "./src/visitor/index.ts",
+    "./work-plans": "./src/work-plans.ts",
+    "./works": "./src/works.ts",
     "./workspace": "./src/workspace.ts"
   },
   "scripts": {

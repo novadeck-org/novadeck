@@ -64,6 +64,7 @@ describe("the visitor demo", () => {
       "start",
       "telemetry",
       "visitor",
+      "works",
     ])
   })
 

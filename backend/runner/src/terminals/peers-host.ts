@@ -336,6 +336,15 @@ export class TerminalPeers {
     return currentCheckout(places, (folder) => tops.get(folder) ?? null, tops.get(cwd) ?? null)
   }
 
+  /**
+   * The top of the git checkout a terminal works in: where its agent works now when that is
+   * another than its folder's (`current`), else its folder's; null outside any. Without an
+   * agent bound its folder is all there is to go by.
+   */
+  async workingCheckout(cwd: string, work: Work | null, agent: boolean): Promise<string | null> {
+    return (agent ? await this.current(work, cwd) : null) ?? (await this.checkout(cwd))
+  }
+
   /** The top of the git checkout a folder is in, read again once a few seconds old. */
   private async checkout(folder: string): Promise<string | null> {
     const known = this.checkouts.get(folder)

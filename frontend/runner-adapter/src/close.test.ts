@@ -14,7 +14,7 @@ import { runnerBackend, type RunnerApi, type RunnerBackendOptions } from "./back
 import type { RunnerListing } from "./sessions/seed"
 import { describe, expect, it } from "./test"
 import { channel } from "./testing/channel"
-import { id as uuid, keptSummary, noCompanions, noHistory } from "./testing/scripted"
+import { id as uuid, keptSummary, noCompanions, noHistory, noWorks } from "./testing/scripted"
 
 // Every wait here runs on a fake clock, so a slow machine can't push a step past a
 // deadline it should beat, or a deadline past a step that should see it run out.
@@ -76,6 +76,7 @@ const droppingRunner = () => {
     },
     companions: noCompanions,
     history: noHistory,
+    works: noWorks,
   } as unknown as RunnerApi
   return { api, shells, reconnect: () => set({ state: "connected", epoch: "r1" }) }
 }
@@ -211,6 +212,7 @@ const holdingRunner = (close: (id: string) => Promise<void>) => {
     },
     companions: noCompanions,
     history: noHistory,
+    works: noWorks,
   } as unknown as RunnerApi
   const listing: RunnerListing = [
     {

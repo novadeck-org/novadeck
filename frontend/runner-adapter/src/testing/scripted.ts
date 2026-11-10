@@ -25,6 +25,13 @@ export const noHistory = {
   watch: () => channel<never>().iterator,
 }
 
+// A runner whose terminals have no work against main and never change.
+export const noWorks = {
+  watch: () => channel<never>().iterator,
+  look: async () => {},
+  show: async () => ({ itemId: "none" }),
+}
+
 // A runner whose terminals' companions hold nothing and never change.
 export const noCompanions = {
   watch: () => channel<never>().iterator,
@@ -244,6 +251,7 @@ export const scripted = ({
       },
     },
     history: noHistory,
+    works: noWorks,
     feedback: {
       watch: () => {
         const next = channel<FeedbackDraft[]>()

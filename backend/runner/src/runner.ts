@@ -19,6 +19,7 @@ import { Terminals, type TerminalOptions } from "./terminals/index.js"
 import { createTranscriptSealer, transcriptsAvailable } from "./terminals/sealing.js"
 import { Uploads } from "./terminals/uploads.js"
 import { Voice } from "./voice/service.js"
+import { Works } from "./works/works.js"
 import { Projects } from "./workspaces/projects.js"
 import {
   EarlierWorkspaceError,
@@ -266,9 +267,45 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     ...options.terminals,
   })
   const projects = new Projects(store, terminals, items)
+  const works = new Works({
+    placements: async () =>
+      (await terminals.checkouts()).flatMap(({ terminalId, sessionId, root }) => {
+        try {
+          return [{ terminalId, projectId: store.session(sessionId).projectId, root }]
+        } catch (error) {
+          // A session gone from the store while its terminal winds down.
+          if (error instanceof DomainError && error.code === "NOT_FOUND") return []
+          throw error
+        }
+      }),
+    show: async (terminalId, root) => {
+      const place = terminals.place(terminalId)
+      if (!place) throw new DomainError("TERMINAL_NOT_FOUND")
+      // The person asked, so it opens, as an agent's show does when told the person asked.
+      const shown = await items.show(place, { changes: { path: root }, open: true })
+      if (!shown.ok) throw new DomainError("NOT_FOUND", shown.reason)
+      return shown.id
+    },
+    // Beside the database, as voice and murmur keep theirs; kept only for a runner that keeps a database.
+    ...(options.database !== undefined && {
+      memory: join(dirname(options.database), "works.json"),
+    }),
+  })
   const uploads = new Uploads(options.uploads)
   void uploads.sweepOld()
-  return { store, shellFiles, agents, terminals, items, projects, uploads, voice, murmur, sealer }
+  return {
+    store,
+    shellFiles,
+    agents,
+    terminals,
+    items,
+    projects,
+    works,
+    uploads,
+    voice,
+    murmur,
+    sealer,
+  }
 }
 
 /**
@@ -328,7 +365,7 @@ const logFailure = (path: readonly string[], error: unknown): void => {
 }
 
 const startRunner = (options: RunnerOptions): Runner => {
-  const { store, terminals, items, agents, projects, uploads, voice, murmur, sealer } =
+  const { store, terminals, items, agents, projects, works, uploads, voice, murmur, sealer } =
     wire(options)
   let closing: Promise<void> | undefined
   return {
@@ -339,6 +376,7 @@ const startRunner = (options: RunnerOptions): Runner => {
         terminals,
         feedback: terminals.feedback,
         history: terminals.history,
+        works,
         projects,
         items,
         agents,
@@ -356,6 +394,7 @@ const startRunner = (options: RunnerOptions): Runner => {
       closed: (session) => {
         log.info("client.closed", "A client's session ended.", { data: { session: session.id } })
         terminals.release(session.id)
+        works.release(session.id)
         voice.release(session.id)
         murmur.release(session.id)
       },
@@ -369,6 +408,7 @@ const startRunner = (options: RunnerOptions): Runner => {
         try {
           await terminals.shutdown()
         } finally {
+          await works.close()
           // Downloads and the engine use no records, but end before the store they ask;
           // the store closes even if they fail to.
           try {

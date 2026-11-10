@@ -1,10 +1,12 @@
 import { allTeams, sameTeams } from "@novadeck/core/derivations"
 import type { ClosedTerminal, HistoryState } from "@novadeck/core/history"
+import { itemIdOf } from "@novadeck/core/items"
 import { orderedTiles } from "@novadeck/core/roster"
 import type { SourceState } from "@novadeck/core/source"
 import { activeProject } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
 import type { WorkspaceSession } from "@novadeck/core/types"
+import type { Work, WorksState } from "@novadeck/core/works"
 import { memo, useCallback, useMemo, useSyncExternalStore } from "react"
 
 import { useDesktop } from "../shell/desktop"
@@ -13,7 +15,7 @@ import { WorkspaceSidebar } from "../shell/WorkspaceSidebar"
 import { latestTurnEnd } from "../sidebar/source-turns"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useStoreSelector } from "./controller/useStoreSelector"
-import { historyShown, sourceShown } from "./routing"
+import { historyShown, sourceShown, worksShown } from "./routing"
 import { currentState, currentTarget, sameItems, sameTarget } from "./selectors"
 import { useReorderTiles } from "./team-fold"
 import { useSessionMarks } from "./useSessionMarks"
@@ -40,11 +42,16 @@ const noSource = createStore<SourceState>({ projects: {} })
 
 // What a backend without History reads in its place; its panel isn't drawn.
 const noHistory = createStore<HistoryState>({ rows: [] })
+// What a backend without works reads in its place; its panel isn't drawn.
+const noWorks = createStore<WorksState>({ works: [], synced: true })
 const noAgents: readonly never[] = []
 const always = (): (() => void) => () => {}
 
 const sameRows = (a: readonly ClosedTerminal[], b: readonly ClosedTerminal[]): boolean =>
   a.length === b.length && a.every((row, index) => Object.is(row, b[index]))
+
+const sameWorks = (a: readonly Work[], b: readonly Work[]): boolean =>
+  a.length === b.length && a.every((work, index) => Object.is(work, b[index]))
 
 // The sidebar wired to the workspace: terminal tabs and workspace sessions.
 export const SidebarSection = memo((): React.JSX.Element => {
@@ -152,6 +159,54 @@ export const SidebarSection = memo((): React.JSX.Element => {
         : undefined,
     [historyFeed, historyRows, readHistory, backend.agents, connections, commands, projectId],
   )
+  // The Changes panel shows where the backend reports the terminals' work; see `worksShown`.
+  const worksFeed = worksShown(backend) ? backend.works : undefined
+  const projectWorks = useStoreSelector(
+    worksFeed?.state ?? noWorks,
+    (state) => state.works.filter((work) => work.projectId === projectId),
+    sameWorks,
+  )
+  const worksSynced = useStoreSelector(worksFeed?.state ?? noWorks, (state) => state.synced)
+  // Titles of the project's terminals, in every session of it, for the rows to name.
+  const titles = useWorkspaceState(
+    (workspace) =>
+      new Map(
+        activeProject(workspace)!.history.flatMap((session) =>
+          session.state.roster.terminals.map((terminal) => [terminal.id, terminal.name] as const),
+        ),
+      ),
+    sameHandles,
+  )
+  const selectedId = useWorkspaceState((workspace) => currentState(workspace).selected)
+  const { revealTerminal, openBarTab } = commands
+  const showWork = useCallback(
+    (terminalId: string) => {
+      if (!worksFeed) return
+      revealTerminal(terminalId, projectId)
+      worksFeed.show(terminalId).then(
+        (itemId) => {
+          if (itemId !== null) openBarTab(terminalId, itemIdOf(itemId))
+        },
+        () => {},
+      )
+      worksFeed.look(terminalId)
+    },
+    [worksFeed, revealTerminal, openBarTab, projectId],
+  )
+  const changes = useMemo(
+    () =>
+      worksFeed
+        ? {
+            works: projectWorks,
+            synced: worksSynced,
+            watch: worksFeed.watch,
+            titles,
+            selectedId,
+            onSelect: showWork,
+          }
+        : undefined,
+    [worksFeed, projectWorks, worksSynced, titles, selectedId, showWork],
+  )
   const sidebarPanel = useUiState((state) => state.location.route.panel)
   const visible = useUiState((state) => sidebarVisible(state.shell, desktop))
   return (
@@ -166,6 +221,7 @@ export const SidebarSection = memo((): React.JSX.Element => {
       sidebarVisible={visible}
       source={source}
       history={history}
+      changes={changes}
       onSessionSelect={switchSession}
       onSessionRename={renameSession}
       onSessionMove={moveSession}

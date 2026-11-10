@@ -39,7 +39,7 @@ const patchBytes = 2 * maxChangesBytes
 // A text file has no NUL byte in this much of its start.
 const sniffBytes = 8 * 1024
 // Untracked files: the largest one read, and how much all of them are read in one look.
-const maxUntrackedBytes = 1024 * 1024
+export const maxUntrackedBytes = 1024 * 1024
 const untrackedReadBytes = 8 * 1024 * 1024
 // What a line of a change costs beyond its text, once encoded: its kind and punctuation.
 const lineOverhead = 30
@@ -61,13 +61,15 @@ type ChangeFailure = {
   readonly reason: string
 }
 
-type Run =
+export type Run =
   | { readonly ok: true; readonly out: string; readonly cut: boolean }
   | {
       readonly ok: false
       readonly kind: "no-git" | "timeout" | "big" | "exit"
       readonly status: number
       readonly said: string
+      /** What it printed before it failed, where it did (a `merge-tree` that conflicts). */
+      readonly out?: string
     }
 
 // What a page, a file or git supplies, shown as one line without invisible characters.
@@ -84,11 +86,21 @@ export const displayed = (text: string): string =>
 // above. Switched off: a repository's file monitor hook program (git's own monitor stays,
 // as `limit.monitor` says), external diff programs, text conversion, a pager and prompts. Not switched off: clean filters (git-lfs, say) of
 // files whose stat changed, which run as in the person's own `git diff`. Output past
-// `cap` bytes ends the run: it is `cut` where `truncate`, else a failure.
-const git = (
+// `cap` bytes ends the run: it is `cut` where `truncate`, else a failure. `env` adds
+// variables to the run (a private index file, an identity to commit as).
+export const git = (
   cwd: string,
   args: readonly string[],
-  limit: { readonly cap: number; readonly truncate?: boolean; readonly monitor?: boolean },
+  limit: {
+    readonly cap: number
+    readonly truncate?: boolean
+    readonly monitor?: boolean
+    readonly env?: NodeJS.ProcessEnv
+    /** Text written to its standard input (a list of paths, say). */
+    readonly input?: string
+    /** How long it may take, where that is more than `timing.gitMs`. */
+    readonly ms?: number
+  },
 ): Promise<Run> =>
   new Promise((done) => {
     const program = gitPath()
@@ -112,11 +124,15 @@ const git = (
     const child = spawn(program, full, {
       cwd,
       // Pathspecs are file names, not patterns.
-      env: { ...gitEnv(), GIT_LITERAL_PATHSPECS: "1" },
+      env: { ...gitEnv(), ...limit.env, GIT_LITERAL_PATHSPECS: "1" },
       detached: process.platform !== "win32",
       windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: [limit.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
     })
+    if (limit.input !== undefined) {
+      child.stdin?.on("error", () => {})
+      child.stdin?.end(limit.input)
+    }
     const chunks: Buffer[] = []
     let size = 0
     let capped = false
@@ -124,7 +140,7 @@ const git = (
     const timer = setTimeout(() => {
       killTree(child.pid)
       finish({ ok: false, kind: "timeout", status: 0, said: "" })
-    }, timing.gitMs)
+    }, limit.ms ?? timing.gitMs)
     child.stdout?.on("data", (chunk: Buffer) => {
       if (capped) return
       if (size + chunk.length > limit.cap) {
@@ -159,7 +175,7 @@ const git = (
         )
       if (code === 0) return finish({ ok: true, out, cut: false })
       const said = oneLine(errors.toString("utf8").split("\n")[0] ?? "", 200)
-      finish({ ok: false, kind: "exit", status: code ?? -1, said })
+      finish({ ok: false, kind: "exit", status: code ?? -1, said, out })
     })
   })
 

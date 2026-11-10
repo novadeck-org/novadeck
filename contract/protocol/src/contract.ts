@@ -63,6 +63,7 @@ import {
   terminalTitle,
 } from "./terminals.js"
 import { transcriptChange } from "./transcripts.js"
+import { workChange } from "./works.js"
 
 export const errors = {
   ...wireErrors,
@@ -486,6 +487,21 @@ export const contract = {
     // (a close, a restore's progress and outcome, a prune), as `terminals.watch` reports
     // terminals. An availability found by checking files is only as of when the list was read.
     watch: procedure.input(z.void()).output(eventIterator(historyChange)),
+  },
+  // Each terminal's work that differs from its repository's main branch, for the Changes
+  // panel (works.ts).
+  works: {
+    // Every project's works: each `changed`, `synced`, then later changes (new lines, a
+    // look, a conflict found or gone, a merge or discard that removes one).
+    watch: procedure.input(z.void()).output(eventIterator(workChange)),
+    // The person has read the terminal's work as it is now: what's unread starts again from
+    // here. A terminal with no work is NOT_FOUND.
+    look: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
+    // Shows the terminal's work as a changes item on its bar, as an agent's `show` with
+    // `changes` would, and gives the item's id. A terminal with no work is NOT_FOUND.
+    show: procedure
+      .input(z.strictObject({ terminalId: id }))
+      .output(z.strictObject({ itemId: id })),
   },
   // What agents show and the person attaches beside terminals: items held by a terminal's
   // bar or an undocked window, kept across restarts as pointers to files, pages and plans.

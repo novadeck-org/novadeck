@@ -1,4 +1,5 @@
 import type { ChangedFile, ChangesContent } from "@novadeck/core/items"
+import type { Work } from "@novadeck/core/works"
 
 import { ready, type SampleArtifact } from "./artifacts"
 
@@ -47,7 +48,7 @@ export const file = (
   ...rest,
 })
 
-const sample = (
+export const sample = (
   id: string,
   name: string,
   detail: string,
@@ -170,3 +171,33 @@ export const changesArtifacts: readonly SampleArtifact[] = [
   ),
   sample("change-none", "No changes", "Working tree against HEAD", {}),
 ]
+
+// The change a terminal's work shows as: its files, against the base, each a hunk of lines
+// the demo invents (the counts are the work's own).
+export const workChanges = (work: Work, title: string): SampleArtifact => {
+  const files = work.files.map((each) =>
+    file(
+      each.path,
+      "modified",
+      [
+        hunk(10, 10, [
+          context(`// ${each.path.split("/").at(-1)}`),
+          ...Array.from({ length: Math.min(each.removed, 3) }, (_, index) =>
+            remove(`  // before, step ${index + 1}`),
+          ),
+          ...Array.from({ length: Math.min(each.added, 5) }, (_, index) =>
+            add(`  // after, step ${index + 1}`),
+          ),
+          context(""),
+        ]),
+      ],
+      { added: each.added, removed: each.removed },
+    ),
+  )
+  const count = `${files.length} ${files.length === 1 ? "file" : "files"}`
+  return sample(`work-${work.terminalId}`, "Changes", `${title} against ${work.base} · ${count}`, {
+    root: work.root,
+    base: work.base,
+    files,
+  })
+}

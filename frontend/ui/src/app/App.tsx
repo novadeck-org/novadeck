@@ -38,7 +38,7 @@ import { FooterSection } from "./FooterSection"
 import { HeaderSection } from "./HeaderSection"
 import { dropWords } from "./history-drops"
 import { InboxHost } from "./InboxHost"
-import { historyShown, sourceShown } from "./routing"
+import { historyShown, sourceShown, worksShown } from "./routing"
 import { currentContext, currentState, currentTarget, sameItems, shallowEqual } from "./selectors"
 import { SidebarSection } from "./SidebarSection"
 import { previewTeamFold, toggleTeamFold, useFoldedLeads } from "./team-fold"
@@ -278,6 +278,7 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
       zen={zen}
       hasSource={sourceShown(services.backend)}
       hasHistory={historyShown(services.backend)}
+      hasChanges={worksShown(services.backend)}
       order={railOrder}
       onOrder={(order) => {
         setRailOrder(order)
