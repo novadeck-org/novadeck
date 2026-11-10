@@ -22,7 +22,9 @@ jobs:
   scoreboard:
     name: Scoreboard
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # A week takes about 750 requests of the token's 1000 an hour, of which the script leaves
+    # 200 to other workflows, so it may wait out one hour for the budget to renew.
+    timeout-minutes: 90
     permissions:
       contents: read
       # To list the runs and their jobs.

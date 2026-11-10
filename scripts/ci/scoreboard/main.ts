@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process"
 import { appendFileSync } from "node:fs"
 
+import { headroom, pace } from "./pacing.ts"
 import { compute, render, type Job, type Run } from "./scoreboard.ts"
 
 // `node scripts/ci/scoreboard/main.ts`: the weekly CI scoreboard (scoreboard.ts), computed from
@@ -10,8 +11,9 @@ import { compute, render, type Job, type Run } from "./scoreboard.ts"
 // The requests, all reads: the workflow list (1), each workflow's run list (a page per 100
 // runs), and one request per run for the jobs of all its attempts (more only for a run of over
 // 100 jobs). The recorded week of 2026-11 was about 750 runs of Quality and E2E, so about 770
-// requests, within the 1000 an hour a workflow's token has. A run list shows 1000 runs at
-// most, and a window with more runs than the token has requests left stops before it fetches.
+// requests. The workflow's token has 1000 an hour, shared with every other workflow, so the
+// scoreboard leaves 200 of them (pacing.ts) and, when the budget runs short, waits for the
+// hour to renew and goes on. A run list shows 1000 runs at most.
 
 const required = (name: string): string => {
   const value = process.env[name]
@@ -65,9 +67,37 @@ const runsOf = (repo: string, since: Date): Listed[] => {
 const jobsOf = (repo: string, run: Run): Job[] =>
   pages<Job>(`repos/${repo}/actions/runs/${run.id}/jobs?filter=all&per_page=100`, "jobs")
 
-const remaining = (): number =>
-  (JSON.parse(gh("api", "rate_limit")) as { resources: { core: { remaining: number } } }).resources
-    .core.remaining
+const budget = (): { remaining: number; reset: number } =>
+  (
+    JSON.parse(gh("api", "rate_limit")) as {
+      resources: { core: { remaining: number; reset: number } }
+    }
+  ).resources.core
+
+const sleep = (seconds: number): void => {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, seconds * 1000)
+}
+
+/** The jobs of the runs, a batch at a time as the budget allows. */
+const jobsWithinBudget = (repo: string, runs: readonly Run[]): Job[] => {
+  const jobs: Job[] = []
+  let done = 0
+  while (done < runs.length) {
+    const { remaining, reset } = budget()
+    const step = pace(remaining, reset, runs.length - done)
+    if (step.kind === "wait") {
+      const seconds = Math.max(1, Math.ceil(step.until - Date.now() / 1000)) + 5
+      console.log(
+        `${remaining} requests left, ${headroom} kept for other workflows: waiting ${Math.ceil(seconds / 60)} minutes for the budget to renew.`,
+      )
+      sleep(seconds)
+      continue
+    }
+    for (const run of runs.slice(done, done + step.count)) jobs.push(...jobsOf(repo, run))
+    done += step.count
+  }
+  return jobs
+}
 
 export const main = (): void => {
   const repo = required("GITHUB_REPOSITORY")
@@ -77,10 +107,7 @@ export const main = (): void => {
     throw new Error("SCOREBOARD_DAYS must be a number above 0")
   const runs = runsOf(repo, new Date(Date.now() - days * 24 * 60 * 60 * 1000))
   const fetched = runs.filter((run) => run.actor?.login !== "dependabot[bot]")
-  const left = remaining()
-  if (fetched.length + 20 > left)
-    throw new Error(`${fetched.length} runs need a request each, and ${left} are left`)
-  const jobs = fetched.flatMap((run) => jobsOf(repo, run))
+  const jobs = jobsWithinBudget(repo, fetched)
   const markdown = `${render(compute(runs, jobs, days))}\n${runs.length} runs, ${jobs.length} jobs, ${requests} API requests.\n`
   console.log(markdown)
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown)
