@@ -3,7 +3,9 @@ import { resolve } from "node:path"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { playwright } from "@vitest/browser-playwright"
-import { defineConfig } from "vitest/config"
+import { defineConfig, type TestProjectInlineConfiguration } from "vitest/config"
+
+import type { Platform } from "./src/support/platform"
 
 // On CI a failed behaviour spec leaves a screenshot in .vitest/attachments/, which the
 // workflow uploads. Tracing slows every spec, so it records only when asked for, as a
@@ -34,6 +36,97 @@ const optimizedUpFront = [
   "vitest-browser-react/pure",
 ]
 
+// The specs whose app runs differently on a Mac: the chords they press or the words they read
+// come from `isMac()` (support/workspace.tsx). They run a second time as the other system: as a
+// Mac on Linux, which runs on every pull request, and as Linux on a Mac, so either covers both.
+// Windows, whose specs run the app as Linux does, runs them once. A spec that reads `isMac()`
+// from a file not listed here fails, naming this list (setup.ts).
+export const eachPlatform = [
+  "src/companions/companions.spec.tsx",
+  "src/desktop/portable.spec.tsx",
+  "src/desktop/sandbox.spec.tsx",
+  "src/desktop/updates.spec.tsx",
+  "src/desktop/whats-new.spec.tsx",
+  "src/interaction/dictation.spec.tsx",
+  "src/interaction/keyboard.spec.tsx",
+  "src/interaction/search.spec.tsx",
+  "src/projects/pins.spec.tsx",
+  "src/projects/sessions.spec.tsx",
+  "src/terminals/clipboard.spec.tsx",
+  "src/terminals/keys.spec.tsx",
+  "src/terminals/team-fold.spec.tsx",
+  "src/terminals/terminals.spec.tsx",
+  "src/views/canvas-sessions.spec.tsx",
+  "src/views/grid.spec.tsx",
+  "src/views/zen.spec.tsx",
+  "src/visitor.spec.tsx",
+  "src/workspace/routing.spec.tsx",
+  "src/workspace/sidebar.spec.tsx",
+]
+const other: Platform | undefined =
+  process.platform === "darwin" ? "linux" : process.platform === "linux" ? "mac" : undefined
+
+// The behaviour specs, of `include`, running the app as `platform` (support/platform.ts), or as
+// the browser's own system when it's undefined.
+const behaviour = (name: string, include: string[], platform: Platform | undefined) =>
+  ({
+    extends: true,
+    // Let concurrent runs pick free ports; the app dev server keeps its strict one.
+    server: { strictPort: false },
+    // Nearly every spec opens the demo's terminals, the emulator among them.
+    optimizeDeps: { include: optimizedUpFront },
+    test: {
+      name,
+      include,
+      provide: { platform, eachPlatform },
+      exclude: ["src/workspace/motion.spec.tsx", "src/counters/**"],
+      // The system first, before anything loads the app (support/platform.ts).
+      setupFiles: ["./src/support/platform.ts", "./src/setup.ts"],
+      // Whole-app renders under CI load can take longer than the 1s default.
+      expect: { poll: { timeout: 5000 } },
+      // A file's first spec opens the whole app cold: the first view switch and drag also
+      // load and compile their code. In a full run on a loaded machine that first spec has
+      // taken 13-18s (the Canvas one takes about 3s alone), against the 15s default. 30s
+      // keeps about 1.7x headroom over the slowest seen. A failing element assertion or
+      // action waits out what is left of it, so a failure now takes up to 30s to report.
+      testTimeout: 30_000,
+      browser: {
+        enabled: true,
+        commands: {
+          // Native held-pointer gestures let specs inspect a drag before release.
+          pinPointer: async (
+            { page, frame },
+            action: "press" | "move" | "release",
+            point?: { x: number; y: number },
+          ) => {
+            if (action === "release") return page.mouse.up()
+            const bounds = await (
+              await frame()
+            )
+              .frameElement()
+              .then((element) => element.boundingBox())
+            if (!bounds || !point) throw new Error("Missing drag point or test frame")
+            await page.mouse.move(bounds.x + point.x, bounds.y + point.y, {
+              steps: action === "move" ? 16 : 1,
+            })
+            if (action === "press") await page.mouse.down()
+          },
+        },
+        headless: true,
+        screenshotFailures: ci,
+        ...(trace
+          ? { trace: { mode: "retain-on-failure", tracesDir: "test-results/traces" } }
+          : {}),
+        // English dates, as the specs expect, whatever the machine's locale.
+        provider: playwright({
+          contextOptions: { reducedMotion: "reduce", locale: "en-US" },
+        }),
+        instances: [{ browser: "chromium" }],
+        viewport: { width: 1440, height: 900 },
+      },
+    },
+  }) satisfies TestProjectInlineConfiguration
+
 export default defineConfig({
   // The specs render the whole app with its stylesheet, so they build it as the apps do.
   plugins: [tailwindcss(), react()],
@@ -41,6 +134,8 @@ export default defineConfig({
   publicDir: resolve(import.meta.dirname, "../ui/public"),
   test: {
     restoreMocks: true,
+    // Every project runs as the browser's own system but the one `behaviour` sets.
+    provide: { platform: undefined, eachPlatform },
     projects: [
       {
         extends: true,
@@ -53,61 +148,8 @@ export default defineConfig({
           include: ["src/**/*.test.ts"],
         },
       },
-      {
-        extends: true,
-        // Let concurrent runs pick free ports; the app dev server keeps its strict one.
-        server: { strictPort: false },
-        // Nearly every spec opens the demo's terminals, the emulator among them.
-        optimizeDeps: { include: optimizedUpFront },
-        test: {
-          name: "behaviour",
-          include: ["src/**/*.spec.tsx"],
-          exclude: ["src/workspace/motion.spec.tsx", "src/counters/**"],
-          setupFiles: ["./src/setup.ts"],
-          // Whole-app renders under CI load can take longer than the 1s default.
-          expect: { poll: { timeout: 5000 } },
-          // A file's first spec opens the whole app cold: the first view switch and drag also
-          // load and compile their code. In a full run on a loaded machine that first spec has
-          // taken 13-18s (the Canvas one takes about 3s alone), against the 15s default. 30s
-          // keeps about 1.7x headroom over the slowest seen. A failing element assertion or
-          // action waits out what is left of it, so a failure now takes up to 30s to report.
-          testTimeout: 30_000,
-          browser: {
-            enabled: true,
-            commands: {
-              // Native held-pointer gestures let specs inspect a drag before release.
-              pinPointer: async (
-                { page, frame },
-                action: "press" | "move" | "release",
-                point?: { x: number; y: number },
-              ) => {
-                if (action === "release") return page.mouse.up()
-                const bounds = await (
-                  await frame()
-                )
-                  .frameElement()
-                  .then((element) => element.boundingBox())
-                if (!bounds || !point) throw new Error("Missing drag point or test frame")
-                await page.mouse.move(bounds.x + point.x, bounds.y + point.y, {
-                  steps: action === "move" ? 16 : 1,
-                })
-                if (action === "press") await page.mouse.down()
-              },
-            },
-            headless: true,
-            screenshotFailures: ci,
-            ...(trace
-              ? { trace: { mode: "retain-on-failure", tracesDir: "test-results/traces" } }
-              : {}),
-            // English dates, as the specs expect, whatever the machine's locale.
-            provider: playwright({
-              contextOptions: { reducedMotion: "reduce", locale: "en-US" },
-            }),
-            instances: [{ browser: "chromium" }],
-            viewport: { width: 1440, height: 900 },
-          },
-        },
-      },
+      behaviour("behaviour", ["src/**/*.spec.tsx"], undefined),
+      ...(other ? [behaviour(`behaviour-${other}`, eachPlatform, other)] : []),
       {
         extends: true,
         server: { strictPort: false },

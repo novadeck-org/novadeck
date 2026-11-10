@@ -1005,6 +1005,13 @@ conventions.
 the implementation changes. Each spec renders the whole app in headless Chromium
 with real CSS, layout, pointer, and keyboard input. The main behaviour project
 enables reduced motion; the smaller motion project exercises ordinary transitions.
+A spec whose chords or words differ on a Mac branches on `isMac()`, and its file is listed in
+`eachPlatform` (`frontend/specs/vitest.config.ts`): on Linux the `behaviour-mac` project runs
+those files again with the app taking the browser for a Mac (`support/platform.ts` sets
+`navigator.platform` and the user agent before the app loads), and on a Mac `behaviour-linux`
+runs them as Linux, so every run covers both. A file that calls `isMac()` without being
+listed fails. Only the app's side changes: the browser's own editing keys and rendering stay
+those of the system it runs on.
 Specs find elements by accessible role, name, or text, and assert only what a
 person can observe: what is visible, focused, selected, or where it sits on
 screen. They never import components, mock app modules, or select by CSS class,
