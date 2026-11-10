@@ -1,8 +1,11 @@
 import { execFileSync } from "node:child_process"
-import { appendFileSync } from "node:fs"
+import { appendFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
 import { headroom, pace } from "./pacing.ts"
 import { compute, render, type Job, type Run } from "./scoreboard.ts"
+import { parseTally, renderTally } from "./tally.ts"
 
 // `node scripts/ci/scoreboard/main.ts`: the weekly CI scoreboard (scoreboard.ts), computed from
 // the repository's runs of the last SCOREBOARD_DAYS days (default 7) and printed, and added to
@@ -99,6 +102,39 @@ const jobsWithinBudget = (repo: string, runs: readonly Run[]): Job[] => {
   return jobs
 }
 
+/**
+ * The retry tally of the newest scheduled Known Flakes run that has one (failed runs too), as
+ * its section: a few requests, and a line saying why where there is none, never a failure.
+ */
+const tallySection = (repo: string): string => {
+  try {
+    const listed = JSON.parse(
+      gh(
+        "api",
+        `repos/${repo}/actions/workflows/flakes.yml/runs?event=schedule&status=completed&per_page=10`,
+      ),
+    ) as { workflow_runs: { id: number }[] }
+    for (const run of listed.workflow_runs) {
+      const found = JSON.parse(
+        gh("api", `repos/${repo}/actions/runs/${run.id}/artifacts?name=flake-tally`),
+      ) as { artifacts: { expired: boolean }[] }
+      if (!found.artifacts.some((artifact) => !artifact.expired)) continue
+      const directory = mkdtempSync(join(tmpdir(), "flake-tally-"))
+      try {
+        gh("run", "download", String(run.id), "--repo", repo, "-n", "flake-tally", "-D", directory)
+        return renderTally(
+          parseTally(JSON.parse(readFileSync(join(directory, "tally.json"), "utf8"))),
+        )
+      } finally {
+        rmSync(directory, { recursive: true, force: true })
+      }
+    }
+    return renderTally(null, "no recent scheduled Known Flakes run has uploaded one")
+  } catch (error) {
+    return renderTally(null, error instanceof Error ? error.message : String(error))
+  }
+}
+
 export const main = (): void => {
   const repo = required("GITHUB_REPOSITORY")
   required("GH_TOKEN")
@@ -108,7 +144,7 @@ export const main = (): void => {
   const runs = runsOf(repo, new Date(Date.now() - days * 24 * 60 * 60 * 1000))
   const fetched = runs.filter((run) => run.actor?.login !== "dependabot[bot]")
   const jobs = jobsWithinBudget(repo, fetched)
-  const markdown = `${render(compute(runs, jobs, days))}\n${runs.length} runs, ${jobs.length} jobs, ${requests} API requests.\n`
+  const markdown = `${render(compute(runs, jobs, days))}\n${tallySection(repo)}\n${runs.length} runs, ${jobs.length} jobs, ${requests} API requests.\n`
   console.log(markdown)
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown)
 }

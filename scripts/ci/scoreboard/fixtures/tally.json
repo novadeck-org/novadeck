@@ -1,0 +1,36 @@
+{
+  "since": "2026-11-03T06:00:00Z",
+  "until": "2026-11-10T06:00:00Z",
+  "days": 7,
+  "budget": { "runs": 3, "days": 7 },
+  "runs": 14,
+  "tests": [
+    {
+      "test": "terminals/clipboard.spec.tsx > Clipboard > pastes after a copy",
+      "package": "@novadeck/ui",
+      "runs": 5,
+      "retries": 7,
+      "last": "2026-11-09T21:14:00Z",
+      "over": "5 runs in 7 days, over the budget of 3",
+      "flake": null
+    },
+    {
+      "test": "workspace/render-scope.test.ts > Render scope > keeps its scope",
+      "package": "@novadeck/runner",
+      "runs": 3,
+      "retries": 4,
+      "last": "2026-11-08T10:02:00Z",
+      "over": null,
+      "flake": "render-scope-timeout"
+    },
+    {
+      "test": "interrupt.e2e.ts > Claude Code > gives back both queued messages",
+      "package": "@novadeck/desktop",
+      "runs": 1,
+      "retries": 1,
+      "last": "2026-11-07T09:30:00Z",
+      "over": null,
+      "flake": null
+    }
+  ]
+}
