@@ -7,6 +7,8 @@ import { demoBackend, withConversations, withInbox } from "../index"
 import { lessMotion, stillRequested } from "../motion"
 import { withSource } from "../source"
 import { createDemoEngine } from "../terminals/engine"
+import { visitorPlans } from "../work-plans"
+import { withWorks } from "../works"
 import { visitorAmbient } from "./ambient"
 import { visitorSeed, visitorTelemetry } from "./seed"
 import { visitorReadingMs, visitorStory } from "./story"
@@ -55,8 +57,11 @@ export const visitorDemo = ({
     },
   })
   const storied = story.wrap(withConversations(base, story.transcripts, turns, story.converse))
-  const backend = withHistory(
-    withSource(withInbox(ambient && !still ? life.wrap(storied) : storied, turns), turns),
+  const backend = withWorks(
+    withHistory(
+      withSource(withInbox(ambient && !still ? life.wrap(storied) : storied, turns), turns),
+    ),
+    { plans: visitorPlans, turns },
   )
   return {
     seed: backend.seed,
@@ -70,6 +75,7 @@ export const visitorDemo = ({
     ...(backend.inbox && { inbox: backend.inbox }),
     ...(backend.source && { source: backend.source }),
     ...(backend.history && { history: backend.history }),
+    ...(backend.works && { works: backend.works }),
     visitor: true,
     demo: true,
   }

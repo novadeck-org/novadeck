@@ -58,6 +58,8 @@ import { demoWakes } from "./terminals/wakes"
 import { babciaIntroOf, createBabcia } from "./videos/babcia"
 import { chirpIntroOf, chirpSeed, chirpTranscripts } from "./videos/chirp"
 import { createLaunch } from "./videos/launch"
+import { babciaPlans, chirpPlans, launchPlans, storefrontPlans } from "./work-plans"
+import { withWorks } from "./works"
 import { directoryOf, itemsOf, sessionOf, terminalOf } from "./workspace"
 
 // Sample agents: Claude Code and Codex installed, Antigravity not.
@@ -96,8 +98,8 @@ export const demoBackend = (
 ): Backend => {
   const terminals = createDemoTerminals(engine, setup)
   const transcripts = createStore(true)
-  // Idle agents are stopped after half an hour unless the person chooses otherwise, as in the app.
-  const hibernateAfter = createStore<number | null>(30)
+  // Idle agents are stopped after an hour unless the person chooses otherwise, as in the app.
+  const hibernateAfter = createStore<number | null>(60)
   const agents = createStore(sampleAgents)
   const welcomeOpen = createStore(welcome)
   // Installed unless the address asks otherwise (`&voice=uninstalled`), as the try demo shows it,
@@ -682,47 +684,60 @@ const plainBackend = (
       : demoTelemetry(now),
   )
   if (variant === "chirp")
-    return withInbox(
-      withConversations({ ...backend, seed: chirpSeed(now) }, chirpTranscripts(now), turns),
-      turns,
+    return withWorks(
+      withInbox(
+        withConversations({ ...backend, seed: chirpSeed(now) }, chirpTranscripts(now), turns),
+        turns,
+      ),
+      { plans: chirpPlans, turns },
     )
   if (variant === "babcia") {
     const babcia = createBabcia(turns, now)
     return babcia.over(
-      withFeedback(
-        withInbox(
-          withConversations(babcia.under(backend), babcia.transcripts, turns, babcia.wrap),
+      withWorks(
+        withFeedback(
+          withInbox(
+            withConversations(babcia.under(backend), babcia.transcripts, turns, babcia.wrap),
+            turns,
+          ),
           turns,
         ),
-        turns,
+        { plans: babciaPlans, turns },
       ),
     )
   }
   if (launch) {
     return launch.over(
-      withFeedback(
-        withInbox(
-          withConversations(launch.under(backend), launch.transcripts, turns, launch.wrap),
+      withWorks(
+        withFeedback(
+          withInbox(
+            withConversations(launch.under(backend), launch.transcripts, turns, launch.wrap),
+            turns,
+          ),
           turns,
         ),
-        turns,
+        { plans: launchPlans, turns },
       ),
     )
   }
   const transcripts = agentTranscripts(now)
+  const withChanges = (shown: Backend): Backend =>
+    withWorks(shown, { plans: storefrontPlans, turns })
   if (variant === "messages")
-    return withHistory(
-      withSource(
-        withInbox(
-          withConversations(
-            withFinishes(withMessages({ ...backend, seed: demoSeed(now, true) }, now), turns),
-            transcripts,
+    return withChanges(
+      withHistory(
+        withSource(
+          withInbox(
+            withConversations(
+              withFinishes(withMessages({ ...backend, seed: demoSeed(now, true) }, now), turns),
+              transcripts,
+              turns,
+            ),
             turns,
+            demoEntries(now),
           ),
           turns,
-          demoEntries(now),
         ),
-        turns,
       ),
     )
   // The Inbox demo's agents elsewhere have done things before their rows came, and one
@@ -743,22 +758,25 @@ const plainBackend = (
     turns,
   )
   // Only where the storefront's terminals run agents: the plain and welcome shells don't.
-  if (variant === "plain" || variant === "welcome") return withHistory(withInbox(conversing, turns))
+  if (variant === "plain" || variant === "welcome")
+    return withChanges(withHistory(withInbox(conversing, turns)))
   if (variant === "agents")
-    return withHistory(withSource(withPlanShows(withInbox(conversing, turns)), turns))
-  return withHistory(
-    withSource(
-      withPlanShows(
-        withInbox(
-          {
-            ...conversing,
-            messages: createDemoMessages([inboxLeadMessages(now)]),
-          },
-          turns,
-          demoInboxRows(now),
+    return withChanges(withHistory(withSource(withPlanShows(withInbox(conversing, turns)), turns)))
+  return withChanges(
+    withHistory(
+      withSource(
+        withPlanShows(
+          withInbox(
+            {
+              ...conversing,
+              messages: createDemoMessages([inboxLeadMessages(now)]),
+            },
+            turns,
+            demoInboxRows(now),
+          ),
         ),
+        turns,
       ),
-      turns,
     ),
   )
 }

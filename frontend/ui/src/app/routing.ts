@@ -66,11 +66,21 @@ export const sourceShown = (backend: Pick<Backend, "source">): boolean =>
 export const historyShown = (backend: Pick<Backend, "history">): boolean =>
   backend.history !== undefined
 
+// Whether the app shows the Changes panel: where the backend reports each terminal's work.
+export const worksShown = (backend: Pick<Backend, "works">): boolean => backend.works !== undefined
+
 // The panels a backend can show: Source only where it has a source, History only where it
-// keeps closed terminals.
-export const availablePanels = (hasSource: boolean, hasHistory = false): readonly SidebarPanel[] =>
+// keeps closed terminals, Changes only where it reports the terminals' work.
+export const availablePanels = (
+  hasSource: boolean,
+  hasHistory = false,
+  hasChanges = false,
+): readonly SidebarPanel[] =>
   sidebarPanels.filter(
-    (panel) => (hasSource || panel !== "source") && (hasHistory || panel !== "history"),
+    (panel) =>
+      (hasSource || panel !== "source") &&
+      (hasHistory || panel !== "history") &&
+      (hasChanges || panel !== "changes"),
   )
 
 // The sidebar panel a URL names, Terminals for anything else, or for one the backend lacks.

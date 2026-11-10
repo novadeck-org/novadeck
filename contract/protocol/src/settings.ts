@@ -8,7 +8,7 @@ export const maxInboxRowIdLength = 200
 // The longest an idle agent may wait before it is stopped, in minutes: a week.
 export const maxHibernateMinutes = 7 * 24 * 60
 // How long an idle agent waits before it is stopped, in minutes, until the person chooses.
-export const defaultHibernateMinutes = 30
+export const defaultHibernateMinutes = 60
 
 // Runner-wide settings a client can change.
 export const runnerSettings = z.strictObject({

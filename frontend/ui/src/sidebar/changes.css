@@ -1,0 +1,136 @@
+/* The Changes panel's rows (ChangesPanel.tsx): each work is drawn as a terminal's tab (the
+   `.terminal-tab` of tabs.css, so its size, name line, detail line and the unfold of its rows
+   are the tab's own), and this adds what differs. Parts: `.changes-row`, `.changes-size` (the
+   unread `+N −N`, in the tab's item marks' place), `.changes-line` (the file names on the
+   detail line, a `.terminal-tab-subagents` that folds away as the rows unfold),
+   `.changes-file` (a file's name, wherever it is), `.changes-comma`, `.changes-branches` and
+   `.changes-trail` (a file's unread lines, right-aligned in its row), `.changes-empty`. The
+   selected row's detail line folds to nothing with its names.
+
+   Hooks: on a row, data-read="true" once none of its lines are unread, data-conflict while it
+   conflicts with main or another work, data-read-start on the first read row below unread
+   ones (the line above it), data-arrived while it has just gained unread lines; on a
+   `.changes-file`, data-read and data-conflict.
+
+   Tokens: none of its own; it reads the palette's (ink, muted, success-fg, danger-fg, line,
+   strong) and the Inbox's, optional: --inbox-arrived-bg, --inbox-rule-color. */
+
+/* Unread, the Inbox's way: the name bright while there are lines to read, gray once read
+   (as .inbox-row-subject); the selected row's name is bright. */
+.changes-row[data-read="true"] .sidebar-item-select strong {
+  color: var(--color-muted);
+}
+.changes-row[data-selected="true"] .sidebar-item-select strong {
+  color: var(--color-ink);
+}
+/* Fine: the icon gray. Conflict: red. */
+.changes-row .sidebar-item-icon {
+  color: var(--color-muted);
+}
+.changes-row[data-conflict="true"] .sidebar-item-icon {
+  color: var(--color-danger-fg);
+}
+
+.changes-size,
+.changes-trail {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  line-height: 18px;
+  white-space: nowrap;
+}
+.changes-size {
+  gap: 6px;
+}
+.changes-trail {
+  display: inline-flex;
+  gap: 4px;
+  font-size: 11px;
+}
+.changes-size .diff-added,
+.changes-trail .diff-added {
+  color: var(--color-success-fg);
+}
+.changes-size .diff-removed,
+.changes-trail .diff-removed {
+  color: var(--color-danger-fg);
+}
+
+/* Files: bright while they hold lines you haven't read, gray once read, red where the
+   conflict is. */
+.changes-file {
+  color: var(--color-ink);
+}
+.changes-file[data-read="true"] {
+  color: var(--color-muted);
+}
+.changes-file[data-conflict="true"] {
+  color: var(--color-danger-fg);
+}
+.changes-comma {
+  color: var(--color-muted);
+}
+.changes-line {
+  flex: 1 1 auto;
+}
+/* The unfolded rows use the row's full width. */
+.changes-branches > span > span > span {
+  padding-right: 2px;
+}
+
+/* The detail line holds only the file names, which fold away as the rows unfold: it folds
+   with them, so no empty line stands between the name and its files. */
+.changes-row .sidebar-item-detail {
+  max-height: 1.5rem;
+  transition: max-height var(--motion-layout) var(--ease-interface);
+}
+.changes-row.selected:has(.changes-branches) .sidebar-item-detail {
+  max-height: 0;
+}
+
+/* New lines on a work: the Inbox's wash, a flash and never a held state. */
+.changes-row[data-arrived="true"] {
+  animation: changes-arrived calc(var(--motion-layout) * 8) var(--ease-interface);
+}
+@keyframes changes-arrived {
+  from {
+    background-color: var(
+      --inbox-arrived-bg,
+      color-mix(in srgb, var(--color-strong) 14%, transparent)
+    );
+  }
+}
+
+/* The line above the read rows (the Inbox's updates line). */
+.changes-row[data-read-start="true"] {
+  margin-top: 9px;
+}
+.changes-row[data-read-start="true"]::after {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: 6px;
+  left: 6px;
+  height: var(--border-width);
+  background-color: var(--inbox-rule-color, var(--color-line));
+  pointer-events: none;
+}
+
+.changes-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: auto;
+  padding: 40px 16px;
+  color: var(--color-muted);
+  text-align: center;
+}
+.changes-empty h3 {
+  margin: 0;
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.changes-empty p {
+  max-width: 30ch;
+  margin: 0;
+}

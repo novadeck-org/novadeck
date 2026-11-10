@@ -107,3 +107,24 @@ describe("the rail's History dot", () => {
     expect(dot()).toBeNull()
   })
 })
+
+describe("the rail's Changes toggle", () => {
+  const changesRail = (hasChanges: boolean) =>
+    createElement(SidebarRail, {
+      sidebarVisible: false,
+      sidebarPanel: "terminals",
+      zen: false,
+      badge: undefined,
+      bellRings: 0,
+      hasChanges,
+      toggleSidebar: () => {},
+    })
+
+  it("shows only where the backend reports the terminals' work", () => {
+    const { container, rerender, unmount } = render(changesRail(false))
+    unmounts.push(unmount)
+    expect(container.querySelector("#changes-toggle")).toBeNull()
+    rerender(changesRail(true))
+    expect(container.querySelector("#changes-toggle")).not.toBeNull()
+  })
+})

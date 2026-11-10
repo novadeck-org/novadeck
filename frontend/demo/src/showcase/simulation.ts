@@ -56,6 +56,10 @@ export type Showcase = Companions & {
   // What the person typed in an agent's terminal. Where it has the agent revise its plan,
   // `revised` is called once the revision is written.
   readonly told: (key: TerminalKey, input: string, revised?: () => void) => void
+  // Shows a sample on a terminal's bar, as an agent would show it (a change the person asked
+  // to see, for the Changes panel): updating what it showed of the same item, or anew.
+  // Resolves to the item's id.
+  readonly present: (key: TerminalKey, handle: string, artifact: SampleArtifact) => string
   // The terminal closed: its agent is gone.
   readonly closed: (key: TerminalKey) => void
   // Puts the plan of the agent in this terminal in a fault, or back to normal; false where
@@ -445,6 +449,17 @@ export const createShowcase = (
         revise(agent, agent.sample.plan.skill)
         revised?.()
       })
+    },
+    present: (key, handle, artifact) => {
+      samples.set(artifact.item.id, artifact)
+      const own = current().find((item) => item.id === itemIdOf(artifact.item.id))
+      const item: Item = own
+        ? { ...own, version: own.version + 1, openAsked: true, shownAt: now() }
+        : itemOf({ key, handle }, artifact, { openAsked: true, shownAt: now() })
+      report?.([{ type: "item/upsert", target: key, item }])
+      for (const watcher of watching.get(artifact.item.id) ?? [])
+        watcher.on(shownContent(artifact.item.id, watcher.reveal))
+      return item.id
     },
     closed: (key) => {
       running.delete(terminalKeyPath(key))

@@ -279,6 +279,11 @@ export const scriptedRunner = ({
       list: api.history.list.handler(() => []),
       watch: api.history.watch.handler(idle),
     },
+    works: {
+      watch: api.works.watch.handler(idle),
+      look: api.works.look.handler(unplayed("works.look")),
+      show: api.works.show.handler(unplayed("works.show")),
+    },
     companions: {
       list: api.companions.list.handler(() => ({ items: [], windows: [] })),
       watch: api.companions.watch.handler(idle),
@@ -342,7 +347,7 @@ export const scriptedRunner = ({
         welcomed: true,
         inboxOrder: [],
         inboxSnoozed: [],
-        hibernateAfterMinutes: 30,
+        hibernateAfterMinutes: 60,
       })),
       set: api.settings.set.handler(() => {}),
     },

@@ -54,8 +54,9 @@
    is pointed at or holds focus; `data-keep` stays where the chat is narrower than ~920px, which
    hides the others). The chat is a size container (`chat`) for that.
 
-   While the agent works its line is pinned to the log's bottom (`.chat-running`, holding
-   `.chat-status` and `.chat-status-end`: the turn's clock and `.chat-stop`, a `kbd` and its word).
+   While the agent works, or a background shell runs, its line is pinned to the log's bottom
+   (`.chat-running`, holding `.chat-status` and `.chat-status-end`: the turn's clock and
+   `.chat-stop`, a `kbd` and its word; then `.chat-shells`, a `.chat-shell` for each shell).
    The prompt's send is an icon button (`.chat-send`), in the accent.
    */
 
@@ -731,7 +732,7 @@
 .chat-running {
   --_ground: var(--chat-bg, var(--window-bg, var(--color-paper)));
 }
-.chat-thread > .chat-running[data-working] {
+.chat-thread > .chat-running[data-pinned] {
   position: sticky;
   bottom: calc(var(--_lh) * -1 + 4px);
   z-index: 1;
@@ -791,6 +792,56 @@
   }
 }
 
+/* The background shells under the working line: a `$` in the gutter, the command, and its clock at
+   the edge. Three or more fold into one line, with the short commands and a toggle. They are
+   pinned with the line above, and stay once the turn ends, until the shell does. */
+.chat-shells {
+  display: flex;
+  flex-direction: column;
+}
+.chat-shell {
+  position: relative;
+  display: flex;
+  gap: 2ch;
+  min-width: 0;
+  /* Room for the clock, or the toggle, at the edge. */
+  padding-right: 9ch;
+  color: var(--_muted);
+  white-space: nowrap;
+}
+.chat-shell-mark {
+  position: absolute;
+  left: -2ch;
+  color: var(--_mid);
+}
+.chat-shell-command {
+  min-width: 0;
+  max-width: var(--_measure);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-shell-count {
+  flex-shrink: 0;
+  color: var(--_mid);
+}
+.chat-shell-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--_muted);
+  font: inherit;
+  font-size: var(--_work-size);
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .chat-shell-toggle:hover {
+    color: var(--_ink);
+  }
+}
+
 /* Jump to the latest */
 .chat-jump {
   position: absolute;
@@ -806,7 +857,7 @@
 }
 /* Over the working line, which is pinned where it would stand. */
 .chat-jump[data-pinned] {
-  bottom: calc(var(--_lh) + 10px);
+  bottom: calc(var(--_lh) * var(--_pinned-rows, 1) + 10px);
 }
 @media (hover: hover) {
   .chat-jump:hover {

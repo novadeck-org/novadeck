@@ -13,7 +13,7 @@ import { startingTerminal, type RunnerListing } from "./sessions/seed"
 import { encodeSession } from "./sessions/state"
 import { describe, expect, it } from "./test"
 import { channel } from "./testing/channel"
-import { keptSummary, noCompanions, noHistory } from "./testing/scripted"
+import { keptSummary, noCompanions, noHistory, noWorks } from "./testing/scripted"
 
 const unused = (): never => {
   throw new Error("not used here")
@@ -74,6 +74,7 @@ const crashingRunner = () => {
     },
     companions: noCompanions,
     history: noHistory,
+    works: noWorks,
   } as unknown as RunnerApi satisfies Pick<Runner, "watch">
   return {
     api,
