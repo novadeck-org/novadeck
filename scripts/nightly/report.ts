@@ -32,8 +32,9 @@ export type Action =
   | { readonly kind: "close"; readonly issue: number; readonly body: string }
   | { readonly kind: "none" }
 
-/** The tracking issue's title, by which it is found again. */
-export const titleOf = (workflow: string): string => `Nightly ${workflow} is failing`
+/** The tracking issue's title, by which it is found again. A workflow named for its night already says so once. */
+export const titleOf = (workflow: string): string =>
+  `Nightly ${workflow.replace(/^Nightly /, "")} is failing`
 
 // A run that ended neither green nor red, as one skipped, says nothing of the night.
 const failing = new Set(["failure", "cancelled", "timed_out", "startup_failure"])
@@ -45,6 +46,12 @@ const notes: { readonly [workflow: string]: string } = {
     "pinned pull-request runs don't show is most likely a harness's own change, to adapt " +
     "to before its pin moves (`backend/runner/src/e2e/harnesses.json`). The probes' " +
     "findings are the run's `probes-*` artifacts.",
+  "Nightly Quality":
+    "It runs every check and test Quality has on main, so a failure here passed on its pull " +
+    "request or never ran there: a change that broke another when merged beside it, a test a " +
+    "pull request skipped on this system, or a flake. A flake belongs in #784 and the register " +
+    "(`scripts/flakes/register.json`). Failed UI specs leave their screenshots as the run's " +
+    "`ui-test-failures-*` artifacts.",
 }
 
 const night = (run: Night): string =>

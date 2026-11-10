@@ -11,7 +11,7 @@ name: Nightly Report
 # shows the writeup, and no issue changes.
 on:
   workflow_run:
-    workflows: [E2E, Benchmark Timing]
+    workflows: [E2E, Benchmark Timing, Nightly Quality]
     types: [completed]
   workflow_dispatch:
     inputs:

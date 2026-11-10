@@ -92,4 +92,15 @@ describe("a nightly run's report", () => {
   it("finds its issue again by the title it gave it", () => {
     expect(titleOf("E2E")).toBe("Nightly E2E is failing")
   })
+
+  it("names a workflow already named for its night only once", () => {
+    expect(titleOf("Nightly Quality")).toBe("Nightly Quality is failing")
+  })
+
+  it("says what a failed Nightly Quality most likely is", () => {
+    const action = decide(run({ workflow: "Nightly Quality" }), null)
+    expect(action).toMatchObject({ kind: "open", title: "Nightly Quality is failing" })
+    expect(action.kind === "open" && action.body).toContain("passed on its pull request")
+    expect(action.kind === "open" && action.body).not.toContain("harnesses.json")
+  })
 })
