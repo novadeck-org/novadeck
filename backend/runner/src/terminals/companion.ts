@@ -1,5 +1,5 @@
 import type { ActivityEvent } from "@novadeck/harness-core/events"
-import type { PageTrouble } from "@novadeck/protocol"
+import type { PageTrouble, TerminalSummary } from "@novadeck/protocol"
 
 import type { PlanText } from "../companions/content.js"
 import type { CompanionItems, TerminalPlace } from "../companions/items.js"
@@ -30,6 +30,13 @@ export type LookAnswer =
       readonly picture: { readonly data: string; readonly mimeType: "image/jpeg" }
     }
   | { readonly ok: false; readonly reason: string }
+
+/** A terminal and the git checkout (its top folder) it works in now. */
+export type Checkout = {
+  readonly terminalId: string
+  readonly sessionId: string
+  readonly root: string
+}
 
 export type CompanionHost = {
   /** Every terminal the runner holds, by id. */
@@ -191,6 +198,24 @@ export class Companion {
       project: this.host.projectFolder(terminal.sessionId),
       transcript: live?.transcript ?? null,
     }
+  }
+
+  /**
+   * The git checkout each of these terminals works in now (see `TerminalPeers.workingCheckout`),
+   * running or kept only as saved; none for one in no checkout.
+   */
+  async checkouts(terminals: readonly TerminalSummary[]): Promise<Checkout[]> {
+    const found = await Promise.all(
+      terminals.map(async ({ id, sessionId, cwd }) => {
+        const live = this.host.records().get(id)
+        const work = live ? live.work : (this.host.saved(id)?.work ?? null)
+        // A kept terminal's agent is asleep or awaiting restore, where its work was left.
+        const agent = live ? live.bound != null : work !== null
+        const root = await this.host.peers().workingCheckout(cwd, work, agent)
+        return root === null ? [] : [{ terminalId: id, sessionId, root }]
+      }),
+    )
+    return found.flat()
   }
 
   /**

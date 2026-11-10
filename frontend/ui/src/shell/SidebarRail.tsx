@@ -11,7 +11,14 @@ import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable, useSortable } from "@dnd-kit/react/sortable"
 import { sidebarPanels, type SidebarPanel } from "@novadeck/core/types"
 import { ToggleGroup, ToggleGroupItem } from "@novadeck/toolkit/ToggleGroup"
-import { FolderGit2, History, Inbox, Layers2, Terminal as TerminalIcon } from "lucide-react"
+import {
+  FolderGit2,
+  GitCompare,
+  History,
+  Inbox,
+  Layers2,
+  Terminal as TerminalIcon,
+} from "lucide-react"
 import { useCallback, useLayoutEffect, useRef, useState, type ComponentProps } from "react"
 
 import { shortcutBindings, type ShortcutName } from "../interaction/shortcuts"
@@ -27,6 +34,7 @@ const panels = {
   sessions: { label: "Sessions", icon: Layers2 },
   history: { label: "History", icon: History },
   inbox: { label: "Inbox", icon: Inbox },
+  changes: { label: "Changes", icon: GitCompare },
 } as const satisfies Record<SidebarPanel, { label: string; icon: unknown }>
 
 // The panels with a key of their own.
@@ -101,6 +109,7 @@ export const SidebarRail = ({
   sessionsAsk,
   hasSource = false,
   hasHistory = false,
+  hasChanges = false,
   order = sidebarPanels,
   onOrder,
   toggleSidebar,
@@ -125,13 +134,18 @@ export const SidebarRail = ({
   hasSource?: boolean
   // Whether the backend keeps closed terminals, which the History panel lists.
   hasHistory?: boolean
+  // Whether the backend reports each terminal's work against main, which the Changes panel lists.
+  hasChanges?: boolean
   // Every panel, the ones this backend doesn't show included, in the person's order.
   order?: readonly SidebarPanel[]
   onOrder?: (order: readonly SidebarPanel[]) => void
   toggleSidebar: (panel: SidebarPanel) => void
 }): React.JSX.Element => {
   const shown = order.filter(
-    (id) => (hasSource || id !== "source") && (hasHistory || id !== "history"),
+    (id) =>
+      (hasSource || id !== "source") &&
+      (hasHistory || id !== "history") &&
+      (hasChanges || id !== "changes"),
   )
   const toggleId = (id: SidebarPanel): string => `${mobile ? "mobile-" : ""}${id}-toggle`
   const [dragging, setDragging] = useState(false)

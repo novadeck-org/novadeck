@@ -85,6 +85,17 @@ export {
   type HistoryChange,
   historyLimits,
 } from "./history.js"
+export {
+  type Work,
+  work,
+  type WorkChange,
+  workChange,
+  type WorkConflict,
+  workConflict,
+  type WorkFile,
+  workFile,
+  workLimits,
+} from "./works.js"
 export { maxWebSocketMessageBytes, protocolVersion } from "./connection.js"
 export {
   dialogTextLimits,

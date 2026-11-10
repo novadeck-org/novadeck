@@ -107,6 +107,11 @@ export const notes: Record<string, Note> = {
     entries: [{ file: `${runner}/companions/items.ts`, text: "export class CompanionItems" }],
     docs: ["docs/agent-workspace.md"],
   },
+  "backend/runner/works": {
+    purpose:
+      "Each open terminal's work against its repository's main branch for the Changes panel: a snapshot of its checkout merged in memory into main, the lines changed per file and the part unread since the person's last look, conflicts with main and with other terminals' works, kept current while a client watches.",
+    entries: [{ file: `${runner}/works/works.ts`, text: "export class Works" }],
+  },
   "backend/runner/messaging": {
     purpose:
       "Lets agents in one project and session message each other: size and rate limits, leads and peers, held threads, and delivery through each harness's hooks and the terminal doorbell; also the Inbox entries agents leave the person and the feedback drafts they write.",

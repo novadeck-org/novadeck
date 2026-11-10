@@ -8,6 +8,7 @@ import {
   type Workspace,
   terminalKeyPath,
 } from "@novadeck/core/types"
+import type { Work } from "@novadeck/core/works"
 
 import { addressParams } from "../address"
 import { showcaseTranscripts } from "../agents/transcripts"
@@ -19,10 +20,12 @@ import { defaultName, demoTerminalId } from "../samples"
 import { fixedIntro } from "../screen/terminal"
 import { createDemoEngine } from "../terminals/engine"
 import type { DemoTerminalSetup } from "../terminals/screens"
-import { directoryOf, sessionOf, terminalOf } from "../workspace"
+import { showcasePlans } from "../work-plans"
+import { withWorks } from "../works"
+import { directoryOf, sessionOf, terminalOf, terminalsOf } from "../workspace"
 import { authAgent, studioAgent, type SampleAgent } from "./agents"
 import { devServerArtifacts } from "./artifacts"
-import { changesArtifacts } from "./changes"
+import { changesArtifacts, workChanges } from "./changes"
 import { createShowcase, planFaults, type PlanFault } from "./simulation"
 
 // Both sample agents wrote a plan, and wait on the person to approve it.
@@ -259,7 +262,21 @@ export const showcaseDemo = (
       },
     }),
   )
-  return withFeedback(withInbox(conversing, turns), turns)
+  // A work shows as a change on its terminal's bar, from the terminal's session.
+  const showWork = (work: Work, workspace: Workspace | undefined): Promise<string | null> => {
+    const found =
+      workspace && terminalsOf(workspace).find(({ key }) => key.terminalId === work.terminalId)
+    if (!found) return Promise.resolve(null)
+    const { key, terminal } = found
+    return Promise.resolve(
+      showcase.present(key, terminal.handle ?? "", workChanges(work, terminal.name)),
+    )
+  }
+  return withWorks(withFeedback(withInbox(conversing, turns), turns), {
+    plans: showcasePlans,
+    turns,
+    show: showWork,
+  })
 }
 
 // Specs open the showcase with `&planFault=` one of the debug panel's plan faults, its

@@ -27,7 +27,7 @@ import { landInbox, noLanding } from "./inbox-landing"
 import { noticeBoard, watchBellRings, watchInboxPings } from "./inbox-pings"
 import { nameFinished, watchFinishes } from "./murmur-offer"
 import { watchPageFocus } from "./page-focus"
-import { availablePanels, historyShown, resolveRoute, sourceShown } from "./routing"
+import { availablePanels, historyShown, resolveRoute, sourceShown, worksShown } from "./routing"
 import {
   createUiStore,
   initialUi,
@@ -64,7 +64,7 @@ const createServices = (
     windowedView: readWindowedView(),
     now: now(),
   })
-  const panels = availablePanels(sourceShown(backend), historyShown(backend))
+  const panels = availablePanels(sourceShown(backend), historyShown(backend), worksShown(backend))
   const { workspace: initial, route } = resolveRoute(seeded, location, preferences, now(), panels)
   const workspace = createWorkspaceStore(initial, backend.commit)
   // The store only reports later commits; give the backend the starting terminals now.

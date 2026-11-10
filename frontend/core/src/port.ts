@@ -25,6 +25,7 @@ import type {
   Workspace,
   WorkspaceTarget,
 } from "./types"
+import type { Works } from "./works"
 
 // The UI-owned contract every terminal backend implements. Only app/ talks to it.
 
@@ -332,6 +333,10 @@ export type BackendFields = {
   // Optional. The terminals closed in the last 30 days, per project, to list and restore
   // (see core's `history`). Absent where the backend keeps none: closing is then final.
   readonly history?: History
+  // Optional. Each terminal's work that differs from its repository's main branch, for the
+  // sidebar's Changes panel (see core's `works`). Absent where the backend can't read the
+  // terminals' checkouts: the panel isn't drawn.
+  readonly works?: Works
   // Optional. Feedback for the people building Novadeck (see core's `feedback`): the
   // footer's card, and an agent window's "Ask @handle to write feedback…". Absent where
   // the backend can't send it: neither is drawn. The desktop app has it where it sends notes,

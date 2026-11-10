@@ -83,6 +83,7 @@ import { failedToCreate, launchFailure, lostStatus } from "./terminals/failures"
 import { crashLoop, restartingTooOften, restartWindowMs } from "./terminals/restarts"
 import { resumableProgram } from "./terminals/resumable"
 import { screensOptions } from "./terminals/screens-options"
+import { createRunnerWorks } from "./works"
 
 /** Resolves after `ms` milliseconds. */
 export const pause = (ms: number): Promise<void> =>
@@ -104,6 +105,7 @@ export type RunnerApi = Pick<
   | "settings"
   | "companions"
   | "history"
+  | "works"
 >
 
 export type RunnerBackendOptions = {
@@ -1386,6 +1388,8 @@ export const runnerBackend = (
   const murmur = createRunnerMurmur(runner.murmur, track)
   // History, followed the same way.
   const history = createRunnerHistory(runner.history, track)
+  // Works, followed the same way.
+  const works = createRunnerWorks(runner.works, track)
   let following = false
   // Follows a terminal's messages once the runner has it: it answers "not found" before
   // then. Called whenever a shell is created or started afresh.
@@ -1798,6 +1802,7 @@ export const runnerBackend = (
     voice.follow()
     murmur.follow()
     history.follow()
+    works.follow()
     inbox.follow()
     window.addEventListener("pagehide", flush)
     // The app waits for these saves, removals and closes before a close or quit can end
@@ -1822,6 +1827,7 @@ export const runnerBackend = (
       voice.stop()
       murmur.stop()
       history.stop()
+      works.stop()
       // The last changes are saved; nothing retries after this.
       flush()
       halted = true
@@ -1912,6 +1918,7 @@ export const runnerBackend = (
       ),
     source: createRunnerSource(runner.projects),
     history: history.history,
+    works: works.works,
     resetTitle: (key) => {
       const { terminalId } = key
       if (items.holdsWindow(target(key), terminalId))

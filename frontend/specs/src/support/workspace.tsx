@@ -208,7 +208,7 @@ export const chooseView = async (name: "Focus" | "Grid" | "Canvas"): Promise<voi
 export const sidebar = (): Locator => page.getByRole("complementary")
 
 export const sidebarPanel = (
-  name: "Terminals" | "Source" | "Sessions" | "History" | "Inbox",
+  name: "Terminals" | "Source" | "Sessions" | "History" | "Inbox" | "Changes",
 ): Locator =>
   page
     .getByRole("radiogroup", { name: "Sidebar actions" })

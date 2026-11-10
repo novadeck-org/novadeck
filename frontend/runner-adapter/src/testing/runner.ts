@@ -255,6 +255,11 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       list: (input) => runner.history.list(input),
       watch: () => runner.history.watch(),
     },
+    works: {
+      watch: () => runner.works.watch(),
+      look: (terminalId) => note(`look ${terminalId}`, () => runner.works.look(terminalId)),
+      show: (terminalId) => note(`show ${terminalId}`, () => runner.works.show(terminalId)),
+    },
     settings: {
       get: () => runner.settings.get(),
       set: (settings) =>
