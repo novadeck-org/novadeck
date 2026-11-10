@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process"
 import { appendFileSync, readFileSync } from "node:fs"
 
 import { parseRegister } from "../flakes/match.ts"
+import { act, findIssue } from "./issues.ts"
 import { decide, nameOf, titleOf, type Action, type FailedJob, type Night } from "./report.ts"
 import { clientFor, writeup, type JobLog } from "./writeup.ts"
 
@@ -71,33 +72,7 @@ export const nightOf = (runId: string, attempt: number): Night => {
 }
 
 /** The open issue titled for the workflow, if one is. */
-export const openIssue = (workflow: string): number | null => {
-  const title = titleOf(workflow)
-  const found = JSON.parse(
-    gh(
-      "issue",
-      "list",
-      "--repo",
-      repo(),
-      "--state",
-      "open",
-      "--search",
-      `"${title}" in:title`,
-      "--json",
-      "number,title",
-    ),
-  ) as { number: number; title: string }[]
-  return found.find((issue) => issue.title === title)?.number ?? null
-}
-
-const act = (action: Action): void => {
-  if (action.kind === "open")
-    gh("issue", "create", "--repo", repo(), "--title", action.title, "--body", action.body)
-  else if (action.kind === "comment")
-    gh("issue", "comment", String(action.issue), "--repo", repo(), "--body", action.body)
-  else if (action.kind === "close")
-    gh("issue", "close", String(action.issue), "--repo", repo(), "--comment", action.body)
-}
+export const openIssue = (workflow: string): number | null => findIssue(titleOf(workflow))
 
 // The most failed jobs whose logs the writeup reads, so a night of many stays quick.
 const logsRead = 8

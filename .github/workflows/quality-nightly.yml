@@ -134,6 +134,16 @@ jobs:
           # Each test file's line as it finishes, so the last line before a hang names the file.
           TURBO_LOG_ORDER: stream
 
+      # Each test that passed only on a retry (Test retry's reporter), which Known Flakes'
+      # Tally counts from every `retried-*` artifact in the repository.
+      - name: Upload Retried Tests
+        if: ${{ !cancelled() && (matrix.shard || matrix.whole) && hashFiles('test-results/retried/**') != '' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: retried-nightly-${{ runner.os }}${{ matrix.shard && format('-{0}', matrix.shard) || '' }}-${{ github.run_attempt }}
+          path: test-results/retried/
+          retention-days: 30
+
       # A failed UI spec leaves its screenshot, and its trace when one was recorded.
       - name: Upload UI Test Failures
         if: failure() && matrix.browser
