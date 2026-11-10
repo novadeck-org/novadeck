@@ -99,9 +99,12 @@ jobs:
             browser: true
             command: npm run build:try && npm run poster:try
     steps:
+      # Two commits deep, as in Quality: on a pull request that edits this workflow, the
+      # ratchet (scripts/ratchet) reads its budgets from the merge commit's first parent.
       - name: Check Out Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 2
           persist-credentials: false
 
       # The relay's build is only restored: Warm Caches is the one writer of its key on main.
