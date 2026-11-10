@@ -468,24 +468,36 @@ export const watchClosing = (workspace: Store<Workspace>, ui: UiStore): (() => v
 
 // A pick of where a terminal goes, and a teammate's move waiting on the person, belong to the
 // session they were asked in, as a close's confirmation does: leaving it, or the terminal
-// going, drops them.
-export const watchMoving = (workspace: Store<Workspace>, ui: UiStore): (() => void) =>
-  workspace.subscribe(() => {
-    const { moving, moveAsk } = ui.getSnapshot()
-    if (!moving && !moveAsk) return
-    const snapshot = workspace.getSnapshot()
-    const context = currentContext(snapshot)
-    const held = (id: string) =>
-      currentState(snapshot).roster.terminals.some((terminal) => terminal.id === id)
-    const keep = (each: { context: string; terminalId: string } | null) =>
-      each !== null && each.context === context && held(each.terminalId)
-    if (keep(moving) === (moving !== null) && keep(moveAsk) === (moveAsk !== null)) return
-    ui.update((state) => ({
-      ...state,
-      moving: keep(state.moving) ? state.moving : null,
-      moveAsk: keep(state.moveAsk) ? state.moveAsk : null,
-    }))
-  })
+// going, drops them. A pick also belongs to the Sessions panel, so leaving that panel ends it,
+// and a later visit opens sessions as usual.
+export const watchMoving = (workspace: Store<Workspace>, ui: UiStore): (() => void) => {
+  const stops = [
+    workspace.subscribe(() => dropStaleMove(workspace, ui)),
+    ui.subscribe(() => {
+      const { moving, location } = ui.getSnapshot()
+      if (moving && location.route.panel !== "sessions")
+        ui.update((state) => ({ ...state, moving: null }))
+    }),
+  ]
+  return () => stops.forEach((stop) => stop())
+}
+
+const dropStaleMove = (workspace: Store<Workspace>, ui: UiStore): void => {
+  const { moving, moveAsk } = ui.getSnapshot()
+  if (!moving && !moveAsk) return
+  const snapshot = workspace.getSnapshot()
+  const context = currentContext(snapshot)
+  const held = (id: string) =>
+    currentState(snapshot).roster.terminals.some((terminal) => terminal.id === id)
+  const keep = (each: { context: string; terminalId: string } | null) =>
+    each !== null && each.context === context && held(each.terminalId)
+  if (keep(moving) === (moving !== null) && keep(moveAsk) === (moveAsk !== null)) return
+  ui.update((state) => ({
+    ...state,
+    moving: keep(state.moving) ? state.moving : null,
+    moveAsk: keep(state.moveAsk) ? state.moveAsk : null,
+  }))
+}
 
 // The terminal the person looks at: the selected one of the session on screen, while the
 // page has their focus.

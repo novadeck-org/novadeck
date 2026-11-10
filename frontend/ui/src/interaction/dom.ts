@@ -177,6 +177,22 @@ export const focusZenEnter = (): void => focusStranded("[data-workspace-zen-ente
 export const focusTerminalsCreate = (): void =>
   focusStranded("[data-terminals-create]", "[data-sessions-create]")
 
+// The first session a terminal can move to, or the pick's Cancel with none, once the Sessions
+// panel shows for a pick from a terminal's menu. The panel slides in, so for a few frames it
+// can't hold focus yet.
+export const focusMovePick = (framesLeft = 12): void => {
+  const panel = document.querySelector<HTMLElement>(".sessions-panel[data-moving]")
+  const target =
+    panel?.querySelector<HTMLElement>('[data-move-target="yes"] .sidebar-item-select') ??
+    panel?.querySelector<HTMLElement>(".session-move-cancel")
+  if (!target) return
+  if (usable(target)) target.focus({ preventScroll: true })
+  // It may not hold yet: the panel is still sliding in, or the menu that chose it still has
+  // the focus on its way out.
+  if (document.activeElement !== target && framesLeft > 0)
+    requestAnimationFrame(() => focusMovePick(framesLeft - 1))
+}
+
 export const focusTerminalInput = (id: string): boolean => {
   const input = terminalElement(id)?.querySelector<HTMLElement>("[data-terminal-input]")
   input?.focus({ preventScroll: true })

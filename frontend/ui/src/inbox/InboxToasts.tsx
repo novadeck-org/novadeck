@@ -73,7 +73,7 @@ const showKey = (itemId: string): string => `show:${itemId}`
 const movedKey = "moved"
 
 // A move's toast: where the terminal went and that it still runs, or why it couldn't go, and
-// Undo. A click on the toast goes there; Undo's own click doesn't.
+// Undo and Go there. A click on the toast goes there too; its buttons' own clicks don't.
 const MovedCard = ({ moved }: { readonly moved: MovedToast }): React.JSX.Element => (
   <div className="move-toast" data-failed={moved.failed}>
     <span className="move-toast-icon" aria-hidden="true">
@@ -92,7 +92,16 @@ const MovedCard = ({ moved }: { readonly moved: MovedToast }): React.JSX.Element
         >
           Undo
         </button>
-        <span className="move-toast-go">Go there</span>
+        <button
+          type="button"
+          className="button quiet move-toast-go"
+          onClick={(event) => {
+            event.stopPropagation()
+            moved.go()
+          }}
+        >
+          Go there
+        </button>
       </span>
     )}
   </div>

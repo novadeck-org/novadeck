@@ -1128,6 +1128,17 @@ describe("moving a terminal to another session", () => {
     expect(after.selected).toBe("09")
   })
 
+  it("keeps what it carried unseen or waiting to open", () => {
+    // With another terminal selected, the hero is not on screen and stays unseen.
+    const unseen = apply(workspace(), { type: "terminal/select", target, terminalId: "02" })
+    const state = session(unseen, "initial")
+    expect(Object.keys(state.fresh).length + state.waiting.length).toBeGreaterThan(0)
+    const after = session(move(unseen), "other")
+    expect(after.fresh).toEqual(state.fresh)
+    expect(after.waiting).toEqual(state.waiting)
+    expect(session(move(unseen), "initial").fresh).toEqual({})
+  })
+
   it("is listed under its lead there, with the handle the backend gave it", () => {
     const after = session(
       move(workspace(), { ...terminalFixture(1, "~/project"), handle: "wren", ledBy: "lynx" }),

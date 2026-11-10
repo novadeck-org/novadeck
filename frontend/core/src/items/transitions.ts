@@ -147,6 +147,8 @@ export const moveTerminal = (
     ? to.roster.terminals.find((each) => each.handle === terminal.ledBy)
     : undefined
   const ids = new Set(carried.map((item) => item.id))
+  const newOnes = carried.filter((item) => from.fresh[item.id])
+  const waits = from.waiting.filter((each) => ids.has(each))
   return {
     from: left,
     to: {
@@ -158,6 +160,9 @@ export const moveTerminal = (
         spans: span === undefined ? to.layout.spans : { ...to.layout.spans, [id]: span },
       },
       items: [...to.items.filter((item) => !ids.has(item.id)), ...carried],
+      // What the person hasn't seen of them stays unseen, and what waits to open still waits.
+      fresh: { ...to.fresh, ...Object.fromEntries(newOnes.map((item) => [item.id, true])) },
+      waiting: [...to.waiting.filter((each) => !ids.has(each)), ...waits],
       bars: bar ? { ...to.bars, [id]: bar } : to.bars,
       selected: to.selected || id,
     },

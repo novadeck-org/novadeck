@@ -7,7 +7,7 @@ import {
   PointerSensor,
 } from "@dnd-kit/dom"
 import { RestrictToElement } from "@dnd-kit/dom/modifiers"
-import { DragDropProvider } from "@dnd-kit/react"
+import { DragDropProvider, useDragDropManager } from "@dnd-kit/react"
 import { isSortable } from "@dnd-kit/react/sortable"
 import type { Tile } from "@novadeck/core/types"
 import { PullOut } from "@novadeck/toolkit/drag-pull"
@@ -16,6 +16,7 @@ import {
   Fragment,
   useCallback,
   useContext,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useState,
@@ -60,6 +61,9 @@ export type TabsAway = {
   readonly bounds: () => Element | null
   readonly start: (terminalId: string) => void
   readonly pull: (pull: { readonly tension: number; readonly free: boolean }) => void
+  // Whether the tab being dragged would drop nowhere if let go now: it has broken free of
+  // the list and holds over no session.
+  readonly adrift: () => boolean
   readonly move: (point: { readonly x: number; readonly y: number }) => void
   readonly end: (terminalId: string, canceled: boolean) => boolean
 }
@@ -69,8 +73,22 @@ export type TabsAway = {
 // rail; grabbed nearer the rail, where there's less room, as it nears the window's edge.
 const tabPull = { give: 10, breakAt: 140 }
 
-const within = (box: DOMRect, { x, y }: { readonly x: number; readonly y: number }): boolean =>
-  x >= box.left && x <= box.right && y >= box.top && y <= box.bottom
+// A tab pulled out of the list and let go over nothing ends its drag as canceled, as Escape
+// would, so the library puts the list back as it was saved instead of leaving the order the tab
+// passed on its way out. One still held at the list's edge reorders as usual.
+const DropAdrift = ({ adrift }: { readonly adrift: () => boolean }): null => {
+  const manager = useDragDropManager()
+  useEffect(() => {
+    if (!manager) return
+    const release = (): void => {
+      if (adrift()) manager.actions.stop({ canceled: true })
+    }
+    // Before the library's own listener ends the drag as dropped.
+    window.addEventListener("pointerup", release, true)
+    return () => window.removeEventListener("pointerup", release, true)
+  }, [manager, adrift])
+  return null
+}
 
 export const TerminalTabs = ({
   terminals,
@@ -153,10 +171,6 @@ export const TerminalTabs = ({
           focus: focused?.getAttribute("data-terminal-tab-id") ?? null,
         }))
         if (taken || event.canceled || source.initialIndex === source.index) return
-        // A tab pulled out and let go elsewhere goes back to its place, not to where it last
-        // passed over the list.
-        if (away && list && !within(list.getBoundingClientRect(), event.operation.position.current))
-          return
         const order = terminals.map((terminal) => terminal.id)
         const from = order.indexOf(String(source.id))
         if (from < 0) return
@@ -165,6 +179,7 @@ export const TerminalTabs = ({
         onReorder(order)
       }}
     >
+      {away && <DropAdrift adrift={away.adrift} />}
       <div className={`terminal-tab-list ${sidebarListClasses}`} ref={attach}>
         <Fragment key={drag.generation}>
           {terminals.map((terminal, index) => renderTab(terminal, index))}

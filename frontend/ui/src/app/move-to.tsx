@@ -160,8 +160,8 @@ export const useTabsAway = (): TabsAway | undefined => {
       const timer = setTimeout(() => {
         if (button.id !== "sessions-toggle") return showTerminals()
         // The panel opens picking where the tab goes, so letting go anywhere else gives up.
-        if (dragged.current && !ui.getSnapshot().moving) pickSession(dragged.current.id, "drag")
         showSessions()
+        if (dragged.current && !ui.getSnapshot().moving) pickSession(dragged.current.id, "drag")
       }, springMs)
       held.current = { button, cancel: () => clearTimeout(timer) }
     }
@@ -173,6 +173,7 @@ export const useTabsAway = (): TabsAway | undefined => {
       pull: ({ free }) => {
         if (dragged.current) dragged.current.free = free
       },
+      adrift: () => Boolean(dragged.current?.free) && !ui.getSnapshot().moving?.over,
       move: ({ x, y }) => {
         if (!dragged.current?.free) return
         const hits = document.elementsFromPoint(x, y)

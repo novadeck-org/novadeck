@@ -114,6 +114,7 @@ export const openCommands = ({
     focusZenCreate: () => effects.push("focus zen create"),
     focusZenEnter: () => effects.push("focus zen enter"),
     focusTerminalsCreate: () => effects.push("focus terminals create"),
+    focusMovePick: () => effects.push("focus move pick"),
     focusWorkspaceViewport: () => effects.push("focus viewport"),
     focusTerminalTab: (id) => effects.push(`focus tab ${id}`),
     focusTerminalInput: (id) => (effects.push(`focus input ${id}`), true),

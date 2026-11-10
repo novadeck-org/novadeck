@@ -30,6 +30,8 @@ export type CommandEffects = {
   readonly focusZenCreate: () => void
   readonly focusZenEnter: () => void
   readonly focusTerminalsCreate: () => void
+  // Focuses the Sessions panel's first place to move a terminal to, once it shows for a pick.
+  readonly focusMovePick: () => void
   readonly focusWorkspaceViewport: () => void
   readonly focusTerminalTab: (id: string) => void
   // Focuses the terminal's input now; false when it has none that can take focus.

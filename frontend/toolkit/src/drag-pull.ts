@@ -111,8 +111,14 @@ export class PullOut extends Modifier<DragDropManager<any, any>, PullOutOptions>
     super(manager, options)
     // Each drag starts its own pull, and leaves nothing on its element once it ends.
     const stops = [
-      manager.monitor.addEventListener("dragstart", () => this.end()),
-      manager.monitor.addEventListener("dragend", () => this.end()),
+      manager.monitor.addEventListener("dragstart", () => {
+        this.over = false
+        this.end()
+      }),
+      manager.monitor.addEventListener("dragend", () => {
+        this.over = true
+        this.end()
+      }),
     ]
     this.destroy = () => {
       for (const stop of stops) stop()
@@ -137,10 +143,14 @@ export class PullOut extends Modifier<DragDropManager<any, any>, PullOutOptions>
       }
     | undefined
 
+  // Whether the drag has ended: the drop still asks for a transform (as its element settles),
+  // which must not start a pull again.
+  private over = false
+
   override apply(operation: DragOperation): Point {
     const { transform, shape, status, source, activatorEvent, position } = operation
     const options = this.options
-    if (!options || !shape || status.idle) return transform
+    if (!options || !shape || status.idle || this.over) return transform
     const drag =
       this.drag ?? this.begin(shape.initial.boundingRectangle, position.initial, source, options)
     if (!drag) return transform

@@ -57,6 +57,9 @@ type SessionsPanelProps = {
   // drag of its tab holds over (a session's id, or "new" for the new session's button), and
   // what picking a session, making a new one with it, or giving up does.
   moving?: SessionsMove | undefined
+  // Whether the panel is the one on screen; hidden panels stay mounted, and a pick's Escape
+  // only answers while this one shows.
+  onScreen?: boolean
 }
 
 export type SessionsMove = {
@@ -366,21 +369,29 @@ const SessionRow = ({
 }
 
 // What the panel says while a terminal is on its way: which, and the way out. Escape gives up
-// too, wherever focus is.
-const MoveStrip = ({ moving }: { readonly moving: SessionsMove }): React.JSX.Element => {
+// too, wherever focus is while the panel shows: the listener takes it in the capture phase, so
+// a row under focus can't swallow it.
+const MoveStrip = ({
+  moving,
+  shown,
+}: {
+  readonly moving: SessionsMove
+  readonly shown: boolean
+}): React.JSX.Element => {
   const { onCancel } = moving
   useEffect(() => {
+    if (!shown) return
     const escape = (event: KeyboardEvent): void => {
       if (event.key !== "Escape" || event.defaultPrevented) return
       event.preventDefault()
       onCancel()
     }
-    document.addEventListener("keydown", escape)
-    return () => document.removeEventListener("keydown", escape)
-  }, [onCancel])
+    document.addEventListener("keydown", escape, true)
+    return () => document.removeEventListener("keydown", escape, true)
+  }, [onCancel, shown])
   return (
-    <div className="session-move-strip mb-2 flex min-w-0 items-center gap-2" role="status">
-      <span className="min-w-0 flex-1 truncate">
+    <div className="session-move-strip mb-2 flex min-w-0 items-center gap-2">
+      <span className="min-w-0 flex-1 truncate" role="status">
         Move <strong>{moving.name}</strong> to…
       </span>
       <button type="button" className="button quiet session-move-cancel" onClick={onCancel}>
@@ -400,6 +411,7 @@ export const SessionsPanel = ({
   onRemove,
   historyKept = false,
   moving,
+  onScreen = true,
 }: SessionsPanelProps): React.JSX.Element => {
   const shortcut = shortcutBindings().newSession.display.join(" ")
   const [list, setList] = useState<HTMLDivElement | null>(null)
@@ -445,7 +457,7 @@ export const SessionsPanel = ({
       className="sessions-panel flex min-h-0 min-w-0 w-full flex-1 flex-col"
       data-moving={moving ? true : undefined}
     >
-      {moving && <MoveStrip moving={moving} />}
+      {moving && <MoveStrip moving={moving} shown={onScreen} />}
       <Tooltip content={moving ? `New session with ${moving.name}` : `New session · ${shortcut}`}>
         <button
           className={sidebarCreateClasses}

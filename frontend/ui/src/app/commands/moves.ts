@@ -97,8 +97,26 @@ export const createMoveCommands = (
     }
     move({ ...target, terminalId }, sessionId).then(
       (result) => tell({ ...notice, result }),
-      (error: unknown) => tell({ ...notice, failed: reason(error) }),
+      (error: unknown) => {
+        // A session made for a move that didn't happen goes again, unless it has gained something.
+        if ("fresh" in to) removeIfEmpty(project.id, sessionId)
+        tell({ ...notice, failed: reason(error) })
+      },
     )
+  }
+  const removeIfEmpty = (projectId: string, workspaceSessionId: string): void => {
+    const session = workspace
+      .getSnapshot()
+      .projects.find((each) => each.id === projectId)
+      ?.history.find((each) => each.id === workspaceSessionId)
+    const { terminals, windows } = session?.state.roster ?? {}
+    if (!session || terminals?.length || windows?.length) return
+    workspace.dispatch({
+      type: "session/remove",
+      projectId,
+      workspaceSessionId,
+      now: effects.now(),
+    })
   }
   return {
     moveTerminal: (terminalId, to) => {
@@ -128,12 +146,16 @@ export const createMoveCommands = (
       const snapshot = workspace.getSnapshot()
       if (!move || !currentState(snapshot).roster.terminals.some((each) => each.id === terminalId))
         return
+      // A drag opens the panel once it holds over the rail's button; the menu at once. The
+      // panel shows first, as leaving it ends a pick.
+      if (via === "menu") {
+        showSessions()
+        effects.afterFrame(() => effects.focusMovePick())
+      }
       ui.update((state) => ({
         ...state,
         moving: { context: currentContext(snapshot), terminalId, via, over: null },
       }))
-      // A drag opens the panel once it holds over the rail's button; the menu at once.
-      if (via === "menu") showSessions()
     },
     overMove: (over) => {
       const { moving } = ui.getSnapshot()

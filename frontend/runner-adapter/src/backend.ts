@@ -1458,6 +1458,11 @@ export const runnerBackend = (
       // Once this commit is done, as for a close: what the stores tell their readers never
       // stands inside it.
       queueMicrotask(() => {
+        // Its usage goes with it, unless the agent has reported anew under the new key.
+        const held = telemetry.getSnapshot()
+        const at = (key: typeof from) => held[`${key.projectId}/${key.workspaceSessionId}`]
+        const carried = at(from)?.[from.terminalId]
+        if (carried && !at(entry.key)?.[entry.key.terminalId]) noteUsage(entry, carried)
         noteUsage({ ...entry, key: from }, undefined)
         messages.unfollow(from)
         followWhenReady(entry)

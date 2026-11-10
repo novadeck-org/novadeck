@@ -172,4 +172,20 @@ describe("a list's drag with the pull-out modifier", () => {
     emit("dragstart")
     expect(pullOut.apply(operation(-30, 0)).x).toBeCloseTo(-12)
   })
+
+  it("leaves nothing on its element when the drop still asks for a transform", () => {
+    const { manager, emit } = managed()
+    const element = document.createElement("div")
+    const pullOut = new PullOut(manager as never, {
+      element: list,
+      within,
+      feel: { give: 20, breakAt: 60, snapMs: 20 },
+    })
+    const drag = (x: number) => ({ ...(operation(x, 0) as object), source: { element } }) as never
+    pullOut.apply(drag(-30))
+    emit("dragend")
+    expect(pullOut.apply(drag(-30))).toEqual({ x: -30, y: 0 })
+    expect(element.dataset.pull).toBeUndefined()
+    expect(element.style.getPropertyValue("--pull-tension")).toBe("")
+  })
 })

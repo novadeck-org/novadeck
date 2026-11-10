@@ -80,7 +80,17 @@ const moveItem = (moveTo: MoveTo): ContextMenuItem => ({
       value: `move-to-${session.id}`,
       label: session.name,
       separated: index === 0,
-      detail: createElement(Fragment, null, session.mark, String(session.count)),
+      detail: createElement(
+        Fragment,
+        null,
+        session.mark,
+        String(session.count),
+        createElement(
+          "span",
+          { className: "sr-only" },
+          session.count === 1 ? " terminal" : " terminals",
+        ),
+      ),
       onSelect: () => moveTo.onMove({ sessionId: session.id }),
     })),
     ...(moveTo.more

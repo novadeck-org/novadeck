@@ -149,4 +149,27 @@ describe("moving a terminal to another session", () => {
     await settle()
     expect(app.ui.getSnapshot().moved).toMatchObject({ failed: "It's closing." })
   })
+
+  it("takes back the session it made for a new one that the backend refused", async () => {
+    const app = openCommands({
+      workspace: teamWorkspace(),
+      moveTerminal: () => Promise.reject(new Error("It's closing.")),
+    })
+    app.commands.moveTerminal("01", { fresh: true })
+    await settle()
+    const sessions = app.workspace.getSnapshot().projects[0]!.history
+    expect(sessions.map((session) => session.id)).toEqual(["initial", "other"])
+    expect(app.ui.getSnapshot().moved).toMatchObject({ failed: "It's closing.", fresh: true })
+  })
+
+  it("ends a pick once the Sessions panel is left", () => {
+    const { move } = recordingMove()
+    const app = openCommands({ workspace: teamWorkspace(), moveTerminal: move })
+    app.commands.pickSession("01", "menu")
+    expect(app.ui.getSnapshot().moving).not.toBeNull()
+    app.commands.showTerminals()
+    expect(app.ui.getSnapshot().moving).toBeNull()
+    app.commands.showSessions()
+    expect(app.ui.getSnapshot().moving).toBeNull()
+  })
 })
