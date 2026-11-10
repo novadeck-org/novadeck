@@ -404,6 +404,20 @@ describe("Reading the chat", () => {
     await expectStaysTrue(() => document.activeElement === row.element(), "focus on the row")
   })
 
+  it("takes a click anywhere on the box's band back to the box, after its words", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    await userEvent.type(composer(chat), "Run the")
+    const row = chat.getByRole("button", { name: /^edited .*total\.ts/ })
+    await row.click()
+    await expect.element(row).toHaveFocus()
+    // The band's padding, beside the one line the box takes.
+    await chat.getByRole("form", { name: /^Message / }).click({ position: { x: 4, y: 5 } })
+    await expect.element(composer(chat)).toHaveFocus()
+    await userEvent.keyboard(" linter")
+    await expect.element(composer(chat)).toHaveValue("Run the linter")
+  })
+
   it("lets the person select text, which stays selected", async () => {
     await openChatDemo()
     const chat = await openChat("Build")

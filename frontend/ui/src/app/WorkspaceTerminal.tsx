@@ -22,7 +22,15 @@ import { Avatar } from "@novadeck/items/Avatar"
 import { ProjectWindow } from "@novadeck/items/ProjectWindow"
 import { TerminalCompanion } from "@novadeck/items/TerminalCompanion"
 import { UndockedWindow } from "@novadeck/items/UndockedWindow"
-import { memo, useCallback, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react"
+import {
+  memo,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
 import { presentedProgram, terminalProfile, windowProfile } from "../terminals/processes/profiles"
@@ -37,6 +45,7 @@ import {
 import { WindowStats } from "../terminals/WindowStats"
 import { DictationStrip } from "../voice/DictationStrip"
 import { useAskFeedback } from "./ask-feedback"
+import { useChatTakesFocus } from "./chat-focus"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { DictationContext, useMicButton } from "./controller/dictation"
 import { useDockTarget } from "./dock-target"
@@ -294,9 +303,11 @@ export const WorkspaceTerminal = memo(
     // Canvas node out of sight hides, and a request spent there would be lost. The request
     // stays until the surface can take it.
     const wanted = keyboardFocus?.view === view && active && onScreen
+    const chatHost = useRef<HTMLDivElement>(null)
+    useChatTakesFocus(chatHost, conversation !== undefined, active && onScreen)
     const withChat = (content: ReactNode): ReactNode =>
       conversations ? (
-        <div className="chat-host relative flex min-h-0 min-w-0 flex-1 flex-col">
+        <div ref={chatHost} className="chat-host relative flex min-h-0 min-w-0 flex-1 flex-col">
           {/* Before the content, so the first terminal input in the window is the chat's. */}
           {conversation && (
             <div
