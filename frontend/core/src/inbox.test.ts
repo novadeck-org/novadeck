@@ -38,6 +38,7 @@ const request = (kind: ChatRequest["kind"]): InboxContent => ({
     subagent: false,
     dialog: null,
     answered: false,
+    askedAt: 0,
   },
 })
 const held: InboxContent = {

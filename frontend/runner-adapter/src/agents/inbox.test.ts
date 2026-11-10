@@ -80,6 +80,7 @@ const asked = (id: string, askedAt: number, dialog: ChatDialog | null = choices)
     subagent: false,
     dialog,
     answered: false,
+    askedAt: 0,
   },
   askedAt,
 })

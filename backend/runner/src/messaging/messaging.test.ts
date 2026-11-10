@@ -286,10 +286,10 @@ describe("sending", () => {
         ok: false,
         reason: [
           `"${to === "fox owl" ? "owl" : bareHandle(to)}" is no terminal's handle here. Send to one of these by its exact handle, ` +
-            "picking by its title, folder and work; if more than one could be meant, ask the " +
-            "user rather than guess.",
+            "picking by its title, summary and branch; if more than one could be meant, ask " +
+            "the user rather than guess.",
           "Other terminals in this project and session:",
-          "- @fox: Codex, idle",
+          "- @fox: Codex, idle, peer",
         ].join("\n"),
       })
     expect(send("A", "moth", "hi")).toMatchObject({
@@ -2005,47 +2005,35 @@ describe("Antigravity's turn, as activity and delivery both tell it", () => {
 // Where a terminal is, as the manager tells it; each fact unknown unless given.
 const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   title: null,
-  titleSource: null,
   summary: null,
-  folder: null,
-  startedIn: null,
-  branch: null,
-  plan: null,
-  work: null,
-  openedBy: null,
+  git: null,
   working: false,
+  since: null,
   waiting: null,
   waitsOn: null,
   startup: null,
-  reports: { tell: null, done: null },
-  place: (path) => path,
+  happenings: [],
+  shell: { running: false, command: null },
   ...overrides,
 })
 
-// What the terminal manager knows of B and D: their titles, where they work, what B worked on.
+// What the terminal manager knows of B, C and D: their titles, what B works on and where.
 const about = (terminalId: string): Whereabouts | undefined =>
   terminalId === "B"
     ? whereabouts({
         title: "API author",
-        titleSource: { kind: "person" },
-        folder: "src/api",
-        branch: "feat/paging",
-        plan: "Pagination",
-        work: {
-          session: "codex:s-codex",
-          first: "Build the users API",
-          latest: "Now add paging",
-          folders: { "/w/src/api": 3, "/w/tests": 2, "/w/docs": 1, "/w/web": 1 },
-          activeAt: 1_000_000,
+        summary: "Users API with paging",
+        git: {
+          repo: "api",
+          branch: "feat/paging",
+          state: { detached: false, ahead: 1, gone: false, dirty: false },
         },
-        place: (path) => path.replace(/^\/w\//, ""),
       })
-    : terminalId === "D"
-      ? whereabouts({
-          title: "Web client",
-          titleSource: { kind: "agent", by: "moth" },
-        })
-      : undefined
+    : terminalId === "C"
+      ? whereabouts({ title: "dev server", shell: { running: true, command: "pnpm dev" } })
+      : terminalId === "D"
+        ? whereabouts({ title: "Web client" })
+        : undefined
 
 describe("listing", () => {
   it("describes each other terminal by what Novadeck knows, and the caller's messages yet to arrive", () => {
@@ -2060,18 +2048,10 @@ describe("listing", () => {
       text: [
         "You are @moth in Novadeck.",
         "Other terminals in this project and session:",
-        "- @fox: Codex, busy, last active 1 min ago",
-        "  title: API author",
-        "  folder: src/api, branch feat/paging",
-        "  started with: Build the users API",
-        "  latest: Now add paging",
-        "  plan: Pagination",
-        "  works in: src/api/ (3), tests/ (2), docs/ (1)",
-        "  with you: you, just now: Please accommodate x, y and z in the users route.",
-        "- @owl: no agent Novadeck can deliver to",
-        "- @crow: no agent Novadeck can deliver to",
-        // An agent named that one: never taken for the person's word.
-        "  title: Web client (set by @moth, not the user)",
+        "- @fox · API author: Codex, busy, peer",
+        '  "Users API with paging" · api feat/paging, 1 ahead',
+        "- @owl · dev server: shell, running pnpm dev",
+        "- @crow · Web client: shell, at its prompt",
         "Your messages not yet delivered:",
         `- ${id} to @fox, sent ${clock(time.now)}: queued`,
       ].join("\n"),
@@ -2095,11 +2075,11 @@ describe("listing", () => {
         ? listed.text.split("\n").find((each) => each.startsWith("- @fox"))
         : undefined
     }
-    expect(line(about("B"))).toMatch(/^- @fox: Codex, idle/)
-    expect(line({ ...about("B")!, working: true })).toMatch(/^- @fox: Codex, busy/)
+    expect(line(about("B"))).toMatch(/^- @fox · API author: Codex, idle/)
+    expect(line({ ...about("B")!, working: true })).toMatch(/^- @fox · API author: Codex, busy/)
   })
 
-  it("lists compactly past a few terminals, in full on request, or one terminal's details", () => {
+  it("lists every terminal at one level of detail, however many there are", () => {
     const { messaging } = create()
     for (const [id, handle] of [
       ["C", "owl"],
@@ -2109,26 +2089,17 @@ describe("listing", () => {
       ["G", "haze"],
     ] as const)
       messaging.register(id, here, handle, null)
-    const text = (request?: unknown) => {
-      const listed = messaging.agents("A", about, request)
-      return listed.ok ? listed.text : ""
-    }
-    // Six others: a line each, and how to see more.
-    expect(text()).toContain("Other terminals in this project and session (6). One line each")
-    expect(text()).toMatch(/^- @fox · API author: /m)
-    expect(text()).not.toMatch(/^ {2}title:/m)
-    expect(text({ full: true })).toMatch(/^ {2}title: API author$/m)
-    // One terminal's details, by its handle with or without its @.
-    for (const terminal of ["@fox", "fox"]) {
-      const one = text({ terminal })
-      expect(one).toMatch(/^- @fox: /m)
-      expect(one).toMatch(/^ {2}title: API author$/m)
-      expect(one).not.toMatch(/^- @owl/m)
-    }
-    // What it can't read asks for neither.
-    expect(text({ full: "yes", terminal: 7 })).toContain("One line each")
-    messaging.unregister("G")
-    expect(text()).toContain("Other terminals in this project and session:")
+    const listed = messaging.agents("A", about)
+    const text = listed.ok ? listed.text : ""
+    expect(text.match(/^- @\w+/gm)).toEqual([
+      "- @fox",
+      "- @owl",
+      "- @crow",
+      "- @kite",
+      "- @wren",
+      "- @haze",
+    ])
+    expect(text).toContain('  "Users API with paging" · api feat/paging, 1 ahead')
   })
 
   it("lets only terminals of one project and Novadeck session see each other", () => {
@@ -4223,6 +4194,36 @@ const withWorker = (options: MessagingOptions = {}) => {
   return { ...setup, worker }
 }
 
+describe("a lead's team listing", () => {
+  it("names its team, shows the brief it sent, and on the next look only what is new", () => {
+    const { messaging, send, clock: time } = withWorker()
+    const text = (terminalId: string, request?: unknown) => {
+      const answer = messaging.team(terminalId, () => whereabouts(), request)
+      if (!answer.ok) throw new Error(answer.reason)
+      return answer.text
+    }
+    const brief = sent(send("A", "owl", "Fix the build, then report back."))
+    expect(brief.state).toBe("queued")
+    expect(text("A").split("\n")).toEqual([
+      "You are @moth in Novadeck.",
+      "Your team in this project and session:",
+      "- led by you: @owl",
+      "- @owl: Codex, idle, led by you",
+      "  latest:",
+      '    just now, you → @owl, on its way: "Fix the build, then report back."',
+    ])
+    time.now += 60_000
+    expect(text("A").split("\n").at(-1)).toBe(
+      "- @owl: Codex, idle, led by you · nothing new since you last looked",
+    )
+    // All, as after the lead's context was compacted, shows the latest again.
+    expect(text("A", { all: true })).toContain("1 min ago, you → @owl, on its way")
+    // The worker sees its lead; a terminal on no team is told so.
+    expect(text("W")).toContain("- @moth: Claude Code, idle, your lead")
+    expect(text("B")).toMatch(/^You are @fox in Novadeck, on no team/)
+  })
+})
+
 describe("a lead", () => {
   it("is marked in what it sends the terminal it opened, with the note that explains it", () => {
     const { messaging, records, send, prompt, worker } = withWorker()
@@ -5112,11 +5113,11 @@ describe("the listing's lead lines", () => {
   it("name only a lead that still runs", () => {
     const { messaging } = withWorker()
     const listed = (viewer: string) => {
-      const answer = messaging.agents(viewer, () => whereabouts({ openedBy: "moth" }))
+      const answer = messaging.agents(viewer, () => whereabouts())
       if (!answer.ok) throw new Error(answer.reason)
       return answer.text
     }
-    expect(listed("W")).toContain("your lead: it directs your work")
+    expect(listed("W")).toContain("your lead")
     expect(listed("A")).toContain("led by you")
     messaging.unregister("A")
     expect(listed("W")).not.toContain("led by")

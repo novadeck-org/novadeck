@@ -22,6 +22,7 @@ import { WorkspaceServicesContext, type WorkspaceServices } from "./controller/c
 import { domEffects } from "./controller/effects"
 import { dialogDepthOf, useRouteSync } from "./controller/useRouteSync"
 import { dingOf } from "./ding"
+import { watchHistoryDrops } from "./history-drops"
 import { landInbox, noLanding } from "./inbox-landing"
 import { noticeBoard, watchBellRings, watchInboxPings } from "./inbox-pings"
 import { nameFinished, watchFinishes } from "./murmur-offer"
@@ -177,6 +178,12 @@ export const WorkspaceProvider = ({
   useEffect(() => watchPortable(services.backend.portable, services.ui), [services])
   useEffect(() => watchClosing(services.workspace, services.ui), [services])
   useEffect(() => watchMoving(services.workspace, services.ui), [services])
+  useEffect(() => {
+    const { history } = services.backend
+    return history && historyShown(services.backend)
+      ? watchHistoryDrops(history, services.workspace, services.ui)
+      : undefined
+  }, [services])
   useEffect(() => watchChat(services.chat, services.workspace), [services])
   useEffect(() => watchPageFocus(services.ui, window, services.backend.windowFocus), [services])
   // Before the watchers below, which read the landed Inbox. The Inbox's own watchers, in child

@@ -5,6 +5,7 @@ import {
   agentName,
   groupItems,
   recordsShell,
+  turnStartedAt,
   turnStatus,
   wentItems,
 } from "@novadeck/core/conversation/turns"
@@ -22,22 +23,23 @@ import {
 } from "react"
 
 import type { Attachment } from "./attachments"
-import { sentBubbles, type SentBubble } from "./bubbles"
-import { Composer } from "./Composer"
+import { blockAt, sentBubbles, type SentBubble } from "./bubbles"
+import { Composer, failed, type Failure } from "./Composer"
 import { composerMode } from "./composer-mode"
 import { joinDraft } from "./drafts"
 import { useEchoes } from "./echoes"
+import { Fact, Since } from "./Fact"
 import { promptsOf, type SentShell } from "./history"
-import { Mark } from "./Mark"
 import { otherMenu } from "./other-menu"
 import { usePassing } from "./passing"
 import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
 import { Requests } from "./Requests"
 import { takeSentImages, type ChatSend } from "./sends"
 import { settledSent, settleSent } from "./settled"
-import { LiveSlice, Slice, SliceKeys } from "./Slice"
+import { LiveSlice, SliceKeys } from "./Slice"
 import { Transcript, type PeerLooks } from "./Transcript"
 import { useBoxReturn } from "./use-box-return"
+import { useMounted } from "./use-mounted"
 
 const noShells: readonly SentShell[] = []
 
@@ -161,6 +163,8 @@ export const ChatView = ({
   )
   const status = turnStatus(agent)
   const working = status?.working === true
+  // When the turn began, for the working line's clock.
+  const turnStart = useMemo(() => turnStartedAt(blocks), [blocks])
 
   // The latest blocks, and how many earlier ones the person asked for.
   const [more, setMore] = useState<{ readonly session: string | null; readonly extra: number }>({
@@ -241,6 +245,10 @@ export const ChatView = ({
   // A shell command went to an agent that keeps no record of it in its conversation, as its
   // harness says: its output shows only in the terminal.
   const [unrecorded, setUnrecorded] = useState(false)
+  // Stop, from the working line or Esc: one at a time, and why one didn't go.
+  const [stopping, setStopping] = useState(false)
+  const [stopError, setStopError] = useState<Failure | null>(null)
+  const mounted = useMounted()
   const answer = useCallback(
     (request: string, reply: ChatAnswer): Promise<void> =>
       onAnswer(request, reply).catch((failure: unknown) => {
@@ -277,6 +285,13 @@ export const ChatView = ({
       ?.focus({ preventScroll: true })
 
   const echoes = useEchoes(slice, items)
+  // An echo stands where it ran: one from before the blocks shown goes with the earlier ones.
+  const shownEchoes = useMemo(() => {
+    const since = shownFrom > 0 ? shown.map(blockAt).find((at) => at !== null) : undefined
+    return since === undefined || since === null
+      ? echoes.shown
+      : echoes.shown.filter(({ at }) => at >= since)
+  }, [echoes.shown, shown, shownFrom])
   const passing = usePassing({
     // Its program until a session binds, as Codex and Antigravity do only at a first prompt.
     agent: harness ?? program,
@@ -292,6 +307,7 @@ export const ChatView = ({
   })
   // The person's draft as it changes, from the box or from a prompt taken back to edit.
   const draftEdited = (): void => {
+    setStopError(null)
     setLost(false)
     setResent(null)
     setUnrecorded(false)
@@ -341,6 +357,42 @@ export const ChatView = ({
     focusBox()
   }
 
+  const stop = (): void => {
+    if (stopping) return
+    setStopping(true)
+    setStopError(null)
+    passing
+      .leave()
+      .then(onInterrupt)
+      .then(
+        () => mounted.current && setStopping(false),
+        (failure: unknown) => {
+          if (!mounted.current) return
+          setStopping(false)
+          setStopError(failed(failure))
+        },
+      )
+  }
+  // Esc stops the agent, as it does in its own terminal, unless something has the key: a menu of
+  // the harness's own (the box passes it on, or its rows show) or a control that took it.
+  const escape = (event: React.KeyboardEvent): void => {
+    if (
+      event.key !== "Escape" ||
+      !working ||
+      event.defaultPrevented ||
+      event.nativeEvent.isComposing ||
+      event.shiftKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.altKey ||
+      passing.on ||
+      slice !== null
+    )
+      return
+    event.preventDefault()
+    stop()
+  }
+
   const sliceKeys = useMemo(
     () => onKeys && ((keys: string) => void onKeys(keys).catch(() => {})),
     [onKeys],
@@ -357,7 +409,7 @@ export const ChatView = ({
   const chatSection = useRef<HTMLElement>(null)
   const boxReturn = useBoxReturn(chatSection, taken, focusBox)
 
-  const empty = items.length === 0 && bubbles.length === 0 && echoes.shown.length === 0
+  const empty = items.length === 0 && bubbles.length === 0 && shownEchoes.length === 0
   return (
     <SliceKeys.Provider value={sliceKeys ?? null}>
       <section
@@ -367,6 +419,7 @@ export const ChatView = ({
         aria-label={`${terminalName} chat`}
         onPointerDown={boxReturn.onPointerDown}
         onClick={boxReturn.onClick}
+        onKeyDown={escape}
       >
         <div className="chat-main">
           <div
@@ -411,6 +464,7 @@ export const ChatView = ({
                 working={working}
                 gone={agent === undefined}
                 sent={bubbles}
+                echoes={shownEchoes}
                 looks={peerLooks}
                 {...(plain &&
                   draft.trim() === "" &&
@@ -418,23 +472,38 @@ export const ChatView = ({
                 {...(plain && { onEdit: edit })}
                 onShowTerminal={onAnswerInTerminal}
               />
-              {echoes.shown.map((echo) => (
-                <div key={echo.id} className="chat-echo">
-                  <Mark />
-                  <p className="chat-echo-text">{echo.text}</p>
-                  {echo.slice && <Slice slice={echo.slice} />}
-                </div>
-              ))}
               {status && (
-                <p
-                  className="chat-status"
-                  role="status"
-                  data-working={working || undefined}
-                  data-ended={!working || undefined}
-                >
-                  {working && <span className="chat-spin" aria-hidden />}
-                  {status.text}
-                </p>
+                // While the agent works this stays at the log's end, with its clock and its stop.
+                <div className="chat-running" data-working={working || undefined}>
+                  <p
+                    className="chat-status"
+                    role="status"
+                    data-working={working || undefined}
+                    data-ended={!working || undefined}
+                  >
+                    {working && <span className="chat-spin" aria-hidden />}
+                    {status.text}
+                  </p>
+                  {working && (
+                    <span className="chat-status-end">
+                      {turnStart !== null && (
+                        <Fact live keep>
+                          <Since since={turnStart} />
+                        </Fact>
+                      )}
+                      <button
+                        type="button"
+                        className="chat-key chat-stop nodrag nopan"
+                        aria-label="Stop"
+                        aria-disabled={stopping || undefined}
+                        onClick={stop}
+                      >
+                        <kbd>esc</kbd>
+                        stop
+                      </button>
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -442,6 +511,7 @@ export const ChatView = ({
             <button
               type="button"
               className="chat-jump nodrag nopan"
+              data-pinned={working || undefined}
               aria-label="Jump to latest"
               onClick={() => {
                 const element = scroller.current
@@ -541,10 +611,7 @@ export const ChatView = ({
             if (went && !reply)
               setUnrecorded(!recordsShell(harness) && shellCommand(text) !== undefined)
           }}
-          onStop={async () => {
-            await passing.leave()
-            await onInterrupt()
-          }}
+          stopError={stopError}
           onClearBox={onClearBox}
           focusInput={focusInput}
           onInputFocused={onInputFocused}

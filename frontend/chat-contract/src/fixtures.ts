@@ -217,7 +217,7 @@ export const fixtures: readonly Fixture[] = [
     golden: "claude/ask",
     harness: "claude",
     tools: true,
-    count: 55,
+    count: 56,
     skipped: claudeAskSkipped,
     extract: () => claudeAsk("ask.probe.json"),
   },

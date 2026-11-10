@@ -32,6 +32,8 @@ const entry = (fields: Partial<ToolEntry> = {}): ToolEntry => ({
   result: { id: "1:result", text: "ok", truncated: false },
   outcome: null,
   scripted: false,
+  at: null,
+  doneAt: null,
   ...fields,
 })
 

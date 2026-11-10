@@ -37,7 +37,8 @@ import {
   undelivered,
   type Message,
 } from "./messages.js"
-import type { Report, Reports } from "./peers.js"
+import type { Happening, Report, Reports } from "./peers.js"
+import { TurnLog } from "./turn-log.js"
 
 const log = logs.for("inbox")
 
@@ -340,6 +341,8 @@ export class Inbox {
   private readonly guesses = new Map<string, number>()
   private readonly sweeper: ReturnType<typeof setInterval> | undefined
   private readonly entries = new Map<string, StoredEntry>()
+  /** Each terminal's latest finished turns, which the person's read of their rows leaves. */
+  private readonly turnLog = new TurnLog()
   private readonly readers = new Set<Latest<InboxEntry[]>>()
   /** Since when each terminal with open asks has had no agent bound (from the runner's start). */
   private readonly unbound = new Map<string, number>()
@@ -686,7 +689,7 @@ export class Inbox {
    * updates the one stored for that end. `owner` is whose it was when the end was seen.
    * Nothing once closed. The terminal's 51st unread turn removes its oldest.
    */
-  recordTurn(owner: Owner, at: number, fields: TurnFields): void {
+  recordTurn(owner: Owner, at: number, fields: TurnFields, from: number | null = null): void {
     if (this.closed) return
     if (this.turnAt(owner.terminalId, at)) {
       this.amendTurn(owner.terminalId, at, fields)
@@ -700,7 +703,7 @@ export class Inbox {
       state: "open",
     }
     this.save(() => this.records.saveEntry(entry))
-    this.keep(entry)
+    this.keep(entry, from)
     const unread = [...(this.byTerminal.get(owner.terminalId)?.values() ?? [])]
       .filter(isTurn)
       .toSorted((a, b) => a.at - b.at)
@@ -717,11 +720,14 @@ export class Inbox {
 
   /**
    * Changes the stored turn that ended at `at` to `fields`, or removes it for null (the end
-   * turned out otherwise). Nothing where none is stored, as after it was read.
+   * turned out otherwise). Where none is stored, as after it was read, only what `team`
+   * keeps of it changes.
    */
   amendTurn(terminalId: string, at: number, fields: TurnFields | null): void {
     if (this.closed) return
     const entry = this.turnAt(terminalId, at)
+    if (!fields) this.turnLog.drop(terminalId, at)
+    else if (!entry) this.turnLog.amend(terminalId, at, fields)
     if (!entry) return
     if (!fields) {
       this.save(() => this.records.removeEntries([entry.id]))
@@ -819,6 +825,44 @@ export class Inbox {
       if (content.kind === "done" && (!done || done.at < report.at)) done = report
     }
     return { tell, done }
+  }
+
+  /**
+   * What the agent session now bound in the terminal (else `saved`, as `reports` reads it)
+   * told the person and how its turns ended, oldest first, as a lead's `team` reads it: its
+   * `tell` and `done` reports and its asks, whatever became of them, while Inbox keeps them,
+   * and its latest finished turns, which the person's read of their rows leaves.
+   */
+  happenings(terminalId: string, saved?: { agent: AgentName; sessionId: string }): Happening[] {
+    const owner = this.closed ? undefined : this.host.owner(terminalId)
+    const session = owner ?? (this.closed ? undefined : saved)
+    if (!session) return []
+    const told = [...(this.byTerminal.get(terminalId)?.values() ?? [])].flatMap(
+      (entry): Happening[] => {
+        if (entry.agent !== session.agent || entry.sessionId !== session.sessionId) return []
+        const { content } = entry
+        if (content.kind === "tell" || content.kind === "done")
+          return [
+            {
+              kind: content.kind === "tell" ? "update" : "done",
+              at: entry.at,
+              subject: content.subject,
+              body: content.body,
+            },
+          ]
+        if (content.kind === "ask")
+          return [{ kind: "asked", at: entry.at, subject: content.ask.subject }]
+        return []
+      },
+    )
+    const turns = this.turnLog.of(terminalId, session).map((turn): Happening => ({
+      kind: "turn",
+      at: turn.at,
+      from: turn.from,
+      outcome: turn.outcome,
+      text: turn.outcome === "failed" ? turn.error : turn.reply,
+    }))
+    return [...told, ...turns].toSorted((a, b) => a.at - b.at)
   }
 
   /** Whether the terminal has an ask open, waiting for the person's answer. */
@@ -1012,6 +1056,7 @@ export class Inbox {
       if (!owner || owner.projectId === projectId || terminals.has(id)) this.guesses.delete(id)
     }
     for (const id of terminals) this.dismissals.delete(id)
+    this.turnLog.retain(() => true, projectId)
     this.remove(gone)
   }
 
@@ -1066,6 +1111,7 @@ export class Inbox {
           gone.push(entry)
     }
     this.remove(gone)
+    if (!terminalId) this.turnLog.retain(exists)
     for (const [id, times] of this.sent) {
       const recent = recentSends(times, at)
       if (recent.length) this.sent.set(id, recent)
@@ -1141,7 +1187,19 @@ export class Inbox {
       log.error("inbox.prune-failed", "Novadeck could not prune its Inbox history", { err: error })
     }
   }
-  private keep(entry: StoredEntry): void {
+  private keep(entry: StoredEntry, from: number | null = null): void {
+    const { content } = entry
+    if (content.kind === "turn")
+      this.turnLog.record(entry.terminalId, {
+        projectId: entry.projectId,
+        agent: entry.agent,
+        sessionId: entry.sessionId,
+        at: entry.at,
+        from,
+        outcome: content.outcome,
+        reply: content.reply,
+        error: content.error,
+      })
     this.entries.set(entry.id, entry)
     const terminal = this.byTerminal.get(entry.terminalId) ?? new Map<string, StoredEntry>()
     terminal.set(entry.id, entry)

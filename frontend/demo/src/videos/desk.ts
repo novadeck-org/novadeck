@@ -250,6 +250,7 @@ const permission = (id: string, job: Job, home: string): DemoTranscript["request
   choices: [],
   subagent: false,
   answered: false,
+  askedAt: Date.now(),
   dialog:
     job.agent === "codex"
       ? {
@@ -353,6 +354,7 @@ export const deskTranscripts = (
           choices: [],
           subagent: false,
           answered: false,
+          askedAt: Date.now(),
           dialog: {
             type: "choices" as const,
             id: `${id}:d`,
@@ -391,6 +393,7 @@ export const deskTranscripts = (
           choices: [],
           subagent: false,
           answered: false,
+          askedAt: Date.now(),
           // Claude Code's plan dialog, as harnesses/claude's probes (2.1.287) show it: its third
           // option is a field for what to change.
           dialog: {
@@ -430,6 +433,7 @@ export const deskTranscripts = (
           choices: [],
           subagent: false,
           answered: false,
+          askedAt: Date.now(),
           // Claude marks the option it would pick with "(Recommended)" in its label.
           dialog: {
             type: "questions" as const,

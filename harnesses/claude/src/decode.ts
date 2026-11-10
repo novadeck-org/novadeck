@@ -16,6 +16,7 @@ import {
   shortName,
 } from "@novadeck/harness-core/decode"
 import type {
+  ActivityEvent,
   Background,
   BackgroundJob,
   EventBase,
@@ -104,6 +105,7 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
               id: task,
             }))
           : []),
+        ...(notified ? shellsEnded(base, prompt) : []),
         promptStart(base, prompt, notified),
       ]
     }
@@ -118,6 +120,7 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
               background: running(payload.background_tasks),
               ...replied(payload.last_assistant_message),
             },
+            ...shellsRunning(base, payload.background_tasks),
           ]
     case "StopFailure": {
       if (actor) return []
@@ -140,6 +143,7 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
             background: running(payload.background_tasks),
           }),
         },
+        ...shellsRunning(base, payload.background_tasks),
       ]
     }
     case "SubagentStart":
@@ -237,7 +241,11 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
         ...drafted(base, actor, tool, payload),
         // A write that failed wrote nothing, and a task that failed to start runs nowhere.
         ...(event === "PostToolUse"
-          ? [...touched(base, actor, tool, payload.tool_input), ...started(base, tool, payload)]
+          ? [
+              ...touched(base, actor, tool, payload.tool_input),
+              ...started(base, tool, payload),
+              ...(actor === null ? shells(base, tool, payload) : []),
+            ]
           : []),
         {
           type: "tool-called",
@@ -268,6 +276,63 @@ export const taskNotification = /^\s*<task-notification>/
 // The ids of the tasks a notification names, as `<task-id>` elements.
 const finished = (prompt: string): string[] =>
   [...prompt.matchAll(/<task-id>([^<\s]{1,256})<\/task-id>/g)].map(([, id]) => id!)
+
+/**
+ * The root's background shells a call tells of, from its result (probed 2026-11-10, 2.1.316):
+ * a Bash run in the background starts one, by its `backgroundTaskId`, with the command it
+ * was given; TaskStop ends one the agent stopped (`task_id`), which writes no notification.
+ * A Monitor is no shell. A subagent's calls are its own.
+ */
+const shells = (
+  base: EventBase<"claude">,
+  tool: string,
+  payload: Report["payload"],
+): HarnessEvent[] => {
+  const result = isFields(payload.tool_response) ? payload.tool_response : {}
+  if (tool === "TaskStop") {
+    const stopped = shortName(result.task_id, agentLimits.name)
+    return stopped === undefined ? [] : [{ type: "shell-ended", ...base, id: stopped, code: null }]
+  }
+  const id = tool === "Bash" ? shortName(result.backgroundTaskId, agentLimits.name) : undefined
+  const command = isFields(payload.tool_input) ? errorText(payload.tool_input.command) : undefined
+  return id === undefined || command === undefined
+    ? []
+    : [{ type: "shell-started", ...base, id, command }]
+}
+
+/**
+ * The shells a Stop's list of background tasks leaves running, for any other to have ended
+ * unseen (see `shells-listed`); none where it lists none, as a hook of an older release.
+ */
+const shellsRunning = (base: EventBase<"claude">, tasks: unknown): HarnessEvent[] => {
+  if (!Array.isArray(tasks)) return []
+  const ids = (tasks as unknown[]).flatMap((task) => {
+    const { type, id, status } = isFields(task) ? task : ({} as Record<string, unknown>)
+    const named = shortName(id, agentLimits.name)
+    return type === "shell" && status === "running" && named !== undefined ? [named] : []
+  })
+  return [{ type: "shells-listed", ...base, ids }]
+}
+
+// How a notification's summary tells a command's exit code: "completed (exit code 0)",
+// "failed with exit code 3" (probed 2026-11-10, 2.1.316).
+const exitCode = /exit code (-?\d{1,10})/
+
+/**
+ * The shells a task notification (a prompt, or the transcript's record of it) says ended, each
+ * with its exit code where its summary tells it. A task of another kind is turned away by
+ * the activity, which knows no shell of its id.
+ */
+export const shellsEnded = (base: EventBase<"claude">, notification: string): ActivityEvent[] =>
+  notification
+    .split("<task-notification>")
+    .slice(1)
+    .flatMap((each) => {
+      const id = shortName(/<task-id>([^<]*)<\/task-id>/.exec(each)?.[1], agentLimits.name)
+      if (id === undefined) return []
+      const code = exitCode.exec(/<summary>([^<]*)<\/summary>/.exec(each)?.[1] ?? "")?.[1]
+      return [{ type: "shell-ended", ...base, id, code: code === undefined ? null : Number(code) }]
+    })
 
 // The most a wake-up may be set out, as ScheduleWakeup clamps it: a minute to an hour.
 const wakeDelayMs = { least: 60_000, most: 3_600_000 } as const

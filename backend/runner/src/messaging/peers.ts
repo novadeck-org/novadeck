@@ -1,48 +1,78 @@
-import type { AgentActivity, AgentName, StartupScreen, TitleSource } from "@novadeck/protocol"
+import type { AgentActivity, AgentName, StartupScreen } from "@novadeck/protocol"
 
-import { bareHandle, mention } from "../terminals/handles.js"
-import { busiestFolders, firstFrom, plainPrompt, type Work } from "../terminals/work.js"
+import type { GitState } from "../terminals/git-state.js"
+import { mention } from "../terminals/handles.js"
 import { cut, shorten } from "../text.js"
-import { agentLabel, clock, holdOf, isNotice, senderTerminal, type Message } from "./messages.js"
+import { agentLabel, clock, holdOf, isNotice, type Message } from "./messages.js"
 
 /**
- * What the terminal manager knows of a terminal beyond messaging: its title and who it
- * is from; the summary its own agent gave of its work; its folder, relative to
- * the project when inside it; its git branch; its current plan's title; what its root
- * session worked on; its agent's latest reports; and how others read a folder it wrote in.
+ * What the terminal manager knows of a terminal beyond messaging: its title; the summary its
+ * own agent gave of its work; the git checkout its agent works in; when its agent's turn
+ * last started or ended; what it waits on; what its agent session told the person and how
+ * its turns ended; and, for a plain shell, what runs there.
  */
 export type Whereabouts = {
   readonly title: string | null
-  readonly titleSource: TitleSource | null
   readonly summary: string | null
-  /** Where its agent works now: its terminal's folder, or another checkout its tool calls are in. */
-  readonly folder: string | null
-  /** Its terminal's own folder, where its agent works in another checkout; null otherwise. */
-  readonly startedIn: string | null
-  /** The git branch of `folder`. */
-  readonly branch: string | null
-  readonly plan: string | null
-  readonly work: Work | null
-  /** The handle of the terminal whose agent opened it, if one did. */
-  readonly openedBy: string | null
+  /** The git checkout its agent works in now (see `Git`); null outside one. */
+  readonly git: Git | null
   /** Whether its agent works, as its terminal shows: a turn, what it left running, or a shell-mode command. */
   readonly working: boolean
+  /** When its agent's latest turn started, or ended once it has; null before one. */
+  readonly since: number | null
   /** What its agent waits on the person for, if anything; null otherwise. */
   readonly waiting: Waiting | null
   /** What its idle agent waits on to wake it, if anything: see `Peer.waitsOn`. */
   readonly waitsOn: string | null
   /** Which of its screens holds the agent expected there for the person, if one does. */
   readonly startup: StartupScreen | null
-  /** The latest reports its agent session gave the person. */
-  readonly reports: Reports
-  readonly place: (path: string) => string
+  /** What its agent session told the person and how its turns ended, oldest first. */
+  readonly happenings: readonly Happening[]
+  /** Whether a program runs in its shell besides the prompt, and that program as shown. */
+  readonly shell: Shell
 }
+
+/**
+ * The git checkout an agent works in, as listings name it: the checkout's folder name as its
+ * repository (a uberepo task's worktree is named after its repository), its branch, and
+ * its `GitState`, null while unknown.
+ */
+export type Git = {
+  readonly repo: string
+  readonly branch: string | null
+  readonly state: GitState | null
+}
+
+/** A plain shell's program: whether one runs besides the prompt, and its command as shown. */
+export type Shell = { readonly running: boolean; readonly command: string | null }
 
 /** A report an agent gave the person through `tell` or `done`: its subject, and when. */
 export type Report = { readonly subject: string; readonly at: number }
 
 /** An agent session's latest `tell` and latest `done`, each null before one. */
 export type Reports = { readonly tell: Report | null; readonly done: Report | null }
+
+/**
+ * What an agent session told the person, or how one of its turns ended, as `team` lists it:
+ * a `tell` (`update`) or `done` report, an ask, or a finished turn with the start of its
+ * reply (or its error, failed).
+ */
+export type Happening =
+  | {
+      readonly kind: "update" | "done"
+      readonly at: number
+      readonly subject: string
+      readonly body: string
+    }
+  | { readonly kind: "asked"; readonly at: number; readonly subject: string }
+  | {
+      readonly kind: "turn"
+      readonly at: number
+      /** When the turn started; null where Novadeck didn't see it, as after a restart. */
+      readonly from: number | null
+      readonly outcome: "completed" | "failed"
+      readonly text: string | null
+    }
 
 /**
  * A request waiting on the person, as listing it shows: its kind, the tool it is about, a
@@ -59,13 +89,11 @@ export type Waiting = {
 export type About = (terminalId: string) => Whereabouts | undefined
 
 /**
- * A terminal another can message, and what tells an agent which it is, all of it
- * Novadeck's own knowledge, and only what is marked so an agent's say: its handle; the
- * agent bound there; its title, and who it is from; the summary its own agent gave of its work;
- * its folder and git branch; the person's first and latest prompts there; its
- * plan's title; the folders it writes in most; the latest message between it and the
- * caller; whether its agent is busy or waits on the person; whether it reported its task
- * done and its latest report; and when it was last active.
+ * A terminal another can message, and what tells an agent which it is, all of it Novadeck's
+ * own knowledge but the summary its own agent gave: its handle; the agent bound there, or
+ * expected; its title; its state and since when; what it waits on; who leads it; the git
+ * checkout it works in and the latest pull request its agent reported; for a plain shell,
+ * what runs there; and what its agent session told the person.
  */
 export type Peer = {
   readonly terminalId: string
@@ -81,26 +109,11 @@ export type Peer = {
   /** Which of its screens holds the expected agent for the person; its work waits on them. */
   readonly startup: StartupScreen | null
   readonly title: string | null
-  readonly titleSource: TitleSource | null
   /** What its own agent said it works on, through `describe`. */
   readonly summary: string | null
-  /** Where its agent works now, and that folder's git branch (see `Whereabouts`). */
-  readonly folder: string | null
-  /** Its terminal's own folder, where its agent works in another checkout; null otherwise. */
-  readonly startedIn: string | null
-  readonly branch: string | null
-  readonly startedWith: string | null
-  /** The handle of the terminal that leads it now: running, and in its session; else null. */
-  readonly lead: string | null
-  /** The opener whose command "started with" is, not the person's; null when it is the person's. */
-  readonly startedBy: string | null
-  /** Left out when it is the prompt it started with. */
-  readonly latest: string | null
-  readonly plan: string | null
-  readonly worksIn: readonly { readonly folder: string; readonly edits: number }[]
-  /** Who sent the latest message between it and the caller (`you`, or its handle), and when. */
-  readonly withYou: { readonly from: string; readonly text: string; readonly at: number } | null
   readonly state: "busy" | "idle" | "asleep" | null
+  /** Since when it is busy or idle: its latest turn's start, or its end. */
+  readonly since: number | null
   /** What its agent waits on the person for; its work is blocked until they answer. */
   readonly waiting: Waiting | null
   /**
@@ -109,26 +122,20 @@ export type Peer = {
    * which may carry a secret), and how many more; or a wake-up it set.
    */
   readonly waitsOn: string | null
-  /**
-   * Its agent's report that its task is finished, made since the person's latest prompt
-   * and the latest message delivered to it; null otherwise.
-   */
-  readonly done: Report | null
-  /** Its agent's latest `tell` or `done`, when it isn't `done`; null without one. */
-  readonly update: Report | null
-  readonly activeAt: number | null
+  /** The handle of the terminal that leads it now: running, and in its session; else null. */
+  readonly lead: string | null
+  readonly git: Git | null
+  /** The latest pull request link its agent gave in a `tell` or `done`; null without one. */
+  readonly pr: string | null
+  /** What runs in a terminal with no agent there or expected; null for an agent's. */
+  readonly shell: Shell | null
+  readonly happenings: readonly Happening[]
 }
-
-/** How long a message's excerpt shows, in characters. */
-const excerptChars = 80
-/** How long a report's subject shows, in characters. */
-const reportChars = 120
 
 /**
  * The `done` of an agent session that still stands: its latest, read or not, unless the
  * person's prompt or a message delivered to the agent came after it and gave it more to do.
- * The one rule behind a peer's `done` in the agents listing and the terminal summary's
- * `reported`, so they never differ.
+ * The one rule behind the terminal summary's `reported`.
  */
 export const standingDone = (
   reports: Reports | undefined,
@@ -164,35 +171,18 @@ export const deliveredToAll = (messages: Iterable<Message>): ReadonlyMap<string,
   return last
 }
 
-/**
- * The latest message between the caller and a peer, either way, shortened: one the caller
- * sent, or one delivered to it. A message still on its way to the caller (queued, held
- * or leased) is never shown, so listing peers never gets past a pause or delivery.
- */
-export const lastBetween = (
-  messages: Iterable<Message>,
-  self: string,
-  peer: { readonly terminalId: string; readonly handle: string },
-): Peer["withYou"] => {
-  let last: Message | undefined
-  for (const message of messages) {
-    const { to } = message
-    const from = senderTerminal(message.from)
-    const between =
-      (from === self && to.terminalId === peer.terminalId) ||
-      (from === peer.terminalId && to.terminalId === self && message.state === "delivered")
-    if (between && (!last || message.sentAt >= last.sentAt)) last = message
-  }
-  if (!last) return null
-  const from = senderTerminal(last.from) === self ? "you" : peer.handle
-  return { from, text: shorten(last.text, excerptChars), at: last.sentAt }
-}
+/** A pull request or merge request's address, as an agent reports one. */
+const pullRequest = /\bhttps?:\/\/[^\s<>"'`()[\]]+\/(?:pull|pulls|merge_requests)\/\d+/g
 
-/** A report as a listing shows it, its subject cut short. */
-const cutShort = (report: Report): Report => ({
-  ...report,
-  subject: shorten(report.subject, reportChars),
-})
+/** The latest pull request link an agent session gave in a `tell` or `done`; null without one. */
+export const reportedPullRequest = (happenings: readonly Happening[]): string | null => {
+  for (const happening of happenings.toReversed()) {
+    if (happening.kind !== "update" && happening.kind !== "done") continue
+    const found = [...`${happening.subject}\n${happening.body}`.matchAll(pullRequest)].at(-1)
+    if (found) return cut(found[0], 300)
+  }
+  return null
+}
 
 /** A peer, from what messaging knows of it and the manager's whereabouts. */
 export const peerOf = (input: {
@@ -205,79 +195,39 @@ export const peerOf = (input: {
   readonly asleep?: boolean
   readonly busy: boolean
   readonly where: Whereabouts | undefined
-  readonly withYou: Peer["withYou"]
   /** Its running lead's handle; null when it has none, or the terminal that leads it is gone. */
   readonly lead: string | null
-  /** When the latest message delivered to it was delivered: see `deliveredTo`. */
-  readonly deliveredAt: number | null
 }): Peer => {
   const { where, agent } = input
-  const work = agent ? (where?.work ?? null) : null
-  const openedBy = where?.openedBy ?? null
-  const place = where?.place ?? ((path: string) => path)
-  const reports = agent ? where?.reports : undefined
-  const done = standingDone(reports, work?.personAt, input.deliveredAt)
-  const [latest] = [reports?.tell, reports?.done]
-    .filter((report): report is Report => Boolean(report))
-    .toSorted((a, b) => b.at - a.at)
+  const untrusted = agent ? null : (input.untrusted ?? null)
+  const expecting = agent || untrusted ? null : input.expecting
+  const happenings = agent ? (where?.happenings ?? []) : []
   return {
     terminalId: input.terminalId,
     handle: input.handle,
     agent,
-    expecting: agent || input.untrusted ? null : input.expecting,
-    untrusted: agent ? null : (input.untrusted ?? null),
-    startup: agent || input.untrusted ? null : (where?.startup ?? null),
+    expecting,
+    untrusted,
+    startup: agent || untrusted ? null : (where?.startup ?? null),
     title: where?.title ?? null,
-    titleSource: where?.title ? where.titleSource : null,
     summary: where?.summary ?? null,
-    folder: where?.folder ? quietPath(slashed(where.folder)) : null,
-    startedIn: where?.startedIn ? quietPath(slashed(where.startedIn)) : null,
-    branch: where?.branch ?? null,
-    // What an older runner kept with its wrapping tags shows without them too.
-    startedWith: work?.first ? plainPrompt(work.first) : null,
-    lead: input.lead,
-    // In a terminal an agent opened, a first prompt nobody submitted is its command's.
-    startedBy: firstFrom(work, openedBy) === "opener" ? openedBy : null,
-    latest: work?.latest && work.latest !== work.first ? plainPrompt(work.latest) : null,
-    plan: agent ? (where?.plan ?? null) : null,
-    worksIn: work
-      ? busiestFolders(work.folders).map(({ folder, edits }) => ({
-          folder: `${quietPath(slashed(place(folder))).replace(/\/$/, "")}/`,
-          edits,
-        }))
-      : [],
-    withYou: input.withYou && { ...input.withYou, text: plainPrompt(input.withYou.text) },
     state: agent ? (input.asleep ? "asleep" : input.busy ? "busy" : "idle") : null,
+    since: agent && !input.asleep ? (where?.since ?? null) : null,
     waiting: agent && !input.asleep ? (where?.waiting ?? null) : null,
     waitsOn: agent && !input.busy && !input.asleep ? (where?.waitsOn ?? null) : null,
-    done: done && cutShort(done),
-    update: latest && latest !== done ? cutShort(latest) : null,
-    activeAt: work?.activeAt ?? null,
+    lead: input.lead,
+    git: where?.git ?? null,
+    pr: reportedPullRequest(happenings),
+    shell: agent || expecting || untrusted ? null : (where?.shell ?? null),
+    happenings,
   }
 }
 
 /**
- * A path with one separator wherever the runner runs, as agents read it: a Windows agent's
- * `C:\\w\\b` as `C:/w/b`, which its shells and tools take too.
+ * Text an agent or the person wrote, as a listing shows it: one line, cut short, so it can
+ * never begin a line of its own that reads as Novadeck's.
  */
-const slashed = (path: string): string => path.replaceAll("\\", "/")
-
-// A path's part that is an id rather than a name: a UUID, a long hex digest, or a folder
-// path a harness encoded into one name (`-home-me-work-repo`), as scratchpads, Claude Code's
-// project memory and Antigravity's conversation folders hold.
-const idPart =
-  /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|-[^/]*-[^/]*-[^/]{8,})$/i
-
-/**
- * A path with each run of id parts as one `…`, so a folder outside the project reads by its
- * names, as `/tmp/claude-1000/…/scratchpad/`, rather than by ids no agent can use.
- */
-export const quietPath = (path: string): string =>
-  path
-    .split("/")
-    .map((part) => (idPart.test(part) ? "…" : part))
-    .filter((part, at, parts) => part !== "…" || parts[at - 1] !== "…")
-    .join("/")
+export const flat = (text: string, max: number): string => shorten(text, max)
 
 /** How long ago a moment was, in words. */
 export const ago = (at: number, now: number): string => {
@@ -288,37 +238,46 @@ export const ago = (at: number, now: number): string => {
   return hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} days ago`
 }
 
-/** Who a peer's title is from, as agents read it after the title; nothing for the person's. */
-const titleNote = (peer: Peer): string => {
-  const source = peer.titleSource
-  // An agent's own title names it by the peer's own handle.
-  if (source?.kind === "agent")
-    return source.by === peer.handle
-      ? " (set by its own agent, not the user)"
-      : ` (set by ${mention(source.by)}, not the user)`
-  return source?.kind === "murmur" ? " (written by Novadeck's local model, not the user)" : ""
+/** How long since a moment, in words: "for 6 min". */
+export const lasted = (since: number, now: number): string => {
+  const minutes = Math.floor((now - since) / 60_000)
+  if (minutes < 1) return "for under a minute"
+  if (minutes < 60) return `for ${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  return hours < 48 ? `for ${hours} h` : `for ${Math.floor(hours / 24)} days`
 }
 
 /** Who is reading a listing: its handle, and the handle of the terminal that leads it. */
-type Viewer = { readonly handle: string; readonly lead: string | null }
+export type Viewer = { readonly handle: string; readonly lead: string | null }
+
+/** How a peer relates to its reader, by who leads whom now. */
+export type Relation = "your lead" | "your teammate" | "led by you" | "peer"
 
 /**
- * How a peer relates to the reader, by who leads it now: led by you, your lead, or led by
- * another. A lead whose terminal closed leads no one, so nothing is said of it.
+ * How a peer relates to the reader, from the running leads only: the reader's lead, led by
+ * the same lead as the reader, led by the reader, or any other agent. A plain shell has none.
  */
-const relationLine = (peer: Peer, viewer: Viewer): string | null => {
-  if (peer.handle === viewer.lead) return "your lead: it directs your work"
-  if (!peer.lead) return null
-  if (peer.lead === viewer.handle) return "led by you"
-  return `led by ${mention(peer.lead)}`
+export const relationOf = (peer: Peer, viewer: Viewer): Relation | null => {
+  if (!peer.agent && !peer.expecting && !peer.untrusted) return null
+  if (peer.handle === viewer.lead) return "your lead"
+  if (peer.lead !== null && peer.lead === viewer.handle) return "led by you"
+  if (peer.lead !== null && peer.lead === viewer.lead) return "your teammate"
+  return "peer"
 }
 
-/** What a request waiting on the person is, shortly: its kind and subject, never more. */
-const waitingNote = ({ kind, tool, subject, more }: Waiting): string => {
-  const shown = subject && shorten(subject, 80)
+/** How long a question's or plan's subject shows in `agents`, in characters; `team` shows more. */
+const waitingChars = 80
+const fullWaitingChars = 600
+
+/**
+ * What a request waiting on the person is: its kind and subject, whole in `team`, never
+ * more; a permission's subject never shows (see `waitingOf`).
+ */
+const waitingNote = ({ kind, tool, subject, more }: Waiting, full: boolean): string => {
+  const shown = subject && flat(subject, full ? fullWaitingChars : waitingChars)
   const what =
     kind === "permission"
-      ? `permission to use ${tool}${shown ? `: ${shown}` : ""}`
+      ? `permission to use ${tool}`
       : kind === "question"
         ? `a question${shown ? `: ${shown}` : ""}`
         : `approval of its plan${shown ? `: ${shown}` : ""}`
@@ -346,117 +305,130 @@ export const waitsOnNote = (
   return wake ? `a wake-up it set${wake.reason ? `: ${shorten(wake.reason, 80)}` : ""}` : null
 }
 
-/**
- * Its agent and what that is doing: busy, idle, waiting on the user and for what, or
- * waiting on its own job or wake-up; or why no agent there takes messages.
- */
-const statusOf = (peer: Peer): string =>
-  peer.agent
-    ? `${agentLabel(peer.agent)}, ${peer.state === "asleep" ? "asleep, no process running; a message wakes it" : peer.waiting ? waitingNote(peer.waiting) : peer.waitsOn ? `waiting on ${peer.waitsOn}, will wake by itself` : peer.state}`
-    : peer.untrusted
-      ? `no agent Novadeck can deliver to: ${untrustedNote(peer.untrusted)}`
-      : peer.expecting
-        ? `expecting ${agentLabel(peer.expecting)}, ${peer.startup ? `waiting on the user: its ${peer.startup} screen` : "not started yet"}`
-        : "no agent Novadeck can deliver to"
+/** Why nothing can deliver to an agent whose hooks Novadeck can't run where it runs. */
+export const untrustedNote = (agent: AgentName): string =>
+  `${agentLabel(agent)} runs there, but Novadeck's hooks aren't trusted for it yet ` +
+  "(the user can trust them with /hooks)"
 
-/** One peer as agents read it: a short block, each fact left out when unknown. */
-export const renderPeer = (peer: Peer, now: number, viewer: Viewer): readonly string[] =>
-  [
-    `- ${mention(peer.handle)}: ${statusOf(peer)}${peer.agent && peer.activeAt !== null ? `, last active ${ago(peer.activeAt, now)}` : ""}`,
-    peer.title && `  title: ${peer.title}${titleNote(peer)}`,
-    peer.summary && `  described by its agent: ${peer.summary.split("\n").join(" / ")}`,
-    peer.done && `  reported done ${ago(peer.done.at, now)}: ${peer.done.subject}`,
-    peer.update && `  latest update ${ago(peer.update.at, now)}: ${peer.update.subject}`,
-    peer.folder &&
-      `  folder: ${peer.folder}${peer.branch ? `, branch ${peer.branch}` : ""}${peer.startedIn ? ` (its agent works here now; its terminal started in ${peer.startedIn})` : ""}`,
-    relationLine(peer, viewer) && `  ${relationLine(peer, viewer)}`,
-    peer.startedWith &&
-      `  started with${peer.startedBy ? ` (${mention(peer.startedBy)}'s command)` : ""}: ${peer.startedWith}`,
-    peer.latest && `  latest: ${peer.latest}`,
-    peer.plan && `  plan: ${peer.plan}`,
-    peer.worksIn.length > 0 &&
-      `  works in: ${peer.worksIn.map(({ folder, edits }) => `${folder} (${edits})`).join(", ")}`,
-    peer.withYou &&
-      `  with you: ${peer.withYou.from === "you" ? "you" : mention(peer.withYou.from)}, ${ago(peer.withYou.at, now)}: ${peer.withYou.text}`,
-  ].filter((line): line is string => Boolean(line))
-
-/** How long the summary a compact line falls back to shows, in characters. */
-const compactSummaryChars = 100
+/** That a terminal's own session never bound, so replies can't reach it. */
+export const unboundNote =
+  "Novadeck hasn't seen this terminal's own agent session, so replies can't reach you " +
+  "until Novadeck's hooks run here (in Codex, trust them with /hooks)."
 
 /**
- * One peer as a compact listing reads it, on one line: its handle and title; its agent and
- * whether that is busy, idle, waiting on the user (always, as a lead scans for it) or on
- * its own job; its branch; how it relates to the reader; and its standing done, else its
- * latest update, else its agent's summary.
+ * What runs there and what it is doing: an agent busy or idle and since when, waiting on
+ * the user and for what (whole in `team`), waiting on its own job or wake-up, or asleep;
+ * an agent expected there; why no agent there takes messages; or a plain shell's program.
  */
-export const compactPeer = (peer: Peer, now: number, viewer: Viewer): string => {
-  const relation =
-    peer.handle === viewer.lead
-      ? "your lead"
-      : peer.lead === viewer.handle
-        ? "led by you"
-        : peer.lead && `led by ${mention(peer.lead)}`
-  // A plain terminal, as a dev server's, says so shortly; why an agent there can't take a
-  // message is the block's to say.
-  const status = peer.agent || peer.expecting ? statusOf(peer) : "no agent"
-  const facts = [status, peer.branch && `on ${peer.branch}`, relation].filter(Boolean)
-  const latest = peer.done
-    ? `done ${ago(peer.done.at, now)}: ${peer.done.subject}`
-    : peer.update
-      ? `update ${ago(peer.update.at, now)}: ${peer.update.subject}`
-      : peer.summary && `described as: ${shorten(peer.summary, compactSummaryChars)}`
-  const title = peer.title ? ` · ${peer.title}` : ""
-  return `- ${mention(peer.handle)}${title}: ${facts.join(", ")}${latest ? ` — ${latest}` : ""}`
+const statusOf = (peer: Peer, now: number, full: boolean): string => {
+  if (peer.agent) {
+    const doing =
+      peer.state === "asleep"
+        ? "asleep, no process running; a message wakes it"
+        : peer.waiting
+          ? waitingNote(peer.waiting, full)
+          : peer.waitsOn
+            ? `waiting on ${peer.waitsOn}, will wake by itself`
+            : `${peer.state}${peer.since !== null ? ` ${lasted(peer.since, now)}` : ""}`
+    return `${agentLabel(peer.agent)}, ${doing}`
+  }
+  if (peer.untrusted) return `no agent Novadeck can deliver to: ${untrustedNote(peer.untrusted)}`
+  if (peer.expecting)
+    return `expecting ${agentLabel(peer.expecting)}, ${peer.startup ? `waiting on the user: its ${peer.startup} screen` : "not started yet"}`
+  if (peer.shell?.running)
+    return peer.shell.command ? `shell, running ${peer.shell.command}` : "shell, running a program"
+  return "shell, at its prompt"
+}
+
+/** Title as a listing shows it, one line. */
+const titleChars = 80
+
+/** An entry's first line: its handle and title, what runs there and its state, and its relation. */
+export const headLine = (peer: Peer, now: number, viewer: Viewer, full = false): string => {
+  const title = peer.title ? ` · ${flat(peer.title, titleChars)}` : ""
+  const relation = relationOf(peer, viewer)
+  return `- ${mention(peer.handle)}${title}: ${statusOf(peer, now, full)}${relation ? `, ${relation}` : ""}`
 }
 
 /**
- * How a listing shows the terminals: `compact`, a line each; `full`, a block each; or
- * `one`, the block of the terminal with that handle alone.
+ * Where an agent works, as listings show it: its repository and branch, how far ahead of
+ * its upstream (or that it has none), uncommitted changes, and its reported pull request.
  */
-export type View =
-  | { readonly kind: "compact" }
-  | { readonly kind: "full" }
-  | { readonly kind: "one"; readonly handle: string }
+const gitText = (peer: Peer): string | null => {
+  const { git, pr } = peer
+  const parts = git
+    ? [
+        [git.repo, git.branch].filter(Boolean).join(" "),
+        git.state && git.branch && !git.state.detached
+          ? git.state.ahead !== null
+            ? git.state.ahead > 0 && `${git.state.ahead} ahead`
+            : git.state.gone
+              ? "upstream gone"
+              : "no upstream"
+          : null,
+        git.state?.dirty && "uncommitted changes",
+      ]
+    : []
+  const all = [...parts, pr && `PR ${pr}`].filter((part): part is string => Boolean(part))
+  return all.length > 0 ? all.join(", ") : null
+}
+
+/** How long a summary shows, in characters. */
+const summaryChars = 160
+
+/** An agent's second line: the summary its agent gave, quoted, and where it works. */
+export const detailLine = (peer: Peer): string | null => {
+  if (peer.shell) return null
+  const parts = [peer.summary && `"${flat(peer.summary, summaryChars)}"`, gitText(peer)].filter(
+    (part): part is string => Boolean(part),
+  )
+  return parts.length > 0 ? `  ${parts.join(" · ")}` : null
+}
+
+/** One terminal as `agents` shows it: one line for a shell, up to two for an agent. */
+export const renderPeer = (peer: Peer, now: number, viewer: Viewer): readonly string[] =>
+  [headLine(peer, now, viewer), detailLine(peer)].filter((line): line is string => Boolean(line))
+
+/** Words as a list reads them: "a", "a and b", "a, b and c". */
+export const listed = (words: readonly string[]): string =>
+  words.length < 2 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`
 
 /**
- * Past how many other terminals a listing is compact unless asked for in full; the
- * `agents` tool's description says it in words ("more than five").
+ * The teams there, one line each, from the running leads only: who leads and who it leads,
+ * the reader as "you". The reader's own come first; with `own`, only those.
  */
-export const compactPast = 5
-
-/** The view a listing takes unless asked for one: compact past `compactPast` terminals. */
-export const defaultView = (peers: readonly Peer[]): View =>
-  peers.length > compactPast ? { kind: "compact" } : { kind: "full" }
-
-/** What a compact listing says of how to see more. */
-const compactNote =
-  'One line each, as there are many; call agents with terminal (a handle, as "@fox") for ' +
-  "one terminal's details (its folder, prompts, plan, the folders it writes in, and the " +
-  "latest message between you), or with full true for every terminal's."
-
-/** The other terminals in the project and session, as agents read them, in `view`. */
-const renderPeers = (
-  peers: readonly Peer[],
-  now: number,
+export const rosterLines = (
   viewer: Viewer,
-  view: View = defaultView(peers),
-): string => {
+  peers: readonly Peer[],
+  own = false,
+): readonly string[] => {
+  const leads = [
+    ...new Set(
+      [viewer.lead, viewer.handle, ...peers.map((peer) => peer.lead)].filter(
+        (lead): lead is string => lead !== null,
+      ),
+    ),
+  ]
+  const lines = leads.flatMap((lead) => {
+    const mine = lead === viewer.handle || lead === viewer.lead
+    if (own && !mine) return []
+    const members = [
+      ...peers.filter((peer) => peer.lead === lead).map((peer) => mention(peer.handle)),
+      ...(viewer.lead === lead ? ["you"] : []),
+    ]
+    if (members.length === 0) return []
+    const leader = lead === viewer.handle ? "you" : mention(lead)
+    return [{ mine, line: `- led by ${leader}: ${listed(members)}` }]
+  })
+  return lines.toSorted((a, b) => Number(b.mine) - Number(a.mine)).map(({ line }) => line)
+}
+
+/** The other terminals in the project and session, as agents read them. */
+const renderPeers = (peers: readonly Peer[], now: number, viewer: Viewer): string => {
   if (peers.length === 0) return "There are no other terminals in this project and session."
-  if (view.kind === "one") {
-    const handle = bareHandle(view.handle)
-    const peer = peers.find((each) => each.handle === handle)
-    if (peer) return renderPeer(peer, now, viewer).join("\n")
-    return [
-      `"${cut(view.handle, 64)}" is no other terminal's handle here; these are:`,
-      renderPeers(peers, now, viewer),
-    ].join("\n")
-  }
-  if (view.kind === "compact")
-    return [
-      `Other terminals in this project and session (${peers.length}). ${compactNote}`,
-      ...peers.map((peer) => compactPeer(peer, now, viewer)),
-    ].join("\n")
+  const teams = rosterLines(viewer, peers)
   return [
+    ...(teams.length > 0 ? ["Teams in this project and session:", ...teams] : []),
     "Other terminals in this project and session:",
     ...peers.flatMap((peer) => renderPeer(peer, now, viewer)),
   ].join("\n")
@@ -481,38 +453,6 @@ const standing = (
   return message.state
 }
 
-/** Why nothing can deliver to an agent whose hooks Novadeck can't run where it runs. */
-export const untrustedNote = (agent: AgentName): string =>
-  `${agentLabel(agent)} runs there, but Novadeck's hooks aren't trusted for it yet ` +
-  "(the user can trust them with /hooks)"
-
-/** That a terminal's own session never bound, so replies can't reach it. */
-export const unboundNote =
-  "Novadeck hasn't seen this terminal's own agent session, so replies can't reach you " +
-  "until Novadeck's hooks run here (in Codex, trust them with /hooks)."
-
-/** Handles as a listing names them, in order: `@fox, @owl`. */
-const mentions = (peers: readonly Peer[]): string =>
-  peers.map(({ handle }) => mention(handle)).join(", ")
-
-/**
- * The caller's team, from who leads whom now: its lead and the others that lead leads, and
- * the terminals the caller leads; nothing when it is in no team.
- */
-const teamLines = (
-  handle: string,
-  lead: string | null,
-  peers: readonly Peer[],
-): readonly string[] => {
-  const mates = lead ? peers.filter((peer) => peer.lead === lead) : []
-  const led = peers.filter((peer) => peer.lead === handle)
-  return [
-    lead &&
-      `Your team: led by ${mention(lead)}${mates.length > 0 ? `, with ${mentions(mates)}` : ", no other teammates"}.`,
-    led.length > 0 && `${lead ? "You also lead" : "Your team: you lead"} ${mentions(led)}.`,
-  ].filter((line): line is string => Boolean(line))
-}
-
 /** What `agents` answers, as agents read it. */
 export const renderAgents = (input: {
   readonly handle: string
@@ -527,21 +467,10 @@ export const renderAgents = (input: {
   }[]
   readonly unbound: boolean
   readonly now: number
-  /** How to show the terminals; by default compact past `compactPast` of them. */
-  readonly view?: View
 }): string =>
   [
     `You are ${mention(input.handle)} in Novadeck.`,
-    ...teamLines(input.handle, input.lead, input.peers),
-    renderPeers(
-      input.peers,
-      input.now,
-      {
-        handle: input.handle,
-        lead: input.lead,
-      },
-      input.view,
-    ),
+    renderPeers(input.peers, input.now, { handle: input.handle, lead: input.lead }),
     ...(input.messages.length > 0
       ? [
           "Your messages not yet delivered:",
@@ -569,8 +498,7 @@ export const unknownHandle = (
     to === self
       ? `${mention(self)} is this terminal.`
       : `"${cut(to, 64)}" is no terminal's handle here. Send to one of these by its exact ` +
-        "handle, picking by its title, folder and work; if more than one could be meant, ask " +
-        "the user rather than guess.",
-    ...teamLines(self, lead, peers),
+        "handle, picking by its title, summary and branch; if more than one could be meant, " +
+        "ask the user rather than guess.",
     renderPeers(peers, now, { handle: self, lead }),
   ].join("\n")

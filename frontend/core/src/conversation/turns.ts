@@ -30,6 +30,10 @@ export type ToolEntry = {
   // Whether the harness made it inside a script of the agent's. Nothing names the script: it
   // came before, and one that outlived its script may land after other entries.
   readonly scripted: boolean
+  // When the call was made and when its result came, epoch milliseconds, where its harness
+  // recorded them.
+  readonly at: number | null
+  readonly doneAt: number | null
 }
 
 export type ChatBlock =
@@ -93,6 +97,8 @@ export type ChatBlock =
       readonly running: boolean
       readonly failed: boolean
       readonly at: number | null
+      // When its report came, where there is one and its harness dated it.
+      readonly doneAt: number | null
       readonly call: string | null
     }
   // Consecutive tool calls, which the chat folds into one run.
@@ -249,6 +255,7 @@ export const groupItems = (
           running: !report,
           failed: outcome?.failed === true,
           at: item.at,
+          doneAt: report?.at ?? null,
           call: item.call,
         })
         continue
@@ -263,6 +270,8 @@ export const groupItems = (
         result: result ? asResult(result) : null,
         outcome: result ? outcomeOf(item.run, item.outcome?.change ?? null, result) : null,
         scripted: item.scripted,
+        at: item.at,
+        doneAt: result?.at ?? null,
       })
       continue
     }
@@ -275,6 +284,7 @@ export const groupItems = (
           ...last,
           result: asResult(item),
           outcome: outcomeOf(last.run, null, item),
+          doneAt: item.at,
         }
         continue
       }
@@ -288,6 +298,8 @@ export const groupItems = (
         result: asResult(item),
         outcome: outcomeOf(null, null, item),
         scripted: item.scripted,
+        at: null,
+        doneAt: item.at,
       })
       continue
     }
@@ -345,6 +357,7 @@ export const groupItems = (
         running: false,
         failed: false,
         at: item.at,
+        doneAt: null,
         call: null,
       })
     else if (item.role === "agent")
@@ -384,6 +397,8 @@ const sameEntry = (a: ToolEntry, b: ToolEntry): boolean =>
   a.result?.text === b.result?.text &&
   a.result?.truncated === b.result?.truncated &&
   a.scripted === b.scripted &&
+  a.at === b.at &&
+  a.doneAt === b.doneAt &&
   sameOutcome(a.outcome, b.outcome)
 
 // Whether two groupings made the same block, so a view can keep what it drew: grouping
@@ -407,12 +422,14 @@ export const sameBlock = (a: ChatBlock, b: ChatBlock): boolean => {
       a.text === b.text &&
       a.truncated === b.truncated &&
       a.running === b.running &&
-      a.failed === b.failed
+      a.failed === b.failed &&
+      a.at === b.at &&
+      a.doneAt === b.doneAt
     )
   if (a.kind === "note" || b.kind === "note")
     return a.kind === "note" && b.kind === "note" && a.id === b.id && a.text === b.text
   if (a.kind === "compaction" || b.kind === "compaction")
-    return a.kind === "compaction" && b.kind === "compaction" && a.id === b.id
+    return a.kind === "compaction" && b.kind === "compaction" && a.id === b.id && a.at === b.at
   if (a.kind === "gap" || b.kind === "gap")
     return a.kind === "gap" && b.kind === "gap" && a.id === b.id
   if (a.kind === "doorbell" || b.kind === "doorbell")
@@ -421,6 +438,7 @@ export const sameBlock = (a: ChatBlock, b: ChatBlock): boolean => {
       b.kind === "doorbell" &&
       a.id === b.id &&
       a.replies === b.replies &&
+      a.at === b.at &&
       (a.messages ?? []).map(({ id, text }) => `${id}\n${text}`).join("\n") ===
         (b.messages ?? []).map(({ id, text }) => `${id}\n${text}`).join("\n") &&
       (a.messages === null) === (b.messages === null)
@@ -430,8 +448,57 @@ export const sameBlock = (a: ChatBlock, b: ChatBlock): boolean => {
     a.id === b.id &&
     a.text === b.text &&
     a.truncated === b.truncated &&
+    a.at === b.at &&
     (a.kind !== "agent" || (b.kind === "agent" && a.author === b.author))
   )
+}
+
+// The latest time a block records, where it records one.
+const blockEnd = (block: ChatBlock): number | null => {
+  switch (block.kind) {
+    case "tools":
+      return block.entries.reduce<number | null>(
+        (end, { at, doneAt }) => Math.max(end ?? 0, at ?? 0, doneAt ?? 0) || end,
+        null,
+      )
+    case "subagent":
+      return block.doneAt ?? block.at
+    case "note":
+    case "gap":
+      return null
+    default:
+      return block.at
+  }
+}
+
+// How long each turn that has ended worked, from its prompt (the person's or the doorbell's) to
+// the last time it records, by the id of its last words, the turn's last block of the agent's
+// text. A turn the agent still works on is left out, and so is one whose harness dated neither end.
+export const turnsWorked = (
+  blocks: readonly ChatBlock[],
+  working: boolean,
+): ReadonlyMap<string, number> => {
+  const worked = new Map<string, number>()
+  let from = -1
+  const close = (to: number, live: boolean): void => {
+    const start = from >= 0 ? blocks[from] : undefined
+    if (!start || live || (start.kind !== "user" && start.kind !== "doorbell") || start.at === null)
+      return
+    const turn = blocks.slice(from + 1, to)
+    const last = turn.findLast((block) => block.kind === "assistant")
+    const end = turn.reduce<number | null>((latest, block) => {
+      const at = blockEnd(block)
+      return at === null ? latest : Math.max(latest ?? at, at)
+    }, null)
+    if (last && end !== null && end > start.at) worked.set(last.id, end - start.at)
+  }
+  for (const [index, block] of blocks.entries()) {
+    if (block.kind !== "user" && block.kind !== "doorbell") continue
+    close(index, false)
+    from = index
+  }
+  close(blocks.length, working)
+  return worked
 }
 
 // ---- What the agent is doing, in a line.
@@ -475,3 +542,10 @@ export const agentName = (agent: string | null): string =>
 // output. An agent no harness names is taken to, so the chat says nothing of it.
 export const recordsShell = (agent: string | null): boolean =>
   harnesses.find(({ id }) => id === agent)?.recordsShell ?? true
+
+// When the latest turn began: the time of the last prompt, the person's or the doorbell's, where
+// its harness recorded one.
+export const turnStartedAt = (blocks: readonly ChatBlock[]): number | null => {
+  const start = blocks.findLast((block) => block.kind === "user" || block.kind === "doorbell")
+  return start && "at" in start ? start.at : null
+}

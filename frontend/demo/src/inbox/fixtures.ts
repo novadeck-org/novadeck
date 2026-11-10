@@ -68,6 +68,7 @@ const codexRequest: ChatRequest = {
   choices: codexChoices,
   subagent: false,
   answered: false,
+  askedAt: Date.now(),
   dialog: {
     type: "choices",
     id: "demo-codex-exec",
@@ -90,6 +91,7 @@ const rawRequest: ChatRequest = {
   choices: [],
   subagent: false,
   answered: false,
+  askedAt: Date.now(),
   dialog: { type: "raw", text: editScreen, reason: "unsupported" },
 }
 
@@ -102,6 +104,7 @@ const questionRequest: ChatRequest = {
   choices: [],
   subagent: false,
   answered: false,
+  askedAt: Date.now(),
   dialog: {
     type: "questions",
     id: "demo-claude-question",
@@ -145,6 +148,7 @@ const severalQuestionsRequest: ChatRequest = {
   choices: [],
   subagent: false,
   answered: false,
+  askedAt: Date.now(),
   dialog: {
     type: "questions",
     id: "demo-claude-questions",
@@ -275,6 +279,7 @@ const planRequest: ChatRequest = {
   choices: [],
   subagent: false,
   answered: false,
+  askedAt: Date.now(),
   dialog: {
     type: "choices",
     id: "demo-claude-plan",
@@ -298,6 +303,7 @@ const plainDenyRequest: ChatRequest = {
   choices: [],
   subagent: false,
   answered: false,
+  askedAt: Date.now(),
   dialog: {
     type: "choices",
     id: "demo-plain-deny",
@@ -400,6 +406,7 @@ const extraFixtures: readonly Fixture[] = [
         // The agent's dialog hasn't read after a few seconds: answered in the terminal.
         dialog: null,
         answered: false,
+        askedAt: Date.now(),
       },
     },
   },

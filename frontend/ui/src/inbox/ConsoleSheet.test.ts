@@ -79,6 +79,7 @@ const permission = (
     choices: [],
     subagent: false,
     answered: false,
+    askedAt: 0,
     dialog: { type: "choices", id: "d", title: null, detail: "pnpm add x", options },
   },
 })
@@ -109,6 +110,7 @@ const questions = (...list: ChatQuestion[]): InboxRow => ({
     choices: [],
     subagent: false,
     answered: false,
+    askedAt: 0,
     dialog: { type: "questions", id: "d", chat: "prompt", questions: list },
   },
 })

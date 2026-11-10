@@ -282,7 +282,7 @@ describe("the runner's conversations", () => {
                 ],
               },
               answered: false,
-              askedAt: 1,
+              askedAt: 1_700_000_000_000,
             },
             {
               ref: "req2req2req2req2",
@@ -293,7 +293,7 @@ describe("the runner's conversations", () => {
               choices: [],
               dialog: null,
               answered: false,
-              askedAt: 1,
+              askedAt: 1_700_000_005_000,
             },
           ],
         }),
@@ -318,6 +318,7 @@ describe("the runner's conversations", () => {
             ],
           },
           answered: false,
+          askedAt: 1_700_000_000_000,
         },
         {
           id: "req2req2req2req2",
@@ -328,6 +329,7 @@ describe("the runner's conversations", () => {
           subagent: true,
           dialog: null,
           answered: false,
+          askedAt: 1_700_000_005_000,
         },
       ])
     })
@@ -373,6 +375,37 @@ describe("the runner's conversations", () => {
         ["det2det2det2det2", true],
       ])
     })
+
+    it.each(["claude", "codex", "agy"] as const)(
+      "passes the runner's request time through for %s, and follows a change of it",
+      async (agent) => {
+        const { details, store } = setup()
+        store.subscribe(() => {})
+        const asking = (askedAt: number) =>
+          detail({
+            agent,
+            requests: [
+              {
+                ref: "req1req1req1req1",
+                actor: root,
+                kind: "permission",
+                tool: "Bash",
+                subject: "ls",
+                choices: ["Yes"],
+                dialog: null,
+                answered: false,
+                askedAt,
+              },
+            ],
+          })
+        details.push(asking(1_700_000_000_000))
+        await settle()
+        expect(store.getSnapshot().requests[0]?.askedAt).toBe(1_700_000_000_000)
+        details.push(asking(1_700_000_009_000))
+        await settle()
+        expect(store.getSnapshot().requests[0]?.askedAt).toBe(1_700_000_009_000)
+      },
+    )
 
     it("shows a dialog that turned raw, and keeps the store for one that read the same", async () => {
       const { details, store } = setup()

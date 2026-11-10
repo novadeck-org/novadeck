@@ -94,6 +94,21 @@ describe("Claude Code's AskUserQuestion", () => {
     expect(dialog.answered(step("k-ask-other-enter", "after-enter"))).toBe(true)
   })
 
+  it("sees the row focused on a narrow screen, whose footer wraps its editor hint", () => {
+    // k-ask-other-enter's question, on 52 columns (2.1.322).
+    const read = (key: string) =>
+      dialogs.read(step("k-ask-other-narrow", key), factsOf("k-ask-other-narrow"))
+    const keys = need(read("narrow")).keys({
+      type: "questions",
+      dialog: "d",
+      answers: [{ question: "q1", options: [], text: "MariaDB for the win" }],
+    })
+    const [focused] = waits(keys)
+    expect(focused!.until(step("k-ask-other-narrow", "narrow"))).toBe(false)
+    expect(focused!.until(step("k-ask-other-narrow", "focused-other"))).toBe(true)
+    expect(need(read("narrow")).answered(step("k-ask-other-narrow", "after-enter"))).toBe(true)
+  })
+
   it("refuses answers a question can't take", () => {
     const dialog = need(readOf("ask-single", "120x40"))
     expect(dialog.keys(answer(["9"]))).toBeUndefined()

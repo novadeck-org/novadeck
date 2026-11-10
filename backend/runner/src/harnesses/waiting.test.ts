@@ -320,9 +320,15 @@ describe("what a Claude Code agent does not wait on", () => {
   it("ends exactly the tasks a notification names, each before the turn it starts", () => {
     const notice = "<task-notification>\n<task-id>b1</task-id>\n<task-id>b3</task-id>\n"
     const decoded = fact("UserPromptSubmit", { session_id: "s", prompt: notice }, 0)
-    expect(decoded.map((each) => each.type)).toEqual(["task-ended", "task-ended", "turn-started"])
-    expect(decoded).toMatchObject([{ id: "b1" }, { id: "b3" }, { cause: "harness" }])
-    expect(decoded[2]).not.toHaveProperty("tasks")
+    // The notification's first task is also a shell that ended, should it be one (see shells.test.ts).
+    expect(decoded.map((each) => each.type)).toEqual([
+      "task-ended",
+      "task-ended",
+      "shell-ended",
+      "turn-started",
+    ])
+    expect(decoded).toMatchObject([{ id: "b1" }, { id: "b3" }, { id: "b1" }, { cause: "harness" }])
+    expect(decoded[3]).not.toHaveProperty("tasks")
     expect(
       fact("UserPromptSubmit", { session_id: "s", prompt: "go" }, 0).map(({ type }) => type),
     ).toEqual(["turn-started"])

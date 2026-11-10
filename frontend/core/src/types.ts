@@ -63,6 +63,9 @@ export type AgentStatus = {
   // What its ended turn waits on, which wakes it with no word from anyone (see
   // `AgentWaiting`); absent while it works or waits on nothing.
   readonly waiting?: AgentWaiting
+  // The background shells it started that run on, and the last few that ended (see
+  // `AgentShell`), oldest first; absent while it has none.
+  readonly shells?: readonly AgentShell[]
   // How its latest turn ended, once none runs, with the start of its last reply where its
   // harness tells it (see `AgentTurnEnd`).
   readonly lastTurn?: AgentTurnEnd
@@ -91,6 +94,17 @@ export type AgentWaiting = {
     readonly until: number | null
   }[]
   readonly wake: { readonly at: number; readonly reason: string | null } | null
+}
+
+// A background shell an agent started, the same for every harness: the id its harness names
+// it by, its command, and when it started (epoch milliseconds). `exit` is null while it runs;
+// else when it ended and its exit code, null where its harness gives none (a shell stopped).
+// It carries no output: Codex writes none while a shell runs.
+export type AgentShell = {
+  readonly id: string
+  readonly command: string
+  readonly since: number
+  readonly exit: { readonly at: number; readonly code: number | null } | null
 }
 
 // How an agent's turn ended: `completed` or `failed` on its own, `interrupted` by the

@@ -84,6 +84,11 @@ export type UiState = {
   // How many new Inbox rows that need the person the bell has rung for in this run
   // (`watchBellRings`): its dot rings with each; never persisted.
   readonly bellRings: number
+  // How many times a terminal of the open project landed in History in this run
+  // (`watchHistoryDrops`): the History toggle's dot flares with each; never persisted.
+  readonly historyDrops: number
+  // The terminal that landed last, which the History toggle's tooltip and a live region name.
+  readonly lastDrop: HistoryDrop | null
   // The terminals with finished turns the person hasn't read: the Inbox's stored rows,
   // mirrored by `watchUnreadTurns`; never persisted.
   readonly unread: Unread
@@ -104,6 +109,12 @@ export type UiState = {
   // Which of the app's unfinished parts the person turned on; never persisted, as the desktop app
   // remembers them.
   readonly flags: FeatureFlags
+}
+
+export type HistoryDrop = {
+  readonly title: string
+  // The handle of the agent that closed it; null when the person did.
+  readonly closedBy: string | null
 }
 
 export type UiLocation = {
@@ -154,6 +165,8 @@ export const initialUi = ({
   portable: null,
   pageFocused: true,
   bellRings: 0,
+  historyDrops: 0,
+  lastDrop: null,
   unread: noUnread,
   projectArrangement,
   foldedTeams,

@@ -170,6 +170,7 @@ const asking: Conversation = {
       choices: [],
       subagent: false,
       answered: false,
+      askedAt: 0,
       dialog: {
         type: "choices",
         id: "d1",
@@ -235,6 +236,13 @@ const userItem = (text: string): ChatItem => ({
 
 const box = (container: HTMLElement): HTMLTextAreaElement =>
   container.querySelector<HTMLTextAreaElement>(".chat-input")!
+
+// What a line says, without the fact at its edge.
+const wordsOf = (line: Element): string =>
+  [...line.childNodes]
+    .filter((node) => node.nodeType === Node.TEXT_NODE)
+    .map((node) => node.textContent)
+    .join("")
 
 describe("a chat whose answer's words didn't reach the agent", () => {
   it("hands the words back and says so, though the card went before the failure came", async () => {
@@ -327,6 +335,47 @@ describe("a chat over a harness's own menu", () => {
     expect(keys).toEqual(["/status", "\r"])
     expect(sent).not.toHaveBeenCalled()
     expect(container.querySelector(".chat-echo")?.textContent).toBe("/status")
+  })
+
+  it("keeps a command's echo where it ran, above the prompts that came after it", () => {
+    const { field, down, container, conversation } = open()
+    set(field, "/permissions")
+    down("Enter")
+    act(() =>
+      conversation.update((current) => ({
+        ...current,
+        items: [{ ...userItem("And now this"), id: "s:1", at: Date.now() + 1000 }],
+      })),
+    )
+    const echo = container.querySelector(".chat-echo")!
+    const later = container.querySelector('.chat-message[data-role="user"]')!
+    expect(later.textContent).toContain("And now this")
+    expect(echo.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it("keeps an echo with the earlier messages while only the latest show", () => {
+    const { field, down, container, conversation } = open()
+    set(field, "/permissions")
+    down("Enter")
+    const after = Date.now() + 1000
+    act(() =>
+      conversation.update((current) => ({
+        ...current,
+        items: Array.from({ length: 80 }, (_, at) => ({
+          ...userItem(`Message ${at}`),
+          id: `s:${at}`,
+          at: after + at,
+          role: at % 2 === 0 ? ("user" as const) : ("assistant" as const),
+        })),
+      })),
+    )
+    expect(container.querySelector(".chat-earlier")).not.toBeNull()
+    expect(container.querySelector(".chat-echo")).toBeNull()
+    act(() => void container.querySelector<HTMLElement>(".chat-earlier")!.click())
+    const echo = container.querySelector(".chat-echo")!
+    const first = container.querySelector('.chat-message[data-role="user"]')!
+    expect(first.textContent).toContain("Message 0")
+    expect(echo.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it("follows the terminal's program before a session binds", () => {
@@ -471,7 +520,7 @@ describe("a chat sending a message", () => {
       doorbell: { ...noDoorbell, delivered: [message] },
     })
     const { container } = inApp(conversation)
-    expect([...container.querySelectorAll(".chat-note")].map((note) => note.textContent)).toEqual([
+    expect([...container.querySelectorAll(".chat-note")].map((note) => wordsOf(note))).toEqual([
       "doorbell · 1 message",
       "doorbell",
       "doorbell · your reply",
@@ -515,7 +564,7 @@ describe("a chat sending a message", () => {
     })
     const { container } = inApp(conversation)
     const bell = container.querySelector('[data-role="doorbell"]')!
-    expect(bell.querySelector(".chat-note")?.textContent).toBe("doorbell · your reply")
+    expect(wordsOf(bell.querySelector(".chat-note")!)).toBe("doorbell · your reply")
     expect(bell.querySelector('[data-role="agent"]')).toBeNull()
     const reply = bell.querySelector('[data-role="user"]')!
     expect(reply.querySelector(".chat-mark:not([data-hollow])")).not.toBeNull()
@@ -661,6 +710,7 @@ const questioning: Conversation = {
       choices: [],
       subagent: false,
       answered: false,
+      askedAt: 0,
       dialog: {
         type: "questions",
         id: "q1",

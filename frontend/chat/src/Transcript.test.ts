@@ -255,6 +255,7 @@ describe("the scrollback", () => {
       running: false,
       failed: false,
       at: null,
+      doneAt: null,
       call: null,
       ...over,
     })
@@ -342,5 +343,104 @@ describe("the scrollback", () => {
       const container = show([report({ id: "a" }), report({ id: "b", name: "explorer 2" })])
       expect(container.querySelectorAll(".chat-subagent")).toHaveLength(2)
     })
+  })
+})
+
+describe("the facts at a row's right edge", () => {
+  const facts = (container: Element) =>
+    [...container.querySelectorAll(".chat-fact")].map((fact) => [
+      fact.textContent,
+      fact.hasAttribute("data-hover"),
+      fact.hasAttribute("data-live"),
+    ])
+  const shown = (blocks: readonly ChatBlock[]) => facts(show(blocks))
+  const stamp = (time: number) =>
+    new Date(time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  const timed = (
+    id: string,
+    kind: "user" | "assistant",
+    text: string,
+    time: number,
+  ): ChatBlock => ({
+    kind,
+    id,
+    text,
+    truncated: false,
+    at: time,
+  })
+  const t0 = new Date(2026, 10, 9, 14, 2).getTime()
+
+  it("gives a prompt its time, and the rest of the turn its time on hover only", () => {
+    const rows = shown([timed("1", "user", "Go", t0), timed("2", "assistant", "Sure", t0 + 1000)])
+    expect(rows).toEqual([
+      [stamp(t0), false, false],
+      [stamp(t0 + 1000), true, false],
+    ])
+  })
+
+  it("gives no fact to a row the harness didn't date", () => {
+    expect(shown([words("1", "user", "Go"), words("2", "assistant", "Sure")])).toEqual([])
+  })
+
+  it("ends a finished turn's last words with how long it worked, when that was long", () => {
+    const blocks: ChatBlock[] = [
+      timed("1", "user", "Go", t0),
+      timed("2", "assistant", "Done", t0 + 400_000),
+      timed("3", "user", "Again", t0 + 500_000),
+      timed("4", "assistant", "Quick", t0 + 501_000),
+    ]
+    const rows = shown(blocks).map(([text]) => text)
+    expect(rows).toContain("worked 6m 40s")
+    // The second turn took a second: its time stays on hover.
+    expect(rows).toContain(stamp(t0 + 501_000))
+    expect(rows.filter((text) => String(text).startsWith("worked"))).toHaveLength(1)
+  })
+
+  it("gives a doorbell ring its time once, ending its rule", () => {
+    const ring = shown([
+      {
+        kind: "doorbell",
+        id: "d",
+        at: t0,
+        messages: null,
+        replies: false,
+      },
+    ])
+    expect(ring).toEqual([[stamp(t0), false, false]])
+  })
+
+  it("gives a running subagent a live clock, and a finished one its length when long", () => {
+    const running = show([
+      {
+        kind: "subagent",
+        id: "a",
+        name: "explorer",
+        text: null,
+        truncated: false,
+        running: true,
+        failed: false,
+        at: Date.now() - 72_000,
+        doneAt: null,
+        call: null,
+      },
+    ])
+    const [live] = facts(running)
+    expect(live?.[0]).toMatch(/^1m 1\ds$/)
+    expect(live?.[2]).toBe(true)
+    const done = shown([
+      {
+        kind: "subagent",
+        id: "b",
+        name: "explorer",
+        text: "Found it",
+        truncated: false,
+        running: false,
+        failed: false,
+        at: t0,
+        doneAt: t0 + 108_000,
+        call: null,
+      },
+    ])
+    expect(done).toEqual([["1m 48s", false, false]])
   })
 })

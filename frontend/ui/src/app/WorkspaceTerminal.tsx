@@ -49,6 +49,7 @@ import { useChatTakesFocus } from "./chat-focus"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { DictationContext, useMicButton } from "./controller/dictation"
 import { useDockTarget } from "./dock-target"
+import { closeTip } from "./history-drops"
 import { useMessageLinks } from "./message-links"
 import { MountedTerminal } from "./MountedTerminal"
 import { useMoveTo } from "./move-to"
@@ -140,6 +141,7 @@ const useWindowFrame = (
     compact,
     switcher: { onOpen: (button) => openSwitcher(id, button) },
     onClose: () => close(id),
+    closeTip: closeTip(backend, tile),
     ...(onFlyTo ? { onFlyTo } : {}),
     ...(compact && enabledViews.includes("focus")
       ? { onFocus: () => openFocus(id) }
@@ -369,14 +371,14 @@ export const WorkspaceTerminal = memo(
       ) : (
         content
       )
-    // The terminal's content, with what its agent runs on floating over its top right while
-    // the terminal shows, not its chat, and voice input's strip along an edge while it
+    // The terminal's content, with what its agent runs on floating over its top right, over the
+    // chat as over the screen, and voice input's strip along an edge while it
     // dictates into the terminal. The host is there whatever runs, so the content never
     // remounts as an agent starts.
     const hosted = (content: ReactNode): ReactNode => (
       <div className="terminal-host relative flex min-h-0 min-w-0 flex-1 flex-col">
         {content}
-        {!showChat && terminal.state === "running" && (
+        {terminal.state === "running" && (
           <TerminalStats context={chatContext} terminalId={terminalId} />
         )}
         {dictation && (

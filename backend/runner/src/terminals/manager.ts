@@ -661,7 +661,7 @@ export class Terminals {
         ...this.sleepers.sleepersOf(sessionId),
       ],
       projectFolder: (sessionId) => this.projectFolder(sessionId),
-      reports: (id) => this.inbox.reports(id, savedSession(this.records.get(id))),
+      happenings: (id) => this.inbox.happenings(id, savedSession(this.records.get(id))),
       stopping: () => this.stopping,
     })
     this.murmur = options.describer
@@ -708,6 +708,7 @@ export class Terminals {
       summarized: (terminalId) => this.murmur?.summarized(terminalId),
       send: (call) => this.send(call),
       agents: (call) => this.agents(call),
+      team: (call) => this.peers.team(call),
     })
     this.moves = new Moves({
       stopping: () => this.stopping,

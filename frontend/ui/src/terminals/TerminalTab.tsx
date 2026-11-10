@@ -87,6 +87,7 @@ export const TerminalTab = ({
   onRenameSave,
   onRenameCancel,
   onClose,
+  closeTip = "Close",
   onResetTitle,
   dockIn,
   askFeedback,
@@ -136,6 +137,8 @@ export const TerminalTab = ({
   onRenameSave: () => void
   onRenameCancel: () => void
   onClose: () => void
+  // The close button's tooltip, which says where a closed terminal goes.
+  closeTip?: string | undefined
   // Hands the name back to the backend; absent where it can't.
   onResetTitle?: (() => void) | undefined
   // Docks a window undocked from a terminal's companion back in that terminal.
@@ -441,7 +444,7 @@ export const TerminalTab = ({
                 </button>
               </Tooltip>
             ) : (
-              <Tooltip content="Close">
+              <Tooltip content={closeTip}>
                 <button className={actionClasses} aria-label={`Close ${label}`} onClick={onClose}>
                   <X size={14} strokeWidth={1.5} />
                 </button>

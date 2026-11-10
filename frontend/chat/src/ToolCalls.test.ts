@@ -20,6 +20,8 @@ const call = (id: string, title: string, detail = ""): ToolEntry => ({
   result: { id: `${id}:result`, text: "ok", truncated: false },
   outcome: null,
   scripted: false,
+  at: null,
+  doneAt: null,
 })
 
 // A result whose call is outside the window.
@@ -33,6 +35,8 @@ const orphan = (id: string): ToolEntry => ({
   result: { id: `${id}:result`, text: "ok", truncated: false },
   outcome: null,
   scripted: false,
+  at: null,
+  doneAt: null,
 })
 
 const show = (entries: readonly ToolEntry[], live = false) => {
@@ -329,5 +333,33 @@ describe("a run of tool calls", () => {
     it("stands open while the agent works on it", () => {
       expect(show(run, true).querySelectorAll(".chat-tool")).toHaveLength(4)
     })
+  })
+})
+
+describe("a tool line's fact", () => {
+  const fact = (container: Element) => container.querySelector<HTMLElement>(".chat-fact")
+  const t0 = new Date(2026, 10, 9, 14, 7).getTime()
+
+  it("runs a clock while the call has no result, a step brighter", () => {
+    const running = { ...call("1", "Ran"), result: null, at: Date.now() - 12_000 }
+    const line = fact(show([running], true))
+    expect(line?.textContent).toMatch(/^1\ds$|^12s$/)
+    expect(line?.hasAttribute("data-live")).toBe(true)
+  })
+
+  it("says how long a call took once it was over five seconds", () => {
+    const line = fact(show([{ ...call("1", "Ran"), at: t0, doneAt: t0 + 38_000 }]))
+    expect(line?.textContent).toBe("38s")
+    expect(line?.hasAttribute("data-hover")).toBe(false)
+  })
+
+  it("keeps a quick call bare, its time on hover", () => {
+    const line = fact(show([{ ...call("1", "Ran"), at: t0, doneAt: t0 + 800 }]))
+    expect(line?.hasAttribute("data-hover")).toBe(true)
+    expect(line?.textContent).toMatch(/\d/)
+  })
+
+  it("has no fact where the harness gave no time", () => {
+    expect(fact(show([call("1", "Ran")]))).toBeNull()
   })
 })
