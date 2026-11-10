@@ -246,6 +246,38 @@ export type ActivityEvent = EventBase &
         readonly id: string
       }
     /**
+     * The root agent started a shell command that runs on beyond the call that started it
+     * (a background command), at `startedAt`, by the id its harness names it by: Claude
+     * Code's background task id, Antigravity's task id, Codex's unified-exec session id.
+     * It is told whether or not the agent waits on it (see `task-started`), so a server
+     * counts, and it stays known across turns until a `shell-ended` or a `shells-listed`
+     * that leaves it out says it ended.
+     */
+    | {
+        readonly type: "shell-started"
+        readonly id: string
+        readonly command: string
+      }
+    /**
+     * A shell told by `shell-started` ended, at `startedAt`, with the exit code its harness
+     * gives, or null where it gives none: a shell stopped by the agent or the person. Applied
+     * whatever its time, as `task-ended` is; one of an id not known is turned away.
+     */
+    | {
+        readonly type: "shell-ended"
+        readonly id: string
+        readonly code: number | null
+      }
+    /**
+     * The harness listed the shells it has running at `startedAt`, as Claude Code's Stop
+     * does: one started before then and not named here ended unseen, with no code. For a
+     * shell that ended while a turn ran, whose notice came as no prompt.
+     */
+    | {
+        readonly type: "shells-listed"
+        readonly ids: readonly string[]
+      }
+    /**
      * The agent set a wake-up for itself, to run its next turn at `at`, epoch milliseconds,
      * for the `reason` it gave, as Claude Code's ScheduleWakeup does. Its `id` is the call's
      * own (Claude Code's `tool_use_id`, or `ScheduleWakeup:` and the time where its hook names

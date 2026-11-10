@@ -13,7 +13,7 @@ import type { EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import { isFields, parseFields, type Fields } from "@novadeck/harness-core/fields"
 import { followLines } from "@novadeck/harness-core/follow"
 import type { Harness, Run, WrittenPlan } from "@novadeck/harness-core/harness"
-import { telemetryLimits, type AgentTelemetry } from "@novadeck/protocol"
+import { agentLimits, telemetryLimits, type AgentTelemetry } from "@novadeck/protocol"
 
 import { callOf } from "./decode.js"
 import { commandRanIn, mcpTool } from "./tools.js"
@@ -69,11 +69,16 @@ const limit = (window: unknown): Limit | undefined => {
 export const rolloutEvents = (
   line: string,
   { sessionId, instance }: Pick<Run, "sessionId" | "instance">,
+  commands: Commands = new Map(),
 ): readonly HarnessEvent[] => {
+  // A response item is read only for a command's call and for a result that says it goes on:
+  // most are long outputs.
   if (
     !/"(session_meta|token_count|task_started|item_completed|task_complete|turn_aborted|turn_context)"/.test(
       line,
-    )
+    ) &&
+    !line.includes('"function_call"') &&
+    !line.includes("Process running with session ID")
   )
     return []
   const { type, timestamp, payload } = parseFields(line) ?? {}
@@ -82,6 +87,7 @@ export const rolloutEvents = (
   const startedAt = Date.parse(timestamp)
   if (!Number.isFinite(startedAt)) return []
   const base: EventBase<"codex"> = { agent: "codex", sessionId, instance, startedAt }
+  if (type === "response_item") return shellStarted(base, fields, commands)
   // The rollout's first record names the release that wrote it (a session resumed by a
   // newer release adds none, probed 2026-11-03, 0.165.0 then 0.166.0). A record of another
   // thread, as a fork's or a subagent's parent, is not this session's.
@@ -154,7 +160,10 @@ export const rolloutEvents = (
       // person's own `!` command is theirs.
       if (kind === "CommandExecution") {
         const folder = source === "user_shell" ? undefined : commandRanIn(command, cwd)
-        return folder === undefined ? [] : [{ type: "command-ran", ...base, folder }]
+        return [
+          ...(folder === undefined ? [] : [{ type: "command-ran" as const, ...base, folder }]),
+          ...shellEnded(base, fields.item as Fields),
+        ]
       }
       // Files a patch changed, by absolute path, however it ran: its PostToolUse comes for
       // the apply_patch tool alone, and none for a patch the model ran through its shell
@@ -190,6 +199,70 @@ export const rolloutEvents = (
     default:
       return []
   }
+}
+
+/**
+ * The commands the agent's exec_command calls ran, by call id, until their output says they
+ * went to the background, with when each was called.
+ */
+export type Commands = Map<string, { readonly command: string; readonly at: number }>
+
+// How many calls are remembered unanswered.
+const remembered = 64
+
+// What a command's result says when it outlives its yield (probed 2026-11-10, 0.167.0): the
+// session that goes on running it, which the item that ends it names as its `process_id`.
+const backgrounded = /(?:^|\n)Process running with session ID (\d{1,20})\n/
+
+/**
+ * The background shell a response item tells of (probed 2026-11-10, 0.167.0): an exec_command
+ * call remembers its command, and its output, if it says "Process running with session
+ * ID N", starts the shell by that session id, at the time of the call. The item that ends it
+ * comes much later (`shellEnded`); nothing between tells how it runs.
+ */
+const shellStarted = (
+  base: EventBase<"codex">,
+  { type, name, arguments: input, call_id: call, output }: Fields,
+  commands: Commands,
+): HarnessEvent[] => {
+  if (typeof call !== "string") return []
+  if (type === "function_call" && name === "exec_command" && typeof input === "string") {
+    const { cmd } = parseFields(input) ?? {}
+    const command = errorText(cmd)
+    if (command !== undefined) {
+      commands.set(call, { command, at: base.startedAt })
+      while (commands.size > remembered) commands.delete(commands.keys().next().value!)
+    }
+    return []
+  }
+  if (type !== "function_call_output" || typeof output !== "string") return []
+  const session = shortName(backgrounded.exec(output)?.[1], agentLimits.name)
+  const called = commands.get(call)
+  if (session === undefined || !called) return []
+  commands.delete(call)
+  return [
+    { type: "shell-started", ...base, startedAt: called.at, id: session, command: called.command },
+  ]
+}
+
+/**
+ * The end of a background shell: its CommandExecution item, which names its session as its
+ * `process_id` and carries its `exit_code`, -1 when the person stopped it with /stop (no
+ * code of the command's own). An item of a command that never went to the background names
+ * no shell the activity knows.
+ */
+const shellEnded = (base: EventBase<"codex">, item: Fields): HarnessEvent[] => {
+  const id = shortName(item.process_id, agentLimits.name)
+  if (id === undefined) return []
+  const code = item.exit_code
+  return [
+    {
+      type: "shell-ended",
+      ...base,
+      id,
+      code: typeof code === "number" && Number.isInteger(code) && code !== -1 ? code : null,
+    },
+  ]
 }
 
 // The request an MCP tool call's completed item settles, by the tool its hooks name and
@@ -248,13 +321,15 @@ const telemetry = (
 // The kind a backlog event is kept by, one latest of each: a turn's model is a kind of its
 // own, apart from the token counts, and so is the release's version.
 const backlogKind = (event: HarnessEvent): string =>
-  event.type !== "telemetry-observed"
-    ? event.type
-    : event.model !== undefined || event.effort
-      ? "model"
-      : event.version !== undefined && event.context === undefined && event.limits === undefined
-        ? "version"
-        : event.type
+  event.type === "shell-started" || event.type === "shell-ended"
+    ? `${event.type}:${event.id}`
+    : event.type !== "telemetry-observed"
+      ? event.type
+      : event.model !== undefined || event.effort
+        ? "model"
+        : event.version !== undefined && event.context === undefined && event.limits === undefined
+          ? "version"
+          : event.type
 
 /**
  * Follows a bound session's rollout. Codex writes a turn's mode before the hook that
@@ -271,14 +346,23 @@ export const followRollout: NonNullable<Harness["watch"]> = async (run, signal, 
   // a record of the rewritten file must be past to count.
   let latest = Number.NEGATIVE_INFINITY
   let after = Number.NEGATIVE_INFINITY
+  // The shells of the backlog died with the process that ran them: only those started since
+  // this follows count. The commands each exec_command call ran wait for their output.
+  const began = Date.now()
+  const commands: Commands = new Map()
   // Where the session writes it, which may not be where its hooks say.
   const path = await transcripts.locate(run.transcript, run.sessionId, null)
   return followLines(
     path ?? run.transcript,
     signal,
     (line) => {
-      for (const event of rolloutEvents(line, run)) {
+      for (const event of rolloutEvents(line, run, commands)) {
         if (event.startedAt <= after) continue
+        if (
+          (event.type === "shell-started" || event.type === "shell-ended") &&
+          event.startedAt < began
+        )
+          continue
         latest = Math.max(latest, event.startedAt)
         if (backlog) backlog.set(backlogKind(event), event)
         else emit(event)

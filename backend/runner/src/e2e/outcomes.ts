@@ -352,7 +352,7 @@ const agySteps: Variant["steps"] = (path) => [
   { name: "wait-again", call: () => run("sleep 4; echo waited") },
 ]
 
-const allowClaude = ({ sandbox }: E2E): void => {
+export const allowClaude = ({ sandbox }: E2E): void => {
   const file = join(sandbox.home, ".claude", "settings.json")
   const settings = JSON.parse(readFileSync(file, "utf8")) as {
     permissions?: { allow?: string[] }
@@ -374,7 +374,10 @@ const allowClaude = ({ sandbox }: E2E): void => {
 
 // Everything runs unasked, in the sandbox the suite gives it, on a fake model whose catalog
 // entry takes `entry` too, as `tool_mode` makes every real model's tools a script's.
-const openCodex = ({ sandbox }: E2E, entry: Readonly<Record<string, unknown>> = {}): void => {
+export const openCodex = (
+  { sandbox }: E2E,
+  entry: Readonly<Record<string, unknown>> = {},
+): void => {
   const home = join(sandbox.home, ".codex")
   const config = join(home, "config.toml")
   writeFileSync(
