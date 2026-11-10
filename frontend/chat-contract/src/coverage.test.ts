@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { agentNames, type AgentName } from "@novadeck/protocol/harnesses"
 
 import { fixtures } from "./fixtures"
+import { harnessSources } from "./harnesses.test-support"
 import { transcriptsOf } from "./pipeline"
 import { describe, expect, it } from "./test"
 
@@ -44,14 +45,14 @@ const unrecorded: Readonly<Record<AgentName, readonly string[]>> = {
   agy: ["list_resources", "read_resource"],
 }
 
-const source = (path: string): string =>
-  readFileSync(join(import.meta.dirname, "../../../harnesses", path), "utf8")
+const source = (harness: AgentName | "core", path: string): string =>
+  readFileSync(join(harnessSources(harness), path), "utf8")
 
 const casesOf = (code: string): string[] =>
   [...code.matchAll(/\bcase ["']([^"']+)["']:/g)].map(([, name]) => name!)
 
 // The names each harness's `describe` knows, from its own switch.
-const known = (harness: AgentName): string[] => casesOf(source(`${harness}/src/tools.ts`))
+const known = (harness: AgentName): string[] => casesOf(source(harness, "tools.ts"))
 
 // Novadeck's old tool names, which `novadeckTool` keeps only so sessions recorded before
 // the rename keep their label: no conversation calls them any more.
@@ -59,7 +60,7 @@ const retired: ReadonlySet<string> = new Set(["summarize"])
 
 // Novadeck's own tools, from core's `novadeckTool`, less the retired names.
 const novadeckTools = ((): string[] => {
-  const code = source("core/src/tools.ts")
+  const code = source("core", "tools.ts")
   const from = code.indexOf("export const novadeckTool")
   return casesOf(code.slice(from, code.indexOf("\n}\n", from))).filter((tool) => !retired.has(tool))
 })()
