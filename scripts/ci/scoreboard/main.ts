@@ -31,16 +31,40 @@ const required = (name: string): string => {
 
 let requests = 0
 
+const sleep = (seconds: number): void => {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, seconds * 1000)
+}
+
 const options = { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 } as const
 
+// A server error or a dropped connection in a thousand requests is to be expected: each is
+// tried three times.
+const tries = 3
+
 const gh = (...args: string[]): string => {
-  requests += 1
-  return execFileSync("gh", args, options)
+  for (let attempt = 1; ; attempt += 1) {
+    requests += 1
+    try {
+      return execFileSync("gh", args, { ...options })
+    } catch (error) {
+      if (attempt >= tries) throw error
+      sleep(2 * attempt)
+    }
+  }
 }
 
 const ghAsync = async (...args: string[]): Promise<string> => {
-  requests += 1
-  return (await promisify(execFile)("gh", args, options)).stdout
+  for (let attempt = 1; ; attempt += 1) {
+    requests += 1
+    try {
+      // eslint-disable-next-line no-await-in-loop -- Each try follows the last one's failure.
+      return (await promisify(execFile)("gh", args, options)).stdout
+    } catch (error) {
+      if (attempt >= tries) throw error
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await new Promise((resolve) => setTimeout(resolve, 2000 * attempt))
+    }
+  }
 }
 
 const itemsOf = <T>(output: string, key: string): T[] =>
@@ -115,10 +139,6 @@ const budget = (): { remaining: number; reset: number } =>
       resources: { core: { remaining: number; reset: number } }
     }
   ).resources.core
-
-const sleep = (seconds: number): void => {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, seconds * 1000)
-}
 
 /**
  * The retry tally of the newest scheduled Known Flakes run that has one (failed runs too), as
