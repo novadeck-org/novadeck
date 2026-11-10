@@ -266,10 +266,12 @@ describe("the visitor build", () => {
     // The page around treats focus moving into the frame as the visitor's first click, so
     // nothing the desk does by itself, reading and then asking, may take it. Specs ask for
     // less motion, where Claude Code has no reading to watch, so this one asks for motion.
+    // The reading starts as the app does, so it lasts long enough for a loaded runner to open
+    // the workspace and see it before the plan: at 1.5 s, a Mac runner saw the plan first.
     it("reads before it asks for its plan, and takes no focus meanwhile", async () => {
       const motion = preferringMotion()
       try {
-        await openWorkspace("/?visitor=on&readingMs=1500", { embedded: true })
+        await openWorkspace("/?visitor=on&readingMs=6000", { embedded: true })
         await expect.element(terminalCount(4)).toBeVisible()
         await expect
           .poll(() => terminalText("Checkout implementation"))
@@ -279,7 +281,7 @@ describe("the visitor build", () => {
           "Plan ready for review: Checkout flow",
         )
         await expect
-          .poll(() => terminalText("Checkout implementation"), { timeout: 4000 })
+          .poll(() => terminalText("Checkout implementation"), { timeout: 12_000 })
           .toContain(planAsked)
         await expect
           .poll(() => tabDescription("Checkout implementation"))
