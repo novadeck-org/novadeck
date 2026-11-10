@@ -30,8 +30,9 @@
   "novadeck": {
     "platform": "system",
     "reads": [
+      "apps",
       "frontend",
-      "apps"
+      "libraries"
     ]
   }
 }

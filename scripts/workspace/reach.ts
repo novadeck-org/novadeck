@@ -7,6 +7,7 @@ import {
   packageFolderOf,
   packageFolders,
   packageOf,
+  workspaceNames,
 } from "./lookup.ts"
 import { declaredReads, isRead } from "./platform.ts"
 import { isProse, scopeAbove } from "./scopes.ts"
@@ -249,10 +250,31 @@ export const reach = {
         })
     }
 
-    // A relative import out of the package is a read by path too.
+    // A workspace package imported by name must be declared: pnpm refuses an undeclared one, but
+    // for what the root itself depends on (the sandbox), which resolves from every package, and
+    // which the graph then can't see.
+    const declared = new Set(
+      ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"].flatMap(
+        (kind) => Object.keys((manifestOf(root, folder) as Record<string, object>)[kind] ?? {}),
+      ),
+    )
+    const own = String(manifestOf(root, folder).name)
+    const undeclared = (node: Node, source: string): void => {
+      const [scope = "", name = ""] = source.split("/")
+      const bare = scope.startsWith("@") ? `${scope}/${name}` : scope
+      if (bare === own || declared.has(bare) || !workspaceNames(root).has(bare)) return
+      context.report({
+        node,
+        message: `${folder} imports ${bare}, a workspace package it doesn't declare, which resolves only as the root's own and which CI can't see: declare it in its package.json.`,
+      })
+    }
+
+    // A relative import out of the package is a read by path too, and one by name is checked
+    // for its declaration.
     const imported = (node: Node): void => {
       const text = textOf(node.source ?? undefined)
-      if (!text?.whole || !text.text.startsWith(".")) return
+      if (!text?.whole) return
+      if (!text.text.startsWith(".")) return undeclared(node, text.text)
       const why = refusal(root, folder, { path: resolve(here, text.text), exact: true }, reads)
       if (why)
         context.report({

@@ -8,8 +8,9 @@ import { createAnchors } from "./anchors.ts"
 import { extractStacks } from "./stack.ts"
 
 // It reads backend/relay and frontend/ui from the repository's root, through the atlas's
-// extractors: CI sees it by those in package.json's novadeck.reads, as the reach fence
-// (scripts/workspace/reach.ts) can't follow the extractors.
+// extractors, as the atlas's tests read the whole repository: CI sees it by the root in
+// package.json's novadeck.reads, as the reach fence (scripts/workspace/reach.ts) can't follow
+// the extractors.
 // oxlint-disable novadeck/reach
 
 const repo = resolve(import.meta.dirname, "../../..")

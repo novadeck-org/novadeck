@@ -46,6 +46,9 @@ const refused = [
   `readFileSync(join(import.meta.dirname, "../../../..", "outside"))`,
   `import "../../../backend/other/src/index.ts"`,
   `export * from "../../../backend/other/src/index.ts"`,
+  `import "@probe/other"`,
+  `export { thing } from "@probe/other/sub"`,
+  `await import("@probe/other")`,
 ]
 const allowed = [
   `readFileSync(join(import.meta.dirname, "fixture.json"))`,
@@ -61,6 +64,9 @@ const allowed = [
   `readFileSync(join(root, "frontend/reader/src/a.ts"))`,
   `readFileSync(join(process.cwd(), "src", "fixture.json"))`,
   `import "./sibling.ts"`,
+  `import "@probe/dependency/sub"`,
+  `import "@probe/reader"`,
+  `import "zod"`,
   `export const relative = join("..", "..", "anything")`,
 ]
 const probe = [...header, ...refused, ...allowed].join("\n")

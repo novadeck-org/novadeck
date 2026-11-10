@@ -39,8 +39,7 @@
   "novadeck": {
     "platform": "system",
     "reads": [
-      "backend/relay",
-      "frontend/ui"
+      ""
     ]
   }
 }

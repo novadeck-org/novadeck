@@ -69,6 +69,15 @@ export const packageFolders = (root: string): readonly string[] => {
   return found
 }
 
+const names = new Map<string, ReadonlySet<string>>()
+/** Every workspace package's name. */
+export const workspaceNames = (root: string): ReadonlySet<string> => {
+  const found =
+    names.get(root) ?? new Set(workspacePackages(root).map(({ manifest }) => String(manifest.name)))
+  names.set(root, found)
+  return found
+}
+
 const closures = new Map<string, ReadonlySet<string>>()
 /**
  * The folders of a package and of every package it depends on, through any kind of
