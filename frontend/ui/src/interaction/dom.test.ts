@@ -164,9 +164,9 @@ describe("the chat box beside a terminal's taskbar", () => {
   })
 
   it("is none while the agent's own rows take the keys", () => {
-    expect(chatBoxBeside(terminalWindow('<section class="chat-live" data-takes-keys></section>'))).toBe(
-      null,
-    )
+    expect(
+      chatBoxBeside(terminalWindow('<section class="chat-live" data-takes-keys></section>')),
+    ).toBe(null)
   })
 
   it("is the box while the rows are a menu the box passes keys to", () => {
