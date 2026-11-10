@@ -23,13 +23,20 @@ export type DemoWaiting =
     }
   | { readonly wake: { readonly reason: string }; readonly inMinutes: number }
 
+// A background shell the agent left running: its command, and how long it has run.
+export type DemoShell = { readonly command: string; readonly minutes: number }
+
 export type DemoAgentVerbs = {
   // Starts a turn that works until another verb ends it: in plan mode, or with three
   // subagents running. A terminal that runs no agent becomes one first (see `as`).
   readonly work: (
     key: TerminalKey,
     terminal: TerminalMetadata | undefined,
-    how?: { readonly planning?: true; readonly subagents?: true },
+    how?: {
+      readonly planning?: true
+      readonly subagents?: true
+      readonly shells?: readonly DemoShell[]
+    },
   ) => void
   // Stops the agent's turn on `count` requests of `kind`, each answerable from the chat
   // and the screen; a plan in plan mode.
@@ -53,6 +60,8 @@ export type DemoAgentVerbs = {
       readonly error?: string
       readonly background?: DemoBackground
       readonly waiting?: DemoWaiting
+      // The background shells it leaves running, which stay after the turn.
+      readonly shells?: readonly DemoShell[]
       // The agent calls its MCP `done` as the turn ends: this report becomes an Update.
       readonly done?: { readonly subject: string; readonly body: string }
       // The turn failed on the agent's usage limit, which resets at `resetsAt`, as the runner

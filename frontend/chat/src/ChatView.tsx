@@ -19,6 +19,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   useSyncExternalStore,
 } from "react"
 
@@ -36,6 +37,7 @@ import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
 import { Requests } from "./Requests"
 import { takeSentImages, type ChatSend } from "./sends"
 import { settledSent, settleSent } from "./settled"
+import { ShellLines, runningShells, shellRows } from "./ShellLines"
 import { LiveSlice, SliceKeys } from "./Slice"
 import { Transcript, type PeerLooks } from "./Transcript"
 import { useBoxReturn } from "./use-box-return"
@@ -163,6 +165,10 @@ export const ChatView = ({
   )
   const status = turnStatus(agent)
   const working = status?.working === true
+  // The background shells still running, which stay pinned under the working line.
+  const running = runningShells(agent?.shells)
+  const [shellsOpen, setShellsOpen] = useState(false)
+  const pinned = working || running.length > 0
   // When the turn began, for the working line's clock.
   const turnStart = useMemo(() => turnStartedAt(blocks), [blocks])
 
@@ -472,18 +478,25 @@ export const ChatView = ({
                 {...(plain && { onEdit: edit })}
                 onShowTerminal={onAnswerInTerminal}
               />
-              {status && (
-                // While the agent works this stays at the log's end, with its clock and its stop.
-                <div className="chat-running" data-working={working || undefined}>
-                  <p
-                    className="chat-status"
-                    role="status"
-                    data-working={working || undefined}
-                    data-ended={!working || undefined}
-                  >
-                    {working && <span className="chat-spin" aria-hidden />}
-                    {status.text}
-                  </p>
+              {(status || running.length > 0) && (
+                // While the agent works, or a shell runs, this stays at the log's end, with the
+                // turn's clock and stop and a line for each shell.
+                <div
+                  className="chat-running"
+                  data-working={working || undefined}
+                  data-pinned={pinned || undefined}
+                >
+                  {status && (
+                    <p
+                      className="chat-status"
+                      role="status"
+                      data-working={working || undefined}
+                      data-ended={!working || undefined}
+                    >
+                      {working && <span className="chat-spin" aria-hidden />}
+                      {status.text}
+                    </p>
+                  )}
                   {working && (
                     <span className="chat-status-end">
                       {turnStart !== null && (
@@ -503,6 +516,7 @@ export const ChatView = ({
                       </button>
                     </span>
                   )}
+                  <ShellLines shells={running} open={shellsOpen} onOpen={setShellsOpen} />
                 </div>
               )}
             </div>
@@ -511,7 +525,14 @@ export const ChatView = ({
             <button
               type="button"
               className="chat-jump nodrag nopan"
-              data-pinned={working || undefined}
+              data-pinned={pinned || undefined}
+              style={
+                pinned
+                  ? ({
+                      "--_pinned-rows": (status ? 1 : 0) + shellRows(running, shellsOpen),
+                    } as CSSProperties)
+                  : undefined
+              }
               aria-label="Jump to latest"
               onClick={() => {
                 const element = scroller.current
