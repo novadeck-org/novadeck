@@ -26,11 +26,18 @@ export const usePeerLooks = (links: MessageLinks): PeerLooks => {
   return useMemo(() => peerLooksOf(peers), [peers])
 }
 
-// The chat with other agents' looks. Only a chat on screen follows the peers, which change as
-// any agent starts or stops work: a terminal showing its emulator doesn't render again for it.
+// The person's own face at their answers through the Inbox, as Messages draws them: the backlit
+// imp, in their hue.
+const personFace = <Avatar handle="you" person size={24} />
+
+// The chat with other agents' looks and the person's own face. Only a chat on screen follows the
+// peers, which change as any agent starts or stops work: a terminal showing its emulator doesn't
+// render again for it.
 export const ChatWithPeers = ({
   links,
   ...chat
-}: Omit<ComponentProps<typeof ChatView>, "peerLooks"> & {
+}: Omit<ComponentProps<typeof ChatView>, "peerLooks" | "personFace"> & {
   readonly links: MessageLinks
-}): React.JSX.Element => <ChatView {...chat} peerLooks={usePeerLooks(links)} />
+}): React.JSX.Element => (
+  <ChatView {...chat} peerLooks={usePeerLooks(links)} personFace={personFace} />
+)

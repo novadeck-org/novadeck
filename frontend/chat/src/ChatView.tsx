@@ -59,6 +59,7 @@ export const ChatView = ({
   agent,
   compact,
   peerLooks,
+  personFace,
   draft,
   onDraft,
   replyTo,
@@ -93,6 +94,9 @@ export const ChatView = ({
   // How other Novadeck agents look in the transcript (their face and where they run), where the
   // app knows them; without it their messages have neither.
   readonly peerLooks?: PeerLooks | undefined
+  // The person's own face at their words that came through the Inbox rather than the prompt,
+  // where the app gives one; without it they keep the block mark.
+  readonly personFace?: React.ReactNode
   readonly draft: string
   readonly onDraft: (draft: string) => void
   // The question the draft replies to, or that it is held, kept with the draft by the app.
@@ -466,6 +470,7 @@ export const ChatView = ({
                 sent={bubbles}
                 echoes={shownEchoes}
                 looks={peerLooks}
+                personFace={personFace}
                 {...(plain &&
                   draft.trim() === "" &&
                   attachments.length === 0 && { onResend: resend })}

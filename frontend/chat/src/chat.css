@@ -26,7 +26,10 @@
    data-running and data-failed on a tool line, aria-expanded on its button, `.chat-tool-failed`
    on what says a call failed; data-sign="+" |
    "-" | " " on a line of a diff (`.chat-diff`); data-folded on a long run of calls;
-   `.chat-ring` (data-role="doorbell") for a turn the doorbell started, data-hollow on its mark;
+   `.chat-ring` (data-role="doorbell") for a turn the doorbell started, data-line where it has a
+   line of its own (`.chat-note`, data-hollow on its mark); `.chat-person-face` the person's face
+   in the gutter at their answer through the Inbox, where the app gives one, with data-hue="you"
+   on its row (what they type at the prompt keeps the mark);
    `.chat-record` with data-kind="compaction" | "gap" for a line of the record no one said;
    data-kind="permission" | "question" | "plan" and data-dialog="choices" | "questions" |
    "form" | "raw" | "none" on a request; `.chat-option` a row of a dialog's menu, data-on on the
@@ -164,8 +167,8 @@
 }
 .chat-thread
   > :is(.chat-message, .chat-status):not(.chat-ring)
-  > :not(.chat-fact, .chat-mark, .chat-agent-face, .chat-spin),
-.chat-ring > .chat-message > :not(.chat-fact, .chat-agent-face) {
+  > :not(.chat-fact, .chat-mark, .chat-agent-face, .chat-person-face, .chat-spin),
+.chat-ring > .chat-message > :not(.chat-fact, .chat-agent-face, .chat-person-face) {
   max-width: var(--_measure);
 }
 .chat-request > :not(.chat-request-head) {
@@ -202,7 +205,7 @@
 .chat-subagent {
   position: relative;
 }
-/* A ring's time ends its dashed rule. */
+/* A ring's time ends its dashed rule, where it has its line. */
 .chat-ring > .chat-note > .chat-fact {
   position: static;
   order: 2;
@@ -322,7 +325,8 @@
   position: relative;
   color: var(--_ink);
 }
-.chat-agent-face {
+.chat-agent-face,
+.chat-person-face {
   position: absolute;
   top: -2px;
   /* Out into the gutter, so the words keep their column; in a narrow gutter, kept inside it. */
@@ -403,7 +407,8 @@
   margin: 0;
   color: var(--_muted);
 }
-/* A doorbell ring's header speaks for the messages under it: in ink, with a dashed rule after. */
+/* A doorbell ring's own line, only where what it brought can't speak for itself: in ink, with a
+   dashed rule after. */
 .chat-ring > .chat-note {
   display: flex;
   align-items: center;
@@ -420,9 +425,18 @@
 .chat-ring > .chat-mark {
   color: var(--_mid);
 }
-/* The person's answer the doorbell typed is their line, under the doorbell's. */
-.chat-ring-reply {
-  font-weight: 600;
+/* The person's answer through the Inbox, which the doorbell brought: headed as another agent's
+   message is, "you" in their hue (where the app gives their face) and the way it came beside it,
+   their words in full ink under it. */
+.chat-message.chat-ring-reply {
+  --_agent: var(--_h, var(--_ink));
+  color: var(--_ink);
+  font-weight: 400;
+}
+.chat-message[data-role="agent"] + .chat-ring-reply,
+.chat-ring-reply + .chat-message[data-role="agent"],
+.chat-ring-reply + .chat-ring-reply {
+  margin-top: calc(var(--_lh) / 2);
 }
 /* A record's line with nothing to open is a line, not a key. */
 .chat-record p.chat-tool-summary {
