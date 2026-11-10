@@ -241,7 +241,27 @@ describe("the markdown viewer", () => {
     }
   })
 
-  it("draws a quote's bar clear of its text, in a list too, its wrapped rows included", () => {
+  it("draws what the parse reaches after its first slice ran out of time, without a keypress", async () => {
+    // A busy machine: every look at the clock finds it a few milliseconds on, so the parse's
+    // first slice stops partway and the rest of the text is parsed in the background.
+    const now = Date.now.bind(Date)
+    let skew = 0
+    const slow = vi.spyOn(Date, "now").mockImplementation(() => now() + (skew += 3))
+    const text = Array.from(
+      { length: 12 },
+      (_, at) => `> Quote ${at + 1}, ${"on and on ".repeat(4)}`,
+    )
+    let pane: HTMLElement
+    try {
+      ;({ pane } = mount({ text: text.join("\n\n") }, { pane: paneIn(3000) }))
+    } finally {
+      slow.mockRestore()
+    }
+    expect(pane.querySelectorAll(".cm-md-quote").length).toBeLessThan(12)
+    await expect.poll(() => pane.querySelectorAll(".cm-md-quote").length).toBe(12)
+  })
+
+  it("draws a quote's bar clear of its text, in a list too, its wrapped rows included", async () => {
     const long = "words that run on ".repeat(6)
     const { pane } = mount({
       text: [
@@ -267,8 +287,9 @@ describe("the markdown viewer", () => {
         "",
       ].join("\n"),
     })
+    // Each quote drawn, the parse's later slices too on a busy page.
+    await expect.poll(() => pane.querySelectorAll(".cm-md-quote").length).toBe(8)
     const quotes = [...pane.querySelectorAll<HTMLElement>(".cm-md-quote")]
-    expect(quotes).toHaveLength(8)
     // Where the bar is drawn: the line's border, or its own mark beside the text.
     const barEnd = (line: HTMLElement): number => {
       const left = line.getBoundingClientRect().left
@@ -291,7 +312,7 @@ describe("the markdown viewer", () => {
     expect(item).toBe(intro)
   })
 
-  it("draws a code block in a list at the item's hang, its rows and wrapped rows inside it", () => {
+  it("draws a code block in a list at the item's hang, its rows and wrapped rows inside it", async () => {
     const long = "words that run on ".repeat(8)
     // A pane tall enough for the whole text: the editor draws only the lines in view, and where a
     // platform's fonts make the wrapped rows taller, the last blocks fell below them.
@@ -319,8 +340,9 @@ describe("the markdown viewer", () => {
       },
       { pane: paneIn(3000) },
     )
-    const lines = [...pane.querySelectorAll<HTMLElement>(".cm-md-codeblock:not(.cm-md-fence)")]
-    expect(lines).toHaveLength(4)
+    const code = ".cm-md-codeblock:not(.cm-md-fence)"
+    await expect.poll(() => pane.querySelectorAll(code).length).toBe(4)
+    const lines = [...pane.querySelectorAll<HTMLElement>(code)]
     const rowsOf = (line: HTMLElement): DOMRect[] => {
       const text = document.createRange()
       text.selectNodeContents(line)

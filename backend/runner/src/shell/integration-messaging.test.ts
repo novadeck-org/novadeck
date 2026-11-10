@@ -34,6 +34,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const { start, step } = driver(shell, manager)
       await start(claude.id, "claude", "s-claude")
       await start(codex.id, "codex", "s-codex")
+      // Each bound before either sends: a stand-in is ready when its start hook has run, and
+      // the runner may apply that report later, so a send could go out from no known agent.
+      await expect.poll(() => manager.messages(claude.id).delivery).toMatch(/^(?:fresh|ready)$/)
       await expect.poll(() => manager.messages(codex.id).delivery).toBe("fresh")
       const send = async (from: string, to: string, text: string) =>
         JSON.parse(await step(from, { call: "send", request: { to, text } })) as Told
@@ -200,6 +203,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const { start, step } = driver(shell, manager)
       await start(claude.id, "claude", "s-claude")
       await start(codex.id, "codex", "s-codex")
+      // Each bound before either sends: a stand-in is ready when its start hook has run, and
+      // the runner may apply that report later, so a send could go out from no known agent.
+      await expect.poll(() => manager.messages(claude.id).delivery).toMatch(/^(?:fresh|ready)$/)
       await expect.poll(() => manager.messages(codex.id).delivery).toBe("fresh")
       const watch = manager.watchMessages(third.id)
       await watch.next()
@@ -230,6 +236,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const { start, step } = driver(shell, manager)
       await start(claude.id, "claude", "s-claude")
       await start(codex.id, "codex", "s-codex")
+      // Each bound before either sends: a stand-in is ready when its start hook has run, and
+      // the runner may apply that report later, so a send could go out from no known agent.
+      await expect.poll(() => manager.messages(claude.id).delivery).toMatch(/^(?:fresh|ready)$/)
       await expect.poll(() => manager.messages(codex.id).delivery).toBe("fresh")
       const first = manager.watchMessages(codex.id)
       const second = manager.watchMessages(codex.id)

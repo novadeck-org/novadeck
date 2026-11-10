@@ -344,6 +344,7 @@ for (const setup of setups) {
     gated(slowQueue, setup.queueing ? undefined : "its queued prompts' hooks don't run early")(
       "brings a message to an agent whose third queued prompt a Stop took back, behind two turns no hook told of",
       async ({ e2e: run }) => {
+        seedSlowHook(run)
         const held = gate()
         const betaHeld = gate()
         const gammaHeld = gate()

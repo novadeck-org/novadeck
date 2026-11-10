@@ -201,7 +201,15 @@ const preview = ViewPlugin.fromClass(
       this.rendered = decorate(view)
     }
     update(update: ViewUpdate): void {
-      if (update.docChanged || update.viewportChanged || update.selectionSet || update.focusChanged)
+      if (
+        update.docChanged ||
+        update.viewportChanged ||
+        update.selectionSet ||
+        update.focusChanged ||
+        // The parse goes on in the background where its first slice ran out of time, as on a
+        // busy machine: what it reaches later is drawn as it arrives, not at the next keypress.
+        syntaxTree(update.startState) !== syntaxTree(update.state)
+      )
         this.rendered = decorate(update.view)
     }
   },
