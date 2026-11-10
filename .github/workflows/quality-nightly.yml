@@ -3,24 +3,37 @@ name: Nightly Quality
 # Every check Quality runs on a pull request, run whole on main each night: format, lint,
 # typecheck, the installer's shell check, both builds and the whole test suite on Linux,
 # Windows and macOS. Quality runs only on pull requests, so this is what tests main after a
-# merge, and what still runs a test a pull request is allowed to skip. A failed night opens or
-# updates its issue (Nightly Report, scripts/nightly).
+# merge, and what still runs a test a pull request is allowed to skip. Its last job starts
+# E2E on main against the pinned harnesses, the versions pull requests test, as E2E's own
+# nightly runs the latest ones to catch drift. A failed night of either opens or updates its
+# issue (Nightly Report, scripts/nightly), and a release is promoted only once both passed
+# at or after its commit.
 #
-# The jobs keep Quality's names and commands, so a night reads like a pull request's run.
+# The jobs keep Quality's names and commands, so a night reads like a pull request's run. A
+# pull request that changes this workflow or the setup action runs it too, so an edit proves
+# itself before it merges; those runs start no E2E, and nothing counts them as a night.
 on:
   schedule:
-    # Clear of the other nightlies that take Macs, Benchmark Timing (02:41) and E2E (03:17):
-    # Test (macOS) takes up to 40 minutes, and a queue for the Mac runners can add as much.
-    - cron: "23 1 * * *"
+    # Early enough that the pinned E2E run it starts is done with the Macs before E2E's own
+    # nightly (03:17), which would cancel it, as both share E2E's concurrency group on main:
+    # Test (macOS) takes up to 40 minutes, E2E's macOS jobs about 30, and a queue for the
+    # Mac runners can add as much to each.
+    - cron: "23 0 * * *"
   workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - .github/workflows/quality-nightly.yml
+      - .github/actions/setup/**
 
 permissions:
   contents: read
 
-# A night in progress finishes; one started meanwhile waits for it.
+# A night in progress finishes, and one started meanwhile waits for it; a pull request's run
+# gives way to its next push.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   quality:
@@ -130,3 +143,22 @@ jobs:
           path: frontend/specs/.vitest/attachments/
           if-no-files-found: ignore
           retention-days: 14
+
+  # E2E on main against the pinned harnesses, once the tests above are done with the Macs,
+  # whatever they found: a night is both. Not from a pull request, whose run is no night.
+  e2e:
+    name: Start Pinned E2E
+    needs: quality
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      # To start E2E.
+      actions: write
+    steps:
+      - name: Start E2E
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run e2e.yml --ref main -f harness=pinned

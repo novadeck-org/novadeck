@@ -32,6 +32,14 @@ export type Action =
   | { readonly kind: "close"; readonly issue: number; readonly body: string }
   | { readonly kind: "none" }
 
+/**
+ * The name a night is reported under: its workflow's, except E2E's run on the pinned
+ * harnesses, which Nightly Quality starts by dispatch, while E2E's own night (`schedule`)
+ * runs the latest ones. A regression and a harness's drift get an issue each.
+ */
+export const nameOf = (workflow: string, event: string): string =>
+  workflow === "E2E" && event === "workflow_dispatch" ? "E2E (pinned)" : workflow
+
 /** The tracking issue's title, by which it is found again. A workflow named for its night already says so once. */
 export const titleOf = (workflow: string): string =>
   `Nightly ${workflow.replace(/^Nightly /, "")} is failing`
@@ -42,10 +50,16 @@ const failing = new Set(["failure", "cancelled", "timed_out", "startup_failure"]
 // What a workflow's failed night most likely means, for whoever picks it up.
 const notes: { readonly [workflow: string]: string } = {
   E2E:
-    "The nightly runs each harness's latest release, and the probes too, so a failure the " +
+    "This night runs each harness's latest release, and the probes too, so a failure the " +
     "pinned pull-request runs don't show is most likely a harness's own change, to adapt " +
     "to before its pin moves (`backend/runner/src/e2e/harnesses.json`). The probes' " +
     "findings are the run's `probes-*` artifacts.",
+  "E2E (pinned)":
+    "This night runs the whole suite on main against the pinned harnesses, as pull " +
+    "requests do, so a failure here is Novadeck's own (a change that broke another when " +
+    "merged beside it, a row a pull request's plan skipped) or a flake, not a harness's " +
+    "drift, which E2E's own night reports. Nightly Quality starts it, and a release is " +
+    "promoted only once it passed.",
   "Nightly Quality":
     "It runs every check and test Quality has on main, so a failure here passed on its pull " +
     "request or never ran there: a change that broke another when merged beside it, a test a " +

@@ -1,5 +1,5 @@
 import { context, describe, expect, it } from "../test"
-import { decide, titleOf, type Night } from "./report"
+import { decide, nameOf, titleOf, type Night } from "./report"
 
 const run = (over: Partial<Night> = {}): Night => ({
   workflow: "E2E",
@@ -95,6 +95,15 @@ describe("a nightly run's report", () => {
 
   it("names a workflow already named for its night only once", () => {
     expect(titleOf("Nightly Quality")).toBe("Nightly Quality is failing")
+  })
+
+  it("reports E2E's pinned run apart from its own night, under its own title", () => {
+    expect(nameOf("E2E", "schedule")).toBe("E2E")
+    expect(nameOf("E2E", "workflow_dispatch")).toBe("E2E (pinned)")
+    expect(nameOf("Nightly Quality", "workflow_dispatch")).toBe("Nightly Quality")
+    const pinned = decide(run({ workflow: "E2E (pinned)" }), null)
+    expect(pinned).toMatchObject({ kind: "open", title: "Nightly E2E (pinned) is failing" })
+    expect(pinned.kind === "open" && pinned.body).toContain("not a harness's drift")
   })
 
   it("says what a failed Nightly Quality most likely is", () => {

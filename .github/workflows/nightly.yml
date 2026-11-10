@@ -28,7 +28,15 @@ permissions:
 jobs:
   report:
     name: Report
-    if: github.event.workflow_run.event == 'schedule' || github.event_name == 'workflow_dispatch'
+    # A night is a scheduled run, or E2E's run on the pinned harnesses, which Nightly Quality
+    # dispatches with the Actions token (`actor` stays that bot when a person reruns it).
+    # A run a person dispatched isn't reported: they are there to see it.
+    if: >-
+      github.event.workflow_run.event == 'schedule' ||
+      (github.event.workflow_run.event == 'workflow_dispatch' &&
+      github.event.workflow_run.name == 'E2E' &&
+      github.event.workflow_run.actor.login == 'github-actions[bot]') ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

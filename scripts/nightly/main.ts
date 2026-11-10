@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process"
 import { appendFileSync, readFileSync } from "node:fs"
 
 import { parseRegister } from "../flakes/match.ts"
-import { decide, titleOf, type Action, type FailedJob, type Night } from "./report.ts"
+import { decide, nameOf, titleOf, type Action, type FailedJob, type Night } from "./report.ts"
 import { clientFor, writeup, type JobLog } from "./writeup.ts"
 
 // `node scripts/nightly/main.ts`: what a nightly run's end does to its tracking issue
@@ -27,6 +27,7 @@ export const nightOf = (runId: string, attempt: number): Night => {
     gh("api", `repos/${repo()}/actions/runs/${runId}/attempts/${attempt}`),
   ) as {
     name: string
+    event: string
     conclusion: string | null
     html_url: string
     head_sha: string
@@ -59,7 +60,7 @@ export const nightOf = (runId: string, attempt: number): Night => {
       url: job.html_url,
     }))
   return {
-    workflow: run.name,
+    workflow: nameOf(run.name, run.event),
     conclusion: run.conclusion ?? "",
     url: run.html_url,
     attempt,
