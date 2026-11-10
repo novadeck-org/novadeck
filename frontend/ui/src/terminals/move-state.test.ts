@@ -18,15 +18,14 @@ const notice = (change: Partial<MoveNotice> = {}): MoveNotice =>
   }) as MoveNotice
 
 describe("where a terminal's menu offers to move it", () => {
-  it("lists the other sessions, most recently visited first, up to the limit", () => {
+  it("lists the other sessions, most recently visited first", () => {
     const sessions = [
       { id: "a", visitedAt: 5 },
       { id: "b", visitedAt: 9 },
       { id: "c", visitedAt: null },
       { id: "d", visitedAt: 7 },
     ]
-    expect(moveSessions(sessions, "a", 2).map((each) => each.id)).toEqual(["b", "d"])
-    expect(moveSessions(sessions, "a", 9).map((each) => each.id)).toEqual(["b", "d", "c"])
+    expect(moveSessions(sessions, "a").map((each) => each.id)).toEqual(["b", "d", "c"])
   })
 
   it("names a new session after the terminal, unique in its project", () => {

@@ -736,7 +736,7 @@ folder of `frontend/ui/src/`:
 | Location                                                        | What belongs here                                                                                                              |
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `app/`                                                          | Composition root: router, provider, backend selection, and the page sections.                                                  |
-| `app/ui-store.ts`                                               | The UI store: route, preferences, shell, rename, switcher, and its store subscriptions.                                        |
+| `app/ui-store.ts`                                               | The UI store: route, preferences, shell, rename, move (`moving`, `moveAsk`, `moved`), switcher, and its subscriptions.         |
 | `app/selectors.ts`                                              | Pure reads over the stores that sections, commands, and keys share.                                                            |
 | `app/commands/`                                                 | Commands, key commands, and the navigator: plain functions over both stores.                                                   |
 | `app/controller/`                                               | React glue: context, selector hook, route sync, keyboard dispatcher, effects.                                                  |
@@ -773,7 +773,7 @@ folder of `frontend/ui/src/`:
 | `sidebar/`, `projects/`, `preferences/`, `search/`              | Feature components.                                                                                                            |
 | `interaction/`                                                  | Shortcut records, the keymap, and shared DOM focus/overlay contracts.                                                          |
 | `frontend/toolkit/src/`                                         | Reusable controls, direct Ark UI imports, their recipes, the sidebar item and `Markdown`.                                      |
-| `frontend/toolkit/src/drag-pull.ts`                             | The pull-out drag: a list holds what's dragged until it is pulled free (`PullOut`, a dnd-kit modifier), tuned in one place.    |
+| `frontend/toolkit/src/drag-pull.ts`                             | The pull-out drag (`PullOut`, a dnd-kit modifier): holds an item in its list until pulled free; a list may stiffen its feel.   |
 | `test/`                                                         | The command harness: the real stores, navigator and commands, for tests.                                                       |
 | `frontend/test-kit/src/`                                        | A jsdom render helper, the port contract suite, and test phase timing.                                                         |
 | `assets/`                                                       | Static files referenced from CSS.                                                                                              |
@@ -814,7 +814,7 @@ routing still loads React Router at runtime: it builds on the core,
 the Canvas handle type in `layouts/canvas/types.ts`, and the pure state modules
 of `shell/` and `terminals/` (unread finishes among them), the item store and the chat's store among them. Vendor
 libraries stay in their adapters: XYFlow in `layouts/canvas/`, Allotment in `shell/`, dnd kit
-in `terminals/` and Grid's tiles (`layouts/grid/Grid.tsx`), Ark UI in
+in `terminals/`, Grid's tiles (`layouts/grid/Grid.tsx`) and `frontend/toolkit`'s pull-out drag, Ark UI in
 `frontend/toolkit`, React Router in `app/` and `shell/`, and React DOM in
 `layouts/transition.ts` and `entries/start.tsx`; and the runner client and
 the emulator's view in `frontend/runner-adapter/`, the demo's terminals
@@ -855,10 +855,13 @@ roster of terminals and undocked windows, layout, navigation memory, its compani
 as the backend reports them, and how the person arranged each bar (`frontend/core/src/items/companion-bar.ts`),
 changed through one pure reducer. The UI store in `app/ui-store.ts`
 holds what the model does not own: the current route, preferences, the shell
-state from `shell/shell-state.ts`, the rename in progress, the recent-terminal
+state from `shell/shell-state.ts`, the rename in progress, the terminal being moved to another session (`moving`, while the person
+picks where), a teammate's move waiting for an answer (`moveAsk`) and the last move told by a toast
+(`moved`), the recent-terminal
 switcher and each session's most-recent order, the new-terminal highlight, whether the
 page has focus, and the terminals whose agent finished unseen (`terminals/unread-state.ts`,
-kept by `watchFinishes`, which also asks the backend's `notices` for a notification).
+kept by `watchFinishes`, which also asks the backend's `notices` for a notification; `watchMoving` drops
+a pick or question that the session or terminal it was made in has left).
 It starts over on reload apart from preferences, the collapsed sidebar and the
 project arrangement (the switcher's order and pins, `novadeck.project-arrangement`),
 which store subscriptions persist. Another subscription saves the active session's
@@ -964,7 +967,10 @@ instead, by session and terminal, so a report every few seconds re-renders only 
 shows it, never the roster. The frame labels an exited, killed, or failed terminal.
 Closing a terminal a program runs in asks first:
 the `close` command records the pending close in the UI store, and the dialog in
-`terminals/CloseTerminalDialog.tsx` answers with `confirmClose` or `cancelClose`. A backend may also
+`terminals/CloseTerminalDialog.tsx` answers with `confirmClose` or `cancelClose`. Moving a terminal to another
+session is the same shape: the `moveTerminal` command asks a teammate first (`moveAsk`, answered in
+`terminals/MoveTeammateDialog.tsx` with `confirmMove` or `cancelMove`), the backend reports a
+`terminal/move` that the reducer applies, and a toast (`moved`) offers Undo and Go there. A backend may also
 expose its connection state, which the footer shows, and a folder picker, which
 enables "Open folder…".
 

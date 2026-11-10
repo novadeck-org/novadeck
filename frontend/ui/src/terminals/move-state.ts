@@ -4,6 +4,13 @@ import type { WorkspaceSession } from "@novadeck/core/types"
 // Where the person moves a terminal: a session of its project by id, or a new one.
 export type MoveTarget = { readonly sessionId: string } | { readonly fresh: true }
 
+// Whether two holds-over are the same place: one session, the new session's button, or none.
+export const sameOver = (a: MoveTarget | null, b: MoveTarget | null): boolean =>
+  a === b ||
+  (a !== null &&
+    b !== null &&
+    ("fresh" in a ? "fresh" in b : !("fresh" in b) && a.sessionId === b.sessionId))
+
 // The terminal on its way to another session, while the person picks where: from its menu's
 // "All sessions…", in the Sessions panel, or by dragging its tab there. `over` is what a drag
 // holds over: a session, the new session's button, or nothing yet.
@@ -40,16 +47,14 @@ export type MoveNotice = {
 )
 
 // The sessions a terminal's menu offers to move it to, most recently visited first, the one
-// it's in left out, and at most `limit`; the rest are a pick away in the Sessions panel.
+// it's in left out.
 export const moveSessions = <Session extends Pick<WorkspaceSession, "id" | "visitedAt">>(
   sessions: readonly Session[],
   current: string,
-  limit: number,
 ): readonly Session[] =>
   sessions
     .filter((session) => session.id !== current)
     .toSorted((a, b) => (b.visitedAt ?? -1) - (a.visitedAt ?? -1))
-    .slice(0, limit)
 
 // A name for the session a terminal starts on its own: the terminal's, made unique in its
 // project as a fresh session's is ("Search index (2)").

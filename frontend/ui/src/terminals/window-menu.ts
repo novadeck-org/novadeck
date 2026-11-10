@@ -5,6 +5,7 @@ import { MessageSquareText, Plus } from "lucide-react"
 import type { ReactNode } from "react"
 import { createElement, Fragment } from "react"
 
+import type { MoveTarget } from "./move-state"
 import { isProjectWindow } from "./project-window"
 
 // Where a window undocked from a terminal's companion docks back in: that terminal's
@@ -50,7 +51,7 @@ export type MoveTo = {
   }[]
   readonly more: boolean
   readonly team: number
-  readonly onMove: (to: { readonly sessionId: string } | { readonly fresh: true }) => void
+  readonly onMove: (to: MoveTarget) => void
   readonly onPick: () => void
 }
 

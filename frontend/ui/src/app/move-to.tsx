@@ -78,7 +78,7 @@ export const useMoveTo = (tile: Tile): MoveTo | undefined => {
   // during a drag.
   return useMemo(() => {
     if (!movable) return undefined
-    const others = moveSessions(sessions, here, Infinity)
+    const others = moveSessions(sessions, here)
     return {
       sessions: others.slice(0, moveMenuSessions).map((session) => ({
         id: session.id,
@@ -166,7 +166,7 @@ export const useTabsAway = (): TabsAway | undefined => {
       held.current = { button, cancel: () => clearTimeout(timer) }
     }
     return {
-      bounds: () => document.querySelector(".workspace-body"),
+      within: () => document.querySelector(".workspace-body"),
       start: (terminalId) => {
         dragged.current = { id: terminalId, free: false }
       },

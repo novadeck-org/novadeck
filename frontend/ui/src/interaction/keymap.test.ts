@@ -63,6 +63,7 @@ const route = (
       held: false,
       navigate: false,
       dictating: false,
+      moving: false,
       ...state,
     },
     { overlayOpen: () => false, tabInteraction: () => false, ...environment },
@@ -182,6 +183,7 @@ describe("keymap", () => {
               held: false,
               navigate: false,
               dictating: true,
+              moving: false,
             },
             { overlayOpen: () => false, tabInteraction: () => false },
           )
@@ -257,6 +259,18 @@ describe("keymap", () => {
       })
 
       context("when pressing Escape", () => {
+        it("gives up a pick of where a terminal moves ahead of Canvas, and only during one", () => {
+          expect(keydown(platform, { key: "Escape" }, { state: { moving: true } })).toEqual([
+            "move.cancel",
+            "canvas.returnToOrigin",
+            "navigate.exit",
+          ])
+          expect(keydown(platform, { key: "Escape" })).not.toContain("move.cancel")
+          expect(
+            keydown(platform, { key: "Escape" }, { state: { moving: true, dialog: true } }),
+          ).toEqual([])
+        })
+
         it("returns Canvas to its origin first, then goes back into the terminal", () => {
           expect(keydown(platform, { key: "Escape" }, navigating)).toEqual([
             "canvas.returnToOrigin",
@@ -599,6 +613,7 @@ describe("keymap", () => {
             .map((binding) => binding.command)
           expect(once).toEqual([
             "voice.cancel",
+            "move.cancel",
             "navigate.exit",
             "voice.press",
             ...Array<string>(9).fill("project.pinned"),

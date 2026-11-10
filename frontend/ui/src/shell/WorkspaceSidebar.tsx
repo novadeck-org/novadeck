@@ -144,7 +144,6 @@ export const WorkspaceSidebar = ({
         onRemove={onSessionRemove}
         historyKept={Boolean(history)}
         moving={moving}
-        onScreen={sidebarVisible && sidebarPanel === "sessions"}
       />
     </SidebarPanel>
     {history && (

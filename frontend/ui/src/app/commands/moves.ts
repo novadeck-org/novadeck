@@ -1,4 +1,4 @@
-import { descendantsOf, leadChain } from "@novadeck/core/derivations"
+import { leadChain } from "@novadeck/core/derivations"
 import { activeProject } from "@novadeck/core/state"
 import type { Workspace } from "@novadeck/core/types"
 
@@ -7,6 +7,7 @@ import {
   type MoveNotice,
   type MovePick,
   type MoveTarget,
+  sameOver,
 } from "../../terminals/move-state"
 import { currentContext, currentState, currentTarget } from "../selectors"
 import type { CommandContext } from "./context"
@@ -35,7 +36,7 @@ export type MoveCommands = {
 }
 
 type MoveDependencies = {
-  readonly showSessions: () => void
+  readonly peek: (panel: "sessions") => (() => void) | undefined
   readonly showTerminals: () => void
   readonly revealTerminal: (terminalId: string, projectId: string) => void
 }
@@ -50,16 +51,23 @@ const sessionName = (workspace: Workspace, projectId: string, id: string): strin
 
 export const createMoveCommands = (
   { workspace, ui, moveTerminal: move, effects }: CommandContext,
-  { showSessions, showTerminals, revealTerminal }: MoveDependencies,
+  { peek, showTerminals, revealTerminal }: MoveDependencies,
 ): MoveCommands => {
   const tell = (moved: MoveNotice): void => {
     ui.update((state) => ({ ...state, moved }))
   }
+  // Puts the sidebar back as it was, for a pick from a menu that showed the Sessions panel.
+  let putBack: (() => void) | undefined
   const endPick = (): void => {
     const { moving, location } = ui.getSnapshot()
     if (!moving) return
     ui.update((state) => ({ ...state, moving: null }))
-    if (location.route.panel === "sessions") showTerminals()
+    const back = putBack
+    putBack = undefined
+    // A drag started from the Terminals panel and returns there; a menu pick leaves the
+    // sidebar as the person had it.
+    if (moving.via === "menu") back?.()
+    else if (location.route.panel === "sessions") showTerminals()
   }
   // Moves it now, to a session made for it first where it goes to a new one.
   const go = (terminalId: string, to: MoveTarget): void => {
@@ -72,11 +80,11 @@ export const createMoveCommands = (
     endPick()
     let sessionId: string
     if ("fresh" in to) {
-      const fresh = newWorkspaceSession(currentState(snapshot), {
+      const made = newWorkspaceSession(currentState(snapshot), {
         id: effects.newId(),
         now: effects.now(),
       })
-      fresh.name = freshSessionName(terminal.name, project.history)
+      const fresh = { ...made, name: freshSessionName(terminal.name, project.history) }
       workspace.dispatch({
         type: "session/add",
         projectId: project.id,
@@ -149,7 +157,7 @@ export const createMoveCommands = (
       // A drag opens the panel once it holds over the rail's button; the menu at once. The
       // panel shows first, as leaving it ends a pick.
       if (via === "menu") {
-        showSessions()
+        if (!ui.getSnapshot().moving) putBack = peek("sessions")
         effects.afterFrame(() => effects.focusMovePick())
       }
       ui.update((state) => ({
@@ -195,13 +203,3 @@ export const createMoveCommands = (
     },
   }
 }
-
-const sameOver = (a: MoveTarget | null, b: MoveTarget | null): boolean =>
-  a === b ||
-  (a !== null &&
-    b !== null &&
-    ("fresh" in a ? "fresh" in b : !("fresh" in b) && a.sessionId === b.sessionId))
-
-// How many terminals a move of `terminalId` takes: it, and its team when it leads one.
-export const movingCount = (workspace: Workspace, terminalId: string): number =>
-  1 + descendantsOf(workspace, terminalId).length

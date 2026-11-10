@@ -108,6 +108,25 @@ describe("key commands", () => {
       expect(app.state().selected).toBe("01")
     })
 
+    it("gives up a pick of where a terminal moves before Canvas returns to its origin", () => {
+      let returns = 0
+      const canvas: CanvasHandle = { returnToOrigin: () => (returns++, true) }
+      const app = openKeys({
+        workspace: workspaceFixture({ view: "canvas" }),
+        url: "/projects/project/sessions/initial/canvas?terminal=01",
+        canvas,
+        moveTerminal: () => Promise.reject(new Error("unused")),
+      })
+      app.commands.pickSession("01", "menu")
+      expect(app.ui.getSnapshot().moving).not.toBeNull()
+      expect(app.keydown({ key: "Escape" })).toBe("handled")
+      expect(app.ui.getSnapshot().moving).toBeNull()
+      expect(returns).toBe(0)
+      // With no pick, Escape is Canvas's again.
+      expect(app.keydown({ key: "Escape" })).toBe("handled")
+      expect(returns).toBe(1)
+    })
+
     it("goes back into the selected terminal, then lets Escape through", () => {
       const app = navigating({
         workspace: workspaceFixture({ view: "focus" }),

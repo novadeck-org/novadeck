@@ -55,10 +55,10 @@ const cursor = Cursor.configure({ cursor: "pointer" })
 // Where a tab pulled out of the list goes (`PullOut`: it stays in the list until the person
 // pulls it free): told as a tab is picked up, how the pull stands, where the pointer is as it
 // moves, and as it drops, which answers whether the drop was taken there, as a move to another
-// session, so the list keeps its order. `bounds` is how far a free tab may travel, read as the
+// session, so the list keeps its order. `within` is how far a free tab may travel, read as the
 // drag starts.
 export type TabsAway = {
-  readonly bounds: () => Element | null
+  readonly within: () => Element | null
   readonly start: (terminalId: string) => void
   readonly pull: (pull: { readonly tension: number; readonly free: boolean }) => void
   // Whether the tab being dragged would drop nowhere if let go now: it has broken free of
@@ -138,15 +138,15 @@ export const TerminalTabs = ({
     )
     tab?.querySelector<HTMLElement>("button")?.focus()
   }, [drag, list])
-  const bounds = away?.bounds
+  const within = away?.within
   const pull = away?.pull
   const modifiers = useMemo(
     () => [
-      bounds && pull
-        ? PullOut.configure({ element: list, within: bounds, feel: tabPull, onPull: pull })
+      within && pull
+        ? PullOut.configure({ element: list, within, feel: tabPull, onPull: pull })
         : RestrictToElement.configure({ element: list }),
     ],
-    [bounds, pull, list],
+    [within, pull, list],
   )
   return (
     <DragDropProvider

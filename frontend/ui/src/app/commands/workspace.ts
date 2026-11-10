@@ -316,7 +316,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     ...createChatCommands(ctx),
     ...createSourceCommands(ctx, { markCreated, pulse }),
     ...createMoveCommands(ctx, {
-      showSessions: shell.showSessions,
+      peek: shell.peek,
       showTerminals: shell.showTerminals,
       // Bound once the commands are made: going to a moved terminal is revealing it.
       revealTerminal: (terminalId, projectId) => self.revealTerminal(terminalId, projectId),

@@ -140,6 +140,53 @@ describe("moving a terminal to another session", () => {
     })
   })
 
+  context("when a pick from the menu ends", () => {
+    const shell = (app: ReturnType<typeof openCommands>) => app.shell()
+    const panel = (app: ReturnType<typeof openCommands>) =>
+      app.ui.getSnapshot().location.route.panel
+
+    it("puts back the panel the sidebar showed, when it gives up", () => {
+      const { move } = recordingMove()
+      const app = openCommands({ workspace: teamWorkspace(), moveTerminal: move })
+      app.commands.showInbox()
+      app.commands.pickSession("01", "menu")
+      expect(panel(app)).toBe("sessions")
+      app.commands.cancelPick()
+      expect(panel(app)).toBe("inbox")
+    })
+
+    it("hides the sidebar again where it was hidden", () => {
+      const { move } = recordingMove()
+      const app = openCommands({ workspace: teamWorkspace(), moveTerminal: move })
+      app.commands.hideSidebar()
+      app.commands.pickSession("01", "menu")
+      expect(shell(app)).toMatchObject({ sidebarCollapsed: false })
+      app.commands.moveTerminal("01", { sessionId: "other" })
+      expect(shell(app)).toMatchObject({ sidebarCollapsed: true })
+      expect(panel(app)).toBe("terminals")
+    })
+
+    it("goes back to Zen", () => {
+      const { move } = recordingMove()
+      const app = openCommands({ workspace: teamWorkspace(), moveTerminal: move })
+      app.commands.enterZen()
+      const zen = shell(app).zen
+      app.commands.pickSession("01", "menu")
+      expect(shell(app).zen).toBeNull()
+      app.commands.cancelPick()
+      expect(shell(app).zen).toEqual(zen)
+    })
+
+    it("leaves the Sessions panel showing where it showed already", () => {
+      const { move } = recordingMove()
+      const app = openCommands({ workspace: teamWorkspace(), moveTerminal: move })
+      app.commands.showSessions()
+      app.commands.pickSession("01", "menu")
+      app.commands.cancelPick()
+      expect(panel(app)).toBe("sessions")
+    })
+  })
+
   it("tells why a move the backend refused didn't happen", async () => {
     const app = openCommands({
       workspace: teamWorkspace(),
