@@ -585,13 +585,14 @@ with every safety check again at that time:
   it. A terminal already closing is refused as such, at no cost, and a close the
   runner's own shutdown overtakes answers that it failed, the terminal kept as
   shutdown keeps every terminal.
-- **Messages** between agents come from the same server's `send` and `agents` tools,
+- **Messages** between agents come from the same server's `send`, `agents` and `team` tools,
   listed only inside Novadeck's terminals like the others: an agent messages another
   terminal of its project and session by its handle, such as `@moth`, which `open_terminal` and `open_agent`
   also answer with, and the message reaches that agent through its own hooks. The runner
   keeps the messages with the workspace and lists, pauses and releases them through
   `messages.list`, `messages.pause` and `messages.release`. Its `agents` listing carries
-  the summaries the terminals' agents gave through `describe`. See
+  the summaries the terminals' agents gave through `describe`, and `team` follows the
+  caller's own team's work since it last looked. See
   [Agent messaging](agent-messaging.md).
 - **Pages** are any http(s) address; an address with a user name or password is
   refused. The desktop app loads them live in the pane, in Electron's `<webview>`,

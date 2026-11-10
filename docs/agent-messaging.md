@@ -348,7 +348,7 @@ agent session; never a name the model passes.
 
 ## Agent interface
 
-Two tools join `show`, `showing`, `look`, `close`, `open_terminal`, `open_agent`, `close_terminal`, `lead` and `release`, listed,
+Three tools join `show`, `showing`, `look`, `close`, `open_terminal`, `open_agent`, `close_terminal`, `lead` and `release`, listed,
 like them, only inside Novadeck's terminals.
 
 - **`send(to, text)`** answers with the recipient's handle, the message id and one of:
@@ -409,96 +409,122 @@ like them, only inside Novadeck's terminals.
   through `sendAny`. A second tool was weighed and set aside: it would carry the
   messaging rules again, in every agent's context.
 
-- **`agents()`** lists the other terminals in the project and session, each as one
-  short block of what Novadeck infers itself; the only thing an agent claims there, its
-  own summary, is marked as its agent's. The runner renders it, as it renders a refused
-  `send`'s listing, and the MCP server prints the text as it is. Under the caller's own
-  handle it first names the caller's team, when it is in one, from the running leads
-  only: "Your team: led by @fox, with @owl, @haze." for its lead and the others that lead
-  leads ("no other teammates" when there are none), and "Your team: you lead @owl." or,
-  with a lead of its own, "You also lead @owl." for the terminals it leads.
+- **`agents()`** lists the other terminals in the project and session, all at one level
+  of detail, whatever their number: who is here, what each is called, what runs there and
+  what it works on. It is for finding a terminal and routing a message to it. The runner
+  renders it, as it renders a refused `send`'s listing, and the MCP server prints the text
+  as it is. It starts with the caller's own handle, then every team there, each once: "Teams
+  in this project and session:", then "- yours: led by @moth, with @fox, @sable and you" or
+  "- led by @crow, with @owl", from the running leads only, so no entry has to repeat its
+  team. Then each terminal:
 
-  With more than five other terminals (`compactPast`), a lead with a team calls it often
-  to see who is busy, idle or waiting on the person, so each terminal is one line: its
-  handle and title, its agent and its state (busy, idle, "waiting on the user:" and what
-  for, which always shows, or waiting on its own job or wake-up; "no agent" for a plain
-  terminal), its branch, how it
-  relates to the caller, and its standing done, else its latest update, else its agent's
-  summary: `- @fox · ti delivery: Claude Code, busy, on task/ti-delivery, led by you —
-  update 15 min ago: PR opened`. The tool's `terminal` (a handle) gives that terminal's
-  block alone, and `full: true` every terminal's block, as five or fewer always show.
-  Each block:
-  1. its handle;
-  2. its title, from the runner's terminal record, with "(set by @fox, not the user)" when
-     an agent gave it (an agent that opened the terminal), "(set by its own agent, not the user)" when
-     the terminal's own agent did, and "(written by Novadeck's local model, not the user)" for murmur's; then
-     "described by its agent:" and the summary its own agent gave through `describe`,
-     when it did;
-  3. its agent (Claude Code, Codex or Antigravity);
-  4. its folder, relative to the project when inside it, and git branch (read from
-     git's own files, cached, with a short timeout): where its agent works now. That is
-     its terminal's folder, which follows the harness's own directory, unless its agent's
-     latest tool calls are mostly in another git checkout, as an agent that moved on to
-     another worktree: then that checkout and its branch, with "(its agent works here now;
-     its terminal started in …)". The calls are the root's shell commands, by the folder
-     each ran in, and the files any of its actors wrote. Each harness tells a command's
-     folder its own way: Claude Code by a leading move, else its hook's directory, which
-     keeps the `cd`s it allows; Antigravity by a leading move (or the `Cwd` its 1.2
-     `run_command` took and 1.4 refuses), else its workspace; Codex by its rollout's
-     `CommandExecution` items, whose `cwd` is the command's own `workdir`, which its hook
-     never names (probed 2026-10-31, 0.163.0). A leading move is a shell's `cd`, `chdir` or
-     `pushd`, or PowerShell's `Set-Location` (`sl`, `chdir`, `cd`) or `Push-Location`
-     (`pushd`), its folder alone or after `-Path` or `-LiteralPath`, as Windows agents
-     move in PowerShell; Codex's script is the one its list hands a shell (`bash -lc`,
-     `powershell -Command`, `cmd /c`). A folder follows the agent's own path rules,
-     Windows' for one with a drive or share, whatever system runs the runner, and reads Git
-     Bash's `/c/…` (Claude Code's Bash on Windows) as `C:\…`; the listing writes every path
-     with `/`. The last eight (`keptPlaces`) are kept
-     with its work; another checkout wins once it holds more than half of them, so a few
-     looks elsewhere (a teammate's log) or a fresh session's first command don't move it.
-     Folders are compared with their links resolved. A folder in
-     no checkout (a scratchpad, a memory folder) never counts;
-  5. "started with": the person's first root prompt in the bound session, about 120
-     characters. In the first root session of a terminal another agent opened, a first
-     prompt that isn't the user's (see [Naming](#naming)) is the
-     opener's command's, and says so: "started with (@fox's command)";
-  6. "latest": the person's most recent root prompt there, left out when it is the
-     first. Prompts and the "with you" message show without the tags that wrap one
-     agent's message to another (`<agent-message from="fox">`, `<novadeck-messages>`),
-     as "(a message from fox) …". Only the person's prompts count, never a turn the harness started (a task
-     notification, a subagent waking Antigravity, which never shows prompt text);
-  7. its plan's title, when it has one;
-  8. "works in": the three folders it writes in most, from its edit and write tool
-     events, with counts (`src/api/ (14), tests/ (3)`); outside the project, each run of
-     ids in a path is one `…` (`/tmp/claude-1000/…/scratchpad/ (6)`);
-  9. "with you": the latest message between it and the caller, either way: who sent
-     it, about 80 characters of it, and when. Only one the caller sent, or one delivered
-     to it: a message still on its way (queued, held or leased) never shows, so listing
-     peers never gets past a pause or delivery;
-  10. busy or idle, and when it was last active; or, in place of busy, "waiting on the
-      user:" and what for, when its agent is blocked on a permission request, a
-      question or a plan's approval (the oldest, with "(and N more)" when several wait).
-      A question's or plan's subject shows, cut to 80 characters; a permission shows
-      only its tool, never its command, address or path, which may hold a token. A
-      waiting peer can't act or answer until the person does, so a lead tells the
-      person rather than waiting on it or telling it to proceed;
-  11. how it relates to the caller (see [Authority](#authority)), from the running
-      lead only: "led by you" for a terminal the caller leads, "your lead: it opened
-      this terminal and directs your work" for the caller's own lead, "led by @crow" for
-      another's. A terminal whose lead has closed or ended says nothing of one.
+  - an agent's terminal, two lines:
+    `- @fox · ti listing: Claude Code, idle for 6 min, your teammate` and
+    `  "Splitting the agents listing into session and team views" · novadeck task/ti-listing, 2 ahead, uncommitted changes, PR https://…`:
+    1. its handle and title. A title is text the person, an agent or murmur may set, and
+       says nothing of authority; the tool's description says so once, rather than each
+       entry naming who set it;
+    2. its agent (Claude Code, Codex or Antigravity);
+    3. its state and since when: busy, idle, asleep (no process runs; a message wakes it),
+       "waiting on the user:" and what for (a question's or plan's subject; a permission
+       shows only its tool, never its command, address or path, which may hold a token),
+       or waiting on its own job or a wake-up it set, which wakes it by itself. A waiting
+       agent can't act or answer until the person does, so a lead tells the person rather
+       than waiting on it or telling it to proceed;
+    4. how it relates to the caller, from the running leads only: "your lead", "your
+       teammate" (led by the caller's lead), "led by you", or "peer" for every other agent,
+       another team's members included (the roster says which team);
+    5. the summary its own agent gave through `describe`, quoted, when it gave one;
+    6. its git checkout, where it works now: the checkout's folder name as its repo (a
+       uberepo task's worktree is named after its repo, and every repo of a task has the
+       same branch), its branch, how many commits it is ahead of its upstream ("not pushed"
+       with none), "uncommitted changes" when there are, and the latest pull request link
+       its agent gave in a `tell` or `done`. The checkout is its terminal's folder's unless
+       its agent's latest tool calls are mostly in another (see below). Nothing is said
+       outside a checkout. Ahead and uncommitted come from one `git status
+       --porcelain=v2 --branch`, run with `GIT_OPTIONAL_LOCKS=0` so it never takes the
+       index lock an agent's own git may want; it is cached a few seconds, a listing waits
+       for a fresh one at most a moment, and else shows the last known value while it
+       refreshes. The pull request is never asked of GitHub: no network, sign-in or rate
+       limit stands between an agent and its listing;
+  - a terminal opened to run an agent that hasn't bound: "expecting Codex, not started yet",
+    or "waiting on the user: its startup screen" (see [Startup screens](#startup-screens));
+    one whose agent's hooks aren't trusted says nothing can deliver to it;
+  - a plain shell, one line: `- @crow · dev server: shell, running pnpm dev:web`, or "at
+    its prompt". The command shows only its program and the plain words after it, up to
+    the first that could carry a value (an assignment, an option, a path, an address, a
+    quote), so `TOKEN=… curl -H "Authorization: …"` shows as `curl`.
 
-  The prompts and the folder counts (the 20 folders written in most) are facts of the
-  terminal, owned by the terminal manager and kept with its record, so they outlive the agent compacting its context and the runner
-  restarting. A prompt that is a hook's continuation (Codex's `<hook_prompt>`), a
-  delivery of messages, or the doorbell's line is never taken for the person's.
+  Text an agent or the person wrote (titles, summaries, report subjects, message and reply
+  excerpts) is flattened to one line and cut short wherever a listing shows it, so it can't
+  begin a line of its own that reads as Novadeck's.
 
-  The prompts are visible to peers: "started with" and "latest" show up to 120
-  characters of the person's prompts to every agent in the same project and session, so
-  something pasted at the start of a prompt is visible to them. `send` reads branches
-  and plans only when it has to describe the terminals, as its `to` is no handle there.
-  It also lists the
-  caller's own messages not yet delivered, or gone. Nothing needs it first, but it is
-  always current, so an agent unsure which terminal is meant calls it again.
+  The checkout an agent works in now: its terminal's folder, which follows the harness's
+  own directory, unless its agent's latest tool calls are mostly in another git checkout,
+  as an agent that moved on to another worktree. The calls are the root's shell commands,
+  by the folder each ran in, and the files any of its actors wrote. Each harness tells a
+  command's folder its own way: Claude Code by a leading move, else its hook's directory,
+  which keeps the `cd`s it allows; Antigravity by a leading move (or the `Cwd` its 1.2
+  `run_command` took and 1.4 refuses), else its workspace; Codex by its rollout's
+  `CommandExecution` items, whose `cwd` is the command's own `workdir`, which its hook
+  never names (probed 2026-10-31, 0.163.0). A leading move is a shell's `cd`, `chdir` or
+  `pushd`, or PowerShell's `Set-Location` (`sl`, `chdir`, `cd`) or `Push-Location`
+  (`pushd`), its folder alone or after `-Path` or `-LiteralPath`, as Windows agents move in
+  PowerShell; Codex's script is the one its list hands a shell (`bash -lc`, `powershell
+  -Command`, `cmd /c`). A folder follows the agent's own path rules, Windows' for one with
+  a drive or share, whatever system runs the runner, and reads Git Bash's `/c/…` (Claude
+  Code's Bash on Windows) as `C:\…`. The last eight (`keptPlaces`) are kept with its work;
+  another checkout wins once it holds more than half of them, so a few looks elsewhere (a
+  teammate's log) or a fresh session's first command don't move it. Folders are compared
+  with their links resolved. A folder in no checkout (a scratchpad, a memory folder) never
+  counts.
+
+  The listing shows none of the person's prompts: an earlier version showed the first
+  and latest of each agent's, which put whatever the person pasted in front of every agent
+  in the session, and told little a `describe` summary doesn't. Nor a plan's title (only
+  each harness's formal plan mode has one) or the folders an agent writes in most. It also
+  lists the caller's own messages not yet delivered, or gone. Nothing needs it first, but
+  it is always current, so an agent unsure which terminal is meant calls it again. An
+  older relay's `terminal` or `full` is read and ignored.
+
+- **`team({ all? })`** is for the caller's team only, and for following its work: its lead
+  and the others that lead leads, and the terminals the caller leads (an agent in the
+  middle has both). It starts with "Your team: led by @moth, with @fox, @sable and you."
+  and "You lead @owl." Each member shows its `agents()` entry, with what it waits on the
+  person for in full rather than cut short, then what happened since the caller last
+  called `team`, oldest first:
+
+  ```
+  - @fox · ti listing: Claude Code, idle for 6 min, your teammate
+    "Splitting the agents listing into session and team views" · novadeck task/ti-listing, 2 ahead
+    since you last looked:
+      12 min ago, update: PR opened, CI running
+      5 min ago, turn ended without a report: "Should I also migrate the old rows, or leave them?"
+      4 min ago, you → @fox, arrives when its turn ends: "Leave them, add a follow-up issue"
+  - @sable · schema migration: Codex, busy for 3 min, your teammate · nothing new since you last looked
+  ```
+
+  The entries:
+  - its `tell` and `done` reports ("update", "done"): subject and the start of the body;
+  - its asks of the person ("asked the user");
+  - each turn it ended without a `tell` or `done` since the turn before ("turn ended without
+    a report", with the start of its reply; "turn failed", with its error): the
+    silent finish a lead would otherwise not hear of, as a worker's finished turn
+    without a `done` leaves its tab read for the person (see [Authority](#authority));
+  - messages between the caller and it, either way: one the caller sent in any state, with
+    when it arrives, held, or that it won't; one it sent the caller only once delivered,
+    else "a message from it on its way to you" with no text, so the listing never gets
+    past a pause or a delivery.
+
+  At most five entries show per member, with "(and N earlier)". A member with no new entry
+  and the same state as at the caller's last look is one line, "nothing new since you last
+  looked". What the caller last saw is kept in memory, per caller terminal and agent
+  session: a `/clear` or a new session starts afresh, and a runner restart shows
+  everything as new. A lead whose context was compacted calls `team({ all: true })`, which
+  shows every member's latest entries whatever it saw; the tool's description says so, in
+  every harness. Turn ends come from a small record Inbox keeps of each terminal's latest
+  (ten) stored ends, apart from its rows, which the person's read removes. An agent in no
+  team is told so, and pointed to `agents()`.
 
 Each tool's description carries the rules, because only Claude Code reads a server's
 connection instructions: the person comes first, and what they type in the agent's own
@@ -2207,10 +2233,8 @@ agent opened without a brief, gets its messages so: rung once its agent is Ready
    rather than to a session that doesn't exist yet. The terminal's own report queue puts
    the `SessionStart` ahead of the first prompt's ask, so that ask finds the session
    bound and the message waiting.
-4. Shows the new terminal in the opener's `agents()` as "led by you" while the opener's
-   terminal runs (and the opener as "your lead: …" in the new agent's); where its
-   "started with" is the opener's command's, it says "(@fox's command)". `agents()` no
-   longer prints "opened by". The message shows in the opener's `agents()` as not yet
+4. Shows the new terminal in the opener's `agents()` and `team()` as "led by you" while
+   the opener's terminal runs (and the opener as "your lead" in the new agent's). The message shows in the opener's `agents()` as not yet
    delivered while no session has bound (a login through the browser can take minutes;
    for Codex, with a hint that its hooks may need trusting with `/hooks`). A different
    agent binding there makes it `gone`, as does the terminal closing first (the
@@ -2338,8 +2362,8 @@ in `terminals/describe-request.ts` and `Calls.describe` (`terminals/calls.ts`), 
   theirs in the store, and
   what was waiting or owed is dropped. Closing the runner, a failed check or a lost GPU
   clear nothing.
-- **Whose the first prompt is.** "Started with" in `agents()` uses the person's first root
-  prompt, and one rule tells whose it is (`firstFrom` in
+- **Whose the first prompt is.** A terminal's work keeps the person's first root prompt
+  (no listing shows it since `agents()` stopped printing prompts), and one rule tells whose it is (`firstFrom` in
   `terminals/work.ts`): in a terminal the person opened it always is, as it is in every
   root session but the first of a terminal another agent opened (`openedBy`). In that
   first session it is the user's only when the person's own submission started its turn

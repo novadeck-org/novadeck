@@ -149,6 +149,7 @@ export const claudeVocabulary: readonly Written[] = [
         [`${novadeck}send`, { to: "reviewer", text: "Please look at the diff" }, "Sent"],
         [`${novadeck}send`, { text: "Anyone there?" }, "Sent"],
         [`${novadeck}agents`, {}, "reviewer, builder"],
+        [`${novadeck}team`, { all: true }, "Your team"],
         [
           `${novadeck}open_agent`,
           { agent: "claude", message: "Review the PR", model: "opus", effort: "high" },

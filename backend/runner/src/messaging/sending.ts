@@ -41,19 +41,16 @@ import {
   type Thread,
 } from "./messages.js"
 import {
-  defaultView,
-  deliveredTo,
   deliveredToAll,
-  lastBetween,
   peerOf,
   renderAgents,
   unknownHandle,
   type About,
   type Peer,
-  type View,
 } from "./peers.js"
 import { SendRates, senderRate } from "./send-rates.js"
 import type { Sessions } from "./sessions.js"
+import { exchanged, renderTeam, type Look } from "./team.js"
 
 /** What `send` answers: where the message is, or why it was refused. */
 export type SendAnswer =
@@ -206,21 +203,18 @@ const sendRequest = z.strictObject({
 })
 
 /**
- * What `agents` may ask: one terminal's details by its handle, or every terminal in full.
- * Anything it can't read, as from a newer relay, asks for neither.
+ * What `team` may ask: every member's latest entries, whatever the caller saw before.
+ * Anything it can't read, as from a newer relay, asks for nothing. `agents` asks for
+ * nothing: an older relay's `terminal` or `full` is ignored.
  */
-const agentsRequest = z.object({
-  terminal: z.string().min(1).max(65).optional().catch(undefined),
-  full: z.boolean().optional().catch(undefined),
-})
+const teamRequest = z.object({ all: z.boolean().optional().catch(undefined) })
 
-/** The view an `agents` request asks for, by default compact past a few terminals. */
-const viewOf = (request: unknown, peers: readonly Peer[]): View => {
-  const parsed = agentsRequest.safeParse(request ?? {})
-  const { terminal, full } = parsed.success ? parsed.data : {}
-  if (terminal !== undefined) return { kind: "one", handle: terminal }
-  return full === true ? { kind: "full" } : defaultView(peers)
-}
+/** How many callers' last looks at their team are kept; the oldest goes past it. */
+const keptLooks = 512
+
+/** Whose look at their team it is: the terminal and its root agent session, if bound. */
+const lookKey = (live: Live): string =>
+  JSON.stringify([live.terminalId, live.root?.agent ?? null, live.root?.sessionId ?? null])
 
 /** Whether a word could be a handle: letters, digits and dashes, as every handle is. */
 const handleShaped = (word: string): boolean => /^[\p{L}\p{N}_-]+$/u.test(word)
@@ -253,6 +247,8 @@ export type SendingHost = {
  */
 export class Sending {
   private readonly rates = new SendRates()
+  /** What each caller saw at its last `team`, by its terminal and agent session (`lookKey`). */
+  private readonly looks = new Map<string, Look>()
 
   constructor(private readonly host: SendingHost) {}
 
@@ -755,7 +751,7 @@ export class Sending {
    * Novadeck knows of it, and the caller's own messages not yet delivered or gone, as one
    * text agents read.
    */
-  agents(terminalId: string, about: About = () => undefined, request: unknown = {}): AgentsAnswer {
+  agents(terminalId: string, about: About = () => undefined): AgentsAnswer {
     const { store, holds } = this.host
     const live = this.host.sessions.get(terminalId)
     if (!live) return refused("Novadeck couldn't list the terminals.")
@@ -773,7 +769,6 @@ export class Sending {
       handle: live.handle,
       lead: this.host.leading.leadOf(live.terminalId) ?? null,
       peers,
-      view: viewOf(request, peers),
       messages: mine.map((message) => {
         const why = holds.holdWhy(message)
         return { message, hold: store.holdOf(message), ...(why !== undefined && { why }) }
@@ -784,6 +779,33 @@ export class Sending {
     // As every answer to the caller does, it tells of its messages held long, once.
     const held = holds.heldFrom(terminalId)
     return { ok: true, text: [text, ...held].join("\n") }
+  }
+
+  /**
+   * The caller's team in its project and session, each member described as `agents`
+   * describes it, with what happened since the caller's last `team` (every member's latest,
+   * with `all`), as one text agents read. What the caller saw is kept per terminal and
+   * agent session, in memory, so a new session starts afresh.
+   */
+  team(terminalId: string, about: About = () => undefined, request: unknown = {}): AgentsAnswer {
+    const live = this.host.sessions.get(terminalId)
+    if (!live) return refused("Novadeck couldn't list your team.")
+    const parsed = teamRequest.safeParse(request ?? {})
+    const key = lookKey(live)
+    const messages = [...this.host.store.messages()]
+    const { text, look } = renderTeam({
+      handle: live.handle,
+      lead: this.host.leading.leadOf(live.terminalId) ?? null,
+      peers: this.peers(live, about),
+      exchanges: (peer) => exchanged(messages, live.terminalId, peer),
+      look: this.looks.get(key),
+      all: parsed.success && parsed.data.all === true,
+      now: this.host.now(),
+    })
+    this.looks.delete(key)
+    this.looks.set(key, look)
+    if (this.looks.size > keptLooks) this.looks.delete(this.looks.keys().next().value!)
+    return { ok: true, text }
   }
 
   /**
@@ -824,7 +846,6 @@ export class Sending {
 
   /** The caller's peers, described. */
   private peers(live: Live, about: About): Peer[] {
-    const { store } = this.host
     return this.host.sessions.scoped(live).map((peer) =>
       peerOf({
         terminalId: peer.terminalId,
@@ -837,9 +858,7 @@ export class Sending {
         // running, as after an Esc, is no delivery phase.
         busy: peer.delivery.state === "working" || about(peer.terminalId)?.working === true,
         where: about(peer.terminalId),
-        withYou: lastBetween(store.messages(), live.terminalId, peer),
         lead: this.host.leading.leadOf(peer.terminalId) ?? null,
-        deliveredAt: deliveredTo(store.messages(), peer.terminalId),
       }),
     )
   }

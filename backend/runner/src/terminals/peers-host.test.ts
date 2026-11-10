@@ -1,5 +1,4 @@
 import { mkdir, writeFile } from "node:fs/promises"
-import { homedir } from "node:os"
 import { join } from "node:path"
 
 import type { TerminalSummary } from "@novadeck/protocol"
@@ -9,6 +8,7 @@ import type { Messaging } from "../messaging/messaging.js"
 import type { Whereabouts } from "../messaging/peers.js"
 import { describe, expect, it } from "../test.js"
 import { folder } from "../testing/engines.js"
+import { GitStates } from "./git-state.js"
 import { TerminalPeers, waitingOf, type PeerRecord, type PeerTerminal } from "./peers-host.js"
 import { freshWork } from "./work.js"
 
@@ -64,7 +64,7 @@ describe("what a terminal's dictation hint is made of", () => {
     terminal: () => undefined,
     running: () => [],
     projectFolder: () => "/w/repo",
-    reports: () => ({ tell: null, done: null }),
+    happenings: () => [],
     stopping: () => false,
   })
   const terminal = (fields: Partial<PeerTerminal>): PeerTerminal => ({
@@ -132,7 +132,7 @@ describe("what a terminal's dictation hint is made of", () => {
       terminal: () => undefined,
       running: () => [],
       projectFolder: () => undefined,
-      reports: () => ({ tell: null, done: null }),
+      happenings: () => [],
       stopping: () => false,
     })
     const work = {
@@ -143,34 +143,73 @@ describe("what a terminal's dictation hint is made of", () => {
   })
 })
 
-describe("where peers are, as an agent reads it", () => {
-  it("shows the end of a long path, never starting on half an emoji", async () => {
+describe("what peers read of a terminal", () => {
+  const read = async (summary: object, bound: object | null = null) => {
     const record = {
-      summary: { id: "t1", cwd: "/w", sessionId: "s", title: "t", activity: null },
-      naming: { person: null, opener: null, murmur: null, own: null, summary: null },
+      summary: {
+        id: "t1",
+        cwd: "/nowhere",
+        sessionId: "s",
+        title: "t",
+        activity: null,
+        ...summary,
+      },
+      naming: { person: null, opener: null, murmur: null, own: null, summary: "Docs" },
       work: null,
       openedBy: null,
-      bound: null,
+      bound,
     } as unknown as PeerRecord
-    let place: ((path: string) => string) | undefined
-    const peers = new TerminalPeers({
-      messaging: {
-        agents: (_terminalId: string, about: (id: string) => { place: typeof place }) => {
-          place = about("t1").place
-          return { ok: true }
-        },
-      } as unknown as Messaging,
-      caller: () => record,
-      terminal: () => undefined,
-      running: () => [record],
-      projectFolder: () => undefined,
-      reports: () => ({ tell: null, done: null }),
-      stopping: () => false,
-    })
+    let where: Whereabouts | undefined
+    const peers = new TerminalPeers(
+      {
+        messaging: {
+          agents: (_terminalId: string, about: (id: string) => Whereabouts) => {
+            where = about("t1")
+            return { ok: true }
+          },
+        } as unknown as Messaging,
+        caller: () => record,
+        terminal: () => undefined,
+        running: () => [record],
+        projectFolder: () => undefined,
+        happenings: () => [{ kind: "asked", at: 1, subject: "Which?" }],
+        stopping: () => false,
+      },
+      new GitStates(async () => null),
+    )
     await peers.agents({ type: "agents", terminalId: "t1", token: "k", request: {} })
+    return where
+  }
 
-    // Outside the terminal's folder, so shown whole until cut: 111 units, its cut at a low half.
-    expect(place?.(`/elsewhere/${"😀".repeat(50)}`)).toBe(`…${"😀".repeat(39)}`)
+  it("is its shell's program, only while one runs, with its arguments' values left out", async () => {
+    const process = { name: "curl", argv: ["curl", "-H", "Authorization: Bearer abc", "x"] }
+    expect((await read({ busy: true, process }))?.shell).toEqual({
+      running: true,
+      command: "curl",
+    })
+    expect((await read({ busy: false, process }))?.shell).toEqual({
+      running: false,
+      command: null,
+    })
+  })
+
+  it("is its agent's summary and what its session told the person, and when its turn last ended", async () => {
+    const activity = { state: "idle", lastTurn: { at: 42 } }
+    expect(
+      await read({ activity }, { activity: { pending: [], plans: [], turnAt: 7 } }),
+    ).toMatchObject({
+      summary: "Docs",
+      since: 42,
+      happenings: [{ kind: "asked", at: 1, subject: "Which?" }],
+      git: null,
+    })
+    // While a turn runs, it has no last turn: since when it started.
+    expect(
+      await read(
+        { activity: { state: "working", lastTurn: null } },
+        { activity: { pending: [], plans: [], turnAt: 7 } },
+      ),
+    ).toMatchObject({ since: 7 })
   })
 })
 
@@ -220,25 +259,28 @@ describe("where a peer's agent works now", () => {
       bound: bound ? { activity: { pending: [], plans: [] } } : null,
     } as unknown as PeerRecord
     let where: Whereabouts | undefined
-    const peers = new TerminalPeers({
-      messaging: {
-        agents: (_terminalId: string, about: (id: string) => Whereabouts) => {
-          where = about("t1")
-          return { ok: true }
-        },
-      } as unknown as Messaging,
-      caller: () => record,
-      terminal: () => undefined,
-      running: () => [record],
-      projectFolder: () => root,
-      reports: () => ({ tell: null, done: null }),
-      stopping: () => false,
-    })
+    const peers = new TerminalPeers(
+      {
+        messaging: {
+          agents: (_terminalId: string, about: (id: string) => Whereabouts) => {
+            where = about("t1")
+            return { ok: true }
+          },
+        } as unknown as Messaging,
+        caller: () => record,
+        terminal: () => undefined,
+        running: () => [record],
+        projectFolder: () => root,
+        happenings: () => [],
+        stopping: () => false,
+      },
+      new GitStates(async () => ({ ahead: 1, dirty: false })),
+    )
     await peers.agents({ type: "agents", terminalId: "t1", token: "k", request: {} })
     return where
   }
 
-  it("is the worktree most of its latest calls are in, with its branch and where its terminal started", async ({
+  it("is the worktree most of its latest calls are in, named by its folder, with its branch and state", async ({
     resources,
   }) => {
     const root = await folder(resources)
@@ -253,10 +295,10 @@ describe("where a peer's agent works now", () => {
       join(b, "src"),
       b,
     ])
-    expect(moved).toMatchObject({
-      folder: join("tasks", "b", "repo"),
+    expect(moved?.git).toEqual({
+      repo: "repo",
       branch: "task/b",
-      startedIn: join("tasks", "a", "repo"),
+      state: { ahead: 1, dirty: false },
     })
   })
 
@@ -266,7 +308,7 @@ describe("where a peer's agent works now", () => {
     const root = await folder(resources)
     await project(root)
     const a = join(root, "tasks", "a", "repo")
-    const stayed = { folder: join("tasks", "a", "repo"), branch: "task/a", startedIn: null }
+    const stayed = { git: { repo: "repo", branch: "task/a", state: { ahead: 1, dirty: false } } }
     expect(await whereabouts(root, [join(a, "src"), join(root, "scratchpad")])).toMatchObject(
       stayed,
     )
@@ -283,14 +325,5 @@ describe("where a peer's agent works now", () => {
     expect((await whereabouts(root, []))?.working).toBe(false)
     const running = { command: "sleep 15", since: 1 }
     expect((await whereabouts(root, [], true, running))?.working).toBe(true)
-  })
-
-  it("names a folder in the person's home but outside the project from ~", async ({
-    resources,
-  }) => {
-    const root = await folder(resources)
-    await project(root)
-    const where = await whereabouts(root, [])
-    expect(where?.place(join(homedir(), ".claude", "x"))).toBe(join("~", ".claude", "x"))
   })
 })
