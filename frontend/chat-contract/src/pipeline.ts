@@ -38,12 +38,15 @@ const blockTags = new Set(["P", "LI", "UL", "OL", "PRE", "BLOCKQUOTE", "TABLE", 
 const heading = /^H[1-6]$/
 
 // An element's text as a reader sees it: line breaks where blocks and breaks are, each line
-// trimmed, and the lines joined with a marker, so one block stays one line of a golden.
+// trimmed, and the lines joined with a marker, so one block stays one line of a golden. What is
+// hidden from readers (`aria-hidden`, as a row's facts at its edge: times and clocks, which depend
+// on the machine and the moment) is not read; the element itself is read whatever it says.
 const textOf = (element: Element): string => {
   let text = ""
   const walk = (node: Node): void => {
     if (node.nodeType === Node.TEXT_NODE) text += node.textContent ?? ""
     else if (node instanceof Element) {
+      if (node !== element && node.getAttribute("aria-hidden") === "true") return
       const block = blockTags.has(node.tagName) || heading.test(node.tagName)
       if (block || node.tagName === "BR") text += "\n"
       node.childNodes.forEach(walk)
