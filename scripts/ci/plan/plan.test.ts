@@ -67,14 +67,18 @@ const everySystem = [systems.linux, systems.windows, systems.macos]
 
 describe("the CI plan", () => {
   context("when nothing narrows it", () => {
-    it.each(["schedule", "workflow_dispatch", "push", ""])("runs everything on %j", (event) => {
-      const decided = plan({ ...pullRequest("frontend/ui/src/a.ts"), event }, ids)
-      expect(decided.everything).toBeDefined()
-      expect(decided.tests).toEqual({ linux: "all", windows: "all", macos: "all" })
-      expect(decided.e2e.run).toBe(true)
-      expect(decided.e2e.os).toEqual(everySystem)
-      expect(decided.package).toBe(true)
-    })
+    it.each(["schedule", "workflow_dispatch", "push", "pull_request_target", ""])(
+      "runs everything on %j",
+      (event) => {
+        const decided = plan({ ...pullRequest("frontend/ui/src/a.ts"), event }, ids)
+        expect(decided.event).toBe(event)
+        expect(decided.everything).toBeDefined()
+        expect(decided.tests).toEqual({ linux: "all", windows: "all", macos: "all" })
+        expect(decided.e2e.run).toBe(true)
+        expect(decided.e2e.os).toEqual(everySystem)
+        expect(decided.package).toBe(true)
+      },
+    )
 
     it.each([
       "pnpm-lock.yaml",
@@ -109,6 +113,34 @@ describe("the CI plan", () => {
     it("runs everything when a changed package isn't among the affected", () => {
       const decided = plan({ ...pullRequest("frontend/ui/src/a.ts"), affected: [] }, ids)
       expect(decided.everything).toBe("@novadeck/ui changed but isn't affected")
+    })
+  })
+
+  context("for a merge queue's group", () => {
+    // A group's base is its parent (main, or the entry ahead), so its changes are the PR's own.
+    const group = (...files: string[]): Facts => ({
+      ...pullRequest(...files),
+      event: "merge_group",
+    })
+
+    it.each([
+      "frontend/ui/src/a.ts",
+      "backend/runner/src/a.ts",
+      "docs/development.md",
+      "pnpm-lock.yaml",
+    ])("plans %s as a pull request does, and says it is a group's", (file) => {
+      const decided = plan(group(file), ids)
+      const asPullRequest = plan(pullRequest(file), ids)
+      expect(decided.event).toBe("merge_group")
+      expect(asPullRequest.event).toBe("pull_request")
+      expect({ ...decided, event: "" }).toEqual({ ...asPullRequest, event: "" })
+    })
+
+    it("narrows it, not running everything", () => {
+      const decided = plan(group("frontend/core/src/a.ts"), ids)
+      expect(decided.everything).toBeUndefined()
+      expect(decided.tests.linux).not.toBe("all")
+      expect(decided.tests.macos).not.toBe("all")
     })
   })
 

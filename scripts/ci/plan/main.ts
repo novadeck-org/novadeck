@@ -5,13 +5,14 @@ import { dirname, join } from "node:path"
 import { parseAffected } from "../../e2e/plan/plan.ts"
 import { declaredReads, platformOf, workspacePackages } from "../../workspace/platform.ts"
 import { readScope, type Scope, scopeFile } from "../../workspace/scopes.ts"
-import { type Facts, plan, type Workspace } from "./plan.ts"
+import { type Facts, followed, plan, type Workspace } from "./plan.ts"
 
 // `node scripts/ci/plan/main.ts`: decides what a run's CI needs and prints the plan as JSON; in
 // Actions it also sets the job's outputs `tests` (the packages on each system), `run`, `os`,
-// `rows` and `quirks` (the E2E jobs) and `package`. A pull request reads its changes from
-// `BASE_SHA` and `HEAD_SHA` (the full history must be there); any other event, or anything that
-// can't be read, runs everything. No workflow reads it yet.
+// `rows` and `quirks` (the E2E jobs), `package` and `event`. A pull request reads its changes
+// from `BASE_SHA` and `HEAD_SHA` (the full history must be there), and so does a merge queue's
+// group, its `merge_group.base_sha` and `merge_group.head_sha` given as those; any other event,
+// or anything that can't be read, runs everything. No workflow reads it yet.
 
 const root = join(import.meta.dirname, "..", "..", "..")
 const pins = join(root, "backend", "runner", "src", "e2e", "harnesses.json")
@@ -80,7 +81,7 @@ const facts = (event: string, base: string | undefined, head: string | undefined
     files: undefined,
     suite: undefined,
   }
-  if (event !== "pull_request") return { event, ...none, packaged: undefined }
+  if (!followed.includes(event)) return { event, ...none, packaged: undefined }
   if (!base || !head) {
     console.error("BASE_SHA or HEAD_SHA is missing: running everything.")
     return { event, ...none, packaged: undefined }
@@ -140,6 +141,7 @@ export const main = (): void => {
         `rows=${JSON.stringify(decided.e2e.rows)}`,
         `quirks=${JSON.stringify(decided.e2e.quirks)}`,
         `package=${decided.package}`,
+        `event=${decided.event}`,
         "",
       ].join("\n"),
     )

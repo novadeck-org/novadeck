@@ -2,8 +2,8 @@
 // folder outside a package says about itself (scripts/workspace/platform.ts, scopes.ts), with no
 // list of paths to keep: which packages' tests run on each system, which E2E rows, and whether
 // the app is packaged. Pure: `main.ts` gathers the facts. It fails open: any event but a pull
-// request, a change outside every package that nothing narrows, and any fact it can't read or
-// that contradicts another run everything.
+// request or a merge queue's group, a change outside every package that nothing narrows, and any
+// fact it can't read or that contradicts another run everything.
 
 import {
   adapterOf,
@@ -29,7 +29,7 @@ export type Workspace = {
 
 /** The facts a decision rests on; `undefined` where they couldn't be had. */
 export type Facts = {
-  /** The workflow's event (`pull_request`, `schedule`, `workflow_dispatch`, `push`). */
+  /** The workflow's event (`pull_request`, `merge_group`, `schedule`, `workflow_dispatch`, `push`). */
   readonly event: string
   /** Every workspace package, a missing declaration read as `system`. */
   readonly packages: readonly Workspace[] | undefined
@@ -47,6 +47,12 @@ export type Facts = {
 
 export type System = "linux" | "windows" | "macos"
 
+/**
+ * The events whose changes the plan follows: a pull request's against its base, and a merge
+ * queue's group's against the group's parent. Any other runs everything.
+ */
+export const followed: readonly string[] = ["pull_request", "merge_group"]
+
 /** The name the plan gives the repository's own tests (scripts/**\/*.test.ts), as turbo does. */
 export const repository = "//"
 
@@ -61,6 +67,8 @@ export type E2E = {
 }
 
 export type Plan = {
+  /** The event it was made for, so a caller can choose differently by event. */
+  readonly event: string
   /** Why everything runs, or `undefined` where the plan follows the change. */
   readonly everything: string | undefined
   /**
@@ -104,7 +112,8 @@ const e2eOf = (selected: readonly string[], os: readonly string[], ids: readonly
 }
 
 /** Everything, on every system, for the reason given. */
-const everything = (why: string, ids: readonly string[]): Plan => ({
+const everything = (event: string, why: string, ids: readonly string[]): Plan => ({
+  event,
   everything: why,
   tests: { linux: "all", windows: "all", macos: "all" },
   e2e: e2eOf(ids, Object.values(systems), ids),
@@ -113,7 +122,7 @@ const everything = (why: string, ids: readonly string[]): Plan => ({
 
 /** Why the facts can't be followed, or `undefined` where they can. */
 const unreadable = (facts: Facts, prose: boolean): string | undefined => {
-  if (facts.event !== "pull_request") return `a ${facts.event || "run with no event"}`
+  if (!followed.includes(facts.event)) return `a ${facts.event || "run with no event"}`
   const { packages, scopes, affected, files, suite, packaged } = facts
   const missing = Object.entries({ packages, scopes, affected, files, suite, packaged }).find(
     ([, fact]) => fact === undefined,
@@ -136,7 +145,7 @@ const unreadable = (facts: Facts, prose: boolean): string | undefined => {
 }
 
 /**
- * What runs for a change. Linux runs the tests of every affected package (turbo's, and each
+ * What runs for a change, a pull request's or a merge group's alike. Linux runs the tests of every affected package (turbo's, and each
  * package that declares it reads a changed path), and the repository's own tests, which read
  * the packages' files and are quick. Windows and macOS run those of every affected `system`
  * package, whatever changed: a change to a `neutral` dependency can break the tests a `system`
@@ -151,7 +160,7 @@ const unreadable = (facts: Facts, prose: boolean): string | undefined => {
 export const plan = (facts: Facts, ids: readonly string[], options: Options = {}): Plan => {
   const { prose = true } = options
   const why = unreadable(facts, prose)
-  if (why !== undefined) return everything(why, ids)
+  if (why !== undefined) return everything(facts.event, why, ids)
   // Read above: every fact is there.
   const packages = facts.packages!
   const files = facts.files!
@@ -180,6 +189,7 @@ export const plan = (facts: Facts, ids: readonly string[], options: Options = {}
   const os = run.some((name) => system.has(name)) ? Object.values(systems) : [systems.linux]
 
   return {
+    event: facts.event,
     everything: undefined,
     tests: { linux: [repository, ...linux], windows: others, macos: others },
     e2e: e2eOf(selected, os, ids),
