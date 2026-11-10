@@ -4,7 +4,8 @@ import { appendFileSync, readFileSync } from "node:fs"
 import { parseAffected, plan } from "./plan.ts"
 
 // `node scripts/e2e/plan/main.ts`: decides which E2E rows a run needs and prints the plan as
-// JSON; in Actions it also sets the job's outputs `run`, `os`, `rows` and `quirks`. A pull request
+// JSON; in Actions it also sets the job's outputs `run`, `os`, `quirks`, and each system's rows
+// (`linux`, `windows`, `macos`). A pull request
 // reads its changes from `BASE_SHA` and `HEAD_SHA` (the full history must be there); any
 // other event, or anything that can't be read, runs everything.
 
@@ -82,7 +83,15 @@ export const main = (): void => {
   if (output)
     appendFileSync(
       output,
-      `run=${decided.run}\nos=${JSON.stringify(decided.os)}\nrows=${JSON.stringify(decided.rows)}\nquirks=${JSON.stringify(decided.quirks)}\n`,
+      [
+        `run=${decided.run}`,
+        `os=${JSON.stringify(decided.os)}`,
+        `linux=${JSON.stringify(decided.jobs.linux)}`,
+        `windows=${JSON.stringify(decided.jobs.windows)}`,
+        `macos=${JSON.stringify(decided.jobs.macos)}`,
+        `quirks=${JSON.stringify(decided.quirks)}`,
+        "",
+      ].join("\n"),
     )
 }
 

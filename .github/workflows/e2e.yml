@@ -30,7 +30,8 @@ jobs:
   # schedule, a dispatch or when it can't tell. The jobs below take its rows as their
   # matrices, and none runs when nothing the suite depends on changed. Linux runs for any
   # change that can reach the runner; Windows and macOS only for one that can break them
-  # (`os`), as macOS runners are scarce. The workflow runs on every pull request so the
+  # (`os`), as macOS runners are scarce, and macOS only once Linux's jobs have passed. The
+  # workflow runs on every pull request so the
   # plan can say none is needed: main requires the gate below, which a run that never started
   # would leave pending.
   plan:
@@ -40,7 +41,9 @@ jobs:
     outputs:
       run: ${{ steps.plan.outputs.run }}
       os: ${{ steps.plan.outputs.os }}
-      rows: ${{ steps.plan.outputs.rows }}
+      linux: ${{ steps.plan.outputs.linux }}
+      windows: ${{ steps.plan.outputs.windows }}
+      macos: ${{ steps.plan.outputs.macos }}
       quirks: ${{ steps.plan.outputs.quirks }}
     steps:
       # The whole history: turbo and git diff the pull request's base against its head, and
@@ -80,11 +83,12 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node scripts/e2e/plan/main.ts
 
+  # Linux's jobs, for any change the suite runs on. The Linux jobs keep their names; the
+  # Windows and macOS ones (`e2e-windows` and `e2e-macos` below, with these steps) say so, and
+  # a harness's two halves say which (`Codex (Windows, 1/2)`).
   e2e:
     needs: plan
     if: needs.plan.outputs.run == 'true'
-    # The Linux jobs keep their names; the Windows and macOS ones say so, and a harness's
-    # two halves say which (`Codex (Windows, 1/2)`).
     name: ${{ matrix.job }}
     runs-on: ${{ matrix.os }}
     # Windows starts processes and consoles several times slower, and has no namespace;
@@ -104,15 +108,16 @@ jobs:
         # once for the scenarios across harnesses (`*.mixed.e2e.ts`) the others skip, as they
         # leave to it. Claude Code runs in two halves on every system, Codex on Windows and
         # Linux, and Antigravity on Linux, where their suites take longest
-        # (scripts/e2e/plan/plan.ts, `shardedOn` and `firstShard`).
-        include: ${{ fromJSON(needs.plan.outputs.rows) }}
-    env:
+        # (scripts/e2e/plan/plan.ts, `shardedOn` and `firstShard`). Each system's rows are
+        # its own job's.
+        include: ${{ fromJSON(needs.plan.outputs.linux) }}
+    env: &e2e-env
       NOVADECK_E2E_CACHE: ${{ github.workspace }}/.e2e-cache
       # Where a failed test writes what the runner heard and did (src/e2e/trace.ts).
       NOVADECK_E2E_TRACES: ${{ github.workspace }}/e2e-traces
       NOVADECK_E2E_AGENTS: ${{ matrix.setup.agents }}
       NOVADECK_E2E_HARNESS: ${{ (github.event_name == 'schedule' || inputs.harness == 'latest') && 'latest' || 'pinned' }}
-    steps:
+    steps: &e2e-steps
       - name: Check Out Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -258,6 +263,41 @@ jobs:
           cache: ${{ env.NOVADECK_E2E_CACHE }}
           harness: agy
           key: ${{ steps.agy.outputs.cache-primary-key }}
+
+  # Windows's jobs, beside Linux's, when the plan chose Windows.
+  e2e-windows:
+    needs: plan
+    if: needs.plan.outputs.run == 'true' && contains(fromJSON(needs.plan.outputs.os), 'windows-latest')
+    name: ${{ matrix.job }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.windows) }}
+    env: *e2e-env
+    steps: *e2e-steps
+
+  # macOS's jobs, when the plan chose macOS, once every Linux job has passed: a push that
+  # fails there, or is replaced while Linux's run, takes no macOS runner, the scarcest.
+  e2e-macos:
+    needs: [plan, e2e]
+    if: needs.plan.outputs.run == 'true' && contains(fromJSON(needs.plan.outputs.os), 'macos-latest')
+    name: ${{ matrix.job }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 36
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.macos) }}
+    env: *e2e-env
+    steps: *e2e-steps
 
   # The probes (src/e2e/probes): how each harness behaves where Novadeck's design depends on
   # it, recorded rather than checked, so they run nightly against each harness's latest
@@ -553,12 +593,13 @@ jobs:
           retention-days: 30
 
   # The one check main requires of this workflow. It passes once the plan ran and every job it
-  # chose passed, or when it chose none, as for a change that reaches no harness. `always()`,
+  # chose passed, or when it chose none, as for a change that reaches no harness. A job the
+  # plan chose must have passed: macOS's, skipped because Linux's failed, fails it. `always()`,
   # not `!cancelled()`: a skipped required check counts as passed, so a cancelled run must
   # fail it.
   gate:
     name: E2E
-    needs: [plan, e2e, quirks]
+    needs: [plan, e2e, e2e-windows, e2e-macos, quirks]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 1
@@ -566,13 +607,18 @@ jobs:
       - name: Require Every Planned Job
         env:
           PLAN_RESULT: ${{ needs.plan.result }}
-          E2E_RESULT: ${{ needs.e2e.result }}
+          RUN: ${{ needs.plan.outputs.run }}
+          OS: ${{ needs.plan.outputs.os }}
+          LINUX_RESULT: ${{ needs.e2e.result }}
+          WINDOWS_RESULT: ${{ needs.e2e-windows.result }}
+          MACOS_RESULT: ${{ needs.e2e-macos.result }}
           QUIRKS_RESULT: ${{ needs.quirks.result }}
         run: |
           test "$PLAN_RESULT" = success || { echo "Plan: $PLAN_RESULT"; exit 1; }
-          for result in "E2E $E2E_RESULT" "Quirks $QUIRKS_RESULT"; do
-            case "${result#* }" in
-              success | skipped) ;;
-              *) echo "$result"; exit 1 ;;
-            esac
+          planned() { [ "$RUN" = true ] && case "$OS" in *"\"$1\""*) true ;; *) false ;; esac; }
+          for job in "Linux ubuntu-latest $LINUX_RESULT" "Windows windows-latest $WINDOWS_RESULT" \
+            "macOS macos-latest $MACOS_RESULT" "Quirks windows-latest $QUIRKS_RESULT"; do
+            read -r name system result <<< "$job"
+            if planned "$system"; then expected=success; else expected=skipped; fi
+            test "$result" = "$expected" || { echo "$name: $result, planned $expected"; exit 1; }
           done

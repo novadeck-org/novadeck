@@ -111,22 +111,26 @@ export const select = (facts: Facts, ids: readonly string[]): readonly string[] 
 }
 
 /**
+ * The systems a run's jobs run on: on a pull request, Linux alone unless its change can break
+ * one system but not the others (`touchesSystem`); all three otherwise, and when that can't be
+ * told (`undefined`), as for `select`. Quality's tests decide by this rule too, with their own
+ * answer to whether a change touches the system (scripts/quality/plan).
+ */
+export const systemsFor = (event: string, touchesSystem: boolean | undefined): readonly string[] =>
+  event === "pull_request" && touchesSystem === false ? [systems.linux] : everySystem
+
+/** Whether a changed file is one the suite can run differently on each system. */
+const e2eTouchesSystem = (file: string): boolean =>
+  allSystemsFiles.has(file) ||
+  (allSystemsFolders.some((f) => file.startsWith(f)) &&
+    !browserOnlyFiles.some((f) => file.startsWith(f)))
+
+/**
  * The systems the rows run on. Linux alone unless a change can break a system but not the
  * others (`allSystemsFolders`); all three when nothing says otherwise, as for `select`.
  */
-export const selectSystems = (facts: Facts): readonly string[] => {
-  if (facts.event !== "pull_request") return everySystem
-  const { files } = facts
-  if (!files) return everySystem
-  return files.some(
-    (file) =>
-      allSystemsFiles.has(file) ||
-      (allSystemsFolders.some((f) => file.startsWith(f)) &&
-        !browserOnlyFiles.some((f) => file.startsWith(f))),
-  )
-    ? everySystem
-    : [systems.linux]
-}
+export const selectSystems = (facts: Facts): readonly string[] =>
+  systemsFor(facts.event, facts.files?.some(e2eTouchesSystem))
 
 /** One row of the `e2e` job's matrix. */
 export type Setup = {
@@ -259,11 +263,17 @@ export const rows = (os: readonly string[], each: readonly Setup[]): readonly Ro
 /** What the workflow's jobs read. */
 export type Plan = {
   readonly run: boolean
-  /** The `runs-on` of each system the `e2e` job runs on; the `quirks` job needs Windows. */
+  /** The `runs-on` of each system the `e2e` jobs run on; the `quirks` job needs Windows. */
   readonly os: readonly string[]
   readonly e2e: readonly Setup[]
-  /** The `e2e` job's matrix: `os` by `e2e`, with the long harnesses split in two. */
+  /** The jobs that run: `os` by `e2e`, with the long harnesses split in two. */
   readonly rows: readonly Row[]
+  /**
+   * The matrix of each system's job: Linux's, Windows's, and macOS's, which starts only once
+   * Linux's have passed. Each names its rows whether `os` has the system or not, as a skipped
+   * job's matrix must still be one; `os` says which run.
+   */
+  readonly jobs: { readonly [system in keyof typeof systems]: readonly Row[] }
   readonly quirks: readonly Quirk[]
 }
 
@@ -279,6 +289,11 @@ export const plan = (facts: Facts, ids: readonly string[]): Plan => {
     os,
     e2e,
     rows: rows(os, e2e),
+    jobs: {
+      linux: rows([systems.linux], e2e),
+      windows: rows([systems.windows], e2e),
+      macos: rows([systems.macos], e2e),
+    },
     quirks: quirks(chosen),
   }
 }
