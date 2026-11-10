@@ -7,7 +7,7 @@ name: CI Scoreboard
 # time, and the plan to cut Mac use (architecture/ci-plan) needs a number to be judged by.
 # Pull request runs of Quality and E2E count, and Nightly Quality's runs where it exists. Above
 # the tables is the merge queue's bar (architecture/ci-plan/merge-queue.md), of the last 14
-# days: the PR jobs' first-attempt failure rate, and the nights that were green first time.
+# days: the share of PR runs a rerun cleared, and the nights that were green first time.
 on:
   schedule:
     # Sunday morning, when few pull requests run: the run takes most of an hour's API
