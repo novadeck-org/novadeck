@@ -98,7 +98,7 @@ const Row = ({ line, sides }: { line: Line; sides: Sides }): React.JSX.Element =
   const side = line.kind === "remove" ? sides.before : sides.after
   const number = line.kind === "remove" ? line.old : line.now
   return (
-    <div className="changes-row" data-kind={line.kind}>
+    <div className="diff-row" data-kind={line.kind}>
       <span className="changes-num">{number}</span>
       <span className="changes-sign" aria-hidden="true">
         {signs[line.kind]}

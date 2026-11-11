@@ -162,7 +162,7 @@ const show = (
         .join(" "),
     )
   const files = () =>
-    [...container.querySelectorAll<HTMLElement>(".changes-file")].map((each) => each.dataset.path)
+    [...container.querySelectorAll<HTMLElement>(".diff-file")].map((each) => each.dataset.path)
   const click = async (element: Element | null | undefined) => {
     await act(async () => {
       ;(element as HTMLElement).click()
@@ -176,7 +176,7 @@ const show = (
     })
   }
   const row = (path: string) =>
-    [...container.querySelectorAll<HTMLElement>(".changes-file")].find(
+    [...container.querySelectorAll<HTMLElement>(".diff-file")].find(
       (each) => each.dataset.path === path,
     )!
   // Lets what is read and parsed asynchronously land.
@@ -390,7 +390,7 @@ describe("a change beside a terminal", () => {
       await click(button("src/auth/cookies.ts"))
       await click(button("src/auth/session.ts"))
       expect(
-        [...container.querySelectorAll(".changes-item[data-open] .changes-file")].map(
+        [...container.querySelectorAll(".changes-item[data-open] .diff-file")].map(
           (each) => (each as HTMLElement).dataset.path,
         ),
       ).toEqual(["src/auth/session.ts"])
@@ -444,7 +444,7 @@ describe("a change beside a terminal", () => {
       expect(block.querySelector(".changes-scope")?.textContent).toBe("in cookieMaxAge 7 → 30")
       expect(block.querySelector(".changes-where")?.textContent).toBe("line 2")
       expect(
-        [...block.querySelectorAll(".changes-row")].map((each) => [
+        [...block.querySelectorAll(".diff-row")].map((each) => [
           (each as HTMLElement).dataset.kind,
           each.querySelector(".changes-num")?.textContent,
           each.querySelector(".changes-text")?.textContent,
@@ -559,7 +559,7 @@ describe("a change beside a terminal", () => {
       await open(".env")
 
       expect(container.querySelector(".changes-summary")?.textContent).toContain("may hold secrets")
-      expect(container.querySelector(".changes-row")).toBeNull()
+      expect(container.querySelector(".diff-row")).toBeNull()
     })
 
     it("says a change past the backend's bounds is too large", async () => {
@@ -659,7 +659,7 @@ describe("a change beside a terminal", () => {
       const body = () => shown.container.querySelector(".changes-body")!
       const stretch = body().querySelector<HTMLElement>("button.changes-fold")!
       await shown.click(stretch)
-      const lines = body().querySelectorAll(".changes-row").length
+      const lines = body().querySelectorAll(".diff-row").length
       const run = body().querySelector(".changes-run")
 
       // The agent saves: a new stamp, whose answer is not in yet.
@@ -671,7 +671,7 @@ describe("a change beside a terminal", () => {
         "Reading the changes",
       )
       expect(body().querySelector(".changes-run")).toBe(run)
-      expect(body().querySelectorAll(".changes-row")).toHaveLength(lines)
+      expect(body().querySelectorAll(".diff-row")).toHaveLength(lines)
     })
 
     it("keeps the files' counts from the range while the new one is read", async () => {
@@ -684,6 +684,49 @@ describe("a change beside a terminal", () => {
       await shown.emit(change(), "2")
 
       expect(header()).toContain("+9 −8")
+    })
+  })
+
+  context("when a new commit comes in", () => {
+    it("leaves a file read that the commit did not touch", async () => {
+      const shown = show(change())
+      await shown.settle()
+      await shown.open("src/auth/session.ts")
+      await shown.press("Escape")
+      await shown.settle()
+      expect(shown.row("src/auth/session.ts").dataset.read).toBe("true")
+
+      const next = change()
+      await shown.emit(
+        {
+          ...next,
+          layers: [
+            next.layers[0]!,
+            layer("c3c3c3c3c3", "Touch the cookie again", [file("src/auth/cookies.ts")]),
+            ...next.layers.slice(1),
+          ],
+        },
+        "2",
+      )
+      await shown.settle()
+
+      expect(shown.row("src/auth/session.ts").dataset.read).toBe("true")
+      expect(shown.row("src/auth/cookies.ts").dataset.read).toBeUndefined()
+    })
+
+    it("does not take the keys from where the person put them", async () => {
+      const shown = show(change())
+      await shown.settle()
+      await shown.open("src/auth/cookies.ts")
+      const elsewhere = document.createElement("input")
+      document.body.append(elsewhere)
+      elsewhere.focus()
+
+      await shown.emit(change(), "2")
+      await shown.settle()
+
+      expect(document.activeElement).toBe(elsewhere)
+      elsewhere.remove()
     })
   })
 
@@ -720,9 +763,7 @@ describe("a change beside a terminal", () => {
   context("with nothing changed", () => {
     it("says so", () => {
       const { container } = show(change({ layers: [layer("uncommitted", "", [])] }))
-      expect(container.querySelector(".changes-empty")?.textContent).toBe(
-        "No changes against main.",
-      )
+      expect(container.querySelector(".diff-empty")?.textContent).toBe("No changes against main.")
       expect(container.querySelector(".artifact-meta")?.textContent).toContain(
         "no changes against main · read-only",
       )
@@ -730,7 +771,7 @@ describe("a change beside a terminal", () => {
 
     it("says a repository with no commit yet has nothing to compare", () => {
       const { container } = show(change({ layers: [], base: "HEAD (no commits yet)" }))
-      expect(container.querySelector(".changes-empty")?.textContent).toContain("No commits yet")
+      expect(container.querySelector(".diff-empty")?.textContent).toContain("No commits yet")
     })
   })
 

@@ -100,7 +100,7 @@ describe("A change's pane", () => {
       pane
         .getByRole("treeitem", { name: "cookies.ts", exact: true })
         .element()
-        .closest(".changes-file")
+        .closest(".diff-file")
         ?.getAttribute("data-read"),
     ).toBe("true")
   })

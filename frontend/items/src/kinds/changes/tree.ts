@@ -106,8 +106,26 @@ export const rowsOf = (files: readonly TreeFile[]): TreeRow[] => {
 export const stampOf = (file: TreeFile): string =>
   `${file.added}/${file.removed}/${file.reindented}/${file.layers.join(",")}`
 
-/** The files of a range as git lists them, as tree files: each by the layers selected. */
+/**
+ * The files of a range as git lists them, as tree files: each by the selected layers that list
+ * it (by the name it has or had), so a commit that touches other files does not make it read
+ * again; all of them where none does (a layer's list may be cut).
+ */
 export const filesOfRange = (
   files: readonly ChangedFile[],
-  layers: readonly string[],
-): TreeFile[] => files.map((file) => ({ ...file, ...split(file.path), layers }))
+  all: readonly ChangeLayer[],
+  selected: readonly string[],
+): TreeFile[] =>
+  files.map((file) => {
+    const own = selected.filter((id) =>
+      all.some(
+        (layer) =>
+          layer.id === id &&
+          layer.files.some(
+            (each) =>
+              each.path === file.path || (file.oldPath !== null && each.path === file.oldPath),
+          ),
+      ),
+    )
+    return { ...file, ...split(file.path), layers: own.length > 0 ? own : selected }
+  })

@@ -67,7 +67,10 @@ export const ChangesViewer = ({
   // come, or where the backend can't say, the layers' files added up.
   const ranged = useRange(itemStore, target, item.id, stamp, layers)
   const files = useMemo(
-    () => (ranged ? filesOfRange(ranged.files, layers) : filesOf(content.layers, selected)),
+    () =>
+      ranged
+        ? filesOfRange(ranged.files, content.layers, layers)
+        : filesOf(content.layers, selected),
     [ranged, layers, content.layers, selected],
   )
   const rows = useMemo(() => rowsOf(files), [files])
@@ -89,10 +92,12 @@ export const ChangesViewer = ({
   const lastOpened = useRef<string | undefined>(undefined)
   // Where the files were scrolled to when one was opened, which the list is given back.
   const scrolled = useRef(0)
+  // Keys move only for what the person did (opened, stepped, went back), never as a change is read again.
+  const wantFocus = useRef(false)
 
   const rowOf = useCallback(
     (path: string): HTMLElement | null =>
-      [...(host.current?.querySelectorAll<HTMLElement>(".changes-file") ?? [])].find(
+      [...(host.current?.querySelectorAll<HTMLElement>(".diff-file") ?? [])].find(
         (row) => row.dataset.path === path,
       ) ?? null,
     [],
@@ -104,6 +109,7 @@ export const ChangesViewer = ({
       if (!file) return
       const from = rowOf(path)?.getBoundingClientRect()
       scrolled.current = host.current?.querySelector<HTMLElement>(".changes-scroll")?.scrollTop ?? 0
+      wantFocus.current = true
       update((now) => ({
         ...now,
         open: path,
@@ -116,6 +122,7 @@ export const ChangesViewer = ({
   )
 
   const back = useCallback(() => {
+    wantFocus.current = true
     update((now) => ({ ...now, open: null }))
     setPhase(opened && !reducedMotion() ? { kind: "closing", file: opened } : null)
   }, [opened, update])
@@ -125,6 +132,7 @@ export const ChangesViewer = ({
       const at = order.findIndex((file) => file.path === view.open)
       const next = order[at + delta]
       if (!next) return
+      wantFocus.current = true
       update((now) => ({
         ...now,
         open: next.path,
@@ -171,10 +179,12 @@ export const ChangesViewer = ({
   }, [phase, rowOf])
   // Keys go to the pane while a file is open, and back to its row once it closes.
   useEffect(() => {
+    const focus = wantFocus.current
+    wantFocus.current = false
     if (opened) {
-      host.current?.focus({ preventScroll: true })
+      if (focus) host.current?.focus({ preventScroll: true })
       lastOpened.current = opened.path
-    } else if (wasOpen.current && view.open === null) {
+    } else if (wasOpen.current && view.open === null && focus) {
       const path = lastOpened.current
       const row = path === undefined ? null : rowOf(path)
       // The row in view, then the keys; a row not drawn (in a folded folder) leaves them to the pane.
@@ -238,7 +248,7 @@ export const ChangesViewer = ({
             data-leaving={phase?.kind === "opening" || undefined}
           >
             {content.layers.length === 0 ? (
-              <div className="changes-empty">
+              <div className="diff-empty">
                 {content.base.endsWith("(no commits yet)")
                   ? "No commits yet, so there is nothing to compare."
                   : `No changes against ${content.base}.`}
@@ -258,7 +268,7 @@ export const ChangesViewer = ({
                 </div>
                 <div className="changes-scroll">
                   {files.length === 0 ? (
-                    <div className="changes-empty">
+                    <div className="diff-empty">
                       {all.files === 0
                         ? `No changes against ${content.base}.`
                         : "The layers selected changed no files."}

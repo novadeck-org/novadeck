@@ -4,11 +4,11 @@
    short hash, the `.changes-subject-cell` holding the `.changes-subject` and a merge's
    `.changes-layer-note`, time, lines), the files they changed as the Source panel's tree (a
    `.source-tree` of `.source-row`s, `.changes-tree`, each file's row in a `.changes-item` with
-   its `.changes-branches` unfolded by the terminal tab's own fold) and a hint. The file view
+   its `.diff-branches` unfolded by the terminal tab's own fold) and a hint. The file view
    (`.changes-file-view`) is a heading (`.changes-head`: `.changes-back`, `.changes-crumbs`
    with the folder `.changes-dir` and the name `.changes-name`, the lines, `.changes-steps`),
    a `.changes-summary` and the `.changes-body` of changes: each `.changes-block` headed by
-   `.changes-hunk-head`, its `.changes-row`s (`.changes-num`, `.changes-sign`,
+   `.changes-hunk-head`, its `.diff-row`s (`.changes-num`, `.changes-sign`,
    `.changes-text`, a changed token a `.changes-tok`), a long change clipped by
    `.changes-clip` and an unchanged stretch folded by `.changes-fold`. Labels are quiet kind
    words (`.changes-word`) and names in code; an edit's tokens are `.changes-was` and
@@ -71,7 +71,7 @@
   min-height: 0;
   overflow: auto;
 }
-.changes-empty {
+.diff-empty {
   padding: 28px 18px;
   color: var(--color-muted);
   font-size: var(--text-control);
@@ -241,7 +241,7 @@
 .changes-tree .source-row-select {
   flex: 1;
 }
-.changes-file {
+.diff-file {
   cursor: default;
   user-select: none;
 }
@@ -250,15 +250,15 @@
   margin: 0 8px 0 6px;
 }
 /* A file the person opened is read: gray, until it changes. */
-.changes-file[data-read][data-kind] :is(.source-icon, .source-name) {
+.diff-file[data-read][data-kind] :is(.source-icon, .source-name) {
   color: var(--color-muted);
 }
-.changes-file[data-read] .changes-pm > span {
+.diff-file[data-read] .changes-pm > span {
   opacity: 0.6;
 }
 /* An unfolded file wears the selected tint and edge, and its branches open under it with the
    terminal tab's own fold (0fr to 1fr rows, the fold's opacity), over --motion-layout. */
-.changes-item[data-open] > .changes-file {
+.changes-item[data-open] > .diff-file {
   background: color-mix(in srgb, var(--color-strong) 9%, transparent);
   box-shadow: inset 2px 0 0 var(--color-strong);
 }
@@ -271,7 +271,7 @@
   opacity: 1;
 }
 /* Under the name: past the guides, the twisty and the icon. */
-.changes-branches {
+.diff-branches {
   padding: 0 14px 0 56px;
 }
 .changes-change code,
@@ -279,7 +279,7 @@
   color: var(--color-ink);
   font-family: var(--font-mono);
 }
-.changes-trail {
+.diff-trail {
   font-family: var(--font-mono);
 }
 .changes-word {
@@ -432,7 +432,7 @@
 .changes-where {
   margin-left: auto;
 }
-.changes-row {
+.diff-row {
   display: grid;
   grid-template-columns: 44px 16px minmax(0, 1fr);
   padding-right: 14px;
@@ -452,19 +452,19 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.changes-row[data-kind="add"] {
+.diff-row[data-kind="add"] {
   background: var(--_add-bg);
   box-shadow: inset 2px 0 0 var(--_add);
 }
-.changes-row[data-kind="remove"] {
+.diff-row[data-kind="remove"] {
   background: var(--_remove-bg);
   box-shadow: inset 2px 0 0 var(--_remove);
 }
-.changes-row[data-kind="add"] :is(.changes-sign, .changes-num) {
+.diff-row[data-kind="add"] :is(.changes-sign, .changes-num) {
   color: var(--_add);
   opacity: 1;
 }
-.changes-row[data-kind="remove"] :is(.changes-sign, .changes-num) {
+.diff-row[data-kind="remove"] :is(.changes-sign, .changes-num) {
   color: var(--_remove);
   opacity: 1;
 }
@@ -473,10 +473,10 @@
   background: none;
   color: inherit;
 }
-.changes-row[data-kind="add"] .changes-tok {
+.diff-row[data-kind="add"] .changes-tok {
   background: color-mix(in srgb, var(--_add) 24%, transparent);
 }
-.changes-row[data-kind="remove"] .changes-tok {
+.diff-row[data-kind="remove"] .changes-tok {
   background: color-mix(in srgb, var(--_remove) 24%, transparent);
 }
 /* A long change clipped in the middle, and unchanged lines folded. */

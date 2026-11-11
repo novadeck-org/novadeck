@@ -148,7 +148,7 @@ export const FileTree = ({
           <div key={`f:${file.path}`} className="changes-item" data-open={open || undefined}>
             <div
               role="none"
-              className="item source-row changes-file"
+              className="item source-row diff-file"
               data-kind={kindOf(file.status)}
               data-folder="false"
               data-selected={open}

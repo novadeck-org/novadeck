@@ -465,8 +465,8 @@ with every safety check again at that time:
   `firstParent` set, which the list says. Before the first commit it has no layers.
   It is one item per repository on a bar, keyed `changes:<repository root>` (folded to lower
   case on Windows) and named "Changes · <folder>"
-  unless a title is given; showing it again updates it. Its detail counts the files any layer
-  changed and their lines, and follows each read the pane triggers. The content
+  unless a title is given; showing it again updates it. Its detail counts the files the change
+  as a whole differs from main by and their lines (the net, not its layers added up), and follows each read the pane triggers. The content
   (`companions.content`) is each layer's files with their counts, not their diffs: it is read
   with git at the start and again about every 2 seconds while followed, and sent only
   when it changed. One file's diff for a selection of layers is `companions.changeFile`: the

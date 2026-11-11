@@ -107,7 +107,7 @@ export const Branches = ({
         : branches
       : [{ key: "wait", parts: [{ text: "Reading the changes…", kind: "plain" }], counts: "" }]
   return (
-    <span className="terminal-tab-branches changes-branches grid min-w-0">
+    <span className="terminal-tab-branches diff-branches grid min-w-0">
       <span className="terminal-tab-branches-fold min-h-0 overflow-hidden">
         <span className="flex min-w-0 flex-col pt-0.5 pb-1.5 text-caption leading-[18px]">
           {rows.map((row, at) => (
@@ -123,7 +123,7 @@ export const Branches = ({
                 <Parts parts={row.parts} />
               </span>
               {row.counts && (
-                <span className="terminal-tab-wait-trail changes-trail shrink-0">{row.counts}</span>
+                <span className="terminal-tab-wait-trail diff-trail shrink-0">{row.counts}</span>
               )}
             </span>
           ))}
