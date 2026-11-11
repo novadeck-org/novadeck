@@ -161,7 +161,7 @@ jobs:
       # failures' upload below still runs, rather than the whole job being cancelled.
       - name: Run ${{ matrix.name }}
         run: ${{ matrix.command }}
-        timeout-minutes: ${{ runner.os == 'macOS' && (matrix.command == 'npm run test' && 57 || 25) || runner.os == 'Windows' && matrix.shard == 0 && 22 || matrix.browser && matrix.shard && 22 || (matrix.browser || matrix.shard) && 17 || 7 }}
+        timeout-minutes: ${{ runner.os == 'macOS' && (matrix.command == 'npm run test' && 57 || 30) || runner.os == 'Windows' && matrix.shard == 0 && 22 || matrix.browser && matrix.shard && 22 || (matrix.browser || matrix.shard) && 17 || 7 }}
         env:
           NOVADECK_REQUIRE_FISH: ${{ steps.setup.outputs.fish == 'true' && '1' || '' }}
           # A re-run with debug logging records Playwright traces of failed UI specs.
@@ -244,11 +244,15 @@ jobs:
     if: ${{ !cancelled() && needs.quality.result == 'success' && needs.plan.outputs.macos != 'false' }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    # The system packages a change affects, one at a time, took 9 to 13 minutes on the pull
-    # requests and canaries after #862 (#849's 11m37s; #850's 12m53s; canary #863's 9m32s; the
-    # proof rows' widest list, 12 packages, 11m02s): 25 for the tests (28 for the job) leave a
-    # loaded Mac about twice that. Every test has 60 (57 for the tests), as main gave it.
-    timeout-minutes: ${{ matrix.command == 'npm run test' && 60 || 28 }}
+    # The system packages a change affects, one at a time, took 4 to 13 minutes on the pull
+    # requests and canaries after #862 (canary #865's 4m20s; canary #863's 9m32s; the proof
+    # rows' widest list, 12 packages, 11m02s; #850's 12m53s); a loaded Mac takes 1.4 to 2 times
+    # as long, and `testedFolders` can fall back to all 22 system packages: 30 for the tests.
+    # Every test has 57 for the tests, as main gave it. The job has ten minutes more than its
+    # tests, so setup with a toolchain retry (180 s) and a cold relay build still fits before
+    # them: a job cancelled mid-tests uploads no failure or retried record, and its gate reads
+    # "planned true, cancelled".
+    timeout-minutes: ${{ matrix.command == 'npm run test' && 67 || 40 }}
     env:
       # The packages the plan says to test, which `test:system` reads.
       NOVADECK_TEST_PACKAGES: ${{ needs.plan.outputs.packages }}
@@ -286,8 +290,8 @@ jobs:
     if: ${{ !cancelled() && needs.quality.result == 'success' && needs.plan.outputs.proof-macos == 'true' }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    # As the macOS job's system packages: 25 for the tests, 28 for the job.
-    timeout-minutes: 28
+    # As the macOS job's system packages: 30 for the tests, ten more for the job.
+    timeout-minutes: 40
     env:
       NOVADECK_TEST_PACKAGES: ${{ toJSON(matrix.packages) }}
       NOVADECK_TEST_CONTINUE: "true"

@@ -654,15 +654,36 @@ describe("Quality's workflow", () => {
     )
   })
 
-  it("gives each row's tests their time: macOS's whole suite 57, its system packages 25", () => {
+  it("gives each row's tests their time: macOS's whole suite 57, its system packages 30", () => {
     expect(job("quality")).toContain(
-      "runner.os == 'macOS' && (matrix.command == 'npm run test' && 57 || 25) || runner.os == 'Windows' && matrix.shard == 0 && 22 ||",
+      "runner.os == 'macOS' && (matrix.command == 'npm run test' && 57 || 30) || runner.os == 'Windows' && matrix.shard == 0 && 22 ||",
     )
     expect(job("macos")).toContain(
-      "timeout-minutes: ${{ matrix.command == 'npm run test' && 60 || 28 }}",
+      "timeout-minutes: ${{ matrix.command == 'npm run test' && 67 || 40 }}",
     )
-    expect(job("proof-macos")).toContain("timeout-minutes: 28")
+    expect(job("proof-macos")).toContain("timeout-minutes: 40")
     expect(wholeMacos).toMatchObject([{ name: "Test (macOS)", command: "npm run test" }])
+  })
+
+  // A job cancelled mid-tests uploads no failure or retried record, and its gate reads
+  // "planned true, cancelled": a macOS job's limit leaves its setup ten minutes (a toolchain
+  // retry and a cold relay build) before its tests' own limit, so a later edit can't close it.
+  it("gives each macOS job ten minutes more than its tests, for each command", () => {
+    const step =
+      /runner\.os == 'macOS' && \(matrix\.command == 'npm run test' && (\d+) \|\| (\d+)\)/.exec(
+        job("quality"),
+      )!
+    const tests = { whole: Number(step[1]), system: Number(step[2]) }
+    const macos =
+      /timeout-minutes: \$\{\{ matrix\.command == 'npm run test' && (\d+) \|\| (\d+) \}\}/.exec(
+        job("macos"),
+      )!
+    expect(Number(macos[1])).toBeGreaterThanOrEqual(tests.whole + 10)
+    expect(Number(macos[2])).toBeGreaterThanOrEqual(tests.system + 10)
+    // The proof rows run `test:system`, the system packages' limit.
+    const proof = Number(/\n {4}timeout-minutes: (\d+)\n/.exec(job("proof-macos"))![1])
+    expect(proof).toBeGreaterThanOrEqual(tests.system + 10)
+    expect(proofRows("macos", {}).every((row) => row.command === "npm run test:system")).toBe(true)
   })
 })
 
