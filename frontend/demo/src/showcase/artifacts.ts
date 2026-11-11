@@ -1,4 +1,11 @@
-import type { Item, FileContent, ItemContent, UnavailableReason } from "@novadeck/core/items"
+import type {
+  ChangedFile,
+  ChangeFileDiff,
+  Item,
+  FileContent,
+  ItemContent,
+  UnavailableReason,
+} from "@novadeck/core/items"
 
 // Something a sample agent shows: the item it points at, by an id that stays the same, and
 // what it holds there, or why it can't show.
@@ -8,6 +15,11 @@ export type SampleArtifact = {
     readonly plan?: Item["plan"]
   }
   readonly content: ItemContent
+  // A change's files read one at a time, as the runner reads them: the file's diff for the
+  // layers selected.
+  readonly changeFile?: (path: string, layers: readonly string[]) => ChangeFileDiff
+  // The files the layers selected changed as one range.
+  readonly changeRange?: (layers: readonly string[]) => readonly ChangedFile[]
 }
 
 export type SampleArtifacts = {

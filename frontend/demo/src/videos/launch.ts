@@ -17,7 +17,7 @@ import { resultBlock } from "../screen/agent"
 import type { Block } from "../screen/screen"
 import { span, wrap } from "../screen/vt"
 import { ready, svg, type SampleArtifact } from "../showcase/artifacts"
-import { add, context, file, hunk, remove } from "../showcase/changes"
+import { sample, text as fileText } from "../showcase/changes"
 import { createShowcase } from "../showcase/simulation"
 import { terminalOf, terminalsOf } from "../workspace"
 import {
@@ -620,69 +620,119 @@ const variantsArtifact = (): SampleArtifact => ({
 // What the same agent has changed in the project to get there, shown as the pane shows an
 // agent's whole change: the working tree against HEAD, file by file.
 const changesRoot = home
-const changesArtifact = (): SampleArtifact => ({
-  item: {
-    id: "northwind-order-changes",
-    kind: "changes",
-    // As the runner names a change: its folder, and its totals (`describeChange`).
-    name: "Changes · northwind",
-    detail: "3 files · +23 −1",
-    path: changesRoot,
-    url: null,
-    lines: null,
-    secret: false,
-  },
-  content: ready({
-    kind: "changes",
+const changesArtifact = (): SampleArtifact => {
+  const made = sample("northwind-order-changes", "Changes · northwind", {
     root: changesRoot,
-    base: "HEAD",
-    truncated: false,
-    files: [
-      file("src/app/orders/[id]/page.tsx", "added", [
-        hunk(0, 1, [
-          add('import { OrderTimeline } from "@/components/OrderTimeline"'),
-          add('import { getOrder } from "@/lib/orders"'),
-          add(""),
-          add("export default async function OrderPage({ params }: { params: { id: string } }) {"),
-          add("  const order = await getOrder(params.id)"),
-          add("  return <OrderTimeline steps={order.steps} />"),
-          add("}"),
-        ]),
-      ]),
-      file("src/components/OrderTimeline.tsx", "added", [
-        hunk(0, 1, [
-          add("export const OrderTimeline = ({ steps }: { steps: Step[] }) => ("),
-          add('  <ol className="timeline">'),
-          add("    {steps.map((step) => ("),
-          add("      <li key={step.name} data-reached={step.at !== null}>{step.name}</li>"),
-          add("    ))}"),
-          add("  </ol>"),
-          add(")"),
-        ]),
-      ]),
-      file("src/lib/orders.ts", "modified", [
-        hunk(12, 12, [
-          context("export const getOrder = async (id: string) => {"),
-          context("  const order = await db.orders.find(id)"),
-          remove("  return order"),
-          add("  return { ...order, steps: stepsOf(order) }"),
-          context("}"),
-        ]),
-        hunk(30, 30, [
-          context("const placed = (order: Order) => order.placedAt"),
-          add(""),
-          add("// Placed, packed, shipped, delivered: the ones with a time have been reached."),
-          add("const stepsOf = (order: Order) => ["),
-          add('  { name: "Placed", at: order.placedAt },'),
-          add('  { name: "Packed", at: order.packedAt },'),
-          add('  { name: "Shipped", at: order.shippedAt },'),
-          add('  { name: "Delivered", at: order.deliveredAt },'),
-          add("]"),
-        ]),
-      ]),
+    base: "main",
+    start: {
+      "src/lib/orders.ts": fileText(
+        'import { db } from "./db"',
+        'import type { Order } from "./types"',
+        "",
+        "// Orders, as the storefront reads them.",
+        "export const listOrders = async (customer: string) => {",
+        "  return db.orders.where({ customer })",
+        "}",
+        "",
+        "export const countOrders = async (customer: string) => {",
+        "  return (await listOrders(customer)).length",
+        "}",
+        "",
+        "export const getOrder = async (id: string) => {",
+        "  const order = await db.orders.find(id)",
+        "  return order",
+        "}",
+        "",
+        "export const cancelOrder = async (id: string) => {",
+        "  return db.orders.update(id, { cancelled: true })",
+        "}",
+        "",
+        "export const reopenOrder = async (id: string) => {",
+        "  return db.orders.update(id, { cancelled: false })",
+        "}",
+        "",
+        "export const lastOrder = async (customer: string) => {",
+        "  return (await listOrders(customer)).at(-1)",
+        "}",
+        "",
+        "const placed = (order: Order) => order.placedAt",
+        "",
+        "export const placedAt = (order: Order) => placed(order)",
+      ),
+    },
+    steps: [
+      {
+        id: "uncommitted",
+        subject: "",
+        time: null,
+        set: {
+          "src/app/orders/[id]/page.tsx": fileText(
+            'import { OrderTimeline } from "@/components/OrderTimeline"',
+            'import { getOrder } from "@/lib/orders"',
+            "",
+            "export default async function OrderPage({ params }: { params: { id: string } }) {",
+            "  const order = await getOrder(params.id)",
+            "  return <OrderTimeline steps={order.steps} />",
+            "}",
+          ),
+          "src/components/OrderTimeline.tsx": fileText(
+            "export const OrderTimeline = ({ steps }: { steps: Step[] }) => (",
+            '  <ol className="timeline">',
+            "    {steps.map((step) => (",
+            "      <li key={step.name} data-reached={step.at !== null}>{step.name}</li>",
+            "    ))}",
+            "  </ol>",
+            ")",
+          ),
+          "src/lib/orders.ts": fileText(
+            'import { db } from "./db"',
+            'import type { Order } from "./types"',
+            "",
+            "// Orders, as the storefront reads them.",
+            "export const listOrders = async (customer: string) => {",
+            "  return db.orders.where({ customer })",
+            "}",
+            "",
+            "export const countOrders = async (customer: string) => {",
+            "  return (await listOrders(customer)).length",
+            "}",
+            "",
+            "export const getOrder = async (id: string) => {",
+            "  const order = await db.orders.find(id)",
+            "  return { ...order, steps: stepsOf(order) }",
+            "}",
+            "",
+            "export const cancelOrder = async (id: string) => {",
+            "  return db.orders.update(id, { cancelled: true })",
+            "}",
+            "",
+            "export const reopenOrder = async (id: string) => {",
+            "  return db.orders.update(id, { cancelled: false })",
+            "}",
+            "",
+            "export const lastOrder = async (customer: string) => {",
+            "  return (await listOrders(customer)).at(-1)",
+            "}",
+            "",
+            "const placed = (order: Order) => order.placedAt",
+            "",
+            "// Placed, packed, shipped, delivered: the ones with a time have been reached.",
+            "const stepsOf = (order: Order) => [",
+            '  { name: "Placed", at: order.placedAt },',
+            '  { name: "Packed", at: order.packedAt },',
+            '  { name: "Shipped", at: order.shippedAt },',
+            '  { name: "Delivered", at: order.deliveredAt },',
+            "]",
+            "",
+            "export const placedAt = (order: Order) => placed(order)",
+          ),
+        },
+      },
     ],
-  }),
-})
+  })
+  // As the runner names a change: its folder, and its totals.
+  return { ...made, item: { ...made.item, path: changesRoot } }
+}
 
 // The question the asking teammate puts to the person, and to its lead too, as the `ask` tool
 // has it do: the lead knows the answer.

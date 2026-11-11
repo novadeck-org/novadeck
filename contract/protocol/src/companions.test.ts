@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest"
 import type { z } from "zod"
 
-import { companionItem, itemContent, pageLook, pageLookAnswer } from "./companions.js"
+import {
+  changeFileDiff,
+  changeRange,
+  companionItem,
+  itemContent,
+  maxChangeSideBytes,
+  pageLook,
+  pageLookAnswer,
+} from "./companions.js"
 
 const lookId = "11111111-1111-4111-8111-111111111111"
 const itemId = "22222222-2222-4222-8222-222222222222"
@@ -45,5 +53,104 @@ describe("a look at a page with a long address", () => {
       troubles: [],
     }
     expect(pageLookAnswer.parse(answer)).toEqual(answer)
+  })
+})
+
+describe("a change as layers", () => {
+  const file = {
+    path: "src/a.ts",
+    oldPath: null,
+    status: "modified" as const,
+    added: 1,
+    removed: 1,
+    reindented: 2,
+    binary: false,
+    secret: false,
+  }
+  const layer = {
+    id: "a".repeat(64),
+    kind: "commit" as const,
+    subject: "Move the check",
+    time: 1_700_000_000_000,
+    added: 1,
+    removed: 1,
+    files: [file],
+    truncated: false,
+  }
+
+  it("carries each layer's files with their counts, and no diff", () => {
+    const ready = {
+      state: "ready" as const,
+      stamp: "s",
+      content: {
+        kind: "changes" as const,
+        root: "/repo",
+        base: "main",
+        layers: [layer],
+        truncated: false,
+      },
+    }
+    expect(itemContent.parse(ready)).toEqual(ready)
+    expect(
+      itemContent.safeParse({
+        ...ready,
+        content: { ...ready.content, layers: [{ ...layer, files: [{ ...file, hunks: [] }] }] },
+      }).success,
+    ).toBe(false)
+  })
+
+  it("carries one file's runs: its hunks and the text of both sides", () => {
+    const diff = {
+      runs: [
+        {
+          layers: ["uncommitted", layer.id],
+          file,
+          big: false,
+          badName: false,
+          hunks: [
+            {
+              oldStart: 1,
+              oldCount: 1,
+              newStart: 1,
+              newCount: 1,
+              lines: [
+                { kind: "remove" as const, text: "a" },
+                { kind: "add" as const, text: "b" },
+              ],
+            },
+          ],
+          before: "a\n",
+          after: "b\n",
+        },
+      ],
+    }
+    expect(changeFileDiff.parse(diff)).toEqual(diff)
+    expect(changeFileDiff.safeParse({ runs: [{ ...diff.runs[0], layers: [] }] }).success).toBe(
+      false,
+    )
+  })
+
+  it("lets a side be as long as the runner reads, and no longer", () => {
+    const run = {
+      layers: ["uncommitted"],
+      file,
+      big: false,
+      badName: false,
+      hunks: [],
+      before: null,
+      after: "x".repeat(maxChangeSideBytes),
+    }
+    expect(changeFileDiff.safeParse({ runs: [run] }).success).toBe(true)
+    expect(changeFileDiff.safeParse({ runs: [{ ...run, after: `${run.after}x` }] }).success).toBe(
+      false,
+    )
+  })
+
+  it("carries a range's own files, and no more than a layer's", () => {
+    const listed = { files: [file], truncated: false }
+    expect(changeRange.parse(listed)).toEqual(listed)
+    expect(
+      changeRange.safeParse({ ...listed, files: Array.from({ length: 301 }, () => file) }).success,
+    ).toBe(false)
   })
 })

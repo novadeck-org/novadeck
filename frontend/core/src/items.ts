@@ -174,38 +174,83 @@ export type PageContent = {
   readonly snapshot?: string
 }
 
-// One file of a change: how it changed and its diff as hunks of lines. A `binary` file, one
-// that may hold secrets (`secret`), or one past the change's bounds (`listed`) has no hunks and
-// is listed by name. A hunk's line numbers count from its `oldStart` and `newStart`.
+// One file a layer of a change changed: how, and by how many lines. Lines that differ from
+// their old ones by whitespace only are no change: `reindented` counts them apart. A `binary`
+// file, or one that may hold secrets (`secret`), is listed by name; its content is never read.
 export type ChangedFile = {
   readonly path: string
   readonly oldPath: string | null
   readonly status: "added" | "modified" | "deleted" | "renamed"
   readonly added: number
   readonly removed: number
+  readonly reindented: number
   readonly binary: boolean
   readonly secret: boolean
-  readonly listed: boolean
-  readonly hunks: readonly {
-    readonly oldStart: number
-    readonly oldCount: number
-    readonly newStart: number
-    readonly newCount: number
-    readonly lines: readonly {
-      readonly kind: "context" | "add" | "remove"
-      readonly text: string
-    }[]
+}
+
+// The id of the layer holding the work not committed yet; a commit's is its hash.
+export const uncommittedLayer = "uncommitted"
+
+// One layer of a change: a commit since the checkout's merge base with main, or the work not
+// committed yet (`time` null). Its files up to the backend's bounds, `truncated` when more
+// changed; `added` and `removed` count all of them.
+export type ChangeLayer = {
+  readonly id: string
+  readonly kind: "commit" | "uncommitted"
+  readonly subject: string
+  readonly time: number | null
+  readonly added: number
+  readonly removed: number
+  readonly files: readonly ChangedFile[]
+  readonly truncated: boolean
+  // A merge shown against its first parent (the backend's git can't merge in memory): what it
+  // brought in from main shows as its work.
+  readonly firstParent?: boolean | undefined
+}
+
+// A file's diff as hunks of lines. A hunk's line numbers count from its `oldStart` and
+// `newStart`.
+export type DiffHunk = {
+  readonly oldStart: number
+  readonly oldCount: number
+  readonly newStart: number
+  readonly newCount: number
+  readonly lines: readonly {
+    readonly kind: "context" | "add" | "remove"
+    readonly text: string
   }[]
 }
 
-// An agent's whole change: the repository's working tree against `base`, file by file, up
-// to the backend's bounds, past which files are only listed and `truncated` says so. `root`
-// is the repository's folder, which the paths are from.
+// One file as the layers selected changed it: one run, from the oldest layer's parent to the
+// newest layer (none where the selection did not change it). A run has the diff (no hunks where it is `big`, past the backend's
+// bounds, or the file is binary or may hold secrets) and the text of the file on each side of
+// the range, null where it doesn't exist or isn't sent.
+export type ChangeFileRun = {
+  readonly layers: readonly string[]
+  readonly file: ChangedFile
+  readonly big: boolean
+  // Its name is no valid text, so git can't be asked for it.
+  readonly badName: boolean
+  readonly hunks: readonly DiffHunk[]
+  readonly before: string | null
+  readonly after: string | null
+}
+export type ChangeFileDiff = { readonly runs: readonly ChangeFileRun[] }
+
+// The files a selection of layers changed as one range, as git lists them from its start to its
+// end: its own counts, not its layers' added up.
+export type ChangeRange = { readonly files: readonly ChangedFile[]; readonly truncated: boolean }
+
+// An agent's whole change: a checkout measured against its main branch (`base` names it, or
+// is HEAD where there is none), as layers, newest first: the work not committed yet, then each
+// commit since the merge base. Each layer lists the files it changed, not their diffs, which
+// `Companions.changeFile` reads. `truncated` when the backend cut layers or files. `root` is
+// the repository's folder, which the paths are from.
 export type ChangesContent = {
   readonly kind: "changes"
   readonly root: string
   readonly base: string
-  readonly files: readonly ChangedFile[]
+  readonly layers: readonly ChangeLayer[]
   readonly truncated: boolean
 }
 
@@ -318,6 +363,22 @@ export type Companions = {
     options: { readonly reveal: string | undefined },
     on: (content: ItemContent) => void,
   ) => () => void
+  // One file of a changes item as a selection of its layers (ids) changed it, read when asked
+  // for: see `ChangeFileDiff`. Rejects where the item or its repository is gone. Absent where
+  // the backend can't: a change then lists its layers and files, but opens none.
+  readonly changeFile?: (
+    target: WorkspaceTarget,
+    itemId: ItemId,
+    path: string,
+    layers: readonly string[],
+  ) => Promise<ChangeFileDiff>
+  // The files a selection of a changes item's layers changed as one range: what a selection of
+  // more than one layer shows. Absent where the backend can't, with `changeFile`.
+  readonly changeRange?: (
+    target: WorkspaceTarget,
+    itemId: ItemId,
+    layers: readonly string[],
+  ) => Promise<ChangeRange>
   // Writes the person's edit to the plan, unless it changed since `basedOn`. Rejects with
   // a `PlanUnwritableError` when the plan can't be written at all.
   readonly save: (

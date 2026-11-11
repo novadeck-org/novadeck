@@ -102,10 +102,9 @@ describe("a peek's miniature", () => {
         status,
         added: 3,
         removed: 1,
+        reindented: 0,
         binary: false,
         secret: false,
-        listed: false,
-        hunks: [],
       })
       const change = peek(
         itemFixture("change", "01", { kind: "changes", name: "Changes", path: "/repo" }),
@@ -114,7 +113,28 @@ describe("a peek's miniature", () => {
           root: "/repo",
           base: "HEAD",
           truncated: false,
-          files: [file("a.ts", "modified"), file("b.ts", "added")],
+          layers: [
+            {
+              id: "uncommitted",
+              kind: "uncommitted",
+              subject: "",
+              time: null,
+              added: 3,
+              removed: 1,
+              truncated: false,
+              files: [file("a.ts", "modified")],
+            },
+            {
+              id: "abc",
+              kind: "commit",
+              subject: "Add b",
+              time: 1,
+              added: 3,
+              removed: 1,
+              truncated: false,
+              files: [file("b.ts", "added")],
+            },
+          ],
         }),
       )
       expect(

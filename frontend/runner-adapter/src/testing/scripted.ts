@@ -270,6 +270,8 @@ export const scripted = ({
         calls.push({ call: "content", input })
         return content(...input)
       },
+      changeFile: note("change file", (input) => respond("change file", input)),
+      changeRange: note("change range", (input) => respond("change range", input)),
       attach: note("attach", (input) => respond("attach", input)),
       openInProject: note("open in project", (input) => respond("open in project", input)),
       move: note("move", (input) => respond("move", input)),

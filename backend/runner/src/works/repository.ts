@@ -1,9 +1,20 @@
-import { copyFile, lstat, readdir, realpath, rm, stat, utimes } from "node:fs/promises"
+import {
+  copyFile,
+  lstat,
+  mkdir,
+  readdir,
+  realpath,
+  rename,
+  rm,
+  stat,
+  utimes,
+} from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 
 import { workLimits } from "@novadeck/protocol"
 
 import { git, maxUntrackedBytes, timing, type Run } from "../companions/changes.js"
+import { secrets } from "../companions/secrets.js"
 import { parseMerge, parseNumstat, type Lines } from "./lines.js"
 
 // Git, asked about a checkout for Works. Every run is the companions' `git`: no shell, literal
@@ -141,13 +152,25 @@ const copyIndex = async (person: string, index: string): Promise<boolean> => {
 const untrackedFiles = async (
   root: string,
   env: NodeJS.ProcessEnv,
-): Promise<{ readonly paths: string[]; readonly skipped: boolean } | undefined> => {
+  environment: NodeJS.ProcessEnv | undefined,
+): Promise<
+  { readonly paths: string[]; readonly secret: string[]; readonly skipped: boolean } | undefined
+> => {
+  // Where status shows no untracked files, a snapshot takes none.
+  const shown = line(await git(root, ["config", "--get", "status.showUntrackedFiles"], small))
+  if (shown !== undefined && /^(no|false|off|0)$/i.test(shown))
+    return { paths: [], secret: [], skipped: false }
+  const held = secrets(environment)
   const run = await git(root, ["ls-files", "-o", "--exclude-standard", "-z"], {
     ...listing,
     env,
   })
   if (!run.ok) return undefined
-  const names = run.out.split("\0").filter((name) => name !== "")
+  const listed = run.out.split("\0").filter((name) => name !== "")
+  // A file that may hold secrets is never read or hashed, so not into any object store: it is
+  // only named.
+  const secret = listed.filter((name) => held(join(root, name)))
+  const names = listed.filter((name) => !held(join(root, name)))
   const sizes = await Promise.all(
     names.map((name) =>
       lstat(join(root, name)).then(
@@ -158,15 +181,46 @@ const untrackedFiles = async (
     ),
   )
   const paths = names.filter((_, at) => sizes[at]! <= maxUntrackedBytes)
-  return { paths, skipped: paths.length < names.length }
+  return { paths, secret, skipped: paths.length < names.length }
 }
 
 /** The checkout's working tree as a tree; `skipped` where untracked files over the size limit were left out. */
 export type Taken = {
   readonly tree: string
+  /** The commit it is on; empty before the repository's first commit. */
   readonly head: string
   readonly skipped: boolean
+  /** Untracked files that may hold secrets: left out of the tree, named only. */
+  readonly secret: readonly string[]
+  /** Where its objects are, for the runs that read them again (set with a private object folder). */
+  readonly env: NodeJS.ProcessEnv | undefined
 }
+
+/**
+ * The environment that writes objects to a folder of our own, with the repository's own as
+ * an alternate to read from: what a snapshot makes (blobs of every file it hashes, trees,
+ * commits) never lands in the person's object store.
+ */
+export const privateObjects = async (
+  root: string,
+  folder: string,
+): Promise<NodeJS.ProcessEnv | undefined> => {
+  const path = line(await git(root, ["rev-parse", "--git-path", "objects"], small))
+  if (!path) return undefined
+  await mkdir(folder, { recursive: true })
+  return {
+    GIT_OBJECT_DIRECTORY: folder,
+    GIT_ALTERNATE_OBJECT_DIRECTORIES: quotedEntry(resolve(root, path)),
+  }
+}
+
+/**
+ * A folder as one entry of the alternates list, which is split at the path separator (`:`, or
+ * `;` on Windows): git reads an entry that starts with a quote as C-quoted, so a folder with
+ * the separator in its name stays one.
+ */
+const quotedEntry = (folder: string): string =>
+  `"${folder.replace(/[\\"]/g, "\\$&").replace(/\n/g, "\\n")}"`
 
 /**
  * Takes the checkout's working tree (what `git add -A` would stage, .gitignore respected) as
@@ -176,16 +230,30 @@ export type Taken = {
  * the untracked files too, but those over 1 MiB, which are left out (`skipped`). A file git
  * can't read is left out too. Undefined where it can't be taken (no commit yet, git slow).
  */
-export const snapshotTree = async (root: string, index: string): Promise<Taken | undefined> => {
-  const head = line(await git(root, ["rev-parse", "--verify", "-q", "HEAD^{commit}"], small))
-  if (!head) return undefined
+export const snapshotTree = async (
+  root: string,
+  index: string,
+  objects?: string,
+  /** The environment files are judged by for secrets (see `secrets`). */
+  environment?: NodeJS.ProcessEnv,
+): Promise<Taken | undefined> => {
+  const found = line(await git(root, ["rev-parse", "--verify", "-q", "HEAD^{commit}"], small))
+  // Before the first commit there is no work to measure against main, which only layers read.
+  const head = found ?? ""
+  const own = objects === undefined ? undefined : await privateObjects(root, objects)
   // Reading every file of a big repository once takes longer than a look at its state.
-  const slow = { ...small, env: { GIT_INDEX_FILE: index }, ms: timing.gitMs * 6 }
-  if (!(await startIndex(root, index, head, slow.env))) return undefined
+  const slow = { ...small, env: { ...own, GIT_INDEX_FILE: index }, ms: timing.gitMs * 6 }
+  if (found) {
+    if (!(await startIndex(root, index, found, slow.env))) return undefined
+  } else {
+    await rm(index, { force: true })
+    await rm(`${index}.lock`, { force: true })
+    if (!(await git(root, ["read-tree", "--empty"], slow)).ok) return undefined
+  }
   // A file that can't be read fails the run but not the files before it (`--ignore-errors`).
   const tracked = await git(root, [...noLfs, "add", "-u", "--ignore-errors"], slow)
   if (!tracked.ok && tracked.kind !== "exit") return undefined
-  const untracked = await untrackedFiles(root, slow.env)
+  const untracked = await untrackedFiles(root, slow.env, environment)
   if (!untracked) return undefined
   if (untracked.paths.length > 0) {
     const added = await git(
@@ -196,31 +264,119 @@ export const snapshotTree = async (root: string, index: string): Promise<Taken |
     if (!added.ok && added.kind !== "exit") return undefined
   }
   const tree = line(await git(root, ["write-tree"], slow))
-  return tree ? { tree, head, skipped: untracked.skipped } : undefined
+  return tree
+    ? { tree, head, skipped: untracked.skipped, secret: untracked.secret, env: own }
+    : undefined
 }
 
 /** Whether a tree object is in the repository: false only where git says it is not. */
-export const treeGone = async (root: string, tree: string): Promise<boolean> => {
-  const run = await git(root, ["cat-file", "-e", `${tree}^{tree}`], small)
+export const treeGone = async (
+  root: string,
+  tree: string,
+  env?: NodeJS.ProcessEnv,
+): Promise<boolean> => {
+  const run = await git(root, ["cat-file", "-e", `${tree}^{tree}`], {
+    ...small,
+    ...(env && { env }),
+  })
   return !run.ok && run.kind === "exit" && run.status > 0
 }
 
-/** A commit holding `tree` on top of `head`, to merge. */
-export const snapshotCommit = async (
+/**
+ * Rebuilds a private object folder with only what the `trees` reach (the objects that are
+ * in the folder, not the repository's own), as one pack in a fresh folder that then takes
+ * the old one's place: what was made for snapshots read since is let go, and the trees stay
+ * readable. False where it could not be done; the folder is then as it was. Nothing may be
+ * reading the folder.
+ */
+export const repack = async (
+  root: string,
+  folder: string,
+  trees: readonly string[],
+): Promise<boolean> => {
+  const own = await privateObjects(root, folder)
+  if (!own) return false
+  const fresh = `${folder}.new`
+  const old = `${folder}.old`
+  await rm(fresh, { recursive: true, force: true })
+  await rm(old, { recursive: true, force: true })
+  const big = { cap: 256 * 1024 * 1024, env: own, ms: timing.gitMs * 6 }
+  const gone = await Promise.all(trees.map((tree) => treeGone(root, tree, own)))
+  const here = trees.filter((_, at) => !gone[at])
+  let keep = ""
+  if (here.length > 0) {
+    const reached = await git(root, ["rev-list", "--objects", ...here, "--"], big)
+    // Only the folder's own: with no alternates, what git finds is what is in it.
+    const present = await git(
+      root,
+      ["cat-file", "--batch-all-objects", "--batch-check=%(objectname)"],
+      { ...big, env: { GIT_OBJECT_DIRECTORY: folder, GIT_ALTERNATE_OBJECT_DIRECTORIES: "" } },
+    )
+    if (!reached.ok || !present.ok) return false
+    const have = new Set(present.out.split("\n").filter(Boolean))
+    keep = reached.out
+      .split("\n")
+      .map((each) => each.split(" ")[0]!)
+      .filter((id) => have.has(id))
+      .join("\n")
+  }
+  try {
+    await mkdir(join(fresh, "pack"), { recursive: true })
+    if (keep !== "") {
+      const packed = await git(root, ["pack-objects", "-q", join(fresh, "pack", "pack")], {
+        ...big,
+        input: `${keep}\n`,
+      })
+      if (!packed.ok) throw new Error("pack-objects failed")
+    }
+    await rename(folder, old)
+    try {
+      await rename(fresh, folder)
+    } catch (error) {
+      await rename(old, folder).catch(() => {})
+      throw error
+    }
+    await rm(old, { recursive: true, force: true })
+    return true
+  } catch {
+    await rm(fresh, { recursive: true, force: true }).catch(() => {})
+    return false
+  }
+}
+
+/** A commit holding `tree` on top of the `parents`, nobody's (see `author`). */
+export const commitOf = async (
   root: string,
   tree: string,
-  head: string,
+  parents: readonly string[],
+  env?: NodeJS.ProcessEnv,
 ): Promise<string | undefined> =>
   line(
     await git(
       root,
-      ["-c", "commit.gpgsign=false", "commit-tree", tree, "-p", head, "-m", "Novadeck snapshot"],
+      [
+        "-c",
+        "commit.gpgsign=false",
+        "commit-tree",
+        tree,
+        ...parents.flatMap((parent) => ["-p", parent]),
+        "-m",
+        "Novadeck snapshot",
+      ],
       {
         ...small,
-        env: author,
+        env: { ...env, ...author },
       },
     ),
   )
+
+/** A commit holding `tree` on top of `head`, to merge. */
+export const snapshotCommit = (
+  root: string,
+  tree: string,
+  head: string,
+  env?: NodeJS.ProcessEnv,
+): Promise<string | undefined> => commitOf(root, tree, [head], env)
 
 /** What merging two commits does. */
 export type Merge =
@@ -230,7 +386,12 @@ export type Merge =
   | { readonly state: "unknown" }
 
 /** Merges `theirs` into `ours` in memory (`merge-tree`): clean, or the files that conflict. */
-export const mergeTrees = async (root: string, ours: string, theirs: string): Promise<Merge> => {
+export const mergeTrees = async (
+  root: string,
+  ours: string,
+  theirs: string,
+  env?: NodeJS.ProcessEnv,
+): Promise<Merge> => {
   const run = await git(
     root,
     [
@@ -243,7 +404,7 @@ export const mergeTrees = async (root: string, ours: string, theirs: string): Pr
       ours,
       theirs,
     ],
-    listing,
+    env ? { ...listing, env } : listing,
   )
   if (run.ok) return { state: "clean", tree: parseMerge(run.out).tree }
   // Exit 1 is a conflict only with the merged tree printed first, as an error exits 1 too.
@@ -255,8 +416,13 @@ export const mergeTrees = async (root: string, ours: string, theirs: string): Pr
 }
 
 /** The best common ancestor of two commits; undefined if they have none. */
-export const mergeBase = async (root: string, a: string, b: string): Promise<string | undefined> =>
-  line(await git(root, ["merge-base", a, b], small))
+export const mergeBase = async (
+  root: string,
+  a: string,
+  b: string,
+  env?: NodeJS.ProcessEnv,
+): Promise<string | undefined> =>
+  line(await git(root, ["merge-base", a, b], env ? { ...small, env } : small))
 
 /**
  * The lines each file differs by from `from` to `to` (commits or trees), renames shown as
@@ -266,11 +432,12 @@ export const numstat = async (
   root: string,
   from: string,
   to: string,
+  env?: NodeJS.ProcessEnv,
 ): Promise<Map<string, Lines> | undefined> => {
   const run = await git(
     root,
     ["diff", "--numstat", "-z", "--no-renames", "--no-ext-diff", "--no-textconv", from, to],
-    listing,
+    env ? { ...listing, env } : listing,
   )
   return run.ok ? parseNumstat(run.out) : undefined
 }

@@ -26,11 +26,14 @@ import {
   promptResult,
 } from "./agents.js"
 import {
+  changeFileDiff,
+  changeRange,
   companionChange,
   companionLimits,
   companionItem,
   companionWindow,
   itemContent,
+  maxChangeLayers,
   maxPageTroubles,
   pageLook,
   pageLookAnswer,
@@ -526,6 +529,30 @@ export const contract = {
     content: procedure
       .input(z.strictObject({ itemId: id, reveal: z.string().max(4096).optional() }))
       .output(eventIterator(itemContent)),
+    // One file of a changes item as a selection of its layers changed it: the file's diff
+    // and the text of each side, as one range of layers (see
+    // `changeFileDiff`). A layer no longer there is left out, as is a file the selection
+    // did not change (no runs). An unknown item, or one that is no change, is NOT_FOUND.
+    changeFile: procedure
+      .input(
+        z.strictObject({
+          itemId: id,
+          path: z.string().min(1).max(companionLimits.path),
+          layers: z.array(z.string().min(1).max(128)).min(1).max(maxChangeLayers),
+        }),
+      )
+      .output(changeFileDiff),
+    // The files a selection of a changes item's layers changed as one range (see
+    // `changeRange`), which is what a selection of more than one layer shows, instead of
+    // its layers' files added up. An unknown item, or one that is no change, is NOT_FOUND.
+    changeRange: procedure
+      .input(
+        z.strictObject({
+          itemId: id,
+          layers: z.array(z.string().min(1).max(128)).min(1).max(maxChangeLayers),
+        }),
+      )
+      .output(changeRange),
     // Writes the person's edit to a plan kept in a file, atomically, unless the file
     // changed since `basedOn`, the stamp the edit was made on: then nothing is written and
     // the plan as it now stands comes back. A plan kept in an agent's transcript can't be

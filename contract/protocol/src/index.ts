@@ -56,7 +56,13 @@ export {
   telemetryLimits,
 } from "./agents.js"
 export {
-  type ChangedFile,
+  type ChangeDiffHunk,
+  type ChangeFile,
+  changeFileDiff,
+  type ChangeFileDiff,
+  changeRange,
+  type ChangeRange,
+  type ChangeLayer,
   type CompanionChange,
   type CompanionItem,
   companionLimits,
@@ -65,7 +71,10 @@ export {
   type ItemContent,
   lookLimits,
   maxChangedFiles,
+  maxChangeLayers,
   maxChangesBytes,
+  maxChangeSideBytes,
+  maxLayerFiles,
   maxLookPicture,
   maxPageTroubles,
   type PageLook,
@@ -75,6 +84,7 @@ export {
   type PlanSaveResult,
   planUnwritable,
   type PlanUnwritable,
+  uncommittedLayer,
 } from "./companions.js"
 export {
   type ClosedTerminal,

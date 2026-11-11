@@ -16,13 +16,12 @@ hand back as `saved` to the next viewer of the same thing.
   parser the first time it's needed; `highlightLines` for code highlighted elsewhere.
 - `./code.css`: the code viewer's looks and the `.tok-*` highlighting classes. Its header
   lists the tokens an app sets to theme it (`--code-*`, `--syntax-*`).
-- `./diff`: `mountDiff`, a read-only change: a repository's files against a base, each
-  under a header saying how it changed, with its hunks as numbered lines, highlighted as the
-  code viewer highlights, the old and new sides apart. A long change fills a batch of rows at
-  a time, and a new change keeps the rows of every file that didn't change, and the place by
-  the file and row it was at.
-- `./diff.css`: the diff viewer's looks, themed through `--diff-*` and the code viewer's
-  `--code-*`; it takes the `.tok-*` classes from `./code.css`.
+- `./facts`: what a change to a file can be said to be, from facts alone: `factsOf` reads the
+  two sides' text with the highlighters' own parsers (JavaScript and TypeScript, and Markdown)
+  and says where each hunk sits (the declaration around it, the imports it touches, a test, the
+  heading above), the exact tokens of a small edit, and the declarations, imports and tests
+  that came, went or changed; `tokenDiff` marks the tokens that differ between two lines. No
+  prose about why. The changes pane draws its labels from it.
 - `./image`: `mountImage`, an image on a canvas: fitted whole (never enlarged), or zoomed
   from half its fit to 3200% and moved about. Pinch or Ctrl/⌘+scroll zooms around the
   pointer, a drag moves it at any zoom and a scroll once it's zoomed or moved (a fitted one
