@@ -1,21 +1,13 @@
 import { type ChangesContent, type Item } from "@novadeck/core/items"
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-} from "react"
+import { useMemo, type KeyboardEvent } from "react"
 
 import { ArtifactMeta, type ArtifactBodyProps } from "../../ArtifactViewer"
 import { FileTree } from "./FileTree"
 import { FileView } from "./FileView"
 import { LayerList } from "./LayerList"
-import { growHeading, motionMs, reducedMotion, returnFiles, shrinkHeading } from "./motion"
 import { anchored, idsOf, pick, selectedOf, selectionName } from "./selection"
-import { filesOf, filesOfRange, rowsOf, stampOf, type TreeFile } from "./tree"
+import { filesOf, filesOfRange, rowsOf } from "./tree"
+import { useDrillDown } from "./use-drill-down"
 import { useRange } from "./use-range"
 import { useChangesView } from "./view-state"
 
@@ -34,12 +26,6 @@ const sums = (
   removed: content.files.reduce((sum, file) => sum + file.removed, 0),
   reindented: content.files.reduce((sum, file) => sum + file.reindented, 0),
 })
-
-// Which view is moving to which: the row growing into the heading, or the heading shrinking
-// into its row.
-type Phase =
-  | { readonly kind: "opening"; readonly from: DOMRect }
-  | { readonly kind: "closing"; readonly file: TreeFile }
 
 export const ChangesViewer = ({
   item,
@@ -74,123 +60,9 @@ export const ChangesViewer = ({
     [rows],
   )
   const all = useMemo(() => sums(content), [content])
-  const opened = view.open === null ? undefined : order.find((file) => file.path === view.open)
+
+  const { host, head, list, phase, opened, open, back, step } = useDrillDown(order, view, update)
   const unfolded = order.some((file) => file.path === view.unfolded) ? view.unfolded : null
-
-  const host = useRef<HTMLDivElement>(null)
-  const head = useRef<HTMLElement>(null)
-  const list = useRef<HTMLDivElement>(null)
-  const [phase, setPhase] = useState<Phase | null>(null)
-  // The path of the file last opened, whose row takes the keys back once its file closes.
-  const lastOpened = useRef<string | undefined>(undefined)
-  // Where the files were scrolled to when one was opened, which the list is given back.
-  const scrolled = useRef(0)
-  // Keys move only for what the person did (opened, stepped, went back), never as a change is read again.
-  const wantFocus = useRef(false)
-
-  const rowOf = useCallback(
-    (path: string): HTMLElement | null =>
-      [...(host.current?.querySelectorAll<HTMLElement>(".diff-file") ?? [])].find(
-        (row) => row.dataset.path === path,
-      ) ?? null,
-    [],
-  )
-
-  const open = useCallback(
-    (path: string) => {
-      const file = order.find((each) => each.path === path)
-      if (!file) return
-      const from = rowOf(path)?.getBoundingClientRect()
-      scrolled.current = host.current?.querySelector<HTMLElement>(".changes-scroll")?.scrollTop ?? 0
-      wantFocus.current = true
-      update((now) => ({
-        ...now,
-        open: path,
-        unfolded: path,
-        read: { ...now.read, [path]: stampOf(file) },
-      }))
-      setPhase(from && !reducedMotion() ? { kind: "opening", from } : null)
-    },
-    [order, rowOf, update],
-  )
-
-  const back = useCallback(() => {
-    wantFocus.current = true
-    update((now) => ({ ...now, open: null }))
-    setPhase(opened && !reducedMotion() ? { kind: "closing", file: opened } : null)
-  }, [opened, update])
-
-  const step = useCallback(
-    (delta: number) => {
-      const at = order.findIndex((file) => file.path === view.open)
-      const next = order[at + delta]
-      if (!next) return
-      wantFocus.current = true
-      update((now) => ({
-        ...now,
-        open: next.path,
-        unfolded: next.path,
-        read: { ...now.read, [next.path]: stampOf(next) },
-      }))
-    },
-    [order, update, view.open],
-  )
-
-  // The row grows into the heading; the pane takes the keys.
-  useLayoutEffect(() => {
-    if (phase?.kind !== "opening" || !head.current) return
-    const section = head.current.closest<HTMLElement>(".changes-view")
-    if (section) growHeading(section, head.current, phase.from)
-    const timer = setTimeout(() => setPhase(null), motionMs)
-    return () => clearTimeout(timer)
-  }, [phase])
-  // The files are back where they were scrolled to, before anything is measured.
-  const wasOpen = useRef(false)
-  useLayoutEffect(() => {
-    if (!opened && wasOpen.current) {
-      const scroller = host.current?.querySelector<HTMLElement>(".changes-scroll")
-      if (scroller) scroller.scrollTop = scrolled.current
-    }
-  }, [opened])
-  // The heading shrinks into its row once the files are back.
-  useLayoutEffect(() => {
-    if (phase?.kind !== "closing") return
-    const row = rowOf(phase.file.path)
-    const section = head.current?.closest<HTMLElement>(".changes-view")
-    if (!row || !head.current || !section) {
-      setPhase(null)
-      return
-    }
-    returnFiles(list.current ?? row, row)
-    let live = true
-    void shrinkHeading(section, head.current, row.getBoundingClientRect()).then(() => {
-      if (live) setPhase(null)
-    })
-    return () => {
-      live = false
-    }
-  }, [phase, rowOf])
-  // Keys go to the pane while a file is open, and back to its row once it closes.
-  useEffect(() => {
-    const focus = wantFocus.current
-    wantFocus.current = false
-    if (opened) {
-      if (focus) host.current?.focus({ preventScroll: true })
-      lastOpened.current = opened.path
-    } else if (wasOpen.current && view.open === null && focus) {
-      const path = lastOpened.current
-      const row = path === undefined ? null : rowOf(path)
-      // The row in view, then the keys; a row not drawn (in a folded folder) leaves them to the pane.
-      row?.scrollIntoView?.({ block: "nearest" })
-      const button = row?.querySelector<HTMLElement>("button")
-      ;(button ?? host.current)?.focus({ preventScroll: true })
-    }
-    wasOpen.current = opened !== undefined
-  }, [opened, rowOf, view.open])
-  // A file that is no longer among the selection's is no longer open.
-  useEffect(() => {
-    if (view.open !== null && !opened) update((now) => ({ ...now, open: null }))
-  }, [opened, update, view.open])
 
   const keys = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!opened || event.metaKey || event.ctrlKey || event.altKey) return

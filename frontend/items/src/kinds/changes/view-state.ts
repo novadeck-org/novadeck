@@ -1,3 +1,4 @@
+import { createKept, type Kept } from "@novadeck/viewers"
 import { useCallback, useEffect, useState } from "react"
 
 import type { Picked } from "./selection"
@@ -22,12 +23,12 @@ export const freshView: ChangesView = {
   read: {},
 }
 
-// By the item store of the session, which a session that goes takes with it.
-const kept = new WeakMap<object, Map<string, ChangesView>>()
-const keptBy = (scope: object): Map<string, ChangesView> => {
+// By the item store of the session, which a session that goes takes with it: the last 64 items.
+const kept = new WeakMap<object, Kept<ChangesView>>()
+const keptBy = (scope: object): Kept<ChangesView> => {
   const known = kept.get(scope)
   if (known) return known
-  const made = new Map<string, ChangesView>()
+  const made = createKept<ChangesView>(64)
   kept.set(scope, made)
   return made
 }
@@ -39,7 +40,7 @@ export const useChangesView = (
 ): readonly [ChangesView, (change: (view: ChangesView) => ChangesView) => void] => {
   const [view, setView] = useState(() => keptBy(scope).get(itemId) ?? freshView)
   useEffect(() => {
-    keptBy(scope).set(itemId, view)
+    keptBy(scope).keep(itemId, view)
   }, [scope, itemId, view])
   const update = useCallback((change: (view: ChangesView) => ChangesView) => setView(change), [])
   return [view, update]
