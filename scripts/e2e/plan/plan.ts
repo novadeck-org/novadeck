@@ -6,7 +6,7 @@ import { harnesses } from "../../../contract/protocol/src/harnesses.ts"
 
 /** The facts a decision rests on; `undefined` where they couldn't be had. */
 export type Facts = {
-  /** The workflow's event (`pull_request`, `schedule`, `workflow_dispatch`). */
+  /** The workflow's event (`pull_request`, `merge_group`, `schedule`, `workflow_dispatch`). */
   readonly event: string
   /** Names of the workspace packages turbo calls affected, dependents included. */
   readonly affected: readonly string[] | undefined
@@ -96,12 +96,19 @@ const everySystem: readonly string[] = [systems.linux, systems.windows, systems.
 export const adapterOf = (id: string): string => `@novadeck/harness-${id}`
 
 /**
+ * Whether a run follows its change: a pull request's, against its base, and a merge queue's
+ * group's, against the group's parent (`merge_group.base_sha`). Any other event runs everything.
+ */
+export const followsChange = (event: string): boolean =>
+  event === "pull_request" || event === "merge_group"
+
+/**
  * The harnesses whose rows run. All of them when nothing says otherwise (a nightly or
  * manual run, or facts missing, which can't be told from everything changing); none when
  * the change is nothing the suite runs on.
  */
 export const select = (facts: Facts, ids: readonly string[]): readonly string[] => {
-  if (facts.event !== "pull_request") return ids
+  if (!followsChange(facts.event)) return ids
   const { affected, files, runner } = facts
   if (!affected || !files || !runner) return ids
   const adapters = new Set(ids.map(adapterOf))
@@ -113,13 +120,13 @@ export const select = (facts: Facts, ids: readonly string[]): readonly string[] 
 }
 
 /**
- * The systems a run's jobs run on: on a pull request, Linux alone unless its change can break
+ * The systems a run's jobs run on: for a change it follows (`followsChange`), Linux alone unless it can break
  * one system but not the others (`touchesSystem`); all three otherwise, and when that can't be
  * told (`undefined`), as for `select`. Quality's tests decide by this rule too, with their own
  * answer to whether a change touches the system (scripts/quality/plan).
  */
 export const systemsFor = (event: string, touchesSystem: boolean | undefined): readonly string[] =>
-  event === "pull_request" && touchesSystem === false ? [systems.linux] : everySystem
+  followsChange(event) && touchesSystem === false ? [systems.linux] : everySystem
 
 /** Whether a changed file is one the suite can run differently on each system. */
 const e2eTouchesSystem = (file: string): boolean =>
