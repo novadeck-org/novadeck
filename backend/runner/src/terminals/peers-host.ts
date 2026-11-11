@@ -19,6 +19,7 @@ import type { AgentsAnswer, PeerAnswer, SendAnswer, TeamAnswer } from "../messag
 import { unansweredCalls, type Ack, type Call } from "../shell/reports.js"
 import { shorten } from "../text.js"
 import type { HintFacts } from "../voice/hint.js"
+import { backgroundOf } from "./background-shells.js"
 import { gitBranch, gitCheckout } from "./branch.js"
 import { GitStates } from "./git-state.js"
 import type { Facts } from "./nudges.js"
@@ -224,7 +225,8 @@ export class TerminalPeers {
    * What Novadeck knows of each running terminal in a session beyond its agent's hooks:
    * its title and its agent's summary; the git checkout its agent works in now, with its
    * branch, commits ahead and uncommitted changes; when its agent's turn last started or
-   * ended; what it waits on; what its agent session told the person; and what its shell runs.
+   * ended; what it waits on; the background shells its agent started; what its agent session
+   * told the person; and what its shell runs.
    * A report's body is read only with `bodies`, as `team` quotes it.
    */
   private async whereabouts(sessionId: string, bodies = false): Promise<Map<string, Whereabouts>> {
@@ -260,6 +262,7 @@ export class TerminalPeers {
                 (delivered ??= this.options.messaging.deliveredAt()).get(terminal.summary.id) ??
                   null,
               ) !== null,
+            background: backgroundOf(activity, Date.now()),
             shell: {
               running: terminal.summary.busy,
               command: terminal.summary.busy ? shownCommand(terminal.summary.process?.argv) : null,
