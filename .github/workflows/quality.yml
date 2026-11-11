@@ -38,6 +38,7 @@ jobs:
       macos-rows: ${{ steps.plan.outputs.macos-rows }}
       packages: ${{ steps.plan.outputs.packages }}
       proof: ${{ steps.plan.outputs.proof }}
+      proof-macos: ${{ steps.plan.outputs.proof-macos }}
       proof-windows-rows: ${{ steps.plan.outputs.proof-windows-rows }}
       proof-macos-rows: ${{ steps.plan.outputs.proof-macos-rows }}
     steps:
@@ -361,7 +362,7 @@ jobs:
   # Proof of the narrowed rows, for a pull request that changes how Windows's and macOS's tests
   # run (scripts/quality/plan: `proves`): its own run is planned `all`, so its `Test (Windows)`
   # and `test:system` would first run on someone else's pull request. Each row runs
-  # `test:system` over a list the plan gives a real change (`proofLists`), every package's tests
+  # `test:system` over the list the plan gives a real change at its head (`proofChanges`), every package's tests
   # though one fails (`NOVADECK_TEST_CONTINUE`), so one run shows each that fails. Canary #854
   # found a test that failed only there. Not required: the `Test` gate doesn't wait on them.
   proof-windows:
@@ -379,10 +380,12 @@ jobs:
         include: ${{ fromJSON(needs.plan.outputs.proof-windows-rows) }}
     steps: *steps
 
-  # macOS's proof rows, once every Linux job has passed, as its tests.
+  # macOS's proof rows, once every Linux job has passed, as its tests; never on a draft, which
+  # runs no macOS job (`proof-macos`): marking it ready runs them. They are outside the `Test`
+  # gate, so a draft held only by them passes it, and says nothing of them.
   proof-macos:
     needs: [plan, quality]
-    if: ${{ !cancelled() && needs.quality.result == 'success' && needs.plan.outputs.proof == 'true' }}
+    if: ${{ !cancelled() && needs.quality.result == 'success' && needs.plan.outputs.proof-macos == 'true' }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40

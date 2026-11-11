@@ -6,12 +6,14 @@ import { plan as graphPlan } from "../../ci/plan/plan.ts"
 import { runGate } from "../../e2e/plan/gate.ts"
 import { context, describe, expect, it } from "../../test"
 import { type Package, workspacePackages } from "../../workspace/platform.ts"
+import { changeCommit } from "./main.ts"
 import {
   type Facts,
   filters,
   invocations,
   plan,
-  proofLists,
+  declarationDiffers,
+  proofChanges,
   proofRows,
   proves,
   systemPackages,
@@ -303,6 +305,7 @@ describe("test:system's turbo arguments", () => {
 })
 
 describe("the proof rows", () => {
+  const never = () => false
   it.each([
     ".github/workflows/quality.yml",
     "scripts/quality/plan/plan.ts",
@@ -310,47 +313,113 @@ describe("the proof rows", () => {
     "scripts/workspace/platform.ts",
     "package.json",
     "turbo.json",
+    "backend/runner/turbo.json",
     "pnpm-workspace.yaml",
   ])("run for a pull request that changes %s", (file) => {
-    expect(proves(["backend/runner/src/app.ts", file])).toBe(true)
+    expect(proves(["backend/runner/src/app.ts", file], never)).toBe(true)
   })
 
   it.each([
     ["a package's file", ["backend/runner/src/app.ts"]],
-    ["a package's manifest", ["frontend/ui/package.json"]],
     ["another workflow", [".github/workflows/e2e.yml"]],
     ["nothing", []],
   ])("don't run for a change to %s", (_name, files) => {
-    expect(proves(files)).toBe(false)
+    expect(proves(files, () => true)).toBe(false)
+  })
+
+  it("run for a package's manifest only where its declaration changed", () => {
+    const asked: string[] = []
+    const changedHere = (manifest: string) => (asked.push(manifest), manifest.startsWith("tools/"))
+    expect(proves(["frontend/ui/package.json"], changedHere)).toBe(false)
+    expect(proves(["frontend/ui/package.json", "tools/atlas/package.json"], changedHere)).toBe(true)
+    expect(asked).toEqual([
+      "frontend/ui/package.json",
+      "frontend/ui/package.json",
+      "tools/atlas/package.json",
+    ])
   })
 
   it("don't run where the changed files couldn't be read: every test runs then", () => {
-    expect(proves(undefined)).toBe(false)
+    expect(proves(undefined, () => true)).toBe(false)
   })
 
-  it("are a system's narrowed row over each list, under a name of its own", () => {
+  context("a package's declaration", () => {
+    const manifest = (fields: object) =>
+      JSON.stringify({ name: "@novadeck/x", version: "1.0.0", ...fields })
+    it("is the same where only its dependencies or version moved", () => {
+      expect(
+        declarationDiffers(
+          manifest({ novadeck: { platform: "system" }, dependencies: { a: "1" } }),
+          manifest({
+            novadeck: { platform: "system" },
+            dependencies: { a: "2" },
+            version: "1.1.0",
+          }),
+        ),
+      ).toBe(false)
+    })
+
+    it.each([
+      ["its platform", { novadeck: { platform: "system" } }, { novadeck: { platform: "neutral" } }],
+      [
+        "what it reads",
+        { novadeck: { reads: ["apps"] } },
+        { novadeck: { reads: ["apps", "frontend"] } },
+      ],
+      ["a declaration added", {}, { novadeck: { platform: "neutral" } }],
+    ])("differs where %s changed", (_name, before, after) => {
+      expect(declarationDiffers(manifest(before), manifest(after))).toBe(true)
+    })
+
+    it.each([
+      ["a package added", undefined, "{}"],
+      ["a package removed", "{}", undefined],
+      ["a manifest that isn't JSON", "{}", "{"],
+    ])("differs for %s, as can't be told", (_name, before, after) => {
+      expect(declarationDiffers(before, after)).toBe(true)
+    })
+  })
+
+  it("are a system's narrowed row over each change's packages, under a name of its own", () => {
+    const lists = { runner: ["backend/runner"], relay: ["backend/relay", "backend/runner"] }
     for (const [system, row, label] of [
       ["windows", systemWindows[0], "Windows"],
       ["macos", systemMacos[0], "macOS"],
     ] as const)
-      expect(proofRows(system)).toEqual(
-        proofLists.map(({ key, packages: listed }) => ({
+      expect(proofRows(system, lists)).toEqual(
+        proofChanges.map(({ key }) => ({
           ...row,
           name: `Proof (${label}, ${key})`,
           proof: key,
-          packages: listed,
+          // One the plan couldn't narrow tests every system package (`testedFolders`).
+          packages: lists[key as keyof typeof lists] ?? [],
         })),
       )
   })
 
-  // The lists are the plan's for a real change at #853's reland; one that names a folder that
-  // is no system package of the workspace would test something no pull request does.
-  it("list only system packages of the workspace, each list another", () => {
+  it("change files of system packages, each another", () => {
     const system = new Set(systemPackages(workspacePackages(root)).map(({ folder }) => folder))
-    for (const { packages: listed } of proofLists)
-      for (const folder of listed) expect(system.has(folder), folder).toBe(true)
-    const keys = proofLists.map(({ packages: listed }) => listed.join())
-    expect(new Set(keys).size).toBe(proofLists.length)
+    for (const { change } of proofChanges)
+      expect(
+        [...system].some((folder) => change.startsWith(`${folder}/`)),
+        change,
+      ).toBe(true)
+    expect(new Set(proofChanges.map(({ change }) => change)).size).toBe(proofChanges.length)
+  })
+
+  // Git alone, no turbo: what the plan job plans each proof row from.
+  it("plan each from a commit on the head that changes its file alone, moving nothing", () => {
+    const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim()
+    const before = execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" })
+    const commit = changeCommit(head, proofChanges[0]!.change)
+    const changed = execFileSync("git", ["diff", "--name-only", head, commit], {
+      cwd: root,
+      encoding: "utf8",
+    })
+    expect(changed.trim().split("\n")).toEqual([proofChanges[0]!.change])
+    expect(execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" })).toBe(
+      before,
+    )
   })
 })
 
@@ -554,7 +623,7 @@ describe("Quality's workflow", () => {
     )
     expect(job("proof-macos")).toContain("needs: [plan, quality]")
     expect(job("proof-macos")).toContain(
-      "if: ${{ !cancelled() && needs.quality.result == 'success' && needs.plan.outputs.proof == 'true' }}",
+      "if: ${{ !cancelled() && needs.quality.result == 'success' && needs.plan.outputs.proof-macos == 'true' }}",
     )
     for (const [id, output] of [
       ["proof-windows", "proof-windows-rows"],
@@ -565,7 +634,7 @@ describe("Quality's workflow", () => {
       expect(job(id)).toContain('NOVADECK_TEST_CONTINUE: "true"')
       expect(job(id)).toContain("    steps: *steps\n")
     }
-    for (const output of ["proof", "proof-windows-rows", "proof-macos-rows"])
+    for (const output of ["proof", "proof-macos", "proof-windows-rows", "proof-macos-rows"])
       expect(job("plan")).toContain(`${output}: \${{ steps.plan.outputs.${output} }}`)
   })
 

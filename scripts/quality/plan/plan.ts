@@ -94,91 +94,85 @@ export const wholeMacos: readonly Row[] = [
 export const systemMacos: readonly Row[] = [{ ...wholeMacos[0]!, command: "npm run test:system" }]
 
 /**
- * Three lists the plan gives real changes, as at #853's reland (scripts/ci/plan over a one-file
- * change to the file named): what the proof rows run `test:system` over. The first is canary
- * #854's, whose Windows job failed where the shards had passed, as `test:system` built the
- * relay before runner-adapter's tests; the second has the relay built and tested beside the
- * runner; the third is the widest narrowed list, browser packages in the serial group.
+ * The changes whose plans the proof rows run: what the plan gives a one-file change to each
+ * file, at the pull request's head (`main.ts` plans them there, so the lists can't drift from
+ * the planner). The first is canary #854's change, whose Windows job failed where the shards
+ * had passed, as `test:system` built the relay before runner-adapter's tests; the second has
+ * the relay built and tested beside the runner; the third is the widest narrowed list,
+ * browser packages in the serial group.
  */
-export const proofLists: readonly {
-  readonly key: string
-  readonly change: string
-  readonly packages: readonly string[]
-}[] = [
-  {
-    key: "runner",
-    change: "backend/runner/src/app.test.ts",
-    packages: [
-      "tools/atlas",
-      "frontend/chat-contract",
-      "apps/desktop",
-      "backend/runner",
-      "frontend/runner-adapter",
-    ],
-  },
-  {
-    key: "relay",
-    change: "backend/relay/src/main.rs",
-    packages: [
-      "tools/atlas",
-      "frontend/chat-contract",
-      "apps/desktop",
-      "backend/relay",
-      "backend/runner",
-      "frontend/runner-adapter",
-    ],
-  },
-  {
-    key: "terminal",
-    change: "libraries/terminal/src/pty.ts",
-    packages: [
-      "tools/atlas",
-      "tools/build-kit",
-      "frontend/chat-contract",
-      "apps/desktop",
-      "harnesses/agy",
-      "harnesses/claude",
-      "harnesses/codex",
-      "harnesses/core",
-      "backend/runner",
-      "frontend/runner-adapter",
-      "libraries/terminal",
-      "frontend/terminal-views",
-    ],
-  },
+export const proofChanges: readonly { readonly key: string; readonly change: string }[] = [
+  { key: "runner", change: "backend/runner/src/app.test.ts" },
+  { key: "relay", change: "backend/relay/src/main.rs" },
+  { key: "terminal", change: "libraries/terminal/src/pty.ts" },
 ]
 
-/** A proof row: a system's narrowed row over one of `proofLists`, under a name of its own. */
+/** A proof row: a system's narrowed row over one change's packages, under a name of its own. */
 export type ProofRow = Row & { readonly proof: string; readonly packages: readonly string[] }
 
-/** The proof rows of a system, one per list in `proofLists`. */
-export const proofRows = (system: "windows" | "macos"): readonly ProofRow[] =>
-  proofLists.map(({ key, packages }) => ({
+/**
+ * The proof rows of a system, one per change in `proofChanges`, over the packages the plan
+ * gave it there (`lists`, by key). One the plan couldn't narrow has an empty list, which
+ * `test:system` reads as every system package: it runs more, never less.
+ */
+export const proofRows = (
+  system: "windows" | "macos",
+  lists: Readonly<Record<string, readonly string[]>>,
+): readonly ProofRow[] =>
+  proofChanges.map(({ key }) => ({
     ...(system === "windows" ? systemWindows[0]! : systemMacos[0]!),
     name: `Proof (${system === "windows" ? "Windows" : "macOS"}, ${key})`,
     proof: key,
-    packages,
+    packages: lists[key] ?? [],
   }))
 
 // What decides how Windows's and macOS's tests run: a change to one of these can change the
-// narrowed rows, which the change's own run, planned `all`, never runs.
+// narrowed rows, which the change's own run, planned `all`, never runs. Any `turbo.json`, a
+// package's own among them: `backend/runner/turbo.json` holds the edge that built the relay
+// ahead of runner-adapter's tests on canary #854.
 const proven = [
   ".github/workflows/quality.yml",
   "scripts/quality/plan/",
   "scripts/ci/plan/",
   "scripts/workspace/",
   "package.json",
-  "turbo.json",
   "pnpm-workspace.yaml",
 ]
 
 /**
- * Whether a pull request's run proves the narrowed rows (`proofRows`): where it changes how they
- * test. A pull request whose files couldn't be read proves nothing: it runs every test anyway.
+ * Whether a package's `novadeck` declaration (its `platform` and `reads`) differs between two
+ * versions of its manifest, `undefined` where one is missing: a package added or removed, or
+ * one that can't be read, counts as changed.
  */
-export const proves = (files: readonly string[] | undefined): boolean =>
-  files?.some((file) =>
-    proven.some((path) => (path.endsWith("/") ? file.startsWith(path) : file === path)),
+const declarationOf = (manifest: string): string =>
+  JSON.stringify((JSON.parse(manifest) as { novadeck?: unknown }).novadeck ?? null)
+
+export const declarationDiffers = (before: string | undefined, after: string | undefined) => {
+  if (before === undefined || after === undefined) return true
+  try {
+    return declarationOf(before) !== declarationOf(after)
+  } catch {
+    return true
+  }
+}
+
+/**
+ * Whether a pull request's run proves the narrowed rows (`proofRows`): where it changes how they
+ * test. That is a file in `proven`, any `turbo.json`, or a package's manifest whose `novadeck`
+ * declaration changed (`declared`, asked of each changed manifest): not any manifest, as a
+ * dependency bump would run three macOS jobs. A pull request whose files couldn't be read
+ * proves nothing: it runs every test anyway.
+ */
+export const proves = (
+  files: readonly string[] | undefined,
+  declared: (manifest: string) => boolean,
+): boolean =>
+  files?.some(
+    (file) =>
+      proven.some((path) => (path.endsWith("/") ? file.startsWith(path) : file === path)) ||
+      file === "turbo.json" ||
+      file.endsWith("/turbo.json") ||
+      (file.endsWith("/package.json") && declared(file)),
   ) ?? false
 
 /** What Quality's jobs read. */
