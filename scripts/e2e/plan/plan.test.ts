@@ -559,6 +559,20 @@ describe("E2E's workflow", () => {
     )
   })
 
+  // Known Flakes reads the tests a retry passed from these artifacts (scripts/flakes/retries.ts):
+  // a job without the step hides its flakes in a green run.
+  it("uploads the tests a retry passed from every job that runs them", () => {
+    const shared = job("e2e").slice(job("e2e").indexOf("steps: &e2e-steps"))
+    expect(shared).toContain("- name: Upload Retried Tests")
+    expect(shared).toMatch(
+      /name: retried-e2e-.*\$\{\{ runner\.os \}\}.*\$\{\{ github\.run_attempt \}\}\n/,
+    )
+    for (const id of ["e2e-windows", "e2e-macos"]) {
+      expect(job(id)).toContain("    steps: *e2e-steps\n")
+    }
+    expect(job("quirks")).toContain("- name: Upload Retried Tests")
+  })
+
   it("has the gate wait on every job the plan can choose", () => {
     expect(job("gate")).toContain("needs: [plan, e2e, e2e-windows, e2e-macos, quirks]")
   })

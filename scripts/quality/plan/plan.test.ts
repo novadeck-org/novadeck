@@ -297,6 +297,17 @@ describe("Quality's workflow", () => {
     expect(scripts["test:system"]).toContain("scripts/quality/plan/system-tests.ts")
   })
 
+  // Known Flakes reads the tests a retry passed from these artifacts (scripts/flakes/retries.ts):
+  // a test job without the step hides its flakes in a green run.
+  it("uploads the tests a retry passed from every test job, under a name of its own", () => {
+    const shared = job("quality").slice(job("quality").indexOf("steps: &steps"))
+    expect(shared).toContain("- name: Upload Retried Tests")
+    expect(shared).toContain(
+      "name: retried-${{ runner.os }}${{ matrix.shard && format('-{0}', matrix.shard) || '' }}-${{ github.run_attempt }}",
+    )
+    for (const id of ["windows", "macos"]) expect(job(id)).toContain("    steps: *steps\n")
+  })
+
   it("gates Windows's and macOS's tests on the plan", () => {
     expect(job("windows")).toContain("if: needs.plan.outputs.windows == 'true'")
     expect(job("macos")).toContain("if: needs.plan.outputs.macos == 'true'")
