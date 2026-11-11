@@ -56,10 +56,19 @@ const latestNights = (runs: readonly Run[]): Nights => {
 /** Whether a job of the run failed on an attempt and passed on a later one. */
 const flaky = (jobs: readonly Job[]): boolean => recovered(jobs).length > 0
 
+/**
+ * Quality's proof rows (`Proof (Windows, …)`, `Proof (macOS, …)`), which a change to how the
+ * tests are planned runs outside the `Test` gate: they eject no merge group, so the bar leaves
+ * them out. The tables and the Macs' hours keep them, as jobs that ran.
+ */
+export const isProof = (job: Job): boolean => job.name.startsWith("Proof (")
+
 // A PR run's first attempt, by its jobs, never the run's conclusion: on a draft the gates fail
 // on purpose.
 const runsOf = (runs: readonly Run[], jobs: Map<string, Job[]>): Runs => {
-  const counts = runs.map((run) => jobs.get(String(run.id))?.filter(counted) ?? [])
+  const counts = runs.map(
+    (run) => jobs.get(String(run.id))?.filter((job) => counted(job) && !isProof(job)) ?? [],
+  )
   // A flaky run counts even when a job of its first attempt was stopped, as one that ran
   // past its time limit is.
   const finished = counts.filter((here) => {
