@@ -511,7 +511,7 @@ export class Terminals {
         exists: (id) =>
           !this.closedIds.has(id) &&
           (this.records.has(id) || this.saves.identity(id) !== undefined),
-        keeps: () => reportKeeps(this.records, this.saves, this.history, this.closedIds),
+        keeps: (rows) => reportKeeps(rows, this.records, this.saves, this.history, this.closedIds),
       },
       options.inbox,
     )

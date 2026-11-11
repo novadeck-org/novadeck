@@ -142,17 +142,20 @@ describe("what a report log keeps of an agent session", () => {
     expect(log.get("b")).toBeUndefined()
   })
 
-  it("quotes a report's body only when asked for, and reads each report's once", () => {
+  it("leaves a report's body unread until the report is asked to read it", () => {
     const log = new ReportLog([row("d1", 1), turn("t1", 2), row("a1", 3, { kind: "ask" })])
-    const asked: (readonly string[])[] = []
+    const asked: string[] = []
     const plain = log.happenings("claude", "s")
     expect(plain[0]).toMatchObject({ kind: "done", body: null })
-    const full = log.happenings("claude", "s", (ids) => {
-      asked.push(ids)
-      return new Map([["d1", "at length"]])
+    expect(plain[0]).not.toHaveProperty("read")
+    const full = log.happenings("claude", "s", (id) => {
+      asked.push(id)
+      return "at length"
     })
-    expect(full[0]).toMatchObject({ kind: "done", subject: "Done 1", body: "at length" })
     expect(full.map(({ kind }) => kind)).toEqual(["done", "turn", "asked"])
-    expect(asked).toEqual([["d1"]])
+    expect(asked).toEqual([])
+    const [first] = full
+    expect(first?.kind === "done" && first.read?.()).toBe("at length")
+    expect(asked).toEqual(["d1"])
   })
 })

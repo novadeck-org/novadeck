@@ -24,27 +24,37 @@ export type KeepParts = {
       } | null
     }
   >
-  readonly saved: { terminals(): readonly Held[] }
+  /** The terminals kept; undefined where that can't be told (a failed read, a stopping runner). */
+  readonly saved: { known(): readonly Held[] | undefined }
   readonly history: { all(): readonly Held[] }
   readonly closing: ReadonlySet<string>
 }
 
 const keyOf = (agent: string, sessionId: string): string => `${agent}\u0000${sessionId}`
 
+/** How many other sessions of an open terminal keep their rows, the latest by their newest row. */
+export const keptOthers = 3
+
 /**
- * Which report log rows are still wanted: those made in a terminal that is open (running or
- * asleep) or whose closed row History keeps, and those of an agent session one of them
- * holds, as a terminal restored from History, or a session resumed in another, reads what
- * the session reported before. A terminal closing does not count as open: it is History's
- * row that keeps its rows, if there is one, and its rows go with the close if not. Judged
- * from the runner as it is now, once per sweep.
+ * Which of the report log's `rows` are still wanted: those of an agent session that an open
+ * terminal (running or asleep) or a closed one History keeps holds, through the sessions it
+ * reported or has bound, as a terminal restored from History, or a session resumed in
+ * another, reads what the session reported before. Of the other sessions a terminal made
+ * rows in (it was cleared or restarted over and over), only the latest `keptOthers` stay.
+ * A terminal closing does not count as open: it is History's row that keeps its rows, if
+ * there is one, and its rows go with the close if not. Judged from the runner as it is
+ * now, once per sweep. Undefined where the runner can't tell (a read failed or it is
+ * stopping), so that nothing is dropped on a guess.
  */
 export const reportKeeps = (
+  rows: readonly LoggedReport[],
   running: KeepParts["running"],
   saved: KeepParts["saved"],
   history: KeepParts["history"],
   closing: KeepParts["closing"],
-): ((row: LoggedReport) => boolean) => {
+): ((row: LoggedReport) => boolean) | undefined => {
+  const kept = saved.known()
+  if (kept === undefined) return undefined
   const terminals = new Set<string>()
   const sessions = new Set<string>()
   const hold = ({ id, agents }: Held) => {
@@ -58,7 +68,23 @@ export const reportKeeps = (
     const binding = record.bound?.binding
     if (binding) sessions.add(keyOf(binding.agent, binding.sessionId))
   }
-  for (const each of saved.terminals()) if (!closing.has(each.id)) hold(each)
+  for (const each of kept) if (!closing.has(each.id)) hold(each)
   for (const each of history.all()) hold(each)
-  return (row) => terminals.has(row.terminalId) || sessions.has(keyOf(row.agent, row.sessionId))
+  // The sessions of a terminal that it holds no longer: its latest few, by newest row.
+  const newest = new Map<string, Map<string, number>>()
+  for (const row of rows) {
+    const key = keyOf(row.agent, row.sessionId)
+    if (!terminals.has(row.terminalId) || sessions.has(key)) continue
+    const own = newest.get(row.terminalId) ?? new Map<string, number>()
+    own.set(key, Math.max(own.get(key) ?? -Infinity, row.at))
+    newest.set(row.terminalId, own)
+  }
+  const others = new Set<string>()
+  for (const [terminalId, own] of newest)
+    for (const [key] of [...own].toSorted((a, b) => b[1] - a[1]).slice(0, keptOthers))
+      others.add(`${terminalId}\u0000${key}`)
+  return (row) => {
+    const key = keyOf(row.agent, row.sessionId)
+    return sessions.has(key) || others.has(`${row.terminalId}\u0000${key}`)
+  }
 }

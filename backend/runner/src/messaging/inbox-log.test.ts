@@ -28,7 +28,9 @@ const turnFields = (reply: string | null = "All done."): TurnFields => ({
 // test's to say, as the runner's messaging says them, with a clock the test moves.
 const setup = (
   records: InboxRecords = memoryInbox(),
-  host: { keeps?: () => (row: LoggedReport) => boolean } = {},
+  host: {
+    keeps?: (rows: readonly LoggedReport[]) => ((row: LoggedReport) => boolean) | undefined
+  } = {},
 ) => {
   const owners = new Map<string, TurnOwner>()
   const alive = new Set<string>()
@@ -167,7 +169,7 @@ for (const agent of agentNames)
       expect(records.reports().filter(({ kind }) => kind === "done")).toHaveLength(keptReports + 1)
     })
 
-    it("reads a report's body from the store only when asked for", () => {
+    it("reads a report's body from the store only when the report is asked to read it", () => {
       const records = memoryInbox()
       const bodies = vi.spyOn(records, "reportBodies")
       const run = setup(records)
@@ -179,10 +181,9 @@ for (const agent of agentNames)
         { kind: "done", body: null },
       ])
       expect(bodies).not.toHaveBeenCalled()
-      expect(run.inbox.happenings("t1", undefined, true)).toMatchObject([
-        { kind: "turn" },
-        { kind: "done", body: "At great length" },
-      ])
+      const [, done] = run.inbox.happenings("t1", undefined, true)
+      expect(bodies).not.toHaveBeenCalled()
+      expect(done?.kind === "done" && done.read?.()).toBe("At great length")
       expect(bodies).toHaveBeenCalledTimes(1)
       expect(bodies).toHaveBeenCalledWith([id])
     })
@@ -322,6 +323,27 @@ for (const agent of agentNames)
       ])
     })
 
+    it("moves the asks made while the guess stood, though they were answered, withdrawn or gone since", () => {
+      const records = memoryInbox()
+      const run = setup(records)
+      const owner = run.open("t1", agent, "tentative")
+      run.inbox.rooted("t1", [guess])
+      const ask = (subject: string) => {
+        run.advance(spacing)
+        const made = run.inbox.call("t1", "ask", { subject, body: "Body" })
+        if (!made.ok) throw new Error(made.reason)
+        return made.id
+      }
+      const [withdrawn, kept] = [ask("Withdrawn"), ask("Open")]
+      run.inbox.call("t1", "ask", { withdraw: withdrawn })
+      run.advance(retentionMs + 1)
+      run.inbox.prune()
+      run.owners.set("t1", { ...owner, sessionId: "real" })
+      run.inbox.rooted("t1", [correction()])
+      const where = (id: string) => records.reports().find((row) => row.id === id)?.sessionId
+      expect([where(withdrawn), where(kept)]).toEqual(["real", "real"])
+    })
+
     it("moves reports whose Inbox rows are long gone, which only the log still holds", () => {
       const records = memoryInbox()
       const run = setup(records)
@@ -340,7 +362,7 @@ for (const agent of agentNames)
   })
 
 describe("which rows of the report log a closed terminal leaves", () => {
-  it("drops a terminal's rows at its close when History keeps nothing of it", () => {
+  it("drops a terminal's rows at its close when History keeps nothing of it", async () => {
     const records = memoryInbox()
     const run = setup(records)
     run.open("t1", "claude", "s1")
@@ -348,11 +370,12 @@ describe("which rows of the report log a closed terminal leaves", () => {
     run.open("t2", "codex", "s2")
     run.say("t2", "done", "Other")
     run.close("t1")
+    await Promise.resolve()
     expect(sessions(records)).toEqual([expect.stringMatching(/^done:codex:s2:/)])
     expect(run.inbox.reports("t1").done).toBeNull()
   })
 
-  it("keeps them while History keeps the closed terminal, and drops them once its row is gone", () => {
+  it("keeps them while History keeps the closed terminal, and drops them once its row is gone", async () => {
     const records = memoryInbox()
     const history = new Set<string>()
     const run = setup(records, { keeps: () => (row) => history.has(row.terminalId) })
@@ -360,6 +383,7 @@ describe("which rows of the report log a closed terminal leaves", () => {
     run.say("t1", "done", "Fixed it")
     history.add("t1")
     run.close("t1")
+    await Promise.resolve()
     expect(records.reports()).toHaveLength(1)
     // Restored in a new terminal, the session finds them.
     run.open("t2", "claude", "s1")
@@ -371,7 +395,7 @@ describe("which rows of the report log a closed terminal leaves", () => {
     expect(run.inbox.reports("t2").done).toBeNull()
   })
 
-  it("keeps a session's rows while another terminal holds the session, whoever made them", () => {
+  it("keeps a session's rows while another terminal holds the session, whoever made them", async () => {
     const records = memoryInbox()
     const held = new Set<string>()
     const run = setup(records, { keeps: () => (row) => held.has(row.sessionId) })
@@ -379,6 +403,7 @@ describe("which rows of the report log a closed terminal leaves", () => {
     run.say("t1", "done", "Fixed it")
     held.add("s1")
     run.close("t1")
+    await Promise.resolve()
     expect(records.reports()).toHaveLength(1)
     held.clear()
     run.inbox.sweepLog()
@@ -427,6 +452,41 @@ describe("which rows of the report log a closed terminal leaves", () => {
     expect(records.reports()).toEqual([])
   })
 
+  it("sweeps once for any number of closes in a tick, and after the close is over", async () => {
+    const records = memoryInbox()
+    const keeps = vi.fn<() => undefined>(() => undefined)
+    const run = setup(records, { keeps })
+    for (const id of ["a", "b", "c"]) run.open(id, "claude", id)
+    for (const id of ["a", "b", "c"]) run.close(id)
+    run.inbox.reconcile("a")
+    expect(keeps).not.toHaveBeenCalled()
+    await Promise.resolve()
+    expect(keeps).toHaveBeenCalledTimes(1)
+  })
+
+  it("drops nothing where the runner can't tell what is held, and a failed read stops no close", async () => {
+    const records = memoryInbox()
+    let tell: "unknown" | "throws" | "known" = "unknown"
+    const run = setup(records, {
+      keeps: () => {
+        if (tell === "throws") throw new Error("disk read failed")
+        return tell === "unknown" ? undefined : () => false
+      },
+    })
+    run.open("t1", "claude", "s1")
+    run.say("t1", "done", "Fixed it")
+    run.close("t1")
+    await Promise.resolve()
+    expect(records.reports()).toHaveLength(1)
+    tell = "throws"
+    expect(() => run.inbox.reconcile("t1")).not.toThrow()
+    run.inbox.sweepLog()
+    expect(records.reports()).toHaveLength(1)
+    tell = "known"
+    run.inbox.sweepLog()
+    expect(records.reports()).toEqual([])
+  })
+
   it("goes with a removed project", () => {
     const records = memoryInbox()
     const run = setup(records)
@@ -456,15 +516,14 @@ describe("the report log in the workspace store", () => {
     resources.defer(() => reopened.close())
     const next = setup(reopened)
     next.open("t1", "agy", "s1")
-    expect(next.inbox.happenings("t1", undefined, true)).toEqual([
-      { kind: "turn", at: 5, from: 3, outcome: "completed", text: "Reply." },
-      {
-        kind: "done",
-        at: 1_007_000,
-        subject: "Fixed it",
-        body: "At length: https://github.com/o/r/pull/4",
-        pr: "https://github.com/o/r/pull/4",
-      },
-    ])
+    const [turn, done] = next.inbox.happenings("t1", undefined, true)
+    expect(turn).toEqual({ kind: "turn", at: 5, from: 3, outcome: "completed", text: "Reply." })
+    expect(done).toMatchObject({
+      kind: "done",
+      at: 1_007_000,
+      subject: "Fixed it",
+      pr: "https://github.com/o/r/pull/4",
+    })
+    expect(done?.kind === "done" && done.read?.()).toBe("At length: https://github.com/o/r/pull/4")
   })
 })

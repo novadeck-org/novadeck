@@ -130,11 +130,12 @@ type Host = {
   changed(terminalId: string): void
   exists(terminalId: string): boolean
   /**
-   * Which log rows are still wanted (see `Inbox.sweepLog`), judged once per call: those of
-   * a terminal that exists, of one History keeps a row for, or of a session any of those
-   * holds. Without it, a row lives while the terminal that made it exists.
+   * Which of the log's `rows` are still wanted (see `Inbox.sweepLog`), judged once per
+   * call: those of a session a terminal or History holds, and a terminal's latest few
+   * others. Undefined where that can't be told (a read failed, the runner is stopping): the
+   * sweep is skipped. Without it, a row lives while the terminal that made it exists.
    */
-  keeps?(): (row: LoggedReport) => boolean
+  keeps?(rows: readonly LoggedReport[]): ((row: LoggedReport) => boolean) | undefined
   replyState(askId: string): Message | undefined
   forgetReplies(ids: readonly string[]): void
 }
@@ -362,6 +363,7 @@ export class Inbox {
   private readonly log: ReportLog
   /** When the log was last swept for rows nothing holds any more. */
   private sweptAt = -Infinity
+  private sweepQueued = false
   private readonly readers = new Set<Latest<InboxEntry[]>>()
   /** Since when each terminal with open asks has had no agent bound (from the runner's start). */
   private readonly unbound = new Map<string, number>()
@@ -887,7 +889,7 @@ export class Inbox {
     return this.log.happenings(
       session.agent,
       session.sessionId,
-      bodies ? (ids) => this.readBodies(ids) : undefined,
+      bodies ? (id) => this.readBodies([id]).get(id) ?? "" : undefined,
     )
   }
 
@@ -967,15 +969,15 @@ export class Inbox {
             entry.at >= guessedAt
           )
             this.put({ ...entry, sessionId: change.root.sessionId })
-        // The log follows, row by row: the asks moved above, and the reports and turns made
-        // while the guess stood, whether or not the Inbox still holds them.
+        // The log follows, row by row: the asks moved above, and the asks, reports and
+        // turns made while the guess stood, whether or not the Inbox still holds them or
+        // the ask was answered, withdrawn or gone since.
         const rows = this.log.rekey(
           (row) =>
             row.terminalId === terminalId &&
             row.agent === change.root.agent &&
             row.sessionId === change.from &&
-            (moved.has(row.id) ||
-              (row.kind !== "ask" && guessedAt !== undefined && row.at >= guessedAt)),
+            (moved.has(row.id) || (guessedAt !== undefined && row.at >= guessedAt)),
           change.root.sessionId,
         )
         if (rows.length > 0) {
@@ -1014,8 +1016,9 @@ export class Inbox {
       if (turns.length > 0) this.save(() => this.records.removeEntries(turns.map(({ id }) => id)))
       this.forgetTurns(turns)
       // Its reports stay in the log only where History keeps the terminal (or a session of
-      // it is held), and go at its close otherwise.
-      this.sweepLog()
+      // it is held), and go at its close otherwise: judged once the close is over, as it
+      // is still going on here.
+      this.sweepSoon()
     }
     for (const entry of this.byTerminal.get(terminalId)?.values() ?? []) {
       if (entry.content.kind === "turn") continue
@@ -1199,10 +1202,27 @@ export class Inbox {
   sweepLog(): void {
     if (this.closed) return
     this.sweptAt = this.now()
-    const exists = this.existence()
-    const keeps = this.host.keeps?.() ?? ((row: LoggedReport) => exists(row.terminalId))
-    const gone = this.log.retain(keeps)
-    if (gone.length > 0) this.save(() => this.records.removeReports(gone))
+    try {
+      const exists = this.existence()
+      const keeps = this.host.keeps
+        ? this.host.keeps(this.log.all())
+        : (row: LoggedReport) => exists(row.terminalId)
+      // What can't be told is no reason to delete: the next sweep looks again.
+      if (!keeps) return
+      const gone = this.log.retain(keeps)
+      if (gone.length > 0) this.save(() => this.records.removeReports(gone))
+    } catch (error) {
+      log.error("inbox.sweep-failed", "Novadeck could not sweep its report log", { err: error })
+    }
+  }
+  /** Sweeps once after the work in hand, however many closes ask for it before then. */
+  private sweepSoon(): void {
+    if (this.sweepQueued) return
+    this.sweepQueued = true
+    queueMicrotask(() => {
+      this.sweepQueued = false
+      this.sweepLog()
+    })
   }
   private sessionOf(
     terminalId: string,

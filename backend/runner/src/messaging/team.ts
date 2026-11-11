@@ -39,11 +39,15 @@ export const stateKey = (peer: Peer): string =>
 /** How many entries each member shows at most, the latest. */
 export const shownEntries = 5
 
-/** One line of a member's timeline: when, and what. */
-export type Entry = { readonly at: number; readonly text: string }
+/**
+ * One line of a member's timeline: when, and what. A report's `text` is worked out only
+ * when read, since quoting its body reads the store, and only the entries shown are read:
+ * it has a `key` instead, which its body never changes.
+ */
+export type Entry = { readonly at: number; readonly text: string; readonly key?: string }
 
 /** What tells an entry apart for `team`: when it happened and what it says now. */
-export const entryKey = (entry: Entry): string => `${entry.at}|${entry.text}`
+export const entryKey = (entry: Entry): string => entry.key ?? `${entry.at}|${entry.text}`
 
 // How much of each kind of text an entry shows, in characters.
 const subjectChars = 160
@@ -80,8 +84,17 @@ export const happened = (happenings: readonly Happening[]): Entry[] => {
     }
     if (happening.kind === "asked")
       return [{ at, text: `asked the user: ${flat(happening.subject, subjectChars)}` }]
-    const body = happening.body?.trim() ? ` — ${flat(happening.body, bodyChars)}` : ""
-    return [{ at, text: `${happening.kind}: ${flat(happening.subject, subjectChars)}${body}` }]
+    return [
+      {
+        at,
+        key: `${at}|${happening.kind}|${happening.subject}`,
+        get text() {
+          const said = (happening.body ?? happening.read?.() ?? "").trim()
+          const body = said ? ` — ${flat(said, bodyChars)}` : ""
+          return `${happening.kind}: ${flat(happening.subject, subjectChars)}${body}`
+        },
+      },
+    ]
   })
 }
 

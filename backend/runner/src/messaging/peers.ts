@@ -64,8 +64,10 @@ export type Happening =
       readonly kind: "update" | "done"
       readonly at: number
       readonly subject: string
-      /** What it said at length; null where the listing doesn't quote it, so it was not read. */
+      /** What it said at length; null where it was not read (see `read`). */
       readonly body: string | null
+      /** Reads its body from the store when called, for the listing that quotes it (`team`). */
+      readonly read?: () => string
       /** The pull request link it gave, found as it was written (see `pullRequestIn`). */
       readonly pr: string | null
     }

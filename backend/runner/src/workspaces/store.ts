@@ -344,6 +344,10 @@ const schema = `
  */
 type Step = string | ((database: DatabaseSync, path: string) => void)
 
+/** Whether a SQLite error is a constraint the table refused (SQLITE_CONSTRAINT, 19). */
+export const refusedByTable = (error: unknown): boolean =>
+  error instanceof Error && "errcode" in error && (Number(error.errcode) & 0xff) === 19
+
 /**
  * The steps that carry a database forward, by the version each starts from, each to the
  * next. A step is the SQL that version's tables needed, written out as it was then, never
@@ -387,10 +391,17 @@ const migrations: Readonly<Record<number, Step>> = {
       .prepare("SELECT id, project_id, record FROM inbox_entries ORDER BY at")
       .all() as { id: string; project_id: string; record: string }[]
     for (const entry of entries) {
+      let record: unknown
       try {
-        const found = storedReport(JSON.parse(entry.record), isAgentName)
-        if (!found) continue
-        const { row } = found
+        record = JSON.parse(entry.record)
+      } catch {
+        // A record that isn't JSON: the Inbox drops it too.
+        continue
+      }
+      const found = storedReport(record, isAgentName)
+      if (!found) continue
+      const { row } = found
+      try {
         insert.run(
           entry.id,
           entry.project_id,
@@ -406,8 +417,10 @@ const migrations: Readonly<Record<number, Step>> = {
           row.pr,
           found.body,
         )
-      } catch {
-        // A record that isn't JSON, or a value the table refuses: the Inbox drops it too.
+      } catch (error) {
+        // Only a value the table refuses is skipped. A full disk, an I/O error or no
+        // memory may have ended the transaction, and the step must not go on without it.
+        if (!refusedByTable(error)) throw error
       }
     }
   },

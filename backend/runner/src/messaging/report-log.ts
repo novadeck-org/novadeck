@@ -154,8 +154,11 @@ export const storedReport = (
   return reportOf({ ...(entry as unknown as InboxEntry), content })
 }
 
+/** Where a row's body is read when asked for; empty where it has none. */
+export type BodyReader = (id: string) => string
+
 /** The Happening `team` lists for a row, with the body where it was read. */
-const happeningOf = (row: LoggedReport, body: string | null): Happening => {
+const happeningOf = (row: LoggedReport, read: BodyReader | undefined): Happening => {
   if (row.kind === "ask") return { kind: "asked", at: row.at, subject: row.subject ?? "" }
   if (row.kind === "turn")
     return {
@@ -169,13 +172,11 @@ const happeningOf = (row: LoggedReport, body: string | null): Happening => {
     kind: row.kind === "tell" ? "update" : "done",
     at: row.at,
     subject: row.subject ?? "",
-    body,
+    body: null,
     pr: row.pr,
+    ...(read && { read: () => read(row.id) }),
   }
 }
-
-/** Where a row's body is read when asked for: ids to bodies. */
-export type BodyReader = (ids: readonly string[]) => ReadonlyMap<string, string>
 
 const keyOf = (agent: string, sessionId: string): string => `${agent}\u0000${sessionId}`
 
@@ -240,17 +241,16 @@ export class ReportLog {
   }
 
   /**
-   * What an agent session did, oldest first, as `team` lists it. A report's body is read
-   * through `bodies` (one read for the lot) when given, else left out.
+   * What an agent session did, oldest first, as `team` lists it. A report's body is left
+   * unread; with `bodies`, the report can read it when asked to, and no sooner.
    */
   happenings(agent: string, sessionId: string, bodies?: BodyReader): Happening[] {
-    const rows = this.of(agent, sessionId)
-    const read = bodies
-      ? bodies(
-          rows.filter((row) => row.kind === "done" || row.kind === "tell").map((row) => row.id),
-        )
-      : undefined
-    return rows.map((row) => happeningOf(row, read ? (read.get(row.id) ?? "") : null))
+    return this.of(agent, sessionId).map((row) => happeningOf(row, bodies))
+  }
+
+  /** Every row, for a sweep to judge. */
+  all(): LoggedReport[] {
+    return [...this.rows.values()]
   }
 
   /**

@@ -1,3 +1,5 @@
+import { vi } from "vitest"
+
 import { describe, expect, it } from "../test.js"
 import { novadeckSender, type Message } from "./messages.js"
 import { peerOf, type Happening, type Peer, type Whereabouts } from "./peers.js"
@@ -5,6 +7,9 @@ import { exchanged, happened, renderTeam, type Entry, type Look } from "./team.j
 
 const now = 10 * 60 * 60_000
 const minutes = (count: number) => count * 60_000
+
+// What an entry says, apart from the key that tells it from the others.
+const quoted = (entries: Entry[]) => entries.map(({ at, text }) => ({ at, text }))
 
 const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   title: null,
@@ -88,22 +93,24 @@ describe("what a member's agent session did, as team lists it", () => {
   ) => ({ kind: "turn", at, from, outcome: "completed", text }) as const
 
   it("lists a report whose body was not read by its subject alone", () => {
-    expect(happened([{ kind: "done", at: 5, subject: "Shipped", body: null, pr: null }])).toEqual([
-      { at: 5, text: "done: Shipped" },
-    ])
+    expect(
+      quoted(happened([{ kind: "done", at: 5, subject: "Shipped", body: null, pr: null }])),
+    ).toEqual([{ at: 5, text: "done: Shipped" }])
   })
 
   it("lists its reports, its asks, and each turn that ended without a report", () => {
     expect(
-      happened([
-        update(10),
-        turn(11),
-        turn(20),
-        { kind: "asked", at: 21, subject: "Which shape?" },
-        { kind: "done", at: 25, subject: "Shipped", body: "PR merged\nand released", pr: null },
-        turn(26),
-        { kind: "turn", at: 30, from: null, outcome: "failed", text: "API error" },
-      ]),
+      quoted(
+        happened([
+          update(10),
+          turn(11),
+          turn(20),
+          { kind: "asked", at: 21, subject: "Which shape?" },
+          { kind: "done", at: 25, subject: "Shipped", body: "PR merged\nand released", pr: null },
+          turn(26),
+          { kind: "turn", at: 30, from: null, outcome: "failed", text: "API error" },
+        ]),
+      ),
     ).toEqual([
       { at: 10, text: "update: Tests pass" },
       { at: 20, text: 'turn ended without a report: "Should I also migrate the old rows?"' },
@@ -120,13 +127,13 @@ describe("what a member's agent session did, as team lists it", () => {
   it("credits a report to the turn it came in, where the turn's start is known", () => {
     // The update came in a turn that was interrupted, which isn't kept: the next turn,
     // started after it, still ended without a report.
-    expect(happened([update(100), turn(300, "Should I migrate the rows?", 200)])).toEqual([
+    expect(quoted(happened([update(100), turn(300, "Should I migrate the rows?", 200)]))).toEqual([
       { at: 100, text: "update: Tests pass" },
       { at: 300, text: 'turn ended without a report: "Should I migrate the rows?"' },
     ])
-    expect(happened([turn(300, "Done", 50), update(100)].toSorted((a, b) => a.at - b.at))).toEqual([
-      { at: 100, text: "update: Tests pass" },
-    ])
+    expect(
+      quoted(happened([turn(300, "Done", 50), update(100)].toSorted((a, b) => a.at - b.at))),
+    ).toEqual([{ at: 100, text: "update: Tests pass" }])
   })
 })
 
@@ -296,6 +303,28 @@ describe("what team says", () => {
     expect(team({ peers: [fox], look, all: true }).text).toContain(
       "  latest:\n    12 min ago, update: PR opened, CI running",
     )
+  })
+
+  it("reads the body of only the reports it shows", () => {
+    const read = vi.fn<() => string>(() => "the whole report")
+    const busy = member("fox", "moth", {
+      happenings: Array.from({ length: 8 }, (_, index) => ({
+        kind: "done" as const,
+        at: now - minutes(10 - index),
+        subject: `Done ${index + 1}`,
+        body: null,
+        pr: null,
+        read,
+      })),
+    })
+    const text = team({ peers: [busy] }).text
+    expect(read).toHaveBeenCalledTimes(5)
+    expect(text).toContain("done: Done 8 — the whole report")
+    // Looking again, the entries seen are told apart without reading any body.
+    read.mockClear()
+    const first = team({ peers: [busy] })
+    team({ peers: [busy], look: first.look })
+    expect(read).toHaveBeenCalledTimes(5)
   })
 
   it("shows the latest few of a member's entries, and counts the rest", () => {

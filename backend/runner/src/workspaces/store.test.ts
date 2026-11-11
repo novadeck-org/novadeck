@@ -30,6 +30,7 @@ import { sealed as sealedText } from "../testing/sealing.js"
 import type { ClosedRecord } from "./closed.js"
 import {
   EarlierWorkspaceError,
+  refusedByTable,
   setAsideWorkspace,
   WorkspaceStore,
   WorkspaceTooNewError,
@@ -1593,6 +1594,16 @@ describe("workspace metadata", () => {
       }
     })
     expect(carried).toEqual(created)
+  })
+
+  it("skips only what the table refuses in the step from 12, and fails the step on any other error", () => {
+    const sqlite = (errcode: number) => Object.assign(new Error("sqlite"), { errcode })
+    // SQLITE_CONSTRAINT and its extended codes (a unique key, a check, a foreign key).
+    for (const code of [19, 1555, 275, 787]) expect(refusedByTable(sqlite(code))).toBe(true)
+    // Not a full disk (13), an I/O error (10), no memory (7), or a plain error.
+    for (const code of [13, 10, 7, 1]) expect(refusedByTable(sqlite(code))).toBe(false)
+    expect(refusedByTable(new Error("other"))).toBe(false)
+    expect(refusedByTable("text")).toBe(false)
   })
 
   it("keeps its schema as recorded for its version, so a change to it comes with a step", ({
