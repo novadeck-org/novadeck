@@ -158,9 +158,12 @@ describe("the packages a system's test job runs", () => {
 
   it("leave no neutral package of the workspace in, and every system one", () => {
     const workspace = workspacePackages(root)
+    // Without pnpm's check of the install, which prints to stdout ahead of turbo's JSON when it
+    // finds the workspace's state stale, as after a rebase.
     const out = execFileSync(
       "pnpm",
       [
+        "--config.verify-deps-before-run=false",
         "exec",
         "turbo",
         "run",

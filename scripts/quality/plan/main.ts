@@ -37,7 +37,20 @@ const facts = (event: string, base: string | undefined, head: string | undefined
     return { event, affected: undefined, files: undefined, draft }
   }
   const env = { ...process.env, TURBO_SCM_BASE: base, TURBO_SCM_HEAD: head }
-  const turbo = run(["pnpm", "exec", "turbo", "ls", "--affected", "--output", "json"], env)
+  // Without pnpm's check of the install, which can print to stdout ahead of turbo's JSON.
+  const turbo = run(
+    [
+      "pnpm",
+      "--config.verify-deps-before-run=false",
+      "exec",
+      "turbo",
+      "ls",
+      "--affected",
+      "--output",
+      "json",
+    ],
+    env,
+  )
   // Unquoted and NUL-separated, so a path with spaces or non-ASCII letters reads as it is.
   const diff = run(
     [
