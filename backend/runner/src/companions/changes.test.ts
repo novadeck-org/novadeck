@@ -44,6 +44,8 @@ const hasGit = (() => {
 type Repo = {
   readonly root: string
   readonly git: (...args: string[]) => string
+  /** Runs git with `input` on its standard input (a `fast-import` stream, say). */
+  readonly feed: (input: string, ...args: string[]) => string
   readonly write: (path: string, text: string | Buffer) => void
 }
 
@@ -65,7 +67,7 @@ const it = base.extend<{ repo: Repo }>({
     writeFileSync(config, "[core]\n\tautocrlf = false\n")
     const root = join(holder, "repo")
     mkdirSync(root)
-    const git = (...args: string[]) =>
+    const run = (args: readonly string[], input?: string) =>
       execFileSync(
         "git",
         [
@@ -80,6 +82,7 @@ const it = base.extend<{ repo: Repo }>({
         {
           cwd: root,
           encoding: "utf8",
+          input,
           env: {
             ...process.env,
             GIT_CONFIG_GLOBAL: config,
@@ -87,6 +90,8 @@ const it = base.extend<{ repo: Repo }>({
           },
         },
       )
+    const git = (...args: string[]) => run(args)
+    const feed = (input: string, ...args: string[]) => run(args, input)
     git("init", "--quiet")
     // The reader runs git with the person's own configuration, which on Windows may
     // convert line endings: this repository says it does not.
@@ -96,7 +101,7 @@ const it = base.extend<{ repo: Repo }>({
       mkdirSync(join(full, ".."), { recursive: true })
       writeFileSync(full, text)
     }
-    await use({ root, git, write })
+    await use({ root, git, feed, write })
   },
 })
 
@@ -628,12 +633,21 @@ describe.skipIf(!hasGit)("the layers of a change read from a git repository", ()
 
   it("keeps at most the protocol's number of layers", async ({ repo }) => {
     branched(repo)
-    const many = Object.fromEntries(
-      Array.from({ length: maxChangedFiles + 5 }, (_, at) => [`f${at}.txt`, "x\n"]),
-    )
-    commit(repo, "many files", many)
-    for (let at = 0; at < maxChangeLayers + 3; at += 1)
-      repo.git("commit", "--quiet", "--allow-empty", "-m", `empty ${at}`)
+    // The commits come from one `fast-import`: a git process each is too slow on a busy
+    // Windows runner. Each is empty, on top of the one before.
+    const from = repo.git("rev-parse", "HEAD").trim()
+    const stream = Array.from({ length: maxChangeLayers + 3 }, (_, at) => {
+      const message = `empty ${at}\n`
+      return [
+        "commit refs/heads/feature",
+        `committer T <t@example.com> ${1_700_000_000 + at} +0000`,
+        `data ${Buffer.byteLength(message)}`,
+        message,
+        ...(at === 0 ? [`from ${from}`] : []),
+        "",
+      ].join("\n")
+    }).join("")
+    repo.feed(stream, "fast-import", "--quiet")
     const read = await layersOf(reader(), repo.root)
 
     expect(read.change.layers).toHaveLength(maxChangeLayers)
