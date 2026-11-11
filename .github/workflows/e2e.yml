@@ -5,10 +5,6 @@ on:
   # the run of the ready pull request has (scripts/quality/plan, scripts/e2e/plan: `held`).
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-  # A merge queue's group, once main requires one (architecture/ci-plan/merge-queue.md): inert
-  # until then. It runs the whole macOS suite, as the nights do, where a pull request runs the
-  # core scenarios.
-  merge_group:
   schedule:
     # Nightly, against each harness's latest release, to catch drift before a pin moves.
     - cron: "17 3 * * *"
@@ -90,9 +86,8 @@ jobs:
       - name: Plan Jobs
         id: plan
         env:
-          # A merge group's change is its own against the group's parent: main, or the entry ahead.
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           DRAFT: ${{ github.event.pull_request.draft }}
         run: node scripts/e2e/plan/main.ts
 

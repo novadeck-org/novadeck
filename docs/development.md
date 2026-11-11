@@ -1232,8 +1232,7 @@ flake failing again on the rerun, or a flake registered as fixed coming back is 
 failed, to triage; the pull request hears of it only when a registered flake is involved,
 and a rerun's own failure may go unjudged, as GitHub starts no workflow from one. A
 packaging run that failed because the Quality checks it waits for failed isn't rerun with
-them: rerun it by hand once they pass. A merge group's run is never triaged: its failure has
-already taken the pull request out of the queue, and a rerun doesn't put it back. Prefer fixing a flake at its cause over registering
+them: rerun it by hand once they pass. Prefer fixing a flake at its cause over registering
 it; when it is fixed, mark it `fixed` rather than removing it, so its return is noticed.
 `node scripts/flakes/main.ts <logs dir> <verdict> <comment>` judges logs downloaded from a
 run the same way.
@@ -1253,8 +1252,7 @@ log, and uploaded by its job as a `retried-*` artifact (an E2E job's with its tr
 A run that passed with retries is green, so that record is where its flakes show. After each
 Quality or E2E run that retried a test, Known Flakes keeps one comment on its pull request, edited
 in place: the tests its runs passed only on a retry, those in packages it changes first, as a
-race a change brings would show there. A merge group's run counts for the pull request named in
-its branch (`gh-readonly-queue/<base>/pr-<number>-<sha>`), marked "(queue)". Each morning its Tally job counts each test's retries over
+race a change brings would show there. Each morning its Tally job counts each test's retries over
 the last week's runs, reruns' included, against the budget: a test retried in three or more runs,
 or a flake registered as fixed retried at all, is over it. Tally keeps one issue, "Tests over the
 retry budget", open while any test is, edited each day, with a comment when a test joins it, and

@@ -1,13 +1,12 @@
 import { execFileSync } from "node:child_process"
 import { appendFileSync, readFileSync } from "node:fs"
 
-import { followsChange, parseAffected, plan } from "./plan.ts"
+import { parseAffected, plan } from "./plan.ts"
 
 // `node scripts/e2e/plan/main.ts`: decides which E2E rows a run needs and prints the plan as
 // JSON; in Actions it also sets the job's outputs `run`, `held`, `os`, `quirks`, and each system's
 // rows (`linux`, `windows`, `macos`). A draft (`DRAFT`) holds macOS back. A pull request
-// reads its changes from `BASE_SHA` and `HEAD_SHA` (the full history must be there), and so
-// does a merge queue's group, its `merge_group.base_sha` and `head_sha` given as those; any
+// reads its changes from `BASE_SHA` and `HEAD_SHA` (the full history must be there); any
 // other event, or anything that can't be read, runs everything.
 
 const pins = new URL("../../../backend/runner/src/e2e/harnesses.json", import.meta.url)
@@ -32,23 +31,20 @@ const run = (
 }
 
 const facts = (event: string, base: string | undefined, head: string | undefined) => {
-  if (!followsChange(event))
+  if (event !== "pull_request")
     return { event, affected: undefined, runner: undefined, files: undefined }
   if (!base || !head) {
     console.error("BASE_SHA or HEAD_SHA is missing: running everything.")
     return { event, affected: undefined, runner: undefined, files: undefined }
   }
   const env = { ...process.env, TURBO_SCM_BASE: base, TURBO_SCM_HEAD: head }
-  // Without pnpm's check of the install, which can print to stdout ahead of turbo's JSON.
-  const ls = (...args: string[]) =>
-    run(
-      "pnpm",
-      ["--config.verify-deps-before-run=false", "exec", "turbo", "ls", ...args, "--output", "json"],
-      env,
-    )
-  const turbo = ls("--affected")
+  const turbo = run("pnpm", ["exec", "turbo", "ls", "--affected", "--output", "json"], env)
   // The runner and what it builds on: a change to any other package can't reach the suite.
-  const closure = ls("--filter", "@novadeck/runner...")
+  const closure = run(
+    "pnpm",
+    ["exec", "turbo", "ls", "--filter", "@novadeck/runner...", "--output", "json"],
+    env,
+  )
   // Unquoted and NUL-separated, so a path with spaces or non-ASCII letters reads as it is.
   const diff = run(
     "git",
@@ -65,8 +61,8 @@ const facts = (event: string, base: string | undefined, head: string | undefined
   )
   return {
     event,
-    // Only a pull request's payload says so; a merge group, or anything else, runs macOS.
-    draft: event === "pull_request" && process.env.DRAFT === "true",
+    // Only a pull request's payload says so; anything else runs macOS.
+    draft: process.env.DRAFT === "true",
     affected: turbo === undefined ? undefined : parseAffected(turbo),
     runner: closure === undefined ? undefined : parseAffected(closure),
     files: diff?.split("\0").filter(Boolean),

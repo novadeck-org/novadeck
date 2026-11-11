@@ -18,7 +18,6 @@ import {
   overBudget,
   packagesChanged,
   prComment,
-  pullRequestsOf,
   recordSummary,
   runOf,
   runRecord,
@@ -244,40 +243,6 @@ describe("the budget issue", () => {
   })
 })
 
-describe("the pull request a run is for", () => {
-  const head = "0123456789abcdef0123456789abcdef01234567"
-  const group = (branch: string, more: Record<string, unknown> = {}) =>
-    runOf(
-      apiRun(1, "2026-11-11T10:00:00Z", {
-        event: "merge_group",
-        head_branch: branch,
-        pull_requests: [],
-        ...more,
-      }),
-    )
-
-  it("is the one a pull request's run names", () => {
-    expect(pullRequestsOf(run(1, "2026-11-11T10:00:00Z"))).toEqual([7])
-  })
-
-  it("is read from a merge group's branch, whose run names none", () => {
-    expect(pullRequestsOf(group(`gh-readonly-queue/main/pr-847-${head}`))).toEqual([847])
-    // A base branch may hold slashes.
-    expect(pullRequestsOf(group(`gh-readonly-queue/release/v2/pr-12-${head}`))).toEqual([12])
-  })
-
-  it("is none for a branch GitHub didn't name for a group, or a run that isn't a group's", () => {
-    expect(pullRequestsOf(group("gh-readonly-queue/main/pr-847"))).toEqual([])
-    expect(pullRequestsOf(group(`gh-readonly-queue/main/pr-0-${head}`))).toEqual([])
-    expect(pullRequestsOf(group(`gh-readonly-queue/pr-847-${head}`))).toEqual([])
-    expect(pullRequestsOf(group(`task/gh-readonly-queue/main/pr-847-${head}`))).toEqual([])
-    // A pull request's own branch named like a group's names nothing on a push.
-    expect(
-      pullRequestsOf(group(`gh-readonly-queue/main/pr-847-${head}`, { event: "push" })),
-    ).toEqual([])
-  })
-})
-
 describe("the pull request's comment", () => {
   const changed = new Set(["@novadeck/terminal"])
   const first = record(1, "2026-11-10T10:00:00Z", [
@@ -303,23 +268,6 @@ describe("the pull request's comment", () => {
     expect(next.match(new RegExp(reap, "g"))).toHaveLength(1)
     // What an earlier run retried stays, though this one retried none of it.
     expect(next).toContain(pty)
-  })
-
-  it("marks a merge group's run, which ran the change on top of the queue", () => {
-    const grouped = runRecord(
-      runOf(
-        apiRun(3, "2026-11-10T12:00:00Z", {
-          event: "merge_group",
-          head_branch: `gh-readonly-queue/main/pr-7-${"a".repeat(40)}`,
-          pull_requests: [],
-        }),
-      ),
-      new Map([["retried-macOS-1", [line(retried(reap))]]]),
-    )
-    const body = prComment(prComment(undefined, first, changed), grouped, changed)!
-    expect(body).toContain(
-      "[1](https://github.com/o/r/actions/runs/1) [3](https://github.com/o/r/actions/runs/3) (queue)",
-    )
   })
 
   it("isn't written while none of the pull request's runs retried a test", () => {
@@ -438,26 +386,6 @@ describe("Known Flakes' comment and tally commands", () => {
     ])
     expect(result.status, result.output).toBe(0)
     expect(() => readFileSync(out)).toThrow()
-  })
-
-  it("name a merge group's pull request from its branch, and none for a run that is for none", () => {
-    const root = folder()
-    const write = (name: string, more: Record<string, unknown>) => {
-      const path = join(root, name)
-      writeFileSync(path, JSON.stringify(apiRun(1, new Date().toISOString(), more)))
-      return path
-    }
-    const group = write("group.json", {
-      event: "merge_group",
-      head_branch: `gh-readonly-queue/main/pr-847-${"b".repeat(40)}`,
-      pull_requests: [],
-    })
-    expect(cli(["pulls", group])).toEqual({ status: 0, output: "847\n" })
-    expect(cli(["pulls", write("pr.json", {})])).toEqual({ status: 0, output: "7\n" })
-    expect(cli(["pulls", write("push.json", { event: "push", pull_requests: [] })])).toEqual({
-      status: 0,
-      output: "",
-    })
   })
 
   it("fail on a record it can't read, rather than count without it", () => {
