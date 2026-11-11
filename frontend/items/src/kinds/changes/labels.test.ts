@@ -197,6 +197,12 @@ describe("what a file's change came to", () => {
     expect(said(parts)).toBe("in cookieMaxAge 7 → 30")
   })
 
+  it("leaves the tokens of an edit out under a heading", () => {
+    expect(
+      said(placeParts([{ kind: "under", heading: "Debug panel" }], { from: "", to: ": Debug" })),
+    ).toBe("under Debug panel")
+  })
+
   it("says the headings a Markdown change sits under", () => {
     expect(
       said(summaryParts(facts({ headings: ["Debug panel", "Other"] }), { status: "modified" }, 2)),

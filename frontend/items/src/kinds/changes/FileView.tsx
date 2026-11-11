@@ -1,13 +1,12 @@
 import type { ChangeFileRun, ItemId } from "@novadeck/core/items"
 import type { WorkspaceTarget } from "@novadeck/core/types"
 import { highlightLines, languageOf, type HighlightedLine } from "@novadeck/viewers/code"
-import type { FileFacts } from "@novadeck/viewers/facts"
 import { ChevronDown, ChevronLeft, ChevronUp } from "lucide-react"
 import { useEffect, useMemo, useState, type Ref } from "react"
 
 import type { ItemStore } from "../../store/item-store"
 import {
-  layoutOf,
+  layoutFor,
   totalsOf,
   type Change,
   type Clip,
@@ -54,7 +53,8 @@ const useHighlights = (path: string, run: ChangeFileRun | undefined): Sides => {
       live = false
     }
   }, [path, run])
-  return sides && sides.run === run ? sides.sides : { before: undefined, after: undefined }
+  // The syntax runs of the run before stand until the new ones come, so a refreshed file does not flash.
+  return sides ? sides.sides : { before: undefined, after: undefined }
 }
 
 const signs = { add: "+", remove: "−", context: "" } as const
@@ -177,14 +177,13 @@ const ChangeBlock = ({
 
 const RunBody = ({
   run,
-  facts,
+  layout,
   path,
 }: {
   run: ChangeFileRun
-  facts: FileFacts | null
+  layout: Layout
   path: string
 }): React.JSX.Element => {
-  const layout: Layout = useMemo(() => layoutOf(run, run.after, facts), [run, facts])
   const sides = useHighlights(path, run)
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set())
   const open = (id: string) => setOpened((now) => new Set(now).add(id))
@@ -250,7 +249,7 @@ export const FileView = ({
   const layouts = useMemo(
     () =>
       loaded.state === "ready"
-        ? loaded.diff.runs.map((run, at) => layoutOf(run, run.after, loaded.facts[at] ?? null))
+        ? loaded.diff.runs.map((run, at) => layoutFor(run, loaded.facts[at] ?? null))
         : [],
     [loaded],
   )
@@ -363,7 +362,7 @@ export const FileView = ({
             <RunBody
               key={run.layers.join(",")}
               run={run}
-              facts={loaded.state === "ready" ? (loaded.facts[at] ?? null) : null}
+              layout={layouts[at] ?? []}
               path={file.path}
             />
           ))}

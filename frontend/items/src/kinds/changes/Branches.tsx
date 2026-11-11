@@ -4,7 +4,7 @@ import { useMemo } from "react"
 
 import type { ItemStore } from "../../store/item-store"
 import { peekDiff } from "./diff-cache"
-import { layoutOf, type Change } from "./diff-rows"
+import { layoutFor, type Change } from "./diff-rows"
 import { placeParts, type Part } from "./labels"
 import { Parts } from "./Parts"
 import type { TreeFile } from "./tree"
@@ -77,7 +77,7 @@ export const Branches = ({
     if (!diff || !facts) return undefined
     return branchesOf(
       diff.runs.map((run, at) => ({
-        changes: layoutOf(run, null, facts[at] ?? null).filter(
+        changes: layoutFor(run, facts[at] ?? null).filter(
           (each): each is Change => each.kind === "change",
         ),
         label: diff.runs.length > 1 ? run.layers.map(layerName).join(" + ") : undefined,

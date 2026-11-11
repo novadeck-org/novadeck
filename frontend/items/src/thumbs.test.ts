@@ -107,7 +107,12 @@ describe("a peek's miniature", () => {
         secret: false,
       })
       const change = peek(
-        itemFixture("change", "01", { kind: "changes", name: "Changes", path: "/repo" }),
+        itemFixture("change", "01", {
+          kind: "changes",
+          name: "Changes",
+          path: "/repo",
+          detail: "2 files · +4 −1",
+        }),
         ready({
           kind: "changes",
           root: "/repo",
@@ -141,7 +146,7 @@ describe("a peek's miniature", () => {
         [...change.container.querySelectorAll(".peek-changes span")].map(
           (each) => each.textContent,
         ),
-      ).toEqual(["2 files  +6 −2", "a.ts", "b.ts"])
+      ).toEqual(["2 files · +4 −1", "a.ts", "b.ts"])
     })
 
     it("says why it can't show, and never loads one that may hold secrets", () => {

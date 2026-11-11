@@ -102,4 +102,19 @@ describe("a file's diff, kept", () => {
     const loaded = await loadDiff(scope, "item", "s1", ["c1"], "a.ts", () => Promise.resolve(big))
     expect(loaded.facts).toEqual([null])
   })
+
+  it("lets go of the answer at an older stamp once the same question is answered at a new one", async () => {
+    await loadDiff(scope, "i", "1", ["uncommitted"], "a.ts", async () => diff)
+    await loadDiff(scope, "i", "2", ["uncommitted"], "a.ts", async () => diff)
+    expect(peekDiff(scope, "i", "1", ["uncommitted"], "a.ts")).toBeUndefined()
+    expect(peekDiff(scope, "i", "2", ["uncommitted"], "a.ts")).toBeDefined()
+  })
+
+  it("does not keep the text of a declaration", async () => {
+    const loaded = await loadDiff(scope, "i", "1", ["uncommitted"], "a.ts", async () => diff)
+    const all = loaded.facts[0]!.declarations
+    expect([...all.added, ...all.removed, ...all.changed].every((each) => each.body === "")).toBe(
+      true,
+    )
+  })
 })

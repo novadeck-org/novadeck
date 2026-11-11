@@ -1,5 +1,5 @@
 import type { ChangeFileDiff } from "@novadeck/core/items"
-import { factsOf, type FileFacts } from "@novadeck/viewers/facts"
+import { factsOf, type Declaration, type FileFacts } from "@novadeck/viewers/facts"
 
 // One file's diff for a selection of layers, with the facts read from its sides, kept by the
 // change it was read from (the item and its stamp), the layers selected and the path, so the
@@ -40,16 +40,25 @@ export const peekDiff = (
   path: string,
 ): FileDiff | undefined => cacheOf(scope).kept.get(keyOf(itemId, stamp, layers, path))
 
+// A declaration's text told which changed; it is not kept.
+const bare = (list: readonly Declaration[]) => list.map((each) => ({ ...each, body: "" }))
+
 const factsOfRun = async (run: ChangeFileDiff["runs"][number]): Promise<FileFacts | null> => {
   // Without a side's text, or past the bounds, a change is only its lines.
   if (run.big || run.hunks.length === 0) return null
   try {
-    return await factsOf({
+    const facts = await factsOf({
       path: run.file.path,
       before: run.before,
       after: run.after,
       hunks: run.hunks,
     })
+    if (!facts) return null
+    const { added, removed, changed } = facts.declarations
+    return {
+      ...facts,
+      declarations: { added: bare(added), removed: bare(removed), changed: bare(changed) },
+    }
   } catch {
     return null
   }
@@ -73,6 +82,12 @@ export const loadDiff = (
   const loading = read()
     .then(async (diff): Promise<FileDiff> => {
       const loaded = { diff, facts: await Promise.all(diff.runs.map(factsOfRun)) }
+      // The same question at an older stamp is not asked again: its answer goes.
+      const [, , same, name] = key.split("\0")
+      for (const old of kept.keys()) {
+        const [oldItem, , oldLayers, oldPath] = old.split("\0")
+        if (oldItem === itemId && oldLayers === same && oldPath === name) kept.delete(old)
+      }
       kept.set(key, loaded)
       for (const old of kept.keys()) {
         if (kept.size <= keptMost) break

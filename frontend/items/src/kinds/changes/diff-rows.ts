@@ -58,6 +58,8 @@ const clipTail = 8
 // Lines paired for marks, at most, in one replaced stretch.
 const pairMost = 40
 const similar = 0.6
+// The most removed × added lines whose whitespace-only pairs are looked for.
+const pairingMost = 250_000
 
 const key = (text: string): string => text.replaceAll(/\s+/g, "")
 
@@ -108,6 +110,9 @@ const settle = (
   removed: readonly Line[],
   added: readonly Line[],
 ): { rows: Line[]; reindented: number } => {
+  // Pairing re-indented lines is quadratic: a block this big is left as it is.
+  if (removed.length * added.length > pairingMost)
+    return { rows: [...removed, ...added], reindented: 0 }
   const keysOld = removed.map((line) => key(line.text))
   const keysNew = added.map((line) => key(line.text))
   const pairs = commonRun(keysOld, keysNew).filter(([i]) => keysOld[i] !== "")
@@ -239,6 +244,20 @@ export const layoutOf = (
     delta = firstOld + hunk.oldCount - 1 - previousEnd
   }
   if (all && hunks.length > 0) gap("fold-end", previousEnd + 1, all.length, delta)
+  return layout
+}
+
+const layouts = new WeakMap<object, { facts: FileFacts | null; layout: Layout }>()
+
+/** `layoutOf` for a run with its own text, once per run and facts: the views share it. */
+export const layoutFor = (
+  run: Pick<ChangeFileRun, "hunks" | "after">,
+  facts: FileFacts | null,
+): Layout => {
+  const known = layouts.get(run)
+  if (known && known.facts === facts) return known.layout
+  const layout = layoutOf(run, run.after, facts)
+  layouts.set(run, { facts, layout })
   return layout
 }
 

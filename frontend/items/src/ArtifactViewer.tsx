@@ -206,6 +206,7 @@ export const artifactView = <K extends ShownKind>(
 
 type ThumbBody<K extends ShownKind> = ComponentType<{
   readonly content: Extract<ShownContent, { readonly kind: K }>
+  readonly item: Item
 }>
 
 const LoadedThumb = <K extends ShownKind>({
@@ -221,7 +222,7 @@ const LoadedThumb = <K extends ShownKind>({
     return <span className="peek-held">{shortReasons[load.reason]}</span>
   const { content } = load
   return content.kind === kind ? (
-    <Body content={content as Extract<ShownContent, { readonly kind: K }>} />
+    <Body content={content as Extract<ShownContent, { readonly kind: K }>} item={item} />
   ) : null
 }
 

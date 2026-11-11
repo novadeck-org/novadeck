@@ -15,6 +15,7 @@ import { afterEach, beforeEach } from "vitest"
 import { createItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
 import { changes as registration } from "./index"
+import { filesOf } from "./tree"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
@@ -109,22 +110,31 @@ const show = (
   content: ChangesContent,
   diffs: Record<string, ChangeFileDiff> = { "src/auth/cookies.ts": cookieDiff },
   withDiffs = true,
-  range?: readonly ChangedFile[],
+  // The files of a range: the layers' own added up unless given; null: the backend has no range.
+  range?: readonly ChangedFile[] | null,
   rangeTruncated = false,
 ) => {
   const asked: { path: string; layers: readonly string[] }[] = []
+  // What a read waits for, where a test holds it.
+  const gate: { wait: Promise<void> | undefined } = { wait: undefined }
+  let emit: (content: ChangesContent, stamp: string) => void = () => {}
   const companions: Companions = {
     follow: (_target, _id, _options, on) => {
+      emit = (next, stamp) => on({ state: "ready", stamp, content: next })
       on({ state: "ready", stamp: "1", content })
       return () => {}
     },
     save: () => new Promise(() => {}),
     trouble: () => {},
-    ...(range && {
-      changeRange: async () => ({ files: range, truncated: rangeTruncated }),
+    ...(range !== null && {
+      changeRange: async (_target, _id, picked) => ({
+        files: range ?? filesOf(content.layers, new Set(picked)),
+        truncated: rangeTruncated,
+      }),
     }),
     ...(withDiffs && {
       changeFile: async (_target, _id, path, layers) => {
+        await gate.wait
         asked.push({ path, layers })
         return diffs[path] ?? { runs: [] }
       },
@@ -185,7 +195,24 @@ const show = (
     })
     await settle()
   }
-  return { ...rendered, pane, asked, layers, rail, files, click, press, row, open, settle }
+  return {
+    ...rendered,
+    pane,
+    asked,
+    layers,
+    rail,
+    files,
+    click,
+    press,
+    row,
+    open,
+    settle,
+    gate,
+    emit: (next: ChangesContent, stamp: string) =>
+      act(async () => {
+        emit(next, stamp)
+      }),
+  }
 }
 
 describe("a change beside a terminal", () => {
@@ -434,8 +461,9 @@ describe("a change beside a terminal", () => {
     })
 
     it("reads the file: it is gray in the files after going back", async () => {
-      const { container, open, press, row } = show(change())
+      const { container, open, press, row, settle } = show(change())
 
+      await settle()
       await open("src/auth/cookies.ts")
       await press("Escape")
 
@@ -578,6 +606,114 @@ describe("a change beside a terminal", () => {
       await click(layers()[1])
 
       expect(files()).toEqual(["src/auth/session.test.ts", "src/auth/session.ts"])
+    })
+  })
+
+  context("when the backend has no range", () => {
+    it("adds the layers' files up", async () => {
+      const { files, container, settle } = show(change(), undefined, true, null)
+      await settle()
+      expect(files()).toEqual([
+        "src/auth/cookies.ts",
+        "src/auth/session.test.ts",
+        "src/auth/session.ts",
+        "src/components/Header.tsx",
+      ])
+      expect(container.querySelector(".artifact-meta")?.textContent).toContain("4 files")
+    })
+  })
+
+  context("when the change is read again", () => {
+    const longer = ["l1", "l2", "l3", "l4", "l5", "l6", "l7", "l8", "l9", "l10"]
+    const foldDiff: ChangeFileDiff = {
+      runs: [
+        {
+          layers: ["uncommitted"],
+          file: file("src/auth/cookies.ts", { added: 1, removed: 1 }),
+          big: false,
+          badName: false,
+          before: longer.join("\n") + "\n",
+          after: longer.map((line) => (line === "l6" ? "L6" : line)).join("\n") + "\n",
+          hunks: [
+            {
+              oldStart: 5,
+              oldCount: 3,
+              newStart: 5,
+              newCount: 3,
+              lines: [
+                { kind: "context", text: "l5" },
+                { kind: "remove", text: "l6" },
+                { kind: "add", text: "L6" },
+                { kind: "context", text: "l7" },
+              ],
+            },
+          ],
+        },
+      ],
+    }
+
+    it("keeps the open file, with its unfolded stretch, while the new answer is read", async () => {
+      const shown = show(change(), { "src/auth/cookies.ts": foldDiff })
+      await shown.settle()
+      await shown.open("src/auth/cookies.ts")
+      const body = () => shown.container.querySelector(".changes-body")!
+      const stretch = body().querySelector<HTMLElement>("button.changes-fold")!
+      await shown.click(stretch)
+      const lines = body().querySelectorAll(".changes-row").length
+      const run = body().querySelector(".changes-run")
+
+      // The agent saves: a new stamp, whose answer is not in yet.
+      shown.gate.wait = new Promise(() => {})
+      await shown.emit(change(), "2")
+      await shown.settle()
+
+      expect(shown.container.querySelector(".changes-summary")?.textContent).not.toContain(
+        "Reading the changes",
+      )
+      expect(body().querySelector(".changes-run")).toBe(run)
+      expect(body().querySelectorAll(".changes-row")).toHaveLength(lines)
+    })
+
+    it("keeps the files' counts from the range while the new one is read", async () => {
+      const net = [file("src/auth/cookies.ts", { added: 9, removed: 8 })]
+      const shown = show(change(), undefined, true, net)
+      await shown.settle()
+      const header = () => shown.container.querySelector(".artifact-meta")?.textContent
+      expect(header()).toContain("+9 −8")
+
+      await shown.emit(change(), "2")
+
+      expect(header()).toContain("+9 −8")
+    })
+  })
+
+  context("when the file closes", () => {
+    it("gives the files back where they were scrolled to, and the keys to its row", async () => {
+      const shown = show(change())
+      await shown.settle()
+      const scroller = () => shown.container.querySelector<HTMLElement>(".changes-scroll")!
+      scroller().scrollTop = 40
+      await shown.open("src/auth/cookies.ts")
+      await shown.press("Escape")
+      await shown.settle()
+
+      expect(scroller().scrollTop).toBe(40)
+      expect(document.activeElement).toBe(shown.row("src/auth/cookies.ts").querySelector("button"))
+    })
+
+    it("leaves the keys to the pane when its row is not drawn", async () => {
+      const shown = show(change())
+      await shown.settle()
+      await shown.open("src/auth/cookies.ts")
+      // Stepping to a file in a folder that is folded away.
+      await shown.press("j")
+      await act(async () => {
+        const pane = shown.container.querySelector<HTMLElement>(".changes-host")!
+        pane.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+      })
+      await shown.settle()
+
+      expect(document.activeElement).not.toBe(document.body)
     })
   })
 

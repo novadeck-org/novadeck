@@ -54,7 +54,11 @@ const placeOne = (place: Place): Part[] => {
  */
 export const placeParts = (places: readonly Place[], edit: Edit | undefined): Part[] => {
   const parts = joined(places.map(placeOne), " · ")
-  return edit ? [...parts, ...(parts.length > 0 ? [plain(" ")] : []), ...editParts(edit)] : parts
+  // The tokens of a prose edit ("adds : Debug") read as nothing: the heading it sits under says it.
+  const prose = places.some((place) => place.kind === "under")
+  return edit && !prose
+    ? [...parts, ...(parts.length > 0 ? [plain(" ")] : []), ...editParts(edit)]
+    : parts
 }
 
 const nowOf = (part: Part): Part => (part.kind === "code" ? { ...part, kind: "now" } : part)

@@ -164,7 +164,8 @@ export const FileTree = ({
                 aria-level={row.depth + 1}
                 aria-expanded={open}
                 title={file.path}
-                onClick={() => onUnfold(file.path)}
+                // A double click opens, so its first click does not also fold the file away again.
+                onClick={(event) => event.detail <= 1 && onUnfold(file.path)}
                 onDoubleClick={() => onOpen(file.path)}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter") return

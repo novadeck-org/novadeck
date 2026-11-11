@@ -219,4 +219,15 @@ describe("the totals of a layout", () => {
     )
     expect(totalsOf(layout)).toEqual({ added: 3, removed: 1, reindented: 0 })
   })
+
+  it("leaves the whitespace-only pairs of a very large block unpaired, and quickly", () => {
+    const side = (sign: string, indent: string) =>
+      Array.from({ length: 700 }, (_, at) => `${sign}${indent}line ${at}`)
+    const started = Date.now()
+    const [change] = changes(
+      layoutOf({ hunks: [hunk(1, 1, [...side("-", ""), ...side("+", "  ")])] }, null, null),
+    )
+    expect(change!.reindented).toBe(0)
+    expect(Date.now() - started).toBeLessThan(2_000)
+  })
 })

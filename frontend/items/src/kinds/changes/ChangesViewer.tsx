@@ -1,4 +1,9 @@
-import { uncommittedLayer, type ChangedFile, type ChangesContent } from "@novadeck/core/items"
+import {
+  uncommittedLayer,
+  type ChangedFile,
+  type ChangesContent,
+  type Item,
+} from "@novadeck/core/items"
 import {
   useCallback,
   useEffect,
@@ -82,6 +87,8 @@ export const ChangesViewer = ({
   const [phase, setPhase] = useState<Phase | null>(null)
   // The path of the file last opened, whose row takes the keys back once its file closes.
   const lastOpened = useRef<string | undefined>(undefined)
+  // Where the files were scrolled to when one was opened, which the list is given back.
+  const scrolled = useRef(0)
 
   const rowOf = useCallback(
     (path: string): HTMLElement | null =>
@@ -96,6 +103,7 @@ export const ChangesViewer = ({
       const file = order.find((each) => each.path === path)
       if (!file) return
       const from = rowOf(path)?.getBoundingClientRect()
+      scrolled.current = host.current?.querySelector<HTMLElement>(".changes-scroll")?.scrollTop ?? 0
       update((now) => ({
         ...now,
         open: path,
@@ -135,6 +143,14 @@ export const ChangesViewer = ({
     const timer = setTimeout(() => setPhase(null), motionMs)
     return () => clearTimeout(timer)
   }, [phase])
+  // The files are back where they were scrolled to, before anything is measured.
+  const wasOpen = useRef(false)
+  useLayoutEffect(() => {
+    if (!opened && wasOpen.current) {
+      const scroller = host.current?.querySelector<HTMLElement>(".changes-scroll")
+      if (scroller) scroller.scrollTop = scrolled.current
+    }
+  }, [opened])
   // The heading shrinks into its row once the files are back.
   useLayoutEffect(() => {
     if (phase?.kind !== "closing") return
@@ -154,15 +170,17 @@ export const ChangesViewer = ({
     }
   }, [phase, rowOf])
   // Keys go to the pane while a file is open, and back to its row once it closes.
-  const wasOpen = useRef(false)
   useEffect(() => {
     if (opened) {
       host.current?.focus({ preventScroll: true })
       lastOpened.current = opened.path
     } else if (wasOpen.current && view.open === null) {
       const path = lastOpened.current
-      const button = path === undefined ? null : rowOf(path)?.querySelector<HTMLElement>("button")
-      button?.focus({ preventScroll: true })
+      const row = path === undefined ? null : rowOf(path)
+      // The row in view, then the keys; a row not drawn (in a folded folder) leaves them to the pane.
+      row?.scrollIntoView?.({ block: "nearest" })
+      const button = row?.querySelector<HTMLElement>("button")
+      ;(button ?? host.current)?.focus({ preventScroll: true })
     }
     wasOpen.current = opened !== undefined
   }, [opened, rowOf, view.open])
@@ -312,18 +330,21 @@ export const ChangesViewer = ({
 }
 
 // A change in miniature: how many files and lines it touches, over the first few paths.
-export const ChangesThumb = ({ content }: { content: ChangesContent }): React.JSX.Element => {
-  const { files, added, removed } = sums(content)
+// The totals are the item's detail, the change's net against main as the header says them.
+export const ChangesThumb = ({
+  content,
+  item,
+}: {
+  content: ChangesContent
+  item: Item
+}): React.JSX.Element => {
+  const { files } = sums(content)
   const paths = rowsOf(filesOf(content.layers, new Set(content.layers.map((layer) => layer.id))))
     .flatMap((row) => (row.kind === "file" ? [row.file] : []))
     .slice(0, 5)
   return (
     <code className="peek-changes">
-      <span>
-        {files === 0
-          ? "No changes"
-          : `${files} ${files === 1 ? "file" : "files"}${content.truncated ? "+" : ""}  +${added} −${removed}`}
-      </span>
+      <span>{files === 0 ? "No changes" : item.detail}</span>
       {paths.map((file) => (
         <span key={file.path} data-status={file.status}>
           {file.path}
