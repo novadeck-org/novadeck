@@ -19,7 +19,11 @@
    "assistant" | "agent" on a message, data-sent="queued" | "sending" | "unrecorded" |
    "in-box" on the person's prompt the agent's record doesn't hold yet, its tag `.chat-sent-tag`,
    what became of it `.chat-sent`;
-   data-hue="1".."8" on another agent's message (its hue, as the Messages pane gives it),
+   data-hue="1".."8" on another agent's message (its hue, as the Messages pane gives it), and
+   on `.markdown-mention`, a handle in any words (the agent's prose, in text or inline code,
+   the person's prompts and answers, the held prompt) of an agent the app knows, which takes
+   that agent's hue as `.chat-author` does and nothing else of it (links and code blocks keep
+   their own);
    data-folded on its words while a long message is cut short, data-running and data-failed on
    a subagent's report;
    data-kind="run" | "read" | "write" | "search" | "web" | "agent" | "plan" | "other",
@@ -447,6 +451,10 @@
 }
 .chat-agent-where {
   color: var(--_muted);
+}
+/* A handle in the words, in the hue of the agent it names (the hue the author line takes). */
+.chat .markdown-mention {
+  color: var(--_h);
 }
 /* Two in a row read as one exchange, each still its own. */
 .chat-message[data-role="agent"] + .chat-message[data-role="agent"] {

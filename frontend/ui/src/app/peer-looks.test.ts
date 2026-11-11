@@ -29,4 +29,10 @@ describe("peerLooksOf", () => {
   it("has no look for a handle no terminal answers to", () => {
     expect(looks("owl")).toBeNull()
   })
+
+  it("has no look for a word of Object's own, as `@constructor`", () => {
+    for (const word of ["constructor", "toString", "valueOf", "__proto__", "hasOwnProperty"]) {
+      expect(looks(word)).toBeNull()
+    }
+  })
 })

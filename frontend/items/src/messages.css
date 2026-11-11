@@ -452,32 +452,33 @@
 }
 
 /* ---------- Hues ---------- */
-/* The chat's message from another agent takes its agent's hue for its handle. */
-:is(.message-av, .message-bubble-row, .chat-message)[data-hue="1"] {
+/* The chat's message from another agent takes its agent's hue for its handle, and a handle in any
+   words (`.markdown-mention`) takes the hue of the agent it names. */
+:is(.message-av, .message-bubble-row, .chat-message, .markdown-mention)[data-hue="1"] {
   --_h: var(--avatar-hue-1-fg, var(--terminal-ansi-magenta));
 }
-:is(.message-av, .message-bubble-row, .chat-message)[data-hue="2"] {
+:is(.message-av, .message-bubble-row, .chat-message, .markdown-mention)[data-hue="2"] {
   --_h: var(--avatar-hue-2-fg, var(--terminal-ansi-red));
 }
-:is(.message-av, .message-bubble-row, .chat-message)[data-hue="3"] {
+:is(.message-av, .message-bubble-row, .chat-message, .markdown-mention)[data-hue="3"] {
   --_h: var(--avatar-hue-3-fg, var(--terminal-ansi-yellow));
 }
-:is(.message-av, .message-bubble-row, .chat-message)[data-hue="4"] {
+:is(.message-av, .message-bubble-row, .chat-message, .markdown-mention)[data-hue="4"] {
   --_h: var(--avatar-hue-4-fg, var(--terminal-ansi-blue));
 }
-:is(.message-av, .message-bubble-row, .chat-message)[data-hue="5"] {
+:is(.message-av, .message-bubble-row, .chat-message, .markdown-mention)[data-hue="5"] {
   --_h: var(--avatar-hue-5-fg, var(--terminal-ansi-magenta-bright));
 }
-:is(.message-av, .message-bubble-row, .chat-message)[data-hue="6"] {
+:is(.message-av, .message-bubble-row, .chat-message, .markdown-mention)[data-hue="6"] {
   --_h: var(--avatar-hue-6-fg, var(--terminal-ansi-green));
 }
-:is(.message-av, .message-bubble-row, .chat-message)[data-hue="7"] {
+:is(.message-av, .message-bubble-row, .chat-message, .markdown-mention)[data-hue="7"] {
   --_h: var(--avatar-hue-7-fg, var(--terminal-ansi-red-bright));
 }
-:is(.message-av, .message-bubble-row, .chat-message)[data-hue="8"] {
+:is(.message-av, .message-bubble-row, .chat-message, .markdown-mention)[data-hue="8"] {
   --_h: var(--avatar-hue-8-fg, var(--terminal-ansi-cyan));
 }
-:is(.message-av, .message-bubble-row, .chat-message)[data-hue="you"] {
+:is(.message-av, .message-bubble-row, .chat-message, .markdown-mention)[data-hue="you"] {
   --_h: var(--avatar-you-fg, color-mix(in oklab, var(--color-strong) 62%, var(--color-muted)));
 }
 
