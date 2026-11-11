@@ -32,6 +32,19 @@ export type Whereabouts = {
   readonly standing: boolean
   /** Whether a program runs in its shell besides the prompt, and that program as shown. */
   readonly shell: Shell
+  /** The background shells its agent started that run, or failed lately; null for none. */
+  readonly background: Background | null
+}
+
+/**
+ * An agent's background shells as a listing shows them: the running ones, newest first
+ * (the first few, and how many more), and the ones that failed lately. Each is named
+ * safely (see `shellName`), never by its raw command.
+ */
+export type Background = {
+  readonly running: readonly { readonly name: string; readonly since: number }[]
+  readonly moreRunning: number
+  readonly ended: readonly { readonly name: string; readonly code: number; readonly at: number }[]
 }
 
 /**
@@ -134,6 +147,11 @@ export type Peer = {
    * which may carry a secret), and how many more; or a wake-up it set.
    */
   readonly waitsOn: string | null
+  /**
+   * The background shells its agent started that run, or failed lately, named safely;
+   * null for none, and for an asleep agent, which runs no process.
+   */
+  readonly background: Background | null
   /** The handle of the terminal that leads it now: running, and in its session; else null. */
   readonly lead: string | null
   readonly git: Git | null
@@ -236,6 +254,7 @@ export const peerOf = (input: {
     since: agent ? (where?.since ?? null) : null,
     waiting: agent && !input.asleep ? (where?.waiting ?? null) : null,
     waitsOn: agent && !input.busy && !input.asleep ? (where?.waitsOn ?? null) : null,
+    background: agent && !input.asleep ? (where?.background ?? null) : null,
     lead: input.lead,
     git: where?.git ?? null,
     pr: reportedPullRequest(happenings),
@@ -260,14 +279,17 @@ export const ago = (at: number, now: number): string => {
   return hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} days ago`
 }
 
-/** How long since a moment, in words: "for 6 min". */
-export const lasted = (since: number, now: number): string => {
+/** How long since a moment, in words: "6 min". */
+const span = (since: number, now: number): string => {
   const minutes = Math.floor((now - since) / 60_000)
-  if (minutes < 1) return "for under a minute"
-  if (minutes < 60) return `for ${minutes} min`
+  if (minutes < 1) return "under a minute"
+  if (minutes < 60) return `${minutes} min`
   const hours = Math.floor(minutes / 60)
-  return hours < 48 ? `for ${hours} h` : `for ${Math.floor(hours / 24)} days`
+  return hours < 48 ? `${hours} h` : `${Math.floor(hours / 24)} days`
 }
+
+/** How long since a moment, in words: "for 6 min". */
+export const lasted = (since: number, now: number): string => `for ${span(since, now)}`
 
 /** Who is reading a listing: its handle, and the handle of the terminal that leads it. */
 export type Viewer = { readonly handle: string; readonly lead: string | null }
@@ -436,6 +458,29 @@ export const doneLine = (peer: Peer, now: number): string | null => {
   return `  done: ${[...parts, ...(earlier > 0 ? [`and ${earlier} earlier`] : [])].join(" · ")}`
 }
 
+/**
+ * What an agent's background shells are doing, in one line: those running, newest first,
+ * each with how long, and how many more; busy or idle alike. Null without any. Shells are
+ * named by `shellName`, so no command and no secret in one shows.
+ */
+export const runningLine = (peer: Peer, now: number): string | null => {
+  const running = peer.background?.running ?? []
+  if (!peer.background || running.length === 0) return null
+  const more = peer.background.moreRunning
+  const parts = running.map(({ name, since }) => `${name} (${span(since, now)})`)
+  return `  running: ${[...parts, ...(more > 0 ? [`and ${more} more`] : [])].join(" · ")}`
+}
+
+/**
+ * The background shells of an agent that failed lately, in one line: its name, the exit
+ * code and when. Null without any.
+ */
+export const endedLine = (peer: Peer, now: number): string | null => {
+  const ended = peer.background?.ended ?? []
+  if (ended.length === 0) return null
+  return `  ended: ${ended.map(({ name, code, at }) => `${name} exited ${code}, ${ago(at, now)}`).join(" · ")}`
+}
+
 /** How much of a failed turn's error shows. */
 const failureChars = 120
 
@@ -450,11 +495,13 @@ export const failureLine = (peer: Peer, now: number): string | null => {
   return `  last turn failed ${ago(last.at, now)}${last.text ? `: ${flat(last.text, failureChars)}` : ""}`
 }
 
-/** One terminal as `agents` shows it: one line for a shell, up to four for an agent. */
+/** One terminal as `agents` shows it: one line for a shell, up to six for an agent. */
 export const renderPeer = (peer: Peer, now: number, viewer: Viewer): readonly string[] =>
   [
     headLine(peer, now, viewer),
     detailLine(peer),
+    runningLine(peer, now),
+    endedLine(peer, now),
     doneLine(peer, now),
     failureLine(peer, now),
   ].filter((line): line is string => Boolean(line))

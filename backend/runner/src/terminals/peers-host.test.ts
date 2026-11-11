@@ -1,11 +1,12 @@
 import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import type { TerminalSummary } from "@novadeck/protocol"
+import type { ActivityEvent } from "@novadeck/harness-core/events"
+import type { AgentName, TerminalSummary } from "@novadeck/protocol"
 
-import type { Request } from "../harnesses/activity.js"
+import { apply, started, summary as activitySummary, type Request } from "../harnesses/activity.js"
 import type { Messaging } from "../messaging/messaging.js"
-import type { Whereabouts } from "../messaging/peers.js"
+import { peerOf as listed, renderPeer, type Whereabouts } from "../messaging/peers.js"
 import { describe, expect, it } from "../test.js"
 import { folder } from "../testing/engines.js"
 import { GitStates } from "./git-state.js"
@@ -210,6 +211,65 @@ describe("what peers read of a terminal", () => {
         { activity: { pending: [], plans: [], turnAt: 7 } },
       ),
     ).toMatchObject({ since: 7 })
+  })
+
+  describe("the background shells of each harness's agent, as agents lists them", () => {
+    const minute = 60_000
+    // What each harness's decoder gives for a shell, in the shape of its own ids.
+    const shells: Record<AgentName, { ids: readonly [string, string, string]; secret: string }> = {
+      claude: { ids: ["bk1x2y3z4", "bq9w8e7r6", "bt5y4u3i2"], secret: "sk-live-9f8e7d6c5b4a3210" },
+      codex: { ids: ["53902", "26916", "99018"], secret: "sk-live-9f8e7d6c5b4a3210" },
+      agy: {
+        ids: ["b0000000-0000-4000-8000-000000000001/task-2", "x/task-4", "x/task-6"],
+        secret: "sk-live-9f8e7d6c5b4a3210",
+      },
+    }
+
+    for (const agent of ["claude", "codex", "agy"] as const) {
+      it(`reach agents() from ${agent}'s events, named without a command`, async () => {
+        const now = Date.now()
+        const { ids, secret } = shells[agent]
+        const base = { agent, sessionId: "s", instance: null }
+        const binding = { agent, sessionId: "s", instance: null }
+        const event = (fields: object, ago: number): ActivityEvent =>
+          ({ ...base, startedAt: now - ago * minute, ...fields }) as ActivityEvent
+        const events = [
+          event(
+            { type: "shell-started", id: ids[0], command: `API_KEY=${secret} pnpm dev:web` },
+            40,
+          ),
+          event(
+            { type: "shell-started", id: ids[1], command: "cd /x && ./fulltest.sh pnpm test" },
+            12,
+          ),
+          event({ type: "shell-started", id: ids[2], command: `vitest run --token ${secret}` }, 8),
+          event({ type: "shell-ended", id: ids[2], code: 1 }, 3),
+        ]
+        const activity = activitySummary(
+          events.reduce((each, one) => apply(each, binding, one) ?? each, started(0)),
+        )
+        const where = await read({ activity }, { activity: { pending: [], plans: [], turnAt: 7 } })
+        const peer = (asleep = false) =>
+          listed({
+            terminalId: "t1",
+            handle: "fox",
+            agent,
+            expecting: null,
+            busy: false,
+            asleep,
+            where,
+            lead: null,
+          })
+        const lines = renderPeer(peer(), now, { handle: "moth", lead: null })
+        expect(lines).toContain("  running: fulltest (12 min) · pnpm dev:web (40 min)")
+        expect(lines).toContain("  ended: vitest run exited 1, 3 min ago")
+        expect(lines.join("\n")).not.toContain(secret)
+        // A sleeper runs no process.
+        expect(
+          renderPeer(peer(true), now, { handle: "moth", lead: null }).join("\n"),
+        ).not.toContain("running:")
+      })
+    }
   })
 })
 

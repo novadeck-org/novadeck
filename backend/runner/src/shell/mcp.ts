@@ -970,6 +970,10 @@ const agents: Tool<Listing> = {
     "works in, with commits ahead of its upstream, uncommitted changes, and the pull " +
     "request it reported; the subjects of its latest done reports, the latest marked while " +
     "it still stands (finished, not at work again), so you can tell what it already did; " +
+    "the background shells it has running (named by its own description or just the program, " +
+    "never the full command, with how long each has run, so you can reuse its dev server " +
+    "rather than start a second, and not pile a heavy run on one already running) and any " +
+    "that exited with an error in the last ten minutes; " +
     "and, when its last turn failed, when and why. A plain " +
     "shell shows the program it runs. It also lists your own messages not yet delivered. " +
     "To follow your own team's work, call team instead. A terminal whose agent is waiting " +

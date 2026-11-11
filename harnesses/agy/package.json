@@ -38,6 +38,11 @@
       "types": "./dist/shapes.d.ts",
       "default": "./dist/shapes.js"
     },
+    "./shells": {
+      "development": "./src/shells.ts",
+      "types": "./dist/shells.d.ts",
+      "default": "./dist/shells.js"
+    },
     "./status-line": {
       "development": "./src/status-line.ts",
       "types": "./dist/status-line.d.ts",
