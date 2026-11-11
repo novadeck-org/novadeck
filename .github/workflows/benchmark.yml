@@ -95,10 +95,25 @@ jobs:
         if: steps.changes.outputs.counts == 'true' && (steps.browser-cache.outputs.cache-hit != 'true')
         run: pnpm --filter @novadeck/specs exec playwright install --with-deps chromium
 
-      # A cached browser still needs its system libraries.
+      # A cached browser on Linux may lack system packages the runner image doesn't ship: checked
+      # (Playwright's own check, which reads dpkg, and ldd over its binaries) and installed with apt
+      # only where something is missing, so Ubuntu's mirrors stay off the path when the image has
+      # them all. On 11-11 the mirrors were unreachable for over an hour and every job with a cached
+      # browser failed here before any test ran. Where apt is still needed it is retried a few
+      # minutes at most, ending in one line that says so (scripts/ci/setup).
+      - name: Check Test Browser Dependencies
+        id: browser-dependencies
+        if: steps.changes.outputs.counts == 'true' && steps.browser-cache.outputs.cache-hit == 'true'
+        shell: bash
+        run: node scripts/ci/setup/browser-dependencies.ts "$PLAYWRIGHT_BROWSERS_PATH"
+
       - name: Install Test Browser Dependencies
-        if: steps.changes.outputs.counts == 'true' && (steps.browser-cache.outputs.cache-hit == 'true')
-        run: pnpm --filter @novadeck/specs exec playwright install-deps chromium
+        if: steps.changes.outputs.counts == 'true' && steps.browser-cache.outputs.cache-hit == 'true' && steps.browser-dependencies.outputs.missing != '0'
+        shell: bash
+        run: >-
+          node scripts/ci/setup/retry.ts
+          "apt mirrors unreachable: the test browser's system packages couldn't be installed"
+          -- pnpm --filter @novadeck/specs exec playwright install-deps chromium
 
       # The run boots the UI over a scripted runner: of the workspace it needs only the
       # contract's build.

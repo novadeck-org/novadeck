@@ -215,10 +215,25 @@ jobs:
         if: matrix.browser && steps.browser-cache.outputs.cache-hit != 'true'
         run: pnpm --filter @novadeck/specs exec playwright install --with-deps chromium
 
-      # A cached browser still needs its system libraries on Linux.
-      - name: Install Test Browser Dependencies
+      # A cached browser on Linux may lack system packages the runner image doesn't ship: checked
+      # (Playwright's own check, which reads dpkg, and ldd over its binaries) and installed with apt
+      # only where something is missing, so Ubuntu's mirrors stay off the path when the image has
+      # them all. On 11-11 the mirrors were unreachable for over an hour and every job with a cached
+      # browser failed here before any test ran. Where apt is still needed it is retried a few
+      # minutes at most, ending in one line that says so (scripts/ci/setup).
+      - name: Check Test Browser Dependencies
+        id: browser-dependencies
         if: matrix.browser && steps.browser-cache.outputs.cache-hit == 'true' && runner.os == 'Linux'
-        run: pnpm --filter @novadeck/specs exec playwright install-deps chromium
+        shell: bash
+        run: node scripts/ci/setup/browser-dependencies.ts "$PLAYWRIGHT_BROWSERS_PATH"
+
+      - name: Install Test Browser Dependencies
+        if: matrix.browser && steps.browser-cache.outputs.cache-hit == 'true' && runner.os == 'Linux' && steps.browser-dependencies.outputs.missing != '0'
+        shell: bash
+        run: >-
+          node scripts/ci/setup/retry.ts
+          "apt mirrors unreachable: the test browser's system packages couldn't be installed"
+          -- pnpm --filter @novadeck/specs exec playwright install-deps chromium
 
       # Electron's download, which the desktop app's tests fetch once before they start
       # (apps/desktop/scripts/electron-binary.ts), kept between runs: GitHub's release downloads
