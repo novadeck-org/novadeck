@@ -9,6 +9,9 @@ name: Benchmark
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  # A merge queue's group, once main requires one: inert until then. Its `HEAD^1` is the
+  # group's parent, main or the entry ahead, so the counts compare with what it lands on.
+  merge_group:
   push:
     branches: [main]
 
