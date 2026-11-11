@@ -1364,6 +1364,7 @@ export const runnerBackend = (
       detail: (terminalId) => runner.agents.detail(terminalId),
       slice: (terminalId) => runner.agents.slice(terminalId),
       transcript: (terminalId, actor) => runner.agents.transcript(terminalId, actor),
+      transcriptImage: (terminalId, image) => runner.agents.transcriptImage(terminalId, image),
       prompt: (terminalId, text, given) => runner.agents.prompt(terminalId, text, given),
       upload: (terminalId, file) => runner.terminals.upload(terminalId, file),
       interrupt: (terminalId, given) => runner.agents.interrupt(terminalId, given),

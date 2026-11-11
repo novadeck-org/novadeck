@@ -59,7 +59,11 @@ export const studioAgent: SampleAgent = {
   artifacts: studioArtifacts,
   transcript: [
     said("~/projects/studio · codex", true, "muted"),
-    said("❯ Plan a small portfolio for Studio before we start building.", false, "bold"),
+    said(
+      "❯ [Image #1] [Image #2] Plan a small portfolio for Studio before we start building.",
+      false,
+      "bold",
+    ),
     steps("✓ Reviewed the project structure", "✓ Wrote plans/studio.md"),
     said("The plan is ready."),
     said(

@@ -336,4 +336,39 @@ export const claudeVocabulary: readonly Written[] = [
       ...calls("quoted", [["Bash", { command: '"/usr/bin/tool"' }, "ran"]]),
     ],
   },
+  {
+    // Prompts that carried images: in a message's blocks, and queued into a running turn; the
+    // words hold the places (`[Image #N]`), the record the bytes.
+    name: "image-prompts",
+    records: [
+      {
+        type: "user",
+        timestamp: stamp,
+        message: {
+          role: "user",
+          content: [
+            { type: "text", text: "Compare [Image #1] with [Image #2]" },
+            { type: "image", source: { type: "base64", media_type: "image/png", data: "AAAA" } },
+            { type: "image", source: { type: "base64", media_type: "image/jpeg", data: "BBBB" } },
+          ],
+        },
+      },
+      replied("They differ in the header."),
+      {
+        type: "attachment",
+        timestamp: stamp,
+        attachment: {
+          type: "queued_command",
+          commandMode: "prompt",
+          origin: { kind: "human" },
+          timestamp: stamp,
+          prompt: [
+            { type: "text", text: "And [Image #3]?" },
+            { type: "image", source: { type: "base64", media_type: "image/webp", data: "CCCC" } },
+          ],
+        },
+      },
+      replied("That one matches."),
+    ],
+  },
 ]

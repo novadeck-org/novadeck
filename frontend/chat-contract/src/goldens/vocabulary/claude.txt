@@ -54,3 +54,9 @@ tools: [9 tool calls · reported done, drafted feedback, looked at the page ×2,
 # one-quoted-argument
 user: Run the quoted one.
 tools: ran [run] · /usr/bin/tool | Call: Bash: 1 line: "/usr/bin/tool" → 1 line: ran
+
+# image-prompts
+user (images: Image #1, Image #2): Compare [Image #1] with [Image #2]
+assistant: They differ in the header.
+user (images: Image #3): And [Image #3]?
+assistant: That one matches.

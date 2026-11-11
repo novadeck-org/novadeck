@@ -343,6 +343,11 @@ export const WorkspaceTerminal = memo(
                     : undefined
                 }
                 onDetach={(id) => commands.removeChatImage(chatContext, terminalId, id)}
+                onImage={
+                  conversations!.image
+                    ? (image) => conversations!.image!(terminalKey, image)
+                    : undefined
+                }
                 onSend={(text, to, images) => commands.sendChat(terminalKey, text, to, images)}
                 // Words queued behind the stopped turn, the agent's and the chat's, come back
                 // to the box, to send again.

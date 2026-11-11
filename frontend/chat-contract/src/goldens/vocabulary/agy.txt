@@ -47,3 +47,8 @@ tools: [8 tool calls · reported done, drafted feedback, looked at the page, tol
 user: Run the quoted one.
 assistant: Running.
 tools: ran [run] · /usr/bin/tool | Call: run_command: 1 line: "/usr/bin/tool" → 1 line: ok
+
+# image-prompts
+user (images: Image #1, Image #2): Compare [Image #1] with [Image #2]
+user: Is it the same as /work/c.png?
+assistant: Looking.

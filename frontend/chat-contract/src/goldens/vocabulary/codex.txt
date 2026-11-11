@@ -41,3 +41,7 @@ tools: ran [run] · /usr/bin/tool | Call: exec_command: 1 line: "/usr/bin/tool" 
 # clock-and-questions
 user: Wait, then ask.
 tools: waited [run] | Call: clock__sleep: 1 line: 50000 → 2 lines: Wall time: 50.0 seconds; asked [plan] · Merge it now? | Call: request_user_input_async: 1 line: [{"title":"Merge it now?","options":["Merge","W… → 1 line: Question queued.
+
+# image-prompts
+user (images: Image #1, Image #2): Compare [Image #1] with [Image #2]
+assistant: They differ in the header.

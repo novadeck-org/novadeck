@@ -2,6 +2,7 @@ import type {
   ChatAnswer,
   ChatBox,
   ChatDialog,
+  ChatImage,
   ChatItem,
   ChatRequest,
   ChatSlice,
@@ -43,10 +44,23 @@ export type DemoOutcome = (
 
 export type DemoDraft = Pick<ChatItem, "role" | "kind" | "text"> &
   Partial<
-    Pick<ChatItem, "tool" | "call" | "author" | "truncated" | "run" | "scripted" | "ring" | "note">
+    Pick<
+      ChatItem,
+      "tool" | "call" | "author" | "truncated" | "run" | "scripted" | "ring" | "note" | "images"
+    >
   >
 
 export const user = (text: string): DemoDraft => ({ role: "user", kind: "text", text })
+// The person's prompt with images, which the demo backend answers with sample pictures; `count`
+// of them, as many as the prompt's `[Image #N]` places.
+export const userWithImages = (text: string, count: number, offset = 0): DemoDraft => ({
+  ...user(text),
+  images: Array.from({ length: count }, (_, index): ChatImage => ({
+    offset,
+    index,
+    mime: "image/svg+xml",
+  })),
+})
 export const say = (text: string): DemoDraft => ({
   role: "assistant",
   kind: "text",
@@ -176,6 +190,7 @@ export const written = (
     interrupted: false,
     ring: draft.ring ?? null,
     ...(draft.note && { note: draft.note }),
+    ...(draft.images && { images: draft.images }),
   }))
 
 // The line Novadeck's doorbell types into an idle agent's box, as its record keeps it.
@@ -1097,7 +1112,11 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
 export const showcaseTranscripts = (now: number): Readonly<Record<string, DemoTranscript>> => ({
   "01": {
     items: written("01", now, [
-      user("Plan a small portfolio for Studio before we start building."),
+      // Two images, pasted ahead of the words: their thumbnails stand over the prompt.
+      userWithImages(
+        "[Image #1] [Image #2] Plan a small portfolio for Studio before we start building.",
+        2,
+      ),
       say("I'll look at the project first."),
       use(
         "call_s1a",

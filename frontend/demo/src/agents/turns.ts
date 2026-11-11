@@ -1,4 +1,5 @@
 import { createTelemetryStore, dropTerminal, setUsage } from "@novadeck/core/agents/telemetry"
+import type { ChatImage } from "@novadeck/core/conversation"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { BackendAction, BackendSink, TerminalKey } from "@novadeck/core/port"
 import { isAgentProgram } from "@novadeck/core/terminals/process"
@@ -31,6 +32,8 @@ export type TurnEvent =
       readonly automatic?: true
       // When the person submitted the prompt, for one that waited behind a turn.
       readonly submittedAt?: number
+      // The images the prompt carried, as its record lists them.
+      readonly images?: readonly ChatImage[]
     }
   | { readonly type: "tool"; readonly key: TerminalKey }
   | {
@@ -198,7 +201,11 @@ export const demoTurns = (requestedMs = demoTurnMs) => {
     text: string,
     terminal: TerminalMetadata,
     key: TerminalKey,
-    options: { readonly automatic?: boolean; readonly submittedAt?: number } = {},
+    options: {
+      readonly automatic?: boolean
+      readonly submittedAt?: number
+      readonly images?: readonly ChatImage[]
+    } = {},
   ): boolean => {
     const id = terminalKeyId(key)
     const agent = terminal.state === "running" ? (terminal.agent ?? { working: false }) : undefined
@@ -213,6 +220,7 @@ export const demoTurns = (requestedMs = demoTurnMs) => {
       prompt: line,
       ...(options.automatic && { automatic: true as const }),
       ...(options.submittedAt !== undefined && { submittedAt: options.submittedAt }),
+      ...(options.images && { images: options.images }),
     })
     // An agent Novadeck hears nothing from reports no status, so a turn can't show: its
     // screen takes the person's line and the reply, which moves it past what it showed.

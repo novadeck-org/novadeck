@@ -12,7 +12,7 @@ import type { DemoScreenState } from "@novadeck/demo/terminals/runtime"
 import { terminalOf } from "@novadeck/demo/workspace"
 
 import { createDemoAgents } from "./agents"
-import { createChatFailures } from "./chat"
+import { createChatFailures, createChatPictures } from "./chat"
 import { createDemoUpdates, pageUpdateChannel } from "./desktop/updates"
 import { createDemoFolders } from "./folders"
 import { createDemoNotices } from "./notices"
@@ -525,6 +525,7 @@ export const createDemoStates = (
     return Promise.reject(new Error("The runner is restarting it, so it stays where it is."))
   }
   const chat = createChatFailures()
+  const pictures = createChatPictures()
   const panelAsks: PanelAsks = new Set()
   const waitingActions = createWaitingActions(verbs, inbox, panelAsks)
   const screens = createStore<ReadonlyMap<string, DemoScreenState>>(new Map())
@@ -881,6 +882,11 @@ export const createDemoStates = (
     },
     {
       section: "Agents",
+      title: "Chat: pictures of recorded prompts",
+      actions: pictures.actions,
+    },
+    {
+      section: "Agents",
       title: "Agent connections",
       actions: [
         {
@@ -912,7 +918,7 @@ export const createDemoStates = (
     updateControls,
     pickDirectory,
     moveTerminal,
-    chat: chat.wrap,
+    chat: (conversations) => pictures.wrap(chat.wrap(conversations)),
     screens,
     failPaste: (key) => pasteFails.delete(terminalKeyId(key)),
     holds: (key) => held.has(terminalKeyId(key)),

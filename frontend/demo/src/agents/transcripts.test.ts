@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import { agentTranscripts, demoOutcome } from "./transcripts"
+import { samplePicture } from "./pictures"
+import { agentTranscripts, demoOutcome, showcaseTranscripts } from "./transcripts"
 
 const run = { kind: "run", title: "Ran", detail: "" } as const
 
@@ -73,5 +74,20 @@ describe("the demo's conversation with several turns", () => {
     // Each turn has an answer of its own after it.
     for (const prompt of prompts)
       expect(items.slice(items.indexOf(prompt)).some(({ role }) => role === "assistant")).toBe(true)
+  })
+})
+
+describe("the images of the demo's prompts", () => {
+  it("are two on the content preview's first prompt, which the demo answers with its samples", () => {
+    const [first] = showcaseTranscripts(Date.now())["01"]!.items
+    expect(first).toMatchObject({ role: "user", images: [{ index: 0 }, { index: 1 }] })
+    expect(first!.text).toMatch(/^\[Image #1\] \[Image #2\] /)
+    expect(samplePicture(0)).not.toBe(samplePicture(1))
+    expect(samplePicture(0)).toMatch(/^data:image\/svg\+xml/)
+  })
+
+  it("are none on the agents demo's", () => {
+    for (const transcript of Object.values(agentTranscripts(Date.now())))
+      expect(transcript.items.filter((item) => item.images)).toEqual([])
   })
 })

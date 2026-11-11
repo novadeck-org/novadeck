@@ -12,6 +12,7 @@ import { Mark } from "./Mark"
 import type { MarkPhase } from "./mark-phase"
 import { shownControls } from "./shown-controls"
 import { Slice } from "./Slice"
+import { RecordedImages } from "./Thumbs"
 import { ToolCalls } from "./ToolCalls"
 import { currentPrompt } from "./turn-holds"
 
@@ -359,6 +360,9 @@ const BlockView = memo(
         return (
           <article className="chat-message" data-role="user" data-turn={block.id} aria-label="You">
             <Mark phase={phase} />
+            {block.images && block.images.length > 0 && (
+              <RecordedImages item={block.id} images={block.images} text={block.text} />
+            )}
             <p className="chat-text">{block.text}</p>
             {block.truncated && <Shortened />}
             <TimeFact at={block.at} />

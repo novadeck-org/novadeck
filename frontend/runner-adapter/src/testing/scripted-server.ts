@@ -266,6 +266,7 @@ export const scriptedRunner = ({
       detail: api.agents.detail.handler(idle),
       slice: api.agents.slice.handler(idle),
       transcript: api.agents.transcript.handler(idle),
+      transcriptImage: api.agents.transcriptImage.handler(unplayed("agents.transcriptImage")),
       prompt: api.agents.prompt.handler(unplayed("agents.prompt")),
       answer: api.agents.answer.handler(unplayed("agents.answer")),
       interrupt: api.agents.interrupt.handler(unplayed("agents.interrupt")),

@@ -1,7 +1,7 @@
 import { noConversation, SettleInTerminal, type Conversations } from "@novadeck/core/conversation"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { createChatFailures } from "./chat"
+import { createChatFailures, createChatPictures, slowPictureMs } from "./chat"
 
 const key = { projectId: "p", workspaceSessionId: "s", terminalId: "01" }
 
@@ -145,5 +145,46 @@ describe("a request armed as waiting, under the person's own Send or Stop", () =
     await expect(conversations.send(key, "hi", { setAside: ["r1"] })).rejects.toThrow(
       "waiting for your answer",
     )
+  })
+})
+
+describe("the debug panel's pictures of recorded prompts", () => {
+  afterEach(() => vi.useRealTimers())
+  const image = { offset: 1, index: 0, mime: null }
+  const backend = (): Conversations => ({
+    ...inner(),
+    image: async () => "data:image/png;base64,AAAA",
+  })
+
+  it("come as the backend finds them until a way is armed, and again once it is found again", async () => {
+    const pictures = createChatPictures()
+    const conversations = pictures.wrap(backend())
+    const arm = (label: string) =>
+      pictures.actions.find((action) => action.label === label)!.run({} as never)
+    await expect(conversations.image!(key, image)).resolves.toBe("data:image/png;base64,AAAA")
+    await arm("Pictures gone")
+    await expect(conversations.image!(key, image)).resolves.toBeNull()
+    await arm("Pictures unreachable")
+    await expect(conversations.image!(key, image)).rejects.toThrow("offline")
+    await arm("Pictures found")
+    await expect(conversations.image!(key, image)).resolves.toBe("data:image/png;base64,AAAA")
+  })
+
+  it("take a while when armed slow", async () => {
+    vi.useFakeTimers()
+    const pictures = createChatPictures()
+    const conversations = pictures.wrap(backend())
+    await pictures.actions.find((action) => action.label === "Pictures slow")!.run({} as never)
+    let picture: string | null | undefined
+    void conversations.image!(key, image).then((found) => (picture = found))
+    await vi.advanceTimersByTimeAsync(slowPictureMs - 1)
+    expect(picture).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(picture).toBe("data:image/png;base64,AAAA")
+  })
+
+  it("leave conversations that find no pictures as they are", () => {
+    const bare = inner()
+    expect(createChatPictures().wrap(bare)).toBe(bare)
   })
 })
