@@ -63,7 +63,7 @@ const following = ({ livePages = false } = {}) => {
   const saves: { itemId: string; text: string; basedOn: string }[] = []
   const rangeAsked: { itemId: string; layers: readonly string[] }[] = []
   const changeAsked: { itemId: string; path: string; layers: readonly string[] }[] = []
-  let changed: ChangeFileDiff = { runs: [] }
+  let changed: ChangeFileDiff = { run: null }
   let saving: PlanSaveResult = { saved: true, stamp: "b2" }
   let failure: unknown
   const companions = createRunnerCompanions(
@@ -188,6 +188,18 @@ describe("the runner's companion content", () => {
       root: "/repo",
       base: "main",
       truncated: false,
+      files: [
+        {
+          path: "a.ts",
+          oldPath: "b.ts",
+          status: "renamed" as const,
+          added: 1,
+          removed: 1,
+          reindented: 0,
+          binary: false,
+          secret: false,
+        },
+      ],
       layers: [
         {
           id: "uncommitted",
@@ -237,14 +249,14 @@ describe("the runner's companion content", () => {
       before: "x\n",
       after: "y\n",
     }
-    app.changeReturns({ runs: [run] })
+    app.changeReturns({ run })
 
     const diff = await app.companions.changeFile!(target, hero, "a.ts", ["uncommitted", "abc"])
 
     expect(app.changeAsked).toEqual([
       { itemId: hero, path: "a.ts", layers: ["uncommitted", "abc"] },
     ])
-    expect(diff).toEqual({ runs: [run] })
+    expect(diff).toEqual({ run })
   })
 
   it("asks the runner for the files of a range of layers", async () => {

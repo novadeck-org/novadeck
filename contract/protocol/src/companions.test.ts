@@ -87,6 +87,7 @@ describe("a change as layers", () => {
         root: "/repo",
         base: "main",
         layers: [layer],
+        files: [file],
         truncated: false,
       },
     }
@@ -99,35 +100,32 @@ describe("a change as layers", () => {
     ).toBe(false)
   })
 
-  it("carries one file's runs: its hunks and the text of both sides", () => {
+  it("carries one file's run: its hunks and the text of both sides", () => {
     const diff = {
-      runs: [
-        {
-          layers: ["uncommitted", layer.id],
-          file,
-          big: false,
-          badName: false,
-          hunks: [
-            {
-              oldStart: 1,
-              oldCount: 1,
-              newStart: 1,
-              newCount: 1,
-              lines: [
-                { kind: "remove" as const, text: "a" },
-                { kind: "add" as const, text: "b" },
-              ],
-            },
-          ],
-          before: "a\n",
-          after: "b\n",
-        },
-      ],
+      run: {
+        layers: ["uncommitted", layer.id],
+        file,
+        big: false,
+        badName: false,
+        hunks: [
+          {
+            oldStart: 1,
+            oldCount: 1,
+            newStart: 1,
+            newCount: 1,
+            lines: [
+              { kind: "remove" as const, text: "a" },
+              { kind: "add" as const, text: "b" },
+            ],
+          },
+        ],
+        before: "a\n",
+        after: "b\n",
+      },
     }
     expect(changeFileDiff.parse(diff)).toEqual(diff)
-    expect(changeFileDiff.safeParse({ runs: [{ ...diff.runs[0], layers: [] }] }).success).toBe(
-      false,
-    )
+    expect(changeFileDiff.parse({ run: null })).toEqual({ run: null })
+    expect(changeFileDiff.safeParse({ run: { ...diff.run, layers: [] } }).success).toBe(false)
   })
 
   it("lets a side be as long as the runner reads, and no longer", () => {
@@ -140,8 +138,8 @@ describe("a change as layers", () => {
       before: null,
       after: "x".repeat(maxChangeSideBytes),
     }
-    expect(changeFileDiff.safeParse({ runs: [run] }).success).toBe(true)
-    expect(changeFileDiff.safeParse({ runs: [{ ...run, after: `${run.after}x` }] }).success).toBe(
+    expect(changeFileDiff.safeParse({ run }).success).toBe(true)
+    expect(changeFileDiff.safeParse({ run: { ...run, after: `${run.after}x` } }).success).toBe(
       false,
     )
   })

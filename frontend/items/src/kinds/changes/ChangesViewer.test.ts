@@ -60,48 +60,52 @@ const layer = (id: string, subject: string, files: ChangedFile[]): ChangeLayer =
 
 // Three layers, newest first: the uncommitted edit of a cookie, a commit adding a session and
 // its test, and an older one changing the header.
-const change = (rest: Partial<ChangesContent> = {}): ChangesContent => ({
-  kind: "changes",
-  root: "/repo",
-  base: "main",
-  truncated: false,
-  layers: [
-    layer("uncommitted", "", [file("src/auth/cookies.ts", { added: 1, removed: 1 })]),
-    layer("c2c2c2c2c2", "Check session expiry in one place", [
-      file("src/auth/session.ts", { status: "added", added: 17, removed: 0 }),
-      file("src/auth/session.test.ts", { status: "added", added: 14, removed: 0 }),
-    ]),
-    layer("c1c1c1c1c1", "Use the session in the header", [
-      file("src/components/Header.tsx", { added: 4, removed: 6, reindented: 4 }),
-    ]),
-  ],
-  ...rest,
-})
+const layersOf = (): ChangeLayer[] => [
+  layer("uncommitted", "", [file("src/auth/cookies.ts", { added: 1, removed: 1 })]),
+  layer("c2c2c2c2c2", "Check session expiry in one place", [
+    file("src/auth/session.ts", { status: "added", added: 17, removed: 0 }),
+    file("src/auth/session.test.ts", { status: "added", added: 14, removed: 0 }),
+  ]),
+  layer("c1c1c1c1c1", "Use the session in the header", [
+    file("src/components/Header.tsx", { added: 4, removed: 6, reindented: 4 }),
+  ]),
+]
+const change = (rest: Partial<ChangesContent> = {}): ChangesContent => {
+  const layers = rest.layers ?? layersOf()
+  return {
+    kind: "changes",
+    root: "/repo",
+    base: "main",
+    truncated: false,
+    layers,
+    // The whole change's files: here the layers' own, each file once.
+    files: filesOf(layers, new Set(layers.map((each) => each.id))),
+    ...rest,
+  }
+}
 
 const cookieDiff: ChangeFileDiff = {
-  runs: [
-    {
-      layers: ["uncommitted"],
-      file: file("src/auth/cookies.ts", { added: 1, removed: 1 }),
-      big: false,
-      badName: false,
-      before: "const day = 1\nexport const cookieMaxAge = 7 * day\n",
-      after: "const day = 1\nexport const cookieMaxAge = 30 * day\n",
-      hunks: [
-        {
-          oldStart: 1,
-          oldCount: 2,
-          newStart: 1,
-          newCount: 2,
-          lines: [
-            { kind: "context", text: "const day = 1" },
-            { kind: "remove", text: "export const cookieMaxAge = 7 * day" },
-            { kind: "add", text: "export const cookieMaxAge = 30 * day" },
-          ],
-        },
-      ],
-    },
-  ],
+  run: {
+    layers: ["uncommitted"],
+    file: file("src/auth/cookies.ts", { added: 1, removed: 1 }),
+    big: false,
+    badName: false,
+    before: "const day = 1\nexport const cookieMaxAge = 7 * day\n",
+    after: "const day = 1\nexport const cookieMaxAge = 30 * day\n",
+    hunks: [
+      {
+        oldStart: 1,
+        oldCount: 2,
+        newStart: 1,
+        newCount: 2,
+        lines: [
+          { kind: "context", text: "const day = 1" },
+          { kind: "remove", text: "export const cookieMaxAge = 7 * day" },
+          { kind: "add", text: "export const cookieMaxAge = 30 * day" },
+        ],
+      },
+    ],
+  },
 }
 
 // The pane's body for the change, loading what `content` holds through a fake backend, which
@@ -112,9 +116,9 @@ const show = (
   withDiffs = true,
   // The files of a range: the layers' own added up unless given; null: the backend has no range.
   range?: readonly ChangedFile[] | null,
-  rangeTruncated = false,
 ) => {
   const asked: { path: string; layers: readonly string[] }[] = []
+  const ranges: (readonly string[])[] = []
   // What a read waits for, where a test holds it.
   const gate: { wait: Promise<void> | undefined } = { wait: undefined }
   let emit: (content: ChangesContent, stamp: string) => void = () => {}
@@ -127,16 +131,19 @@ const show = (
     save: () => new Promise(() => {}),
     trouble: () => {},
     ...(range !== null && {
-      changeRange: async (_target, _id, picked) => ({
-        files: range ?? filesOf(content.layers, new Set(picked)),
-        truncated: rangeTruncated,
-      }),
+      changeRange: async (_target, _id, picked) => {
+        ranges.push(picked)
+        return {
+          files: range ?? filesOf(content.layers, new Set(picked)),
+          truncated: false,
+        }
+      },
     }),
     ...(withDiffs && {
       changeFile: async (_target, _id, path, layers) => {
         await gate.wait
         asked.push({ path, layers })
-        return diffs[path] ?? { runs: [] }
+        return diffs[path] ?? { run: null }
       },
     }),
   }
@@ -207,6 +214,7 @@ const show = (
     row,
     open,
     settle,
+    ranges,
     gate,
     emit: (next: ChangesContent, stamp: string) =>
       act(async () => {
@@ -225,7 +233,7 @@ describe("a change beside a terminal", () => {
     it("says how much changed in all, against main", () => {
       const { container } = show(change())
       expect(container.querySelector(".artifact-meta")?.textContent).toContain(
-        "4 files · +36 −7 · against main · read-only",
+        "4 files · +36 −7 4 re-indented · against main · read-only",
       )
     })
 
@@ -564,7 +572,7 @@ describe("a change beside a terminal", () => {
 
     it("says a change past the backend's bounds is too large", async () => {
       const big: ChangeFileDiff = {
-        runs: [{ ...cookieDiff.runs[0]!, big: true, hunks: [], before: null, after: null }],
+        run: { ...cookieDiff.run!, big: true, hunks: [], before: null, after: null },
       }
       const { container, open } = show(change(), { "src/auth/cookies.ts": big })
 
@@ -574,10 +582,10 @@ describe("a change beside a terminal", () => {
     })
   })
 
-  context("when the backend lists a range's own files", () => {
-    it("shows those, with the range's counts, for a selection of more than one layer", async () => {
+  context("when the change carries its own files", () => {
+    it("shows those, with their counts, for every layer selected, asking for no range", async () => {
       const net = [file("src/auth/session.ts", { status: "added", added: 20, removed: 0 })]
-      const { files, container, settle } = show(change(), undefined, true, net)
+      const { files, container, settle, ranges } = show(change({ files: net }))
 
       await settle()
 
@@ -585,17 +593,34 @@ describe("a change beside a terminal", () => {
       expect(container.querySelector(".artifact-meta")?.textContent).toContain(
         "1 file · +20 −0 · against main",
       )
+      expect(ranges).toEqual([])
     })
 
-    it("says so when the range is over the files the backend lists", async () => {
-      const net = [file("src/auth/session.ts", { status: "added", added: 20, removed: 0 })]
-      const { container, settle } = show(change(), undefined, true, net, true)
+    it("says so when the change is over the files it lists", async () => {
+      const { container, settle } = show(change({ truncated: true }))
+      await settle()
+      expect(container.querySelector(".artifact-meta")?.textContent).toContain(", more than shown")
+    })
 
+    it("counts the lines that only changed whitespace", async () => {
+      const { container, settle } = show(change())
+      await settle()
+      expect(container.querySelector(".artifact-meta")?.textContent).toContain("4 re-indented")
+    })
+  })
+
+  context("when the backend lists a range's own files", () => {
+    it("shows those for a selection of more than one layer, not every layer", async () => {
+      const net = [file("src/auth/session.ts", { status: "added", added: 20, removed: 0 })]
+      const { files, click, layers, settle, ranges } = show(change(), undefined, true, net)
       await settle()
 
-      expect(container.querySelector(".artifact-meta")?.textContent).toContain(
-        "1 file, more than shown · +20 −0",
-      )
+      await click(layers()[1])
+      await click(layers()[2])
+      await settle()
+
+      expect(files()).toEqual(["src/auth/session.ts"])
+      expect(ranges).toEqual([["c2c2c2c2c2", "c1c1c1c1c1"]])
     })
 
     it("shows a single layer's own files, which no range is asked for", async () => {
@@ -610,46 +635,44 @@ describe("a change beside a terminal", () => {
   })
 
   context("when the backend has no range", () => {
-    it("adds the layers' files up", async () => {
-      const { files, container, settle } = show(change(), undefined, true, null)
+    it("adds the layers' files up for a selection of more than one", async () => {
+      const { files, click, layers, settle } = show(change(), undefined, true, null)
       await settle()
+      await click(layers()[1])
+      await click(layers()[2])
       expect(files()).toEqual([
-        "src/auth/cookies.ts",
         "src/auth/session.test.ts",
         "src/auth/session.ts",
         "src/components/Header.tsx",
       ])
-      expect(container.querySelector(".artifact-meta")?.textContent).toContain("4 files")
     })
   })
 
   context("when the change is read again", () => {
     const longer = ["l1", "l2", "l3", "l4", "l5", "l6", "l7", "l8", "l9", "l10"]
     const foldDiff: ChangeFileDiff = {
-      runs: [
-        {
-          layers: ["uncommitted"],
-          file: file("src/auth/cookies.ts", { added: 1, removed: 1 }),
-          big: false,
-          badName: false,
-          before: longer.join("\n") + "\n",
-          after: longer.map((line) => (line === "l6" ? "L6" : line)).join("\n") + "\n",
-          hunks: [
-            {
-              oldStart: 5,
-              oldCount: 3,
-              newStart: 5,
-              newCount: 3,
-              lines: [
-                { kind: "context", text: "l5" },
-                { kind: "remove", text: "l6" },
-                { kind: "add", text: "L6" },
-                { kind: "context", text: "l7" },
-              ],
-            },
-          ],
-        },
-      ],
+      run: {
+        layers: ["uncommitted"],
+        file: file("src/auth/cookies.ts", { added: 1, removed: 1 }),
+        big: false,
+        badName: false,
+        before: longer.join("\n") + "\n",
+        after: longer.map((line) => (line === "l6" ? "L6" : line)).join("\n") + "\n",
+        hunks: [
+          {
+            oldStart: 5,
+            oldCount: 3,
+            newStart: 5,
+            newCount: 3,
+            lines: [
+              { kind: "context", text: "l5" },
+              { kind: "remove", text: "l6" },
+              { kind: "add", text: "L6" },
+              { kind: "context", text: "l7" },
+            ],
+          },
+        ],
+      },
     }
 
     it("keeps the open file, with its unfolded stretch, while the new answer is read", async () => {
@@ -675,15 +698,18 @@ describe("a change beside a terminal", () => {
     })
 
     it("keeps the files' counts from the range while the new one is read", async () => {
-      const net = [file("src/auth/cookies.ts", { added: 9, removed: 8 })]
+      const net = [file("src/auth/session.ts", { added: 9, removed: 8 })]
       const shown = show(change(), undefined, true, net)
       await shown.settle()
-      const header = () => shown.container.querySelector(".artifact-meta")?.textContent
-      expect(header()).toContain("+9 −8")
+      await shown.click(shown.layers()[1])
+      await shown.click(shown.layers()[2])
+      await shown.settle()
+      const counts = () => shown.row("src/auth/session.ts").textContent
+      expect(counts()).toContain("+9")
 
       await shown.emit(change(), "2")
 
-      expect(header()).toContain("+9 −8")
+      expect(counts()).toContain("+9")
     })
   })
 

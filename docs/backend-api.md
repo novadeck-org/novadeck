@@ -1560,7 +1560,8 @@ one from an earlier runner.
     short, which `companions.save` can write) and `skill` (Novadeck's plugin is installed
     for its agent). A `changes` item is a checkout measured against its repository's main
     branch (`base` names it, `HEAD` where there is none): `root`, `base`, and `layers`, newest
-    first. A layer is the work not committed yet (`id` `uncommitted`, `time` null: the
+    first, and `files`, the whole change's own list (what `changeRange` gives over every layer: the
+    net against main, at most 300, in `truncated` too). A layer is the work not committed yet (`id` `uncommitted`, `time` null: the
     working tree, untracked files included and ignored ones not) or a commit since the merge
     base with main (`id` its hash, its `subject` and `time`), with its `files` (`path`,
     `oldPath` for renames, `status`, `added` and `removed` counts ignoring whitespace,
@@ -1574,9 +1575,9 @@ one from an earlier runner.
     gone is `missing`, and a failing git `unreadable`. A checkout is read through a private
     index: the person's own is never written.
   - `companions.changeFile({ itemId, path, layers })` reads one file of a changes item for
-    the layer ids selected: `{ runs }`, one run for the range they span (the layers between
+    the layer ids selected: `{ run }`, one run for the range they span (the layers between
     the newest and the oldest selected are taken in; layers no longer there are left out, and a
-    file the selection did not change has no run). A run is the `layers` it covers, the `file` as they changed it, its
+    file the selection did not change has `run: null`). A run is the `layers` it covers, the `file` as they changed it, its
     `hunks` (context, add and remove lines, diffed from the oldest layer's parent to the
     newest layer, or from `HEAD` to the working tree for the uncommitted one) and the text of
     the file on each side (`before`, `after`; null where it doesn't exist, is binary, may hold

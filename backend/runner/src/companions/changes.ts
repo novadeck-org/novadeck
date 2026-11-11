@@ -8,8 +8,8 @@ import {
   companionLimits,
   hiddenCharacter,
   maxChangesBytes,
-  type ChangeDiffHunk,
-  type ChangeFile,
+  type DiffHunk,
+  type ChangedFile,
 } from "@novadeck/protocol"
 
 import { gitEnv, gitPath } from "../git.js"
@@ -219,10 +219,10 @@ export type Budget = { left: number }
 const costOf = (text: string): number => Buffer.byteLength(JSON.stringify(text)) + lineOverhead
 
 /** One file of a unified diff: as listed, and its hunks (none where it is binary or `listed`). */
-export type ParsedFile = Omit<ChangeFile, "secret" | "reindented"> & {
+export type ParsedFile = Omit<ChangedFile, "secret" | "reindented"> & {
   /** Its lines passed the budget: it is named, not read. */
   readonly listed: boolean
-  readonly hunks: ChangeDiffHunk[]
+  readonly hunks: DiffHunk[]
 }
 
 const emptyFile = (path: string): ParsedFile => ({
@@ -356,13 +356,13 @@ export const parseDiff = (
 export type Entry = {
   readonly path: string
   readonly oldPath: string | null
-  readonly status: ChangeFile["status"]
+  readonly status: ChangedFile["status"]
   readonly added: number
   readonly removed: number
   readonly binary: boolean
 }
 
-const statusOf = (letter: string): ChangeFile["status"] =>
+const statusOf = (letter: string): ChangedFile["status"] =>
   letter === "A" ? "added" : letter === "D" ? "deleted" : letter === "R" ? "renamed" : "modified"
 
 /**
@@ -371,7 +371,7 @@ const statusOf = (letter: string): ChangeFile["status"] =>
  */
 export const parseListing = (out: string): Entry[] => {
   const tokens = out.split("\0")
-  const raws: { status: ChangeFile["status"]; path: string; oldPath: string | null }[] = []
+  const raws: { status: ChangedFile["status"]; path: string; oldPath: string | null }[] = []
   const counts = new Map<string, { added: number; removed: number; binary: boolean }>()
   for (let at = 0; at < tokens.length;) {
     const token = tokens[at]!

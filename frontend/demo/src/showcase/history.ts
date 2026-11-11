@@ -243,6 +243,11 @@ export const contentOf = (history: History): ChangesContent => {
     root: history.root,
     base: history.base,
     layers,
+    // The whole change's own list: the range over every layer.
+    files: rangeOf(
+      history,
+      history.steps.map((step) => step.id),
+    ),
     truncated: history.truncated ?? false,
   }
 }
@@ -270,7 +275,7 @@ export const rangeOf = (history: History, selected: readonly string[]): ChangedF
   )
 }
 
-/** One file as the layers selected changed it: a run for each group that follows on. */
+/** One file as the layers selected changed it: one run, the layers between its ends taken in. */
 export const diffOf = (
   history: History,
   path: string,
@@ -280,33 +285,32 @@ export const diffOf = (
   const flags = flagsOf(history)
   // Newest first, as the list shows them.
   const order = history.steps.map((step, at) => ({ id: step.id, at })).toReversed()
-  // The selection is one range, the layers between its ends taken in.
   const ends = order.flatMap((layer, place) => (selected.includes(layer.id) ? [place] : []))
-  const groups = ends.length === 0 ? [] : [order.slice(ends[0], ends.at(-1)! + 1)]
-  const runs: ChangeFileDiff["runs"][number][] = []
-  for (const group of groups) {
-    const newest = group[0]!.at
-    const oldest = group.at(-1)!.at
-    // Where the file was before the range, following renames back through it.
-    let old = path
-    for (let at = newest; at >= oldest; at -= 1) old = history.steps[at]!.move?.[old] ?? old
-    const was = all[oldest]![old]
-    const now = all[newest + 1]![path]
-    if (was === now && old === path) continue
-    const flag = flags.get(path)
-    const lines =
-      flag === "binary" ? { added: 0, removed: 0, reindented: 0 } : counts(was ?? "", now ?? "")
-    const file: ChangedFile = {
-      path,
-      oldPath: old === path ? null : old,
-      status: statusOf(was, now, old !== path),
-      ...lines,
-      binary: flag === "binary",
-      secret: flag === "secret",
-    }
-    const big = history.big?.includes(path) ?? false
-    const shown = !flag && !big
-    runs.push({
+  if (ends.length === 0) return { run: null }
+  const group = order.slice(ends[0], ends.at(-1)! + 1)
+  const newest = group[0]!.at
+  const oldest = group.at(-1)!.at
+  // Where the file was before the range, following renames back through it.
+  let old = path
+  for (let at = newest; at >= oldest; at -= 1) old = history.steps[at]!.move?.[old] ?? old
+  const was = all[oldest]![old]
+  const now = all[newest + 1]![path]
+  if (was === now && old === path) return { run: null }
+  const flag = flags.get(path)
+  const lines =
+    flag === "binary" ? { added: 0, removed: 0, reindented: 0 } : counts(was ?? "", now ?? "")
+  const file: ChangedFile = {
+    path,
+    oldPath: old === path ? null : old,
+    status: statusOf(was, now, old !== path),
+    ...lines,
+    binary: flag === "binary",
+    secret: flag === "secret",
+  }
+  const big = history.big?.includes(path) ?? false
+  const shown = !flag && !big
+  return {
+    run: {
       layers: group.map((layer) => layer.id),
       file,
       big,
@@ -314,7 +318,6 @@ export const diffOf = (
       hunks: shown ? hunksOf(was ?? "", now ?? "") : [],
       before: shown && was !== undefined ? was : null,
       after: shown && now !== undefined ? now : null,
-    })
+    },
   }
-  return { runs }
 }

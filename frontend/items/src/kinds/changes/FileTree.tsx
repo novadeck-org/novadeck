@@ -71,7 +71,6 @@ export const FileTree = ({
   itemId,
   stamp,
   layers,
-  layerName,
 }: {
   rows: readonly TreeRow[]
   read: Readonly<Record<string, string>>
@@ -85,7 +84,6 @@ export const FileTree = ({
   itemId: ItemId
   stamp: string
   layers: readonly string[]
-  layerName: (id: string) => string
 }): React.JSX.Element => {
   // Arrow keys move between the rows, as in a tree.
   const move = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -194,7 +192,6 @@ export const FileTree = ({
               file={file}
               open={open}
               layers={layers}
-              layerName={layerName}
             />
           </div>
         )

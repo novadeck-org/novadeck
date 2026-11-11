@@ -180,7 +180,7 @@ export const maxChangeSideBytes = 512 * 1024
 // whitespace are no change: they are counted apart, as `reindented` (the lines of the new
 // side). A `binary` file, or one that may hold secrets (`secret`), is listed by name; its
 // content is never read.
-const changeFile = z.strictObject({
+const changedFile = z.strictObject({
   path: z.string().max(companionLimits.path),
   oldPath: z.string().max(companionLimits.path).nullable(),
   status: z.enum(["added", "modified", "deleted", "renamed"]),
@@ -203,7 +203,7 @@ const changeLayer = z.strictObject({
   time: z.number().nullable(),
   added: z.int().nonnegative(),
   removed: z.int().nonnegative(),
-  files: z.array(changeFile).max(maxChangedFiles),
+  files: z.array(changedFile).max(maxChangedFiles),
   truncated: z.boolean(),
   // A merge shown against its first parent, as the runner's git can't merge in memory (before
   // 2.38): what it brought in from main shows as its work.
@@ -229,31 +229,29 @@ const diffHunk = z.strictObject({
 // lists them from the range's start to its end: a file added and deleted inside it is not
 // there, one renamed is one row, and its counts are the range's own, not the layers' added up.
 export const changeRange = z.strictObject({
-  files: z.array(changeFile).max(maxChangedFiles),
+  files: z.array(changedFile).max(maxChangedFiles),
   truncated: z.boolean(),
 })
 
 // `companions.changeFile`: one file as a selection of layers changed it. The selection is
-// one range (from the oldest layer's parent to the newest), in one run; none where it did not
-// change the file. A run has its file's diff as hunks (none, with `big`, where the
+// one range (from the oldest layer's parent to the newest), so one run; `null` where it did
+// not change the file. A run has its file's diff as hunks (none, with `big`, where the
 // diff passes the bounds) and the text of the file on each side of the range, which the
 // client reads facts from: null where a side does not exist (a file added or deleted),
 // where it passes `maxChangeSideBytes`, or where the file is binary or may hold secrets.
 export const changeFileDiff = z.strictObject({
-  runs: z
-    .array(
-      z.strictObject({
-        layers: z.array(z.string().min(1).max(128)).min(1).max(maxChangeLayers),
-        file: changeFile,
-        big: z.boolean(),
-        // Its name is no valid text, which git can't be given back: it is named, not read.
-        badName: z.boolean(),
-        hunks: z.array(diffHunk),
-        before: z.string().max(maxChangeSideBytes).nullable(),
-        after: z.string().max(maxChangeSideBytes).nullable(),
-      }),
-    )
-    .max(maxChangeLayers),
+  run: z
+    .strictObject({
+      layers: z.array(z.string().min(1).max(128)).min(1).max(maxChangeLayers),
+      file: changedFile,
+      big: z.boolean(),
+      // Its name is no valid text, which git can't be given back: it is named, not read.
+      badName: z.boolean(),
+      hunks: z.array(diffHunk),
+      before: z.string().max(maxChangeSideBytes).nullable(),
+      after: z.string().max(maxChangeSideBytes).nullable(),
+    })
+    .nullable(),
 })
 
 // `companions.content`: what an item points at, read as it is now. `stamp` changes with
@@ -268,7 +266,7 @@ export const changeFileDiff = z.strictObject({
 // The layers are the checkout's commits since the merge base with main, then, above
 // them, the work not committed yet (staged, unstaged and untracked, not ignored). At most
 // `maxChangeLayers` layers and `maxLayerFiles` files are listed, `truncated` says when
-// more changed; `root` is the repository's folder, which its paths are from. Or why it
+// more changed (in `files` too); `root` is the repository's folder, which its paths are from. Or why it
 // can't be shown, with the file's size where known.
 export const itemContent = z.discriminatedUnion("state", [
   z.strictObject({
@@ -298,6 +296,9 @@ export const itemContent = z.discriminatedUnion("state", [
         root: z.string().max(companionLimits.path),
         base: z.string().max(256),
         layers: z.array(changeLayer).max(maxChangeLayers),
+        // The files the change as a whole differs from main by, as `changeRange` lists a
+        // range (the layers' own files added up are not that), up to `maxChangedFiles`.
+        files: z.array(changedFile).max(maxChangedFiles),
         truncated: z.boolean(),
       }),
       z.strictObject({
@@ -352,9 +353,9 @@ export type ItemContent = z.infer<typeof itemContent>
 export type PageTrouble = z.infer<typeof pageTrouble>
 export type PageLook = z.infer<typeof pageLook>
 export type PageLookAnswer = z.infer<typeof pageLookAnswer>
-export type ChangeFile = z.infer<typeof changeFile>
+export type ChangedFile = z.infer<typeof changedFile>
 export type ChangeLayer = z.infer<typeof changeLayer>
-export type ChangeDiffHunk = z.infer<typeof diffHunk>
+export type DiffHunk = z.infer<typeof diffHunk>
 export type ChangeFileDiff = z.infer<typeof changeFileDiff>
 export type ChangeRange = z.infer<typeof changeRange>
 export type PlanSaveResult = z.infer<typeof planSaveResult>

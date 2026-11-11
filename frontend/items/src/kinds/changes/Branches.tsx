@@ -26,27 +26,22 @@ const countsOf = (change: Change): string =>
     .filter(Boolean)
     .join(" ")
 
-export const branchesOf = (
-  runs: readonly { readonly changes: readonly Change[]; readonly label: string | undefined }[],
-): Branch[] =>
-  runs.flatMap(({ changes, label }, run) =>
-    changes.map((change): Branch => {
-      const place = placeParts(change.fact?.places ?? [], change.fact?.edit)
-      const lines = `${change.onlyRemoves ? "was " : ""}${change.lines.from === change.lines.to ? "line" : "lines"} ${
-        change.lines.from === change.lines.to
-          ? change.lines.from
-          : `${change.lines.from}–${change.lines.to}`
-      }`
-      const parts: Part[] = [
-        ...(place.length > 0 ? place : [{ text: lines, kind: "plain" as const }]),
-        ...(change.reindented > 0
-          ? [{ text: ` · ${change.reindented} re-indented`, kind: "plain" as const }]
-          : []),
-        ...(label ? [{ text: ` · ${label}`, kind: "plain" as const }] : []),
-      ]
-      return { key: `${run}-${change.id}`, parts, counts: countsOf(change) }
-    }),
-  )
+export const branchesOf = (changes: readonly Change[]): Branch[] =>
+  changes.map((change): Branch => {
+    const place = placeParts(change.fact?.places ?? [], change.fact?.edit)
+    const lines = `${change.onlyRemoves ? "was " : ""}${change.lines.from === change.lines.to ? "line" : "lines"} ${
+      change.lines.from === change.lines.to
+        ? change.lines.from
+        : `${change.lines.from}–${change.lines.to}`
+    }`
+    const parts: Part[] = [
+      ...(place.length > 0 ? place : [{ text: lines, kind: "plain" as const }]),
+      ...(change.reindented > 0
+        ? [{ text: ` · ${change.reindented} re-indented`, kind: "plain" as const }]
+        : []),
+    ]
+    return { key: change.id, parts, counts: countsOf(change) }
+  })
 
 export const Branches = ({
   itemStore,
@@ -56,7 +51,6 @@ export const Branches = ({
   file,
   open,
   layers,
-  layerName,
 }: {
   itemStore: ItemStore
   target: WorkspaceTarget
@@ -65,25 +59,20 @@ export const Branches = ({
   file: TreeFile
   open: boolean
   layers: readonly string[]
-  layerName: (id: string) => string
 }): React.JSX.Element => {
   // Read when unfolded, and kept (see ./diff-cache.ts) to fold away with what it showed.
   const read = useFileDiff(itemStore, target, itemId, stamp, open ? file.path : null, layers)
   const kept = peekDiff(itemStore, itemId, stamp, layers, file.path)
   const loaded: FileDiffState = read.state === "idle" && kept ? { state: "ready", ...kept } : read
-  const diff = loaded.state === "ready" ? loaded.diff : undefined
-  const facts = loaded.state === "ready" ? loaded.facts : undefined
+  const run = loaded.state === "ready" ? loaded.diff.run : undefined
+  const facts = loaded.state === "ready" ? loaded.facts : null
   const branches = useMemo((): Branch[] | undefined => {
-    if (!diff || !facts) return undefined
+    if (loaded.state !== "ready") return undefined
+    if (!run) return []
     return branchesOf(
-      diff.runs.map((run, at) => ({
-        changes: layoutFor(run, facts[at] ?? null).filter(
-          (each): each is Change => each.kind === "change",
-        ),
-        label: diff.runs.length > 1 ? run.layers.map(layerName).join(" + ") : undefined,
-      })),
+      layoutFor(run, facts).filter((each): each is Change => each.kind === "change"),
     )
-  }, [diff, facts, layerName])
+  }, [loaded.state, run, facts])
   const note =
     loaded.state === "failed"
       ? "Can't read this file's changes"

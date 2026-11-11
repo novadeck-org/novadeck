@@ -1,9 +1,4 @@
-import {
-  uncommittedLayer,
-  type ChangedFile,
-  type ChangesContent,
-  type Item,
-} from "@novadeck/core/items"
+import { type ChangesContent, type Item } from "@novadeck/core/items"
 import {
   useCallback,
   useEffect,
@@ -30,20 +25,15 @@ import { useChangesView } from "./view-state"
 
 const noun = (count: number): string => `${count} ${count === 1 ? "file" : "files"}`
 
-const layerName = (id: string): string => (id === uncommittedLayer ? "uncommitted" : id.slice(0, 7))
-
+// What the whole change comes to, from its own list of files (the net against main).
 const sums = (
   content: ChangesContent,
-  net?: readonly ChangedFile[],
-): { files: number; added: number; removed: number } => {
-  const all = new Set(content.layers.map((layer) => layer.id))
-  const files = net ?? filesOf(content.layers, all)
-  return {
-    files: files.length,
-    added: files.reduce((sum, file) => sum + file.added, 0),
-    removed: files.reduce((sum, file) => sum + file.removed, 0),
-  }
-}
+): { files: number; added: number; removed: number; reindented: number } => ({
+  files: content.files.length,
+  added: content.files.reduce((sum, file) => sum + file.added, 0),
+  removed: content.files.reduce((sum, file) => sum + file.removed, 0),
+  reindented: content.files.reduce((sum, file) => sum + file.reindented, 0),
+})
 
 // Which view is moving to which: the row growing into the heading, or the heading shrinking
 // into its row.
@@ -63,15 +53,19 @@ export const ChangesViewer = ({
   const ids = useMemo(() => idsOf(content.layers), [content.layers])
   const selected = useMemo(() => selectedOf(ids, view.picked), [ids, view.picked])
   const layers = useMemo(() => ids.filter((id) => selected.has(id)), [ids, selected])
-  // The files of a range as git lists them, where there are layers to range over; until they
-  // come, or where the backend can't say, the layers' files added up.
-  const ranged = useRange(itemStore, target, item.id, stamp, layers)
+  // All the layers are the change as a whole, whose files the content carries; two or more of
+  // them are a range git lists when asked; until it answers, or where the backend can't, and
+  // for one layer, the layers' files added up.
+  const whole = layers.length === ids.length
+  const ranged = useRange(itemStore, target, item.id, stamp, whole ? [] : layers)
   const files = useMemo(
     () =>
-      ranged
-        ? filesOfRange(ranged.files, content.layers, layers)
-        : filesOf(content.layers, selected),
-    [ranged, layers, content.layers, selected],
+      whole
+        ? filesOfRange(content.files, content.layers, layers)
+        : ranged
+          ? filesOfRange(ranged.files, content.layers, layers)
+          : filesOf(content.layers, selected),
+    [whole, ranged, layers, content.files, content.layers, selected],
   )
   const rows = useMemo(() => rowsOf(files), [files])
   // The files in the order the tree shows them, which J and K step through.
@@ -79,8 +73,7 @@ export const ChangesViewer = ({
     () => rows.flatMap((row) => (row.kind === "file" ? [row.file] : [])),
     [rows],
   )
-  const everyone = useRange(itemStore, target, item.id, stamp, ids)
-  const all = useMemo(() => sums(content, everyone?.files), [content, everyone])
+  const all = useMemo(() => sums(content), [content])
   const opened = view.open === null ? undefined : order.find((file) => file.path === view.open)
   const unfolded = order.some((file) => file.path === view.unfolded) ? view.unfolded : null
 
@@ -224,7 +217,7 @@ export const ChangesViewer = ({
         <span>
           {all.files === 0
             ? `no changes against ${content.base}`
-            : `${noun(all.files)}${content.truncated || everyone?.truncated ? ", more than shown" : ""} · +${all.added} −${all.removed} · against ${content.base}`}{" "}
+            : `${noun(all.files)}${content.truncated ? ", more than shown" : ""} · +${all.added} −${all.removed}${all.reindented > 0 ? ` ${all.reindented} re-indented` : ""} · against ${content.base}`}{" "}
           · read-only
         </span>
       </ArtifactMeta>
@@ -296,7 +289,6 @@ export const ChangesViewer = ({
                       itemId={item.id}
                       stamp={stamp}
                       layers={layers}
-                      layerName={layerName}
                     />
                   )}
                 </div>

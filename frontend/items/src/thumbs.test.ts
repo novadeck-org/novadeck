@@ -118,6 +118,7 @@ describe("a peek's miniature", () => {
           root: "/repo",
           base: "HEAD",
           truncated: false,
+          files: [file("a.ts", "modified"), file("b.ts", "added")],
           layers: [
             {
               id: "uncommitted",

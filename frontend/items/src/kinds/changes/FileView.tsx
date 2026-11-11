@@ -246,27 +246,11 @@ export const FileView = ({
   onStep: (delta: number) => void
 }): React.JSX.Element => {
   const loaded = useFileDiff(itemStore, target, itemId, stamp, file.path, layers)
-  const layouts = useMemo(
-    () =>
-      loaded.state === "ready"
-        ? loaded.diff.runs.map((run, at) => layoutFor(run, loaded.facts[at] ?? null))
-        : [],
-    [loaded],
-  )
-  const sum = layouts.reduce(
-    (all, layout) => {
-      const part = totalsOf(layout)
-      return {
-        added: all.added + part.added,
-        removed: all.removed + part.removed,
-        reindented: all.reindented + part.reindented,
-      }
-    },
-    { added: 0, removed: 0, reindented: 0 },
-  )
-  const counts = loaded.state === "ready" && layouts.length > 0 ? sum : file
-  const runs = loaded.state === "ready" ? loaded.diff.runs : []
-  const first = runs[0]?.file
+  const run = loaded.state === "ready" ? loaded.diff.run : null
+  const facts = loaded.state === "ready" ? loaded.facts : null
+  const layout = useMemo(() => (run ? layoutFor(run, facts) : []), [run, facts])
+  const counts = run ? totalsOf(layout) : file
+  const first = run?.file
   const notice =
     file.secret || first?.secret
       ? "This file may hold secrets, so its changes aren't shown."
@@ -274,23 +258,17 @@ export const FileView = ({
         ? "A binary file: there are no lines to show."
         : loaded.state === "failed"
           ? "Can't read this file's changes."
-          : loaded.state === "ready" && runs.some((run) => run.badName)
+          : loaded.state === "ready" && run?.badName
             ? "This file's name isn't valid text, so its changes can't be asked of git."
-            : loaded.state === "ready" && runs.some((run) => run.big)
+            : loaded.state === "ready" && run?.big
               ? "This change is too large to show here."
-              : loaded.state === "ready" && runs.length === 0
+              : loaded.state === "ready" && !run
                 ? "The layers selected did not change this file."
                 : undefined
-  const summaries =
-    loaded.state === "ready" && !notice
-      ? runs.map((run, at) => ({
-          parts: summaryParts(
-            loaded.facts[at] ?? null,
-            run.file,
-            layouts[at]?.filter((each) => each.kind === "change").length ?? 0,
-          ),
-        }))
-      : []
+  const summary =
+    run && !notice
+      ? summaryParts(facts, run.file, layout.filter((each) => each.kind === "change").length)
+      : undefined
   const renamed = first?.oldPath ?? file.oldPath
   return (
     <div className="changes-view changes-file-view" data-path={file.path}>
@@ -349,23 +327,15 @@ export const FileView = ({
         ) : loaded.state === "loading" || loaded.state === "idle" ? (
           <div>Reading the changes…</div>
         ) : (
-          summaries.map((summary) => (
-            <div key={summary.parts.length}>
-              <Parts parts={summary.parts} />
+          summary && (
+            <div>
+              <Parts parts={summary} />
             </div>
-          ))
+          )
         )}
       </div>
       <div className="changes-body">
-        {!notice &&
-          runs.map((run, at) => (
-            <RunBody
-              key={run.layers.join(",")}
-              run={run}
-              layout={layouts[at] ?? []}
-              path={file.path}
-            />
-          ))}
+        {!notice && run && <RunBody run={run} layout={layout} path={file.path} />}
       </div>
       <div className="changes-hint">
         <kbd>Esc</kbd> back to the files · <kbd>J</kbd> <kbd>K</kbd> next and previous file

@@ -22,7 +22,7 @@ describe("the sample changes", () => {
       const content = contentOfSample(artifact)!
       for (const layer of content.layers)
         for (const file of layer.files.filter((each) => !each.binary && !each.secret)) {
-          const [run] = artifact.changeFile!(file.path, [layer.id]).runs
+          const { run } = artifact.changeFile!(file.path, [layer.id])
           if (!run || run.big) continue
           const lines = run.hunks.flatMap((hunk) => hunk.lines)
           const reindented = file.reindented
@@ -38,11 +38,22 @@ describe("the sample changes", () => {
     }
   })
 
+  it("carry the whole change's files, as a range over every layer lists them", () => {
+    for (const artifact of changesArtifacts) {
+      const content = contentOfSample(artifact)!
+      expect(content.files, artifact.item.id).toEqual(
+        artifact.changeRange!(content.layers.map((layer) => layer.id)),
+      )
+    }
+  })
+
   it("have hunk headers that count the lines the hunk holds", () => {
     for (const artifact of changesArtifacts)
       for (const layer of contentOfSample(artifact)!.layers)
         for (const file of layer.files)
-          for (const run of artifact.changeFile!(file.path, [layer.id]).runs)
+          for (const run of [artifact.changeFile!(file.path, [layer.id]).run ?? undefined].filter(
+            (each) => each !== undefined,
+          ))
             for (const hunk of run.hunks) {
               expect(hunk.oldCount, file.path).toBe(
                 hunk.lines.filter((line) => line.kind !== "add").length,
@@ -76,15 +87,14 @@ describe("the sample changes", () => {
   it("read a file for the layers selected as one range, taking in those between its ends", () => {
     const [newest, middle, oldest] = changeOf("change").layers.map((layer) => layer.id)
     const joined = readFile("change", "src/auth/session.test.ts", [newest!, middle!])
-    expect(joined.runs).toHaveLength(1)
-    expect(joined.runs[0]).toMatchObject({
+    expect(joined.run).toMatchObject({
       layers: [newest, middle],
       file: { status: "added" },
       before: null,
     })
     const wide = readFile("change", "src/auth/cookies.ts", [newest!, oldest!])
-    expect(wide.runs.map((run) => run.layers)).toEqual([[newest, middle, oldest]])
-    expect(readFile("change", "src/auth/cookies.ts", [middle!]).runs).toEqual([])
+    expect(wide.run?.layers).toEqual([newest, middle, oldest])
+    expect(readFile("change", "src/auth/cookies.ts", [middle!]).run).toBeNull()
   })
 
   it("show files moved, deleted and added, a binary file, a held one, a truncated change and none", () => {
@@ -106,7 +116,7 @@ describe("the sample changes", () => {
       undefined,
     ])
     expect(
-      readFile("change-truncated", "src/generated/part-1.json", ["uncommitted"]).runs[0],
+      readFile("change-truncated", "src/generated/part-1.json", ["uncommitted"]).run,
     ).toMatchObject({
       big: true,
       hunks: [],
@@ -119,7 +129,7 @@ describe("the sample changes", () => {
       ["change-binary", "public/logo.png"],
       ["change-held", ".env.local"],
     ] as const) {
-      const [run] = readFile(id, path, ["uncommitted"]).runs
+      const { run } = readFile(id, path, ["uncommitted"])
       expect(run).toMatchObject({ hunks: [], before: null, after: null })
     }
     expect(JSON.stringify(readFile("change-held", ".env.local", ["uncommitted"]))).not.toContain(
@@ -128,7 +138,7 @@ describe("the sample changes", () => {
   })
 
   it("keep a line a long change holds whole", () => {
-    const [run] = readFile("change-long", "src/content/credits.json", ["uncommitted"]).runs
+    const { run } = readFile("change-long", "src/content/credits.json", ["uncommitted"])
     const lines = run!.hunks.flatMap((hunk) => hunk.lines)
     expect(Math.max(...lines.map((line) => line.text.length))).toBeGreaterThan(200)
   })
@@ -164,6 +174,6 @@ describe("a work as a change", () => {
       ["src/b.ts", 2, 1],
     ])
     expect(made.item.detail).toBe("Checkout against main · 2 files")
-    expect(made.changeFile!("src/a.ts", ["uncommitted"]).runs[0]!.hunks).not.toEqual([])
+    expect(made.changeFile!("src/a.ts", ["uncommitted"]).run!.hunks).not.toEqual([])
   })
 })

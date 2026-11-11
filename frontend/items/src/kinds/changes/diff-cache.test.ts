@@ -14,28 +14,26 @@ const file = {
   secret: false,
 }
 const diff: ChangeFileDiff = {
-  runs: [
-    {
-      layers: ["uncommitted"],
-      file,
-      big: false,
-      badName: false,
-      hunks: [
-        {
-          oldStart: 1,
-          oldCount: 1,
-          newStart: 1,
-          newCount: 1,
-          lines: [
-            { kind: "remove", text: "export const a = 7" },
-            { kind: "add", text: "export const a = 30" },
-          ],
-        },
-      ],
-      before: "export const a = 7\n",
-      after: "export const a = 30\n",
-    },
-  ],
+  run: {
+    layers: ["uncommitted"],
+    file,
+    big: false,
+    badName: false,
+    hunks: [
+      {
+        oldStart: 1,
+        oldCount: 1,
+        newStart: 1,
+        newCount: 1,
+        lines: [
+          { kind: "remove", text: "export const a = 7" },
+          { kind: "add", text: "export const a = 30" },
+        ],
+      },
+    ],
+    before: "export const a = 7\n",
+    after: "export const a = 30\n",
+  },
 }
 
 describe("a file's diff, kept", () => {
@@ -56,7 +54,7 @@ describe("a file's diff, kept", () => {
 
     expect(reads).toBe(1)
     expect(second).toBe(first)
-    expect(first.facts[0]?.changes[0]?.edit).toEqual({ from: "7", to: "30" })
+    expect(first.facts?.changes[0]?.edit).toEqual({ from: "7", to: "30" })
     expect(peekDiff(scope, "item", "s1", ["uncommitted"], "a.ts")).toBe(first)
   })
 
@@ -98,9 +96,9 @@ describe("a file's diff, kept", () => {
   })
 
   it("has no facts for a run whose diff was past the bounds", async () => {
-    const big = { runs: [{ ...diff.runs[0]!, big: true, hunks: [], before: null, after: null }] }
+    const big = { run: { ...diff.run!, big: true, hunks: [], before: null, after: null } }
     const loaded = await loadDiff(scope, "item", "s1", ["c1"], "a.ts", () => Promise.resolve(big))
-    expect(loaded.facts).toEqual([null])
+    expect(loaded.facts).toBeNull()
   })
 
   it("lets go of the answer at an older stamp once the same question is answered at a new one", async () => {
@@ -112,7 +110,7 @@ describe("a file's diff, kept", () => {
 
   it("does not keep the text of a declaration", async () => {
     const loaded = await loadDiff(scope, "i", "1", ["uncommitted"], "a.ts", async () => diff)
-    const all = loaded.facts[0]!.declarations
+    const all = loaded.facts!.declarations
     expect([...all.added, ...all.removed, ...all.changed].every((each) => each.body === "")).toBe(
       true,
     )

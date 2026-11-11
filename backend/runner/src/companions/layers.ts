@@ -12,7 +12,7 @@ import {
   maxChangesBytes,
   maxLayerFiles,
   uncommittedLayer,
-  type ChangeFile,
+  type ChangedFile,
   type ChangeFileDiff,
   type ChangeLayer,
   type ChangeRange,
@@ -252,7 +252,7 @@ const holder = (root: string, env: NodeJS.ProcessEnv | undefined): Held => {
     held(join(root, path)) || (oldPath !== null && held(join(root, oldPath)))
 }
 
-const fileOf = (entry: Listed, held: Held): ChangeFile => ({
+const fileOf = (entry: Listed, held: Held): ChangedFile => ({
   path: displayed(entry.path),
   oldPath: entry.oldPath === null ? null : displayed(entry.oldPath),
   status: entry.status,
@@ -293,7 +293,7 @@ export type ReadLayers = {
 type Read = { readonly ok: true; readonly change: ReadLayers } | ChangeFailure
 type ReadFile = { readonly ok: true; readonly diff: ChangeFileDiff } | ChangeFailure
 type ReadRange = { readonly ok: true; readonly range: ChangeRange } | ChangeFailure
-type RunOfFile = Omit<ChangeFileDiff["runs"][number], "layers">
+type RunOfFile = Omit<NonNullable<ChangeFileDiff["run"]>, "layers">
 
 /** What a selection of layers spans: the commits or trees it runs between. */
 type Span = {
@@ -517,23 +517,52 @@ export class LayerReader {
     const net = "ok" in netList ? netList : [...netList, ...named(taken)].toSorted(byPath)
     return {
       ok: true,
-      change: this.made(root, base, layers, truncated, name, `${head ?? ""} ${taken.tree}`, net),
+      change: this.made(
+        base,
+        layers,
+        truncated,
+        name,
+        `${head ?? ""} ${taken.tree}`,
+        net,
+        held,
+        root,
+      ),
     }
   }
 
   private made(
-    root: string,
     base: string,
     layers: ChangeLayer[],
     truncated: boolean,
     name: string,
     version: string,
     net: readonly Listed[] | ChangeFailure,
+    held: Held,
+    root: string,
   ): ReadLayers {
-    const content = { kind: "changes" as const, root, base, layers, truncated }
     // The change as a whole: what it differs from main by, not what its layers add up to. The
     // stamp follows the snapshot too, so a line edited with its counts unchanged is news.
     const files = "ok" in net ? undefined : net
+    // Where git could not list it, the layers' own files stand in, a path once.
+    const listed = files
+      ? files.slice(0, maxChangedFiles).map((entry) => fileOf(entry, held))
+      : [
+          ...new Map(
+            layers
+              .toReversed()
+              .flatMap((layer) => layer.files)
+              .map((file) => [file.path, file]),
+          ).values(),
+        ].slice(0, maxChangedFiles)
+    const cut = files ? files.length > maxChangedFiles : false
+    const content = {
+      kind: "changes" as const,
+      root,
+      base,
+      layers,
+      files: listed,
+      truncated: truncated || cut,
+    }
     const count = files
       ? files.length
       : new Set(layers.flatMap((layer) => layer.files.map((file) => file.path))).size
@@ -639,11 +668,11 @@ export class LayerReader {
 
   private async diff(root: string, path: string, selected: readonly string[]): Promise<ReadFile> {
     const span = await this.span(root, selected)
-    if (span === undefined) return { ok: true, diff: { runs: [] } }
+    if (span === undefined) return { ok: true, diff: { run: null } }
     if ("ok" in span) return span
     const run = await this.run(root, path, span, holder(root, this.environment()))
     if ("ok" in run) return run
-    return { ok: true, diff: { runs: run.file ? [{ ...run.file, layers: [...span.layers] }] : [] } }
+    return { ok: true, diff: { run: run.file ? { ...run.file, layers: [...span.layers] } : null } }
   }
 
   /** One file between two commits or trees, if they differ by it. */

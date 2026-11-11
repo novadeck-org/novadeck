@@ -465,9 +465,9 @@ export type Runner = {
       options?: { readonly reveal?: string },
     ): AsyncIterableIterator<ItemContent, undefined>
     /**
-     * One file of a changes item as a selection of its layers changed it: a run of each
-     * group of layers that follow one another, newest first, with the diff and the text of
-     * both sides. Rejects with `NOT_FOUND` for an unknown item or one that is no change.
+     * One file of a changes item as a selection of its layers changed it: one run, from the
+     * oldest layer's parent to the newest, with the diff and the text of both sides (`run` is
+     * null where the selection did not change the file). Rejects with `NOT_FOUND` for an unknown item or one that is no change.
      */
     changeFile(input: {
       readonly itemId: string

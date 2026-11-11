@@ -222,7 +222,7 @@ export type DiffHunk = {
 }
 
 // One file as the layers selected changed it: one run, from the oldest layer's parent to the
-// newest layer (none where the selection did not change it). A run has the diff (no hunks where it is `big`, past the backend's
+// newest layer (`null` where the selection did not change it). A run has the diff (no hunks where it is `big`, past the backend's
 // bounds, or the file is binary or may hold secrets) and the text of the file on each side of
 // the range, null where it doesn't exist or isn't sent.
 export type ChangeFileRun = {
@@ -235,7 +235,7 @@ export type ChangeFileRun = {
   readonly before: string | null
   readonly after: string | null
 }
-export type ChangeFileDiff = { readonly runs: readonly ChangeFileRun[] }
+export type ChangeFileDiff = { readonly run: ChangeFileRun | null }
 
 // The files a selection of layers changed as one range, as git lists them from its start to its
 // end: its own counts, not its layers' added up.
@@ -251,6 +251,8 @@ export type ChangesContent = {
   readonly root: string
   readonly base: string
   readonly layers: readonly ChangeLayer[]
+  // The files the change as a whole differs from main by, as `changeRange` lists a range.
+  readonly files: readonly ChangedFile[]
   readonly truncated: boolean
 }
 

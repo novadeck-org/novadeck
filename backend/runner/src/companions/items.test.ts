@@ -1418,9 +1418,12 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
       path: "a.txt",
       layers: ["uncommitted"],
     })
-    expect(diff.runs).toMatchObject([
-      { layers: ["uncommitted"], before: "one\n", after: "one\ntwo\n", file: { added: 1 } },
-    ])
+    expect(diff.run).toMatchObject({
+      layers: ["uncommitted"],
+      before: "one\n",
+      after: "one\ntwo\n",
+      file: { added: 1 },
+    })
     await expect(
       fixture.items.changeFile({ itemId: "nope", path: "a.txt", layers: ["uncommitted"] }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" })

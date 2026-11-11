@@ -86,7 +86,7 @@ describe("one file of a history", () => {
   const start = { "a.ts": lines("1", "2", "3", "4", "5", "6", "7", "8", "9", "10") }
 
   it("is a hunk of the lines changed with three lines of context", () => {
-    const [run] = diffOf(history(steps, start), "a.ts", ["c1"]).runs
+    const { run } = diffOf(history(steps, start), "a.ts", ["c1"])
     expect(run!.hunks).toEqual([
       {
         oldStart: 1,
@@ -106,20 +106,19 @@ describe("one file of a history", () => {
   })
 
   it("is one range for layers that follow one another, with both sides of the range", () => {
-    const [run, ...rest] = diffOf(history(steps, start), "a.ts", ["c1", "c2", "c3"]).runs
-    expect(rest).toEqual([])
+    const { run } = diffOf(history(steps, start), "a.ts", ["c1", "c2", "c3"])
     expect(run!.layers).toEqual(["c3", "c2", "c1"])
     expect(run!.hunks).toHaveLength(2)
     expect(run!.after).toBe(lines("ONE", "2", "3", "4", "5", "6", "7", "8", "9", "TEN"))
   })
 
   it("takes in the layers between the ends of the selection", () => {
-    const runs = diffOf(history(steps, start), "a.ts", ["c1", "c3"]).runs
-    expect(runs.map((run) => run.layers)).toEqual([["c3", "c2", "c1"]])
+    const { run } = diffOf(history(steps, start), "a.ts", ["c1", "c3"])
+    expect(run?.layers).toEqual(["c3", "c2", "c1"])
   })
 
   it("is no run for layers that did not change the file", () => {
-    expect(diffOf(history(steps, start), "a.ts", ["c2"]).runs).toEqual([])
+    expect(diffOf(history(steps, start), "a.ts", ["c2"]).run).toBeNull()
   })
 
   it("follows a file renamed within the range back to its old path", () => {
@@ -130,7 +129,7 @@ describe("one file of a history", () => {
       ],
       { "old.ts": lines("a", "b") },
     )
-    const [run] = diffOf(moved, "new.ts", ["c1", "c2"]).runs
+    const { run } = diffOf(moved, "new.ts", ["c1", "c2"])
     expect(run).toMatchObject({
       file: { status: "renamed", oldPath: "old.ts", added: 1, removed: 1 },
       before: lines("a", "b"),
@@ -142,7 +141,7 @@ describe("one file of a history", () => {
     const one = history([
       { id: "c1", subject: "", time: 1, set: { "a.ts": lines("x") }, held: ["a.ts"] },
     ])
-    expect(diffOf(one, "a.ts", ["c1"]).runs[0]).toMatchObject({
+    expect(diffOf(one, "a.ts", ["c1"]).run).toMatchObject({
       hunks: [],
       before: null,
       after: null,
@@ -151,7 +150,7 @@ describe("one file of a history", () => {
       ...history([{ id: "c1", subject: "", time: 1, set: { "a.ts": lines("x") } }]),
       big: ["a.ts"],
     }
-    expect(diffOf(big, "a.ts", ["c1"]).runs[0]).toMatchObject({ big: true, hunks: [] })
+    expect(diffOf(big, "a.ts", ["c1"]).run).toMatchObject({ big: true, hunks: [] })
   })
 })
 

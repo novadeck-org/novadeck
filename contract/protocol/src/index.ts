@@ -56,8 +56,8 @@ export {
   telemetryLimits,
 } from "./agents.js"
 export {
-  type ChangeDiffHunk,
-  type ChangeFile,
+  type DiffHunk,
+  type ChangedFile,
   changeFileDiff,
   type ChangeFileDiff,
   changeRange,

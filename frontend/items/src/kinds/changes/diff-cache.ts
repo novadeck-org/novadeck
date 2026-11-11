@@ -8,8 +8,8 @@ import { factsOf, type Declaration, type FileFacts } from "@novadeck/viewers/fac
 
 export type FileDiff = {
   readonly diff: ChangeFileDiff
-  /** The facts of each run, null where its language gives none or the text was not sent. */
-  readonly facts: readonly (FileFacts | null)[]
+  /** The facts of the run, null where its language gives none or the text was not sent. */
+  readonly facts: FileFacts | null
 }
 
 type Cache = {
@@ -43,7 +43,7 @@ export const peekDiff = (
 // A declaration's text told which changed; it is not kept.
 const bare = (list: readonly Declaration[]) => list.map((each) => ({ ...each, body: "" }))
 
-const factsOfRun = async (run: ChangeFileDiff["runs"][number]): Promise<FileFacts | null> => {
+const factsOfRun = async (run: NonNullable<ChangeFileDiff["run"]>): Promise<FileFacts | null> => {
   // Without a side's text, or past the bounds, a change is only its lines.
   if (run.big || run.hunks.length === 0) return null
   try {
@@ -81,7 +81,7 @@ export const loadDiff = (
   if (pending) return pending
   const loading = read()
     .then(async (diff): Promise<FileDiff> => {
-      const loaded = { diff, facts: await Promise.all(diff.runs.map(factsOfRun)) }
+      const loaded = { diff, facts: diff.run ? await factsOfRun(diff.run) : null }
       // The same question at an older stamp is not asked again: its answer goes.
       const [, , same, name] = key.split("\0")
       for (const old of kept.keys()) {
