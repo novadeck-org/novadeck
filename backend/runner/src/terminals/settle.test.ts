@@ -54,6 +54,7 @@ describe("settling a draft kept only by doubt", () => {
     typing: {
       screenOf: (id: string) => Promise<unknown>
       settleBox: (record: unknown) => void
+      dialogs: { changed: (id: string) => void }
     }
     messaging: {
       rooted: (id: string, changes: readonly unknown[]) => void
@@ -110,6 +111,10 @@ describe("settling a draft kept only by doubt", () => {
     messaging.rooted(terminal.id, [root("a")])
     messaging.keys(terminal.id, ["content", "enter"], false)
     let looked = 0
+    // Each read takes the next screen, so only settling may read: the dialog watcher looks at
+    // Antigravity's screen after each draw, and the child's first draw, late on a loaded
+    // runner, had it take the read settling was to see typed (it then read empty twice).
+    inside.typing.dialogs.changed = () => undefined
     inside.typing.screenOf = () => {
       history.push(`${Date.now()} read ${looked} < ${caller()}`)
       return Promise.resolve(reads[Math.min(looked++, reads.length - 1)])
