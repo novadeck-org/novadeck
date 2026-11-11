@@ -180,11 +180,37 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      # To start E2E.
+      # To start E2E, and Nightly Report's wait for it.
       actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
       - name: Start E2E
+        id: start
+        run: |
+          since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          url=$(gh workflow run e2e.yml --ref main -f harness=pinned)
+          echo "$url"
+          id=$(grep -o 'runs/[0-9]*' <<< "$url" | cut -d/ -f2 || true)
+          # An older gh prints no address: the newest such run since the dispatch is it.
+          for _ in 1 2 3 4 5 6; do
+            [ -n "$id" ] && break
+            sleep 10
+            id=$(gh api "repos/$GH_REPO/actions/workflows/e2e.yml/runs?event=workflow_dispatch&branch=main&created=%3E%3D$since" \
+              --jq '[.workflow_runs[] | select(.actor.login == "github-actions[bot]")] | last | .id // empty' || true)
+          done
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+      # The run this token started starts no workflow when it ends, so Nightly Report isn't
+      # told of it: it is dispatched to wait for the run and report it. Without the run's id
+      # the night goes unreported, which the warning says.
+      - name: Report Pinned E2E When It Ends
         env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: gh workflow run e2e.yml --ref main -f harness=pinned
+          RUN: ${{ steps.start.outputs.id }}
+        run: |
+          if [ -z "$RUN" ]; then
+            echo "::warning::The pinned E2E run wasn't found, so Nightly Report won't report it."
+            exit 0
+          fi
+          gh workflow run nightly.yml --ref main -f run="$RUN" -f attempt=1 -f report=true

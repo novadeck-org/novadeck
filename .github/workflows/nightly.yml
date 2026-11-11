@@ -8,7 +8,10 @@ name: Nightly Report
 # next green night.
 #
 # A dispatch reports on the run it names as a dry run: the summary says what it would do and
-# shows the writeup, and no issue changes.
+# shows the writeup, and no issue changes. With `report`, it waits for the run to end and
+# reports for real: that is how E2E's run on the pinned harnesses is reported. Nightly Quality
+# starts that run with its token, so the run's end starts no workflow here, and it dispatches
+# this one beside it (a dispatch is the one event the token's runs can start).
 on:
   workflow_run:
     workflows: [E2E, Benchmark Timing, Nightly Quality]
@@ -21,6 +24,10 @@ on:
       attempt:
         description: Its attempt
         default: "1"
+      report:
+        description: Wait for the run to end, then change its issue for real
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -38,7 +45,8 @@ jobs:
       github.event.workflow_run.actor.login == 'github-actions[bot]') ||
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Waiting for a pinned E2E run takes as long as it waits for Macs.
+    timeout-minutes: ${{ inputs.report && 330 || 10 }}
     permissions:
       contents: read
       # To read the run's jobs.
@@ -49,8 +57,17 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       RUN_ID: ${{ github.event.workflow_run.id || inputs.run }}
       RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt || inputs.attempt }}
-      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && !inputs.report && '1' || '' }}
     steps:
+      # Every two minutes, a failed read only waiting longer.
+      - name: Wait for Run
+        if: inputs.report
+        timeout-minutes: 320
+        run: |
+          until [ "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" --jq .status || true)" = completed ]; do
+            sleep 120
+          done
+
       - name: Check Out Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
