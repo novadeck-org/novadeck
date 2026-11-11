@@ -1,0 +1,291 @@
+{
+  "total_count": 26,
+  "jobs": [
+    {
+      "id": 129292961151,
+      "run_id": 42655551838,
+      "run_attempt": 1,
+      "name": "Test (macOS)",
+      "labels": ["macos-latest"],
+      "conclusion": "failure",
+      "created_at": "2026-11-09T16:30:59Z",
+      "started_at": "2026-11-09T16:56:47Z",
+      "completed_at": "2026-11-09T16:59:52Z"
+    },
+    {
+      "id": 129292961584,
+      "run_id": 42655551838,
+      "run_attempt": 1,
+      "name": "Format",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T16:30:59Z",
+      "started_at": "2026-11-09T16:31:01Z",
+      "completed_at": "2026-11-09T16:31:36Z"
+    },
+    {
+      "id": 129292961678,
+      "run_id": 42655551838,
+      "run_attempt": 1,
+      "name": "Build (try)",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T16:30:59Z",
+      "started_at": "2026-11-09T16:31:01Z",
+      "completed_at": "2026-11-09T16:32:22Z"
+    },
+    {
+      "id": 129292961734,
+      "run_id": 42655551838,
+      "run_attempt": 1,
+      "name": "Test (Linux, 1/3)",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T16:30:59Z",
+      "started_at": "2026-11-09T16:31:01Z",
+      "completed_at": "2026-11-09T16:40:27Z"
+    },
+    {
+      "id": 129292961746,
+      "run_id": 42655551838,
+      "run_attempt": 1,
+      "name": "Lint",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T16:30:59Z",
+      "started_at": "2026-11-09T16:31:01Z",
+      "completed_at": "2026-11-09T16:32:03Z"
+    },
+    {
+      "id": 129292961878,
+      "run_id": 42655551838,
+      "run_attempt": 1,
+      "name": "Test (Windows, 2/3)",
+      "labels": ["windows-latest"],
+      "conclusion": "failure",
+      "created_at": "2026-11-09T16:30:59Z",
+      "started_at": "2026-11-09T16:31:02Z",
+      "completed_at": "2026-11-09T16:38:45Z"
+    },
+    {
+      "id": 129292961944,
+      "run_id": 42655551838,
+      "run_attempt": 1,
+      "name": "Test (Windows, 1/3)",
+      "labels": ["windows-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T16:30:59Z",
+      "started_at": "2026-11-09T16:31:05Z",
+      "completed_at": "2026-11-09T16:40:46Z"
+    },
+    {
+      "id": 129292961983,
+      "run_id": 42655551838,
+      "run_attempt": 1,
+      "name": "Shell",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T16:30:59Z",
+      "started_at": "2026-11-09T16:31:02Z",
+      "completed_at": "2026-11-09T16:31:39Z"
+    },
+    {
+      "id": 129292962091,
+      "run_id": 42655551838,
+      "run_attempt": 1,
+      "name": "Test (Linux, 3/3)",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T16:30:59Z",
+      "started_at": "2026-11-09T16:31:01Z",
+      "completed_at": "2026-11-09T16:36:26Z"
+    },
+    {
+      "id": 129292962179,
+      "run_id": 42655551838,
+      "run_attempt": 1,
+      "name": "Build",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T16:30:59Z",
+      "started_at": "2026-11-09T16:31:02Z",
+      "completed_at": "2026-11-09T16:32:24Z"
+    },
+    {
+      "id": 129292962225,
+      "run_id": 42655551838,
+      "run_attempt": 1,
+      "name": "Typecheck",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T16:30:59Z",
+      "started_at": "2026-11-09T16:31:02Z",
+      "completed_at": "2026-11-09T16:32:33Z"
+    },
+    {
+      "id": 129292962675,
+      "run_id": 42655551838,
+      "run_attempt": 1,
+      "name": "Test (Linux, 2/3)",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T16:30:59Z",
+      "started_at": "2026-11-09T16:31:01Z",
+      "completed_at": "2026-11-09T16:40:43Z"
+    },
+    {
+      "id": 129292962750,
+      "run_id": 42655551838,
+      "run_attempt": 1,
+      "name": "Test (Windows, 3/3)",
+      "labels": ["windows-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T16:30:59Z",
+      "started_at": "2026-11-09T16:31:03Z",
+      "completed_at": "2026-11-09T16:35:29Z"
+    },
+    {
+      "id": 129309722341,
+      "run_id": 42655551838,
+      "run_attempt": 1,
+      "name": "Test",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "failure",
+      "created_at": "2026-11-09T16:59:52Z",
+      "started_at": "2026-11-09T16:59:54Z",
+      "completed_at": "2026-11-09T16:59:57Z"
+    },
+    {
+      "id": 129309725414,
+      "run_id": 42655551838,
+      "run_attempt": 1,
+      "name": "Package",
+      "labels": [],
+      "conclusion": "skipped",
+      "created_at": "2026-11-09T16:59:53Z",
+      "started_at": "2026-11-09T16:59:53Z",
+      "completed_at": "2026-11-09T16:59:52Z"
+    },
+    {
+      "id": 129347317626,
+      "run_id": 42655551838,
+      "run_attempt": 2,
+      "name": "Test (Linux, 3/3)",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T18:06:59Z",
+      "started_at": "2026-11-09T16:31:01Z",
+      "completed_at": "2026-11-09T16:36:26Z"
+    },
+    {
+      "id": 129347345678,
+      "run_id": 42655551838,
+      "run_attempt": 2,
+      "name": "Test (macOS)",
+      "labels": ["macos-latest"],
+      "conclusion": "cancelled",
+      "created_at": "2026-11-09T18:07:02Z",
+      "started_at": "2026-11-09T18:07:05Z",
+      "completed_at": "2026-11-09T18:38:59Z"
+    },
+    {
+      "id": 129347347393,
+      "run_id": 42655551838,
+      "run_attempt": 2,
+      "name": "Test (Windows, 2/3)",
+      "labels": ["windows-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T18:07:02Z",
+      "started_at": "2026-11-09T18:07:05Z",
+      "completed_at": "2026-11-09T18:16:40Z"
+    },
+    {
+      "id": 129347369741,
+      "run_id": 42655551838,
+      "run_attempt": 2,
+      "name": "Format",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T18:07:04Z",
+      "started_at": "2026-11-09T16:31:01Z",
+      "completed_at": "2026-11-09T16:31:36Z"
+    },
+    {
+      "id": 129347369899,
+      "run_id": 42655551838,
+      "run_attempt": 2,
+      "name": "Shell",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T18:07:04Z",
+      "started_at": "2026-11-09T16:31:02Z",
+      "completed_at": "2026-11-09T16:31:39Z"
+    },
+    {
+      "id": 129347371322,
+      "run_id": 42655551838,
+      "run_attempt": 2,
+      "name": "Typecheck",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T18:07:04Z",
+      "started_at": "2026-11-09T16:31:02Z",
+      "completed_at": "2026-11-09T16:32:33Z"
+    },
+    {
+      "id": 129347383946,
+      "run_id": 42655551838,
+      "run_attempt": 2,
+      "name": "Build",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T18:07:05Z",
+      "started_at": "2026-11-09T16:31:02Z",
+      "completed_at": "2026-11-09T16:32:24Z"
+    },
+    {
+      "id": 129347385697,
+      "run_id": 42655551838,
+      "run_attempt": 2,
+      "name": "Test (Linux, 1/3)",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T18:07:05Z",
+      "started_at": "2026-11-09T16:31:01Z",
+      "completed_at": "2026-11-09T16:40:27Z"
+    },
+    {
+      "id": 129347412143,
+      "run_id": 42655551838,
+      "run_attempt": 2,
+      "name": "Test (Windows, 1/3)",
+      "labels": ["windows-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T18:07:07Z",
+      "started_at": "2026-11-09T16:31:05Z",
+      "completed_at": "2026-11-09T16:40:46Z"
+    },
+    {
+      "id": 129356935113,
+      "run_id": 42655551838,
+      "run_attempt": 2,
+      "name": "Test",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "failure",
+      "created_at": "2026-11-09T18:38:59Z",
+      "started_at": "2026-11-09T18:39:01Z",
+      "completed_at": "2026-11-09T18:39:04Z"
+    },
+    {
+      "id": 129356938416,
+      "run_id": 42655551838,
+      "run_attempt": 2,
+      "name": "Package",
+      "labels": [],
+      "conclusion": "skipped",
+      "created_at": "2026-11-09T18:38:59Z",
+      "started_at": "2026-11-09T18:38:59Z",
+      "completed_at": "2026-11-09T18:38:59Z"
+    }
+  ]
+}

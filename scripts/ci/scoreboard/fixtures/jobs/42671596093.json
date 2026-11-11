@@ -1,0 +1,93 @@
+{
+  "total_count": 8,
+  "jobs": [
+    {
+      "id": 129348281076,
+      "run_id": 42671596093,
+      "run_attempt": 1,
+      "name": "matrix.job",
+      "labels": [],
+      "conclusion": "skipped",
+      "created_at": "2026-11-09T18:11:04Z",
+      "started_at": "2026-11-09T18:11:04Z",
+      "completed_at": "2026-11-09T18:10:55Z"
+    },
+    {
+      "id": 129348322346,
+      "run_id": 42671596093,
+      "run_attempt": 1,
+      "name": "E2E",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "failure",
+      "created_at": "2026-11-09T18:11:07Z",
+      "started_at": "2026-11-09T18:11:09Z",
+      "completed_at": "2026-11-09T18:11:11Z"
+    },
+    {
+      "id": 129348325204,
+      "run_id": 42671596093,
+      "run_attempt": 1,
+      "name": "${{ matrix.setup.name }} (Windows quirks)",
+      "labels": ["windows-latest"],
+      "conclusion": "skipped",
+      "created_at": "2026-11-09T18:11:07Z",
+      "started_at": "2026-11-09T18:11:07Z",
+      "completed_at": "2026-11-09T18:10:55Z"
+    },
+    {
+      "id": 129353246188,
+      "run_id": 42671596093,
+      "run_attempt": 2,
+      "name": "Plan",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T18:31:51Z",
+      "started_at": "2026-11-09T18:31:54Z",
+      "completed_at": "2026-11-09T18:32:21Z"
+    },
+    {
+      "id": 129353247593,
+      "run_id": 42671596093,
+      "run_attempt": 2,
+      "name": "Probes (${{ matrix.setup.name }}, ${{ matrix.slice.name }})",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "skipped",
+      "created_at": "2026-11-09T18:31:52Z",
+      "started_at": "2026-11-09T18:31:52Z",
+      "completed_at": "2026-11-09T18:31:51Z"
+    },
+    {
+      "id": 129353506425,
+      "run_id": 42671596093,
+      "run_attempt": 2,
+      "name": "E2E",
+      "labels": ["ubuntu-latest"],
+      "conclusion": "success",
+      "created_at": "2026-11-09T18:32:21Z",
+      "started_at": "2026-11-09T18:32:24Z",
+      "completed_at": "2026-11-09T18:32:26Z"
+    },
+    {
+      "id": 129353508085,
+      "run_id": 42671596093,
+      "run_attempt": 2,
+      "name": "${{ matrix.setup.name }} (Windows quirks)",
+      "labels": ["windows-latest"],
+      "conclusion": "skipped",
+      "created_at": "2026-11-09T18:32:22Z",
+      "started_at": "2026-11-09T18:32:22Z",
+      "completed_at": "2026-11-09T18:32:21Z"
+    },
+    {
+      "id": 129353508206,
+      "run_id": 42671596093,
+      "run_attempt": 2,
+      "name": "matrix.job",
+      "labels": [],
+      "conclusion": "skipped",
+      "created_at": "2026-11-09T18:32:22Z",
+      "started_at": "2026-11-09T18:32:22Z",
+      "completed_at": "2026-11-09T18:32:21Z"
+    }
+  ]
+}

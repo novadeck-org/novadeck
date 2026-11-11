@@ -1,0 +1,54 @@
+name: CI Scoreboard
+
+# A weekly table of how the CI is doing, in the run's summary (scripts/ci/scoreboard): each
+# job's first-attempt pass rate and the runs that needed a rerun of it, the share of runs
+# rerun per workflow, the Mac hours a day, and the macOS queue's p90 beside Linux's and
+# Windows'. Nobody sees these otherwise: a flaky job or a Mac queue gets slower a push at a
+# time, and the plan to cut Mac use (architecture/ci-plan) needs a number to be judged by.
+# Pull request runs of Quality and E2E count, and Nightly Quality's runs where it exists. Above
+# the tables is the merge queue's bar (architecture/ci-plan/merge-queue.md), of the last 14
+# days: the share of PR runs a rerun cleared, and the nights that were green first time.
+on:
+  schedule:
+    # Sunday morning, when few pull requests run: the run takes most of an hour's API
+    # budget and may wait for the next, so it keeps clear of the weekday rush and of Known
+    # Flakes' daily Tally (06:41), which reads the same token's budget. After the nights
+    # (00:23 to about 04:00), so the week it reports ends with Saturday's.
+    - cron: "7 4 * * 0"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: Days to look back (default 7)
+        default: "7"
+
+permissions:
+  contents: read
+
+jobs:
+  scoreboard:
+    name: Scoreboard
+    runs-on: ubuntu-latest
+    # The bar looks back 14 days, about 1500 requests against the token's 1000 an hour, of
+    # which the script leaves 200 to other workflows: it waits out one hour for the budget to
+    # renew, and the rest takes a quarter of one.
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      # To list the runs and their jobs.
+      actions: read
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set Up Node
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          runtime: node@26
+
+      - name: Compute Scoreboard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SCOREBOARD_DAYS: ${{ inputs.days }}
+        run: node scripts/ci/scoreboard/main.ts
