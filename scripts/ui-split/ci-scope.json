@@ -1,0 +1,4 @@
+{
+  "reaches": "repository",
+  "why": "The scripts that split the UI into packages: run by hand on a developer's machine, and read by nothing but their own tests."
+}

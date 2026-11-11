@@ -41,6 +41,10 @@ through a CLI or API. Titles use `type(optional-scope): concise imperative summa
 Allowed types are `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`,
 `poc`, `revert`, `style`, and `test`.
 
+Open a PR as a draft while you iterate, and mark it ready once its Linux checks are green. A
+draft runs no macOS job (macOS runners are scarce), so its `Test` and `E2E` checks fail with
+"draft: macOS not run" while its change needs macOS; marking it ready runs them.
+
 Fill the required What, Why, and Impact sections. State the outcome, tradeoffs,
 and remaining limits; mention checks run when useful. Link related issues; use a
 closing keyword only when the PR fully resolves one. Remove instructional comments

@@ -10,3 +10,6 @@ engines/murmur/patches/*.patch text eol=lf
 scripts/flakes/fixtures/*.txt text eol=lf
 # Schema snapshots the store's tests rewrite line by line keep LF on every platform.
 backend/runner/src/workspaces/schemas/*.sql text eol=lf
+# The workflows' tests (scripts/quality/plan, scripts/e2e/plan) find jobs and steps in them by
+# their lines, and run the gates' bash out of them, on Windows too.
+.github/workflows/*.yml text eol=lf

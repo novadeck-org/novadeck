@@ -3,6 +3,11 @@ import { join, posix } from "node:path"
 
 import { describe, expect, it } from "./test"
 
+// It reads every package under frontend/ and apps/, by the names it lists: CI sees it by those in
+// package.json's novadeck.reads, as the reach fence (scripts/workspace/reach.ts) can't follow the
+// names.
+// oxlint-disable novadeck/reach
+
 // Every source file belongs to a layer: a folder ("shell/") or a single file
 // ("test.ts"). Each layer lists what it may import from src. What the package graph
 // holds (which package may import which: the core, the runner adapter, the demo and the

@@ -2,6 +2,7 @@ import type { Fields } from "@novadeck/harness-core/fields"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import type { AgentName } from "@novadeck/protocol/harnesses"
 
+import { harnessSources } from "./harnesses.test-support"
 import { agyAskSkipped, claudeAskSkipped, codexAskSkipped } from "./skipped"
 import { agyVocabulary } from "./vocabulary/agy"
 import { claudeVocabulary } from "./vocabulary/claude"
@@ -32,11 +33,8 @@ export type Fixture = {
   readonly extract: () => Extracted
 }
 
-const folderOf = (harness: AgentName): string =>
-  `${import.meta.dirname}/../../../harnesses/${harness}/src`
-
 // A fixture, typed as the shape its extractor expects; nothing checks it is that shape.
-const load = <T>(harness: AgentName, file: string): T => loadProbe<T>(folderOf(harness), file)
+const load = <T>(harness: AgentName, file: string): T => loadProbe<T>(harnessSources(harness), file)
 
 const isRecords = (value: unknown): value is readonly object[] =>
   Array.isArray(value) &&

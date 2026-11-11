@@ -39,6 +39,10 @@
     "vitest-browser-react": "^2.3.0"
   },
   "novadeck": {
-    "platform": "system"
+    "platform": "neutral",
+    "reads": [
+      "frontend",
+      "apps"
+    ]
   }
 }

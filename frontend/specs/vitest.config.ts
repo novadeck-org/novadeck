@@ -38,10 +38,13 @@ const optimizedUpFront = [
 ]
 
 // The specs whose app runs differently on a Mac: the chords they press or the words they read
-// come from `isMac()` (support/workspace.tsx). They run a second time as the other system: as a
-// Mac on Linux, which runs on every pull request, and as Linux on a Mac, so either covers both.
-// Windows, whose specs run the app as Linux does, runs them once. A spec that reads `isMac()`
-// from a file not listed here fails, naming this list (setup.ts).
+// come from `isMac()` (support/workspace.tsx). They run a second time as a Mac
+// (`behaviour-mac`), on every system: the main pass follows the browser's own system, as every
+// package's browser tests do, so Linux, where every pull request runs the specs, covers both.
+// On a Mac the second pass repeats the first, by design: choosing it by the host would make
+// what this package runs differ by system, which a `neutral` package may not (scripts/workspace's
+// fence). A spec that reads `isMac()` from a file not listed here fails, naming this list
+// (setup.ts).
 export const eachPlatform = [
   "src/companions/companions.spec.tsx",
   "src/desktop/portable.spec.tsx",
@@ -65,8 +68,6 @@ export const eachPlatform = [
   "src/workspace/routing.spec.tsx",
   "src/workspace/sidebar.spec.tsx",
 ]
-const other: Platform | undefined =
-  process.platform === "darwin" ? "linux" : process.platform === "linux" ? "mac" : undefined
 
 // The behaviour specs, of `include`, running the app as `platform` (support/platform.ts), or as
 // the browser's own system when it's undefined.
@@ -151,7 +152,7 @@ const config = defineConfig({
         },
       },
       behaviour("behaviour", ["src/**/*.spec.tsx"], undefined),
-      ...(other ? [behaviour(`behaviour-${other}`, eachPlatform, other)] : []),
+      behaviour("behaviour-mac", eachPlatform, "mac"),
       {
         extends: true,
         server: { strictPort: false },

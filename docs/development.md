@@ -744,6 +744,34 @@ unsure, declare `system`. `pnpm new:library` starts a library as `system`.
 | `frontend/terminal-views`               | Its specs draw with WebGL and the system's fonts in a real Chromium.       |
 | `frontend/specs`                        | Its browser specs choose keyboard chords by `navigator.platform`.          |
 
+CI runs a package's tests when the package, or one it depends on, changed. A test that reads
+files by path past its own package can't be seen that way, so the lint rule `novadeck/reach`
+(`scripts/workspace/reach.ts`) refuses a path a package builds from its own place that lands in
+a package it doesn't depend on, in prose outside every package, or in a folder whose
+`ci-scope.json` narrows it (below). Declare such a dependency, or list the path, relative to
+the root, under `reads`, and CI runs the package's tests when anything there changes:
+
+```json
+"novadeck": { "platform": "neutral", "reads": ["backend/runner/src/terminals/handles.ts"] }
+```
+
+A test that finds what it reads as it runs (`readdirSync(join(root, folder))`) can't be
+followed: its package lists the folders under `reads`, and the file turns the rule off with a
+comment that says what it reads (`scripts/workspace/reach.test.ts` holds both to that).
+
+A change outside every package runs everything, but for prose (`*.md`), which reaches only the
+packages that read it, and a folder with a `ci-scope.json` of its own:
+
+```json
+{ "reaches": "repository", "why": "Only the ratchet's own test reads it." }
+```
+
+`repository` means a change there reaches only the repository's own tests, on Linux: the
+folder runs in CI's Linux jobs or as a developer's tool. `scripts/workspace/scopes.test.ts`
+refuses one where a workflow job off Linux names the folder, where an unscoped folder imports
+it, and in `.github/`, `scripts/e2e`, `scripts/package`, `scripts/install`, `scripts/ci` and
+`scripts/workspace`. The nightly full run covers every system for what a pull request skips.
+
 Build an engine locally with `pnpm --filter @novadeck/whisper build:engine` or
 `pnpm --filter @novadeck/murmur build:engine`; the archive and `engine.json` land in
 the package's `dist/`.
@@ -1044,11 +1072,10 @@ the implementation changes. Each spec renders the whole app in headless Chromium
 with real CSS, layout, pointer, and keyboard input. The main behaviour project
 enables reduced motion; the smaller motion project exercises ordinary transitions.
 A spec whose chords or words differ on a Mac branches on `isMac()`, and its file is listed in
-`eachPlatform` (`frontend/specs/vitest.config.ts`): on Linux the `behaviour-mac` project runs
-those files again with the app taking the browser for a Mac (`support/platform.ts` sets
-`navigator.platform` and the user agent before the app loads), and on a Mac `behaviour-linux`
-runs them as Linux, so every run covers both. A file that calls `isMac()` without being
-listed fails. Only the app's side changes: the browser's own editing keys and rendering stay
+`eachPlatform` (`frontend/specs/vitest.config.ts`): the `behaviour-mac` project runs those
+files again with the app taking the browser for a Mac (`support/platform.ts` sets
+`navigator.platform` and the user agent before the app loads), on every system, so Linux's run
+covers both. A file that calls `isMac()` without being listed fails. Only the app's side changes: the browser's own editing keys and rendering stay
 those of the system it runs on.
 Specs find elements by accessible role, name, or text, and assert only what a
 person can observe: what is visible, focused, selected, or where it sits on
@@ -1170,22 +1197,26 @@ and the runner's, run together, starved the
 smaller CI runners enough to time out. What each task waits for, and why, is in [docs/build-graph.md](build-graph.md).
 Tests use Vitest: UI behaviour specs run in Vitest Browser Mode on Chromium, and
 MSW covers HTTP behavior. The PR workflows run formatting, lint, typechecking,
-builds, and PR metadata checks on Linux. The Test jobs run all package and repository
-tests on Linux, macOS, and Windows, including for draft PRs. Each runs UI tests in
-Chromium alongside backend API, real PTY, and built-CLI tests. The required `Test`
-check passes only when the entire Quality matrix succeeds. Once it has, a PR ready for review
+builds, and PR metadata checks on Linux. Linux runs every package and repository test on
+every pull request, in three parts. Windows and macOS run only when the change affects a
+package that declares `"novadeck": { "platform": "system" }`, or a file outside every package
+(`scripts/quality/plan`): Windows runs every test, and macOS, once every Linux job has passed,
+the system packages' tests, one package at a time (`npm run test:system`). The nightly
+Quality run runs every test on all three. The UI tests run in Chromium alongside backend API,
+real PTY, and built-CLI tests. The required `Test` check passes only when every job the plan
+chose has. A draft PR runs no macOS job, in Quality or E2E, and its `Test` and `E2E` checks
+fail ("draft: macOS not run") while its change needs macOS: open a PR as a draft while you
+iterate, and mark it ready once Linux is green, which runs both workflows again with macOS.
+Once `Test` passes on a PR that isn't a draft, Quality
 packages and smoke-tests the app on Linux, macOS, and Windows, through the
 [Package](../.github/workflows/package.yml) workflow releases use too, which Quality calls: no
 runner waits for the checks. It does so only when the change
 can affect the packaged app (`scripts/package/plan`: the host and every package it's built from,
 apart from their tests and prose, the dependency pins and patches, and the workflows that
-package). Draft PRs skip packaging; PR checks never create tags or publish releases.
-Quality checks run on PR opening, reopening, and commits. A PR reads only its own and
+package). PR checks never create tags or publish releases.
+Quality checks run on PR opening, reopening, commits, and marking a draft ready. A PR reads only its own and
 its base branch's caches, so the [Warm Caches](../.github/workflows/warm.yml) workflow fills main's test
-browser and Rust build caches on each push to main, under Quality's keys, and runs no tests.
-Marking a draft PR ready
-starts only the Package workflow, which waits for Quality's `Test` check of its head,
-usually already there, before packaging and smoke testing. Release preparation, tagging, and publishing are
+browser and Rust build caches on each push to main, under Quality's keys, and runs no tests. Release preparation, tagging, and publishing are
 disabled for PR runs.
 
 ### Known flakes

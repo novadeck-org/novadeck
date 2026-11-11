@@ -1,8 +1,9 @@
 import { execFileSync } from "node:child_process"
-import { readdirSync } from "node:fs"
+import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { context, describe, expect, it } from "../../test"
+import { runGate } from "./gate.ts"
 import {
   allSystemsFolders,
   browserOnlyFiles,
@@ -503,5 +504,187 @@ describe("the paths the plan names", () => {
   it("are each the start of a tracked file's path", () => {
     const prefixes = [...sharedFolders, ...allSystemsFolders, ...browserOnlyFiles]
     expect(prefixes.filter((prefix) => !named(prefix))).toEqual([])
+  })
+})
+
+describe("E2E jobs per system", () => {
+  const linuxOnly = plan(
+    pullRequest(["@novadeck/protocol", "@novadeck/runner"], ["contract/protocol/src/harnesses.ts"]),
+    ids,
+  )
+
+  it("gives each system's job that system's rows", () => {
+    const { jobs } = plan(nightly, ids)
+    expect(jobs.linux.every((row) => row.os === systems.linux)).toBe(true)
+    expect(jobs.windows.every((row) => row.os === systems.windows)).toBe(true)
+    expect(jobs.macos.every((row) => row.os === systems.macos)).toBe(true)
+    expect([...jobs.linux, ...jobs.windows, ...jobs.macos]).toEqual(plan(nightly, ids).rows)
+  })
+
+  // A skipped job's matrix is still read, and an empty one is an error there.
+  it("names rows for every system's job, the systems the plan left out included", () => {
+    expect(linuxOnly.os).toEqual([systems.linux])
+    expect(linuxOnly.rows).toEqual(linuxOnly.jobs.linux)
+    expect(linuxOnly.jobs.windows).not.toHaveLength(0)
+    expect(linuxOnly.jobs.macos).not.toHaveLength(0)
+  })
+})
+
+describe("E2E's workflow", () => {
+  const workflow = readFileSync(
+    join(import.meta.dirname, "..", "..", "..", ".github", "workflows", "e2e.yml"),
+    "utf8",
+  )
+  const job = (id: string): string => {
+    const start = workflow.indexOf(`\n  ${id}:\n`)
+    const end = workflow.indexOf("\n  # ", start + 1)
+    return workflow.slice(start, end < 0 ? undefined : end)
+  }
+
+  it("starts macOS's rows only once every Linux row has passed", () => {
+    expect(job("e2e-macos")).toContain("needs: [plan, e2e]")
+    expect(job("e2e-macos")).toContain("fromJSON(needs.plan.outputs.macos)")
+    expect(job("e2e")).toContain("fromJSON(needs.plan.outputs.linux)")
+  })
+
+  it("runs Windows's rows beside Linux's, not after them", () => {
+    expect(job("e2e-windows")).toContain("needs: plan\n")
+  })
+
+  // The pinned night, the latest-harness night and a dispatch, all on main, must not cancel
+  // one another; a pull request's newer push still cancels its older run.
+  it("cancels a pull request's superseded run, and no run that isn't a pull request's", () => {
+    expect(workflow).toContain(
+      "  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}\n  cancel-in-progress: true\n",
+    )
+  })
+
+  // Known Flakes reads the tests a retry passed from these artifacts (scripts/flakes/retries.ts):
+  // a job without the step hides its flakes in a green run.
+  it("uploads the tests a retry passed from every job that runs them", () => {
+    const shared = job("e2e").slice(job("e2e").indexOf("steps: &e2e-steps"))
+    expect(shared).toContain("- name: Upload Retried Tests")
+    expect(shared).toMatch(
+      /name: retried-e2e-.*\$\{\{ runner\.os \}\}.*\$\{\{ github\.run_attempt \}\}\n/,
+    )
+    for (const id of ["e2e-windows", "e2e-macos"]) {
+      expect(job(id)).toContain("    steps: *e2e-steps\n")
+    }
+    expect(job("quirks")).toContain("- name: Upload Retried Tests")
+  })
+
+  it("has the gate wait on every job the plan can choose", () => {
+    expect(job("gate")).toContain("needs: [plan, e2e, e2e-windows, e2e-macos, quirks]")
+  })
+})
+
+describe("E2E's gate", () => {
+  const every = '["ubuntu-latest","windows-latest","macos-latest"]'
+  const passed = {
+    PLAN_RESULT: "success",
+    RUN: "true",
+    OS: every,
+    LINUX_RESULT: "success",
+    WINDOWS_RESULT: "success",
+    MACOS_RESULT: "success",
+    QUIRKS_RESULT: "success",
+    HELD: "false",
+  }
+  const gate = (env: Partial<typeof passed>) => runGate("e2e.yml", { ...passed, ...env })
+
+  it("fails on a draft whose macOS rows were held, saying so in one line", () => {
+    const draft = {
+      OS: '["ubuntu-latest","windows-latest"]',
+      MACOS_RESULT: "skipped",
+      HELD: "true",
+    }
+    const { passed: ok, said } = gate(draft)
+    expect(ok).toBe(false)
+    expect(said).toBe("::error title=Draft::draft: macOS not run, mark ready to run it")
+  })
+  const skippedElsewhere = {
+    OS: '["ubuntu-latest"]',
+    WINDOWS_RESULT: "skipped",
+    MACOS_RESULT: "skipped",
+    QUIRKS_RESULT: "skipped",
+  }
+
+  it("passes when every job ran and passed", () => {
+    expect(gate({}).passed).toBe(true)
+  })
+
+  it("passes when the plan chose Linux alone and the others were skipped", () => {
+    expect(gate(skippedElsewhere).passed).toBe(true)
+  })
+
+  it("passes when the plan left macOS out and it was skipped", () => {
+    const os = '["ubuntu-latest","windows-latest"]'
+    expect(gate({ OS: os, MACOS_RESULT: "skipped" }).passed).toBe(true)
+  })
+
+  it("fails when a newer push cancelled the run while macOS waited for Linux", () => {
+    expect(gate({ LINUX_RESULT: "cancelled", MACOS_RESULT: "skipped" }).passed).toBe(false)
+  })
+
+  it("fails when the plan job failed, and said nothing", () => {
+    const silent = { RUN: "", OS: "", LINUX_RESULT: "skipped", WINDOWS_RESULT: "skipped" }
+    expect(
+      gate({ ...silent, PLAN_RESULT: "failure", MACOS_RESULT: "skipped", QUIRKS_RESULT: "skipped" })
+        .passed,
+    ).toBe(false)
+  })
+
+  it("passes when the plan chose nothing and every job was skipped", () => {
+    expect(gate({ ...skippedElsewhere, RUN: "false", LINUX_RESULT: "skipped" }).passed).toBe(true)
+  })
+
+  it.each([
+    ["the plan failed", { PLAN_RESULT: "failure" }],
+    ["a Linux row failed", { LINUX_RESULT: "failure" }],
+    // What a macOS job is when Linux's failed: skipped, which must not pass.
+    ["macOS was skipped after Linux failed", { LINUX_RESULT: "failure", MACOS_RESULT: "skipped" }],
+    ["macOS was planned and skipped", { MACOS_RESULT: "skipped" }],
+    ["macOS was cancelled", { MACOS_RESULT: "cancelled" }],
+    ["Windows failed", { WINDOWS_RESULT: "failure" }],
+    ["the quirks were planned and skipped", { QUIRKS_RESULT: "skipped" }],
+    ["Linux was planned alone and was skipped", { ...skippedElsewhere, LINUX_RESULT: "skipped" }],
+  ])("fails when %s", (_name, env) => {
+    expect(gate(env).passed).toBe(false)
+  })
+})
+
+describe("E2E on a draft", () => {
+  const runnerChange = pullRequest(["@novadeck/runner"], ["backend/runner/src/index.ts"])
+
+  it("holds macOS's rows back where its change needs them, and runs Linux's and Windows's", () => {
+    const planned = plan({ ...runnerChange, draft: true }, ids)
+    expect(planned.held).toBe(true)
+    expect(planned.os).toEqual([systems.linux, systems.windows])
+    expect(planned.rows.some((row) => row.os === systems.macos)).toBe(false)
+    expect(planned.quirks).not.toHaveLength(0)
+  })
+
+  it("holds nothing where its change needs no macOS, or reaches no harness", () => {
+    const protocol = pullRequest(
+      ["@novadeck/protocol", "@novadeck/runner"],
+      ["contract/protocol/src/a.ts"],
+    )
+    expect(plan({ ...protocol, draft: true }, ids).held).toBe(false)
+    expect(plan({ ...pullRequest([], ["docs/a.md"]), draft: true }, ids).held).toBe(false)
+  })
+
+  it("runs macOS once ready, and on every run no payload calls a draft", () => {
+    expect(plan({ ...runnerChange, draft: false }, ids).os).toContain(systems.macos)
+    expect(plan(runnerChange, ids).os).toContain(systems.macos)
+  })
+
+  it("runs again when a draft is marked ready, and reads whether it is one", () => {
+    const workflow = readFileSync(
+      join(import.meta.dirname, "..", "..", "..", ".github", "workflows", "e2e.yml"),
+      "utf8",
+    )
+    expect(workflow).toContain("types: [opened, synchronize, reopened, ready_for_review]")
+    expect(workflow).toContain("DRAFT: ${{ github.event.pull_request.draft }}")
+    expect(workflow).toContain("HELD: ${{ needs.plan.outputs.held }}")
   })
 })

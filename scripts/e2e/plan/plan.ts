@@ -14,6 +14,8 @@ export type Facts = {
   readonly runner: readonly string[] | undefined
   /** Paths git calls changed, relative to the repository's root, with `/` as separator. */
   readonly files: readonly string[] | undefined
+  /** Whether the pull request is a draft; anything else reads as not, so macOS runs. */
+  readonly draft?: boolean
 }
 
 // The packages a change in which runs no harness of its own: the runner is reported
@@ -111,22 +113,26 @@ export const select = (facts: Facts, ids: readonly string[]): readonly string[] 
 }
 
 /**
+ * The systems a run's jobs run on: on a pull request, Linux alone unless its change can break
+ * one system but not the others (`touchesSystem`); all three otherwise, and when that can't be
+ * told (`undefined`), as for `select`. Quality's tests decide by this rule too, with their own
+ * answer to whether a change touches the system (scripts/quality/plan).
+ */
+export const systemsFor = (event: string, touchesSystem: boolean | undefined): readonly string[] =>
+  event === "pull_request" && touchesSystem === false ? [systems.linux] : everySystem
+
+/** Whether a changed file is one the suite can run differently on each system. */
+const e2eTouchesSystem = (file: string): boolean =>
+  allSystemsFiles.has(file) ||
+  (allSystemsFolders.some((f) => file.startsWith(f)) &&
+    !browserOnlyFiles.some((f) => file.startsWith(f)))
+
+/**
  * The systems the rows run on. Linux alone unless a change can break a system but not the
  * others (`allSystemsFolders`); all three when nothing says otherwise, as for `select`.
  */
-export const selectSystems = (facts: Facts): readonly string[] => {
-  if (facts.event !== "pull_request") return everySystem
-  const { files } = facts
-  if (!files) return everySystem
-  return files.some(
-    (file) =>
-      allSystemsFiles.has(file) ||
-      (allSystemsFolders.some((f) => file.startsWith(f)) &&
-        !browserOnlyFiles.some((f) => file.startsWith(f))),
-  )
-    ? everySystem
-    : [systems.linux]
-}
+export const selectSystems = (facts: Facts): readonly string[] =>
+  systemsFor(facts.event, facts.files?.some(e2eTouchesSystem))
 
 /** One row of the `e2e` job's matrix. */
 export type Setup = {
@@ -259,12 +265,24 @@ export const rows = (os: readonly string[], each: readonly Setup[]): readonly Ro
 /** What the workflow's jobs read. */
 export type Plan = {
   readonly run: boolean
-  /** The `runs-on` of each system the `e2e` job runs on; the `quirks` job needs Windows. */
+  /** The `runs-on` of each system the `e2e` jobs run on; the `quirks` job needs Windows. */
   readonly os: readonly string[]
   readonly e2e: readonly Setup[]
-  /** The `e2e` job's matrix: `os` by `e2e`, with the long harnesses split in two. */
+  /** The jobs that run: `os` by `e2e`, with the long harnesses split in two. */
   readonly rows: readonly Row[]
+  /**
+   * The matrix of each system's job: Linux's, Windows's, and macOS's, which starts only once
+   * Linux's have passed. Each names its rows whether `os` has the system or not, as a skipped
+   * job's matrix must still be one; `os` says which run.
+   */
+  readonly jobs: { readonly [system in keyof typeof systems]: readonly Row[] }
   readonly quirks: readonly Quirk[]
+  /**
+   * Whether macOS's rows were chosen but held back, as the pull request is a draft: marking
+   * it ready runs them. The `E2E` gate fails while they are, so a draft's run can't stand for
+   * the pull request once it can merge.
+   */
+  readonly held: boolean
 }
 
 export const plan = (facts: Facts, ids: readonly string[]): Plan => {
@@ -272,13 +290,22 @@ export const plan = (facts: Facts, ids: readonly string[]): Plan => {
   // With nothing to run the jobs are skipped, but their matrices still name every row: a
   // skipped job's matrix is never run, and an empty one is an error where Actions reads it.
   const chosen = selected.length > 0 ? selected : ids
-  const os = selected.length > 0 ? selectSystems(facts) : everySystem
+  const systemsChosen = selected.length > 0 ? selectSystems(facts) : everySystem
+  // A draft runs no macOS job: its rows wait for the pull request to be marked ready.
+  const held = selected.length > 0 && facts.draft === true && systemsChosen.includes(systems.macos)
+  const os = held ? systemsChosen.filter((system) => system !== systems.macos) : systemsChosen
   const e2e = setups(chosen, ids)
   return {
     run: selected.length > 0,
+    held,
     os,
     e2e,
     rows: rows(os, e2e),
+    jobs: {
+      linux: rows([systems.linux], e2e),
+      windows: rows([systems.windows], e2e),
+      macos: rows([systems.macos], e2e),
+    },
     quirks: quirks(chosen),
   }
 }

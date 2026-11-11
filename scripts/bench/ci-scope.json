@@ -1,0 +1,4 @@
+{
+  "reaches": "repository",
+  "why": "The local benchmarks (pnpm bench:profile and bench:timing): no workflow or package runs them, and only their own tests read them."
+}

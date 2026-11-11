@@ -19,7 +19,7 @@ export type Platform = "system" | "neutral"
 /** The part of a package.json this reads. */
 export type Declared = {
   readonly name?: unknown
-  readonly novadeck?: { readonly platform?: unknown }
+  readonly novadeck?: { readonly platform?: unknown; readonly reads?: unknown }
 }
 
 /** A package's platform as it declares it, or `undefined` where it declares none or no known one. */
@@ -30,6 +30,35 @@ export const declaredPlatform = (manifest: Declared): Platform | undefined => {
 
 /** A package's platform as CI takes it: what it declares, and `system` where that can't be read. */
 export const platformOf = (manifest: Declared): Platform => declaredPlatform(manifest) ?? "system"
+
+/**
+ * What a package's code or tests read by path outside its own folder and the packages it
+ * depends on, each a folder or file relative to the repository's root (`""` for all of it):
+ *
+ *     "novadeck": { "platform": "neutral", "reads": ["frontend", "apps"] }
+ *
+ * The package graph can't see such a read, so CI counts the package affected by a change under
+ * any of them, and the reach fence (reach.ts) refuses one it doesn't list. `undefined` where the
+ * list can't be read, which CI takes as everything.
+ */
+export const declaredReads = (manifest: Declared): readonly string[] | undefined => {
+  const reads = manifest.novadeck?.reads
+  if (reads === undefined) return []
+  if (!Array.isArray(reads)) return undefined
+  const readable = reads.every(
+    (each): each is string =>
+      typeof each === "string" &&
+      !each.startsWith("/") &&
+      !each.endsWith("/") &&
+      !each.includes("\\") &&
+      !each.split("/").some((part) => part === ".." || part === "."),
+  )
+  return readable ? reads : undefined
+}
+
+/** Whether a path relative to the root is under one of `reads`. */
+export const isRead = (reads: readonly string[], path: string): boolean =>
+  reads.some((read) => read === "" || path === read || path.startsWith(`${read}/`))
 
 /**
  * The folder globs of `pnpm-workspace.yaml`'s `packages`, read without a YAML parser: each is a

@@ -3,6 +3,11 @@ import { join, posix } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
+// It reads every file under engines/, by the names it lists: CI sees it by engines/ in
+// package.json's novadeck.reads, as the reach fence (scripts/workspace/reach.ts) can't follow
+// those names.
+// oxlint-disable novadeck/reach
+
 // The Package workflow keeps each engine it built in a cache, keyed on hashes of files, and
 // rebuilds and re-signs it only when the key changes, which makes every user download it
 // again. So the key hashes exactly what the build reads: a file it leaves out would ship a

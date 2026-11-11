@@ -1,0 +1,30 @@
+{
+  "since": "2026-11-03T18:54:34.194Z",
+  "until": "2026-11-10T18:54:34.194Z",
+  "days": 7,
+  "budget": {
+    "runs": 3,
+    "days": 7
+  },
+  "runs": 3,
+  "tests": [
+    {
+      "test": "src/reap.test.ts > reap on macOS > ends one found through its parent",
+      "package": "@novadeck/sandbox",
+      "runs": 3,
+      "retries": 3,
+      "last": "2026-11-10T18:54:34Z",
+      "over": "retried in 3 runs in 7 days",
+      "flake": null
+    },
+    {
+      "test": "src/companions/companions.spec.tsx > Switching views > opens a plan's editor as it was left",
+      "package": "@novadeck/specs",
+      "runs": 1,
+      "retries": 2,
+      "last": "2026-11-10T18:54:34Z",
+      "over": "registered as fixed, and retried again",
+      "flake": "ui-companions-plan-reopen-place"
+    }
+  ]
+}
