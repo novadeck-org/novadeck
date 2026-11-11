@@ -235,6 +235,8 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       changeFile: (input) =>
         note(`change file ${input.path}`, () => runner.companions.changeFile(input)),
       changeRange: (input) => note("change range", () => runner.companions.changeRange(input)),
+      changeRead: (input) =>
+        note(`change read ${input.path}`, () => runner.companions.changeRead(input)),
       save: (input) => note(`save plan ${input.itemId}`, () => runner.companions.save(input)),
       attach: (input) => note(`attach ${input.path}`, () => runner.companions.attach(input)),
       openInProject: (input) =>

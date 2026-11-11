@@ -229,13 +229,26 @@ export const createShowcase = (
     string,
     Set<{ on: (content: ItemContent) => void; reveal: string | undefined }>
   >()
+  // The files of each change the person read, as the runner keeps them; a sample's files never
+  // change, so read stays read.
+  const readFiles = new Map<string, readonly string[]>()
+  const withRead = (id: string, content: ItemContent): ItemContent => {
+    const paths = readFiles.get(id)
+    return paths && content.state === "ready" && content.content.kind === "changes"
+      ? {
+          ...content,
+          stamp: `${content.stamp}:${paths.length}`,
+          content: { ...content.content, read: paths },
+        }
+      : content
+  }
   const shownContent = (id: string, reveal: string | undefined): ItemContent => {
     const sample = samples.get(id)
     return !sample
       ? { state: "unavailable", reason: "gone", size: null }
       : sample.item.secret && (reveal === undefined || reveal !== sample.item.path)
         ? { state: "unavailable", reason: "secret", size: null }
-        : sample.content
+        : withRead(id, sample.content)
   }
 
   // What a file the person picked holds: as an agent showed it, if one did, and all of it.
@@ -350,6 +363,19 @@ export const createShowcase = (
       return read
         ? Promise.resolve({ files: read(layers), truncated: false })
         : Promise.reject(new Error("There is no such change"))
+    },
+    changeRead: (_target, id, path) => {
+      const sample = samples.get(id)
+      const content = sample?.content
+      if (content?.state !== "ready" || content.content.kind !== "changes")
+        return Promise.reject(new Error("There is no such change"))
+      // As the runner: only a file the change as a whole lists.
+      const listed = content.content.files.some((file) => file.path === path)
+      const before = readFiles.get(id) ?? []
+      if (!listed || before.includes(path)) return Promise.resolve()
+      readFiles.set(id, [...before, path])
+      for (const watcher of watching.get(id) ?? []) watcher.on(shownContent(id, watcher.reveal))
+      return Promise.resolve()
     },
     follow: (target, id, { reveal }, on) => {
       const agent = planOf(target, id)

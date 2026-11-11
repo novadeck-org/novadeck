@@ -62,6 +62,7 @@ const following = ({ livePages = false } = {}) => {
   }
   const saves: { itemId: string; text: string; basedOn: string }[] = []
   const rangeAsked: { itemId: string; layers: readonly string[] }[] = []
+  const readAsked: { itemId: string; path: string }[] = []
   const changeAsked: { itemId: string; path: string; layers: readonly string[] }[] = []
   let changed: ChangeFileDiff = { run: null }
   let saving: PlanSaveResult = { saved: true, stamp: "b2" }
@@ -81,6 +82,9 @@ const following = ({ livePages = false } = {}) => {
       changeRange: async (input) => {
         rangeAsked.push(input)
         return { files: [], truncated: false }
+      },
+      changeRead: async (input) => {
+        readAsked.push(input)
       },
       save: async (input) => {
         saves.push(input)
@@ -103,6 +107,7 @@ const following = ({ livePages = false } = {}) => {
     asked,
     changeAsked,
     rangeAsked,
+    readAsked,
     changeReturns: (diff: ChangeFileDiff) => {
       changed = diff
     },
@@ -188,6 +193,7 @@ describe("the runner's companion content", () => {
       root: "/repo",
       base: "main",
       truncated: false,
+      read: ["a.ts"],
       files: [
         {
           path: "a.ts",
@@ -268,6 +274,14 @@ describe("the runner's companion content", () => {
     })
 
     expect(app.rangeAsked).toEqual([{ itemId: hero, layers: ["a", "b"] }])
+  })
+
+  it("tells the runner a file of a change was read", async () => {
+    const app = following()
+
+    await app.companions.changeRead!(target, hero, "a.ts")
+
+    expect(app.readAsked).toEqual([{ itemId: hero, path: "a.ts" }])
   })
 
   it("gives a plan as the runner says it can be written, without saying when it changed", async () => {
@@ -550,6 +564,7 @@ describe("what a page shows wrong", () => {
       content: () => channel<RunnerContent>().iterator,
       changeFile: () => Promise.reject(new Error("unused")),
       changeRange: () => Promise.reject(new Error("unused")),
+      changeRead: () => Promise.reject(new Error("unused")),
       save: () => Promise.reject(new Error("unused")),
       openInProject: () => Promise.reject(new Error("unused")),
       pageTrouble: async (input) => {

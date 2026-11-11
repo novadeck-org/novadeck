@@ -289,6 +289,7 @@ export const scriptedRunner = ({
       content: api.companions.content.handler(unplayed("companions.content")),
       changeFile: api.companions.changeFile.handler(unplayed("companions.changeFile")),
       changeRange: api.companions.changeRange.handler(unplayed("companions.changeRange")),
+      changeRead: api.companions.changeRead.handler(unplayed("companions.changeRead")),
       save: api.companions.save.handler(unplayed("companions.save")),
       attach: api.companions.attach.handler(unplayed("companions.attach")),
       openInProject: api.companions.openInProject.handler(unplayed("companions.openInProject")),

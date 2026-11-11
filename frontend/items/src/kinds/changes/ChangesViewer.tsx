@@ -1,5 +1,5 @@
 import { type ChangesContent, type Item } from "@novadeck/core/items"
-import { useMemo, type KeyboardEvent } from "react"
+import { useCallback, useMemo, type KeyboardEvent } from "react"
 
 import { ArtifactMeta, type ArtifactBodyProps } from "../../ArtifactViewer"
 import { FileTree } from "./FileTree"
@@ -13,7 +13,8 @@ import { useChangesView } from "./view-state"
 
 // An agent's change, measured against main: its layers (the uncommitted work and each commit
 // since the merge base) to pick from, the files they changed as a tree, and one file at a time
-// opened into its changes. Read-only. What was picked and opened is kept by item.
+// opened into its changes. Read-only. What was picked and opened is kept by item; the files read
+// are the backend's, kept until each changes again.
 
 const noun = (count: number): string => `${count} ${count === 1 ? "file" : "files"}`
 
@@ -61,7 +62,35 @@ export const ChangesViewer = ({
   )
   const all = useMemo(() => sums(content), [content])
 
-  const { host, head, list, phase, opened, open, back, step } = useDrillDown(order, view, update)
+  // A file opened is read: grayed at once, until the content comes again with the backend's word.
+  const markRead = useCallback(
+    (path: string) => {
+      update((now) => ({
+        ...now,
+        read: {
+          ...Object.fromEntries(Object.entries(now.read).filter(([, at]) => at === stamp)),
+          [path]: stamp,
+        },
+      }))
+      itemStore.changeRead(target, item.id, path)
+    },
+    [item.id, itemStore, stamp, target, update],
+  )
+  const read = useMemo(
+    () =>
+      new Set([
+        ...content.read,
+        ...Object.entries(view.read).flatMap(([path, at]) => (at === stamp ? [path] : [])),
+      ]),
+    [content.read, stamp, view.read],
+  )
+
+  const { host, head, list, phase, opened, open, back, step } = useDrillDown(
+    order,
+    view,
+    update,
+    markRead,
+  )
   const unfolded = order.some((file) => file.path === view.unfolded) ? view.unfolded : null
 
   const keys = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -141,7 +170,7 @@ export const ChangesViewer = ({
                   ) : (
                     <FileTree
                       rows={rows}
-                      read={view.read}
+                      read={read}
                       unfolded={unfolded}
                       folded={view.folded}
                       onUnfold={(path) =>

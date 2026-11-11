@@ -19,12 +19,14 @@ import type {
 } from "@novadeck/protocol"
 import { KeyedChanges } from "@novadeck/wire/server"
 
+import { waitAfter } from "../checkouts/git.js"
+import { Snapshots } from "../checkouts/snapshots.js"
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
 import { agentLabel } from "../messaging/messages.js"
 import { mention } from "../terminals/handles.js"
 import { tail } from "../text.js"
-import { displayed, repositoryOf, samePlace, waitAfter } from "./changes.js"
+import { displayed, repositoryOf, samePlace } from "./changes.js"
 import {
   hashOf,
   loadFile,
@@ -37,7 +39,7 @@ import {
   type PlanText,
   type Pointed,
 } from "./content.js"
-import { findRepository, LayerReader } from "./layers.js"
+import { findRepository, LayerReader, type ReadMarks } from "./layers.js"
 import { PageLooks } from "./looks.js"
 import type { ItemRecord, ItemRecords, WindowRecord } from "./records.js"
 import {
@@ -50,6 +52,7 @@ import {
   type RequestFailure,
   type ShowRequest,
 } from "./request.js"
+import { secrets } from "./secrets.js"
 
 const log = logs.for("companions")
 
@@ -95,6 +98,16 @@ type CompanionOptions = {
   readonly changesMs?: number
   /** How long an agent's look waits for the client's picture, in milliseconds. */
   readonly lookMs?: number
+  /**
+   * What takes checkouts' working trees as trees, shared with the Changes panel; one of the
+   * items' own (closed with them) where omitted.
+   */
+  readonly snapshots?: Snapshots
+  /** Where the files of a change the person read are kept (the Changes panel's memory). */
+  readonly reads?: {
+    readonly marks: ReadMarks
+    readonly mark: (root: string, path: string, blob: string) => Promise<void>
+  }
 }
 
 /** Who hears of the troubles pages had and of the items that go: the terminals. */
@@ -224,7 +237,9 @@ export class CompanionItems {
   private readonly pollMs: number
   private readonly changesMs: number
   /** What changes items read their layers and files' diffs with. */
-  private readonly layers = new LayerReader(() => this.environment())
+  private readonly layers: LayerReader
+  /** The snapshots the items made for themselves, where none were given. */
+  private readonly ownSnapshots: Snapshots | undefined
   /** Each `watch` stream and the owner whose release ends it. */
   private readonly watchers = new Map<KeyedChanges<string, CompanionChange>, string>()
   /** Each item's `content` readers, which end once it is deleted. */
@@ -258,6 +273,15 @@ export class CompanionItems {
     this.pollMs = options.pollMs ?? 500
     this.changesMs = options.changesMs ?? 2000
     this.lookMs = options.lookMs ?? defaultLookMs
+    this.ownSnapshots = options.snapshots
+      ? undefined
+      : // Shared with no one, so a snapshot serves no one else: each read takes its own.
+        new Snapshots({ held: () => secrets(this.environment()), freshMs: 0 })
+    this.layers = new LayerReader(
+      (options.snapshots ?? this.ownSnapshots)!,
+      () => this.environment(),
+      { ...(options.reads && { marks: options.reads.marks }) },
+    )
   }
 
   /** The environment files are judged by (see `CompanionOptions.environment`). */
@@ -404,12 +428,12 @@ export class CompanionItems {
               : "shown by its agent"
             : "attached by the user"
       const notes = [placed, whose].filter(Boolean).join(", ")
-      const secrets = item.secret ? "; may hold secrets" : ""
+      const held = item.secret ? "; may hold secrets" : ""
       const title = item.kind === "changes" ? displayed(item.name) : item.name
       const name = `${item.kind} ${JSON.stringify(title)}${range}`
       // A plan it presents as text is in its own conversation.
       if (own && item.plan?.format === "text") return `- ${name} (in your conversation)`
-      return `- ${name}: ${where} (${notes}${secrets})`
+      return `- ${name}: ${where} (${notes}${held})`
     })
     return [`Showing beside your terminal in Novadeck (${items.length}):`, ...lines].join("\n")
   }
@@ -840,7 +864,7 @@ export class CompanionItems {
   shutdown(): Promise<void> {
     this.stopping = true
     // Nothing is read after, and the folders go once what is running ends.
-    const closed = this.layers.close()
+    const closed = this.layers.close().then(() => this.ownSnapshots?.close())
     this.looks.finish()
     for (const watcher of this.watchers.keys()) watcher.finish()
     for (const readers of this.readers.values()) for (const reader of readers) reader.abort()
@@ -945,7 +969,8 @@ export class CompanionItems {
     if ("changes" in request) {
       const root = await repositoryOf(resolve(place.cwd, request.changes.path ?? "."))
       if (!root.ok) return root
-      const read = await this.layers.read(root.root)
+      // As the agent left it, not as a snapshot of a moment ago.
+      const read = await this.layers.read(root.root, true)
       if (!read.ok) return read
       const { name, detail } = read.change
       return {
@@ -1208,6 +1233,17 @@ export class CompanionItems {
     )
     if (!read.ok) throw new Error(read.reason)
     return read.diff
+  }
+
+  /**
+   * The person read a file of a changes item (see `companions.changeRead`): it reads as read
+   * until it changes again. A file the change did not list as a whole when last read is not
+   * marked. NOT_FOUND for an unknown item or one that is no change.
+   */
+  async changeRead(input: { readonly itemId: string; readonly path: string }): Promise<void> {
+    const root = await this.changeRoot(input.itemId)
+    const listed = this.layers.listedFile(root, input.path)
+    if (listed) await this.options.reads?.mark(root, listed.path, listed.blob)
   }
 
   /** The files a selection of layers changed as one range (see `companions.changeRange`). */

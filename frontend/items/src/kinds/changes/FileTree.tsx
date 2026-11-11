@@ -15,7 +15,7 @@ import { useCallback } from "react"
 import type { ItemStore } from "../../store/item-store"
 import { Branches } from "./Branches"
 import { Counts } from "./Parts"
-import { stampOf, type TreeFile, type TreeRow } from "./tree"
+import type { TreeFile, TreeRow } from "./tree"
 
 // The files the selected layers changed, as the Source panel draws its tree: a row each, in
 // folders with guides, its name coloured by how it changed and its lines on the right. A file
@@ -73,7 +73,7 @@ export const FileTree = ({
   layers,
 }: {
   rows: readonly TreeRow[]
-  read: Readonly<Record<string, string>>
+  read: ReadonlySet<string>
   unfolded: string | null
   folded: readonly string[]
   onUnfold: (path: string) => void
@@ -150,7 +150,7 @@ export const FileTree = ({
               data-kind={kindOf(file.status)}
               data-folder="false"
               data-selected={open}
-              data-read={read[file.path] === stampOf(file) || undefined}
+              data-read={read.has(file.path) || undefined}
               data-path={file.path}
             >
               {guides(row.depth)}

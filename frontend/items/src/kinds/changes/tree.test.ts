@@ -1,7 +1,7 @@
 import type { ChangedFile, ChangeLayer } from "@novadeck/core/items"
 import { describe, expect, it } from "vitest"
 
-import { filesOf, rowsOf, stampOf } from "./tree"
+import { filesOf, rowsOf } from "./tree"
 
 const file = (path: string, rest: Partial<ChangedFile> = {}): ChangedFile => ({
   path,
@@ -92,11 +92,5 @@ describe("the tree of files", () => {
   it("splits a path into the folder it is in and its name", () => {
     const [one] = filesOf([layer("c1", [file("a/b/c.ts")])], new Set(["c1"]))
     expect(one).toMatchObject({ name: "c.ts", dir: "a/b" })
-  })
-
-  it("reads a file again once its counts or layers are not the ones it was read at", () => {
-    const [a] = filesOf(layers, new Set(["c2"]))
-    const [b] = filesOf(layers, new Set(["c2", "c1"]))
-    expect(stampOf(a!)).not.toBe(stampOf(b!))
   })
 })

@@ -1561,7 +1561,8 @@ one from an earlier runner.
     for its agent). A `changes` item is a checkout measured against its repository's main
     branch (`base` names it, `HEAD` where there is none): `root`, `base`, and `layers`, newest
     first, and `files`, the whole change's own list (what `changeRange` gives over every layer: the
-    net against main, at most 300, in `truncated` too). A layer is the work not committed yet (`id` `uncommitted`, `time` null: the
+    net against main, at most 300, in `truncated` too), and `read`, the paths of `files` the
+    person read (`companions.changeRead`) that have not changed since. A layer is the work not committed yet (`id` `uncommitted`, `time` null: the
     working tree, untracked files included and ignored ones not) or a commit since the merge
     base with main (`id` its hash, its `subject` and `time`), with its `files` (`path`,
     `oldPath` for renames, `status`, `added` and `removed` counts ignoring whitespace,
@@ -1573,7 +1574,8 @@ one from an earlier runner.
     every 2 seconds while followed (less often after slow reads, keeping the last good
     content through a failed read or two), and `reveal` has no effect on it; a repository that is
     gone is `missing`, and a failing git `unreadable`. A checkout is read through a private
-    index: the person's own is never written.
+    index: the person's own is never written. Its snapshot is shared with the Changes panel
+    (`works.watch`): one taken in the last 1.5 seconds serves both.
   - `companions.changeFile({ itemId, path, layers })` reads one file of a changes item for
     the layer ids selected: `{ run }`, one run for the range they span (the layers between
     the newest and the oldest selected are taken in; layers no longer there are left out, and a
@@ -1591,6 +1593,11 @@ one from an earlier runner.
     so what main brought in is no part of it. A snapshot's objects are written to a folder of the
     runner's own, never to the person's object store, and a file that may hold secrets is never
     hashed.
+  - `companions.changeRead({ itemId, path })` marks a file of a changes item read, by the path
+    its content lists it under: the item's content names it in `read` until the file changes
+    again, across restarts (the runner keeps it beside the Changes panel's memory). A file the
+    change as a whole did not list when last read is not marked. An unknown item, or one that is
+    no change, is `NOT_FOUND`.
   - `companions.save({ itemId, text, basedOn })` writes the person's edit to a plan kept in
     a file, atomically, keeping the file's permissions, unless the file's stamp is no longer
     `basedOn` (a text plan's stamp is a hash of its text; a file plan's is its size,

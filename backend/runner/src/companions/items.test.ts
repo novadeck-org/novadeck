@@ -19,9 +19,9 @@ import {
   type PageTrouble,
 } from "@novadeck/protocol"
 
+import { timing } from "../checkouts/git.js"
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
-import { timing } from "./changes.js"
 import type { PlanText } from "./content.js"
 import { CompanionItems, type TerminalPlace } from "./items.js"
 
@@ -47,6 +47,8 @@ type Fixture = {
   live: Map<string, PlanText>
   /** The person's environment, as `environment` reads it: none of the machine's own. */
   environment: NodeJS.ProcessEnv
+  /** The files of changes read, by checkout, as `reads` keeps them. */
+  marks: Map<string, Map<string, string>>
 }
 
 const it = base.extend<{ fixture: Fixture }>({
@@ -60,8 +62,15 @@ const it = base.extend<{ fixture: Fixture }>({
     const places = new Map<string, TerminalPlace>()
     const live = new Map<string, PlanText>()
     const environment: NodeJS.ProcessEnv = {}
+    const marks = new Map<string, Map<string, string>>()
     const items = new CompanionItems({
       environment: () => environment,
+      reads: {
+        marks: (root) => marks.get(root) ?? new Map(),
+        mark: async (root, path, blob) => {
+          marks.set(root, new Map([...(marks.get(root) ?? []), [path, blob]]))
+        },
+      },
       records: store,
       terminal: (terminalId) => places.get(terminalId),
       project: (sessionId) => (sessionId === session.id ? directory : undefined),
@@ -109,6 +118,7 @@ const it = base.extend<{ fixture: Fixture }>({
       items,
       live,
       environment,
+      marks,
     })
   },
 })
@@ -1433,6 +1443,27 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     await expect(
       fixture.items.changeRange({ itemId: "nope", layers: ["uncommitted"] }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    fixture.items.close(itemId)
+  })
+
+  it("marks a file read, which its content names until it changes", async ({ fixture }) => {
+    const { root, place } = repository(fixture)
+    const shown = await fixture.items.show(place, { changes: {} })
+    const itemId = shown.ok ? shown.id : ""
+    const stream = fixture.items.content(itemId, undefined)
+    const read = (content: ItemContent | undefined) =>
+      content?.state === "ready" && content.content.kind === "changes" ? content.content.read : []
+    expect(read(await next(stream))).toEqual([])
+    await fixture.items.changeRead({ itemId, path: "a.txt" })
+    // A file the change does not list is not marked.
+    await fixture.items.changeRead({ itemId, path: "nope.txt" })
+    expect([...fixture.marks.values()].flatMap((each) => [...each.keys()])).toEqual(["a.txt"])
+    expect(read(await next(stream))).toEqual(["a.txt"])
+    writeFileSync(join(root, "a.txt"), "one\ntwo\nthree\n")
+    expect(read(await next(stream))).toEqual([])
+    await expect(fixture.items.changeRead({ itemId: "nope", path: "a.txt" })).rejects.toMatchObject(
+      { code: "NOT_FOUND" },
+    )
     fixture.items.close(itemId)
   })
 

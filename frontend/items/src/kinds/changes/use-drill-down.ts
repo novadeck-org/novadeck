@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react"
 
 import { growHeading, motionMs, reducedMotion, returnFiles, shrinkHeading } from "./motion"
-import { stampOf, type TreeFile } from "./tree"
+import type { TreeFile } from "./tree"
 import type { ChangesView } from "./view-state"
 
 // Drilling into a file and back out of it, as the person does it and as it looks: the row
 // grows into the file's heading and shrinks back into its row, the files are given back
 // scrolled where they were, the keys move only for what the person did (opened, stepped, went
-// back), never as a change is read again, and a file that left the selection is closed.
+// back), never as a change is read again, and a file that left the selection is closed. A file
+// opened is read (`read`).
 
 // Which view is moving to which: the row growing into the heading, or the heading shrinking
 // into its row.
@@ -19,6 +20,7 @@ export const useDrillDown = (
   order: readonly TreeFile[],
   view: ChangesView,
   update: (change: (view: ChangesView) => ChangesView) => void,
+  read: (path: string) => void,
 ): {
   readonly host: RefObject<HTMLDivElement | null>
   readonly head: RefObject<HTMLElement | null>
@@ -57,15 +59,11 @@ export const useDrillDown = (
       const from = rowOf(path)?.getBoundingClientRect()
       scrolled.current = host.current?.querySelector<HTMLElement>(".changes-scroll")?.scrollTop ?? 0
       wantFocus.current = true
-      update((now) => ({
-        ...now,
-        open: path,
-        unfolded: path,
-        read: { ...now.read, [path]: stampOf(file) },
-      }))
+      update((now) => ({ ...now, open: path, unfolded: path }))
+      read(path)
       setPhase(from && !reducedMotion() ? { kind: "opening", from } : null)
     },
-    [order, rowOf, update],
+    [order, read, rowOf, update],
   )
 
   const back = useCallback(() => {
@@ -80,14 +78,10 @@ export const useDrillDown = (
       const next = order[at + delta]
       if (!next) return
       wantFocus.current = true
-      update((now) => ({
-        ...now,
-        open: next.path,
-        unfolded: next.path,
-        read: { ...now.read, [next.path]: stampOf(next) },
-      }))
+      update((now) => ({ ...now, open: next.path, unfolded: next.path }))
+      read(next.path)
     },
-    [order, update, view.open],
+    [order, read, update, view.open],
   )
 
   // The row grows into the heading; the pane takes the keys.

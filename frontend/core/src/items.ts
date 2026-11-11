@@ -245,7 +245,8 @@ export type ChangeRange = { readonly files: readonly ChangedFile[]; readonly tru
 // is HEAD where there is none), as layers, newest first: the work not committed yet, then each
 // commit since the merge base. Each layer lists the files it changed, not their diffs, which
 // `Companions.changeFile` reads. `truncated` when the backend cut layers or files. `root` is
-// the repository's folder, which the paths are from.
+// the repository's folder, which the paths are from. `read` names the files of `files` the
+// person read (`Companions.changeRead`) that are as they were then.
 export type ChangesContent = {
   readonly kind: "changes"
   readonly root: string
@@ -253,6 +254,7 @@ export type ChangesContent = {
   readonly layers: readonly ChangeLayer[]
   // The files the change as a whole differs from main by, as `changeRange` lists a range.
   readonly files: readonly ChangedFile[]
+  readonly read: readonly string[]
   readonly truncated: boolean
 }
 
@@ -381,6 +383,10 @@ export type Companions = {
     itemId: ItemId,
     layers: readonly string[],
   ) => Promise<ChangeRange>
+  // The person read a file of a changes item: its content names it in `read` until the file
+  // changes again. Absent where the backend can't keep it: the pane then grays it for as
+  // long as the content stays as it was.
+  readonly changeRead?: (target: WorkspaceTarget, itemId: ItemId, path: string) => Promise<void>
   // Writes the person's edit to the plan, unless it changed since `basedOn`. Rejects with
   // a `PlanUnwritableError` when the plan can't be written at all.
   readonly save: (

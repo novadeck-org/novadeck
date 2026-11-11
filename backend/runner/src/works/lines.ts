@@ -1,44 +1,10 @@
 import { workLimits, type WorkConflict, type WorkFile } from "@novadeck/protocol"
 
-// The pure parts of Works: reading what git printed, adding up lines, choosing which
-// terminal's a shared checkout is, and putting a work together. Nothing here runs git.
+// The pure parts of Works: adding up lines, choosing which terminal's a shared checkout is,
+// and putting a work together. Nothing here runs git.
 
 /** The lines one file gained and lost. */
 export type Lines = { readonly added: number; readonly removed: number }
-
-/**
- * The files of `git diff --numstat -z --no-renames`: `added<TAB>removed<TAB>path` ended by a
- * NUL. A binary file prints `-` for both, and counts none.
- */
-// A numstat count: a number of lines, or "-" for a binary file, which counts none.
-const count = (text: string): number => (/^\d+$/.test(text) ? Number(text) : 0)
-
-export const parseNumstat = (out: string): Map<string, Lines> => {
-  const files = new Map<string, Lines>()
-  for (const record of out.split("\0")) {
-    const first = record.indexOf("\t")
-    const second = record.indexOf("\t", first + 1)
-    if (first < 0 || second < 0) continue
-    const path = record.slice(second + 1)
-    if (!path) continue
-    files.set(path, {
-      added: count(record.slice(0, first)),
-      removed: count(record.slice(first + 1, second)),
-    })
-  }
-  return files
-}
-
-/**
- * What `git merge-tree --write-tree --name-only --no-messages -z` printed: the tree of the
- * merge, then the names of the files that conflict, each ended by a NUL.
- */
-export const parseMerge = (
-  out: string,
-): { readonly tree: string; readonly conflicts: string[] } => {
-  const [tree = "", ...names] = out.split("\0")
-  return { tree, conflicts: names.filter((name) => name !== "") }
-}
 
 /** Both sums of a set of files' lines. */
 export const sum = (files: Iterable<Lines>): Lines => {

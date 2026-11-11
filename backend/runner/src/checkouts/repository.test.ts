@@ -16,6 +16,7 @@ import { describe, expect, it as base } from "../test.js"
 import {
   mainBranch,
   mergeTrees,
+  parseMerge,
   repack,
   snapshotCommit,
   snapshotTree,
@@ -40,11 +41,27 @@ const it = base.extend<{ root: string }>({
   },
 })
 
+// What may hold secrets, as the companions' rule says of these names (`secrets` is theirs).
+const held = (path: string): boolean => /(^|[\\/])(\.env|id_rsa)$/.test(path)
+
 const git = (root: string, ...args: string[]) =>
   execFileSync("git", ["-c", "user.name=T", "-c", "user.email=t@example.com", ...args], {
     cwd: root,
     encoding: "utf8",
   }).trim()
+
+describe("a merge-tree result, parsed", () => {
+  it("reads the tree and the names of the files that conflict", () => {
+    expect(parseMerge("abc123\0a.ts\0dir/b.ts\0")).toEqual({
+      tree: "abc123",
+      conflicts: ["a.ts", "dir/b.ts"],
+    })
+  })
+
+  it("reads a clean merge as its tree alone", () => {
+    expect(parseMerge("abc123\0")).toEqual({ tree: "abc123", conflicts: [] })
+  })
+})
 
 describe.skipIf(!hasGit)("git, asked about a checkout", () => {
   it("finds no main branch, and a snapshot with no commit under it, before the first commit", async ({
@@ -52,7 +69,7 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
   }) => {
     writeFileSync(join(root, "a"), "1\n")
     expect(await mainBranch(root)).toBeUndefined()
-    const taken = await snapshotTree(root, join(root, ".git", "private"))
+    const taken = await snapshotTree(root, join(root, ".git", "private"), undefined, held)
     expect(taken?.head).toBe("")
     expect(git(root, "ls-tree", "-r", "--name-only", taken!.tree)).toBe("a")
   })
@@ -74,7 +91,7 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
     writeFileSync(join(root, "new.txt"), "brand new\n")
     const before = objectsIn(root)
     const objects = join(root, ".git", "private-objects")
-    const taken = await snapshotTree(root, join(root, ".git", "private-index"), objects)
+    const taken = await snapshotTree(root, join(root, ".git", "private-index"), objects, held)
 
     expect(objectsIn(root)).toBe(before)
     expect(existsSync(objects)).toBe(true)
@@ -95,6 +112,7 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
       root,
       join(root, ".git", "private-index"),
       join(root, ".git", "po"),
+      held,
     )
     expect(git(root, "ls-tree", "-r", "--name-only", taken!.tree).split("\n")).toEqual(["a"])
     // Only named, for a listing to show.
@@ -111,17 +129,23 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
     expect(found).toBe(false)
   })
 
-  it("judges untracked files by the environment it is given", async ({ root }) => {
+  it("judges untracked files by what it is told may hold secrets, by their full paths", async ({
+    root,
+  }) => {
     writeFileSync(join(root, "a"), "1\n")
     git(root, "add", "a")
     git(root, "commit", "--quiet", "-m", "first")
     writeFileSync(join(root, "login.json"), "{}\n")
     const index = join(root, ".git", "private-index")
-    const plain = await snapshotTree(root, index, join(root, ".git", "po"), {})
+    const plain = await snapshotTree(root, index, join(root, ".git", "po"), () => false)
     expect(plain!.secret).toEqual([])
-    const moved = await snapshotTree(root, index, join(root, ".git", "po"), {
-      NETRC: join(root, "login.json"),
-    })
+    const login = join(root, "login.json")
+    const moved = await snapshotTree(
+      root,
+      index,
+      join(root, ".git", "po"),
+      (path) => path === login,
+    )
     expect(moved!.secret).toEqual(["login.json"])
   })
 
@@ -133,7 +157,7 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
     git(odd, "add", "a")
     git(odd, "commit", "--quiet", "-m", "first")
     writeFileSync(join(odd, "a"), "2\n")
-    const taken = await snapshotTree(odd, join(odd, ".git", "pi"), join(odd, ".git", "po"))
+    const taken = await snapshotTree(odd, join(odd, ".git", "pi"), join(odd, ".git", "po"), held)
 
     expect(taken).toBeDefined()
     expect(await treeGone(odd, taken!.tree, taken!.env)).toBe(false)
@@ -162,9 +186,9 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
     const objects = join(root, ".git", "po")
     const index = join(root, ".git", "pi")
     writeFileSync(join(root, "a"), "kept\n")
-    const kept = await snapshotTree(root, index, objects)
+    const kept = await snapshotTree(root, index, objects, held)
     writeFileSync(join(root, "a"), "dropped\n")
-    const dropped = await snapshotTree(root, index, objects)
+    const dropped = await snapshotTree(root, index, objects, held)
 
     expect(await repack(root, objects, [kept!.tree])).toBe(true)
 
@@ -187,7 +211,7 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
     git(root, "commit", "--quiet", "-m", "first")
     git(root, "config", "status.showUntrackedFiles", "no")
     writeFileSync(join(root, "dotfile"), "x\n")
-    const taken = await snapshotTree(root, join(root, ".git", "private-index"))
+    const taken = await snapshotTree(root, join(root, ".git", "private-index"), undefined, held)
     expect(git(root, "ls-tree", "-r", "--name-only", taken!.tree)).toBe("a")
   })
 
@@ -201,7 +225,7 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
     writeFileSync(join(root, "untracked"), "u\n")
     const staged = git(root, "status", "--porcelain")
     const index = join(root, ".git", "private-index")
-    const snapshot = await snapshotTree(root, index)
+    const snapshot = await snapshotTree(root, index, undefined, held)
     expect(snapshot).toBeDefined()
     expect(existsSync(index)).toBe(true)
     expect(git(root, "ls-tree", "-r", "--name-only", snapshot!.tree).split("\n")).toEqual([
@@ -211,7 +235,7 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
     expect(git(root, "status", "--porcelain")).toBe(staged)
     // A second snapshot sees the files as they are then.
     rmSync(join(root, "untracked"))
-    const again = await snapshotTree(root, index)
+    const again = await snapshotTree(root, index, undefined, held)
     expect(git(root, "ls-tree", "-r", "--name-only", again!.tree)).toBe("a")
     const commit = await snapshotCommit(root, again!.tree, again!.head)
     expect(git(root, "rev-parse", `${commit}^`)).toBe(again!.head)
@@ -228,7 +252,7 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
     writeFileSync(join(root, "big.bin"), Buffer.alloc(1024 * 1024 + 1))
     writeFileSync(join(root, "ok.bin"), Buffer.alloc(1024 * 1024))
     const index = join(root, ".git", "private-index")
-    const before = await snapshotTree(root, index)
+    const before = await snapshotTree(root, index, undefined, held)
     expect(git(root, "ls-tree", "-r", "--name-only", before!.tree).split("\n")).toEqual([
       "a",
       "gone.log",
@@ -236,7 +260,7 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
     ])
     expect(before!.skipped).toBe(true)
     writeFileSync(join(root, ".git", "info", "exclude"), "*.log\n")
-    const after = await snapshotTree(root, index)
+    const after = await snapshotTree(root, index, undefined, held)
     expect(git(root, "ls-tree", "-r", "--name-only", after!.tree).split("\n")).toEqual([
       "a",
       "ok.bin",
@@ -253,7 +277,7 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
     git(root, "add", "a")
     writeFileSync(join(root, "a"), "3\n")
     const person = readFileSync(join(root, ".git", "index"))
-    const snapshot = await snapshotTree(root, join(root, ".git", "private-index"))
+    const snapshot = await snapshotTree(root, join(root, ".git", "private-index"), undefined, held)
     expect(git(root, "show", `${snapshot!.tree}:a`)).toBe("3")
     expect(readFileSync(join(root, ".git", "index")).equals(person)).toBe(true)
   })
@@ -272,7 +296,7 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
     utimesSync(join(root, ".git", "index"), moment, moment)
     writeFileSync(join(root, "a"), "2\n")
     utimesSync(join(root, "a"), moment, moment)
-    const snapshot = await snapshotTree(root, join(root, ".git", "private-index"))
+    const snapshot = await snapshotTree(root, join(root, ".git", "private-index"), undefined, held)
     expect(git(root, "show", `${snapshot!.tree}:a`)).toBe("2")
   })
 
@@ -285,7 +309,7 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
     rmSync(join(root, ".git", "index"))
     writeFileSync(join(root, "locked"), "secret\n", { mode: 0o000 })
     writeFileSync(join(root, "fine"), "f\n")
-    const snapshot = await snapshotTree(root, join(root, ".git", "private-index"))
+    const snapshot = await snapshotTree(root, join(root, ".git", "private-index"), undefined, held)
     const names = git(root, "ls-tree", "-r", "--name-only", snapshot!.tree).split("\n")
     expect(names).toContain("a")
     expect(names).toContain("fine")
@@ -304,7 +328,7 @@ describe.skipIf(!hasGit)("git, asked about a checkout", () => {
     git(root, "add", "b")
     writeFileSync(join(root, "c"), "c\n")
     git(root, "add", "c")
-    const snapshot = await snapshotTree(root, join(root, ".git", "private-index"))
+    const snapshot = await snapshotTree(root, join(root, ".git", "private-index"), undefined, held)
     expect(git(root, "ls-tree", "-r", "--name-only", snapshot!.tree).split("\n")).toEqual([
       "a",
       "b",
