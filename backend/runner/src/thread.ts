@@ -72,6 +72,8 @@ export class WorkerThread<Request, Result> {
   private next = 0
   // Counts stops, so a thread that was launched before one is ended when it comes up.
   private generation = 0
+  // Jobs the thread is still working on: a thread at work is in use, not idle.
+  private jobs = 0
 
   constructor(
     private readonly where: ThreadScript,
@@ -91,8 +93,13 @@ export class WorkerThread<Request, Result> {
     this.touch()
     const id = (this.next += 1)
     const generation = this.generation
+    this.jobs += 1
     return new Promise((resolve) => {
       const done = (value: Outcome<Result>): void => {
+        // Idle counts from the job's end: one slower than the idle time is no longer ended
+        // under it, its stop taking it for an ended thread's job.
+        this.jobs -= 1
+        this.touch()
         clearTimeout(timer)
         worker.off("message", onMessage)
         worker.off("error", onFailure)
@@ -151,7 +158,13 @@ export class WorkerThread<Request, Result> {
 
   private touch(): void {
     clearTimeout(this.idle)
-    this.idle = setTimeout(() => void this.stop(), this.options.idleMs ?? 2 * 60 * 1000)
+    this.idle = setTimeout(
+      () => {
+        // One still at work is touched again as its job ends.
+        if (this.jobs === 0) void this.stop()
+      },
+      this.options.idleMs ?? 2 * 60 * 1000,
+    )
     this.idle.unref()
   }
 
