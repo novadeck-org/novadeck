@@ -1,4 +1,5 @@
 import {
+  maxTranscriptImages,
   transcriptLimits,
   type ToolOutcome,
   type ToolRun,
@@ -102,12 +103,22 @@ export const withImages = (
   entries: readonly TranscriptEntry[],
   mimes: readonly (string | null)[],
 ): readonly TranscriptEntry[] => {
+  // As the protocol takes them: the first `maxTranscriptImages`, each type cut to a name's length.
+  const kept = mimes.slice(0, maxTranscriptImages)
   const first = entries.findIndex(
     (each) => each.role === "user" && each.kind === "text" && !each.interrupted,
   )
-  if (mimes.length === 0 || first === -1) return entries
+  if (kept.length === 0 || first === -1) return entries
   return entries.map((each, place) =>
-    place === first ? { ...each, images: mimes.map((mime, index) => ({ index, mime })) } : each,
+    place === first
+      ? {
+          ...each,
+          images: kept.map((mime, index) => ({
+            index,
+            mime: mime === null ? null : cutText(mime, transcriptLimits.name),
+          })),
+        }
+      : each,
   )
 }
 

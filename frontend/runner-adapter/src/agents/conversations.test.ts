@@ -777,25 +777,40 @@ describe("the runner's conversations", () => {
 
   describe("a prompt's images", () => {
     const image = { offset: 90, index: 1, mime: null }
+    const opened = async () => {
+      const made = setup()
+      made.store.subscribe(() => {})
+      made.details.push(detail())
+      await settle()
+      return made
+    }
 
-    it("are asked of the runner by the offset and index, and answered as a data URL", async () => {
-      const { conversations, streams } = setup()
+    it("are asked of the runner by the conversation's session, offset and index, and answered as a data URL", async () => {
+      const { conversations, streams, store } = await opened()
       await expect(conversations.image?.(key, image)).resolves.toBe("data:image/png;base64,AAAA")
-      expect(streams.transcriptImage).toHaveBeenCalledWith("t", { offset: 90, index: 1 })
+      expect(streams.transcriptImage).toHaveBeenCalledWith("t", {
+        sessionId: store.getSnapshot().session,
+        offset: 90,
+        index: 1,
+      })
+      expect(store.getSnapshot().session).not.toBeNull()
     })
 
-    it("are none where the runner has no picture, or the record is gone", async () => {
-      const { conversations, streams } = setup()
+    it("are none where the runner has no picture", async () => {
+      const { conversations, streams } = await opened()
       streams.transcriptImage.mockResolvedValueOnce({ state: "unavailable", reason: "too-large" })
       await expect(conversations.image?.(key, image)).resolves.toBeNull()
-      streams.transcriptImage.mockRejectedValueOnce(new WireError("NOT_FOUND"))
-      await expect(conversations.image?.(key, image)).resolves.toBeNull()
     })
 
-    it("fail where the runner could not be asked, for the chat to ask again", async () => {
-      const { conversations, streams } = setup()
+    it("fail where the runner could not be asked, the session moved on or none is open, for the chat to ask again", async () => {
+      const { conversations, streams } = await opened()
       streams.transcriptImage.mockRejectedValueOnce(new WireError("DISCONNECTED"))
       await expect(conversations.image?.(key, image)).rejects.toThrow("couldn't show it")
+      streams.transcriptImage.mockRejectedValueOnce(new WireError("NOT_FOUND"))
+      await expect(conversations.image?.(key, image)).rejects.toThrow("couldn't show it")
+      const idle = setup()
+      await expect(idle.conversations.image?.(key, image)).rejects.toThrow("isn't open")
+      expect(idle.streams.transcriptImage).not.toHaveBeenCalled()
     })
   })
 

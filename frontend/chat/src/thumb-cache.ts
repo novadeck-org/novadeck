@@ -2,8 +2,11 @@ import type { ChatImage } from "@novadeck/core/conversation"
 
 // The pictures of recorded prompts the chat has asked for, so scrolling away from a thumbnail and
 // back, or a window that draws it again, doesn't ask the backend twice. A picture is a data URL of
-// up to 8 MiB, so only the latest `limit` stay. A picture the backend has none of (swept, moved,
-// refused) is kept as none; one it could not be asked for is not, and is asked again.
+// up to 8 MiB, so only the latest `limit` stay (each thumbnail on screen holds its own picture
+// besides, as an image element does: a window of many large screenshots costs their sum). A
+// picture the backend has none of (swept, moved, refused) is kept as none; one it could not be
+// asked for is not kept, but its failure is remembered for `backoffMs`, so asking again within it
+// fails at once, as the first did, instead of asking the backend each time a row is drawn.
 export type ThumbCache = {
   // What was found for the image, if it was asked for: its data URL, null for none, or undefined.
   readonly peek: (item: string, image: ChatImage) => string | null | undefined
@@ -17,9 +20,16 @@ export type ThumbCache = {
 
 const keyOf = (item: string, { offset, index }: ChatImage): string => `${item}\n${offset}:${index}`
 
-export const createThumbCache = (limit = 24): ThumbCache => {
+export const backoffMs = 15_000
+
+export const createThumbCache = (
+  limit = 24,
+  wait = backoffMs,
+  now: () => number = Date.now,
+): ThumbCache => {
   const found = new Map<string, string | null>()
   const asked = new Map<string, Promise<string | null>>()
+  const failed = new Map<string, { readonly at: number; readonly error: unknown }>()
   return {
     peek: (item, image) => {
       const key = keyOf(item, image)
@@ -33,6 +43,9 @@ export const createThumbCache = (limit = 24): ThumbCache => {
     load: (item, image, fetch) => {
       const key = keyOf(item, image)
       if (found.has(key)) return Promise.resolve(found.get(key)!)
+      const failure = failed.get(key)
+      if (failure && now() - failure.at < wait) return Promise.reject(failure.error)
+      failed.delete(key)
       const pending =
         asked.get(key) ??
         fetch(image)
@@ -43,6 +56,10 @@ export const createThumbCache = (limit = 24): ThumbCache => {
               found.delete(oldest)
             }
             return picture
+          })
+          .catch((error: unknown) => {
+            failed.set(key, { at: now(), error })
+            throw error
           })
           .finally(() => asked.delete(key))
       asked.set(key, pending)

@@ -119,6 +119,11 @@ const reasoning = /thinking|reasoning/i
 export type Reading = {
   /** The interruptions it doesn't record (see `Interruption`). */
   readonly interruptions?: () => readonly Interruption[]
+  /**
+   * Whether items list their images: not for a subagent's transcript, whose lines
+   * `agents.transcriptImage` doesn't read (it finds the root's).
+   */
+  readonly images?: boolean
   /** Told each shape a line holds that its decoder has never seen. */
   readonly unknown?: (key: string, conversational: boolean) => void
 }
@@ -129,6 +134,7 @@ export const readingOf = (
   native: string | null,
 ): Reading => ({
   interruptions: interruptionsOf(record, native),
+  images: native === null,
   unknown: (key, conversational) => unknownShape(record.bound?.binding, key, conversational),
 })
 
@@ -155,7 +161,7 @@ export const transcriptChanges = async function* (
   }: Pick<NonNullable<Harness["transcripts"]>, "items"> &
     Partial<Pick<NonNullable<Harness["transcripts"]>, "step" | "shapes" | "conversational">>,
   outer: AbortSignal,
-  { interruptions = () => [], unknown }: Reading = {},
+  { interruptions = () => [], images: listing = true, unknown }: Reading = {},
 ): AsyncGenerator<TranscriptChange> {
   // Its own, so leaving early stops the reading as `outer` aborting does.
   const controller = new AbortController()
@@ -191,6 +197,7 @@ export const transcriptChanges = async function* (
       ...rest,
       index,
       ...(images &&
+        listing &&
         end !== undefined && {
           images: images.map((each) => ({ ...each, offset: end })),
         }),

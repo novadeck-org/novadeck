@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { createThumbCache } from "./thumb-cache"
+import { backoffMs, createThumbCache } from "./thumb-cache"
 
 const image = (index: number) => ({ offset: 10, index, mime: null })
 
@@ -20,8 +20,9 @@ describe("the pictures of recorded prompts", () => {
     expect(cache.peek("s:2", image(0))).toBeUndefined()
   })
 
-  it("keep that there is none, but are asked for again after a failure to ask", async () => {
-    const cache = createThumbCache()
+  it("keep that there is none, but not a failure to ask", async () => {
+    let clock = 0
+    const cache = createThumbCache(24, backoffMs, () => clock)
     const none = vi.fn<() => Promise<string | null>>(async () => null)
     await cache.load("s:1", image(0), none)
     await cache.load("s:1", image(0), none)
@@ -33,7 +34,24 @@ describe("the pictures of recorded prompts", () => {
       .mockResolvedValue("data:x")
     await expect(cache.load("s:1", image(1), failing)).rejects.toThrow("offline")
     expect(cache.peek("s:1", image(1))).toBeUndefined()
+    clock = backoffMs
     await expect(cache.load("s:1", image(1), failing)).resolves.toBe("data:x")
+  })
+
+  it("are not asked for again within the backoff after a failure, then are", async () => {
+    let clock = 0
+    const cache = createThumbCache(24, backoffMs, () => clock)
+    const failing = vi
+      .fn<() => Promise<string | null>>()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValue("data:x")
+    await expect(cache.load("s:1", image(0), failing)).rejects.toThrow("offline")
+    clock = backoffMs - 1
+    await expect(cache.load("s:1", image(0), failing)).rejects.toThrow("offline")
+    expect(failing).toHaveBeenCalledTimes(1)
+    clock = backoffMs
+    await expect(cache.load("s:1", image(0), failing)).resolves.toBe("data:x")
+    expect(failing).toHaveBeenCalledTimes(2)
   })
 
   it("are only the latest few, the longest unseen going first", async () => {

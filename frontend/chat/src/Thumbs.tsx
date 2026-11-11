@@ -3,6 +3,7 @@ import { Dialog } from "@novadeck/toolkit/Dialog"
 import { createKept, type ViewerState } from "@novadeck/viewers"
 import { mountImage } from "@novadeck/viewers/image"
 import { useViewer } from "@novadeck/viewers/react"
+import { X } from "lucide-react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 
 import type { Attachment } from "./attachments"
@@ -87,6 +88,11 @@ const Thumb = ({
   readonly preview: string | undefined
 }): React.JSX.Element => {
   const { fetch, cache } = useContext(ThumbsContext)
+  // The latest way to ask, read when the effect runs: a new one never asks again for a picture.
+  const asking = useRef(fetch)
+  useEffect(() => {
+    asking.current = fetch
+  })
   const [watch, near] = useNear()
   // A preview this window let go of meanwhile is none: the picture is asked for instead.
   const [lost, setLost] = useState(false)
@@ -97,20 +103,40 @@ const Thumb = ({
     if (found) return { state: "ready", src: found }
     return found === null || !fetch ? { state: "none" } : { state: "wait" }
   })
+  // Only a thumbnail still waiting asks, and once: one that holds a picture or none stays so.
+  const waiting = picture.state === "wait" && near && !own
+  const { offset, index } = image
   useEffect(() => {
-    if (own || !fetch || !near) return
+    const ask = asking.current
+    if (!waiting || !ask) return
     let current = true
-    cache.load(item, image, fetch).then(
+    cache.load(item, { offset, index, mime: null }, ask).then(
       (src) => current && setPicture(src ? { state: "ready", src } : { state: "none" }),
       () => current && setPicture({ state: "none" }),
     )
     return () => {
       current = false
     }
-  }, [cache, fetch, image, item, near, own])
+  }, [cache, item, offset, index, waiting])
   const [open, setOpen] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
   const src = picture.state === "ready" ? picture.src : undefined
+  // This window's own preview may have been let go of since it was drawn, which the viewer would
+  // show as nothing: it is tried first, and the picture asked for instead if it is gone.
+  const lose = (): void => {
+    setLost(true)
+    setPicture({ state: "wait" })
+  }
+  const show = async (shown: string): Promise<void> => {
+    if (shown === own) {
+      const here = await globalThis.fetch(shown).then(
+        () => true,
+        () => false,
+      )
+      if (!here) return lose()
+    }
+    setOpen(true)
+  }
   return (
     <li ref={watch}>
       {src ? (
@@ -120,16 +146,13 @@ const Thumb = ({
             type="button"
             className="chat-image nodrag nopan"
             aria-label={`View ${label}`}
-            onClick={() => setOpen(true)}
+            onClick={() => void show(src)}
           >
             <img
               src={src}
               alt={label}
               onError={() => {
-                if (src === preview) {
-                  setLost(true)
-                  setPicture({ state: "wait" })
-                }
+                if (src === own) lose()
               }}
             />
           </button>
@@ -137,13 +160,17 @@ const Thumb = ({
             open={open}
             src={src}
             label={label}
-            id={`${item}:${image.index}`}
+            id={`${item}:${offset}:${index}`}
             onClose={() => setOpen(false)}
             returnTo={() => button.current}
           />
         </>
       ) : (
-        <span className="chat-image-none" data-state={picture.state}>
+        <span
+          className="chat-image-none"
+          data-state={picture.state}
+          {...(picture.state === "wait" && { role: "img", "aria-label": `Loading ${label}` })}
+        >
           {picture.state === "wait" ? "" : label}
         </span>
       )}
@@ -227,5 +254,13 @@ const ImageDialog = ({
     className="modal chat-image-dialog"
   >
     <Stage id={id} src={src} label={label} />
+    <button
+      type="button"
+      className="chat-image-close icon-button"
+      aria-label="Close image"
+      onClick={onClose}
+    >
+      <X size={16} />
+    </button>
   </Dialog>
 )

@@ -189,6 +189,7 @@ export {
   toolOutcome,
   type ToolOutcome,
   type ToolRun,
+  transcriptChange,
   type TranscriptChange,
   maxTranscriptImageBytes,
   maxTranscriptImages,

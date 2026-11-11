@@ -216,4 +216,98 @@ describe("the images of a recorded prompt", () => {
     await settle()
     expect(document.querySelector("[role='dialog'][data-state='open']")).toBeNull()
   })
+
+  it("are not asked for again when the chat draws again with a new way to ask", async () => {
+    const cache = createThumbCache()
+    const first = vi.fn<(image: ChatImage) => Promise<string>>(
+      async () => "data:image/png;base64,AAAA",
+    )
+    const later = vi.fn<(image: ChatImage) => Promise<string>>(
+      async () => "data:image/png;base64,BBBB",
+    )
+    const around = (fetch: Thumbs["fetch"]) =>
+      createElement(
+        ThumbsContext.Provider,
+        { value: { fetch, cache, previews: () => undefined } },
+        createElement(Transcript, { blocks: [prompt], agent: "Claude", working: false }),
+      )
+    const view = render(around(first))
+    await settle()
+    view.rerender(around(later))
+    await settle()
+    expect(first).toHaveBeenCalledTimes(2)
+    expect(later).not.toHaveBeenCalled()
+    expect(view.container.querySelectorAll(".chat-images img")).toHaveLength(2)
+  })
+
+  it("are not asked for again within the backoff after a failure, drawn again or not", async () => {
+    const cache = createThumbCache()
+    const fetch = vi.fn<(image: ChatImage) => Promise<string | null>>(async () => {
+      throw new Error("offline")
+    })
+    const around = (ask: Thumbs["fetch"]) =>
+      createElement(
+        ThumbsContext.Provider,
+        { value: { fetch: ask, cache, previews: () => undefined } },
+        createElement(Transcript, { blocks: [prompt], agent: "Claude", working: false }),
+      )
+    const view = render(around(fetch))
+    await settle()
+    expect(fetch).toHaveBeenCalledTimes(2)
+    view.rerender(around(async () => null))
+    view.unmount()
+    show({ fetch, cache })
+    await settle()
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it("ask for the picture instead when this window's preview is gone by the time it is clicked", async () => {
+    vi.stubGlobal("fetch", async () => {
+      throw new Error("revoked")
+    })
+    const fetch = vi.fn<(image: ChatImage) => Promise<string>>(
+      async () => "data:image/png;base64,AAAA",
+    )
+    const container = show({ fetch, previews: () => [preview("a")] }, [
+      { ...prompt, text: "Look at [Image #4]", images: [images[0]!] },
+    ])
+    const open = container.querySelector<HTMLButtonElement>(".chat-images button")!
+    act(() => open.click())
+    await settle()
+    expect(document.querySelector("[role='dialog']")).toBeNull()
+    expect(container.querySelector(".chat-images img")?.getAttribute("src")).toBe(
+      "data:image/png;base64,AAAA",
+    )
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it("name the box a picture is coming in, and close from a control as well as Escape", async () => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    )
+    let resolve: (src: string) => void = () => {}
+    const fetch = vi.fn<(image: ChatImage) => Promise<string | null>>(
+      () => new Promise<string | null>((done) => (resolve = done)),
+    )
+    const container = show({ fetch }, [
+      { ...prompt, text: "Look at [Image #4]", images: [images[0]!] },
+    ])
+    expect(container.querySelector("[data-state='wait']")?.getAttribute("aria-label")).toBe(
+      "Loading Image #4",
+    )
+    resolve("data:image/png;base64,AAAA")
+    await settle()
+    act(() => container.querySelector<HTMLButtonElement>(".chat-images button")!.click())
+    await settle()
+    const close = document.querySelector<HTMLButtonElement>("[role='dialog'] .chat-image-close")!
+    expect(close.getAttribute("aria-label")).toBe("Close image")
+    act(() => close.click())
+    await settle()
+    expect(document.querySelector("[role='dialog'][data-state='open']")).toBeNull()
+  })
 })

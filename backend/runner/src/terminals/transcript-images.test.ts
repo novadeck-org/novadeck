@@ -3,13 +3,26 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
 
-import { maxTranscriptImageBytes, type AgentName, type TranscriptImage } from "@novadeck/protocol"
+import {
+  maxTranscriptImageBytes,
+  maxTranscriptImages,
+  transcriptChange,
+  type AgentName,
+  type TranscriptImage,
+} from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it as base } from "../test.js"
 import type { Record } from "./record.js"
-import { lineEndingAt, transcriptImage } from "./transcript-images.js"
-import { transcriptChanges } from "./transcripts.js"
+import { lineEndingAt, transcriptImage as ask } from "./transcript-images.js"
+import { readingOf, transcriptChanges } from "./transcripts.js"
+
+// As the client asks: the session its item was read in, which the tests' records are bound to.
+const read = (
+  record: Pick<Record, "bound" | "transcript">,
+  image: TranscriptImage,
+  sessionId = session,
+) => ask(record, { sessionId, offset: image.offset, index: image.index })
 
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==",
@@ -113,7 +126,7 @@ describe("a prompt image of a bound session", () => {
     ])
     const [image] = await listed("claude", path)
     expect(image).toEqual({ offset: expect.any(Number), index: 0, mime: "image/png" })
-    const found = await transcriptImage(place.record("claude", path), image!)
+    const found = await read(place.record("claude", path), image!)
     expect(found).toEqual({
       state: "ready",
       mime: "image/png",
@@ -124,7 +137,7 @@ describe("a prompt image of a bound session", () => {
   it("is found again in Codex's rollout", async ({ place }) => {
     const path = place.write("codex", [codex(`data:image/png;base64,${png.toString("base64")}`)])
     const [image] = await listed("codex", path)
-    expect(await transcriptImage(place.record("codex", path), image!)).toMatchObject({
+    expect(await read(place.record("codex", path), image!)).toMatchObject({
       state: "ready",
       mime: "image/png",
     })
@@ -140,7 +153,7 @@ describe("a prompt image of a bound session", () => {
       // eslint-disable-next-line no-await-in-loop -- Each case rewrites the one transcript.
       const [image] = await listed("agy", path)
       // eslint-disable-next-line no-await-in-loop -- Each case rewrites the one transcript.
-      expect(await transcriptImage(place.record("agy", path), image!)).toMatchObject({
+      expect(await read(place.record("agy", path), image!)).toMatchObject({
         state: "ready",
       })
     }
@@ -157,7 +170,7 @@ describe("a prompt image of a bound session", () => {
       // eslint-disable-next-line no-await-in-loop -- Each case rewrites the one transcript.
       const [image] = await listed("claude", path)
       // eslint-disable-next-line no-await-in-loop -- Each case rewrites the one transcript.
-      expect(await transcriptImage(place.record("claude", path), image!)).toMatchObject({
+      expect(await read(place.record("claude", path), image!)).toMatchObject({
         state: "ready",
         mime,
       })
@@ -169,7 +182,7 @@ describe("a prompt image of a bound session", () => {
       claude(Buffer.from("<svg onload=alert(1)></svg>").toString("base64")),
     ])
     const [image] = await listed("claude", path)
-    expect(await transcriptImage(place.record("claude", path), image!)).toEqual({
+    expect(await read(place.record("claude", path), image!)).toEqual({
       state: "unavailable",
       reason: "unreadable",
     })
@@ -181,7 +194,7 @@ describe("a prompt image of a bound session", () => {
     const big = Buffer.concat([png, Buffer.alloc(maxTranscriptImageBytes)])
     const path = place.write("claude", [claude(big.toString("base64"))])
     const [image] = await listed("claude", path)
-    expect(await transcriptImage(place.record("claude", path), image!)).toEqual({
+    expect(await read(place.record("claude", path), image!)).toEqual({
       state: "unavailable",
       reason: "too-large",
     })
@@ -190,7 +203,7 @@ describe("a prompt image of a bound session", () => {
     writeFileSync(join(uploads, "big.png"), big)
     const file = place.write("agy", [agy(join(uploads, "big.png"))])
     const [saved] = await listed("agy", file)
-    expect(await transcriptImage(place.record("agy", file), saved!)).toEqual({
+    expect(await read(place.record("agy", file), saved!)).toEqual({
       state: "unavailable",
       reason: "too-large",
     })
@@ -216,7 +229,7 @@ describe("a prompt image of a bound session", () => {
       // eslint-disable-next-line no-await-in-loop -- Each case rewrites the one transcript.
       const [image] = await listed("agy", path)
       // eslint-disable-next-line no-await-in-loop -- Each case rewrites the one transcript.
-      expect(await transcriptImage(place.record("agy", path), image!), uri).toEqual({
+      expect(await read(place.record("agy", path), image!), uri).toEqual({
         state: "unavailable",
         reason: "gone",
       })
@@ -229,7 +242,7 @@ describe("a prompt image of a bound session", () => {
     writeFileSync(join(uploads, "credentials.png"), png)
     const path = place.write("agy", [agy(join(uploads, "credentials.png"))])
     const [image] = await listed("agy", path)
-    expect(await transcriptImage(place.record("agy", path), image!)).toEqual({
+    expect(await read(place.record("agy", path), image!)).toEqual({
       state: "unavailable",
       reason: "unreadable",
     })
@@ -248,8 +261,8 @@ describe("a prompt image of a bound session", () => {
       { ...image!, index: 1 },
     ])
       // eslint-disable-next-line no-await-in-loop -- Each case rewrites the one transcript.
-      await expect(transcriptImage(record, asked)).rejects.toMatchObject({ code: "NOT_FOUND" })
-    await expect(transcriptImage({ bound: null, transcript: path }, image!)).rejects.toMatchObject({
+      await expect(read(record, asked)).rejects.toMatchObject({ code: "NOT_FOUND" })
+    await expect(read({ bound: null, transcript: path }, image!)).rejects.toMatchObject({
       code: "NOT_FOUND",
     })
   })
@@ -261,5 +274,104 @@ describe("a prompt image of a bound session", () => {
     ])
     const [image] = await listed("claude", path)
     expect(await lineEndingAt(path, image!.offset)).toContain('"Look at [Image #1]"')
+  })
+
+  it("is not read through a link in place of the session's uploads folder", async ({ place }) => {
+    const home = join(place.folder, "brain", session)
+    const outside = join(place.folder, "pictures")
+    mkdirSync(outside, { recursive: true })
+    writeFileSync(join(outside, "private.png"), png)
+    mkdirSync(home, { recursive: true })
+    symlinkSync(outside, join(home, ".user_uploaded"))
+    const path = place.write("agy", [agy(join(outside, "private.png"))])
+    const [image] = await listed("agy", path)
+    expect(await read(place.record("agy", path), image!)).toEqual({
+      state: "unavailable",
+      reason: "gone",
+    })
+    const through = place.write("agy", [agy(join(home, ".user_uploaded", "private.png"))])
+    const [named] = await listed("agy", through)
+    expect(await read(place.record("agy", through), named!)).toEqual({
+      state: "unavailable",
+      reason: "gone",
+    })
+  })
+
+  it("is not found for another session than the one bound now", async ({ place }) => {
+    const path = place.write("claude", [claude(png.toString("base64"))])
+    const [image] = await listed("claude", path)
+    await expect(
+      read(place.record("claude", path), image!, "99999999-2222-3333-4444-555555555555"),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+  })
+
+  it("is listed for the root's transcript and not for a subagent's", async ({ place }) => {
+    const path = place.write("claude", [claude(png.toString("base64"))])
+    const listing = async (native: string | null) => {
+      const reader = new AbortController()
+      try {
+        for await (const change of transcriptChanges(
+          path,
+          harnesses.claude.transcripts!,
+          reader.signal,
+          readingOf(place.record("claude", path), native),
+        ))
+          if (change.type === "items") return change.items.some((item) => item.images)
+      } finally {
+        reader.abort()
+      }
+      return undefined
+    }
+    expect(await listing(null)).toBe(true)
+    expect(await listing("agent1")).toBe(false)
+  })
+
+  it("lists at most the protocol's images, so the batch still passes its validation", async ({
+    place,
+  }) => {
+    const many = Array.from({ length: maxTranscriptImages + 1 }, () => ({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: `image/${"x".repeat(400)}`,
+        data: png.toString("base64"),
+      },
+    }))
+    const path = place.write("claude", [
+      {
+        type: "user",
+        uuid: "u",
+        timestamp: "2026-11-11T10:00:00.000Z",
+        message: { role: "user", content: [{ type: "text", text: "lots" }, ...many] },
+      },
+    ])
+    const reader = new AbortController()
+    try {
+      for await (const change of transcriptChanges(
+        path,
+        harnesses.claude.transcripts!,
+        reader.signal,
+      )) {
+        const parsed = transcriptChange.safeParse(change)
+        expect(parsed.success).toBe(true)
+        if (change.type === "items") {
+          expect(change.items[0]!.images).toHaveLength(maxTranscriptImages)
+          expect(change.items[0]!.images![0]!.mime!.length).toBeLessThanOrEqual(256)
+        }
+        break
+      }
+    } finally {
+      reader.abort()
+    }
+  })
+
+  it("is refused past the size limit by its padding too, however long the run of = is", async ({
+    place,
+  }) => {
+    const path = place.write("claude", [claude(`${"A".repeat(20000)}${"=".repeat(200000)}`)])
+    const [image] = await listed("claude", path)
+    expect(await read(place.record("claude", path), image!)).toMatchObject({
+      state: "unavailable",
+    })
   })
 })

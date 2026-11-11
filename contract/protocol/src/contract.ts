@@ -348,7 +348,7 @@ export const contract = {
       .input(z.strictObject({ terminalId: id, actor: agentRef }))
       .output(eventIterator(transcriptChange)),
     // The picture of a prompt image a transcript item lists (`TranscriptItem.images`): `offset`
-    // and `index` are the ones the item carries. The runner finds it again in the terminal's
+    // and `index` are the ones the item carries, `sessionId` the session it was read in. The runner finds it again in the terminal's
     // bound session's own record, never at a path the caller names, and answers it as a data URL
     // if it is a PNG, JPEG, GIF or WebP of at most 8 MiB, else with why it is none. An
     // Antigravity picture lives in a file it saved under the session's own uploads, and is
@@ -358,6 +358,9 @@ export const contract = {
       .input(
         z.strictObject({
           terminalId: id,
+          // The session the item was read in, as `agents.detail` names it; another bound now is
+          // NOT_FOUND, so a picture is never read from a session the caller didn't mean.
+          sessionId: z.string().min(1).max(256),
           offset: z.int().nonnegative(),
           index: z
             .int()

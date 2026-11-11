@@ -10,6 +10,7 @@ import {
 import { useBoxHandover } from "@novadeck/chat/use-box-handover"
 import { useChat } from "@novadeck/chat/use-chat"
 import { agentStats } from "@novadeck/core/agents/stats"
+import type { ChatImage } from "@novadeck/core/conversation"
 import {
   critterLive,
   ledTerminals,
@@ -300,6 +301,14 @@ export const WorkspaceTerminal = memo(
       () => (showChat ? conversations?.conversation(terminalKey) : undefined),
       [showChat, conversations, terminalKey],
     )
+    // Stable while the terminal and the backend are: a new one would draw every thumbnail again.
+    const onImage = useMemo(
+      () =>
+        conversations?.image
+          ? (image: ChatImage) => conversations.image!(terminalKey, image)
+          : undefined,
+      [conversations, terminalKey],
+    )
     useBoxHandover(conversation, {
       take: () => void commands.takeBox(terminalKey),
       put: () => void commands.putDraft(terminalKey),
@@ -343,11 +352,7 @@ export const WorkspaceTerminal = memo(
                     : undefined
                 }
                 onDetach={(id) => commands.removeChatImage(chatContext, terminalId, id)}
-                onImage={
-                  conversations!.image
-                    ? (image) => conversations!.image!(terminalKey, image)
-                    : undefined
-                }
+                onImage={onImage}
                 onSend={(text, to, images) => commands.sendChat(terminalKey, text, to, images)}
                 // Words queued behind the stopped turn, the agent's and the chat's, come back
                 // to the box, to send again.

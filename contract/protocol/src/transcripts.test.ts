@@ -70,12 +70,13 @@ describe("the answer to a transcript image", () => {
   it("is asked for by a terminal, a line's offset and the image's place in it, and nothing else", () => {
     const input = contract.agents.transcriptImage["~orpc"].inputSchema!
     const terminalId = "00000000-0000-4000-8000-000000000001"
-    expect(input.safeParse({ terminalId, offset: 9, index: 0 }).success).toBe(true)
+    expect(input.safeParse({ terminalId, sessionId: "s1", offset: 9, index: 0 }).success).toBe(true)
     for (const bad of [
-      { terminalId, offset: 9, index: 0, path: "/etc/passwd" },
-      { terminalId, offset: -1, index: 0 },
-      { terminalId, offset: 9, index: maxTranscriptImages },
-      { terminalId, offset: 9 },
+      { terminalId, sessionId: "s1", offset: 9, index: 0, path: "/etc/passwd" },
+      { terminalId, sessionId: "s1", offset: -1, index: 0 },
+      { terminalId, sessionId: "s1", offset: 9, index: maxTranscriptImages },
+      { terminalId, sessionId: "s1", offset: 9 },
+      { terminalId, offset: 9, index: 0 },
     ])
       expect(input.safeParse(bad).success).toBe(false)
   })

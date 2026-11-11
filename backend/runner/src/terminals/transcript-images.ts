@@ -1,5 +1,6 @@
-import { open, realpath, stat } from "node:fs/promises"
-import { isAbsolute, relative } from "node:path"
+import { constants } from "node:fs"
+import { open, realpath } from "node:fs/promises"
+import { dirname, isAbsolute, relative, resolve } from "node:path"
 
 import { maxLine } from "@novadeck/harness-core/follow"
 import type { ImageSource } from "@novadeck/harness-core/harness"
@@ -82,43 +83,54 @@ const ready = (bytes: Buffer): TranscriptImageResult => {
 
 // The bytes inline in a record, as base64: refused past the limit before any is decoded.
 const inline = (base64: string): TranscriptImageResult => {
-  const padding = /=*$/.exec(base64)![0].length
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0
   if (Math.floor((base64.length * 3) / 4) - padding > maxTranscriptImageBytes)
     return unavailable("too-large")
   return ready(Buffer.from(base64, "base64"))
 }
 
-// A file the session saved, only if it lies under `folder` (its uploads) once links are
-// resolved, is a plain file within the limit, and isn't one that may hold secrets.
+// Whether `path` lies under `folder`, as written: no file system is asked.
+const under = (folder: string, path: string): boolean => {
+  const inside = relative(folder, path)
+  return inside !== "" && !inside.startsWith("..") && !isAbsolute(inside)
+}
+
+// What opens a file without following a link at its end or waiting on a pipe, where the
+// platform has them.
+const careful = (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0)
+
+// A file the session saved: named under `folder` (its uploads) as written, then, links
+// resolved, still under it, with the folder itself still under its session's own folder, so a
+// link in place of either leads nowhere else. A plain file within the limit, opened without
+// following a link and judged by what was opened, and not one that may hold secrets.
 const saved = async (file: string, folder: string | undefined): Promise<TranscriptImageResult> => {
-  if (!folder || !isAbsolute(file)) return unavailable("gone")
-  const [home, real] = await Promise.all([
+  if (!folder || !isAbsolute(file) || !under(folder, resolve(file))) return unavailable("gone")
+  const [session, home, real] = await Promise.all([
+    realpath(dirname(folder)).catch(() => undefined),
     realpath(folder).catch(() => undefined),
     realpath(file).catch(() => undefined),
   ])
-  if (!home || !real) return unavailable("gone")
-  const inside = relative(home, real)
-  if (inside === "" || inside.startsWith("..") || isAbsolute(inside)) return unavailable("gone")
+  if (!session || !home || !real || !under(session, home) || !under(home, real))
+    return unavailable("gone")
   if (secret(real)) return unavailable("unreadable")
+  const handle = await open(real, constants.O_RDONLY | careful).catch(() => undefined)
+  if (!handle) return unavailable("unreadable")
   try {
-    const { size, isFile } = await stat(real).then((one) => ({
+    const { size, isFile } = await handle.stat().then((one) => ({
       size: one.size,
       isFile: one.isFile(),
     }))
     if (!isFile) return unavailable("unreadable")
     if (size > maxTranscriptImageBytes) return unavailable("too-large")
-    const handle = await open(real, "r")
-    try {
-      const buffer = Buffer.alloc(Math.min(size, maxTranscriptImageBytes) + 1)
-      const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
-      // It grew past the limit since the check.
-      if (bytesRead > maxTranscriptImageBytes) return unavailable("too-large")
-      return ready(buffer.subarray(0, bytesRead))
-    } finally {
-      await handle.close()
-    }
+    const buffer = Buffer.alloc(Math.min(size, maxTranscriptImageBytes) + 1)
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
+    // It grew past the limit since the check.
+    if (bytesRead > maxTranscriptImageBytes) return unavailable("too-large")
+    return ready(buffer.subarray(0, bytesRead))
   } catch {
     return unavailable("unreadable")
+  } finally {
+    await handle.close()
   }
 }
 
@@ -127,16 +139,21 @@ const saved = async (file: string, folder: string | undefined): Promise<Transcri
  * that ends at `offset`, and the `index`th image its harness reads in it. Never a path the
  * caller names: a record's inline bytes, or a file the harness's record names that lies in the
  * session's uploads (`imageFolder`), and either only as a PNG, JPEG, GIF or WebP of at most
- * `maxTranscriptImageBytes`, by its first bytes. A terminal with no session, a line that is no
- * longer there or holds no such image is NOT_FOUND.
+ * `maxTranscriptImageBytes`, by its first bytes. A terminal with no session, or another one than
+ * `sessionId`, a line that is no longer there or holds no such image is NOT_FOUND.
  */
 export const transcriptImage = async (
   record: Pick<Record, "bound" | "transcript">,
-  { offset, index }: { readonly offset: number; readonly index: number },
+  {
+    sessionId,
+    offset,
+    index,
+  }: { readonly sessionId: string; readonly offset: number; readonly index: number },
 ): Promise<TranscriptImageResult> => {
   const { bound, transcript: root } = record
   const source = bound && harnesses[bound.binding.agent].transcripts
-  if (!bound || !source || !root) throw new DomainError("NOT_FOUND")
+  if (!bound || !source || !root || bound.binding.sessionId !== sessionId)
+    throw new DomainError("NOT_FOUND")
   const path = await source.locate(root, bound.binding.sessionId, null)
   if (!path || !holds(record.bound?.binding, bound.binding)) throw new DomainError("NOT_FOUND")
   const line = await lineEndingAt(path, offset)

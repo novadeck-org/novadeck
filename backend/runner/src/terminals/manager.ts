@@ -1654,7 +1654,7 @@ export class Terminals {
   }
 
   /** A prompt image of the terminal's session, found in its transcript (see `transcript-images.ts`). */
-  transcriptImage(terminalId: string, image: { offset: number; index: number }) {
+  transcriptImage(terminalId: string, image: { sessionId: string; offset: number; index: number }) {
     if (this.stopping) throw new DomainError("CLOSING")
     return transcriptImage(this.record(terminalId), image)
   }

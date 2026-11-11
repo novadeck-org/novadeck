@@ -48,10 +48,10 @@ export type ConversationStreams = {
     terminalId: string,
     actor: string,
   ) => AsyncIterableIterator<TranscriptChange, undefined>
-  // The picture of a prompt image an item lists, by its offset and index.
+  // The picture of a prompt image an item lists, by its session, offset and index.
   readonly transcriptImage: (
     terminalId: string,
-    image: { readonly offset: number; readonly index: number },
+    image: { readonly sessionId: string; readonly offset: number; readonly index: number },
   ) => Promise<TranscriptImageResult>
   readonly prompt: (
     terminalId: string,
@@ -663,15 +663,20 @@ export const createRunnerConversations = (
           throw new Error("It is over the size the runner takes.")
         throw new Error("The runner couldn't save it.")
       }),
-    // A picture the runner can't show is none; one it couldn't be asked is the chat's to retry.
-    image: ({ terminalId }, { offset, index }) =>
-      track(streams.transcriptImage(terminalId, { offset, index })).then(
+    // A picture the runner can't show is none. One it could not be asked for, or that its session
+    // no longer has (rebound, resumed, the record rewritten), is a failure, so the chat asks again.
+    image: (key, { offset, index }) => {
+      const { session } = entryOf(key).conversation.getSnapshot()
+      if (session === null) return Promise.reject(new Error("The conversation isn't open."))
+      return track(
+        streams.transcriptImage(key.terminalId, { sessionId: session, offset, index }),
+      ).then(
         (found) => (found.state === "ready" ? found.src : null),
-        (error: unknown) => {
-          if (hasCode(error, "NOT_FOUND")) return null
+        () => {
           throw new Error("The runner couldn't show it.")
         },
-      ),
+      )
+    },
     imageMaxBytes: maxUploadBytes,
     imageTypes: promptImageTypes,
     maxImages: maxPromptImages,
