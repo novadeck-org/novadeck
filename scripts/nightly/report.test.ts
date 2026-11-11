@@ -245,4 +245,24 @@ describe("a nightly run's report", () => {
       })
     })
   })
+
+  context("when a night couldn't be followed to its end", () => {
+    const lost = run({
+      workflow: "E2E (pinned)",
+      failed: [],
+      lost: "it was still going after 310 minutes of waiting for it.",
+    })
+
+    it("opens the night's issue as a failed night, saying why", () => {
+      const action = decide(lost, null)
+      expect(action).toMatchObject({ kind: "open", title: "Nightly E2E (pinned) is failing" })
+      expect(action.kind === "open" && action.body).toContain(
+        "failed.\n\nIt couldn't be followed to its end: it was still going after 310 minutes of waiting for it.",
+      )
+    })
+
+    it("adds to the issue still open", () => {
+      expect(decide(lost, 9)).toMatchObject({ kind: "comment", issue: 9 })
+    })
+  })
 })

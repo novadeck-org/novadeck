@@ -177,20 +177,28 @@ jobs:
     needs: quality
     if: ${{ !cancelled() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       contents: read
       # To start E2E, and Nightly Report's wait for it.
       actions: write
+      # To report a pinned night that couldn't be started or followed.
+      issues: write
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
-      - name: Start E2E
+      # The run this token starts starts no workflow when it ends, so Nightly Report isn't told
+      # of it: it is dispatched beside it, to wait for the run and report it. Each way this can
+      # go wrong is a lost night, reported below and failing this job, never a silent one.
+      - name: Start E2E and Its Report
         id: start
         run: |
           since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          url=$(gh workflow run e2e.yml --ref main -f harness=pinned)
+          if ! url=$(gh workflow run e2e.yml --ref main -f harness=pinned); then
+            echo "lost=E2E couldn't be started on the pinned harnesses." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           echo "$url"
           id=$(grep -o 'runs/[0-9]*' <<< "$url" | cut -d/ -f2 || true)
           # An older gh prints no address: the newest such run since the dispatch is it.
@@ -200,17 +208,34 @@ jobs:
             id=$(gh api "repos/$GH_REPO/actions/workflows/e2e.yml/runs?event=workflow_dispatch&branch=main&created=%3E%3D$since" \
               --jq '[.workflow_runs[] | select(.actor.login == "github-actions[bot]")] | last | .id // empty' || true)
           done
-          echo "id=$id" >> "$GITHUB_OUTPUT"
-
-      # The run this token started starts no workflow when it ends, so Nightly Report isn't
-      # told of it: it is dispatched to wait for the run and report it. Without the run's id
-      # the night goes unreported, which the warning says.
-      - name: Report Pinned E2E When It Ends
-        env:
-          RUN: ${{ steps.start.outputs.id }}
-        run: |
-          if [ -z "$RUN" ]; then
-            echo "::warning::The pinned E2E run wasn't found, so Nightly Report won't report it."
+          if [ -z "$id" ]; then
+            echo "lost=the E2E run it started couldn't be found, so nothing waits for it." >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          gh workflow run nightly.yml --ref main -f run="$RUN" -f attempt=1 -f report=true
+          echo "run=$id" >> "$GITHUB_OUTPUT"
+          if ! gh workflow run nightly.yml --ref main -f run="$id" -f attempt=1 -f report=true; then
+            echo "lost=Nightly Report couldn't be started to wait for it." >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check Out Repository
+        if: steps.start.outputs.lost != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set Up Node
+        if: steps.start.outputs.lost != ''
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          runtime: node@26
+
+      # On the pinned night's own issue, at the E2E run when there is one, else this run.
+      - name: Report Lost Night
+        if: steps.start.outputs.lost != ''
+        env:
+          LOST: ${{ steps.start.outputs.lost }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ steps.start.outputs.run || github.run_id }}
+        run: |
+          node scripts/nightly/main.ts
+          echo "::error::The pinned E2E night couldn't be followed: $LOST"
+          exit 1

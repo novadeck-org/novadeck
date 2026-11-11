@@ -7,11 +7,13 @@ name: Nightly Report
 # rerun its token makes, so a night that a flake's rerun made green stays open until the
 # next green night.
 #
-# A dispatch reports on the run it names as a dry run: the summary says what it would do and
-# shows the writeup, and no issue changes. With `report`, it waits for the run to end and
-# reports for real: that is how E2E's run on the pinned harnesses is reported. Nightly Quality
-# starts that run with its token, so the run's end starts no workflow here, and it dispatches
-# this one beside it (a dispatch is the one event the token's runs can start).
+# A dispatch waits for the run it names to end and reports on it as a dry run: the summary
+# says what it would do and shows the writeup, and no issue changes. With `report` it changes
+# the issue for real: that is how E2E's run on the pinned harnesses is reported. Nightly
+# Quality starts that run with its token, so the run's end starts no workflow here, and it
+# dispatches this one beside it (a dispatch is the one event the token's runs can start). A run
+# still going when the wait runs out is reported as a failed night, and this job fails, so a
+# pinned night is never missed in silence.
 on:
   workflow_run:
     workflows: [E2E, Benchmark Timing, Nightly Quality]
@@ -25,9 +27,13 @@ on:
         description: Its attempt
         default: "1"
       report:
-        description: Wait for the run to end, then change its issue for real
+        description: Change its issue for real, not as a dry run
         type: boolean
         default: false
+      minutes:
+        description: Minutes to wait for it to end, at most 310
+        type: number
+        default: 310
 
 permissions:
   contents: read
@@ -46,7 +52,7 @@ jobs:
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     # Waiting for a pinned E2E run takes as long as it waits for Macs.
-    timeout-minutes: ${{ inputs.report && 330 || 10 }}
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 330 || 10 }}
     permissions:
       contents: read
       # To read the run's jobs.
@@ -59,13 +65,20 @@ jobs:
       RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt || inputs.attempt }}
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && !inputs.report && '1' || '' }}
     steps:
-      # Every two minutes, a failed read only waiting longer.
+      # Every minute, a failed read only waiting longer; past the deadline the night is lost.
       - name: Wait for Run
-        if: inputs.report
-        timeout-minutes: 320
+        id: wait
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          MINUTES: ${{ inputs.minutes }}
         run: |
+          deadline=$(( $(date +%s) + MINUTES * 60 ))
           until [ "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" --jq .status || true)" = completed ]; do
-            sleep 120
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "lost=it was still going after $MINUTES minutes of waiting for it." >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 60
           done
 
       - name: Check Out Repository
@@ -83,4 +96,14 @@ jobs:
       - name: Report Night
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          LOST: ${{ steps.wait.outputs.lost }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ env.RUN_ID }}
         run: node scripts/nightly/main.ts
+
+      - name: Fail a Lost Night
+        if: steps.wait.outputs.lost != ''
+        env:
+          LOST: ${{ steps.wait.outputs.lost }}
+        run: |
+          echo "::error::Run $RUN_ID couldn't be followed to its end: $LOST"
+          exit 1

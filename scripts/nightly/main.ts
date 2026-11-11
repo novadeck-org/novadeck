@@ -162,8 +162,26 @@ const withWriteup = async (
   }
 }
 
+/**
+ * A night that couldn't be followed (LOST says why): reported as failed, at RUN_URL, the run
+ * that was lost or the one that tried to follow it. NIGHT names it, E2E (pinned) unless told.
+ */
+export const lostNight = (lost: string): Night => ({
+  workflow: process.env.NIGHT?.trim() || "E2E (pinned)",
+  conclusion: "failure",
+  url: required("RUN_URL"),
+  attempt: 1,
+  sha: process.env.GITHUB_SHA ?? "",
+  startedAt: new Date().toISOString(),
+  failed: [],
+  lost,
+})
+
 export const main = async (): Promise<void> => {
-  const ended = nightOf(required("RUN_ID"), Number(required("RUN_ATTEMPT")))
+  const lost = process.env.LOST?.trim()
+  const ended = lost
+    ? lostNight(lost)
+    : nightOf(required("RUN_ID"), Number(required("RUN_ATTEMPT")))
   const logs = ended.failed.length > 0 ? await logsOf(ended) : []
   const run = judged(ended, logs)
   const action = await withWriteup(run, logs, decide(run, openIssue(run.workflow)))
