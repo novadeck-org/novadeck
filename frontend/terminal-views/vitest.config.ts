@@ -2,6 +2,8 @@ import { unit } from "@novadeck/build-kit/vitest"
 import { playwright } from "@vitest/browser-playwright"
 import { configDefaults, defineConfig, type TestProjectInlineConfiguration } from "vitest/config"
 
+import { retryOnCi } from "../../scripts/flakes/retry/vitest"
+
 // On CI the specs that need WebGL2 fail where the browser has none, instead of skipping
 // (src/webgl.ts), unless NOVADECK_WEBGL_OPTIONAL=1 allows it.
 const webglRequired = Boolean(process.env.CI) && process.env.NOVADECK_WEBGL_OPTIONAL !== "1"
@@ -47,7 +49,7 @@ const browserProject = (options: {
   },
 })
 
-export default defineConfig({
+const config = defineConfig({
   test: {
     restoreMocks: true,
     projects: [
@@ -69,3 +71,5 @@ export default defineConfig({
     ],
   },
 })
+
+export default retryOnCi(config)

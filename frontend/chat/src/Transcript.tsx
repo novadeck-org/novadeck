@@ -25,13 +25,22 @@ const fromAgents = ({ messages }: Ring) =>
 const fromPerson = ({ messages }: Ring) =>
   messages?.filter(({ from }) => from.kind === "person") ?? []
 
-// What the doorbell's line says it brought, after `doorbell`: nothing where that isn't known,
-// which is no saying that it brought nothing.
+// What the doorbell brought, for screen readers: nothing where that isn't known, which is no
+// saying that it brought nothing.
 const ringBrought = (ring: Ring): string =>
   [
     ...(fromAgents(ring).length > 0 ? [counted(fromAgents(ring).length, "message")] : []),
     ...(ring.replies || fromPerson(ring).length > 0 ? ["your reply"] : []),
   ].join(", ")
+
+// The doorbell's own line, only where the ring holds what it can't show: a reply of the person's
+// whose words the record lacks, or nothing known at all. What it brought speaks for itself.
+const ringLine = (ring: Ring): string | null =>
+  ring.replies && fromPerson(ring).length === 0
+    ? "doorbell · your reply"
+    : fromAgents(ring).length + fromPerson(ring).length === 0
+      ? "doorbell"
+      : null
 
 // Another agent's handle.
 const handleOf = (party: MessageParty): string => (party.kind === "agent" ? `@${party.handle}` : "")
@@ -46,6 +55,14 @@ export type PeerLook = {
   readonly hue: number
 }
 export type PeerLooks = (handle: string) => PeerLook | null
+
+// What stands in the gutter at the person's words that came another way than the prompt, as an
+// answer through the Inbox: their face, where the app gives one (their avatar, as Messages draws
+// it, in their hue), else the block mark. What they type here keeps the mark.
+const PersonGutter = ({ face }: { readonly face: React.ReactNode }): React.JSX.Element =>
+  face ? <span className="chat-person-face">{face}</span> : <Mark />
+// The hue the person's words carry with their face, as Messages gives them.
+const personHue = (face: React.ReactNode): "you" | undefined => (face ? "you" : undefined)
 
 // Whether focus came by the keys rather than a click, as the browser shows its ring only then.
 const keyFocus = (target: EventTarget): boolean => {
@@ -316,10 +333,13 @@ const BlockView = memo(
     agent,
     live,
     looks,
+    personFace,
     gone,
     worked,
   }: {
     readonly worked: number | null
+    // The person's face for the gutter at their Inbox answers (see `PersonGutter`).
+    readonly personFace: React.ReactNode
     readonly block: ChatBlock
     // The agent's name, for what it said.
     readonly agent: string
@@ -365,39 +385,53 @@ const BlockView = memo(
         return <p className="chat-note">{block.text}</p>
       case "doorbell": {
         const brought = ringBrought(block)
+        const line = ringLine(block)
         return (
           <article
             className="chat-message chat-ring"
             data-role="doorbell"
+            data-line={line !== null || undefined}
             aria-label={brought ? `Doorbell, ${brought}` : "Doorbell"}
           >
-            {/* The block hollow: a prompt, and not the person's. */}
-            <Mark hollow />
-            <p className="chat-note">
-              {brought ? `doorbell · ${brought}` : "doorbell"}
-              <TimeFact at={block.at} />
-            </p>
-            {fromAgents(block).map((message) => (
+            {line !== null && (
+              <>
+                {/* The block hollow: a prompt, and not the person's. */}
+                <Mark hollow />
+                <p className="chat-note">
+                  {line}
+                  <TimeFact at={block.at} />
+                </p>
+              </>
+            )}
+            {fromAgents(block).map((message, index) => (
               <PeerMessage
                 key={message.id}
                 from={handleOf(message.from)}
                 text={message.text}
                 truncated={false}
                 looks={looks}
-                at={null}
+                // With no line of its own, the ring's time is its first message's.
+                at={line === null && index === 0 ? block.at : null}
               />
             ))}
-            {fromPerson(block).map((message) => (
+            {fromPerson(block).map((message, index) => (
               <article
                 key={message.id}
                 className="chat-message chat-ring-reply"
                 data-role="user"
+                data-hue={personHue(personFace)}
                 aria-label="You, from the Inbox"
               >
-                <Mark />
-                <p className="chat-text">
-                  {message.text} <span className="chat-sent-tag">from the Inbox</span>
+                <PersonGutter face={personFace} />
+                {/* Headed as another agent's message is: who, in their hue, and the way it came. */}
+                <p className="chat-agent-head">
+                  <span className="chat-author">you</span>
+                  <span className="chat-agent-where">from the Inbox</span>
                 </p>
+                <p className="chat-text">{message.text}</p>
+                {line === null && index === 0 && fromAgents(block).length === 0 && (
+                  <TimeFact at={block.at} hover />
+                )}
               </article>
             ))}
           </article>
@@ -438,6 +472,7 @@ const BlockView = memo(
     before.agent === after.agent &&
     before.live === after.live &&
     before.worked === after.worked &&
+    before.personFace === after.personFace &&
     (before.gone === after.gone || after.block.kind !== "subagent") &&
     (before.looks === after.looks || !drawsPeers(after.block)) &&
     sameBlock(before.block, after.block),
@@ -559,6 +594,7 @@ export const Transcript = ({
   sent = noBubbles,
   echoes = noEchoes,
   looks,
+  personFace,
   onResend,
   onEdit,
   onShowTerminal,
@@ -572,6 +608,9 @@ export const Transcript = ({
   readonly echoes?: readonly Echo[]
   // How other Novadeck agents look, where the app knows them (see `PeerLooks`).
   readonly looks?: PeerLooks | undefined
+  // The person's own face at their words that came through the Inbox, where the app gives one;
+  // else the block mark.
+  readonly personFace?: React.ReactNode
 }): React.JSX.Element => {
   const last = blocks.at(-1)
   const worked = useMemo(() => turnsWorked(blocks, working), [blocks, working])
@@ -591,6 +630,7 @@ export const Transcript = ({
             agent={agent}
             live={working && each.block === last}
             looks={looks}
+            personFace={personFace}
             gone={gone}
             worked={longWork(worked.get(each.block.id))}
           />

@@ -130,4 +130,48 @@ describe("terminal registry", () => {
       expect(registry.get({ ...first, workspaceSessionId: "other" })).toBeDefined()
     })
   })
+
+  context("when a commit moves a terminal to another session", () => {
+    it("carries its entry on under the new key, neither closing nor opening one", () => {
+      const moves: string[] = []
+      const opened: TerminalKey[] = []
+      const closed: string[] = []
+      const registry = createTerminalRegistry<{ key: TerminalKey }>({
+        open: (key) => {
+          opened.push(key)
+          return { key }
+        },
+        close: (entry) => closed.push(entry.key.terminalId),
+        move: (_entry, from, to) => {
+          moves.push(`${from.workspaceSessionId}>${to.workspaceSessionId}`)
+          return { key: to }
+        },
+      })
+      const workspace = apply(fixture(), [
+        {
+          type: "terminal/add",
+          target,
+          terminal: { ...terminalFixture(3, "~/project"), id: "03" },
+        },
+      ])
+      registry.reconcile(workspace, [])
+      const actions: WorkspaceAction[] = [
+        {
+          type: "terminal/move",
+          projectId: "project",
+          from: "initial",
+          to: "other",
+          terminal: { ...terminalFixture(3, "~/project"), id: "03", handle: "wren" },
+        },
+      ]
+      registry.reconcile(apply(workspace, actions), actions)
+      const there = { ...target, workspaceSessionId: "other", terminalId: "03" }
+      expect(moves).toEqual(["initial>other"])
+      expect(closed).toEqual([])
+      expect(opened).toHaveLength(5)
+      expect(registry.get(there)?.entry.key).toEqual(there)
+      expect(registry.get(there)?.terminal.handle).toBe("wren")
+      expect(registry.get({ ...target, terminalId: "03" })).toBeUndefined()
+    })
+  })
 })

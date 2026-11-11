@@ -7,14 +7,16 @@ import {
   PointerSensor,
 } from "@dnd-kit/dom"
 import { RestrictToElement } from "@dnd-kit/dom/modifiers"
-import { DragDropProvider } from "@dnd-kit/react"
+import { DragDropProvider, useDragDropManager } from "@dnd-kit/react"
 import { isSortable } from "@dnd-kit/react/sortable"
 import type { Tile } from "@novadeck/core/types"
+import { PullOut } from "@novadeck/toolkit/drag-pull"
 import { sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import {
   Fragment,
   useCallback,
   useContext,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useState,
@@ -50,16 +52,57 @@ const feedback = Feedback.configure({
 })
 const cursor = Cursor.configure({ cursor: "pointer" })
 
+// Where a tab pulled out of the list goes (`PullOut`: it stays in the list until the person
+// pulls it free): told as a tab is picked up, how the pull stands, where the pointer is as it
+// moves, and as it drops, which answers whether the drop was taken there, as a move to another
+// session, so the list keeps its order. `within` is how far a free tab may travel, read as the
+// drag starts.
+export type TabsAway = {
+  readonly within: () => Element | null
+  readonly start: (terminalId: string) => void
+  readonly pull: (pull: { readonly tension: number; readonly free: boolean }) => void
+  // Whether the tab being dragged would drop nowhere if let go now: it has broken free of
+  // the list and holds over no session.
+  readonly adrift: () => boolean
+  readonly move: (point: { readonly x: number; readonly y: number }) => void
+  readonly end: (terminalId: string, canceled: boolean) => boolean
+}
+
+// How hard a tab is to pull out of the list: stiffer than the toolkit's default, as reordering
+// is what a tab's drag is mostly for. Grabbed at its middle, it gives as the pointer reaches the
+// rail; grabbed nearer the rail, where there's less room, as it nears the window's edge.
+const tabPull = { give: 10, breakAt: 140 }
+
+// A tab pulled out of the list and let go over nothing ends its drag as canceled, as Escape
+// would, so the library puts the list back as it was saved instead of leaving the order the tab
+// passed on its way out. One still held at the list's edge reorders as usual.
+const DropAdrift = ({ adrift }: { readonly adrift: () => boolean }): null => {
+  const manager = useDragDropManager()
+  useEffect(() => {
+    if (!manager) return
+    const release = (): void => {
+      if (adrift()) manager.actions.stop({ canceled: true })
+    }
+    // Before the library's own listener ends the drag as dropped.
+    window.addEventListener("pointerup", release, true)
+    return () => window.removeEventListener("pointerup", release, true)
+  }, [manager, adrift])
+  return null
+}
+
 export const TerminalTabs = ({
   terminals,
   renderTab,
   onReorder,
+  away,
 }: {
   terminals: readonly Tile[]
   // Renders one sortable tab, usually a TerminalTab, at its position in the list.
   renderTab: (terminal: Tile, index: number) => ReactNode
   // Saves the order a drag ends on.
   onReorder: (ids: string[]) => void
+  // Where a tab may be dragged beyond the list; without it, it stays in the list.
+  away?: TabsAway | undefined
 }): React.JSX.Element => {
   const [list, setList] = useState<HTMLDivElement | null>(null)
   // Bumped when a drag ends: the drag library moves a tab's element next to the one it passes,
@@ -95,22 +138,39 @@ export const TerminalTabs = ({
     )
     tab?.querySelector<HTMLElement>("button")?.focus()
   }, [drag, list])
-  const modifiers = useMemo(() => [RestrictToElement.configure({ element: list })], [list])
+  const within = away?.within
+  const pull = away?.pull
+  const modifiers = useMemo(
+    () => [
+      within && pull
+        ? PullOut.configure({ element: list, within, feel: tabPull, onPull: pull })
+        : RestrictToElement.configure({ element: list }),
+    ],
+    [within, pull, list],
+  )
   return (
     <DragDropProvider
       sensors={sensors}
       modifiers={modifiers}
       plugins={(defaults) => [...defaults, accessibility, feedback, cursor]}
+      onDragStart={(event) => {
+        const { source, activatorEvent } = event.operation
+        // The keyboard reorders only; a tab goes elsewhere from its menu.
+        if (isSortable(source) && !(activatorEvent instanceof KeyboardEvent))
+          away?.start(String(source.id))
+      }}
+      onDragMove={(event) => away?.move(event.operation.position.current)}
       onDragEnd={(event) => {
         const { source } = event.operation
         if (!isSortable(source)) return
+        const taken = away?.end(String(source.id), event.canceled) ?? false
         const held = document.activeElement
         const focused = held && list?.contains(held) ? held.closest("[data-terminal-tab-id]") : null
         setDrag((current) => ({
           generation: current.generation + 1,
           focus: focused?.getAttribute("data-terminal-tab-id") ?? null,
         }))
-        if (event.canceled || source.initialIndex === source.index) return
+        if (taken || event.canceled || source.initialIndex === source.index) return
         const order = terminals.map((terminal) => terminal.id)
         const from = order.indexOf(String(source.id))
         if (from < 0) return
@@ -119,6 +179,7 @@ export const TerminalTabs = ({
         onReorder(order)
       }}
     >
+      {away && <DropAdrift adrift={away.adrift} />}
       <div className={`terminal-tab-list ${sidebarListClasses}`} ref={attach}>
         <Fragment key={drag.generation}>
           {terminals.map((terminal, index) => renderTab(terminal, index))}

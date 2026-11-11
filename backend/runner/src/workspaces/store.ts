@@ -1666,6 +1666,12 @@ export class WorkspaceStore
       `
   }
 
+  saveTerminals(terminals: readonly (TerminalToSave & { readonly ran?: boolean })[]): void {
+    this.transaction(() => {
+      for (const terminal of terminals) this.saveTerminal(terminal)
+    })
+  }
+
   /** Whether a line was ever entered in the terminal; false for one not kept. */
   terminalRan(terminalId: string): boolean {
     const row = this.queries.get`SELECT ran FROM terminals WHERE id = ${terminalId}` as

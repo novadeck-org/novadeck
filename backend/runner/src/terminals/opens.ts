@@ -228,6 +228,8 @@ export class OpenRequests {
     {
       readonly owner: string
       readonly sessionId: string
+      /** The terminal whose agent asked. */
+      readonly from: string
       /** Who asked, until the terminal created for the request takes it. */
       opener: Opener | undefined
       readonly settle: (asked: Asked) => void
@@ -260,6 +262,7 @@ export class OpenRequests {
       this.pending.set(requestId, {
         owner: follower.owner,
         sessionId: request.sessionId,
+        from: request.from,
         opener,
         settle,
       })
@@ -285,6 +288,11 @@ export class OpenRequests {
     const waiting = this.pending.get(answer.requestId)
     if (!waiting || waiting.owner !== owner) throw new DomainError("NOT_FOUND")
     waiting.settle({ type: "answered", answer })
+  }
+
+  /** Whether a request of the terminal's agent for a new terminal is on its way. */
+  involves(terminalId: string): boolean {
+    return [...this.pending.values()].some((waiting) => waiting.from === terminalId)
   }
 
   /** Whether a request waits for its terminal, asked by the terminal with that handle. */

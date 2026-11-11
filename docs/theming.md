@@ -356,6 +356,9 @@ fails too, and fails when one is no longer needed.
 - `theme/accessibility.css` uses `!important` for reduced motion, to beat the
   transitions libraries set inline or inject with `!important`, such as dnd-kit's drag
   feedback.
+- `frontend/toolkit/src/drag-pull.css` uses `!important` for the glide a dragged element
+  makes to the pointer as it is pulled free of its list: dnd-kit sets the element's
+  transition inline (`--dnd-transition`).
 - `frontend/terminal-views/src/terminal-xterm.css` uses `!important` to thin xterm's scrollbar
   slider, whose position and width xterm sets inline.
 - `theme/accessibility.css` may name system colours (`Canvas`, `Highlight`) for forced

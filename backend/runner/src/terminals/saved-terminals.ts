@@ -70,7 +70,7 @@ export type KeptInterruption = {
 export type SavedTerminal = {
   readonly id: string
   readonly sessionId: string
-  /** Its handle in its session, a word such as `moth`, which never changes. */
+  /** Its handle in its session, a word such as `moth`; a move to another session may change it. */
   readonly handle: string
   /**
    * What names it: the person's title, an agent's, and its agent's summary of its work;
@@ -149,6 +149,8 @@ export type TerminalRecords = {
   terminalIdentity(terminalId: string): TerminalIdentity | undefined
   /** `transcript` is left as it is when omitted. */
   saveTerminal(terminal: TerminalToSave): void
+  /** Saves each as `saveTerminal` does, all or none; saved one by one where omitted. */
+  saveTerminals?(terminals: readonly TerminalToSave[]): void
   removeTerminal(terminalId: string): void
   clearTranscripts(): void
   /**

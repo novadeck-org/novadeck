@@ -1,12 +1,19 @@
 import { MURMUR_NAME } from "@novadeck/core/addons/murmur"
 import { itemFixture, terminalFixture } from "@novadeck/core/testing"
+import type { ContextMenuAction, ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
 
 import { context, describe, expect, it } from "../test"
-import { windowMenu } from "./window-menu"
+import { windowMenu, type MoveTo } from "./window-menu"
 
 const ignore = (): void => {}
-const labels = (items: ReturnType<typeof windowMenu>) =>
-  items.map((item) => `${item.label}${item.disabled ? " (disabled)" : ""}`)
+const labels = (items: readonly ContextMenuItem[]) =>
+  items.map((item) => `${item.label}${"disabled" in item && item.disabled ? " (disabled)" : ""}`)
+// The action of `value`, which a test chooses.
+const action = (items: readonly ContextMenuItem[], value: string): ContextMenuAction => {
+  const found = items.find((item) => item.value === value)
+  if (!found || "items" in found) throw new Error(`No action ${value}`)
+  return found
+}
 
 describe("a window's menu", () => {
   it("offers a terminal Rename and Close, and Reset only for a name the person gave", () => {
@@ -39,7 +46,7 @@ describe("a window's menu", () => {
       onClose: ignore,
     })
     expect(labels(items)).toEqual(["Rename", "Ask @moth to write feedback…", "Close"])
-    items.find((item) => item.value === "ask-feedback")!.onSelect()
+    action(items, "ask-feedback").onSelect()
     expect(asked).toEqual(["moth"])
   })
 
@@ -52,7 +59,7 @@ describe("a window's menu", () => {
       onClose: ignore,
     })
     expect(labels(items)).toEqual(["Rename", "Release from @moth", "Close"])
-    items.find((item) => item.value === "release-lead")!.onSelect()
+    action(items, "release-lead").onSelect()
     expect(released).toEqual(["moth"])
   })
 
@@ -68,7 +75,7 @@ describe("a window's menu", () => {
         onClose: ignore,
       })
       expect(labels(items)).toEqual(["Rename", "Dock in Build Studio", "Close"])
-      items.find((item) => item.value === "dock")!.onSelect()
+      action(items, "dock").onSelect()
       expect(returned).toEqual(["01"])
     })
 
@@ -118,9 +125,67 @@ describe("a window's menu", () => {
     expect(labels(menu(3, false))).toEqual(["Rename", "Fold 3 teammates", "Close"])
     expect(labels(menu(3, true))).toEqual(["Rename", "Show 3 teammates", "Close"])
     expect(labels(menu(1, false))).toEqual(["Rename", "Fold 1 teammate", "Close"])
-    menu(2, false)
-      .find((item) => item.value === "fold-team")!
-      .onSelect()
+    action(menu(2, false), "fold-team").onSelect()
     expect(toggled).toEqual(["2"])
+  })
+
+  context("where the terminal can move to another session", () => {
+    const moves: string[] = []
+    const moveTo = (team: number, more: boolean): MoveTo => ({
+      sessions: [
+        { id: "s2", name: "Nov 6, 22:11", count: 7 },
+        { id: "s3", name: "Payments", count: 4 },
+      ],
+      more,
+      team,
+      onMove: (to) => moves.push("fresh" in to ? "new" : to.sessionId),
+      onPick: () => moves.push("pick"),
+    })
+    const submenu = (items: readonly ContextMenuItem[]) => {
+      const found = items.find((item) => item.value === "move")
+      if (!found || !("items" in found)) throw new Error("No move submenu")
+      return found
+    }
+
+    it("lists a new session, then the sessions, above Close", () => {
+      const items = windowMenu({
+        terminal: terminalFixture(2, "~/p"),
+        onRename: ignore,
+        moveTo: moveTo(0, false),
+        onClose: ignore,
+      })
+      expect(labels(items)).toEqual(["Rename", "Move to session", "Close"])
+      const move = submenu(items)
+      expect(labels(move.items)).toEqual(["New session", "Nov 6, 22:11", "Payments"])
+      action(move.items, "move-new").onSelect()
+      action(move.items, "move-to-s3").onSelect()
+      expect(moves.splice(0)).toEqual(["new", "s3"])
+    })
+
+    it("ends with All sessions… where there are more than it lists", () => {
+      const move = submenu(
+        windowMenu({
+          terminal: terminalFixture(2, "~/p"),
+          onRename: ignore,
+          moveTo: moveTo(0, true),
+          onClose: ignore,
+        }),
+      )
+      expect(labels(move.items).at(-1)).toBe("All sessions…")
+      action(move.items, "move-all").onSelect()
+      expect(moves.splice(0)).toEqual(["pick"])
+    })
+
+    it("moves a lead's team, naming how many come along", () => {
+      const items = windowMenu({
+        terminal: terminalFixture(2, "~/p"),
+        onRename: ignore,
+        moveTo: moveTo(3, false),
+        onClose: ignore,
+      })
+      const move = submenu(items)
+      expect(move.label).toBe("Move team to session")
+      expect(labels(move.items)[0]).toBe("With 3 teammates (disabled)")
+    })
   })
 })

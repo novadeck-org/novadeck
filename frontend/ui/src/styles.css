@@ -54,6 +54,7 @@
 @import "@novadeck/toolkit/terminal-status.css" layer(components);
 @import "@novadeck/toolkit/handle-chip.css" layer(components);
 @import "@novadeck/toolkit/toast.css" layer(components);
+@import "@novadeck/toolkit/drag-pull.css" layer(components);
 /* The items package's recipes, before those split from the old styles.css, which win a tie
    with them. */
 @import "@novadeck/items/taskbar.css" layer(components);

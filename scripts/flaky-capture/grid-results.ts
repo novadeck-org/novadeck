@@ -34,8 +34,8 @@ export const validateGridCapture = (
   if (captures.length !== assertions.length)
     return `Missing per-case capture records: ${captures.length} of ${assertions.length}`
   for (const context of [
-    "when dragged onto the Grid's free space",
-    "when dropped on the Grid's free space by the move that starts the drag",
+    "when dragged onto the Grid between its tiles",
+    "when dropped on the Grid between its tiles by the move that starts the drag",
   ]) {
     const tests = assertions.filter(
       (test) => test.title === "opens a window there" && test.ancestorTitles?.includes(context),

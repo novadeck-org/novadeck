@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, type ReactNode } from "react"
 import { AgentContextProvider } from "../inbox/agent-context"
 import { InboxProvider, useInboxOpener } from "../inbox/InboxProvider"
 import { InboxSheet } from "../inbox/InboxSheet"
-import { InboxToasts, type ShowBoard, type ToastBoard } from "../inbox/InboxToasts"
+import { InboxToasts, type MoveBoard, type ShowBoard, type ToastBoard } from "../inbox/InboxToasts"
 import { PlanTextProvider } from "../inbox/plan-text"
 import { focusTerminalInput } from "../interaction/dom"
 import { anyAgentWorking } from "../projects/project-status"
@@ -12,6 +12,7 @@ import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { dingOf } from "./ding"
 import { clickNotice, noticeBoard } from "./inbox-pings"
 import { watchInboxToasts } from "./inbox-toasts"
+import { watchMoveToasts } from "./move-toasts"
 import { currentState } from "./selectors"
 import { focusWhenReady, watchShowToasts } from "./show-toasts"
 
@@ -79,6 +80,11 @@ export const InboxHost = ({
     (board: ShowBoard) => watchShowToasts(workspace, ui, board),
     [workspace, ui],
   )
+  // The person's moves, each told once it's done, with Undo and the way there.
+  const followMoves = useCallback(
+    (board: MoveBoard) => watchMoveToasts(ui, board, commands),
+    [ui, commands],
+  )
   // Brings the terminal a row waits on into view, as its sidebar row does where the session
   // is on screen, else as a click on a notification about it does.
   const showTerminal = useCallback(
@@ -117,6 +123,7 @@ export const InboxHost = ({
         <InboxToasts
           follow={follow}
           followShows={followShows}
+          followMoves={followMoves}
           showInbox={showInbox}
           peekInbox={peekInbox}
           showTerminal={showTerminal}

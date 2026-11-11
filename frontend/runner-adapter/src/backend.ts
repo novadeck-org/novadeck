@@ -185,7 +185,8 @@ type Launch = {
 
 // One terminal the workspace holds, whichever view shows it.
 type RunnerEntry = {
-  readonly key: TerminalKey
+  // Its session's changes when the terminal moves to another (`registry`'s `move`).
+  key: TerminalKey
   // True once the runner has the terminal; false when it could not be created or
   // started again. Replaced whenever a fresh shell starts.
   ready: Promise<boolean>
@@ -915,6 +916,23 @@ export const runnerBackend = (
       .find((project) => project.id === key.projectId)
       ?.history.find((session) => session.id === key.workspaceSessionId)
       ?.state.roster.terminals.find((terminal) => terminal.id === key.terminalId)
+  // A terminal the runner moved to another session of its project: the workspace moves it,
+  // with the handle and lead it has there. A session this workspace doesn't hold, as one
+  // another window just made, comes with the next listing; until then it stays.
+  const moveEntry = (entry: RunnerEntry, summary: TerminalSummary): void => {
+    const current = terminalOf(entry.key)
+    const project = latest?.projects.find((each) => each.id === entry.key.projectId)
+    if (!current || !project?.history.some((session) => session.id === summary.sessionId)) return
+    dispatch([
+      {
+        type: "terminal/move",
+        projectId: entry.key.projectId,
+        from: entry.key.workspaceSessionId,
+        to: summary.sessionId,
+        terminal: { ...current, handle: summary.handle, ledBy: summary.ledBy },
+      },
+    ])
+  }
   // The title a terminal is created with: the one the person gave it; the runner names
   // the others.
   const titled = (key: TerminalKey): { title?: string } => {
@@ -1437,6 +1455,24 @@ export const runnerBackend = (
       followWhenReady(entry)
       return entry
     },
+    // Moved to another session: the same shell carries on, filed under its new key, and
+    // what follows its messages and usage follows it there.
+    move: (entry, from, to) => {
+      entry.key = to
+      // Once this commit is done, as for a close: what the stores tell their readers never
+      // stands inside it.
+      queueMicrotask(() => {
+        // Its usage goes with it, unless the agent has reported anew under the new key.
+        const held = telemetry.getSnapshot()
+        const at = (key: typeof from) => held[`${key.projectId}/${key.workspaceSessionId}`]
+        const carried = at(from)?.[from.terminalId]
+        if (carried && !at(entry.key)?.[entry.key.terminalId]) noteUsage(entry, carried)
+        noteUsage({ ...entry, key: from }, undefined)
+        messages.unfollow(from)
+        followWhenReady(entry)
+      })
+      return entry
+    },
     close: (entry, key) => {
       entry.closed = true
       clearTimeout(entry.dwell)
@@ -1645,6 +1681,9 @@ export const runnerBackend = (
           followWhenReady(entry)
           checkBoot()
         }
+        // Moved to another session, as the person asked here or in another window: it goes
+        // there with its shell, under its new key, before what else it says applies.
+        if (summary.sessionId !== entry.key.workspaceSessionId) moveEntry(entry, summary)
         dispatch([
           ...factActions(entry, summary),
           ...(summary.started ? activityActions(entry, summary) : []),
@@ -1917,6 +1956,20 @@ export const runnerBackend = (
       ),
     source: createRunnerSource(runner.projects),
     history: history.history,
+    // Once the session it goes to exists on the runner, as one the person just made does
+    // after a moment; the runner's `changed` then moves it here (`moveEntry`).
+    moveTerminal: (key, sessionId, undo) =>
+      track(
+        (async () => {
+          await sessionThere(sessionId)
+          return runner.terminals.move({
+            terminalId: key.terminalId,
+            to: { sessionId },
+            ...(undo && { handles: undo.handles }),
+            ...(undo?.lead !== undefined && { lead: undo.lead }),
+          })
+        })(),
+      ),
     works: works.works,
     resetTitle: (key) => {
       const { terminalId } = key

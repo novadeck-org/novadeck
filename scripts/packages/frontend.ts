@@ -505,13 +505,18 @@ export const rewriteImports = (
     const newTarget = rule.ownCopies.includes(target) ? `${own.dir}/src/test.ts` : place(target)
     if (newTarget !== place(target)) copies.add(own.dir)
     const there = packageOf(newTarget)
-    if (!there) return fail(specifier, line, `names ${newTarget}, which no package holds`)
-    if (there !== own) {
+    // The repository's own scripts stay where they are, and a package's config may use one,
+    // as every Vitest config takes CI's retries from scripts/flakes/retry.
+    const script = !there && newTarget.startsWith("scripts/") && !newFile.includes("/src/")
+    if (!there && !script)
+      return fail(specifier, line, `names ${newTarget}, which no package holds`)
+    if (there && there !== own) {
       if (!newTarget.startsWith(`${there.dir}/src/`))
         return fail(specifier, line, `names ${newTarget}, outside ${there.name}'s src`)
       return crossSpecifier(newTarget, there) + queryOf(specifier)
     }
-    // The same package: unchanged where both ends moved together, else from the new places.
+    // The same package or a script: unchanged where both ends moved together, else from the new
+    // places.
     const before = posix.relative(posix.dirname(file), target)
     const after = posix.relative(posix.dirname(newFile), newTarget)
     if (!core && before === after) return specifier

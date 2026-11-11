@@ -76,6 +76,17 @@ export class Names<R extends NamedRecord> {
     return handle
   }
 
+  /**
+   * Records that the session gave the handle, unless it gave it already; whether it did now.
+   * Only for a runner that keeps no records, which count in memory (`next`).
+   */
+  adopt(sessionId: string, handle: string): boolean {
+    const given = this.handles.get(sessionId) ?? new Set<string>()
+    if (given.has(handle)) return false
+    this.handles.set(sessionId, new Set(given).add(handle))
+    return true
+  }
+
   /** Where a handle comes in the order its session gave handles in memory; -1 if it gave none. */
   order(sessionId: string, handle: string): number {
     return [...(this.handles.get(sessionId) ?? [])].indexOf(handle)

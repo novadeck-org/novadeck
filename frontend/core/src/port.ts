@@ -139,6 +139,7 @@ export type BackendAction = Extract<
       | "terminal/status"
       | "terminal/process"
       | "terminal/close"
+      | "terminal/move"
       | "item/upsert"
       | "item/remove"
       | "window/upsert"
@@ -194,6 +195,25 @@ export type BackendSink = {
   // Hands the app a request for a new terminal, which it adds where its "+" would. After
   // stop, the request is refused. Never call it from inside `commit`.
   readonly open: (request: TerminalRequest) => void
+}
+
+// What a terminal's move did: the session it is in now, and each terminal it moved, the one
+// asked for first and then its team, with its handle there and the one it had; `left` is
+// the lead's handle it went without, null when it had none.
+export type TerminalMoveResult = {
+  readonly sessionId: string
+  readonly moved: readonly {
+    readonly terminalId: string
+    readonly handle: string
+    readonly was: string
+  }[]
+  readonly left: string | null
+}
+
+// What takes a move back: each moved terminal's handle before, by id, and the lead it left.
+export type TerminalMoveUndo = {
+  readonly handles: Readonly<Record<string, string>>
+  readonly lead?: string | undefined
 }
 
 export type BackendFields = {
@@ -326,6 +346,16 @@ export type BackendFields = {
   // answers to the one that led it, and the backend reports `ledBy: null`. Absent where
   // agents can't lead.
   readonly releaseLead?: (key: TerminalKey) => void
+  // Optional. The person moves a terminal to another session of its project, still running:
+  // a lead with its whole team, a teammate on its own out of its lead's team. The backend
+  // reports each move with `terminal/move`, and resolves with what it did, or rejects with
+  // why it couldn't. `undo` takes an earlier move back: the handles they had and the lead
+  // it left. Absent where terminals stay in their session.
+  readonly moveTerminal?: (
+    key: TerminalKey,
+    sessionId: string,
+    undo?: TerminalMoveUndo,
+  ) => Promise<TerminalMoveResult>
   // Optional. Each project's files, folder by folder, and on a demo backend what its agents
   // change in them, for the sidebar's Source panel (see core's `source`). Absent where the
   // backend can't read the projects' folders: the panel isn't drawn.

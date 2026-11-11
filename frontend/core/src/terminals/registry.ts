@@ -9,6 +9,10 @@ export type TerminalLifecycle<Entry> = {
   // not for one that already existed when the backend first saw the workspace.
   readonly open: (key: TerminalKey, terminal: TerminalMetadata, created: boolean) => Entry
   readonly close: (entry: Entry, key: TerminalKey) => void
+  // A terminal that left one session for another in the same commit (`terminal/move`): its
+  // entry carries on under its new key, never closed and opened again. Without it, the
+  // entry moves as it is.
+  readonly move?: (entry: Entry, from: TerminalKey, to: TerminalKey) => Entry
 }
 
 export type RegisteredTerminal<Entry> = {
@@ -33,6 +37,11 @@ const createdKeys = (actions: readonly WorkspaceAction[]): Set<string> =>
     ),
   )
 
+const movedIds = (actions: readonly WorkspaceAction[]): Set<string> =>
+  new Set(
+    actions.flatMap((action) => (action.type === "terminal/move" ? [action.terminal.id] : [])),
+  )
+
 // Keeps one entry per terminal in the workspace, independent of which view shows it.
 export const createTerminalRegistry = <Entry>(
   lifecycle: TerminalLifecycle<Entry>,
@@ -40,25 +49,33 @@ export const createTerminalRegistry = <Entry>(
   const registered = new Map<string, RegisteredTerminal<Entry> & { readonly key: TerminalKey }>()
   const reconcile = (workspace: Workspace, actions: readonly WorkspaceAction[]): void => {
     const created = createdKeys(actions)
-    const remaining = new Set<string>()
-    for (const project of workspace.projects)
-      for (const session of project.history)
-        for (const terminal of session.state.roster.terminals) {
-          const key = {
-            projectId: project.id,
-            workspaceSessionId: session.id,
-            terminalId: terminal.id,
-          }
-          const id = terminalKeyId(key)
-          remaining.add(id)
-          const previous = registered.get(id)
-          if (previous?.terminal === terminal) continue
-          registered.set(id, {
-            key,
-            terminal,
-            entry: previous ? previous.entry : lifecycle.open(key, terminal, created.has(id)),
-          })
-        }
+    const moved = movedIds(actions)
+    const current = workspace.projects.flatMap((project) =>
+      project.history.flatMap((session) =>
+        session.state.roster.terminals.map((terminal) => ({
+          key: { projectId: project.id, workspaceSessionId: session.id, terminalId: terminal.id },
+          terminal,
+        })),
+      ),
+    )
+    const remaining = new Set(current.map(({ key }) => terminalKeyId(key)))
+    for (const { key, terminal } of current) {
+      const id = terminalKeyId(key)
+      const own = registered.get(id)
+      if (own) {
+        if (own.terminal !== terminal) registered.set(id, { key, terminal, entry: own.entry })
+        continue
+      }
+      const before = moved.has(key.terminalId) ? left(key, remaining) : undefined
+      if (before) {
+        // Moved here from another session: the entry carries on under its new key.
+        registered.delete(terminalKeyId(before.key))
+        const entry = lifecycle.move ? lifecycle.move(before.entry, before.key, key) : before.entry
+        registered.set(id, { key, terminal, entry })
+        continue
+      }
+      registered.set(id, { key, terminal, entry: lifecycle.open(key, terminal, created.has(id)) })
+    }
     for (const [id, gone] of registered) {
       if (remaining.has(id)) continue
       // Forget the terminal first so the close hook and late callbacks see it as gone.
@@ -66,5 +83,13 @@ export const createTerminalRegistry = <Entry>(
       lifecycle.close(gone.entry, gone.key)
     }
   }
+  // The registration a moved terminal had in the session it left, which no longer holds it.
+  const left = (key: TerminalKey, remaining: ReadonlySet<string>) =>
+    [...registered.values()].find(
+      (each) =>
+        each.key.terminalId === key.terminalId &&
+        each.key.projectId === key.projectId &&
+        !remaining.has(terminalKeyId(each.key)),
+    )
   return { reconcile, get: (key) => registered.get(terminalKeyId(key)) }
 }
