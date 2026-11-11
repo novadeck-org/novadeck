@@ -394,6 +394,10 @@ export const budgetAction = (
       "cause and fix it, or register it in `scripts/flakes/register.json` while it's being " +
       "found. Known Flakes edits this list each morning, and closes this issue once every " +
       'retried test is within the budget. See docs/development.md, "Retried tests".',
+    "",
+    `A test stays listed while its retried runs in the last ${budget.days} days are over the ` +
+      "budget, even once a fix has landed: the count doesn't know of the fix, so a fixed test " +
+      "leaves the list as its runs age out. Its last runs show whether it still fails after it.",
   ].join("\n")
   if (!open) return { kind: "open", title: budgetTitle, body }
   const before = new Set(keysNamed(open.body))

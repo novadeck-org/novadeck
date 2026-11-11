@@ -273,6 +273,8 @@ describe("the budget issue", () => {
     expect(action.body).toContain(reap)
     expect(action.body).toContain("retried in 3 runs in 7 days")
     expect(keysNamed(action.body)).toEqual([`@novadeck/sandbox ${reap}`])
+    // The count can't tell a test fixed since from one still flaking, and says so.
+    expect(action.body).toContain("even once a fix has landed")
   })
 
   it("is edited each day while one is over, with a comment only when a test joins it", () => {
