@@ -267,6 +267,8 @@ export const render = (board: Scoreboard): string => {
     "",
     "A job's series is keyed by its name, so it breaks when the job is renamed or replaced: on a pull request the macOS E2E rows are replaced by the one job `Core scenarios (macOS)`, and the full five run only on non-pull-request events.",
     "",
+    "Quality's `Test (macOS)` series also breaks on 2026-11-11 (#849): from then it runs only the system packages, and starts once Linux has passed, where before it ran the whole suite at once. Its pass rate, hours and queue before and after that day measure different jobs. On #851's run that day it ran 13m07s after a 3-second queue, about 10 minutes behind Linux; Nightly Quality's `Test (macOS)`, which still runs the whole suite, ran 43m19s in the same run.",
+    "",
     "### The Macs",
     "",
     `macOS job-hours a day: **${board.macHoursPerDay.toFixed(1)}**, over executed jobs of all attempts, cancelled jobs included (${board.macCancelledHoursPerDay.toFixed(1)} of them cancelled), divided by the ${days} of the window.`,
