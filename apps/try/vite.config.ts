@@ -37,10 +37,12 @@ export default defineConfig({
       // website's hero waits on both. The first load's was set at 1.1 MB from the first build
       // with the demo drawn as terminals (1,058 kB, 663 kB of it the eleven fonts declared),
       // and raised to 1.3 MB in #439, when main sat about 100 bytes under it. The demo's was
-      // raised to 195 kB for History's rows, which the demo keeps (190,171 bytes then).
+      // raised to 195 kB for History's rows, which the demo keeps (190,171 bytes then), and to
+      // 196 kB for the thumbnails of the person's recorded prompts, which it shows too (195,309
+      // bytes then, its sample pictures already loaded only when a thumbnail asks).
       budgets: {
         first: 1_300_000,
-        demo: 195_000,
+        demo: 196_000,
         demoModule: "/frontend/demo/src/visitor/connect.ts",
       },
     }),

@@ -18,7 +18,7 @@ import type { AgentStatus, TerminalMetadata, Workspace } from "@novadeck/core/ty
 
 import { chatAgent, chatAgents, terminalSlot } from "../samples"
 import { sessionOf } from "../workspace"
-import { dataUrl, samplePicture, typeOfName } from "./pictures"
+import { dataUrl, typeOfName } from "./pictures"
 import { promptRefused } from "./prompt-refusal"
 import { madeRequest, type DemoRequestOutcome } from "./requests"
 import { outcomeAmong, type DemoDraft, type DemoTranscript } from "./transcripts"
@@ -663,9 +663,11 @@ export const createDemoChat = (
         return path
       },
       // A pasted image shows as pasted, any other as a sample, as the runner finds a picture in
-      // its record (a recorded item that lists one).
+      // its record (a recorded item that lists one). The samples load only now, out of the
+      // visitor build's demo load.
       image: async (_key, { offset, index }) =>
-        pictures.get(`${offset}:${index}`) ?? samplePicture(index),
+        pictures.get(`${offset}:${index}`) ??
+        (await import("./sample-pictures")).samplePicture(index),
       send: async (key, given, options) => {
         const found = agentFor(key)
         const images = options?.images ?? []
@@ -720,7 +722,8 @@ export const createDemoChat = (
         // Its images are told apart by where the record would find them.
         recorded += 1
         const listed = images.map((path, index): ChatImage => {
-          pictures.set(`${recorded}:${index}`, pasted.get(path) ?? samplePicture(index))
+          const picture = pasted.get(path)
+          if (picture !== undefined) pictures.set(`${recorded}:${index}`, picture)
           return { offset: recorded, index, mime: typeOfName(path) }
         })
         const sent: Sent = {

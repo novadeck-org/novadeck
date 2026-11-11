@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { samplePicture } from "./pictures"
+import { samplePicture } from "./sample-pictures"
 import { agentTranscripts, demoOutcome, showcaseTranscripts } from "./transcripts"
 
 const run = { kind: "run", title: "Ran", detail: "" } as const
