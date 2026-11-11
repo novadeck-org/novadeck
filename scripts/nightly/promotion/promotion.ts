@@ -158,6 +158,6 @@ export const explain = (nightly: Nightly, tag: string, sha: string, verdict: Ver
         : "It has no green run on main yet."
   return [
     `${tag} (${short(sha)}) has no green ${nightly.name} at or after its commit, so what a pull request skipped may not have run on it. ${seen}`,
-    `To unblock, ${nightly.unblock}, wait for it to pass, then promote again.`,
+    `To unblock, ${nightly.unblock}, wait for it to pass, then promote again. For an urgent fix that can't wait for it, promote with a reason in \`skip-nightlies\`, which the run's summary keeps.`,
   ].join(" ")
 }

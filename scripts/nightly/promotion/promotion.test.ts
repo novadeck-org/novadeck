@@ -129,6 +129,7 @@ describe("a release's promotion", () => {
       expect(said).toContain(
         "To unblock, start a night: `gh workflow run quality-nightly.yml --ref main`, wait for it to pass, then promote again.",
       )
+      expect(said).toContain("promote with a reason in `skip-nightlies`")
     })
   })
 

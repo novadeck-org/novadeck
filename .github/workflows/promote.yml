@@ -13,6 +13,10 @@ on:
         description: The version to promote, such as 1.2.3. Empty promotes the newest published prerelease.
         required: false
         type: string
+      skip-nightlies:
+        description: Only for an urgent fix that can't wait for a night, why to promote without green nightlies. Empty requires them.
+        required: false
+        type: string
 
 permissions: {}
 
@@ -132,10 +136,21 @@ jobs:
       # harnesses it starts, passed at or after its commit, E2E on all three systems. E2E's own
       # night runs the latest harnesses, to catch their drift, and counts neither way. The
       # error says what to run.
+      # An urgent fix may go out before a night has run on it: whoever promotes says why, and
+      # the run's summary and a warning keep the reason, and who gave it, beside the release.
       - name: Require Green Nightlies
         env:
           TAG: ${{ steps.choose.outputs.tag }}
-        run: node scripts/nightly/promotion/main.ts
+          SKIP_REASON: ${{ inputs.skip-nightlies }}
+        run: |
+          reason=$(printf '%s' "$SKIP_REASON" | tr '\r\n' '  ' | sed 's/^ *//; s/ *$//')
+          if [ -n "$reason" ]; then
+            printf '## Nightlies not required\n\n%s was promoted by %s without green nightlies, because: %s\n' \
+              "$TAG" "$GITHUB_TRIGGERING_ACTOR" "$reason" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning title=Nightlies skipped::$TAG promoted by $GITHUB_TRIGGERING_ACTOR without green nightlies: $reason"
+            exit 0
+          fi
+          node scripts/nightly/promotion/main.ts
 
   # The notes are written before the release turns stable, so no install that updates to it
   # finds them missing. They are a job of their own that may fail or run out of time without
