@@ -372,9 +372,7 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
       known: false,
     },
     items: written("03", now, [
-      user(
-        "Run the whole test suite and look into anything flaky. @crow is reviewing checkout, so stay out of its files.",
-      ),
+      user("Run the whole test suite and look into anything flaky. @crow has checkout."),
       say(
         "Starting the suite in the background, and sending two agents to look at the slowest files.",
       ),
@@ -414,7 +412,7 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
       ),
       got("toolu_03y", "Sent to fox."),
       say(
-        "`@fox` will hold its checkout tests while the suite runs. Checkout is `@crow · Review the checkout change`'s, so I'll leave it to @crow and look only at the cart specs.",
+        "`@fox` holds its tests while the suite runs. `@crow · Checkout review` has checkout, so I'll leave it to @crow.",
       ),
       use(
         "toolu_03b",
