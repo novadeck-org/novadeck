@@ -285,6 +285,42 @@ describe("the pull request's comment", () => {
   })
 })
 
+describe("an error recorded with its terminal colours", () => {
+  // As #855's comment showed it: Vitest colours an assertion's message even on CI, and the
+  // record kept the colours until the reporter took them out.
+  const esc = String.fromCharCode(0x1b)
+  const coloured = `${esc}[2mexpect(${esc}[22m${esc}[31melement${esc}[39m${esc}[2m).toBeVisible()${esc}[22m`
+  const plain = "expect(element).toBeVisible()"
+  const old = record(1, "2026-11-10T10:00:00Z", [retried(reap, { error: coloured })])
+
+  it("is read without them from a record written before", () => {
+    expect(old.retried[0]!.error).toBe(plain)
+    expect(tally([old])[0]!.errors).toEqual([plain])
+    expect(recordSummary(old, register)).toContain(`| ${plain} |`)
+  })
+
+  it("is shown without them in the pull request's comment", () => {
+    const body = prComment(undefined, old, new Set())!
+    expect(body).toContain(`| ${plain} |`)
+    expect(body).not.toContain(esc)
+  })
+
+  it("loses them from a comment written before, whose state still holds them", () => {
+    const state = [
+      { test: reap, package: "@novadeck/sandbox", error: coloured, runs: [{ run: 1, url: "u" }] },
+    ]
+    const before = `${commentMarker}\n<!-- state ${Buffer.from(JSON.stringify(state)).toString("base64")} -->\n`
+    const body = prComment(before, record(2, "2026-11-10T11:00:00Z", [retried(reap)]), new Set())!
+    expect(body).toContain(`| ${plain} |`)
+    expect(
+      body
+        .split("\n")
+        .filter((row) => row.startsWith("|"))
+        .join("\n"),
+    ).not.toContain(esc)
+  })
+})
+
 describe("Known Flakes' comment and tally commands", () => {
   const scratch: string[] = []
   afterEach(() => {

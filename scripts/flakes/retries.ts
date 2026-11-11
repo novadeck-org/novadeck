@@ -8,7 +8,7 @@
 
 import type { Register } from "./match.ts"
 import { currentTest } from "./moved-specs.ts"
-import { parseRecord, type Retried } from "./retry/record.ts"
+import { parseRecord, type Retried, withoutColour } from "./retry/record.ts"
 
 /** A retried test, with the artifact (one job's attempt) that recorded it, and that attempt. */
 export type RunRetry = Retried & { readonly artifact: string; readonly attempt: number }
@@ -102,7 +102,8 @@ const zeroWidth = String.fromCharCode(0x200b)
  * no column breaks, no HTML, and no mention that would notify anyone.
  */
 export const cell = (text: string, length = 200): string => {
-  const one = text.replaceAll(/\s*\n\s*/g, " ")
+  // Without colours, as a comment's state from before the record took them out still has them.
+  const one = withoutColour(text).replaceAll(/\s*\n\s*/g, " ")
   const cut = one.length > length ? `${one.slice(0, length - 1)}…` : one
   return cut.replaceAll("<", "&lt;").replaceAll("|", "\\|").replaceAll("@", `@${zeroWidth}`)
 }
