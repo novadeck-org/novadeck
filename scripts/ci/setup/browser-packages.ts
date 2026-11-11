@@ -1,9 +1,17 @@
 import { spawnSync } from "node:child_process"
-import { appendFileSync, mkdirSync, readdirSync, rmSync } from "node:fs"
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import { join } from "node:path"
 
 import { missingPackages } from "./browser-dependencies.ts"
-import { plan, run } from "./retry.ts"
+import { type Failure, plan, run, unreached } from "./retry.ts"
 
 // `PACKAGES="…" EXACT_HIT=… node scripts/ci/setup/browser-packages.ts <folder>`: installs the
 // test browser's system packages the runner image lacks (`PACKAGES`, which
@@ -119,14 +127,133 @@ export const aptPlan = { ...plan, limitSeconds: 90 }
 /** `word` as one shell word, in single quotes. */
 const quoted = (word: string): string => `'${word.replaceAll("'", `'\\''`)}'`
 
-/** The shell one download attempt runs: apt's lists refreshed, then the debs into `folder`. */
-export const downloadScript = (folder: string, packages: readonly string[]): string =>
+/**
+ * The mirrors a download attempt adds to the image's own, in the order it tries them, by how
+ * many attempts before it couldn't reach a mirror. The first attempt uses the image's list
+ * alone, so a normal day is unchanged. On 11-11 the `ubuntu.com` names couldn't be resolved
+ * for hours while the archive was up: the Azure mirror the runners use first,
+ * `azure.archive.ubuntu.com`, is a CNAME to a Traffic Manager name in Microsoft's zone, which
+ * answered; and independent mirrors such as kernel.org's serve the same signed files. Taking
+ * them is safe because apt's signature checking is untouched: the sources keep their
+ * `Signed-By`, nothing is marked trusted, no key changes. A mirror only carries bytes, which the
+ * image's Ubuntu keys verify, and apt refuses any that don't verify.
+ */
+export const fallbacks: readonly { readonly name: string; readonly mirrors: readonly string[] }[] =
   [
-    "apt-get update -qq &&",
-    "apt-get install -y --no-install-recommends --download-only",
+    { name: "the image's mirrors", mirrors: [] },
+    {
+      name: "Azure's mirror by its Traffic Manager name",
+      mirrors: ["http://ubuntu-archive-asm.trafficmanager.net/ubuntu/"],
+    },
+    {
+      name: "kernel.org's mirror",
+      mirrors: [
+        "http://mirrors.kernel.org/ubuntu/",
+        "http://ubuntu-archive-asm.trafficmanager.net/ubuntu/",
+      ],
+    },
+  ]
+
+/** Which of `fallbacks` the next attempt uses: one further for each that couldn't reach a mirror. */
+export const fallbackFor = (failures: readonly Failure[]): number =>
+  Math.min(failures.filter(unreached).length, fallbacks.length - 1)
+
+/**
+ * A mirror list for apt's `mirror+file:` method: `mirrors` before the image's own. apt shuffles
+ * mirrors of equal priority, and tries a lower priority first (checked with apt 2.8: kernel.org
+ * at priority 1 served every fetch, at 10 none), so the fallbacks are 1 and the image's 10.
+ */
+export const mirrorList = (image: string, mirrors: readonly string[]): string =>
+  [
+    ...mirrors.map((mirror) => `${mirror}\tpriority:1`),
+    ...image
+      .split(/\r?\n/)
+      .filter((line) => line.trim() && !line.trim().startsWith("#"))
+      .map((line) => `${line.split("\t")[0]!.trim()}\tpriority:10`),
+  ]
+    .join("\n")
+    .concat("\n")
+
+// The image's mirror list, which its sources name as `mirror+file:`, and the archive's own
+// names, which a source without the list names directly.
+const imageMirrors = "/etc/apt/apt-mirrors.txt"
+const archives = [
+  "http://azure.archive.ubuntu.com/ubuntu/",
+  "http://archive.ubuntu.com/ubuntu/",
+  "http://security.ubuntu.com/ubuntu/",
+]
+
+/**
+ * A copy of a sources file whose Ubuntu archive is the mirror list `list`: each `mirror+file:`
+ * of the image's list, and each of the archive's own names, becomes `mirror+file:<list>`. All
+ * else stays as it is, `Signed-By` included.
+ */
+export const alternateSources = (text: string, list: string): string =>
+  [`mirror+file:${imageMirrors}`, ...archives].reduce(
+    (sources, uri) => sources.replaceAll(uri, `mirror+file:${list}`),
+    text,
+  )
+
+/** Where an attempt's own apt state lives: sources, mirror list and package lists of its own. */
+export type Alternate = { readonly parts: string; readonly lists: string }
+
+/**
+ * The shell one download attempt runs: apt's lists refreshed, then the debs into `folder`;
+ * through `alternate`'s sources and lists where given, the system's left as they are.
+ */
+export const downloadScript = (
+  folder: string,
+  packages: readonly string[],
+  alternate?: Alternate,
+): string => {
+  const own = alternate
+    ? [
+        `-o ${quoted("Dir::Etc::sourcelist=/dev/null")}`,
+        `-o ${quoted(`Dir::Etc::sourceparts=${alternate.parts}`)}`,
+        `-o ${quoted(`Dir::State::Lists=${alternate.lists}`)}`,
+        // Nor the system's package caches, which another source list would rewrite.
+        `-o ${quoted("Dir::Cache::pkgcache=")}`,
+        `-o ${quoted("Dir::Cache::srcpkgcache=")}`,
+      ].join(" ")
+    : ""
+  const apt = own ? `apt-get ${own}` : "apt-get"
+  return [
+    `${apt} update -qq &&`,
+    `${apt} install -y --no-install-recommends --download-only`,
     `-o ${quoted(`Dir::Cache::archives=${folder}`)}`,
     ...packages.map(quoted),
   ].join(" ")
+}
+
+/**
+ * Writes the apt state an attempt through `mirrors` reads, under `root`: the image's sources
+ * with their archive pointed at a mirror list of `mirrors` then the image's own, and an empty
+ * lists folder. Returns where, for `downloadScript`.
+ */
+const writeAlternate = (root: string, level: number, mirrors: readonly string[]): Alternate => {
+  const at = join(root, `mirrors-${level}`)
+  const parts = join(at, "sources.list.d")
+  const lists = join(at, "lists")
+  mkdirSync(parts, { recursive: true })
+  mkdirSync(join(lists, "partial"), { recursive: true })
+  const list = join(at, "apt-mirrors.txt")
+  writeFileSync(
+    list,
+    mirrorList(
+      existsSync(imageMirrors) ? readFileSync(imageMirrors, "utf8") : archives.join("\n"),
+      mirrors,
+    ),
+  )
+  const sources = [
+    ...(existsSync("/etc/apt/sources.list") ? [["system.list", "/etc/apt/sources.list"]] : []),
+    ...readdirSync("/etc/apt/sources.list.d")
+      .filter((name) => name.endsWith(".sources") || name.endsWith(".list"))
+      .map((name) => [name, join("/etc/apt/sources.list.d", name)]),
+  ]
+  for (const [name, path] of sources)
+    writeFileSync(join(parts, name!), alternateSources(readFileSync(path!, "utf8"), list))
+  return { parts, lists }
+}
 
 const failFastFile = "/etc/apt/apt.conf.d/99novadeck-fail-fast"
 
@@ -178,17 +305,27 @@ export const main = (folder: string): void => {
     },
     download: (packages) => {
       mkdirSync(join(folder, "partial"), { recursive: true })
+      // The fallbacks' apt state, beside the folder (not in it, as the folder is saved).
+      const scratch = `${folder}.apt`
       sudo(["tee", failFastFile], failFast)
       try {
         // Each attempt refreshes the lists and downloads in one, so a mirror back mid-step
         // serves the next attempt, which a passed update and three tries of the download alone
-        // couldn't.
+        // couldn't. One that couldn't reach a mirror sends the next through `fallbacks`.
+        let used = 0
         const fetched = run(
           "The test browser's system packages couldn't be downloaded",
-          ["sudo", "sh", "-c", downloadScript(folder, packages)],
+          (failures) => {
+            used = fallbackFor(failures)
+            const { name, mirrors } = fallbacks[used]!
+            console.log(`Downloading through ${name}`)
+            const alternate = used === 0 ? undefined : writeAlternate(scratch, used, mirrors)
+            return ["sudo", "sh", "-c", downloadScript(folder, packages, alternate)]
+          },
           // It runs no dpkg: an apt it leaves past the wait is ended, not waited on again.
           { ...aptPlan, reap: true },
         )
+        if (fetched === 0) console.log(`Downloaded through ${fallbacks[used]!.name}`)
         // Root's files, which the cache's save must read; the lock and partial downloads aren't kept.
         sudo(["chown", "-R", `${process.getuid?.() ?? 0}`, folder])
         rmSync(join(folder, "partial"), { recursive: true, force: true })
@@ -196,6 +333,7 @@ export const main = (folder: string): void => {
         return fetched === 0
       } finally {
         sudo(["rm", "-f", failFastFile])
+        sudo(["rm", "-rf", scratch])
       }
     },
     installDeps: () => {

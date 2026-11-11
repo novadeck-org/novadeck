@@ -13,14 +13,28 @@ import {
   verdict,
 } from "./browser-dependencies.ts"
 import {
+  alternateSources,
   aptPlan,
   downloadScript,
   failFast,
+  fallbackFor,
+  fallbacks,
   install,
   type Machine,
+  mirrorList,
   saves,
 } from "./browser-packages.ts"
-import { bounded, failure, longest, plan, reaped, settled, waits } from "./retry.ts"
+import {
+  bounded,
+  downloadWrapper,
+  failure,
+  longest,
+  plan,
+  reaped,
+  run,
+  settled,
+  waits,
+} from "./retry.ts"
 
 const root = join(import.meta.dirname, "..", "..", "..")
 
@@ -307,6 +321,143 @@ describe("the cache of the browser's packages", () => {
   })
 })
 
+describe("the browser packages' download through other mirrors", () => {
+  const ubuntuSources = [
+    "Types: deb",
+    "URIs: mirror+file:/etc/apt/apt-mirrors.txt",
+    "Suites: resolute resolute-updates resolute-backports resolute-security",
+    "Components: main universe restricted multiverse",
+    "Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg",
+    "",
+    "Types: deb",
+    "URIs: https://packages.microsoft.com/ubuntu/26.04/prod",
+    "Suites: resolute",
+    "Signed-By: /usr/share/keyrings/microsoft.gpg",
+  ].join("\n")
+
+  // apt shuffles mirrors of equal priority and tries the lower first.
+  it("lists the fallback mirrors before the image's own by priority, without its comments", () => {
+    const image =
+      "# the image's\nhttp://azure.archive.ubuntu.com/ubuntu/\tpriority:1\nhttp://archive.ubuntu.com/ubuntu/\n"
+    expect(mirrorList(image, ["http://mirrors.kernel.org/ubuntu/"])).toBe(
+      "http://mirrors.kernel.org/ubuntu/\tpriority:1\nhttp://azure.archive.ubuntu.com/ubuntu/\tpriority:10\nhttp://archive.ubuntu.com/ubuntu/\tpriority:10\n",
+    )
+  })
+
+  // The mirrors only carry bytes: the image's keys verify them, so nothing about trust changes.
+  it("points only the Ubuntu archive at its own list, keeping every Signed-By", () => {
+    const alternate = alternateSources(ubuntuSources, "/tmp/m/apt-mirrors.txt")
+    expect(alternate).toContain("URIs: mirror+file:/tmp/m/apt-mirrors.txt")
+    expect(alternate).not.toContain("/etc/apt/apt-mirrors.txt")
+    expect(alternate).toContain("URIs: https://packages.microsoft.com/ubuntu/26.04/prod")
+    expect(alternate.match(/Signed-By:/g)).toHaveLength(2)
+    expect(
+      alternate.replace(
+        "mirror+file:/tmp/m/apt-mirrors.txt",
+        "mirror+file:/etc/apt/apt-mirrors.txt",
+      ),
+    ).toBe(ubuntuSources)
+    expect(alternateSources("deb http://archive.ubuntu.com/ubuntu/ resolute main", "/l")).toBe(
+      "deb mirror+file:/l resolute main",
+    )
+  })
+
+  it("runs a fallback's apt on its own sources and lists, the system's left as they are", () => {
+    const script = downloadScript("/r/browser-packages", ["fonts-unifont"], {
+      parts: "/r/p",
+      lists: "/r/l",
+    })
+    const own =
+      "apt-get -o 'Dir::Etc::sourcelist=/dev/null' -o 'Dir::Etc::sourceparts=/r/p' -o 'Dir::State::Lists=/r/l' -o 'Dir::Cache::pkgcache=' -o 'Dir::Cache::srcpkgcache='"
+    expect(script).toBe(
+      `${own} update -qq && ${own} install -y --no-install-recommends --download-only -o 'Dir::Cache::archives=/r/browser-packages' 'fonts-unifont'`,
+    )
+    for (const unsafe of ["trusted", "allow-unauthenticated", "AllowInsecure", "allow-insecure"])
+      expect(script).not.toContain(unsafe)
+    expect(downloadScript("/r/b", ["x"])).not.toContain("Dir::Etc")
+  })
+
+  it("turns to the next mirror only after one couldn't be reached, and stays on the last", () => {
+    const resolve = {
+      status: 100,
+      output: "E: Failed to fetch … Temporary failure resolving 'archive.ubuntu.com'",
+      timedOut: false,
+    }
+    const hung = { status: 124, output: "", timedOut: true }
+    const lock = {
+      status: 100,
+      output: "E: Could not get lock /var/lib/apt/lists/lock",
+      timedOut: false,
+    }
+    expect(fallbackFor([])).toBe(0)
+    expect(fallbackFor([lock])).toBe(0)
+    expect(fallbackFor([resolve])).toBe(1)
+    expect(fallbackFor([hung, resolve])).toBe(2)
+    expect(fallbackFor([hung, hung, hung])).toBe(2)
+    expect(fallbacks.map(({ name }) => name)).toEqual([
+      "the image's mirrors",
+      "Azure's mirror by its Traffic Manager name",
+      "kernel.org's mirror",
+    ])
+    expect(fallbacks[0]!.mirrors).toEqual([])
+    expect(fallbacks[1]!.mirrors).toEqual(["http://ubuntu-archive-asm.trafficmanager.net/ubuntu/"])
+    expect(fallbacks[2]!.mirrors[0]).toBe("http://mirrors.kernel.org/ubuntu/")
+  })
+
+  // The download as the retry runs it, each fallback a command that fails as an unreachable
+  // mirror does or passes: which were tried, and what the step ends with.
+  context("as the retry runs it", () => {
+    const quick = { ...plan, attempts: 3, firstWaitSeconds: 0, settleSeconds: 0, limitSeconds: 5 }
+    const through = (passing: number | undefined) => {
+      const tried: number[] = []
+      const status = run(
+        "Packages",
+        (failures) => {
+          const level = fallbackFor(failures)
+          tried.push(level)
+          return level === passing
+            ? ["sh", "-c", "exit 0"]
+            : [
+                "sh",
+                "-c",
+                "echo \"E: Failed to fetch x  Temporary failure resolving 'archive.ubuntu.com'\"; exit 100",
+              ]
+        },
+        quick,
+      )
+      return { tried, status }
+    }
+
+    it.skipIf(process.platform === "win32")(
+      "never consults a fallback where the image's mirrors work",
+      () => {
+        expect(through(0)).toEqual({ tried: [0], status: 0 })
+      },
+    )
+
+    it.skipIf(process.platform === "win32")(
+      "turns to Azure's mirror by its other name where the image's can't be reached",
+      () => {
+        expect(through(1)).toEqual({ tried: [0, 1], status: 0 })
+      },
+    )
+
+    it.skipIf(process.platform === "win32")(
+      "turns to kernel.org's where Azure's can't be reached either",
+      () => {
+        expect(through(2)).toEqual({ tried: [0, 1, 2], status: 0 })
+      },
+    )
+
+    it.skipIf(process.platform === "win32")(
+      "fails saying the mirrors were unreachable where none could be reached",
+      () => {
+        expect(through(undefined)).toEqual({ tried: [0, 1, 2], status: 100 })
+      },
+    )
+  })
+})
+
 describe("a setup command's retries", () => {
   it("wait longer before each, one fewer than the attempts", () => {
     expect(waits(plan)).toEqual([30, 60])
@@ -370,6 +521,27 @@ describe("a setup command's retries", () => {
         ),
       ).toBe(false)
       expect(killed).toBe(false)
+    })
+
+    // An `sh` left alive could start the download after its update is ended, taking the lock
+    // again: it is ended first, by a pattern that matches that script alone.
+    it("ends the download's own sh first, matched by its script alone", () => {
+      const wrapper = new RegExp(downloadWrapper)
+      for (const script of [
+        downloadScript("/r/b", ["fonts-unifont"]),
+        downloadScript("/r/b", ["fonts-unifont"], { parts: "/r/p", lists: "/r/l" }),
+      ])
+        expect(wrapper.test(`sh -c ${script}`), script).toBe(true)
+      for (const other of [
+        "sh -c apt-get update -qq && apt-get install -y --no-install-recommends fish",
+        "apt-get update -qq",
+        "sh -c pnpm exec playwright install-deps chromium",
+      ])
+        expect(wrapper.test(other), other).toBe(false)
+      const source = readFileSync(join(import.meta.dirname, "retry.ts"), "utf8")
+      expect(source.indexOf('["-f", downloadWrapper]')).toBeLessThan(
+        source.indexOf('["-x", "apt-get"]'),
+      )
     })
 
     it("is ended only on the download path, which runs no dpkg", () => {

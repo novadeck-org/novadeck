@@ -75,9 +75,22 @@ export const reaped = (
   return settle(5)
 }
 
-/** `apt-get`, `apt` and apt's fetchers, ended at once; never dpkg. */
+/**
+ * The download attempt's own `sh -c` wrapper, as `pgrep -f` reads its command line, with or
+ * without the fallbacks' `-o` options: ended first, as an `sh` left alive could start the
+ * download after its update is ended, and take the lock again. Matches that script alone.
+ */
+export const downloadWrapper =
+  "^sh -c apt-get( -o [^ ]+)* update -qq && apt-get( -o [^ ]+)* install .*--download-only"
+
+/**
+ * The download's `sh`, then `apt-get`, `apt` and apt's fetchers, ended at once; never dpkg.
+ * GitHub's hosted images may run apt's daily timers; one running dpkg would make `reaped`
+ * leave everything alone, which is the safe way round.
+ */
 const killApt = () => {
   for (const pattern of [
+    ["-f", downloadWrapper],
     ["-x", "apt-get"],
     ["-x", "apt"],
     ["-f", "^/usr/lib/apt/methods/"],
@@ -117,14 +130,35 @@ export const settled = (seconds: number, isRunning = running): boolean => {
   }
 }
 
+/** How an attempt failed, which the next attempt's command may answer. */
+export type Failure = {
+  readonly status: number
+  readonly output: string
+  readonly timedOut: boolean
+}
+
+/** Whether a failure was a mirror that couldn't be reached: a name, a fetch, or no answer. */
+export const unreached = ({ output, timedOut }: Failure): boolean =>
+  timedOut || unreachable.test(output)
+
+/**
+ * A command, or one chosen for each attempt from the attempts that failed before it: the
+ * browser packages' download turns to other mirrors where the image's can't be reached.
+ */
+export type Command = readonly string[] | ((failures: readonly Failure[]) => readonly string[])
+
 /** Runs `command` as `retries` says; its status, 0 once an attempt passes. */
-export const run = (meaning: string, command: readonly string[], retries: Plan = plan): number => {
+export const run = (meaning: string, command: Command, retries: Plan = plan): number => {
+  const failures: Failure[] = []
   const pauses = waits(retries)
   let status = 1
   let output = ""
   let timedOut = true
   for (let attempt = 1; attempt <= retries.attempts; attempt += 1) {
-    const [program, ...args] = bounded(command, retries.limitSeconds)
+    const [program, ...args] = bounded(
+      typeof command === "function" ? command(failures) : command,
+      retries.limitSeconds,
+    )
     // Into a file, not a pipe: Node waits for every holder of a pipe to close it, and apt under
     // sudo, in a session of its own, outlived the limit and held it (#869 waited about 200 s
     // an attempt against a 90 s limit). A file's holders don't hold up the attempt.
@@ -147,7 +181,9 @@ export const run = (meaning: string, command: readonly string[], retries: Plan =
     status = result.status ?? 1
     if (status === 0) return 0
     // `timeout`'s exit, or Node's own where it bounds the attempt.
-    timedOut &&= status === 124 || result.error?.message.includes("ETIMEDOUT") === true
+    const ranOut = status === 124 || result.error?.message.includes("ETIMEDOUT") === true
+    timedOut &&= ranOut
+    failures.push({ status, output: said, timedOut: ranOut })
     const why = result.error
       ? ` (${result.error.message})`
       : ` (exit ${result.status ?? result.signal})`
