@@ -396,16 +396,21 @@ describe("runner backend", () => {
 
   context("when asked which terminals hold work", () => {
     it("answers the runner's list, and nothing for a terminal at its prompt", async () => {
-      const app = open()
+      // Windows reads a shell's processes through the relay. This runner's is one that isn't
+      // there, so there the shells are ones it can't read, never taken for idle, whether or
+      // not this machine has built `@novadeck/relay` (a run that tests the relay builds it).
+      const relayless = await startTestRunner({
+        terminals: { relay: join(tmpdir(), "novadeck-no-relay", "novadeck-relay.exe") },
+      })
+      const app = open(relayless.listing, {}, relayless.client)
       app.addTerminal()
       await app.idle()
       const answer = await app.backend.busyTerminals!()
       expect(answer?.busy).toEqual([])
-      // Windows reads a shell's processes through the relay, which tests run without, so
-      // there the shells are ones it can't read: never taken for idle.
       if (process.platform === "win32") expect(answer?.unknown.length).toBeGreaterThan(0)
       else expect(answer?.unknown).toEqual([])
       app.stop()
+      await relayless.close()
     })
 
     it("answers nothing where the runner can't, as one that came before the call", async () => {
