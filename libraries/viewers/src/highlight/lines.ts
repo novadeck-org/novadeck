@@ -1,4 +1,4 @@
-import type { Parser } from "@lezer/common"
+import type { Parser, Tree } from "@lezer/common"
 import { classHighlighter, highlightCode } from "@lezer/highlight"
 
 import { isLanguage, type Language } from "./languages.js"
@@ -39,6 +39,13 @@ const parserFor = (language: Language): Promise<Parser> => {
   loading.catch(() => parsers.delete(language))
   parsers.set(language, loading)
   return loading
+}
+
+// The text parsed as a language, or null when it isn't one the viewer highlights. Facts about
+// a change are read from the tree (see ../facts.ts).
+export const parseText = async (language: string, text: string): Promise<Tree | null> => {
+  if (!isLanguage(language)) return null
+  return (await parserFor(language)).parse(text)
 }
 
 // The lines split into runs by kind of token, or null when the language isn't one the

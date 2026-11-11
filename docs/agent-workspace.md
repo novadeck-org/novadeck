@@ -295,33 +295,56 @@ through the backend's seed and actions, as terminals do; the person's moves are
 workspace actions the backend makes so. The pane loads content through the backend
 port's optional `companions` capability (`frontend/core/src/items.ts`):
 
-| `companions`                             | What it carries                                                                       |
-| ---------------------------------------- | ------------------------------------------------------------------------------------- |
-| `follow(target, itemId, { reveal }, on)` | What an item holds now, then again as it changes: ready with a stamp, or why not      |
-| `save(target, itemId, text, basedOn)`    | The user's edit written to the plan file, unless it changed since stamp `basedOn`     |
-| `openInProject?(target, path, windowId)` | A file the person opened from Source, in the project window; absent where it can't be |
+| `companions`                                | What it carries                                                                                           |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `follow(target, itemId, { reveal }, on)`    | What an item holds now, then again as it changes: ready with a stamp, or why not                          |
+| `save(target, itemId, text, basedOn)`       | The user's edit written to the plan file, unless it changed since stamp `basedOn`                         |
+| `openInProject?(target, path, windowId)`    | A file the person opened from Source, in the project window; absent where it can't be                     |
+| `changeFile?(target, itemId, path, layers)` | One file of a change for the layers selected: its diff and both sides' text; absent where it can't be     |
+| `changeRange?(target, itemId, layers)`      | The files the layers selected changed as one range, with the range's own counts; absent where it can't be |
 
 A file that may hold secrets is `secret` until the person asks to see it, and `reveal` is the path
 they asked for: the item re-pointed to another file reads `secret` again.
 
-A change (the `changes` item kind) shows in the diff viewer (`libraries/viewers/src/diff.ts`),
-read-only: a list of the changed files at the top, each scrolling to its section, then a
-section per file with its path (and old path when renamed), how it changed and its added and
-removed counts, over its hunks with the old and new line numbers in two gutters, added and
-removed lines tinted and the text highlighted by the file's language (a hunk's old and new
-side parsed apart; a file past 4,000 diff lines, or one whose parser fails, stays plain). A
-line wider than the pane scrolls its own file sideways (the pane scrolls only down), the file
-list, the headers and the line numbers (with the marker of each line's kind) staying in view; a
-file's lines are a tab stop only while they overflow, and its sideways scroll is kept by its
-path, put back as the file comes into view. A binary file, one that
-may hold secrets and one past the change's size show their header with a note, an empty
-change says "No changes against HEAD", and a truncated one says it is larger than shown.
-The rows of a long change are made a few at a time, and the sections off screen are not laid
-out, so a change of the full 4 MB opens without freezing the pane. A new content for the same
-change, as the agent edits, keeps the rows and colours of every file that didn't change, and
-the place the person was at (the file and row at the top, not pixels, whichever file changed),
-also while the pane is out of sight, where it goes back to once the pane has a size. Nothing
-asks the page to lay out a file that is off screen.
+A change (the `changes` item kind) is read-only and has two views, in `frontend/items/src/kinds/changes/`,
+on the pane's own ground (`--pane-bg`). The **list view** is where it opens: a row for the work
+not committed yet ("Uncommitted") and one for each commit since the merge base with main, newest
+first (short hash, subject, time, `+N −N`), then a "Files" tree, as the Source panel draws its
+own, of what the selected rows changed together (their counts added up, names coloured by how the
+file changed, folders with guides), and a hint line saying what a click does. All rows are
+selected to start; the selection is a 2px `--color-strong` rail on a row's left edge, joined across
+selected neighbours, growing and shrinking by scale and opacity and sliding its ends over
+`--motion-state` (none under reduced motion). The first click keeps only the row clicked, the next
+click takes every row between the first one clicked (the anchor) and it, either way, a click
+after that starts over from the row clicked, and clicking the only row selected is all again: it
+works as a slicer, and a selection is always one range (`selection.ts`). A file the person opened is gray in the tree, until
+its counts or layers change. One click on a file unfolds what it changed under its row, one file
+at a time, as `.terminal-tab-branches` unfold a terminal tab's subagents (├ └ rows with the
+tab's own fold and transition), each a fact (where the change sits, `+N −N`); a double click, or
+Enter, opens the file. The **file view** is the row grown into a plain heading (‹ back, the folder
+dim and the name in body type, the file's counts, ⌃ ⌄ and "N of M" within the selection), a line of
+what the file came to, and its changes, each headed by where it sits ("2/4 in requireUser()", "new
+refreshSession()") and the lines it spans; a change past 36 rows shows its start and end with
+"N more changed lines · +N −N · Show", and the unchanged stretches between changes are folded
+with a click to show them. Esc or ‹ shrinks the heading back into its row; J and K step through
+the selection's files. Lines are unified, in classic green and red from the
+theme's own tokens (the row ground is `--color-success` / `--color-danger` mixed to 55%, 50% on a
+light scheme; bar, sign and number are the `-fg` inks; a changed token is that ink at 24%), the
+changed tokens of a replaced line marked, and lines whose tokens are the same with other
+whitespace shown once as plain lines and counted apart ("+4 −6 · 4 re-indented"). Monochrome
+themes read by the `+` and `−` signs.
+
+What it says of a change is facts only, computed in the page from the two sides' text with the
+Lezer parsers the viewers highlight with (`libraries/viewers/src/facts.ts`), when a file is
+unfolded or opened: the declaration a change sits in (top-level, exported and class members, not
+inner locals), declarations new, removed or changed, imports added and removed by name, test
+titles (`it`, `test`, `describe` with a string first argument), the exact tokens of a small edit
+(`cookieMaxAge 7 → 30`), and, in Markdown, the heading above a change. Other languages say the
+lines a change spans. Never why. A file's answer is kept by the item, its stamp, the layers
+selected and the path. Where a side passes 512 KiB, or the file's diff passes the bounds, the
+change is only its lines (no facts); a binary file or one that may hold secrets shows a note. Its
+look is `changes.css`, and the pane keeps what the person picked and opened, by item, while the
+page lives.
 
 ### Plans are edited in their file
 
@@ -427,50 +450,66 @@ with every safety check again at that time:
   worktree gives `changes: { path }`, a folder inside the repository (absolute, or from the
   terminal's directory; a file stands for its folder), and `close` takes the same, even
   once that folder is gone (a worktree removed): the item shown from it is found by where
-  it was shown from. The item is the repository's working tree against `HEAD` (the empty
-  tree before the first commit, whatever the repository's hash), so staged, unstaged and
-  untracked files, but not ignored ones, with renames found, whoever edited them. It is
-  one item per repository on a bar, keyed `changes:<repository root>` (folded to lower
+  it was shown from. The item is the checkout measured against the repository's main branch
+  (`refs/remotes/origin/HEAD`, else `main`, else `master`, as for Works; `HEAD` itself where there is
+  none), in **layers**, newest first: the work not committed yet (the working tree, untracked
+  files included, ignored ones not, taken as a tree through a private index so the person's
+  own is never written, under the snapshot's 1 MiB limit for an untracked file), then each commit
+  from the merge base to `HEAD` (following first parents, at most 100), each diffed against its
+  parent with renames found, whoever edited them. A **merge** is shown as what it did itself: it
+  is diffed from its first parent with main's work it holds merged in, in memory (`git merge-tree
+  --write-tree`, its objects in a private folder), so a merge of main is usually empty, a
+  conflict it resolved shows the resolution, and a branch of the checkout's own that it merged
+  shows as its work (only main counts as brought in). Where git is older than 2.38 (no
+  `merge-tree --write-tree`) a merge is diffed from its first parent and its layer has
+  `firstParent` set, which the list says. Before the first commit it has no layers.
+  It is one item per repository on a bar, keyed `changes:<repository root>` (folded to lower
   case on Windows) and named "Changes · <folder>"
-  unless a title is given; showing it again updates it. Its detail counts the files and
-  lines (untracked files that are listed without being read count as files, not lines)
-  and follows each read the pane triggers. The content (`companions.content`) is read
+  unless a title is given; showing it again updates it. Its detail counts the files the change
+  as a whole differs from main by and their lines (the net, not its layers added up), and follows each read the pane triggers. The content
+  (`companions.content`) is each layer's files with their counts, and the whole change's own list of files (the net), not their diffs; for every layer selected the pane reads that list, and asks `changeRange` only for a selection of two or more layers that is not all of them: it is read
   with git at the start and again about every 2 seconds while followed, and sent only
-  when it changed.
+  when it changed. One file's diff for a selection of layers is `companions.changeFile`: the
+  selection is one range, diffed from the oldest layer's parent to the newest (the uncommitted
+  layer from `HEAD` to its tree). Where the range contains a merge, it starts from that parent with main's
+  work as the range's end holds it merged in (in memory) where the parent lacks it, so the range
+  shows its own work only; only a range that reaches the oldest layer starts at the merge base
+  (for the newest layer's commit, where that commit left main), so the whole of it is
+  `git diff main...HEAD`. `companions.changeRange` lists the files of a selection of more than
+  one layer the same way, git's own listing for the range (a file added and dropped inside it
+  is not there, a rename is one row, the counts are the range's) up to the file bound, with
+  `truncated` where more exist.
+
+  The objects a snapshot or an in-memory merge writes go to a private folder (with the repository's
+  own as an alternate, quoted in `GIT_ALTERNATE_OBJECT_DIRECTORIES` so a path with `:` or `;` in
+  it reads), never to the person's store. A change's folder is emptied every so many reads and
+  removed when the runner closes; the Changes panel's (Works) lives beside its memory file,
+  one per git common dir, and is rebuilt now and then to what the trees last read reach, so
+  the read marker survives a restart.
 
   Reading costs git runs, and a big repository makes each one slow: after a read that
   took over a second, the next waits four times as long (up to 15 seconds), and the
   usual 2 seconds again as reads get fast. A read that fails once or twice (git timing
   out under load) keeps the last good content on screen; a third failure in a row says
   `unreadable`, and a repository that is gone says `missing` at once. The show itself
-  keeps the 5 second timeout. Where the person's `core.fsmonitor` is git's own file
-  monitor (`true`), it is kept, which is what makes big repositories fast; a hook
-  program named there never runs.
+  keeps the 5 second timeout. A file monitor hook program named by `core.fsmonitor` never
+  runs.
 
-  Bounds: git lists every changed file with its counts first, and at most 300 files are
-  carried (`truncated` says more exist; the rest are not listed). The diff text is read up
-  to a budget of 4 MiB as encoded, each line counting its text and its encoding, so
-  blank lines are not free; a file whose diff would pass what is left is `listed`: name,
-  status and counts, without hunks, and `truncated` is set. Only files that could fit
-  (each changed line costs at least 32 bytes, against what the files before already
-  could take) are asked of git for their diff, by literal name, so a regenerated lockfile
-  takes no room from the small edits after it; the rest are listed without being read.
-  The raw patch is read to at most 8 MiB, and git is ended there (its whole process group,
-  as on a timeout): the file it cut in the middle is listed, and the files after it are
-  asked for again without it (a few times), so one minified bundle takes no room from the
-  small edits after it (the file named is the last one read at the cut, so when many medium
-  files add up to the cap it can be one that would have fitted; the retries stop once the
-  diff budget is spent). Untracked files come from `git ls-files --others`, read to 2 MiB
-  of names (only the first fit the 300 files, so the file count of a huge untracked tree
-  is a lower bound), and none where `status.showUntrackedFiles` is `no`. Their contents
-  are read a bounded amount in all (1 MiB each, 8 MiB per look); past that they are listed
-  by name with no counts. A path git lists as changed and as untracked counts once. Lines are cut at 4096 characters, and names show a control or invisible
-  character as U+FFFD.
+  Bounds: a layer lists at most 300 files and a change 100 layers and 2,000 files in all
+  (`truncated` says more exist, as it does where an untracked file past the size limit was
+  left out of the snapshot). A file's lines count whitespace-insensitively (`git diff -w`): lines
+  that only changed whitespace are `reindented`, counted apart. The commits' listings never
+  change, so they are kept by pair of commits. A `changeFile` answer reads the diff text up to a
+  budget of 4 MiB as encoded (a file past it is `big`: counts, no hunks, no sides) and each
+  side's text up to 512 KiB (past it, hunks without sides). Lines are cut at 4096 characters,
+  and names show a control or invisible character as U+FFFD.
 
   A binary file and a file that may hold secrets (the rule for files, applied to the new
-  name and the old one of a rename, tracked or not) carry no hunks: a secret file's diff
-  text is skipped by the reader, and an untracked one is never opened. v1 has no way to
-  reveal either.
+  name and the old one of a rename, tracked or not) carry no hunks and no text: they are
+  listed by name with their counts, and `changeFile` never reads them. v1 has no way to
+  reveal either. An untracked file that may hold secrets (a stray `.env`) is never read or
+  hashed into the snapshot, but the uncommitted layer and the ranges that include it list it
+  by name, `added` and `secret`, with no counts.
 
   The runner finds `git` once on the PATH (absolute entries only) and runs it with a
   fixed argument list, no shell, in the repository, for at most 5 seconds, ending its

@@ -1,5 +1,13 @@
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
@@ -101,7 +109,10 @@ type Where = { readonly terminalId: string; readonly root: string }
 const everything = 60_000
 
 // A Works over the terminals `where` names, read as fast as the test needs.
-const open = (where: () => readonly Where[], options: { memory?: string } = {}) => {
+const open = (
+  where: () => readonly Where[],
+  options: { memory?: string; repackAfter?: number } = {},
+) => {
   const shown: [string, string][] = []
   const works = new Works({
     placements: async () =>
@@ -410,6 +421,85 @@ describe.skipIf(!hasGit)("the works of terminals in git checkouts", () => {
       firstSeenAt: seenAt,
       unreadAdded: 0,
     })
+  })
+
+  it("keeps its objects beside the memory, so what was read is still known after a restart", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main, holder } = fixture
+    const memory = join(holder, "state", "works.json")
+    main.write("b.txt", "one\n")
+    const there = [{ terminalId: terminal(1), root: main.root }]
+    const first = open(() => there, { memory })
+    await current(first.works)
+    await first.works.look(terminal(1))
+    await first.works.close()
+    // The folder outlives the run, and the person's own objects were not written.
+    expect(readdirSync(join(holder, "state", "works-objects"))).toHaveLength(1)
+    main.write("b.txt", "one\ntwo\n")
+    const second = open(() => there, { memory })
+    resources.defer(() => second.works.close())
+    expect((await current(second.works)).get(terminal(1))).toMatchObject({ unreadAdded: 1 })
+  })
+
+  it("rebuilds its object folder now and then, keeping the tree last read", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main, holder } = fixture
+    const memory = join(holder, "state", "works.json")
+    main.write("b.txt", "one\n")
+    const there = [{ terminalId: terminal(1), root: main.root }]
+    const { works } = open(() => there, { memory, repackAfter: 3 })
+    resources.defer(() => works.close())
+    await current(works)
+    await works.look(terminal(1))
+    const folder = join(holder, "state", "works-objects")
+    const count = (path: string): number =>
+      readdirSync(path, { withFileTypes: true }).reduce(
+        (sum, entry) => sum + (entry.isDirectory() ? count(join(path, entry.name)) : 1),
+        0,
+      )
+    const sizes: number[] = []
+    for (let at = 1; at <= 9; at += 1) {
+      main.write("b.txt", `one\nedit ${at}\n`)
+      // eslint-disable-next-line no-await-in-loop -- Each read follows its edit.
+      await current(works)
+      sizes.push(count(join(folder, readdirSync(folder)[0]!)))
+    }
+
+    // It does not grow with the reads, and the tree read is still known: only the edit is unread.
+    expect(Math.max(...sizes)).toBeLessThan(sizes.length * 3)
+    expect((await current(works)).get(terminal(1))).toMatchObject({ unreadAdded: 1 })
+    expect(readdirSync(folder).toSorted()).toHaveLength(1)
+  })
+
+  it("does not take a merge it could not make for no conflict, and reads again", async ({
+    fixture,
+    resources,
+  }) => {
+    const first = fixture.worktree("first")
+    const second = fixture.worktree("second")
+    first.write("a.txt", ten.replace("line 5\n", "first five\n"))
+    second.write("a.txt", ten.replace("line 5\n", "second five\n"))
+    const memory = join(fixture.holder, "state", "works.json")
+    const { works } = open(
+      () => [
+        { terminalId: terminal(1), root: first.root },
+        { terminalId: terminal(2), root: second.root },
+      ],
+      { memory },
+    )
+    resources.defer(() => works.close())
+    expect((await current(works)).get(terminal(1))?.conflicts).toHaveLength(1)
+    // The objects of the snapshots go (as a rebuilt folder leaves them), and one side changes.
+    rmSync(join(fixture.holder, "state", "works-objects"), { recursive: true, force: true })
+    second.write("a.txt", ten.replace("line 5\n", "second five!\n"))
+    await current(works)
+    expect((await current(works)).get(terminal(1))?.conflicts).toEqual([
+      { with: "work", terminalId: terminal(2) },
+    ])
   })
 
   it("marks the work truncated when an untracked file over 1 MiB is left out", async ({

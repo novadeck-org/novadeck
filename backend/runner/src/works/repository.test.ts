@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process"
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
@@ -12,7 +13,14 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { describe, expect, it as base } from "../test.js"
-import { mainBranch, mergeTrees, snapshotCommit, snapshotTree, treeGone } from "./repository.js"
+import {
+  mainBranch,
+  mergeTrees,
+  repack,
+  snapshotCommit,
+  snapshotTree,
+  treeGone,
+} from "./repository.js"
 
 const hasGit = (() => {
   try {
@@ -39,9 +47,148 @@ const git = (root: string, ...args: string[]) =>
   }).trim()
 
 describe.skipIf(!hasGit)("git, asked about a checkout", () => {
-  it("finds no main branch, and takes no snapshot, before the first commit", async ({ root }) => {
+  it("finds no main branch, and a snapshot with no commit under it, before the first commit", async ({
+    root,
+  }) => {
+    writeFileSync(join(root, "a"), "1\n")
     expect(await mainBranch(root)).toBeUndefined()
-    expect(await snapshotTree(root, join(root, ".git", "private"))).toBeUndefined()
+    const taken = await snapshotTree(root, join(root, ".git", "private"))
+    expect(taken?.head).toBe("")
+    expect(git(root, "ls-tree", "-r", "--name-only", taken!.tree)).toBe("a")
+  })
+
+  const objectsIn = (root: string): number => {
+    const counted = git(root, "count-objects", "-v")
+    return (
+      Number(/^count: (\d+)/m.exec(counted)![1]) + Number(/^in-pack: (\d+)/m.exec(counted)![1]!)
+    )
+  }
+
+  it("writes what it hashes to a folder of its own, never to the person's objects", async ({
+    root,
+  }) => {
+    writeFileSync(join(root, "a"), "1\n")
+    git(root, "add", "a")
+    git(root, "commit", "--quiet", "-m", "first")
+    writeFileSync(join(root, "a"), "2\n")
+    writeFileSync(join(root, "new.txt"), "brand new\n")
+    const before = objectsIn(root)
+    const objects = join(root, ".git", "private-objects")
+    const taken = await snapshotTree(root, join(root, ".git", "private-index"), objects)
+
+    expect(objectsIn(root)).toBe(before)
+    expect(existsSync(objects)).toBe(true)
+    // What it made is still found by the runs that read it.
+    const read = await snapshotCommit(root, taken!.tree, taken!.head, taken!.env)
+    expect(read).toBeDefined()
+    expect(await treeGone(root, taken!.tree, taken!.env)).toBe(false)
+    expect(await treeGone(root, taken!.tree)).toBe(true)
+  })
+
+  it("never hashes a file that may hold secrets", async ({ root }) => {
+    writeFileSync(join(root, "a"), "1\n")
+    git(root, "add", "a")
+    git(root, "commit", "--quiet", "-m", "first")
+    writeFileSync(join(root, ".env"), "TOKEN=SECRET_VALUE_XYZ\n")
+    writeFileSync(join(root, "id_rsa"), "SECRET_KEY_XYZ\n")
+    const taken = await snapshotTree(
+      root,
+      join(root, ".git", "private-index"),
+      join(root, ".git", "po"),
+    )
+    expect(git(root, "ls-tree", "-r", "--name-only", taken!.tree).split("\n")).toEqual(["a"])
+    // Only named, for a listing to show.
+    expect([...taken!.secret].toSorted()).toEqual([".env", "id_rsa"])
+    const blob = git(root, "hash-object", ".env")
+    const found = (() => {
+      try {
+        execFileSync("git", ["cat-file", "-e", blob], { cwd: root, stdio: "ignore" })
+        return true
+      } catch {
+        return false
+      }
+    })()
+    expect(found).toBe(false)
+  })
+
+  it("judges untracked files by the environment it is given", async ({ root }) => {
+    writeFileSync(join(root, "a"), "1\n")
+    git(root, "add", "a")
+    git(root, "commit", "--quiet", "-m", "first")
+    writeFileSync(join(root, "login.json"), "{}\n")
+    const index = join(root, ".git", "private-index")
+    const plain = await snapshotTree(root, index, join(root, ".git", "po"), {})
+    expect(plain!.secret).toEqual([])
+    const moved = await snapshotTree(root, index, join(root, ".git", "po"), {
+      NETRC: join(root, "login.json"),
+    })
+    expect(moved!.secret).toEqual(["login.json"])
+  })
+
+  it("reads a repository whose path holds the alternates separator", async ({ root }) => {
+    const odd = join(root, process.platform === "win32" ? "se;mi" : "co:lon")
+    mkdirSync(odd)
+    execFileSync("git", ["init", "--quiet", "-b", "main"], { cwd: odd })
+    writeFileSync(join(odd, "a"), "1\n")
+    git(odd, "add", "a")
+    git(odd, "commit", "--quiet", "-m", "first")
+    writeFileSync(join(odd, "a"), "2\n")
+    const taken = await snapshotTree(odd, join(odd, ".git", "pi"), join(odd, ".git", "po"))
+
+    expect(taken).toBeDefined()
+    expect(await treeGone(odd, taken!.tree, taken!.env)).toBe(false)
+    const read = execFileSync("git", ["cat-file", "blob", `${taken!.tree}:a`], {
+      cwd: odd,
+      encoding: "utf8",
+      env: { ...process.env, ...taken!.env },
+    })
+    expect(read).toBe("2\n")
+    // A file the snapshot did not touch is read from the repository's own objects.
+    expect(
+      execFileSync("git", ["cat-file", "blob", "HEAD:a"], {
+        cwd: odd,
+        encoding: "utf8",
+        env: { ...process.env, ...taken!.env },
+      }),
+    ).toBe("1\n")
+  })
+
+  it("rebuilds an object folder to what the trees it is told reach, and nothing else", async ({
+    root,
+  }) => {
+    writeFileSync(join(root, "a"), "1\n")
+    git(root, "add", "a")
+    git(root, "commit", "--quiet", "-m", "first")
+    const objects = join(root, ".git", "po")
+    const index = join(root, ".git", "pi")
+    writeFileSync(join(root, "a"), "kept\n")
+    const kept = await snapshotTree(root, index, objects)
+    writeFileSync(join(root, "a"), "dropped\n")
+    const dropped = await snapshotTree(root, index, objects)
+
+    expect(await repack(root, objects, [kept!.tree])).toBe(true)
+
+    expect(await treeGone(root, kept!.tree, kept!.env)).toBe(false)
+    const blob = (tree: string) =>
+      execFileSync("git", ["cat-file", "blob", `${tree}:a`], {
+        cwd: root,
+        encoding: "utf8",
+        env: { ...process.env, ...kept!.env },
+      })
+    expect(blob(kept!.tree)).toBe("kept\n")
+    expect(await treeGone(root, dropped!.tree, kept!.env)).toBe(true)
+    expect(existsSync(`${objects}.new`)).toBe(false)
+    expect(existsSync(`${objects}.old`)).toBe(false)
+  })
+
+  it("takes no untracked file where status shows none", async ({ root }) => {
+    writeFileSync(join(root, "a"), "1\n")
+    git(root, "add", "a")
+    git(root, "commit", "--quiet", "-m", "first")
+    git(root, "config", "status.showUntrackedFiles", "no")
+    writeFileSync(join(root, "dotfile"), "x\n")
+    const taken = await snapshotTree(root, join(root, ".git", "private-index"))
+    expect(git(root, "ls-tree", "-r", "--name-only", taken!.tree)).toBe("a")
   })
 
   it("snapshots the working tree in a private index, leaving the person's own", async ({

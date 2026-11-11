@@ -339,6 +339,18 @@ export const createShowcase = (
         if (report === next) report = undefined
       }
     },
+    changeFile: (_target, id, path, layers) => {
+      const read = samples.get(id)?.changeFile
+      return read
+        ? Promise.resolve(read(path, layers))
+        : Promise.reject(new Error("There is no such change"))
+    },
+    changeRange: (_target, id, layers) => {
+      const read = samples.get(id)?.changeRange
+      return read
+        ? Promise.resolve({ files: read(layers), truncated: false })
+        : Promise.reject(new Error("There is no such change"))
+    },
     follow: (target, id, { reveal }, on) => {
       const agent = planOf(target, id)
       if (agent) {

@@ -7,6 +7,8 @@ import type { PlanSource } from "@novadeck/harness-core/events"
 import { companionLimits, onThisMachine, pageKey, titleFrom } from "@novadeck/protocol"
 import type {
   AgentName,
+  ChangeFileDiff,
+  ChangeRange,
   CompanionChange,
   CompanionItem,
   CompanionWindow,
@@ -22,15 +24,7 @@ import { logs } from "../log.js"
 import { agentLabel } from "../messaging/messages.js"
 import { mention } from "../terminals/handles.js"
 import { tail } from "../text.js"
-import {
-  changesContent,
-  describeChange,
-  displayed,
-  readChange,
-  repositoryOf,
-  samePlace,
-  waitAfter,
-} from "./changes.js"
+import { displayed, repositoryOf, samePlace, waitAfter } from "./changes.js"
 import {
   hashOf,
   loadFile,
@@ -43,6 +37,7 @@ import {
   type PlanText,
   type Pointed,
 } from "./content.js"
+import { findRepository, LayerReader } from "./layers.js"
 import { PageLooks } from "./looks.js"
 import type { ItemRecord, ItemRecords, WindowRecord } from "./records.js"
 import {
@@ -154,6 +149,9 @@ const inside = (folder: string, path: string): boolean => {
 // How many failed reads in a row a change keeps its last good content through.
 const changesFailures = 2
 
+const unavailable = (reason: "missing" | "unreadable") =>
+  ({ state: "unavailable", reason, size: null }) as const
+
 /** What keys the change of a repository on a bar: one item per repository. */
 const changesKey = (root: string): string =>
   `changes:${process.platform === "win32" ? root.toLowerCase() : root}`
@@ -225,6 +223,8 @@ export class CompanionItems {
   private readonly records: ItemRecords
   private readonly pollMs: number
   private readonly changesMs: number
+  /** What changes items read their layers and files' diffs with. */
+  private readonly layers = new LayerReader(() => this.environment())
   /** Each `watch` stream and the owner whose release ends it. */
   private readonly watchers = new Map<KeyedChanges<string, CompanionChange>, string>()
   /** Each item's `content` readers, which end once it is deleted. */
@@ -845,12 +845,15 @@ export class CompanionItems {
       for (const item of this.records.items(sessionId)) this.delete(item.id)
   }
 
-  /** Ends every stream; nothing changes afterwards. */
-  shutdown(): void {
+  /** Ends every stream; nothing changes afterwards. Resolves once the folders of reads are gone. */
+  shutdown(): Promise<void> {
     this.stopping = true
+    // Nothing is read after, and the folders go once what is running ends.
+    const closed = this.layers.close()
     this.looks.finish()
     for (const watcher of this.watchers.keys()) watcher.finish()
     for (const readers of this.readers.values()) for (const reader of readers) reader.abort()
+    return closed
   }
 
   private async observe(
@@ -951,9 +954,9 @@ export class CompanionItems {
     if ("changes" in request) {
       const root = await repositoryOf(resolve(place.cwd, request.changes.path ?? "."))
       if (!root.ok) return root
-      const read = await readChange(root.root, this.environment())
+      const read = await this.layers.read(root.root)
       if (!read.ok) return read
-      const { name, detail } = describeChange(read.change)
+      const { name, detail } = read.change
       return {
         ok: true,
         tooLarge: false,
@@ -1173,13 +1176,57 @@ export class CompanionItems {
   }
 
   // A change, read afresh; its item's detail follows the totals it finds, unless the item
-  // went or was shown again meanwhile.
+  // went or was shown again meanwhile. A repository gone is `missing`, any other failure
+  // `unreadable`.
   private async readChange(item: ItemRecord): Promise<ItemContent> {
-    const { content, detail } = await changesContent(item.path, this.environment())
+    if (item.path === null) return unavailable("missing")
+    const found = await findRepository(item.path)
+    if (!found.ok) return unavailable(found.missing ? "missing" : "unreadable")
+    const read = await this.layers.read(found.root)
+    if (!read.ok) return unavailable("unreadable")
+    const { content, detail } = read.change
     const now = this.records.item(item.id)
-    if (detail !== undefined && now && now.version === item.version && now.detail !== detail)
-      this.save({ ...now, detail })
+    if (now && now.version === item.version && now.detail !== detail) this.save({ ...now, detail })
     return content
+  }
+
+  /** The changes item's repository, for a call about it; NOT_FOUND where there is none. */
+  private async changeRoot(itemId: string): Promise<string> {
+    if (this.stopping) throw new DomainError("CLOSING")
+    const item = this.item(itemId)
+    if (item.kind !== "changes" || item.path === null)
+      throw new DomainError("NOT_FOUND", "Item is no change")
+    const found = await findRepository(item.path)
+    if (!found.ok) throw new DomainError("NOT_FOUND", "The repository is gone")
+    return found.root
+  }
+
+  /**
+   * One file of a changes item as a selection of its layers changed it (see
+   * `companions.changeFile`). NOT_FOUND for an unknown item or one that is no change.
+   */
+  async changeFile(input: {
+    readonly itemId: string
+    readonly path: string
+    readonly layers: readonly string[]
+  }): Promise<ChangeFileDiff> {
+    const read = await this.layers.file(
+      await this.changeRoot(input.itemId),
+      input.path,
+      input.layers,
+    )
+    if (!read.ok) throw new Error(read.reason)
+    return read.diff
+  }
+
+  /** The files a selection of layers changed as one range (see `companions.changeRange`). */
+  async changeRange(input: {
+    readonly itemId: string
+    readonly layers: readonly string[]
+  }): Promise<ChangeRange> {
+    const read = await this.layers.range(await this.changeRoot(input.itemId), input.layers)
+    if (!read.ok) throw new Error(read.reason)
+    return read.range
   }
 
   private read(

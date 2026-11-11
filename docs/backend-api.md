@@ -1584,19 +1584,39 @@ one from an earlier runner.
     lines past the end are pulled back to it and marked `clamped`. A plan is its text, cut
     short past 256 KiB (`truncated`), with `writable` (a plan in a file that is not cut
     short, which `companions.save` can write) and `skill` (Novadeck's plugin is installed
-    for its agent). A `changes` item is its repository's working tree against `HEAD`
-    (staged, unstaged and untracked files, not ignored ones): `root`, `base`, and `files`,
-    each with its `path`, `oldPath` (renames), `status`, `added` and `removed` counts and
-    `hunks` of context, add and remove lines; at most 300 files and 4 MiB of diff text,
-    past the diff text budget files are `listed` by name and counts without hunks, and
-    `truncated` is set (it is also set where files past 300 are left out, which are not
-    listed). A binary file or one that may hold secrets (`secret`, judged by the new and the
-    old name) has no hunks; names show invisible characters as U+FFFD. It is read with git about
+    for its agent). A `changes` item is a checkout measured against its repository's main
+    branch (`base` names it, `HEAD` where there is none): `root`, `base`, and `layers`, newest
+    first, and `files`, the whole change's own list (what `changeRange` gives over every layer: the
+    net against main, at most 300, in `truncated` too). A layer is the work not committed yet (`id` `uncommitted`, `time` null: the
+    working tree, untracked files included and ignored ones not) or a commit since the merge
+    base with main (`id` its hash, its `subject` and `time`), with its `files` (`path`,
+    `oldPath` for renames, `status`, `added` and `removed` counts ignoring whitespace,
+    `reindented` for lines that only changed it, `binary`, `secret`) and its totals, and no
+    diffs; at most 100 layers and 2,000 files in all, 300 to a layer, `truncated` where more
+    were left out (or an untracked file past 1 MiB was). A binary file or one that may hold
+    secrets (`secret`, judged by the new and the old name) is listed by name; names show
+    invisible characters as U+FFFD. It is read with git about
     every 2 seconds while followed (less often after slow reads, keeping the last good
     content through a failed read or two), and `reveal` has no effect on it; a repository that is
-    gone is `missing`, and a failing git `unreadable`. Every read resolves symlinks again, refuses anything but a plain
-    file and never blocks on a pipe, and a file that now resolves to one that may hold
-    secrets is held.
+    gone is `missing`, and a failing git `unreadable`. A checkout is read through a private
+    index: the person's own is never written.
+  - `companions.changeFile({ itemId, path, layers })` reads one file of a changes item for
+    the layer ids selected: `{ run }`, one run for the range they span (the layers between
+    the newest and the oldest selected are taken in; layers no longer there are left out, and a
+    file the selection did not change has `run: null`). A run is the `layers` it covers, the `file` as they changed it, its
+    `hunks` (context, add and remove lines, diffed from the oldest layer's parent to the
+    newest layer, or from `HEAD` to the working tree for the uncommitted one) and the text of
+    the file on each side (`before`, `after`; null where it doesn't exist, is binary, may hold
+    secrets or passes 512 KiB). Past 4 MiB of diff text the run is `big`: no hunks, no sides.
+    A name that is no valid text is `badName`: named, not read. An unknown item, or one that is
+    no change, is `NOT_FOUND`.
+  - `companions.changeRange({ itemId, layers })` lists the files the layers selected changed as
+    one range, as git lists them from its start to its end (a file added and dropped inside it is
+    not there, a renamed one is one row, counts are the range's own): `{ files, truncated }`. A
+    range that reaches the oldest layer, or takes in a merge, starts at the merge base with main,
+    so what main brought in is no part of it. A snapshot's objects are written to a folder of the
+    runner's own, never to the person's object store, and a file that may hold secrets is never
+    hashed.
   - `companions.save({ itemId, text, basedOn })` writes the person's edit to a plan kept in
     a file, atomically, keeping the file's permissions, unless the file's stamp is no longer
     `basedOn` (a text plan's stamp is a hash of its text; a file plan's is its size,

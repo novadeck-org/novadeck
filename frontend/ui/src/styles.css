@@ -61,6 +61,7 @@
 @import "@novadeck/items/peek.css" layer(components);
 @import "@novadeck/items/pane.css" layer(components);
 @import "@novadeck/items/artifact.css" layer(components);
+@import "@novadeck/items/changes.css" layer(components);
 @import "@novadeck/items/messages.css" layer(components);
 @import "./app/visitor.css" layer(components);
 @import "./shell/region.css" layer(components);
@@ -92,7 +93,6 @@
 @import "./shell/attention-dot.css" layer(components);
 @import "./shell/zen-dock.css" layer(components);
 @import "@novadeck/viewers/code.css" layer(components);
-@import "@novadeck/viewers/diff.css" layer(components);
 @import "@novadeck/viewers/image.css" layer(components);
 @import "@novadeck/viewers/browser.css" layer(components);
 @import "@novadeck/viewers/markdown.css" layer(components);

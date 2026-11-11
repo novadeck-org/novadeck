@@ -1408,6 +1408,35 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     })
   })
 
+  it("gives one file's diff for a selection of layers, and refuses an item that is no change", async ({
+    fixture,
+  }) => {
+    const { place } = repository(fixture)
+    const shown = await fixture.items.show(place, { changes: {} })
+    const itemId = shown.ok ? shown.id : ""
+    const diff = await fixture.items.changeFile({
+      itemId,
+      path: "a.txt",
+      layers: ["uncommitted"],
+    })
+    expect(diff.run).toMatchObject({
+      layers: ["uncommitted"],
+      before: "one\n",
+      after: "one\ntwo\n",
+      file: { added: 1 },
+    })
+    await expect(
+      fixture.items.changeFile({ itemId: "nope", path: "a.txt", layers: ["uncommitted"] }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    await expect(
+      fixture.items.changeRange({ itemId, layers: ["uncommitted"] }),
+    ).resolves.toMatchObject({ files: [{ path: "a.txt", added: 1 }], truncated: false })
+    await expect(
+      fixture.items.changeRange({ itemId: "nope", layers: ["uncommitted"] }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    fixture.items.close(itemId)
+  })
+
   it("yields its content when the change changes, and not otherwise", async ({ fixture }) => {
     const { root, place } = repository(fixture)
     const shown = await fixture.items.show(place, { changes: {} })
@@ -1427,7 +1456,11 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     const second = await next(stream)
     expect(second).not.toMatchObject({ stamp: first && "stamp" in first ? first.stamp : "" })
     expect(second).toMatchObject({
-      content: { files: [{ path: "a.txt" }, { path: "b.txt", status: "added" }] },
+      content: {
+        layers: [
+          { id: "uncommitted", files: [{ path: "a.txt" }, { path: "b.txt", status: "added" }] },
+        ],
+      },
     })
     // The item's detail follows what the reads find.
     expect(fixture.items.bar(place.terminalId)[0]?.detail).toBe("2 files · +2 −0")
@@ -1468,7 +1501,10 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     const content = await fixture.items.load(item?.id ?? "", false)
     expect(content).toMatchObject({
       state: "ready",
-      content: { kind: "changes", files: [{ path: "b.txt", status: "added" }] },
+      content: {
+        kind: "changes",
+        layers: [{ id: "uncommitted", files: [{ path: "b.txt", status: "added" }] }],
+      },
     })
     // The same path closes it; a path in no repository names nothing.
     await expect(fixture.items.closeShown(outside, { changes: {} })).resolves.toMatchObject({

@@ -269,6 +269,8 @@ export const createRouter = (options: {
         for await (const content of items.content(input.itemId, input.reveal, signal))
           yield await withSkill(content, store.item(input.itemId)?.plan?.agent)
       }),
+      changeFile: api.companions.changeFile.handler(({ input }) => items.changeFile(input)),
+      changeRange: api.companions.changeRange.handler(({ input }) => items.changeRange(input)),
       save: api.companions.save.handler(async ({ input }) => {
         const item = store.item(input.itemId)
         if (!item) throw new DomainError("NOT_FOUND", "Item not found")

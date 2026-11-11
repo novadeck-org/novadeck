@@ -4,8 +4,10 @@
 // the terminal, so a reply typed blind brings it back with its first key.
 
 // Where the pane's own content takes text: an editor, a field, a page. Its keys are its own.
+// So are a viewer's that marks itself `data-pane-keys` while it takes keys of its own (a
+// change's file, which steps on J and K and goes back on Escape).
 const editable =
-  'input:not([type="radio"], [type="checkbox"], [type="button"], [type="submit"], [type="reset"], [type="range"]), textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"], webview, iframe'
+  '[data-pane-keys], input:not([type="radio"], [type="checkbox"], [type="button"], [type="submit"], [type="reset"], [type="range"]), textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"], webview, iframe'
 
 // What a key does by itself on the pane's surface, so a character typed there is not a reply.
 const operable = 'button, a[href], summary, [role="button"], [role="tab"], [role="menuitem"]'

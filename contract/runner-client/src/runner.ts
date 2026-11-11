@@ -19,6 +19,8 @@ import {
   type HistoryChange,
   type InboxEntry,
   type InterruptResult,
+  type ChangeFileDiff,
+  type ChangeRange,
   type ItemContent,
   type MurmurSettings,
   type MurmurState,
@@ -471,6 +473,24 @@ export type Runner = {
       options?: { readonly reveal?: string },
     ): AsyncIterableIterator<ItemContent, undefined>
     /**
+     * One file of a changes item as a selection of its layers changed it: one run, from the
+     * oldest layer's parent to the newest, with the diff and the text of both sides (`run` is
+     * null where the selection did not change the file). Rejects with `NOT_FOUND` for an unknown item or one that is no change.
+     */
+    changeFile(input: {
+      readonly itemId: string
+      readonly path: string
+      readonly layers: readonly string[]
+    }): Promise<ChangeFileDiff>
+    /**
+     * The files a selection of a changes item's layers changed as one range. Rejects with
+     * `NOT_FOUND` for an unknown item or one that is no change.
+     */
+    changeRange(input: {
+      readonly itemId: string
+      readonly layers: readonly string[]
+    }): Promise<ChangeRange>
+    /**
      * Writes the person's edit to a plan kept in a file, unless it changed since `basedOn`,
      * the stamp the edit was made on: then nothing is written and the plan as it now
      * stands is `current`. Rejects with `NOT_FOUND`, or `PLAN_UNWRITABLE` saying why for a
@@ -820,6 +840,10 @@ export const connectRunner = async (
             { signal },
           ),
         ),
+      changeFile: (input) =>
+        call((client) => client.companions.changeFile({ ...input, layers: [...input.layers] })),
+      changeRange: (input) =>
+        call((client) => client.companions.changeRange({ ...input, layers: [...input.layers] })),
       save: (input) => call((client) => client.companions.save(input)),
       attach: (input) => call((client) => client.companions.attach(input)),
       openInProject: (input) => call((client) => client.companions.openInProject(input)),
