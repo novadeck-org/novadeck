@@ -104,15 +104,18 @@ export const saves = (outcome: Outcome, exactHit: boolean): boolean =>
   !exactHit && (outcome.path === "apt" || outcome.path === "cache")
 
 /**
- * apt's arguments that install the debs `files` and nothing from a mirror: the sources pointed
- * at nothing, so the only candidates are the files and what dpkg has installed. With the
- * system's sources apt prefers the archive's copy of the same version, which needs a download,
- * and `--no-download` then refused it (#869's run on 11-11 installed nothing). It resolves
- * first and changes nothing where a dependency can't be met. The system's package caches are
- * left as they are, and apt reads the files as root, which it fell back to anyway, as its
- * sandbox user can't read a runner's temporary folder.
+ * apt's arguments that install the debs `files`, all in `folder`, and nothing from a mirror:
+ * the sources pointed at nothing, so the only candidates are the files and what dpkg has
+ * installed. With the system's sources apt prefers the archive's copy of the same version,
+ * which needs a download, and `--no-download` refused it (#869's run on 11-11 installed
+ * nothing). `--no-download` stays as a guard, with apt's archives at the debs' own folder: with
+ * the archives elsewhere apt failed its install phase on the file's bare name ("Pathname to
+ * install is not absolute", the run after). It resolves first and changes nothing where a
+ * dependency can't be met. The system's package caches are left as they are, and apt reads the
+ * files as root, which it fell back to anyway: its sandbox user can't reach a runner's
+ * temporary folder.
  */
-export const localInstall = (files: readonly string[]): readonly string[] => [
+export const localInstall = (folder: string, files: readonly string[]): readonly string[] => [
   "-o",
   "Dir::Etc::sourcelist=/dev/null",
   "-o",
@@ -121,6 +124,8 @@ export const localInstall = (files: readonly string[]): readonly string[] => [
   "Dir::Cache::pkgcache=",
   "-o",
   "Dir::Cache::srcpkgcache=",
+  "-o",
+  `Dir::Cache::archives=${folder}`,
   "-o",
   "APT::Sandbox::User=root",
   "install",
@@ -250,7 +255,9 @@ export const downloadScript = (
         `-o ${quoted("Dir::Cache::srcpkgcache=")}`,
       ].join(" ")
     : ""
-  const apt = own ? `apt-get ${own}` : "apt-get"
+  // As root, which apt falls back to anyway: its sandbox user can't reach a runner's
+  // temporary folder, and said so in a warning for each file.
+  const apt = `apt-get ${own ? `${own} ` : ""}-o ${quoted("APT::Sandbox::User=root")}`
   return [
     `${apt} update -qq &&`,
     `${apt} install -y --no-install-recommends --download-only`,
@@ -332,7 +339,7 @@ export const main = (folder: string): void => {
         return []
       }
     },
-    local: (files) => sudo(["apt-get", ...localInstall(files)]),
+    local: (files) => sudo(["apt-get", ...localInstall(folder, files)]),
     missing: () => {
       const check = spawnSync(
         "pnpm",
@@ -356,8 +363,6 @@ export const main = (folder: string): void => {
     },
     download: (packages) => {
       mkdirSync(join(folder, "partial"), { recursive: true })
-      // apt's sandbox user downloads into it (given back after, for the cache's save).
-      sudo(["chown", "-R", "_apt", folder])
       // The fallbacks' apt state, beside the folder (not in it, as the folder is saved).
       const scratch = `${folder}.apt`
       sudo(["tee", failFastFile], failFast)
@@ -373,8 +378,6 @@ export const main = (folder: string): void => {
             const { name, mirrors } = fallbacks[used]!
             console.log(`Downloading through ${name}`)
             const alternate = writeAlternate(scratch, used, mirrors)
-            // apt's sandbox user writes the lists, as it does the folder.
-            sudo(["chown", "-R", "_apt", alternate.lists])
             return ["sudo", "sh", "-c", downloadScript(folder, packages, alternate)]
           },
           // It runs no dpkg: an apt it leaves past the wait is ended, not waited on again.
