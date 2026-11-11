@@ -816,6 +816,77 @@ describe("the doorbell's care with a terminal it looks at", () => {
     doorbell.close()
   })
 
+  it("ends the failures once a leftover line's prompt confirms it, though it has the failed ring's nonce", async () => {
+    // Each ring's line lands, a row elsewhere changes with it, and the line is submitted from
+    // the box and confirmed: three of those in a row are no reason to give up.
+    const { host, written, failed, blocks, plains, ringLeftovers, confirm, rearm, stop } = terminal(
+      { takes: "elsewhere", readsLeftover: true },
+    )
+    const doorbell = new Doorbell(host, host.queue, recheck)
+    doorbell.changed("t")
+    for (let round = 1; round <= 3; round += 1) {
+      // eslint-disable-next-line no-await-in-loop -- One round after another.
+      await vi.waitFor(() => expect(ringLeftovers).toHaveLength(round), { timeout: 3_000 })
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await vi.waitFor(() => expect(enters(written)).toBe(round))
+      confirm()
+      doorbell.changed("t")
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await vi.waitFor(() => expect(plains.at(-1)).toBe(false))
+      rearm()
+      doorbell.changed("t")
+    }
+    await vi.waitFor(() => expect(failed).toHaveLength(4), { timeout: 3_000 })
+    expect(blocks).not.toContain("failed")
+    stop()
+    doorbell.close()
+  })
+
+  it("submits the line left alone in the box once more after it gave up, and no more", async () => {
+    // The line lands, a row elsewhere changes with it, and no prompt ever confirms an Enter:
+    // the third failure leaves the line in the box, which the cap's one look still submits.
+    const { host, written, failed, blocks, ringLeftovers, stop } = terminal({
+      takes: "elsewhere",
+      readsLeftover: true,
+    })
+    const doorbell = new Doorbell(host, host.queue, recheck)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(failed).toHaveLength(4), { timeout: 5_000 })
+    const [nonce] = failed
+    expect(ringLeftovers).toEqual([nonce, nonce, nonce])
+    expect(enters(written)).toBe(3)
+    // Its one try is over: the line is the person's to deal with, and no more is typed.
+    for (let change = 0; change < 5; change += 1) {
+      doorbell.changed("t")
+      // eslint-disable-next-line no-await-in-loop -- One change after another.
+      await sleep(60)
+    }
+    expect(enters(written)).toBe(3)
+    expect(written.filter((data) => data.startsWith("\x1b[200~"))).toHaveLength(1)
+    expect(blocks.at(-1)).toBe("failed")
+    stop()
+    doorbell.close()
+  })
+
+  it("looks once at the cap and waits for the person where no line of its own is left", async () => {
+    const { host, written, failed, blocks, screens, stop } = terminal({ takes: "nothing" })
+    const doorbell = new Doorbell(host, host.queue, recheck)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(failed).toHaveLength(3), { timeout: 3_000 })
+    await vi.waitFor(() => expect(blocks.at(-1)).toBe("failed"))
+    await sleep(200)
+    const seen = screens()
+    for (let change = 0; change < 5; change += 1) {
+      doorbell.changed("t")
+      // eslint-disable-next-line no-await-in-loop -- One change after another.
+      await sleep(40)
+    }
+    expect(screens()).toBe(seen)
+    expect(written.filter((data) => data === "\r")).toEqual([])
+    stop()
+    doorbell.close()
+  })
+
   it("does not count a ring given up before it pasted anything", async () => {
     const { host, failed, blocks, plains, stop } = terminal({ inputBox: [true, true, false] })
     const doorbell = new Doorbell(host, host.queue, recheck)

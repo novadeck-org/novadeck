@@ -704,6 +704,40 @@ for (const setup of setups) {
       expect(occurrences(shown, "[Novadeck")).toBe(1)
     })
 
+    it("takes the line a failed ring left out of the box for a prompt from the chat, and the message comes", async ({
+      e2e: run,
+    }) => {
+      // Found by a terminal the doorbell gave up on with its line in the box: the chat's prompt
+      // was refused as `ringing` with no ring under way, and the person had no way forward there.
+      // The message comes with the prompt, or where a harness's prompt hook may run as the prompt
+      // is queued (Claude Code's) and the terminal was Unknown, with the ring after its turn.
+      run.model.use(
+        replies("Warm up", "Warmed up."),
+        sends("Tell moth the news", "moth", "The build is green."),
+        own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
+        own((call) => (delivered(call, "fox") ? { text: "Noted the news." } : undefined)),
+        own((call) => (asked(call, "What's new?") ? { text: "Nothing yet." } : undefined)),
+      )
+      const t1 = await start(run, setup)
+      const t2 = await start(run, setup)
+      await turn(t1, "Warm up", "Warmed up.")
+      const calls = run.model.mark()
+      await message(t2, t1)
+      lost(run, t1, "Lft7Cc")
+      await t1.until("Lft7Cc")
+      await t1.prompt("What's new?")
+      const asking = await run.model.waitFor((call) => !call.side && asked(call, "What's new?"), {
+        after: calls,
+        timeoutMs: 60_000,
+      })
+      // The person's words alone: Novadeck's line went from the box, unsent.
+      expect(latest(asking)).not.toContain("Lft7Cc")
+      await run.model.waitFor((call) => delivered(call, "fox"), { after: calls, timeoutMs: 60_000 })
+      await t1.until("Noted the news.")
+      expect(messages(t1).findLast((one) => one.from === "fox")?.state).toBe("delivered")
+      expect(run.model.calls.some((call) => latest(call).includes("Lft7Cc"))).toBe(false)
+    })
+
     it("never rings an agent whose turn is running, however its screen looks, and delivers at its Stop", async ({
       e2e: run,
     }) => {

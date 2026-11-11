@@ -1,6 +1,6 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import { newTurn, takesQueue } from "@novadeck/tui-input/box"
+import { checkPaste, newTurn, takesQueue } from "@novadeck/tui-input/box"
 import { describe, expect, it } from "vitest"
 
 import { box, clearPending } from "./box.js"
@@ -315,5 +315,121 @@ describe("Claude Code's images", () => {
 
   it("counts none in an empty box", () => {
     expect(box.images!.attached(screenOf(rule, "❯ ", rule, "  ? for shortcuts"))).toBe(0)
+  })
+})
+
+describe("the doorbell's line landing beside a feedback draft's card", () => {
+  // Its card for a feedback draft stays until it is dismissed, under the box, and its last row
+  // reads by whether the box holds text (bundle of 2.1.322; a terminal whose every ring failed
+  // as `elsewhere` once it drafted one, 2026-11-10). The rest as 2.1.322 drew its screen at 80
+  // columns; the card's rows as its bundle draws them, as the sandbox can't draft one.
+  const line = "[Novadeck: automatic notice, agent messages waiting, k3f9Xz]"
+  const wide = "─".repeat(80)
+  const rows = (prompt: string, keys: string, extra = "") => [
+    " ▐▛███▛█   Claude Code v2.1.322",
+    "",
+    "❯ Start the watch",
+    "",
+    "● Started the watch.",
+    "",
+    "✻ Churned for 0s · done 9:47 PM · 1 shell still running",
+    ...Array.from({ length: 6 }, () => ""),
+    wide,
+    prompt,
+    wide,
+    "",
+    "  ⏵⏵ auto mode on (shift+tab to cycle) · 1 feedback draft",
+    "",
+    "✻ Bug report drafted: Doorbell left its line in the box",
+    "  - **What happened:** the line stayed",
+    "  - **Repro:** ring an idle agent",
+    keys,
+    extra,
+  ]
+  const still = box.still!
+  const empty = rows("❯", "1 to review · 2 to send · 0 to dismiss")
+  const landed = rows(`❯ ${line}`, "clear text to review, send, or dismiss")
+
+  it("accepts the line though the card's keys changed, as its reading leaves them", () => {
+    expect(checkPaste(empty, landed, line)).toEqual({ accepted: false, reason: "elsewhere" })
+    expect(checkPaste(empty, landed, line, { still })).toMatchObject({
+      accepted: true,
+    })
+  })
+
+  it("reads the keys alike with more drafts queued", () => {
+    const more = rows("❯", "1 to review · 2 to send · 0 to dismiss · +2 more queued")
+    const typed = rows(`❯ ${line}`, "clear text to review, send, or dismiss · +2 more queued")
+    expect(checkPaste(more, typed, line, { still })).toMatchObject({ accepted: true })
+  })
+
+  it("reads alike the keys of a send that failed, and of a send it asks about", () => {
+    const failed = "✗ Couldn't send the report: network error "
+    const pairs = [
+      [
+        `${failed}1 to review & retry · Esc to dismiss`,
+        `${failed}clear text to open review or dismiss`,
+      ],
+      [
+        `${failed}1 to review or discard · Esc to dismiss`,
+        `${failed}clear text to open review or to dismiss`,
+      ],
+      [`${failed}Esc to dismiss`, `${failed}clear text to dismiss`],
+      [`${failed}Esc to dismiss`, `${failed}clear text to open review or dismiss`],
+      [
+        "Send without reviewing (full draft + env, no transcript)? 2 to send · Esc to back",
+        "Send without reviewing (full draft + env, no transcript)? clear text to answer it",
+      ],
+    ]
+    for (const [before, after] of pairs) {
+      expect(
+        checkPaste(rows("❯", before!), rows(`❯ ${line}`, after!), line, { still }),
+      ).toMatchObject({
+        accepted: true,
+      })
+    }
+  })
+
+  it("reads the keys alike where a narrow pane wraps them at other words", () => {
+    const narrow = (prompt: string, keys: readonly string[]) => [
+      ...rows(prompt, "").slice(0, -2),
+      ...keys,
+      "",
+    ]
+    const queued = narrow("❯", ["1 to review · 2 to send · 0 to dismiss ·", "+2 more queued"])
+    const typed = narrow(`❯ ${line}`, [
+      "clear text to review, send, or dismiss ·",
+      "+2 more queued",
+    ])
+    expect(checkPaste(queued, typed, line, { still })).toMatchObject({ accepted: true })
+    const failed = narrow("❯", [
+      "✗ Couldn't send the report: network error 1 to",
+      "review & retry · Esc to dismiss",
+    ])
+    const failedTyped = narrow(`❯ ${line}`, [
+      "✗ Couldn't send the report: network error clear",
+      "text to open review or dismiss",
+    ])
+    expect(checkPaste(failed, failedTyped, line, { still })).toMatchObject({ accepted: true })
+  })
+
+  it("still rejects a card whose text changed besides its keys", () => {
+    const retitled = landed.map((row) => row.replace("left its line", "kept its line"))
+    expect(checkPaste(empty, retitled, line, { still })).toEqual({
+      accepted: false,
+      reason: "elsewhere",
+    })
+  })
+
+  it("still rejects any other row that changed far from the box", () => {
+    const listed = rows(
+      `❯ ${line}`,
+      "clear text to review, send, or dismiss",
+      "  /review   Review a pull request",
+    )
+    expect(checkPaste(empty, listed, line, { still })).toEqual({
+      accepted: false,
+      reason: "elsewhere",
+    })
   })
 })

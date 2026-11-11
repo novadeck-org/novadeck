@@ -39,7 +39,7 @@ import { agentWorking, doorbellHost, profileOf } from "./doorbell-host.js"
 import { GivenBack } from "./given-back.js"
 import { splitImages } from "./image-marks.js"
 import { imagePaste } from "./image-paste.js"
-import { holdsRingLine, leftoverNonce } from "./leftover.js"
+import { holdsRingLine, leftoverNonce, ringNotice } from "./leftover.js"
 import { McpTools } from "./mcp-tools.js"
 import { Interrupts, Prompts } from "./prompting.js"
 import { freshRef, Receipts, type ReceiptsOptions } from "./receipts.js"
@@ -802,11 +802,12 @@ export class Typing {
       write: (terminalId, data) => this.written(terminalId, data),
       known: (terminalId, text) => this.receipts.known(terminalId, text),
       ringLine: (_terminalId, text) => leftoverNonce(text) !== undefined,
+      ringNotice: (_terminalId, text) => ringNotice(text),
       note: (terminalId, note) => this.noted(terminalId, note),
       refused: (terminalId, reason) => {
         const binding = this.host.live(terminalId)?.bound?.binding
         const version = binding ? versionOf(binding) : null
-        const data = { reason, agent: binding?.agent ?? null, version }
+        const data = { terminal: terminalId, reason, agent: binding?.agent ?? null, version }
         log.warn("chat.box", "A prompt was refused.", { data })
       },
     }
@@ -860,6 +861,7 @@ export class Typing {
   private noted(terminalId: string, note: BoxNote | HandoverNote): void {
     const binding = this.host.live(terminalId)?.bound?.binding
     const data = {
+      terminal: terminalId,
       note,
       agent: binding?.agent ?? null,
       version: binding ? versionOf(binding) : null,

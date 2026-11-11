@@ -3,7 +3,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 import type { ScreenText } from "@novadeck/emulator/headless"
 
 import { boxRules, isEmpty, tailOf, type BoxProfile } from "./box/box.js"
-import { changedRows, checkPaste } from "./box/paste.js"
+import { changedRows, checkPaste, findLine } from "./box/paste.js"
 import { sameText } from "./box/text.js"
 import type { InputEntry } from "./queue.js"
 import { bracketedPaste, calmMs, freshNonce, gate, type Readiness } from "./typing.js"
@@ -55,6 +55,32 @@ const cursorFact = ({ rows, columns, cursor }: ScreenText): string => {
   const { top, bottom } = boxRules(rows)
   const inside = top >= 0 && bottom - top >= 2 && cursor.row > top && cursor.row < bottom
   return `cursor ${cursor.row},${cursor.column} of ${rows.length}x${columns}, box rules ${top},${bottom}, cursor ${inside ? "inside" : "outside"}`
+}
+
+/** How many changed rows a failed paste check names, at most. */
+const namedRows = 12
+
+/** Whether a row shows nothing. */
+const blank = (row: string | undefined): boolean => (row ?? "").trim() === ""
+
+/**
+ * What changed on the screen as a paste's check read it, for the trace of one that failed: the
+ * rows that changed, each as it appeared, went or changed, and the rows the line took. Facts
+ * alone, never the rows' text, which may hold a message's.
+ */
+export const changeFacts = (
+  before: readonly string[],
+  after: readonly string[],
+  line: string,
+): string => {
+  const rows = changedRows(before, after)
+  const named = rows
+    .slice(0, namedRows)
+    .map((at) => `${at} ${blank(before[at]) ? "appeared" : blank(after[at]) ? "went" : "changed"}`)
+  const more = rows.length > namedRows ? `, ${rows.length - namedRows} more` : ""
+  const found = findLine(after, line)
+  const at = found.map(({ first, last }) => `${first}-${last}`).join(" and ") || "none"
+  return `rows changed ${named.join(", ") || "none"}${more} of ${after.length} (was ${before.length}); line at ${at}`
 }
 
 /**
@@ -387,10 +413,15 @@ export const createTypist = (
             : checkPaste(before.rows, after.rows, text, { vanish, ticking: rows, still: stillRows })
           const arrived = checked.accepted || (end !== undefined && checked.reason === "elsewhere")
           const accepted = arrived && alone(after, text)
-          if (!accepted && now() >= until)
+          if (!accepted && now() >= until) {
+            // The rows as the check read them, so a row it lets be names no change.
+            const facts = end
+              ? changeFacts(stillRows(before.bright), stillRows(after.bright), end)
+              : changeFacts(stillRows(before.rows), settled, text)
             trace(
-              `ring ${nonce}: paste not accepted: ${arrived ? "not alone in the box" : checked.reason}`,
+              `ring ${nonce}: paste not accepted: ${arrived ? "not alone in the box" : checked.reason}; ${facts}`,
             )
+          }
           // Accepted twice running on the same screen, so it isn't caught mid-draw.
           if (accepted && landed === shown) {
             trace(`ring ${nonce}: paste accepted, Enter`)
