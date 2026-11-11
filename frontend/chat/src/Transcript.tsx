@@ -9,9 +9,11 @@ import type { Echo } from "./echoes"
 import { Fact, Since, TimeFact } from "./Fact"
 import { longMs, span } from "./facts"
 import { Mark } from "./Mark"
+import type { MarkPhase } from "./mark-phase"
 import { shownControls } from "./shown-controls"
 import { Slice } from "./Slice"
 import { ToolCalls } from "./ToolCalls"
+import { currentPrompt } from "./turn-holds"
 
 const Shortened = (): React.JSX.Element => (
   <p className="chat-shortened">Shortened here; the rest isn't carried over.</p>
@@ -336,8 +338,11 @@ const BlockView = memo(
     personFace,
     gone,
     worked,
+    phase,
   }: {
     readonly worked: number | null
+    // The window's phase, on the mark of the prompt that started the latest turn.
+    readonly phase: MarkPhase | undefined
     // The person's face for the gutter at their Inbox answers (see `PersonGutter`).
     readonly personFace: React.ReactNode
     readonly block: ChatBlock
@@ -352,8 +357,8 @@ const BlockView = memo(
     switch (block.kind) {
       case "user":
         return (
-          <article className="chat-message" data-role="user" aria-label="You">
-            <Mark />
+          <article className="chat-message" data-role="user" data-turn={block.id} aria-label="You">
+            <Mark phase={phase} />
             <p className="chat-text">{block.text}</p>
             {block.truncated && <Shortened />}
             <TimeFact at={block.at} />
@@ -390,6 +395,7 @@ const BlockView = memo(
           <article
             className="chat-message chat-ring"
             data-role="doorbell"
+            data-turn={block.id}
             data-line={line !== null || undefined}
             aria-label={brought ? `Doorbell, ${brought}` : "Doorbell"}
           >
@@ -472,6 +478,7 @@ const BlockView = memo(
     before.agent === after.agent &&
     before.live === after.live &&
     before.worked === after.worked &&
+    before.phase === after.phase &&
     before.personFace === after.personFace &&
     (before.gone === after.gone || after.block.kind !== "subagent") &&
     (before.looks === after.looks || !drawsPeers(after.block)) &&
@@ -595,6 +602,7 @@ export const Transcript = ({
   echoes = noEchoes,
   looks,
   personFace,
+  phase,
   onResend,
   onEdit,
   onShowTerminal,
@@ -611,8 +619,11 @@ export const Transcript = ({
   // The person's own face at their words that came through the Inbox, where the app gives one;
   // else the block mark.
   readonly personFace?: React.ReactNode
+  // The window's phase, which the mark of the prompt that started the latest turn wears.
+  readonly phase?: MarkPhase | undefined
 }): React.JSX.Element => {
   const last = blocks.at(-1)
+  const current = useMemo(() => currentPrompt(blocks), [blocks])
   const worked = useMemo(() => turnsWorked(blocks, working), [blocks, working])
   const actions = useMemo(
     () => ({ onResend, onEdit, onShowTerminal }),
@@ -633,6 +644,7 @@ export const Transcript = ({
             personFace={personFace}
             gone={gone}
             worked={longWork(worked.get(each.block.id))}
+            phase={each.block.id === current ? phase : undefined}
           />
         ) : (
           <SentView

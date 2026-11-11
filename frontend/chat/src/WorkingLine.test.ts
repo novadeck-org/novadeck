@@ -77,9 +77,11 @@ const stopKey = (container: HTMLElement) =>
   container.querySelector<HTMLButtonElement>('.chat-running button[aria-label="Stop"]')
 
 describe("the working line", () => {
-  it("is pinned with the log's end while the agent works, holding Stop", () => {
+  it("is the log's last row while the agent works, holding Stop, and pinned to nothing", () => {
     const { container } = open({ working: true })
     const line = container.querySelector(".chat-thread > .chat-running[data-working]")
+    expect(line?.hasAttribute("data-pinned")).toBe(false)
+    expect(line).toBe(container.querySelector(".chat-thread")!.lastElementChild)
     expect(line?.querySelector(".chat-status")?.textContent).toBe("Working")
     expect(stopKey(container)?.textContent).toBe("escstop")
     expect(stopKey(container)?.querySelector("kbd")?.textContent).toBe("esc")
@@ -156,13 +158,14 @@ describe("the background shells", () => {
     expect(container.querySelector(".chat-shells")).toBeNull()
   })
 
-  it.each(harnesses)("pins a running %s shell under the working line", (harness) => {
+  it.each(harnesses)("shows a running %s shell under the working line", (harness) => {
     const { container } = open(
       { working: true, shells: [shell(1, commands[0]!, 4)] },
       null,
       harness,
     )
-    const running = container.querySelector(".chat-thread > .chat-running[data-pinned]")!
+    const running = container.querySelector(".chat-thread > .chat-running")!
+    expect(running.hasAttribute("data-pinned")).toBe(false)
     expect(running.children[0]?.className).toBe("chat-status")
     expect(running.querySelector(".chat-shells")).not.toBeNull()
     const line = running.querySelector(".chat-shell")!
@@ -177,14 +180,14 @@ describe("the background shells", () => {
     expect(running.querySelectorAll(".chat-spin")).toHaveLength(1)
   })
 
-  it.each(harnesses)("stays pinned after the turn, for an idle %s agent", (harness) => {
+  it.each(harnesses)("stays after the turn, for an idle %s agent", (harness) => {
     const { container } = open(
       { working: false, shells: [shell(1, commands[0]!, 4)] },
       null,
       harness,
     )
     expect(container.querySelector(".chat-status")).toBeNull()
-    expect(container.querySelector(".chat-running[data-pinned]")).not.toBeNull()
+    expect(container.querySelector(".chat-running")).not.toBeNull()
     expect(container.querySelector(".chat-running[data-working]")).toBeNull()
     expect(stopKey(container)).toBeNull()
     expect(lines(container)).toHaveLength(1)

@@ -19,7 +19,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   useSyncExternalStore,
 } from "react"
 
@@ -31,17 +30,21 @@ import { joinDraft } from "./drafts"
 import { useEchoes } from "./echoes"
 import { Fact, Since } from "./Fact"
 import { promptsOf, type SentShell } from "./history"
+import { Hold } from "./Hold"
+import { markPhase, type WindowPhase } from "./mark-phase"
 import { otherMenu } from "./other-menu"
 import { usePassing } from "./passing"
 import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
 import { Requests } from "./Requests"
 import { takeSentImages, type ChatSend } from "./sends"
 import { settledSent, settleSent } from "./settled"
-import { ShellLines, runningShells, shellRows } from "./ShellLines"
+import { ShellLines, runningShells } from "./ShellLines"
 import { LiveSlice, SliceKeys } from "./Slice"
 import { Transcript, type PeerLooks } from "./Transcript"
+import { currentPrompt, logPadding, neighbours, scrollFor, startRows } from "./turn-holds"
 import { useBoxReturn } from "./use-box-return"
 import { useMounted } from "./use-mounted"
+import { useTurnHold } from "./use-turn-hold"
 
 const noShells: readonly SentShell[] = []
 
@@ -60,6 +63,7 @@ export const ChatView = ({
   program,
   agent,
   compact,
+  windowPhase,
   peerLooks,
   personFace,
   draft,
@@ -93,6 +97,9 @@ export const ChatView = ({
   // What the terminal's agent says it is doing.
   readonly agent: AgentStatus | undefined
   readonly compact: boolean
+  // The window's phase line as the app works it out, which the mark of the current turn's prompt
+  // wears; without it the mark stands still.
+  readonly windowPhase?: WindowPhase | undefined
   // How other Novadeck agents look in the transcript (their face and where they run), where the
   // app knows them; without it their messages have neither.
   readonly peerLooks?: PeerLooks | undefined
@@ -169,10 +176,9 @@ export const ChatView = ({
   )
   const status = turnStatus(agent)
   const working = status?.working === true
-  // The background shells still running, which stay pinned under the working line.
+  // The background shells still running, which stand under the working line.
   const running = runningShells(agent?.shells)
   const [shellsOpen, setShellsOpen] = useState(false)
-  const pinned = working || running.length > 0
   // When the turn began, for the working line's clock.
   const turnStart = useMemo(() => turnStartedAt(blocks), [blocks])
 
@@ -216,7 +222,12 @@ export const ChatView = ({
     [items, prompts, bubbles, shells, menuAgent],
   )
 
+  const turns = useTurnHold(shown, compact)
+  const { peek, setPeek } = turns
   const scroller = useRef<HTMLDivElement>(null)
+  const chatSection = useRef<HTMLElement>(null)
+  const heldId = turns.held?.id ?? null
+  const peeking = peek !== null && peek === heldId
   const thread = useRef<HTMLDivElement>(null)
   // Following the end: true while the person is at it, so new text keeps in view and
   // scrolling up lets go.
@@ -246,7 +257,16 @@ export const ChatView = ({
     observer.observe(content)
     return () => observer.disconnect()
   }, [follow])
-
+  // The rows that start a turn move as the log does: the prompt that holds the top is measured
+  // as the observer starts to watch, which is as the turns change, and at each change after.
+  const { measure } = turns
+  useEffect(() => {
+    const content = thread.current
+    if (!content || typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(() => measure(scroller.current))
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [measure])
   // The person's words that were to follow an answer and didn't reach the agent, handed
   // back to the draft whether or not the card they were typed in is still on screen.
   const [lost, setLost] = useState(false)
@@ -293,6 +313,46 @@ export const ChatView = ({
       ?.closest(".chat")
       ?.querySelector<HTMLElement>(".chat-input")
       ?.focus({ preventScroll: true })
+
+  // Focus left on a control that went or was disabled (it falls to the page, where Esc isn't heard
+  // by the chat) goes to the held line where there is one, else the box.
+  const refocus = useRef(false)
+  const keepFocus = (): void => {
+    const chat = chatSection.current
+    const active = document.activeElement
+    if (
+      !chat ||
+      (active && active !== document.body && chat.contains(active) && !active.matches(":disabled"))
+    )
+      return
+    const line = chat.querySelector<HTMLElement>(".chat-hold-line")
+    if (line) line.focus({ preventScroll: true })
+    else focusBox()
+  }
+
+  // Scrolls the log to a prompt: to its row, or just past it so that it holds the top.
+  const scrollToTurn = (id: string, to: "row" | "past"): void => {
+    const element = scroller.current
+    const row = element && startRows(element, turns.starts).find((each) => each.id === id)
+    if (element && row) element.scrollTop = scrollFor(row, to, logPadding(compact))
+    // The control pressed may be gone or disabled by the time the log has scrolled: focus stays in
+    // the chat, where Esc is heard.
+    // Once the held line has followed, in the effect below; a log that was already there leaves
+    // no change to wait for.
+    refocus.current = true
+    setTimeout(() => {
+      if (refocus.current) keepFocus()
+      refocus.current = false
+    }, 250)
+  }
+
+  const { held } = turns
+  useEffect(() => {
+    if (!refocus.current) return
+    refocus.current = false
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Only as the held line changes.
+    keepFocus()
+  }, [held])
 
   const echoes = useEchoes(slice, items)
   // An echo stands where it ran: one from before the blocks shown goes with the earlier ones.
@@ -386,6 +446,21 @@ export const ChatView = ({
   // Esc stops the agent, as it does in its own terminal, unless something has the key: a menu of
   // the harness's own (the box passes it on, or its rows show) or a control that took it.
   const escape = (event: React.KeyboardEvent): void => {
+    // An unfolded prompt closes before Esc does anything else.
+    if (
+      peeking &&
+      event.key === "Escape" &&
+      !event.defaultPrevented &&
+      !event.nativeEvent.isComposing &&
+      !event.shiftKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
+    ) {
+      event.preventDefault()
+      setPeek(null)
+      return
+    }
     if (
       event.key !== "Escape" ||
       !working ||
@@ -416,9 +491,16 @@ export const ChatView = ({
     wasTaken.current = taken
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Only as it comes and goes.
   }, [taken])
-  const chatSection = useRef<HTMLElement>(null)
   const boxReturn = useBoxReturn(chatSection, taken, focusBox)
 
+  // The window's phase as the current turn's prompt mark wears it.
+  const phase = windowPhase && markPhase(windowPhase)
+  // The person's prompt holding the top of the log, if one does, and those either side of it.
+  const holding = useMemo(() => {
+    const block = shown.find(({ id }) => id === heldId)
+    return block?.kind === "user" ? block : null
+  }, [shown, heldId])
+  const around = neighbours(turns.starts, heldId ?? "")
   const empty = items.length === 0 && bubbles.length === 0 && shownEchoes.length === 0
   return (
     <SliceKeys.Provider value={sliceKeys ?? null}>
@@ -444,6 +526,7 @@ export const ChatView = ({
               const near = scrollHeight - scrollTop - clientHeight <= bottomSlack
               following.current = near
               setAtEnd(near)
+              turns.measure(event.currentTarget)
             }}
           >
             <div ref={thread} className="chat-thread">
@@ -477,6 +560,7 @@ export const ChatView = ({
                 echoes={shownEchoes}
                 looks={peerLooks}
                 personFace={personFace}
+                phase={phase}
                 {...(plain &&
                   draft.trim() === "" &&
                   attachments.length === 0 && { onResend: resend })}
@@ -484,13 +568,9 @@ export const ChatView = ({
                 onShowTerminal={onAnswerInTerminal}
               />
               {(status || running.length > 0) && (
-                // While the agent works, or a shell runs, this stays at the log's end, with the
-                // turn's clock and stop and a line for each shell.
-                <div
-                  className="chat-running"
-                  data-working={working || undefined}
-                  data-pinned={pinned || undefined}
-                >
+                // While the agent works, or a shell runs, the log's last rows: the turn's clock and
+                // stop and a line for each shell. They scroll with the log.
+                <div className="chat-running" data-working={working || undefined}>
                   {status && (
                     <p
                       className="chat-status"
@@ -526,18 +606,31 @@ export const ChatView = ({
               )}
             </div>
           </div>
+          {holding && (
+            <Hold
+              text={holding.text}
+              at={holding.at}
+              offset={turns.held!.offset}
+              phase={holding.id === currentPrompt(shown) ? phase : undefined}
+              open={peeking}
+              before={around.before !== null}
+              after={around.after !== null}
+              onOpen={() => setPeek(holding.id)}
+              onClose={() => setPeek(null)}
+              onStep={(to) => {
+                const target = to === "before" ? around.before : around.after
+                if (target !== null) scrollToTurn(target, "past")
+              }}
+              onGo={() => {
+                setPeek(null)
+                scrollToTurn(holding.id, "row")
+              }}
+            />
+          )}
           {!atEnd && (
             <button
               type="button"
               className="chat-jump nodrag nopan"
-              data-pinned={pinned || undefined}
-              style={
-                pinned
-                  ? ({
-                      "--_pinned-rows": (status ? 1 : 0) + shellRows(running, shellsOpen),
-                    } as CSSProperties)
-                  : undefined
-              }
               aria-label="Jump to latest"
               onClick={() => {
                 const element = scroller.current

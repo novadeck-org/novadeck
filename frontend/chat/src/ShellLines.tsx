@@ -9,11 +9,6 @@ export const runningShells = (shells: readonly AgentShell[] | undefined): readon
 // From this many shells on, the lines fold into one.
 const foldAt = 3
 
-// How many lines the shells take: three or more are one while folded, and a line over them
-// once open.
-export const shellRows = (shells: readonly AgentShell[], open: boolean): number =>
-  shells.length < foldAt ? shells.length : open ? shells.length + 1 : 1
-
 // The start of a command, for the folded line: its first two words, cut to a line's share.
 export const shortCommand = (command: string): string => {
   const words = command.trim().split(/\s+/).slice(0, 2).join(" ")

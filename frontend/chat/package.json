@@ -10,9 +10,11 @@
     "./chat.css": "./src/chat.css",
     "./ChatView": "./src/ChatView.tsx",
     "./commands": "./src/commands.ts",
+    "./mark-phase": "./src/mark-phase.ts",
     "./sends": "./src/sends.ts",
     "./state": "./src/state.ts",
     "./Transcript": "./src/Transcript.tsx",
+    "./turn-holds": "./src/turn-holds.ts",
     "./use-box-handover": "./src/use-box-handover.ts",
     "./use-chat": "./src/use-chat.ts"
   },

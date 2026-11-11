@@ -6,6 +6,8 @@ import { hueOf } from "@novadeck/items/critters"
 import { usePeers, type MessageLinks } from "@novadeck/items/messages"
 import { useMemo, type ComponentProps } from "react"
 
+import { useWindowPhase } from "../terminals/window-phase"
+
 // The chat's face, name and hue for another Novadeck agent, as the Messages pane draws it: its
 // avatar (blinking at rest, hopping at work, dim once gone) in the gutter, and "program ·
 // terminal" where it runs. An agent no terminal of the session answers to has no look.
@@ -36,8 +38,13 @@ const personFace = <Avatar handle="you" person size={24} />
 export const ChatWithPeers = ({
   links,
   ...chat
-}: Omit<ComponentProps<typeof ChatView>, "peerLooks" | "personFace"> & {
+}: Omit<ComponentProps<typeof ChatView>, "peerLooks" | "personFace" | "windowPhase"> & {
   readonly links: MessageLinks
 }): React.JSX.Element => (
-  <ChatView {...chat} peerLooks={usePeerLooks(links)} personFace={personFace} />
+  <ChatView
+    {...chat}
+    peerLooks={usePeerLooks(links)}
+    personFace={personFace}
+    windowPhase={useWindowPhase()}
+  />
 )
