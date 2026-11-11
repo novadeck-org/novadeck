@@ -396,16 +396,30 @@ describe("runner backend", () => {
 
   context("when asked which terminals hold work", () => {
     it("answers the runner's list, and nothing for a terminal at its prompt", async () => {
-      const app = open()
-      app.addTerminal()
+      // A runner whose relay isn't there, whatever this machine has built. Windows reads a
+      // shell's processes through the relay alone, so there it can't read this terminal's
+      // shell: `unknown`, never taken for idle. Linux and macOS read it from the process
+      // table: at its prompt, neither busy nor unknown. A terminal whose shell hasn't started
+      // holds no work, and the answer leaves it out: on Windows ConPTY starts it a moment
+      // after the runner has the terminal, so the case waits for it there. The file's other
+      // cases leave their terminals on the shared runner, so this one has a runner of its own.
+      const relayless = await startTestRunner({
+        terminals: { relay: join(tmpdir(), "novadeck-no-relay", "novadeck-relay.exe") },
+      })
+      const app = open(relayless.listing, {}, relayless.client)
+      const terminal = app.addTerminal()
       await app.idle()
-      const answer = await app.backend.busyTerminals!()
-      expect(answer?.busy).toEqual([])
-      // Windows reads a shell's processes through the relay, which tests run without, so
-      // there the shells are ones it can't read: never taken for idle.
-      if (process.platform === "win32") expect(answer?.unknown.length).toBeGreaterThan(0)
-      else expect(answer?.unknown).toEqual([])
+      const ask = async () => (await app.backend.busyTerminals!({ fresh: true }))!
+      if (process.platform === "win32")
+        await vi.waitFor(
+          async () => expect((await ask()).unknown).toContain(terminal.id),
+          eventually,
+        )
+      const answer = await ask()
+      expect(answer.busy).toEqual([])
+      expect(answer.unknown).toEqual(process.platform === "win32" ? [terminal.id] : [])
       app.stop()
+      await relayless.close()
     })
 
     it("answers nothing where the runner can't, as one that came before the call", async () => {
