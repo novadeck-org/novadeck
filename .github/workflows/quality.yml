@@ -279,7 +279,7 @@ jobs:
       # failures' upload below still runs, rather than the whole job being cancelled.
       - name: Run ${{ matrix.name }}
         run: ${{ matrix.command }}
-        timeout-minutes: ${{ runner.os == 'macOS' && (matrix.command == 'npm run test' && 57 || 37) || runner.os == 'Windows' && matrix.shard == 0 && 22 || matrix.browser && matrix.shard && 22 || (matrix.browser || matrix.shard) && 17 || 7 }}
+        timeout-minutes: ${{ runner.os == 'macOS' && (matrix.command == 'npm run test' && 57 || 25) || runner.os == 'Windows' && matrix.shard == 0 && 22 || matrix.browser && matrix.shard && 22 || (matrix.browser || matrix.shard) && 17 || 7 }}
         env:
           NOVADECK_REQUIRE_FISH: ${{ steps.fish.outcome == 'success' && '1' || '' }}
           # A re-run with debug logging records Playwright traces of failed UI specs.
@@ -362,9 +362,11 @@ jobs:
     if: ${{ !cancelled() && needs.quality.result == 'success' && needs.plan.outputs.macos != 'false' }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    # The system packages, one at a time, fit the limit from before the specs' second pass
-    # (#849's took 11m37s of its 37); every test has 60 (57 for the tests), as main gave it.
-    timeout-minutes: ${{ matrix.command == 'npm run test' && 60 || 40 }}
+    # The system packages a change affects, one at a time, took 9 to 13 minutes on the pull
+    # requests and canaries after #862 (#849's 11m37s; #850's 12m53s; canary #863's 9m32s; the
+    # proof rows' widest list, 12 packages, 11m02s): 25 for the tests (28 for the job) leave a
+    # loaded Mac about twice that. Every test has 60 (57 for the tests), as main gave it.
+    timeout-minutes: ${{ matrix.command == 'npm run test' && 60 || 28 }}
     env:
       # The packages the plan says to test, which `test:system` reads.
       NOVADECK_TEST_PACKAGES: ${{ needs.plan.outputs.packages }}
@@ -402,7 +404,8 @@ jobs:
     if: ${{ !cancelled() && needs.quality.result == 'success' && needs.plan.outputs.proof-macos == 'true' }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 40
+    # As the macOS job's system packages: 25 for the tests, 28 for the job.
+    timeout-minutes: 28
     env:
       NOVADECK_TEST_PACKAGES: ${{ toJSON(matrix.packages) }}
       NOVADECK_TEST_CONTINUE: "true"

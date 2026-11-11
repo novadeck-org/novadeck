@@ -654,13 +654,14 @@ describe("Quality's workflow", () => {
     )
   })
 
-  it("gives each row's tests their time: macOS's whole suite 57, its system packages 37", () => {
+  it("gives each row's tests their time: macOS's whole suite 57, its system packages 25", () => {
     expect(job("quality")).toContain(
-      "runner.os == 'macOS' && (matrix.command == 'npm run test' && 57 || 37) || runner.os == 'Windows' && matrix.shard == 0 && 22 ||",
+      "runner.os == 'macOS' && (matrix.command == 'npm run test' && 57 || 25) || runner.os == 'Windows' && matrix.shard == 0 && 22 ||",
     )
     expect(job("macos")).toContain(
-      "timeout-minutes: ${{ matrix.command == 'npm run test' && 60 || 40 }}",
+      "timeout-minutes: ${{ matrix.command == 'npm run test' && 60 || 28 }}",
     )
+    expect(job("proof-macos")).toContain("timeout-minutes: 28")
     expect(wholeMacos).toMatchObject([{ name: "Test (macOS)", command: "npm run test" }])
   })
 })
