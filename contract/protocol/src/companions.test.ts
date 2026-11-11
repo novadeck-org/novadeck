@@ -78,7 +78,7 @@ describe("a change as layers", () => {
     truncated: false,
   }
 
-  it("carries each layer's files with their counts, and no diff", () => {
+  it("carries each layer's files with their counts, and no diff, and the files read", () => {
     const ready = {
       state: "ready" as const,
       stamp: "s",
@@ -88,6 +88,7 @@ describe("a change as layers", () => {
         base: "main",
         layers: [layer],
         files: [file],
+        read: [file.path],
         truncated: false,
       },
     }
