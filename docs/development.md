@@ -1206,6 +1206,39 @@ it; when it is fixed, mark it `fixed` rather than removing it, so its return is 
 `node scripts/flakes/main.ts <logs dir> <verdict> <comment>` judges logs downloaded from a
 run the same way.
 
+### Retried tests
+
+On CI, and only there (`GITHUB_ACTIONS`), a failed test runs again where a loaded runner can
+decide its outcome: up to twice in a browser project or in a package whose `novadeck.platform`
+is `system` (or missing), once in the end-to-end suite, and never in a probe or in a
+`neutral` package's other tests, whose failure is a bug. Every package's Vitest config ends in
+`export default retryOnCi(config)` ([scripts/flakes/retry](../scripts/flakes/retry/vitest.ts)),
+and a test keeps it that way: its plugin sets each project's retries and adds a reporter that
+works whatever `--reporter` flags a script passes. Each test that passed only on a retry is
+appended with its first failure to `test-results/retried/`, named at the end of its package's
+log, and uploaded by its job as a `retried-*` artifact (an E2E job's with its traces).
+
+A run that passed with retries is green, so that record is where its flakes show. After each
+Quality or E2E run that retried a test, Known Flakes keeps one comment on its pull request, edited
+in place: the tests its runs passed only on a retry, those in packages it changes first, as a
+race a change brings would show there. Each morning its Tally job counts each test's retries over
+the last week's runs, reruns' included, against the budget: a test retried in three or more runs,
+or a flake registered as fixed retried at all, is over it. Tally keeps one issue, "Tests over the
+retry budget", open while any test is, edited each day, with a comment when a test joins it, and
+closed once none is; and it publishes the count as the `flake-tally` artifact, one `tally.json`:
+
+```text
+{ "since": "<ISO time>", "until": "<ISO time>", "days": 7, "budget": { "runs": 3, "days": 7 },
+  "runs": 12,
+  "tests": [{ "test": "src/x.test.ts > a group > a case", "package": "@novadeck/x", "runs": 3,
+              "retries": 4, "last": "<ISO time>", "over": "<why>" or null, "flake": "<register id>" or null }] }
+```
+
+`tests` is most retried first (`TallyReport` in scripts/flakes/retries.ts; change both together).
+Locally a flaky test fails as before; set `GITHUB_ACTIONS=true` to run as CI does, or
+`NOVADECK_RETRY=0` on CI for a run that counts failures itself, as the flaky-capture grid does. A
+config can exempt a project by name, as the specs' counter run is.
+
 ## Packaging and releases
 
 ```sh

@@ -1,0 +1,8 @@
+{
+  "name": "@fixture/neutral",
+  "private": true,
+  "type": "module",
+  "novadeck": {
+    "platform": "neutral"
+  }
+}

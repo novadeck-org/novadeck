@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react"
 import { playwright } from "@vitest/browser-playwright"
 import { defineConfig, type TestProjectInlineConfiguration } from "vitest/config"
 
+import { retryOnCi } from "../../scripts/flakes/retry/vitest"
 import type { Platform } from "./src/support/platform"
 
 // On CI a failed behaviour spec leaves a screenshot in .vitest/attachments/, which the
@@ -54,6 +55,7 @@ export const eachPlatform = [
   "src/projects/sessions.spec.tsx",
   "src/terminals/clipboard.spec.tsx",
   "src/terminals/keys.spec.tsx",
+  "src/terminals/move.spec.tsx",
   "src/terminals/team-fold.spec.tsx",
   "src/terminals/terminals.spec.tsx",
   "src/views/canvas-sessions.spec.tsx",
@@ -127,7 +129,7 @@ const behaviour = (name: string, include: string[], platform: Platform | undefin
     },
   }) satisfies TestProjectInlineConfiguration
 
-export default defineConfig({
+const config = defineConfig({
   // The specs render the whole app with its stylesheet, so they build it as the apps do.
   plugins: [tailwindcss(), react()],
   // The UI's public files are the page's: the voice worklet is loaded from the document's base.
@@ -203,3 +205,6 @@ export default defineConfig({
     ],
   },
 })
+
+// The counter run measures a run; a second one would only take three minutes more to fail.
+export default retryOnCi(config, { exempt: ["counters"] })

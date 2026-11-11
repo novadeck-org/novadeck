@@ -1,6 +1,8 @@
 import { playwright } from "@vitest/browser-playwright"
 import { defineConfig } from "vitest/config"
 
+import { retryOnCi } from "../../scripts/flakes/retry/vitest"
+
 // Viewers draw into the DOM, and keeping their place is about real layout and scrolling,
 // so their tests run in a real browser. What they wait for comes with rendered frames (a
 // resize observer's report, a scroll), and on a loaded macOS runner a page went seconds
@@ -10,7 +12,7 @@ import { defineConfig } from "vitest/config"
 // Electron's main process, so its tests run in Node.
 const node = ["src/browser/host.test.ts", "src/browser/look.test.ts"]
 
-export default defineConfig({
+const config = defineConfig({
   test: {
     projects: [
       {
@@ -33,3 +35,5 @@ export default defineConfig({
     ],
   },
 })
+
+export default retryOnCi(config)
