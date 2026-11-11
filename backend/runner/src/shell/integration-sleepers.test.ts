@@ -301,8 +301,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     }) => {
       writeFileSync(join(shell.home, ".bashrc"), 'export PATH="$HOME/bin:$PATH"\n')
       fakeAgent(shell.home, "claude")
-      // The lead moth is started again; its worker fox, kept with a resumable agent, sleeps.
-      const lead = { id: randomUUID(), handle: "moth" }
+      // The lead is started again; its worker, kept with a resumable agent, sleeps. The lead's
+      // handle is the session's to give: one picked by hand is the worker's in 1 of 32 sessions.
+      const lead = { id: randomUUID(), handle: shell.store.giveHandle(shell.sessionId) }
       const worker = sleeper(shell, "claude", "abc-1", { ledBy: lead.handle })
       shell.store.saveTerminal({
         ...shell.store.terminal(worker)!,

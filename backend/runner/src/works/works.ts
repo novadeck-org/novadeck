@@ -42,6 +42,11 @@ export type WorksOptions = {
   readonly memory?: string
   /** How often each checkout is read, in milliseconds. */
   readonly everyMs?: number
+  /**
+   * How long a watch waits for the first sight of the works before `synced` is told without
+   * it, in milliseconds (1.5 s when not given).
+   */
+  readonly firstMs?: number
   readonly now?: () => number
 }
 
@@ -68,8 +73,6 @@ type RootState = {
   nextAt: number
 }
 
-/** How long the first sight of the works is waited for before `synced` is told without it. */
-const firstMs = 1_500
 /** How many checkouts no terminal is in are remembered. */
 const keptAbandoned = 32
 /** How many new pairs of works are merged in one pass. */
@@ -94,6 +97,7 @@ export class Works {
   /** The conflicts found between two snapshots, by their commits. */
   private readonly pairs = new Map<string, readonly string[]>()
   private readonly every: number
+  private readonly first: number
   private readonly now: () => number
   private queue: Promise<unknown> = Promise.resolve()
   private loop: AbortController | undefined
@@ -105,6 +109,7 @@ export class Works {
 
   constructor(private readonly options: WorksOptions) {
     this.every = options.everyMs ?? 3000
+    this.first = options.firstMs ?? 1_500
     this.now = options.now ?? Date.now
     this.saves = options.memory === undefined ? undefined : new RememberedSaves(options.memory)
     this.loaded =
@@ -123,7 +128,7 @@ export class Works {
     // The first sight of every checkout may take a while; what is not in by then follows.
     // With others already watching the works are as new as the last poll; else read afresh.
     const scanning = this.scan(!this.polling())
-    await Promise.race([scanning, sleep(firstMs)])
+    await Promise.race([scanning, sleep(this.first)])
     const watcher = new KeyedChanges<string, WorkChange>(
       [...this.published].map(([, work]) => [work.terminalId, { type: "changed", work }] as const),
       { type: "synced" },

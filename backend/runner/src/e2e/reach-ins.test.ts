@@ -26,6 +26,7 @@ const reaching = [
   "chat.e2e.ts",
   "deck.ts",
   "doorbell.e2e.ts",
+  "listing.mixed.e2e.ts",
   "person.e2e.ts",
   "probes/agent-exit.e2e.ts",
   "probes/agy-stop-boundary.e2e.ts",
@@ -46,6 +47,7 @@ type Inside = {
   readonly bindings: { applyFact: unknown }
   readonly trees: { end: unknown }
   readonly saves: { saved: unknown }
+  readonly inbox: { happenings(id: string): unknown }
   readonly reporting: { report: unknown }
   readonly typing: { receipts: { expect: unknown; sent: unknown; putBack: unknown } }
   readonly messaging: {
@@ -99,6 +101,13 @@ describe("the e2e reach-ins", () => {
     const { terminal } = inside.live(id)
     expect(terminal.screen.write).toBeTypeOf("function")
     expect(terminal.pty.write).toBeTypeOf("function")
+  })
+
+  it("listing's: the inbox's happenings of a terminal, as team reads them", async ({
+    resources,
+  }) => {
+    const { inside, id } = await running(resources)
+    expect(inside.inbox.happenings(id)).toEqual([])
   })
 
   it("person's: a live terminal's screen, as the reader reads it", async ({ resources }) => {

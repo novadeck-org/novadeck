@@ -225,6 +225,29 @@ describe.skipIf(!supported)("a lead's team of every harness", () => {
     await Promise.all(
       team.map((member, index) => opened[index]!.until(`Moved to ${member.title}.`, 120_000)),
     )
+    // A finished turn is kept only after its grace (`finishGraceMs`), its reply redacted
+    // after that. The listings read a team whose last turns are all in: the last one Novadeck
+    // kept between the second look and the third had the third find it new (Antigravity's,
+    // on a loaded Linux runner).
+    const { inbox } = run.deck.terminals as unknown as {
+      inbox: { happenings: (terminalId: string) => readonly { kind: string; text?: unknown }[] }
+    }
+    await expect
+      .poll(
+        () =>
+          team.every(({ title }, index) =>
+            inbox
+              .happenings(opened[index]!.id)
+              .some(
+                (happening) =>
+                  happening.kind === "turn" &&
+                  typeof happening.text === "string" &&
+                  happening.text.includes(`Moved to ${title}.`),
+              ),
+          ),
+        { timeout: 30_000 },
+      )
+      .toBe(true)
 
     for (const [index, { words }] of asks.entries()) {
       // eslint-disable-next-line no-await-in-loop -- One listing after another.

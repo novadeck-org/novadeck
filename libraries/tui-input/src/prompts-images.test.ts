@@ -38,9 +38,12 @@ const terminal = (
     asKeys?: boolean
     /** Whether the keys for its images are offered at an empty box only, as Antigravity's are. */
     idleOnly?: boolean
+    /** How many image pastes land as words first, as a paste read as keys cut short does. */
+    landsAsText?: number
   } = {},
 ) => {
   let words = options.draft ?? ""
+  let asText = options.landsAsText ?? 0
   let images = options.attached ?? 0
   const written: string[] = []
   const sent: { words: string; images: number }[] = []
@@ -118,9 +121,17 @@ const terminal = (
         images = 0
         return true
       }
+      // Backspaces, each taking a character off the words.
+      if (/^\x7f+$/.test(data)) {
+        words = words.slice(0, -data.length)
+        return true
+      }
       const pasted = paste(data)
       if (pasted === undefined) return true
-      if (pasted.endsWith(".png") && style !== "text") {
+      if (pasted.endsWith(".png") && asText > 0) {
+        asText -= 1
+        words += pasted
+      } else if (pasted.endsWith(".png") && style !== "text") {
         images += 1
         if (style === "inline") words += `[Image #${images}]`
       } else words += pasted
@@ -207,6 +218,44 @@ describe("a prompt with images", () => {
     )
     expect(written).toEqual(["\x1b[200~/up/a/one.png\x1b[201~", "\x15"])
     expect(sent).toEqual([])
+  })
+
+  it("pastes a path again that landed as words, where the program reads a paste as keys", async () => {
+    const { prompts, written, sent } = terminal("chips", {
+      asKeys: true,
+      landsAsText: 1,
+      waitMs: 150,
+    })
+    await prompts.prompt("t", "Look", "alone", undefined, ["/up/a/one.png"])
+    expect(written.slice(0, 3)).toEqual([
+      "\x1b[200~/up/a/one.png\x1b[201~",
+      "\x7f".repeat("/up/a/one.png".length),
+      "\x1b[200~/up/a/one.png\x1b[201~",
+    ])
+    expect(sent).toEqual([{ words: " Look", images: 1 }])
+  })
+
+  it("pastes it again twice at most, then fails and takes back what landed", async () => {
+    const { prompts, written, sent } = terminal("chips", {
+      asKeys: true,
+      landsAsText: 3,
+      waitMs: 150,
+    })
+    expect(await reason(prompts.prompt("t", "Look", "alone", undefined, ["/up/a/one.png"]))).toBe(
+      "image-not-shown",
+    )
+    const erase = "\x7f".repeat("/up/a/one.png".length)
+    const path = "\x1b[200~/up/a/one.png\x1b[201~"
+    expect(written).toEqual([path, erase, path, erase, path, "\x15"])
+    expect(sent).toEqual([])
+  })
+
+  it("never pastes again where the program reads a paste whole", async () => {
+    const { prompts, written } = terminal("chips", { landsAsText: 1, waitMs: 150 })
+    expect(await reason(prompts.prompt("t", "Look", "alone", undefined, ["/up/a/one.png"]))).toBe(
+      "image-not-shown",
+    )
+    expect(written).toEqual(["\x1b[200~/up/a/one.png\x1b[201~", "\x15"])
   })
 
   it("takes back the images that landed when a later one never shows", async () => {

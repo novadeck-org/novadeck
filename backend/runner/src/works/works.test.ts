@@ -96,6 +96,10 @@ const it = base.extend<{ fixture: Fixture }>({
 
 type Where = { readonly terminalId: string; readonly root: string }
 
+// A watch tells `synced` without the checkouts not read within 1.5 s, which three can take on a
+// loaded Windows runner. The tests wait for every one, as `current` counts on.
+const everything = 60_000
+
 // A Works over the terminals `where` names, read as fast as the test needs.
 const open = (where: () => readonly Where[], options: { memory?: string } = {}) => {
   const shown: [string, string][] = []
@@ -107,6 +111,7 @@ const open = (where: () => readonly Where[], options: { memory?: string } = {}) 
       return "item"
     },
     everyMs: 20,
+    firstMs: everything,
     ...options,
   })
   return { works, shown }
@@ -236,6 +241,7 @@ describe.skipIf(!hasGit)("the works of terminals in git checkouts", () => {
       placements: async () => [{ terminalId: terminal(1), projectId: project, root: main.root }],
       show: async () => "item",
       now: () => now,
+      firstMs: everything,
     })
     resources.defer(() => works.close())
     expect((await current(works)).get(terminal(1))?.firstSeenAt).toBe(1_000)
@@ -336,6 +342,7 @@ describe.skipIf(!hasGit)("the works of terminals in git checkouts", () => {
         there.map(({ terminalId, root }) => ({ terminalId, projectId: project, root })),
       show: async () => "item",
       now: () => now,
+      firstMs: everything,
     })
     resources.defer(() => works.close())
     expect([...(await current(works)).keys()]).toEqual([terminal(2)])

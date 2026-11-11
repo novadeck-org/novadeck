@@ -596,7 +596,9 @@ describe("secrets longer than the window rows are read in", () => {
     ["Ab1+", (length: number) => "Ab1+".repeat(length / 4)],
   ])(
     "grows with the rows, not their square, for a group of one wrapped line of %s",
-    { timeout: 60_000 },
+    // The count is the check; the time only catches a hang. On a macOS runner whose few cores
+    // other packages' tests held, these ran 20 to 40 times as long as alone (hex past a minute).
+    { timeout: 180_000 },
     (_name, line) => {
       const calls = (rowCount: number): number => {
         const screen = chop(line(rowCount * 80), 80)

@@ -395,8 +395,20 @@ describe("An Inbox entry's sheet", () => {
       await expect.element(rows()).toHaveLength(settledRows)
       await row("How should failed payment webhooks retry").click()
       const open = sheet("Dev server")
-      await answer(open, "Reply in your own words").click()
-      await userEvent.type(open.getByRole("textbox", { name: /Reply to Codex/ }), "Let me think")
+      const box = open.getByRole("textbox", { name: /Reply to Codex/ })
+      // The press opens the box in its row's place. Twice on Windows it didn't come, and
+      // `type` waits for its box with no time limit of its own (each click has one), so the
+      // test only timed out: it is pressed until the box is there.
+      await expect
+        .poll(
+          async () => {
+            if (box.query() === null) await answer(open, "Reply in your own words").click()
+            return box.query() !== null
+          },
+          { interval: 500, timeout: 15_000 },
+        )
+        .toBe(true)
+      await userEvent.type(box, "Let me think")
       await userEvent.keyboard("{Escape}")
       await userEvent.keyboard("{Escape}")
 

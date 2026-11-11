@@ -197,6 +197,15 @@ export type PromptOptions = {
 }
 
 /**
+ * How many more times an image's path that landed as words is pasted, where the program reads a
+ * paste as keys (`BoxProfile.pastesAsKeys`): see `pastedAgain`.
+ */
+const pastesAgain = 2
+
+/** Text with no whitespace, as a box shows a path that wrapped or a paste's spaces. */
+const squeezed = (text: string): string => text.replace(/\s+/g, "")
+
+/**
  * Whether a TUI may show a paste as a placeholder (like "[Pasted text #1 +4 lines]") rather
  * than its text: more than one line, or long.
  */
@@ -443,7 +452,7 @@ export class Prompts {
     // shell command does only where its TUI starts one for it.
     const starts = !this.host.bound(terminalId) && (!shell || profile.shell.starts)
     // The person's keys are held from before the box is looked at, so none comes between.
-    const hold = entry.hold(this.budgetFor(images.length))
+    const hold = entry.hold(this.budgetFor(images.length, profile))
     if (!hold.holding()) throw this.gone()
     let pressed = false
     // Whether the box showed the command only as a placeholder its shell would run as text.
@@ -519,8 +528,11 @@ export class Prompts {
         // Counted as soon as written: a path that showed late is still in the box.
         attached += 1
         // eslint-disable-next-line no-await-in-loop -- Each image shows before the next goes in.
-        if (!(await this.imageShown(terminalId, profile, attached, hold.holding)))
-          throw new PromptRefusal("image-not-shown", "The program did not show an image.")
+        let shown = await this.imageShown(terminalId, profile, attached, hold.holding)
+        if (!shown)
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          shown = await this.pastedAgain(terminalId, profile, image, attached, hold.holding)
+        if (!shown) throw new PromptRefusal("image-not-shown", "The program did not show an image.")
         this.host.admit(terminalId)
         // A program with no placeholder of its own is told where the image stands, in words.
         const marked = runs && profile.images?.typed?.(index + 1)
@@ -665,6 +677,40 @@ export class Prompts {
   }
 
   /**
+   * Where the program reads a paste as keys (Codex on Windows), a pause inside them, as a loaded
+   * machine makes, ends what it takes for a paste early: the rest lands as words, the path stays
+   * text and no image attaches (seen on Windows CI, Codex 0.167.0). Where the box ends with the
+   * path `image` as text, it is erased and pasted again, up to `pastesAgain` times: true once
+   * the box shows `count` images. Nothing is pressed where the box shows anything else.
+   */
+  private async pastedAgain(
+    terminalId: string,
+    profile: BoxProfile,
+    image: string,
+    count: number,
+    holding: () => boolean,
+  ): Promise<boolean> {
+    if (profile.pastesAsKeys?.() !== true) return false
+    const path = squeezed(image)
+    for (let again = 0; again < pastesAgain && holding(); again += 1) {
+      // eslint-disable-next-line no-await-in-loop -- Read before anything is pressed.
+      const now = await this.host.screen(terminalId)
+      const box = now && profile.read(now)
+      if (!box || box.mode !== "prompt" || !squeezed(box.text).endsWith(path)) return false
+      const kept = squeezed(box.text).slice(0, -path.length)
+      // eslint-disable-next-line no-await-in-loop -- Erased before the next paste.
+      const erased = await this.keyed(terminalId, "\x7f".repeat(image.length), holding, (after) => {
+        const left = profile.read(after)
+        return left !== undefined && squeezed(left.text) === kept
+      })
+      if (!erased || !this.host.type(terminalId, bracketedPaste(image))) return false
+      // eslint-disable-next-line no-await-in-loop -- Each paste is waited on in turn.
+      if (await this.imageShown(terminalId, profile, count, holding)) return true
+    }
+    return false
+  }
+
+  /**
    * Takes the images back out of the box with the program's keys for it, once, read back: true
    * where the screen then shows none. Not pressed where the program says no keys are safe now.
    */
@@ -701,9 +747,13 @@ export class Prompts {
     }
   }
 
-  /** The held time of a prompt with `images`: each takes a paste's wait more. */
-  private budgetFor(images: number): HoldBudget {
-    const more = images * this.pasteMs
+  /**
+   * The held time of a prompt with `images`: each takes a paste's wait more, and each paste
+   * again (`pastedAgain`) one more where the program reads a paste as keys.
+   */
+  private budgetFor(images: number, profile: BoxProfile): HoldBudget {
+    const pastes = profile.pastesAsKeys?.() === true ? 1 + pastesAgain : 1
+    const more = images * pastes * this.pasteMs
     return { inputMs: this.budget.inputMs + more, sizeMs: this.budget.sizeMs + more }
   }
 

@@ -16,6 +16,7 @@ console.error("ready on the device " + process.env.TEST_DEVICE)
 createServer((request, response) => {
   if (request.url === "/prefix/health") return response.end("ok")
   if (request.url === "/prefix/env") return response.end(process.env.TEST_KEY + "/" + process.env.TEST_DEVICE)
+  if (request.url === "/prefix/slow") return setTimeout(() => response.end("late"), 300)
   if (request.url === "/prefix/echo")
     return response.end(JSON.stringify({
       llama: process.env.LLAMA_ARG_PORT ?? null,
@@ -95,6 +96,20 @@ describe("a server", () => {
     expect(server.facts?.device).toBe("Vulkan0")
     await server.stop()
     expect(server.facts).toBeUndefined()
+  })
+
+  it("stays loaded while it answers past its idle time, and unloads once idle after", async ({
+    resources,
+  }) => {
+    const { directory, launch } = await launchWith(resources)
+    const server = new Server(spec, { launch, idleMs: 50 })
+    resources.defer(() => server.close())
+
+    const running = await server.acquire({ folder: directory, key: "a" })
+    const response = await server.request(running, "/slow", { signal: AbortSignal.timeout(5000) })
+
+    expect(await response.text()).toBe("late")
+    await expect.poll(() => running.stopped).toBe(true)
   })
 
   it("starts another process for another key and shares one for the same", async ({
