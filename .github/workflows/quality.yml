@@ -49,28 +49,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set Up Toolchain
-        id: toolchain
-        continue-on-error: true
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
-        with:
-          runtime: node@26
-          cache: true
-          require-lockfile: true
-
-      # An immediate retry hit the same registry outage in the flake audit.
-      - name: Wait Before Retrying Toolchain
-        if: steps.toolchain.outcome == 'failure'
-        shell: bash
-        run: sleep 180
-
-      - name: Set Up Toolchain Again
-        if: steps.toolchain.outcome == 'failure'
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
-        with:
-          runtime: node@26
-          cache: true
-          require-lockfile: true
+      # The toolchain, with its retry (.github/actions/setup).
+      - name: Set Up
+        uses: ./.github/actions/setup
 
       # A merge group's change is its own against the group's parent: main, or the entry ahead.
       - name: Plan Systems
@@ -151,102 +132,21 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Set Up Toolchain
-        id: toolchain
-        continue-on-error: true
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+      # The toolchain with its retry, the relay's Rust and its build restored, and what the row
+      # asks for: a browser (its system packages on Linux, from their own cache), Electron, fish
+      # on Linux's first part (.github/actions/setup, as Nightly Quality). Every job restores the
+      # relay's build; a key it lacks falls back to the newest entry of this platform. Only the
+      # jobs that build the relay's tests save (below): a key is never replaced, and an entry
+      # saved by a job that built no tests left the tests' job compiling them cold beside the
+      # PTY tests.
+      - name: Set Up
+        id: setup
+        uses: ./.github/actions/setup
         with:
-          runtime: node@26
-          cache: true
-          require-lockfile: true
-
-      # An immediate retry hit the same registry outage in the flake audit.
-      - name: Wait Before Retrying Toolchain
-        if: steps.toolchain.outcome == 'failure'
-        shell: bash
-        run: sleep 180
-
-      - name: Set Up Toolchain Again
-        if: steps.toolchain.outcome == 'failure'
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
-        with:
-          runtime: node@26
-          cache: true
-          require-lockfile: true
-
-      # The Rust the relay's rust-toolchain.toml names, with rustfmt and clippy.
-      - name: Set Up Rust
-        shell: bash
-        working-directory: backend/relay
-        run: rustup toolchain install
-
-      # Every job restores the relay's build; a key it lacks falls back to the newest entry of
-      # this platform, so a changed crate graph rebuilds only what changed. Only the jobs that
-      # build the relay's tests save (below): a key is never replaced, and an entry saved by a
-      # job that built no tests left the tests' job compiling them cold beside the PTY tests.
-      - name: Restore Rust Builds
-        id: rust-cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            backend/relay/target
-          key: relay-${{ runner.os }}-${{ hashFiles('backend/relay/Cargo.lock', 'backend/relay/Cargo.toml', 'backend/relay/rust-toolchain.toml') }}
-          restore-keys: relay-${{ runner.os }}-
-
-      - name: Locate Test Browser
-        if: matrix.browser
-        id: playwright
-        shell: bash
-        run: |
-          echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/ms-playwright" >> "$GITHUB_ENV"
-          echo "version=$(pnpm --filter @novadeck/specs exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Test Browser
-        if: matrix.browser
-        id: browser-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-
-      # The browser alone where the cache missed, through the retry (scripts/ci/setup/retry.ts):
-      # on Linux its system packages come next, from their own cache where it has them;
-      # elsewhere Playwright installs what it needs with it.
-      - name: Install Test Browser
-        if: matrix.browser && steps.browser-cache.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          deps=--with-deps; [ "$RUNNER_OS" = Linux ] && deps=
-          node scripts/ci/setup/retry.ts "The test browser couldn't be installed" \
-            -- pnpm --filter @novadeck/specs exec playwright install $deps chromium
-
-      # Its system packages the runner image lacks, on Linux: from a cache of their debs with
-      # apt, downloading nothing, and through Ubuntu's mirrors only where it misses, retried and failing fast
-      # (.github/actions/browser-packages). On 11-11 the mirrors couldn't be resolved for hours,
-      # and every job with a cached browser failed here before any test ran.
-      - name: Test Browser Packages
-        if: matrix.browser && runner.os == 'Linux'
-        uses: ./.github/actions/browser-packages
-
-      # Electron's download, which the desktop app's tests fetch once before they start
-      # (apps/desktop/scripts/electron-binary.ts), kept between runs: GitHub's release downloads
-      # answered 504 for over an hour on 2026-11-08, and every such job failed (#784).
-      - name: Locate Electron
-        if: matrix.electron
-        id: electron
-        shell: bash
-        run: |
-          echo "electron_config_cache=$RUNNER_TEMP/electron" >> "$GITHUB_ENV"
-          echo "version=$(node -p 'require("./node_modules/electron/package.json").version')" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Electron
-        if: steps.electron.outcome == 'success'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/electron
-          key: electron-${{ runner.os }}-${{ steps.electron.outputs.version }}
+          rust: true
+          browser: ${{ matrix.browser || false }}
+          electron: ${{ matrix.electron || false }}
+          fish: ${{ matrix.shard == 1 }}
 
       # The relay's tests compile here, alone, before the tests run in parallel: compiled cold
       # beside them they took the CPU the native PTY tests wait on (Windows, 1/3).
@@ -257,31 +157,13 @@ jobs:
         working-directory: backend/relay
         run: cargo test --locked --no-run
 
-      # The shells' integration tests run fish here, and fail rather than skip without it. It
-      # refreshes apt's lists itself, as the browser's packages may come from their cache
-      # without apt, and the job has about two minutes to spare beside its tests, so a slow
-      # mirror costs this run its fish and no more (as .github/actions/setup does).
-      - name: Install fish
-        id: fish
-        if: matrix.shard == 1 && runner.os == 'Linux'
-        timeout-minutes: 2
-        continue-on-error: true
-        # Without the browser packages' fail-fast apt settings, should a cancelled step have left them.
-        run: |
-          sudo rm -f /etc/apt/apt.conf.d/99novadeck-fail-fast
-          sudo timeout 110 sh -c 'apt-get update -qq && apt-get install -y --no-install-recommends fish'
-
-      - name: Warn That fish Is Missing
-        if: matrix.shard == 1 && runner.os == 'Linux' && steps.fish.outcome != 'success'
-        run: echo "::warning::fish could not be installed in this run; its shell tests were skipped"
-
       # Three minutes inside the job's own limit, so a hung test ends this step and the
       # failures' upload below still runs, rather than the whole job being cancelled.
       - name: Run ${{ matrix.name }}
         run: ${{ matrix.command }}
         timeout-minutes: ${{ runner.os == 'macOS' && (matrix.command == 'npm run test' && 57 || 25) || runner.os == 'Windows' && matrix.shard == 0 && 22 || matrix.browser && matrix.shard && 22 || (matrix.browser || matrix.shard) && 17 || 7 }}
         env:
-          NOVADECK_REQUIRE_FISH: ${{ steps.fish.outcome == 'success' && '1' || '' }}
+          NOVADECK_REQUIRE_FISH: ${{ steps.setup.outputs.fish == 'true' && '1' || '' }}
           # A re-run with debug logging records Playwright traces of failed UI specs.
           NOVADECK_UI_TRACE: ${{ runner.debug == '1' && '1' || '' }}
           # Each test file's line as it finishes, not a package's whole log once it ends, so
@@ -292,14 +174,14 @@ jobs:
       # cancelled or the build failed: a partial target would sit under a key that is never
       # replaced. Skipped when the exact key was restored, for the same reason.
       - name: Save Rust Builds
-        if: ${{ !cancelled() && steps.relay-build.outcome == 'success' && steps.rust-cache.outputs.cache-hit != 'true' }}
+        if: ${{ !cancelled() && steps.relay-build.outcome == 'success' && steps.setup.outputs.rust-cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             backend/relay/target
-          key: relay-${{ runner.os }}-${{ hashFiles('backend/relay/Cargo.lock', 'backend/relay/Cargo.toml', 'backend/relay/rust-toolchain.toml') }}
+          key: ${{ steps.setup.outputs.rust-key }}
 
       # A failed UI spec leaves its screenshot, and its trace when one was recorded.
       # Not from a proof row (`NOVADECK_TEST_CONTINUE`), whose job beside `Test (Windows)` would
