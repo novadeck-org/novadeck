@@ -1,0 +1,149 @@
+name: Set Up
+description: >
+  The toolchain, with a wait and a retry, and what a job asks for besides: the relay's Rust
+  and its build cache, the test browser, Electron's download and fish. The cache keys are
+  Quality's and Warm Caches', so a job here reads the caches main keeps warm.
+
+# Steps a composite action can't take, which stay in the workflow: a step's own time limit
+# (fish's install bounds itself with `timeout`), and saving the Rust build, which only a job
+# that built the relay's tests should do (see Quality's Save Rust Builds): its key and whether
+# it was restored are outputs here.
+
+inputs:
+  rust:
+    description: The Rust the relay's rust-toolchain.toml names, and the relay's build cache restored
+    default: "false"
+  browser:
+    description: The test browser (Chromium for Playwright), from cache or installed, with its system libraries
+    default: "false"
+  electron:
+    description: Electron's download cached, for the desktop app's tests
+    default: "false"
+  fish:
+    description: fish installed on Linux, for the shells' integration tests; a slow mirror skips it with a warning
+    default: "false"
+
+outputs:
+  rust-key:
+    description: The relay's build cache key, to save under
+    value: ${{ steps.rust-key.outputs.key }}
+  rust-cache-hit:
+    description: Whether the exact relay key was restored
+    value: ${{ steps.rust-cache.outputs.cache-hit }}
+  fish:
+    description: "'true' when fish was installed"
+    value: ${{ steps.fish.outcome == 'success' && 'true' || 'false' }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set Up Toolchain
+      id: toolchain
+      continue-on-error: true
+      uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+      with:
+        runtime: node@26
+        cache: true
+        require-lockfile: true
+
+    # An immediate retry hit the same registry outage in the flake audit.
+    - name: Wait Before Retrying Toolchain
+      if: steps.toolchain.outcome == 'failure'
+      shell: bash
+      run: sleep 180
+
+    - name: Set Up Toolchain Again
+      if: steps.toolchain.outcome == 'failure'
+      uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+      with:
+        runtime: node@26
+        cache: true
+        require-lockfile: true
+
+    # With rustfmt and clippy.
+    - name: Set Up Rust
+      if: inputs.rust == 'true'
+      shell: bash
+      working-directory: backend/relay
+      run: rustup toolchain install
+
+    - name: Name Rust Builds
+      if: inputs.rust == 'true'
+      id: rust-key
+      shell: bash
+      env:
+        KEY: relay-${{ runner.os }}-${{ hashFiles('backend/relay/Cargo.lock', 'backend/relay/Cargo.toml', 'backend/relay/rust-toolchain.toml') }}
+      run: echo "key=$KEY" >> "$GITHUB_OUTPUT"
+
+    # A key it lacks falls back to the newest entry of this platform, so a changed crate graph
+    # rebuilds only what changed.
+    - name: Restore Rust Builds
+      if: inputs.rust == 'true'
+      id: rust-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          backend/relay/target
+        key: ${{ steps.rust-key.outputs.key }}
+        restore-keys: relay-${{ runner.os }}-
+
+    - name: Locate Test Browser
+      if: inputs.browser == 'true'
+      id: playwright
+      shell: bash
+      run: |
+        echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/ms-playwright" >> "$GITHUB_ENV"
+        echo "version=$(pnpm --filter @novadeck/specs exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Test Browser
+      if: inputs.browser == 'true'
+      id: browser-cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/ms-playwright
+        key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+    - name: Install Test Browser
+      if: inputs.browser == 'true' && steps.browser-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: pnpm --filter @novadeck/specs exec playwright install --with-deps chromium
+
+    # A cached browser still needs its system libraries on Linux.
+    - name: Install Test Browser Dependencies
+      if: inputs.browser == 'true' && steps.browser-cache.outputs.cache-hit == 'true' && runner.os == 'Linux'
+      shell: bash
+      run: pnpm --filter @novadeck/specs exec playwright install-deps chromium
+
+    # Electron's download, which the desktop app's tests fetch once before they start
+    # (apps/desktop/scripts/electron-binary.ts), kept between runs: GitHub's release downloads
+    # answered 504 for over an hour on 2026-11-08, and every such job failed (#784).
+    - name: Locate Electron
+      if: inputs.electron == 'true'
+      id: electron
+      shell: bash
+      run: |
+        echo "electron_config_cache=$RUNNER_TEMP/electron" >> "$GITHUB_ENV"
+        echo "version=$(node -p 'require("./node_modules/electron/package.json").version')" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Electron
+      if: inputs.electron == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/electron
+        key: electron-${{ runner.os }}-${{ steps.electron.outputs.version }}
+
+    # The shells' integration tests run fish, and fail rather than skip without it. Two minutes
+    # at most: a slow mirror costs the run its fish and no more.
+    - name: Install fish
+      if: inputs.fish == 'true' && runner.os == 'Linux'
+      id: fish
+      continue-on-error: true
+      shell: bash
+      run: sudo timeout 120 sh -c 'apt-get update -qq && apt-get install -y --no-install-recommends fish'
+
+    - name: Warn That fish Is Missing
+      if: inputs.fish == 'true' && runner.os == 'Linux' && steps.fish.outcome != 'success'
+      shell: bash
+      run: echo "::warning::fish could not be installed in this run; its shell tests were skipped"

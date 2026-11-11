@@ -3,7 +3,15 @@ import { readFileSync } from "node:fs"
 import type { Answer, Client, Question } from "../openrouter/ask"
 import { Skip } from "../openrouter/skip"
 import { context, describe, expect, it } from "../test"
-import { clientFor, parseWriteup, render, userMessage, versionsOf, writeup } from "./writeup"
+import {
+  clientFor,
+  parseWriteup,
+  question as questionFor,
+  render,
+  userMessage,
+  versionsOf,
+  writeup,
+} from "./writeup"
 
 // A failed E2E job's log as CI caught it (the known-flake register's fixture).
 const lead = readFileSync(
@@ -15,7 +23,12 @@ const installed = [
   "2026-10-20T08:40:02.1234567Z agy 1.4.3: /home/runner/work/.e2e-cache/agy/antigravity",
 ].join("\n")
 
-const client: Client = { fetch, apiKey: "key", model: "deepseek/deepseek-v4-pro", timeout: 1_000 }
+const client: Client = {
+  fetch,
+  apiKey: "key",
+  model: "deepseek/deepseek-v4-pro",
+  timeout: 1_000,
+}
 const answering =
   (text: string, asked: Question[] = []) =>
   async (_client: Client, question: Question): Promise<Answer> => {
@@ -81,7 +94,10 @@ describe("a failed night's writeup", () => {
 
   it("shows it under its own heading, saying a model wrote it, with at most five lines of evidence", () => {
     const shown = render(
-      { cause: "Claude Code 2.1.304 defers MCP tools.", evidence: ["1", "2", "3", "4", "5", "6"] },
+      {
+        cause: "Claude Code 2.1.304 defers MCP tools.",
+        evidence: ["1", "2", "3", "4", "5", "6"],
+      },
       "deepseek/deepseek-v4-pro-2026",
     )
     expect(shown).toBe(
@@ -128,9 +144,24 @@ describe("a failed night's writeup", () => {
   })
 
   it("asks a cheap model unless NIGHTLY_REPORT_MODEL names another, and only with a key", () => {
-    expect(clientFor({})).toMatchObject({ apiKey: undefined, model: "deepseek/deepseek-v4-pro" })
+    expect(clientFor({})).toMatchObject({
+      apiKey: undefined,
+      model: "deepseek/deepseek-v4-pro",
+    })
     expect(
-      clientFor({ OPENROUTER_API_KEY: " k ", NIGHTLY_REPORT_MODEL: "anthropic/claude-haiku-5.5" }),
+      clientFor({
+        OPENROUTER_API_KEY: " k ",
+        NIGHTLY_REPORT_MODEL: "anthropic/claude-haiku-5.5",
+      }),
     ).toMatchObject({ apiKey: "k", model: "anthropic/claude-haiku-5.5" })
+  })
+
+  it("tells the model what the night runs, as only E2E's own night runs the newest harnesses", () => {
+    const logs = [{ job: "Test (macOS)", log: lead }]
+    expect(questionFor("E2E", logs).system).toContain("newest release")
+    for (const workflow of ["Nightly Quality", "E2E (pinned)"]) {
+      expect(questionFor(workflow, logs).system).not.toContain("newest release")
+      expect(questionFor(workflow, logs).system).toContain("merged together")
+    }
   })
 })
