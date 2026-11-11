@@ -64,3 +64,23 @@ runs:
       with:
         path: ${{ runner.temp }}/browser-packages
         key: ${{ steps.check.outputs.key }}
+
+    # Loud where the folder was to be saved and the cache has no entry under the key: the save
+    # warns and goes on (on #869 a folder it couldn't read was saved as nothing), and every
+    # run after would go back to Ubuntu's mirrors without a word. Another job that saved the
+    # same key first counts as saved.
+    - name: Check Test Browser Packages Saved
+      id: saved
+      if: steps.install.outputs.save == 'true' && steps.check.outputs.key != ''
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/browser-packages
+        key: ${{ steps.check.outputs.key }}
+        lookup-only: true
+
+    - name: Say Test Browser Packages Weren't Saved
+      if: steps.saved.outcome == 'success' && steps.saved.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        KEY: ${{ steps.check.outputs.key }}
+      run: echo "::error title=Setup::The test browser's packages weren't saved under $KEY; the next run goes back to Ubuntu's mirrors"

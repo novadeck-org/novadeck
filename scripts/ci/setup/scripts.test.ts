@@ -1,9 +1,18 @@
 import { execFileSync, spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir, userInfo } from "node:os"
 import { join } from "node:path"
 
-import { afterAll } from "vitest"
+import { afterAll, afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
 import {
@@ -28,6 +37,7 @@ import {
   mirrorList,
   namesArchive,
   saves,
+  tidy,
 } from "./browser-packages.ts"
 import {
   bounded,
@@ -471,6 +481,13 @@ describe("the browser packages' download through other mirrors", () => {
   // The download as the retry runs it, each fallback a command that fails as an unreachable
   // mirror does or passes: which were tried, and what the step ends with.
   context("as the retry runs it", () => {
+    // Its lines are workflow commands: printed on CI they would read as the run's own errors.
+    beforeEach(() => {
+      vi.spyOn(console, "log").mockImplementation(() => {})
+      vi.spyOn(process.stdout, "write").mockImplementation(() => true)
+    })
+    afterEach(() => vi.restoreAllMocks())
+
     const quick = { ...plan, attempts: 3, firstWaitSeconds: 0, settleSeconds: 0, limitSeconds: 5 }
     const through = (passing: number | undefined) => {
       const tried: number[] = []
@@ -562,6 +579,45 @@ describe.skipIf(!existsSync("/usr/bin/apt-get") || !existsSync("/usr/bin/dpkg-de
     const apt = (args: readonly string[]) =>
       spawnSync("apt-get", ["-o", "Debug::NoLocking=1", ...args], { encoding: "utf8" })
 
+    // apt's install phase without root: dpkg works on a copy of its state in a folder of its
+    // own (`target`), so nothing of the machine's changes.
+    const relocatedRoot = (name: string) => {
+      const target = join(folder, name)
+      const dpkg = join(target, "var", "lib", "dpkg")
+      mkdirSync(join(dpkg, "updates"), { recursive: true })
+      mkdirSync(join(dpkg, "info"), { recursive: true })
+      mkdirSync(join(target, "log"), { recursive: true })
+      writeFileSync(join(dpkg, "status"), readFileSync("/var/lib/dpkg/status"))
+      writeFileSync(join(dpkg, "available"), "")
+      const relocated = [
+        "-o",
+        `Dir::State::status=${join(dpkg, "status")}`,
+        "-o",
+        `Dir::State::extended_states=${join(target, "extended_states")}`,
+        "-o",
+        `Dir::Log=${join(target, "log")}`,
+        "-o",
+        `DPkg::Options::=--admindir=${dpkg}`,
+        "-o",
+        `DPkg::Options::=--root=${target}`,
+        "-o",
+        "DPkg::Options::=--force-not-root",
+        "-o",
+        "DPkg::Options::=--force-script-chrootless",
+        "-o",
+        "DPkg::Options::=--log=/dev/null",
+        "-o",
+        "DPkg::NoTriggers=1",
+        "-o",
+        "DPkg::ConfigurePending=0",
+        "-o",
+        "Dpkg::Use-Pty=0",
+        "-o",
+        `APT::Sandbox::User=${userInfo().username}`,
+      ]
+      return { target, relocated }
+    }
+
     it("installs the files, a dependency among them ordered first, from no mirror", () => {
       const a = deb("novadeck-probe-a")
       const b = deb("novadeck-probe-b", "novadeck-probe-a")
@@ -635,59 +691,60 @@ describe.skipIf(!existsSync("/usr/bin/apt-get") || !existsSync("/usr/bin/dpkg-de
     // needed and nothing of the machine's changes.
     it("unpacks the files, where apt's archives are their folder", () => {
       const a = deb("novadeck-probe-f")
-      const target = join(folder, "root")
-      const dpkg = join(target, "var", "lib", "dpkg")
-      mkdirSync(join(dpkg, "updates"), { recursive: true })
-      mkdirSync(join(dpkg, "info"), { recursive: true })
-      writeFileSync(join(dpkg, "status"), readFileSync("/var/lib/dpkg/status"))
-      writeFileSync(join(dpkg, "available"), "")
+      const { target, relocated } = relocatedRoot("root")
       const elsewhere = join(folder, "elsewhere")
       mkdirSync(join(elsewhere, "partial"), { recursive: true })
-      const relocated = [
-        "-o",
-        `Dir::State::status=${join(dpkg, "status")}`,
-        "-o",
-        `Dir::State::extended_states=${join(target, "extended_states")}`,
-        "-o",
-        `DPkg::Options::=--admindir=${dpkg}`,
-        "-o",
-        `DPkg::Options::=--root=${target}`,
-        "-o",
-        "DPkg::Options::=--force-not-root",
-        "-o",
-        "DPkg::Options::=--force-script-chrootless",
-        "-o",
-        "DPkg::Options::=--log=/dev/null",
-        "-o",
-        "DPkg::NoTriggers=1",
-        "-o",
-        "DPkg::ConfigurePending=0",
-        "-o",
-        "Dpkg::Use-Pty=0",
-      ]
       const own = localInstall(folder, [a])
       // As before: apt's archives elsewhere, and its install phase failed on the bare name.
       const before = apt([
-        ...relocated,
         ...own.slice(0, 8),
         "-o",
         `Dir::Cache::archives=${elsewhere}`,
-        ...own.slice(10),
+        ...own.slice(10, -5),
+        ...relocated,
+        ...own.slice(-5),
       ])
       expect(`${before.stdout}${before.stderr}`).toContain("Pathname to install is not absolute")
       // As now, with apt reading the files as this user, who owns them here.
-      const now = apt([...relocated, ...own, "-o", `APT::Sandbox::User=${userInfo().username}`])
+      // The relocated options' sandbox user, after, reads the files as this user, who owns them.
+      const now = apt([...own.slice(0, -5), ...relocated, ...own.slice(-5)])
       expect(now.status, `${now.stdout}${now.stderr}`).toBe(0)
       expect(existsSync(join(target, "usr", "share", "doc", "novadeck-probe-f", "README"))).toBe(
         true,
       )
     })
 
+    // On the run after, apt (as root) left its archives lock and partial/ in the folder, and
+    // the cache's save, as the runner, could read neither and saved nothing.
+    it("leaves the folder only the runner's debs once tidied after an install", () => {
+      const debs = join(folder, "tidy")
+      mkdirSync(debs, { recursive: true })
+      const a = deb("novadeck-probe-g")
+      const kept = join(debs, "novadeck-probe-g_1.0_all.deb")
+      writeFileSync(kept, readFileSync(a))
+      const { relocated } = relocatedRoot("root-g")
+      const own = localInstall(debs, [kept])
+      const said = apt([...own.slice(0, -5), ...relocated, ...own.slice(-5)])
+      expect(said.status, `${said.stdout}${said.stderr}`).toBe(0)
+      // apt made partial/ in it; with its locking on (as root, on a runner) its lock too, which
+      // this unprivileged run can't take, so it is written here as apt would.
+      expect(readdirSync(debs)).toContain("partial")
+      writeFileSync(join(debs, "lock"), "")
+      const as = (args: readonly string[]) => spawnSync(args[0]!, args.slice(1)).status === 0
+      tidy(debs, as, process.getuid!())
+      expect(readdirSync(debs)).toEqual(["novadeck-probe-g_1.0_all.deb"])
+      expect(statSync(kept).uid).toBe(process.getuid!())
+    })
+
     it("changes nothing where a dependency can't be met", () => {
       const lone = deb("novadeck-probe-d", "novadeck-probe-missing")
       const said = apt(["-s", ...localInstall(folder, [lone])])
       expect(said.status).toBe(100)
-      expect(`${said.stdout}${said.stderr}`).toContain("Unable to correct problems")
+      // In apt 2.8's words and apt 3's alike (the runners have apt 3): the dependency named,
+      // and nothing to install.
+      expect(`${said.stdout}${said.stderr}`).toContain(
+        "novadeck-probe-d : Depends: novadeck-probe-missing but it is not installable",
+      )
       expect(said.stdout).not.toMatch(/^Inst /m)
     })
   },
@@ -963,6 +1020,36 @@ describe("the test browser's install, where a job makes it", () => {
       )
       expect(step(action, "Install Test Browser Packages")).toContain(
         "if: steps.check.outputs.missing != '0'",
+      )
+    })
+
+    // A save that couldn't read the folder saved nothing, with a warning only: every run after
+    // would go back to the mirrors without a word.
+    it("says so loudly where the folder was to be saved and the key has no entry", () => {
+      const saved = step(action, "Check Test Browser Packages Saved")
+      expect(saved).toContain(
+        "if: steps.install.outputs.save == 'true' && steps.check.outputs.key != ''",
+      )
+      expect(saved).toContain("lookup-only: true")
+      expect(saved).toContain("key: ${{ steps.check.outputs.key }}")
+      const say = step(action, "Say Test Browser Packages Weren't Saved")
+      expect(say).toContain(
+        "if: steps.saved.outcome == 'success' && steps.saved.outputs.cache-hit != 'true'",
+      )
+      expect(say).toContain(
+        "::error title=Setup::The test browser's packages weren't saved under $KEY",
+      )
+      expect(action.indexOf("- name: Save Test Browser Packages")).toBeLessThan(
+        action.indexOf("- name: Check Test Browser Packages Saved"),
+      )
+    })
+
+    // apt, as root, leaves its lock and partial/ in the folder whenever it downloads or
+    // installs from it: tidied after the install, however it ended, before the save reads it.
+    it("tidies the folder after the install, however it ended", () => {
+      const source = readFileSync(join(import.meta.dirname, "browser-packages.ts"), "utf8")
+      expect(source).toMatch(
+        /try \{\n\s+outcome = install\(named, machine\)\n\s+\} finally \{\n(?:\s+\/\/[^\n]*\n)*\s+tidy\(folder, sudo, process\.getuid\?\.\(\) \?\? 0\)/,
       )
     })
 

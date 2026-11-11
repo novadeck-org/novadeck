@@ -5,7 +5,6 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
-  rmSync,
   writeFileSync,
 } from "node:fs"
 import { join } from "node:path"
@@ -134,6 +133,20 @@ export const localInstall = (folder: string, files: readonly string[]): readonly
   "--no-download",
   ...files,
 ]
+
+/**
+ * The folder as the cache's save reads it: only its debs, the runner's own. apt, as root, makes
+ * its archives lock and `partial/` in it (root's and `_apt`'s, unreadable to the save, which
+ * then saved nothing) whenever it downloads or installs from it. `as` runs a command as root.
+ */
+export const tidy = (
+  folder: string,
+  as: (args: readonly string[]) => boolean,
+  owner: number,
+): void => {
+  as(["rm", "-rf", join(folder, "partial"), join(folder, "lock")])
+  as(["chown", "-R", String(owner), folder])
+}
 
 /**
  * apt settings for this step's own calls, removed after: no retry of its own and short
@@ -384,10 +397,6 @@ export const main = (folder: string): void => {
           { ...aptPlan, reap: true },
         )
         if (fetched === 0) console.log(`Downloaded through ${fallbacks[used]!.name}`)
-        // Root's files, which the cache's save must read; the lock and partial downloads aren't kept.
-        sudo(["chown", "-R", `${process.getuid?.() ?? 0}`, folder])
-        rmSync(join(folder, "partial"), { recursive: true, force: true })
-        rmSync(join(folder, "lock"), { force: true })
         return fetched === 0
       } finally {
         sudo(["rm", "-f", failFastFile])
@@ -419,7 +428,13 @@ export const main = (folder: string): void => {
     },
     log: (line) => console.log(line),
   }
-  const outcome = install(named, machine)
+  let outcome: Outcome
+  try {
+    outcome = install(named, machine)
+  } finally {
+    // After every apt call on it, the install's included: what the save reads.
+    tidy(folder, sudo, process.getuid?.() ?? 0)
+  }
   console.log(
     `Test browser's packages: installed by ${outcome.path === "cache" ? "apt-get install --no-download from the cache, no mirror reached" : outcome.path === "apt" ? "apt's download through Ubuntu's mirrors, then apt-get install --no-download" : "playwright install-deps"}`,
   )
