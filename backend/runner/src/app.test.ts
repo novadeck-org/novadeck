@@ -1,3 +1,4 @@
+// CI canary for #853: Windows and macOS narrowed to the affected system packages. Not for merging.
 import { createApp } from "./app.js"
 import { describe, expect, it } from "./test.js"
 
