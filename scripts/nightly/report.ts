@@ -52,6 +52,11 @@ export type Night = {
   /** When it started, as an ISO date. */
   readonly startedAt: string
   readonly failed: readonly FailedJob[]
+  /**
+   * Why the night couldn't be followed to its end, as a pinned E2E run that couldn't be
+   * started, found or waited for: a failed night, so it isn't missed in silence.
+   */
+  readonly lost?: string
 }
 
 export type Action =
@@ -131,6 +136,7 @@ const reading = (jobs: readonly FailedJob[]): string => {
 }
 
 const failures = (run: Night): string => {
+  if (run.lost) return `It couldn't be followed to its end: ${run.lost}`
   if (run.failed.length === 0) return `The run ended \`${run.conclusion}\` with no job failed.`
   // Logs are read when the register is at hand; a job beyond those read says so.
   const anyRead = run.failed.some((job) => job.verdict)
