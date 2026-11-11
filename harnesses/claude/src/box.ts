@@ -62,23 +62,60 @@ const overlay = (screen: ScreenText): boolean => {
 const agentRow = /^(\s*(?:❯ )?◯ .*?)\s+(?:\d+d )?(?:\d+h )?(?:\d+m )?\d+(?:\.\d+)?s(?: · .*)?$/
 
 /**
- * The last row of its card for a feedback draft it queued (its `SendFeedback` tool), which stays
- * until the person dismisses it: `✻ Bug report drafted: <title>`, a preview of the details, then
- * this row of keys, which reads by whether the box holds text, so every paste rewrites it, far
- * from the box. Read in its bundle (2.1.322, `yCe`), and seen on a terminal whose rings all failed
- * as `elsewhere` from its first draft on (2026-11-10): with the box empty `1 to review · 2 to send
- * · 0 to dismiss`, with text `clear text to review, send, or dismiss`, either with `+N more
- * queued` after it.
+ * The keys that end its card for a feedback draft it queued (its `SendFeedback` tool), which
+ * stays until the person dismisses it: `✻ Bug report drafted: <title>`, a preview of the
+ * details, then a row of keys, which reads by whether the box holds text, so every paste rewrites
+ * it, far from the box. Read in its bundle (2.1.322, `yCe`; a key's name as `Esc`), and seen on a
+ * terminal whose rings all failed as `elsewhere` from its first draft on (2026-11-10). Idle, with
+ * the box empty and with text, either with `+N more queued` after it; asking to send unreviewed,
+ * after its question; and a send that failed, after its error. Each pair but the last is of one
+ * length, so the row wraps alike in a narrow pane, at other words.
  */
-const draftKeys =
-  /^(\s*)(?:1 to review · 2 to send · 0 to dismiss|clear text to review, send, or dismiss)((?: · \+\d+ more queued)?)\s*$/
+const draftKeyForms = [
+  "1 to review · 2 to send · 0 to dismiss",
+  "clear text to review, send, or dismiss",
+  "2 to send · Esc to back",
+  "clear text to answer it",
+  "1 to review & retry · Esc to dismiss",
+  "1 to review or discard · Esc to dismiss",
+  "Esc to dismiss",
+  "clear text to open review or dismiss",
+  "clear text to open review or to dismiss",
+  "clear text to dismiss",
+]
+const draftKeys = new RegExp(
+  `(^|\\s)(?:${draftKeyForms.map((form) => form.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})((?: · \\+\\d+ more queued)?)$`,
+)
+
+/**
+ * A run of rows that ends in a feedback draft's keys, wrapped or not, as one row with the keys
+ * read alike, and the rest of the run blank, so where the keys wrapped doesn't count.
+ */
+const draftCards = (rows: readonly string[]): readonly string[] => {
+  const out = [...rows]
+  let start = 0
+  for (let end = 0; end <= rows.length; end++) {
+    if (end < rows.length && rows[end]!.trim() !== "") continue
+    const joined = rows
+      .slice(start, end)
+      .map((row) => row.trim())
+      .join(" ")
+    const found = end > start ? draftKeys.exec(joined) : null
+    if (found) {
+      out[start] = `${joined.slice(0, found.index)}${found[1]}feedback draft keys${found[2]}`
+      out.fill("", start + 1, end)
+    }
+    start = end + 1
+  }
+  return out
+}
 
 /**
  * The rows without what changes by itself while it idles, a background agent's elapsed time,
  * and without what a paste changes that says nothing of where it went: a feedback draft's keys.
  */
 const still = (rows: readonly string[]): readonly string[] =>
-  rows.map((row) => row.replace(agentRow, "$1").replace(draftKeys, "$1feedback draft keys$2"))
+  draftCards(rows.map((row) => row.replace(agentRow, "$1")))
 
 /** How its box reads off a screen. */
 const read = (screen: ScreenText) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows))
