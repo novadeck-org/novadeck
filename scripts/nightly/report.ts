@@ -3,12 +3,40 @@
 // found by its title: a failed night opens it, or adds to the one still open; the first
 // green night closes it. Nothing else touches it, so a person may comment there freely.
 
+import { judgeJob, type Register } from "../flakes/match.ts"
+
 /** A job of the run that didn't succeed. */
 export type FailedJob = {
   readonly id: number
   readonly name: string
   readonly conclusion: string
   readonly url: string
+  /** Its log read against the known-flake register; none when the log wasn't read. */
+  readonly verdict?: Verdict
+}
+
+/**
+ * How a failed job failed, by the register (`scripts/flakes/register.json`): the known flakes
+ * it failed as, those registered as fixed that are back, and what no flake explains (a failed
+ * test, or why none could be named).
+ */
+export type Verdict = {
+  readonly known: readonly string[]
+  readonly back: readonly string[]
+  readonly unexplained: readonly string[]
+}
+
+/** A failed job's log judged against the register. */
+export const verdictOf = (register: Register, job: string, log: string): Verdict => {
+  const { flakes, unknown } = judgeJob(register, job, log)
+  const fixed = new Set(
+    register.flakes.filter((flake) => flake.status === "fixed").map((flake) => flake.id),
+  )
+  return {
+    known: flakes.filter((id) => !fixed.has(id)),
+    back: flakes.filter((id) => fixed.has(id)),
+    unexplained: unknown,
+  }
 }
 
 /** The nightly run as it ended. */
@@ -74,18 +102,56 @@ const night = (run: Night): string =>
   `[${run.workflow}, ${run.startedAt.slice(0, 10)}](${run.url})` +
   `${run.attempt > 1 ? ` (attempt ${run.attempt})` : ""} on ${run.sha.slice(0, 8)}`
 
+// The most failed tests named under a job; a file that failed whole can name dozens.
+const testsShown = 10
+
+const code = (text: string): string => `\`${text.replaceAll("`", "'")}\``
+
+const listed = (label: string, items: readonly string[]): string[] =>
+  items.length === 0
+    ? []
+    : [
+        `  - ${label}: ${items.slice(0, testsShown).map(code).join(", ")}${
+          items.length > testsShown ? `, and ${items.length - testsShown} more` : ""
+        }`,
+      ]
+
+// Whether the failed jobs' logs show a flaky night or a break, as far as the register knows.
+const reading = (jobs: readonly FailedJob[]): string => {
+  const read = jobs.flatMap((job) => (job.verdict ? [job.verdict] : []))
+  if (read.length === 0) return ""
+  const unexplained = read.some((verdict) => verdict.unexplained.length > 0)
+  const back = read.some((verdict) => verdict.back.length > 0)
+  const unread = read.length < jobs.length ? " Some jobs' logs weren't read; see them." : ""
+  if (unexplained)
+    return `**A failure no registered flake explains**, listed as "not explained" below: a break until shown to be a flake.${unread}`
+  if (back)
+    return `**A flake registered as fixed is back**, listed below: its fix didn't hold.${unread}`
+  return `**Every failure is a registered known flake** (\`scripts/flakes/register.json\`): a flaky night, not a break.${unread}`
+}
+
 const failures = (run: Night): string => {
   if (run.failed.length === 0) return `The run ended \`${run.conclusion}\` with no job failed.`
+  // Logs are read when the register is at hand; a job beyond those read says so.
+  const anyRead = run.failed.some((job) => job.verdict)
   const jobs = run.failed
     .toSorted((a, b) => a.name.localeCompare(b.name))
-    .map(
-      (job) =>
-        `- [${job.name}](${job.url})${job.conclusion === "failure" ? "" : ` (${job.conclusion})`}`,
-    )
+    .flatMap((job) => [
+      `- [${job.name}](${job.url})${job.conclusion === "failure" ? "" : ` (${job.conclusion})`}${job.verdict || !anyRead ? "" : " (log not read)"}`,
+      ...(job.verdict
+        ? [
+            ...listed("Not explained", job.verdict.unexplained),
+            ...listed("Fixed flake back", job.verdict.back),
+            ...listed("Known flake", job.verdict.known),
+          ]
+        : []),
+    ])
+  const verdict = reading(run.failed)
   return [
     `${run.failed.length} job${run.failed.length === 1 ? "" : "s"} failed:`,
     "",
     ...jobs,
+    ...(verdict ? ["", verdict] : []),
   ].join("\n")
 }
 

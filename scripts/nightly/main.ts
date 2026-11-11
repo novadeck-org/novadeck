@@ -1,9 +1,17 @@
 import { execFileSync } from "node:child_process"
 import { appendFileSync, readFileSync } from "node:fs"
 
-import { parseRegister } from "../flakes/match.ts"
+import { parseRegister, type Register } from "../flakes/match.ts"
 import { act, findIssue } from "./issues.ts"
-import { decide, nameOf, titleOf, type Action, type FailedJob, type Night } from "./report.ts"
+import {
+  decide,
+  nameOf,
+  titleOf,
+  verdictOf,
+  type Action,
+  type FailedJob,
+  type Night,
+} from "./report.ts"
 import { clientFor, writeup, type JobLog } from "./writeup.ts"
 
 // `node scripts/nightly/main.ts`: what a nightly run's end does to its tracking issue
@@ -21,6 +29,12 @@ const required = (name: string): string => {
 }
 
 const gh = (...args: string[]): string => execFileSync("gh", args, { encoding: "utf8" })
+
+/** The known-flake register, as main has it. */
+const register = (): Register =>
+  parseRegister(
+    JSON.parse(readFileSync(new URL("../flakes/register.json", import.meta.url), "utf8")),
+  )
 
 /** The run's attempt as it ended, and the jobs of it that didn't succeed. */
 export const nightOf = (runId: string, attempt: number): Night => {
@@ -41,11 +55,16 @@ export const nightOf = (runId: string, attempt: number): Night => {
       "--slurp",
       `repos/${repo()}/actions/runs/${runId}/attempts/${attempt}/jobs?per_page=100`,
     ),
-  ) as { jobs: { id: number; name: string; conclusion: string | null; html_url: string }[] }[]
+  ) as {
+    jobs: {
+      id: number
+      name: string
+      conclusion: string | null
+      html_url: string
+    }[]
+  }[]
   // A gate job (E2E's) fails only for the jobs it needs, which are listed already.
-  const { aggregates } = parseRegister(
-    JSON.parse(readFileSync(new URL("../flakes/register.json", import.meta.url), "utf8")),
-  )
+  const { aggregates } = register()
   const failed: FailedJob[] = jobs
     .flatMap((page) => page.jobs)
     .filter(
@@ -74,8 +93,9 @@ export const nightOf = (runId: string, attempt: number): Night => {
 /** The open issue titled for the workflow, if one is. */
 export const openIssue = (workflow: string): number | null => findIssue(titleOf(workflow))
 
-// The most failed jobs whose logs the writeup reads, so a night of many stays quick.
-const logsRead = 8
+// The most failed jobs whose logs are read, so a night of many stays quick; Nightly Quality
+// has ten test jobs.
+const logsRead = 12
 
 /** A job's whole log. The API answers with a redirect to it, which fetch follows without the token. */
 const jobLog = async (id: number): Promise<string> => {
@@ -90,8 +110,41 @@ const jobLog = async (id: number): Promise<string> => {
   return response.text()
 }
 
+/** The failed jobs' logs, as many as are read; a log that couldn't be fetched is left out. */
+const logsOf = async (run: Night): Promise<JobLog[]> => {
+  const logs = await Promise.all(
+    run.failed.slice(0, logsRead).map(async (job): Promise<JobLog | undefined> => {
+      try {
+        return { job: job.name, log: await jobLog(job.id) }
+      } catch (error) {
+        console.log(
+          `No log of ${job.name}: ${error instanceof Error ? error.message : String(error)}`,
+        )
+        return undefined
+      }
+    }),
+  )
+  return logs.filter((log) => log !== undefined)
+}
+
+/** The run with each failed job whose log was read judged against the register. */
+const judged = (run: Night, logs: readonly JobLog[]): Night => {
+  const known = register()
+  return {
+    ...run,
+    failed: run.failed.map((job) => {
+      const log = logs.find((each) => each.job === job.name)?.log
+      return log === undefined ? job : { ...job, verdict: verdictOf(known, job.name, log) }
+    }),
+  }
+}
+
 /** The action with a model's writeup added to its body, where there is one to add. */
-const withWriteup = async (run: Night, action: Action): Promise<Action> => {
+const withWriteup = async (
+  run: Night,
+  logs: readonly JobLog[],
+  action: Action,
+): Promise<Action> => {
   if (action.kind !== "open" && action.kind !== "comment") return action
   const client = clientFor()
   if (!client.apiKey) {
@@ -99,12 +152,10 @@ const withWriteup = async (run: Night, action: Action): Promise<Action> => {
     return action
   }
   try {
-    const logs: JobLog[] = await Promise.all(
-      run.failed
-        .slice(0, logsRead)
-        .map(async (job) => ({ job: job.name, log: await jobLog(job.id) })),
-    )
-    return { ...action, body: `${action.body}\n\n${await writeup(client, run.workflow, logs)}` }
+    return {
+      ...action,
+      body: `${action.body}\n\n${await writeup(client, run.workflow, logs)}`,
+    }
   } catch (error) {
     console.log(`No writeup: ${error instanceof Error ? error.message : String(error)}`)
     return action
@@ -112,8 +163,10 @@ const withWriteup = async (run: Night, action: Action): Promise<Action> => {
 }
 
 export const main = async (): Promise<void> => {
-  const run = nightOf(required("RUN_ID"), Number(required("RUN_ATTEMPT")))
-  const action = await withWriteup(run, decide(run, openIssue(run.workflow)))
+  const ended = nightOf(required("RUN_ID"), Number(required("RUN_ATTEMPT")))
+  const logs = ended.failed.length > 0 ? await logsOf(ended) : []
+  const run = judged(ended, logs)
+  const action = await withWriteup(run, logs, decide(run, openIssue(run.workflow)))
   // A dispatch's dry run only says what it would do.
   const dry = process.env.DRY_RUN === "1"
   if (!dry) act(action)

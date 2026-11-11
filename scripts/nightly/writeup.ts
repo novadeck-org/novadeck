@@ -11,7 +11,10 @@ import { Skip } from "../openrouter/skip.ts"
 export type JobLog = { readonly job: string; readonly log: string }
 
 /** What the model is asked to return. */
-export type Writeup = { readonly cause: string; readonly evidence: readonly string[] }
+export type Writeup = {
+  readonly cause: string
+  readonly evidence: readonly string[]
+}
 
 const schema = {
   type: "object",
@@ -28,19 +31,35 @@ const testsPerJob = 6
 const reportChars = 800
 const messageChars = 40_000
 
-const system = `You read the failures of a nightly CI run of Novadeck, a desktop terminal app
-that runs AI coding agents (Claude Code, Codex, Antigravity) in its terminals. The nightly E2E
+// What the night runs, which decides what its failure most likely is.
+const runs: { readonly [workflow: string]: string } = {
+  E2E: `The nightly E2E
 runs each agent harness's newest release against a fake model, and the probes record how each
 harness behaves; pull requests run the pinned versions, which pass. So a failure here is most
 often a harness's new release changing something the tests rely on: a tool renamed or refused,
 a screen or dialog drawn differently, a hook or setting changed. It may also be a flaky test or
-a change in Novadeck itself.
+a change in Novadeck itself.`,
+  "E2E (pinned)": `This night runs
+the end-to-end suite on main against the same pinned harness versions pull requests use, so a
+harness's new release can't be the cause. A failure here is a change in Novadeck itself (often
+two changes that each passed alone, broken once merged together, or a test a pull request
+skipped) or a flaky test.`,
+  "Nightly Quality": `This night
+runs every check and unit, browser and system test on main, on Linux, Windows and macOS, as
+pull requests do. A failure here is a change in Novadeck itself (often two changes that each
+passed alone, broken once merged together, or a test a pull request skipped on this system), a
+flaky test (timing, a slow runner), or a job run out of its time limit.`,
+}
+
+const systemFor = (workflow: string): string => `You read the failures of a nightly CI run of
+Novadeck, a desktop terminal app that runs AI coding agents (Claude Code, Codex, Antigravity)
+in its terminals. ${runs[workflow] ?? "A failure may be a change in Novadeck itself or a flaky test."}
 
 Say what most likely broke, in at most three plain sentences in "cause": name the harness and
-version when the logs show one, and what changed for it, as the errors show it. In "evidence",
-quote or name up to five short lines from the logs that support it, each with its job. Don't
-guess beyond the logs; when they don't show a cause, say so in "cause". Write for an engineer
-who will fix it. No headings, no markdown beyond inline code.`
+version when the logs show one and it matters, and what changed, as the errors show it. In
+"evidence", quote or name up to five short lines from the logs that support it, each with its
+job. Don't guess beyond the logs; when they don't show a cause, say so in "cause". Write for an
+engineer who will fix it. No headings, no markdown beyond inline code.`
 
 /** The harness versions a job installed, as the installer prints them: `claude 2.1.304: …`. */
 export const versionsOf = (log: string): string[] => [
@@ -87,7 +106,10 @@ export const parseWriteup = (text: string): Writeup => {
   } catch {
     throw new Skip("The answer was not JSON", text)
   }
-  const { cause, evidence } = (json ?? {}) as { cause?: unknown; evidence?: unknown }
+  const { cause, evidence } = (json ?? {}) as {
+    cause?: unknown
+    evidence?: unknown
+  }
   if (
     typeof cause !== "string" ||
     !cause.trim() ||
@@ -128,7 +150,7 @@ export const clientFor = (
 
 export const question = (workflow: string, logs: readonly JobLog[]): Question => ({
   title: "Novadeck nightly report",
-  system,
+  system: systemFor(workflow),
   user: userMessage(workflow, logs),
   schema: { name: "nightly_writeup", json: schema },
   // The model reasons before it answers, and its reasoning counts: 2,000 ran out first.
