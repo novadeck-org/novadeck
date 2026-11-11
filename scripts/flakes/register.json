@@ -489,7 +489,7 @@
       "jobs": ["^Test \\(macOS\\)$"],
       "signature": "##\\[error\\]The action 'Run Test \\(macOS\\)' has timed out after \\d+ minutes",
       "status": "known",
-      "cause": "Not a test: the unsharded macOS test job takes 27 to 33 minutes on other pull requests against its 37-minute step limit, so a slow runner runs out of time with no test failing.",
+      "cause": "Not a test: a slow macOS runner runs out of the test step's own time limit (whatever quality.yml sets for the row, the whole suite or the system packages) with no test failing.",
       "seen": ["#777 run 42380485557 job 128426868098 (macOS)"]
     },
     {
