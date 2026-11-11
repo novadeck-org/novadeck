@@ -544,6 +544,10 @@ describe("Quality's workflow", () => {
       "name: retried-${{ runner.os }}${{ matrix.shard && format('-{0}', matrix.shard) || '' }}-${{ github.run_attempt }}",
     )
     for (const id of ["windows", "macos"]) expect(job(id)).toContain("    steps: *steps\n")
+    // The upload skips the proof rows by `NOVADECK_TEST_CONTINUE`: a test job that set it would
+    // lose its retry records without a word.
+    for (const id of ["quality", "windows", "macos"])
+      expect(job(id)).not.toContain("NOVADECK_TEST_CONTINUE:")
   })
 
   // A plan that failed, or left its outputs out, runs every test there: it skips a system only
