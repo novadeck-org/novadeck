@@ -1,3 +1,4 @@
+// CI canary for #862: a runner-adapter change alone. Not for merging.
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { vi } from "vitest"
 
