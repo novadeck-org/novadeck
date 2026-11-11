@@ -177,6 +177,8 @@ describe("the CI scoreboard of a recorded week", () => {
     it("says where a job's series breaks, as Quality's macOS tests narrowed on 11-11", () => {
       expect(markdown).toContain("`Core scenarios (macOS)`")
       expect(markdown).toContain("Quality's `Test (macOS)` series also breaks on 2026-11-11 (#849)")
+      expect(markdown).toContain("one `Test (Windows)` job, the affected system packages")
+      expect(markdown).toContain("never in the merge queue's bar")
     })
   })
 })

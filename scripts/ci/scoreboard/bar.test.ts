@@ -72,6 +72,19 @@ describe("the merge queue's bar", () => {
       expect(bar.e2e).toEqual({ finished: 0, failed: 0, flaky: 0 })
     })
 
+    it("leaves out the proof rows, outside the Test gate, which eject no merge group", () => {
+      const proving = run(2, "Quality", 2)
+      const found = mergeQueueBar(
+        [proving],
+        [
+          job(2, 1, "Test (Linux, 1/3)", "success"),
+          job(2, 1, "Proof (Windows, runner)", "failure"),
+          job(2, 2, "Proof (Windows, runner)", "success"),
+        ],
+      )
+      expect(found.quality).toEqual({ finished: 1, failed: 0, flaky: 0 })
+    })
+
     it("counts a flaky run whose first attempt had a job stopped, as one past its time limit", () => {
       const stopped = run(1, "E2E", 2)
       const found = mergeQueueBar(
