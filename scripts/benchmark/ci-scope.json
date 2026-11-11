@@ -1,0 +1,4 @@
+{
+  "reaches": "repository",
+  "why": "The benchmarks that benchmark.yml and timing.yml run on Linux, which those workflows start for themselves: otherwise only their own tests read them."
+}

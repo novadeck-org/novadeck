@@ -3,6 +3,11 @@ import { join } from "node:path"
 
 import { describe, expect, it } from "./test"
 
+// It reads every package under frontend/ and apps/, by the names it lists: CI sees it by those in
+// package.json's novadeck.reads, as the reach fence (scripts/workspace/reach.ts) can't follow the
+// names.
+// oxlint-disable novadeck/reach
+
 // The stores' instrumentation hook, which only the counter run installs: it spans two
 // packages (core defines it, the counter run uses it), so this repository-wide check lives
 // with the specs. It names the hook once, so this file is the one other place it appears.

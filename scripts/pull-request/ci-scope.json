@@ -1,0 +1,4 @@
+{
+  "reaches": "repository",
+  "why": "The pull request's own checks, which pr.yml runs on Linux for every pull request whatever the plan: otherwise only their own tests read them."
+}

@@ -1,0 +1,4 @@
+{
+  "reaches": "repository",
+  "why": "The release's version, which release.yml works out on Linux after a merge: on a pull request only its own test reads it."
+}

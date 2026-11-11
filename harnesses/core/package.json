@@ -127,7 +127,8 @@
       "development": "./src/tools.ts",
       "types": "./dist/tools.d.ts",
       "default": "./dist/tools.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
