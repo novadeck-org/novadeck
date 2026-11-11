@@ -152,6 +152,18 @@ describe("a release's promotion", () => {
     })
   })
 
+  it("judges a night by its commit, not the date it started: the evening before or after midnight", () => {
+    // GitHub starts the nightly's cron hours late: one night on the evening before the
+    // release, on its commit, and the next just after midnight, on a later one, both count;
+    // the newest, after midnight, is the one named.
+    const evening = night({ id: 5, createdAt: "2026-11-12T17:41:00Z", sha: release })
+    const midnight = night({ id: 6, createdAt: "2026-11-14T00:52:00Z", sha: later })
+    expect(judge(quality, [evening], relations)).toEqual({ ok: true, run: evening })
+    expect(judge(quality, [midnight, evening], relations)).toEqual({ ok: true, run: midnight })
+    const before = night({ id: 7, createdAt: "2026-11-14T23:59:00Z", sha: earlier })
+    expect(judge(quality, [before, evening], relations)).toEqual({ ok: true, run: evening })
+  })
+
   it("compares only the newest runs that count with the release", () => {
     const runs = Array.from({ length: 14 }, (_, day) =>
       night({ createdAt: `2026-11-${String(day + 10).padStart(2, "0")}T00:23:00Z` }),
