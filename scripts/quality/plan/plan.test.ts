@@ -28,6 +28,27 @@ import {
 const root = join(import.meta.dirname, "..", "..", "..")
 
 /**
+ * A matrix's rows as a workflow lists them under `include:` (each `- name:` and the keys under
+ * it, `true` and numbers as such), from `text`, the slice that holds them.
+ */
+const matrixRows = (text: string): Record<string, unknown>[] =>
+  text
+    .split(/\n {10}- /)
+    .slice(1)
+    .map((item) =>
+      Object.fromEntries(
+        item
+          .split("\n")
+          .map((line) => /^\s*([a-z]+): (.+)$/.exec(line))
+          .filter((match): match is RegExpExecArray => match !== null)
+          .map(([, key, value]) => [
+            key,
+            value === "true" ? true : /^\d+$/.test(value!) ? Number(value) : value,
+          ]),
+      ),
+    )
+
+/**
  * A GitHub Actions expression over `values`, as far as the workflows' limits use them:
  * `&&`, `||`, `==`, `!=`, parentheses, numbers, strings and dotted names. Values pass through
  * `&&` and `||` as Actions passes them; false, 0, '' and null are falsy.
@@ -740,22 +761,9 @@ describe("Quality's workflow", () => {
     const tests = expression(limit(shared, shared.indexOf("- name: Run ${{ matrix.name }}")))
     const ofJob = (id: string) => expression(limit(job(id), 0))
     // Quality's own rows, as its matrix lists them.
-    const listed = shared
-      .slice(shared.indexOf("include:"), shared.indexOf("steps: &steps"))
-      .split(/\n {10}- /)
-      .slice(1)
-      .map((item) =>
-        Object.fromEntries(
-          item
-            .split("\n")
-            .map((line) => /^\s*([a-z]+): (.+)$/.exec(line))
-            .filter((match): match is RegExpExecArray => match !== null)
-            .map(([, key, value]) => [
-              key,
-              value === "true" ? true : /^\d+$/.test(value!) ? Number(value) : value,
-            ]),
-        ),
-      )
+    const listed = matrixRows(
+      shared.slice(shared.indexOf("include:"), shared.indexOf("steps: &steps")),
+    )
     expect(listed.length).toBeGreaterThan(5)
     const rows: [string, Record<string, unknown>][] = [
       ...listed.map((row): [string, Record<string, unknown>] => ["quality", row]),
@@ -785,6 +793,33 @@ describe("Quality's workflow", () => {
       const whole = Number(evaluate(ofJob(id), { runner, matrix: row }))
       expect(step, `${id} ${String(row.name)}`).toBeGreaterThan(0)
       expect(whole, `${id} ${String(row.name)}`).toBeGreaterThanOrEqual(step + 10)
+    }
+  })
+
+  // Nightly Quality keeps Quality's names and commands, and the same rule, read from its own
+  // expressions so the two workflows can't drift apart.
+  it("gives every Nightly Quality row ten minutes more than its tests", () => {
+    const nightly = readFileSync(join(root, ".github", "workflows", "quality-nightly.yml"), "utf8")
+    const expression = (pattern: RegExp) => pattern.exec(nightly)![1]!
+    const whole = expression(/\n {4}timeout-minutes: \$\{\{ (matrix\.timeout .+) \}\}\n/)
+    const tests = expression(/\n {8}timeout-minutes: \$\{\{ (matrix\.step .+) \}\}\n/)
+    const rows = matrixRows(
+      nightly.slice(nightly.indexOf("include:"), nightly.indexOf("\n    steps:")),
+    )
+    expect(rows.map(({ name }) => name)).toEqual(
+      expect.arrayContaining(["Test (macOS)", "Test (Windows, 1/3)"]),
+    )
+    for (const row of rows) {
+      const os = String(row.os ?? "ubuntu-latest")
+      const runner = {
+        os: os.startsWith("windows") ? "Windows" : os.startsWith("macos") ? "macOS" : "Linux",
+      }
+      const step = Number(evaluate(tests, { runner, matrix: row }))
+      expect(step, String(row.name)).toBeGreaterThan(0)
+      expect(
+        Number(evaluate(whole, { runner, matrix: row })),
+        String(row.name),
+      ).toBeGreaterThanOrEqual(step + 10)
     }
   })
 })
