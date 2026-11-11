@@ -379,7 +379,8 @@ Agents:
   (`history.ts`, a small git for the demo), from which the layers, their counts and every
   file's hunks and sides are read, as the runner reads them from git, so the facts the pane shows
   are real. Selecting a row in the Changes panel shows that terminal's work as one such change
-  (a layer of work not committed yet).
+  (a layer of work not committed yet). A file opened is kept read, as the runner keeps it
+  (`companions.changeRead`), for as long as the demo runs.
 - **Source:** the Source panel shows the current project's files, read one folder at a time as
   folders open, and read again when the panel is shown again or an agent's turn ends in the
   project. The runner has no changes to tell yet, so there the panel is the plain tree. In the

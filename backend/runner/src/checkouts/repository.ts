@@ -13,12 +13,14 @@ import { dirname, join, resolve } from "node:path"
 
 import { workLimits } from "@novadeck/protocol"
 
-import { git, maxUntrackedBytes, timing, type Run } from "../companions/changes.js"
-import { secrets } from "../companions/secrets.js"
-import { parseMerge, parseNumstat, type Lines } from "./lines.js"
+import { git, timing, type Run } from "./git.js"
 
-// Git, asked about a checkout for Works. Every run is the companions' `git`: no shell, literal
-// pathspecs, capped output, a timeout, and the person's own index never touched.
+// Git, asked about a checkout: its main branch, a snapshot of its working tree, merges in
+// memory. Every run is `git`: no shell, literal pathspecs, capped output, a timeout, and the
+// person's own index never touched.
+
+/** Untracked files: the largest one added to a snapshot. */
+export const maxUntrackedBytes = 1024 * 1024
 
 const small = { cap: 64 * 1024 }
 const listing = { cap: 8 * 1024 * 1024 }
@@ -71,9 +73,6 @@ export const commonDir = async (root: string): Promise<string | undefined> => {
   const full = resolve(root, dir)
   return realpath(full).catch(() => full)
 }
-
-/** The checkout's working tree as it is now: a tree, and a commit on HEAD holding it. */
-export type Snapshot = { readonly tree: string; readonly commit: string; readonly head: string }
 
 // A commit made for a merge is nobody's: a fixed name and time, so the same tree on the same
 // HEAD is always the same commit.
@@ -152,7 +151,7 @@ const copyIndex = async (person: string, index: string): Promise<boolean> => {
 const untrackedFiles = async (
   root: string,
   env: NodeJS.ProcessEnv,
-  environment: NodeJS.ProcessEnv | undefined,
+  held: Held,
 ): Promise<
   { readonly paths: string[]; readonly secret: string[]; readonly skipped: boolean } | undefined
 > => {
@@ -160,7 +159,6 @@ const untrackedFiles = async (
   const shown = line(await git(root, ["config", "--get", "status.showUntrackedFiles"], small))
   if (shown !== undefined && /^(no|false|off|0)$/i.test(shown))
     return { paths: [], secret: [], skipped: false }
-  const held = secrets(environment)
   const run = await git(root, ["ls-files", "-o", "--exclude-standard", "-z"], {
     ...listing,
     env,
@@ -183,6 +181,9 @@ const untrackedFiles = async (
   const paths = names.filter((_, at) => sizes[at]! <= maxUntrackedBytes)
   return { paths, secret, skipped: paths.length < names.length }
 }
+
+/** Whether a file (by its full path) may hold secrets: see the companions' `secrets`. */
+export type Held = (path: string) => boolean
 
 /** The checkout's working tree as a tree; `skipped` where untracked files over the size limit were left out. */
 export type Taken = {
@@ -233,9 +234,9 @@ const quotedEntry = (folder: string): string =>
 export const snapshotTree = async (
   root: string,
   index: string,
-  objects?: string,
-  /** The environment files are judged by for secrets (see `secrets`). */
-  environment?: NodeJS.ProcessEnv,
+  objects: string | undefined,
+  /** Which untracked files may hold secrets: those are named, never read. */
+  held: Held,
 ): Promise<Taken | undefined> => {
   const found = line(await git(root, ["rev-parse", "--verify", "-q", "HEAD^{commit}"], small))
   // Before the first commit there is no work to measure against main, which only layers read.
@@ -253,7 +254,7 @@ export const snapshotTree = async (
   // A file that can't be read fails the run but not the files before it (`--ignore-errors`).
   const tracked = await git(root, [...noLfs, "add", "-u", "--ignore-errors"], slow)
   if (!tracked.ok && tracked.kind !== "exit") return undefined
-  const untracked = await untrackedFiles(root, slow.env, environment)
+  const untracked = await untrackedFiles(root, slow.env, held)
   if (!untracked) return undefined
   if (untracked.paths.length > 0) {
     const added = await git(
@@ -378,6 +379,17 @@ export const snapshotCommit = (
   env?: NodeJS.ProcessEnv,
 ): Promise<string | undefined> => commitOf(root, tree, [head], env)
 
+/**
+ * What `git merge-tree --write-tree --name-only --no-messages -z` printed: the tree of the
+ * merge, then the names of the files that conflict, each ended by a NUL.
+ */
+export const parseMerge = (
+  out: string,
+): { readonly tree: string; readonly conflicts: string[] } => {
+  const [tree = "", ...names] = out.split("\0")
+  return { tree, conflicts: names.filter((name) => name !== "") }
+}
+
 /** What merging two commits does. */
 export type Merge =
   | { readonly state: "clean"; readonly tree: string }
@@ -423,21 +435,3 @@ export const mergeBase = async (
   env?: NodeJS.ProcessEnv,
 ): Promise<string | undefined> =>
   line(await git(root, ["merge-base", a, b], env ? { ...small, env } : small))
-
-/**
- * The lines each file differs by from `from` to `to` (commits or trees), renames shown as
- * a removal and an addition; undefined where git can't tell (an object gone, too long a list).
- */
-export const numstat = async (
-  root: string,
-  from: string,
-  to: string,
-  env?: NodeJS.ProcessEnv,
-): Promise<Map<string, Lines> | undefined> => {
-  const run = await git(
-    root,
-    ["diff", "--numstat", "-z", "--no-renames", "--no-ext-diff", "--no-textconv", from, to],
-    env ? { ...listing, env } : listing,
-  )
-  return run.ok ? parseNumstat(run.out) : undefined
-}

@@ -5,6 +5,7 @@ import type { TerminalKey } from "@novadeck/core/types"
 import { context, describe, expect, it } from "../test"
 import { authAgent, studioAgent } from "./agents"
 import { devServerArtifacts, studioArtifacts } from "./artifacts"
+import { changesArtifacts } from "./changes"
 import { createShowcase } from "./simulation"
 
 const session = { projectId: "p", workspaceSessionId: "s" }
@@ -417,5 +418,38 @@ describe("the project window", () => {
     const b = await showcase.openInProject!(there, "README.md", "pw-t")
     expect(b.item.id).not.toBe(a.item.id)
     expect(b.window.id).toBe("pw-t")
+  })
+})
+
+describe("a change the dev server shows", () => {
+  const changeOf = (content: ItemContent | undefined) =>
+    content?.state === "ready" && content.content.kind === "changes" ? content.content : undefined
+
+  it("keeps the files the person read, as the runner does, and tells whoever follows it", async () => {
+    const showcase = createShowcase(
+      { agents: [], shown: [{ key: devServer, handle: "fox", artifacts: changesArtifacts }] },
+      (_delay, run) => run(),
+      () => 100,
+    )
+    const contentOf = (id: Item["id"]) => {
+      let content: ItemContent | undefined
+      showcase.follow(session, id, { reveal: undefined }, (next) => (content = next))()
+      return content
+    }
+    const id = itemIdOf("change")
+    const path = changeOf(contentOf(id))!.files[0]!.path
+    const heard: ItemContent[] = []
+    const stop = showcase.follow(session, id, { reveal: undefined }, (next) => heard.push(next))
+
+    await showcase.changeRead!(session, id, path)
+    // A file the change does not list is not kept.
+    await showcase.changeRead!(session, id, "nowhere.ts")
+    stop()
+
+    expect(changeOf(contentOf(id))?.read).toEqual([path])
+    expect(heard.map((each) => changeOf(each)?.read)).toEqual([[], [path]])
+    expect(heard[1]?.state === "ready" && heard[0]?.state === "ready" && heard[1].stamp).not.toBe(
+      heard[0]?.state === "ready" && heard[0].stamp,
+    )
   })
 })

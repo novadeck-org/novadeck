@@ -21,16 +21,13 @@ import {
 } from "@novadeck/protocol"
 import { afterEach } from "vitest"
 
+import { timing } from "../checkouts/git.js"
+import { maxUntrackedBytes } from "../checkouts/repository.js"
+import { Snapshots } from "../checkouts/snapshots.js"
 import { describe, expect, it as base } from "../test.js"
-import {
-  maxUntrackedBytes,
-  parseDiff,
-  parseListing,
-  repositoryOf,
-  timing,
-  waitAfter,
-} from "./changes.js"
+import { parseDiff, repositoryOf } from "./changes.js"
 import { findRepository, LayerReader } from "./layers.js"
+import { secrets } from "./secrets.js"
 
 const hasGit = (() => {
   try {
@@ -254,61 +251,6 @@ describe("the bounds of a diff", () => {
     expect(text.length).toBe(4095)
     expect(text.endsWith("a")).toBe(true)
   })
-
-  it("reads git's raw and numstat listings together, with renames and binary files", () => {
-    const out = [
-      ":100644 100644 aaa bbb M",
-      "a.txt",
-      ":100644 000000 aaa 000 D",
-      "g.txt",
-      ":100644 100644 aaa bbb R085",
-      "r.txt",
-      "q.txt",
-      ":100644 100644 aaa bbb M",
-      "img.png",
-      "1\t1\ta.txt",
-      "0\t1\tg.txt",
-      "2\t0\t",
-      "r.txt",
-      "q.txt",
-      "-\t-\timg.png",
-      "",
-    ].join("\0")
-    expect(parseListing(out)).toEqual([
-      {
-        status: "modified",
-        path: "a.txt",
-        oldPath: null,
-        added: 1,
-        removed: 1,
-        binary: false,
-      },
-      {
-        status: "deleted",
-        path: "g.txt",
-        oldPath: null,
-        added: 0,
-        removed: 1,
-        binary: false,
-      },
-      {
-        status: "renamed",
-        path: "q.txt",
-        oldPath: "r.txt",
-        added: 2,
-        removed: 0,
-        binary: false,
-      },
-      {
-        status: "modified",
-        path: "img.png",
-        oldPath: null,
-        added: 0,
-        removed: 0,
-        binary: true,
-      },
-    ])
-  })
 })
 
 // Windows names a folder in any case, and git may spell it otherwise than the system does.
@@ -336,14 +278,30 @@ const commit = (repo: Repo, message: string, files: Record<string, string | Buff
   return repo.git("rev-parse", "HEAD").trim()
 }
 
-const opened: LayerReader[] = []
-const reader = () => {
-  const made = new LayerReader(() => undefined)
+const opened: { close: () => Promise<void> }[] = []
+// Snapshots as the runner makes them, but each taken afresh: a test reads right after an edit.
+const snapshotsFor = (repackAfter?: number): Snapshots => {
+  const made = new Snapshots({
+    held: () => secrets(undefined),
+    freshMs: 0,
+    ...(repackAfter !== undefined && { repackAfter }),
+  })
   opened.push(made)
   return made
 }
+const reader = (
+  options: ConstructorParameters<typeof LayerReader>[2] = {},
+  snapshots = snapshotsFor(),
+) => {
+  const made = new LayerReader(snapshots, () => undefined, options)
+  // Before the snapshots it reads with.
+  opened.unshift(made)
+  return made
+}
 afterEach(async () => {
-  await Promise.all(opened.splice(0).map((each) => each.close()))
+  for (const each of opened.splice(0))
+    // eslint-disable-next-line no-await-in-loop -- Readers close before their snapshots.
+    await each.close()
 })
 const layersOf = async (readers: LayerReader, root: string) => {
   const read = await readers.read(root)
@@ -428,6 +386,29 @@ describe.skipIf(!hasGit)("the layers of a change read from a git repository", ()
       ["new.txt", "added"],
       ["sub/deep.txt", "added"],
     ])
+  })
+
+  it("names the files read while they stay as they were read, a deleted one too", async ({
+    repo,
+  }) => {
+    repo.write("gone.txt", "g\n")
+    branched(repo)
+    repo.write("a.txt", "one\n")
+    repo.write("b.txt", "two\n")
+    rmSync(join(repo.root, "gone.txt"))
+    const marks = new Map<string, string>()
+    const readers = reader({ marks: () => marks })
+    const before = await layersOf(readers, repo.root)
+    expect(before.change.read).toEqual([])
+    // What the person read is what the last read listed.
+    for (const path of ["a.txt", "gone.txt"]) {
+      const listed = readers.listedFile(repo.root, path)!
+      marks.set(listed.path, listed.blob)
+    }
+    expect(readers.listedFile(repo.root, "nope.txt")).toBeUndefined()
+    expect((await layersOf(readers, repo.root)).change.read).toEqual(["a.txt", "gone.txt"])
+    repo.write("a.txt", "one, edited\n")
+    expect((await layersOf(readers, repo.root)).change.read).toEqual(["gone.txt"])
   })
 
   it("leaves an untracked file past the snapshot's size out, and says the layer is cut", async ({
@@ -1199,8 +1180,7 @@ describe.skipIf(!hasGit)("the merges of a change", () => {
     repo,
   }) => {
     const { f1, resolved, f2, mergeX, o1, octopus } = featured(repo)
-    const readers = new LayerReader(() => undefined, 120, { mergeTree: false })
-    opened.push(readers)
+    const readers = reader({ mergeTree: false })
     const read = await layersOf(readers, repo.root)
 
     expect(
@@ -1222,11 +1202,13 @@ describe.skipIf(!hasGit)("the merges of a change", () => {
   })
 })
 
-describe.skipIf(!hasGit)("the folders a reader makes", () => {
-  const objectsOf = async (readers: LayerReader): Promise<string[]> => {
-    const folder = await (readers as unknown as { folder: Promise<string> }).folder
+describe.skipIf(!hasGit)("the folders a reader's snapshots make", () => {
+  const folderOf = (snapshots: Snapshots): Promise<string> | undefined =>
+    (snapshots as unknown as { temporary: Promise<string> | undefined }).temporary
+  const objectsOf = async (snapshots: Snapshots): Promise<string[]> => {
+    const folder = await folderOf(snapshots)!
     return readdirSync(folder)
-      .filter((name) => name.endsWith("-objects"))
+      .filter((name) => name.startsWith("objects-"))
       .map((name) => join(folder, name))
   }
   const count = (path: string): number =>
@@ -1235,11 +1217,11 @@ describe.skipIf(!hasGit)("the folders a reader makes", () => {
       0,
     )
 
-  it("empties a checkout's objects now and then, and goes on reading", async ({ repo }) => {
+  it("rebuilds a repository's objects now and then, and goes on reading", async ({ repo }) => {
     branched(repo)
     commit(repo, "a", { "a.txt": "1\n" })
-    const readers = new LayerReader(() => undefined, 3)
-    opened.push(readers)
+    const snapshots = snapshotsFor(3)
+    const readers = reader({}, snapshots)
     const sizes: number[] = []
     for (let at = 0; at < 8; at += 1) {
       repo.write("a.txt", `edit ${at}\n`)
@@ -1247,7 +1229,7 @@ describe.skipIf(!hasGit)("the folders a reader makes", () => {
       const read = await layersOf(readers, repo.root)
       expect(read.change.layers[0]?.files.map(({ path }) => path)).toEqual(["a.txt"])
       // eslint-disable-next-line no-await-in-loop -- Counted after each read.
-      const [folder] = await objectsOf(readers)
+      const [folder] = await objectsOf(snapshots)
       sizes.push(count(folder!))
     }
     // It does not grow with the reads: it starts over every third.
@@ -1266,32 +1248,33 @@ describe.skipIf(!hasGit)("the folders a reader makes", () => {
       commit(repo, "a", { "a.txt": "1\n", ".gitattributes": "*.slow filter=slow\n" })
       repo.git("config", "filter.slow.clean", "sleep 20; cat")
       repo.write("x.slow", "x\n")
-      const readers = new LayerReader(() => undefined)
+      const snapshots = snapshotsFor()
+      const readers = new LayerReader(snapshots, () => undefined)
       const pending = readers.read(repo.root)
       await new Promise((resolve) => setTimeout(resolve, 500))
       const started = Date.now()
       await readers.close()
+      await snapshots.close()
 
       expect(Date.now() - started).toBeLessThan(5_000)
       expect(await pending).toMatchObject({ ok: false })
-      expect(
-        (await (readers as unknown as { folder: Promise<string> | undefined }).folder) ?? "",
-      ).toBe("")
+      expect(folderOf(snapshots)).toBeUndefined()
     },
   )
 
   it("is gone when closed, after the read in flight", async ({ repo }) => {
     branched(repo)
     commit(repo, "a", { "a.txt": "1\n" })
-    const readers = new LayerReader(() => undefined)
+    const snapshots = snapshotsFor()
+    const readers = new LayerReader(snapshots, () => undefined)
     const pending = readers.read(repo.root)
     let settled = false
     void pending.then(() => (settled = true))
     await new Promise((resolve) => setImmediate(resolve))
     await readers.close()
+    await snapshots.close()
     expect(settled).toBe(true)
-    const folder = await (readers as unknown as { folder: Promise<string> | undefined }).folder
-    expect(folder).toBeUndefined()
+    expect(folderOf(snapshots)).toBeUndefined()
     // Nothing is made for a read that comes after.
     expect(await readers.read(repo.root)).toMatchObject({ ok: false })
   })
@@ -1322,14 +1305,5 @@ describe.skipIf(!hasGit)("a repository in a folder named with the alternates sep
       before: "one\ntwo\n",
       after: "one\nTWO\n",
     })
-  })
-})
-
-describe("how long a change waits to be read again", () => {
-  it("is the usual wait for fast reads, longer for slow ones, and never more than 15 s", () => {
-    expect(waitAfter(50, 2000)).toBe(2000)
-    expect(waitAfter(1000, 2000)).toBe(2000)
-    expect(waitAfter(1500, 2000)).toBe(6000)
-    expect(waitAfter(60_000, 2000)).toBe(15_000)
   })
 })

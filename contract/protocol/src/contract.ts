@@ -567,6 +567,13 @@ export const contract = {
         }),
       )
       .output(changeRange),
+    // The person read a file of a changes item, by the name its content lists it under: the
+    // item's content names it in `read` until the file changes again. Kept across restarts
+    // with the Changes panel's memory. A file the change as a whole does not list is not
+    // marked. An unknown item, or one that is no change, is NOT_FOUND.
+    changeRead: procedure
+      .input(z.strictObject({ itemId: id, path: z.string().min(1).max(companionLimits.path) }))
+      .output(z.void()),
     // Writes the person's edit to a plan kept in a file, atomically, unless the file
     // changed since `basedOn`, the stamp the edit was made on: then nothing is written and
     // the plan as it now stands comes back. A plan kept in an agent's transcript can't be

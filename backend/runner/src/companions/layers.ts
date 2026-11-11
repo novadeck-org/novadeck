@@ -1,6 +1,3 @@
-import { createHash } from "node:crypto"
-import { mkdtemp, rm } from "node:fs/promises"
-import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
@@ -19,31 +16,21 @@ import {
   type ItemContent,
 } from "@novadeck/protocol"
 
+import { git, gitScope, type Run } from "../checkouts/git.js"
+import { diffFlags, listChanges, metaBytes, type Listed } from "../checkouts/listing.js"
+import { mainBranch, mergeBase, type Taken } from "../checkouts/repository.js"
+import { SnapshotsClosed, type Checkout, type Snapshots } from "../checkouts/snapshots.js"
 import { ellipsized } from "../text.js"
 import {
-  mainBranch,
-  mergeBase,
-  privateObjects,
-  snapshotTree,
-  type Taken,
-} from "../works/repository.js"
-import {
-  diffFlags,
-  gitScope,
   displayed,
   emptyTrees,
   failure,
-  git,
-  metaBytes,
   parseDiff,
-  parseListing,
   patchBytes,
   reasonOf,
   repositoryOf,
   samePlace,
   type ChangeFailure,
-  type Entry,
-  type Run,
 } from "./changes.js"
 import { hashOf } from "./content.js"
 import { secrets } from "./secrets.js"
@@ -51,17 +38,15 @@ import { secrets } from "./secrets.js"
 // A change as layers: a checkout measured against its repository's main branch. The layers
 // are its commits since the merge base with main, newest first, then, on top, the work not
 // committed yet, which is the working tree (untracked files included, under the size limits
-// of a snapshot) taken as a tree through a private index and a private object folder, so
-// neither the person's index nor their object store is written. A file's diff is read when it
-// is asked for, for the layers that were selected, which are always one range.
+// of a snapshot, see `Snapshots`) taken as a tree through a private index and a private object
+// folder, so neither the person's index nor their object store is written. A file's diff is
+// read when it is asked for, for the layers that were selected, which are always one range.
 
 const small = { cap: 64 * 1024 }
 // How many layers' files are listed at once.
 const poolSize = 4
 // How long closing waits for the reads under way, whose git runs it has ended.
 const closeWaitMs = 2000
-// How many snapshots a checkout's private objects take before they are emptied.
-const pruneAfter = 120
 
 /** A commit of the checkout since main, and the commit it is diffed against. */
 type Commit = {
@@ -71,22 +56,6 @@ type Commit = {
   readonly parents: readonly string[]
   readonly time: number
   readonly subject: string
-}
-
-/** A file as a layer's listing has it: git's entry, and the lines that only changed whitespace. */
-type Listed = Entry & { readonly reindented: number }
-
-/** The files two commits or trees differ by, once read: a commit's never change. */
-const kept = new Map<string, readonly Listed[]>()
-const keptMost = 400
-
-const keep = (key: string, files: readonly Listed[]): void => {
-  kept.delete(key)
-  kept.set(key, files)
-  for (const old of kept.keys()) {
-    if (kept.size <= keptMost) break
-    kept.delete(old)
-  }
 }
 
 const printed = (run: Run): string => (run.ok ? run.out.trim() : "")
@@ -117,45 +86,16 @@ const pooled = async <T, R>(
   return out
 }
 
-/**
- * The files two commits or trees differ by, renames found, with the lines each added and
- * removed ignoring whitespace; the lines that only changed whitespace are `reindented`. `env`
- * says where a snapshot's objects are.
- */
+/** The files two commits or trees differ by (see `listChanges`), or why git couldn't tell. */
 const listDiff = async (
   root: string,
   from: string,
   to: string,
   env?: NodeJS.ProcessEnv,
-  /** Whether the listing is kept: not where one end is a snapshot, a new tree every time. */
-  store = env === undefined,
+  store?: boolean,
 ): Promise<readonly Listed[] | ChangeFailure> => {
-  const key = `${root}\0${from}\0${to}`
-  const known = kept.get(key)
-  if (known) return known
-  const limit = { cap: metaBytes, ...(env && { env }) }
-  const [plain, quiet] = await Promise.all([
-    git(root, [...diffFlags, "--raw", "--numstat", "-z", from, to, "--"], limit),
-    git(root, [...diffFlags, "-w", "--raw", "--numstat", "-z", from, to, "--"], limit),
-  ])
-  if (!plain.ok) return failure("failed", reasonOf(plain, "read the changes"))
-  if (!quiet.ok) return failure("failed", reasonOf(quiet, "read the changes"))
-  const ignoring = new Map(parseListing(quiet.out).map((entry) => [entry.path, entry]))
-  const files = parseListing(plain.out).map((entry): Listed => {
-    const quieter = ignoring.get(entry.path)
-    if (!quieter || entry.binary) return { ...entry, reindented: 0 }
-    return {
-      ...entry,
-      added: quieter.added,
-      removed: quieter.removed,
-      reindented: Math.max(
-        0,
-        Math.min(entry.added - quieter.added, entry.removed - quieter.removed),
-      ),
-    }
-  })
-  if (store) keep(key, files)
-  return files
+  const found = await listChanges(root, from, to, env, store)
+  return "ok" in found ? failure("failed", reasonOf(found, "read the changes")) : found
 }
 
 /**
@@ -308,34 +248,38 @@ type Span = {
   readonly named: readonly Listed[]
 }
 
+/** The files of a checkout read, each by its object when read (see `Works.marks`). */
+export type ReadMarks = (root: string) => ReadonlyMap<string, string>
+
 /**
- * Reads checkouts' changes and files' diffs, one read at a time per checkout: each has a
- * private index and a folder for the objects a snapshot makes, in a folder made when first
- * needed, and two reads would write one file.
+ * Reads checkouts' changes and files' diffs, one read at a time per checkout (its snapshots
+ * share a private index), through the snapshots it shares with the Changes panel.
  */
 export class LayerReader {
-  private folder: Promise<string> | undefined
   private closed = false
   private mergeTree: Promise<boolean> | undefined
   private readonly stop = new AbortController()
-  private readonly queues = new Map<string, Promise<void>>()
-  /** Each checkout's last snapshot, which a file asked for next reads while HEAD stands. */
-  private readonly taken = new Map<string, Taken>()
-  /** Each checkout's environment for private objects. */
-  private readonly envs = new Map<string, NodeJS.ProcessEnv>()
-  /** How many snapshots each checkout's object folder has taken since it was emptied. */
-  private readonly written = new Map<string, number>()
+  /** The reads under way, which closing waits for. */
+  private readonly reading = new Set<Promise<unknown>>()
+  /** Each checkout's files as its change last listed them as a whole, by name, with their objects. */
+  private readonly listed = new Map<string, ReadonlyMap<string, Listed>>()
 
   constructor(
+    private readonly snapshots: Snapshots,
     private readonly environment: () => NodeJS.ProcessEnv | undefined,
-    /** How many snapshots a checkout's objects take before they are emptied. */
-    private readonly emptyAfter = pruneAfter,
-    private readonly options: { readonly mergeTree?: boolean } = {},
+    private readonly options: {
+      readonly mergeTree?: boolean
+      /** The files read, which the change names as read while they stay as they were. */
+      readonly marks?: ReadMarks
+    } = {},
   ) {}
 
-  /** A checkout's layers as they are now. */
-  read(root: string): Promise<Read> {
-    return this.exclusive(root, () => this.layers(root))
+  /**
+   * A checkout's layers as they are now: the work not committed yet as a snapshot of a moment
+   * ago serves (see `Snapshots`), unless `fresh`.
+   */
+  read(root: string, fresh = false): Promise<Read> {
+    return this.exclusive(root, (checkout) => this.layers(root, checkout, fresh))
   }
 
   /**
@@ -344,90 +288,51 @@ export class LayerReader {
    * selection did not change has no run.
    */
   file(root: string, path: string, selected: readonly string[]): Promise<ReadFile> {
-    return this.exclusive(root, () => this.diff(root, path, selected))
+    return this.exclusive(root, (checkout) => this.diff(root, path, selected, checkout))
   }
 
   /** The files the layers selected changed as one range, with their lines as the range has them. */
   range(root: string, selected: readonly string[]): Promise<ReadRange> {
-    return this.exclusive(root, () => this.listRange(root, selected))
-  }
-
-  /** Forgets the private indexes and objects once the reads in flight are done; nothing is read after. */
-  async close(): Promise<void> {
-    this.closed = true
-    // The git runs under way are ended, and the reads waited for a moment (they fail as they
-    // find this closed), so the folder goes with nothing writing to it.
-    this.stop.abort()
-    await Promise.race([Promise.all(this.queues.values()), sleep(closeWaitMs)])
-    const folder = this.folder
-    this.folder = undefined
-    if (folder) await rm(await folder, { recursive: true, force: true }).catch(() => {})
-  }
-
-  private exclusive<T>(root: string, run: () => Promise<T>): Promise<T | ChangeFailure> {
-    if (this.closed) return Promise.resolve(failure("failed", "Novadeck is closing."))
-    const before = this.queues.get(root) ?? Promise.resolve()
-    const next: Promise<T | ChangeFailure> = before.then(async (): Promise<T | ChangeFailure> => {
-      if (this.closed) return failure("failed", "Novadeck is closing.")
-      return gitScope.run(this.stop.signal, async () => {
-        await this.tidy(root)
-        return run()
-      })
-    })
-    const tail = next.then(
-      () => {},
-      () => {},
-    )
-    this.queues.set(root, tail)
-    void tail.then(() => {
-      if (this.queues.get(root) === tail) this.queues.delete(root)
-    })
-    return next
-  }
-
-  /** The files made for a checkout, undefined once closed (nothing is made then). */
-  private async place(root: string): Promise<{ index: string; objects: string } | undefined> {
-    if (this.closed) return undefined
-    this.folder ??= mkdtemp(join(tmpdir(), "novadeck-changes-"))
-    const name = createHash("sha1").update(root).digest("hex").slice(0, 16)
-    const folder = await this.folder
-    // Closed while the folder was made: close removes it, and nothing is written to it.
-    if (this.closed) return undefined
-    return { index: join(folder, name), objects: join(folder, `${name}-objects`) }
+    return this.exclusive(root, (checkout) => this.listRange(root, selected, checkout))
   }
 
   /**
-   * Empties a checkout's object folder once it has taken many snapshots (each leaves its
-   * blobs and trees), as no read of it is in flight; what is read after makes what it needs.
+   * A file of the change as the last read of it listed it (by the name shown): its name as git
+   * has it and its object then; undefined where that read did not list it.
    */
-  private async tidy(root: string): Promise<void> {
-    if ((this.written.get(root) ?? 0) < this.emptyAfter) return
-    const placed = await this.place(root)
-    if (!placed) return
-    await rm(placed.objects, { recursive: true, force: true }).catch(() => {})
-    this.written.set(root, 0)
-    this.taken.delete(root)
-    this.envs.delete(root)
+  listedFile(
+    root: string,
+    path: string,
+  ): { readonly path: string; readonly blob: string } | undefined {
+    const entry = this.listed.get(root)?.get(path)
+    return entry && entry.blob !== "" ? { path: entry.path, blob: entry.blob } : undefined
   }
 
-  /** The environment that makes objects in a checkout's private folder; undefined once closed. */
-  private async objectsOf(root: string): Promise<NodeJS.ProcessEnv | undefined> {
-    const known = this.envs.get(root)
-    if (known) return known
-    const placed = await this.place(root)
-    const env = placed && (await privateObjects(root, placed.objects))
-    if (env) this.envs.set(root, env)
-    return env
+  /** Ends the git runs under way, and waits a moment for their reads, which fail; nothing is read after. */
+  async close(): Promise<void> {
+    this.closed = true
+    this.stop.abort()
+    await Promise.race([Promise.allSettled(this.reading), sleep(closeWaitMs)])
   }
 
-  /** The work not committed yet as a tree, taken now. */
-  private async snapshot(root: string): Promise<Taken | undefined> {
-    const placed = await this.place(root)
-    if (!placed) return undefined
-    this.written.set(root, (this.written.get(root) ?? 0) + 1)
-    const taken = await snapshotTree(root, placed.index, placed.objects, this.environment())
-    if (taken) this.taken.set(root, taken)
-    return taken
+  private exclusive<T>(
+    root: string,
+    run: (checkout: Checkout) => Promise<T>,
+  ): Promise<T | ChangeFailure> {
+    if (this.closed) return Promise.resolve(failure("failed", "Novadeck is closing."))
+    const reading = this.snapshots
+      .use<T | ChangeFailure>(root, (checkout) => {
+        if (this.closed) return Promise.resolve(failure("failed", "Novadeck is closing."))
+        return gitScope.run(this.stop.signal, () => run(checkout))
+      })
+      .catch((error: unknown): ChangeFailure => {
+        if (error instanceof SnapshotsClosed) return failure("failed", "Novadeck is closing.")
+        throw error
+      })
+    this.reading.add(reading)
+    const done = () => this.reading.delete(reading)
+    reading.then(done, done)
+    return reading
   }
 
   /** Why the work not committed yet could not be taken. */
@@ -461,16 +366,18 @@ export class LayerReader {
     return (this.mergeTree ??= (async () => this.options.mergeTree ?? (await canMergeTree()))())
   }
 
-  private async layers(root: string): Promise<Read> {
+  private async layers(root: string, checkout: Checkout, fresh: boolean): Promise<Read> {
     const where = await standing(root)
     if ("ok" in where) return where
     const { head, base, since, commits } = where
     const name = `Changes · ${basename(root)}`
     const held = holder(root, this.environment())
     const room = { left: maxLayerFiles }
-    const taken = await this.snapshot(root)
+    let taken = await checkout.take(fresh)
+    // One that serves was taken on another HEAD: the work not committed yet is taken again.
+    if (taken && taken.head !== (head ?? "")) taken = await checkout.take(true)
     if (!taken) return this.unsnapped()
-    const own = await this.objectsOf(root)
+    const own = await checkout.objects()
     if (!own) return this.unsnapped()
     const empty = await emptyTreeOf(root)
     const merges = await this.merges()
@@ -515,6 +422,8 @@ export class LayerReader {
       layers.some((layer) => layer.truncated)
     const netList = await listDiff(root, since ?? head ?? empty, taken.tree, taken.env)
     const net = "ok" in netList ? netList : [...netList, ...named(taken)].toSorted(byPath)
+    if (!("ok" in net))
+      this.listed.set(root, new Map(net.map((entry) => [displayed(entry.path), entry])))
     return {
       ok: true,
       change: this.made(
@@ -543,6 +452,15 @@ export class LayerReader {
     // The change as a whole: what it differs from main by, not what its layers add up to. The
     // stamp follows the snapshot too, so a line edited with its counts unchanged is news.
     const files = "ok" in net ? undefined : net
+    // A file reads as read while it is the object it was read as.
+    const marks = this.options.marks?.(root)
+    const read =
+      files && marks && marks.size > 0
+        ? files
+            .slice(0, maxChangedFiles)
+            .filter((entry) => entry.blob !== "" && marks.get(entry.path) === entry.blob)
+            .map((entry) => displayed(entry.path))
+        : []
     // Where git could not list it, the layers' own files stand in, a path once.
     const listed = files
       ? files.slice(0, maxChangedFiles).map((entry) => fileOf(entry, held))
@@ -561,6 +479,7 @@ export class LayerReader {
       base,
       layers,
       files: listed,
+      read,
       truncated: truncated || cut,
     }
     const count = files
@@ -583,6 +502,7 @@ export class LayerReader {
   private async span(
     root: string,
     selected: readonly string[],
+    checkout: Checkout,
   ): Promise<Span | undefined | ChangeFailure> {
     const where = await standing(root)
     if ("ok" in where) return where
@@ -597,14 +517,14 @@ export class LayerReader {
     const oldest = at.at(-1)!
     const layers = all.slice(newest, oldest + 1)
     const empty = await emptyTreeOf(root)
-    const own = await this.objectsOf(root)
+    const own = await checkout.objects()
     if (!own) return this.unsnapped()
-    let taken = this.taken.get(root)
+    let taken: Taken | undefined = checkout.latest()
     let to: string
     if (newest === 0) {
       // The tree the list was last read at serves while HEAD stands, so stepping through the
       // files does not take the snapshot again for each.
-      if (!taken || taken.head !== (head ?? "")) taken = await this.snapshot(root)
+      if (!taken || taken.head !== (head ?? "")) taken = await checkout.take(true)
       if (!taken) return this.unsnapped()
       to = taken.tree
     } else to = shown[newest - 1]!.id
@@ -649,8 +569,12 @@ export class LayerReader {
     }
   }
 
-  private async listRange(root: string, selected: readonly string[]): Promise<ReadRange> {
-    const span = await this.span(root, selected)
+  private async listRange(
+    root: string,
+    selected: readonly string[],
+    checkout: Checkout,
+  ): Promise<ReadRange> {
+    const span = await this.span(root, selected, checkout)
     if (span === undefined) return { ok: true, range: { files: [], truncated: false } }
     if ("ok" in span) return span
     const found = await listDiff(root, span.from, span.to, span.env, span.store)
@@ -666,8 +590,13 @@ export class LayerReader {
     }
   }
 
-  private async diff(root: string, path: string, selected: readonly string[]): Promise<ReadFile> {
-    const span = await this.span(root, selected)
+  private async diff(
+    root: string,
+    path: string,
+    selected: readonly string[],
+    checkout: Checkout,
+  ): Promise<ReadFile> {
+    const span = await this.span(root, selected, checkout)
     if (span === undefined) return { ok: true, diff: { run: null } }
     if ("ok" in span) return span
     const run = await this.run(root, path, span, holder(root, this.environment()))
@@ -742,6 +671,7 @@ const named = (taken: Taken): readonly Listed[] =>
     added: 0,
     removed: 0,
     binary: false,
+    blob: "",
     reindented: 0,
   }))
 

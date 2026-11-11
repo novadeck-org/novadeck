@@ -266,8 +266,9 @@ export const changeFileDiff = z.strictObject({
 // The layers are the checkout's commits since the merge base with main, then, above
 // them, the work not committed yet (staged, unstaged and untracked, not ignored). At most
 // `maxChangeLayers` layers and `maxLayerFiles` files are listed, `truncated` says when
-// more changed (in `files` too); `root` is the repository's folder, which its paths are from. Or why it
-// can't be shown, with the file's size where known.
+// more changed (in `files` too); `root` is the repository's folder, which its paths are from.
+// `read` names the files of `files` the person read (`companions.changeRead`) that are still as
+// they were then. Or why it can't be shown, with the file's size where known.
 export const itemContent = z.discriminatedUnion("state", [
   z.strictObject({
     state: z.literal("ready"),
@@ -299,6 +300,7 @@ export const itemContent = z.discriminatedUnion("state", [
         // The files the change as a whole differs from main by, as `changeRange` lists a
         // range (the layers' own files added up are not that), up to `maxChangedFiles`.
         files: z.array(changedFile).max(maxChangedFiles),
+        read: z.array(z.string().max(companionLimits.path)).max(maxChangedFiles),
         truncated: z.boolean(),
       }),
       z.strictObject({

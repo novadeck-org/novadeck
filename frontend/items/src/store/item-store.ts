@@ -76,6 +76,9 @@ export type ItemStore = {
   readonly changeFile: NonNullable<Companions["changeFile"]>
   // The files a selection of layers changed as one range.
   readonly changeRange: NonNullable<Companions["changeRange"]>
+  // The person read a file of a changes item. Best effort: it never fails, and a backend that
+  // can't keep it does nothing.
+  readonly changeRead: (target: WorkspaceTarget, itemId: ItemId, path: string) => void
   // Follows every plan in the workspace from here on; returns the stop.
   readonly connect: () => () => void
   // Takes a picture of a live page for it to rest as: the backend's, where it has one.
@@ -656,6 +659,9 @@ export const createItemStore = ({
     session.companions.changeRange
       ? session.companions.changeRange(target, itemId, layers)
       : Promise.reject(new Error("This backend can't read a change's range"))
+  const changeRead: ItemStore["changeRead"] = (target, itemId, path) => {
+    void session.companions.changeRead?.(target, itemId, path).catch(() => {})
+  }
   return {
     store: session.store,
     watch,
@@ -664,6 +670,7 @@ export const createItemStore = ({
     trouble,
     changeFile,
     changeRange,
+    changeRead,
     connect,
     ...(picture && { picture }),
     ...(phone && { phone }),

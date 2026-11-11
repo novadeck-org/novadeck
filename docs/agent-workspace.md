@@ -295,13 +295,14 @@ through the backend's seed and actions, as terminals do; the person's moves are
 workspace actions the backend makes so. The pane loads content through the backend
 port's optional `companions` capability (`frontend/core/src/items.ts`):
 
-| `companions`                                | What it carries                                                                                           |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `follow(target, itemId, { reveal }, on)`    | What an item holds now, then again as it changes: ready with a stamp, or why not                          |
-| `save(target, itemId, text, basedOn)`       | The user's edit written to the plan file, unless it changed since stamp `basedOn`                         |
-| `openInProject?(target, path, windowId)`    | A file the person opened from Source, in the project window; absent where it can't be                     |
-| `changeFile?(target, itemId, path, layers)` | One file of a change for the layers selected: its diff and both sides' text; absent where it can't be     |
-| `changeRange?(target, itemId, layers)`      | The files the layers selected changed as one range, with the range's own counts; absent where it can't be |
+| `companions`                                | What it carries                                                                                              |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `follow(target, itemId, { reveal }, on)`    | What an item holds now, then again as it changes: ready with a stamp, or why not                             |
+| `save(target, itemId, text, basedOn)`       | The user's edit written to the plan file, unless it changed since stamp `basedOn`                            |
+| `openInProject?(target, path, windowId)`    | A file the person opened from Source, in the project window; absent where it can't be                        |
+| `changeFile?(target, itemId, path, layers)` | One file of a change for the layers selected: its diff and both sides' text; absent where it can't be        |
+| `changeRange?(target, itemId, layers)`      | The files the layers selected changed as one range, with the range's own counts; absent where it can't be    |
+| `changeRead?(target, itemId, path)`         | The person read a file of a change: the content's `read` names it until it changes; absent where it can't be |
 
 A file that may hold secrets is `secret` until the person asks to see it, and `reveal` is the path
 they asked for: the item re-pointed to another file reads `secret` again.
@@ -317,8 +318,9 @@ selected neighbours, growing and shrinking by scale and opacity and sliding its 
 `--motion-state` (none under reduced motion). The first click keeps only the row clicked, the next
 click takes every row between the first one clicked (the anchor) and it, either way, a click
 after that starts over from the row clicked, and clicking the only row selected is all again: it
-works as a slicer, and a selection is always one range (`selection.ts`). A file the person opened is gray in the tree, until
-its counts or layers change. One click on a file unfolds what it changed under its row, one file
+works as a slicer, and a selection is always one range (`selection.ts`). A file the person opened is gray in the tree, in
+any selection, until the file changes again: the runner keeps it read (`changeRead`, in the
+content's `read`), across restarts, and the pane grays it at once until the content comes again. One click on a file unfolds what it changed under its row, one file
 at a time, as `.terminal-tab-branches` unfold a terminal tab's subagents (├ └ rows with the
 tab's own fold and transition), each a fact (where the change sits, `+N −N`); a double click, or
 Enter, opens the file. The **file view** is the row grown into a plain heading (‹ back, the folder
@@ -480,12 +482,23 @@ with every safety check again at that time:
   is not there, a rename is one row, the counts are the range's) up to the file bound, with
   `truncated` where more exist.
 
-  The objects a snapshot or an in-memory merge writes go to a private folder (with the repository's
-  own as an alternate, quoted in `GIT_ALTERNATE_OBJECT_DIRECTORIES` so a path with `:` or `;` in
-  it reads), never to the person's store. A change's folder is emptied every so many reads and
-  removed when the runner closes; the Changes panel's (Works) lives beside its memory file,
-  one per git common dir, and is rebuilt now and then to what the trees last read reach, so
-  the read marker survives a restart.
+  One snapshot service (`backend/runner/src/checkouts/snapshots.ts`) takes the working tree for
+  both the changes item and the Changes panel (Works), so a checkout both read is taken once:
+  a snapshot younger than 1.5 seconds serves whoever asks next (an agent's show and a look
+  take their own). Each checkout has one private index file, and each repository one private
+  object folder for all of its worktrees, which the objects a snapshot or an in-memory merge
+  writes go to (with the repository's own as an alternate, quoted in
+  `GIT_ALTERNATE_OBJECT_DIRECTORIES` so a path with `:` or `;` in it reads), never the person's
+  store. The folders live beside the Changes panel's memory file (`works-objects/`, one per git
+  common dir) and are rebuilt every 300 snapshots, once nothing is using them, to what the
+  trees the works were last read as reach, so the read marker survives a restart. The panel
+  counts a work's files as the item does (renames found, whitespace ignored, re-indented lines
+  apart), so a row's `+N −N` is its pane's.
+
+  The files the person read are kept in the same memory file (`works.json`), each by its object
+  as the change listed it (all zeros for a file deleted): `companions.changeRead` marks one,
+  and the content's `read` names the files of the change whose object is still that one. A
+  mark goes once its file is no longer part of the work.
 
   Reading costs git runs, and a big repository makes each one slow: after a read that
   took over a second, the next waits four times as long (up to 15 seconds), and the

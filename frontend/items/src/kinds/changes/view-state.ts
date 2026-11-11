@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from "react"
 import type { Picked } from "./selection"
 
 // What the person has done in a change's pane, kept by item for as long as the session lives, so
-// a change shown again is as they left it: the layers picked, the file unfolded or opened, the
-// folders folded and the files read (each by what it was when it was read).
+// a change shown again is as they left it: the layers picked, the file unfolded or opened and
+// the folders folded. The files read are the backend's (the content's `read`); `read` here holds
+// each file opened by the content's stamp then, which grays it until the content comes again
+// (with the backend's word on it, or where the backend keeps none, with a change).
 
 export type ChangesView = {
   readonly picked: Picked

@@ -243,6 +243,7 @@ export const contentOf = (history: History): ChangesContent => {
     root: history.root,
     base: history.base,
     layers,
+    read: [],
     // The whole change's own list: the range over every layer.
     files: rangeOf(
       history,

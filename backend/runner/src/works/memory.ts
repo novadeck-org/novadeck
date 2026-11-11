@@ -12,22 +12,38 @@ export type Remembered = {
   readonly firstSeenAt: number
   /** The tree the person last read it as; null before a first look. */
   readonly watermark: string | null
+  /**
+   * The files the person read in its changes item, each by its object when read (all zeros
+   * where it was deleted): read for as long as it stays that. Absent before the first.
+   */
+  readonly read?: Readonly<Record<string, string>>
 }
+
+const objectId = /^[0-9a-f]{40,64}$/
 
 const isRemembered = (value: unknown): value is Remembered => {
   if (typeof value !== "object" || value === null) return false
-  const { firstSeenAt, watermark } = value as { firstSeenAt?: unknown; watermark?: unknown }
+  const { firstSeenAt, watermark, read } = value as {
+    firstSeenAt?: unknown
+    watermark?: unknown
+    read?: unknown
+  }
   return (
     typeof firstSeenAt === "number" &&
     Number.isFinite(firstSeenAt) &&
-    (watermark === null || (typeof watermark === "string" && /^[0-9a-f]{40,64}$/.test(watermark)))
+    (watermark === null || (typeof watermark === "string" && objectId.test(watermark))) &&
+    (read === undefined ||
+      (typeof read === "object" &&
+        read !== null &&
+        !Array.isArray(read) &&
+        Object.values(read).every((blob) => typeof blob === "string" && objectId.test(blob))))
   )
 }
 
 /**
  * What the runner remembers of the works, in a small JSON file beside its other state
  * (checkout to `Remembered`). Not the workspace database: losing it only means a work's
- * unread part starts again from all of it. Anything unreadable is a file with nothing in it.
+ * unread part, and its files read, start again from all of it. Anything unreadable is a file with nothing in it.
  */
 export const loadRemembered = async (path: string): Promise<Map<string, Remembered>> => {
   try {
