@@ -56,6 +56,8 @@ type Read = {
   readonly branch: string | null
   readonly base: string
   readonly changed: ReadonlyMap<string, Lines>
+  /** The paths it touches: each file's, and a renamed one's old path too. */
+  readonly touched: ReadonlySet<string>
   readonly unread: ReadonlyMap<string, Lines> | undefined
   /** The files conflicting with main; undefined where this git can't tell. */
   readonly conflicts: readonly string[] | undefined
@@ -208,17 +210,16 @@ export class Works {
    */
   async markRead(root: string, path: string, blob: string): Promise<void> {
     await this.loaded
-    await this.exclusive(() => {
-      let state = this.roots.get(root)
-      if (!state) {
-        state = { remembered: undefined, read: undefined, nextAt: 0 }
-        this.roots.set(root, state)
-      }
-      const remembered = state.remembered ?? { firstSeenAt: this.now(), watermark: null }
-      state.remembered = { ...remembered, read: { ...remembered.read, [path]: blob } }
-      this.remember()
-      return Promise.resolve()
-    })
+    // At once, not behind a pass: the changes item's next read names it. A pass under way sets
+    // what it remembers from what is there when it ends, this mark too.
+    let state = this.roots.get(root)
+    if (!state) {
+      state = { remembered: undefined, read: undefined, nextAt: 0 }
+      this.roots.set(root, state)
+    }
+    const remembered = state.remembered ?? { firstSeenAt: this.now(), watermark: null }
+    state.remembered = { ...remembered, read: { ...remembered.read, [path]: blob } }
+    this.remember()
   }
 
   /** The files of a checkout read, each by the object it was read as. */
@@ -427,6 +428,7 @@ export class Works {
       branch,
       base: main.name,
       changed,
+      touched: new Set(listed.flatMap(({ path, oldPath }) => (oldPath ? [path, oldPath] : [path]))),
       unread,
       conflicts:
         merge.state === "conflict" ? merge.files : merge.state === "clean" ? [] : undefined,
@@ -497,7 +499,8 @@ export class Works {
       result.set(terminalId, mine)
     }
     const sets = reads.map(({ read }) => ({
-      paths: new Set(read.changed.keys()),
+      // A rename touches its old path too, which another work may have changed.
+      paths: read.touched,
       truncated: read.changed.size > workLimits.files || read.skipped,
     }))
     for (let first = 0; first < reads.length; first += 1)

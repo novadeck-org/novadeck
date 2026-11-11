@@ -117,6 +117,29 @@ describe.skipIf(!hasGit)("the snapshots of checkouts", () => {
     expect(await treeGone(fixture.root, dropped.tree, after.env)).toBe(true)
   })
 
+  it("rebuilds a folder in constant use: new uses wait for the ones under way to end", async ({
+    fixture,
+    resources,
+  }) => {
+    const snapshots = new Snapshots({ held: () => none, freshMs: 0, repackAfter: 3 })
+    resources.defer(() => snapshots.close())
+    const other = join(fixture.holder, "other")
+    fixture.git(fixture.root, "worktree", "add", "--quiet", "-b", "other", other)
+    await snapshots.use(fixture.root, (checkout) => checkout.take())
+    let release = () => {}
+    const holding = snapshots.use(fixture.root, () => new Promise<void>((done) => (release = done)))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    // The folder comes due while that use is under way.
+    await snapshots.use(other, (checkout) => checkout.take())
+    const before = (await snapshots.use(other, (checkout) => checkout.take()))!
+    // The rebuild waits for the use under way; the next use waits for the rebuild.
+    const after = snapshots.use(other, (checkout) => checkout.take())
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    release()
+    await holding
+    expect((await after)?.generation).toBe(before.generation + 1)
+  })
+
   it("refuses uses once closed, and removes its own folder", async ({ fixture }) => {
     const snapshots = new Snapshots({ held: () => none })
     await snapshots.use(fixture.root, (checkout) => checkout.take())

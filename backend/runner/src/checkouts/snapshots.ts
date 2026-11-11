@@ -65,6 +65,8 @@ type Folder = {
   users: number
   generation: number
   rebuilding: Promise<void> | undefined
+  /** Called once the uses under way are done, where a rebuild waits for them. */
+  idle: (() => void) | undefined
 }
 
 const repackAfter = 300
@@ -108,7 +110,8 @@ export class Snapshots {
     const next = before.then(async () => {
       if (this.closed) throw new SnapshotsClosed()
       const folder = await this.folderOf(root)
-      // A folder due to be rebuilt is rebuilt first, once nothing is using it.
+      // A folder due to be rebuilt is rebuilt first, once the uses under way are done; new
+      // uses wait for it, so a folder in constant use is rebuilt all the same.
       // eslint-disable-next-line no-await-in-loop -- Waits for each rebuild before looking again.
       while (folder.rebuilding || this.tidy(root, folder)) await folder.rebuilding
       folder.users += 1
@@ -116,6 +119,7 @@ export class Snapshots {
         return await run(this.checkout(root, folder))
       } finally {
         folder.users -= 1
+        if (folder.users === 0) folder.idle?.()
       }
     })
     const tail = next.then(
@@ -205,8 +209,11 @@ export class Snapshots {
     let found = this.placed.get(root)
     if (!found) {
       found = (async () => {
-        const common = (await commonDir(root)) ?? root
-        const name = hashed(common)
+        const common = await commonDir(root)
+        // Git couldn't tell (slow): the checkout's own folder serves this once, and the next
+        // use asks again, so its snapshots don't stay apart from its repository's.
+        if (common === undefined) this.placed.delete(root)
+        const name = hashed(common ?? root)
         const path =
           this.options.home === undefined
             ? join(await this.run(), `objects-${name}`)
@@ -218,6 +225,7 @@ export class Snapshots {
           users: 0,
           generation: 0,
           rebuilding: undefined,
+          idle: undefined,
         }
         folder.roots.add(root)
         this.folders.set(path, folder)
@@ -231,18 +239,22 @@ export class Snapshots {
   }
 
   /**
-   * Starts rebuilding a folder that took many snapshots where no use of it is running, keeping
-   * the trees its checkouts keep; the uses asked for meanwhile wait for it. Whether it started.
+   * Starts rebuilding a folder that took many snapshots, once the uses of it under way are
+   * done, keeping the trees its checkouts keep; the uses asked for meanwhile wait for it.
+   * Whether it started.
    */
   private tidy(root: string, folder: Folder): boolean {
-    if (folder.users > 0 || folder.rebuilding || this.closed) return false
+    if (folder.rebuilding || this.closed) return false
     if (folder.written < (this.options.repackAfter ?? repackAfter)) return false
-    const roots = [...folder.roots]
-    const trees = [
-      ...new Set(roots.flatMap((each) => [...this.keeps].flatMap((keep) => keep(each)))),
-    ]
     folder.rebuilding = (async () => {
       try {
+        if (folder.users > 0) await new Promise<void>((done) => (folder.idle = done))
+        folder.idle = undefined
+        // Asked now, with nothing running: a tree kept a moment ago is kept too.
+        const roots = [...folder.roots]
+        const trees = [
+          ...new Set(roots.flatMap((each) => [...this.keeps].flatMap((keep) => keep(each)))),
+        ]
         // Where it can't be rebuilt it stays as it is, and is tried again as many snapshots later.
         if (await repack(root, folder.path, trees)) {
           folder.generation += 1
