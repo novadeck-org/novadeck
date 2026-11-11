@@ -54,6 +54,7 @@ const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   happenings: [],
   standing: false,
   shell: { running: false, command: null },
+  background: null,
   ...overrides,
 })
 
@@ -475,6 +476,57 @@ describe("a peer whose agent waits to be woken", () => {
       waiting: { kind: "question", tool: "AskUserQuestion", subject: null, more: 0, since: null },
     })
     expect(read(listing({ where: asking }))[0]).toContain("waiting on the user: a question")
+  })
+})
+
+describe("an agent's background shells as agents read them", () => {
+  const background = {
+    running: [
+      { name: "pnpm dev:web", since: now - minutes(40) },
+      { name: "fulltest", since: now - minutes(12) },
+      { name: "a command", since: now - 20_000 },
+    ],
+    moreRunning: 1,
+    ended: [{ name: "vitest run", code: 1, at: now - minutes(3) }],
+  }
+  const job = (description: string, command: string) => ({
+    id: "b1",
+    description,
+    command,
+    since: now,
+    until: null,
+  })
+  const lines = (fields: Partial<PeerInput> = {}) =>
+    read(listing({ where: whereabouts({ background }), ...fields }))
+
+  it("is a running line and an ended line, busy or idle", () => {
+    for (const busy of [true, false])
+      expect(lines({ busy }).slice(1)).toEqual([
+        "  running: pnpm dev:web (40 min) · fulltest (12 min) · a command (under a minute) · and 1 more",
+        "  ended: vitest run exited 1, 3 min ago",
+      ])
+  })
+
+  it("leaves a line out that has nothing", () => {
+    const only = { running: [], moreRunning: 0, ended: background.ended }
+    expect(read(listing({ where: whereabouts({ background: only }) })).slice(1)).toEqual([
+      "  ended: vitest run exited 1, 3 min ago",
+    ])
+    expect(read(listing({ where: whereabouts({ background: null }) }))).toHaveLength(1)
+  })
+
+  it("is not shown for a sleeping agent or a plain shell", () => {
+    expect(lines({ asleep: true })).toHaveLength(1)
+    expect(lines({ agent: null }).join("\n")).not.toContain("running:")
+  })
+
+  it("keeps the waited job in the head line as well", () => {
+    const waits = { jobs: [job("PR checks", "gh pr checks --watch")], wake: null }
+    const peer = listing({
+      where: whereabouts({ background, waitsOn: waitsOnNote(waits, now) }),
+    })
+    expect(read(peer)[0]).toContain("waiting on PR checks")
+    expect(read(peer)[1]).toContain("running: pnpm dev:web")
   })
 })
 

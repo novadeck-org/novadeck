@@ -418,10 +418,10 @@ like them, only inside Novadeck's terminals.
   "- led by you: @owl", from the running leads only, so no entry has to repeat its
   team. Then each terminal:
 
-  - an agent's terminal, two to four lines:
+  - an agent's terminal, two to six lines:
     `- @fox · ti listing: Claude Code, idle for 6 min, your teammate` and
     `  "Splitting the agents listing into session and team views" · novadeck task/ti-listing, 2 ahead, uncommitted changes, PR https://…`,
-    then, where there is something to say, its `done` reports and its last failed turn (items 7 and 8):
+    then, where there is something to say, its background shells, its `done` reports and its last failed turn (items 7 to 9):
     1. its handle and title. A title is text the person, an agent or murmur may set, and
        says nothing of authority; the tool's description says so once, rather than each
        entry naming who set it;
@@ -451,13 +451,44 @@ like them, only inside Novadeck's terminals.
        most a moment (every terminal in it waiting on that one read), and else shows the
        last known value while it refreshes. The pull request is never asked of GitHub: no network, sign-in or rate
        limit stands between an agent and its listing;
-    7. its `done` reports, one line: `  done: 20 min ago "Flakes fixed, #837 merged" (still
+    7. its background shells, up to two lines, busy or idle alike, but not for a sleeping
+       agent (no process runs). From `AgentActivity.shells`, which every harness fills
+       (Claude Code's Bash in the background, Codex's `exec_command` sessions, Antigravity's
+       background tasks): `  running: pnpm dev:web (40 min) · fulltest (12 min) · and 1
+       more` lists the newest three running, each with how long it has run, then how many
+       more; `  ended: vitest run exited 1, 3 min ago` lists the latest two that exited with a
+       non-zero code in the last ten minutes (a null code, as for a shell stopped, is no
+       failure), unless a newer shell with the same command exists, running or ended (the
+       failure is stale then). So an agent can reuse a peer's dev server, hold back a heavy
+       run, and notice a peer's run that just failed. A command may carry a secret, so none
+       shows. A shell is named by (`terminals/background-shells.ts`):
+       - the agent's own description of a waited job (`waiting.jobs`), cut to 40 characters.
+         A job names a shell by id (Antigravity's job id `<conversation>:<step>` and shell id
+         `<conversation>/task-<step>` are the same call's result step, so they match), else
+         by command: only a running shell, the newest with that command that started no
+         later than the job, and one job names one shell at most. An ended shell is never
+         named by command. A description that only repeats the command (one starts the
+         other, as Claude Code fills it from the command's first line) is ignored;
+       - else `shownCommand` over the command's words: leading `VAR=value`, `export` and
+         `cd <dir> &&` dropped, cut at the first `|`, `&&`, `||` or `;`. A wrapper that only
+         runs another (`env`, `sudo`, `nohup`, `exec`, `command`, `time`, `nice`, `timeout`)
+         is looked through, and a `sh`, `bash`, `zsh` or `dash` `-c` string is read (two
+         levels deep), but only among the shell's leading options, so a script's own
+         arguments (`bash backup.sh -c hunter2`) are never taken for it. A wrapper's long
+         option without `=` (`sudo --user root`) may take a value and which ones do isn't
+         known, so only the wrapper's name shows;
+       - else "a command".
+
+       The name goes through `redact` as a last backstop. A shell the agent also waits on
+       shows here too; the head line's "waiting on …" stays;
+
+    8. its `done` reports, one line: `  done: 20 min ago "Flakes fixed, #837 merged" (still
        current) · 3 h ago "Retry wrapper for E2E tests" · and 2 earlier`. The latest three,
        newest first, each with when and its subject cut to about 100 characters, and how
        many of the session's logged ones came before. "(still current)" marks the latest
        while it stands (`standingDone`: the person's prompt or a delivered message after it
        gave the agent more to do). Subjects only, never a body;
-    8. its last turn, when that failed and the agent is not at work again: `  last turn
+    9. its last turn, when that failed and the agent is not at work again: `  last turn
        failed 12 min ago: API Error …`, with the error cut to about 120 characters.
 
     The reports and turns come from the report log, not the Inbox (see below);

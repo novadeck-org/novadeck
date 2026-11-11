@@ -444,3 +444,97 @@ describe("the facts at a row's right edge", () => {
     expect(done).toEqual([["1m 48s", false, false]])
   })
 })
+
+describe("an @handle in the words", () => {
+  const looks: PeerLooks = (handle) =>
+    handle === "thorn" || handle === "fox"
+      ? { face: null, where: null, hue: handle === "thorn" ? 3 : 5 }
+      : null
+  const hues = (container: HTMLElement): [string, string | null][] =>
+    [...container.querySelectorAll(".markdown-mention")].map((each) => [
+      each.textContent ?? "",
+      each.getAttribute("data-hue"),
+    ])
+
+  it("takes the hue of the agent it names in the agent's prose, plain or in inline code", () => {
+    const container = show(
+      [words("a", "assistant", "`@thorn` says no. Ask @fox, not @nobody or me@thorn.dev.")],
+      undefined,
+      looks,
+    )
+    expect(hues(container)).toEqual([
+      ["@thorn", "3"],
+      ["@fox", "5"],
+    ])
+    expect(container.querySelector("code")?.textContent).toBe("@thorn")
+    expect(container.querySelector(".markdown p")?.textContent).toBe(
+      "@thorn says no. Ask @fox, not @nobody or me@thorn.dev.",
+    )
+  })
+
+  it("keeps the title after a handle in code, outside its colour", () => {
+    const container = show([words("a", "assistant", "`@fox · api-server`")], undefined, looks)
+    expect(hues(container)).toEqual([["@fox", "5"]])
+    expect(container.querySelector("code")?.textContent).toBe("@fox · api-server")
+  })
+
+  it("stays plain in a link and in a fenced block", () => {
+    const container = show(
+      [words("a", "assistant", "[@thorn](https://example.com)\n\n```\n@thorn\n```")],
+      undefined,
+      looks,
+    )
+    expect(hues(container)).toEqual([])
+  })
+
+  it("takes the hue in the person's prompt, and in a prompt not in the record yet", () => {
+    const container = show(
+      [words("u", "user", "Ask @thorn, https://x.dev/@fox")],
+      [{ ref: "r", text: "and @fox too", images: [], state: "queued", at: null }],
+      looks,
+    )
+    expect(hues(container)).toEqual([
+      ["@thorn", "3"],
+      ["@fox", "5"],
+    ])
+    expect(container.querySelector('[data-role="user"] .chat-text')?.textContent).toBe(
+      "Ask @thorn, https://x.dev/@fox",
+    )
+  })
+
+  it("stays plain where the app knows no agents", () => {
+    expect(hues(show([words("u", "user", "Ask @thorn")]))).toEqual([])
+  })
+
+  it("is drawn again, in every block that shows it, as the app comes to know the agent", () => {
+    const blocks: ChatBlock[] = [
+      words("u", "user", "Ask @fox"),
+      words("a", "assistant", "Ask @fox"),
+      {
+        kind: "doorbell",
+        id: "d",
+        at: null,
+        replies: false,
+        messages: [{ id: "m", text: "@fox go", from: { kind: "person" } } as never],
+      },
+    ]
+    const view = (known: PeerLooks) =>
+      createElement(Transcript, { blocks, agent: "Claude", working: false, looks: known })
+    const { container, unmount, rerender } = render(view(() => null))
+    unmounts.push(unmount)
+    expect(hues(container)).toEqual([])
+    rerender(view(looks))
+    expect(hues(container)).toEqual([
+      ["@fox", "5"],
+      ["@fox", "5"],
+      ["@fox", "5"],
+    ])
+    rerender(view(() => null))
+    expect(hues(container)).toEqual([])
+  })
+
+  it("takes the hue of a handle in any case, keeping the text as written", () => {
+    const container = show([words("a", "assistant", "Ask @Fox")], undefined, looks)
+    expect(hues(container)).toEqual([["@Fox", "5"]])
+  })
+})

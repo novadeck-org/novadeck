@@ -9,32 +9,57 @@ import {
 import { Check, Copy } from "lucide-react"
 import { Fragment, useEffect, useMemo, useRef, useState } from "react"
 
+import { MentionedText, MentionSpan } from "./Mentioned"
+import { mentionInCode, type Mention } from "./mentions"
 import { Tooltip } from "./Tooltip"
 
-const InlineNodes = ({ nodes }: { readonly nodes: readonly Inline[] }): React.JSX.Element => (
+const InlineNodes = ({
+  nodes,
+  mention,
+}: {
+  readonly nodes: readonly Inline[]
+  readonly mention?: Mention | undefined
+}): React.JSX.Element => (
   <>
     {nodes.map((node, index) => {
       switch (node.t) {
         case "text":
-          return <Fragment key={index}>{node.text}</Fragment>
-        case "code":
-          return <code key={index}>{node.text}</code>
+          return (
+            <Fragment key={index}>
+              <MentionedText text={node.text} mention={mention} />
+            </Fragment>
+          )
+        case "code": {
+          const named = mention && mentionInCode(node.text, mention)
+          return (
+            <code key={index}>
+              {named ? (
+                <>
+                  <MentionSpan text={named.handle} hue={named.hue} />
+                  {named.rest}
+                </>
+              ) : (
+                node.text
+              )}
+            </code>
+          )
+        }
         case "strong":
           return (
             <strong key={index}>
-              <InlineNodes nodes={node.children} />
+              <InlineNodes nodes={node.children} mention={mention} />
             </strong>
           )
         case "em":
           return (
             <em key={index}>
-              <InlineNodes nodes={node.children} />
+              <InlineNodes nodes={node.children} mention={mention} />
             </em>
           )
         case "del":
           return (
             <del key={index}>
-              <InlineNodes nodes={node.children} />
+              <InlineNodes nodes={node.children} mention={mention} />
             </del>
           )
         case "br":
@@ -144,19 +169,25 @@ const CodeBlock = ({
   )
 }
 
-const Block = ({ block }: { readonly block: MarkdownBlock }): React.JSX.Element => {
+const Block = ({
+  block,
+  mention,
+}: {
+  readonly block: MarkdownBlock
+  readonly mention?: Mention | undefined
+}): React.JSX.Element => {
   switch (block.t) {
     case "p":
       return (
         <p>
-          <InlineNodes nodes={block.inline} />
+          <InlineNodes nodes={block.inline} mention={mention} />
         </p>
       )
     case "h": {
       const Heading = `h${Math.min(6, block.level + 2)}` as "h3" | "h4" | "h5" | "h6"
       return (
         <Heading data-level={block.level}>
-          <InlineNodes nodes={block.inline} />
+          <InlineNodes nodes={block.inline} mention={mention} />
         </Heading>
       )
     }
@@ -167,7 +198,7 @@ const Block = ({ block }: { readonly block: MarkdownBlock }): React.JSX.Element 
     case "quote":
       return (
         <blockquote>
-          <Blocks blocks={block.blocks} />
+          <Blocks blocks={block.blocks} mention={mention} />
         </blockquote>
       )
     case "list": {
@@ -180,13 +211,13 @@ const Block = ({ block }: { readonly block: MarkdownBlock }): React.JSX.Element 
               {block.tight ? (
                 item.map((each, at) =>
                   each.t === "p" ? (
-                    <InlineNodes key={at} nodes={each.inline} />
+                    <InlineNodes key={at} nodes={each.inline} mention={mention} />
                   ) : (
-                    <Block key={at} block={each} />
+                    <Block key={at} block={each} mention={mention} />
                   ),
                 )
               ) : (
-                <Blocks blocks={item} />
+                <Blocks blocks={item} mention={mention} />
               )}
             </li>
           ))}
@@ -206,7 +237,7 @@ const Block = ({ block }: { readonly block: MarkdownBlock }): React.JSX.Element 
               <tr>
                 {block.head.map((cell, column) => (
                   <th key={column} scope="col" style={align(block.align[column])}>
-                    <InlineNodes nodes={cell} />
+                    <InlineNodes nodes={cell} mention={mention} />
                   </th>
                 ))}
               </tr>
@@ -216,7 +247,7 @@ const Block = ({ block }: { readonly block: MarkdownBlock }): React.JSX.Element 
                 <tr key={index}>
                   {row.map((cell, column) => (
                     <td key={column} style={align(block.align[column])}>
-                      <InlineNodes nodes={cell} />
+                      <InlineNodes nodes={cell} mention={mention} />
                     </td>
                   ))}
                 </tr>
@@ -232,21 +263,35 @@ const align = (
   value: "left" | "center" | "right" | null | undefined,
 ): React.CSSProperties | undefined => (value ? { textAlign: value } : undefined)
 
-const Blocks = ({ blocks }: { readonly blocks: readonly MarkdownBlock[] }): React.JSX.Element => (
+const Blocks = ({
+  blocks,
+  mention,
+}: {
+  readonly blocks: readonly MarkdownBlock[]
+  readonly mention?: Mention | undefined
+}): React.JSX.Element => (
   <>
     {blocks.map((block, index) => (
-      <Block key={index} block={block} />
+      <Block key={index} block={block} mention={mention} />
     ))}
   </>
 )
 
 // An agent's text, formatted. Everything is drawn as elements from what the reader found,
-// so nothing the agent wrote can add markup, and only web links leave the app.
-export const Markdown = ({ text }: { readonly text: string }): React.JSX.Element => {
+// so nothing the agent wrote can add markup, and only web links leave the app. Where `mention`
+// gives a hue for a handle, the agents it names are drawn in their hues (text and inline code,
+// never links or code blocks).
+export const Markdown = ({
+  text,
+  mention,
+}: {
+  readonly text: string
+  readonly mention?: Mention | undefined
+}): React.JSX.Element => {
   const blocks = useMemo(() => parseMarkdown(text), [text])
   return (
     <div className="markdown">
-      <Blocks blocks={blocks} />
+      <Blocks blocks={blocks} mention={mention} />
     </div>
   )
 }

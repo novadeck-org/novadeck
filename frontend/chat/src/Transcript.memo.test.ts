@@ -1,5 +1,6 @@
 import type { ChatBlock } from "@novadeck/core/conversation/turns"
 import { render } from "@novadeck/test-kit/render"
+import type { Mention } from "@novadeck/toolkit/mentions"
 import { createElement } from "react"
 import { vi } from "vitest"
 
@@ -32,14 +33,44 @@ const blocks: readonly ChatBlock[] = [
   },
 ]
 
-const transcript = (looks: PeerLooks) =>
-  createElement(Transcript, { blocks, agent: "Claude", working: false, looks })
+const transcript = (looks: PeerLooks, mention?: Mention) =>
+  createElement(Transcript, { blocks, agent: "Claude", working: false, looks, mention })
 
 describe("the scrollback, as other agents' looks change", () => {
-  it("draws again only the blocks that show other agents", () => {
+  it("draws again the blocks whose words may name other agents", () => {
     const { rerender } = render(transcript(() => null))
     expect(drawn.splice(0).toSorted()).toEqual(["Because.", "Keep it."])
     rerender(transcript(() => null))
+    expect(drawn.splice(0).toSorted()).toEqual(["Because.", "Keep it."])
+  })
+
+  it("leaves the words that only name agents be while the set of handles they name stays", () => {
+    const mention: Mention = () => null
+    const { rerender } = render(transcript(() => null, mention))
+    drawn.splice(0)
+    rerender(transcript(() => null, mention))
+    // Only the agent's own message, which draws its face from the looks.
     expect(drawn.splice(0)).toEqual(["Keep it."])
+  })
+
+  it("never draws a block with no agents or names in it again", () => {
+    // The same block, its words changed behind its back: only a block drawn again shows them.
+    const note: ChatBlock = { kind: "note", id: "n", text: "Before" } as never
+    const view = (looks: PeerLooks, mention: Mention) =>
+      createElement(Transcript, { blocks: [note], agent: "Claude", working: false, looks, mention })
+    const { container, rerender } = render(
+      view(
+        () => null,
+        () => null,
+      ),
+    )
+    ;(note as { text: string }).text = "After"
+    rerender(
+      view(
+        () => null,
+        () => 3,
+      ),
+    )
+    expect(container.querySelector(".chat-note")?.textContent).toBe("Before")
   })
 })

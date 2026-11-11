@@ -2,7 +2,9 @@
    `.markdown-code` blocks, their `.markdown-code-bar` and `.markdown-code-lang`, and
    `.markdown-table`), drawn by the Markdown component in the chat and wherever else it is
    read, such as the Inbox's sheet. A chat in a Grid or Canvas window sets its headings
-   smaller from its own `chat.css`.
+   smaller from its own `chat.css`. Where the reader is given a lookup, a handle of an agent it
+   knows is a `.markdown-mention` with data-hue (the hue, which `messages.css` maps to a colour
+   and `chat.css` applies); the text is unchanged.
 
    Tokens, each optional (its fallback in brackets):
    --markdown-code-bg (shell), --markdown-code-border-color (line), --markdown-code-fg (the

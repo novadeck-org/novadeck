@@ -4,6 +4,7 @@ import type { MessagePeer } from "@novadeck/core/messages"
 import { Avatar } from "@novadeck/items/Avatar"
 import { hueOf } from "@novadeck/items/critters"
 import { usePeers, type MessageLinks } from "@novadeck/items/messages"
+import type { Mention } from "@novadeck/toolkit/mentions"
 import { useMemo, type ComponentProps } from "react"
 
 import { useWindowPhase } from "../terminals/window-phase"
@@ -14,7 +15,8 @@ import { useWindowPhase } from "../terminals/window-phase"
 export const peerLooksOf =
   (peers: Readonly<Record<string, MessagePeer>>): PeerLooks =>
   (handle) => {
-    const peer = peers[handle]
+    // An own key only: `constructor` and `toString` are no handles.
+    const peer = Object.hasOwn(peers, handle) ? peers[handle] : undefined
     if (!peer) return null
     return {
       face: <Avatar handle={handle} size={24} live={peer.live} program={peer.program} />,
@@ -22,6 +24,18 @@ export const peerLooksOf =
       hue: hueOf(handle),
     }
   }
+
+// The hue of the agent a handle names in the words, where a terminal answers to it. Its identity
+// changes only with the set of handles, not as agents start or stop work, so words that only
+// name agents aren't drawn again for that.
+export const usePeerMention = (links: MessageLinks): Mention => {
+  const peers = usePeers(links)
+  const key = Object.keys(peers).toSorted().join("\n")
+  return useMemo(() => {
+    const known = new Set(key.split("\n"))
+    return (handle) => (known.has(handle) ? hueOf(handle) : null)
+  }, [key])
+}
 
 export const usePeerLooks = (links: MessageLinks): PeerLooks => {
   const peers = usePeers(links)
@@ -38,12 +52,16 @@ const personFace = <Avatar handle="you" person size={24} />
 export const ChatWithPeers = ({
   links,
   ...chat
-}: Omit<ComponentProps<typeof ChatView>, "peerLooks" | "personFace" | "windowPhase"> & {
+}: Omit<
+  ComponentProps<typeof ChatView>,
+  "peerLooks" | "peerMention" | "personFace" | "windowPhase"
+> & {
   readonly links: MessageLinks
 }): React.JSX.Element => (
   <ChatView
     {...chat}
     peerLooks={usePeerLooks(links)}
+    peerMention={usePeerMention(links)}
     personFace={personFace}
     windowPhase={useWindowPhase()}
   />
