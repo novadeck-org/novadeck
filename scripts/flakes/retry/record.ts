@@ -33,10 +33,17 @@ export const workspaceRoot = (folder: string): string => {
   }
 }
 
-/** The first failure's error as the record keeps it. */
+// A terminal's escape sequences, as Vitest colours an assertion's message even on CI.
+// oxlint-disable-next-line no-control-regex -- Escape sequences are what this removes.
+const escapes = /\u001b\[[\d;?]*[A-Za-z]/g
+
+/** Text with its terminal colours and other escape sequences taken out. */
+export const withoutColour = (text: string): string => text.replaceAll(escapes, "")
+
+/** The first failure's error as the record keeps it: plain text, without its colours. */
 export const errorText = (error: { readonly name?: string; readonly message?: string } = {}) => {
   const name = error.name && error.name !== "Error" ? `${error.name}: ` : ""
-  const text = `${name}${error.message ?? "(no message)"}`
+  const text = withoutColour(`${name}${error.message ?? "(no message)"}`)
   return text.length > errorLength ? `${text.slice(0, errorLength - 1)}…` : text
 }
 
@@ -53,7 +60,11 @@ const isRetried = (value: unknown): value is Retried => {
   )
 }
 
-/** A record file's lines, failing on one that isn't a retried test, as a corrupt record would hide one. */
+/**
+ * A record file's lines, failing on one that isn't a retried test, as a corrupt record would
+ * hide one. An error a record from before `errorText` took the colours out still holds them
+ * loses them here, so every reader sees the same text.
+ */
 export const parseRecord = (text: string): Retried[] =>
   text
     .split(/\r?\n/)
@@ -67,7 +78,7 @@ export const parseRecord = (text: string): Retried[] =>
       }
       if (!isRetried(value))
         throw new Error(`Line ${index + 1} of the retry record isn't a retried test: ${line}`)
-      return value
+      return { ...value, error: withoutColour(value.error) }
     })
 
 /** A record file, read. */

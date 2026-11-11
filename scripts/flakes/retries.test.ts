@@ -31,7 +31,9 @@ import type { Retried } from "./retry/record"
 
 const register = parseRegister(JSON.parse(readFileSync("scripts/flakes/register.json", "utf8")))
 const zw = String.fromCharCode(0x200b)
-const fixed = register.flakes.find((flake) => flake.status === "fixed" && flake.test)!
+const fixed = register.flakes.find((flake) => flake.id === "ui-companions-plan-reopen-place")!
+// A failure of the fixed flake's test that its signature matches, as it fails when it's back.
+const backError = "AssertionError: expected 3 to be 200"
 
 const retried = (test: string, more: Partial<Retried> = {}): Retried => ({
   test,
@@ -106,7 +108,10 @@ describe("a run's retries", () => {
   context("in the job's summary", () => {
     it("names each retried test, its job, its first failure and what the register says", () => {
       const summary = recordSummary(
-        record(1, "2026-11-10T10:00:00Z", [retried(reap), retried(fixed.test!)]),
+        record(1, "2026-11-10T10:00:00Z", [
+          retried(reap),
+          retried(fixed.test!, { error: backError }),
+        ]),
         register,
       )
       expect(summary).toContain("2 test(s) passed only on a retry.")
@@ -168,8 +173,57 @@ describe("the count of a test's retries", () => {
     })
 
     it("puts a flake registered as fixed over it at its first retry", () => {
-      const [back] = tally([record(9, "2026-11-09T10:00:00Z", [retried(fixed.test!)])])
+      const [back] = tally([
+        record(9, "2026-11-09T10:00:00Z", [retried(fixed.test!, { error: backError })]),
+      ])
       expect(overBudget(back!, register)).toBe("registered as fixed, and retried again")
+    })
+
+    it("takes a registered test failing another way for no flake, as Triage would", () => {
+      const [other] = tally([
+        record(9, "2026-11-09T10:00:00Z", [retried(fixed.test!, { error: "TimeoutError: 5s" })]),
+      ])
+      expect(overBudget(other!, register)).toBeUndefined()
+    })
+
+    // An entry for a whole folder, as a process left behind can end any end to end test, is
+    // that flake only where the failure is its own: on 2026-11-11 it claimed two tests of the
+    // folder that failed other ways, and put them over the budget as fixed flakes back.
+    context("when an entry names a whole folder", () => {
+      const left = register.flakes.find(
+        (flake) => flake.id === "e2e-claude-macos-mixed-outlived-deck",
+      )!
+      const image =
+        "src/e2e/images.e2e.ts > Codex > gives its agent a prompt with two images among its words"
+      const runner = { package: "@novadeck/runner" }
+
+      it("isn't a test of it that failed another way", () => {
+        const failed = record(9, "2026-11-11T05:30:38Z", [
+          retried(image, { ...runner, error: "DomainError: The agent did not take the image." }),
+        ])
+        const [entry] = tally([failed])
+        expect(overBudget(entry!, register)).toBeUndefined()
+        expect(
+          tallyReport([entry!], register, { since: new Date(0), until: new Date(1), runs: 1 })
+            .tests[0]!.flake,
+        ).toBeNull()
+        expect(recordSummary(failed, register)).toContain("not registered")
+      })
+
+      it("is a test of it that failed its way", () => {
+        const failed = record(9, "2026-11-11T05:30:38Z", [
+          retried(image, {
+            ...runner,
+            error: "Error: a process outlived the deck in the sandbox: claude (4242)",
+          }),
+        ])
+        const [entry] = tally([failed])
+        expect(new RegExp(left.signature).test(entry!.failures[0]!)).toBe(true)
+        expect(overBudget(entry!, register)).toBe("registered as fixed, and retried again")
+        expect(recordSummary(failed, register)).toContain(
+          `**${left.id}, registered as fixed: back**`,
+        )
+      })
     })
   })
 
@@ -219,6 +273,8 @@ describe("the budget issue", () => {
     expect(action.body).toContain(reap)
     expect(action.body).toContain("retried in 3 runs in 7 days")
     expect(keysNamed(action.body)).toEqual([`@novadeck/sandbox ${reap}`])
+    // The count can't tell a test fixed since from one still flaking, and says so.
+    expect(action.body).toContain("even once a fix has landed")
   })
 
   it("is edited each day while one is over, with a comment only when a test joins it", () => {
@@ -227,7 +283,10 @@ describe("the budget issue", () => {
     const same = budgetAction(tally(often), register, { number: 5, body: opened.body }, where)
     expect(same).toMatchObject({ kind: "edit", issue: 5 })
     expect(same).not.toHaveProperty("comment")
-    const more = [...often, record(4, "2026-11-08T10:00:00Z", [retried(fixed.test!)])]
+    const more = [
+      ...often,
+      record(4, "2026-11-08T10:00:00Z", [retried(fixed.test!, { error: backError })]),
+    ]
     const joined = budgetAction(tally(more), register, { number: 5, body: opened.body }, where)
     expect(joined).toMatchObject({ kind: "edit", issue: 5 })
     expect(joined.kind === "edit" && joined.comment).toContain(fixed.test!.slice(0, 40))
@@ -282,6 +341,42 @@ describe("the pull request's comment", () => {
     expect([
       ...packagesChanged(["libraries/terminal/src/pty.ts", "docs/x.md", "README.md"], names),
     ]).toEqual(["@novadeck/terminal"])
+  })
+})
+
+describe("an error recorded with its terminal colours", () => {
+  // As #855's comment showed it: Vitest colours an assertion's message even on CI, and the
+  // record kept the colours until the reporter took them out.
+  const esc = String.fromCharCode(0x1b)
+  const coloured = `${esc}[2mexpect(${esc}[22m${esc}[31melement${esc}[39m${esc}[2m).toBeVisible()${esc}[22m`
+  const plain = "expect(element).toBeVisible()"
+  const old = record(1, "2026-11-10T10:00:00Z", [retried(reap, { error: coloured })])
+
+  it("is read without them from a record written before", () => {
+    expect(old.retried[0]!.error).toBe(plain)
+    expect(tally([old])[0]!.errors).toEqual([plain])
+    expect(recordSummary(old, register)).toContain(`| ${plain} |`)
+  })
+
+  it("is shown without them in the pull request's comment", () => {
+    const body = prComment(undefined, old, new Set())!
+    expect(body).toContain(`| ${plain} |`)
+    expect(body).not.toContain(esc)
+  })
+
+  it("loses them from a comment written before, whose state still holds them", () => {
+    const state = [
+      { test: reap, package: "@novadeck/sandbox", error: coloured, runs: [{ run: 1, url: "u" }] },
+    ]
+    const before = `${commentMarker}\n<!-- state ${Buffer.from(JSON.stringify(state)).toString("base64")} -->\n`
+    const body = prComment(before, record(2, "2026-11-10T11:00:00Z", [retried(reap)]), new Set())!
+    expect(body).toContain(`| ${plain} |`)
+    expect(
+      body
+        .split("\n")
+        .filter((row) => row.startsWith("|"))
+        .join("\n"),
+    ).not.toContain(esc)
   })
 })
 

@@ -1254,9 +1254,11 @@ Quality or E2E run that retried a test, Known Flakes keeps one comment on its pu
 in place: the tests its runs passed only on a retry, those in packages it changes first, as a
 race a change brings would show there. Each morning its Tally job counts each test's retries over
 the last week's runs, reruns' included, against the budget: a test retried in three or more runs,
-or a flake registered as fixed retried at all, is over it. Tally keeps one issue, "Tests over the
-retry budget", open while any test is, edited each day, with a comment when a test joins it, and
-closed once none is; and it publishes the count as the `flake-tally` artifact, one `tally.json`:
+or a flake registered as fixed retried at all, is over it. A retried test is a registered flake
+only where its recorded error matches that flake's signature, as Triage reads a log. The count
+doesn't know of a fix: a test fixed since stays over until its retried runs age out of the week.
+Tally keeps one issue, "Tests over the retry budget", open while any test is, edited each day,
+with a comment when a test joins it, and closed once none is; and it publishes the count as the `flake-tally` artifact, one `tally.json`:
 
 ```text
 { "since": "<ISO time>", "until": "<ISO time>", "days": 7, "budget": { "runs": 3, "days": 7 },

@@ -198,6 +198,20 @@ describe("the retry record", () => {
     expect(errorText({ message: "x".repeat(5000) })).toHaveLength(1000)
   })
 
+  it("keeps an error's text without the terminal's colours, as Vitest colours it on CI", () => {
+    const esc = String.fromCharCode(0x1b)
+    expect(
+      errorText({
+        name: "AssertionError",
+        message: `${esc}[2mexpected ${esc}[31m1${esc}[39m to be 2${esc}[22m`,
+      }),
+    ).toBe("AssertionError: expected 1 to be 2")
+    const old = { test: "a > b", file: "a", package: "p", project: "", attempts: 2 }
+    expect(
+      parseRecord(`${JSON.stringify({ ...old, error: `${esc}[31mred${esc}[39m` })}\n`),
+    ).toEqual([{ ...old, error: "red" }])
+  })
+
   it("refuses a line that isn't a retried test, as a corrupt record would hide one", () => {
     expect(() => parseRecord("not json\n")).toThrow(/isn't JSON/)
     expect(() =>

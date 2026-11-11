@@ -26,6 +26,7 @@ describe("the retry tally", () => {
             last: "2026-11-10T18:54:34.194Z",
             links: [],
             errors: [],
+            failures: [],
           },
         ],
         register,

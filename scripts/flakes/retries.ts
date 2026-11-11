@@ -8,7 +8,7 @@
 
 import type { Register } from "./match.ts"
 import { currentTest } from "./moved-specs.ts"
-import { parseRecord, type Retried } from "./retry/record.ts"
+import { parseRecord, type Retried, withoutColour } from "./retry/record.ts"
 
 /** A retried test, with the artifact (one job's attempt) that recorded it, and that attempt. */
 export type RunRetry = Retried & { readonly artifact: string; readonly attempt: number }
@@ -88,10 +88,19 @@ export const runRecord = (
 export const testKey = (entry: Pick<Retried, "package" | "test">): string =>
   `${entry.package} ${currentTest(entry.test)}`
 
-/** The register's flake for a test, by its test id as match.ts reads it, if any. */
-export const registered = (register: Register, test: string) =>
+/**
+ * The register's flake for a retried test, if any: one whose test the test's id begins with,
+ * as match.ts reads it, and whose signature one of its recorded errors matches. The signature
+ * counts as it does when Triage judges a log: an entry may name a whole folder (a process
+ * left behind, in any end to end test), and a test of it that failed some other way isn't
+ * that flake.
+ */
+export const registered = (register: Register, test: string, errors: readonly string[]) =>
   register.flakes.find(
-    (flake) => flake.test !== undefined && currentTest(test).startsWith(currentTest(flake.test)),
+    (flake) =>
+      flake.test !== undefined &&
+      currentTest(test).startsWith(currentTest(flake.test)) &&
+      errors.some((error) => new RegExp(flake.signature).test(error)),
   )
 
 // What keeps an `@` from mentioning anyone, unseen.
@@ -102,13 +111,14 @@ const zeroWidth = String.fromCharCode(0x200b)
  * no column breaks, no HTML, and no mention that would notify anyone.
  */
 export const cell = (text: string, length = 200): string => {
-  const one = text.replaceAll(/\s*\n\s*/g, " ")
+  // Without colours, as a comment's state from before the record took them out still has them.
+  const one = withoutColour(text).replaceAll(/\s*\n\s*/g, " ")
   const cut = one.length > length ? `${one.slice(0, length - 1)}…` : one
   return cut.replaceAll("<", "&lt;").replaceAll("|", "\\|").replaceAll("@", `@${zeroWidth}`)
 }
 
-const standing = (register: Register, test: string): string => {
-  const flake = registered(register, test)
+const standing = (register: Register, test: string, errors: readonly string[]): string => {
+  const flake = registered(register, test, errors)
   if (!flake) return "not registered"
   return flake.status === "fixed" ? `**${flake.id}, registered as fixed: back**` : flake.id
 }
@@ -127,7 +137,7 @@ export const recordSummary = (record: RunRecord, register: Register): string => 
     "| --- | --- | --- | --- | --- | --- |",
     ...record.retried.map(
       (entry) =>
-        `| ${cell(entry.test)} | ${cell(entry.package)} | ${cell(entry.artifact)} | ${entry.attempts} | ${cell(entry.error)} | ${standing(register, entry.test)} |`,
+        `| ${cell(entry.test)} | ${cell(entry.package)} | ${cell(entry.artifact)} | ${entry.attempts} | ${cell(entry.error)} | ${standing(register, entry.test, [entry.error])} |`,
     ),
     "",
   ].join("\n")
@@ -148,7 +158,9 @@ export type Tally = {
   readonly retries: number
   readonly last: string
   readonly links: readonly string[]
+  // Each distinct first failure's first line, as shown, and in full, as the register reads it.
   readonly errors: readonly string[]
+  readonly failures: readonly string[]
 }
 
 /** Each retried test's count over the records, most retried first. */
@@ -161,6 +173,7 @@ export const tally = (records: readonly RunRecord[]): readonly Tally[] => {
     last: string
     links: string[]
     errors: Set<string>
+    failures: Set<string>
   }
   const byTest = new Map<string, Found>()
   for (const record of records)
@@ -174,12 +187,14 @@ export const tally = (records: readonly RunRecord[]): readonly Tally[] => {
         last: "",
         links: [],
         errors: new Set(),
+        failures: new Set(),
       }
       if (!found.runs.has(record.run)) found.links.push(record.url)
       found.runs.add(record.run)
       found.retries += entry.attempts - 1
       if (record.at > found.last) found.last = record.at
       found.errors.add(entry.error.split("\n")[0]!)
+      found.failures.add(entry.error)
       byTest.set(key, found)
     }
   return [...byTest]
@@ -192,6 +207,7 @@ export const tally = (records: readonly RunRecord[]): readonly Tally[] => {
       last: found.last,
       links: found.links,
       errors: [...found.errors],
+      failures: [...found.failures],
     }))
     .toSorted((a, b) => b.runs - a.runs || b.retries - a.retries || a.key.localeCompare(b.key))
 }
@@ -204,7 +220,7 @@ export const budget = { runs: 3, days: 7 } as const
 
 /** Why a test is over the budget, or undefined while it is within it. */
 export const overBudget = (entry: Tally, register: Register): string | undefined => {
-  if (registered(register, entry.test)?.status === "fixed")
+  if (registered(register, entry.test, entry.failures)?.status === "fixed")
     return "registered as fixed, and retried again"
   if (entry.runs >= budget.runs) return `retried in ${entry.runs} runs in ${budget.days} days`
   return undefined
@@ -260,7 +276,7 @@ export const tallySummary = (
           "### Within the budget",
           "",
           ...tableHeader,
-          ...rest.map((entry) => tallyRow(entry, standing(register, entry.test))),
+          ...rest.map((entry) => tallyRow(entry, standing(register, entry.test, entry.failures))),
           "",
         ]
       : []),
@@ -308,7 +324,7 @@ export const tallyReport = (
     retries: entry.retries,
     last: entry.last,
     over: overBudget(entry, register) ?? null,
-    flake: registered(register, entry.test)?.id ?? null,
+    flake: registered(register, entry.test, entry.failures)?.id ?? null,
   })),
 })
 
@@ -378,6 +394,10 @@ export const budgetAction = (
       "cause and fix it, or register it in `scripts/flakes/register.json` while it's being " +
       "found. Known Flakes edits this list each morning, and closes this issue once every " +
       'retried test is within the budget. See docs/development.md, "Retried tests".',
+    "",
+    `A test stays listed while its retried runs in the last ${budget.days} days are over the ` +
+      "budget, even once a fix has landed: the count doesn't know of the fix, so a fixed test " +
+      "leaves the list as its runs age out. Its last runs show whether it still fails after it.",
   ].join("\n")
   if (!open) return { kind: "open", title: budgetTitle, body }
   const before = new Set(keysNamed(open.body))
