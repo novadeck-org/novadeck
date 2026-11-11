@@ -170,6 +170,17 @@ export type Harness = {
      */
     readonly shapes: (line: string) => readonly Shape[]
     /**
+     * The images of the person's prompt that one line holds, in the order its items list them
+     * (`TranscriptEntry.images` numbers them by their place here); none for any other line.
+     */
+    readonly images: (line: string) => readonly ImageSource[]
+    /**
+     * The folder under which the session keeps the images it saved for a prompt, from its
+     * transcript's path, for a harness whose lines name a file rather than hold the bytes; the
+     * runner reads a file of `images` only from there. Absent where lines hold the bytes.
+     */
+    readonly imageFolder?: (transcript: string, sessionId: string) => string | undefined
+    /**
      * Whether a shape of that key sits inside the conversation: a block of the person's or
      * the agent's message, or a step of theirs. One `shapes` calls unknown there is words
      * the chat may be missing, which it tells the person; any other unknown shape is
@@ -546,8 +557,22 @@ export type Machine = {
 /** A plan a transcript or rollout line records, and when it was written where it says. */
 export type WrittenPlan = { readonly source: PlanSource; readonly at: number | null }
 
-/** An item of a transcript, before the runner numbers it. */
-export type TranscriptEntry = Omit<TranscriptItem, "index">
+/**
+ * An item of a transcript, before the runner numbers it. The images a prompt carried are
+ * numbered within their line (`ImageSource`'s order), and the runner adds where the line ends.
+ */
+export type TranscriptEntry = Omit<TranscriptItem, "index" | "images"> & {
+  readonly images?: readonly { readonly index: number; readonly mime: string | null }[]
+}
+
+/**
+ * An image a transcript line holds, to be shown later: its bytes inline (base64), as Claude
+ * Code and Codex record them, or the file the harness saved it in, as Antigravity does. A file
+ * is only read from the folder `imageFolder` names.
+ */
+export type ImageSource =
+  | { readonly mime: string | null; readonly base64: string }
+  | { readonly mime: string | null; readonly file: string }
 
 /**
  * A harness's transcript decoder without its shape lists, which the harness adds beside

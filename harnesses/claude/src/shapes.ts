@@ -45,6 +45,8 @@ export const lists: ShapeLists = {
     // A compaction's summary and the permission mode, notes between turns.
     "record:compact-summary",
     "record:permission-mode",
+    // An image the person gave: its bytes show beside its place in their words.
+    "block:user/image",
     // A paste Claude Code wrapped, which the decoder unwraps.
     "tag:pasted_content",
     "wrap:pasted_content",
@@ -57,8 +59,6 @@ export const lists: ShapeLists = {
     // The model's reasoning stays out of the chat.
     "block:assistant/thinking",
     "block:assistant/redacted_thinking",
-    // An image the person gave shows as its place in their words.
-    "block:user/image",
     // Agents' messages Novadeck handed it as a prompt.
     "tag:novadeck-messages",
     // Queued prompts that aren't the person's: a background task's notice with no origin, a

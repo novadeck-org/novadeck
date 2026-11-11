@@ -93,6 +93,24 @@ export function entry(
   }
 }
 
+/**
+ * The entries with the line's images on the first of the person's texts, which holds the
+ * image's place (`[Image #1]`); none where it has no such text, as the images then have no
+ * words to stand with.
+ */
+export const withImages = (
+  entries: readonly TranscriptEntry[],
+  mimes: readonly (string | null)[],
+): readonly TranscriptEntry[] => {
+  const first = entries.findIndex(
+    (each) => each.role === "user" && each.kind === "text" && !each.interrupted,
+  )
+  if (mimes.length === 0 || first === -1) return entries
+  return entries.map((each, place) =>
+    place === first ? { ...each, images: mimes.map((mime, index) => ({ index, mime })) } : each,
+  )
+}
+
 /** What a harness recorded between turns, as an item: `text` is a compaction's summary. */
 export const noteEntry = (
   note: TranscriptNote,

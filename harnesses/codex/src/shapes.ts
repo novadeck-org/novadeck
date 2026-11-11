@@ -16,6 +16,7 @@ import { messageText } from "./transcripts.js"
  * - `item:<type>`, a response item by its payload's type, a message also by its role
  *   (`item:message/user`);
  * - `event:<type>`, an event by its payload's type;
+ * - `block:user/input_image`, an image in a user message;
  * - `tag:<name>`, the tag a user message's text opens with, and `tag:AGENTS.md`, the
  *   project's instructions Codex hands the model as one.
  */
@@ -31,6 +32,8 @@ export const lists: ShapeLists = {
     "item:local_shell_call",
     "item:web_search_call",
     "item:image_generation_call",
+    // An image the person gave, held in its message as a data URL.
+    "block:user/input_image",
     // Another agent's message to this one.
     "item:agent_message",
     // The person's Esc, which only an interrupted abort reads as.
@@ -126,8 +129,12 @@ const keysOf = (fields: Fields): string[] => {
   const role = typeof payload.role === "string" ? payload.role : "untyped"
   if (role !== "user") return [`item:message/${role}`]
   const text = messageText(payload.content)
+  const parts: unknown[] = Array.isArray(payload.content) ? payload.content : []
   return [
     "item:message/user",
+    ...(parts.some((part) => (part as Fields | null)?.type === "input_image")
+      ? ["block:user/input_image"]
+      : []),
     ...(/^\s*# AGENTS\.md instructions/.test(text) ? ["tag:AGENTS.md"] : tagKeys(text)),
   ]
 }

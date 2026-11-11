@@ -184,8 +184,17 @@ export const transcriptChanges = async function* (
     collected = []
     notify()
   }
-  const collect = (item: TranscriptEntry) => {
-    collected.push({ ...item, index })
+  // `end` is where the line that gave the item ends, which its images are found again by.
+  const collect = (item: TranscriptEntry, end?: number) => {
+    const { images, ...rest } = item
+    collected.push({
+      ...rest,
+      index,
+      ...(images &&
+        end !== undefined && {
+          images: images.map((each) => ({ ...each, offset: end })),
+        }),
+    })
     index += 1
     queued += 1
     if (collected.length === batch) flush()
@@ -203,7 +212,7 @@ export const transcriptChanges = async function* (
   const reading = followLines(
     path,
     signal,
-    (line) => {
+    (line, end) => {
       const found = shapes?.(line) ?? []
       let gap = false
       for (const shape of found) {
@@ -215,7 +224,7 @@ export const transcriptChanges = async function* (
       const read = items(line)
       if (read.some((item) => item.role === "user")) interrupted(reached)
       reached = Math.max(reached, step?.(line) ?? reached)
-      for (const item of read) collect(item)
+      for (const item of read) collect(item, end)
       if (gap) {
         const reasons = found.some(({ key }) => reasoning.test(key))
         collect(noteEntry({ type: "gap" }, null, reasons ? "" : line))

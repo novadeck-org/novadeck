@@ -313,6 +313,19 @@ describe("Claude Code's prompts taken into a running turn", () => {
     ])
   })
 
+  it("list the image a prompt carried on the person's text, and give its bytes by the line", () => {
+    const image = {
+      type: "image",
+      source: { type: "base64", media_type: "image/png", data: "iVBORw0K" },
+    }
+    const prompt = [{ type: "text", text: "Fix [Image #1]" }, image]
+    const line = JSON.stringify(queuedCommand({ prompt }))
+    expect(transcripts.items(line)).toMatchObject([
+      { role: "user", text: "Fix [Image #1]", images: [{ index: 0, mime: "image/png" }] },
+    ])
+    expect(transcripts.images(line)).toEqual([{ mime: "image/png", base64: "iVBORw0K" }])
+  })
+
   it("read a prompt with an image as its text", () => {
     const prompt = [
       { type: "image", source: { type: "base64", media_type: "image/png", data: "iVBORw0K" } },
@@ -470,6 +483,41 @@ describe("Claude Code's wrappers around the person's words", () => {
     expect(blocks('see \n\n<pasted_content id="y">\nthis\n</pasted_content id="y">\n')).toEqual([
       ["user", "text", "see this"],
     ])
+  })
+
+  it("list the images of a prompt's blocks in order, and leave out what holds no bytes", () => {
+    const record = {
+      type: "user",
+      uuid: "u1",
+      timestamp: "2026-11-03T12:00:00.000Z",
+      message: {
+        role: "user",
+        content: [
+          { type: "text", text: "Compare [Image #1] with [Image #2]" },
+          { type: "image", source: { type: "base64", media_type: "image/png", data: "AAAA" } },
+          { type: "image", source: { type: "url", url: "https://example.com/a.png" } },
+          { type: "image", source: { type: "base64", data: "BBBB" } },
+        ],
+      },
+    }
+    const line = JSON.stringify(record)
+    expect(transcripts.items(line)).toMatchObject([
+      {
+        text: "Compare [Image #1] with [Image #2]",
+        images: [
+          { index: 0, mime: "image/png" },
+          { index: 1, mime: null },
+        ],
+      },
+    ])
+    expect(transcripts.images(line)).toEqual([
+      { mime: "image/png", base64: "AAAA" },
+      { mime: null, base64: "BBBB" },
+    ])
+    // Claude Code's own records and the agent's lines hold none of the person's.
+    expect(transcripts.images(JSON.stringify({ ...record, isMeta: true }))).toEqual([])
+    expect(transcripts.images(JSON.stringify({ ...record, type: "assistant" }))).toEqual([])
+    expect(transcripts.images("not json")).toEqual([])
   })
 
   it("strip the terminal's moves from what a slash command printed, not only its styles", () => {

@@ -6,6 +6,11 @@ import { agentRef } from "./agents.js"
 // units, and how many items one change carries.
 export const transcriptLimits = { text: 16_384, name: 256, items: 256 } as const
 
+// How many images one prompt item lists at most, and the largest picture
+// `agents.transcriptImage` answers, in bytes.
+export const maxTranscriptImages = 32
+export const maxTranscriptImageBytes = 8 * 1024 * 1024
+
 // How many diff lines a tool's outcome carries at most, and how long one runs, in UTF-16 code
 // units: the first of the change, which `added` and `removed` count whole.
 export const outcomeLimits = { lines: 40, lineText: 512 } as const
@@ -86,7 +91,39 @@ export const transcriptNote = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("compaction") }),
   z.strictObject({ type: z.literal("gap") }),
 ])
+export type TranscriptImage = z.infer<typeof transcriptImage>
+export type TranscriptImageResult = z.infer<typeof transcriptImageResult>
 export type TranscriptNote = z.infer<typeof transcriptNote>
+
+// An image the person's prompt carried, as the record holds it: where the line that holds it
+// ends in the transcript (`offset`, which only `agents.transcriptImage` reads), which of that
+// line's images it is (`index`, from 0), and its media type where the record says one. It
+// carries no bytes and names no file: the runner finds the picture again in its own record.
+export const transcriptImage = z.strictObject({
+  offset: z.number().int().nonnegative(),
+  index: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(maxTranscriptImages - 1),
+  mime: z.string().max(transcriptLimits.name).nullable(),
+})
+
+// What `agents.transcriptImage` answers: the picture as a data URL (a PNG, JPEG, GIF or WebP of
+// at most `maxTranscriptImageBytes`), or why there is none: `gone` (the record, or the file it
+// points at, is no longer there, or isn't where the session keeps its uploads), `too-large`,
+// `unreadable` (not an image of those formats, or one that can't be read).
+export const transcriptImageResult = z.discriminatedUnion("state", [
+  z.strictObject({
+    state: z.literal("ready"),
+    mime: z.enum(["image/png", "image/jpeg", "image/gif", "image/webp"]),
+    src: z.string().max(12 * 1024 * 1024),
+  }),
+  z.strictObject({
+    state: z.literal("unavailable"),
+    reason: z.enum(["gone", "too-large", "unreadable"]),
+  }),
+])
 
 export const transcriptItem = z
   .strictObject({
@@ -113,6 +150,9 @@ export const transcriptItem = z
     ring: z.strictObject({ nonce: z.string().max(64), replies: z.boolean() }).nullable(),
     // On a `note` item, what its harness recorded between turns.
     note: transcriptNote.optional(),
+    // On a `user` item, the images the prompt carried, in order; absent where it had none or the
+    // harness's record doesn't hold them (an Antigravity before 1.4.9).
+    images: z.array(transcriptImage).min(1).max(maxTranscriptImages).optional(),
   })
   .refine((item) => (item.run !== null) === (item.kind === "tool-call"), {
     message: "A tool call has a run, and no other item does",

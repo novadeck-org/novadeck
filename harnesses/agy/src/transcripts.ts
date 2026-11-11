@@ -1,7 +1,12 @@
 import { presence, reportedOr, sessionName } from "@novadeck/harness-core/conversation"
 import { fieldsOf, parseFields, type Fields } from "@novadeck/harness-core/fields"
-import type { TranscriptDecoder, TranscriptEntry, UserEntry } from "@novadeck/harness-core/harness"
-import { at, entry, noteEntry, textOf } from "@novadeck/harness-core/items"
+import type {
+  ImageSource,
+  TranscriptDecoder,
+  TranscriptEntry,
+  UserEntry,
+} from "@novadeck/harness-core/harness"
+import { at, entry, noteEntry, textOf, withImages } from "@novadeck/harness-core/items"
 import { outcome } from "@novadeck/harness-core/outcomes"
 import { flavourOf } from "@novadeck/harness-core/paths"
 
@@ -93,6 +98,29 @@ const typed = (fields: Fields): string | undefined => {
   return (request.exec(content)?.[1] ?? content).trim()
 }
 
+// The images a step lists as `media`, by their saved copies: from 1.4.9 Antigravity attaches a
+// pasted image file to the prompt apart from its text, and keeps a copy under the session's
+// `.user_uploaded`; `uri` is that copy's, as a path or a `file:` URL. A step of 1.4.3 and before
+// lists none, and its text holds the path. Anything but an image stays out.
+const mediaImages = (fields: Fields): ImageSource[] =>
+  (Array.isArray(fields.media) ? fields.media : []).flatMap((each): ImageSource[] => {
+    const { mime_type: mime, uri } = (each ?? {}) as { mime_type?: unknown; uri?: unknown }
+    if (typeof uri !== "string" || !uri) return []
+    if (typeof mime === "string" && !mime.startsWith("image/")) return []
+    return [{ mime: typeof mime === "string" ? mime : null, file: pathOfUri(uri) }]
+  })
+
+// A `file:` URL as the path it names, on either kind of machine; any other text is a path.
+const pathOfUri = (uri: string): string => {
+  if (!/^file:\/\//i.test(uri)) return uri
+  try {
+    const path = decodeURIComponent(new URL(uri).pathname)
+    return /^\/[A-Za-z]:[\\/]/.test(path) ? path.slice(1) : path
+  } catch {
+    return uri
+  }
+}
+
 /**
  * The session's transcript in its own folder of the `brain` the reported path sits under,
  * where the reported one names another folder: Antigravity keeps each conversation's logs
@@ -125,6 +153,20 @@ export const transcripts: TranscriptDecoder = {
     subagent === null
       ? reportedOr(reported, sessionId, () => inOwnFolder(reported, sessionId))
       : undefined,
+  images: (line) => {
+    const fields = parseFields(line)
+    return fields && typed(fields) !== undefined ? mediaImages(fields) : []
+  },
+  // The folder of the session's uploads, beside its logs: the transcript is
+  // `brain/<session>/.system_generated/logs/transcript_full.jsonl`.
+  imageFolder: (transcript, sessionId) => {
+    const rules = flavourOf(transcript)
+    const session = rules.dirname(rules.dirname(rules.dirname(transcript)))
+    return rules.basename(session) === sessionId &&
+      rules.basename(rules.dirname(session)) === "brain"
+      ? rules.join(session, ".user_uploaded")
+      : undefined
+  },
   step: (line) => {
     const index = parseFields(line)?.step_index
     return typeof index === "number" ? index : undefined
@@ -143,7 +185,10 @@ export const transcripts: TranscriptDecoder = {
       const mode = content.includes("<PLAN>") ? "plan" : "not-plan"
       return [
         noteEntry({ type: "mode", mode }, time),
-        ...(text ? [entry("user", "text", text, { at: time })] : []),
+        ...withImages(
+          text ? [entry("user", "text", text, { at: time })] : [],
+          mediaImages(fields).map(({ mime }) => mime),
+        ),
       ]
     }
     if (fields.source === "SYSTEM" && fields.type === "CHECKPOINT")
