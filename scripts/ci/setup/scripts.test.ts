@@ -53,6 +53,10 @@ import {
 
 const root = join(import.meta.dirname, "..", "..", "..")
 
+// A file the tests read as text, its line endings as written: Windows' checkout gives the
+// actions and sources CRLF, which the tests' line-by-line matches would then miss.
+const text = (path: string): string => readFileSync(path, "utf8").replaceAll("\r\n", "\n")
+
 describe("the test browser's dependencies", () => {
   context("as Playwright's dry run names them", () => {
     it("are none only where it passed saying so", () => {
@@ -288,7 +292,7 @@ describe("the cache of the browser's packages", () => {
   // stale cache on a later image leaves the system as it was for the download after it; `dpkg -i`
   // would leave packages unconfigured, and apt would then refuse to download.
   it("installs debs with apt, its sources pointed at nothing, never dpkg -i", () => {
-    const source = readFileSync(join(import.meta.dirname, "browser-packages.ts"), "utf8")
+    const source = text(join(import.meta.dirname, "browser-packages.ts"))
     expect(source).toContain('local: (files) => sudo(["apt-get", ...localInstall(folder, files)])')
     expect(source).not.toMatch(/"dpkg",\s*"-i"/)
     expect(localInstall("/f", ["/f/a.deb"])).toEqual([
@@ -331,7 +335,7 @@ describe("the cache of the browser's packages", () => {
   // pnpm's "Scope:" preamble, printed where it finds the install stale, would change the key.
   it("runs Playwright through pnpm without its install check", () => {
     for (const file of ["browser-dependencies.ts", "browser-packages.ts"]) {
-      const source = readFileSync(join(import.meta.dirname, file), "utf8")
+      const source = text(join(import.meta.dirname, file))
       const calls = source.match(/"pnpm",\s*\[?\s*"[^"]+"/g) ?? []
       expect(calls.length, file).toBeGreaterThan(0)
       for (const call of calls)
@@ -346,7 +350,7 @@ describe("the cache of the browser's packages", () => {
     expect(failFast).toContain('APT::Update::Error-Mode "any";')
     expect(failFast).toMatch(/Acquire::https::Timeout "10";/)
     expect(aptPlan.limitSeconds).toBe(90)
-    const source = readFileSync(join(import.meta.dirname, "browser-packages.ts"), "utf8")
+    const source = text(join(import.meta.dirname, "browser-packages.ts"))
     // Written for this step's calls and removed after, never left for later steps.
     expect(source).toContain('sudo(["rm", "-f", failFastFile])')
     expect(source.match(/finally \{\n\s+sudo\(\["rm", "-f", failFastFile\]\)/g)).toHaveLength(2)
@@ -830,14 +834,14 @@ describe("a setup command's retries", () => {
         "sh -c pnpm exec playwright install-deps chromium",
       ])
         expect(wrapper.test(other), other).toBe(false)
-      const source = readFileSync(join(import.meta.dirname, "retry.ts"), "utf8")
+      const source = text(join(import.meta.dirname, "retry.ts"))
       expect(source.indexOf('["-f", downloadWrapper]')).toBeLessThan(
         source.indexOf('["-x", "apt-get"]'),
       )
     })
 
     it("is ended only on the download path, which runs no dpkg", () => {
-      const source = readFileSync(join(import.meta.dirname, "browser-packages.ts"), "utf8")
+      const source = text(join(import.meta.dirname, "browser-packages.ts"))
       expect(source).toContain("{ ...aptPlan, reap: true }")
       expect(source.match(/reap: true/g)).toHaveLength(1)
       expect(plan.reap).toBeUndefined()
@@ -889,7 +893,7 @@ describe("a setup command's retries", () => {
           { env: fast, encoding: "utf8" },
         )
         expect(result.status).toBe(0)
-        expect(readFileSync(count, "utf8").trim().split("\n")).toHaveLength(2)
+        expect(text(count).trim().split("\n")).toHaveLength(2)
         expect(result.stdout).not.toContain("::error")
       } finally {
         rmSync(folder, { recursive: true, force: true })
@@ -915,7 +919,7 @@ describe("a setup command's retries", () => {
             { env: fast, encoding: "utf8" },
           )
           expect(result.status).toBe(100)
-          expect(readFileSync(count, "utf8").trim().split("\n")).toHaveLength(3)
+          expect(text(count).trim().split("\n")).toHaveLength(3)
           expect(result.stdout).toContain(
             "::error title=Setup::Ubuntu's mirrors unreachable (3 attempts",
           )
@@ -967,11 +971,11 @@ describe("the test browser's install, where a job makes it", () => {
     [".github/workflows/benchmark.yml", "steps.changes.outputs.counts == 'true'", ""],
     [".github/actions/setup/action.yml", "inputs.browser == 'true'", " && runner.os == 'Linux'"],
   ] as const
-  const step = (text: string, name: string) => {
-    const start = text.indexOf(`- name: ${name}\n`)
-    return start < 0 ? "" : text.slice(start, text.indexOf("\n\n", start))
+  const step = (yaml: string, name: string) => {
+    const start = yaml.indexOf(`- name: ${name}\n`)
+    return start < 0 ? "" : yaml.slice(start, yaml.indexOf("\n\n", start))
   }
-  const read = (file: string) => readFileSync(join(root, file), "utf8")
+  const read = (file: string) => text(join(root, file))
 
   it.each(places)(
     "downloads %s's browser alone on Linux where the cache missed, through the retry",
@@ -988,14 +992,14 @@ describe("the test browser's install, where a job makes it", () => {
   it.each(places)(
     "installs %s's browser's system packages on Linux after the browser",
     (file, asked, linux) => {
-      const text = read(file)
-      const packages = step(text, "Test Browser Packages")
+      const yaml = read(file)
+      const packages = step(yaml, "Test Browser Packages")
       expect(packages).toContain(`if: ${asked}${linux}\n`)
       expect(packages).toContain("uses: ./.github/actions/browser-packages")
-      expect(text.indexOf("- name: Install Test Browser\n")).toBeLessThan(
-        text.indexOf("- name: Test Browser Packages"),
+      expect(yaml.indexOf("- name: Install Test Browser\n")).toBeLessThan(
+        yaml.indexOf("- name: Test Browser Packages"),
       )
-      expect(text).not.toContain("playwright install-deps chromium")
+      expect(yaml).not.toContain("playwright install-deps chromium")
     },
   )
 
@@ -1047,7 +1051,7 @@ describe("the test browser's install, where a job makes it", () => {
     // apt, as root, leaves its lock and partial/ in the folder whenever it downloads or
     // installs from it: tidied after the install, however it ended, before the save reads it.
     it("tidies the folder after the install, however it ended", () => {
-      const source = readFileSync(join(import.meta.dirname, "browser-packages.ts"), "utf8")
+      const source = text(join(import.meta.dirname, "browser-packages.ts"))
       expect(source).toMatch(
         /try \{\n\s+outcome = install\(named, machine\)\n\s+\} finally \{\n(?:\s+\/\/[^\n]*\n)*\s+tidy\(folder, sudo, process\.getuid\?\.\(\) \?\? 0\)/,
       )
@@ -1087,7 +1091,7 @@ describe("the test browser's install, where a job makes it", () => {
   })
 
   it("is Playwright's dry run, which reaches no network", () => {
-    const source = readFileSync(join(import.meta.dirname, "browser-dependencies.ts"), "utf8")
+    const source = text(join(import.meta.dirname, "browser-dependencies.ts"))
     expect(source).toMatch(/"install-deps",\s*"--dry-run",\s*"chromium"/)
   })
 })
