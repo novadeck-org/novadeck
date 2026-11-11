@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs"
 
+import { parseRegister } from "../../flakes/match"
+import { tallyReport } from "../../flakes/retries"
 import { context, describe, expect, it } from "../../test"
 import { parseTally, renderTally } from "./tally"
 
@@ -9,6 +11,37 @@ const recorded: unknown = JSON.parse(
 
 describe("the retry tally", () => {
   context("when the artifact holds a tally", () => {
+    it("reads what Known Flakes' Tally writes", () => {
+      const register = parseRegister(
+        JSON.parse(readFileSync("scripts/flakes/register.json", "utf8")),
+      )
+      const written = tallyReport(
+        [
+          {
+            key: "@novadeck/sandbox src/reap.test.ts > reap on macOS > ends one",
+            test: "src/reap.test.ts > reap on macOS > ends one",
+            package: "@novadeck/sandbox",
+            runs: 2,
+            retries: 3,
+            last: "2026-11-10T18:54:34.194Z",
+            links: [],
+            errors: [],
+          },
+        ],
+        register,
+        {
+          since: new Date("2026-11-04T06:41:00Z"),
+          until: new Date("2026-11-11T06:41:00Z"),
+          runs: 2,
+        },
+      )
+      expect(parseTally(JSON.parse(JSON.stringify(written)))).toMatchObject({
+        days: 7,
+        runs: 2,
+        tests: [{ test: "src/reap.test.ts > reap on macOS > ends one", retries: 3 }],
+      })
+    })
+
     it("is parsed as it was written", () => {
       const tally = parseTally(recorded)
       expect(tally.runs).toBe(3)
