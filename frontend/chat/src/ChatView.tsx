@@ -40,7 +40,7 @@ import { takeSentImages, type ChatSend } from "./sends"
 import { settledSent, settleSent } from "./settled"
 import { ShellLines, runningShells } from "./ShellLines"
 import { LiveSlice, SliceKeys } from "./Slice"
-import { Transcript, type PeerLooks } from "./Transcript"
+import { mentionOf, Transcript, type PeerLooks } from "./Transcript"
 import { currentPrompt, logPadding, neighbours, scrollFor, startRows } from "./turn-holds"
 import { useBoxReturn } from "./use-box-return"
 import { useMounted } from "./use-mounted"
@@ -609,6 +609,7 @@ export const ChatView = ({
           {holding && (
             <Hold
               text={holding.text}
+              mention={mentionOf(peerLooks)}
               at={holding.at}
               offset={turns.held!.offset}
               phase={holding.id === currentPrompt(shown) ? phase : undefined}

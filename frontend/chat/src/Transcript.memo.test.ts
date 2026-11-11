@@ -36,10 +36,10 @@ const transcript = (looks: PeerLooks) =>
   createElement(Transcript, { blocks, agent: "Claude", working: false, looks })
 
 describe("the scrollback, as other agents' looks change", () => {
-  it("draws again only the blocks that show other agents", () => {
+  it("draws again the blocks whose words may name other agents", () => {
     const { rerender } = render(transcript(() => null))
     expect(drawn.splice(0).toSorted()).toEqual(["Because.", "Keep it."])
     rerender(transcript(() => null))
-    expect(drawn.splice(0)).toEqual(["Keep it."])
+    expect(drawn.splice(0).toSorted()).toEqual(["Because.", "Keep it."])
   })
 })

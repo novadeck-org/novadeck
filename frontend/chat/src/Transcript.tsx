@@ -2,6 +2,8 @@ import { sameBlock, turnsWorked, type ChatBlock } from "@novadeck/core/conversat
 import type { MessageParty } from "@novadeck/core/messages"
 import { counted } from "@novadeck/core/units"
 import { Markdown } from "@novadeck/toolkit/Markdown"
+import { MentionedText } from "@novadeck/toolkit/Mentioned"
+import type { Mention } from "@novadeck/toolkit/mentions"
 import { memo, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { withBubbles, type SentBubble } from "./bubbles"
@@ -58,6 +60,11 @@ export type PeerLook = {
 }
 export type PeerLooks = (handle: string) => PeerLook | null
 
+// The hue of the agent a handle names in prose, for the Markdown to draw it in, where the app
+// knows the agent.
+export const mentionOf = (looks: PeerLooks | undefined): Mention | undefined =>
+  looks && ((handle) => looks(handle)?.hue ?? null)
+
 // What stands in the gutter at the person's words that came another way than the prompt, as an
 // answer through the Inbox: their face, where the app gives one (their avatar, as Messages draws
 // it, in their hue), else the block mark. What they type here keeps the mark.
@@ -98,6 +105,7 @@ const PeerMessage = ({
   readonly looks: PeerLooks | undefined
 }): React.JSX.Element => {
   const look = from.startsWith("@") ? (looks?.(from.slice(1)) ?? null) : null
+  const mention = useMemo(() => mentionOf(looks), [looks])
   const words = useRef<HTMLDivElement>(null)
   const [lines, setLines] = useState(0)
   const [open, setOpen] = useState(false)
@@ -145,7 +153,7 @@ const PeerMessage = ({
             : undefined
         }
       >
-        <Markdown text={text} />
+        <Markdown text={text} mention={mention} />
       </div>
       {truncated && <Shortened />}
       {folds && (
@@ -326,8 +334,11 @@ const RecordLine = ({
 }
 
 // Whether a block draws other agents, and so their looks.
+// The agent's own prose names them too.
 const drawsPeers = (block: ChatBlock): boolean =>
-  block.kind === "agent" || (block.kind === "doorbell" && fromAgents(block).length > 0)
+  block.kind === "agent" ||
+  block.kind === "assistant" ||
+  (block.kind === "doorbell" && fromAgents(block).length > 0)
 
 const BlockView = memo(
   ({
@@ -359,7 +370,9 @@ const BlockView = memo(
         return (
           <article className="chat-message" data-role="user" data-turn={block.id} aria-label="You">
             <Mark phase={phase} />
-            <p className="chat-text">{block.text}</p>
+            <p className="chat-text">
+              <MentionedText text={block.text} mention={mentionOf(looks)} />
+            </p>
             {block.truncated && <Shortened />}
             <TimeFact at={block.at} />
           </article>
@@ -367,7 +380,7 @@ const BlockView = memo(
       case "assistant":
         return (
           <article className="chat-message" data-role="assistant" aria-label={agent}>
-            <Markdown text={block.text} />
+            <Markdown text={block.text} mention={mentionOf(looks)} />
             {block.truncated && <Shortened />}
             {worked !== null ? (
               <Fact>worked {span(worked)}</Fact>
@@ -434,7 +447,9 @@ const BlockView = memo(
                   <span className="chat-author">you</span>
                   <span className="chat-agent-where">from the Inbox</span>
                 </p>
-                <p className="chat-text">{message.text}</p>
+                <p className="chat-text">
+                  <MentionedText text={message.text} mention={mentionOf(looks)} />
+                </p>
                 {line === null && index === 0 && fromAgents(block).length === 0 && (
                   <TimeFact at={block.at} hover />
                 )}
@@ -504,9 +519,11 @@ const SentView = memo(
   ({
     bubble,
     agent,
+    looks,
     actions: { onResend, onEdit, onShowTerminal },
   }: {
     readonly bubble: SentBubble
+    readonly looks: PeerLooks | undefined
     readonly agent: string
     readonly actions: SentActions
   }): React.JSX.Element => {
@@ -528,7 +545,7 @@ const SentView = memo(
           </ul>
         )}
         <p className="chat-text">
-          {bubble.text}
+          <MentionedText text={bubble.text} mention={mentionOf(looks)} />
           {(state === "queued" || state === "sending") && (
             <>
               {" "}
@@ -651,6 +668,7 @@ export const Transcript = ({
             key={`sent:${each.bubble.ref}`}
             bubble={each.bubble}
             agent={agent}
+            looks={looks}
             actions={actions}
           />
         ),

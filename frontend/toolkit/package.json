@@ -26,6 +26,8 @@
     "./item.css": "./src/item.css",
     "./label.css": "./src/label.css",
     "./Markdown": "./src/Markdown.tsx",
+    "./mentions": "./src/mentions.ts",
+    "./Mentioned": "./src/Mentioned.tsx",
     "./markdown.css": "./src/markdown.css",
     "./nova-logo.css": "./src/nova-logo.css",
     "./NovaLogo": "./src/NovaLogo.tsx",

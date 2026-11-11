@@ -1,3 +1,5 @@
+import { MentionedText } from "@novadeck/toolkit/Mentioned"
+import type { Mention } from "@novadeck/toolkit/mentions"
 import { useEffect, useId, useLayoutEffect, useRef, type CSSProperties } from "react"
 
 import { timeOfDay } from "./facts"
@@ -21,8 +23,11 @@ export const Hold = ({
   onClose,
   onStep,
   onGo,
+  mention,
 }: {
   readonly text: string
+  // The hue of the agent a handle names, where the app knows it (the handle is drawn in it).
+  readonly mention?: Mention | undefined
   readonly at: number | null
   // How far the next turn's start has pushed it up, in pixels, zero or less.
   readonly offset: number
@@ -112,7 +117,7 @@ export const Hold = ({
                 aria-label="Your prompt, whole"
                 tabIndex={-1}
               >
-                {text}
+                <MentionedText text={text} mention={mention} />
               </div>
             </div>
             <p className="chat-hold-foot">
@@ -145,7 +150,7 @@ export const Hold = ({
             >
               <Mark phase={phase} />
               <span className="chat-hold-words" aria-hidden>
-                {oneLine(text)}
+                <MentionedText text={oneLine(text)} mention={mention} />
               </span>
             </button>
             <span className="chat-hold-end">
