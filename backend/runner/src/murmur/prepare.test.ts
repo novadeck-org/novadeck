@@ -96,6 +96,19 @@ describe("preparing a digest in a thread", () => {
     expect(await preparer.prepare(digest("app"))).toBeUndefined()
   })
 
+  it("keeps a thread busy past its idle time, and ends it once idle after", async ({
+    resources,
+  }) => {
+    const preparer = new Preparer({ script, idleMs: 50, deadlineMs: 5000 })
+    resources.defer(() => preparer.close())
+
+    expect(await preparer.prepare(digest("slow"))).toEqual([
+      { role: "system", content: "system" },
+      { role: "user", content: "about slow" },
+    ])
+    await expect.poll(() => preparer.running).toBe(false)
+  })
+
   it("ends an idle thread", async () => {
     const preparer = new Preparer({ script, idleMs: 50 })
     await preparer.prepare(digest("app"))

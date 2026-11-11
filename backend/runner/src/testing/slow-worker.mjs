@@ -1,7 +1,7 @@
 /* eslint-disable unicorn/require-post-message-target-origin -- A worker thread's port has no origin. */
 // Stands in for the thread that redacts digests (murmur/worker.ts) in tests: it answers every
 // digest at once, except one whose project is "hang", which it never finishes, as a pattern
-// stuck on text built to stall it would.
+// stuck on text built to stall it would, and one whose project is "slow", which takes 300 ms.
 import { parentPort } from "node:worker_threads"
 
 parentPort?.on("message", ({ id, request: digest }) => {
@@ -18,12 +18,15 @@ parentPort?.on("message", ({ id, request: digest }) => {
     // Acknowledging the callback never completes the hanging redaction.
     for (;;);
   }
-  parentPort?.postMessage({
-    id,
-    result: [
-      { role: "system", content: "system" },
-      { role: "user", content: `about ${digest.project}` },
-    ],
-  })
+  const answer = () =>
+    parentPort?.postMessage({
+      id,
+      result: [
+        { role: "system", content: "system" },
+        { role: "user", content: `about ${digest.project}` },
+      ],
+    })
+  if (digest.project === "slow") setTimeout(answer, 300)
+  else answer()
 })
 parentPort?.postMessage({ ready: true })
