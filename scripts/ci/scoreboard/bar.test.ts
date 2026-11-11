@@ -103,6 +103,39 @@ describe("the merge queue's bar", () => {
       expect(bar.nightlyQuality).toEqual({ green: 12, total: 14 })
     })
 
+    it("counts a night by its run, whenever it started: the evening before, after midnight, or twice in one day", () => {
+      // GitHub starts the 17:23 cron hours late, so a night may start on its evening, just
+      // after midnight, or late on the next day, two runs falling in one UTC date.
+      const starts = [
+        "2026-11-01T17:40:00Z",
+        "2026-11-03T00:58:00Z",
+        "2026-11-03T23:59:00Z",
+        "2026-11-04T17:30:00Z",
+        "2026-11-06T01:10:00Z",
+        "2026-11-07T00:31:00Z",
+        "2026-11-07T23:50:00Z",
+        "2026-11-09T00:05:00Z",
+        "2026-11-09T19:12:00Z",
+        "2026-11-11T00:44:00Z",
+        "2026-11-12T01:02:00Z",
+        "2026-11-12T22:15:00Z",
+        "2026-11-14T00:20:00Z",
+        "2026-11-15T01:30:00Z",
+        "2026-11-16T00:12:00Z",
+      ]
+      const runs = starts.map((at, index): Run => ({
+        id: 900 + index,
+        name: "Nightly Quality",
+        event: "schedule",
+        conclusion: index === 1 ? "failure" : "success",
+        created_at: at,
+        run_attempt: 1,
+        actor: { login: "github-actions[bot]" },
+      }))
+      // The latest 14 of 15, so the oldest, the only one before the failed night, is out.
+      expect(mergeQueueBar(runs, []).nightlyQuality).toEqual({ green: 13, total: 14 })
+    })
+
     it("counts the pinned E2E night, and no other dispatch or schedule of E2E", () => {
       // Two failed nights and one rerun green among 14; a person's dispatch and a scheduled run
       // of E2E are not the pinned night.

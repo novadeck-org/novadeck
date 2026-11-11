@@ -13,7 +13,9 @@ on:
     # Sunday morning, when few pull requests run: the run takes most of an hour's API
     # budget and may wait for the next, so it keeps clear of the weekday rush and of Known
     # Flakes' daily Tally (06:41), which reads the same token's budget. After the nights
-    # (00:23 to about 04:00), so the week it reports ends with Saturday's.
+    # (really about 00:30 to 04:00), so the week it reports ends with Saturday's. GitHub
+    # starts this repository's scheduled runs about seven hours late (quality-nightly.yml),
+    # so this one too, which keeps it after them.
     - cron: "7 4 * * 0"
   workflow_dispatch:
     inputs:
