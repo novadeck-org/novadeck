@@ -810,9 +810,17 @@ describe("the items on an agent's bar, as agents lists them", () => {
         "http://localhost:5173/x",
       )
       expect(label("page", { url: "https://me:pw@example.com:8443/a/b?k=v" })).toBe(
-        "https://example.com:8443/a/b",
+        "https://example.com:8443",
       )
       expect(label("page", { url: "not a url" })).toBe("a page")
+    })
+
+    it("keeps a path only for this machine's pages, and names a file page as a file", () => {
+      expect(label("page", { url: "https://example.com/invite/Xk92jQpL7vB3nR8tZ1" })).toBe(
+        "https://example.com",
+      )
+      expect(label("page", { url: "http://127.0.0.1:5173/app" })).toBe("http://127.0.0.1:5173/app")
+      expect(label("page", { url: "file:///home/me/secret/notes.html" })).toBe("notes.html")
     })
 
     it("cuts a long address", () => {

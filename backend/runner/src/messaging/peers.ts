@@ -517,6 +517,9 @@ export const toldLine = (peer: Peer, now: number): string | null => {
 const shownItems = 3
 const shownChars = 60
 
+/** Host names of this machine, whose pages are a dev server's and keep their path. */
+const loopback = new Set(["localhost", "127.0.0.1", "[::1]", "0.0.0.0"])
+
 /** Text without any control or format character (a newline, an escape, a bidi mark). */
 const plain = (text: string): string => text.replace(/[\p{Cc}\p{Cf}]/gu, " ")
 
@@ -532,15 +535,19 @@ export const shownLabel = (
 ): string => {
   const named = (): string => {
     if (item.kind === "plan" || item.kind === "changes") return item.kind
+    let path = item.path ?? item.name
     if (item.kind === "page") {
       try {
-        const { protocol, host, pathname } = new URL(item.url ?? "")
-        return `${protocol}//${host}${pathname}`
+        const url = new URL(item.url ?? "")
+        // A page of a file is named as a file is, never by its absolute path.
+        if (url.protocol === "file:") path = decodeURIComponent(url.pathname)
+        // Only a page this machine serves keeps its path: a dev server's routes. Elsewhere a
+        // path may carry a token no pattern knows (`/invite/<token>`), so only the site shows.
+        else return loopback.has(url.hostname) ? `${url.origin}${url.pathname}` : url.origin
       } catch {
         return "a page"
       }
     }
-    const path = item.path ?? item.name
     const within = folder ? relative(folder, path) : ""
     return within !== "" && !within.startsWith("..") && !isAbsolute(within)
       ? within
