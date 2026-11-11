@@ -104,6 +104,33 @@ export const saves = (outcome: Outcome, exactHit: boolean): boolean =>
   !exactHit && (outcome.path === "apt" || outcome.path === "cache")
 
 /**
+ * apt's arguments that install the debs `files` and nothing from a mirror: the sources pointed
+ * at nothing, so the only candidates are the files and what dpkg has installed. With the
+ * system's sources apt prefers the archive's copy of the same version, which needs a download,
+ * and `--no-download` then refused it (#869's run on 11-11 installed nothing). It resolves
+ * first and changes nothing where a dependency can't be met. The system's package caches are
+ * left as they are, and apt reads the files as root, which it fell back to anyway, as its
+ * sandbox user can't read a runner's temporary folder.
+ */
+export const localInstall = (files: readonly string[]): readonly string[] => [
+  "-o",
+  "Dir::Etc::sourcelist=/dev/null",
+  "-o",
+  "Dir::Etc::sourceparts=/dev/null",
+  "-o",
+  "Dir::Cache::pkgcache=",
+  "-o",
+  "Dir::Cache::srcpkgcache=",
+  "-o",
+  "APT::Sandbox::User=root",
+  "install",
+  "-y",
+  "--no-install-recommends",
+  "--no-download",
+  ...files,
+]
+
+/**
  * apt settings for this step's own calls, removed after: no retry of its own and short
  * timeouts, so a dead mirror ends an attempt in seconds, not after apt's minutes of retries
  * (the retry around it waits and tries again).
@@ -305,8 +332,7 @@ export const main = (folder: string): void => {
         return []
       }
     },
-    local: (files) =>
-      sudo(["apt-get", "install", "-y", "--no-install-recommends", "--no-download", ...files]),
+    local: (files) => sudo(["apt-get", ...localInstall(files)]),
     missing: () => {
       const check = spawnSync(
         "pnpm",
@@ -330,6 +356,8 @@ export const main = (folder: string): void => {
     },
     download: (packages) => {
       mkdirSync(join(folder, "partial"), { recursive: true })
+      // apt's sandbox user downloads into it (given back after, for the cache's save).
+      sudo(["chown", "-R", "_apt", folder])
       // The fallbacks' apt state, beside the folder (not in it, as the folder is saved).
       const scratch = `${folder}.apt`
       sudo(["tee", failFastFile], failFast)
@@ -345,6 +373,8 @@ export const main = (folder: string): void => {
             const { name, mirrors } = fallbacks[used]!
             console.log(`Downloading through ${name}`)
             const alternate = writeAlternate(scratch, used, mirrors)
+            // apt's sandbox user writes the lists, as it does the folder.
+            sudo(["chown", "-R", "_apt", alternate.lists])
             return ["sudo", "sh", "-c", downloadScript(folder, packages, alternate)]
           },
           // It runs no dpkg: an apt it leaves past the wait is ended, not waited on again.

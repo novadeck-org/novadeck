@@ -1,7 +1,9 @@
-import { spawnSync } from "node:child_process"
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { execFileSync, spawnSync } from "node:child_process"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+
+import { afterAll } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
 import {
@@ -21,6 +23,7 @@ import {
   fallbackFor,
   fallbacks,
   install,
+  localInstall,
   type Machine,
   mirrorList,
   namesArchive,
@@ -274,12 +277,27 @@ describe("the cache of the browser's packages", () => {
   // `apt-get install --no-download` resolves first and changes nothing where it can't, so a
   // stale cache on a later image leaves the system as it was for the download after it; `dpkg -i`
   // would leave packages unconfigured, and apt would then refuse to download.
-  it("installs debs with apt and no download, never dpkg -i", () => {
+  it("installs debs with apt, its sources pointed at nothing, never dpkg -i", () => {
     const source = readFileSync(join(import.meta.dirname, "browser-packages.ts"), "utf8")
-    expect(source).toContain(
-      'sudo(["apt-get", "install", "-y", "--no-install-recommends", "--no-download", ...files])',
-    )
+    expect(source).toContain('local: (files) => sudo(["apt-get", ...localInstall(files)])')
     expect(source).not.toMatch(/"dpkg",\s*"-i"/)
+    expect(localInstall(["/f/a.deb"])).toEqual([
+      "-o",
+      "Dir::Etc::sourcelist=/dev/null",
+      "-o",
+      "Dir::Etc::sourceparts=/dev/null",
+      "-o",
+      "Dir::Cache::pkgcache=",
+      "-o",
+      "Dir::Cache::srcpkgcache=",
+      "-o",
+      "APT::Sandbox::User=root",
+      "install",
+      "-y",
+      "--no-install-recommends",
+      "--no-download",
+      "/f/a.deb",
+    ])
   })
 
   // Each attempt refreshes the lists, so a mirror back mid-step serves the next one.
@@ -501,6 +519,124 @@ describe("the browser packages' download through other mirrors", () => {
     )
   })
 })
+
+// The real command against real debs, as the fake machine stands in for apt: on #869's run of
+// 11-11 the command it faked installed nothing. Unprivileged: apt simulates the install and
+// runs its fetch stage, where that run failed, with its locking off; only dpkg's unpack, which
+// needs root, is left out. Where apt and dpkg-deb are (Linux CI's Ubuntu).
+describe.skipIf(!existsSync("/usr/bin/apt-get") || !existsSync("/usr/bin/dpkg-deb"))(
+  "installing debs with apt, for real",
+  () => {
+    const folder = mkdtempSync(join(tmpdir(), "novadeck-debs-"))
+    afterAll(() => rmSync(folder, { recursive: true, force: true }))
+    // A package of one file, depending on `depends` where given.
+    const deb = (name: string, depends?: string): string => {
+      const tree = join(folder, name)
+      mkdirSync(join(tree, "DEBIAN"), { recursive: true })
+      mkdirSync(join(tree, "usr", "share", "doc", name), { recursive: true })
+      writeFileSync(
+        join(tree, "DEBIAN", "control"),
+        [
+          `Package: ${name}`,
+          "Version: 1.0",
+          "Architecture: all",
+          "Maintainer: Novadeck <ci@novadeck.invalid>",
+          "Description: a probe of installing local debs",
+          ...(depends ? [`Depends: ${depends}`] : []),
+          "",
+        ].join("\n"),
+      )
+      writeFileSync(join(tree, "usr", "share", "doc", name, "README"), "probe\n")
+      execFileSync("dpkg-deb", ["--root-owner-group", "--build", tree, `${tree}.deb`], {
+        stdio: "ignore",
+      })
+      return `${tree}.deb`
+    }
+    const apt = (args: readonly string[]) =>
+      spawnSync("apt-get", ["-o", "Debug::NoLocking=1", ...args], { encoding: "utf8" })
+
+    it("installs the files, a dependency among them ordered first, from no mirror", () => {
+      const a = deb("novadeck-probe-a")
+      const b = deb("novadeck-probe-b", "novadeck-probe-a")
+      const said = apt(["-s", ...localInstall([b, a])])
+      expect(said.status, said.stderr).toBe(0)
+      expect(said.stdout).toMatch(/^Inst novadeck-probe-a \(1\.0 local-deb/m)
+      expect(said.stdout).toMatch(/^Inst novadeck-probe-b \(1\.0 local-deb/m)
+      expect(said.stdout.indexOf("Inst novadeck-probe-a")).toBeLessThan(
+        said.stdout.indexOf("Inst novadeck-probe-b"),
+      )
+    })
+
+    // The stage #869's run failed at: apt "fetches" local debs, which reaches no network.
+    it("fetches the files themselves, with --no-download", () => {
+      const a = deb("novadeck-probe-c")
+      const archives = join(folder, "archives")
+      mkdirSync(join(archives, "partial"), { recursive: true })
+      const said = apt([
+        "-o",
+        `Dir::Cache::archives=${archives}`,
+        "--download-only",
+        ...localInstall([a]),
+      ])
+      expect(said.status, said.stderr).toBe(0)
+      expect(said.stdout).toContain("Download complete and in download only mode")
+      expect(said.stdout).not.toMatch(/https?:\/\//)
+    })
+
+    // #869's run on 11-11: the system's sources knew the archive's copy of each font at the
+    // same version, apt took that as the candidate, which needs a download, and --no-download
+    // refused it ("Unable to fetch some archives"). A source at an address nothing answers,
+    // its index written straight into the lists, stands in for the archive here.
+    it("takes the files, not a source's copy of the same version, which would need a download", () => {
+      const a = deb("novadeck-probe-e")
+      const lists = join(folder, "lists")
+      const archives = join(folder, "archives-e")
+      mkdirSync(join(lists, "partial"), { recursive: true })
+      mkdirSync(join(archives, "partial"), { recursive: true })
+      const control = execFileSync("dpkg-deb", ["-f", a, "Package", "Version", "Architecture"], {
+        encoding: "utf8",
+      })
+      const digest = execFileSync("sha256sum", [a], { encoding: "utf8" }).split(" ")[0]
+      writeFileSync(
+        join(lists, "127.0.0.1:9_repo_._Packages"),
+        `${control.trim()}\nFilename: ./novadeck-probe-e.deb\nSize: ${readFileSync(a).length}\nSHA256: ${digest}\n\n`,
+      )
+      const sources = join(folder, "remote.list")
+      writeFileSync(sources, "deb [trusted=yes] http://127.0.0.1:9/repo ./\n")
+      const at = [
+        "-o",
+        `Dir::State::Lists=${lists}`,
+        "-o",
+        `Dir::Cache::archives=${archives}`,
+        "-o",
+        "Dir::Cache::pkgcache=",
+        "-o",
+        "Dir::Cache::srcpkgcache=",
+        "-o",
+        "Dir::Etc::sourceparts=/dev/null",
+        "-o",
+        `Dir::Etc::sourcelist=${sources}`,
+        "--download-only",
+      ]
+      // As before: the source's copy is the candidate, and nothing can be fetched.
+      const before = apt([...at, "install", "-y", "--no-install-recommends", "--no-download", a])
+      expect(before.status).toBe(100)
+      expect(`${before.stdout}${before.stderr}`).toContain("Unable to fetch some archives")
+      // As now: its own options, after, point the sources at nothing, and the file is taken.
+      const now = apt([...at, ...localInstall([a])])
+      expect(now.status, now.stderr).toBe(0)
+      expect(now.stdout).toContain("Download complete and in download only mode")
+    })
+
+    it("changes nothing where a dependency can't be met", () => {
+      const lone = deb("novadeck-probe-d", "novadeck-probe-missing")
+      const said = apt(["-s", ...localInstall([lone])])
+      expect(said.status).toBe(100)
+      expect(`${said.stdout}${said.stderr}`).toContain("Unable to correct problems")
+      expect(said.stdout).not.toMatch(/^Inst /m)
+    })
+  },
+)
 
 describe("a setup command's retries", () => {
   it("wait longer before each, one fewer than the attempts", () => {
