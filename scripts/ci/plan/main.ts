@@ -73,7 +73,8 @@ const scopes = (env: NodeJS.ProcessEnv): readonly Scope[] | undefined => {
   return read.filter((scope): scope is Scope => scope !== undefined)
 }
 
-const facts = (event: string, base: string | undefined, head: string | undefined): Facts => {
+/** What `plan` decides on, for the event and the change from `base` to `head`. */
+export const facts = (event: string, base: string | undefined, head: string | undefined): Facts => {
   const none = {
     packages: undefined,
     scopes: undefined,
@@ -87,8 +88,13 @@ const facts = (event: string, base: string | undefined, head: string | undefined
     return { event, ...none, packaged: undefined }
   }
   const env = { ...process.env, TURBO_SCM_BASE: base, TURBO_SCM_HEAD: head }
+  // Without pnpm's check of the install, which can print to stdout ahead of turbo's JSON.
   const turbo = (...args: string[]) => {
-    const output = run("pnpm", ["exec", "turbo", "ls", ...args, "--output", "json"], env)
+    const output = run(
+      "pnpm",
+      ["--config.verify-deps-before-run=false", "exec", "turbo", "ls", ...args, "--output", "json"],
+      env,
+    )
     return output === undefined ? undefined : parseAffected(output)
   }
   // Unquoted and NUL-separated, so a path with spaces or non-ASCII letters reads as it is.
@@ -116,8 +122,12 @@ const facts = (event: string, base: string | undefined, head: string | undefined
   }
 }
 
+/** The ids of the harnesses the E2E suite runs, from its pins. */
+export const harnessIds = (): readonly string[] =>
+  Object.keys(JSON.parse(readFileSync(pins, "utf8")) as object)
+
 export const main = (): void => {
-  const ids = Object.keys(JSON.parse(readFileSync(pins, "utf8")) as object)
+  const ids = harnessIds()
   const found = facts(
     process.env.GITHUB_EVENT_NAME ?? "",
     process.env.BASE_SHA,

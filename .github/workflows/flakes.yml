@@ -5,7 +5,9 @@ name: Known Flakes
 # any other failure, a known flake failing again, or a flake registered as fixed coming
 # back is left failed for triage. It runs main's register and code, never a
 # pull request's, so a change can't excuse its own failures. A pull request's packaging runs
-# inside Quality; Release, which publishes, is never rerun.
+# inside Quality; Release, which publishes, is never rerun. A merge group's run is never
+# triaged: a failure has already taken its pull request out of the queue, and a rerun doesn't
+# put it back.
 #
 # CI retries a failed test where the runner's load can decide it (scripts/flakes/retry), and
 # a run that passed that way is green: the `retried-*` artifacts its test jobs upload, each
@@ -33,7 +35,9 @@ permissions:
 jobs:
   triage:
     name: Triage
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure'
+    if: >-
+      github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event != 'merge_group'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -147,12 +151,14 @@ jobs:
   # each run that retried one, those in packages it changes first: a race a change brings shows
   # nowhere else while its checks are green. Every attempt's artifacts, so a rerun's count. The
   # artifacts and the pull request's files are its data, read by main's code. A fork's pull
-  # request is named on no run, so it gets no comment.
+  # request is named on no run, so it gets no comment. A merge group's run names no pull
+  # request either; its one is read from the group's branch (retries.ts, pullRequestsOf).
   retried:
     name: Retried Tests
     if: >-
       github.event_name == 'workflow_run' && github.event.workflow_run.name != 'Package' &&
-      github.event.workflow_run.pull_requests[0] != null
+      (github.event.workflow_run.pull_requests[0] != null ||
+      github.event.workflow_run.event == 'merge_group')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -164,7 +170,6 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       RUN_ID: ${{ github.event.workflow_run.id }}
-      PULL_REQUESTS: ${{ join(github.event.workflow_run.pull_requests.*.number, ' ') }}
     steps:
       - name: Find Retry Records
         id: find
@@ -202,7 +207,8 @@ jobs:
         if: steps.find.outputs.found == 'true'
         shell: bash
         run: |
-          for pr in $PULL_REQUESTS; do
+          pulls=$(node scripts/flakes/retries-main.ts pulls "$RUNNER_TEMP/run/run.json")
+          for pr in $pulls; do
             gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --jq '.[].filename' > "$RUNNER_TEMP/files.txt"
             gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$pr/comments?per_page=100" \
               --jq '.[] | select(.user.login == "github-actions[bot]") | select(.body | startswith("<!-- known-flakes:retried -->")) | [.id, .body] | @json' \

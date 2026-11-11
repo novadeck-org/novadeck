@@ -1,12 +1,15 @@
 import { attributionErrors } from "./attribution.ts"
 import { pullRequestCommits } from "./commits.ts"
+import { queuedEnv } from "./queued.ts"
 import { requiredSections, verifyPullRequest } from "./verify.ts"
 
 export const main = (): void => {
+  // A merge group's event names no pull request: its own is read from the group's branch.
+  const env = process.env.GITHUB_EVENT_NAME === "merge_group" ? queuedEnv(process.env) : process.env
   const result = verifyPullRequest(
-    process.env.PR_TITLE ?? "",
-    process.env.PR_BODY ?? "",
-    requiredSections(process.env.PR_AUTHOR ?? ""),
+    env.PR_TITLE ?? "",
+    env.PR_BODY ?? "",
+    requiredSections(env.PR_AUTHOR ?? ""),
   )
 
   for (const message of result.titleErrors) {
@@ -17,9 +20,9 @@ export const main = (): void => {
   }
 
   const attribution = attributionErrors([
-    { label: "The pull request title", text: process.env.PR_TITLE ?? "" },
-    { label: "The pull request description", text: process.env.PR_BODY ?? "" },
-    ...pullRequestCommits(process.env),
+    { label: "The pull request title", text: env.PR_TITLE ?? "" },
+    { label: "The pull request description", text: env.PR_BODY ?? "" },
+    ...pullRequestCommits(env),
   ])
   for (const message of attribution) {
     console.error(`::error title=AI attribution::${message}`)
