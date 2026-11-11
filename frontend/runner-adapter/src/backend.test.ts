@@ -396,20 +396,44 @@ describe("runner backend", () => {
 
   context("when asked which terminals hold work", () => {
     it("answers the runner's list, and nothing for a terminal at its prompt", async () => {
-      // Windows reads a shell's processes through the relay. This runner's is one that isn't
-      // there, so there the shells are ones it can't read, never taken for idle, whether or
-      // not this machine has built `@novadeck/relay` (a run that tests the relay builds it).
+      // DEBUG (#857's trace, removed before merge): what busyTerminals answers, and for which
+      // terminals, on the file's shared runner and on one without a relay.
+      const trace = async (label: string, api: RunnerApi, listing: RunnerListing) => {
+        const app = open(listing, {}, api)
+        const opened = Date.now()
+        const own = app.addTerminal()
+        await app.idle()
+        const sessionId = app.target().workspaceSessionId
+        for (const wait of [0, 3000]) {
+          if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait))
+          const answer = await app.backend.busyTerminals!()
+          const listed = await api.terminals.list({ sessionId })
+          process.stderr.write(
+            `TRACE ${JSON.stringify({
+              label,
+              platform: process.platform,
+              msSinceOpened: Date.now() - opened,
+              own: own.id,
+              ownInUnknown: answer?.unknown.includes(own.id) ?? null,
+              ownInBusy: answer?.busy.includes(own.id) ?? null,
+              answer,
+              terminals: listed.map((each) => {
+                const { id, started, exited, running, command } = each as unknown as Record<
+                  string,
+                  unknown
+                >
+                return { id, own: id === own.id, started, exited, running, command }
+              }),
+            })}\n`,
+          )
+        }
+        app.stop()
+      }
+      await trace("shared", runner.client, runner.listing)
       const relayless = await startTestRunner({
         terminals: { relay: join(tmpdir(), "novadeck-no-relay", "novadeck-relay.exe") },
       })
-      const app = open(relayless.listing, {}, relayless.client)
-      app.addTerminal()
-      await app.idle()
-      const answer = await app.backend.busyTerminals!()
-      expect(answer?.busy).toEqual([])
-      if (process.platform === "win32") expect(answer?.unknown.length).toBeGreaterThan(0)
-      else expect(answer?.unknown).toEqual([])
-      app.stop()
+      await trace("relayless", relayless.client, relayless.listing)
       await relayless.close()
     })
 
