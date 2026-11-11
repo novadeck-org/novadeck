@@ -15,6 +15,7 @@ import {
 import {
   alternateSources,
   aptPlan,
+  attemptSources,
   downloadScript,
   failFast,
   fallbackFor,
@@ -22,6 +23,7 @@ import {
   install,
   type Machine,
   mirrorList,
+  namesArchive,
   saves,
 } from "./browser-packages.ts"
 import {
@@ -359,6 +361,48 @@ describe("the browser packages' download through other mirrors", () => {
     ).toBe(ubuntuSources)
     expect(alternateSources("deb http://archive.ubuntu.com/ubuntu/ resolute main", "/l")).toBe(
       "deb mirror+file:/l resolute main",
+    )
+  })
+
+  it.each([
+    ["the image's mirror list", "URIs: mirror+file:/etc/apt/apt-mirrors.txt"],
+    ["Azure's name", "deb http://azure.archive.ubuntu.com/ubuntu/ resolute main"],
+    ["a country's, without the slash", "deb http://pl.archive.ubuntu.com/ubuntu resolute main"],
+    ["security's, over https", "deb https://security.ubuntu.com/ubuntu/ resolute-security main"],
+  ])("finds the archive by %s, and points it at the attempt's list", (_name, line) => {
+    expect(namesArchive(line)).toBe(true)
+    expect(alternateSources(line, "/l")).toMatch(/mirror\+file:\/l(\s|$)/)
+    expect(alternateSources(line, "/l")).not.toMatch(/ubuntu\.com|apt-mirrors\.txt/)
+  })
+
+  it.each([
+    ["Microsoft's", "deb https://packages.microsoft.com/ubuntu/26.04/prod resolute main"],
+    ["a PPA", "URIs: https://ppa.launchpadcontent.net/git-core/ppa/ubuntu/"],
+    [
+      "a name that only contains the archive's",
+      "deb http://archive.ubuntu.com.example/ubuntu x main",
+    ],
+  ])("leaves %s source alone", (_name, line) => {
+    expect(namesArchive(line)).toBe(false)
+    expect(alternateSources(line, "/l")).toBe(line)
+  })
+
+  // A third-party repository's hiccup would fail the update at every level with
+  // `Error-Mode "any"`, where the fonts need only the archive.
+  it("gives each attempt only the sources that name the archive, the image's list kept at level 0", () => {
+    const files = [
+      ["ubuntu.sources", ubuntuSources.split("\n\n")[0]!],
+      [
+        "microsoft-prod.list",
+        "deb [arch=amd64] https://packages.microsoft.com/ubuntu/26.04/prod resolute main",
+      ],
+    ] as const
+    expect(attemptSources(files, 0, "/l")).toEqual([["ubuntu.sources", files[0][1]]])
+    expect(attemptSources(files, 1, "/l")).toEqual([
+      ["ubuntu.sources", alternateSources(files[0][1], "/l")],
+    ])
+    expect(attemptSources(files, 1, "/l")[0]![1]).toContain(
+      "Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg",
     )
   })
 

@@ -175,7 +175,8 @@ export const mirrorList = (image: string, mirrors: readonly string[]): string =>
     .concat("\n")
 
 // The image's mirror list, which its sources name as `mirror+file:`, and the archive's own
-// names, which a source without the list names directly.
+// names, which a source without the list names directly; a mirror list built where the image
+// has none.
 const imageMirrors = "/etc/apt/apt-mirrors.txt"
 const archives = [
   "http://azure.archive.ubuntu.com/ubuntu/",
@@ -184,15 +185,21 @@ const archives = [
 ]
 
 /**
- * A copy of a sources file whose Ubuntu archive is the mirror list `list`: each `mirror+file:`
- * of the image's list, and each of the archive's own names, becomes `mirror+file:<list>`. All
- * else stays as it is, `Signed-By` included.
+ * The Ubuntu archive as a source names it: the image's mirror list, or the archive's own names
+ * (a country's, Azure's, security's), over http or https, with or without the trailing slash.
+ */
+const archive =
+  /(?:mirror\+file:\/etc\/apt\/apt-mirrors\.txt|https?:\/\/(?:[a-z0-9-]+\.)?(?:archive|security)\.ubuntu\.com\/ubuntu\/?)(?=[\s"]|$)/g
+
+/** Whether a sources file names the Ubuntu archive: only those are an attempt's sources. */
+export const namesArchive = (text: string): boolean => new RegExp(archive.source).test(text)
+
+/**
+ * A copy of a sources file whose Ubuntu archive is the mirror list `list` (`archive`, each
+ * becoming `mirror+file:<list>`). All else stays as it is, `Signed-By` included.
  */
 export const alternateSources = (text: string, list: string): string =>
-  [`mirror+file:${imageMirrors}`, ...archives].reduce(
-    (sources, uri) => sources.replaceAll(uri, `mirror+file:${list}`),
-    text,
-  )
+  text.replaceAll(archive, `mirror+file:${list}`)
 
 /** Where an attempt's own apt state lives: sources, mirror list and package lists of its own. */
 export type Alternate = { readonly parts: string; readonly lists: string }
@@ -226,9 +233,26 @@ export const downloadScript = (
 }
 
 /**
- * Writes the apt state an attempt through `mirrors` reads, under `root`: the image's sources
- * with their archive pointed at a mirror list of `mirrors` then the image's own, and an empty
- * lists folder. Returns where, for `downloadScript`.
+ * An attempt's sources files, from the image's (`files`, by name): only those that name the
+ * Ubuntu archive; at level 0 as they are, the image's mirror list and all, and at a fallback
+ * with the archive pointed at the attempt's own list.
+ */
+export const attemptSources = (
+  files: readonly (readonly [string, string])[],
+  level: number,
+  list: string,
+): readonly (readonly [string, string])[] =>
+  files
+    .filter(([, text]) => namesArchive(text))
+    .map(([name, text]) => [name, level === 0 ? text : alternateSources(text, list)] as const)
+
+/**
+ * Writes the apt state an attempt reads, under `root`: only the sources files that name the
+ * Ubuntu archive, as the fonts and what they need are all there and a third-party repository's
+ * hiccup (packages.microsoft.com is on GitHub's images) would otherwise fail the update, with
+ * `Error-Mode "any"`, at every level; and an empty lists folder. Level 0 keeps the image's own
+ * mirror list; a fallback points the archive at a list of `mirrors` then the image's own.
+ * Returns where, for `downloadScript`.
  */
 const writeAlternate = (root: string, level: number, mirrors: readonly string[]): Alternate => {
   const at = join(root, `mirrors-${level}`)
@@ -250,8 +274,9 @@ const writeAlternate = (root: string, level: number, mirrors: readonly string[])
       .filter((name) => name.endsWith(".sources") || name.endsWith(".list"))
       .map((name) => [name, join("/etc/apt/sources.list.d", name)]),
   ]
-  for (const [name, path] of sources)
-    writeFileSync(join(parts, name!), alternateSources(readFileSync(path!, "utf8"), list))
+  const files = sources.map(([name, path]) => [name!, readFileSync(path!, "utf8")] as const)
+  for (const [name, text] of attemptSources(files, level, list))
+    writeFileSync(join(parts, name), text)
   return { parts, lists }
 }
 
@@ -319,7 +344,7 @@ export const main = (folder: string): void => {
             used = fallbackFor(failures)
             const { name, mirrors } = fallbacks[used]!
             console.log(`Downloading through ${name}`)
-            const alternate = used === 0 ? undefined : writeAlternate(scratch, used, mirrors)
+            const alternate = writeAlternate(scratch, used, mirrors)
             return ["sudo", "sh", "-c", downloadScript(folder, packages, alternate)]
           },
           // It runs no dpkg: an apt it leaves past the wait is ended, not waited on again.
