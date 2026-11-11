@@ -37,6 +37,11 @@ export const ChangesViewer = ({
   actions,
 }: ArtifactBodyProps<"changes">): React.JSX.Element => {
   const [view, update] = useChangesView(itemStore, item.id)
+  // What the files' diffs and ranges are read at: the content's stamp, kept where only the files
+  // read changed, so marking one read does not read the open file's diff again.
+  const shape = useMemo(() => JSON.stringify({ ...content, read: [] }), [content])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- The stamp of the shape's first sight.
+  const diffStamp = useMemo(() => stamp, [shape])
   const ids = useMemo(() => idsOf(content.layers), [content.layers])
   const selected = useMemo(() => selectedOf(ids, view.picked), [ids, view.picked])
   const layers = useMemo(() => ids.filter((id) => selected.has(id)), [ids, selected])
@@ -44,7 +49,7 @@ export const ChangesViewer = ({
   // them are a range git lists when asked; until it answers, or where the backend can't, and
   // for one layer, the layers' files added up.
   const whole = layers.length === ids.length
-  const ranged = useRange(itemStore, target, item.id, stamp, whole ? [] : layers)
+  const ranged = useRange(itemStore, target, item.id, diffStamp, whole ? [] : layers)
   const files = useMemo(
     () =>
       whole
@@ -188,7 +193,7 @@ export const ChangesViewer = ({
                       itemStore={itemStore}
                       target={target}
                       itemId={item.id}
-                      stamp={stamp}
+                      stamp={diffStamp}
                       layers={layers}
                     />
                   )}
@@ -220,7 +225,7 @@ export const ChangesViewer = ({
             itemStore={itemStore}
             target={target}
             itemId={item.id}
-            stamp={stamp}
+            stamp={diffStamp}
             layers={layers}
             headRef={head}
             onBack={back}

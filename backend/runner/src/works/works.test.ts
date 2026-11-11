@@ -415,6 +415,25 @@ describe.skipIf(!hasGit)("the works of terminals in git checkouts", () => {
     expect(found.get(terminal(3))?.conflicts).toEqual([{ with: "work", terminalId: terminal(2) }])
   })
 
+  it("finds a conflict between a work that renamed a file and one that edited it", async ({
+    fixture,
+    resources,
+  }) => {
+    const first = fixture.worktree("first")
+    const second = fixture.worktree("second")
+    first.git("mv", "a.txt", "moved.txt")
+    first.write("moved.txt", ten.replace("line 5\n", "first five\n"))
+    second.write("a.txt", ten.replace("line 5\n", "second five\n"))
+    const { works } = open(() => [
+      { terminalId: terminal(1), root: first.root },
+      { terminalId: terminal(2), root: second.root },
+    ])
+    resources.defer(() => works.close())
+    const found = await current(works)
+    expect(found.get(terminal(1))?.files.map(({ path }) => path)).toEqual(["moved.txt"])
+    expect(found.get(terminal(1))?.conflicts).toEqual([{ with: "work", terminalId: terminal(2) }])
+  })
+
   it("gives a checkout shared by several terminals to the one that was there first", async ({
     fixture,
     resources,

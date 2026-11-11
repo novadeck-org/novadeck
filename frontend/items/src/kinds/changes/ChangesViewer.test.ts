@@ -488,6 +488,19 @@ describe("a change beside a terminal", () => {
       expect(row("src/auth/session.ts").dataset.read).toBeUndefined()
     })
 
+    it("does not read the open file's diff again when only the files read changed", async () => {
+      const shown = show(change())
+      await shown.settle()
+      await shown.open("src/auth/cookies.ts")
+      await shown.settle()
+      const asked = shown.asked.length
+
+      await shown.emit({ ...change(), read: ["src/auth/cookies.ts"] }, "2")
+      await shown.settle()
+
+      expect(shown.asked).toHaveLength(asked)
+    })
+
     it("steps to the next and previous file within the selection with J and K", async () => {
       const { container, open, press } = show(change())
       const name = () => container.querySelector(".changes-name")?.textContent
