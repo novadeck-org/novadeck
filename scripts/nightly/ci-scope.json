@@ -1,0 +1,4 @@
+{
+  "reaches": "repository",
+  "why": "Nightly Report's issue and its writeup, which nightly.yml and quality-nightly.yml's Start Pinned E2E run on Linux and nothing on Windows or macOS reads: their own tests run in test:repository."
+}
