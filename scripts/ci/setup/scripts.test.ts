@@ -4,8 +4,22 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { context, describe, expect, it } from "../../test"
-import { cacheKey, elfFiles, missingPackages, notFound, verdict } from "./browser-dependencies.ts"
-import { aptPlan, downloadScript, failFast, install, type Machine } from "./browser-packages.ts"
+import {
+  cacheKey,
+  cachePrefix,
+  elfFiles,
+  missingPackages,
+  notFound,
+  verdict,
+} from "./browser-dependencies.ts"
+import {
+  aptPlan,
+  downloadScript,
+  failFast,
+  install,
+  type Machine,
+  saves,
+} from "./browser-packages.ts"
 import { bounded, failure, longest, plan, settled, waits } from "./retry.ts"
 
 const root = join(import.meta.dirname, "..", "..", "..")
@@ -94,17 +108,29 @@ describe("the cache of the browser's packages", () => {
     packages: ["fonts-unifont", "xvfb"],
   }
 
-  it("is keyed by the image's OS, its architecture, and Playwright's version with its list", () => {
-    const key = cacheKey(found)
-    expect(key).toMatch(/^browser-packages-ubuntu-24\.04-amd64-[0-9a-f]{16}$/)
-    expect(cacheKey({ ...found, packages: ["xvfb", "fonts-unifont"] })).toBe(key)
+  it("is keyed by the image's OS, architecture and build, and Playwright's version with its list", () => {
+    const image = { ...found, image: "ubuntu24-20261109.1" }
+    const key = cacheKey(image)
+    expect(key).toMatch(/^browser-packages-ubuntu-24\.04-amd64-[0-9a-f]{16}-ubuntu24-20261109\.1$/)
+    expect(cacheKey({ ...image, packages: ["xvfb", "fonts-unifont"] })).toBe(key)
     for (const other of [
       { os: "ubuntu-26.04" },
       { arch: "arm64" },
       { playwright: "1.65.0" },
       { packages: ["fonts-unifont"] },
+      { image: "ubuntu24-20261116.1" },
     ])
-      expect(cacheKey({ ...found, ...other }), JSON.stringify(other)).not.toBe(key)
+      expect(cacheKey({ ...image, ...other }), JSON.stringify(other)).not.toBe(key)
+    // Where the runner names no image, its OS version stands for it.
+    expect(cacheKey(found)).toBe(`${cachePrefix(found)}ubuntu-24.04`)
+  })
+
+  // A new image build restores an earlier build's debs by the prefix the builds share.
+  it("shares its prefix across image builds, and only those", () => {
+    const prefix = cachePrefix({ ...found, image: "ubuntu24-20261109.1" })
+    expect(cacheKey({ ...found, image: "ubuntu24-20261116.1" }).startsWith(prefix)).toBe(true)
+    expect(cachePrefix({ ...found, playwright: "1.65.0" })).not.toBe(prefix)
+    expect(prefix.endsWith("-")).toBe(true)
   })
 
   // A machine whose answers the test sets: what the folder holds, whether dpkg and apt work,
@@ -125,6 +151,10 @@ describe("the cache of the browser's packages", () => {
       local: (files) => (calls.push(`install ${files.length}`), locals.shift() ?? true),
       // What the test scripted, `undefined` (couldn't tell) included; none once it runs out.
       missing: () => (afterward.length > 0 ? afterward.shift() : []),
+      clear: () => {
+        calls.push("clear")
+        folder = []
+      },
       download: (packages) => {
         calls.push(`download ${packages.join(" ")}`)
         if (given.download === false) return false
@@ -147,13 +177,19 @@ describe("the cache of the browser's packages", () => {
   it("downloads through apt where nothing is cached, installs the download and saves it", () => {
     const { fake, calls } = machine({})
     expect(install(nine, fake)).toEqual({ path: "apt", fetched: true })
-    expect(calls).toEqual(["download fonts-unifont xfonts-utils", "install 2"])
+    expect(calls).toEqual(["clear", "download fonts-unifont xfonts-utils", "install 2"])
   })
 
   it("goes to apt where the cache covers only some, as the check still names one", () => {
     const { fake, calls } = machine({ cached: ["a.deb"], afterward: [["xfonts-utils"], []] })
     expect(install(nine, fake)).toEqual({ path: "apt", fetched: true })
-    expect(calls).toEqual(["install 1", "download fonts-unifont xfonts-utils", "install 3"])
+    // The download goes into an emptied folder: only its own two debs are installed.
+    expect(calls).toEqual([
+      "install 1",
+      "clear",
+      "download fonts-unifont xfonts-utils",
+      "install 2",
+    ])
   })
 
   it("goes to the download where the cache can't be installed (a stale cache, unchanged), or the check can't tell after it", () => {
@@ -170,6 +206,42 @@ describe("the cache of the browser's packages", () => {
     expect(() => install(nine, machine({ afterward: [["xfonts-utils"]] }).fake)).toThrow(
       "still names some missing",
     )
+  })
+
+  context("as the cache ages across image builds", () => {
+    it("never rewrites an exact hit", () => {
+      const { fake, calls } = machine({ cached: ["a.deb", "b.deb"] })
+      const outcome = install(nine, fake)
+      expect(outcome.path).toBe("cache")
+      expect(saves(outcome, true)).toBe(false)
+      expect(calls).toEqual(["install 2"])
+    })
+
+    it("saves an earlier build's debs under the new key where they install, reaching no mirror", () => {
+      const { fake, calls } = machine({ cached: ["a.deb", "b.deb"] })
+      const outcome = install(nine, fake)
+      expect(saves(outcome, false)).toBe(true)
+      expect(calls).not.toContainEqual(expect.stringMatching(/^download/))
+    })
+
+    // Debs the new build can't take (a dependency's version moved): apt changes nothing, the
+    // folder is emptied, and a fresh download is installed and saved under the new key.
+    it("replaces an earlier build's debs that don't install with a fresh download, and saves that", () => {
+      const { fake, calls } = machine({ cached: ["old.deb"], local: [false, true] })
+      const outcome = install(nine, fake)
+      expect(outcome).toEqual({ path: "apt", fetched: true })
+      expect(saves(outcome, false)).toBe(true)
+      expect(calls).toEqual([
+        "install 1",
+        "clear",
+        "download fonts-unifont xfonts-utils",
+        "install 2",
+      ])
+    })
+
+    it("saves nothing Playwright installed itself", () => {
+      expect(saves({ path: "install-deps", fetched: false }, false)).toBe(false)
+    })
   })
 
   it("installs with Playwright where the check couldn't tell what's missing", () => {
@@ -423,12 +495,15 @@ describe("the test browser's install, where a job makes it", () => {
       )
     })
 
-    it("restores the debs under the check's key, and saves only what this run downloaded", () => {
-      expect(step(action, "Restore Test Browser Packages")).toContain(
-        "key: ${{ steps.check.outputs.key }}",
+    it("restores the debs by the exact key, an earlier image build's by its prefix, and saves as the script says", () => {
+      const restore = step(action, "Restore Test Browser Packages")
+      expect(restore).toContain("key: ${{ steps.check.outputs.key }}")
+      expect(restore).toContain("restore-keys: ${{ steps.check.outputs.prefix }}")
+      expect(step(action, "Install Test Browser Packages")).toContain(
+        "EXACT_HIT: ${{ steps.cache.outputs.cache-hit }}",
       )
       expect(step(action, "Save Test Browser Packages")).toContain(
-        "if: steps.install.outputs.fetched == 'true' && steps.cache.outputs.cache-hit != 'true' && steps.check.outputs.key != ''",
+        "if: steps.install.outputs.save == 'true' && steps.check.outputs.key != ''",
       )
       for (const name of ["Restore Test Browser Packages", "Save Test Browser Packages"])
         expect(step(action, name)).toContain("path: ${{ runner.temp }}/browser-packages")

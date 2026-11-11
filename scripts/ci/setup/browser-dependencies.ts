@@ -46,24 +46,37 @@ export const missingPackages = (
   return named.length > 0 ? named : undefined
 }
 
-/**
- * The cache key of the debs that install `packages`: the runner image's OS and version, its
- * architecture, and a digest of Playwright's version with the packages it names missing. A
- * new image that ships more or fewer of them, another Ubuntu, another architecture or another
- * Playwright, whose list may differ, each makes a new key; the debs' own versions don't, so a
- * key's debs can age behind the archive; where a later image can't take them, the install
- * changes nothing and downloads afresh.
- */
-export const cacheKey = (found: {
+/** What a cache key of the browser's debs is made of. */
+export type Found = {
   readonly os: string
   readonly arch: string
   readonly playwright: string
   readonly packages: readonly string[]
-}): string =>
+  /** The runner image's build (`$ImageOS-$ImageVersion` on GitHub's runners), or `undefined`. */
+  readonly image?: string | undefined
+}
+
+/**
+ * The key's part every image of an OS shares: the OS and its version, the architecture, and a
+ * digest of Playwright's version with the packages it names missing. The restore falls back to
+ * it, so a new image first tries an earlier image's debs, which nearly always install as they
+ * are, with no mirror.
+ */
+export const cachePrefix = (found: Found): string =>
   `browser-packages-${found.os}-${found.arch}-${createHash("sha256")
     .update(`${found.playwright}\n${[...found.packages].toSorted().join(" ")}`)
     .digest("hex")
-    .slice(0, 16)}`
+    .slice(0, 16)}-`
+
+/**
+ * The exact key of the debs that install `packages`: the prefix and the runner image's build
+ * (its OS version where the runner names none). A new image build, another Ubuntu, another
+ * architecture, another Playwright or a list that changes each makes a new key; GitHub rolls
+ * an image out over days, so two builds, and two keys, coexist meanwhile. An exact key's debs
+ * are never rewritten: a cache made for another build is saved under this one's key only once
+ * it installed, and debs this build can't take are replaced by a fresh download.
+ */
+export const cacheKey = (found: Found): string => `${cachePrefix(found)}${found.image ?? found.os}`
 
 /** The libraries `ldd`'s output names as not found, each once, in order. */
 export const notFound = (ldd: string): readonly string[] => [
@@ -147,9 +160,13 @@ export const main = (folder: string | undefined): void => {
   }
   const libraries = [...new Set(binaries.flatMap((file) => notFound(ldd(file))))].toSorted()
   const found = verdict(packages, libraries)
-  const key =
+  const image =
+    process.env.ImageOS && process.env.ImageVersion
+      ? `${process.env.ImageOS}-${process.env.ImageVersion}`
+      : undefined
+  const made: Found | undefined =
     packages && packages.length > 0
-      ? cacheKey({
+      ? {
           os: osRelease(),
           arch: quiet("dpkg", ["--print-architecture"]),
           playwright: quiet("pnpm", [
@@ -161,8 +178,11 @@ export const main = (folder: string | undefined): void => {
             "--version",
           ]),
           packages,
-        })
-      : ""
+          image,
+        }
+      : undefined
+  const key = made ? cacheKey(made) : ""
+  const prefix = made ? cachePrefix(made) : ""
   console.log(
     [
       `Test browser's system packages (Playwright's check): ${
@@ -184,7 +204,10 @@ export const main = (folder: string | undefined): void => {
   )
   const output = process.env.GITHUB_OUTPUT
   if (output)
-    appendFileSync(output, `missing=${found}\npackages=${(packages ?? []).join(" ")}\nkey=${key}\n`)
+    appendFileSync(
+      output,
+      `missing=${found}\npackages=${(packages ?? []).join(" ")}\nkey=${key}\nprefix=${prefix}\n`,
+    )
 }
 
 if (import.meta.main) main(process.argv[2])

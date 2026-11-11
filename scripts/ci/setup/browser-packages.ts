@@ -5,18 +5,18 @@ import { join } from "node:path"
 import { missingPackages } from "./browser-dependencies.ts"
 import { plan, run } from "./retry.ts"
 
-// `PACKAGES="…" node scripts/ci/setup/browser-packages.ts <folder>`: installs the test
-// browser's system packages the runner image lacks (`PACKAGES`, which
-// browser-dependencies.ts names: on ubuntu-24.04 on 11-11, nine font packages) from their debs
-// in `<folder>`, restored from a cache, with `apt-get install --no-download`, which reaches no
-// network, resolves first and changes nothing where it can't (a stale cache on a later image),
-// and never downgrades as `dpkg -i` would. Where the
-// folder has none, or they don't cover what's missing, apt's own resolver downloads them,
-// dependencies the image lacks included, into the folder, retried and failing fast, and they
-// are installed from there; the action saves the folder for the next run. Only Playwright's
-// own check saying nothing is missing counts as done. Where `PACKAGES` is empty (the check
-// couldn't tell), `playwright install-deps` runs as before, retried. In Actions it sets
-// `path` (`cache`, `apt`, `install-deps`) and `fetched`, whether the folder is new to save.
+// `PACKAGES="…" EXACT_HIT=… node scripts/ci/setup/browser-packages.ts <folder>`: installs the
+// test browser's system packages the runner image lacks (`PACKAGES`, which
+// browser-dependencies.ts names: nine font packages on 11-11) from their debs in `<folder>`,
+// restored from a cache, with `apt-get install --no-download`, which reaches no network,
+// resolves first, changes nothing where it can't (debs a later image can't take) and never
+// downgrades as `dpkg -i` would. Where the folder has none, or they don't install, the folder
+// is emptied and apt's own resolver downloads them, dependencies the image lacks included,
+// into it, retried and failing fast, and they are installed from there. Only Playwright's own
+// check then saying nothing is missing counts as done. Where `PACKAGES` is empty (the check
+// couldn't tell), `playwright install-deps` runs as before, retried. In Actions it sets `path`
+// (`cache`, `apt`, `install-deps`), `fetched`, and `save`: whether the folder goes under the
+// exact key (`saves`).
 
 export type Outcome = {
   /** Which way the packages came: the cache, apt's download, or Playwright's own install. */
@@ -36,6 +36,8 @@ export type Machine = {
   readonly local: (files: readonly string[]) => boolean
   /** What Playwright's check names missing now; `undefined` where it can't tell. */
   readonly missing: () => readonly string[] | undefined
+  /** Empties the folder, so a download is all it holds. */
+  readonly clear: () => void
   /** apt's download of `packages` and what they need into the folder; whether it did. */
   readonly download: (packages: readonly string[]) => boolean
   /** `playwright install-deps chromium`, retried; whether it did. */
@@ -72,6 +74,9 @@ export const install = (packages: readonly string[] | undefined, machine: Machin
     if (machine.local(cached) && done(machine)) return { path: "cache", fetched: false }
     machine.log("The cache didn't cover them: through Ubuntu's mirrors")
   } else machine.log("No debs cached: through Ubuntu's mirrors")
+  // Into an empty folder: debs a later image can't take, beside the current ones, would hand
+  // apt two versions of one package; what is installed and saved is this download alone.
+  machine.clear()
   if (!machine.download(packages))
     throw new Error("The test browser's system packages couldn't be downloaded")
   const fetched = machine.debs()
@@ -81,6 +86,14 @@ export const install = (packages: readonly string[] | undefined, machine: Machin
     "The test browser's system packages were downloaded, but Playwright's check still names some missing",
   )
 }
+
+/**
+ * Whether the folder is saved under the exact key: where this run downloaded it, or installed
+ * from debs restored for another image build (the prefix's), never where the exact key hit, as
+ * a key is never rewritten.
+ */
+export const saves = (outcome: Outcome, exactHit: boolean): boolean =>
+  !exactHit && (outcome.path === "apt" || outcome.path === "cache")
 
 /**
  * apt settings for this step's own calls, removed after: no retry of its own and short
@@ -154,6 +167,10 @@ export const main = (folder: string): void => {
       )
       return missingPackages(check.status, `${check.stdout ?? ""}\n${check.stderr ?? ""}`)
     },
+    clear: () => {
+      sudo(["rm", "-rf", folder])
+      mkdirSync(folder, { recursive: true })
+    },
     download: (packages) => {
       mkdirSync(join(folder, "partial"), { recursive: true })
       sudo(["tee", failFastFile], failFast)
@@ -204,8 +221,11 @@ export const main = (folder: string): void => {
   console.log(
     `Test browser's packages: installed by ${outcome.path === "cache" ? "apt-get install --no-download from the cache, no mirror reached" : outcome.path === "apt" ? "apt's download through Ubuntu's mirrors, then apt-get install --no-download" : "playwright install-deps"}`,
   )
+  // The restore's exact hit (`EXACT_HIT`), whose key is never rewritten.
+  const save = saves(outcome, process.env.EXACT_HIT === "true")
   const output = process.env.GITHUB_OUTPUT
-  if (output) appendFileSync(output, `path=${outcome.path}\nfetched=${outcome.fetched}\n`)
+  if (output)
+    appendFileSync(output, `path=${outcome.path}\nfetched=${outcome.fetched}\nsave=${save}\n`)
 }
 
 if (import.meta.main) {

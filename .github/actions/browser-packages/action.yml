@@ -9,9 +9,12 @@ description: >
 # failed installing these before any test ran. Chromium itself runs on the image as shipped
 # (ldd finds nothing missing); only the fonts come through the mirrors. The debs' cache key
 # (scripts/ci/setup/browser-dependencies.ts, `cacheKey`) is the image's OS and version, its
-# architecture, and Playwright's version with the packages it names missing: a new image, a new
-# Playwright, or a list that changes makes a new key, filled by the first run that misses it.
-# A pull request reads main's caches and its own, never another's: Warm Caches fills main's.
+# architecture, Playwright's version with the packages it names missing, and the runner image's
+# build. A new build first restores an earlier build's debs by the key's prefix, which nearly
+# always install as they are, with no mirror, and saves them under its own key; where they
+# don't, they are replaced by a fresh download. GitHub rolls an image out over days, so two
+# builds, and two keys, coexist meanwhile. An exact key is never rewritten. A pull request reads
+# main's caches and its own, never another's: Warm Caches fills main's.
 
 outputs:
   missing:
@@ -39,6 +42,7 @@ runs:
       with:
         path: ${{ runner.temp }}/browser-packages
         key: ${{ steps.check.outputs.key }}
+        restore-keys: ${{ steps.check.outputs.prefix }}
 
     # From the cache with `apt-get install --no-download`, or apt's download then the same;
     # done only where Playwright's check then names none missing
@@ -49,11 +53,13 @@ runs:
       shell: bash
       env:
         PACKAGES: ${{ steps.check.outputs.packages }}
+        EXACT_HIT: ${{ steps.cache.outputs.cache-hit }}
       run: node scripts/ci/setup/browser-packages.ts "$RUNNER_TEMP/browser-packages"
 
-    # The debs this run downloaded, for the next: a key is never replaced.
+    # Under the exact key, the debs this run downloaded, or an earlier build's that installed
+    # here; never over an exact hit (`saves` in browser-packages.ts).
     - name: Save Test Browser Packages
-      if: steps.install.outputs.fetched == 'true' && steps.cache.outputs.cache-hit != 'true' && steps.check.outputs.key != ''
+      if: steps.install.outputs.save == 'true' && steps.check.outputs.key != ''
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ runner.temp }}/browser-packages
