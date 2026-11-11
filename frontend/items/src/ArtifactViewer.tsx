@@ -6,6 +6,7 @@ import {
   type ShownContent,
   type UnavailableReason,
 } from "@novadeck/core/items"
+import type { WorkspaceTarget } from "@novadeck/core/types"
 import { useEffect, useState, type ComponentType, type ReactNode } from "react"
 
 import type { ItemProps, ViewProps } from "./registration"
@@ -27,6 +28,10 @@ export type ArtifactBodyProps<K extends ShownKind> = {
   readonly content: Extract<ShownContent, { readonly kind: K }>
   readonly actions: ReactNode
   readonly itemStore: ItemStore
+  // The content's stamp, which changes with it.
+  readonly stamp: string
+  // Where the content is shown, which its calls to the backend are made for.
+  readonly target: WorkspaceTarget
   // Tells what went wrong on a live page, from the item's show `shown`.
   readonly trouble: (shown: number, troubles: readonly PageTrouble[]) => void
 }
@@ -184,6 +189,8 @@ export const artifactView = <K extends ShownKind>(
             content={content}
             actions={actions}
             itemStore={itemStore}
+            stamp={load?.state === "ready" ? load.stamp : ""}
+            target={target}
             trouble={(shown, troubles) => itemStore.trouble(target, item.id, shown, troubles)}
           />
         ) : (
@@ -199,6 +206,7 @@ export const artifactView = <K extends ShownKind>(
 
 type ThumbBody<K extends ShownKind> = ComponentType<{
   readonly content: Extract<ShownContent, { readonly kind: K }>
+  readonly item: Item
 }>
 
 const LoadedThumb = <K extends ShownKind>({
@@ -214,7 +222,7 @@ const LoadedThumb = <K extends ShownKind>({
     return <span className="peek-held">{shortReasons[load.reason]}</span>
   const { content } = load
   return content.kind === kind ? (
-    <Body content={content as Extract<ShownContent, { readonly kind: K }>} />
+    <Body content={content as Extract<ShownContent, { readonly kind: K }>} item={item} />
   ) : null
 }
 

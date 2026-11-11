@@ -1,5 +1,9 @@
-import type { AgentActivity, AgentName, StartupScreen } from "@novadeck/protocol"
+import { basename, isAbsolute, relative } from "node:path"
 
+import type { AgentActivity, AgentName, CompanionItem, StartupScreen } from "@novadeck/protocol"
+import { redact } from "@novadeck/secrets"
+
+import { isLoopback } from "../config.js"
 import type { GitState } from "../terminals/git-state.js"
 import { mention } from "../terminals/handles.js"
 import { cut, shorten } from "../text.js"
@@ -34,6 +38,8 @@ export type Whereabouts = {
   readonly shell: Shell
   /** The background shells its agent started that run, or failed lately; null for none. */
   readonly background: Background | null
+  /** What its terminal's bar holds, as a listing may name it (see `Shown`); oldest first. */
+  readonly shown: readonly Shown[]
 }
 
 /**
@@ -45,6 +51,17 @@ export type Background = {
   readonly running: readonly { readonly name: string; readonly since: number }[]
   readonly moreRunning: number
   readonly ended: readonly { readonly name: string; readonly code: number; readonly at: number }[]
+}
+
+/**
+ * An item open on a terminal's bar, as listings name it: its kind, a short name that gives
+ * away no secret (see `shownLabel`), whether it may hold secrets, and when it was shown.
+ */
+export type Shown = {
+  readonly kind: CompanionItem["kind"]
+  readonly label: string
+  readonly secret: boolean
+  readonly at: number
 }
 
 /**
@@ -152,6 +169,11 @@ export type Peer = {
    * null for none, and for an asleep agent, which runs no process.
    */
   readonly background: Background | null
+  /**
+   * The items open on its bar, oldest first; empty for none, for an asleep agent (its
+   * dev server's page is gone with its process), and for a plain shell.
+   */
+  readonly shown: readonly Shown[]
   /** The handle of the terminal that leads it now: running, and in its session; else null. */
   readonly lead: string | null
   readonly git: Git | null
@@ -255,6 +277,7 @@ export const peerOf = (input: {
     waiting: agent && !input.asleep ? (where?.waiting ?? null) : null,
     waitsOn: agent && !input.busy && !input.asleep ? (where?.waitsOn ?? null) : null,
     background: agent && !input.asleep ? (where?.background ?? null) : null,
+    shown: agent && !input.asleep ? (where?.shown ?? []) : [],
     lead: input.lead,
     git: where?.git ?? null,
     pr: reportedPullRequest(happenings),
@@ -452,7 +475,7 @@ export const doneLine = (peer: Peer, now: number): string | null => {
   const shown = dones.slice(-shownDones).toReversed()
   const parts = shown.map(
     (done, index) =>
-      `${ago(done.at, now)} "${flat(done.subject, doneChars)}"${index === 0 && peer.standing ? " (still current)" : ""}`,
+      `${ago(done.at, now)} "${flat(redact(done.subject), doneChars)}"${index === 0 && peer.standing ? " (still current)" : ""}`,
   )
   const earlier = dones.length - shown.length
   return `  done: ${[...parts, ...(earlier > 0 ? [`and ${earlier} earlier`] : [])].join(" · ")}`
@@ -469,6 +492,106 @@ export const runningLine = (peer: Peer, now: number): string | null => {
   const more = peer.background.moreRunning
   const parts = running.map(({ name, since }) => `${name} (${span(since, now)})`)
   return `  running: ${[...parts, ...(more > 0 ? [`and ${more} more`] : [])].join(" · ")}`
+}
+
+/** How many of an agent's latest `tell` subjects `agents` lists, and how long each shows. */
+const shownTells = 3
+const tellChars = 100
+
+/**
+ * An agent's `tell` reports as `agents` lists them, whether or not a newer `done` came: the
+ * latest few, newest first, each when and its subject quoted, then how many came before.
+ * Subjects only. Null before one.
+ */
+export const toldLine = (peer: Peer, now: number): string | null => {
+  const tells = peer.happenings.flatMap((happening) =>
+    happening.kind === "update" ? [happening] : [],
+  )
+  if (!peer.agent || tells.length === 0) return null
+  const shown = tells.slice(-shownTells).toReversed()
+  const parts = shown.map(
+    (tell) => `${ago(tell.at, now)} "${flat(redact(tell.subject), tellChars)}"`,
+  )
+  const earlier = tells.length - shown.length
+  return `  told: ${[...parts, ...(earlier > 0 ? [`and ${earlier} earlier`] : [])].join(" · ")}`
+}
+
+/** How many bar items `agents` lists, and how long a page's address or a name shows. */
+const shownItems = 3
+const shownChars = 60
+
+/** Text without any control or format character (a newline, an escape, a bidi mark). */
+const plain = (text: string): string => text.replace(/[\p{Cc}\p{Cf}]/gu, " ")
+
+/**
+ * What names a bar item in a listing, and nothing that could be a secret or a home folder:
+ * a page by its scheme, host, port and path (no login, query or fragment); a file or image
+ * by its path inside `folder`, else by its file name; a plan or changes by its kind alone.
+ * Redacted before it is cut, so a cut never leaves half a secret.
+ */
+export const shownLabel = (
+  item: Pick<CompanionItem, "kind" | "name" | "path" | "url">,
+  folder: string | undefined,
+): string => {
+  const named = (): string => {
+    if (item.kind === "plan" || item.kind === "changes") return item.kind
+    if (item.kind === "page") {
+      // Only http and https pages are ever shown (`pageAt`).
+      try {
+        const url = new URL(item.url ?? "")
+        // Only a page this machine serves keeps its path: a dev server's routes. Elsewhere a
+        // path may carry a token no pattern knows (`/invite/<token>`), so only the site shows,
+        // as it does where the path, read as its escapes spell it, holds what looks like one.
+        const local = isLoopback(url.hostname) || url.hostname === "0.0.0.0"
+        return local && !secretIn(url.pathname) ? `${url.origin}${url.pathname}` : url.origin
+      } catch {
+        return "a page"
+      }
+    }
+    const path = item.path ?? item.name
+    const within = folder ? relative(folder, path) : ""
+    return within !== "" && !within.startsWith("..") && !isAbsolute(within)
+      ? within
+      : basename(path)
+  }
+  // A middle dot is how a listing parts its entries, so a name can't fake one.
+  return flat(redact(plain(named())).replaceAll("·", "-"), shownChars)
+}
+
+/** Whether a page's path, as written or with its escapes read, holds what looks like a secret. */
+const secretIn = (path: string): boolean => {
+  let read = path
+  try {
+    read = decodeURIComponent(path)
+  } catch {
+    return true
+  }
+  return redact(path) !== path || redact(read) !== read
+}
+
+/**
+ * The items open on an agent's bar, in one line: up to three, pages first (often its dev
+ * server), then the newest shown, each with its kind and how long since it was shown, then
+ * how many more. A secret item is left out of the three but counts among the more. Null
+ * before any to name.
+ */
+export const showingLine = (peer: Peer, now: number): string | null => {
+  const open = peer.shown.filter(({ secret }) => !secret)
+  const shown = open
+    .toSorted((a, b) => Number(b.kind === "page") - Number(a.kind === "page") || b.at - a.at)
+    .slice(0, shownItems)
+  if (!peer.agent || peer.shown.length === 0) return null
+  // Every item may hold secrets: none is named, but that there are some still shows.
+  if (shown.length === 0)
+    return `  showing: ${peer.shown.length} ${peer.shown.length === 1 ? "item" : "items"} not named, as they may hold secrets`
+  const parts = shown.map(({ label, kind, at }) => {
+    // Named again here as a backstop, whoever made the label.
+    const name = flat(redact(plain(label)).replaceAll("\u00b7", "-"), shownChars)
+    // A plan or changes is named by its kind, which needn't show twice.
+    return name === kind ? `${kind} (${span(at, now)})` : `${name} (${kind}, ${span(at, now)})`
+  })
+  const more = peer.shown.length - shown.length
+  return `  showing: ${[...parts, ...(more > 0 ? [`and ${more} more`] : [])].join(" · ")}`
 }
 
 /**
@@ -495,7 +618,7 @@ export const failureLine = (peer: Peer, now: number): string | null => {
   return `  last turn failed ${ago(last.at, now)}${last.text ? `: ${flat(last.text, failureChars)}` : ""}`
 }
 
-/** One terminal as `agents` shows it: one line for a shell, up to six for an agent. */
+/** One terminal as `agents` shows it: one line for a shell, up to eight for an agent. */
 export const renderPeer = (peer: Peer, now: number, viewer: Viewer): readonly string[] =>
   [
     headLine(peer, now, viewer),
@@ -503,6 +626,8 @@ export const renderPeer = (peer: Peer, now: number, viewer: Viewer): readonly st
     runningLine(peer, now),
     endedLine(peer, now),
     doneLine(peer, now),
+    toldLine(peer, now),
+    showingLine(peer, now),
     failureLine(peer, now),
   ].filter((line): line is string => Boolean(line))
 

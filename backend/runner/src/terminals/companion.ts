@@ -301,8 +301,8 @@ export class Companion {
     this.items?.release(ownerId)
   }
 
-  /** The runner shuts down. */
-  shutdown(): void {
-    this.items?.shutdown()
+  /** The runner shuts down; resolves once what the items made on disk is gone. */
+  shutdown(): Promise<void> {
+    return this.items?.shutdown() ?? Promise.resolve()
   }
 }

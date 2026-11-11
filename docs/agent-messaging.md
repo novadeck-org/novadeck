@@ -418,10 +418,10 @@ like them, only inside Novadeck's terminals.
   "- led by you: @owl", from the running leads only, so no entry has to repeat its
   team. Then each terminal:
 
-  - an agent's terminal, two to six lines:
+  - an agent's terminal, two to eight lines:
     `- @fox · ti listing: Claude Code, idle for 6 min, your teammate` and
     `  "Splitting the agents listing into session and team views" · novadeck task/ti-listing, 2 ahead, uncommitted changes, PR https://…`,
-    then, where there is something to say, its background shells, its `done` reports and its last failed turn (items 7 to 9):
+    then, where there is something to say, its background shells, its `done` and `tell` reports, the items on its bar and its last failed turn (items 7 to 11):
     1. its handle and title. A title is text the person, an agent or murmur may set, and
        says nothing of authority; the tool's description says so once, rather than each
        entry naming who set it;
@@ -487,9 +487,31 @@ like them, only inside Novadeck's terminals.
        newest first, each with when and its subject cut to about 100 characters, and how
        many of the session's logged ones came before. "(still current)" marks the latest
        while it stands (`standingDone`: the person's prompt or a delivered message after it
-       gave the agent more to do). Subjects only, never a body;
-    9. its last turn, when that failed and the agent is not at work again: `  last turn
-       failed 12 min ago: API Error …`, with the error cut to about 120 characters.
+       gave the agent more to do). Subjects only, through `redact`, never a body;
+    9. its `tell` reports, one line, whether or not a newer `done` exists: `  told: 20 min
+       ago "Draft PR #871 opened: the rebuilt diff pane" · 3 h ago "…" · and 4 earlier`.
+       The latest three, newest first, each with when and its subject cut to about 100
+       characters, and how many of the session's logged ones came before. Subjects only,
+       through `redact`, never a body; left out before a `tell`;
+    10. the items open on its bar, one line: `  showing: http://127.0.0.1:5173/ (page, 40
+        min) · docs/ci-plan.md (file, 2 h) · and 2 more`. Up to three, pages first (often its
+        dev server), then the newest shown, each with its name, kind and how long since it was
+        shown, and how many more (every item left out, a secret one among them). Read from
+        the terminal's bar (`CompanionItems.bar`): unlike `showing`, never an item moved into
+        a window, and never a secret one by name. Never a secret: items marked `secret` are
+        skipped, and where every item is, the line only says how many there are; a page this
+        machine serves (localhost, 127.x.x.x, ::1, 0.0.0.0) shows its scheme, host, port and
+        path, and any other page only its scheme, host and port, never a login, query or
+        fragment, nor a path that holds what looks like a token, escaped or not, all cut to 60
+        characters; a middle dot in a name becomes a hyphen, so it can't fake an entry; a file or image shows
+        its path inside the project folder, else only its file name, never a home folder; a
+        plan or changes shows only its kind, once (`plan (3 min)`). Every name goes through `redact` before it is
+        cut, and control characters become spaces, so no name starts a line of its own. Shown
+        for a busy or idle agent, not for a plain shell, and not for a sleeping agent: its
+        items persist while it sleeps (they go only when the terminal is closed), but a page
+        is mostly its dev server, which went with its process;
+    11. its last turn, when that failed and the agent is not at work again: `  last turn
+        failed 12 min ago: API Error …`, with the error cut to about 120 characters.
 
     The reports and turns come from the report log, not the Inbox (see below);
 

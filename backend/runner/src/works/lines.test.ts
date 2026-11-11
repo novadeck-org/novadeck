@@ -1,49 +1,9 @@
 import { workLimits } from "@novadeck/protocol"
 
 import { describe, expect, it } from "../test.js"
-import {
-  attribute,
-  conflictsOf,
-  listFiles,
-  mayConflict,
-  parseMerge,
-  parseNumstat,
-  type Lines,
-} from "./lines.js"
+import { attribute, conflictsOf, listFiles, mayConflict, type Lines } from "./lines.js"
 
 const lines = (added: number, removed: number): Lines => ({ added, removed })
-
-describe("a numstat, parsed", () => {
-  it("reads the lines added and removed of each file, a binary one as none", () => {
-    expect(parseNumstat("3\t1\tsrc/a.ts\0-\t-\timage.png\0")).toEqual(
-      new Map([
-        ["src/a.ts", lines(3, 1)],
-        ["image.png", lines(0, 0)],
-      ]),
-    )
-  })
-
-  it("keeps a name with a tab or a newline whole", () => {
-    expect(parseNumstat("1\t0\ta\tb\nc\0")).toEqual(new Map([["a\tb\nc", lines(1, 0)]]))
-  })
-
-  it("reads nothing from nothing", () => {
-    expect(parseNumstat("")).toEqual(new Map())
-  })
-})
-
-describe("a merge-tree result, parsed", () => {
-  it("reads the tree and the names of the files that conflict", () => {
-    expect(parseMerge("abc123\0a.ts\0dir/b.ts\0")).toEqual({
-      tree: "abc123",
-      conflicts: ["a.ts", "dir/b.ts"],
-    })
-  })
-
-  it("reads a clean merge as its tree alone", () => {
-    expect(parseMerge("abc123\0")).toEqual({ tree: "abc123", conflicts: [] })
-  })
-})
 
 describe("the files of a work", () => {
   const changed = new Map([

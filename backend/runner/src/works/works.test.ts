@@ -1,10 +1,20 @@
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
 import type { Work } from "@novadeck/protocol"
+import { afterEach } from "vitest"
 
+import { Snapshots } from "../checkouts/snapshots.js"
 import { describe, expect, it as base } from "../test.js"
 import { Works, type Placement } from "./works.js"
 
@@ -100,8 +110,29 @@ type Where = { readonly terminalId: string; readonly root: string }
 // loaded Windows runner. The tests wait for every one, as `current` counts on.
 const everything = 60_000
 
+// Snapshots as the runner makes them (beside the memory where there is one), each taken afresh:
+// a test reads right after an edit. Closed after each test, after its works.
+const made: Snapshots[] = []
+const snapshotsFor = (memory?: string, repackAfter?: number): Snapshots => {
+  const snapshots = new Snapshots({
+    // Which files may hold secrets is the companions' rule, tested there.
+    held: () => () => false,
+    freshMs: 0,
+    ...(memory !== undefined && { home: join(dirname(memory), "works-objects") }),
+    ...(repackAfter !== undefined && { repackAfter }),
+  })
+  made.push(snapshots)
+  return snapshots
+}
+afterEach(async () => {
+  await Promise.all(made.splice(0).map((each) => each.close()))
+})
+
 // A Works over the terminals `where` names, read as fast as the test needs.
-const open = (where: () => readonly Where[], options: { memory?: string } = {}) => {
+const open = (
+  where: () => readonly Where[],
+  options: { memory?: string; repackAfter?: number } = {},
+) => {
   const shown: [string, string][] = []
   const works = new Works({
     placements: async () =>
@@ -112,7 +143,8 @@ const open = (where: () => readonly Where[], options: { memory?: string } = {}) 
     },
     everyMs: 20,
     firstMs: everything,
-    ...options,
+    snapshots: snapshotsFor(options.memory, options.repackAfter),
+    ...(options.memory !== undefined && { memory: options.memory }),
   })
   return { works, shown }
 }
@@ -172,6 +204,59 @@ describe.skipIf(!hasGit)("the works of terminals in git checkouts", () => {
     // Nothing read yet: every line is unread.
     expect([work.unreadAdded, work.unreadRemoved]).toEqual([work.added, work.removed])
     expect(main.git("status", "--porcelain=v2")).toBe(before)
+  })
+
+  it("counts as the changes item does: a rename once, re-indented lines apart", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    main.git("mv", "a.txt", "moved.txt")
+    // One line changed, two only re-indented.
+    main.write(
+      "moved.txt",
+      ten
+        .replace("line 1\n", "  line 1\n")
+        .replace("line 2\n", "\tline 2\n")
+        .replace("line 9\n", "nine\n"),
+    )
+    const { works } = open(() => [{ terminalId: terminal(1), root: main.root }])
+    resources.defer(() => works.close())
+    const work = (await current(works)).get(terminal(1))!
+    expect(work.files.map(({ path, added, removed }) => [path, added, removed])).toEqual([
+      ["moved.txt", 1, 1],
+    ])
+    expect([work.added, work.removed]).toEqual([1, 1])
+  })
+
+  it("keeps the files the person read across runs, until they change or leave the work", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main, holder } = fixture
+    const memory = join(holder, "state", "works.json")
+    main.write("b.txt", "one\n")
+    main.write("c.txt", "c\n")
+    const there = [{ terminalId: terminal(1), root: main.root }]
+    const first = open(() => there, { memory })
+    await current(first.works)
+    const blob = main.git("hash-object", "b.txt").trim()
+    await first.works.markRead(main.root, "b.txt", blob)
+    await first.works.markRead(main.root, "c.txt", "0".repeat(40))
+    expect([...first.works.marks(main.root)]).toEqual([
+      ["b.txt", blob],
+      ["c.txt", "0".repeat(40)],
+    ])
+    await first.works.close()
+
+    const second = open(() => there, { memory })
+    resources.defer(() => second.works.close())
+    await current(second.works)
+    expect(second.works.marks(main.root).get("b.txt")).toBe(blob)
+    // A file the work no longer changes is no longer kept.
+    rmSync(join(main.root, "c.txt"))
+    await current(second.works)
+    expect([...second.works.marks(main.root).keys()]).toEqual(["b.txt"])
   })
 
   it("measures a commit on a branch against origin/HEAD when it is set", async ({
@@ -242,6 +327,7 @@ describe.skipIf(!hasGit)("the works of terminals in git checkouts", () => {
       show: async () => "item",
       now: () => now,
       firstMs: everything,
+      snapshots: snapshotsFor(),
     })
     resources.defer(() => works.close())
     expect((await current(works)).get(terminal(1))?.firstSeenAt).toBe(1_000)
@@ -329,6 +415,25 @@ describe.skipIf(!hasGit)("the works of terminals in git checkouts", () => {
     expect(found.get(terminal(3))?.conflicts).toEqual([{ with: "work", terminalId: terminal(2) }])
   })
 
+  it("finds a conflict between a work that renamed a file and one that edited it", async ({
+    fixture,
+    resources,
+  }) => {
+    const first = fixture.worktree("first")
+    const second = fixture.worktree("second")
+    first.git("mv", "a.txt", "moved.txt")
+    first.write("moved.txt", ten.replace("line 5\n", "first five\n"))
+    second.write("a.txt", ten.replace("line 5\n", "second five\n"))
+    const { works } = open(() => [
+      { terminalId: terminal(1), root: first.root },
+      { terminalId: terminal(2), root: second.root },
+    ])
+    resources.defer(() => works.close())
+    const found = await current(works)
+    expect(found.get(terminal(1))?.files.map(({ path }) => path)).toEqual(["moved.txt"])
+    expect(found.get(terminal(1))?.conflicts).toEqual([{ with: "work", terminalId: terminal(2) }])
+  })
+
   it("gives a checkout shared by several terminals to the one that was there first", async ({
     fixture,
     resources,
@@ -343,6 +448,7 @@ describe.skipIf(!hasGit)("the works of terminals in git checkouts", () => {
       show: async () => "item",
       now: () => now,
       firstMs: everything,
+      snapshots: snapshotsFor(),
     })
     resources.defer(() => works.close())
     expect([...(await current(works)).keys()]).toEqual([terminal(2)])
@@ -410,6 +516,85 @@ describe.skipIf(!hasGit)("the works of terminals in git checkouts", () => {
       firstSeenAt: seenAt,
       unreadAdded: 0,
     })
+  })
+
+  it("keeps its objects beside the memory, so what was read is still known after a restart", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main, holder } = fixture
+    const memory = join(holder, "state", "works.json")
+    main.write("b.txt", "one\n")
+    const there = [{ terminalId: terminal(1), root: main.root }]
+    const first = open(() => there, { memory })
+    await current(first.works)
+    await first.works.look(terminal(1))
+    await first.works.close()
+    // The folder outlives the run, and the person's own objects were not written.
+    expect(readdirSync(join(holder, "state", "works-objects"))).toHaveLength(1)
+    main.write("b.txt", "one\ntwo\n")
+    const second = open(() => there, { memory })
+    resources.defer(() => second.works.close())
+    expect((await current(second.works)).get(terminal(1))).toMatchObject({ unreadAdded: 1 })
+  })
+
+  it("rebuilds its object folder now and then, keeping the tree last read", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main, holder } = fixture
+    const memory = join(holder, "state", "works.json")
+    main.write("b.txt", "one\n")
+    const there = [{ terminalId: terminal(1), root: main.root }]
+    const { works } = open(() => there, { memory, repackAfter: 3 })
+    resources.defer(() => works.close())
+    await current(works)
+    await works.look(terminal(1))
+    const folder = join(holder, "state", "works-objects")
+    const count = (path: string): number =>
+      readdirSync(path, { withFileTypes: true }).reduce(
+        (sum, entry) => sum + (entry.isDirectory() ? count(join(path, entry.name)) : 1),
+        0,
+      )
+    const sizes: number[] = []
+    for (let at = 1; at <= 9; at += 1) {
+      main.write("b.txt", `one\nedit ${at}\n`)
+      // eslint-disable-next-line no-await-in-loop -- Each read follows its edit.
+      await current(works)
+      sizes.push(count(join(folder, readdirSync(folder)[0]!)))
+    }
+
+    // It does not grow with the reads, and the tree read is still known: only the edit is unread.
+    expect(Math.max(...sizes)).toBeLessThan(sizes.length * 3)
+    expect((await current(works)).get(terminal(1))).toMatchObject({ unreadAdded: 1 })
+    expect(readdirSync(folder).toSorted()).toHaveLength(1)
+  })
+
+  it("does not take a merge it could not make for no conflict, and reads again", async ({
+    fixture,
+    resources,
+  }) => {
+    const first = fixture.worktree("first")
+    const second = fixture.worktree("second")
+    first.write("a.txt", ten.replace("line 5\n", "first five\n"))
+    second.write("a.txt", ten.replace("line 5\n", "second five\n"))
+    const memory = join(fixture.holder, "state", "works.json")
+    const { works } = open(
+      () => [
+        { terminalId: terminal(1), root: first.root },
+        { terminalId: terminal(2), root: second.root },
+      ],
+      { memory },
+    )
+    resources.defer(() => works.close())
+    expect((await current(works)).get(terminal(1))?.conflicts).toHaveLength(1)
+    // The objects of the snapshots go (as a rebuilt folder leaves them), and one side changes.
+    rmSync(join(fixture.holder, "state", "works-objects"), { recursive: true, force: true })
+    second.write("a.txt", ten.replace("line 5\n", "second five!\n"))
+    await current(works)
+    expect((await current(works)).get(terminal(1))?.conflicts).toEqual([
+      { with: "work", terminalId: terminal(2) },
+    ])
   })
 
   it("marks the work truncated when an untracked file over 1 MiB is left out", async ({

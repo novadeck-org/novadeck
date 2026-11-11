@@ -665,6 +665,7 @@ export class Terminals {
       ],
       projectFolder: (sessionId) => this.projectFolder(sessionId),
       happenings: (id, full) => this.inbox.happenings(id, savedSession(this.records.get(id)), full),
+      bar: (id) => this.options.items?.bar(id) ?? [],
       stopping: () => this.stopping,
     })
     this.murmur = options.describer
@@ -1693,14 +1694,14 @@ export class Terminals {
     this.streams.finishWatchers()
     this.opens.finish()
     this.confirms.finish()
-    this.companion.shutdown()
+    const layers = this.companion.shutdown()
     this.streams.finishReaders()
     for (const record of this.records.values()) this.bindings.unwatch(record)
     this.typing.close()
     this.inbox.close()
     this.feedback.close()
     this.messaging.close()
-    this.shutdownPromise = Promise.all([last, this.stop()]).then(() => undefined)
+    this.shutdownPromise = Promise.all([last, this.stop(), layers]).then(() => undefined)
     return this.shutdownPromise
   }
 

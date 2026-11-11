@@ -1,15 +1,12 @@
 import type { ChangesContent } from "@novadeck/core/items"
 
 import { describe, expect, it } from "../test"
-import { changesArtifacts } from "./changes"
+import { changesArtifacts, contentOfSample, workChanges } from "./changes"
 
-const contents = new Map(
-  changesArtifacts.map(({ item, content }) => [
-    item.id,
-    content.state === "ready" && content.content.kind === "changes" ? content.content : undefined,
-  ]),
-)
-const changeOf = (id: string): ChangesContent => contents.get(id)!
+const samples = new Map(changesArtifacts.map((artifact) => [artifact.item.id, artifact]))
+const changeOf = (id: string): ChangesContent => contentOfSample(samples.get(id)!)!
+const readFile = (id: string, path: string, layers: readonly string[]) =>
+  samples.get(id)!.changeFile!(path, layers)
 
 describe("the sample changes", () => {
   it("are items of the changes kind, each its own", () => {
@@ -20,45 +17,163 @@ describe("the sample changes", () => {
     )
   })
 
-  it("count the lines they add and remove as their hunks hold them, where they hold any", () => {
-    for (const content of contents.values())
-      for (const file of content!.files.filter((each) => each.hunks.length > 0)) {
-        const lines = file.hunks.flatMap((hunk) => hunk.lines)
-        expect(file.added, file.path).toBe(lines.filter((line) => line.kind === "add").length)
-        expect(file.removed, file.path).toBe(lines.filter((line) => line.kind === "remove").length)
-      }
+  it("each read a file's diff, whose lines add up to what its layer lists", () => {
+    for (const artifact of changesArtifacts) {
+      const content = contentOfSample(artifact)!
+      for (const layer of content.layers)
+        for (const file of layer.files.filter((each) => !each.binary && !each.secret)) {
+          const { run } = artifact.changeFile!(file.path, [layer.id])
+          if (!run || run.big) continue
+          const lines = run.hunks.flatMap((hunk) => hunk.lines)
+          const reindented = file.reindented
+          // Lines that only changed whitespace are in the diff, but not in the counts.
+          expect(lines.filter((line) => line.kind === "add").length - reindented, file.path).toBe(
+            file.added,
+          )
+          expect(
+            lines.filter((line) => line.kind === "remove").length - reindented,
+            file.path,
+          ).toBe(file.removed)
+        }
+    }
+  })
+
+  it("carry the whole change's files, as a range over every layer lists them", () => {
+    for (const artifact of changesArtifacts) {
+      const content = contentOfSample(artifact)!
+      expect(content.files, artifact.item.id).toEqual(
+        artifact.changeRange!(content.layers.map((layer) => layer.id)),
+      )
+    }
   })
 
   it("have hunk headers that count the lines the hunk holds", () => {
-    for (const content of contents.values())
-      for (const file of content!.files)
-        for (const hunk of file.hunks) {
-          expect(hunk.oldCount, file.path).toBe(
-            hunk.lines.filter((line) => line.kind !== "add").length,
-          )
-          expect(hunk.newCount, file.path).toBe(
-            hunk.lines.filter((line) => line.kind !== "remove").length,
-          )
-        }
+    for (const artifact of changesArtifacts)
+      for (const layer of contentOfSample(artifact)!.layers)
+        for (const file of layer.files)
+          for (const run of [artifact.changeFile!(file.path, [layer.id]).run ?? undefined].filter(
+            (each) => each !== undefined,
+          ))
+            for (const hunk of run.hunks) {
+              expect(hunk.oldCount, file.path).toBe(
+                hunk.lines.filter((line) => line.kind !== "add").length,
+              )
+              expect(hunk.newCount, file.path).toBe(
+                hunk.lines.filter((line) => line.kind !== "remove").length,
+              )
+            }
   })
 
-  it("show an ordinary change, files moved, deleted and added, a binary file, a held one, a truncated change and none", () => {
-    expect(changeOf("change").files.map((file) => file.status)).toEqual([
-      "modified",
-      "modified",
-      "added",
+  it("show an ordinary change in layers: the uncommitted work above the commits since main", () => {
+    const change = changeOf("change")
+    expect(change.base).toBe("main")
+    expect(change.layers.map((layer) => [layer.kind, layer.subject])).toEqual([
+      ["uncommitted", ""],
+      ["commit", "Test verifySession across routes"],
+      ["commit", "Check session expiry in one place"],
     ])
-    const moves = changeOf("change-moves").files
-    expect(moves.map((file) => file.status)).toEqual(["renamed", "deleted", "renamed", "added"])
-    expect(moves[2]!.hunks).toEqual([])
-    expect(moves[0]!.oldPath).toBe("src/pages/Projects.tsx")
-    expect(changeOf("change-binary").files.some((file) => file.binary)).toBe(true)
-    expect(changeOf("change-held").files.some((file) => file.secret)).toBe(true)
-    const truncated = changeOf("change-truncated")
-    expect(truncated.truncated).toBe(true)
-    expect(truncated.files.some((file) => file.listed)).toBe(true)
-    expect(changeOf("change-none").files).toEqual([])
-    const long = changeOf("change-long").files[0]!.hunks[0]!.lines
-    expect(Math.max(...long.map((line) => line.text.length))).toBeGreaterThan(200)
+    expect(change.layers[1]!.id.slice(0, 7)).toBe("7d02b4a")
+    expect(change.layers[0]!.files.map((file) => file.path)).toEqual([
+      "README.md",
+      "src/auth/cookies.ts",
+      "src/auth/session.test.ts",
+    ])
+    // The header's nav was re-indented.
+    expect(
+      change.layers[2]!.files.find((file) => file.path === "src/components/Header.tsx"),
+    ).toMatchObject({ added: 4, removed: 6, reindented: 4 })
+  })
+
+  it("read a file for the layers selected as one range, taking in those between its ends", () => {
+    const [newest, middle, oldest] = changeOf("change").layers.map((layer) => layer.id)
+    const joined = readFile("change", "src/auth/session.test.ts", [newest!, middle!])
+    expect(joined.run).toMatchObject({
+      layers: [newest, middle],
+      file: { status: "added" },
+      before: null,
+    })
+    const wide = readFile("change", "src/auth/cookies.ts", [newest!, oldest!])
+    expect(wide.run?.layers).toEqual([newest, middle, oldest])
+    expect(readFile("change", "src/auth/cookies.ts", [middle!]).run).toBeNull()
+  })
+
+  it("show files moved, deleted and added, a binary file, a held one, a truncated change and none", () => {
+    const moves = changeOf("change-moves").layers[0]!.files
+    expect(moves.map((file) => [file.path, file.status])).toEqual([
+      ["README.md", "added"],
+      ["src/legacy.js", "deleted"],
+      ["src/pages/Studio.tsx", "renamed"],
+      ["src/pages/Work.tsx", "renamed"],
+    ])
+    expect(moves.find((file) => file.path === "src/pages/Work.tsx")?.oldPath).toBe(
+      "src/pages/Projects.tsx",
+    )
+    expect(changeOf("change-binary").layers[0]!.files.some((file) => file.binary)).toBe(true)
+    expect(changeOf("change-held").layers[0]!.files.some((file) => file.secret)).toBe(true)
+    expect(changeOf("change-truncated").truncated).toBe(true)
+    expect(changeOf("change-old-git").layers.map((layer) => layer.firstParent)).toEqual([
+      true,
+      undefined,
+    ])
+    expect(
+      readFile("change-truncated", "src/generated/part-1.json", ["uncommitted"]).run,
+    ).toMatchObject({
+      big: true,
+      hunks: [],
+    })
+    expect(changeOf("change-none").layers.flatMap((layer) => layer.files)).toEqual([])
+  })
+
+  it("never read a binary file or one that may hold secrets", () => {
+    for (const [id, path] of [
+      ["change-binary", "public/logo.png"],
+      ["change-held", ".env.local"],
+    ] as const) {
+      const { run } = readFile(id, path, ["uncommitted"])
+      expect(run).toMatchObject({ hunks: [], before: null, after: null })
+    }
+    expect(JSON.stringify(readFile("change-held", ".env.local", ["uncommitted"]))).not.toContain(
+      "API_KEY",
+    )
+  })
+
+  it("keep a line a long change holds whole", () => {
+    const { run } = readFile("change-long", "src/content/credits.json", ["uncommitted"])
+    const lines = run!.hunks.flatMap((hunk) => hunk.lines)
+    expect(Math.max(...lines.map((line) => line.text.length))).toBeGreaterThan(200)
+  })
+})
+
+describe("a work as a change", () => {
+  const work = {
+    terminalId: "t",
+    projectId: "p",
+    root: "/w/shop",
+    branch: "feature",
+    base: "main",
+    firstSeenAt: 0,
+    added: 7,
+    removed: 3,
+    unreadAdded: 0,
+    unreadRemoved: 0,
+    files: [
+      { path: "src/a.ts", added: 5, removed: 2 },
+      { path: "src/b.ts", added: 2, removed: 1 },
+    ],
+    truncated: false,
+    conflicts: [],
+  } as never
+
+  it("lists the work's files with the work's own counts, in a layer of uncommitted work", () => {
+    const made = workChanges(work, "Checkout")
+    const content = contentOfSample(made)!
+    expect(content).toMatchObject({ root: "/w/shop", base: "main" })
+    expect(content.layers).toHaveLength(1)
+    expect(content.layers[0]!.files.map((file) => [file.path, file.added, file.removed])).toEqual([
+      ["src/a.ts", 5, 2],
+      ["src/b.ts", 2, 1],
+    ])
+    expect(made.item.detail).toBe("Checkout against main · 2 files")
+    expect(made.changeFile!("src/a.ts", ["uncommitted"]).run!.hunks).not.toEqual([])
   })
 })

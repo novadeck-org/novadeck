@@ -238,6 +238,11 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       list: (input) => runner.companions.list(input),
       watch: () => runner.companions.watch(),
       content: (itemId, options) => runner.companions.content(itemId, options),
+      changeFile: (input) =>
+        note(`change file ${input.path}`, () => runner.companions.changeFile(input)),
+      changeRange: (input) => note("change range", () => runner.companions.changeRange(input)),
+      changeRead: (input) =>
+        note(`change read ${input.path}`, () => runner.companions.changeRead(input)),
       save: (input) => note(`save plan ${input.itemId}`, () => runner.companions.save(input)),
       attach: (input) => note(`attach ${input.path}`, () => runner.companions.attach(input)),
       openInProject: (input) =>

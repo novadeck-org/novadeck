@@ -102,26 +102,53 @@ describe("a peek's miniature", () => {
         status,
         added: 3,
         removed: 1,
+        reindented: 0,
         binary: false,
         secret: false,
-        listed: false,
-        hunks: [],
       })
       const change = peek(
-        itemFixture("change", "01", { kind: "changes", name: "Changes", path: "/repo" }),
+        itemFixture("change", "01", {
+          kind: "changes",
+          name: "Changes",
+          path: "/repo",
+          detail: "2 files · +4 −1",
+        }),
         ready({
           kind: "changes",
           root: "/repo",
           base: "HEAD",
           truncated: false,
+          read: [],
           files: [file("a.ts", "modified"), file("b.ts", "added")],
+          layers: [
+            {
+              id: "uncommitted",
+              kind: "uncommitted",
+              subject: "",
+              time: null,
+              added: 3,
+              removed: 1,
+              truncated: false,
+              files: [file("a.ts", "modified")],
+            },
+            {
+              id: "abc",
+              kind: "commit",
+              subject: "Add b",
+              time: 1,
+              added: 3,
+              removed: 1,
+              truncated: false,
+              files: [file("b.ts", "added")],
+            },
+          ],
         }),
       )
       expect(
         [...change.container.querySelectorAll(".peek-changes span")].map(
           (each) => each.textContent,
         ),
-      ).toEqual(["2 files  +6 −2", "a.ts", "b.ts"])
+      ).toEqual(["2 files · +4 −1", "a.ts", "b.ts"])
     })
 
     it("says why it can't show, and never loads one that may hold secrets", () => {

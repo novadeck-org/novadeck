@@ -1,28 +1,26 @@
-import { createHash } from "node:crypto"
-import { mkdtemp, rm } from "node:fs/promises"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import { workLimits, type Work, type WorkChange } from "@novadeck/protocol"
 import { KeyedChanges } from "@novadeck/wire/server"
 
-import { waitAfter } from "../companions/changes.js"
-import { DomainError } from "../errors.js"
-import { logs } from "../log.js"
-import { attribute, conflictsOf, listFiles, mayConflict, type Claim, type Lines } from "./lines.js"
-import { loadRemembered, RememberedSaves, type Remembered } from "./memory.js"
+import { waitAfter } from "../checkouts/git.js"
+import { listChanges, type Listed } from "../checkouts/listing.js"
 import {
   branchOf,
   commonDir,
   mainBranch,
   mergeBase,
   mergeTrees,
-  numstat,
   snapshotCommit,
-  snapshotTree,
   treeGone,
-} from "./repository.js"
+  type Main,
+  type Merge,
+} from "../checkouts/repository.js"
+import type { Snapshot, Snapshots } from "../checkouts/snapshots.js"
+import { DomainError } from "../errors.js"
+import { logs } from "../log.js"
+import { attribute, conflictsOf, listFiles, mayConflict, type Claim, type Lines } from "./lines.js"
+import { loadRemembered, RememberedSaves, type Remembered } from "./memory.js"
 
 const log = logs.for("works")
 
@@ -38,7 +36,12 @@ export type WorksOptions = {
   readonly placements: () => Promise<readonly Placement[]>
   /** Shows the checkout's changes on the terminal's bar; resolves to the item's id. */
   readonly show: (terminalId: string, root: string) => Promise<string>
-  /** Where the first-seen times and last looks are kept across runs; undefined: not kept. */
+  /** What takes the checkouts' working trees as trees, shared with the changes items. */
+  readonly snapshots: Snapshots
+  /**
+   * Where the first-seen times, last looks and files read are kept across runs; undefined:
+   * not kept.
+   */
   readonly memory?: string
   /** How often each checkout is read, in milliseconds. */
   readonly everyMs?: number
@@ -58,13 +61,33 @@ type Read = {
   readonly branch: string | null
   readonly base: string
   readonly changed: ReadonlyMap<string, Lines>
+  /** The paths it touches: each file's, and a renamed one's old path too. */
+  readonly touched: ReadonlySet<string>
   readonly unread: ReadonlyMap<string, Lines> | undefined
   /** The files conflicting with main; undefined where this git can't tell. */
   readonly conflicts: readonly string[] | undefined
   /** Untracked files over the size limit were left out of the snapshot. */
   readonly skipped: boolean
   readonly common: string | undefined
+  /** Where the snapshot's objects are, which later git runs on it need. */
+  readonly env: NodeJS.ProcessEnv | undefined
 }
+
+/** What is remembered, without the marks of files the work no longer changes. */
+const withoutUnchanged = (
+  remembered: Remembered,
+  changed: ReadonlyMap<string, Lines>,
+): Remembered => {
+  if (!remembered.read) return remembered
+  const kept = Object.entries(remembered.read).filter(([path]) => changed.has(path))
+  if (kept.length === Object.keys(remembered.read).length) return remembered
+  const { read: _read, ...rest } = remembered
+  return kept.length === 0 ? rest : { ...rest, read: Object.fromEntries(kept) }
+}
+
+/** The lines of each file a listing has. */
+const linesOf = (listed: readonly Listed[]): Map<string, Lines> =>
+  new Map(listed.map(({ path, added, removed }) => [path, { added, removed }]))
 
 type RootState = {
   remembered: Remembered | undefined
@@ -101,7 +124,6 @@ export class Works {
   private readonly now: () => number
   private queue: Promise<unknown> = Promise.resolve()
   private loop: AbortController | undefined
-  private folder: Promise<string> | undefined
   private loaded: Promise<void>
   private saved = ""
   private readonly saves: RememberedSaves | undefined
@@ -120,6 +142,11 @@ export class Works {
               this.roots.set(root, { remembered, read: undefined, nextAt: 0 })
             this.saved = this.serialized()
           })
+    // A rebuilt object folder keeps the trees the works were last read as.
+    options.snapshots.keep((root) => {
+      const watermark = this.roots.get(root)?.remembered?.watermark
+      return watermark ? [watermark] : []
+    })
   }
 
   /** Every work, `synced`, then each later change, until `signal` aborts or the owner leaves. */
@@ -164,8 +191,10 @@ export class Works {
     await this.exclusive(async () => {
       const state = this.roots.get(work.root)
       if (!state?.remembered) return
-      const index = await this.privateIndex(work.root)
-      const snapshot = await snapshotTree(work.root, index)
+      // As it is now, not as a snapshot of a moment ago.
+      const snapshot = await this.options.snapshots.use(work.root, (checkout) =>
+        checkout.take(true),
+      )
       const tree = snapshot?.tree ?? state.read?.tree
       if (tree === undefined) return
       state.remembered = { ...state.remembered, watermark: tree }
@@ -180,15 +209,36 @@ export class Works {
     return { itemId: await this.options.show(terminalId, work.root) }
   }
 
-  /** Ends every stream and forgets the private indexes. */
+  /**
+   * The person has read a file of a checkout's work as `blob`, its object as the changes item
+   * listed it (all zeros where it was deleted): it reads as read while it stays that.
+   */
+  async markRead(root: string, path: string, blob: string): Promise<void> {
+    await this.loaded
+    // At once, not behind a pass: the changes item's next read names it. A pass under way sets
+    // what it remembers from what is there when it ends, this mark too.
+    let state = this.roots.get(root)
+    if (!state) {
+      state = { remembered: undefined, read: undefined, nextAt: 0 }
+      this.roots.set(root, state)
+    }
+    const remembered = state.remembered ?? { firstSeenAt: this.now(), watermark: null }
+    state.remembered = { ...remembered, read: { ...remembered.read, [path]: blob } }
+    this.remember()
+  }
+
+  /** The files of a checkout read, each by the object it was read as. */
+  marks(root: string): ReadonlyMap<string, string> {
+    return new Map(Object.entries(this.roots.get(root)?.remembered?.read ?? {}))
+  }
+
+  /** Ends every stream, once what is being read and saved is done. */
   async close(): Promise<void> {
     this.stopped = true
     this.loop?.abort()
     for (const watcher of this.watchers.keys()) watcher.finish()
     await this.queue.catch(() => {})
     await this.saves?.settled()
-    const folder = await this.folder?.catch(() => undefined)
-    if (folder) await rm(folder, { recursive: true, force: true }).catch(() => {})
   }
 
   /** The terminal's work, read now if nobody is watching to keep them current. */
@@ -238,13 +288,6 @@ export class Works {
       log.error("works.pass-failed", "Reading works failed", { err: error })
     })
     return next
-  }
-
-  /** The folder holding the private index files, made when first needed. */
-  private async privateIndex(root: string): Promise<string> {
-    this.folder ??= mkdtemp(join(tmpdir(), "novadeck-works-"))
-    const name = createHash("sha1").update(root).digest("hex").slice(0, 16)
-    return join(await this.folder, name)
   }
 
   /** The terminals' checkouts: who owns each, and every terminal's project. */
@@ -305,7 +348,10 @@ export class Works {
         state.remembered = undefined
       } else {
         state.read = outcome ?? undefined
-        if (outcome) state.remembered ??= { firstSeenAt: started, watermark: null }
+        if (outcome) {
+          state.remembered ??= { firstSeenAt: started, watermark: null }
+          state.remembered = withoutUnchanged(state.remembered, outcome.changed)
+        }
       }
     } catch (error) {
       log.error("works.read-failed", "Reading a checkout failed", { err: error })
@@ -321,32 +367,61 @@ export class Works {
   private async read(root: string, state: RootState): Promise<Read | null | "merged" | "keep"> {
     const main = await mainBranch(root)
     if (!main) return null
-    const index = await this.privateIndex(root)
-    const snapshot = await snapshotTree(root, index)
-    if (!snapshot) {
-      await rm(index, { force: true })
-      await rm(`${index}.lock`, { force: true })
-      return "keep"
-    }
-    const branch = await branchOf(root)
-    const watermark = state.remembered?.watermark ?? null
-    const key = [main.commit, snapshot.tree, branch, watermark, snapshot.skipped].join(" ")
-    if (state.read?.key === key) return state.read
-    const commit = await snapshotCommit(root, snapshot.tree, snapshot.head)
+    return this.options.snapshots.use(root, async (checkout) => {
+      const snapshot = await checkout.take()
+      if (!snapshot || snapshot.head === "") return "keep"
+      const branch = await branchOf(root)
+      const watermark = state.remembered?.watermark ?? null
+      const key = [
+        main.commit,
+        snapshot.tree,
+        branch,
+        watermark,
+        snapshot.skipped,
+        // A rebuilt folder may have let go of the snapshot's commit.
+        snapshot.generation,
+      ].join(" ")
+      if (state.read?.key === key) return state.read
+      return this.measure(root, state, { main, snapshot, branch, watermark, key })
+    })
+  }
+
+  /** What a snapshot of the checkout differs from main by, and what of it is unread. */
+  private async measure(
+    root: string,
+    state: RootState,
+    {
+      main,
+      snapshot,
+      branch,
+      watermark,
+      key,
+    }: {
+      readonly main: Main
+      readonly snapshot: Snapshot
+      readonly branch: string | null
+      readonly watermark: string | null
+      readonly key: string
+    },
+  ): Promise<Read | "merged" | "keep"> {
+    const commit = await snapshotCommit(root, snapshot.tree, snapshot.head, snapshot.env)
     if (!commit) return "keep"
-    const merge = await mergeTrees(root, main.commit, commit)
+    const merge = await mergeTrees(root, main.commit, commit, snapshot.env)
     if (merge.state === "clean" && merge.tree === main.tree) return "merged"
-    const base = await mergeBase(root, main.commit, commit)
-    const changed = await numstat(root, base ?? main.tree, snapshot.tree)
-    if (!changed) return "keep"
+    const base = await mergeBase(root, main.commit, commit, snapshot.env)
+    // Counted as the changes item counts it, so a row says what its pane says.
+    const listed = await listChanges(root, base ?? main.tree, snapshot.tree, snapshot.env)
+    if (!Array.isArray(listed)) return "keep"
+    const changed = linesOf(listed)
     // Nothing differs from where it left main (or this git can't merge, and nothing differs).
     if (changed.size === 0) return "merged"
     let unread: ReadonlyMap<string, Lines> | undefined
     if (watermark !== null) {
-      const since = await numstat(root, watermark, snapshot.tree)
-      if (since) unread = new Map([...since].filter(([path]) => changed.has(path)))
+      const since = await listChanges(root, watermark, snapshot.tree, snapshot.env)
+      if (Array.isArray(since))
+        unread = new Map([...linesOf(since)].filter(([path]) => changed.has(path)))
       // The tree it was last read as is gone: all of it reads as unread again.
-      else if (state.remembered && (await treeGone(root, watermark)))
+      else if (state.remembered && (await treeGone(root, watermark, snapshot.env)))
         state.remembered = { ...state.remembered, watermark: null }
       // Git was slow or the list too long, not the tree gone: the unread lines stand.
       else unread = state.read?.unread
@@ -358,11 +433,13 @@ export class Works {
       branch,
       base: main.name,
       changed,
+      touched: new Set(listed.flatMap(({ path, oldPath }) => (oldPath ? [path, oldPath] : [path]))),
       unread,
       conflicts:
         merge.state === "conflict" ? merge.files : merge.state === "clean" ? [] : undefined,
       skipped: snapshot.skipped,
       common: await commonDir(root),
+      env: snapshot.env,
     }
   }
 
@@ -427,7 +504,8 @@ export class Works {
       result.set(terminalId, mine)
     }
     const sets = reads.map(({ read }) => ({
-      paths: new Set(read.changed.keys()),
+      // A rename touches its old path too, which another work may have changed.
+      paths: read.touched,
       truncated: read.changed.size > workLimits.files || read.skipped,
     }))
     for (let first = 0; first < reads.length; first += 1)
@@ -442,7 +520,20 @@ export class Works {
           if (budget === 0) continue
           budget -= 1
           // eslint-disable-next-line no-await-in-loop -- Each pair is merged in turn.
-          const merge = await mergeTrees(a.root, a.read.commit, b.read.commit)
+          const merge = await this.options.snapshots
+            .use(a.root, () => mergeTrees(a.root, a.read.commit, b.read.commit, a.read.env))
+            .catch((): Merge => ({ state: "unknown" }))
+          if (merge.state === "unknown") {
+            // Not known is not "no conflict": nothing is stored, and the two checkouts are read
+            // afresh next pass, as a snapshot commit may be gone (its folder rebuilt).
+            for (const each of [a, b]) {
+              const state = this.roots.get(each.root)
+              if (!state?.read) continue
+              state.read = { ...state.read, key: "" }
+              state.nextAt = 0
+            }
+            continue
+          }
           files = merge.state === "conflict" ? merge.files : []
           if (this.pairs.size > 256) this.pairs.clear()
           this.pairs.set(key, files)
@@ -485,7 +576,7 @@ export class Works {
     for (const [root] of abandoned)
       if (!keep.some(([kept]) => kept === root)) {
         this.roots.delete(root)
-        void this.privateIndex(root).then((index) => rm(index, { force: true }))
+        this.options.snapshots.forget(root)
       }
   }
 

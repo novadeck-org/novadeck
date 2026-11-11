@@ -292,6 +292,22 @@ describe("a pane covering its terminal", () => {
     expect(open(container)).toBe(true)
   })
 
+  it("leaves a character typed in a viewer that takes its own keys to it", async () => {
+    const { container, input } = covered()
+    const own = document.createElement("div")
+    own.dataset.paneKeys = ""
+    const inside = document.createElement("span")
+    own.append(inside)
+    container.querySelector(".pane-reader")?.append(own)
+    const typed: string[] = []
+    input.addEventListener("keydown", (event) => typed.push(event.key))
+
+    expect((await press(inside, "j")).defaultPrevented).toBe(false)
+
+    expect(open(container)).toBe(true)
+    expect(typed).toEqual([])
+  })
+
   // The terminal reads a key by its code, so the one it gets is the key pressed, not one
   // made from its character: "." is not Delete (46), nor "(" Down (40).
   it.each([

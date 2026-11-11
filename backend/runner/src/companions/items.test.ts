@@ -19,9 +19,9 @@ import {
   type PageTrouble,
 } from "@novadeck/protocol"
 
+import { timing } from "../checkouts/git.js"
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
-import { timing } from "./changes.js"
 import type { PlanText } from "./content.js"
 import { CompanionItems, type TerminalPlace } from "./items.js"
 
@@ -47,6 +47,8 @@ type Fixture = {
   live: Map<string, PlanText>
   /** The person's environment, as `environment` reads it: none of the machine's own. */
   environment: NodeJS.ProcessEnv
+  /** The files of changes read, by checkout, as `reads` keeps them. */
+  marks: Map<string, Map<string, string>>
 }
 
 const it = base.extend<{ fixture: Fixture }>({
@@ -60,8 +62,15 @@ const it = base.extend<{ fixture: Fixture }>({
     const places = new Map<string, TerminalPlace>()
     const live = new Map<string, PlanText>()
     const environment: NodeJS.ProcessEnv = {}
+    const marks = new Map<string, Map<string, string>>()
     const items = new CompanionItems({
       environment: () => environment,
+      reads: {
+        marks: (root) => marks.get(root) ?? new Map(),
+        mark: async (root, path, blob) => {
+          marks.set(root, new Map([...(marks.get(root) ?? []), [path, blob]]))
+        },
+      },
       records: store,
       terminal: (terminalId) => places.get(terminalId),
       project: (sessionId) => (sessionId === session.id ? directory : undefined),
@@ -109,6 +118,7 @@ const it = base.extend<{ fixture: Fixture }>({
       items,
       live,
       environment,
+      marks,
     })
   },
 })
@@ -1408,6 +1418,56 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     })
   })
 
+  it("gives one file's diff for a selection of layers, and refuses an item that is no change", async ({
+    fixture,
+  }) => {
+    const { place } = repository(fixture)
+    const shown = await fixture.items.show(place, { changes: {} })
+    const itemId = shown.ok ? shown.id : ""
+    const diff = await fixture.items.changeFile({
+      itemId,
+      path: "a.txt",
+      layers: ["uncommitted"],
+    })
+    expect(diff.run).toMatchObject({
+      layers: ["uncommitted"],
+      before: "one\n",
+      after: "one\ntwo\n",
+      file: { added: 1 },
+    })
+    await expect(
+      fixture.items.changeFile({ itemId: "nope", path: "a.txt", layers: ["uncommitted"] }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    await expect(
+      fixture.items.changeRange({ itemId, layers: ["uncommitted"] }),
+    ).resolves.toMatchObject({ files: [{ path: "a.txt", added: 1 }], truncated: false })
+    await expect(
+      fixture.items.changeRange({ itemId: "nope", layers: ["uncommitted"] }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    fixture.items.close(itemId)
+  })
+
+  it("marks a file read, which its content names until it changes", async ({ fixture }) => {
+    const { root, place } = repository(fixture)
+    const shown = await fixture.items.show(place, { changes: {} })
+    const itemId = shown.ok ? shown.id : ""
+    const stream = fixture.items.content(itemId, undefined)
+    const read = (content: ItemContent | undefined) =>
+      content?.state === "ready" && content.content.kind === "changes" ? content.content.read : []
+    expect(read(await next(stream))).toEqual([])
+    await fixture.items.changeRead({ itemId, path: "a.txt" })
+    // A file the change does not list is not marked.
+    await fixture.items.changeRead({ itemId, path: "nope.txt" })
+    expect([...fixture.marks.values()].flatMap((each) => [...each.keys()])).toEqual(["a.txt"])
+    expect(read(await next(stream))).toEqual(["a.txt"])
+    writeFileSync(join(root, "a.txt"), "one\ntwo\nthree\n")
+    expect(read(await next(stream))).toEqual([])
+    await expect(fixture.items.changeRead({ itemId: "nope", path: "a.txt" })).rejects.toMatchObject(
+      { code: "NOT_FOUND" },
+    )
+    fixture.items.close(itemId)
+  })
+
   it("yields its content when the change changes, and not otherwise", async ({ fixture }) => {
     const { root, place } = repository(fixture)
     const shown = await fixture.items.show(place, { changes: {} })
@@ -1427,7 +1487,11 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     const second = await next(stream)
     expect(second).not.toMatchObject({ stamp: first && "stamp" in first ? first.stamp : "" })
     expect(second).toMatchObject({
-      content: { files: [{ path: "a.txt" }, { path: "b.txt", status: "added" }] },
+      content: {
+        layers: [
+          { id: "uncommitted", files: [{ path: "a.txt" }, { path: "b.txt", status: "added" }] },
+        ],
+      },
     })
     // The item's detail follows what the reads find.
     expect(fixture.items.bar(place.terminalId)[0]?.detail).toBe("2 files · +2 −0")
@@ -1468,7 +1532,10 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     const content = await fixture.items.load(item?.id ?? "", false)
     expect(content).toMatchObject({
       state: "ready",
-      content: { kind: "changes", files: [{ path: "b.txt", status: "added" }] },
+      content: {
+        kind: "changes",
+        layers: [{ id: "uncommitted", files: [{ path: "b.txt", status: "added" }] }],
+      },
     })
     // The same path closes it; a path in no repository names nothing.
     await expect(fixture.items.closeShown(outside, { changes: {} })).resolves.toMatchObject({

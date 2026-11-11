@@ -1,0 +1,86 @@
+name: Test Browser Packages
+description: >
+  The test browser's system packages on Linux that the runner image lacks (nine font packages
+  on ubuntu-24.04 on 11-11), installed from a cache of their debs with apt and no download
+  where it has them, and through Ubuntu's mirrors only where it doesn't, retried and failing
+  fast. Run after the browser is in place, on Linux only.
+
+# On 11-11 Ubuntu's mirrors couldn't be resolved for hours, and every job with a cached browser
+# failed installing these before any test ran. Chromium itself runs on the image as shipped
+# (ldd finds nothing missing); only the fonts come through the mirrors. The debs' cache key
+# (scripts/ci/setup/browser-dependencies.ts, `cacheKey`) is the image's OS and version, its
+# architecture, Playwright's version with the packages it names missing, and the runner image's
+# build. A new build first restores an earlier build's debs by the key's prefix, which nearly
+# always install as they are, with no mirror, and saves them under its own key; where they
+# don't, they are replaced by a fresh download. GitHub rolls an image out over days, so two
+# builds, and two keys, coexist meanwhile. An exact key is never rewritten. A pull request reads
+# main's caches and its own, never another's: Warm Caches fills main's.
+
+outputs:
+  missing:
+    description: How many packages the check named missing before the install, or `unknown`
+    value: ${{ steps.check.outputs.missing }}
+  path:
+    description: "How they were installed: `cache`, `apt` or `install-deps`; empty where none were missing"
+    value: ${{ steps.install.outputs.path }}
+
+runs:
+  using: composite
+  steps:
+    # Playwright's own check (install-deps --dry-run: dpkg, no network) and ldd over the
+    # browser's binaries; a check that fails leaves `missing` empty, which installs.
+    - name: Check Test Browser Packages
+      id: check
+      continue-on-error: true
+      shell: bash
+      run: node scripts/ci/setup/browser-dependencies.ts "$PLAYWRIGHT_BROWSERS_PATH"
+
+    - name: Restore Test Browser Packages
+      id: cache
+      if: steps.check.outputs.key != ''
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/browser-packages
+        key: ${{ steps.check.outputs.key }}
+        restore-keys: ${{ steps.check.outputs.prefix }}
+
+    # From the cache with `apt-get install --no-download`, or apt's download then the same;
+    # done only where Playwright's check then names none missing
+    # (scripts/ci/setup/browser-packages.ts).
+    - name: Install Test Browser Packages
+      id: install
+      if: steps.check.outputs.missing != '0'
+      shell: bash
+      env:
+        PACKAGES: ${{ steps.check.outputs.packages }}
+        EXACT_HIT: ${{ steps.cache.outputs.cache-hit }}
+      run: node scripts/ci/setup/browser-packages.ts "$RUNNER_TEMP/browser-packages"
+
+    # Under the exact key, the debs this run downloaded, or an earlier build's that installed
+    # here; never over an exact hit (`saves` in browser-packages.ts).
+    - name: Save Test Browser Packages
+      if: steps.install.outputs.save == 'true' && steps.check.outputs.key != ''
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/browser-packages
+        key: ${{ steps.check.outputs.key }}
+
+    # Loud where the folder was to be saved and the cache has no entry under the key: the save
+    # warns and goes on (on #869 a folder it couldn't read was saved as nothing), and every
+    # run after would go back to Ubuntu's mirrors without a word. Another job that saved the
+    # same key first counts as saved.
+    - name: Check Test Browser Packages Saved
+      id: saved
+      if: steps.install.outputs.save == 'true' && steps.check.outputs.key != ''
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/browser-packages
+        key: ${{ steps.check.outputs.key }}
+        lookup-only: true
+
+    - name: Say Test Browser Packages Weren't Saved
+      if: steps.saved.outcome == 'success' && steps.saved.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        KEY: ${{ steps.check.outputs.key }}
+      run: echo "::error title=Setup::The test browser's packages weren't saved under $KEY; the next run goes back to Ubuntu's mirrors"

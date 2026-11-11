@@ -907,6 +907,17 @@ describe("runner client companion items", () => {
     await expect(content.next()).resolves.toMatchObject({
       value: { state: "ready", content: { kind: "file", lines: ["# Notes"], total: 1 } },
     })
+    // A file is no change, and an unknown item is none either.
+    await expect(
+      client.companions.changeFile({ itemId: item.id, path: "a.ts", layers: ["uncommitted"] }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    await expect(
+      client.companions.changeFile({
+        itemId: crypto.randomUUID(),
+        path: "a.ts",
+        layers: ["uncommitted"],
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
 
     const windowId = crypto.randomUUID()
     await expect(client.companions.undock(item.id, windowId)).resolves.toEqual({

@@ -12,6 +12,7 @@ import {
   companionLimits,
   maxPageTroubles,
   pageTrouble,
+  type ChangeFileDiff,
   type ItemContent as RunnerContent,
   type PlanSaveResult,
 } from "@novadeck/protocol"
@@ -60,6 +61,10 @@ const following = ({ livePages = false } = {}) => {
     },
   }
   const saves: { itemId: string; text: string; basedOn: string }[] = []
+  const rangeAsked: { itemId: string; layers: readonly string[] }[] = []
+  const readAsked: { itemId: string; path: string }[] = []
+  const changeAsked: { itemId: string; path: string; layers: readonly string[] }[] = []
+  let changed: ChangeFileDiff = { run: null }
   let saving: PlanSaveResult = { saved: true, stamp: "b2" }
   let failure: unknown
   const companions = createRunnerCompanions(
@@ -69,6 +74,17 @@ const following = ({ livePages = false } = {}) => {
         const stream = channel<RunnerContent>()
         streams.set(itemId, stream)
         return stream.iterator
+      },
+      changeFile: async (input) => {
+        changeAsked.push(input)
+        return changed
+      },
+      changeRange: async (input) => {
+        rangeAsked.push(input)
+        return { files: [], truncated: false }
+      },
+      changeRead: async (input) => {
+        readAsked.push(input)
       },
       save: async (input) => {
         saves.push(input)
@@ -89,6 +105,12 @@ const following = ({ livePages = false } = {}) => {
   return {
     companions,
     asked,
+    changeAsked,
+    rangeAsked,
+    readAsked,
+    changeReturns: (diff: ChangeFileDiff) => {
+      changed = diff
+    },
     opened,
     projectOpened,
     saves,
@@ -163,14 +185,15 @@ describe("the runner's companion content", () => {
     expect(app.seen[0]).toMatchObject({ content: { kind: "page", live: true } })
   })
 
-  it("gives a change as the runner reads it, file by file", async () => {
+  it("gives a change as the runner reads it, layer by layer", async () => {
     const app = following({ livePages: true })
     app.follow()
     const content = {
       kind: "changes" as const,
       root: "/repo",
-      base: "HEAD",
+      base: "main",
       truncated: false,
+      read: ["a.ts"],
       files: [
         {
           path: "a.ts",
@@ -178,19 +201,30 @@ describe("the runner's companion content", () => {
           status: "renamed" as const,
           added: 1,
           removed: 1,
+          reindented: 0,
           binary: false,
           secret: false,
-          listed: false,
-          hunks: [
+        },
+      ],
+      layers: [
+        {
+          id: "uncommitted",
+          kind: "uncommitted" as const,
+          subject: "",
+          time: null,
+          added: 1,
+          removed: 1,
+          truncated: false,
+          files: [
             {
-              oldStart: 1,
-              oldCount: 1,
-              newStart: 1,
-              newCount: 1,
-              lines: [
-                { kind: "remove" as const, text: "x" },
-                { kind: "add" as const, text: "y" },
-              ],
+              path: "a.ts",
+              oldPath: "b.ts",
+              status: "renamed" as const,
+              added: 1,
+              removed: 1,
+              reindented: 0,
+              binary: false,
+              secret: false,
             },
           ],
         },
@@ -199,6 +233,55 @@ describe("the runner's companion content", () => {
     app.push({ state: "ready", stamp: "1", content })
     await settle()
     expect(app.seen).toEqual([{ state: "ready", stamp: "1", content }])
+  })
+
+  it("asks the runner for one file of a change for the layers selected, and gives its answer", async () => {
+    const app = following()
+    const run = {
+      layers: ["uncommitted", "abc"],
+      file: {
+        path: "a.ts",
+        oldPath: null,
+        status: "modified" as const,
+        added: 1,
+        removed: 1,
+        reindented: 0,
+        binary: false,
+        secret: false,
+      },
+      big: false,
+      badName: false,
+      hunks: [],
+      before: "x\n",
+      after: "y\n",
+    }
+    app.changeReturns({ run })
+
+    const diff = await app.companions.changeFile!(target, hero, "a.ts", ["uncommitted", "abc"])
+
+    expect(app.changeAsked).toEqual([
+      { itemId: hero, path: "a.ts", layers: ["uncommitted", "abc"] },
+    ])
+    expect(diff).toEqual({ run })
+  })
+
+  it("asks the runner for the files of a range of layers", async () => {
+    const app = following()
+
+    await expect(app.companions.changeRange!(target, hero, ["a", "b"])).resolves.toEqual({
+      files: [],
+      truncated: false,
+    })
+
+    expect(app.rangeAsked).toEqual([{ itemId: hero, layers: ["a", "b"] }])
+  })
+
+  it("tells the runner a file of a change was read", async () => {
+    const app = following()
+
+    await app.companions.changeRead!(target, hero, "a.ts")
+
+    expect(app.readAsked).toEqual([{ itemId: hero, path: "a.ts" }])
   })
 
   it("gives a plan as the runner says it can be written, without saying when it changed", async () => {
@@ -479,6 +562,9 @@ describe("what a page shows wrong", () => {
     let failure: unknown
     const companions = createRunnerCompanions({
       content: () => channel<RunnerContent>().iterator,
+      changeFile: () => Promise.reject(new Error("unused")),
+      changeRange: () => Promise.reject(new Error("unused")),
+      changeRead: () => Promise.reject(new Error("unused")),
       save: () => Promise.reject(new Error("unused")),
       openInProject: () => Promise.reject(new Error("unused")),
       pageTrouble: async (input) => {

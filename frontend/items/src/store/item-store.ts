@@ -71,6 +71,14 @@ export type ItemStore = {
     shown: number,
     troubles: readonly PageTrouble[],
   ) => void
+  // One file of a changes item as a selection of its layers changed it: the backend's
+  // answer, read when asked for.
+  readonly changeFile: NonNullable<Companions["changeFile"]>
+  // The files a selection of layers changed as one range.
+  readonly changeRange: NonNullable<Companions["changeRange"]>
+  // The person read a file of a changes item. Best effort: it never fails, and a backend that
+  // can't keep it does nothing.
+  readonly changeRead: (target: WorkspaceTarget, itemId: ItemId, path: string) => void
   // Follows every plan in the workspace from here on; returns the stop.
   readonly connect: () => () => void
   // Takes a picture of a live page for it to rest as: the backend's, where it has one.
@@ -643,12 +651,26 @@ export const createItemStore = ({
   const { picture, phone } = companions
   const trouble: ItemStore["trouble"] = (target, itemId, shown, troubles) =>
     session.companions.trouble(target, itemId, shown, troubles)
+  const changeFile: ItemStore["changeFile"] = (target, itemId, path, layers) =>
+    session.companions.changeFile
+      ? session.companions.changeFile(target, itemId, path, layers)
+      : Promise.reject(new Error("This backend can't read a change's files"))
+  const changeRange: ItemStore["changeRange"] = (target, itemId, layers) =>
+    session.companions.changeRange
+      ? session.companions.changeRange(target, itemId, layers)
+      : Promise.reject(new Error("This backend can't read a change's range"))
+  const changeRead: ItemStore["changeRead"] = (target, itemId, path) => {
+    void session.companions.changeRead?.(target, itemId, path).catch(() => {})
+  }
   return {
     store: session.store,
     watch,
     reveal,
     plan,
     trouble,
+    changeFile,
+    changeRange,
+    changeRead,
     connect,
     ...(picture && { picture }),
     ...(phone && { phone }),
