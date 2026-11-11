@@ -10,8 +10,15 @@ on:
   # core scenarios.
   merge_group:
   schedule:
-    # Nightly, against each harness's latest release, to catch drift before a pin moves.
-    - cron: "17 3 * * *"
+    # Nightly, against each harness's latest release, to catch drift before a pin moves. Set
+    # for the delay GitHub measurably adds to this repository's scheduled runs, so its five
+    # macOS jobs really run after the pinned night (quality-nightly.yml) has mostly left the
+    # Macs and before Europe's morning pull requests: about 03:45 to 05:35 UTC. Each day from
+    # 11-01 to 11-10 GitHub created this run, then at 03:17, at 10:10 to 11:32, and Timing's
+    # 02:41 run at 09:14 to 10:25, 6.5 to 8.3 hours late. Started on time, it runs in the late
+    # evening, beside the last pull requests: slower, as its macOS jobs wait for Macs, but not
+    # wrong.
+    - cron: "17 21 * * *"
   workflow_dispatch:
     inputs:
       harness:
