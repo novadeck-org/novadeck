@@ -211,29 +211,24 @@ jobs:
           path: ${{ runner.temp }}/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
+      # The browser alone where the cache missed, through the retry (scripts/ci/setup/retry.ts):
+      # on Linux its system packages come next, from their own cache where it has them;
+      # elsewhere Playwright installs what it needs with it.
       - name: Install Test Browser
         if: matrix.browser && steps.browser-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @novadeck/specs exec playwright install --with-deps chromium
-
-      # A cached browser on Linux may lack system packages the runner image doesn't ship: checked
-      # (Playwright's own check, which reads dpkg, and ldd over its binaries) and installed with apt
-      # only where something is missing, so Ubuntu's mirrors stay off the path when the image has
-      # them all. On 11-11 the mirrors were unreachable for over an hour and every job with a cached
-      # browser failed here before any test ran. Where apt is still needed it is retried a few
-      # minutes at most, ending in one line that says so (scripts/ci/setup).
-      - name: Check Test Browser Dependencies
-        id: browser-dependencies
-        if: matrix.browser && steps.browser-cache.outputs.cache-hit == 'true' && runner.os == 'Linux'
         shell: bash
-        run: node scripts/ci/setup/browser-dependencies.ts "$PLAYWRIGHT_BROWSERS_PATH"
+        run: |
+          deps=--with-deps; [ "$RUNNER_OS" = Linux ] && deps=
+          node scripts/ci/setup/retry.ts "The test browser couldn't be installed" \
+            -- pnpm --filter @novadeck/specs exec playwright install $deps chromium
 
-      - name: Install Test Browser Dependencies
-        if: matrix.browser && steps.browser-cache.outputs.cache-hit == 'true' && runner.os == 'Linux' && steps.browser-dependencies.outputs.missing != '0'
-        shell: bash
-        run: >-
-          node scripts/ci/setup/retry.ts
-          "apt mirrors unreachable: the test browser's system packages couldn't be installed"
-          -- pnpm --filter @novadeck/specs exec playwright install-deps chromium
+      # Its system packages the runner image lacks, on Linux: from a cache of their debs with
+      # dpkg, and through Ubuntu's mirrors only where it misses, retried and failing fast
+      # (.github/actions/browser-packages). On 11-11 the mirrors couldn't be resolved for hours,
+      # and every job with a cached browser failed here before any test ran.
+      - name: Test Browser Packages
+        if: matrix.browser && runner.os == 'Linux'
+        uses: ./.github/actions/browser-packages
 
       # Electron's download, which the desktop app's tests fetch once before they start
       # (apps/desktop/scripts/electron-binary.ts), kept between runs: GitHub's release downloads
@@ -262,15 +257,16 @@ jobs:
         working-directory: backend/relay
         run: cargo test --locked --no-run
 
-      # The shells' integration tests run fish here, and fail rather than skip without it. The
-      # Test Browser steps above have just refreshed apt's lists, and the job has about two
-      # minutes to spare beside its tests, so a slow mirror costs this run its fish and no more.
+      # The shells' integration tests run fish here, and fail rather than skip without it. It
+      # refreshes apt's lists itself, as the browser's packages may come from their cache
+      # without apt, and the job has about two minutes to spare beside its tests, so a slow
+      # mirror costs this run its fish and no more (as .github/actions/setup does).
       - name: Install fish
         id: fish
         if: matrix.shard == 1 && runner.os == 'Linux'
         timeout-minutes: 2
         continue-on-error: true
-        run: sudo apt-get install -y --no-install-recommends fish
+        run: sudo timeout 110 sh -c 'apt-get update -qq && apt-get install -y --no-install-recommends fish'
 
       - name: Warn That fish Is Missing
         if: matrix.shard == 1 && runner.os == 'Linux' && steps.fish.outcome != 'success'

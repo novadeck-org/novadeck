@@ -1,26 +1,39 @@
 import { execFileSync, spawnSync } from "node:child_process"
-import { appendFileSync, closeSync, openSync, readdirSync, readSync } from "node:fs"
+import { createHash } from "node:crypto"
+import {
+  appendFileSync,
+  closeSync,
+  existsSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  readSync,
+} from "node:fs"
 import { join } from "node:path"
 
-// `node scripts/ci/setup/browser-dependencies.ts <browsers folder>`: what the cached test
-// browser lacks on this Linux machine, by Playwright's own check of its system packages
-// (`playwright install-deps --dry-run chromium`, which reads dpkg and reaches no network) and by
-// `ldd` over every ELF file it holds. The setup action (.github/actions/setup) installs the
-// browser's dependencies with apt only where something is missing, so a runner image that has
-// them all keeps Ubuntu's mirrors off a pull request's path: on 11-11 they were unreachable for
-// 40 minutes, and every job with a cached browser failed before any test ran. Prints what it
-// found; in Actions it sets `missing`, the number missing, or `unknown` where it couldn't tell,
-// which the action takes as missing, so it installs them as before.
+// `node scripts/ci/setup/browser-dependencies.ts <browsers folder>`: what the test browser
+// lacks on this Linux machine, cached or about to be downloaded, by Playwright's own check of
+// its system packages (`playwright install-deps --dry-run chromium`, which reads dpkg and
+// reaches no network) and by `ldd` over every ELF file a cached browser holds. Quality's jobs,
+// the Counter run and the setup action install the browser's dependencies with apt only where
+// something is missing, and a cache miss downloads the browser alone where nothing is, so a
+// runner image that has them all keeps Ubuntu's mirrors off a pull request's path: on 11-11
+// they couldn't be resolved for hours, and every job with a cached browser failed before any
+// test ran. Prints what it found; in Actions it sets `missing`, the number missing, or
+// `unknown` where it couldn't tell, which the jobs take as missing, installing as before.
 
 /**
- * The packages Playwright's dry run names as missing: `[]` where it passed (exit 0), and
- * `undefined` where it failed without naming any, as it couldn't tell.
+ * The packages Playwright's dry run names as missing: `[]` only where it passed saying so
+ * ("All system dependencies are installed."), and `undefined` where it couldn't tell, so the
+ * packages are installed. Playwright 1.64 also exits 0 after "Cannot install dependencies for
+ * <platform>", and its older dry runs printed the apt command with exit 0: neither is "none".
  */
 export const missingPackages = (
   status: number | null,
   output: string,
 ): readonly string[] | undefined => {
-  if (status === 0) return []
+  if (status === 0)
+    return output.includes("All system dependencies are installed.") ? [] : undefined
   const lines = output.split(/\r?\n/)
   const start = lines.findIndex((line) => /^Missing system dependencies \(\d+\):\s*$/.test(line))
   if (start < 0) return undefined
@@ -32,6 +45,24 @@ export const missingPackages = (
   }
   return named.length > 0 ? named : undefined
 }
+
+/**
+ * The cache key of the debs that install `packages`: the runner image's OS and version, its
+ * architecture, and a digest of Playwright's version with the packages it names missing. A
+ * new image that ships more or fewer of them, another Ubuntu, another architecture or another
+ * Playwright, whose list may differ, each makes a new key; the debs' own versions don't, so a
+ * key's debs can age behind the archive, which `dpkg -i` doesn't mind.
+ */
+export const cacheKey = (found: {
+  readonly os: string
+  readonly arch: string
+  readonly playwright: string
+  readonly packages: readonly string[]
+}): string =>
+  `browser-packages-${found.os}-${found.arch}-${createHash("sha256")
+    .update(`${found.playwright}\n${[...found.packages].toSorted().join(" ")}`)
+    .digest("hex")
+    .slice(0, 16)}`
 
 /** The libraries `ldd`'s output names as not found, each once, in order. */
 export const notFound = (ldd: string): readonly string[] => [
@@ -62,14 +93,13 @@ export const elfFiles = (folder: string): readonly string[] =>
 
 /**
  * What the action reads: how many are missing, packages and libraries together, or `unknown`
- * where Playwright's check couldn't tell or no browser was found to check.
+ * where Playwright's check couldn't tell. Before a cache miss's download there is no browser to
+ * run `ldd` over, and Playwright's list, which names the libraries' packages too, decides alone.
  */
 export const verdict = (
   packages: readonly string[] | undefined,
-  binaries: number,
   libraries: readonly string[],
-): string =>
-  packages === undefined || binaries === 0 ? "unknown" : String(packages.length + libraries.length)
+): string => (packages === undefined ? "unknown" : String(packages.length + libraries.length))
 
 const ldd = (file: string): string => {
   try {
@@ -80,6 +110,17 @@ const ldd = (file: string): string => {
   }
 }
 
+/** This image's OS and version, as /etc/os-release names them, such as `ubuntu-24.04`. */
+const osRelease = (): string => {
+  const release = readFileSync("/etc/os-release", "utf8")
+  const field = (name: string) =>
+    new RegExp(`^${name}="?([^"\\n]*)"?$`, "m").exec(release)?.[1] ?? "unknown"
+  return `${field("ID")}-${field("VERSION_ID")}`
+}
+
+const quiet = (command: string, args: readonly string[]): string =>
+  execFileSync(command, args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
+
 export const main = (folder: string | undefined): void => {
   const check = spawnSync(
     "pnpm",
@@ -89,12 +130,28 @@ export const main = (folder: string | undefined): void => {
   const packages = missingPackages(check.status, `${check.stdout ?? ""}\n${check.stderr ?? ""}`)
   let binaries: readonly string[] = []
   try {
-    if (folder) binaries = elfFiles(folder)
+    // Before a cache miss's download there is none yet.
+    if (folder && existsSync(folder)) binaries = elfFiles(folder)
   } catch (error) {
     console.error(`Couldn't read ${folder}: ${error instanceof Error ? error.message : error}`)
   }
   const libraries = [...new Set(binaries.flatMap((file) => notFound(ldd(file))))].toSorted()
-  const found = verdict(packages, binaries.length, libraries)
+  const found = verdict(packages, libraries)
+  const key =
+    packages && packages.length > 0
+      ? cacheKey({
+          os: osRelease(),
+          arch: quiet("dpkg", ["--print-architecture"]),
+          playwright: quiet("pnpm", [
+            "--filter",
+            "@novadeck/specs",
+            "exec",
+            "playwright",
+            "--version",
+          ]),
+          packages,
+        })
+      : ""
   console.log(
     [
       `Test browser's system packages (Playwright's check): ${
@@ -110,12 +167,13 @@ export const main = (folder: string | undefined): void => {
           : `${libraries.length} missing: ${libraries.join(", ")}`
       }`,
       found === "0"
-        ? "Nothing missing: apt skipped"
-        : `Installing the browser's dependencies with apt (${found === "unknown" ? "couldn't tell" : `${found} missing`})`,
+        ? "Nothing missing: no package installed"
+        : `Installing the browser's packages (${found === "unknown" ? "couldn't tell" : `${found} missing`})${key ? `, cache ${key}` : ""}`,
     ].join("\n"),
   )
   const output = process.env.GITHUB_OUTPUT
-  if (output) appendFileSync(output, `missing=${found}\n`)
+  if (output)
+    appendFileSync(output, `missing=${found}\npackages=${(packages ?? []).join(" ")}\nkey=${key}\n`)
 }
 
 if (import.meta.main) main(process.argv[2])

@@ -1,0 +1,59 @@
+name: Test Browser Packages
+description: >
+  The test browser's system packages on Linux that the runner image lacks (nine font packages
+  on ubuntu-24.04 on 11-11), installed from a cache of their debs with dpkg where it has them,
+  and through Ubuntu's mirrors only where it doesn't, retried and failing fast. Run after the
+  browser is in place, on Linux only.
+
+# On 11-11 Ubuntu's mirrors couldn't be resolved for hours, and every job with a cached browser
+# failed installing these before any test ran. Chromium itself runs on the image as shipped
+# (ldd finds nothing missing); only the fonts come through the mirrors. The debs' cache key
+# (scripts/ci/setup/browser-dependencies.ts, `cacheKey`) is the image's OS and version, its
+# architecture, and Playwright's version with the packages it names missing: a new image, a new
+# Playwright, or a list that changes makes a new key, filled by the first run that misses it.
+# A pull request reads main's caches and its own, never another's: Warm Caches fills main's.
+
+outputs:
+  missing:
+    description: How many packages the check named missing before the install, or `unknown`
+    value: ${{ steps.check.outputs.missing }}
+  path:
+    description: "How they were installed: `cache`, `apt` or `install-deps`; empty where none were missing"
+    value: ${{ steps.install.outputs.path }}
+
+runs:
+  using: composite
+  steps:
+    # Playwright's own check (install-deps --dry-run: dpkg, no network) and ldd over the
+    # browser's binaries; a check that fails leaves `missing` empty, which installs.
+    - name: Check Test Browser Packages
+      id: check
+      continue-on-error: true
+      shell: bash
+      run: node scripts/ci/setup/browser-dependencies.ts "$PLAYWRIGHT_BROWSERS_PATH"
+
+    - name: Restore Test Browser Packages
+      id: cache
+      if: steps.check.outputs.key != ''
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/browser-packages
+        key: ${{ steps.check.outputs.key }}
+
+    # dpkg -i from the cache, or apt's download then dpkg -i; done only where Playwright's
+    # check then names none missing (scripts/ci/setup/browser-packages.ts).
+    - name: Install Test Browser Packages
+      id: install
+      if: steps.check.outputs.missing != '0'
+      shell: bash
+      env:
+        PACKAGES: ${{ steps.check.outputs.packages }}
+      run: node scripts/ci/setup/browser-packages.ts "$RUNNER_TEMP/browser-packages"
+
+    # The debs this run downloaded, for the next: a key is never replaced.
+    - name: Save Test Browser Packages
+      if: steps.install.outputs.fetched == 'true' && steps.cache.outputs.cache-hit != 'true' && steps.check.outputs.key != ''
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/browser-packages
+        key: ${{ steps.check.outputs.key }}

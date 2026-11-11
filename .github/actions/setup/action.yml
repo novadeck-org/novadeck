@@ -105,30 +105,24 @@ runs:
         path: ${{ runner.temp }}/ms-playwright
         key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
+    # The browser alone where the cache missed, through the retry (scripts/ci/setup/retry.ts):
+    # on Linux its system packages come next, from their own cache where it has them;
+    # elsewhere Playwright installs what it needs with it.
     - name: Install Test Browser
       if: inputs.browser == 'true' && steps.browser-cache.outputs.cache-hit != 'true'
       shell: bash
-      run: pnpm --filter @novadeck/specs exec playwright install --with-deps chromium
+      run: |
+        deps=--with-deps; [ "$RUNNER_OS" = Linux ] && deps=
+        node scripts/ci/setup/retry.ts "The test browser couldn't be installed" \
+          -- pnpm --filter @novadeck/specs exec playwright install $deps chromium
 
-    # A cached browser on Linux may lack system packages the runner image doesn't ship: checked
-    # (Playwright's own check, which reads dpkg, and ldd over its binaries) and installed with apt
-    # only where something is missing, so Ubuntu's mirrors stay off the path when the image has
-    # them all. On 11-11 the mirrors were unreachable for over an hour and every job with a cached
-    # browser failed here before any test ran. Where apt is still needed it is retried a few
-    # minutes at most, ending in one line that says so (scripts/ci/setup).
-    - name: Check Test Browser Dependencies
-      id: browser-dependencies
-      if: inputs.browser == 'true' && steps.browser-cache.outputs.cache-hit == 'true' && runner.os == 'Linux'
-      shell: bash
-      run: node scripts/ci/setup/browser-dependencies.ts "$PLAYWRIGHT_BROWSERS_PATH"
-
-    - name: Install Test Browser Dependencies
-      if: inputs.browser == 'true' && steps.browser-cache.outputs.cache-hit == 'true' && runner.os == 'Linux' && steps.browser-dependencies.outputs.missing != '0'
-      shell: bash
-      run: >-
-        node scripts/ci/setup/retry.ts
-        "apt mirrors unreachable: the test browser's system packages couldn't be installed"
-        -- pnpm --filter @novadeck/specs exec playwright install-deps chromium
+    # Its system packages the runner image lacks, on Linux: from a cache of their debs with
+    # dpkg, and through Ubuntu's mirrors only where it misses, retried and failing fast
+    # (.github/actions/browser-packages). On 11-11 the mirrors couldn't be resolved for hours,
+    # and every job with a cached browser failed here before any test ran.
+    - name: Test Browser Packages
+      if: inputs.browser == 'true' && runner.os == 'Linux'
+      uses: ./.github/actions/browser-packages
 
     # Electron's download, which the desktop app's tests fetch once before they start
     # (apps/desktop/scripts/electron-binary.ts), kept between runs: GitHub's release downloads
