@@ -194,6 +194,8 @@ export class Server<Config extends { readonly folder: string }, Facts> {
   private generation = 0
   // The server being started, which a stop ends without waiting for the queue.
   private starting: Running<Facts> | undefined
+  // Requests still waiting on their answer: a server answering one is in use, not idle.
+  private answering = 0
 
   constructor(
     private readonly spec: ServerSpec<Config, Facts>,
@@ -229,7 +231,8 @@ export class Server<Config extends { readonly folder: string }, Facts> {
     clearTimeout(this.idle)
     this.idle = setTimeout(
       () => {
-        if (this.running === running && !this.starting) void this.stop()
+        // One still answering is touched again as its request ends.
+        if (this.running === running && !this.starting && this.answering === 0) void this.stop()
       },
       this.options.idleMs ?? 10 * 60 * 1000,
     )
@@ -248,13 +251,15 @@ export class Server<Config extends { readonly folder: string }, Facts> {
    * Makes a request of the running server: `path` goes after its request prefix, and the
    * headers its spec asked for go with it unless `init` sets them. A
    * server that did not answer is explained with what it last said, after a moment for
-   * a crash to show.
+   * a crash to show. It is in use until the answer comes, so idle counts from then: an
+   * answer slower than the idle time no longer has the server ended under it.
    */
   async request(
     running: Running<Facts>,
     path: string,
     init: RequestInit & { signal: AbortSignal },
   ): Promise<Response> {
+    this.answering += 1
     try {
       const headers = new Headers(running.headers)
       for (const [name, value] of new Headers(init.headers)) headers.set(name, value)
@@ -266,6 +271,10 @@ export class Server<Config extends { readonly folder: string }, Facts> {
       // A crashed server has exited by the time its socket closes.
       await Promise.race([running.exited, sleep(200)])
       throw new EngineError(this.explain(running, "the engine did not answer", error))
+    } finally {
+      this.answering -= 1
+      // Not one replaced meanwhile: its idle would take the place of the running one's.
+      if (this.running === running) this.touch(running)
     }
   }
 
