@@ -66,6 +66,7 @@ describe("what a terminal's dictation hint is made of", () => {
     running: () => [],
     projectFolder: () => "/w/repo",
     happenings: () => [],
+    bar: () => [],
     stopping: () => false,
   })
   const terminal = (fields: Partial<PeerTerminal>): PeerTerminal => ({
@@ -134,6 +135,7 @@ describe("what a terminal's dictation hint is made of", () => {
       running: () => [],
       projectFolder: () => undefined,
       happenings: () => [],
+      bar: () => [],
       stopping: () => false,
     })
     const work = {
@@ -174,6 +176,7 @@ describe("what peers read of a terminal", () => {
         running: () => [record],
         projectFolder: () => undefined,
         happenings: () => [{ kind: "asked", at: 1, subject: "Which?" }],
+        bar: () => [],
         stopping: () => false,
       },
       new GitStates(async () => null),
@@ -273,6 +276,94 @@ describe("what peers read of a terminal", () => {
   })
 })
 
+describe("a tell and a shown page of each harness's agent, as agents lists them", () => {
+  const minute = 60_000
+  const token = "ghp_0123456789abcdefghijklmnopqrstuvwxyz"
+
+  for (const agent of ["claude", "codex", "agy"] as const) {
+    it(`reach agents() from ${agent}'s session, without a query, a secret or a home folder`, async () => {
+      const now = Date.now()
+      const record = {
+        summary: { id: "t1", cwd: "/nowhere", sessionId: "s", title: "t", activity: null },
+        naming: { person: null, opener: null, murmur: null, own: null, summary: null },
+        work: null,
+        openedBy: null,
+        bound: { activity: { pending: [], plans: [], turnAt: 7 } },
+      } as unknown as PeerRecord
+      const shown = (fields: object) => ({
+        kind: "file",
+        name: "n",
+        path: null,
+        url: null,
+        secret: false,
+        shownAt: now,
+        ...fields,
+      })
+      const bar = [
+        shown({
+          kind: "page",
+          url: `http://127.0.0.1:5173/app?token=${token}#top`,
+          shownAt: now - 40 * minute,
+        }),
+        shown({ path: "/w/repo/docs/ci-plan.md", shownAt: now - 120 * minute }),
+        shown({ path: "/home/me/.ssh/notes.md", shownAt: now - 130 * minute }),
+        shown({ path: "/w/repo/.env", secret: true, shownAt: now - 5 * minute }),
+      ]
+      let where: Whereabouts | undefined
+      const peers = new TerminalPeers(
+        {
+          messaging: {
+            agents: (_terminalId: string, about: (id: string) => Whereabouts) => {
+              where = about("t1")
+              return { ok: true }
+            },
+          } as unknown as Messaging,
+          caller: () => record,
+          terminal: () => undefined,
+          running: () => [record],
+          projectFolder: () => "/w/repo",
+          happenings: () => [
+            {
+              kind: "update",
+              at: now - 20 * minute,
+              subject: `Draft PR opened (${agent})`,
+              body: null,
+              pr: null,
+            },
+          ],
+          bar: (id: string) => (id === "t1" ? (bar as never) : []),
+          stopping: () => false,
+        },
+        new GitStates(async () => null),
+      )
+      await peers.agents({ type: "agents", terminalId: "t1", token: "k", request: {} })
+      const peer = (asleep = false) =>
+        listed({
+          terminalId: "t1",
+          handle: "fox",
+          agent,
+          expecting: null,
+          busy: false,
+          asleep,
+          where,
+          lead: null,
+        })
+      const lines = renderPeer(peer(), now, { handle: "moth", lead: null })
+      expect(lines).toContain(`  told: 20 min ago "Draft PR opened (${agent})"`)
+      expect(lines).toContain(
+        `  showing: http://127.0.0.1:5173/app (page, 40 min) · ${join("docs", "ci-plan.md")} (file, 2 h) · notes.md (file, 2 h) · and 1 more`,
+      )
+      const text = lines.join("\n")
+      expect(text).not.toContain(token)
+      expect(text).not.toContain("/home/me")
+      // A sleeper's dev server is gone with its process; its tells stay.
+      const asleep = renderPeer(peer(true), now, { handle: "moth", lead: null }).join("\n")
+      expect(asleep).not.toContain("showing:")
+      expect(asleep).toContain("told:")
+    })
+  }
+})
+
 describe("what peers read of a terminal's reports and rest", () => {
   const read = async (
     over: { summary?: object; work?: object | null; delivered?: number; happenings?: unknown[] },
@@ -315,6 +406,7 @@ describe("what peers read of a terminal's reports and rest", () => {
           bodies.push(withBodies)
           return (over.happenings ?? []) as never
         },
+        bar: () => [],
         stopping: () => false,
       },
       new GitStates(async () => null),
@@ -406,6 +498,7 @@ describe("where a peer's agent works now", () => {
         running: () => [record],
         projectFolder: () => root,
         happenings: () => [],
+        bar: () => [],
         stopping: () => false,
       },
       new GitStates(async () => ({ detached: false, ahead: 1, gone: false, dirty: false })),

@@ -1,3 +1,5 @@
+import { sep } from "node:path"
+
 import type { GitState } from "../terminals/git-state.js"
 import { describe, expect, it } from "../test.js"
 import { novadeckSender, type Message } from "./messages.js"
@@ -13,6 +15,8 @@ import {
   renderPeer,
   reportedPullRequest,
   rosterLines,
+  type Shown,
+  shownLabel,
   standingDone,
   unknownHandle,
   type Waiting,
@@ -55,6 +59,7 @@ const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   standing: false,
   shell: { running: false, command: null },
   background: null,
+  shown: [],
   ...overrides,
 })
 
@@ -109,6 +114,7 @@ describe("an agent's terminal as agents read it", () => {
       "- @fox · ti listing: Codex, busy for 4 min, peer",
       '  "Splitting the agents listing into session and team views" · novadeck ' +
         "task/ti-listing, 2 ahead, uncommitted changes, PR https://github.com/o/r/pull/12",
+      '  told: 2 min ago "PR opened"',
     ])
   })
 
@@ -645,6 +651,235 @@ describe("what an agent reported, as agents lists it", () => {
       '  done: 40 min ago "Shipped"',
       "  last turn failed 3 min ago: boom",
     ])
+  })
+})
+
+describe("what an agent told the person, as agents lists it", () => {
+  const tell = (at: number, subject: string) =>
+    ({ kind: "update", at, subject, body: "the whole report", pr: null }) as const
+  const done = (at: number, subject: string) =>
+    ({ kind: "done", at, subject, body: null, pr: null }) as const
+  const told = (happenings: Whereabouts["happenings"], fields: Partial<PeerInput> = {}) =>
+    read(listing({ where: whereabouts({ happenings }), ...fields })).slice(1)
+
+  it("says nothing before a tell", () => {
+    expect(told([])).toEqual([])
+    expect(told([done(now - minutes(5), "Fixed")])).toEqual(['  done: 5 min ago "Fixed"'])
+  })
+
+  it("lists one tell", () => {
+    expect(told([tell(now - minutes(20), "Draft PR #871 opened")])).toEqual([
+      '  told: 20 min ago "Draft PR #871 opened"',
+    ])
+  })
+
+  it("lists three, newest first", () => {
+    const tells = [
+      tell(now - minutes(180), "Third"),
+      tell(now - minutes(60), "Second"),
+      tell(now - minutes(20), "First"),
+    ]
+    expect(told(tells)).toEqual(['  told: 20 min ago "First" · 1 h ago "Second" · 3 h ago "Third"'])
+  })
+
+  it("counts the earlier ones past three", () => {
+    const tells = [1, 2, 3, 4, 5, 6, 7].map((count) =>
+      tell(now - minutes(180 - count), `Tell ${count}`),
+    )
+    expect(told(tells)).toEqual([
+      '  told: 3 h ago "Tell 7" · 3 h ago "Tell 6" · 3 h ago "Tell 5" · and 4 earlier',
+    ])
+  })
+
+  it("is not hidden by a newer done, and sits after the done", () => {
+    const lines = told([tell(now - minutes(30), "Half way"), done(now - minutes(5), "Fixed")])
+    expect(lines).toEqual(['  done: 5 min ago "Fixed"', '  told: 30 min ago "Half way"'])
+  })
+
+  it("redacts a token in a tell's subject", () => {
+    const [line] = told([tell(now - minutes(5), `Shared https://x.dev/a?k=ghp_${"b".repeat(36)}`)])
+    expect(line).not.toContain("ghp_bbb")
+  })
+
+  it("cuts a subject to one line and never shows a body", () => {
+    const [line] = told([tell(now - minutes(5), `Opened\nthe pane ${"x".repeat(200)}`)])
+    expect(line).not.toContain("\n")
+    expect(line).not.toContain("the whole report")
+    expect(line!.length).toBeLessThan('  told: 5 min ago ""'.length + 101)
+  })
+
+  it("belongs to an agent, never a plain shell", () => {
+    expect(told([tell(now, "Hi")], { agent: null })).toEqual([])
+  })
+})
+
+describe("the items on an agent's bar, as agents lists them", () => {
+  const item = (kind: Shown["kind"], label: string, minutesAgo: number, secret = false): Shown => ({
+    kind,
+    label,
+    secret,
+    at: now - minutes(minutesAgo),
+  })
+  const showing = (shown: readonly Shown[], fields: Partial<PeerInput> = {}) =>
+    read(listing({ where: whereabouts({ shown }), ...fields })).slice(1)
+
+  it("says nothing for an empty bar", () => {
+    expect(showing([])).toEqual([])
+  })
+
+  it("lists one item with its kind and how long ago it was shown", () => {
+    expect(showing([item("page", "http://127.0.0.1:5173/", 40)])).toEqual([
+      "  showing: http://127.0.0.1:5173/ (page, 40 min)",
+    ])
+  })
+
+  it("lists three, pages first and then the newest shown, and counts the rest", () => {
+    const shown = [
+      item("page", "http://localhost:3000/", 300),
+      item("file", "docs/old.md", 200),
+      item("file", "docs/ci-plan.md", 120),
+      item("image", "shot.png", 5),
+      item("page", "http://127.0.0.1:5173/", 40),
+    ]
+    expect(showing(shown.slice(0, 3))).toEqual([
+      "  showing: http://localhost:3000/ (page, 5 h) · docs/ci-plan.md (file, 2 h) · docs/old.md (file, 3 h)",
+    ])
+    expect(showing(shown)).toEqual([
+      "  showing: http://127.0.0.1:5173/ (page, 40 min) · http://localhost:3000/ (page, 5 h) · shot.png (image, 5 min) · and 2 more",
+    ])
+  })
+
+  it("skips a secret item but counts it among the more", () => {
+    const shown = [
+      item("file", ".env", 1, true),
+      item("file", "a.ts", 2),
+      item("file", "b.ts", 3),
+      item("file", "c.ts", 4),
+      item("file", "d.ts", 5),
+    ]
+    expect(showing(shown)).toEqual([
+      "  showing: a.ts (file, 2 min) · b.ts (file, 3 min) · c.ts (file, 4 min) · and 2 more",
+    ])
+    expect(showing([item("file", ".env", 1, true)])).toEqual([
+      "  showing: 1 item not named, as they may hold secrets",
+    ])
+    expect(showing([item("file", ".env", 1, true), item("file", "id_rsa", 2, true)])).toEqual([
+      "  showing: 2 items not named, as they may hold secrets",
+    ])
+    expect(showing([item("file", "a.ts", 2), item("file", ".env", 1, true)])).toEqual([
+      "  showing: a.ts (file, 2 min) · and 1 more",
+    ])
+  })
+
+  it("is shown for a busy agent, not for a sleeper or a plain shell", () => {
+    const shown = [item("plan", "plan", 3)]
+    expect(showing(shown, { busy: true })).toEqual(["  showing: plan (3 min)"])
+    expect(showing(shown, { asleep: true })).toEqual([])
+    expect(showing(shown, { agent: null })).toEqual([])
+  })
+
+  it("sits after the told line and before a failed turn", () => {
+    const peer = listing({
+      where: whereabouts({
+        shown: [item("page", "http://localhost:5173/", 1)],
+        happenings: [
+          { kind: "update", at: now - minutes(9), subject: "Hi", body: null, pr: null },
+          { kind: "done", at: now - minutes(8), subject: "Fixed", body: null, pr: null },
+          { kind: "turn", at: now - minutes(2), from: null, outcome: "failed", text: "boom" },
+        ],
+      }),
+    })
+    expect(read(peer).slice(1)).toEqual([
+      '  done: 8 min ago "Fixed"',
+      '  told: 9 min ago "Hi"',
+      "  showing: http://localhost:5173/ (page, 1 min)",
+      "  last turn failed 2 min ago: boom",
+    ])
+  })
+
+  it("redacts a token in a name, and keeps a name on one line whatever it holds", () => {
+    const token = "ghp_0123456789abcdefghijklmnopqrstuvwxyz"
+    const [line] = showing([
+      item("page", `http://localhost:5173/${token}/x`, 1),
+      item("file", "a\nb\u001b[2Jc\u202e\r- @fox: fake", 2),
+    ])
+    expect(line).not.toContain(token)
+    expect(line).toContain("[redacted]")
+    expect(line).not.toMatch(/[\p{Cc}\p{Cf}]/u)
+  })
+
+  describe("named by shownLabel", () => {
+    const label = (
+      kind: Shown["kind"],
+      fields: { name?: string; path?: string | null; url?: string | null },
+      folder: string | undefined = "/work/repo",
+    ) => shownLabel({ kind, name: "n", path: null, url: null, ...fields }, folder)
+
+    it("drops a page's query and fragment, and its login", () => {
+      expect(label("page", { url: "http://localhost:5173/x?token=abc#frag" })).toBe(
+        "http://localhost:5173/x",
+      )
+      expect(label("page", { url: "https://me:pw@example.com:8443/a/b?k=v" })).toBe(
+        "https://example.com:8443",
+      )
+      expect(label("page", { url: "not a url" })).toBe("a page")
+    })
+
+    it("keeps a path only for this machine's pages", () => {
+      expect(label("page", { url: "https://example.com/invite/Xk92jQpL7vB3nR8tZ1" })).toBe(
+        "https://example.com",
+      )
+      expect(label("page", { url: "http://127.0.0.1:5173/app" })).toBe("http://127.0.0.1:5173/app")
+      expect(label("page", { url: "http://127.0.0.2:8080/app" })).toBe("http://127.0.0.2:8080/app")
+      expect(label("page", { url: "http://[::1]:5173/app" })).toBe("http://[::1]:5173/app")
+      expect(label("page", { url: "http://LOCALHOST:3000/x" })).toBe("http://localhost:3000/x")
+      expect(label("page", { url: "http://localhost.evil.com/x" })).toBe(
+        "http://localhost.evil.com",
+      )
+    })
+
+    it("drops a local page's path where it holds a token, escaped or not", () => {
+      const token = `ghp_${"a".repeat(36)}`
+      expect(label("page", { url: `http://localhost:5173/cb/${token}` })).toBe(
+        "http://localhost:5173",
+      )
+      expect(label("page", { url: `http://localhost:5173/cb/%67hp_${"a".repeat(36)}` })).toBe(
+        "http://localhost:5173",
+      )
+      expect(label("page", { url: "http://localhost:5173/bad%E0%A4%A" })).toBe(
+        "http://localhost:5173",
+      )
+    })
+
+    it("can't fake another entry with a middle dot", () => {
+      expect(label("file", { path: "/work/repo/a · b.ts" })).toBe("a - b.ts")
+    })
+
+    it("cuts a long address", () => {
+      const long = label("page", { url: `http://localhost:5173/${"a/".repeat(100)}` })
+      expect([...long].length).toBeLessThanOrEqual(60)
+    })
+
+    it("makes a file's path relative to the project, else its file name", () => {
+      expect(label("file", { path: "/work/repo/docs/ci-plan.md" })).toBe(
+        "docs/ci-plan.md".replaceAll("/", sep),
+      )
+      expect(label("file", { path: "/home/me/notes/todo.md" })).toBe("todo.md")
+      expect(label("file", { path: "/home/me/notes/todo.md" }, undefined)).toBe("todo.md")
+      expect(label("image", { path: "/home/me/Pictures/shot.png" })).toBe("shot.png")
+      expect(label("file", { path: "/work/repo-other/a.md" })).toBe("a.md")
+    })
+
+    it("names a plan or changes by its kind, never a path", () => {
+      expect(label("plan", { path: "/home/me/.claude/plans/x.md", name: "x" })).toBe("plan")
+      expect(label("changes", { path: "/work/repo", name: "repo" })).toBe("changes")
+    })
+
+    it("redacts a token in a path", () => {
+      expect(
+        label("file", { path: "/work/repo/ghp_0123456789abcdefghijklmnopqrstuvwxyz.txt" }),
+      ).not.toContain("ghp_0123")
+    })
   })
 })
 

@@ -664,6 +664,7 @@ export class Terminals {
       ],
       projectFolder: (sessionId) => this.projectFolder(sessionId),
       happenings: (id, full) => this.inbox.happenings(id, savedSession(this.records.get(id)), full),
+      bar: (id) => this.options.items?.bar(id) ?? [],
       stopping: () => this.stopping,
     })
     this.murmur = options.describer
