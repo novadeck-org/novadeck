@@ -165,7 +165,8 @@ export const setups = (selected: readonly string[], ids: readonly string[]): rea
         { agents: ids.join(","), name: "Mixed", files: "mixed.e2e.ts" },
       ]
 
-const core = "messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts images.e2e.ts"
+/** The core scenarios: what the quirks jobs and macOS on a pull request run of each harness. */
+export const core = "messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts images.e2e.ts"
 
 // Every harness: a message crossing under a cmd AutoRun that prints (the file sets it, on CI only).
 const autorunFile = "windows-autorun.e2e.ts"
@@ -285,6 +286,30 @@ export type Plan = {
   readonly held: boolean
 }
 
+/** The name of macOS's one row on a pull request, which runs the core scenarios. */
+export const coreName = "Core scenarios"
+
+/**
+ * macOS's rows. On a pull request, one job: the core scenarios (`core`) of every chosen
+ * harness, which the suite runs one after another, as macOS runners are the scarcest and each
+ * job pays their queue and its setup again. On any other event, a nightly run, a dispatch,
+ * a merge queue's or one this doesn't know, the whole suite, as Linux and Windows run it: the
+ * pinned night (a dispatch on main) runs on macOS what a pull request leaves out. In the core
+ * set's measured macOS times (PR runs of 2026-11-10: messaging, requests, lifecycle and images
+ * took 106 s for Antigravity, 149 for Codex and 163 for Claude Code), the job takes about ten
+ * minutes with its setup, against about 95 job minutes in five jobs for the whole suite.
+ */
+export const macosRows = (event: string, chosen: readonly string[], ids: readonly string[]) =>
+  event === "pull_request"
+    ? [
+        {
+          os: systems.macos,
+          job: jobName(coreName, systems.macos, undefined),
+          setup: { agents: chosen.join(","), name: coreName, files: core },
+        },
+      ]
+    : rows([systems.macos], setups(chosen, ids))
+
 export const plan = (facts: Facts, ids: readonly string[]): Plan => {
   const selected = select(facts, ids)
   // With nothing to run the jobs are skipped, but their matrices still name every row: a
@@ -295,17 +320,22 @@ export const plan = (facts: Facts, ids: readonly string[]): Plan => {
   const held = selected.length > 0 && facts.draft === true && systemsChosen.includes(systems.macos)
   const os = held ? systemsChosen.filter((system) => system !== systems.macos) : systemsChosen
   const e2e = setups(chosen, ids)
+  const jobs = {
+    linux: rows([systems.linux], e2e),
+    windows: rows([systems.windows], e2e),
+    macos: macosRows(facts.event, chosen, ids),
+  }
   return {
     run: selected.length > 0,
     held,
     os,
     e2e,
-    rows: rows(os, e2e),
-    jobs: {
-      linux: rows([systems.linux], e2e),
-      windows: rows([systems.windows], e2e),
-      macos: rows([systems.macos], e2e),
-    },
+    rows: [
+      ...jobs.linux,
+      ...(os.includes(systems.windows) ? jobs.windows : []),
+      ...(os.includes(systems.macos) ? jobs.macos : []),
+    ],
+    jobs,
     quirks: quirks(chosen),
   }
 }

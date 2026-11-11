@@ -8,6 +8,8 @@ import {
   allSystemsFolders,
   browserOnlyFiles,
   type Facts,
+  core,
+  coreName,
   firstShard,
   parseAffected,
   plan,
@@ -259,13 +261,14 @@ describe("E2E systems", () => {
 
 // The jobs a plan starts: the `e2e` job's rows on each system, and the `quirks` job's on
 // Windows.
+// The jobs a plan starts: the `e2e` rows (a harness each, and Mixed, not counting halves) on
+// Linux and Windows, macOS's rows, and the `quirks` job's on Windows.
 const count = (planned: ReturnType<typeof plan>) => {
   if (!planned.run) return { jobs: 0, macos: 0 }
   const windows = planned.os.includes(systems.windows) ? planned.quirks.length : 0
-  return {
-    jobs: planned.os.length * planned.e2e.length + windows,
-    macos: planned.os.includes(systems.macos) ? planned.e2e.length : 0,
-  }
+  const macos = planned.os.includes(systems.macos) ? planned.jobs.macos.length : 0
+  const others = planned.os.filter((os) => os !== systems.macos).length
+  return { jobs: others * planned.e2e.length + macos + windows, macos }
 }
 
 describe("E2E jobs by change", () => {
@@ -287,24 +290,24 @@ describe("E2E jobs by change", () => {
       "libraries/wire",
       ["@novadeck/wire", "@novadeck/protocol", "@novadeck/runner"],
       ["libraries/wire/src/index.ts"],
-      15,
-      4,
+      12,
+      1,
     ],
     [
       "libraries/terminal",
       ["@novadeck/terminal", "@novadeck/runner"],
       ["libraries/terminal/src/index.ts"],
-      15,
-      4,
+      12,
+      1,
     ],
-    ["the runner alone", ["@novadeck/runner"], ["backend/runner/src/index.ts"], 15, 4],
+    ["the runner alone", ["@novadeck/runner"], ["backend/runner/src/index.ts"], 12, 1],
     ["the lockfile alone", [], ["pnpm-lock.yaml"], 4, 0],
     [
       "harnesses/claude",
       ["@novadeck/harness-claude", "@novadeck/runner"],
       ["harnesses/claude/src/index.ts"],
-      7,
-      2,
+      6,
+      1,
     ],
     ["documentation alone", [], ["docs/e2e-testing.md"], 0, 0],
   ])("starts the jobs of %s", (_name, affected, files, jobs, macos) => {
@@ -456,6 +459,7 @@ describe("E2E jobs", () => {
   it("names only files the suite has, so a renamed one can't drop out of both halves", () => {
     const suite = readdirSync(join(import.meta.dirname, "../../../backend/runner/src/e2e"))
     for (const file of firstShard) expect(suite).toContain(file)
+    for (const file of core.split(" ")) expect(suite).toContain(file)
   })
 
   it("splits only the systems the plan chose", () => {
@@ -687,4 +691,50 @@ describe("E2E on a draft", () => {
     expect(workflow).toContain("DRAFT: ${{ github.event.pull_request.draft }}")
     expect(workflow).toContain("HELD: ${{ needs.plan.outputs.held }}")
   })
+})
+
+describe("E2E on macOS", () => {
+  const runnerChange = pullRequest(["@novadeck/runner"], ["backend/runner/src/index.ts"])
+  const full = [
+    "Claude Code (macOS, 1/2)",
+    "Claude Code (macOS, 2/2)",
+    "Codex (macOS)",
+    "Antigravity (macOS)",
+    "Mixed (macOS)",
+  ]
+
+  it("runs one job on a pull request: the core scenarios of every chosen harness", () => {
+    expect(plan(runnerChange, ids).jobs.macos).toEqual([
+      {
+        os: systems.macos,
+        job: `${coreName} (macOS)`,
+        setup: { agents: "claude,codex,agy", name: coreName, files: core },
+      },
+    ])
+    expect(core).toBe("messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts images.e2e.ts")
+  })
+
+  it("runs the core scenarios of only the harnesses a pull request chose", () => {
+    const codex = pullRequest(
+      ["@novadeck/harness-codex", "@novadeck/runner"],
+      ["harnesses/codex/src/index.ts"],
+    )
+    expect(plan(codex, ids).jobs.macos.map((row) => row.setup.agents)).toEqual(["codex"])
+  })
+
+  it("keeps Linux's and Windows's rows whole on a pull request", () => {
+    const planned = plan(runnerChange, ids)
+    expect(planned.rows.filter((row) => row.os !== systems.macos)).toEqual([
+      ...planned.jobs.linux,
+      ...planned.jobs.windows,
+    ])
+    expect(planned.jobs.linux.map((row) => row.setup.name)).toContain("Mixed")
+  })
+
+  it.each(["schedule", "workflow_dispatch", "merge_group", "push", ""])(
+    "runs the whole suite on a %s run, as on every event but a pull request",
+    (event) => {
+      expect(plan({ ...nightly, event }, ids).jobs.macos.map((row) => row.job)).toEqual(full)
+    },
+  )
 })
