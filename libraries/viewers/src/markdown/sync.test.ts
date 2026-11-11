@@ -103,12 +103,22 @@ describe("markdown sync", () => {
     })
 
     it("replaces a middle too different to compare line by line whole, in a moment", () => {
-      const before = lines(5_000, "old")
-      const after = lines(5_000, "new")
-      expect(lineChanges(before, after).apply(text(before)).toString()).toBe(after)
-      // Every step up to the bound runs: about 150 ms on one core here, 4.3 s for the table
-      // of every line against every other; a slow runner has room.
-      expect(quickest(() => lineChanges(before, after))).toBeLessThan(1_000)
+      // A line both keep every thousand lines, too few to save comparing the rest: past the
+      // bound on changed lines the middle goes as one change, its kept lines with it. Compared
+      // line by line to the end, those lines would stay, five changes between them. The bound
+      // is what keeps it a moment (about 150 ms on one core here, 4.3 s for the table of every
+      // line against every other), and a count of changes holds where a busy runner's clock
+      // doesn't (2.8 s, three times running, on a loaded macOS runner).
+      const middle = (name: string): string =>
+        Array.from({ length: 5_000 }, (_, n) =>
+          n % 1_000 === 500 ? `kept line ${n}\n` : `${name} line ${n}\n`,
+        ).join("")
+      const [before, after] = [middle("old"), middle("new")]
+      const changes = lineChanges(before, after)
+      expect(changes.apply(text(before)).toString()).toBe(after)
+      let count = 0
+      changes.iterChanges(() => (count += 1))
+      expect(count).toBe(1)
     })
 
     it("keeps an edit made meanwhile where it was, when an agent changed many lines", () => {
