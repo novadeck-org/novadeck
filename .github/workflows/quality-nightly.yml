@@ -14,11 +14,15 @@ name: Nightly Quality
 # itself before it merges; those runs start no E2E, and nothing counts them as a night.
 on:
   schedule:
-    # Early enough that the pinned E2E run it starts is done with the Macs before E2E's own
-    # nightly (03:17), which would cancel it, as both share E2E's concurrency group on main:
-    # Test (macOS) takes up to 40 minutes, E2E's macOS jobs about 30, and a queue for the
-    # Mac runners can add as much to each.
-    - cron: "23 0 * * *"
+    # Set for the delay GitHub measurably adds to this repository's scheduled runs, so the night
+    # really starts at night, when no pull request waits for the Macs: about 00:30 to 02:00
+    # UTC. Each day from 11-01 to 11-10 GitHub created E2E's 03:17 run at 10:10 to 11:32 and
+    # Timing's 02:41 run at 09:14 to 10:25, 6.5 to 8.3 hours late. Started on time, it runs in
+    # the early evening, beside pull requests: slower, as its macOS jobs wait for Macs, but not
+    # wrong. A night is a run, never a date: the report, the promotion check and the
+    # scoreboard count runs, whenever they start, and the scoreboard shows each night's
+    # scheduled and actual start, so a change in the delay shows.
+    - cron: "23 17 * * *"
   workflow_dispatch:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -80,6 +84,10 @@ jobs:
             os: macos-latest
             browser: true
             whole: true
+            # The whole suite, on purpose, though Quality's macOS job runs only the system
+            # packages since #849: this is what still runs the specs and every neutral package
+            # on a real Mac, and any test a pull request stops running somewhere must still run
+            # here. Don't narrow it to save Mac time; it is one job a night, nobody waiting.
             # More than Quality's: on 11-10 the whole suite's macOS jobs took 25 to 39 minutes
             # (a week before, 23 at the median), and a night that runs out of time reports
             # nothing about the code. Nothing waits on this row.

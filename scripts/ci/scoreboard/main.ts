@@ -7,6 +7,7 @@ import { promisify } from "node:util"
 import { isNightlyQuality, isPinnedE2e, isPullRequest, mergeQueueBar, renderBar } from "./bar.ts"
 import { headroom, pace } from "./pacing.ts"
 import { compute, dependabot, render, type Job, type Run } from "./scoreboard.ts"
+import { dailyCron, renderStarts, type Daily } from "./starts.ts"
 import { parseTally, renderTally } from "./tally.ts"
 
 // `node scripts/ci/scoreboard/main.ts`: the weekly CI scoreboard (scoreboard.ts), computed from
@@ -218,6 +219,20 @@ const jobsWithinBudget = async (repo: string, runs: readonly Run[]): Promise<Job
   return jobs
 }
 
+/** Nightly Quality's daily cron, from the checkout's workflow; none if it can't be read. */
+const nightlyCron = (): Daily | undefined => {
+  try {
+    return dailyCron(
+      readFileSync(
+        new URL("../../../.github/workflows/quality-nightly.yml", import.meta.url),
+        "utf8",
+      ),
+    )
+  } catch {
+    return undefined
+  }
+}
+
 export const main = async (): Promise<void> => {
   const repo = required("GITHUB_REPOSITORY")
   required("GH_TOKEN")
@@ -239,6 +254,7 @@ export const main = async (): Promise<void> => {
   const jobs = await jobsWithinBudget(repo, needed)
   const markdown = [
     renderBar(mergeQueueBar(runs, jobs)),
+    renderStarts(runs, nightlyCron()),
     render(compute(table, jobs, days)),
     tallySection(repo),
     `${runs.length} runs, ${jobs.length} jobs, ${requests} API requests.\n`,

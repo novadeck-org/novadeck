@@ -265,4 +265,17 @@ describe("a nightly run's report", () => {
       expect(decide(lost, 9)).toMatchObject({ kind: "comment", issue: 9 })
     })
   })
+
+  it("names a night by the date it started, an evening's run or one just after midnight", () => {
+    const evening = decide(
+      run({ workflow: "Nightly Quality", startedAt: "2026-11-12T23:58:00Z" }),
+      null,
+    )
+    const morning = decide(
+      run({ workflow: "Nightly Quality", startedAt: "2026-11-13T00:41:00Z" }),
+      5,
+    )
+    expect(evening.kind === "open" && evening.body).toContain("[Nightly Quality, 2026-11-12](")
+    expect(morning.kind === "comment" && morning.body).toContain("[Nightly Quality, 2026-11-13](")
+  })
 })
