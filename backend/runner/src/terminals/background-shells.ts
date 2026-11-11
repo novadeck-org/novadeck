@@ -58,18 +58,65 @@ const simpleCommands = (command: string): string[][] => {
 /** A word that sets a variable for the command after it: `KEY=value`. */
 const assignment = /^[A-Za-z_][A-Za-z0-9_]*=/
 
+/** Programs that only run the command after them, and their options that take a value. */
+const wrappers: { readonly [program: string]: ReadonlySet<string> } = {
+  env: new Set(["-u", "-C", "-S"]),
+  sudo: new Set(["-u", "-g", "-C", "-h", "-p", "-U", "-r", "-t", "-D"]),
+  nohup: new Set(),
+  exec: new Set(["-a"]),
+  command: new Set(),
+  time: new Set(["-f", "-o"]),
+  nice: new Set(["-n"]),
+  timeout: new Set(["-s", "-k"]),
+}
+
+/** Shells whose `-c` (or `-lc` and the like) runs the string after it. */
+const shellPrograms = new Set(["sh", "bash", "zsh", "dash"])
+
+/** How many wrapping shells' strings are looked into, at most. */
+const maxDepth = 2
+
 /**
  * The words of the command a shell line runs first, as `shownCommand` takes them: any
- * leading `cd <dir>` and lone assignments are passed over, then the first simple command
- * (up to a pipe, `&&`, `||` or `;`) without its leading `VAR=value` words. Empty where
- * nothing runs.
+ * leading `cd <dir>`, `export` and lone assignments are passed over, then the first simple
+ * command (up to a pipe, `&&`, `||` or `;`) without its leading `VAR=value` words. A program
+ * that only runs another (`env`, `sudo`, `nohup`, `timeout 60`, …) is looked through to it,
+ * as is a shell's `-c` string, so the name says what runs. Empty where nothing runs.
  */
-export const commandWords = (command: string): string[] => {
+export const commandWords = (command: string, depth = 0): string[] => {
   const first = simpleCommands(command).find(
-    (words) => words[0] !== "cd" && !words.every((word) => assignment.test(word)),
+    (words) =>
+      words[0] !== "cd" && words[0] !== "export" && !words.every((word) => assignment.test(word)),
   )
-  const start = first?.findIndex((word) => !assignment.test(word)) ?? -1
-  return first && start >= 0 ? first.slice(start) : []
+  if (!first) return []
+  let words = first
+  for (;;) {
+    words = words.slice(
+      Math.max(
+        0,
+        words.findIndex((word) => !assignment.test(word)),
+      ),
+    )
+    if (words.every((word) => assignment.test(word))) return []
+    const program = words[0]!
+    const takes = wrappers[program]
+    if (takes) {
+      let at = 1
+      while (at < words.length && (words[at]!.startsWith("-") || assignment.test(words[at]!)))
+        at += takes.has(words[at]!) ? 2 : 1
+      // `timeout` and `nice -n` take a duration or a number before the command.
+      if ((program === "timeout" || program === "nice") && /^[\d.]+[smhd]?$/.test(words[at] ?? ""))
+        at += 1
+      words = words.slice(at)
+      continue
+    }
+    if (shellPrograms.has(program)) {
+      const flag = words.findIndex((word, index) => index > 0 && /^-[a-z]*c[a-z]*$/.test(word))
+      const script = flag > 0 ? words[flag + 1] : undefined
+      if (script !== undefined && depth < maxDepth) return commandWords(script, depth + 1)
+    }
+    return words
+  }
 }
 
 /** What a shell is called to other agents: never its raw command, which may carry a secret. */

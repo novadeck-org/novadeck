@@ -32,6 +32,25 @@ describe("the words of the command a shell line runs first", () => {
     expect(commandWords(`echo "unterminated | x`)).toEqual(["echo", "unterminated | x"])
   })
 
+  it("looks through programs that only run another, and a shell's -c string", () => {
+    expect(commandWords("env API_KEY=sk-live-abc node app.js")).toEqual(["node", "app.js"])
+    expect(commandWords("env -u HOME FOO=1 pnpm dev")).toEqual(["pnpm", "dev"])
+    expect(commandWords("sudo -E -u root pnpm deploy --token abc")).toEqual([
+      "pnpm",
+      "deploy",
+      "--token",
+      "abc",
+    ])
+    expect(commandWords("nohup timeout 600 pnpm test")).toEqual(["pnpm", "test"])
+    expect(commandWords(`sh -c "API_KEY=sk-x pnpm deploy"`)).toEqual(["pnpm", "deploy"])
+    expect(commandWords("bash -lc 'TOKEN=zzz npm run dev'")).toEqual(["npm", "run", "dev"])
+    expect(commandWords("export GH_TOKEN=ghp_abc && gh pr list")).toEqual(["gh", "pr", "list"])
+    expect(commandWords("bash script.sh")).toEqual(["bash", "script.sh"])
+    expect(commandWords("env")).toEqual([])
+    // Two wrapping shells are looked into, no more.
+    expect(commandWords(`bash -c "sh -c 'bash -c pnpm'"`)).toEqual(["bash", "-c", "pnpm"])
+  })
+
   it("is empty where nothing runs", () => {
     expect(commandWords("")).toEqual([])
     expect(commandWords("   ")).toEqual([])
