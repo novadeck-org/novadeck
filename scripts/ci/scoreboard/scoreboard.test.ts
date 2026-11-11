@@ -173,6 +173,11 @@ describe("the CI scoreboard of a recorded week", () => {
       expect(markdown).toContain("macOS job-hours a day: **0.5**")
       expect(markdown).toContain("| macOS | 14 | 25.8 |")
     })
+
+    it("says where a job's series breaks, as Quality's macOS tests narrowed on 11-11", () => {
+      expect(markdown).toContain("`Core scenarios (macOS)`")
+      expect(markdown).toContain("Quality's `Test (macOS)` series also breaks on 2026-11-11 (#849)")
+    })
   })
 })
 
