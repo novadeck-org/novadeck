@@ -973,7 +973,11 @@ const agents: Tool<Listing> = {
     "the background shells it has running (named by its own description or just the program, " +
     "never the full command, with how long each has run, so you can reuse its dev server " +
     "rather than start a second, and not pile a heavy run on one already running) and any " +
-    "that exited with an error in the last ten minutes; " +
+    "that exited with an error in the last ten minutes; the subjects of its latest tell " +
+    "reports, so you can tell what it already told the user; the items open on its bar " +
+    "(its dev server's page, files, plans, changes, images; named without a page's query " +
+    "or a file's folder, never a secret one), so you can open the same page rather than " +
+    "start a second server; " +
     "and, when its last turn failed, when and why. A plain " +
     "shell shows the program it runs. It also lists your own messages not yet delivered. " +
     "To follow your own team's work, call team instead. A terminal whose agent is waiting " +

@@ -1,4 +1,7 @@
-import type { AgentActivity, AgentName, StartupScreen } from "@novadeck/protocol"
+import { basename, isAbsolute, relative } from "node:path"
+
+import type { AgentActivity, AgentName, CompanionItem, StartupScreen } from "@novadeck/protocol"
+import { redact } from "@novadeck/secrets"
 
 import type { GitState } from "../terminals/git-state.js"
 import { mention } from "../terminals/handles.js"
@@ -34,6 +37,8 @@ export type Whereabouts = {
   readonly shell: Shell
   /** The background shells its agent started that run, or failed lately; null for none. */
   readonly background: Background | null
+  /** What its terminal's bar holds, as a listing may name it (see `Shown`); oldest first. */
+  readonly shown: readonly Shown[]
 }
 
 /**
@@ -45,6 +50,17 @@ export type Background = {
   readonly running: readonly { readonly name: string; readonly since: number }[]
   readonly moreRunning: number
   readonly ended: readonly { readonly name: string; readonly code: number; readonly at: number }[]
+}
+
+/**
+ * An item open on a terminal's bar, as listings name it: its kind, a short name that gives
+ * away no secret (see `shownLabel`), whether it may hold secrets, and when it was shown.
+ */
+export type Shown = {
+  readonly kind: CompanionItem["kind"]
+  readonly label: string
+  readonly secret: boolean
+  readonly at: number
 }
 
 /**
@@ -152,6 +168,11 @@ export type Peer = {
    * null for none, and for an asleep agent, which runs no process.
    */
   readonly background: Background | null
+  /**
+   * The items open on its bar, oldest first; empty for none, for an asleep agent (its
+   * dev server's page is gone with its process), and for a plain shell.
+   */
+  readonly shown: readonly Shown[]
   /** The handle of the terminal that leads it now: running, and in its session; else null. */
   readonly lead: string | null
   readonly git: Git | null
@@ -255,6 +276,7 @@ export const peerOf = (input: {
     waiting: agent && !input.asleep ? (where?.waiting ?? null) : null,
     waitsOn: agent && !input.busy && !input.asleep ? (where?.waitsOn ?? null) : null,
     background: agent && !input.asleep ? (where?.background ?? null) : null,
+    shown: agent && !input.asleep ? (where?.shown ?? []) : [],
     lead: input.lead,
     git: where?.git ?? null,
     pr: reportedPullRequest(happenings),
@@ -471,6 +493,82 @@ export const runningLine = (peer: Peer, now: number): string | null => {
   return `  running: ${[...parts, ...(more > 0 ? [`and ${more} more`] : [])].join(" · ")}`
 }
 
+/** How many of an agent's latest `tell` subjects `agents` lists, and how long each shows. */
+const shownTells = 3
+const tellChars = 100
+
+/**
+ * An agent's `tell` reports as `agents` lists them, whether or not a newer `done` came: the
+ * latest few, newest first, each when and its subject quoted, then how many came before.
+ * Subjects only. Null before one.
+ */
+export const toldLine = (peer: Peer, now: number): string | null => {
+  const tells = peer.happenings.flatMap((happening) =>
+    happening.kind === "update" ? [happening] : [],
+  )
+  if (!peer.agent || tells.length === 0) return null
+  const shown = tells.slice(-shownTells).toReversed()
+  const parts = shown.map((tell) => `${ago(tell.at, now)} "${flat(tell.subject, tellChars)}"`)
+  const earlier = tells.length - shown.length
+  return `  told: ${[...parts, ...(earlier > 0 ? [`and ${earlier} earlier`] : [])].join(" · ")}`
+}
+
+/** How many bar items `agents` lists, and how long a page's address or a name shows. */
+const shownItems = 3
+const shownChars = 60
+
+/** Text without any control or format character (a newline, an escape, a bidi mark). */
+const plain = (text: string): string => text.replace(/[\p{Cc}\p{Cf}]/gu, " ")
+
+/**
+ * What names a bar item in a listing, and nothing that could be a secret or a home folder:
+ * a page by its scheme, host, port and path (no login, query or fragment); a file or image
+ * by its path inside `folder`, else by its file name; a plan or changes by its kind alone.
+ * Redacted before it is cut, so a cut never leaves half a secret.
+ */
+export const shownLabel = (
+  item: Pick<CompanionItem, "kind" | "name" | "path" | "url">,
+  folder: string | undefined,
+): string => {
+  const named = (): string => {
+    if (item.kind === "plan" || item.kind === "changes") return item.kind
+    if (item.kind === "page") {
+      try {
+        const { protocol, host, pathname } = new URL(item.url ?? "")
+        return `${protocol}//${host}${pathname}`
+      } catch {
+        return "a page"
+      }
+    }
+    const path = item.path ?? item.name
+    const within = folder ? relative(folder, path) : ""
+    return within !== "" && !within.startsWith("..") && !isAbsolute(within)
+      ? within
+      : basename(path)
+  }
+  return flat(redact(plain(named())), shownChars)
+}
+
+/**
+ * The items open on an agent's bar, in one line: up to three, pages first (often its dev
+ * server), then the newest shown, each with its kind and how long since it was shown, then
+ * how many more. A secret item is left out of the three but counts among the more. Null
+ * before any to name.
+ */
+export const showingLine = (peer: Peer, now: number): string | null => {
+  const open = peer.shown.filter(({ secret }) => !secret)
+  const shown = open
+    .toSorted((a, b) => Number(b.kind === "page") - Number(a.kind === "page") || b.at - a.at)
+    .slice(0, shownItems)
+  if (!peer.agent || shown.length === 0) return null
+  const parts = shown.map(
+    ({ label, kind, at }) =>
+      `${flat(redact(plain(label)), shownChars)} (${kind}, ${span(at, now)})`,
+  )
+  const more = peer.shown.length - shown.length
+  return `  showing: ${[...parts, ...(more > 0 ? [`and ${more} more`] : [])].join(" · ")}`
+}
+
 /**
  * The background shells of an agent that failed lately, in one line: its name, the exit
  * code and when. Null without any.
@@ -495,7 +593,7 @@ export const failureLine = (peer: Peer, now: number): string | null => {
   return `  last turn failed ${ago(last.at, now)}${last.text ? `: ${flat(last.text, failureChars)}` : ""}`
 }
 
-/** One terminal as `agents` shows it: one line for a shell, up to six for an agent. */
+/** One terminal as `agents` shows it: one line for a shell, up to eight for an agent. */
 export const renderPeer = (peer: Peer, now: number, viewer: Viewer): readonly string[] =>
   [
     headLine(peer, now, viewer),
@@ -503,6 +601,8 @@ export const renderPeer = (peer: Peer, now: number, viewer: Viewer): readonly st
     runningLine(peer, now),
     endedLine(peer, now),
     doneLine(peer, now),
+    toldLine(peer, now),
+    showingLine(peer, now),
     failureLine(peer, now),
   ].filter((line): line is string => Boolean(line))
 

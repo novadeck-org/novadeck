@@ -24,6 +24,7 @@ const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   standing: false,
   shell: { running: false, command: null },
   background: null,
+  shown: [],
   ...overrides,
 })
 

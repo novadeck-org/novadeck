@@ -8,6 +8,7 @@ import { DomainError } from "../errors.js"
 import type { Activity } from "../harnesses/activity.js"
 import type { Messaging } from "../messaging/messaging.js"
 import {
+  shownLabel,
   standingDone,
   waitsOnNote,
   type Git,
@@ -82,6 +83,10 @@ export type PeersOptions = {
    * from the report log; with `bodies`, what its reports said at length too.
    */
   readonly happenings: (terminalId: string, bodies: boolean) => readonly Happening[]
+  /** The items one terminal's bar holds, oldest shown first (`CompanionItems.bar`). */
+  readonly bar: (
+    terminalId: string,
+  ) => readonly Pick<CompanionItem, "kind" | "name" | "path" | "url" | "secret" | "shownAt">[]
   /** Whether the runner is stopping. */
   readonly stopping: () => boolean
 }
@@ -263,6 +268,13 @@ export class TerminalPeers {
                   null,
               ) !== null,
             background: backgroundOf(activity, Date.now()),
+            // A sleeper's bar is read too; `peerOf` shows it only for an agent that runs.
+            shown: this.options.bar(terminal.summary.id).map((item) => ({
+              kind: item.kind,
+              label: shownLabel(item, this.options.projectFolder(sessionId)),
+              secret: item.secret,
+              at: item.shownAt,
+            })),
             shell: {
               running: terminal.summary.busy,
               command: terminal.summary.busy ? shownCommand(terminal.summary.process?.argv) : null,
