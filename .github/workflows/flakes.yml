@@ -5,8 +5,7 @@ name: Known Flakes
 # any other failure, a known flake failing again, or a flake registered as fixed coming
 # back is left failed for triage. It runs main's register and code, never a
 # pull request's, so a change can't excuse its own failures. A pull request's packaging runs
-# inside Quality, or on its own as Package when a draft is marked ready; Release, which
-# publishes, is never rerun.
+# inside Quality; Release, which publishes, is never rerun.
 #
 # CI retries a failed test where the runner's load can decide it (scripts/flakes/retry), and
 # a run that passed that way is green: the `retried-*` artifacts its test jobs upload, each

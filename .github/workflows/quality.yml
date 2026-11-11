@@ -1,8 +1,10 @@
 name: Quality
 
 on:
+  # Marking a draft ready runs it again: a draft runs no macOS job, and its gate fails until
+  # the run of the ready pull request has (scripts/quality/plan, scripts/e2e/plan: `held`).
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -12,10 +14,64 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Which systems' tests a pull request needs (scripts/quality/plan): Windows and macOS only for
+  # a change that affects a package that declares itself `system` (scripts/workspace/platform.ts)
+  # or a file outside every package, as their runners are slower and, on macOS, scarce. Linux
+  # runs every test for every change, and the nightly run (quality-nightly.yml) runs every test
+  # on every system.
+  plan:
+    name: Plan Systems
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      windows: ${{ steps.plan.outputs.windows }}
+      macos: ${{ steps.plan.outputs.macos }}
+      held: ${{ steps.plan.outputs.held }}
+      packages: ${{ steps.plan.outputs.packages }}
+    steps:
+      # The whole history: turbo and git diff the pull request's base against its head, and
+      # a shallow clone has neither.
+      - name: Check Out Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set Up Toolchain
+        id: toolchain
+        continue-on-error: true
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      # An immediate retry hit the same registry outage in the flake audit.
+      - name: Wait Before Retrying Toolchain
+        if: steps.toolchain.outcome == 'failure'
+        shell: bash
+        run: sleep 180
+
+      - name: Set Up Toolchain Again
+        if: steps.toolchain.outcome == 'failure'
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      - name: Plan Systems
+        id: plan
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+        run: node scripts/quality/plan/main.ts
+
+  # The checks and Linux's tests, for every change.
   quality:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.timeout || (matrix.browser || matrix.shard) && 20 || 10 }}
+    timeout-minutes: ${{ matrix.browser && matrix.shard && 25 || (matrix.browser || matrix.shard) && 20 || 10 }}
     strategy:
       fail-fast: false
       matrix:
@@ -40,8 +96,7 @@ jobs:
           # first half of the big frontend packages' (Vitest's `--shard`); the second half of
           # those with the small frontend packages and apps whole, which Vitest can't split, and
           # the host's; and the runner's, whose shell integration test alone takes over three
-          # minutes. macOS runs them whole: its concurrency, which E2E's macOS rows fill on most
-          # pull requests, not its length, is the limit.
+          # minutes. Windows's are in the `windows` job below, and macOS's in `macos`.
           # Linux's two browser parts have 25 minutes (22 for the tests): they also run the
           # specs whose chords differ on a Mac as a Mac (frontend/specs' `eachPlatform`), which
           # took 2/3 from a median of 9.3 minutes to about 12.8, and a slow runner had already
@@ -49,44 +104,17 @@ jobs:
           - name: Test (Linux, 1/3)
             os: ubuntu-latest
             browser: true
-            timeout: 25
+            relay: true
             shard: 1
             command: npm run test:shard1
           - name: Test (Linux, 2/3)
             os: ubuntu-latest
             browser: true
-            timeout: 25
+            electron: true
             shard: 2
             command: npm run test:shard2
           - name: Test (Linux, 3/3)
             os: ubuntu-latest
-            shard: 3
-            command: npm run test:shard3
-          # Whole, it took 18m 41s on #292 and ran past 20 minutes on #296. By #405 pull
-          # requests took 17 to 27 minutes, and on #407 a runner slower at everything, builds
-          # too, ran the tests out of 27 with none failing. On 2026-11-10 its green jobs took
-          # 25 to 38 minutes (median 34, against 23 the week before), two ran out of their 37
-          # with no test failing, and #840 added the specs' second pass. On 2026-11-11 the tests
-          # took 45m58s of 47 on #847 (the specs 33m18s) and ran out of 37 twice on #837 with
-          # none failing; it has 60 (57 for the tests) until it runs only the packages that
-          # touch the system, and comes down then.
-          - name: Test (macOS)
-            os: macos-latest
-            browser: true
-            timeout: 60
-            command: npm run test
-          - name: Test (Windows, 1/3)
-            os: windows-latest
-            browser: true
-            shard: 1
-            command: npm run test:shard1
-          - name: Test (Windows, 2/3)
-            os: windows-latest
-            browser: true
-            shard: 2
-            command: npm run test:shard2
-          - name: Test (Windows, 3/3)
-            os: windows-latest
             shard: 3
             command: npm run test:shard3
           - name: Build
@@ -99,7 +127,9 @@ jobs:
             os: ubuntu-latest
             browser: true
             command: npm run build:try && npm run poster:try
-    steps:
+    # The same steps for every job that checks or tests (`windows` and `macos` below), each
+    # job's matrix saying what it needs: a browser, the relay's tests built, Electron.
+    steps: &steps
       # Two commits deep: a pull request checks out its merge commit, whose first parent is
       # the base branch as it is now, which the ratchet (scripts/ratchet) reads its budgets against.
       - name: Check Out Repository
@@ -180,7 +210,7 @@ jobs:
       # (apps/desktop/scripts/electron-binary.ts), kept between runs: GitHub's release downloads
       # answered 504 for over an hour on 2026-11-08, and every such job failed (#784).
       - name: Locate Electron
-        if: matrix.shard == 2 || matrix.command == 'npm run test'
+        if: matrix.electron
         id: electron
         shell: bash
         run: |
@@ -198,7 +228,7 @@ jobs:
       # beside them they took the CPU the native PTY tests wait on (Windows, 1/3).
       - name: Build Relay Tests
         id: relay-build
-        if: matrix.shard == 1 || matrix.command == 'npm run test'
+        if: matrix.relay
         shell: bash
         working-directory: backend/relay
         run: cargo test --locked --no-run
@@ -221,7 +251,7 @@ jobs:
       # failures' upload below still runs, rather than the whole job being cancelled.
       - name: Run ${{ matrix.name }}
         run: ${{ matrix.command }}
-        timeout-minutes: ${{ matrix.timeout && (runner.os == 'macOS' && 57 || 22) || (matrix.browser || matrix.shard) && 17 || 7 }}
+        timeout-minutes: ${{ runner.os == 'macOS' && 37 || matrix.browser && matrix.shard && 22 || (matrix.browser || matrix.shard) && 17 || 7 }}
         env:
           NOVADECK_REQUIRE_FISH: ${{ steps.fish.outcome == 'success' && '1' || '' }}
           # A re-run with debug logging records Playwright traces of failed UI specs.
@@ -263,26 +293,121 @@ jobs:
           path: test-results/retried/
           retention-days: 30
 
+  # Windows's tests, as Linux's in three parts, when the plan says a change can break them.
+  windows:
+    needs: plan
+    if: needs.plan.outputs.windows == 'true'
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    # Its two browser parts run the specs' Mac pass too (frontend/specs' `eachPlatform`), about
+    # three minutes on Windows 2/3's 11.5, so they have 25 minutes (22 for the tests), as Linux's.
+    timeout-minutes: ${{ matrix.browser && 25 || 20 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Test (Windows, 1/3)
+            os: windows-latest
+            browser: true
+            relay: true
+            shard: 1
+            command: npm run test:shard1
+          - name: Test (Windows, 2/3)
+            os: windows-latest
+            browser: true
+            electron: true
+            shard: 2
+            command: npm run test:shard2
+          - name: Test (Windows, 3/3)
+            os: windows-latest
+            shard: 3
+            command: npm run test:shard3
+    steps: *steps
+
+  # macOS's tests, when the plan says a change can break them, and only once every Linux job
+  # above has passed: a push that fails there, or is replaced while it runs, takes no macOS
+  # runner. Only the packages that declare themselves `system` (`test:system`), one at a time:
+  # the `neutral` ones, the UI and the browser packages, run the same on every system but for
+  # the browser's rendering, so they run on Linux, the specs' Mac chords too (frontend/specs'
+  # `eachPlatform`), and on macOS in the nightly run. Whole, its tests took 45m58s on #847, 33
+  # minutes of them the specs; its packages ran 23 at once on a 3-core runner, where
+  # real-process tests failed (#784).
+  macos:
+    needs: [plan, quality]
+    if: needs.plan.outputs.macos == 'true'
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    # The limit from before the specs' second pass (main has 50, 47 for the tests, for the whole
+    # suite), which the rest of it fits: about 13 of #847's 46 minutes. Lower it once its first
+    # runs measure the serial system packages on a loaded macOS runner.
+    timeout-minutes: 40
+    env:
+      # The packages the plan says to test, which `test:system` reads.
+      NOVADECK_TEST_PACKAGES: ${{ needs.plan.outputs.packages }}
+    strategy:
+      matrix:
+        include:
+          # A browser for the system packages tested in Chromium (the viewers, and the specs
+          # until they declare themselves neutral).
+          - name: Test (macOS)
+            os: macos-latest
+            browser: true
+            relay: true
+            electron: true
+            shard: 0
+            command: npm run test:system
+    steps: *steps
+
   # The pull request's app packaged for all three systems once every check passes, unless
   # it's a draft or its change can't affect the app (Package's Scope job decides). Not
   # part of the required checks.
   package:
     name: Package
-    needs: quality
-    if: github.event.pull_request.draft == false
+    needs: test
+    if: ${{ !cancelled() && needs.test.result == 'success' && github.event.pull_request.draft == false }}
     permissions:
       actions: read
       contents: read
     uses: ./.github/workflows/package.yml
 
+  # The one check main requires of the tests. It passes once the plan ran and every job it
+  # chose passed: a system's tests the plan left out are skipped, and pass it; one it chose
+  # must have passed, so a job skipped because Linux failed, or cancelled, fails it. On a
+  # draft whose change needs macOS it fails, saying so: GitHub makes a job's check only once
+  # its `needs` are done, so for the 20 minutes and more after the draft is marked ready, a
+  # draft's passing `Test` would be the only one on the commit, and would let it merge
+  # without macOS. Known Flakes never reruns it (`aggregates` in its register).
+  # Once the merge queue is on, its run guards the merge, and a draft's gate can pass again. `always()`,
+  # not `!cancelled()`: a skipped required check counts as passed, so a cancelled run must
+  # fail it.
   test:
     name: Test
-    needs: quality
+    needs: [plan, quality, windows, macos]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
-      - name: Require All Quality Checks
+      - name: Require Every Planned Job
         env:
+          PLAN_RESULT: ${{ needs.plan.result }}
           QUALITY_RESULT: ${{ needs.quality.result }}
-        run: test "$QUALITY_RESULT" = success
+          WINDOWS_RESULT: ${{ needs.windows.result }}
+          WINDOWS_PLANNED: ${{ needs.plan.outputs.windows }}
+          MACOS_RESULT: ${{ needs.macos.result }}
+          MACOS_PLANNED: ${{ needs.plan.outputs.macos }}
+          MACOS_HELD: ${{ needs.plan.outputs.held }}
+        run: |
+          test "$PLAN_RESULT" = success || { echo "Plan: $PLAN_RESULT"; exit 1; }
+          test "$QUALITY_RESULT" = success || { echo "Checks and Linux tests: $QUALITY_RESULT"; exit 1; }
+          if [ "$MACOS_HELD" = true ]; then
+            echo "::error title=Draft::draft: macOS not run, mark ready to run it"
+            echo "draft: macOS not run, mark ready to run it" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+            exit 1
+          fi
+          for job in "Windows $WINDOWS_PLANNED $WINDOWS_RESULT" "macOS $MACOS_PLANNED $MACOS_RESULT"; do
+            read -r name planned result <<< "$job"
+            case "$planned $result" in
+              "true success" | "false skipped") ;;
+              *) echo "$name tests: planned $planned, $result"; exit 1 ;;
+            esac
+          done
