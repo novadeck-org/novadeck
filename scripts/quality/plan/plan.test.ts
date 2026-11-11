@@ -27,6 +27,69 @@ import {
 
 const root = join(import.meta.dirname, "..", "..", "..")
 
+/**
+ * A GitHub Actions expression over `values`, as far as the workflows' limits use them:
+ * `&&`, `||`, `==`, `!=`, parentheses, numbers, strings and dotted names. Values pass through
+ * `&&` and `||` as Actions passes them; false, 0, '' and null are falsy.
+ */
+const evaluate = (source: string, values: Record<string, unknown>): unknown => {
+  const tokens = source
+    .match(/\s*(\|\||&&|==|!=|\(|\)|'[^']*'|\d+|[A-Za-z_][\w.-]*)/g)!
+    .map((token) => token.trim())
+  let at = 0
+  const falsy = (value: unknown) => value === false || value === 0 || value === "" || value == null
+  const primary = (): unknown => {
+    const token = tokens[at++]!
+    if (token === "(") {
+      const value = or()
+      at += 1
+      return value
+    }
+    if (/^\d+$/.test(token)) return Number(token)
+    if (token.startsWith("'")) return token.slice(1, -1)
+    if (token === "true" || token === "false") return token === "true"
+    return token
+      .split(".")
+      .reduce<unknown>(
+        (value, key) => (value as Record<string, unknown> | undefined)?.[key],
+        values,
+      )
+  }
+  const equal = (): unknown => {
+    const left = primary()
+    if (tokens[at] !== "==" && tokens[at] !== "!=") return left
+    const operator = tokens[at++]
+    const right = primary()
+    // As Actions: two strings compare without case; otherwise both as numbers, null as 0.
+    const number = (value: unknown) =>
+      value == null ? 0 : typeof value === "boolean" ? Number(value) : Number(value)
+    const same =
+      typeof left === "string" && typeof right === "string"
+        ? left.toLowerCase() === right.toLowerCase()
+        : number(left) === number(right)
+    return operator === "==" ? same : !same
+  }
+  const and = (): unknown => {
+    let value = equal()
+    while (tokens[at] === "&&") {
+      at += 1
+      const right = equal()
+      value = falsy(value) ? value : right
+    }
+    return value
+  }
+  const or = (): unknown => {
+    let value = and()
+    while (tokens[at] === "||") {
+      at += 1
+      const right = and()
+      value = falsy(value) ? right : value
+    }
+    return value
+  }
+  return or()
+}
+
 // A workspace in small: what each package declares, a name and a folder.
 const declared = (folder: string, platform?: unknown): Package => ({
   folder,
@@ -666,24 +729,63 @@ describe("Quality's workflow", () => {
   })
 
   // A job cancelled mid-tests uploads no failure or retried record, and its gate reads
-  // "planned true, cancelled": a macOS job's limit leaves its setup ten minutes (a toolchain
-  // retry and a cold relay build) before its tests' own limit, so a later edit can't close it.
-  it("gives each macOS job ten minutes more than its tests, for each command", () => {
-    const step =
-      /runner\.os == 'macOS' && \(matrix\.command == 'npm run test' && (\d+) \|\| (\d+)\)/.exec(
-        job("quality"),
-      )!
-    const tests = { whole: Number(step[1]), system: Number(step[2]) }
-    const macos =
-      /timeout-minutes: \$\{\{ matrix\.command == 'npm run test' && (\d+) \|\| (\d+) \}\}/.exec(
-        job("macos"),
-      )!
-    expect(Number(macos[1])).toBeGreaterThanOrEqual(tests.whole + 10)
-    expect(Number(macos[2])).toBeGreaterThanOrEqual(tests.system + 10)
-    // The proof rows run `test:system`, the system packages' limit.
-    const proof = Number(/\n {4}timeout-minutes: (\d+)\n/.exec(job("proof-macos"))![1])
-    expect(proof).toBeGreaterThanOrEqual(tests.system + 10)
-    expect(proofRows("macos", {}).every((row) => row.command === "npm run test:system")).toBe(true)
+  // "planned true, cancelled": every Quality job's limit leaves its setup ten minutes (a
+  // toolchain retry and a cold relay build) before its tests' own limit, for every row it runs,
+  // read from the workflow's own expressions, so a later edit can't close the gap.
+  it("gives every Quality job ten minutes more than its tests, for every row it runs", () => {
+    const limit = (text: string, at: number) =>
+      /timeout-minutes: (?:\$\{\{ (.+) \}\}|(\d+))\n/.exec(text.slice(at))!
+    const expression = (found: RegExpExecArray) => found[1] ?? found[2]!
+    const shared = job("quality")
+    const tests = expression(limit(shared, shared.indexOf("- name: Run ${{ matrix.name }}")))
+    const ofJob = (id: string) => expression(limit(job(id), 0))
+    // Quality's own rows, as its matrix lists them.
+    const listed = shared
+      .slice(shared.indexOf("include:"), shared.indexOf("steps: &steps"))
+      .split(/\n {10}- /)
+      .slice(1)
+      .map((item) =>
+        Object.fromEntries(
+          item
+            .split("\n")
+            .map((line) => /^\s*([a-z]+): (.+)$/.exec(line))
+            .filter((match): match is RegExpExecArray => match !== null)
+            .map(([, key, value]) => [
+              key,
+              value === "true" ? true : /^\d+$/.test(value!) ? Number(value) : value,
+            ]),
+        ),
+      )
+    expect(listed.length).toBeGreaterThan(5)
+    const rows: [string, Record<string, unknown>][] = [
+      ...listed.map((row): [string, Record<string, unknown>] => ["quality", row]),
+      ...[...wholeWindows, ...systemWindows].map((row): [string, Record<string, unknown>] => [
+        "windows",
+        row,
+      ]),
+      ...[...wholeMacos, ...systemMacos].map((row): [string, Record<string, unknown>] => [
+        "macos",
+        row,
+      ]),
+      ...proofRows("windows", {}).map((row): [string, Record<string, unknown>] => [
+        "proof-windows",
+        row,
+      ]),
+      ...proofRows("macos", {}).map((row): [string, Record<string, unknown>] => [
+        "proof-macos",
+        row,
+      ]),
+    ]
+    for (const [id, row] of rows) {
+      const os = String(row.os ?? "ubuntu-latest")
+      const runner = {
+        os: os.startsWith("windows") ? "Windows" : os.startsWith("macos") ? "macOS" : "Linux",
+      }
+      const step = Number(evaluate(tests, { runner, matrix: row }))
+      const whole = Number(evaluate(ofJob(id), { runner, matrix: row }))
+      expect(step, `${id} ${String(row.name)}`).toBeGreaterThan(0)
+      expect(whole, `${id} ${String(row.name)}`).toBeGreaterThanOrEqual(step + 10)
+    }
   })
 })
 

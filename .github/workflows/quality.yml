@@ -66,7 +66,10 @@ jobs:
   quality:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.browser && matrix.shard && 25 || (matrix.browser || matrix.shard) && 20 || 10 }}
+    # Ten minutes more than each row's tests (their step, below), as every Quality job: setup with
+    # a toolchain retry (180 s) and a cold relay build fits before them, and a job cut mid-tests
+    # would upload no failure or retried record.
+    timeout-minutes: ${{ matrix.browser && matrix.shard && 32 || (matrix.browser || matrix.shard) && 27 || 17 }}
     strategy:
       fail-fast: false
       matrix:
@@ -218,9 +221,9 @@ jobs:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     # The two browser parts run the specs' Mac pass too (frontend/specs' `eachPlatform`), about
-    # three minutes on Windows 2/3's 11.5, so they have 25 minutes (22 for the tests), as Linux's;
-    # the one job of the system packages has as long.
-    timeout-minutes: ${{ matrix.browser && 25 || 20 }}
+    # three minutes on Windows 2/3's 11.5, so their tests have 22 minutes, as Linux's; the one job
+    # of the system packages has as long. The job has ten minutes more than its tests.
+    timeout-minutes: ${{ matrix.browser && 32 || 27 }}
     env:
       # The packages the plan says to test, which `test:system` reads.
       NOVADECK_TEST_PACKAGES: ${{ needs.plan.outputs.windows-packages }}
@@ -272,7 +275,8 @@ jobs:
     if: ${{ !cancelled() && needs.plan.outputs.proof == 'true' }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
+    # As the Windows job's system packages: 22 for the tests, ten more for the job.
+    timeout-minutes: 32
     env:
       NOVADECK_TEST_PACKAGES: ${{ toJSON(matrix.packages) }}
       NOVADECK_TEST_CONTINUE: "true"
