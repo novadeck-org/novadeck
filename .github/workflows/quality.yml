@@ -37,6 +37,9 @@ jobs:
       windows-packages: ${{ steps.plan.outputs.windows-packages }}
       macos-rows: ${{ steps.plan.outputs.macos-rows }}
       packages: ${{ steps.plan.outputs.packages }}
+      proof: ${{ steps.plan.outputs.proof }}
+      proof-windows-rows: ${{ steps.plan.outputs.proof-windows-rows }}
+      proof-macos-rows: ${{ steps.plan.outputs.proof-macos-rows }}
     steps:
       # The whole history: turbo and git diff the pull request's base against its head, and
       # a shallow clone has neither.
@@ -284,8 +287,10 @@ jobs:
           key: relay-${{ runner.os }}-${{ hashFiles('backend/relay/Cargo.lock', 'backend/relay/Cargo.toml', 'backend/relay/rust-toolchain.toml') }}
 
       # A failed UI spec leaves its screenshot, and its trace when one was recorded.
+      # Not from a proof row (`NOVADECK_TEST_CONTINUE`), whose job beside `Test (Windows)` would
+      # take the same name.
       - name: Upload UI Test Failures
-        if: failure() && matrix.browser
+        if: failure() && matrix.browser && env.NOVADECK_TEST_CONTINUE != 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ui-test-failures-${{ runner.os }}${{ matrix.shard && format('-{0}', matrix.shard) || '' }}
@@ -294,9 +299,11 @@ jobs:
           retention-days: 7
 
       # Every test that passed only on a retry (scripts/flakes/retry), which Known Flakes
-      # counts: the run is green, so this is where its flakes show. Only when one did.
+      # counts: the run is green, so this is where its flakes show. Only when one did, and
+      # not from a proof row (`NOVADECK_TEST_CONTINUE`), which tests what the test jobs do, and
+      # whose flakes they count.
       - name: Upload Retried Tests
-        if: ${{ !cancelled() && hashFiles('test-results/retried/**') != '' }}
+        if: ${{ !cancelled() && hashFiles('test-results/retried/**') != '' && env.NOVADECK_TEST_CONTINUE != 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: retried-${{ runner.os }}${{ matrix.shard && format('-{0}', matrix.shard) || '' }}-${{ github.run_attempt }}
@@ -349,6 +356,43 @@ jobs:
     strategy:
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.macos-rows || '[{"name":"Test (macOS)","os":"macos-latest","browser":true,"relay":true,"electron":true,"shard":0,"command":"npm run test"}]') }}
+    steps: *steps
+
+  # Proof of the narrowed rows, for a pull request that changes how Windows's and macOS's tests
+  # run (scripts/quality/plan: `proves`): its own run is planned `all`, so its `Test (Windows)`
+  # and `test:system` would first run on someone else's pull request. Each row runs
+  # `test:system` over a list the plan gives a real change (`proofLists`), every package's tests
+  # though one fails (`NOVADECK_TEST_CONTINUE`), so one run shows each that fails. Canary #854
+  # found a test that failed only there. Not required: the `Test` gate doesn't wait on them.
+  proof-windows:
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.outputs.proof == 'true' }}
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    env:
+      NOVADECK_TEST_PACKAGES: ${{ toJSON(matrix.packages) }}
+      NOVADECK_TEST_CONTINUE: "true"
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.proof-windows-rows) }}
+    steps: *steps
+
+  # macOS's proof rows, once every Linux job has passed, as its tests.
+  proof-macos:
+    needs: [plan, quality]
+    if: ${{ !cancelled() && needs.quality.result == 'success' && needs.plan.outputs.proof == 'true' }}
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    env:
+      NOVADECK_TEST_PACKAGES: ${{ toJSON(matrix.packages) }}
+      NOVADECK_TEST_CONTINUE: "true"
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.proof-macos-rows) }}
     steps: *steps
 
   # The pull request's app packaged for all three systems once every check passes, unless

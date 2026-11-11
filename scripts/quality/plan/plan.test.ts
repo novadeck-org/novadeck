@@ -11,10 +11,14 @@ import {
   filters,
   invocations,
   plan,
+  proofLists,
+  proofRows,
+  proves,
   systemPackages,
   systemMacos,
   systemWindows,
   testedFolders,
+  turboTestArgs,
   wholeMacos,
   wholeWindows,
 } from "./plan.ts"
@@ -260,6 +264,96 @@ describe("the packages a system's test job runs", () => {
   })
 })
 
+describe("test:system's turbo arguments", () => {
+  it("stop at the first package that fails, as a test job runs them", () => {
+    expect(turboTestArgs({ folders: ["backend/runner"], concurrency: 1 }, false)).toEqual([
+      "turbo",
+      "run",
+      "test",
+      "--output-logs=new-only",
+      "--concurrency=1",
+      "--filter=./backend/runner",
+      "--",
+      "--reporter=default",
+      "--reporter=hanging-process",
+    ])
+  })
+
+  it("run every package's tests though one fails, as a proof row runs them", () => {
+    expect(turboTestArgs({ folders: ["tools/atlas"] }, true, ["--bail=1"])).toEqual([
+      "turbo",
+      "run",
+      "test",
+      "--output-logs=new-only",
+      "--continue",
+      "--filter=./tools/atlas",
+      "--",
+      "--reporter=default",
+      "--reporter=hanging-process",
+      "--bail=1",
+    ])
+  })
+
+  it("are what test:system hands turbo, reading whether to continue from the proof rows' env", () => {
+    const script = readFileSync(join(root, "scripts", "quality", "plan", "system-tests.ts"), "utf8")
+    expect(script).toContain('process.env.NOVADECK_TEST_CONTINUE === "true"')
+    expect(script).toContain("turboTestArgs(")
+    expect(script).toContain("if (!keepGoing) break")
+  })
+})
+
+describe("the proof rows", () => {
+  it.each([
+    ".github/workflows/quality.yml",
+    "scripts/quality/plan/plan.ts",
+    "scripts/ci/plan/main.ts",
+    "scripts/workspace/platform.ts",
+    "package.json",
+    "turbo.json",
+    "pnpm-workspace.yaml",
+  ])("run for a pull request that changes %s", (file) => {
+    expect(proves(["backend/runner/src/app.ts", file])).toBe(true)
+  })
+
+  it.each([
+    ["a package's file", ["backend/runner/src/app.ts"]],
+    ["a package's manifest", ["frontend/ui/package.json"]],
+    ["another workflow", [".github/workflows/e2e.yml"]],
+    ["nothing", []],
+  ])("don't run for a change to %s", (_name, files) => {
+    expect(proves(files)).toBe(false)
+  })
+
+  it("don't run where the changed files couldn't be read: every test runs then", () => {
+    expect(proves(undefined)).toBe(false)
+  })
+
+  it("are a system's narrowed row over each list, under a name of its own", () => {
+    for (const [system, row, label] of [
+      ["windows", systemWindows[0], "Windows"],
+      ["macos", systemMacos[0], "macOS"],
+    ] as const)
+      expect(proofRows(system)).toEqual(
+        proofLists.map(({ key, packages: listed }) => ({
+          ...row,
+          name: `Proof (${label}, ${key})`,
+          proof: key,
+          packages: listed,
+        })),
+      )
+  })
+
+  // The lists are the plan's for a real change at #853's reland; one that names a folder that
+  // is no system package of the workspace would test something no pull request does.
+  it("list only system packages of the workspace, each list another", () => {
+    const system = new Set(systemPackages(workspacePackages(root)).map(({ folder }) => folder))
+    for (const { packages: listed } of proofLists)
+      for (const folder of listed) expect(system.has(folder), folder).toBe(true)
+    const keys = proofLists.map(({ packages: listed }) => listed.join())
+    expect(new Set(keys).size).toBe(proofLists.length)
+  })
+})
+
 describe("the plan script", () => {
   // CI runs it with plain node: what it imports must load that way too.
   it("runs under plain node and plans every system for a run that isn't a pull request", () => {
@@ -451,6 +545,40 @@ describe("Quality's workflow", () => {
     expect(job("macos")).toContain("NOVADECK_TEST_PACKAGES: ${{ needs.plan.outputs.packages }}")
     for (const output of ["windows-rows", "windows-packages", "macos-rows", "packages"])
       expect(job("plan")).toContain(`${output}: \${{ steps.plan.outputs.${output} }}`)
+  })
+
+  it("runs the proof rows where the plan says, every package's tests, macOS after Linux", () => {
+    expect(job("proof-windows")).toContain("needs: plan\n")
+    expect(job("proof-windows")).toContain(
+      "if: ${{ !cancelled() && needs.plan.outputs.proof == 'true' }}",
+    )
+    expect(job("proof-macos")).toContain("needs: [plan, quality]")
+    expect(job("proof-macos")).toContain(
+      "if: ${{ !cancelled() && needs.quality.result == 'success' && needs.plan.outputs.proof == 'true' }}",
+    )
+    for (const [id, output] of [
+      ["proof-windows", "proof-windows-rows"],
+      ["proof-macos", "proof-macos-rows"],
+    ] as const) {
+      expect(job(id)).toContain(`include: \${{ fromJSON(needs.plan.outputs.${output}) }}`)
+      expect(job(id)).toContain("NOVADECK_TEST_PACKAGES: ${{ toJSON(matrix.packages) }}")
+      expect(job(id)).toContain('NOVADECK_TEST_CONTINUE: "true"')
+      expect(job(id)).toContain("    steps: *steps\n")
+    }
+    for (const output of ["proof", "proof-windows-rows", "proof-macos-rows"])
+      expect(job("plan")).toContain(`${output}: \${{ steps.plan.outputs.${output} }}`)
+  })
+
+  // Not required: they find out, and the gate judges the change's own tests.
+  it("leaves the proof rows out of the gate, and their artifacts out of Known Flakes'", () => {
+    expect(job("test")).not.toContain("proof")
+    const shared = job("quality").slice(job("quality").indexOf("steps: &steps"))
+    expect(shared).toContain(
+      "if: ${{ !cancelled() && hashFiles('test-results/retried/**') != '' && env.NOVADECK_TEST_CONTINUE != 'true' }}",
+    )
+    expect(shared).toContain(
+      "if: failure() && matrix.browser && env.NOVADECK_TEST_CONTINUE != 'true'",
+    )
   })
 
   it("gives each row's tests their time: macOS's whole suite 57, its system packages 37", () => {

@@ -93,6 +93,94 @@ export const wholeMacos: readonly Row[] = [
 /** macOS's row for the `system` packages a change affects, one at a time (`test:system`). */
 export const systemMacos: readonly Row[] = [{ ...wholeMacos[0]!, command: "npm run test:system" }]
 
+/**
+ * Three lists the plan gives real changes, as at #853's reland (scripts/ci/plan over a one-file
+ * change to the file named): what the proof rows run `test:system` over. The first is canary
+ * #854's, whose Windows job failed where the shards had passed, as `test:system` built the
+ * relay before runner-adapter's tests; the second has the relay built and tested beside the
+ * runner; the third is the widest narrowed list, browser packages in the serial group.
+ */
+export const proofLists: readonly {
+  readonly key: string
+  readonly change: string
+  readonly packages: readonly string[]
+}[] = [
+  {
+    key: "runner",
+    change: "backend/runner/src/app.test.ts",
+    packages: [
+      "tools/atlas",
+      "frontend/chat-contract",
+      "apps/desktop",
+      "backend/runner",
+      "frontend/runner-adapter",
+    ],
+  },
+  {
+    key: "relay",
+    change: "backend/relay/src/main.rs",
+    packages: [
+      "tools/atlas",
+      "frontend/chat-contract",
+      "apps/desktop",
+      "backend/relay",
+      "backend/runner",
+      "frontend/runner-adapter",
+    ],
+  },
+  {
+    key: "terminal",
+    change: "libraries/terminal/src/pty.ts",
+    packages: [
+      "tools/atlas",
+      "tools/build-kit",
+      "frontend/chat-contract",
+      "apps/desktop",
+      "harnesses/agy",
+      "harnesses/claude",
+      "harnesses/codex",
+      "harnesses/core",
+      "backend/runner",
+      "frontend/runner-adapter",
+      "libraries/terminal",
+      "frontend/terminal-views",
+    ],
+  },
+]
+
+/** A proof row: a system's narrowed row over one of `proofLists`, under a name of its own. */
+export type ProofRow = Row & { readonly proof: string; readonly packages: readonly string[] }
+
+/** The proof rows of a system, one per list in `proofLists`. */
+export const proofRows = (system: "windows" | "macos"): readonly ProofRow[] =>
+  proofLists.map(({ key, packages }) => ({
+    ...(system === "windows" ? systemWindows[0]! : systemMacos[0]!),
+    name: `Proof (${system === "windows" ? "Windows" : "macOS"}, ${key})`,
+    proof: key,
+    packages,
+  }))
+
+// What decides how Windows's and macOS's tests run: a change to one of these can change the
+// narrowed rows, which the change's own run, planned `all`, never runs.
+const proven = [
+  ".github/workflows/quality.yml",
+  "scripts/quality/plan/",
+  "scripts/ci/plan/",
+  "scripts/workspace/",
+  "package.json",
+  "turbo.json",
+  "pnpm-workspace.yaml",
+]
+
+/**
+ * Whether a pull request's run proves the narrowed rows (`proofRows`): where it changes how they
+ * test. A pull request whose files couldn't be read proves nothing: it runs every test anyway.
+ */
+export const proves = (files: readonly string[] | undefined): boolean =>
+  files?.some((file) =>
+    proven.some((path) => (path.endsWith("/") ? file.startsWith(path) : file === path)),
+  ) ?? false
+
 /** What Quality's jobs read. */
 export type Plan = {
   /** Whether the Windows and macOS tests run. */
@@ -186,6 +274,29 @@ export const invocations = (
     ...(serial.length > 0 ? [{ folders: serial, concurrency: 1 }] : []),
   ]
 }
+
+/**
+ * Turbo's arguments for one of `invocations`' groups: its packages' tests, at its concurrency,
+ * each package's test command given `extra`. With `keepGoing`, as the proof rows run, every
+ * package's tests run though one fails (`--continue`), so one run shows each that fails.
+ */
+export const turboTestArgs = (
+  group: { readonly folders: readonly string[]; readonly concurrency?: number | undefined },
+  keepGoing: boolean,
+  extra: readonly string[] = [],
+): readonly string[] => [
+  "turbo",
+  "run",
+  "test",
+  "--output-logs=new-only",
+  ...(keepGoing ? ["--continue"] : []),
+  ...(group.concurrency === undefined ? [] : [`--concurrency=${group.concurrency}`]),
+  ...filters(group.folders),
+  "--",
+  "--reporter=default",
+  "--reporter=hanging-process",
+  ...extra,
+]
 
 /**
  * The folders `test:system` tests: those `NOVADECK_TEST_PACKAGES` names (a JSON list, the plan's
