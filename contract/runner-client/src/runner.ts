@@ -491,6 +491,11 @@ export type Runner = {
       readonly layers: readonly string[]
     }): Promise<ChangeRange>
     /**
+     * The person read a file of a changes item: its content names the file in `read` until it
+     * changes again. Rejects with `NOT_FOUND` for an unknown item or one that is no change.
+     */
+    changeRead(input: { readonly itemId: string; readonly path: string }): Promise<void>
+    /**
      * Writes the person's edit to a plan kept in a file, unless it changed since `basedOn`,
      * the stamp the edit was made on: then nothing is written and the plan as it now
      * stands is `current`. Rejects with `NOT_FOUND`, or `PLAN_UNWRITABLE` saying why for a
@@ -844,6 +849,7 @@ export const connectRunner = async (
         call((client) => client.companions.changeFile({ ...input, layers: [...input.layers] })),
       changeRange: (input) =>
         call((client) => client.companions.changeRange({ ...input, layers: [...input.layers] })),
+      changeRead: (input) => call((client) => client.companions.changeRead(input)),
       save: (input) => call((client) => client.companions.save(input)),
       attach: (input) => call((client) => client.companions.attach(input)),
       openInProject: (input) => call((client) => client.companions.openInProject(input)),

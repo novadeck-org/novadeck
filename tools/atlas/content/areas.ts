@@ -109,8 +109,16 @@ export const notes: Record<string, Note> = {
   },
   "backend/runner/works": {
     purpose:
-      "Each open terminal's work against its repository's main branch for the Changes panel: a snapshot of its checkout merged in memory into main, the lines changed per file and the part unread since the person's last look, conflicts with main and with other terminals' works, kept current while a client watches.",
+      "Each open terminal's work against its repository's main branch for the Changes panel: a snapshot of its checkout merged in memory into main, the lines changed per file and the part unread since the person's last look, conflicts with main and with other terminals' works, kept current while a client watches; and the files of a change the person read, kept across restarts.",
     entries: [{ file: `${runner}/works/works.ts`, text: "export class Works" }],
+  },
+  "backend/runner/checkouts": {
+    purpose:
+      "Git asked about a checkout, shared by the Changes panel and the changes item: the git run itself, the main branch and merges in memory, a listing that counts both alike, and the one snapshot service that takes a checkout's working tree as a tree through a private index and object folder.",
+    entries: [
+      { file: `${runner}/checkouts/snapshots.ts`, text: "export class Snapshots" },
+      { file: `${runner}/checkouts/git.ts`, text: "export const git = " },
+    ],
   },
   "backend/runner/messaging": {
     purpose:

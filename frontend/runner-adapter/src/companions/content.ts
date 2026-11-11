@@ -109,7 +109,13 @@ export const troubleOf = (trouble: PageTrouble): RunnerTrouble => {
 export const createRunnerCompanions = (
   runner: Pick<
     Runner["companions"],
-    "content" | "changeFile" | "changeRange" | "openInProject" | "save" | "pageTrouble"
+    | "content"
+    | "changeFile"
+    | "changeRange"
+    | "changeRead"
+    | "openInProject"
+    | "save"
+    | "pageTrouble"
   >,
   {
     livePages = false,
@@ -153,6 +159,7 @@ export const createRunnerCompanions = (
   },
   changeFile: (_target, itemId, path, layers) => runner.changeFile({ itemId, path, layers }),
   changeRange: (_target, itemId, layers) => runner.changeRange({ itemId, layers }),
+  changeRead: (_target, itemId, path) => runner.changeRead({ itemId, path }),
   save: async (_target, itemId, text, basedOn) => {
     // One the runner can't take in one message is never sent: past a WebSocket's limit, the
     // socket would close the whole link.

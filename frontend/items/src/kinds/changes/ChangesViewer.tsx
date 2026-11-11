@@ -1,5 +1,5 @@
 import { type ChangesContent, type Item } from "@novadeck/core/items"
-import { useMemo, type KeyboardEvent } from "react"
+import { useCallback, useMemo, type KeyboardEvent } from "react"
 
 import { ArtifactMeta, type ArtifactBodyProps } from "../../ArtifactViewer"
 import { FileTree } from "./FileTree"
@@ -13,7 +13,8 @@ import { useChangesView } from "./view-state"
 
 // An agent's change, measured against main: its layers (the uncommitted work and each commit
 // since the merge base) to pick from, the files they changed as a tree, and one file at a time
-// opened into its changes. Read-only. What was picked and opened is kept by item.
+// opened into its changes. Read-only. What was picked and opened is kept by item; the files read
+// are the backend's, kept until each changes again.
 
 const noun = (count: number): string => `${count} ${count === 1 ? "file" : "files"}`
 
@@ -36,6 +37,11 @@ export const ChangesViewer = ({
   actions,
 }: ArtifactBodyProps<"changes">): React.JSX.Element => {
   const [view, update] = useChangesView(itemStore, item.id)
+  // What the files' diffs and ranges are read at: the content's stamp, kept where only the files
+  // read changed, so marking one read does not read the open file's diff again.
+  const shape = useMemo(() => JSON.stringify({ ...content, read: [] }), [content])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- The stamp of the shape's first sight.
+  const diffStamp = useMemo(() => stamp, [shape])
   const ids = useMemo(() => idsOf(content.layers), [content.layers])
   const selected = useMemo(() => selectedOf(ids, view.picked), [ids, view.picked])
   const layers = useMemo(() => ids.filter((id) => selected.has(id)), [ids, selected])
@@ -43,7 +49,7 @@ export const ChangesViewer = ({
   // them are a range git lists when asked; until it answers, or where the backend can't, and
   // for one layer, the layers' files added up.
   const whole = layers.length === ids.length
-  const ranged = useRange(itemStore, target, item.id, stamp, whole ? [] : layers)
+  const ranged = useRange(itemStore, target, item.id, diffStamp, whole ? [] : layers)
   const files = useMemo(
     () =>
       whole
@@ -61,7 +67,35 @@ export const ChangesViewer = ({
   )
   const all = useMemo(() => sums(content), [content])
 
-  const { host, head, list, phase, opened, open, back, step } = useDrillDown(order, view, update)
+  // A file opened is read: grayed at once, until the content comes again with the backend's word.
+  const markRead = useCallback(
+    (path: string) => {
+      update((now) => ({
+        ...now,
+        read: {
+          ...Object.fromEntries(Object.entries(now.read).filter(([, at]) => at === stamp)),
+          [path]: stamp,
+        },
+      }))
+      itemStore.changeRead(target, item.id, path)
+    },
+    [item.id, itemStore, stamp, target, update],
+  )
+  const read = useMemo(
+    () =>
+      new Set([
+        ...content.read,
+        ...Object.entries(view.read).flatMap(([path, at]) => (at === stamp ? [path] : [])),
+      ]),
+    [content.read, stamp, view.read],
+  )
+
+  const { host, head, list, phase, opened, open, back, step } = useDrillDown(
+    order,
+    view,
+    update,
+    markRead,
+  )
   const unfolded = order.some((file) => file.path === view.unfolded) ? view.unfolded : null
 
   const keys = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -141,7 +175,7 @@ export const ChangesViewer = ({
                   ) : (
                     <FileTree
                       rows={rows}
-                      read={view.read}
+                      read={read}
                       unfolded={unfolded}
                       folded={view.folded}
                       onUnfold={(path) =>
@@ -159,7 +193,7 @@ export const ChangesViewer = ({
                       itemStore={itemStore}
                       target={target}
                       itemId={item.id}
-                      stamp={stamp}
+                      stamp={diffStamp}
                       layers={layers}
                     />
                   )}
@@ -191,7 +225,7 @@ export const ChangesViewer = ({
             itemStore={itemStore}
             target={target}
             itemId={item.id}
-            stamp={stamp}
+            stamp={diffStamp}
             layers={layers}
             headRef={head}
             onBack={back}

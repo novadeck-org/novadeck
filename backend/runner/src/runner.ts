@@ -8,7 +8,9 @@ import { userScopes } from "@novadeck/terminal/pty"
 import { createSessions, type Sessions } from "@novadeck/wire/server"
 import { ORPCError } from "@orpc/server"
 
+import { Snapshots } from "./checkouts/snapshots.js"
 import { CompanionItems } from "./companions/items.js"
+import { secrets } from "./companions/secrets.js"
 import { DomainError } from "./errors.js"
 import { createHarnesses, type HarnessesOptions } from "./harnesses/service.js"
 import { logs } from "./log.js"
@@ -175,6 +177,16 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
         err: error,
       }),
     )
+  // What Works remembers of works (first sights, last looks, files read), beside the database,
+  // as voice and murmur keep theirs; kept only for a runner that keeps a database.
+  const memory =
+    options.database === undefined ? undefined : join(dirname(options.database), "works.json")
+  // The checkouts' working trees as trees, for the Changes panel and the changes items alike;
+  // the object folders live beside the memory, which names trees in them.
+  const snapshots = new Snapshots({
+    held: () => secrets(agents.environment()),
+    ...(memory !== undefined && { home: join(dirname(memory), "works-objects") }),
+  })
   // What agents show and the person attaches beside terminals, kept in the store; it
   // asks the terminals where each one is.
   const items = new CompanionItems({
@@ -192,6 +204,12 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     livePlan: (item) => terminals.livePlan(item),
     // Where the person's tools keep their logins, as their login shell says.
     environment: () => agents.environment(),
+    snapshots,
+    // The files of a change the person read, kept with the works.
+    reads: {
+      marks: (root) => works.marks(root),
+      mark: (root, path, blob) => works.markRead(root, path, blob),
+    },
   })
   const voice = new Voice(store.settings, {
     ...(options.softwareGraphics !== undefined && { softwareGraphics: options.softwareGraphics }),
@@ -286,10 +304,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       if (!shown.ok) throw new DomainError("NOT_FOUND", shown.reason)
       return shown.id
     },
-    // Beside the database, as voice and murmur keep theirs; kept only for a runner that keeps a database.
-    ...(options.database !== undefined && {
-      memory: join(dirname(options.database), "works.json"),
-    }),
+    snapshots,
+    ...(memory !== undefined && { memory }),
   })
   const uploads = new Uploads(options.uploads)
   void uploads.sweepOld()
@@ -301,6 +317,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     items,
     projects,
     works,
+    snapshots,
     uploads,
     voice,
     murmur,
@@ -365,8 +382,19 @@ const logFailure = (path: readonly string[], error: unknown): void => {
 }
 
 const startRunner = (options: RunnerOptions): Runner => {
-  const { store, terminals, items, agents, projects, works, uploads, voice, murmur, sealer } =
-    wire(options)
+  const {
+    store,
+    terminals,
+    items,
+    agents,
+    projects,
+    works,
+    snapshots,
+    uploads,
+    voice,
+    murmur,
+    sealer,
+  } = wire(options)
   let closing: Promise<void> | undefined
   return {
     sessions: createSessions({
@@ -409,6 +437,8 @@ const startRunner = (options: RunnerOptions): Runner => {
           await terminals.shutdown()
         } finally {
           await works.close()
+          // After both that take snapshots: the items ended with the terminals.
+          await snapshots.close()
           // Downloads and the engine use no records, but end before the store they ask;
           // the store closes even if they fail to.
           try {

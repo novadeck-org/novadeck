@@ -77,6 +77,7 @@ const change = (rest: Partial<ChangesContent> = {}): ChangesContent => {
     root: "/repo",
     base: "main",
     truncated: false,
+    read: [],
     layers,
     // The whole change's files: here the layers' own, each file once.
     files: filesOf(layers, new Set(layers.map((each) => each.id))),
@@ -119,6 +120,8 @@ const show = (
 ) => {
   const asked: { path: string; layers: readonly string[] }[] = []
   const ranges: (readonly string[])[] = []
+  // The files the pane told the backend were read.
+  const marked: string[] = []
   // What a read waits for, where a test holds it.
   const gate: { wait: Promise<void> | undefined } = { wait: undefined }
   let emit: (content: ChangesContent, stamp: string) => void = () => {}
@@ -130,6 +133,9 @@ const show = (
     },
     save: () => new Promise(() => {}),
     trouble: () => {},
+    changeRead: async (_target, _id, path) => {
+      marked.push(path)
+    },
     ...(range !== null && {
       changeRange: async (_target, _id, picked) => {
         ranges.push(picked)
@@ -215,6 +221,7 @@ const show = (
     open,
     settle,
     ranges,
+    marked,
     gate,
     emit: (next: ChangesContent, stamp: string) =>
       act(async () => {
@@ -468,16 +475,30 @@ describe("a change beside a terminal", () => {
       ])
     })
 
-    it("reads the file: it is gray in the files after going back", async () => {
-      const { container, open, press, row, settle } = show(change())
+    it("reads the file: the backend keeps it, and it is gray in the files after going back", async () => {
+      const { container, open, press, row, settle, marked } = show(change())
 
       await settle()
       await open("src/auth/cookies.ts")
       await press("Escape")
 
+      expect(marked).toEqual(["src/auth/cookies.ts"])
       expect(container.querySelector(".changes-file-view")).toBeNull()
       expect(row("src/auth/cookies.ts").dataset.read).toBe("true")
       expect(row("src/auth/session.ts").dataset.read).toBeUndefined()
+    })
+
+    it("does not read the open file's diff again when only the files read changed", async () => {
+      const shown = show(change())
+      await shown.settle()
+      await shown.open("src/auth/cookies.ts")
+      await shown.settle()
+      const asked = shown.asked.length
+
+      await shown.emit({ ...change(), read: ["src/auth/cookies.ts"] }, "2")
+      await shown.settle()
+
+      expect(shown.asked).toHaveLength(asked)
     })
 
     it("steps to the next and previous file within the selection with J and K", async () => {
@@ -714,7 +735,7 @@ describe("a change beside a terminal", () => {
   })
 
   context("when a new commit comes in", () => {
-    it("leaves a file read that the commit did not touch", async () => {
+    it("shows as read what the backend says is, a file the commit did not touch", async () => {
       const shown = show(change())
       await shown.settle()
       await shown.open("src/auth/session.ts")
@@ -731,6 +752,7 @@ describe("a change beside a terminal", () => {
             layer("c3c3c3c3c3", "Touch the cookie again", [file("src/auth/cookies.ts")]),
             ...next.layers.slice(1),
           ],
+          read: ["src/auth/session.ts"],
         },
         "2",
       )
@@ -738,6 +760,20 @@ describe("a change beside a terminal", () => {
 
       expect(shown.row("src/auth/session.ts").dataset.read).toBe("true")
       expect(shown.row("src/auth/cookies.ts").dataset.read).toBeUndefined()
+    })
+
+    it("grays a file opened only until the content comes again without it", async () => {
+      const shown = show(change())
+      await shown.settle()
+      await shown.open("src/auth/session.ts")
+      await shown.press("Escape")
+      await shown.settle()
+
+      // The backend kept no word of it (or the file changed since).
+      await shown.emit(change(), "2")
+      await shown.settle()
+
+      expect(shown.row("src/auth/session.ts").dataset.read).toBeUndefined()
     })
 
     it("does not take the keys from where the person put them", async () => {
