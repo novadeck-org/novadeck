@@ -445,7 +445,8 @@ export class ClosedTerminals {
     }
   }
 
-  private all(): ListedClosed[] {
+  /** Every row History keeps, of every project, without transcripts. */
+  all(): ListedClosed[] {
     const { records } = this.host
     return records ? this.host.projects().flatMap((project) => [...records.closed(project)]) : []
   }

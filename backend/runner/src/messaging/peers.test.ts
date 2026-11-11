@@ -7,6 +7,7 @@ import {
   lasted,
   listed,
   peerOf,
+  pullRequestIn,
   type Peer,
   renderAgents,
   renderPeer,
@@ -51,6 +52,7 @@ const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   waitsOn: null,
   startup: null,
   happenings: [],
+  standing: false,
   shell: { running: false, command: null },
   ...overrides,
 })
@@ -96,7 +98,8 @@ describe("an agent's terminal as agents read it", () => {
             kind: "update",
             at: now - minutes(2),
             subject: "PR opened",
-            body: "https://github.com/o/r/pull/12 is up",
+            body: null,
+            pr: "https://github.com/o/r/pull/12",
           },
         ],
       }),
@@ -154,18 +157,24 @@ describe("an agent's terminal as agents read it", () => {
 
   it("says what it waits on the person for, a permission by its tool alone", () => {
     const waits = (waiting: Waiting) => read(listing({ where: whereabouts({ waiting }) }))[0]
-    expect(waits({ kind: "permission", tool: "Bash", subject: "rm -rf build", more: 0 })).toBe(
-      "- @fox: Claude Code, waiting on the user: permission to use Bash, peer",
-    )
-    expect(waits({ kind: "question", tool: "AskUserQuestion", subject: null, more: 2 })).toBe(
-      "- @fox: Claude Code, waiting on the user: a question (and 2 more), peer",
-    )
-    expect(waits({ kind: "plan", tool: "ExitPlanMode", subject: "plan.md", more: 0 })).toBe(
-      "- @fox: Claude Code, waiting on the user: approval of its plan: plan.md, peer",
-    )
+    expect(
+      waits({ kind: "permission", tool: "Bash", subject: "rm -rf build", more: 0, since: null }),
+    ).toBe("- @fox: Claude Code, waiting on the user: permission to use Bash, peer")
+    expect(
+      waits({ kind: "question", tool: "AskUserQuestion", subject: null, more: 2, since: null }),
+    ).toBe("- @fox: Claude Code, waiting on the user: a question (and 2 more), peer")
+    expect(
+      waits({ kind: "plan", tool: "ExitPlanMode", subject: "plan.md", more: 0, since: null }),
+    ).toBe("- @fox: Claude Code, waiting on the user: approval of its plan: plan.md, peer")
     // A long subject is cut short.
     expect(
-      waits({ kind: "question", tool: "AskUserQuestion", subject: "x".repeat(300), more: 0 }),
+      waits({
+        kind: "question",
+        tool: "AskUserQuestion",
+        subject: "x".repeat(300),
+        more: 0,
+        since: null,
+      }),
     ).toHaveLength("- @fox: Claude Code, waiting on the user: a question: , peer".length + 80)
   })
 
@@ -360,8 +369,9 @@ describe("what agents and a refused send say", () => {
 })
 
 describe("the pull request an agent reported", () => {
+  // A report as the log hands it on: its link found when it was written, its body unread.
   const update = (subject: string, body = "", at = 1) =>
-    ({ kind: "update", at, subject, body }) as const
+    ({ kind: "update", at, subject, body: null, pr: pullRequestIn(`${subject}\n${body}`) }) as const
 
   it("is the latest link to one in its tell or done", () => {
     expect(
@@ -371,7 +381,8 @@ describe("the pull request an agent reported", () => {
           kind: "done",
           at: 2,
           subject: "Merged",
-          body: "see https://gitlab.com/g/p/-/merge_requests/9.",
+          body: null,
+          pr: pullRequestIn("Merged\nsee https://gitlab.com/g/p/-/merge_requests/9."),
         },
       ]),
     ).toBe("https://gitlab.com/g/p/-/merge_requests/9")
@@ -461,7 +472,7 @@ describe("a peer whose agent waits to be woken", () => {
     expect(waits(waiting, { busy: true })).toBe("- @fox: Claude Code, busy, peer")
     const asking = whereabouts({
       waitsOn: waitsOnNote(waiting, now),
-      waiting: { kind: "question", tool: "AskUserQuestion", subject: null, more: 0 },
+      waiting: { kind: "question", tool: "AskUserQuestion", subject: null, more: 0, since: null },
     })
     expect(read(listing({ where: asking }))[0]).toContain("waiting on the user: a question")
   })
@@ -481,5 +492,150 @@ describe("the done that stands", () => {
   it("is none without a done", () => {
     expect(standingDone({ tell: null, done: null }, undefined, null)).toBeNull()
     expect(standingDone(undefined, undefined, null)).toBeNull()
+  })
+})
+
+describe("what an agent reported, as agents lists it", () => {
+  const done = (at: number, subject: string) =>
+    ({ kind: "done", at, subject, body: null, pr: null }) as const
+  const turn = (at: number, outcome: "completed" | "failed", text: string | null = null) =>
+    ({ kind: "turn", at, from: null, outcome, text }) as const
+  const lines = (peer: Peer) => read(peer).slice(1)
+  const reporter = (
+    happenings: Whereabouts["happenings"],
+    over: Partial<Whereabouts> = {},
+    fields: Partial<PeerInput> = {},
+  ) => listing({ where: whereabouts({ happenings, ...over }), ...fields })
+
+  it("says nothing before a done", () => {
+    expect(lines(reporter([]))).toEqual([])
+    expect(lines(reporter([{ kind: "asked", at: 1, subject: "Which?" }]))).toEqual([])
+  })
+
+  it("lists one done, marked while it still stands", () => {
+    const happenings = [done(now - minutes(20), "Flakes fixed, #837 merged")]
+    expect(lines(reporter(happenings, { standing: true }))).toEqual([
+      '  done: 20 min ago "Flakes fixed, #837 merged" (still current)',
+    ])
+    expect(lines(reporter(happenings))).toEqual(['  done: 20 min ago "Flakes fixed, #837 merged"'])
+  })
+
+  it("lists the latest three, newest first, and counts the earlier ones", () => {
+    const happenings = [
+      done(now - minutes(600), "Oldest"),
+      done(now - minutes(400), "Older"),
+      done(now - minutes(180), "Retry wrapper for E2E tests"),
+      done(now - minutes(60), "Middle"),
+      done(now - minutes(20), "Flakes fixed, #837 merged"),
+    ]
+    expect(lines(reporter(happenings, { standing: true }))).toEqual([
+      '  done: 20 min ago "Flakes fixed, #837 merged" (still current) · 1 h ago "Middle" · 3 h ago "Retry wrapper for E2E tests" · and 2 earlier',
+    ])
+    expect(lines(reporter(happenings.slice(2)))).toEqual([
+      '  done: 20 min ago "Flakes fixed, #837 merged" · 1 h ago "Middle" · 3 h ago "Retry wrapper for E2E tests"',
+    ])
+  })
+
+  it("cuts a long subject to one line, and shows no body or update", () => {
+    const happenings = [
+      {
+        kind: "update",
+        at: now - minutes(30),
+        subject: "Half way",
+        body: "secret body",
+        pr: null,
+      },
+      { ...done(now - minutes(5), `Fixed\nit ${"x".repeat(200)}`), body: "the whole report" },
+    ] as const
+    const [line] = lines(reporter(happenings))
+    expect(line).not.toContain("\n")
+    expect(line).not.toContain("the whole report")
+    expect(line).not.toContain("Half way")
+    expect(line!.length).toBeLessThan('  done: 5 min ago ""'.length + 101)
+  })
+
+  it("belongs to an agent, never a plain shell", () => {
+    expect(lines(reporter([done(now, "Fixed")], {}, { agent: null }))).toEqual([])
+  })
+
+  it("flags a last turn that failed, with when and why, while the agent is not at work", () => {
+    const failed = [
+      turn(now - minutes(30), "completed"),
+      turn(now - minutes(12), "failed", "API Error: 529\noverloaded"),
+    ]
+    expect(lines(reporter(failed))).toEqual([
+      "  last turn failed 12 min ago: API Error: 529 overloaded",
+    ])
+    expect(lines(reporter([turn(now - minutes(12), "failed")]))).toEqual([
+      "  last turn failed 12 min ago",
+    ])
+    // A later turn that ended well, or one under way, has no failure to flag.
+    expect(lines(reporter([...failed, turn(now - minutes(2), "completed")]))).toEqual([])
+    expect(lines(reporter(failed, {}, { busy: true }))).toEqual([])
+    expect(lines(reporter(failed, {}, { asleep: true }))).toEqual([
+      "  last turn failed 12 min ago: API Error: 529 overloaded",
+    ])
+    expect(lines(reporter(failed, {}, { agent: null }))).toEqual([])
+  })
+
+  it("cuts a long error", () => {
+    const [line] = lines(reporter([turn(now - minutes(1), "failed", "e".repeat(500))]))
+    expect(line).toBe(`  last turn failed 1 min ago: ${"e".repeat(119)}…`)
+  })
+
+  it("puts the done line before the failure, after the summary", () => {
+    const peer = reporter(
+      [done(now - minutes(40), "Shipped"), turn(now - minutes(3), "failed", "boom")],
+      { summary: "Docs" },
+    )
+    expect(lines(peer)).toEqual([
+      '  "Docs"',
+      '  done: 40 min ago "Shipped"',
+      "  last turn failed 3 min ago: boom",
+    ])
+  })
+})
+
+describe("how long a peer has waited on the user or slept", () => {
+  const waiting = (since: number | null, more = 0): Waiting => ({
+    kind: "permission",
+    tool: "Bash",
+    subject: null,
+    more,
+    since,
+  })
+
+  it("says how long it has waited on the user", () => {
+    const head = (since: number | null, more = 0) =>
+      read(listing({ where: whereabouts({ waiting: waiting(since, more) }) }))[0]
+    expect(head(now - minutes(12))).toBe(
+      "- @fox: Claude Code, waiting on the user for 12 min: permission to use Bash, peer",
+    )
+    expect(head(now - minutes(150), 2)).toBe(
+      "- @fox: Claude Code, waiting on the user for 2 h: permission to use Bash (and 2 more), peer",
+    )
+    expect(head(null)).toBe(
+      "- @fox: Claude Code, waiting on the user: permission to use Bash, peer",
+    )
+  })
+
+  it("says how long ago a sleeper's last turn ended, where that is known", () => {
+    const asleep = (since: number | null) =>
+      read(listing({ asleep: true, where: whereabouts({ since }) }))[0]
+    expect(asleep(now - minutes(180))).toBe(
+      "- @fox: Claude Code, asleep (last turn ended 3 h ago), no process running; a message wakes it, peer",
+    )
+    expect(asleep(null)).toBe(
+      "- @fox: Claude Code, asleep, no process running; a message wakes it, peer",
+    )
+  })
+
+  it("keeps a sleeper's since in its peer, and still hides what it waits on", () => {
+    const peer = listing({
+      asleep: true,
+      where: whereabouts({ since: now - 5, waiting: waiting(now - 5) }),
+    })
+    expect(peer.since).toBe(now - 5)
+    expect(peer.waiting).toBeNull()
   })
 })

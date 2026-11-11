@@ -71,6 +71,7 @@ import type { TerminalOptions } from "./options.js"
 import { TerminalPeers } from "./peers-host.js"
 import type { Record } from "./record.js"
 import { createTranscriptRedactor } from "./redaction.js"
+import { reportKeeps } from "./report-keeps.js"
 import { showRestored } from "./restored.js"
 import {
   cancelResume,
@@ -510,6 +511,7 @@ export class Terminals {
         exists: (id) =>
           !this.closedIds.has(id) &&
           (this.records.has(id) || this.saves.identity(id) !== undefined),
+        keeps: (rows) => reportKeeps(rows, this.records, this.saves, this.history, this.closedIds),
       },
       options.inbox,
     )
@@ -661,7 +663,7 @@ export class Terminals {
         ...this.sleepers.sleepersOf(sessionId),
       ],
       projectFolder: (sessionId) => this.projectFolder(sessionId),
-      happenings: (id) => this.inbox.happenings(id, savedSession(this.records.get(id))),
+      happenings: (id, full) => this.inbox.happenings(id, savedSession(this.records.get(id)), full),
       stopping: () => this.stopping,
     })
     this.murmur = options.describer

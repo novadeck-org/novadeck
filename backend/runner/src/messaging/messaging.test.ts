@@ -2013,6 +2013,7 @@ const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   waitsOn: null,
   startup: null,
   happenings: [],
+  standing: false,
   shell: { running: false, command: null },
   ...overrides,
 })

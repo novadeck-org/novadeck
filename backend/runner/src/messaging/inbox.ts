@@ -9,10 +9,6 @@ import {
   isAgentName,
   maxAskOptions,
   maxCommandLines,
-  maxTurnError,
-  maxTurnFilePath,
-  maxTurnFiles,
-  replyPreviewLength,
   unsafeInLine,
   type AgentAsk,
   type AgentName,
@@ -26,7 +22,7 @@ import { z } from "zod"
 import { DomainError } from "../errors.js"
 import type { RootChange } from "../harnesses/roots.js"
 import { logs } from "../log.js"
-import { cut, firstFew, shorten } from "../text.js"
+import { firstFew, shorten } from "../text.js"
 import {
   allowSend,
   byteLength,
@@ -37,8 +33,15 @@ import {
   undelivered,
   type Message,
 } from "./messages.js"
-import type { Happening, Report, Reports } from "./peers.js"
-import { TurnLog } from "./turn-log.js"
+import type { Happening, Reports } from "./peers.js"
+import {
+  clampedTurn,
+  reportOf,
+  ReportLog,
+  type LoggedReport,
+  type LogWrite,
+  type TurnContent,
+} from "./report-log.js"
 
 const log = logs.for("inbox")
 
@@ -59,30 +62,59 @@ export type StoredEntry = InboxEntry & {
 }
 export type InboxRecords = {
   entries(): readonly StoredEntry[]
-  saveEntry(entry: StoredEntry): void
+  /** Saves the entry, and the log row it makes, if given, in one transaction. */
+  saveEntry(entry: StoredEntry, report?: LogWrite): void
   /** Saves the entries in one transaction. */
   saveEntries(entries: readonly StoredEntry[]): void
   answerEntry(entry: StoredEntry, message: Message): void
-  removeEntries(ids: readonly string[]): void
+  /** Removes the entries, and the log rows `reportIds` names, in one transaction. */
+  removeEntries(ids: readonly string[], reportIds?: readonly string[]): void
+  /** Every row of the report log but its bodies. */
+  reports(): readonly LoggedReport[]
+  /** Saves log rows in one transaction; a row's body stays as it was where `body` is null. */
+  saveReports(writes: readonly LogWrite[]): void
+  removeReports(ids: readonly string[]): void
+  /** The bodies of the rows with these ids that have one. */
+  reportBodies(ids: readonly string[]): ReadonlyMap<string, string>
 }
 export const memoryInbox = (): InboxRecords => {
   const entries = new Map<string, StoredEntry>()
+  const reports = new Map<string, LogWrite>()
+  const report = ({ row, body }: LogWrite) =>
+    void reports.set(row.id, { row, body: body ?? reports.get(row.id)?.body ?? null })
   return {
     entries: () => [...entries.values()],
-    saveEntry: (entry) => void entries.set(entry.id, entry),
+    saveEntry: (entry, write) => {
+      entries.set(entry.id, entry)
+      if (write) report(write)
+    },
     saveEntries: (all) => {
       for (const entry of all) entries.set(entry.id, entry)
     },
     answerEntry: (entry) => void entries.set(entry.id, entry),
-    removeEntries: (ids) => {
+    removeEntries: (ids, reportIds = []) => {
       for (const id of ids) entries.delete(id)
+      for (const id of reportIds) reports.delete(id)
     },
+    reports: () => [...reports.values()].map(({ row }) => row),
+    saveReports: (writes) => {
+      for (const write of writes) report(write)
+    },
+    removeReports: (ids) => {
+      for (const id of ids) reports.delete(id)
+    },
+    reportBodies: (ids) =>
+      new Map(
+        ids.flatMap((id) => {
+          const body = reports.get(id)?.body
+          return body === null || body === undefined ? [] : [[id, body] as const]
+        }),
+      ),
   }
 }
 
 export type TurnOwner = Omit<InboxEntry, "id" | "at" | "content">
 type Owner = TurnOwner
-type TurnContent = Extract<InboxEntry["content"], { kind: "turn" }>
 /** What a turn entry holds of its end. */
 export type TurnFields = Omit<TurnContent, "kind">
 type Host = {
@@ -97,6 +129,13 @@ type Host = {
   ): void
   changed(terminalId: string): void
   exists(terminalId: string): boolean
+  /**
+   * Which of the log's `rows` are still wanted (see `Inbox.sweepLog`), judged once per
+   * call: those of a session a terminal or History holds, and a terminal's latest few
+   * others. Undefined where that can't be told (a read failed, the runner is stopping): the
+   * sweep is skipped. Without it, a row lives while the terminal that made it exists.
+   */
+  keeps?(rows: readonly LoggedReport[]): ((row: LoggedReport) => boolean) | undefined
   replyState(askId: string): Message | undefined
   forgetReplies(ids: readonly string[]): void
 }
@@ -245,6 +284,8 @@ const maxUnreadTells = 50
 export const maxUnreadTurns = 50
 export const maxResolvedEntries = 100
 export const askSweepMs = 60_000
+/** How often the report log is checked for rows nothing holds any more. */
+const logSweepEveryMs = 60 * 60_000
 /**
  * How long after a runner starts an open ask waits for its terminal's session to come back
  * before it ends: a restored terminal resumes its agent and binds the session again within
@@ -253,32 +294,6 @@ export const askSweepMs = 60_000
 const askResumeGraceMs = 120_000
 
 const isTurn = (entry: StoredEntry): boolean => entry.content.kind === "turn"
-const clipped = (value: unknown, max: number): string | null =>
-  typeof value === "string" && value.length > 0 ? cut(value, max) : null
-
-/**
- * A stored turn entry as today's rules read it: its text cut to the limits, its files
- * capped, unknown keys dropped and an unknown outcome taken as failed, so a limit that
- * tightens later costs an entry nothing. Undefined where it still won't parse.
- */
-const clampedTurn = (content: unknown): TurnContent | undefined => {
-  if (typeof content !== "object" || content === null) return undefined
-  const raw = content as { [key: string]: unknown }
-  const files = Array.isArray(raw["files"])
-    ? raw["files"].flatMap((file: unknown) => {
-        const path = clipped(file, maxTurnFilePath)
-        return path ? [path] : []
-      })
-    : []
-  const parsed = inboxEntry.shape.content.safeParse({
-    kind: "turn",
-    outcome: raw["outcome"] === "completed" ? "completed" : "failed",
-    reply: clipped(raw["reply"], replyPreviewLength),
-    error: clipped(raw["error"], maxTurnError),
-    files: files.slice(0, maxTurnFiles),
-  })
-  return parsed.success && parsed.data.kind === "turn" ? parsed.data : undefined
-}
 
 const noticedSubjects = 5
 
@@ -341,8 +356,14 @@ export class Inbox {
   private readonly guesses = new Map<string, number>()
   private readonly sweeper: ReturnType<typeof setInterval> | undefined
   private readonly entries = new Map<string, StoredEntry>()
-  /** Each terminal's latest finished turns, which the person's read of their rows leaves. */
-  private readonly turnLog = new TurnLog()
+  /**
+   * What the agent sessions reported and how their turns ended, which the person's reading
+   * of the Inbox's rows and the day's passing leave: see `ReportLog`.
+   */
+  private readonly log: ReportLog
+  /** When the log was last swept for rows nothing holds any more. */
+  private sweptAt = -Infinity
+  private sweepQueued = false
   private readonly readers = new Set<Latest<InboxEntry[]>>()
   /** Since when each terminal with open asks has had no agent bound (from the runner's start). */
   private readonly unbound = new Map<string, number>()
@@ -356,6 +377,7 @@ export class Inbox {
     }
   >()
   private readonly resumeGraceMs: number
+  private readonly logSweepMs: number
   private closed = false
   constructor(
     private readonly host: Host,
@@ -364,16 +386,26 @@ export class Inbox {
     {
       sweepMs = askSweepMs,
       resumeGraceMs = askResumeGraceMs,
-    }: { readonly sweepMs?: number; readonly resumeGraceMs?: number } = {},
+      logSweepMs = logSweepEveryMs,
+    }: {
+      readonly sweepMs?: number
+      readonly resumeGraceMs?: number
+      readonly logSweepMs?: number
+    } = {},
   ) {
     this.resumeGraceMs = resumeGraceMs
+    this.logSweepMs = logSweepMs
     // An entry stored before the wire's rules tightened would fail every listing it is in,
     // so one the wire refuses now is dropped, not kept.
     const stale: string[] = []
     let stored: readonly StoredEntry[] = []
+    let logged: readonly LoggedReport[] = []
     this.save(() => {
       stored = records.entries()
+      logged = records.reports()
     })
+    // A newer build's harness is out of the log as it is out of the Inbox, and stays stored.
+    this.log = new ReportLog(logged.filter((row) => isAgentName(row.agent)))
     for (const entry of stored) {
       // A newer build's harness this one doesn't know: its entries stay in the records for
       // that build, and out of this one's Inbox, whose listing would fail on them.
@@ -393,6 +425,7 @@ export class Inbox {
       this.sweeper = setInterval(() => {
         try {
           this.prune()
+          if (this.now() - this.sweptAt >= this.logSweepMs) this.sweepLog()
         } catch (error) {
           log.error("inbox.prune-failed", "Novadeck could not prune its Inbox history", {
             err: error,
@@ -504,7 +537,7 @@ export class Inbox {
         )
       const entry: StoredEntry = { id: randomUUID(), ...owner, at, content, state: "open" }
       // The first save of a new ask is not best effort: the agent is told if it can't be kept.
-      this.put(entry, false)
+      this.put(entry, false, reportOf(entry))
       this.sent.set(terminalId, times)
       this.maintain(terminalId)
       return { ok: true, id: entry.id }
@@ -702,8 +735,14 @@ export class Inbox {
       content: { kind: "turn", ...fields },
       state: "open",
     }
-    this.save(() => this.records.saveEntry(entry))
-    this.keep(entry, from)
+    // The log holds one row for an end, though the entry it was made with may be read and
+    // gone: the new one takes its place, keeping the start where this one doesn't know it.
+    const old = this.log.turnAt(owner.terminalId, at)
+    const made = reportOf(entry, from ?? old?.from ?? null)
+    const write = { ...made, row: { ...made.row, id: old?.id ?? made.row.id } }
+    this.save(() => this.records.saveEntry(entry, write))
+    this.keep(entry)
+    this.logged(write.row)
     const unread = [...(this.byTerminal.get(owner.terminalId)?.values() ?? [])]
       .filter(isTurn)
       .toSorted((a, b) => a.at - b.at)
@@ -719,28 +758,48 @@ export class Inbox {
   }
 
   /**
-   * Changes the stored turn that ended at `at` to `fields`, or removes it for null (the end
-   * turned out otherwise). Where none is stored, as after it was read, only what `team`
-   * keeps of it changes.
+   * Changes the turn that ended at `at` to `fields`, or removes it for null (the end turned
+   * out otherwise): its entry, if still stored, and its row in the log, which the person's
+   * reading of the entry leaves.
    */
   amendTurn(terminalId: string, at: number, fields: TurnFields | null): void {
     if (this.closed) return
     const entry = this.turnAt(terminalId, at)
-    if (!fields) this.turnLog.drop(terminalId, at)
-    else if (!entry) this.turnLog.amend(terminalId, at, fields)
-    if (!entry) return
+    const row = this.log.turnAt(terminalId, at)
     if (!fields) {
-      this.save(() => this.records.removeEntries([entry.id]))
-      this.forgetTurns([entry])
-      this.publish()
+      if (!entry && !row) return
+      this.save(() => this.records.removeEntries(entry ? [entry.id] : [], row ? [row.id] : []))
+      if (row) this.log.remove([row.id])
+      if (entry) {
+        this.forgetTurns([entry])
+        this.publish()
+      }
       return
     }
     const content = { kind: "turn" as const, ...fields }
-    if (JSON.stringify(content) === JSON.stringify(entry.content)) return
-    const next = { ...entry, content }
-    this.save(() => this.records.saveEntry(next))
-    this.keep(next)
-    this.publish()
+    const next = entry && { ...entry, content }
+    const amended = row && {
+      ...row,
+      outcome: fields.outcome,
+      text: fields.outcome === "failed" ? fields.error : fields.reply,
+    }
+    const changed = {
+      entry: next !== undefined && JSON.stringify(content) !== JSON.stringify(entry?.content),
+      row: amended !== undefined && JSON.stringify(amended) !== JSON.stringify(row),
+    }
+    if (next && changed.entry)
+      this.save(() =>
+        changed.row && amended
+          ? this.records.saveEntry(next, { row: amended, body: null })
+          : this.records.saveEntry(next),
+      )
+    else if (amended && changed.row)
+      this.save(() => this.records.saveReports([{ row: amended, body: null }]))
+    if (amended && changed.row) this.log.put(amended)
+    if (next && changed.entry) {
+      this.keep(next)
+      this.publish()
+    }
   }
 
   /**
@@ -802,67 +861,36 @@ export class Inbox {
 
   /**
    * The latest `tell` and the latest `done` of the agent session now bound in the terminal,
-   * read or not, while Inbox keeps them, as other agents read them; none of a session before
-   * it, and none once closed. With no session bound (as after a runner restart, until its
-   * agent binds one), those of `saved`, the session the terminal last worked with.
+   * as the report log keeps them, whether or not the Inbox still does; none of a session
+   * before it, and none once closed. With no session bound (as after a runner restart, until
+   * its agent binds one), those of `saved`, the session the terminal last worked with. They
+   * are the session's, wherever it made them: a terminal restored from History, or a
+   * session resumed in another, reads the reports it made before.
    */
   reports(terminalId: string, saved?: { agent: AgentName; sessionId: string }): Reports {
-    const owner = this.closed ? undefined : this.host.owner(terminalId)
-    const sought = this.closed || owner ? undefined : saved
-    let tell: Report | null = null
-    let done: Report | null = null
-    for (const entry of owner || sought ? (this.byTerminal.get(terminalId)?.values() ?? []) : []) {
-      const { content } = entry
-      if (content.kind !== "tell" && content.kind !== "done") continue
-      if (
-        sought
-          ? entry.agent !== sought.agent || entry.sessionId !== sought.sessionId
-          : !same(entry, owner)
-      )
-        continue
-      const report = { subject: content.subject, at: entry.at }
-      if (content.kind === "tell" && (!tell || tell.at < report.at)) tell = report
-      if (content.kind === "done" && (!done || done.at < report.at)) done = report
-    }
-    return { tell, done }
+    const session = this.sessionOf(terminalId, saved)
+    return session ? this.log.reports(session.agent, session.sessionId) : { tell: null, done: null }
   }
 
   /**
    * What the agent session now bound in the terminal (else `saved`, as `reports` reads it)
-   * told the person and how its turns ended, oldest first, as a lead's `team` reads it: its
-   * `tell` and `done` reports and its asks, whatever became of them, while Inbox keeps them,
-   * and its latest finished turns, which the person's read of their rows leaves.
+   * told the person and how its turns ended, oldest first, as `agents` and a lead's `team`
+   * read it, from the report log: its `tell` and `done` reports and its asks, whatever
+   * became of them, and its latest finished turns, which the person's read of their rows
+   * leaves. A report's body is read from the store only with `bodies`, which `team` quotes.
    */
-  happenings(terminalId: string, saved?: { agent: AgentName; sessionId: string }): Happening[] {
-    const owner = this.closed ? undefined : this.host.owner(terminalId)
-    const session = owner ?? (this.closed ? undefined : saved)
+  happenings(
+    terminalId: string,
+    saved?: { agent: AgentName; sessionId: string },
+    bodies = false,
+  ): Happening[] {
+    const session = this.sessionOf(terminalId, saved)
     if (!session) return []
-    const told = [...(this.byTerminal.get(terminalId)?.values() ?? [])].flatMap(
-      (entry): Happening[] => {
-        if (entry.agent !== session.agent || entry.sessionId !== session.sessionId) return []
-        const { content } = entry
-        if (content.kind === "tell" || content.kind === "done")
-          return [
-            {
-              kind: content.kind === "tell" ? "update" : "done",
-              at: entry.at,
-              subject: content.subject,
-              body: content.body,
-            },
-          ]
-        if (content.kind === "ask")
-          return [{ kind: "asked", at: entry.at, subject: content.ask.subject }]
-        return []
-      },
+    return this.log.happenings(
+      session.agent,
+      session.sessionId,
+      bodies ? (id) => this.readBodies([id]).get(id) ?? "" : undefined,
     )
-    const turns = this.turnLog.of(terminalId, session).map((turn): Happening => ({
-      kind: "turn",
-      at: turn.at,
-      from: turn.from,
-      outcome: turn.outcome,
-      text: turn.outcome === "failed" ? turn.error : turn.reply,
-    }))
-    return [...told, ...turns].toSorted((a, b) => a.at - b.at)
   }
 
   /** Whether the terminal has an ask open, waiting for the person's answer. */
@@ -901,6 +929,7 @@ export class Inbox {
         )
         // An ask dismissed under the guessed session stays quietly withdrawable by the
         // corrected one.
+        const moved = new Set<string>()
         for (const entry of this.byTerminal.get(terminalId)?.values() ?? [])
           if (
             entry.state === "withdrawn" &&
@@ -908,8 +937,10 @@ export class Inbox {
             entry.content.kind === "ask" &&
             entry.agent === change.root.agent &&
             entry.sessionId === change.from
-          )
+          ) {
             this.put({ ...entry, sessionId: change.root.sessionId })
+            moved.add(entry.id)
+          }
         // A dismissal noticed under the guessed session is the corrected one's to be told.
         const queued = this.dismissals.get(terminalId)
         if (queued && queued.agent === change.root.agent && queued.sessionId === change.from)
@@ -919,12 +950,14 @@ export class Inbox {
           .filter((entry) => entry.sessionId === change.from)
           .toSorted((a, b) => a.at - b.at)
         const remaining = Math.max(0, maxOpenAsks - existing)
-        for (const [index, entry] of tentative.entries())
+        for (const [index, entry] of tentative.entries()) {
           this.put(
             index < remaining
               ? { ...entry, sessionId: change.root.sessionId }
               : { ...entry, state: "gone" },
           )
+          if (index < remaining) moved.add(entry.id)
+        }
         // The reports made while the guess stood were the corrected session's, as other
         // agents read them; those the guessed session made before were its own.
         for (const entry of this.byTerminal.get(terminalId)?.values() ?? [])
@@ -936,6 +969,21 @@ export class Inbox {
             entry.at >= guessedAt
           )
             this.put({ ...entry, sessionId: change.root.sessionId })
+        // The log follows, row by row: the asks moved above, and the asks, reports and
+        // turns made while the guess stood, whether or not the Inbox still holds them or
+        // the ask was answered, withdrawn or gone since.
+        const rows = this.log.rekey(
+          (row) =>
+            row.terminalId === terminalId &&
+            row.agent === change.root.agent &&
+            row.sessionId === change.from &&
+            (moved.has(row.id) || (guessedAt !== undefined && row.at >= guessedAt)),
+          change.root.sessionId,
+        )
+        if (rows.length > 0) {
+          this.save(() => this.records.saveReports(rows.map((row) => ({ row, body: null }))))
+          this.trim({ agent: change.root.agent, sessionId: change.root.sessionId })
+        }
       }
     }
     if (this.guesses.has(terminalId)) {
@@ -967,6 +1015,10 @@ export class Inbox {
       const turns = [...(this.byTerminal.get(terminalId)?.values() ?? [])].filter(isTurn)
       if (turns.length > 0) this.save(() => this.records.removeEntries(turns.map(({ id }) => id)))
       this.forgetTurns(turns)
+      // Its reports stay in the log only where History keeps the terminal (or a session of
+      // it is held), and go at its close otherwise: judged once the close is over, as it
+      // is still going on here.
+      this.sweepSoon()
     }
     for (const entry of this.byTerminal.get(terminalId)?.values() ?? []) {
       if (entry.content.kind === "turn") continue
@@ -1056,7 +1108,8 @@ export class Inbox {
       if (!owner || owner.projectId === projectId || terminals.has(id)) this.guesses.delete(id)
     }
     for (const id of terminals) this.dismissals.delete(id)
-    this.turnLog.retain(() => true, projectId)
+    const reports = this.log.forgetProject(projectId)
+    if (reports.length > 0) this.save(() => this.records.removeReports(reports))
     this.remove(gone)
   }
 
@@ -1069,17 +1122,9 @@ export class Inbox {
       : [...this.byTerminal]
     this.abandon(groups, at)
     const exists = this.existence()
-    for (const [id, entries] of groups) {
-      // The latest done of a terminal that still exists outlives its retention, whatever
-      // session is bound (none is, at boot): it stands, read or not, until the agent has
-      // more to do (`reports`), so one per terminal is kept, until the terminal is closed.
-      const standing = exists(id)
-        ? [...entries.values()]
-            .filter((entry) => entry.content.kind === "done")
-            .toSorted((a, b) => b.at - a.at)[0]
-        : undefined
+    for (const [, entries] of groups) {
       const resolved = [...entries.values()]
-        .filter((entry) => entry.state !== "open" && entry !== standing)
+        .filter((entry) => entry.state !== "open")
         .map((entry) => {
           const reply = this.host.replyState(entry.id)
           return {
@@ -1111,7 +1156,6 @@ export class Inbox {
           gone.push(entry)
     }
     this.remove(gone)
-    if (!terminalId) this.turnLog.retain(exists)
     for (const [id, times] of this.sent) {
       const recent = recentSends(times, at)
       if (recent.length) this.sent.set(id, recent)
@@ -1146,6 +1190,54 @@ export class Inbox {
     clearInterval(this.sweeper)
     for (const reader of this.readers) reader.finish()
     this.readers.clear()
+  }
+  /**
+   * Lets go of the log rows nothing holds any more, as `host.keeps` judges them: those of a
+   * terminal still open (running or asleep), or whose closed row History keeps for its 30
+   * days, or of a session either holds, as a restore resumes one. Run as a terminal closes,
+   * and now and then, as History's own rows pass. A row never goes for age alone; a session
+   * keeps its latest few (see `ReportLog.excess`). A removed agent's rows stay, as its
+   * Inbox entries do (`forgetAgent` leaves both), until nothing holds the session.
+   */
+  sweepLog(): void {
+    if (this.closed) return
+    this.sweptAt = this.now()
+    try {
+      const exists = this.existence()
+      const keeps = this.host.keeps
+        ? this.host.keeps(this.log.all())
+        : (row: LoggedReport) => exists(row.terminalId)
+      // What can't be told is no reason to delete: the next sweep looks again.
+      if (!keeps) return
+      const gone = this.log.retain(keeps)
+      if (gone.length > 0) this.save(() => this.records.removeReports(gone))
+    } catch (error) {
+      log.error("inbox.sweep-failed", "Novadeck could not sweep its report log", { err: error })
+    }
+  }
+  /** Sweeps once after the work in hand, however many closes ask for it before then. */
+  private sweepSoon(): void {
+    if (this.sweepQueued) return
+    this.sweepQueued = true
+    queueMicrotask(() => {
+      this.sweepQueued = false
+      this.sweepLog()
+    })
+  }
+  private sessionOf(
+    terminalId: string,
+    saved?: { agent: AgentName; sessionId: string },
+  ): { agent: AgentName; sessionId: string } | undefined {
+    if (this.closed) return undefined
+    return this.host.owner(terminalId) ?? saved
+  }
+  private readBodies(ids: readonly string[]): ReadonlyMap<string, string> {
+    try {
+      return this.records.reportBodies(ids)
+    } catch (error) {
+      log.error("inbox.read-failed", "Novadeck could not read its report bodies", { err: error })
+      return new Map()
+    }
   }
   /**
    * Ends the open asks of a terminal that has had no agent bound for the grace period after
@@ -1187,19 +1279,7 @@ export class Inbox {
       log.error("inbox.prune-failed", "Novadeck could not prune its Inbox history", { err: error })
     }
   }
-  private keep(entry: StoredEntry, from: number | null = null): void {
-    const { content } = entry
-    if (content.kind === "turn")
-      this.turnLog.record(entry.terminalId, {
-        projectId: entry.projectId,
-        agent: entry.agent,
-        sessionId: entry.sessionId,
-        at: entry.at,
-        from,
-        outcome: content.outcome,
-        reply: content.reply,
-        error: content.error,
-      })
+  private keep(entry: StoredEntry): void {
     this.entries.set(entry.id, entry)
     const terminal = this.byTerminal.get(entry.terminalId) ?? new Map<string, StoredEntry>()
     terminal.set(entry.id, entry)
@@ -1207,15 +1287,28 @@ export class Inbox {
     if (entry.state === "open") this.open.set(entry.id, entry)
     else this.open.delete(entry.id)
   }
-  private put(entry: StoredEntry, guarded = true): void {
+  /** Saves the entry, with `report` if it makes a new log row, and keeps them. */
+  private put(entry: StoredEntry, guarded = true, report?: LogWrite): void {
     const saved =
       entry.state !== "open" && this.entries.get(entry.id)?.state === "open"
         ? { ...entry, settledAt: this.now() }
         : entry
-    if (guarded) this.save(() => this.records.saveEntry(saved))
-    else this.records.saveEntry(saved)
+    if (guarded) this.save(() => this.records.saveEntry(saved, report))
+    else this.records.saveEntry(saved, report)
     this.keep(saved)
+    if (report) this.logged(report.row)
     this.changed(saved.terminalId)
+  }
+  /** Keeps a saved log row in memory, and lets its session's oldest go past what it keeps. */
+  private logged(row: LoggedReport): void {
+    this.log.put(row)
+    this.trim(row)
+  }
+  private trim({ agent, sessionId }: Pick<LoggedReport, "agent" | "sessionId">): void {
+    const excess = this.log.excess(agent, sessionId)
+    if (excess.length === 0) return
+    this.log.remove(excess)
+    this.save(() => this.records.removeReports(excess))
   }
   private remove(entries: readonly StoredEntry[]): void {
     if (!entries.length) return

@@ -655,6 +655,18 @@ export class Saves {
     return kept
   }
 
+  /**
+   * Every terminal kept, as `terminals` lists them, but undefined where that can't be told:
+   * the read failed, or the runner is stopping.
+   */
+  known(): readonly ListedTerminal[] | undefined {
+    let kept: readonly ListedTerminal[] | undefined
+    const done = this.persisting(() => {
+      kept = this.options.records?.terminals() ?? []
+    })
+    return done ? kept : undefined
+  }
+
   /** The handle the records give a session's next terminal, in its order; undefined when they can't. */
   giveHandle(sessionId: string, order: readonly string[]): string | undefined {
     let handle: string | undefined

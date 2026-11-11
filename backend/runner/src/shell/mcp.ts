@@ -963,11 +963,14 @@ const agents: Tool<Listing> = {
     "mean and message it. First the teams there, each once (who leads whom, you as " +
     '"you"), then each terminal: its handle and title, its agent (Claude Code, Codex or ' +
     "Antigravity) and whether that is busy or idle and for how long, waiting on the user " +
-    "(and what for), idle but waiting on its own job or a wake-up it set, which wakes it " +
-    "by itself (a message still reaches it), or asleep (a message wakes it); how it " +
-    "relates to you (your lead, your teammate, led by you, or a peer); the summary its own " +
-    "agent gave of its work; and the git repository and branch it works in, with commits " +
-    "ahead of its upstream, uncommitted changes, and the pull request it reported. A plain " +
+    "(for how long, and what for), idle but waiting on its own job or a wake-up it set, " +
+    "which wakes it by itself (a message still reaches it), or asleep (since when; a " +
+    "message wakes it); how it relates to you (your lead, your teammate, led by you, or a " +
+    "peer); the summary its own agent gave of its work; the git repository and branch it " +
+    "works in, with commits ahead of its upstream, uncommitted changes, and the pull " +
+    "request it reported; the subjects of its latest done reports, the latest marked while " +
+    "it still stands (finished, not at work again), so you can tell what it already did; " +
+    "and, when its last turn failed, when and why. A plain " +
     "shell shows the program it runs. It also lists your own messages not yet delivered. " +
     "To follow your own team's work, call team instead. A terminal whose agent is waiting " +
     "on the user can't go on until they answer, so tell them rather than telling it to " +

@@ -288,7 +288,8 @@ is the agent whose session last bound the terminal, until the shell has shown it
 for a second (`processPollMs`), as a sample would tell elsewhere.
 
 `reported` is the agent's `done` report that still stands, `{ subject, at }`, or null: the
-latest `done` of the session bound in the terminal, read or not, unless the person's
+latest `done` of the session bound in the terminal, read or not (from the report log, so
+not ended by the Inbox's day), unless the person's
 prompt or a message delivered to the agent came after it. It follows the Inbox and those
 inputs as they change, so a client's done mark needs no Inbox row, and looking at the
 terminal never ends it. After a runner restart it is the resumed session's until a binding
@@ -361,8 +362,9 @@ already answered asks with `CONFLICT`, invalid answers with `ANSWER_FAILED`, and
 full message queue with `RESOURCE_LIMIT`. Resolving the ask and storing its answer are atomic;
 answers arrive later through ordinary message delivery. `read` affects tells and done reports only and takes
 at most 1,000 ids per call. A done report, like a tell, outlives its agent and turns into
-Messages history once read; the latest done of each terminal that still exists is kept
-past the usual day, as the report that still stands (`TerminalSummary.reported`). `watch` resubscribes with a fresh listing on reconnect.
+Messages history once read, and goes with the usual day. The report that still stands
+(`TerminalSummary.reported`) is read from the report log, which keeps an agent session's
+latest reports for as long as its terminal is open or History keeps it. `watch` resubscribes with a fresh listing on reconnect.
 
 The MCP `feedback` tool drafts feedback about Novadeck for the app's feedback card. Drafts
 are no Inbox entries: the runner holds them in memory only, one per terminal (a new call

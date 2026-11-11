@@ -8,6 +8,7 @@ import { DomainError } from "../errors.js"
 import type { Activity } from "../harnesses/activity.js"
 import type { Messaging } from "../messaging/messaging.js"
 import {
+  standingDone,
   waitsOnNote,
   type Git,
   type Happening,
@@ -75,8 +76,11 @@ export type PeersOptions = {
   readonly running: (sessionId: string) => readonly PeerRecord[]
   /** The folder of the project a session belongs to, when one is known. */
   readonly projectFolder: (sessionId: string) => string | undefined
-  /** What the agent session bound in a terminal told the person, and how its turns ended. */
-  readonly happenings: (terminalId: string) => readonly Happening[]
+  /**
+   * What the agent session bound in a terminal told the person, and how its turns ended,
+   * from the report log; with `bodies`, what its reports said at length too.
+   */
+  readonly happenings: (terminalId: string, bodies: boolean) => readonly Happening[]
   /** Whether the runner is stopping. */
   readonly stopping: () => boolean
 }
@@ -98,6 +102,7 @@ export const waitingOf = (activity: Pick<Activity, "pending"> | null): Waiting |
         tool: oldest.toolName,
         subject: shareable(oldest.kind, oldest.subject),
         more: rest.length,
+        since: oldest.askedAt,
       }
     : null
 }
@@ -165,7 +170,7 @@ export class TerminalPeers {
   async team(call: Call): Promise<AgentsAnswer> {
     const caller = this.options.caller(call.terminalId, call.token)
     if (!caller) return unansweredCalls.team
-    const about = await this.whereabouts(caller.summary.sessionId)
+    const about = await this.whereabouts(caller.summary.sessionId, true)
     return this.options.messaging.team(call.terminalId, (id) => about.get(id), call.request)
   }
 
@@ -220,8 +225,11 @@ export class TerminalPeers {
    * its title and its agent's summary; the git checkout its agent works in now, with its
    * branch, commits ahead and uncommitted changes; when its agent's turn last started or
    * ended; what it waits on; what its agent session told the person; and what its shell runs.
+   * A report's body is read only with `bodies`, as `team` quotes it.
    */
-  private async whereabouts(sessionId: string): Promise<Map<string, Whereabouts>> {
+  private async whereabouts(sessionId: string, bodies = false): Promise<Map<string, Whereabouts>> {
+    // Read once, and only where a `done` needs it.
+    let delivered: ReadonlyMap<string, number> | undefined
     const entries = await Promise.all(
       this.options
         .running(sessionId)
@@ -230,16 +238,28 @@ export class TerminalPeers {
           const { cwd, activity } = terminal.summary
           // Where its agent works now, when that is another checkout than its terminal's.
           const now = terminal.activity ? await this.current(terminal.work, cwd) : null
+          const happenings = this.options.happenings(terminal.summary.id, bodies)
+          const done = happenings.findLast((each) => each.kind === "done")
           const where: Whereabouts = {
             title: terminal.summary.title,
             summary: terminal.naming.summary,
             git: await this.git(now ?? cwd),
             working: activity?.state === "working" || terminal.summary.shellCommand != null,
-            since: activity?.lastTurn?.at ?? terminal.activity?.turnAt ?? null,
+            // A sleeper has no process to tell: its summary keeps when its last turn ended.
+            since:
+              activity?.lastTurn?.at ?? terminal.activity?.turnAt ?? terminal.summary.lastTurnAt,
             waiting: waitingOf(terminal.activity),
             waitsOn: activity?.waiting ? waitsOnNote(activity.waiting, Date.now()) : null,
             startup: terminal.summary.startup?.screen ?? null,
-            happenings: this.options.happenings(terminal.summary.id),
+            happenings,
+            standing:
+              done !== undefined &&
+              standingDone(
+                { tell: null, done: { subject: "", at: done.at } },
+                terminal.work?.personAt,
+                (delivered ??= this.options.messaging.deliveredAt()).get(terminal.summary.id) ??
+                  null,
+              ) !== null,
             shell: {
               running: terminal.summary.busy,
               command: terminal.summary.busy ? shownCommand(terminal.summary.process?.argv) : null,
