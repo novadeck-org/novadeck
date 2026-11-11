@@ -33,6 +33,11 @@ describe("mentionsIn", () => {
     })
   })
 
+  it("finds a handle written in capitals, keeping the text as written", () => {
+    expect(mentionsIn("Ask @Fox", known)?.[1]).toEqual({ t: "mention", text: "@Fox", hue: 5 })
+    expect(mentionInCode("@Fox · x", known)).toEqual({ hue: 5, handle: "@Fox", rest: " · x" })
+  })
+
   context("a handle no agent answers to", () => {
     it("stays plain", () => {
       expect(mentionsIn("@nobody says hi", known)).toBeNull()
@@ -46,6 +51,7 @@ describe("mentionsIn", () => {
       ["a URL query", "https://example.com/?user=@thorn"],
       ["a longer word", "the @thornier one"],
       ["a doubled @", "@@thorn"],
+      ["a scoped package", "npm i @fox/pkg and import x from '@thorn/core'"],
     ])("leaves %s plain", (_, text) => {
       expect(mentionsIn(text, known)).toBeNull()
     })

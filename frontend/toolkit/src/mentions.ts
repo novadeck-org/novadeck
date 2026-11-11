@@ -9,10 +9,17 @@ export type MentionPart =
   | { readonly t: "mention"; readonly text: string; readonly hue: number }
 
 const handleChars = "[\\p{L}\\p{N}_-]"
-// Not part of a longer word, an address (`me@host`) or a URL (`/@user`, `?u=@user`).
-const inText = new RegExp(`(?<![\\p{L}\\p{N}_@./:+=?&#%~-])@(${handleChars}+)`, "gu")
+// Not part of a longer word, an address (`me@host`), a URL (`/@user`, `?u=@user`) or a scoped
+// package (`@fox/pkg`).
+const inText = new RegExp(
+  `(?<![\\p{L}\\p{N}_@./:+=?&#%~-])@(${handleChars}+)(?![\\p{L}\\p{N}_/-])`,
+  "gu",
+)
 // Inline code that is a handle alone, or Novadeck's "handle · title".
 const inCode = new RegExp(`^@(${handleChars}+)(?: · .*)?$`, "su")
+
+// Handles are lowercase to the runner, whatever case the text writes them in.
+const hueOfWord = (mention: Mention, word: string): number | null => mention(word.toLowerCase())
 
 // The handle's word in the text, without a dash the sentence ended on.
 const wordOf = (handle: string): string => handle.replace(/[-_]+$/, "")
@@ -23,7 +30,7 @@ export const mentionsIn = (text: string, mention: Mention): readonly MentionPart
   let at = 0
   for (const match of text.matchAll(inText)) {
     const word = wordOf(match[1]!)
-    const hue = word ? mention(word) : null
+    const hue = word ? hueOfWord(mention, word) : null
     if (hue === null) continue
     if (match.index > at) parts.push({ t: "text", text: text.slice(at, match.index) })
     parts.push({ t: "mention", text: `@${word}`, hue })
@@ -41,7 +48,7 @@ export const mentionInCode = (
 ): { readonly hue: number; readonly handle: string; readonly rest: string } | null => {
   const match = inCode.exec(text)
   if (!match) return null
-  const hue = mention(match[1]!)
+  const hue = hueOfWord(mention, match[1]!)
   if (hue === null) return null
   const handle = `@${match[1]!}`
   return { hue, handle, rest: text.slice(handle.length) }

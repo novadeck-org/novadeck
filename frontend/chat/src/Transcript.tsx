@@ -94,6 +94,7 @@ const PeerMessage = ({
   text,
   truncated,
   looks,
+  mention,
   at,
 }: {
   // As the harness names it: "@handle" for a Novadeck agent.
@@ -103,9 +104,9 @@ const PeerMessage = ({
   readonly text: string
   readonly truncated: boolean
   readonly looks: PeerLooks | undefined
+  readonly mention: Mention | undefined
 }): React.JSX.Element => {
   const look = from.startsWith("@") ? (looks?.(from.slice(1)) ?? null) : null
-  const mention = useMemo(() => mentionOf(looks), [looks])
   const words = useRef<HTMLDivElement>(null)
   const [lines, setLines] = useState(0)
   const [open, setOpen] = useState(false)
@@ -334,11 +335,16 @@ const RecordLine = ({
 }
 
 // Whether a block draws other agents, and so their looks.
-// The agent's own prose names them too.
-const drawsPeers = (block: ChatBlock): boolean =>
+const showsPeers = (block: ChatBlock): boolean =>
+  block.kind === "agent" || (block.kind === "doorbell" && fromAgents(block).length > 0)
+
+// Whether a block's words may name other agents, which the words draw in their hues: the
+// agent's prose, other agents' messages, and the person's prompts and answers.
+const namesPeers = (block: ChatBlock): boolean =>
   block.kind === "agent" ||
   block.kind === "assistant" ||
-  (block.kind === "doorbell" && fromAgents(block).length > 0)
+  block.kind === "user" ||
+  block.kind === "doorbell"
 
 const BlockView = memo(
   ({
@@ -346,6 +352,7 @@ const BlockView = memo(
     agent,
     live,
     looks,
+    mention,
     personFace,
     gone,
     worked,
@@ -362,6 +369,8 @@ const BlockView = memo(
     // The latest block of a conversation whose agent works.
     readonly live: boolean
     readonly looks: PeerLooks | undefined
+    // The hue of an agent a handle in the words names (see `mentionOf`).
+    readonly mention: Mention | undefined
     // The agent's session has ended.
     readonly gone: boolean
   }): React.JSX.Element => {
@@ -371,7 +380,7 @@ const BlockView = memo(
           <article className="chat-message" data-role="user" data-turn={block.id} aria-label="You">
             <Mark phase={phase} />
             <p className="chat-text">
-              <MentionedText text={block.text} mention={mentionOf(looks)} />
+              <MentionedText text={block.text} mention={mention} />
             </p>
             {block.truncated && <Shortened />}
             <TimeFact at={block.at} />
@@ -380,7 +389,7 @@ const BlockView = memo(
       case "assistant":
         return (
           <article className="chat-message" data-role="assistant" aria-label={agent}>
-            <Markdown text={block.text} mention={mentionOf(looks)} />
+            <Markdown text={block.text} mention={mention} />
             {block.truncated && <Shortened />}
             {worked !== null ? (
               <Fact>worked {span(worked)}</Fact>
@@ -396,6 +405,7 @@ const BlockView = memo(
             text={block.text}
             truncated={block.truncated}
             looks={looks}
+            mention={mention}
             at={block.at}
           />
         )
@@ -429,6 +439,7 @@ const BlockView = memo(
                 text={message.text}
                 truncated={false}
                 looks={looks}
+                mention={mention}
                 // With no line of its own, the ring's time is its first message's.
                 at={line === null && index === 0 ? block.at : null}
               />
@@ -448,7 +459,7 @@ const BlockView = memo(
                   <span className="chat-agent-where">from the Inbox</span>
                 </p>
                 <p className="chat-text">
-                  <MentionedText text={message.text} mention={mentionOf(looks)} />
+                  <MentionedText text={message.text} mention={mention} />
                 </p>
                 {line === null && index === 0 && fromAgents(block).length === 0 && (
                   <TimeFact at={block.at} hover />
@@ -496,7 +507,8 @@ const BlockView = memo(
     before.phase === after.phase &&
     before.personFace === after.personFace &&
     (before.gone === after.gone || after.block.kind !== "subagent") &&
-    (before.looks === after.looks || !drawsPeers(after.block)) &&
+    (before.looks === after.looks || !showsPeers(after.block)) &&
+    (before.mention === after.mention || !namesPeers(after.block)) &&
     sameBlock(before.block, after.block),
 )
 
@@ -519,11 +531,11 @@ const SentView = memo(
   ({
     bubble,
     agent,
-    looks,
+    mention,
     actions: { onResend, onEdit, onShowTerminal },
   }: {
     readonly bubble: SentBubble
-    readonly looks: PeerLooks | undefined
+    readonly mention: Mention | undefined
     readonly agent: string
     readonly actions: SentActions
   }): React.JSX.Element => {
@@ -545,7 +557,7 @@ const SentView = memo(
           </ul>
         )}
         <p className="chat-text">
-          <MentionedText text={bubble.text} mention={mentionOf(looks)} />
+          <MentionedText text={bubble.text} mention={mention} />
           {(state === "queued" || state === "sending") && (
             <>
               {" "}
@@ -618,6 +630,7 @@ export const Transcript = ({
   sent = noBubbles,
   echoes = noEchoes,
   looks,
+  mention: given,
   personFace,
   phase,
   onResend,
@@ -633,6 +646,9 @@ export const Transcript = ({
   readonly echoes?: readonly Echo[]
   // How other Novadeck agents look, where the app knows them (see `PeerLooks`).
   readonly looks?: PeerLooks | undefined
+  // Which handles in the words name an agent, and its hue; its identity should change only with
+  // that set. Without it, taken from the looks.
+  readonly mention?: Mention | undefined
   // The person's own face at their words that came through the Inbox, where the app gives one;
   // else the block mark.
   readonly personFace?: React.ReactNode
@@ -640,6 +656,8 @@ export const Transcript = ({
   readonly phase?: MarkPhase | undefined
 }): React.JSX.Element => {
   const last = blocks.at(-1)
+  const fromLooks = useMemo(() => mentionOf(looks), [looks])
+  const mention = given ?? fromLooks
   const current = useMemo(() => currentPrompt(blocks), [blocks])
   const worked = useMemo(() => turnsWorked(blocks, working), [blocks, working])
   const actions = useMemo(
@@ -658,6 +676,7 @@ export const Transcript = ({
             agent={agent}
             live={working && each.block === last}
             looks={looks}
+            mention={mention}
             personFace={personFace}
             gone={gone}
             worked={longWork(worked.get(each.block.id))}
@@ -668,7 +687,7 @@ export const Transcript = ({
             key={`sent:${each.bubble.ref}`}
             bubble={each.bubble}
             agent={agent}
-            looks={looks}
+            mention={mention}
             actions={actions}
           />
         ),

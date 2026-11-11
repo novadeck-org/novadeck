@@ -12,6 +12,7 @@ import {
 import { isAgentName, opensMenu } from "@novadeck/core/harnesses"
 import type { Store } from "@novadeck/core/store"
 import type { AgentStatus } from "@novadeck/core/types"
+import type { Mention } from "@novadeck/toolkit/mentions"
 import {
   useCallback,
   useEffect,
@@ -65,6 +66,7 @@ export const ChatView = ({
   compact,
   windowPhase,
   peerLooks,
+  peerMention,
   personFace,
   draft,
   onDraft,
@@ -103,6 +105,9 @@ export const ChatView = ({
   // How other Novadeck agents look in the transcript (their face and where they run), where the
   // app knows them; without it their messages have neither.
   readonly peerLooks?: PeerLooks | undefined
+  // Which handles in the words name an agent, and its hue. Its identity changes only with that
+  // set, so words aren't drawn again as agents start or stop work; without it, taken from the looks.
+  readonly peerMention?: Mention | undefined
   // The person's own face at their words that came through the Inbox rather than the prompt,
   // where the app gives one; without it they keep the block mark.
   readonly personFace?: React.ReactNode
@@ -222,6 +227,8 @@ export const ChatView = ({
     [items, prompts, bubbles, shells, menuAgent],
   )
 
+  const fromLooks = useMemo(() => mentionOf(peerLooks), [peerLooks])
+  const mention = peerMention ?? fromLooks
   const turns = useTurnHold(shown, compact)
   const { peek, setPeek } = turns
   const scroller = useRef<HTMLDivElement>(null)
@@ -559,6 +566,7 @@ export const ChatView = ({
                 sent={bubbles}
                 echoes={shownEchoes}
                 looks={peerLooks}
+                mention={mention}
                 personFace={personFace}
                 phase={phase}
                 {...(plain &&
@@ -609,7 +617,7 @@ export const ChatView = ({
           {holding && (
             <Hold
               text={holding.text}
-              mention={mentionOf(peerLooks)}
+              mention={mention}
               at={holding.at}
               offset={turns.held!.offset}
               phase={holding.id === currentPrompt(shown) ? phase : undefined}

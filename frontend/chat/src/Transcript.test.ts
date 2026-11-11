@@ -505,4 +505,36 @@ describe("an @handle in the words", () => {
   it("stays plain where the app knows no agents", () => {
     expect(hues(show([words("u", "user", "Ask @thorn")]))).toEqual([])
   })
+
+  it("is drawn again, in every block that shows it, as the app comes to know the agent", () => {
+    const blocks: ChatBlock[] = [
+      words("u", "user", "Ask @fox"),
+      words("a", "assistant", "Ask @fox"),
+      {
+        kind: "doorbell",
+        id: "d",
+        at: null,
+        replies: false,
+        messages: [{ id: "m", text: "@fox go", from: { kind: "person" } } as never],
+      },
+    ]
+    const view = (known: PeerLooks) =>
+      createElement(Transcript, { blocks, agent: "Claude", working: false, looks: known })
+    const { container, unmount, rerender } = render(view(() => null))
+    unmounts.push(unmount)
+    expect(hues(container)).toEqual([])
+    rerender(view(looks))
+    expect(hues(container)).toEqual([
+      ["@fox", "5"],
+      ["@fox", "5"],
+      ["@fox", "5"],
+    ])
+    rerender(view(() => null))
+    expect(hues(container)).toEqual([])
+  })
+
+  it("takes the hue of a handle in any case, keeping the text as written", () => {
+    const container = show([words("a", "assistant", "Ask @Fox")], undefined, looks)
+    expect(hues(container)).toEqual([["@Fox", "5"]])
+  })
 })
