@@ -3,6 +3,7 @@ import { basename, isAbsolute, relative } from "node:path"
 import type { AgentActivity, AgentName, CompanionItem, StartupScreen } from "@novadeck/protocol"
 import { redact } from "@novadeck/secrets"
 
+import { isLoopback } from "../config.js"
 import type { GitState } from "../terminals/git-state.js"
 import { mention } from "../terminals/handles.js"
 import { cut, shorten } from "../text.js"
@@ -474,7 +475,7 @@ export const doneLine = (peer: Peer, now: number): string | null => {
   const shown = dones.slice(-shownDones).toReversed()
   const parts = shown.map(
     (done, index) =>
-      `${ago(done.at, now)} "${flat(done.subject, doneChars)}"${index === 0 && peer.standing ? " (still current)" : ""}`,
+      `${ago(done.at, now)} "${flat(redact(done.subject), doneChars)}"${index === 0 && peer.standing ? " (still current)" : ""}`,
   )
   const earlier = dones.length - shown.length
   return `  done: ${[...parts, ...(earlier > 0 ? [`and ${earlier} earlier`] : [])].join(" · ")}`
@@ -508,7 +509,9 @@ export const toldLine = (peer: Peer, now: number): string | null => {
   )
   if (!peer.agent || tells.length === 0) return null
   const shown = tells.slice(-shownTells).toReversed()
-  const parts = shown.map((tell) => `${ago(tell.at, now)} "${flat(tell.subject, tellChars)}"`)
+  const parts = shown.map(
+    (tell) => `${ago(tell.at, now)} "${flat(redact(tell.subject), tellChars)}"`,
+  )
   const earlier = tells.length - shown.length
   return `  told: ${[...parts, ...(earlier > 0 ? [`and ${earlier} earlier`] : [])].join(" · ")}`
 }
@@ -516,9 +519,6 @@ export const toldLine = (peer: Peer, now: number): string | null => {
 /** How many bar items `agents` lists, and how long a page's address or a name shows. */
 const shownItems = 3
 const shownChars = 60
-
-/** Host names of this machine, whose pages are a dev server's and keep their path. */
-const loopback = new Set(["localhost", "127.0.0.1", "[::1]", "0.0.0.0"])
 
 /** Text without any control or format character (a newline, an escape, a bidi mark). */
 const plain = (text: string): string => text.replace(/[\p{Cc}\p{Cf}]/gu, " ")
@@ -535,25 +535,38 @@ export const shownLabel = (
 ): string => {
   const named = (): string => {
     if (item.kind === "plan" || item.kind === "changes") return item.kind
-    let path = item.path ?? item.name
     if (item.kind === "page") {
+      // Only http and https pages are ever shown (`pageAt`).
       try {
         const url = new URL(item.url ?? "")
-        // A page of a file is named as a file is, never by its absolute path.
-        if (url.protocol === "file:") path = decodeURIComponent(url.pathname)
         // Only a page this machine serves keeps its path: a dev server's routes. Elsewhere a
-        // path may carry a token no pattern knows (`/invite/<token>`), so only the site shows.
-        else return loopback.has(url.hostname) ? `${url.origin}${url.pathname}` : url.origin
+        // path may carry a token no pattern knows (`/invite/<token>`), so only the site shows,
+        // as it does where the path, read as its escapes spell it, holds what looks like one.
+        const local = isLoopback(url.hostname) || url.hostname === "0.0.0.0"
+        return local && !secretIn(url.pathname) ? `${url.origin}${url.pathname}` : url.origin
       } catch {
         return "a page"
       }
     }
+    const path = item.path ?? item.name
     const within = folder ? relative(folder, path) : ""
     return within !== "" && !within.startsWith("..") && !isAbsolute(within)
       ? within
       : basename(path)
   }
-  return flat(redact(plain(named())), shownChars)
+  // A middle dot is how a listing parts its entries, so a name can't fake one.
+  return flat(redact(plain(named())).replaceAll("·", "-"), shownChars)
+}
+
+/** Whether a page's path, as written or with its escapes read, holds what looks like a secret. */
+const secretIn = (path: string): boolean => {
+  let read = path
+  try {
+    read = decodeURIComponent(path)
+  } catch {
+    return true
+  }
+  return redact(path) !== path || redact(read) !== read
 }
 
 /**
@@ -567,11 +580,16 @@ export const showingLine = (peer: Peer, now: number): string | null => {
   const shown = open
     .toSorted((a, b) => Number(b.kind === "page") - Number(a.kind === "page") || b.at - a.at)
     .slice(0, shownItems)
-  if (!peer.agent || shown.length === 0) return null
-  const parts = shown.map(
-    ({ label, kind, at }) =>
-      `${flat(redact(plain(label)), shownChars)} (${kind}, ${span(at, now)})`,
-  )
+  if (!peer.agent || peer.shown.length === 0) return null
+  // Every item may hold secrets: none is named, but that there are some still shows.
+  if (shown.length === 0)
+    return `  showing: ${peer.shown.length} ${peer.shown.length === 1 ? "item" : "items"} not named, as they may hold secrets`
+  const parts = shown.map(({ label, kind, at }) => {
+    // Named again here as a backstop, whoever made the label.
+    const name = flat(redact(plain(label)).replaceAll("\u00b7", "-"), shownChars)
+    // A plan or changes is named by its kind, which needn't show twice.
+    return name === kind ? `${kind} (${span(at, now)})` : `${name} (${kind}, ${span(at, now)})`
+  })
   const more = peer.shown.length - shown.length
   return `  showing: ${[...parts, ...(more > 0 ? [`and ${more} more`] : [])].join(" · ")}`
 }

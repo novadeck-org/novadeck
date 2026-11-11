@@ -696,6 +696,11 @@ describe("what an agent told the person, as agents lists it", () => {
     expect(lines).toEqual(['  done: 5 min ago "Fixed"', '  told: 30 min ago "Half way"'])
   })
 
+  it("redacts a token in a tell's subject", () => {
+    const [line] = told([tell(now - minutes(5), `Shared https://x.dev/a?k=ghp_${"b".repeat(36)}`)])
+    expect(line).not.toContain("ghp_bbb")
+  })
+
   it("cuts a subject to one line and never shows a body", () => {
     const [line] = told([tell(now - minutes(5), `Opened\nthe pane ${"x".repeat(200)}`)])
     expect(line).not.toContain("\n")
@@ -755,7 +760,12 @@ describe("the items on an agent's bar, as agents lists them", () => {
     expect(showing(shown)).toEqual([
       "  showing: a.ts (file, 2 min) · b.ts (file, 3 min) · c.ts (file, 4 min) · and 2 more",
     ])
-    expect(showing([item("file", ".env", 1, true)])).toEqual([])
+    expect(showing([item("file", ".env", 1, true)])).toEqual([
+      "  showing: 1 item not named, as they may hold secrets",
+    ])
+    expect(showing([item("file", ".env", 1, true), item("file", "id_rsa", 2, true)])).toEqual([
+      "  showing: 2 items not named, as they may hold secrets",
+    ])
     expect(showing([item("file", "a.ts", 2), item("file", ".env", 1, true)])).toEqual([
       "  showing: a.ts (file, 2 min) · and 1 more",
     ])
@@ -763,7 +773,7 @@ describe("the items on an agent's bar, as agents lists them", () => {
 
   it("is shown for a busy agent, not for a sleeper or a plain shell", () => {
     const shown = [item("plan", "plan", 3)]
-    expect(showing(shown, { busy: true })).toEqual(["  showing: plan (plan, 3 min)"])
+    expect(showing(shown, { busy: true })).toEqual(["  showing: plan (3 min)"])
     expect(showing(shown, { asleep: true })).toEqual([])
     expect(showing(shown, { agent: null })).toEqual([])
   })
@@ -815,12 +825,34 @@ describe("the items on an agent's bar, as agents lists them", () => {
       expect(label("page", { url: "not a url" })).toBe("a page")
     })
 
-    it("keeps a path only for this machine's pages, and names a file page as a file", () => {
+    it("keeps a path only for this machine's pages", () => {
       expect(label("page", { url: "https://example.com/invite/Xk92jQpL7vB3nR8tZ1" })).toBe(
         "https://example.com",
       )
       expect(label("page", { url: "http://127.0.0.1:5173/app" })).toBe("http://127.0.0.1:5173/app")
-      expect(label("page", { url: "file:///home/me/secret/notes.html" })).toBe("notes.html")
+      expect(label("page", { url: "http://127.0.0.2:8080/app" })).toBe("http://127.0.0.2:8080/app")
+      expect(label("page", { url: "http://[::1]:5173/app" })).toBe("http://[::1]:5173/app")
+      expect(label("page", { url: "http://LOCALHOST:3000/x" })).toBe("http://localhost:3000/x")
+      expect(label("page", { url: "http://localhost.evil.com/x" })).toBe(
+        "http://localhost.evil.com",
+      )
+    })
+
+    it("drops a local page's path where it holds a token, escaped or not", () => {
+      const token = `ghp_${"a".repeat(36)}`
+      expect(label("page", { url: `http://localhost:5173/cb/${token}` })).toBe(
+        "http://localhost:5173",
+      )
+      expect(label("page", { url: `http://localhost:5173/cb/%67hp_${"a".repeat(36)}` })).toBe(
+        "http://localhost:5173",
+      )
+      expect(label("page", { url: "http://localhost:5173/bad%E0%A4%A" })).toBe(
+        "http://localhost:5173",
+      )
+    })
+
+    it("can't fake another entry with a middle dot", () => {
+      expect(label("file", { path: "/work/repo/a · b.ts" })).toBe("a - b.ts")
     })
 
     it("cuts a long address", () => {

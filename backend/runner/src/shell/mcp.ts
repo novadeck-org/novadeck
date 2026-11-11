@@ -975,8 +975,9 @@ const agents: Tool<Listing> = {
     "rather than start a second, and not pile a heavy run on one already running) and any " +
     "that exited with an error in the last ten minutes; the subjects of its latest tell " +
     "reports, so you can tell what it already told the user; the items open on its bar " +
-    "(its dev server's page, files, plans, changes, images; named without a page's query " +
-    "or a file's folder, never a secret one), so you can open the same page rather than " +
+    "(its dev server's page, files, plans, changes, images; a local page by its address " +
+    "without its query, another site by its host only, a file by its path in the project " +
+    "or else its name, never a secret one), so you can open the same page rather than " +
     "start a second server; " +
     "and, when its last turn failed, when and why. A plain " +
     "shell shows the program it runs. It also lists your own messages not yet delivered. " +
