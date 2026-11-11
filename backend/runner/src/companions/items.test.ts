@@ -1119,7 +1119,8 @@ describe("plans beside their terminal", () => {
     // A replay of that same observation changes nothing.
     await fixture.items.planObserved(moth, slot, plan, now)
     expect(fixture.items.bar(moth.terminalId)).toMatchObject([{ version: 2, openAsked: false }])
-    // A first-seen live plan asks to open as well.
+    // A first-seen live plan asks to open as well. It shares moth's slot, so it is seen after
+    // moth's: one no later is a replay of it, as the same millisecond on a fast runner was.
     const other = join(fixture.directory, "other.md")
     writeFileSync(other, "# Other\n")
     const fox = fixture.terminal("fox")
@@ -1127,7 +1128,7 @@ describe("plans beside their terminal", () => {
       fox,
       slot,
       { source: { kind: "file", path: other }, path: other },
-      Date.now(),
+      now + 1,
     )
     expect(fixture.items.bar(fox.terminalId)).toMatchObject([{ version: 1, openAsked: true }])
     // Its live rewrites clear the ask rather than re-opening the pane.
@@ -1135,7 +1136,7 @@ describe("plans beside their terminal", () => {
       fox,
       slot,
       { source: { kind: "file", path: other }, path: other },
-      Date.now() + 1,
+      now + 2,
     )
     expect(fixture.items.bar(fox.terminalId)).toMatchObject([{ version: 2, openAsked: false }])
   })
