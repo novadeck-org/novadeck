@@ -62,6 +62,21 @@ export const runOf = (data: unknown): Run => {
   }
 }
 
+// A merge group's branch, as GitHub names it from the queued pull request and its head:
+// `gh-readonly-queue/<base>/pr-<number>-<head sha>`. The base may itself hold slashes.
+const queueBranch = /^gh-readonly-queue\/.+\/pr-([1-9]\d*)-[0-9a-f]{40}$/
+
+/**
+ * The pull requests a run is for. A pull request's run names them; a merge group's names
+ * none, so its one is read from the group's branch, and only for a run GitHub started for a
+ * group, as any pull request's branch could carry that name.
+ */
+export const pullRequestsOf = (run: Pick<Run, "event" | "branch" | "pullRequests">) => {
+  if (run.pullRequests.length || run.event !== "merge_group") return run.pullRequests
+  const found = queueBranch.exec(run.branch)
+  return found ? [Number(found[1])] : []
+}
+
 /** The attempt an artifact's name ends in (`retried-macOS-2`), as the jobs name them. */
 export const attemptOf = (artifact: string): number => {
   const found = /-(\d+)$/.exec(artifact)
@@ -429,7 +444,8 @@ type Seen = {
   readonly test: string
   readonly package: string
   readonly error: string
-  readonly runs: readonly { readonly run: number; readonly url: string }[]
+  // A merge group's run is marked, as it ran the change on top of the queue, not alone.
+  readonly runs: readonly { readonly run: number; readonly url: string; readonly queue?: true }[]
 }
 
 const parseState = (body: string | undefined): readonly Seen[] => {
@@ -470,7 +486,7 @@ export const packagesChanged = (
 const seenRow = (each: Seen): string =>
   `| ${cell(each.test)} | ${cell(each.package)} | ${each.runs
     .slice(-5)
-    .map((run) => `[${run.run}](${run.url})`)
+    .map((run) => `[${run.run}](${run.url})${run.queue ? " (queue)" : ""}`)
     .join(" ")} | ${cell(each.error, 160)} |`
 
 /**
@@ -494,7 +510,14 @@ export const prComment = (
       error: before?.error ?? entry.error.split("\n")[0]!.slice(0, 300),
       runs: runs.some((each) => each.run === record.run)
         ? runs
-        : [...runs, { run: record.run, url: record.url }],
+        : [
+            ...runs,
+            {
+              run: record.run,
+              url: record.url,
+              ...(record.event === "merge_group" ? { queue: true as const } : {}),
+            },
+          ],
     })
   }
   if (!seen.size) return undefined
