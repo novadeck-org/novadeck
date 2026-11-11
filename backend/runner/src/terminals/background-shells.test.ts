@@ -184,3 +184,103 @@ describe("the background work of an agent's listing", () => {
     expect(background.running.map(({ name }) => name)).toEqual(["unit tests", "PR checks"])
   })
 })
+
+describe("a script's arguments and a wrapper's long options are no name", () => {
+  const leaks = [
+    ["bash ./backup.sh -c hunter2pw", "backup", "hunter2pw"],
+    ["sh deploy.sh -xc s3cr3tvalue", "deploy", "s3cr3tvalue"],
+    ["sudo --user hunter2pass pnpm test", "sudo", "hunter2pass"],
+    ["sudo --prompt s3cretpass pnpm test", "sudo", "s3cretpass"],
+    ["env --chdir /tmp node x.js", "env", "tmp"],
+    ["timeout --signal KILL 10 pnpm test", "timeout", "KILL"],
+    ["sudo -- pnpm test", "sudo", "pnpm"],
+  ] as const
+
+  for (const [command, name, secret] of leaks)
+    it(`names ${command.split(" ")[0]} safely: ${command}`, () => {
+      const shown = shellName(command, null)
+      expect(shown).toBe(name)
+      if (secret !== "pnpm") expect(shown).not.toContain(secret)
+    })
+
+  it("still looks through a shell's leading -c options and a long option with its value", () => {
+    expect(shellName(`bash -lc "pnpm dev:web"`, null)).toBe("pnpm dev:web")
+    expect(shellName(`bash -o pipefail -c 'pnpm test'`, null)).toBe("pnpm test")
+    expect(shellName("sudo --user=root pnpm test", null)).toBe("pnpm test")
+    expect(shellName("sudo -u root pnpm test", null)).toBe("pnpm test")
+  })
+})
+
+describe("a description that only repeats the command", () => {
+  it("is no name, in either direction", () => {
+    expect(shellName("pnpm deploy --token abc123", "pnpm deploy --token abc123")).toBe(
+      "pnpm deploy",
+    )
+    expect(shellName("pnpm deploy --token abc123\nmore", "pnpm deploy")).toBe("pnpm deploy")
+    expect(shellName("pnpm dev", "pnpm dev --token abc123")).toBe("pnpm dev")
+    expect(shellName("pnpm dev", "the dev server")).toBe("the dev server")
+  })
+})
+
+describe("which shell a waited job describes", () => {
+  const now = 1_000_000_000
+  const min = 60_000
+  const shell = (id: string, command: string, ago: number, exit?: [number, number | null]) => ({
+    id,
+    command,
+    since: now - ago * min,
+    exit: exit ? { at: now - exit[0] * min, code: exit[1] } : null,
+  })
+  const job = (id: string, command: string, description: string, ago = 0) => ({
+    id,
+    command,
+    description,
+    since: now - ago * min,
+    until: null,
+  })
+  const names = (activity: Parameters<typeof backgroundOf>[0]) =>
+    backgroundOf(activity, now)!.running.map(({ name }) => name)
+
+  it("is the one with its id, Antigravity's two spellings of it the same", () => {
+    const shells = [shell("c1/task-4", "pnpm dev", 10), shell("c1/task-6", "pnpm dev", 5)]
+    expect(
+      names({ shells, waiting: { jobs: [job("c1:6", "x", "docs server")], wake: null } }),
+    ).toEqual(["docs server", "pnpm dev"])
+  })
+
+  it("is, by command, only one shell: the newest running that started before the job", () => {
+    const shells = [
+      shell("a", "pnpm dev", 20),
+      shell("b", "pnpm dev", 10),
+      shell("c", "pnpm dev", 1),
+    ]
+    const waiting = { jobs: [job("zz", "pnpm dev", "the UI server", 5)], wake: null }
+    // c started after the job, so b is the one; a and c keep the program's name.
+    expect(names({ shells, waiting })).toEqual(["pnpm dev", "the UI server", "pnpm dev"])
+  })
+
+  it("never names an ended shell by command", () => {
+    const shells = [shell("a", "vitest run", 30, [3, 1])]
+    const waiting = { jobs: [job("zz", "vitest run", "unit tests", 1)], wake: null }
+    expect(backgroundOf({ shells, waiting }, now)!.ended[0]!.name).toBe("vitest run")
+  })
+})
+
+describe("a failure a newer run has followed", () => {
+  const now = 1_000_000_000
+  const min = 60_000
+  const run = (id: string, ago: number, exit: [number, number | null] | null) => ({
+    id,
+    command: "vitest run",
+    since: now - ago * min,
+    exit: exit && { at: now - exit[0] * min, code: exit[1] },
+  })
+
+  it("is dropped when the same command runs again, or ended well since", () => {
+    expect(backgroundOf({ shells: [run("a", 8, [6, 1]), run("b", 4, null)] }, now)!.ended).toEqual(
+      [],
+    )
+    expect(backgroundOf({ shells: [run("a", 8, [6, 1]), run("b", 4, [2, 0])] }, now)).toBeNull()
+    expect(backgroundOf({ shells: [run("a", 8, [6, 1])] }, now)!.ended).toHaveLength(1)
+  })
+})

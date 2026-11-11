@@ -458,14 +458,30 @@ like them, only inside Novadeck's terminals.
        more` lists the newest three running, each with how long it has run, then how many
        more; `  ended: vitest run exited 1, 3 min ago` lists the latest two that exited with a
        non-zero code in the last ten minutes (a null code, as for a shell stopped, is no
-       failure). So an agent can reuse a peer's dev server, hold back a heavy run, and notice
-       a peer's run that just failed. A command may carry a secret, so none shows: a shell
-       is named by the agent's own words where it gave them (the description of the waited
-       job with the same id or command, cut to 40 characters), else by `shownCommand` over
-       the command's first simple command (leading `VAR=value` and `cd <dir> &&` dropped, cut
-       at `|`, `&&`, `||` or `;`), else "a command", and the name goes through `redact` as
-       a backstop (`terminals/background-shells.ts`). A shell the agent also waits on shows
-       here too; the head line's "waiting on …" stays;
+       failure), unless a newer shell with the same command exists, running or ended (the
+       failure is stale then). So an agent can reuse a peer's dev server, hold back a heavy
+       run, and notice a peer's run that just failed. A command may carry a secret, so none
+       shows. A shell is named by (`terminals/background-shells.ts`):
+       - the agent's own description of a waited job (`waiting.jobs`), cut to 40 characters.
+         A job names a shell by id (Antigravity's job id `<conversation>:<step>` and shell id
+         `<conversation>/task-<step>` are the same call's result step, so they match), else
+         by command: only a running shell, the newest with that command that started no
+         later than the job, and one job names one shell at most. An ended shell is never
+         named by command. A description that only repeats the command (one starts the
+         other, as Claude Code fills it from the command's first line) is ignored;
+       - else `shownCommand` over the command's words: leading `VAR=value`, `export` and
+         `cd <dir> &&` dropped, cut at the first `|`, `&&`, `||` or `;`. A wrapper that only
+         runs another (`env`, `sudo`, `nohup`, `exec`, `command`, `time`, `nice`, `timeout`)
+         is looked through, and a `sh`, `bash`, `zsh` or `dash` `-c` string is read (two
+         levels deep), but only among the shell's leading options, so a script's own
+         arguments (`bash backup.sh -c hunter2`) are never taken for it. A wrapper's long
+         option without `=` (`sudo --user root`) may take a value and which ones do isn't
+         known, so only the wrapper's name shows;
+       - else "a command".
+
+       The name goes through `redact` as a last backstop. A shell the agent also waits on
+       shows here too; the head line's "waiting on …" stays;
+
     8. its `done` reports, one line: `  done: 20 min ago "Flakes fixed, #837 merged" (still
        current) · 3 h ago "Retry wrapper for E2E tests" · and 2 earlier`. The latest three,
        newest first, each with when and its subject cut to about 100 characters, and how

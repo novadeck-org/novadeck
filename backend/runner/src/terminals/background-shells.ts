@@ -73,6 +73,23 @@ const wrappers: { readonly [program: string]: ReadonlySet<string> } = {
 /** Shells whose `-c` (or `-lc` and the like) runs the string after it. */
 const shellPrograms = new Set(["sh", "bash", "zsh", "dash"])
 
+/** A shell's options that take a value as the next word. */
+const shellValued = new Set(["-o", "-O", "--rcfile", "--init-file"])
+
+/**
+ * The string a shell's `-c` runs: only among its leading options (`-c`, `-lc`, `-xc`), so a
+ * script's own arguments (`bash backup.sh -c hunter2`) are never taken for it. Undefined
+ * where its leading options hold no `-c` or end first.
+ */
+const shellScript = (words: readonly string[]): string | undefined => {
+  for (let at = 1; at < words.length && words[at]!.startsWith("-"); at++) {
+    const word = words[at]!
+    if (/^-[a-zA-Z]*c[a-zA-Z]*$/.test(word)) return words[at + 1]
+    if (shellValued.has(word)) at++
+  }
+  return undefined
+}
+
 /** How many wrapping shells' strings are looked into, at most. */
 const maxDepth = 2
 
@@ -102,8 +119,13 @@ export const commandWords = (command: string, depth = 0): string[] => {
     const takes = wrappers[program]
     if (takes) {
       let at = 1
-      while (at < words.length && (words[at]!.startsWith("-") || assignment.test(words[at]!)))
-        at += takes.has(words[at]!) ? 2 : 1
+      while (at < words.length && (words[at]!.startsWith("-") || assignment.test(words[at]!))) {
+        const word = words[at]!
+        // A long option may take a value as the next word (`sudo --user root`), and which
+        // ones do is not known here: name only the wrapper rather than guess.
+        if (word.startsWith("--") && !word.includes("=")) return [program]
+        at += takes.has(word) ? 2 : 1
+      }
       // `timeout` and `nice -n` take a duration or a number before the command.
       if ((program === "timeout" || program === "nice") && /^[\d.]+[smhd]?$/.test(words[at] ?? ""))
         at += 1
@@ -111,8 +133,7 @@ export const commandWords = (command: string, depth = 0): string[] => {
       continue
     }
     if (shellPrograms.has(program)) {
-      const flag = words.findIndex((word, index) => index > 0 && /^-[a-z]*c[a-z]*$/.test(word))
-      const script = flag > 0 ? words[flag + 1] : undefined
+      const script = shellScript(words)
       if (script !== undefined && depth < maxDepth) return commandWords(script, depth + 1)
     }
     return words
@@ -121,15 +142,29 @@ export const commandWords = (command: string, depth = 0): string[] => {
 
 /** What a shell is called to other agents: never its raw command, which may carry a secret. */
 export const shellName = (command: string, description: string | null | undefined): string => {
-  const own = description && shorten(description, nameChars)
+  // A description that only repeats the command (Claude Code fills it from the command's
+  // first line) is the command in other words, with whatever secret it holds.
+  const said = description?.trim()
+  const run = command.trim()
+  const repeats = said && run && (run.startsWith(said) || said.startsWith(run))
+  const own = said && !repeats ? shorten(said, nameChars) : null
   return redact(own || shownCommand(commandWords(command)) || "a command")
 }
+
+/**
+ * Whether a waited job's id and a shell's id name the same task. Antigravity names a job
+ * `<conversation>:<step>` (its hook's step) and the shell `<conversation>/task-<step>`
+ * (its transcript's step of the same call): both are the call's result step.
+ */
+const sameTask = (job: string, shell: string): boolean => taskKey(job) === taskKey(shell)
+
+const taskKey = (id: string): string => id.replace(/\/task-(\d+)$/, ":$1")
 
 /**
  * The background work an agent's listing shows, at `now`: the shells it has running, newest
  * first, with the first few named, and the ones that failed lately (a non-zero exit within
  * ten minutes, newest first). A shell the agent also waits on is named by that job's
- * description, given for the same id or the same command. Null where there is nothing to say.
+ * description, given for the same task, or else for the same command (see below). Null where there is nothing to say.
  */
 export const backgroundOf = (
   activity: Partial<Pick<AgentActivity, "shells" | "waiting">> | null | undefined,
@@ -137,18 +172,33 @@ export const backgroundOf = (
 ): Background | null => {
   const shells = activity?.shells ?? []
   const jobs = activity?.waiting?.jobs ?? []
-  const named = (shell: { id: string; command: string }) =>
-    shellName(
-      shell.command,
-      jobs.find((job) => job.id === shell.id || job.command === shell.command)?.description,
-    )
   const running = shells.filter(({ exit }) => !exit).toSorted((a, b) => b.since - a.since)
+  // Each job names at most one shell: the one with its id, else the newest running one with
+  // its command that started no later than the job did.
+  const described = new Map<(typeof shells)[number], string | null>()
+  const free = new Set(jobs)
+  for (const shell of shells) {
+    const job = jobs.find((each) => sameTask(each.id, shell.id))
+    if (job) {
+      described.set(shell, job.description)
+      free.delete(job)
+    }
+  }
+  for (const job of free) {
+    const shell = running.find(
+      (each) => !described.has(each) && each.command === job.command && each.since <= job.since,
+    )
+    if (shell) described.set(shell, job.description)
+  }
+  const named = (shell: (typeof shells)[number]) => shellName(shell.command, described.get(shell))
+  // A failure a newer shell of the same command has followed is stale.
   const ended = shells
     .flatMap((shell) =>
       shell.exit &&
       shell.exit.code !== null &&
       shell.exit.code !== 0 &&
-      shell.exit.at > now - endedWithinMs
+      shell.exit.at > now - endedWithinMs &&
+      !shells.some((each) => each.command === shell.command && each.since > shell.since)
         ? [{ shell, exit: shell.exit }]
         : [],
     )
