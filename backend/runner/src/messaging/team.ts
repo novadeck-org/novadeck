@@ -80,7 +80,7 @@ export const happened = (happenings: readonly Happening[]): Entry[] => {
     }
     if (happening.kind === "asked")
       return [{ at, text: `asked the user: ${flat(happening.subject, subjectChars)}` }]
-    const body = happening.body.trim() ? ` — ${flat(happening.body, bodyChars)}` : ""
+    const body = happening.body?.trim() ? ` — ${flat(happening.body, bodyChars)}` : ""
     return [{ at, text: `${happening.kind}: ${flat(happening.subject, subjectChars)}${body}` }]
   })
 }

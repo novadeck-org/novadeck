@@ -16,6 +16,7 @@ const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   waitsOn: null,
   startup: null,
   happenings: [],
+  standing: false,
   shell: { running: false, command: null },
   ...overrides,
 })
@@ -78,12 +79,19 @@ describe("what a member's agent session did, as team lists it", () => {
     at,
     subject: "Tests pass",
     body: "",
+    pr: null,
   })
   const turn = (
     at: number,
     text: string | null = "Should I also migrate the old rows?",
     from: number | null = null,
   ) => ({ kind: "turn", at, from, outcome: "completed", text }) as const
+
+  it("lists a report whose body was not read by its subject alone", () => {
+    expect(happened([{ kind: "done", at: 5, subject: "Shipped", body: null, pr: null }])).toEqual([
+      { at: 5, text: "done: Shipped" },
+    ])
+  })
 
   it("lists its reports, its asks, and each turn that ended without a report", () => {
     expect(
@@ -92,7 +100,7 @@ describe("what a member's agent session did, as team lists it", () => {
         turn(11),
         turn(20),
         { kind: "asked", at: 21, subject: "Which shape?" },
-        { kind: "done", at: 25, subject: "Shipped", body: "PR merged\nand released" },
+        { kind: "done", at: 25, subject: "Shipped", body: "PR merged\nand released", pr: null },
         turn(26),
         { kind: "turn", at: 30, from: null, outcome: "failed", text: "API error" },
       ]),
@@ -171,7 +179,13 @@ describe("what team says", () => {
     summary: "Splitting the listing",
     since: now - minutes(6),
     happenings: [
-      { kind: "update", at: now - minutes(12), subject: "PR opened, CI running", body: "" },
+      {
+        kind: "update",
+        at: now - minutes(12),
+        subject: "PR opened, CI running",
+        body: "",
+        pr: null,
+      },
       // The turn the update was told in, then one that ended with no report.
       { kind: "turn", at: now - minutes(10), from: null, outcome: "completed", text: "PR is up" },
       {
@@ -303,7 +317,7 @@ describe("what team says", () => {
   it("shows in full what a member waits on the person for", () => {
     const subject = `Which listing shape? ${"x".repeat(200)}`
     const waiting = member("fox", "moth", {
-      waiting: { kind: "question", tool: "AskUserQuestion", subject, more: 0 },
+      waiting: { kind: "question", tool: "AskUserQuestion", subject, more: 0, since: null },
     })
     expect(team({ peers: [waiting] }).text).toContain(
       `- @fox: Claude Code, waiting on the user: a question: ${subject}, led by you`,

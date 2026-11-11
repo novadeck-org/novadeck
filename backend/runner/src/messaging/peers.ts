@@ -28,6 +28,8 @@ export type Whereabouts = {
   readonly startup: StartupScreen | null
   /** What its agent session told the person and how its turns ended, oldest first. */
   readonly happenings: readonly Happening[]
+  /** Whether the latest `done` of its agent session still stands (see `standingDone`). */
+  readonly standing: boolean
   /** Whether a program runs in its shell besides the prompt, and that program as shown. */
   readonly shell: Shell
 }
@@ -53,16 +55,19 @@ export type Report = { readonly subject: string; readonly at: number }
 export type Reports = { readonly tell: Report | null; readonly done: Report | null }
 
 /**
- * What an agent session told the person, or how one of its turns ended, as `team` lists it:
- * a `tell` (`update`) or `done` report, an ask, or a finished turn with the start of its
- * reply (or its error, failed).
+ * What an agent session told the person, or how one of its turns ended, as the report log
+ * keeps it and `team` lists it: a `tell` (`update`) or `done` report, an ask, or a finished
+ * turn with the start of its reply (or its error, failed).
  */
 export type Happening =
   | {
       readonly kind: "update" | "done"
       readonly at: number
       readonly subject: string
-      readonly body: string
+      /** What it said at length; null where the listing doesn't quote it, so it was not read. */
+      readonly body: string | null
+      /** The pull request link it gave, found as it was written (see `pullRequestIn`). */
+      readonly pr: string | null
     }
   | { readonly kind: "asked"; readonly at: number; readonly subject: string }
   | {
@@ -83,6 +88,8 @@ export type Waiting = {
   readonly tool: string
   readonly subject: string | null
   readonly more: number
+  /** When the oldest of them was asked; null where that isn't known. */
+  readonly since: number | null
 }
 
 /** Whereabouts by terminal; undefined for one the manager can't tell of. */
@@ -112,7 +119,10 @@ export type Peer = {
   /** What its own agent said it works on, through `describe`. */
   readonly summary: string | null
   readonly state: "busy" | "idle" | "asleep" | null
-  /** Since when it is busy or idle: its latest turn's start, or its end. */
+  /**
+   * Since when it is busy or idle: its latest turn's start, or its end. When it is asleep,
+   * when its last turn ended.
+   */
   readonly since: number | null
   /** What its agent waits on the person for; its work is blocked until they answer. */
   readonly waiting: Waiting | null
@@ -130,6 +140,8 @@ export type Peer = {
   /** What runs in a terminal with no agent there or expected; null for an agent's. */
   readonly shell: Shell | null
   readonly happenings: readonly Happening[]
+  /** Whether the latest `done` in its happenings still stands (see `standingDone`). */
+  readonly standing: boolean
 }
 
 /**
@@ -174,13 +186,20 @@ export const deliveredToAll = (messages: Iterable<Message>): ReadonlyMap<string,
 /** A pull request or merge request's address, as an agent reports one. */
 const pullRequest = /\bhttps?:\/\/[^\s<>"'`()[\]]+\/(?:pull|pulls|merge_requests)\/\d+/g
 
-/** The latest pull request link an agent session gave in a `tell` or `done`; null without one. */
+/** The last pull request link in a report's text; null without one. */
+export const pullRequestIn = (text: string): string | null => {
+  const found = [...text.matchAll(pullRequest)].at(-1)
+  return found ? cut(found[0], 300) : null
+}
+
+/**
+ * The latest pull request link an agent session gave in a `tell` or `done`; null without
+ * one. The log found it when the report was made, so no body is read for it.
+ */
 export const reportedPullRequest = (happenings: readonly Happening[]): string | null => {
-  for (const happening of happenings.toReversed()) {
-    if (happening.kind !== "update" && happening.kind !== "done") continue
-    const found = [...`${happening.subject}\n${happening.body}`.matchAll(pullRequest)].at(-1)
-    if (found) return cut(found[0], 300)
-  }
+  for (const happening of happenings.toReversed())
+    if ((happening.kind === "update" || happening.kind === "done") && happening.pr)
+      return happening.pr
   return null
 }
 
@@ -212,7 +231,7 @@ export const peerOf = (input: {
     title: where?.title ?? null,
     summary: where?.summary ?? null,
     state: agent ? (input.asleep ? "asleep" : input.busy ? "busy" : "idle") : null,
-    since: agent && !input.asleep ? (where?.since ?? null) : null,
+    since: agent ? (where?.since ?? null) : null,
     waiting: agent && !input.asleep ? (where?.waiting ?? null) : null,
     waitsOn: agent && !input.busy && !input.asleep ? (where?.waitsOn ?? null) : null,
     lead: input.lead,
@@ -220,6 +239,7 @@ export const peerOf = (input: {
     pr: reportedPullRequest(happenings),
     shell: agent || expecting || untrusted ? null : (where?.shell ?? null),
     happenings,
+    standing: agent ? (where?.standing ?? false) : false,
   }
 }
 
@@ -273,7 +293,11 @@ const fullWaitingChars = 600
  * What a request waiting on the person is: its kind and subject, whole in `team`, never
  * more; a permission's subject never shows (see `waitingOf`).
  */
-const waitingNote = ({ kind, tool, subject, more }: Waiting, full: boolean): string => {
+const waitingNote = (
+  { kind, tool, subject, more, since }: Waiting,
+  now: number,
+  full: boolean,
+): string => {
   const shown = subject && flat(subject, full ? fullWaitingChars : waitingChars)
   const what =
     kind === "permission"
@@ -281,7 +305,8 @@ const waitingNote = ({ kind, tool, subject, more }: Waiting, full: boolean): str
       : kind === "question"
         ? `a question${shown ? `: ${shown}` : ""}`
         : `approval of its plan${shown ? `: ${shown}` : ""}`
-  return `waiting on the user: ${what}${more > 0 ? ` (and ${more} more)` : ""}`
+  const long = since === null ? "" : ` ${lasted(since, now)}`
+  return `waiting on the user${long}: ${what}${more > 0 ? ` (and ${more} more)` : ""}`
 }
 
 // How long past its time a wake-up still counts as coming, as the app allows it.
@@ -317,16 +342,17 @@ export const unboundNote =
 
 /**
  * What runs there and what it is doing: an agent busy or idle and since when, waiting on
- * the user and for what (whole in `team`), waiting on its own job or wake-up, or asleep;
+ * the user, for how long and for what (whole in `team`), waiting on its own job or wake-up,
+ * or asleep, with when its last turn ended;
  * an agent expected there; why no agent there takes messages; or a plain shell's program.
  */
 const statusOf = (peer: Peer, now: number, full: boolean): string => {
   if (peer.agent) {
     const doing =
       peer.state === "asleep"
-        ? "asleep, no process running; a message wakes it"
+        ? `asleep${peer.since !== null ? ` (last turn ended ${ago(peer.since, now)})` : ""}, no process running; a message wakes it`
         : peer.waiting
-          ? waitingNote(peer.waiting, full)
+          ? waitingNote(peer.waiting, now, full)
           : peer.waitsOn
             ? `waiting on ${peer.waitsOn}, will wake by itself`
             : `${peer.state}${peer.since !== null ? ` ${lasted(peer.since, now)}` : ""}`
@@ -385,9 +411,51 @@ export const detailLine = (peer: Peer): string | null => {
   return parts.length > 0 ? `  ${parts.join(" · ")}` : null
 }
 
-/** One terminal as `agents` shows it: one line for a shell, up to two for an agent. */
+/** How many of an agent's latest `done` subjects `agents` lists, and how long each shows. */
+const shownDones = 3
+const doneChars = 100
+
+/**
+ * An agent's `done` reports as `agents` lists them: the latest few, newest first, each when
+ * and its subject quoted, the latest marked while it still stands, then how many came
+ * before. Subjects only; a report at length is for `team`. Null before one.
+ */
+export const doneLine = (peer: Peer, now: number): string | null => {
+  const dones = peer.happenings.flatMap((happening) =>
+    happening.kind === "done" ? [happening] : [],
+  )
+  if (!peer.agent || dones.length === 0) return null
+  const shown = dones.slice(-shownDones).toReversed()
+  const parts = shown.map(
+    (done, index) =>
+      `${ago(done.at, now)} "${flat(done.subject, doneChars)}"${index === 0 && peer.standing ? " (still current)" : ""}`,
+  )
+  const earlier = dones.length - shown.length
+  return `  done: ${[...parts, ...(earlier > 0 ? [`and ${earlier} earlier`] : [])].join(" · ")}`
+}
+
+/** How much of a failed turn's error shows. */
+const failureChars = 120
+
+/**
+ * That an agent's last turn failed, when, and why: only while it is not at work again,
+ * since a new turn has no outcome yet. Null otherwise.
+ */
+export const failureLine = (peer: Peer, now: number): string | null => {
+  if (!peer.agent || peer.state === "busy") return null
+  const last = peer.happenings.findLast((happening) => happening.kind === "turn")
+  if (last?.kind !== "turn" || last.outcome !== "failed") return null
+  return `  last turn failed ${ago(last.at, now)}${last.text ? `: ${flat(last.text, failureChars)}` : ""}`
+}
+
+/** One terminal as `agents` shows it: one line for a shell, up to four for an agent. */
 export const renderPeer = (peer: Peer, now: number, viewer: Viewer): readonly string[] =>
-  [headLine(peer, now, viewer), detailLine(peer)].filter((line): line is string => Boolean(line))
+  [
+    headLine(peer, now, viewer),
+    detailLine(peer),
+    doneLine(peer, now),
+    failureLine(peer, now),
+  ].filter((line): line is string => Boolean(line))
 
 /** Words as a list reads them: "a", "a and b", "a, b and c". */
 export const listed = (words: readonly string[]): string =>

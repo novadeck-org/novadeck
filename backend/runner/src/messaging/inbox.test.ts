@@ -673,8 +673,9 @@ describe("done entries", () => {
     const after = booted(true)
     expect(after.reports(identity.terminalId, saved).done?.subject).toBe("Fixed it")
     after.close()
-    // A terminal closed for good keeps nothing past the day.
+    // A terminal closed for good keeps nothing past the day, once the log is swept.
     const closed = booted(false)
+    closed.sweepLog()
     expect(closed.reports(identity.terminalId, saved).done).toBeNull()
     closed.close()
   })

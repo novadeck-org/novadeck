@@ -27,6 +27,7 @@ import { logs } from "../log.js"
 import type { InboxRecords, StoredEntry } from "../messaging/inbox.js"
 import { novadeckSender, personSender, type Message, type Thread } from "../messaging/messages.js"
 import type { MessageRecords } from "../messaging/records.js"
+import { storedReport, type LoggedReport, type LogWrite } from "../messaging/report-log.js"
 import { handleOrder, nextHandle } from "../terminals/handles.js"
 import type {
   ListedTerminal,
@@ -69,7 +70,9 @@ const projectOf = ({ pinned, ...project }: ProjectRow): Project => ({
 // remembers whether anything was ever run in it (`ran`).
 // 12: a session keeps where the person put it among its project's (`rank`); `position`
 // stays the order it was created in.
-const schemaVersion = 12
+// 13: what agents reported and how their turns ended has a log of its own (`report_log`),
+// apart from the Inbox's entries, filled from them in the step from 12.
+const schemaVersion = 13
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -220,6 +223,34 @@ const schema = `
     record TEXT NOT NULL
   ) STRICT;
   CREATE INDEX inbox_entries_project ON inbox_entries(project_id);
+  -- What agents reported and asked, and how their turns ended, apart from the Inbox: the
+  -- Inbox's entries go when the person has read them and a day has passed, while this stays
+  -- as long as the agent session can be resumed. By agent session, so a terminal restored
+  -- from History reads what its session did before; the terminal is only where a row was
+  -- made, and a row outlives it, so that has no foreign key. The body is last, so listing
+  -- the others never walks its overflow pages.
+  CREATE TABLE report_log (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    terminal_id TEXT NOT NULL,
+    agent TEXT NOT NULL,
+    agent_session TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('done', 'tell', 'ask', 'turn')),
+    at REAL NOT NULL,
+    -- When a turn started; null where that isn't known.
+    from_at REAL,
+    -- A report's or ask's subject.
+    subject TEXT,
+    outcome TEXT CHECK (outcome IN ('completed', 'failed')),
+    -- The start of a completed turn's reply, or a failed one's error.
+    text TEXT,
+    -- The latest pull request link in a report.
+    pr TEXT,
+    -- What a report or ask said at length.
+    body TEXT
+  ) STRICT;
+  CREATE INDEX report_log_session ON report_log(agent, agent_session, at);
+  CREATE INDEX report_log_project ON report_log(project_id);
   -- What agents show and the person attaches beside a terminal: pointers, never copies.
   -- Each item is held by one terminal's bar or one window, and goes with it.
   CREATE TABLE companion_windows (
@@ -323,6 +354,63 @@ type Step = string | ((database: DatabaseSync, path: string) => void)
  * dropping it first deletes their rows through ON DELETE CASCADE.
  */
 const migrations: Readonly<Record<number, Step>> = {
+  // The log is filled from the Inbox's entries, by the rules the Inbox reads them with at
+  // start (`storedReport`): one it would drop, as of an agent this build doesn't know or
+  // content that no longer parses, is not logged, and one that can't be read is skipped,
+  // never a reason to set the workspace aside. Each keeps its id and its project's, which
+  // the entry's own row names. What the Inbox already let go is lost to the log too.
+  12: (database) => {
+    database.exec(`
+      CREATE TABLE report_log (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        terminal_id TEXT NOT NULL,
+        agent TEXT NOT NULL,
+        agent_session TEXT NOT NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('done', 'tell', 'ask', 'turn')),
+        at REAL NOT NULL,
+        from_at REAL,
+        subject TEXT,
+        outcome TEXT CHECK (outcome IN ('completed', 'failed')),
+        text TEXT,
+        pr TEXT,
+        body TEXT
+      ) STRICT;
+      CREATE INDEX report_log_session ON report_log(agent, agent_session, at);
+      CREATE INDEX report_log_project ON report_log(project_id);
+    `)
+    const insert = database.prepare(`
+      INSERT OR IGNORE INTO report_log (id, project_id, terminal_id, agent, agent_session, kind,
+        at, from_at, subject, outcome, text, pr, body)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    const entries = database
+      .prepare("SELECT id, project_id, record FROM inbox_entries ORDER BY at")
+      .all() as { id: string; project_id: string; record: string }[]
+    for (const entry of entries) {
+      try {
+        const found = storedReport(JSON.parse(entry.record), isAgentName)
+        if (!found) continue
+        const { row } = found
+        insert.run(
+          entry.id,
+          entry.project_id,
+          row.terminalId,
+          row.agent,
+          row.sessionId,
+          row.kind,
+          row.at,
+          row.from,
+          row.subject,
+          row.outcome,
+          row.text,
+          row.pr,
+          found.body,
+        )
+      } catch {
+        // A record that isn't JSON, or a value the table refuses: the Inbox drops it too.
+      }
+    }
+  },
   // The order the person saw until now: the session visited last first, those never
   // visited after them in the order they were created.
   11: `
@@ -970,6 +1058,21 @@ const prepareSchema = (database: DatabaseSync, path: string): void => {
     if (database.isTransaction) database.exec("ROLLBACK")
     throw error
   }
+}
+
+type ReportRow = {
+  id: string
+  project_id: string
+  terminal_id: string
+  agent: string
+  agent_session: string
+  kind: LoggedReport["kind"]
+  at: number
+  from_at: number | null
+  subject: string | null
+  outcome: LoggedReport["outcome"]
+  text: string | null
+  pr: string | null
 }
 
 type TerminalRow = {
@@ -1778,7 +1881,19 @@ export class WorkspaceStore
     })
   }
 
-  saveEntry(entry: StoredEntry): void {
+  saveEntry(entry: StoredEntry, report?: LogWrite): void {
+    if (!report) {
+      this.writeEntry(entry)
+      return
+    }
+    // The entry and its log row are saved together or not at all.
+    this.transaction(() => {
+      this.writeEntry(entry)
+      this.writeReport(report)
+    })
+  }
+
+  private writeEntry(entry: StoredEntry): void {
     void this.queries.run`INSERT INTO inbox_entries (id, project_id, terminal_id, at, record)
       VALUES (${entry.id}, ${entry.projectId}, ${entry.terminalId}, ${entry.at}, ${JSON.stringify(entry)})
       ON CONFLICT (id) DO UPDATE SET record = excluded.record`
@@ -1797,12 +1912,76 @@ export class WorkspaceStore
     })
   }
 
-  removeEntries(ids: readonly string[]): void {
+  removeEntries(ids: readonly string[], reportIds: readonly string[] = []): void {
     this.forget(() =>
       this.transaction(() => {
         for (const id of ids) void this.queries.run`DELETE FROM inbox_entries WHERE id = ${id}`
+        for (const id of reportIds) void this.queries.run`DELETE FROM report_log WHERE id = ${id}`
       }),
     )
+  }
+
+  /** Every log row but its body, of agents this build knows (a newer build's stay for it). */
+  reports(): LoggedReport[] {
+    const rows = this.queries.all`
+      SELECT id, project_id, terminal_id, agent, agent_session, kind, at, from_at, subject,
+        outcome, text, pr
+      FROM report_log ORDER BY at` as ReportRow[]
+    return rows
+      .filter((row) => isAgentName(row.agent))
+      .map((row) => ({
+        id: row.id,
+        projectId: row.project_id,
+        terminalId: row.terminal_id,
+        agent: row.agent as AgentName,
+        sessionId: row.agent_session,
+        kind: row.kind,
+        at: row.at,
+        from: row.from_at,
+        subject: row.subject,
+        outcome: row.outcome,
+        text: row.text,
+        pr: row.pr,
+      }))
+  }
+
+  /** Saves log rows in one transaction; a row's body stays as it was where `body` is null. */
+  saveReports(writes: readonly LogWrite[]): void {
+    this.transaction(() => {
+      for (const write of writes) this.writeReport(write)
+    })
+  }
+
+  private writeReport({ row, body }: LogWrite): void {
+    void this.queries.run`
+      INSERT INTO report_log (id, project_id, terminal_id, agent, agent_session, kind, at,
+        from_at, subject, outcome, text, pr, body)
+      VALUES (${row.id}, ${row.projectId}, ${row.terminalId}, ${row.agent}, ${row.sessionId},
+        ${row.kind}, ${row.at}, ${row.from}, ${row.subject}, ${row.outcome}, ${row.text},
+        ${row.pr}, ${body})
+      ON CONFLICT (id) DO UPDATE SET terminal_id = excluded.terminal_id,
+        agent_session = excluded.agent_session, at = excluded.at, from_at = excluded.from_at,
+        subject = excluded.subject, outcome = excluded.outcome, text = excluded.text,
+        pr = excluded.pr, body = coalesce(excluded.body, report_log.body)`
+  }
+
+  removeReports(ids: readonly string[]): void {
+    this.forget(() =>
+      this.transaction(() => {
+        for (const id of ids) void this.queries.run`DELETE FROM report_log WHERE id = ${id}`
+      }),
+    )
+  }
+
+  reportBodies(ids: readonly string[]): ReadonlyMap<string, string> {
+    if (ids.length === 0) return new Map()
+    const rows = this.queries.all`
+      SELECT id, body FROM report_log
+      WHERE body IS NOT NULL AND id IN (SELECT value FROM json_each(${JSON.stringify(ids)}))` as {
+      id: string
+      body: string
+    }[]
+    return new Map(rows.map(({ id, body }) => [id, body]))
   }
 
   /**

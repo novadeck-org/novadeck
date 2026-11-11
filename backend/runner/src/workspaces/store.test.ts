@@ -258,7 +258,7 @@ describe("workspace metadata", () => {
     expect(first.id).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(12)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(13)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       expect(() =>
         database
@@ -492,13 +492,13 @@ describe("workspace metadata", () => {
     const path = join(directory(), "workspace.sqlite")
     const future = new DatabaseSync(path)
     future.exec(
-      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 13",
+      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 14",
     )
     future.close()
     expect(() => new WorkspaceStore(path)).toThrow(/newer/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(13)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(14)
       expect(database.prepare("SELECT value FROM future_data").get()?.value).toBe("saved")
     } finally {
       database.close()
@@ -550,7 +550,7 @@ describe("workspace metadata", () => {
     new WorkspaceStore(path).close()
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(12)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(13)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       // Every old table is gone, and so are the old names.
       expect(Object.keys(rowsOf(database)).toSorted()).toEqual(
@@ -562,6 +562,7 @@ describe("workspace metadata", () => {
           "message_threads",
           "messages",
           "projects",
+          "report_log",
           "session_handles",
           "sessions",
           "settings",
@@ -1491,6 +1492,109 @@ describe("workspace metadata", () => {
     expect(carried).toEqual(created)
   })
 
+  it("carries a version 12 database to the very tables a new one is made with, logging the Inbox's reports the runtime would keep", async ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const record = (id: string, fields: object, content: unknown) =>
+      JSON.stringify({
+        id,
+        projectId: "p",
+        terminalId: "t",
+        workspaceSessionId: "w",
+        agent: "claude",
+        sessionId: "s1",
+        handle: "moth",
+        at: 5,
+        state: "open",
+        content,
+        ...fields,
+      })
+    const ask = {
+      kind: "ask",
+      ask: {
+        subject: "Which one?",
+        body: "A or B",
+        details: null,
+        hardToUndo: null,
+        shape: { type: "text" },
+      },
+    }
+    const tell = { kind: "tell", subject: "PR up", body: "https://github.com/o/r/pull/3" }
+    const turn = { kind: "turn", outcome: "odd", reply: null, error: "boom", files: [] }
+    const rows: [string, string, string][] = [
+      ["tell", "p", record("tell", { at: 1 }, tell)],
+      [
+        "done",
+        "p",
+        record(
+          "done",
+          { agent: "codex", at: 2 },
+          { kind: "done", subject: "Shipped", body: "All of it" },
+        ),
+      ],
+      ["ask", "p", record("ask", { at: 3 }, ask)],
+      // A turn is clamped as the Inbox reads it: an odd outcome counts as failed.
+      ["turn", "q", record("turn", { projectId: "q", at: 4 }, turn)],
+      // What the runtime would drop, or can't read: none of it is logged, none stops the step.
+      ["future", "p", record("future", { agent: "someday" }, tell)],
+      ["empty", "p", record("empty", {}, { kind: "tell", subject: "", body: "" })],
+      ["strange", "p", record("strange", {}, { kind: "feedback" })],
+      ["at", "p", record("at", { at: "soon" }, tell)],
+      ["json", "p", "not json at all"],
+      ["null", "p", "null"],
+    ]
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/12.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 12;
+      INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'P', '/p'), (2, 'q', 'Q', '/q');`)
+    const insert = old.prepare(
+      "INSERT INTO inbox_entries (id, project_id, terminal_id, at, record) VALUES (?, ?, 't', 1, ?)",
+    )
+    for (const [id, project, text] of rows) insert.run(id, project, text)
+    old.close()
+    const migrated = new WorkspaceStore(path)
+    const logged = migrated.reports()
+    expect(logged.map(({ id }) => id).toSorted()).toEqual(["ask", "done", "tell", "turn"])
+    expect(logged.find(({ id }) => id === "tell")).toMatchObject({
+      projectId: "p",
+      terminalId: "t",
+      agent: "claude",
+      sessionId: "s1",
+      kind: "tell",
+      subject: "PR up",
+      pr: "https://github.com/o/r/pull/3",
+    })
+    expect(logged.find(({ id }) => id === "done")).toMatchObject({ agent: "codex", kind: "done" })
+    expect(logged.find(({ id }) => id === "turn")).toMatchObject({
+      projectId: "q",
+      outcome: "failed",
+      text: "boom",
+      from: null,
+    })
+    expect(migrated.reportBodies(["tell", "done", "ask", "turn"])).toEqual(
+      new Map([
+        ["tell", "https://github.com/o/r/pull/3"],
+        ["done", "All of it"],
+        ["ask", "A or B"],
+      ]),
+    )
+    // The Inbox's own rows are untouched; the one that is no JSON is skipped, as it always was.
+    expect(migrated.entries()).toHaveLength(rows.length - 1)
+    migrated.close()
+    const fresh = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(fresh).close()
+    const [carried, created] = [path, fresh].map((file) => {
+      const database = new DatabaseSync(file)
+      try {
+        return normalisedSchemaOf(database)
+      } finally {
+        database.close()
+      }
+    })
+    expect(carried).toEqual(created)
+  })
+
   it("keeps its schema as recorded for its version, so a change to it comes with a step", ({
     directory,
   }) => {
@@ -1506,8 +1610,8 @@ describe("workspace metadata", () => {
       // and adds a step in store.ts's migrations, from schemas/<version before>.sql, which
       // is added for it. Then record the new digest here.
       expect({ version, digest }).toEqual({
-        version: 12,
-        digest: "0e909eb37e9d19cfc0814a304e1d7da83fe79bc3438c90ac7eae342a1745dd6f",
+        version: 13,
+        digest: "ddab66768d225ebec3d902cdef376652185b089f4d285dfd7b18a496afb4c0b4",
       })
     } finally {
       database.close()
@@ -2946,6 +3050,101 @@ describe("the Inbox's entries", () => {
     workspace.saveEntries(all)
     workspace.removeEntries([all[0]!.id, all[2]!.id])
     expect(workspace.entries().map(({ id }) => id)).toEqual([all[1]!.id])
+  })
+})
+
+describe("the report log", () => {
+  const entry = (id: string, at: number) => ({
+    id,
+    terminalId: "t",
+    projectId: "p",
+    workspaceSessionId: "w",
+    agent: "claude" as const,
+    sessionId: "s1",
+    handle: "moth",
+    at,
+    state: "open" as const,
+    content: { kind: "done" as const, subject: "Fixed", body: "At length" },
+  })
+  const write = (id: string, at: number, fields: object = {}) => ({
+    row: {
+      id,
+      projectId: "p",
+      terminalId: "t",
+      agent: "claude" as const,
+      sessionId: "s1",
+      kind: "done" as const,
+      at,
+      from: null,
+      subject: "Fixed",
+      outcome: null,
+      text: null,
+      pr: null,
+      ...fields,
+    },
+    body: "At length",
+  })
+
+  it("saves an entry and its row in one transaction, and reads the rows back without their bodies", ({
+    directory,
+    kept,
+  }) => {
+    const workspace = kept(join(directory(), "workspace.sqlite"))
+    workspace.saveEntry(entry("a", 1), write("a", 1))
+    expect(workspace.reports()).toEqual([write("a", 1).row])
+    expect(workspace.reportBodies(["a", "nope"])).toEqual(new Map([["a", "At length"]]))
+    // A row that can't be saved takes its entry with it.
+    const broken = write("b", 2, { kind: "bogus" })
+    expect(() => workspace.saveEntry(entry("b", 2), broken)).toThrow()
+    expect(workspace.entries().map(({ id }) => id)).toEqual(["a"])
+  })
+
+  it("changes a row without losing its body, and removes rows with their entries", ({
+    directory,
+    kept,
+  }) => {
+    const workspace = kept(join(directory(), "workspace.sqlite"))
+    workspace.saveEntry(entry("a", 1), write("a", 1))
+    workspace.saveEntry(entry("c", 3), write("c", 3))
+    workspace.saveReports([{ row: { ...write("a", 1).row, sessionId: "s2" }, body: null }])
+    expect(workspace.reports().find(({ id }) => id === "a")?.sessionId).toBe("s2")
+    expect(workspace.reportBodies(["a"]).get("a")).toBe("At length")
+    workspace.removeEntries(["a"], ["a"])
+    expect(workspace.entries().map(({ id }) => id)).toEqual(["c"])
+    expect(workspace.reports().map(({ id }) => id)).toEqual(["c"])
+    // The row outlives its entry, as the Inbox's reading and retention take the entry alone.
+    workspace.removeEntries(["c"])
+    expect(workspace.reports().map(({ id }) => id)).toEqual(["c"])
+    workspace.removeReports(["c"])
+    expect(workspace.reports()).toEqual([])
+  })
+
+  it("leaves a newer build's agent's rows for it, outlives its terminal, and goes with its project", ({
+    directory,
+    kept,
+  }) => {
+    const workspace = kept(join(directory(), "workspace.sqlite"))
+    workspace.saveReports([
+      write("a", 1),
+      { row: { ...write("b", 2).row, agent: "someday" as never }, body: null },
+    ])
+    expect(workspace.reports().map(({ id }) => id)).toEqual(["a"])
+    workspace.removeTerminal("t")
+    expect(workspace.reports().map(({ id }) => id)).toEqual(["a"])
+    workspace["database"].exec("INSERT INTO projects (id, name, cwd) VALUES ('doomed', 'D', '/d')")
+    workspace.saveReports([write("x", 3, { projectId: "doomed" })])
+    workspace.removeProject("doomed")
+    expect(workspace.reports().map(({ id }) => id)).toEqual(["a"])
+  })
+
+  it("forgets a removed body for good", ({ directory, kept }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const workspace = kept(path)
+    workspace.saveReports([{ ...write("a", 1), body: "needle-in-the-body" }])
+    workspace.removeReports(["a"])
+    workspace.close()
+    expect(holds(path, "needle-in-the-body")).toBe(false)
+    expect(holds(`${path}-wal`, "needle-in-the-body")).toBe(false)
   })
 })
 

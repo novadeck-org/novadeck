@@ -33,7 +33,7 @@ describe("what peers learn of a request waiting on the person", () => {
       waitingOf({
         pending: [request({ subject: "src/a.ts", toolName: "Edit" }), request({}), request({})],
       }),
-    ).toEqual({ kind: "permission", tool: "Edit", subject: null, more: 2 })
+    ).toEqual({ kind: "permission", tool: "Edit", subject: null, more: 2, since: 0 })
   })
 
   it("never shows a permission's subject, whatever it looks like", () => {
@@ -210,6 +210,80 @@ describe("what peers read of a terminal", () => {
         { activity: { pending: [], plans: [], turnAt: 7 } },
       ),
     ).toMatchObject({ since: 7 })
+  })
+})
+
+describe("what peers read of a terminal's reports and rest", () => {
+  const read = async (
+    over: { summary?: object; work?: object | null; delivered?: number; happenings?: unknown[] },
+    bodies: boolean[] = [],
+    via: "agents" | "team" = "agents",
+  ) => {
+    const record = {
+      summary: {
+        id: "t1",
+        cwd: "/nowhere",
+        sessionId: "s",
+        title: "t",
+        activity: null,
+        ...over.summary,
+      },
+      naming: { person: null, opener: null, murmur: null, own: null, summary: null },
+      work: over.work ?? null,
+      openedBy: null,
+      bound: null,
+    } as unknown as PeerRecord
+    let where: Whereabouts | undefined
+    const peers = new TerminalPeers(
+      {
+        messaging: {
+          agents: (_terminalId: string, about: (id: string) => Whereabouts) => {
+            where = about("t1")
+            return { ok: true }
+          },
+          team: (_terminalId: string, about: (id: string) => Whereabouts) => {
+            where = about("t1")
+            return { ok: true }
+          },
+          deliveredAt: () => new Map(over.delivered === undefined ? [] : [["t1", over.delivered]]),
+        } as unknown as Messaging,
+        caller: () => record,
+        terminal: () => undefined,
+        running: () => [record],
+        projectFolder: () => undefined,
+        happenings: (_id: string, withBodies: boolean) => {
+          bodies.push(withBodies)
+          return (over.happenings ?? []) as never
+        },
+        stopping: () => false,
+      },
+      new GitStates(async () => null),
+    )
+    await peers[via]({ type: via, terminalId: "t1", token: "k", request: {} })
+    return where
+  }
+  const done = { kind: "done", at: 100, subject: "Fixed", body: null, pr: null }
+
+  it("is whether its latest done still stands: no prompt of the person's or delivery came after it", async () => {
+    expect((await read({ happenings: [done] }))?.standing).toBe(true)
+    expect((await read({ happenings: [done], work: { personAt: 150 } }))?.standing).toBe(false)
+    expect((await read({ happenings: [done], delivered: 150 }))?.standing).toBe(false)
+    expect(
+      (await read({ happenings: [done], work: { personAt: 50 }, delivered: 99 }))?.standing,
+    ).toBe(true)
+    expect((await read({ happenings: [] }))?.standing).toBe(false)
+  })
+
+  it("is when a sleeper's last turn ended, which its summary keeps, as its since", async () => {
+    expect((await read({ summary: { lastTurnAt: 77 } }))?.since).toBe(77)
+    expect((await read({ summary: { lastTurnAt: null } }))?.since).toBeNull()
+  })
+
+  it("reads report bodies only for team, which quotes them", async () => {
+    const asked: boolean[] = []
+    await read({}, asked)
+    await read({}, asked, "team")
+    expect(asked).toEqual([false, true])
   })
 })
 

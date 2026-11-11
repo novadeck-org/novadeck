@@ -418,15 +418,17 @@ like them, only inside Novadeck's terminals.
   "- led by you: @owl", from the running leads only, so no entry has to repeat its
   team. Then each terminal:
 
-  - an agent's terminal, two lines:
+  - an agent's terminal, two to four lines:
     `- @fox · ti listing: Claude Code, idle for 6 min, your teammate` and
-    `  "Splitting the agents listing into session and team views" · novadeck task/ti-listing, 2 ahead, uncommitted changes, PR https://…`:
+    `  "Splitting the agents listing into session and team views" · novadeck task/ti-listing, 2 ahead, uncommitted changes, PR https://…`,
+    then, where there is something to say, its `done` reports and its last failed turn (items 7 and 8):
     1. its handle and title. A title is text the person, an agent or murmur may set, and
        says nothing of authority; the tool's description says so once, rather than each
        entry naming who set it;
     2. its agent (Claude Code, Codex or Antigravity);
-    3. its state and since when: busy, idle, asleep (no process runs; a message wakes it),
-       "waiting on the user:" and what for (a question's or plan's subject; a permission
+    3. its state and since when: busy, idle, asleep (no process runs, with when its last
+       turn ended; a message wakes it), "waiting on the user" for how long, and what for (a
+       question's or plan's subject; a permission
        shows only its tool, never its command, address or path, which may hold a token),
        or waiting on its own job or a wake-up it set, which wakes it by itself. A waiting
        agent can't act or answer until the person does, so a lead tells the person rather
@@ -449,6 +451,17 @@ like them, only inside Novadeck's terminals.
        most a moment (every terminal in it waiting on that one read), and else shows the
        last known value while it refreshes. The pull request is never asked of GitHub: no network, sign-in or rate
        limit stands between an agent and its listing;
+    7. its `done` reports, one line: `  done: 20 min ago "Flakes fixed, #837 merged" (still
+       current) · 3 h ago "Retry wrapper for E2E tests" · and 2 earlier`. The latest three,
+       newest first, each with when and its subject cut to about 100 characters, and how
+       many of the session's logged ones came before. "(still current)" marks the latest
+       while it stands (`standingDone`: the person's prompt or a delivered message after it
+       gave the agent more to do). Subjects only, never a body;
+    8. its last turn, when that failed and the agent is not at work again: `  last turn
+       failed 12 min ago: API Error …`, with the error cut to about 120 characters.
+
+    The reports and turns come from the report log, not the Inbox (see below);
+
   - a terminal opened to run an agent that hasn't bound: "expecting Codex, not started yet",
     or "waiting on the user: its startup screen" (see [Startup screens](#startup-screens));
     one whose agent's hooks aren't trusted says nothing can deliver to it;
@@ -524,6 +537,10 @@ like them, only inside Novadeck's terminals.
     whether it is on its way, held, or won't arrive; one it sent the caller only once
     delivered, else "a message on its way to you" with no text, so the listing never gets
     past a pause or a delivery.
+
+  They come from the report log (below), so they survive a runner restart and the Inbox's
+  day of retention; a body is read from the store only for `team`, which quotes its first
+  240 characters.
 
   At most five entries show per member, with "(and N earlier)". A member with no new entry
   and the same state as at the caller's last look is one line, "nothing new since you last
@@ -769,6 +786,30 @@ before the character limit; a refusal asks the person to shorten their reply and
 the draft available to edit. Agent `send` keeps its existing 4096-byte UTF-8 limit.
 Subjects, option labels, summaries, code paths and action commands/directories lose
 terminal escapes, controls, invisible separators and bidi marks before being shown or copied.
+
+### The report log
+
+What agents reported and how their turns ended has a log of its own in the workspace
+database (`report_log`), apart from the Inbox's entries, which the person's reading and a
+day's passing take away. `agents()`, `team()` and the terminal summary's standing `done`
+read it. A row is a `done`, a `tell`, an ask or a finished turn, written in the same
+transaction as the Inbox entry it comes with (a turn's row is amended or dropped when its
+end turns out to be an interruption or a limit). The runner keeps every row but its body
+in memory (`ReportLog`); a body is read from the store only for `team`.
+
+It is by **agent session**, not terminal, so a terminal restored from History, or a
+session resumed in another terminal, finds what the session reported before; the terminal
+is only where a row was made. Antigravity's session is a guess until its status line names
+it, and a correction moves the asks and the reports, asks and turns made while the guess
+stood to the corrected session, as it moves the Inbox's own entries.
+
+A session keeps about 50 reports and asks and its latest 10 turns. A row stays while its
+terminal is open (running or asleep), while History keeps the closed terminal's row (30
+days), or while a session of either holds it (a restore resumes the session in a new
+terminal); it goes at the close if History keeps nothing, and the runner looks again every
+hour. A removed project takes its rows; a disconnected harness's rows stay, as its Inbox
+entries do. The Inbox's own retention is unchanged, and no longer keeps a terminal's latest
+`done` past the day: the log does.
 
 ### Feedback drafts
 
