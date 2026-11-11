@@ -480,17 +480,22 @@ describe.skipIf(!hasGit)("the layers of a change read from a git repository", ()
     expect(read.change.layers.map(({ id }) => id)).toEqual(["uncommitted"])
   })
 
-  it("cuts a long main branch's name so the note fits the protocol", async ({ repo }) => {
-    const name = "m".repeat(250)
-    repo.git("checkout", "--quiet", "-b", name)
-    commit(repo, "main", { "m.txt": "m\n" })
-    repo.git("checkout", "--quiet", "--orphan", "other")
-    commit(repo, "other", { "o.txt": "o\n" })
-    repo.git("branch", "-m", "-f", name, "main")
-    const read = await layersOf(reader(), repo.root)
-    expect(read.change.base.endsWith(" (no common history)")).toBe(true)
-    expect(read.change.base.length).toBeLessThanOrEqual(256)
-  })
+  // Not on Windows: a 250-character ref's file runs past the paths Windows allows before the
+  // name is ever read, and cutting it is the same there.
+  it.skipIf(windows)(
+    "cuts a long main branch's name so the note fits the protocol",
+    async ({ repo }) => {
+      const name = "m".repeat(250)
+      repo.git("checkout", "--quiet", "-b", name)
+      commit(repo, "main", { "m.txt": "m\n" })
+      repo.git("checkout", "--quiet", "--orphan", "other")
+      commit(repo, "other", { "o.txt": "o\n" })
+      repo.git("branch", "-m", "-f", name, "main")
+      const read = await layersOf(reader(), repo.root)
+      expect(read.change.base.endsWith(" (no common history)")).toBe(true)
+      expect(read.change.base.length).toBeLessThanOrEqual(256)
+    },
+  )
 
   it("has a new stamp when a line is edited though no count changes", async ({ repo }) => {
     branched(repo)
