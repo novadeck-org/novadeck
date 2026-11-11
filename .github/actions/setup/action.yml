@@ -105,16 +105,24 @@ runs:
         path: ${{ runner.temp }}/ms-playwright
         key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
+    # The browser alone where the cache missed, through the retry (scripts/ci/setup/retry.ts):
+    # on Linux its system packages come next, from their own cache where it has them;
+    # elsewhere Playwright installs what it needs with it.
     - name: Install Test Browser
       if: inputs.browser == 'true' && steps.browser-cache.outputs.cache-hit != 'true'
       shell: bash
-      run: pnpm --filter @novadeck/specs exec playwright install --with-deps chromium
+      run: |
+        deps=--with-deps; [ "$RUNNER_OS" = Linux ] && deps=
+        node scripts/ci/setup/retry.ts "The test browser couldn't be installed" \
+          -- pnpm --filter @novadeck/specs exec playwright install $deps chromium
 
-    # A cached browser still needs its system libraries on Linux.
-    - name: Install Test Browser Dependencies
-      if: inputs.browser == 'true' && steps.browser-cache.outputs.cache-hit == 'true' && runner.os == 'Linux'
-      shell: bash
-      run: pnpm --filter @novadeck/specs exec playwright install-deps chromium
+    # Its system packages the runner image lacks, on Linux: from a cache of their debs with
+    # apt, downloading nothing, and through Ubuntu's mirrors only where it misses, retried and failing fast
+    # (.github/actions/browser-packages). On 11-11 the mirrors couldn't be resolved for hours,
+    # and every job with a cached browser failed here before any test ran.
+    - name: Test Browser Packages
+      if: inputs.browser == 'true' && runner.os == 'Linux'
+      uses: ./.github/actions/browser-packages
 
     # Electron's download, which the desktop app's tests fetch once before they start
     # (apps/desktop/scripts/electron-binary.ts), kept between runs: GitHub's release downloads
@@ -141,7 +149,10 @@ runs:
       id: fish
       continue-on-error: true
       shell: bash
-      run: sudo timeout 120 sh -c 'apt-get update -qq && apt-get install -y --no-install-recommends fish'
+      # Without the browser packages' fail-fast apt settings, should a cancelled step have left them.
+      run: |
+        sudo rm -f /etc/apt/apt.conf.d/99novadeck-fail-fast
+        sudo timeout 120 sh -c 'apt-get update -qq && apt-get install -y --no-install-recommends fish'
 
     - name: Warn That fish Is Missing
       if: inputs.fish == 'true' && runner.os == 'Linux' && steps.fish.outcome != 'success'

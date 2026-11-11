@@ -6,7 +6,8 @@ name: Warm Caches
 # some 200–300 s a platform. This fills main's caches under exactly Quality's keys, from
 # main's own code, on each push to main. It runs no tests: it installs the browser and
 # compiles the relay and its tests only where a key is missing, so where both are cached it
-# only sets up the toolchain. Timing restores the relay's cache without saving it, so this
+# only sets up the toolchain. On Linux it also caches the debs of the browser's system
+# packages the image lacks, which Quality installs from them. Timing restores the relay's cache without saving it, so this
 # is the one writer of its key on main.
 on:
   push:
@@ -88,7 +89,15 @@ jobs:
           path: ${{ runner.temp }}/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
-      # Only the browser: its system libraries aren't cached, and Quality installs them.
+      # Only the browser here; its system packages next.
       - name: Install Test Browser
         if: steps.browser-cache.outputs.cache-hit != 'true'
         run: pnpm --filter @novadeck/specs exec playwright install chromium
+
+      # The debs of the browser's system packages the runner image lacks, under Quality's key
+      # (.github/actions/browser-packages): a pull request reads main's caches, never another
+      # pull request's, so this fills the one its first run reads. Installed here too, which
+      # costs a few seconds and proves the debs.
+      - name: Test Browser Packages
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/browser-packages
