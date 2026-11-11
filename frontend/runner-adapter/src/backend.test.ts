@@ -396,44 +396,29 @@ describe("runner backend", () => {
 
   context("when asked which terminals hold work", () => {
     it("answers the runner's list, and nothing for a terminal at its prompt", async () => {
-      // DEBUG (#857's trace, removed before merge): what busyTerminals answers, and for which
-      // terminals, on the file's shared runner and on one without a relay.
-      const trace = async (label: string, api: RunnerApi, listing: RunnerListing) => {
-        const app = open(listing, {}, api)
-        const opened = Date.now()
-        const own = app.addTerminal()
-        await app.idle()
-        const sessionId = app.target().workspaceSessionId
-        for (const wait of [0, 3000]) {
-          if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait))
-          const answer = await app.backend.busyTerminals!()
-          const listed = await api.terminals.list({ sessionId })
-          process.stderr.write(
-            `TRACE ${JSON.stringify({
-              label,
-              platform: process.platform,
-              msSinceOpened: Date.now() - opened,
-              own: own.id,
-              ownInUnknown: answer?.unknown.includes(own.id) ?? null,
-              ownInBusy: answer?.busy.includes(own.id) ?? null,
-              answer,
-              terminals: listed.map((each) => {
-                const { id, started, exited, running, command } = each as unknown as Record<
-                  string,
-                  unknown
-                >
-                return { id, own: id === own.id, started, exited, running, command }
-              }),
-            })}\n`,
-          )
-        }
-        app.stop()
-      }
-      await trace("shared", runner.client, runner.listing)
+      // A runner whose relay isn't there, whatever this machine has built. Windows reads a
+      // shell's processes through the relay alone, so there it can't read this terminal's
+      // shell: `unknown`, never taken for idle. Linux and macOS read it from the process
+      // table: at its prompt, neither busy nor unknown. A terminal whose shell hasn't started
+      // holds no work, and the answer leaves it out: on Windows ConPTY starts it a moment
+      // after the runner has the terminal, so the case waits for it there. The file's other
+      // cases leave their terminals on the shared runner, so this one has a runner of its own.
       const relayless = await startTestRunner({
         terminals: { relay: join(tmpdir(), "novadeck-no-relay", "novadeck-relay.exe") },
       })
-      await trace("relayless", relayless.client, relayless.listing)
+      const app = open(relayless.listing, {}, relayless.client)
+      const terminal = app.addTerminal()
+      await app.idle()
+      const ask = async () => (await app.backend.busyTerminals!({ fresh: true }))!
+      if (process.platform === "win32")
+        await vi.waitFor(
+          async () => expect((await ask()).unknown).toContain(terminal.id),
+          eventually,
+        )
+      const answer = await ask()
+      expect(answer.busy).toEqual([])
+      expect(answer.unknown).toEqual(process.platform === "win32" ? [terminal.id] : [])
+      app.stop()
       await relayless.close()
     })
 
