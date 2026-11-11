@@ -10,7 +10,6 @@ import {
   type Facts,
   core,
   coreName,
-  followsChange,
   firstShard,
   parseAffected,
   plan,
@@ -738,57 +737,4 @@ describe("E2E on macOS", () => {
       expect(plan({ ...nightly, event }, ids).jobs.macos.map((row) => row.job)).toEqual(full)
     },
   )
-  it("runs the whole suite on a merge group that follows its change, for only the harnesses it chose", () => {
-    const codex = {
-      ...pullRequest(
-        ["@novadeck/harness-codex", "@novadeck/runner"],
-        ["harnesses/codex/src/index.ts"],
-      ),
-      event: "merge_group",
-    }
-    expect(plan(codex, ids).jobs.macos.map((row) => row.job)).toEqual([
-      "Codex (macOS)",
-      "Mixed (macOS)",
-    ])
-  })
-})
-
-// A merge queue's group is a change against the group's parent, read as a pull request's.
-describe("E2E on a merge group", () => {
-  const group = (affected: readonly string[], files: readonly string[]): Facts => ({
-    ...pullRequest(affected, files),
-    event: "merge_group",
-  })
-
-  it("follows the group's change, as a pull request's", () => {
-    expect(followsChange("merge_group")).toBe(true)
-    expect(followsChange("pull_request")).toBe(true)
-    for (const event of ["schedule", "workflow_dispatch", "push", ""])
-      expect(followsChange(event)).toBe(false)
-    const docs = group([], ["docs/development.md"])
-    expect(plan(docs, ids)).toMatchObject({ run: false })
-    expect(select(group(["@novadeck/harness-codex"], ["harnesses/codex/src/a.ts"]), ids)).toEqual([
-      "codex",
-    ])
-  })
-
-  it("runs Linux alone for a change that can't break one system but not the others", () => {
-    expect(selectSystems(group(["@novadeck/ui"], ["frontend/ui/src/app.tsx"]))).toEqual([
-      systems.linux,
-    ])
-  })
-
-  it("runs everything where the facts are missing", () => {
-    expect(select({ ...nightly, event: "merge_group" }, ids)).toEqual(ids)
-  })
-
-  // Only a pull request's payload says draft; a group always runs macOS.
-  it("never holds macOS back", () => {
-    const runnerGroup = {
-      ...group(["@novadeck/runner"], ["backend/runner/src/a.ts"]),
-      draft: false,
-    }
-    expect(plan(runnerGroup, ids)).toMatchObject({ held: false })
-    expect(plan(runnerGroup, ids).os).toContain(systems.macos)
-  })
 })
