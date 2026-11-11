@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs"
 
+import { core, macosRows } from "../e2e/plan/plan"
 import { context, describe, expect, it } from "../test"
-import { failuresOf, judgeJob, judgeRun, parseRegister, verdictSummary } from "./match"
+import { type Flake, failuresOf, judgeJob, judgeRun, parseRegister, verdictSummary } from "./match"
 
 const register = parseRegister(JSON.parse(readFileSync("scripts/flakes/register.json", "utf8")))
 // A failed job's log as CI caught it, by the flake it shows.
@@ -82,6 +83,44 @@ describe("the known-flake register", () => {
         expect(judgeJob(register, job, log).flakes).toEqual(["ui-agents-pinned-drag-top"])
       for (const job of ["Test (Linux, 3/2)", "Test (Linux, 4/3)"])
         expect(judgeJob(register, job, log).flakes).toEqual([])
+    })
+  })
+
+  context("when a core scenario fails in macOS's one job of a pull request", () => {
+    // On a pull request, macOS runs the core files of every harness in one job, "Core
+    // scenarios (macOS)" (scripts/e2e/plan), where the rest of the time each harness runs its
+    // own: an entry for a core file that names a harness's macOS job names that one too, or
+    // the same flake reads as unknown there.
+    const ids = Object.keys(
+      JSON.parse(readFileSync("backend/runner/src/e2e/harnesses.json", "utf8")) as object,
+    )
+    const coreJob = macosRows("pull_request", ids, ids)
+      .map((row) => row.job)
+      .join(", ")
+    // Each harness's own macOS jobs, Mixed's (every harness at once, its own files) aside.
+    const harnessJobs = macosRows("schedule", ids, ids)
+      .filter((row) => !row.setup.agents.includes(","))
+      .map((row) => row.job)
+    const coreFiles = core.split(" ").map((file) => `src/e2e/${file}`)
+    // A flake's test is where its id begins: a file, or a folder holding one.
+    const inCore = (test: string | undefined): boolean =>
+      test !== undefined && coreFiles.some((file) => file.startsWith(test) || test.startsWith(file))
+    const names = (flake: Flake, job: string): boolean =>
+      flake.jobs.some((pattern) => new RegExp(pattern).test(job))
+
+    it("names it beside each harness's own job", () => {
+      const checked = register.flakes.filter(
+        (flake) => inCore(flake.test) && harnessJobs.some((job) => names(flake, job)),
+      )
+      expect(coreJob).toBe("Core scenarios (macOS)")
+      expect(checked.length).toBeGreaterThan(0)
+      expect(checked.filter((flake) => !names(flake, coreJob)).map(({ id }) => id)).toEqual([])
+    })
+
+    it("knows the flake by its log there", () => {
+      expect(
+        judgeJob(register, coreJob, fixture("e2e-claude-macos-continuation-stop")).flakes,
+      ).toEqual(["e2e-claude-macos-continuation-stop"])
     })
   })
 
