@@ -186,7 +186,8 @@ export const main = (folder: string): void => {
         const fetched = run(
           "The test browser's system packages couldn't be downloaded",
           ["sudo", "sh", "-c", downloadScript(folder, packages)],
-          aptPlan,
+          // It runs no dpkg: an apt it leaves past the wait is ended, not waited on again.
+          { ...aptPlan, reap: true },
         )
         // Root's files, which the cache's save must read; the lock and partial downloads aren't kept.
         sudo(["chown", "-R", `${process.getuid?.() ?? 0}`, folder])

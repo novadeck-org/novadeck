@@ -20,6 +20,12 @@ export type Plan = {
   readonly firstWaitSeconds: number
   /** How long a retry waits for an apt or dpkg an ended attempt left running. */
   readonly settleSeconds: number
+  /**
+   * Whether an apt still running after the wait is ended, so the next attempt doesn't fail on
+   * its lock: only for commands that never run dpkg (`apt-get update`, `--download-only`), and
+   * never while a dpkg runs.
+   */
+  readonly reap?: boolean
 }
 
 export const plan: Plan = {
@@ -46,8 +52,38 @@ const unreachable = /Temporary failure resolving|Failed to fetch|Could not resol
  * mirrors were unreachable where the attempts' output says so, which the script can't know
  * otherwise.
  */
-export const failure = (meaning: string, retries: Plan, output = ""): string =>
-  `::error title=Setup::${meaning}${unreachable.test(output) ? ": Ubuntu's mirrors unreachable" : ""} (${retries.attempts} attempts, ${waits(retries).join(" s, ")} s apart)`
+export const failure = (meaning: string, retries: Plan, output = "", timedOut = false): string =>
+  `::error title=Setup::${meaning}${
+    unreachable.test(output)
+      ? ": Ubuntu's mirrors unreachable"
+      : timedOut
+        ? `: no answer within ${retries.limitSeconds} s an attempt (the mirrors unreachable or slow)`
+        : ""
+  } (${retries.attempts} attempts, ${waits(retries).join(" s, ")} s apart)`
+
+/**
+ * Ends the apt an attempt left running, once the wait for it is over, where the plan allows
+ * (`reap`): never while a dpkg runs, as ending one leaves dpkg half done. Whether none is left.
+ */
+export const reaped = (
+  isRunning: (name: string) => boolean,
+  kill: () => void,
+  settle: (seconds: number) => boolean,
+): boolean => {
+  if (isRunning("dpkg")) return false
+  kill()
+  return settle(5)
+}
+
+/** `apt-get`, `apt` and apt's fetchers, ended at once; never dpkg. */
+const killApt = () => {
+  for (const pattern of [
+    ["-x", "apt-get"],
+    ["-x", "apt"],
+    ["-f", "^/usr/lib/apt/methods/"],
+  ])
+    spawnSync("sudo", ["pkill", "-KILL", ...pattern], { stdio: "ignore" })
+}
 
 const sleep = (seconds: number) =>
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, seconds * 1000)
@@ -86,6 +122,7 @@ export const run = (meaning: string, command: readonly string[], retries: Plan =
   const pauses = waits(retries)
   let status = 1
   let output = ""
+  let timedOut = true
   for (let attempt = 1; attempt <= retries.attempts; attempt += 1) {
     const [program, ...args] = bounded(command, retries.limitSeconds)
     // Into a file, not a pipe: Node waits for every holder of a pipe to close it, and apt under
@@ -109,6 +146,8 @@ export const run = (meaning: string, command: readonly string[], retries: Plan =
     output += `${said}\n`
     status = result.status ?? 1
     if (status === 0) return 0
+    // `timeout`'s exit, or Node's own where it bounds the attempt.
+    timedOut &&= status === 124 || result.error?.message.includes("ETIMEDOUT") === true
     const why = result.error
       ? ` (${result.error.message})`
       : ` (exit ${result.status ?? result.signal})`
@@ -118,10 +157,14 @@ export const run = (meaning: string, command: readonly string[], retries: Plan =
       `::warning title=Setup::attempt ${attempt} of ${retries.attempts} failed${why}; again in ${wait} s`,
     )
     sleep(wait)
-    if (process.platform === "linux" && !settled(retries.settleSeconds))
-      console.log("::warning title=Setup::an apt or dpkg from the last attempt is still running")
+    if (process.platform === "linux" && !settled(retries.settleSeconds)) {
+      if (retries.reap && reaped(running, killApt, (seconds) => settled(seconds)))
+        console.log("::warning title=Setup::ended the apt the last attempt left running")
+      else
+        console.log("::warning title=Setup::an apt or dpkg from the last attempt is still running")
+    }
   }
-  console.log(failure(meaning, retries, output))
+  console.log(failure(meaning, retries, output, timedOut))
   return status
 }
 

@@ -20,7 +20,7 @@ import {
   type Machine,
   saves,
 } from "./browser-packages.ts"
-import { bounded, failure, longest, plan, settled, waits } from "./retry.ts"
+import { bounded, failure, longest, plan, reaped, settled, waits } from "./retry.ts"
 
 const root = join(import.meta.dirname, "..", "..", "..")
 
@@ -330,6 +330,54 @@ describe("a setup command's retries", () => {
       expect(failure("Packages", plan, `W: Some index files failed to download\n${said}`)).toBe(
         "::error title=Setup::Packages: Ubuntu's mirrors unreachable (3 attempts, 30 s, 60 s apart)",
       )
+  })
+
+  // In the outage apt's update outlived each 90 s attempt and printed nothing in it.
+  it("say where every attempt ran out its time, and nothing of it where one didn't", () => {
+    expect(failure("Packages", plan, "", true)).toBe(
+      "::error title=Setup::Packages: no answer within 180 s an attempt (the mirrors unreachable or slow) (3 attempts, 30 s, 60 s apart)",
+    )
+    expect(failure("Packages", plan, "Temporary failure resolving 'x'", true)).toContain(
+      ": Ubuntu's mirrors unreachable (",
+    )
+    expect(failure("Packages", plan, "", false)).toBe(
+      "::error title=Setup::Packages (3 attempts, 30 s, 60 s apart)",
+    )
+  })
+
+  // On #869's outage run attempt 1's apt still held the lists' lock past the wait, and attempt
+  // 2 failed on it at once: where a command runs no dpkg, the leftover apt is ended.
+  context("an apt left running past the wait", () => {
+    it("is ended, and the retry goes on once none is left", () => {
+      let killed = false
+      expect(
+        reaped(
+          () => false,
+          () => (killed = true),
+          () => true,
+        ),
+      ).toBe(true)
+      expect(killed).toBe(true)
+    })
+
+    it("is left alone while a dpkg runs, which ending would leave half done", () => {
+      let killed = false
+      expect(
+        reaped(
+          (name) => name === "dpkg",
+          () => (killed = true),
+          () => true,
+        ),
+      ).toBe(false)
+      expect(killed).toBe(false)
+    })
+
+    it("is ended only on the download path, which runs no dpkg", () => {
+      const source = readFileSync(join(import.meta.dirname, "browser-packages.ts"), "utf8")
+      expect(source).toContain("{ ...aptPlan, reap: true }")
+      expect(source.match(/reap: true/g)).toHaveLength(1)
+      expect(plan.reap).toBeUndefined()
+    })
   })
 
   // sudo runs apt in a session of its own, which timeout's SIGKILL doesn't reach.
