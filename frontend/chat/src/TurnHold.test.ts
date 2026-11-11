@@ -296,6 +296,50 @@ describe("the peek", () => {
   })
 })
 
+describe("where focus goes as the log scrolls to a prompt", () => {
+  const frame = (): Promise<void> =>
+    act(async () => void (await new Promise<void>((done) => requestAnimationFrame(() => done()))))
+
+  it("stays in the chat when the step pressed is disabled by arriving", async () => {
+    const layout = scenario(tops)
+    const { container } = open(twoTurns)
+    scrollTo(container, layout, 400)
+    const before = container.querySelector<HTMLButtonElement>('[aria-label="Previous prompt"]')!
+    before.focus()
+    press(before)
+    scrollTo(container, layout, 100)
+    await frame()
+    expect(container.querySelector(".chat")?.contains(document.activeElement)).toBe(true)
+    expect(document.activeElement).not.toBe(document.body)
+    expect(document.activeElement).not.toBe(before)
+  })
+
+  it("goes to the box once going to a prompt has taken the held line away", async () => {
+    const layout = scenario(tops)
+    const { container } = open(twoTurns)
+    scrollTo(container, layout, 60)
+    press(container.querySelector(".chat-hold-line")!)
+    container.querySelector<HTMLButtonElement>(".chat-hold-go")!.focus()
+    press(container.querySelector(".chat-hold-go")!)
+    scrollTo(container, layout, 0)
+    await frame()
+    expect(hold(container)).toBeNull()
+    expect(document.activeElement).toBe(container.querySelector(".chat-input"))
+  })
+})
+
+describe("the peek's close button", () => {
+  it("is named, and says the prompt is open", () => {
+    const layout = scenario(tops)
+    const { container } = open(twoTurns)
+    scrollTo(container, layout, 60)
+    press(container.querySelector(".chat-hold-line")!)
+    const close = container.querySelector(".chat-hold-close")!
+    expect(close.getAttribute("aria-label")).toBe("Close")
+    expect(close.getAttribute("aria-expanded")).toBe("true")
+  })
+})
+
 describe("the current turn's mark", () => {
   const marks = (container: HTMLElement) =>
     [...container.querySelectorAll('.chat-thread > [data-role="user"] > .chat-mark')].map((mark) =>

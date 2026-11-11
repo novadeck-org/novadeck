@@ -145,9 +145,20 @@ const caretToStart = (chat: Locator): void => {
   box.setSelectionRange(0, 0)
 }
 
+const caretToEnd = (chat: Locator): void => {
+  const box = composer(chat).element() as HTMLTextAreaElement
+  box.setSelectionRange(box.value.length, box.value.length)
+}
+
 describe("Recalling earlier prompts in the chat's box", () => {
-  // The latest the record holds; Build has two turns before it, which Up goes on to.
+  // Build's latest prompt, the one before it and its first, which Up walks back through.
   const first = "Build the app and tell me how big the bundle is."
+  const oldest = "Which build tool does this project use, and where is its config?"
+  const middle = [
+    "Rename the cart selectors module to src/cart/selectors.ts and update every import of it.",
+    "",
+    "Keep the old path working for now, re-exporting from the new one, so the other branches don't break.",
+  ].join("\n")
 
   it("walks back through the prompts with Up and returns to the draft with Down", async () => {
     await openChatDemo()
@@ -160,6 +171,19 @@ describe("Recalling earlier prompts in the chat's box", () => {
     await userEvent.keyboard("{ArrowUp}")
     await expect.element(composer(chat)).toHaveValue("Run the linter")
     await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue(first)
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue(middle)
+    caretToStart(chat)
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue(oldest)
+    // The oldest is where Up stops.
+    await userEvent.keyboard("{ArrowUp}")
+    await expect.element(composer(chat)).toHaveValue(oldest)
+    await userEvent.keyboard("{ArrowDown}")
+    await expect.element(composer(chat)).toHaveValue(middle)
+    caretToEnd(chat)
+    await userEvent.keyboard("{ArrowDown}")
     await expect.element(composer(chat)).toHaveValue(first)
     await userEvent.keyboard("{ArrowDown}")
     await expect.element(composer(chat)).toHaveValue("Run the linter")

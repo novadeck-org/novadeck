@@ -41,7 +41,7 @@ import { settledSent, settleSent } from "./settled"
 import { ShellLines, runningShells } from "./ShellLines"
 import { LiveSlice, SliceKeys } from "./Slice"
 import { Transcript, type PeerLooks } from "./Transcript"
-import { currentPrompt, neighbours, scrollFor, startRows } from "./turn-holds"
+import { currentPrompt, logPadding, neighbours, scrollFor, startRows } from "./turn-holds"
 import { useBoxReturn } from "./use-box-return"
 import { useMounted } from "./use-mounted"
 import { useTurnHold } from "./use-turn-hold"
@@ -225,6 +225,7 @@ export const ChatView = ({
   const turns = useTurnHold(shown, compact)
   const { peek, setPeek } = turns
   const scroller = useRef<HTMLDivElement>(null)
+  const chatSection = useRef<HTMLElement>(null)
   const heldId = turns.held?.id ?? null
   const peeking = peek !== null && peek === heldId
   const thread = useRef<HTMLDivElement>(null)
@@ -266,13 +267,6 @@ export const ChatView = ({
     observer.observe(content)
     return () => observer.disconnect()
   }, [measure])
-  // Scrolls the log to a prompt: to its row, or just past it so that it holds the top.
-  const scrollToTurn = (id: string, to: "row" | "past"): void => {
-    const element = scroller.current
-    const row = element && startRows(element, turns.starts).find((each) => each.id === id)
-    if (element && row) element.scrollTop = scrollFor(row, to)
-  }
-
   // The person's words that were to follow an answer and didn't reach the agent, handed
   // back to the draft whether or not the card they were typed in is still on screen.
   const [lost, setLost] = useState(false)
@@ -319,6 +313,46 @@ export const ChatView = ({
       ?.closest(".chat")
       ?.querySelector<HTMLElement>(".chat-input")
       ?.focus({ preventScroll: true })
+
+  // Focus left on a control that went or was disabled (it falls to the page, where Esc isn't heard
+  // by the chat) goes to the held line where there is one, else the box.
+  const refocus = useRef(false)
+  const keepFocus = (): void => {
+    const chat = chatSection.current
+    const active = document.activeElement
+    if (
+      !chat ||
+      (active && active !== document.body && chat.contains(active) && !active.matches(":disabled"))
+    )
+      return
+    const line = chat.querySelector<HTMLElement>(".chat-hold-line")
+    if (line) line.focus({ preventScroll: true })
+    else focusBox()
+  }
+
+  // Scrolls the log to a prompt: to its row, or just past it so that it holds the top.
+  const scrollToTurn = (id: string, to: "row" | "past"): void => {
+    const element = scroller.current
+    const row = element && startRows(element, turns.starts).find((each) => each.id === id)
+    if (element && row) element.scrollTop = scrollFor(row, to, logPadding(compact))
+    // The control pressed may be gone or disabled by the time the log has scrolled: focus stays in
+    // the chat, where Esc is heard.
+    // Once the held line has followed, in the effect below; a log that was already there leaves
+    // no change to wait for.
+    refocus.current = true
+    setTimeout(() => {
+      if (refocus.current) keepFocus()
+      refocus.current = false
+    }, 250)
+  }
+
+  const { held } = turns
+  useEffect(() => {
+    if (!refocus.current) return
+    refocus.current = false
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Only as the held line changes.
+    keepFocus()
+  }, [held])
 
   const echoes = useEchoes(slice, items)
   // An echo stands where it ran: one from before the blocks shown goes with the earlier ones.
@@ -457,7 +491,6 @@ export const ChatView = ({
     wasTaken.current = taken
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Only as it comes and goes.
   }, [taken])
-  const chatSection = useRef<HTMLElement>(null)
   const boxReturn = useBoxReturn(chatSection, taken, focusBox)
 
   // The window's phase as the current turn's prompt mark wears it.

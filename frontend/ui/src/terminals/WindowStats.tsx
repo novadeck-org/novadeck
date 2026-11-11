@@ -1,4 +1,5 @@
 import type { AgentStats } from "@novadeck/core/agents/stats"
+import { useLayoutEffect, useRef } from "react"
 
 const radius = 5.5
 const circumference = 2 * Math.PI * radius
@@ -25,6 +26,23 @@ const ContextRing = ({ share }: { share: number }): React.JSX.Element => (
 // its harness doesn't say the context's capacity there's no share to draw, so the tokens
 // it holds stand in for the ring; without a context at all, the model shows as it is.
 export const WindowStats = ({ stats }: { stats: AgentStats }): React.JSX.Element => {
+  const element = useRef<HTMLSpanElement>(null)
+  // The chat under it keeps its held prompt clear of this, as wide as it is at rest: its width and
+  // its offset from the host's right edge (8px) and a gap, handed down as `--chat-stats-clear`.
+  useLayoutEffect(() => {
+    const own = element.current
+    const host = own?.parentElement
+    if (!own || !host) return
+    const reach = (): void =>
+      host.style.setProperty("--chat-stats-clear", `${own.offsetWidth + 16}px`)
+    reach()
+    const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(reach)
+    observer?.observe(own)
+    return () => {
+      observer?.disconnect()
+      host.style.removeProperty("--chat-stats-clear")
+    }
+  }, [])
   const { model, effort, context } = stats
   const runsOn = model && effort ? `${model} (${effort})` : (model ?? effort ?? "")
   const used = context && context.share !== null ? `${context.label} (${context.tokens})` : ""
@@ -33,6 +51,7 @@ export const WindowStats = ({ stats }: { stats: AgentStats }): React.JSX.Element
     .join(", ")
   return (
     <span
+      ref={element}
       // Its own, not the terminal's or the canvas's: a press here neither selects text in
       // the terminal nor drags or pans the canvas.
       className="terminal-stats flex shrink-0 items-center nodrag nopan"

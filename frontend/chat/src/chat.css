@@ -49,6 +49,8 @@
    --chat-error-fg (the terminal's red, then danger-fg): what failed.
    --chat-added-fg (the terminal's green, then success-fg): what an edit added.
    --chat-line-color (line): the hairlines.
+   --chat-stats-clear (0px): how far from the chat's right edge the window's stats reach at rest,
+   which the held prompt's line and its steps stay clear of.
    --chat-measure (92ch): the reading width. The words of every row end at the same column,
    this far past the gutter and the mark's two cells, however wide the window. The rows
    themselves, and the hairlines, span the window to the right edge, up to 180ch of words
@@ -967,8 +969,9 @@
   overflow: hidden;
 }
 .chat-hold {
-  /* The window's stats ring stands in the chat's top right: the line stops short of it. */
-  --_clear: max(0px, 46px - var(--_pad));
+  /* The window's stats stand in the chat's top right, as wide as what they hold at rest
+     (`--chat-stats-clear`, set by the window): the line stops short of them. */
+  --_clear: max(0px, var(--chat-stats-clear, 0px) - var(--_pad));
   position: absolute;
   z-index: 2;
   top: 0;

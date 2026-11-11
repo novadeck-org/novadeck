@@ -40,7 +40,8 @@ export type Held = { readonly id: string; readonly offset: number }
 export const heldAt = (rows: readonly StartRow[], top: number, height: number): Held | null => {
   const index = rows.findLastIndex((row) => row.top <= top)
   const row = rows[index]
-  if (!row?.mine || row.bottom > top) return null
+  // A row's bottom may stand a fraction past a scroll position the browser rounded down to.
+  if (!row?.mine || row.bottom - top > 1) return null
   const next = rows[index + 1]
   return { id: row.id, offset: next ? Math.min(0, next.top - top - height) : 0 }
 }
@@ -67,23 +68,46 @@ export const sentence = (words: string): string => (/[.!?…]$/.test(words) ? wo
 // start has to clear to push it out: the row's line and its padding either side, in either size.
 export const holdHeight = (compact: boolean): number => (compact ? 18 + 12 : 21 + 16)
 
-// Where each start stands in the log's content, read from the rows the transcript marks with
-// `data-turn`.
+// Where each start stands in the log's content, in the content's own pixels, read from the rows
+// the transcript marks with `data-turn`. Where the page scales the log (a Canvas node's zoom), the
+// rectangles are scaled and its scroll position is not: the scale is read off the scroller.
 export const startRows = (
   scroller: HTMLElement,
   starts: readonly TurnStart[],
 ): readonly StartRow[] => {
-  const base = scroller.getBoundingClientRect().top - scroller.scrollTop
+  const box = scroller.getBoundingClientRect()
+  const scale = scroller.offsetWidth > 0 && box.width > 0 ? box.width / scroller.offsetWidth : 1
+  const base = box.top - scroller.scrollTop * scale
   const byId = new Map(starts.map((start) => [start.id, start]))
   return [...scroller.querySelectorAll<HTMLElement>("[data-turn]")].flatMap((node) => {
     const start = byId.get(node.dataset.turn ?? "")
     if (!start) return []
     const rect = node.getBoundingClientRect()
-    return [{ ...start, top: rect.top - base, bottom: rect.bottom - base }]
+    return [{ ...start, top: (rect.top - base) / scale, bottom: (rect.bottom - base) / scale }]
   })
 }
 
-// Where the log scrolls to for a prompt: to the row itself, or just past it, so that the prompt
-// now holds the top and its steps stay under the pointer.
-export const scrollFor = (row: StartRow, to: "row" | "past"): number =>
-  Math.max(0, to === "row" ? row.top : row.bottom)
+// The room above the first row in the log (`.chat-scroll`'s padding), where a first row sits.
+export const logPadding = (compact: boolean): number => (compact ? 14 : 22)
+
+// Where the log scrolls to for a prompt: to its row, where a first row sits (`lead` below the top,
+// clear of the fade), or just past it, so that the prompt now holds the top and its steps stay
+// under the pointer. Whole pixels, as the browser keeps them: a fraction rounded down would leave
+// the row's last pixel showing.
+export const scrollFor = (row: StartRow, to: "row" | "past", lead = 0): number =>
+  Math.max(0, to === "row" ? Math.floor(row.top - lead) : Math.ceil(row.bottom))
+
+// How tall the peek's words stand: at most two fifths of the chat, and no more than the log area
+// leaves once its other parts (`chrome`: the line's padding and the footer) have theirs, but never
+// under one line, which scrolls inside.
+export const peekHeight = ({
+  chat,
+  main,
+  chrome,
+  line,
+}: {
+  readonly chat: number
+  readonly main: number
+  readonly chrome: number
+  readonly line: number
+}): number => Math.max(line, Math.min(chat * 0.4, main - chrome))

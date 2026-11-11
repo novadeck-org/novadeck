@@ -7,7 +7,9 @@ import {
   heldAt,
   neighbours,
   oneLine,
+  peekHeight,
   scrollFor,
+  startRows,
   sentence,
   turnStarts,
   type StartRow,
@@ -219,10 +221,48 @@ describe("the steps between prompts", () => {
 })
 
 describe("scrolling to a prompt", () => {
-  it("goes to its row, or just past it so the prompt holds the top", () => {
-    expect(scrollFor(row("b", 100), "row")).toBe(100)
+  it("goes to its row, where a first row sits, or just past it so the prompt holds the top", () => {
+    expect(scrollFor(row("b", 100), "row", 22)).toBe(78)
     expect(scrollFor(row("b", 100), "past")).toBe(120)
-    expect(scrollFor(row("a", -5), "row")).toBe(0)
+    expect(scrollFor(row("a", -5), "row", 22)).toBe(0)
+  })
+
+  it("keeps whole pixels, so a row's fraction never leaves its last pixel showing", () => {
+    const fractional = { ...row("b", 70.4), bottom: 90.40625 }
+    expect(scrollFor(fractional, "past")).toBe(91)
+    expect(heldAt([row("a", 0), fractional], scrollFor(fractional, "past"), height)?.id).toBe("b")
+    // Even a position the browser rounded down to leaves the prompt held.
+    expect(heldAt([row("a", 0), fractional], 90, height)?.id).toBe("b")
+  })
+})
+
+describe("where the rows stand on a scaled page", () => {
+  it("is in the log's own pixels at a Canvas zoom, as its scroll position is", () => {
+    const scroller = document.createElement("div")
+    const node = document.createElement("div")
+    node.dataset.turn = "a"
+    scroller.append(node)
+    // Zoomed to 0.5: the log is 400 wide in its own pixels, 200 on the page; scrolled 100 of its
+    // own; the row stands 300 down its content and 20 tall.
+    Object.defineProperty(scroller, "offsetWidth", { value: 400 })
+    Object.defineProperty(scroller, "scrollTop", { value: 100 })
+    scroller.getBoundingClientRect = () => ({ top: 50, width: 200 }) as DOMRect
+    node.getBoundingClientRect = () =>
+      ({ top: 50 + (300 - 100) * 0.5, bottom: 50 + (320 - 100) * 0.5 }) as DOMRect
+    expect(startRows(scroller, [{ id: "a", mine: true }])).toEqual([
+      { id: "a", mine: true, top: 300, bottom: 320 },
+    ])
+  })
+})
+
+describe("how tall the peek's words stand", () => {
+  it("is two fifths of the chat where the log area has room", () => {
+    expect(peekHeight({ chat: 600, main: 500, chrome: 60, line: 21 })).toBe(240)
+  })
+
+  it("is what the log area leaves, so the footer stays in view, but one line at least", () => {
+    expect(peekHeight({ chat: 600, main: 200, chrome: 60, line: 21 })).toBe(140)
+    expect(peekHeight({ chat: 600, main: 63, chrome: 60, line: 18 })).toBe(18)
   })
 })
 

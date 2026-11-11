@@ -14,6 +14,7 @@
     "./sends": "./src/sends.ts",
     "./state": "./src/state.ts",
     "./Transcript": "./src/Transcript.tsx",
+    "./turn-holds": "./src/turn-holds.ts",
     "./use-box-handover": "./src/use-box-handover.ts",
     "./use-chat": "./src/use-chat.ts"
   },
