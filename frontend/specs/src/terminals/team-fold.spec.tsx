@@ -200,9 +200,11 @@ describe("Folding a lead's teammates out of the list", () => {
         (tab) => tab.querySelector("strong")?.textContent,
       )
     const afterLead = () => onScreen().indexOf(worker) - onScreen().indexOf(lead)
-    await userEvent.dragAndDrop(terminalTab(lead), terminalTab("Runtime"))
+    // In several moves, as a person drags: dnd-kit may not hear a single one before the release.
+    const steps = { steps: 12 }
+    await userEvent.dragAndDrop(terminalTab(lead), terminalTab("Runtime"), steps)
     await expect.poll(afterLead).toBe(1)
-    await userEvent.dragAndDrop(terminalTab(lead), terminalTab("Dev server"))
+    await userEvent.dragAndDrop(terminalTab(lead), terminalTab("Dev server"), steps)
     await expect.poll(afterLead).toBe(1)
     menu = await windowMenu(lead)
     await menu.getByRole("menuitem", { name: "Show 1 teammate", exact: true }).click()

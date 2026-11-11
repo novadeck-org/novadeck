@@ -19,6 +19,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   useSyncExternalStore,
 } from "react"
 
@@ -36,6 +37,7 @@ import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
 import { Requests } from "./Requests"
 import { takeSentImages, type ChatSend } from "./sends"
 import { settledSent, settleSent } from "./settled"
+import { ShellLines, runningShells, shellRows } from "./ShellLines"
 import { LiveSlice, SliceKeys } from "./Slice"
 import { Transcript, type PeerLooks } from "./Transcript"
 import { useBoxReturn } from "./use-box-return"
@@ -59,6 +61,7 @@ export const ChatView = ({
   agent,
   compact,
   peerLooks,
+  personFace,
   draft,
   onDraft,
   replyTo,
@@ -93,6 +96,9 @@ export const ChatView = ({
   // How other Novadeck agents look in the transcript (their face and where they run), where the
   // app knows them; without it their messages have neither.
   readonly peerLooks?: PeerLooks | undefined
+  // The person's own face at their words that came through the Inbox rather than the prompt,
+  // where the app gives one; without it they keep the block mark.
+  readonly personFace?: React.ReactNode
   readonly draft: string
   readonly onDraft: (draft: string) => void
   // The question the draft replies to, or that it is held, kept with the draft by the app.
@@ -163,6 +169,10 @@ export const ChatView = ({
   )
   const status = turnStatus(agent)
   const working = status?.working === true
+  // The background shells still running, which stay pinned under the working line.
+  const running = runningShells(agent?.shells)
+  const [shellsOpen, setShellsOpen] = useState(false)
+  const pinned = working || running.length > 0
   // When the turn began, for the working line's clock.
   const turnStart = useMemo(() => turnStartedAt(blocks), [blocks])
 
@@ -466,24 +476,32 @@ export const ChatView = ({
                 sent={bubbles}
                 echoes={shownEchoes}
                 looks={peerLooks}
+                personFace={personFace}
                 {...(plain &&
                   draft.trim() === "" &&
                   attachments.length === 0 && { onResend: resend })}
                 {...(plain && { onEdit: edit })}
                 onShowTerminal={onAnswerInTerminal}
               />
-              {status && (
-                // While the agent works this stays at the log's end, with its clock and its stop.
-                <div className="chat-running" data-working={working || undefined}>
-                  <p
-                    className="chat-status"
-                    role="status"
-                    data-working={working || undefined}
-                    data-ended={!working || undefined}
-                  >
-                    {working && <span className="chat-spin" aria-hidden />}
-                    {status.text}
-                  </p>
+              {(status || running.length > 0) && (
+                // While the agent works, or a shell runs, this stays at the log's end, with the
+                // turn's clock and stop and a line for each shell.
+                <div
+                  className="chat-running"
+                  data-working={working || undefined}
+                  data-pinned={pinned || undefined}
+                >
+                  {status && (
+                    <p
+                      className="chat-status"
+                      role="status"
+                      data-working={working || undefined}
+                      data-ended={!working || undefined}
+                    >
+                      {working && <span className="chat-spin" aria-hidden />}
+                      {status.text}
+                    </p>
+                  )}
                   {working && (
                     <span className="chat-status-end">
                       {turnStart !== null && (
@@ -503,6 +521,7 @@ export const ChatView = ({
                       </button>
                     </span>
                   )}
+                  <ShellLines shells={running} open={shellsOpen} onOpen={setShellsOpen} />
                 </div>
               )}
             </div>
@@ -511,7 +530,14 @@ export const ChatView = ({
             <button
               type="button"
               className="chat-jump nodrag nopan"
-              data-pinned={working || undefined}
+              data-pinned={pinned || undefined}
+              style={
+                pinned
+                  ? ({
+                      "--_pinned-rows": (status ? 1 : 0) + shellRows(running, shellsOpen),
+                    } as CSSProperties)
+                  : undefined
+              }
               aria-label="Jump to latest"
               onClick={() => {
                 const element = scroller.current

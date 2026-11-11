@@ -209,6 +209,23 @@ describe("demo turns", () => {
       expect(done.lastTurn).toEqual(lastTurn)
     })
 
+    it("leaves background shells running once the turn ends, and after a Stop", async () => {
+      const { turns, held, agent } = open()
+      const k = key("04", "api-service")
+      turns.finish(k, held(k), "completed", {
+        after: 100,
+        shells: [{ command: "pnpm dev", minutes: 2 }],
+      })
+      await vi.advanceTimersByTimeAsync(100)
+      expect(agent(k)).toMatchObject({
+        working: false,
+        shells: [{ id: "demo-shell-1", command: "pnpm dev", exit: null }],
+      })
+      expect(Date.now() - agent(k)!.shells![0]!.since).toBe(120_000)
+      turns.interrupt(k, agent(k)!)
+      expect(agent(k)?.shells).toHaveLength(1)
+    })
+
     it("keeps its done report standing once it ends, until the agent is taken some other way", async () => {
       const { turns, held, agent } = open()
       const done = { subject: "Shipped", body: "All of it." }

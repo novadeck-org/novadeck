@@ -26,7 +26,10 @@
    data-running and data-failed on a tool line, aria-expanded on its button, `.chat-tool-failed`
    on what says a call failed; data-sign="+" |
    "-" | " " on a line of a diff (`.chat-diff`); data-folded on a long run of calls;
-   `.chat-ring` (data-role="doorbell") for a turn the doorbell started, data-hollow on its mark;
+   `.chat-ring` (data-role="doorbell") for a turn the doorbell started, data-line where it has a
+   line of its own (`.chat-note`, data-hollow on its mark); `.chat-person-face` the person's face
+   in the gutter at their answer through the Inbox, where the app gives one, with data-hue="you"
+   on its row (what they type at the prompt keeps the mark);
    `.chat-record` with data-kind="compaction" | "gap" for a line of the record no one said;
    data-kind="permission" | "question" | "plan" and data-dialog="choices" | "questions" |
    "form" | "raw" | "none" on a request; `.chat-option` a row of a dialog's menu, data-on on the
@@ -54,8 +57,9 @@
    is pointed at or holds focus; `data-keep` stays where the chat is narrower than ~920px, which
    hides the others). The chat is a size container (`chat`) for that.
 
-   While the agent works its line is pinned to the log's bottom (`.chat-running`, holding
-   `.chat-status` and `.chat-status-end`: the turn's clock and `.chat-stop`, a `kbd` and its word).
+   While the agent works, or a background shell runs, its line is pinned to the log's bottom
+   (`.chat-running`, holding `.chat-status` and `.chat-status-end`: the turn's clock and
+   `.chat-stop`, a `kbd` and its word; then `.chat-shells`, a `.chat-shell` for each shell).
    The prompt's send is an icon button (`.chat-send`), in the accent.
    */
 
@@ -164,8 +168,8 @@
 }
 .chat-thread
   > :is(.chat-message, .chat-status):not(.chat-ring)
-  > :not(.chat-fact, .chat-mark, .chat-agent-face, .chat-spin),
-.chat-ring > .chat-message > :not(.chat-fact, .chat-agent-face) {
+  > :not(.chat-fact, .chat-mark, .chat-agent-face, .chat-person-face, .chat-spin),
+.chat-ring > .chat-message > :not(.chat-fact, .chat-agent-face, .chat-person-face) {
   max-width: var(--_measure);
 }
 .chat-request > :not(.chat-request-head) {
@@ -202,7 +206,7 @@
 .chat-subagent {
   position: relative;
 }
-/* A ring's time ends its dashed rule. */
+/* A ring's time ends its dashed rule, where it has its line. */
 .chat-ring > .chat-note > .chat-fact {
   position: static;
   order: 2;
@@ -322,7 +326,8 @@
   position: relative;
   color: var(--_ink);
 }
-.chat-agent-face {
+.chat-agent-face,
+.chat-person-face {
   position: absolute;
   top: -2px;
   /* Out into the gutter, so the words keep their column; in a narrow gutter, kept inside it. */
@@ -403,7 +408,8 @@
   margin: 0;
   color: var(--_muted);
 }
-/* A doorbell ring's header speaks for the messages under it: in ink, with a dashed rule after. */
+/* A doorbell ring's own line, only where what it brought can't speak for itself: in ink, with a
+   dashed rule after. */
 .chat-ring > .chat-note {
   display: flex;
   align-items: center;
@@ -420,9 +426,18 @@
 .chat-ring > .chat-mark {
   color: var(--_mid);
 }
-/* The person's answer the doorbell typed is their line, under the doorbell's. */
-.chat-ring-reply {
-  font-weight: 600;
+/* The person's answer through the Inbox, which the doorbell brought: headed as another agent's
+   message is, "you" in their hue (where the app gives their face) and the way it came beside it,
+   their words in full ink under it. */
+.chat-message.chat-ring-reply {
+  --_agent: var(--_h, var(--_ink));
+  color: var(--_ink);
+  font-weight: 400;
+}
+.chat-message[data-role="agent"] + .chat-ring-reply,
+.chat-ring-reply + .chat-message[data-role="agent"],
+.chat-ring-reply + .chat-ring-reply {
+  margin-top: calc(var(--_lh) / 2);
 }
 /* A record's line with nothing to open is a line, not a key. */
 .chat-record p.chat-tool-summary {
@@ -731,7 +746,7 @@
 .chat-running {
   --_ground: var(--chat-bg, var(--window-bg, var(--color-paper)));
 }
-.chat-thread > .chat-running[data-working] {
+.chat-thread > .chat-running[data-pinned] {
   position: sticky;
   bottom: calc(var(--_lh) * -1 + 4px);
   z-index: 1;
@@ -791,6 +806,56 @@
   }
 }
 
+/* The background shells under the working line: a `$` in the gutter, the command, and its clock at
+   the edge. Three or more fold into one line, with the short commands and a toggle. They are
+   pinned with the line above, and stay once the turn ends, until the shell does. */
+.chat-shells {
+  display: flex;
+  flex-direction: column;
+}
+.chat-shell {
+  position: relative;
+  display: flex;
+  gap: 2ch;
+  min-width: 0;
+  /* Room for the clock, or the toggle, at the edge. */
+  padding-right: 9ch;
+  color: var(--_muted);
+  white-space: nowrap;
+}
+.chat-shell-mark {
+  position: absolute;
+  left: -2ch;
+  color: var(--_mid);
+}
+.chat-shell-command {
+  min-width: 0;
+  max-width: var(--_measure);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-shell-count {
+  flex-shrink: 0;
+  color: var(--_mid);
+}
+.chat-shell-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--_muted);
+  font: inherit;
+  font-size: var(--_work-size);
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .chat-shell-toggle:hover {
+    color: var(--_ink);
+  }
+}
+
 /* Jump to the latest */
 .chat-jump {
   position: absolute;
@@ -806,7 +871,7 @@
 }
 /* Over the working line, which is pinned where it would stand. */
 .chat-jump[data-pinned] {
-  bottom: calc(var(--_lh) + 10px);
+  bottom: calc(var(--_lh) * var(--_pinned-rows, 1) + 10px);
 }
 @media (hover: hover) {
   .chat-jump:hover {

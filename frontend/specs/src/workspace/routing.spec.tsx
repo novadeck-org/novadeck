@@ -56,6 +56,13 @@ describe("deep links", () => {
       await expect.element(sidebarPanel("Sessions")).toBeChecked()
     })
 
+    it("opens the Changes sidebar when the link names it", async () => {
+      await openWorkspace(`${apiCanvas}&panel=changes`)
+
+      await expect.element(sidebar()).toHaveAccessibleName("Changes")
+      await expect.element(sidebarPanel("Changes")).toBeChecked()
+    })
+
     it("keeps showing the linked destination after a reload", async () => {
       await openWorkspace(apiCanvas)
 

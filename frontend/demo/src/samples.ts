@@ -255,6 +255,27 @@ const projectTerminals = (project: Project, withAgents = false): TerminalMetadat
               { id: "demo-tester-1", type: "general-purpose" },
               { id: "demo-tester-2", type: "general-purpose" },
             ],
+            // Three shells it left running too, which the chat folds into one line.
+            shells: [
+              {
+                id: "demo-shell-1",
+                command: "pnpm dev --filter storefront",
+                since: Date.now() - 12 * 60_000,
+                exit: null,
+              },
+              {
+                id: "demo-shell-2",
+                command: "pnpm test --watch --filter checkout",
+                since: Date.now() - 7 * 60_000,
+                exit: null,
+              },
+              {
+                id: "demo-shell-3",
+                command: "tail -f logs/export.log",
+                since: Date.now() - 2 * 60_000,
+                exit: null,
+              },
+            ],
           },
         }
       : {}),
@@ -280,6 +301,15 @@ const projectTerminals = (project: Project, withAgents = false): TerminalMetadat
               ],
               wake: null,
             },
+            // And a shell, which the chat pins under its prompt until it exits.
+            shells: [
+              {
+                id: "demo-shell-1",
+                command: "pnpm preview --port 4173",
+                since: Date.now() - 18 * 60_000,
+                exit: null,
+              },
+            ],
           },
         }
       : {}),

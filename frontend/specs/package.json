@@ -28,7 +28,7 @@
     "@vitejs/plugin-react": "^5.2.0",
     "@vitest/browser-playwright": "5.0.5",
     "@xyflow/react": "^12.12.0",
-    "jsdom": "^30.1.3",
+    "jsdom": "^31.0.0",
     "playwright": "^1.64.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
@@ -37,5 +37,8 @@
     "vite": "^7.3.7",
     "vitest": "^5.0.5",
     "vitest-browser-react": "^2.3.0"
+  },
+  "novadeck": {
+    "platform": "system"
   }
 }

@@ -308,6 +308,19 @@ export class Saves {
     this.settle(job, await this.redact(job))
   }
 
+  /**
+   * Saves the restoring state of terminals that move together, each as `row` or as given,
+   * all or none where the records can. Whether it was saved; nothing is, for a closed one.
+   */
+  saveTogether(rows: readonly (SavedRecord | TerminalToSave)[]): boolean {
+    const all = rows.map((each) => ("summary" in each ? this.row(each) : each))
+    return this.persisting(() => {
+      const { records } = this.options
+      if (records?.saveTerminals) records.saveTerminals(all)
+      else for (const each of all) records?.saveTerminal(each)
+    })
+  }
+
   /** Saves a terminal's restoring state alone, leaving its transcript as it is; whether it was saved. */
   private saveRow(record: SavedRecord): boolean {
     // A closed terminal is forgotten for good: work still suspended for it, as an agent's

@@ -472,3 +472,17 @@ describe("an agent stopped to rest while it ran", () => {
     expect(run.messaging.occupied("nobody")).toBe(false)
   })
 })
+
+describe("a terminal moved to another session", () => {
+  it("is seen by the terminals of its new session, with its new handle and lead, and no longer by the old", () => {
+    const { messaging } = setup()
+    messaging.register("C", { projectId: "p", sessionId: "t" }, "owl", null)
+    bind(messaging, "C", "claude", "s-c")
+    expect(messaging.send("A", { to: "owl", text: "hi" }).ok).toBe(false)
+    messaging.move("B", { projectId: "p", sessionId: "t" }, "kite", "owl")
+    expect(messaging.leadOf("B")).toBe("owl")
+    expect(messaging.send("C", { to: "kite", text: "hi" }).ok).toBe(true)
+    expect(messaging.inboxOwner("B")).toMatchObject({ workspaceSessionId: "t", handle: "kite" })
+    expect(messaging.send("A", { to: "fox", text: "hi" }).ok).toBe(false)
+  })
+})

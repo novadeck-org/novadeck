@@ -1,6 +1,9 @@
 import { defineConfig } from "vitest/config"
 
-export default defineConfig({
+// oxlint-disable-next-line no-restricted-imports -- CI's retry policy is the workspace's, not the adapter's.
+import { retryOnCi } from "../../scripts/flakes/retry/vitest"
+
+const config = defineConfig({
   test: {
     // The runner's limits (see backend/runner/vitest.config.ts): a cold worker on a
     // fresh Windows runner is slow to start; a genuine hang still fails.
@@ -8,3 +11,5 @@ export default defineConfig({
     hookTimeout: 20_000,
   },
 })
+
+export default retryOnCi(config)

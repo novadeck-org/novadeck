@@ -30,6 +30,8 @@ export type CommandEffects = {
   readonly focusZenCreate: () => void
   readonly focusZenEnter: () => void
   readonly focusTerminalsCreate: () => void
+  // Focuses the Sessions panel's first place to move a terminal to, once it shows for a pick.
+  readonly focusMovePick: () => void
   readonly focusWorkspaceViewport: () => void
   readonly focusTerminalTab: (id: string) => void
   // Focuses the terminal's input now; false when it has none that can take focus.
@@ -58,6 +60,8 @@ export type CommandContext = {
   readonly pickDirectory?: Backend["pickDirectory"] | undefined
   readonly crashLoop?: Backend["crashLoop"] | undefined
   readonly resetTitle?: Backend["resetTitle"] | undefined
+  // Moves a terminal to another session, where the backend can.
+  readonly moveTerminal?: Backend["moveTerminal"] | undefined
   // The agents' conversations, where the backend reads them, which the chat sends to.
   readonly conversations?: Backend["conversations"] | undefined
   // Where the backend keeps closed terminals, which closing adds to and restoring takes from.

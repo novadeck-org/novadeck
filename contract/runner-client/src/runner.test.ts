@@ -240,6 +240,39 @@ describe("History", () => {
   })
 })
 
+describe("Works", () => {
+  const terminalId = "11111111-1111-4111-8111-111111111111"
+  const projectId = "22222222-2222-4222-8222-222222222222"
+
+  it("follows works from a reset to synced, and looks at and shows one", async () => {
+    const looked: string[] = []
+    const { runner } = await fakeRunner({
+      works: {
+        watch: api.works.watch.handler(async function* () {
+          yield { type: "synced" as const }
+          yield { type: "removed" as const, terminalId, projectId }
+        }),
+        look: api.works.look.handler(({ input }) => {
+          looked.push(input.terminalId)
+        }),
+        show: api.works.show.handler(({ input }) => ({ itemId: input.terminalId })),
+      },
+    })
+    const watch = runner.works.watch()
+    onTestFinished(() => void watch.return?.())
+    const seen: string[] = []
+    for (let step = 0; step < 3; step += 1) {
+      // eslint-disable-next-line no-await-in-loop -- Events arrive in order.
+      const { value } = await watch.next()
+      seen.push(value!.type)
+    }
+    expect(seen).toEqual(["reset", "synced", "removed"])
+    await runner.works.look(terminalId)
+    expect(looked).toEqual([terminalId])
+    expect(await runner.works.show(terminalId)).toEqual({ itemId: terminalId })
+  })
+})
+
 describe("a prompt with images", () => {
   const sent = async (at: readonly number[]) => {
     const inputs: unknown[] = []

@@ -6,7 +6,9 @@
     "suspicious": "warn"
   },
   "plugins": ["import", "react", "typescript", "unicorn", "vitest"],
+  "jsPlugins": ["./scripts/workspace/fence.ts"],
   "rules": {
+    "novadeck/platform": "error",
     "func-style": [
       "error",
       "expression",

@@ -5,6 +5,7 @@ import { cleanup, render } from "vitest-browser-react"
 import { page, userEvent, type Locator } from "vitest/browser"
 
 import { createSpecBackend, forgetEarlierPages } from "./backend"
+import { notePlatformRead } from "./platform"
 
 // The person's vocabulary for behaviour specs. Specs describe what a person sees and
 // does; only this module knows how that maps to accessible roles and names, so a
@@ -208,7 +209,7 @@ export const chooseView = async (name: "Focus" | "Grid" | "Canvas"): Promise<voi
 export const sidebar = (): Locator => page.getByRole("complementary")
 
 export const sidebarPanel = (
-  name: "Terminals" | "Source" | "Sessions" | "History" | "Inbox",
+  name: "Terminals" | "Source" | "Sessions" | "History" | "Inbox" | "Changes",
 ): Locator =>
   page
     .getByRole("radiogroup", { name: "Sidebar actions" })
@@ -460,8 +461,15 @@ export const tooltipOf = async (trigger: Locator): Promise<string> => {
   return shown()!.textContent ?? ""
 }
 
-/** The platform modifier: Cmd on macOS, Ctrl elsewhere. Chromium on Linux/Windows uses Ctrl. */
-export const isMac = (): boolean => /Mac|iPhone|iPad/.test(navigator.platform)
+/**
+ * Whether the app runs as a Mac, as it tells itself: from `navigator.platform`, which a spec
+ * project can set (support/platform.ts). A file that asks must be on the config's list of those
+ * that run as each system (`eachPlatform` in vitest.config.ts).
+ */
+export const isMac = (): boolean => {
+  notePlatformRead()
+  return /Mac|iPhone|iPad/.test(navigator.platform)
+}
 
 /**
  * What a screen reader hears describe a terminal's tab, as aria-describedby resolves it,

@@ -3,14 +3,16 @@ import type { ClosedTerminal } from "@novadeck/core/history"
 import type { AgentConnection } from "@novadeck/core/port"
 import type { SourceListing, SourceProject } from "@novadeck/core/source"
 import type { SidebarPanel as PanelId, Tile, WorkspaceSession } from "@novadeck/core/types"
+import type { Work } from "@novadeck/core/works"
 import { Plus } from "lucide-react"
 import type { ComponentProps } from "react"
 
 import { HeldPill, InboxClear, InboxCount, InboxList, InboxMarkAll } from "../inbox/InboxList"
 import { shortcutBindings } from "../interaction/shortcuts"
 import { sessionGlance, type SessionMark } from "../projects/session-marks"
+import { ChangesPanel } from "../sidebar/ChangesPanel"
 import { HistoryPanel } from "../sidebar/HistoryPanel"
-import { SessionsPanel } from "../sidebar/SessionsPanel"
+import { SessionsPanel, type SessionsMove } from "../sidebar/SessionsPanel"
 import { SidebarPanel, sidebarCreateClasses } from "../sidebar/SidebarPanel"
 import { SourcePanel } from "../sidebar/SourcePanel"
 import { programIcon } from "../terminals/processes/profiles"
@@ -55,9 +57,26 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
         onConnect: (agent: AgentName) => void
       }
     | undefined
+  // Where the backend reports each terminal's work against main: this project's works, the
+  // terminals' titles by id, the selected terminal, and what a row's click does. Left out,
+  // there is no Changes panel.
+  changes:
+    | {
+        works: readonly Work[]
+        // The backend has reported every work since it began following.
+        synced: boolean
+        // Follows the works until the returned release is called.
+        watch: () => () => void
+        titles: ReadonlyMap<string, string>
+        selectedId: string | undefined
+        onSelect: (terminalId: string) => void
+      }
+    | undefined
   onSessionSelect: (id: string) => void
   onSessionRename: (id: string, name: string) => void
   onSessionMove: (id: string, index: number) => void
+  // A terminal on its way to another session, while the person picks where.
+  moving?: SessionsMove | undefined
   onSessionRemove: (id: string) => void
   onFresh: () => void
   onHide: () => void
@@ -80,6 +99,7 @@ export const WorkspaceSidebar = ({
   sidebarVisible,
   source,
   history,
+  changes,
   onSessionSelect,
   onSessionRename,
   onSessionMove,
@@ -89,6 +109,8 @@ export const WorkspaceSidebar = ({
   onCreate,
   renderTab,
   onReorder,
+  moving,
+  away,
 }: Props): React.JSX.Element => (
   <aside
     id="terminal-sidebar"
@@ -139,6 +161,7 @@ export const WorkspaceSidebar = ({
         onMove={onSessionMove}
         onRemove={onSessionRemove}
         historyKept={Boolean(history)}
+        moving={moving}
       />
     </SidebarPanel>
     {history && (
@@ -175,8 +198,18 @@ export const WorkspaceSidebar = ({
         terminals={ordered}
         renderTab={renderTab}
         onReorder={onReorder}
+        away={away}
       />
     </SidebarPanel>
+    {changes && (
+      <ChangesPanel
+        key={`changes/${projectId}`}
+        {...changes}
+        active={sidebarPanel === "changes"}
+        watching={sidebarVisible && sidebarPanel === "changes"}
+        onClose={onHide}
+      />
+    )}
     <SidebarPanel
       id="inbox-panel"
       title="Inbox"

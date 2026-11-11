@@ -5,6 +5,7 @@ import {
   errors as contractErrors,
   type AgentName,
   type HistoryChange,
+  type WorkChange,
   type ItemContent,
 } from "@novadeck/protocol"
 import { TerminalError } from "@novadeck/terminal"
@@ -23,6 +24,7 @@ import type { Murmur } from "./murmur/service.js"
 import type { Terminals } from "./terminals/index.js"
 import type { Uploads } from "./terminals/uploads.js"
 import type { Voice } from "./voice/service.js"
+import type { Works } from "./works/works.js"
 import { listFolder } from "./workspaces/folder.js"
 import type { Projects } from "./workspaces/projects.js"
 import type { WorkspaceStore } from "./workspaces/store.js"
@@ -61,6 +63,19 @@ const noHistoryStream = async function* (signal?: AbortSignal): AsyncGenerator<H
   await new Promise<void>((resolve) => signal?.addEventListener("abort", () => resolve()))
 }
 
+const noWorksStream = async function* (signal?: AbortSignal): AsyncGenerator<WorkChange> {
+  yield { type: "synced" }
+  if (signal?.aborted) return
+  await new Promise<void>((resolve) => signal?.addEventListener("abort", () => resolve()))
+}
+
+// What `works.watch` reports without Works: nothing, and the stream waits.
+const noWorks = {
+  watch: (_ownerId: string, signal?: AbortSignal) => noWorksStream(signal),
+  look: () => Promise.reject(new DomainError("NOT_FOUND")),
+  show: () => Promise.reject(new DomainError("NOT_FOUND")),
+}
+
 /**
  * The runner's procedures. Its sessions serve them (`createSessions`): only to authenticated
  * sessions, and mapping their failures with `apiError`.
@@ -73,6 +88,8 @@ export const createRouter = (options: {
   items: CompanionItems
   /** Closed terminals; without it History is empty. */
   history?: History
+  /** Each terminal's work against main; without it the Changes panel is empty. */
+  works?: Works
   agents: Harnesses
   uploads: Uploads
   voice: Voice
@@ -84,6 +101,7 @@ export const createRouter = (options: {
 }) => {
   const { store, terminals, feedback, projects, items, agents, uploads, voice, murmur } = options
   const history = options.history ?? noHistory
+  const works = options.works ?? noWorks
   // A plan's content says whether Novadeck's plugin is installed into its agent, which the
   // companions can't know: it is looked up as the content leaves.
   const withSkill = async (content: ItemContent, agent: AgentName | undefined) =>
@@ -186,6 +204,7 @@ export const createRouter = (options: {
       restart: api.terminals.restart.handler(async ({ input, context }) =>
         terminals.restart(input, context.session.id),
       ),
+      move: api.terminals.move.handler(({ input }) => projects.moveTerminal(input)),
       close: api.terminals.close.handler(({ input }) => terminals.close(input)),
       rename: api.terminals.rename.handler(({ input }) => terminals.rename(input)),
       resetTitle: api.terminals.resetTitle.handler(({ input }) => terminals.resetTitle(input)),
@@ -224,6 +243,13 @@ export const createRouter = (options: {
       watch: api.history.watch.handler(({ context, signal }) =>
         history.watch(context.session.id, signal),
       ),
+    },
+    works: {
+      watch: api.works.watch.handler(({ context, signal }) =>
+        works.watch(context.session.id, signal),
+      ),
+      look: api.works.look.handler(({ input }) => works.look(input.terminalId)),
+      show: api.works.show.handler(({ input }) => works.show(input.terminalId)),
     },
     companions: {
       list: api.companions.list.handler(({ input }) => {

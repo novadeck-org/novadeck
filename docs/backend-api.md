@@ -295,6 +295,30 @@ terminal never ends it. After a runner restart it is the resumed session's until
 has ended; Codex and Antigravity bind only at their first prompt, so until then it comes
 from that saved session. The agents listing's "reported done" follows the same rule.
 
+`runner.terminals.move({ terminalId, to, handles?, lead? })` moves a terminal to another session
+of the same project without restarting it: a running one, or one kept only as saved (a
+sleeping agent). `to` is `{ sessionId }`. A lead takes its whole team,
+at every depth, in one step, so none is ever led by a handle that went; a teammate moved on its
+own leaves its lead, and the answer's `left` is that lead's handle (null if it had none). The
+answer is `{ sessionId, moved, left }`, `moved` listing the terminal asked for and then its team
+as `{ terminalId, handle, was }`. Each keeps its handle unless the target session gave it
+already, as a restore from History does (a terminal there has it or is led under it, or the
+session gave it to another): it then draws that session's next, and its workers' `ledBy` follow.
+`handles` (by terminal id) and `lead` undo an earlier move: a handle is taken back where no
+terminal of the session holds it or is led under it, and the terminal rejoins the lead with
+that handle if one is there, without asking. `terminals.watch` tells each moved terminal as a
+`changed` with its new `sessionId`; its Inbox rows and its companion bar's items go with it,
+and each running agent hears of it as a notice, with any new handles and the lead it left (a
+sleeping agent isn't woken for it). A terminal that is closing, stopping to rest, being woken,
+whose agent has a terminal on its way (`open_agent`), whose lead's brief to it hasn't arrived
+yet, or that an approval the person hasn't answered names (as the asker or the target) is a
+`CONFLICT`, as are the terminal's own session, a session of another project and a session being
+removed; an unknown terminal is `TERMINAL_NOT_FOUND` and an unknown session `NOT_FOUND`.
+`Moves.apply` (`backend/runner/src/terminals/moves.ts`) lists everything that follows a
+terminal, in the order it must, and what deliberately doesn't (messages, which are addressed by
+terminal id; briefs, opens and approvals, which refuse the move); a feature that keeps a
+terminal's session or handle belongs on that list.
+
 `runner.terminals.upload(terminalId, { name, data })` saves a file pasted into a
 terminal on the runner's machine and resolves with its absolute path there, for the UI
 to paste into the terminal. The desktop app, whose runner is on its own machine, pastes

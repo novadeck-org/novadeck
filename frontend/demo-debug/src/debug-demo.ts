@@ -43,6 +43,7 @@ import { createDemoStates } from "./states"
 import { sessionTarget } from "./terminals"
 import type { DemoActionContext } from "./types"
 import { voiceGroups } from "./voice"
+import { worksGroups } from "./works"
 
 // What one connection to the demo knows of the boot that made it, and how the panel
 // asks for another.
@@ -248,6 +249,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     ...(launch.portable ? { portable: createDemoPortable(launch.portable).portable } : {}),
     ...(launch.uninstall ? { uninstall: createDemoUninstall(launch.uninstall).uninstall } : {}),
     pickDirectory: states.pickDirectory,
+    ...(inner.moveTerminal ? { moveTerminal: states.moveTerminal(inner.moveTerminal) } : {}),
     ...(inner.conversations ? { conversations: states.chat(inner.conversations) } : {}),
   }
   panels.set(
@@ -272,6 +274,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           ...voiceGroups(isDemoVoice(inner.voice) ? inner.voice : undefined),
           ...historyGroups(inner.history),
           ...sourceGroups(isDemoSource(inner.source) ? inner.source : undefined),
+          ...worksGroups(inner.works),
         ],
       },
       dispatch: () => sink?.dispatch,

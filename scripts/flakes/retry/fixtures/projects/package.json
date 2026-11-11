@@ -1,0 +1,8 @@
+{
+  "name": "@fixture/projects",
+  "private": true,
+  "type": "module",
+  "novadeck": {
+    "platform": "system"
+  }
+}

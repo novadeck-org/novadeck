@@ -1,4 +1,4 @@
-import type { Project, WorkspaceSession } from "@novadeck/protocol"
+import type { Project, TerminalMove, TerminalMoved, WorkspaceSession } from "@novadeck/protocol"
 
 import type { CompanionItems } from "../companions/items.js"
 import { DomainError } from "../errors.js"
@@ -50,6 +50,19 @@ export class Projects {
       projectId,
       order.filter((id) => !this.removingSessions.has(id)),
     )
+  }
+
+  /** Moves a terminal and its team to another session of its project. */
+  moveTerminal(input: TerminalMove): TerminalMoved {
+    return this.terminals.move(input, {
+      projectOf: (sessionId) => {
+        const { projectId } = this.store.session(sessionId)
+        this.ensureNotRemoving(projectId)
+        if (this.removingSessions.has(sessionId))
+          throw new DomainError("CONFLICT", "The session is being removed.")
+        return projectId
+      },
+    })
   }
 
   /** Refuses anything new in a project being removed, as `NOT_FOUND`: it is as good as gone. */

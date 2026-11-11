@@ -61,8 +61,11 @@ import {
   busyShells,
   terminalSummary,
   terminalTitle,
+  terminalMove,
+  terminalMoved,
 } from "./terminals.js"
 import { transcriptChange } from "./transcripts.js"
+import { workChange } from "./works.js"
 
 export const errors = {
   ...wireErrors,
@@ -242,6 +245,18 @@ export const contract = {
     // and the teammate and the former lead are told. A terminal with no lead is a no-op;
     // one not there is TERMINAL_NOT_FOUND.
     release: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
+    // The person moves a terminal to another session of its project, running or saved,
+    // without restarting it. A lead takes its whole team along, at every depth; a teammate
+    // moved on its own leaves its lead. Each keeps its handle unless the session it goes to
+    // has given it already, or a terminal there holds it or is led under it, then draws that
+    // session's next, and its leads' handles follow in its team's `ledBy`. Its Inbox rows and
+    // the companion items its bar holds go with it, and `watch` tells each move as a `changed` with the new `sessionId`. A terminal
+    // it keeps nothing of is TERMINAL_NOT_FOUND; a session it doesn't have NOT_FOUND; the
+    // terminal's own session, one of another project, or one being removed, a CONFLICT, as
+    // is a move while a terminal of the team is closing, being stopped to rest or woken, has
+    // a brief that hasn't arrived, or waits on a request: one to open a terminal, or an
+    // approval the person hasn't answered.
+    move: procedure.input(terminalMove).output(terminalMoved),
     // Every terminal across sessions, running or saved: `changed` for each, `synced`, then
     // later changes (creation, title, size, foreground process, exit, restart, and its
     // shell's record let go, when it is saved again) and `removed` once it is closed.
@@ -486,6 +501,21 @@ export const contract = {
     // (a close, a restore's progress and outcome, a prune), as `terminals.watch` reports
     // terminals. An availability found by checking files is only as of when the list was read.
     watch: procedure.input(z.void()).output(eventIterator(historyChange)),
+  },
+  // Each terminal's work that differs from its repository's main branch, for the Changes
+  // panel (works.ts).
+  works: {
+    // Every project's works: each `changed`, `synced`, then later changes (new lines, a
+    // look, a conflict found or gone, a merge or discard that removes one).
+    watch: procedure.input(z.void()).output(eventIterator(workChange)),
+    // The person has read the terminal's work as it is now: what's unread starts again from
+    // here. A terminal with no work is NOT_FOUND.
+    look: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
+    // Shows the terminal's work as a changes item on its bar, as an agent's `show` with
+    // `changes` would, and gives the item's id. A terminal with no work is NOT_FOUND.
+    show: procedure
+      .input(z.strictObject({ terminalId: id }))
+      .output(z.strictObject({ itemId: id })),
   },
   // What agents show and the person attaches beside terminals: items held by a terminal's
   // bar or an undocked window, kept across restarts as pointers to files, pages and plans.

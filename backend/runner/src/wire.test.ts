@@ -392,6 +392,53 @@ describe("terminal watch API", () => {
   })
 })
 
+describe("terminal move API", () => {
+  it("moves a running terminal to another session of its project, and watchers hear of it", async ({
+    resources,
+  }) => {
+    const app = await fixture(resources)
+    const { client } = await app.connect()
+    const { project, session } = await app.setup(client)
+    const other = await client.sessions.create({
+      id: randomUUID(),
+      projectId: project.id,
+      name: "B",
+    })
+    const terminal = await client.terminals.create(shell(session.id))
+    const stream = await client.terminals.watch()
+    // The terminal itself, then the sync that ends the first listing.
+    expect((await stream.next()).value).toMatchObject({ type: "changed" })
+    expect((await stream.next()).value).toEqual({ type: "synced" })
+    const moved = await client.terminals.move({
+      terminalId: terminal.id,
+      to: { sessionId: other.id },
+    })
+    expect(moved).toEqual({
+      sessionId: other.id,
+      moved: [{ terminalId: terminal.id, handle: terminal.handle, was: terminal.handle }],
+      left: null,
+    })
+    const heard = await stream.next()
+    expect(heard.value).toMatchObject({
+      type: "changed",
+      terminal: { id: terminal.id, sessionId: other.id },
+    })
+    expect((await client.terminals.list({ sessionId: session.id })).map(({ id }) => id)).toEqual([])
+    expect((await client.terminals.list({ sessionId: other.id })).map(({ id }) => id)).toEqual([
+      terminal.id,
+    ])
+    await expect(
+      client.terminals.move({ terminalId: terminal.id, to: { sessionId: other.id } }),
+    ).rejects.toMatchObject({ code: "CONFLICT" })
+    await expect(
+      client.terminals.move({ terminalId: randomUUID(), to: { sessionId: other.id } }),
+    ).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
+    await expect(
+      client.terminals.move({ terminalId: terminal.id, to: { sessionId: randomUUID() } }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+  })
+})
+
 describe("terminal title API", () => {
   it("renames a terminal as the person's, then hands its title back to Novadeck", async ({
     resources,

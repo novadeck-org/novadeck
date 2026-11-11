@@ -57,7 +57,14 @@ const run = async (output: string, vitest: string, budget: number): Promise<Resu
     ],
     {
       cwd: ui,
-      env: { ...process.env, CI: "1", NOVADECK_UI_TRACE: "1", NOVADECK_GRID_OUTPUT: output },
+      // No CI retry (scripts/flakes/retry): the grid counts a spec's failures itself.
+      env: {
+        ...process.env,
+        CI: "1",
+        NOVADECK_UI_TRACE: "1",
+        NOVADECK_GRID_OUTPUT: output,
+        NOVADECK_RETRY: "0",
+      },
       stdio: ["ignore", "pipe", "pipe"],
       detached: process.platform !== "win32",
     },

@@ -7,5 +7,6 @@ export {
   type HistoryWatchItem,
   type Runner,
   type TerminalWatchItem,
+  type WorkWatchItem,
 } from "./runner.js"
 export { type AttachedTerminal, type TerminalMode } from "./terminal.js"

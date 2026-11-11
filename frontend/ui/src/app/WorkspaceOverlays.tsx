@@ -30,6 +30,7 @@ import {
 } from "../terminals/ApprovalDialog"
 import { closeTeamTree, sameCloseTeamTree, type CloseTeamRow } from "../terminals/close-team"
 import { CloseTerminalDialog } from "../terminals/CloseTerminalDialog"
+import { MoveTeammateDialog } from "../terminals/MoveTeammateDialog"
 import { visibleSwitcher } from "../terminals/recent"
 import { TerminalSwitcher } from "../terminals/TerminalSwitcher"
 import { CloseTeamRows } from "./CloseTeamRows"
@@ -42,6 +43,7 @@ import {
 import { useRouteDialog, type RouteDialog } from "./controller/useRouteDialog"
 import { Preferences, TerminalSearch } from "./deferred-views"
 import { dingOf } from "./ding"
+import { moveQuestionOf, sameMoveQuestion } from "./move-question"
 import { NameOffer } from "./NameOffer"
 import {
   closeQuestion,
@@ -265,6 +267,12 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const { go, closeDialog } = navigation
   const { chooseRecent, updatePreferences, openSearchResult, closeSwitcher } = commands
   const { confirmClose, cancelClose, retryAfterCrashLoop, dismissCrashLoop } = commands
+  const { confirmMove, cancelMove } = commands
+  const moveAsk = useUiState((state) => state.moveAsk)
+  const moveQuestion = useWorkspaceState(
+    (workspace) => moveQuestionOf(workspace, moveAsk),
+    sameMoveQuestion,
+  )
   const crashes = useUiState(crashLoopQuestion)
   const pending = useUiState((state) => state.closing)
   const closingTerminal = useWorkspaceState(
@@ -336,6 +344,12 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
         returnFocus={(id) =>
           terminalElement(id)?.querySelector<HTMLElement>("[data-terminal-input]") ?? null
         }
+      />
+      <MoveTeammateDialog
+        question={moveQuestion}
+        onConfirm={confirmMove}
+        onCancel={cancelMove}
+        returnFocus={(id) => terminalElement(id)?.querySelector<HTMLElement>("button") ?? null}
       />
       {backend.approvals && (
         <ApprovalDialog approval={approval} onAnswer={backend.approvals.answer} />

@@ -29,6 +29,8 @@
     "./videos/launch": "./src/videos/launch.ts",
     "./visitor/connect": "./src/visitor/connect.ts",
     "./visitor/index": "./src/visitor/index.ts",
+    "./work-plans": "./src/work-plans.ts",
+    "./works": "./src/works.ts",
     "./workspace": "./src/workspace.ts"
   },
   "scripts": {
@@ -49,9 +51,12 @@
     "@novadeck/test-kit": "workspace:*",
     "@types/react": "^19.3.0",
     "@vitest/browser-playwright": "5.0.5",
-    "jsdom": "^30.1.3",
+    "jsdom": "^31.0.0",
     "typescript": "^7.0.2",
     "vite": "^7.3.7",
     "vitest": "^5.0.5"
+  },
+  "novadeck": {
+    "platform": "neutral"
   }
 }

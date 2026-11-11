@@ -7,4 +7,5 @@ export const panelLabels: Readonly<Record<SidebarPanel, string>> = {
   sessions: "Workspace sessions",
   history: "Closed terminals",
   inbox: "Inbox",
+  changes: "Changes",
 }

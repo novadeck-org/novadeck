@@ -57,6 +57,8 @@ const rules: Record<string, readonly string[]> = {
     "interaction/keymap.ts",
     "shell/shell-state.ts",
     "terminals/rename-state.ts",
+    // Where a terminal moves and what the toast says of it, by its pure functions.
+    "terminals/move-state.ts",
     // Which window is the project's, whose file names it.
     "terminals/project-window.ts",
     // Unread finishes, which the Inbox reads.

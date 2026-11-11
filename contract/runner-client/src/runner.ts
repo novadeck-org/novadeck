@@ -34,6 +34,8 @@ import {
   type TerminalChange,
   type TerminalMessages,
   type TerminalRequest,
+  type TerminalMove,
+  type TerminalMoved,
   type TerminalRequestAnswer,
   type TerminalSummary,
   type TranscriptChange,
@@ -41,6 +43,7 @@ import {
   type VoiceState,
   type VoiceTranscript,
   type WireClient,
+  type WorkChange,
   type WorkspaceSession,
 } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
@@ -77,6 +80,12 @@ export type CompanionWatchItem = CompanionChange | Reset
  * yields before each fresh sequence of closed terminals ending in `synced`.
  */
 export type HistoryWatchItem = HistoryChange | Reset
+
+/**
+ * An item of `runner.works.watch()`: a runner change, or `reset`, which the client yields
+ * before each fresh sequence of works ending in `synced`.
+ */
+export type WorkWatchItem = WorkChange | Reset
 
 export type Runner = {
   readonly status: WireStatus
@@ -234,6 +243,12 @@ export type Runner = {
      * one the runner doesn't hold.
      */
     release(terminalId: string): Promise<void>
+    /**
+     * Moves a terminal, and the team it leads, to another session of its project without
+     * restarting it (see `terminals.move` in the contract for the handles it keeps and the
+     * failures: `TERMINAL_NOT_FOUND`, `NOT_FOUND` or `CONFLICT`).
+     */
+    move(input: TerminalMove): Promise<TerminalMoved>
     /**
      * Follows every terminal on the runner, across sessions. Each time the stream opens,
      * first and again after every reconnection or retried refusal, it yields `reset`,
@@ -406,6 +421,24 @@ export type Runner = {
      * or pruned row. Iteration ends only when the runner closes or on `return()`.
      */
     watch(): AsyncIterableIterator<HistoryWatchItem, undefined>
+  }
+  /** Each terminal's work that differs from its repository's main branch (Changes panel). */
+  readonly works: {
+    /**
+     * Follows every work on the runner, as `history.watch()` follows closed terminals: each
+     * time the stream opens it yields `reset`, every work as `changed`, then `synced`; at
+     * `synced`, forget any not reported since. Later events report a work changed, or
+     * `removed` once it is merged, discarded or its terminal closed. Iteration ends only
+     * when the runner closes or on `return()`.
+     */
+    watch(): AsyncIterableIterator<WorkWatchItem, undefined>
+    /** The person has read the terminal's work as it is now; `NOT_FOUND` without a work. */
+    look(terminalId: string): Promise<void>
+    /**
+     * Shows the terminal's work as a changes item on its bar and gives the item's id;
+     * `NOT_FOUND` without a work.
+     */
+    show(terminalId: string): Promise<{ readonly itemId: string }>
   }
   /**
    * What agents show and the person attaches beside terminals: items, each held by a
@@ -690,6 +723,7 @@ export const connectRunner = async (
         ),
       answerApproval: (answer) => call((client) => client.terminals.answerApproval(answer)),
       release: (terminalId) => call((client) => client.terminals.release({ terminalId })),
+      move: (input) => call((client) => client.terminals.move(input)),
       watch: () =>
         followAll(connection, (client, signal) => client.terminals.watch(undefined, { signal })),
       close: (terminalId) => call((client) => client.terminals.close({ terminalId })),
@@ -768,6 +802,12 @@ export const connectRunner = async (
       list: (input) => call((client) => client.history.list(input)),
       watch: () =>
         followAll(connection, (client, signal) => client.history.watch(undefined, { signal })),
+    },
+    works: {
+      watch: () =>
+        followAll(connection, (client, signal) => client.works.watch(undefined, { signal })),
+      look: (terminalId) => call((client) => client.works.look({ terminalId })),
+      show: (terminalId) => call((client) => client.works.show({ terminalId })),
     },
     companions: {
       list: (input) => call((client) => client.companions.list(input)),

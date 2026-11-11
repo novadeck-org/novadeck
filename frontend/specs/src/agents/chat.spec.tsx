@@ -541,6 +541,31 @@ describe("Stopping an agent from the chat", () => {
   })
 })
 
+describe("Background shells", () => {
+  it("pins a line for a shell the idle agent left running", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    const shells = chat.getByRole("group", { name: "Background shells" })
+    await expect.element(shells.getByText("pnpm preview --port 4173")).toBeVisible()
+    await expect.element(chat.getByRole("button", { name: "Stop" })).not.toBeInTheDocument()
+  })
+
+  it("folds three shells under the working line, and opens them", async () => {
+    await openChatDemo()
+    const chat = await openChat("Tests")
+    const shells = chat.getByRole("group", { name: "Background shells" })
+    await expect.element(shells.getByText("3 shells")).toBeVisible()
+    await expect.element(shells.getByText("tail -f logs/export.log")).not.toBeInTheDocument()
+    const show = shells.getByRole("button", { name: "show" })
+    await expect.element(show).toHaveAttribute("aria-expanded", "false")
+    await show.click()
+    await expect.element(shells.getByText("tail -f logs/export.log")).toBeVisible()
+    await expect
+      .element(shells.getByRole("button", { name: "hide" }))
+      .toHaveAttribute("aria-expanded", "true")
+  })
+})
+
 describe("A request that waits on the person", () => {
   context("when it shows", () => {
     it("names what it asks and its answers, which the chat takes itself", async () => {
