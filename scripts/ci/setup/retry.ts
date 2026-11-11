@@ -6,7 +6,8 @@ import { spawnSync } from "node:child_process"
 // mirrors couldn't be resolved for hours (Canonical's DNS), and `playwright install-deps` ended
 // each job with exit code 100 six or seven minutes after a warning. Here a failure that
 // outlasts the retries ends the step with one `::error::` line saying what failed, and that
-// the mirrors were unreachable where the output says so, after about ten minutes at most.
+// the mirrors were unreachable where the output says so, after about ten minutes at most for
+// one call (a step can chain two).
 
 export type Plan = {
   readonly attempts: number

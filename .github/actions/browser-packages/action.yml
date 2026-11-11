@@ -1,9 +1,9 @@
 name: Test Browser Packages
 description: >
   The test browser's system packages on Linux that the runner image lacks (nine font packages
-  on ubuntu-24.04 on 11-11), installed from a cache of their debs with dpkg where it has them,
-  and through Ubuntu's mirrors only where it doesn't, retried and failing fast. Run after the
-  browser is in place, on Linux only.
+  on ubuntu-24.04 on 11-11), installed from a cache of their debs with apt and no download
+  where it has them, and through Ubuntu's mirrors only where it doesn't, retried and failing
+  fast. Run after the browser is in place, on Linux only.
 
 # On 11-11 Ubuntu's mirrors couldn't be resolved for hours, and every job with a cached browser
 # failed installing these before any test ran. Chromium itself runs on the image as shipped
@@ -40,8 +40,9 @@ runs:
         path: ${{ runner.temp }}/browser-packages
         key: ${{ steps.check.outputs.key }}
 
-    # dpkg -i from the cache, or apt's download then dpkg -i; done only where Playwright's
-    # check then names none missing (scripts/ci/setup/browser-packages.ts).
+    # From the cache with `apt-get install --no-download`, or apt's download then the same;
+    # done only where Playwright's check then names none missing
+    # (scripts/ci/setup/browser-packages.ts).
     - name: Install Test Browser Packages
       id: install
       if: steps.check.outputs.missing != '0'

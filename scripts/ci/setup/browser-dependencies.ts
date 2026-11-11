@@ -51,7 +51,8 @@ export const missingPackages = (
  * architecture, and a digest of Playwright's version with the packages it names missing. A
  * new image that ships more or fewer of them, another Ubuntu, another architecture or another
  * Playwright, whose list may differ, each makes a new key; the debs' own versions don't, so a
- * key's debs can age behind the archive, which `dpkg -i` doesn't mind.
+ * key's debs can age behind the archive; where a later image can't take them, the install
+ * changes nothing and downloads afresh.
  */
 export const cacheKey = (found: {
   readonly os: string
@@ -124,7 +125,16 @@ const quiet = (command: string, args: readonly string[]): string =>
 export const main = (folder: string | undefined): void => {
   const check = spawnSync(
     "pnpm",
-    ["--filter", "@novadeck/specs", "exec", "playwright", "install-deps", "--dry-run", "chromium"],
+    [
+      "--config.verify-deps-before-run=false",
+      "--filter",
+      "@novadeck/specs",
+      "exec",
+      "playwright",
+      "install-deps",
+      "--dry-run",
+      "chromium",
+    ],
     { encoding: "utf8" },
   )
   const packages = missingPackages(check.status, `${check.stdout ?? ""}\n${check.stderr ?? ""}`)
@@ -143,6 +153,7 @@ export const main = (folder: string | undefined): void => {
           os: osRelease(),
           arch: quiet("dpkg", ["--print-architecture"]),
           playwright: quiet("pnpm", [
+            "--config.verify-deps-before-run=false",
             "--filter",
             "@novadeck/specs",
             "exec",

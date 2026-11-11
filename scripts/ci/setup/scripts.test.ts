@@ -5,7 +5,7 @@ import { join } from "node:path"
 
 import { context, describe, expect, it } from "../../test"
 import { cacheKey, elfFiles, missingPackages, notFound, verdict } from "./browser-dependencies.ts"
-import { aptPlan, failFast, install, type Machine } from "./browser-packages.ts"
+import { aptPlan, downloadScript, failFast, install, type Machine } from "./browser-packages.ts"
 import { bounded, failure, longest, plan, settled, waits } from "./retry.ts"
 
 const root = join(import.meta.dirname, "..", "..", "..")
@@ -111,7 +111,7 @@ describe("the cache of the browser's packages", () => {
   // and what Playwright's check names missing after each install.
   const machine = (given: {
     cached?: readonly string[]
-    dpkg?: boolean[]
+    local?: boolean[]
     afterward?: (readonly string[] | undefined)[]
     download?: boolean
     installDeps?: boolean
@@ -119,10 +119,10 @@ describe("the cache of the browser's packages", () => {
     const calls: string[] = []
     let folder = [...(given.cached ?? [])]
     const afterward = [...(given.afterward ?? [[]])]
-    const dpkgs = [...(given.dpkg ?? [])]
+    const locals = [...(given.local ?? [])]
     const fake: Machine = {
       debs: () => folder,
-      dpkg: (files) => (calls.push(`dpkg ${files.length}`), dpkgs.shift() ?? true),
+      local: (files) => (calls.push(`install ${files.length}`), locals.shift() ?? true),
       // What the test scripted, `undefined` (couldn't tell) included; none once it runs out.
       missing: () => (afterward.length > 0 ? afterward.shift() : []),
       download: (packages) => {
@@ -138,26 +138,28 @@ describe("the cache of the browser's packages", () => {
   }
   const nine = ["fonts-unifont", "xfonts-utils"]
 
-  it("installs from the cache with dpkg, reaching no mirror, where the check then names none", () => {
+  it("installs from the cache with apt, downloading nothing, where the check then names none", () => {
     const { fake, calls } = machine({ cached: ["a.deb", "b.deb"] })
     expect(install(nine, fake)).toEqual({ path: "cache", fetched: false })
-    expect(calls).toEqual(["dpkg 2"])
+    expect(calls).toEqual(["install 2"])
   })
 
   it("downloads through apt where nothing is cached, installs the download and saves it", () => {
     const { fake, calls } = machine({})
     expect(install(nine, fake)).toEqual({ path: "apt", fetched: true })
-    expect(calls).toEqual(["download fonts-unifont xfonts-utils", "dpkg 2"])
+    expect(calls).toEqual(["download fonts-unifont xfonts-utils", "install 2"])
   })
 
   it("goes to apt where the cache covers only some, as the check still names one", () => {
     const { fake, calls } = machine({ cached: ["a.deb"], afterward: [["xfonts-utils"], []] })
     expect(install(nine, fake)).toEqual({ path: "apt", fetched: true })
-    expect(calls).toEqual(["dpkg 1", "download fonts-unifont xfonts-utils", "dpkg 3"])
+    expect(calls).toEqual(["install 1", "download fonts-unifont xfonts-utils", "install 3"])
   })
 
-  it("goes to apt where dpkg fails on the cache, or the check can't tell after it", () => {
-    expect(install(nine, machine({ cached: ["a.deb"], dpkg: [false, true] }).fake).path).toBe("apt")
+  it("goes to the download where the cache can't be installed (a stale cache, unchanged), or the check can't tell after it", () => {
+    expect(install(nine, machine({ cached: ["a.deb"], local: [false, true] }).fake).path).toBe(
+      "apt",
+    )
     expect(
       install(nine, machine({ cached: ["a.deb"], afterward: [undefined, []] }).fake).path,
     ).toBe("apt")
@@ -181,9 +183,49 @@ describe("the cache of the browser's packages", () => {
     )
   })
 
+  // `apt-get install --no-download` resolves first and changes nothing where it can't, so a
+  // stale cache on a later image leaves the system as it was for the download after it; `dpkg -i`
+  // would leave packages unconfigured, and apt would then refuse to download.
+  it("installs debs with apt and no download, never dpkg -i", () => {
+    const source = readFileSync(join(import.meta.dirname, "browser-packages.ts"), "utf8")
+    expect(source).toContain(
+      'sudo(["apt-get", "install", "-y", "--no-install-recommends", "--no-download", ...files])',
+    )
+    expect(source).not.toMatch(/"dpkg",\s*"-i"/)
+  })
+
+  // Each attempt refreshes the lists, so a mirror back mid-step serves the next one.
+  it("refreshes apt's lists and downloads in one attempt, quoting what it passes", () => {
+    expect(downloadScript("/tmp/browser packages", ["fonts-unifont", "x'y"])).toBe(
+      "apt-get update -qq && apt-get install -y --no-install-recommends --download-only -o 'Dir::Cache::archives=/tmp/browser packages' 'fonts-unifont' 'x'\\''y'",
+    )
+    const said = spawnSync(
+      "sh",
+      [
+        "-c",
+        `set -- ${downloadScript("/a b", ["c'd"]).split("--download-only ")[1]}; printf '%s|' "$@"`,
+      ],
+      { encoding: "utf8" },
+    )
+    expect(said.stdout).toBe("-o|Dir::Cache::archives=/a b|c'd|")
+  })
+
+  // pnpm's "Scope:" preamble, printed where it finds the install stale, would change the key.
+  it("runs Playwright through pnpm without its install check", () => {
+    for (const file of ["browser-dependencies.ts", "browser-packages.ts"]) {
+      const source = readFileSync(join(import.meta.dirname, file), "utf8")
+      const calls = source.match(/"pnpm",\s*\[?\s*"[^"]+"/g) ?? []
+      expect(calls.length, file).toBeGreaterThan(0)
+      for (const call of calls)
+        expect(call, file).toContain('"--config.verify-deps-before-run=false"')
+    }
+  })
+
   // apt's own retries over a dead mirror took the whole 180 s limit on each attempt on 11-11.
   it("has apt fail fast in its own calls, each bounded by a healthy install's time with room", () => {
     expect(failFast).toContain('Acquire::Retries "0";')
+    // apt-get update exits 0 where it reached no mirror, unless told otherwise.
+    expect(failFast).toContain('APT::Update::Error-Mode "any";')
     expect(failFast).toMatch(/Acquire::https::Timeout "10";/)
     expect(aptPlan.limitSeconds).toBe(90)
     const source = readFileSync(join(import.meta.dirname, "browser-packages.ts"), "utf8")
@@ -413,6 +455,6 @@ describe("the test browser's install, where a job makes it", () => {
 
   it("is Playwright's dry run, which reaches no network", () => {
     const source = readFileSync(join(import.meta.dirname, "browser-dependencies.ts"), "utf8")
-    expect(source).toContain('"install-deps", "--dry-run", "chromium"')
+    expect(source).toMatch(/"install-deps",\s*"--dry-run",\s*"chromium"/)
   })
 })

@@ -8,7 +8,9 @@ import { plan, run } from "./retry.ts"
 // `PACKAGES="…" node scripts/ci/setup/browser-packages.ts <folder>`: installs the test
 // browser's system packages the runner image lacks (`PACKAGES`, which
 // browser-dependencies.ts names: on ubuntu-24.04 on 11-11, nine font packages) from their debs
-// in `<folder>`, restored from a cache, with `dpkg -i`, which reaches no network. Where the
+// in `<folder>`, restored from a cache, with `apt-get install --no-download`, which reaches no
+// network, resolves first and changes nothing where it can't (a stale cache on a later image),
+// and never downgrades as `dpkg -i` would. Where the
 // folder has none, or they don't cover what's missing, apt's own resolver downloads them,
 // dependencies the image lacks included, into the folder, retried and failing fast, and they
 // are installed from there; the action saves the folder for the next run. Only Playwright's
@@ -27,8 +29,11 @@ export type Outcome = {
 export type Machine = {
   /** The debs the folder holds. */
   readonly debs: () => readonly string[]
-  /** Installs `files` with `dpkg -i`; whether it did. */
-  readonly dpkg: (files: readonly string[]) => boolean
+  /**
+   * Installs the debs `files` with `apt-get install --no-download`: resolved first, nothing
+   * changed where they can't be, no mirror reached; whether it did.
+   */
+  readonly local: (files: readonly string[]) => boolean
   /** What Playwright's check names missing now; `undefined` where it can't tell. */
   readonly missing: () => readonly string[] | undefined
   /** apt's download of `packages` and what they need into the folder; whether it did. */
@@ -61,15 +66,17 @@ export const install = (packages: readonly string[] | undefined, machine: Machin
   }
   const cached = machine.debs()
   if (cached.length > 0) {
-    machine.log(`From the cache: dpkg -i ${cached.length} debs, no mirror reached`)
-    if (machine.dpkg(cached) && done(machine)) return { path: "cache", fetched: false }
+    machine.log(
+      `From the cache: apt-get install --no-download ${cached.length} debs, no mirror reached`,
+    )
+    if (machine.local(cached) && done(machine)) return { path: "cache", fetched: false }
     machine.log("The cache didn't cover them: through Ubuntu's mirrors")
   } else machine.log("No debs cached: through Ubuntu's mirrors")
   if (!machine.download(packages))
     throw new Error("The test browser's system packages couldn't be downloaded")
   const fetched = machine.debs()
-  machine.log(`Downloaded: dpkg -i ${fetched.length} debs`)
-  if (machine.dpkg(fetched) && done(machine)) return { path: "apt", fetched: true }
+  machine.log(`Downloaded: apt-get install --no-download ${fetched.length} debs`)
+  if (machine.local(fetched) && done(machine)) return { path: "apt", fetched: true }
   throw new Error(
     "The test browser's system packages were downloaded, but Playwright's check still names some missing",
   )
@@ -81,6 +88,9 @@ export const install = (packages: readonly string[] | undefined, machine: Machin
  * (the retry around it waits and tries again).
  */
 export const failFast = [
+  // `apt-get update` exits 0 where it reached no mirror, warning only (apt 2.8): with this it
+  // exits 100, so the retry around it retries.
+  'APT::Update::Error-Mode "any";',
   'Acquire::Retries "0";',
   'Acquire::http::Timeout "10";',
   'Acquire::https::Timeout "10";',
@@ -92,6 +102,18 @@ export const failFast = [
  * the slowest but one; 90 s leaves room for a slow mirror and ends a hung one.
  */
 export const aptPlan = { ...plan, limitSeconds: 90 }
+
+/** `word` as one shell word, in single quotes. */
+const quoted = (word: string): string => `'${word.replaceAll("'", `'\\''`)}'`
+
+/** The shell one download attempt runs: apt's lists refreshed, then the debs into `folder`. */
+export const downloadScript = (folder: string, packages: readonly string[]): string =>
+  [
+    "apt-get update -qq &&",
+    "apt-get install -y --no-install-recommends --download-only",
+    `-o ${quoted(`Dir::Cache::archives=${folder}`)}`,
+    ...packages.map(quoted),
+  ].join(" ")
 
 const failFastFile = "/etc/apt/apt.conf.d/99novadeck-fail-fast"
 
@@ -113,11 +135,13 @@ export const main = (folder: string): void => {
         return []
       }
     },
-    dpkg: (files) => sudo(["dpkg", "-i", ...files]),
+    local: (files) =>
+      sudo(["apt-get", "install", "-y", "--no-install-recommends", "--no-download", ...files]),
     missing: () => {
       const check = spawnSync(
         "pnpm",
         [
+          "--config.verify-deps-before-run=false",
           "--filter",
           "@novadeck/specs",
           "exec",
@@ -134,21 +158,12 @@ export const main = (folder: string): void => {
       mkdirSync(join(folder, "partial"), { recursive: true })
       sudo(["tee", failFastFile], failFast)
       try {
-        const meaning = "The test browser's system packages couldn't be downloaded"
-        if (run(meaning, ["sudo", "apt-get", "update", "-qq"], aptPlan) !== 0) return false
+        // Each attempt refreshes the lists and downloads in one, so a mirror back mid-step
+        // serves the next attempt, which a passed update and three tries of the download alone
+        // couldn't.
         const fetched = run(
-          meaning,
-          [
-            "sudo",
-            "apt-get",
-            "install",
-            "-y",
-            "--no-install-recommends",
-            "--download-only",
-            "-o",
-            `Dir::Cache::archives=${folder}`,
-            ...packages,
-          ],
+          "The test browser's system packages couldn't be downloaded",
+          ["sudo", "sh", "-c", downloadScript(folder, packages)],
           aptPlan,
         )
         // Root's files, which the cache's save must read; the lock and partial downloads aren't kept.
@@ -168,6 +183,7 @@ export const main = (folder: string): void => {
             "The test browser's system packages couldn't be installed",
             [
               "pnpm",
+              "--config.verify-deps-before-run=false",
               "--filter",
               "@novadeck/specs",
               "exec",
@@ -186,7 +202,7 @@ export const main = (folder: string): void => {
   }
   const outcome = install(named, machine)
   console.log(
-    `Test browser's packages: installed by ${outcome.path === "cache" ? "dpkg -i from the cache, no mirror reached" : outcome.path === "apt" ? "apt's download through Ubuntu's mirrors, then dpkg -i" : "playwright install-deps"}`,
+    `Test browser's packages: installed by ${outcome.path === "cache" ? "apt-get install --no-download from the cache, no mirror reached" : outcome.path === "apt" ? "apt's download through Ubuntu's mirrors, then apt-get install --no-download" : "playwright install-deps"}`,
   )
   const output = process.env.GITHUB_OUTPUT
   if (output) appendFileSync(output, `path=${outcome.path}\nfetched=${outcome.fetched}\n`)
