@@ -1,18 +1,17 @@
-// Where Quality's tests run, decided from what a pull request changed and from what each
-// package says it is. Pure: `main.ts` gathers the facts (the event, turbo's affected packages,
-// git's changed files) and the packages.
+// Where Quality's tests run, from what the change's plan (scripts/ci/plan, from the package
+// graph) says each system tests, and from what each package says it is. Pure: `main.ts` gathers
+// the facts and the packages.
 
-import { systems, systemsFor } from "../../e2e/plan/plan.ts"
+import { repository, type System } from "../../ci/plan/plan.ts"
 import { type Package, platformOf } from "../../workspace/platform.ts"
 
-/** The facts a decision rests on; `undefined` where they couldn't be had. */
+/** The facts a decision rests on. */
 export type Facts = {
-  /** The workflow's event (`pull_request`, `schedule`, `workflow_dispatch`). */
-  readonly event: string
-  /** Names of the workspace packages turbo calls affected, dependents included. */
-  readonly affected: readonly string[] | undefined
-  /** Paths git calls changed, relative to the repository's root, with `/` as separator. */
-  readonly files: readonly string[] | undefined
+  /**
+   * What scripts/ci/plan says each system tests: the names of the packages, `//` for the
+   * repository's own tests, or `all`, for a run that follows no change or one it can't read.
+   */
+  readonly tests: Readonly<Record<System, "all" | readonly string[]>>
   /** Whether the pull request is a draft; anything else reads as not, so macOS runs. */
   readonly draft?: boolean
 }
@@ -26,22 +25,155 @@ export type Facts = {
 export const systemPackages = (packages: readonly Package[]): readonly Package[] =>
   packages.filter(({ manifest }) => platformOf(manifest) === "system")
 
-/**
- * Whether a change can make a test pass on one system and fail on another: it affects a
- * `system` package, itself or through one it builds on, or it changes a file outside every
- * package other than prose, as the workflows, the scripts and the root's configuration change
- * how every system runs its tests. `undefined` where the facts are missing.
- */
-export const touchesSystem = (facts: Facts, packages: readonly Package[]): boolean | undefined => {
-  const { affected, files } = facts
-  if (!affected || !files) return undefined
-  const system = new Set(systemPackages(packages).map(({ manifest }) => manifest.name))
-  if (affected.some((name) => system.has(name))) return true
-  return files.some(
-    (file) =>
-      !file.endsWith(".md") && !packages.some(({ folder }) => file.startsWith(`${folder}/`)),
-  )
+/** One row of a Windows or macOS test job's matrix: what the steps read. */
+export type Row = {
+  readonly name: string
+  readonly os: string
+  readonly browser?: boolean
+  readonly relay?: boolean
+  readonly electron?: boolean
+  readonly shard: number
+  readonly command: string
 }
+
+/**
+ * Windows's rows for every test, as Linux's in three parts (the root's `test:shard1`-`3`): what
+ * it ran before it followed the change. Its two browser parts run the specs' Mac pass too
+ * (frontend/specs' `eachPlatform`). quality.yml falls back to these where the plan's are missing.
+ */
+export const wholeWindows: readonly Row[] = [
+  {
+    name: "Test (Windows, 1/3)",
+    os: "windows-latest",
+    browser: true,
+    relay: true,
+    shard: 1,
+    command: "npm run test:shard1",
+  },
+  {
+    name: "Test (Windows, 2/3)",
+    os: "windows-latest",
+    browser: true,
+    electron: true,
+    shard: 2,
+    command: "npm run test:shard2",
+  },
+  { name: "Test (Windows, 3/3)", os: "windows-latest", shard: 3, command: "npm run test:shard3" },
+]
+
+/**
+ * Windows's one row for the `system` packages a change affects (`test:system`), with a browser,
+ * the relay and Electron for the packages that need them.
+ */
+export const systemWindows: readonly Row[] = [
+  {
+    name: "Test (Windows)",
+    os: "windows-latest",
+    browser: true,
+    relay: true,
+    electron: true,
+    shard: 0,
+    command: "npm run test:system",
+  },
+]
+
+/** macOS's row for every test (the root's `test`): what it ran before it followed the change. */
+export const wholeMacos: readonly Row[] = [
+  {
+    name: "Test (macOS)",
+    os: "macos-latest",
+    browser: true,
+    relay: true,
+    electron: true,
+    shard: 0,
+    command: "npm run test",
+  },
+]
+
+/** macOS's row for the `system` packages a change affects, one at a time (`test:system`). */
+export const systemMacos: readonly Row[] = [{ ...wholeMacos[0]!, command: "npm run test:system" }]
+
+/**
+ * The changes whose plans the proof rows run: what the plan gives a one-file change to each
+ * file, at the pull request's head (`main.ts` plans them there, so the lists can't drift from
+ * the planner). The first is canary #854's change, whose Windows job failed where the shards
+ * had passed, as `test:system` built the relay before runner-adapter's tests; the second has
+ * the relay built and tested beside the runner; the third is the widest narrowed list,
+ * browser packages in the serial group.
+ */
+export const proofChanges: readonly { readonly key: string; readonly change: string }[] = [
+  { key: "runner", change: "backend/runner/src/app.test.ts" },
+  { key: "relay", change: "backend/relay/src/main.rs" },
+  { key: "terminal", change: "libraries/terminal/src/pty.ts" },
+]
+
+/** A proof row: a system's narrowed row over one change's packages, under a name of its own. */
+export type ProofRow = Row & { readonly proof: string; readonly packages: readonly string[] }
+
+/**
+ * The proof rows of a system, one per change in `proofChanges`, over the packages the plan
+ * gave it there (`lists`, by key). One the plan couldn't narrow has an empty list, which
+ * `test:system` reads as every system package: it runs more, never less.
+ */
+export const proofRows = (
+  system: "windows" | "macos",
+  lists: Readonly<Record<string, readonly string[]>>,
+): readonly ProofRow[] =>
+  proofChanges.map(({ key }) => ({
+    ...(system === "windows" ? systemWindows[0]! : systemMacos[0]!),
+    name: `Proof (${system === "windows" ? "Windows" : "macOS"}, ${key})`,
+    proof: key,
+    packages: lists[key] ?? [],
+  }))
+
+// What decides how Windows's and macOS's tests run: a change to one of these can change the
+// narrowed rows, which the change's own run, planned `all`, never runs. Any `turbo.json`, a
+// package's own among them: `backend/runner/turbo.json` holds the edge that built the relay
+// ahead of runner-adapter's tests on canary #854.
+const proven = [
+  ".github/workflows/quality.yml",
+  "scripts/quality/plan/",
+  "scripts/ci/plan/",
+  "scripts/workspace/",
+  "package.json",
+  "pnpm-workspace.yaml",
+]
+
+/**
+ * Whether a package's `novadeck` declaration (its `platform` and `reads`) differs between two
+ * versions of its manifest, `undefined` where one is missing: a package added or removed, or
+ * one that can't be read, counts as changed.
+ */
+const declarationOf = (manifest: string): string =>
+  JSON.stringify((JSON.parse(manifest) as { novadeck?: unknown }).novadeck ?? null)
+
+export const declarationDiffers = (before: string | undefined, after: string | undefined) => {
+  if (before === undefined || after === undefined) return true
+  try {
+    return declarationOf(before) !== declarationOf(after)
+  } catch {
+    return true
+  }
+}
+
+/**
+ * Whether a pull request's run proves the narrowed rows (`proofRows`): where it changes how they
+ * test. That is a file in `proven`, any `turbo.json`, or a package's manifest whose `novadeck`
+ * declaration changed (`declared`, asked of each changed manifest): not any manifest, as a
+ * dependency bump would run three macOS jobs. A pull request whose files couldn't be read
+ * proves nothing: it runs every test anyway.
+ */
+export const proves = (
+  files: readonly string[] | undefined,
+  declared: (manifest: string) => boolean,
+): boolean =>
+  files?.some(
+    (file) =>
+      proven.some((path) => (path.endsWith("/") ? file.startsWith(path) : file === path)) ||
+      file === "turbo.json" ||
+      file.endsWith("/turbo.json") ||
+      (file.endsWith("/package.json") && declared(file)),
+  ) ?? false
 
 /** What Quality's jobs read. */
 export type Plan = {
@@ -54,32 +186,111 @@ export type Plan = {
    * for the pull request once it can merge.
    */
   readonly held: boolean
-  /**
-   * The folders of the packages macOS's job tests (`test:system`): every `system` package. It
-   * is a list so that a plan which knows which of them a change affects can name only those.
-   */
+  /** The Windows job's matrix: every test in three parts, or the affected `system` packages. */
+  readonly windowsRows: readonly Row[]
+  /** The folders of the packages Windows's `test:system` tests, when it runs that. */
+  readonly windowsPackages: readonly string[]
+  /** The macOS job's matrix: every test, or the affected `system` packages. */
+  readonly macosRows: readonly Row[]
+  /** The folders of the packages macOS's `test:system` tests, when it runs that. */
   readonly packages: readonly string[]
 }
 
 /**
- * The systems Quality's tests run on, by E2E's rule (`systemsFor`): every system unless the run
- * is a pull request whose change touches no system; Linux, which runs every test, always. A
- * draft holds macOS's back (`held`), Windows's not.
+ * The folders of the packages a list of names names, or `undefined` where the list is `all` or
+ * names one that is no package of the workspace: then the system runs every test, as before
+ * the plan followed the change. `all` is the plan's answer where it couldn't read a fact, the
+ * packages' declarations among them, so it can't be narrowed by them. The repository's own
+ * tests (`//`), which a Windows or macOS list never names, are `test:system`'s anyway.
+ */
+export const foldersOf = (
+  tests: "all" | readonly string[],
+  packages: readonly Package[],
+): readonly string[] | undefined => {
+  if (tests === "all") return undefined
+  const named = tests.filter((name) => name !== repository)
+  const found = named.map((name) => packages.find(({ manifest }) => manifest.name === name))
+  if (found.some((each) => each === undefined)) return undefined
+  return found.map((each) => each!.folder)
+}
+
+/**
+ * Where Quality's tests run. Linux runs every test, always. Windows and macOS run the tests of
+ * the packages the change's plan names for them (scripts/ci/plan: the affected `system` ones,
+ * dependents and `reads` included), and none where it names none; where it says `all` (a run
+ * that follows no change, or a fact it couldn't read), every test, the root's `test` and
+ * `test:shard1`-`3` as before. A draft holds macOS's back (`held`), Windows's not.
  */
 export const plan = (facts: Facts, packages: readonly Package[]): Plan => {
-  const chosen = systemsFor(facts.event, touchesSystem(facts, packages))
-  const macos = chosen.includes(systems.macos)
+  const windows = foldersOf(facts.tests.windows, packages)
+  const macos = foldersOf(facts.tests.macos, packages)
+  const macosNeeded = macos === undefined || macos.length > 0
   return {
-    windows: chosen.includes(systems.windows),
-    macos: macos && facts.draft !== true,
-    held: macos && facts.draft === true,
-    packages: systemPackages(packages).map(({ folder }) => folder),
+    windows: windows === undefined || windows.length > 0,
+    macos: macosNeeded && facts.draft !== true,
+    held: macosNeeded && facts.draft === true,
+    // A skipped job's matrix still has to be a list of rows where Actions reads it.
+    windowsRows: windows === undefined || windows.length === 0 ? wholeWindows : systemWindows,
+    windowsPackages: windows ?? [],
+    macosRows: macos === undefined || macos.length === 0 ? wholeMacos : systemMacos,
+    packages: macos ?? [],
   }
 }
 
 /** Turbo's filters for the packages in `folders`. */
 export const filters = (folders: readonly string[]): readonly string[] =>
   folders.map((folder) => `--filter=./${folder}`)
+
+/**
+ * Whether a package's tests run one package at a time on every system, as the root's `test`
+ * runs them: the UI's and the apps' packages and the runner, whose browsers, Electron and real
+ * processes contend for the runner's cores.
+ */
+export const serialEverywhere = (folder: string): boolean =>
+  folder.startsWith("frontend/") || folder.startsWith("apps/") || folder === "backend/runner"
+
+/**
+ * The groups of folders `test:system` hands turbo, each with its `--concurrency`. On macOS,
+ * every package one at a time: a macOS runner has three cores, and the packages' real
+ * processes, PTYs and wall-clock bounds failed there when 23 packages ran at once (#784).
+ * Elsewhere as the root's `test`: the rest at turbo's concurrency, then those that run one at
+ * a time everywhere (`serialEverywhere`). An empty group is left out.
+ */
+export const invocations = (
+  folders: readonly string[],
+  platform: NodeJS.Platform,
+): readonly { readonly folders: readonly string[]; readonly concurrency?: number }[] => {
+  if (platform === "darwin") return folders.length > 0 ? [{ folders, concurrency: 1 }] : []
+  const together = folders.filter((folder) => !serialEverywhere(folder))
+  const serial = folders.filter(serialEverywhere)
+  return [
+    ...(together.length > 0 ? [{ folders: together }] : []),
+    ...(serial.length > 0 ? [{ folders: serial, concurrency: 1 }] : []),
+  ]
+}
+
+/**
+ * Turbo's arguments for one of `invocations`' groups: its packages' tests, at its concurrency,
+ * each package's test command given `extra`. With `keepGoing`, as the proof rows run, every
+ * package's tests run though one fails (`--continue`), so one run shows each that fails.
+ */
+export const turboTestArgs = (
+  group: { readonly folders: readonly string[]; readonly concurrency?: number | undefined },
+  keepGoing: boolean,
+  extra: readonly string[] = [],
+): readonly string[] => [
+  "turbo",
+  "run",
+  "test",
+  "--output-logs=new-only",
+  ...(keepGoing ? ["--continue"] : []),
+  ...(group.concurrency === undefined ? [] : [`--concurrency=${group.concurrency}`]),
+  ...filters(group.folders),
+  "--",
+  "--reporter=default",
+  "--reporter=hanging-process",
+  ...extra,
+]
 
 /**
  * The folders `test:system` tests: those `NOVADECK_TEST_PACKAGES` names (a JSON list, the plan's

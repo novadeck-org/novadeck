@@ -407,19 +407,23 @@ describe("runner backend", () => {
         terminals: { relay: join(tmpdir(), "novadeck-no-relay", "novadeck-relay.exe") },
       })
       const app = open(relayless.listing, {}, relayless.client)
-      const terminal = app.addTerminal()
-      await app.idle()
-      const ask = async () => (await app.backend.busyTerminals!({ fresh: true }))!
-      if (process.platform === "win32")
-        await vi.waitFor(
-          async () => expect((await ask()).unknown).toContain(terminal.id),
-          eventually,
-        )
-      const answer = await ask()
-      expect(answer.busy).toEqual([])
-      expect(answer.unknown).toEqual(process.platform === "win32" ? [terminal.id] : [])
-      app.stop()
-      await relayless.close()
+      // Closed though an assertion fails, so a red run leaves no runner to the next case.
+      try {
+        const terminal = app.addTerminal()
+        await app.idle()
+        const ask = async () => (await app.backend.busyTerminals!({ fresh: true }))!
+        if (process.platform === "win32")
+          await vi.waitFor(
+            async () => expect((await ask()).unknown).toContain(terminal.id),
+            eventually,
+          )
+        const answer = await ask()
+        expect(answer.busy).toEqual([])
+        expect(answer.unknown).toEqual(process.platform === "win32" ? [terminal.id] : [])
+      } finally {
+        app.stop()
+        await relayless.close()
+      }
     })
 
     it("answers nothing where the runner can't, as one that came before the call", async () => {

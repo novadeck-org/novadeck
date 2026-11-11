@@ -7,6 +7,7 @@ import {
   overOf,
   packagesChanged,
   prComment,
+  pullRequestsOf,
   recordSummary,
   runOf,
   runRecord,
@@ -25,6 +26,9 @@ import {
 // dir holds the run's `retried-*` artifacts, a folder each; the changed files are the pull
 // request's, a line each; the previous comment is the one it has, or an empty file. Writes the
 // comment, or nothing when no test was retried.
+//
+// `pulls <run.json>`: the numbers of the pull requests the run is for, a space between, a merge
+// group's from its branch; nothing for a run that is for none.
 //
 // `tally <runs dir> <days> <out dir> <open issue>`: each test's retries over the runs of the
 // last days. The runs dir holds a folder per run: its run.json and its `retried-*` artifacts.
@@ -122,13 +126,18 @@ const tallyRuns = (runs: string, days: number, out: string, openIssue: string): 
 
 export const main = (args = process.argv.slice(2)): void => {
   const [command, ...rest] = args
+  if (command === "pulls" && rest.length === 1) {
+    const numbers = pullRequestsOf(runOf(JSON.parse(readFileSync(rest[0]!, "utf8"))))
+    if (numbers.length) console.log(numbers.join(" "))
+    return
+  }
   if (command === "comment" && rest.length === 5)
     return comment(rest[0]!, rest[1]!, rest[2]!, rest[3]!, rest[4]!)
   if (command === "tally" && rest.length === 4)
     return tallyRuns(rest[0]!, Number(rest[1]), rest[2]!, rest[3]!)
   throw new Error(
     "Usage: retries-main.ts comment <run.json> <artifacts> <changed files> <previous> <out>" +
-      " | tally <runs dir> <days> <out dir> <open issue>",
+      " | pulls <run.json> | tally <runs dir> <days> <out dir> <open issue>",
   )
 }
 

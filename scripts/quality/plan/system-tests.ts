@@ -2,32 +2,32 @@ import { spawnSync } from "node:child_process"
 import { join } from "node:path"
 
 import { workspacePackages } from "../../workspace/platform.ts"
-import { filters, testedFolders } from "./plan.ts"
+import { invocations, testedFolders, turboTestArgs } from "./plan.ts"
 
 // `node scripts/quality/plan/system-tests.ts`: the tests of every package that touches the
-// system (`novadeck.platform`, scripts/workspace/platform.ts), one package at a time, as
-// `Test (macOS)` runs them on a pull request. One at a time: a macOS runner has three cores, and the packages' real
-// processes, PTYs and wall-clock bounds failed there when 23 packages ran at once (#784).
-// `NOVADECK_TEST_PACKAGES`, a JSON list of folders, narrows it (the plan's `packages`). Extra
-// arguments go to each package's test command.
+// system (`novadeck.platform`, scripts/workspace/platform.ts), as `Test (macOS)` and, for a
+// change that affects only some of them, `Test (Windows)` run them on a pull request: on
+// macOS one package at a time, elsewhere as the root's `test` (`invocations` in plan.ts).
+// `NOVADECK_TEST_PACKAGES`, a JSON list of folders, narrows it (the plan's `packages`).
+// `NOVADECK_TEST_CONTINUE=true`, as the proof rows set it, runs every package's tests though
+// one fails (turbo's `--continue`), so one run shows each that fails. Extra arguments go to
+// each package's test command.
+
+const keepGoing = process.env.NOVADECK_TEST_CONTINUE === "true"
 
 const packages = workspacePackages(join(import.meta.dirname, "..", "..", ".."))
 
-const result = spawnSync(
-  "pnpm",
-  [
-    "exec",
-    "turbo",
-    "run",
-    "test",
-    "--output-logs=new-only",
-    "--concurrency=1",
-    ...filters(testedFolders(process.env.NOVADECK_TEST_PACKAGES, packages)),
-    "--",
-    "--reporter=default",
-    "--reporter=hanging-process",
-    ...process.argv.slice(2),
-  ],
-  { stdio: "inherit", shell: process.platform === "win32" },
-)
-process.exitCode = result.status ?? 1
+for (const { folders, concurrency } of invocations(
+  testedFolders(process.env.NOVADECK_TEST_PACKAGES, packages),
+  process.platform,
+)) {
+  const result = spawnSync(
+    "pnpm",
+    ["exec", ...turboTestArgs({ folders, concurrency }, keepGoing, process.argv.slice(2))],
+    { stdio: "inherit", shell: process.platform === "win32" },
+  )
+  if (result.status !== 0) {
+    process.exitCode = result.status ?? 1
+    if (!keepGoing) break
+  }
+}

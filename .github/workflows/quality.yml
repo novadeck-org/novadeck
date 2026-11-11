@@ -5,20 +5,26 @@ on:
   # the run of the ready pull request has (scripts/quality/plan, scripts/e2e/plan: `held`).
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  # A merge queue's group, once main requires one (architecture/ci-plan/merge-queue.md): inert
+  # until then.
+  merge_group:
 
 permissions:
   contents: read
 
+# A pull request's newer push cancels its run in progress; a merge group is a group of its own
+# (its ref, `gh-readonly-queue/main/pr-<N>-<sha>`), so one never cancels the one ahead of it.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # Which systems' tests a pull request needs (scripts/quality/plan): Windows and macOS only for
-  # a change that affects a package that declares itself `system` (scripts/workspace/platform.ts)
-  # or a file outside every package, as their runners are slower and, on macOS, scarce. Linux
-  # runs every test for every change, and the nightly run (quality-nightly.yml) runs every test
-  # on every system.
+  # Which systems' tests a change needs, and which packages there (scripts/quality/plan, from
+  # the package graph's plan, scripts/ci/plan): Windows and macOS test only the packages that
+  # declare themselves `system` (scripts/workspace/platform.ts) and that the change affects,
+  # dependents and `reads` included, as their runners are slower and, on macOS, scarce; a change
+  # it can't narrow runs every test there. Linux runs every test for every change, and the
+  # nightly run (quality-nightly.yml) runs every test on every system.
   plan:
     name: Plan Systems
     runs-on: ubuntu-latest
@@ -27,7 +33,14 @@ jobs:
       windows: ${{ steps.plan.outputs.windows }}
       macos: ${{ steps.plan.outputs.macos }}
       held: ${{ steps.plan.outputs.held }}
+      windows-rows: ${{ steps.plan.outputs.windows-rows }}
+      windows-packages: ${{ steps.plan.outputs.windows-packages }}
+      macos-rows: ${{ steps.plan.outputs.macos-rows }}
       packages: ${{ steps.plan.outputs.packages }}
+      proof: ${{ steps.plan.outputs.proof }}
+      proof-macos: ${{ steps.plan.outputs.proof-macos }}
+      proof-windows-rows: ${{ steps.plan.outputs.proof-windows-rows }}
+      proof-macos-rows: ${{ steps.plan.outputs.proof-macos-rows }}
     steps:
       # The whole history: turbo and git diff the pull request's base against its head, and
       # a shallow clone has neither.
@@ -59,11 +72,12 @@ jobs:
           cache: true
           require-lockfile: true
 
+      # A merge group's change is its own against the group's parent: main, or the entry ahead.
       - name: Plan Systems
         id: plan
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
           DRAFT: ${{ github.event.pull_request.draft }}
         run: node scripts/quality/plan/main.ts
 
@@ -251,7 +265,7 @@ jobs:
       # failures' upload below still runs, rather than the whole job being cancelled.
       - name: Run ${{ matrix.name }}
         run: ${{ matrix.command }}
-        timeout-minutes: ${{ runner.os == 'macOS' && 37 || matrix.browser && matrix.shard && 22 || (matrix.browser || matrix.shard) && 17 || 7 }}
+        timeout-minutes: ${{ runner.os == 'macOS' && (matrix.command == 'npm run test' && 57 || 37) || runner.os == 'Windows' && matrix.shard == 0 && 22 || matrix.browser && matrix.shard && 22 || (matrix.browser || matrix.shard) && 17 || 7 }}
         env:
           NOVADECK_REQUIRE_FISH: ${{ steps.fish.outcome == 'success' && '1' || '' }}
           # A re-run with debug logging records Playwright traces of failed UI specs.
@@ -274,8 +288,10 @@ jobs:
           key: relay-${{ runner.os }}-${{ hashFiles('backend/relay/Cargo.lock', 'backend/relay/Cargo.toml', 'backend/relay/rust-toolchain.toml') }}
 
       # A failed UI spec leaves its screenshot, and its trace when one was recorded.
+      # Not from a proof row (`NOVADECK_TEST_CONTINUE`), whose job beside `Test (Windows)` would
+      # take the same name.
       - name: Upload UI Test Failures
-        if: failure() && matrix.browser
+        if: failure() && matrix.browser && env.NOVADECK_TEST_CONTINUE != 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ui-test-failures-${{ runner.os }}${{ matrix.shard && format('-{0}', matrix.shard) || '' }}
@@ -284,95 +300,120 @@ jobs:
           retention-days: 7
 
       # Every test that passed only on a retry (scripts/flakes/retry), which Known Flakes
-      # counts: the run is green, so this is where its flakes show. Only when one did.
+      # counts: the run is green, so this is where its flakes show. Only when one did, and
+      # not from a proof row (`NOVADECK_TEST_CONTINUE`), which tests what the test jobs do, and
+      # whose flakes they count.
       - name: Upload Retried Tests
-        if: ${{ !cancelled() && hashFiles('test-results/retried/**') != '' }}
+        if: ${{ !cancelled() && hashFiles('test-results/retried/**') != '' && env.NOVADECK_TEST_CONTINUE != 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: retried-${{ runner.os }}${{ matrix.shard && format('-{0}', matrix.shard) || '' }}-${{ github.run_attempt }}
           path: test-results/retried/
           retention-days: 30
 
-  # Windows's tests, as Linux's in three parts, when the plan says a change can break them.
+  # Windows's tests, unless the plan says the change can't break them: the `system` packages it
+  # affects in one job (`test:system`, as the root's `test` runs them), or, where it says `all`
+  # (a run that follows no change, or a fact it couldn't read), every test, as Linux's in three
+  # parts. Its rows are the plan's (scripts/quality/plan: `wholeWindows`, `systemWindows`); a
+  # plan that failed, or left them out, runs every test, the rows written out here.
   windows:
     needs: plan
-    if: needs.plan.outputs.windows == 'true'
+    if: ${{ !cancelled() && needs.plan.outputs.windows != 'false' }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    # Its two browser parts run the specs' Mac pass too (frontend/specs' `eachPlatform`), about
-    # three minutes on Windows 2/3's 11.5, so they have 25 minutes (22 for the tests), as Linux's.
+    # The two browser parts run the specs' Mac pass too (frontend/specs' `eachPlatform`), about
+    # three minutes on Windows 2/3's 11.5, so they have 25 minutes (22 for the tests), as Linux's;
+    # the one job of the system packages has as long.
     timeout-minutes: ${{ matrix.browser && 25 || 20 }}
+    env:
+      # The packages the plan says to test, which `test:system` reads.
+      NOVADECK_TEST_PACKAGES: ${{ needs.plan.outputs.windows-packages }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: Test (Windows, 1/3)
-            os: windows-latest
-            browser: true
-            relay: true
-            shard: 1
-            command: npm run test:shard1
-          - name: Test (Windows, 2/3)
-            os: windows-latest
-            browser: true
-            electron: true
-            shard: 2
-            command: npm run test:shard2
-          - name: Test (Windows, 3/3)
-            os: windows-latest
-            shard: 3
-            command: npm run test:shard3
+        include: ${{ fromJSON(needs.plan.outputs.windows-rows || '[{"name":"Test (Windows, 1/3)","os":"windows-latest","browser":true,"relay":true,"shard":1,"command":"npm run test:shard1"},{"name":"Test (Windows, 2/3)","os":"windows-latest","browser":true,"electron":true,"shard":2,"command":"npm run test:shard2"},{"name":"Test (Windows, 3/3)","os":"windows-latest","shard":3,"command":"npm run test:shard3"}]') }}
     steps: *steps
 
-  # macOS's tests, when the plan says a change can break them, and only once every Linux job
-  # above has passed: a push that fails there, or is replaced while it runs, takes no macOS
-  # runner. Only the packages that declare themselves `system` (`test:system`), one at a time:
-  # the `neutral` ones, the UI and the browser packages, run the same on every system but for
-  # the browser's rendering, so they run on Linux, the specs' Mac chords too (frontend/specs'
-  # `eachPlatform`), and on macOS in the nightly run. Whole, its tests took 45m58s on #847, 33
-  # minutes of them the specs; its packages ran 23 at once on a 3-core runner, where
-  # real-process tests failed (#784).
+  # macOS's tests, unless the plan says the change can't break them, and only once every Linux
+  # job above has passed: a push that fails there, or is replaced while it runs, takes no macOS
+  # runner. For a change the plan follows, only the packages that declare themselves `system`
+  # and that it affects (`test:system`), one at a time: the `neutral` ones, the UI and the
+  # browser packages, run the same on every system but for the browser's rendering, so they
+  # run on Linux, the specs' Mac chords too (frontend/specs' `eachPlatform`), and on macOS in
+  # the nightly run. Where the plan says `all`, failed, or left its rows out, every test (the
+  # root's `test`), as before: it took 45m58s on #847, 33 minutes of them the specs. Its
+  # packages ran 23 at once on a 3-core runner, where real-process tests failed (#784).
   macos:
     needs: [plan, quality]
-    if: needs.plan.outputs.macos == 'true'
+    if: ${{ !cancelled() && needs.quality.result == 'success' && needs.plan.outputs.macos != 'false' }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    # The limit from before the specs' second pass (main has 50, 47 for the tests, for the whole
-    # suite), which the rest of it fits: about 13 of #847's 46 minutes. Lower it once its first
-    # runs measure the serial system packages on a loaded macOS runner.
-    timeout-minutes: 40
+    # The system packages, one at a time, fit the limit from before the specs' second pass
+    # (#849's took 11m37s of its 37); every test has 60 (57 for the tests), as main gave it.
+    timeout-minutes: ${{ matrix.command == 'npm run test' && 60 || 40 }}
     env:
       # The packages the plan says to test, which `test:system` reads.
       NOVADECK_TEST_PACKAGES: ${{ needs.plan.outputs.packages }}
     strategy:
       matrix:
-        include:
-          # A browser for the system packages tested in Chromium (the viewers, and the specs
-          # until they declare themselves neutral).
-          - name: Test (macOS)
-            os: macos-latest
-            browser: true
-            relay: true
-            electron: true
-            shard: 0
-            command: npm run test:system
+        include: ${{ fromJSON(needs.plan.outputs.macos-rows || '[{"name":"Test (macOS)","os":"macos-latest","browser":true,"relay":true,"electron":true,"shard":0,"command":"npm run test"}]') }}
+    steps: *steps
+
+  # Proof of the narrowed rows, for a pull request that changes how Windows's and macOS's tests
+  # run (scripts/quality/plan: `proves`): its own run is planned `all`, so its `Test (Windows)`
+  # and `test:system` would first run on someone else's pull request. Each row runs
+  # `test:system` over the list the plan gives a real change at its head (`proofChanges`), every package's tests
+  # though one fails (`NOVADECK_TEST_CONTINUE`), so one run shows each that fails. Canary #854
+  # found a test that failed only there. Not required: the `Test` gate doesn't wait on them.
+  proof-windows:
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.outputs.proof == 'true' }}
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    env:
+      NOVADECK_TEST_PACKAGES: ${{ toJSON(matrix.packages) }}
+      NOVADECK_TEST_CONTINUE: "true"
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.proof-windows-rows) }}
+    steps: *steps
+
+  # macOS's proof rows, once every Linux job has passed, as its tests; never on a draft, which
+  # runs no macOS job (`proof-macos`): marking it ready runs them. They are outside the `Test`
+  # gate, so a draft held only by them passes it, and says nothing of them.
+  proof-macos:
+    needs: [plan, quality]
+    if: ${{ !cancelled() && needs.quality.result == 'success' && needs.plan.outputs.proof-macos == 'true' }}
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    env:
+      NOVADECK_TEST_PACKAGES: ${{ toJSON(matrix.packages) }}
+      NOVADECK_TEST_CONTINUE: "true"
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.proof-macos-rows) }}
     steps: *steps
 
   # The pull request's app packaged for all three systems once every check passes, unless
   # it's a draft or its change can't affect the app (Package's Scope job decides). Not
-  # part of the required checks.
+  # part of the required checks, and never on a merge group, whose pull request packaged it.
   package:
     name: Package
     needs: test
-    if: ${{ !cancelled() && needs.test.result == 'success' && github.event.pull_request.draft == false }}
+    if: ${{ !cancelled() && needs.test.result == 'success' && github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
     permissions:
       actions: read
       contents: read
     uses: ./.github/workflows/package.yml
 
-  # The one check main requires of the tests. It passes once the plan ran and every job it
-  # chose passed: a system's tests the plan left out are skipped, and pass it; one it chose
-  # must have passed, so a job skipped because Linux failed, or cancelled, fails it. On a
+  # The one check main requires of the tests. It passes once every job the plan chose passed:
+  # a system's tests the plan left out are skipped, and pass it; one it chose must have passed,
+  # so a job skipped because Linux failed, or cancelled, fails it. Without a plan (it failed,
+  # or left its outputs out) Windows and macOS run every test, and must both have passed. On a
   # draft whose change needs macOS it fails, saying so: GitHub makes a job's check only once
   # its `needs` are done, so for the 20 minutes and more after the draft is marked ready, a
   # draft's passing `Test` would be the only one on the commit, and would let it merge
@@ -392,12 +433,14 @@ jobs:
           PLAN_RESULT: ${{ needs.plan.result }}
           QUALITY_RESULT: ${{ needs.quality.result }}
           WINDOWS_RESULT: ${{ needs.windows.result }}
-          WINDOWS_PLANNED: ${{ needs.plan.outputs.windows }}
+          # A plan that failed or left its outputs out runs both: planned unless it said not.
+          WINDOWS_PLANNED: ${{ needs.plan.outputs.windows != 'false' }}
           MACOS_RESULT: ${{ needs.macos.result }}
-          MACOS_PLANNED: ${{ needs.plan.outputs.macos }}
+          MACOS_PLANNED: ${{ needs.plan.outputs.macos != 'false' }}
           MACOS_HELD: ${{ needs.plan.outputs.held }}
         run: |
-          test "$PLAN_RESULT" = success || { echo "Plan: $PLAN_RESULT"; exit 1; }
+          # Without a plan, Windows and macOS ran every test, and their results decide.
+          test "$PLAN_RESULT" = success || echo "::warning title=Plan::Plan: $PLAN_RESULT, so Windows and macOS ran every test"
           test "$QUALITY_RESULT" = success || { echo "Checks and Linux tests: $QUALITY_RESULT"; exit 1; }
           if [ "$MACOS_HELD" = true ]; then
             echo "::error title=Draft::draft: macOS not run, mark ready to run it"

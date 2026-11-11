@@ -3,13 +3,17 @@ name: PR
 on:
   pull_request:
     types: [opened, reopened, edited, synchronize]
+  # A merge queue's group, once main requires one (architecture/ci-plan/merge-queue.md): inert
+  # until then. Verify checks the group's pull request again, read from the group's branch.
+  merge_group:
 
 permissions:
   contents: read
   pull-requests: read
 
+# A merge group is a group of its own (its ref), so one never cancels the one ahead of it.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -51,6 +55,8 @@ jobs:
           PR_COMMITS: ${{ github.event.pull_request.commits }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
+          # A merge group's branch, `gh-readonly-queue/main/pr-<N>-<sha>`, names its pull request.
+          MERGE_GROUP_HEAD_REF: ${{ github.event.merge_group.head_ref }}
           GH_TOKEN: ${{ github.token }}
         run: node scripts/pull-request/verify/main.ts
 
