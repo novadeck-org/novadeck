@@ -1,4 +1,7 @@
 import { spawnSync } from "node:child_process"
+import { closeSync, mkdtempSync, openSync, readFileSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
 // `node scripts/ci/setup/retry.ts <what failing means> -- <command> [args…]`: runs a setup
 // command that reaches the network (apt's mirrors, the browser's download) up to `attempts`
@@ -85,18 +88,25 @@ export const run = (meaning: string, command: readonly string[], retries: Plan =
   let output = ""
   for (let attempt = 1; attempt <= retries.attempts; attempt += 1) {
     const [program, ...args] = bounded(command, retries.limitSeconds)
+    // Into a file, not a pipe: Node waits for every holder of a pipe to close it, and apt under
+    // sudo, in a session of its own, outlived the limit and held it (#869 waited about 200 s
+    // an attempt against a 90 s limit). A file's holders don't hold up the attempt.
+    const scratch = mkdtempSync(join(tmpdir(), "novadeck-retry-"))
+    const file = join(scratch, "output")
+    const handle = openSync(file, "w")
     const result = spawnSync(program!, args, {
-      encoding: "utf8",
-      maxBuffer: 64 * 1024 * 1024,
+      stdio: ["ignore", handle, handle],
       // On Linux `timeout` bounds it (`bounded`); elsewhere this, which ends the command alone.
       ...(process.platform === "linux" ? {} : { timeout: retries.limitSeconds * 1000 }),
       // pnpm is a .cmd on Windows.
       shell: process.platform === "win32",
     })
+    closeSync(handle)
     // Kept to read why it failed, and printed as each attempt ends.
-    process.stdout.write(result.stdout ?? "")
-    process.stderr.write(result.stderr ?? "")
-    output += `${result.stdout ?? ""}\n${result.stderr ?? ""}\n`
+    const said = readFileSync(file, "utf8")
+    rmSync(scratch, { recursive: true, force: true })
+    process.stdout.write(said)
+    output += `${said}\n`
     status = result.status ?? 1
     if (status === 0) return 0
     const why = result.error

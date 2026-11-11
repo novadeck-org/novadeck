@@ -423,6 +423,22 @@ describe("a setup command's retries", () => {
       expect(Date.now() - started).toBeLessThan(15_000)
     })
 
+    // apt under sudo runs in a session of its own and outlived the attempt, holding its output:
+    // the attempt must still end at its limit, not when the escaped process does.
+    it.skipIf(process.platform !== "linux")(
+      "end at its limit though a process it started escaped its group",
+      () => {
+        const started = Date.now()
+        const result = spawnSync(
+          process.execPath,
+          [script, "mirrors", "--", "sh", "-c", "setsid sleep 25 & sleep 25"],
+          { env: { ...fast, NOVADECK_SETUP_RETRY_LIMIT: "1" }, encoding: "utf8" },
+        )
+        expect(result.status).toBe(124)
+        expect(Date.now() - started).toBeLessThan(12_000)
+      },
+    )
+
     it("refuse a call without a command", () => {
       const result = spawnSync(process.execPath, [script, "mirrors"], { encoding: "utf8" })
       expect(result.status).toBe(2)

@@ -130,9 +130,14 @@ export const downloadScript = (folder: string, packages: readonly string[]): str
 
 const failFastFile = "/etc/apt/apt.conf.d/99novadeck-fail-fast"
 
+// `tee` writes the snippet to the file and would echo it into the log too: its stdout is dropped.
 const sudo = (args: readonly string[], input?: string): boolean =>
   spawnSync("sudo", args, {
-    stdio: [input === undefined ? "ignore" : "pipe", "inherit", "inherit"],
+    stdio: [
+      input === undefined ? "ignore" : "pipe",
+      input === undefined ? "inherit" : "ignore",
+      "inherit",
+    ],
     input,
   }).status === 0
 
