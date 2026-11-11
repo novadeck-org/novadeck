@@ -915,6 +915,56 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
         text: "Context so far: the storefront builds with Vite; checkout totals moved to src/checkout/total.ts last session, and the cart selectors to src/cart/selectors.ts.",
         note: { type: "compaction" },
       },
+      // Two turns before the one that is running, long enough for the chat to scroll through them:
+      // the prompt of each holds the top of the log as its answer scrolls by.
+      user("Which build tool does this project use, and where is its config?"),
+      use(
+        "toolu_06x",
+        "Glob",
+        { pattern: "{vite,vitest,tsconfig}*.{ts,json}" },
+        { kind: "search", title: "Found files", detail: "{vite,vitest,tsconfig}*.{ts,json}" },
+      ),
+      got("toolu_06x", "vite.config.ts\nvitest.config.ts\ntsconfig.json\ntsconfig.node.json"),
+      use(
+        "toolu_06y",
+        "Read",
+        { file_path: "/Users/alex/projects/novadeck/vite.config.ts" },
+        { kind: "read", title: "Read", detail: "…/projects/novadeck/vite.config.ts" },
+      ),
+      got(
+        "toolu_06y",
+        'export default defineConfig({ plugins: [react()], build: { target: "es2022" } })',
+      ),
+      say(
+        "## Build tool\n\nThe project builds with **Vite**. Its config is `vite.config.ts` at the root: the React plugin and an `es2022` build target, nothing else.\n\nTests run on Vitest from `vitest.config.ts`, which shares the Vite config's aliases. TypeScript is checked separately by `tsc --noEmit` against `tsconfig.json`; `tsconfig.node.json` covers the config files themselves.\n\nSo `pnpm build` is `vite build`, and `pnpm dev` serves on port 5173.",
+      ),
+      user(
+        "Rename the cart selectors module to src/cart/selectors.ts and update every import of it.\n\nKeep the old path working for now, re-exporting from the new one, so the other branches don't break.",
+      ),
+      say("I'll find every import of the old module first."),
+      use(
+        "toolu_06z",
+        "Grep",
+        { pattern: "cart/use-cart", path: "src" },
+        { kind: "search", title: "Searched", detail: "cart/use-cart" },
+      ),
+      got(
+        "toolu_06z",
+        "src/checkout/total.ts:4\nsrc/checkout/Summary.tsx:2\nsrc/cart/CartSummary.tsx:3\nsrc/cart/CartLine.tsx:1\nsrc/email/order.ts:5\nsrc/orders/export.ts:2\nsrc/orders/history.ts:6",
+      ),
+      use(
+        "toolu_06w",
+        "Bash",
+        {
+          command: "git mv src/cart/use-cart.ts src/cart/selectors.ts",
+          description: "Rename the module",
+        },
+        { kind: "run", title: "Ran", detail: "git mv src/cart/use-cart.ts src/cart/selectors.ts" },
+      ),
+      got("toolu_06w", ""),
+      say(
+        "Seven files import it. I moved the module to `src/cart/selectors.ts`, pointed all seven imports at the new path, and left `src/cart/use-cart.ts` as a one-line re-export so branches still on the old path keep building.\n\nThe type check passes. Nothing outside `src/cart`, `src/checkout`, `src/email` and `src/orders` changed.",
+      ),
       user("Build the app and tell me how big the bundle is."),
       use(
         "toolu_06a",
@@ -997,6 +1047,25 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
         ...got("toolu_06f", '{\n  "index.html": { "file": "assets/index-9b2e77.js" }\n}'),
         scripted: true,
       },
+      say(
+        "The bundle is one chunk. Before I call it done I'll check what weighs most in it, and whether the old `use-cart` path I left as a re-export ends up in the output.",
+      ),
+      use(
+        "toolu_06g",
+        "Bash",
+        {
+          command: "npx vite-bundle-visualizer --template raw-data",
+          description: "List the biggest modules",
+        },
+        { kind: "run", title: "Ran", detail: "npx vite-bundle-visualizer --template raw-data" },
+      ),
+      got(
+        "toolu_06g",
+        "react-dom  128.4 kB\nsrc/checkout  21.7 kB\nsrc/cart  14.2 kB\nreact  6.8 kB\nsrc/orders  5.1 kB\nothers  37.9 kB",
+      ),
+      say(
+        "React's own code is more than half of it. Our own modules add up to about 41 kB, checkout and the cart the largest, and the re-export at `src/cart/use-cart.ts` is tree-shaken away, so it costs nothing in the bundle.\n\nTwo things would shrink it further, neither needed now: splitting `src/orders` behind a route, and replacing the date library the order email pulls in.",
+      ),
       say(
         "## Build\n\nIt passes now. The failure was an import from the wrong module, fixed in `src/checkout/total.ts`.\n\n| Asset | Size |\n| --- | --- |\n| JavaScript | 214 kB (68 kB gzip) |\n| CSS | 18 kB |\n\nI left `pnpm preview` running in the background so you can open it at <http://localhost:4173>.",
       ),

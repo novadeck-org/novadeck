@@ -12,12 +12,13 @@ import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { BellOff, Minimize2, Maximize2, Mic, X } from "lucide-react"
-import { lazy, Suspense, useRef, type ReactNode } from "react"
+import { lazy, Suspense, useMemo, useRef, type ReactNode } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
 import { isProjectWindow } from "./project-window"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 import { useRenderAt } from "./useRenderAt"
+import { WindowPhaseProvider } from "./window-phase"
 
 // What a layout contributes to each terminal it places.
 export type TerminalLayoutControls = {
@@ -167,6 +168,10 @@ export const WindowShell = ({
         unread,
       )
     : idleNote
+  const windowPhase = useMemo(
+    () => ({ phase, need: need !== undefined, failed }),
+    [phase, need, failed],
+  )
   const resets = shell && phase === "paused" ? pausedUntil(shell) : undefined
   // Said again once the limit it waits on resets, or its wake-up passes.
   useRenderAt(phase === "waiting" && shell ? nextWaitingChange(shell) : resets)
@@ -435,7 +440,7 @@ export const WindowShell = ({
         {menu ? <ContextMenu label={`${label} actions`} items={menu} trigger={header} /> : header}
         <span className="terminal-sweep" aria-hidden="true" />
       </div>
-      {children}
+      <WindowPhaseProvider value={windowPhase}>{children}</WindowPhaseProvider>
     </section>
   )
 }

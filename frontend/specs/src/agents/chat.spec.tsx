@@ -146,6 +146,7 @@ const caretToStart = (chat: Locator): void => {
 }
 
 describe("Recalling earlier prompts in the chat's box", () => {
+  // The latest the record holds; Build has two turns before it, which Up goes on to.
   const first = "Build the app and tell me how big the bundle is."
 
   it("walks back through the prompts with Up and returns to the draft with Down", async () => {
@@ -158,8 +159,6 @@ describe("Recalling earlier prompts in the chat's box", () => {
     caretToStart(chat)
     await userEvent.keyboard("{ArrowUp}")
     await expect.element(composer(chat)).toHaveValue("Run the linter")
-    await userEvent.keyboard("{ArrowUp}")
-    await expect.element(composer(chat)).toHaveValue(first)
     await userEvent.keyboard("{ArrowUp}")
     await expect.element(composer(chat)).toHaveValue(first)
     await userEvent.keyboard("{ArrowDown}")

@@ -57,10 +57,32 @@
    is pointed at or holds focus; `data-keep` stays where the chat is narrower than ~920px, which
    hides the others). The chat is a size container (`chat`) for that.
 
-   While the agent works, or a background shell runs, its line is pinned to the log's bottom
+   While the agent works, or a background shell runs, its line is the log's last row
    (`.chat-running`, holding `.chat-status` and `.chat-status-end`: the turn's clock and
-   `.chat-stop`, a `kbd` and its word; then `.chat-shells`, a `.chat-shell` for each shell).
+   `.chat-stop`, a `kbd` and its word; then `.chat-shells`, a `.chat-shell` for each shell). It
+   scrolls with the log; only `.chat-jump` floats, at the bottom right, while the log isn't at its
+   end.
    The prompt's send is an icon button (`.chat-send`), in the accent.
+
+   The turn's prompt holds the top: once your prompt (`data-turn` on its row; a doorbell ring that
+   started a turn has one too, and holds nothing) has scrolled wholly above the log, a one-line copy
+   of it (`.chat-hold`, over the log in `.chat-main`, so the log never reflows) stands at its top,
+   drawn as the log draws a prompt: `.chat-hold-line`, a button holding the mark and
+   `.chat-hold-words`, bold, in full ink, cut to the measure, over the chat's ground and a short
+   fade. The next turn's start pushes it up and out (data-pushed). Pointed at or focused, it takes a
+   hover ground and `.chat-hold-end` shows, left of the window's stats ring: the prompt's time
+   `.chat-hold-time` and the steps `.chat-hold-step` (‹ ›, :disabled at the first and the latest
+   prompt). Pressed, data-open on `.chat-hold` unfolds the line in place into the whole prompt
+   (pre-wrap, scrolling inside past two fifths of the chat, `--_peek`), a hairline and shadow under
+   it, and `.chat-hold-foot`: its time, `.chat-hold-go` and the `esc` key to close.
+
+   The mark of the prompt that started the latest turn wears the window's phase line, upright
+   (`.chat-mark[data-phase]`: "running" | "need" | "done" | "failed" | "starting" | "sleeping" |
+   "waking" | "paused" | "unheard" | "ended", resolved as the window resolves its line; idle or
+   waiting leave it as every finished turn's: the still accent), from the window's own tokens
+   (`--window-phase-running-border-color`, `-need-`, `-done-`, `-failed-`, `-starting-`,
+   `-sleeping-`, `-waking-`, `-paused-`, `-unheard-` and `-ended-border-color`, each with the
+   window's fallback), in the window's timings. Reduced motion holds it still.
    */
 
 .chat {
@@ -87,6 +109,9 @@
   --_ceiling: calc(2 * var(--_pad) + 2ch + 180ch);
   --_mark-width: 6px;
   --_mark-height: 13px;
+  --_ground: var(--chat-bg, var(--window-bg, var(--color-paper)));
+  /* The held prompt's padding above and below its line (`holdHeight`, in the code, adds the two). */
+  --_hold-pad: 8px;
   --markdown-muted-fg: var(--_muted);
   --markdown-link-fg: var(--_ink);
   display: flex;
@@ -108,6 +133,7 @@
   --_work-lh: 16px;
   --_mark-width: 5px;
   --_mark-height: 11px;
+  --_hold-pad: 6px;
   font-size: 12px;
 }
 .canvas-node:not(.selected) .chat {
@@ -161,7 +187,16 @@
    width is kept here alone. Past the ceiling every region caps and centres, its hairline with it.
    A region under a hairline (the prompt, the live rows) keeps it the window's width, and what it
    holds spans it. A new region joins here. */
-.chat :is(.chat-thread, .chat-request, .chat-lost, .chat-requests, .chat-composer, .chat-live) {
+.chat
+  :is(
+    .chat-thread,
+    .chat-hold-column,
+    .chat-request,
+    .chat-lost,
+    .chat-requests,
+    .chat-composer,
+    .chat-live
+  ) {
   width: 100%;
   max-width: var(--_ceiling);
   margin-inline: auto;
@@ -243,6 +278,67 @@
   border-radius: calc(var(--radius-control) / 2);
   background-color: currentColor;
   color: var(--_accent);
+}
+/* The prompt that started the latest turn wears the window's phase line, turned upright, from its
+   tokens and fallbacks and at its timings (window.css): running pulses in the running colour,
+   unlike the line's sweep. */
+.chat-mark[data-phase="running"] {
+  background-color: var(--window-phase-running-border-color, var(--color-strong));
+  animation: chat-mark-breathe 2.4s ease-in-out infinite;
+}
+.chat-mark[data-phase="need"] {
+  background-color: var(--window-phase-need-border-color, var(--color-warning-fg));
+  animation: chat-mark-pulse 1.6s ease-in-out infinite;
+}
+.chat-mark[data-phase="done"] {
+  background-color: var(--window-phase-done-border-color, var(--color-success-fg));
+}
+.chat-mark[data-phase="failed"] {
+  background-color: var(--window-phase-failed-border-color, var(--color-danger-fg));
+}
+.chat-mark:is([data-phase="starting"], [data-phase="sleeping"], [data-phase="waking"]) {
+  --_dots: var(--window-phase-starting-border-color, var(--color-muted));
+  background: repeating-linear-gradient(to bottom, var(--_dots) 0 2px, transparent 2px 4px);
+}
+.chat-mark[data-phase="starting"] {
+  animation: chat-mark-pulse 1.2s ease-in-out infinite;
+}
+.chat-mark[data-phase="sleeping"] {
+  --_dots: var(--window-phase-sleeping-border-color, var(--color-line-strong));
+}
+.chat-mark[data-phase="waking"] {
+  --_dots: var(--window-phase-waking-border-color, var(--color-strong));
+  animation: chat-mark-blink 1.06s steps(1) infinite;
+}
+.chat-mark:is([data-phase="paused"], [data-phase="unheard"], [data-phase="ended"]) {
+  --_dashes: var(--window-phase-unheard-border-color, var(--color-muted));
+  background: repeating-linear-gradient(to bottom, var(--_dashes) 0 4px, transparent 4px 6px);
+}
+.chat-mark[data-phase="paused"] {
+  --_dashes: var(--window-phase-paused-border-color, var(--color-muted));
+}
+.chat-mark[data-phase="ended"] {
+  --_dashes: var(--window-phase-ended-border-color, var(--color-strong));
+}
+@keyframes chat-mark-breathe {
+  50% {
+    opacity: 0.4;
+  }
+}
+@keyframes chat-mark-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes chat-mark-blink {
+  50% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-mark[data-phase] {
+    animation: none;
+  }
 }
 .chat-mark[data-hollow] {
   background-color: transparent;
@@ -740,20 +836,9 @@
   color: color-mix(in srgb, var(--_red) 70%, var(--_ink));
 }
 
-/* The agent's state, on the last line. While the agent works it stays at the log's bottom, over a
-   short fade, as the person reads back: its clock and its stop are at the edge, where they can
-   be found. The log's own padding is under it, so it sits that far down. */
-.chat-running {
-  --_ground: var(--chat-bg, var(--window-bg, var(--color-paper)));
-}
-.chat-thread > .chat-running[data-pinned] {
-  position: sticky;
-  bottom: calc(var(--_lh) * -1 + 4px);
-  z-index: 1;
-  padding-block: 4px;
-  background: var(--_ground);
-  box-shadow: 0 -10px 10px -2px var(--_ground);
-}
+/* The agent's state, on the last line, with its clock and its stop at the edge. It is the log's
+   last row like any other and scrolls away with it; `esc` stops the agent from anywhere in the
+   chat, and the jump button brings the log back to it. */
 .chat-status {
   margin-block: 0;
   color: var(--_muted);
@@ -807,8 +892,8 @@
 }
 
 /* The background shells under the working line: a `$` in the gutter, the command, and its clock at
-   the edge. Three or more fold into one line, with the short commands and a toggle. They are
-   pinned with the line above, and stay once the turn ends, until the shell does. */
+   the edge. Three or more fold into one line, with the short commands and a toggle. They stand
+   under the line above, and stay once the turn ends, until the shell does. */
 .chat-shells {
   display: flex;
   flex-direction: column;
@@ -869,14 +954,157 @@
   font: inherit;
   cursor: pointer;
 }
-/* Over the working line, which is pinned where it would stand. */
-.chat-jump[data-pinned] {
-  bottom: calc(var(--_lh) * var(--_pinned-rows, 1) + 10px);
-}
 @media (hover: hover) {
   .chat-jump:hover {
     color: var(--_ink);
   }
+}
+
+/* The turn's prompt, held at the top of the log: a copy over it (not a row of it, so the log never
+   reflows), in the log's own voice, over the chat's ground and a short fade. The area clips it
+   as the next turn's start pushes it up. */
+.chat-main:has(> .chat-hold) {
+  overflow: hidden;
+}
+.chat-hold {
+  /* The window's stats ring stands in the chat's top right: the line stops short of it. */
+  --_clear: max(0px, 46px - var(--_pad));
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: 0;
+  left: 0;
+  background: var(--_ground);
+  box-shadow: 0 8px 10px -2px var(--_ground);
+}
+.chat-hold-column {
+  position: relative;
+  padding-block: var(--_hold-pad);
+  padding-inline: var(--_pad);
+}
+.chat-hold-line {
+  position: relative;
+  isolation: isolate;
+  display: block;
+  box-sizing: border-box;
+  width: calc(100% - 2ch);
+  margin: 0 0 0 2ch;
+  padding: 0 var(--_clear) 0 0;
+  border: 0;
+  background: none;
+  color: var(--_ink);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  user-select: text;
+}
+button.chat-hold-line {
+  cursor: pointer;
+}
+.chat-hold-line > .chat-mark {
+  position: absolute;
+  top: 0;
+  left: -2ch;
+}
+/* The hover ground, reaching out under the mark. */
+.chat-hold-line::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -3px -1ch -3px -3ch;
+  border-radius: calc(var(--radius-control) / 2);
+}
+.chat-hold:is(:hover, :focus-within) button.chat-hold-line::before {
+  background: color-mix(in srgb, var(--_ink) 6%, transparent);
+}
+button.chat-hold-line:focus-visible {
+  outline: none;
+}
+button.chat-hold-line:focus-visible::before {
+  outline: var(--focus-ring-width, 2px) solid var(--focus-ring-color, var(--color-strong));
+}
+.chat-hold-words {
+  display: block;
+  max-width: var(--_measure);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* Its time and steps take the room at the edge while it is pointed at. */
+.chat-hold:is(:hover, :focus-within) button.chat-hold-line .chat-hold-words {
+  max-width: min(var(--_measure), 100% - 16ch);
+}
+.chat-hold-end {
+  position: absolute;
+  top: var(--_hold-pad);
+  right: calc(var(--_pad) + var(--_clear));
+  display: flex;
+  align-items: baseline;
+  gap: 1.5ch;
+  color: var(--_muted);
+  font-size: var(--_work-size);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-feedback) var(--ease-interface);
+}
+.chat-hold:is(:hover, :focus-within) .chat-hold-end {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: none) {
+  .chat-hold-end {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-hold-end {
+    transition: none;
+  }
+}
+.chat-hold-step {
+  color: var(--_mid);
+  font-size: 13px;
+}
+.chat-hold-step:disabled {
+  color: var(--_muted);
+  opacity: 0.5;
+}
+/* Unfolded: the whole prompt as the log has it, over the log, which stays where it was. */
+.chat-hold[data-open] {
+  border-bottom: var(--border-width) solid var(--_line);
+  box-shadow: 0 10px 18px -6px color-mix(in srgb, var(--color-shadow) 30%, transparent);
+}
+.chat-hold[data-open] .chat-hold-words {
+  max-height: var(--_peek, 40vh);
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  scrollbar-width: thin;
+  scrollbar-color: var(--_line) transparent;
+}
+.chat-hold-words:focus-visible {
+  outline: none;
+}
+.chat-hold-foot {
+  display: flex;
+  gap: 3ch;
+  margin: 8px 0 0 2ch;
+  color: var(--_muted);
+  font-size: var(--_work-size);
+}
+.chat-hold-foot .chat-key {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.chat-hold-go {
+  color: var(--_mid);
+}
+.chat-hold-foot kbd {
+  font-size: 11px;
+  line-height: 15px;
 }
 
 /* What waits on the person: the next lines of the terminal, under a hairline. */

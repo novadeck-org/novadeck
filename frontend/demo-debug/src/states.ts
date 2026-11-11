@@ -802,7 +802,7 @@ export const createDemoStates = (
         ),
         verb(
           "Shell running",
-          "Turn over; one background shell runs on, pinned under the chat's working line",
+          "Turn over; one background shell runs on, under the chat's working line",
           (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: oneShell }),
           verbs,
         ),

@@ -6,6 +6,7 @@ import { act, createElement } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
+import { useWindowPhase } from "./window-phase"
 import { WindowShell, type WindowShellProps } from "./WindowShell"
 
 const unmounts: (() => void)[] = []
@@ -383,6 +384,35 @@ describe("terminal frame marks", () => {
       })
       expect(section(frame).getAttribute("data-terminal-phase")).toBe("done")
       expect(section(frame).getAttribute("data-terminal-failed")).toBe("true")
+    })
+  })
+
+  context("for what the window holds", () => {
+    // What the chat inside reads to draw its current prompt's mark.
+    const Reader = (): React.JSX.Element =>
+      createElement("i", null, JSON.stringify(useWindowPhase()))
+    const held = (terminal: Tile, extra: Partial<WindowShellProps> = {}): unknown =>
+      JSON.parse(
+        renderFrame(terminal, { children: createElement(Reader), ...extra }).querySelector("i")!
+          .textContent!,
+      )
+
+    it("hands down the phase the line draws, whether it needs the person and whether it failed", () => {
+      expect(held(agent({ working: true }))).toEqual({
+        phase: "running",
+        need: false,
+        failed: false,
+      })
+      expect(held(agent({ working: false, attention: { kind: "question", count: 1 } }))).toEqual({
+        phase: "idle",
+        need: true,
+        failed: false,
+      })
+      expect(
+        held(agent({ working: false, lastTurn: { at: 1, outcome: "failed" } }), {
+          unread: "failed",
+        }),
+      ).toEqual({ phase: "done", need: false, failed: true })
     })
   })
 })

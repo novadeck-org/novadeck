@@ -62,3 +62,16 @@ describe("what the demo's results say of their calls", () => {
     expect(items.some((item) => item.scripted)).toBe(true)
   })
 })
+
+describe("the demo's conversation with several turns", () => {
+  it("gives Build three prompts for the chat's held prompt line to hand off between", () => {
+    const { items } = agentTranscripts(Date.now())["06"]!
+    const prompts = items.filter(({ role, kind }) => role === "user" && kind === "text")
+    expect(prompts).toHaveLength(3)
+    // The second is a prompt of several lines, so the line's cut and the peek show.
+    expect(prompts[1]!.text).toContain("\n")
+    // Each turn has an answer of its own after it.
+    for (const prompt of prompts)
+      expect(items.slice(items.indexOf(prompt)).some(({ role }) => role === "assistant")).toBe(true)
+  })
+})
