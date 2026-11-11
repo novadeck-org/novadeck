@@ -738,12 +738,31 @@ describe("Quality's workflow", () => {
     )
   })
 
-  it("gives each row's tests their time: macOS's whole suite 57, its system packages 30", () => {
+  // Known Flakes names a whole-suite macOS run that runs out of time (scripts/flakes/register.json,
+  // `test-macos-job-timeout`) by the step's own line: it must still match at the limit set here.
+  it("leaves the macOS timeout's register entry matching at the whole suite's limit", () => {
+    const minutes =
+      /matrix\.command == 'npm run test' && (\d+) \|\| \d+\) \|\| runner\.os == 'Windows'/.exec(
+        job("quality"),
+      )![1]
+    const { flakes } = JSON.parse(
+      readFileSync(join(root, "scripts", "flakes", "register.json"), "utf8"),
+    ) as { flakes: { id: string; jobs: string[]; signature: string }[] }
+    const entry = flakes.find(({ id }) => id === "test-macos-job-timeout")!
+    expect(
+      new RegExp(entry.signature).test(
+        `##[error]The action 'Run Test (macOS)' has timed out after ${minutes} minutes.`,
+      ),
+    ).toBe(true)
+    expect(entry.jobs.some((pattern) => new RegExp(pattern).test("Test (macOS)"))).toBe(true)
+  })
+
+  it("gives each row's tests their time: macOS's whole suite 65, its system packages 30", () => {
     expect(job("quality")).toContain(
-      "runner.os == 'macOS' && (matrix.command == 'npm run test' && 57 || 30) || runner.os == 'Windows' && matrix.shard == 0 && 22 ||",
+      "runner.os == 'macOS' && (matrix.command == 'npm run test' && 65 || 30) || runner.os == 'Windows' && matrix.shard == 0 && 22 ||",
     )
     expect(job("macos")).toContain(
-      "timeout-minutes: ${{ matrix.command == 'npm run test' && 67 || 40 }}",
+      "timeout-minutes: ${{ matrix.command == 'npm run test' && 75 || 40 }}",
     )
     expect(job("proof-macos")).toContain("timeout-minutes: 40")
     expect(wholeMacos).toMatchObject([{ name: "Test (macOS)", command: "npm run test" }])
