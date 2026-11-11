@@ -7,10 +7,26 @@ name: Known Flakes
 # pull request's, so a change can't excuse its own failures. A pull request's packaging runs
 # inside Quality, or on its own as Package when a draft is marked ready; Release, which
 # publishes, is never rerun.
+#
+# CI retries a failed test where the runner's load can decide it (scripts/flakes/retry), and
+# a run that passed that way is green: the `retried-*` artifacts its test jobs upload, each
+# attempt's own, are where those flakes show (scripts/flakes/retries.ts). Retried Tests keeps
+# a pull request's one comment on them; Tally, each morning, counts each test's retries over
+# a week against the budget, keeps an issue of the tests over it, and publishes the count for
+# the scoreboard. The rerun above stays for what a retry can't reach: a hung job, a failed
+# download, a test no retry covers.
 on:
   workflow_run:
     workflows: [Quality, E2E, Package]
     types: [completed]
+  schedule:
+    - cron: "41 6 * * *"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: Days of runs to count
+        type: number
+        default: 7
 
 permissions:
   contents: read
@@ -18,7 +34,7 @@ permissions:
 jobs:
   triage:
     name: Triage
-    if: github.event.workflow_run.conclusion == 'failure'
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -127,3 +143,175 @@ jobs:
             ${{ runner.temp }}/logs/
           if-no-files-found: ignore
           retention-days: 30
+
+  # The pull request's one comment on the tests its runs passed only on a retry, updated after
+  # each run that retried one, those in packages it changes first: a race a change brings shows
+  # nowhere else while its checks are green. Every attempt's artifacts, so a rerun's count. The
+  # artifacts and the pull request's files are its data, read by main's code. A fork's pull
+  # request is named on no run, so it gets no comment.
+  retried:
+    name: Retried Tests
+    if: >-
+      github.event_name == 'workflow_run' && github.event.workflow_run.name != 'Package' &&
+      github.event.workflow_run.pull_requests[0] != null
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # To list and download the run's artifacts.
+      actions: read
+      # To write the comment.
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      PULL_REQUESTS: ${{ join(github.event.workflow_run.pull_requests.*.number, ' ') }}
+    steps:
+      - name: Find Retry Records
+        id: find
+        shell: bash
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.name | startswith("retried-")) | select(.expired | not) | .name' \
+            > "$RUNNER_TEMP/names.txt"
+          if [ -s "$RUNNER_TEMP/names.txt" ]; then echo "found=true" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Check Out Repository
+        if: steps.find.outputs.found == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set Up Node
+        if: steps.find.outputs.found == 'true'
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          runtime: node@26
+
+      - name: Download Retry Records
+        if: steps.find.outputs.found == 'true'
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/run"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" > "$RUNNER_TEMP/run/run.json"
+          while read -r name; do
+            gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$name" --dir "$RUNNER_TEMP/run/$name"
+          done < "$RUNNER_TEMP/names.txt"
+
+      # One comment a pull request, found by its marker among the bot's own, edited in place.
+      - name: Update Comment
+        if: steps.find.outputs.found == 'true'
+        shell: bash
+        run: |
+          for pr in $PULL_REQUESTS; do
+            gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --jq '.[].filename' > "$RUNNER_TEMP/files.txt"
+            gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$pr/comments?per_page=100" \
+              --jq '.[] | select(.user.login == "github-actions[bot]") | select(.body | startswith("<!-- known-flakes:retried -->")) | [.id, .body] | @json' \
+              | head -n 1 > "$RUNNER_TEMP/found.json"
+            id=$(jq -r '.[0] // empty' "$RUNNER_TEMP/found.json")
+            jq -r '.[1] // empty' "$RUNNER_TEMP/found.json" > "$RUNNER_TEMP/previous.md"
+            rm -f "$RUNNER_TEMP/comment.md"
+            node scripts/flakes/retries-main.ts comment "$RUNNER_TEMP/run/run.json" "$RUNNER_TEMP/run" \
+              "$RUNNER_TEMP/files.txt" "$RUNNER_TEMP/previous.md" "$RUNNER_TEMP/comment.md"
+            [ -s "$RUNNER_TEMP/comment.md" ] || continue
+            if [ -n "$id" ]; then
+              gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F "body=@$RUNNER_TEMP/comment.md" > /dev/null
+            else
+              gh pr comment "$pr" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/comment.md"
+            fi
+          done
+
+  # Each retried test's count over the last week's runs, from their test jobs' `retried-*`
+  # artifacts, every attempt's: the budget issue opened, edited or closed by it, and the count
+  # published as `flake-tally` for the weekly scoreboard (its shape in docs/development.md).
+  tally:
+    name: Tally
+    if: github.event_name != 'workflow_run'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      # To list and download the artifacts.
+      actions: read
+      # To open, edit and close the budget issue.
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DAYS: ${{ inputs.days || 7 }}
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set Up Node
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          runtime: node@26
+
+      # The repository's artifacts come newest first, so the pages stop at the first one older
+      # than the window. A run's folder holds its run.json and its artifacts.
+      - name: Download Retry Records
+        shell: bash
+        run: |
+          cutoff=$(date -u -d "-$DAYS days" +%Y-%m-%dT%H:%M:%SZ)
+          : > "$RUNNER_TEMP/records.tsv"
+          for page in $(seq 1 200); do
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100&page=$page" > "$RUNNER_TEMP/page.json"
+            jq -r --arg cutoff "$cutoff" '.artifacts[]
+              | select(.name | startswith("retried-")) | select(.expired | not)
+              | select(.created_at >= $cutoff) | [.workflow_run.id, .name] | @tsv' \
+              "$RUNNER_TEMP/page.json" >> "$RUNNER_TEMP/records.tsv"
+            count=$(jq '.artifacts | length' "$RUNNER_TEMP/page.json")
+            oldest=$(jq -r '.artifacts[-1].created_at // ""' "$RUNNER_TEMP/page.json")
+            if [ "$count" -lt 100 ] || [[ "$oldest" < "$cutoff" ]]; then break; fi
+          done
+          while IFS=$'\t' read -r run name; do
+            folder="$RUNNER_TEMP/runs/$run"
+            if [ ! -e "$folder/run.json" ]; then
+              mkdir -p "$folder"
+              gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" > "$folder/run.json"
+            fi
+            gh run download "$run" --repo "$GITHUB_REPOSITORY" --name "$name" --dir "$folder/$name"
+          done < "$RUNNER_TEMP/records.tsv"
+
+      - name: Find Budget Issue
+        shell: bash
+        run: |
+          gh issue list --repo "$GITHUB_REPOSITORY" --state open --search '"Tests over the retry budget" in:title' \
+            --json number,title,body --jq '[.[] | select(.title == "Tests over the retry budget")][0] // empty | {number, body}' \
+            > "$RUNNER_TEMP/open.json"
+
+      - name: Count Retried Tests
+        shell: bash
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/tally"
+          node scripts/flakes/retries-main.ts tally "$RUNNER_TEMP/runs" "$DAYS" "$RUNNER_TEMP/tally" "$RUNNER_TEMP/open.json"
+
+      - name: Upload Tally
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: flake-tally
+          path: ${{ runner.temp }}/tally/tally.json
+          retention-days: 30
+
+      - name: Update Budget Issue
+        shell: bash
+        run: |
+          action="$RUNNER_TEMP/tally/issue.json"
+          jq -r '.body // empty' "$action" > "$RUNNER_TEMP/issue.md"
+          case "$(jq -r .kind "$action")" in
+            open)
+              gh issue create --repo "$GITHUB_REPOSITORY" --title "$(jq -r .title "$action")" --body-file "$RUNNER_TEMP/issue.md" ;;
+            edit)
+              issue=$(jq -r .issue "$action")
+              gh issue edit "$issue" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue.md"
+              if jq -e '.comment' "$action" > /dev/null; then
+                jq -r .comment "$action" > "$RUNNER_TEMP/joined.md"
+                gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/joined.md"
+              fi ;;
+            close)
+              gh issue close "$(jq -r .issue "$action")" --repo "$GITHUB_REPOSITORY" --comment "$(cat "$RUNNER_TEMP/issue.md")" ;;
+          esac

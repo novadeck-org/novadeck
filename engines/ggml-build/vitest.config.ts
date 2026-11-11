@@ -1,7 +1,11 @@
 import { defineConfig } from "vitest/config"
 
-export default defineConfig({
+import { retryOnCi } from "../../scripts/flakes/retry/vitest.ts"
+
+const config = defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
   },
 })
+
+export default retryOnCi(config)
