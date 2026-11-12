@@ -69,9 +69,13 @@ const BranchLine = ({ row }: { row: ChangeRow }): React.JSX.Element => (
   <>
     <span aria-hidden className="terminal-glyph inline-block w-[1ch] shrink-0 text-center" />
     {row.project !== undefined && (
-      <span className="changes-project min-w-0 max-w-[45%] shrink-0 truncate" title={row.project}>
-        {row.project}
-      </span>
+      <>
+        <span className="changes-project min-w-0 max-w-[45%] shrink-0 truncate" title={row.project}>
+          {row.project}
+        </span>
+        {/* Outside the name, so a cut name keeps it. */}
+        <span className="changes-sep shrink-0">·</span>
+      </>
     )}
     <span className="changes-branch min-w-0 truncate" title={row.branch}>
       {row.branch}

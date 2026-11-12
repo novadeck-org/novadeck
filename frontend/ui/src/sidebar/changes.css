@@ -2,9 +2,10 @@
    `.terminal-tab` of tabs.css, so its size, name line, detail line and the unfold of its rows
    are the tab's own), and this adds what differs. Parts: `.changes-row`, `.changes-size` (the
    work's `+N −N`, in the tab's item marks' place), `.changes-file` (a file's name, wherever it is),
-   `.changes-project` and `.changes-branch` (the row's project, where there are several, and
-   branch), `.changes-refusal`, `.changes-kept`, `.changes-branches` and `.changes-trail` (a
-   file's lines, right-aligned in its row), `.changes-empty`. The row's × is
+   `.changes-project`, `.changes-sep` and `.changes-branch` (the row's project, where there are
+   several, the dot after it, and branch), `.changes-refusal`, `.changes-kept`,
+   `.changes-branches` and `.changes-trail` (a file's lines, right-aligned in its row),
+   `.changes-empty`. The row's × is
    `.terminal-tab-revealed`, shown under the pointer as a tab's Rename.
 
    Hooks: on a row, data-conflict while it conflicts with main or another work, data-merged
@@ -61,11 +62,9 @@
 
 /* The detail line holds the project and branch, which stay while the files unfold under it. */
 .changes-project,
+.changes-sep,
 .changes-branch {
   color: var(--color-muted);
-}
-.changes-project::after {
-  content: "\00a0·\00a0";
 }
 
 /* Why a close was refused, above the list. */
