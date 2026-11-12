@@ -12,9 +12,9 @@
 // its `shell_environment_policy`, copies a command's output to a log with `tee` where it has no
 // terminal, in the first folder it may write: a folder in the real home (as Novadeck's data
 // folder is), the system's temp folder, the project. On Windows Codex runs PowerShell, which
-// no variable hooks: the probe records only what a pass-through on PATH would meet there
-// (its sandbox's user, what it may write and run, whether output is redirected), with the
-// second command run in a terminal (`tty`), as a pass-through can't read a pseudoconsole.
+// no variable hooks: there Novadeck's PowerShell pass-through (relay's novadeck-pwsh) stands
+// in for pwsh.exe and powershell.exe first on Codex's PATH, capturing to the folder
+// NOVADECK_CAPTURE names; the second command runs in a terminal (`tty`), which it passes on.
 //
 // It records rather than checks: everything goes to $PROBE_OUT/shell-output-<agent>-<system>/.
 // Runs only with NOVADECK_E2E_PROBES=1, by path (.github/workflows/shell-output-probe.yml).
@@ -31,6 +31,8 @@ import {
 } from "node:fs"
 import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
+
+import { pwshShimPath } from "@novadeck/relay"
 
 import { setups } from "../agents/index.js"
 import type { DeckTerminal } from "../deck.js"
@@ -255,8 +257,18 @@ for (const setup of setups) {
             join(zdot, ".zshenv"),
             `unset ZDOTDIR\n[ -f "$HOME/.zshenv" ] && . "$HOME/.zshenv"\n. "${join(project, "hook.sh")}"\n`,
           )
+          // On Windows, Novadeck's PowerShell pass-through as pwsh.exe and powershell.exe in the
+          // folder first on PATH in Novadeck's terminals, where Codex finds its shell, which
+          // captures to the folder NOVADECK_CAPTURE names.
+          const bin = join(run.sandbox.root, "data", "shell", "bin")
+          if (windows) {
+            mkdirSync(bin, { recursive: true })
+            for (const name of ["pwsh.exe", "powershell.exe"])
+              copyFileSync(pwshShimPath, join(bin, name))
+            note("bin.txt", readdirSync(bin).join("\n"))
+          }
           const hooks = windows
-            ? ""
+            ? `shell_environment_policy = { set = { NOVADECK_CAPTURE = ${JSON.stringify(rootDir)} } }\n`
             : `shell_environment_policy = { set = { BASH_ENV = ${JSON.stringify(join(project, "hook.sh"))}, ZDOTDIR = ${JSON.stringify(zdot)} } }\n`
           writeFileSync(
             config,
@@ -303,6 +315,10 @@ for (const setup of setups) {
           for (const name of readdirSync(project))
             if (/^(probe-.*|hook-.*)\.txt$/.test(name))
               writeFileSync(join(out, name), readFileSync(join(project, name)))
+          // The pass-through's records of what it captured.
+          for (const name of existsSync(rootDir) ? readdirSync(rootDir) : [])
+            if (/^out-.*\.json$/.test(name))
+              writeFileSync(join(out, name), readFileSync(join(rootDir, name)))
           for (const file of logs(home, claudeOutputs, [commandTemp, project]))
             note(
               "logs.txt",
