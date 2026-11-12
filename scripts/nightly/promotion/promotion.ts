@@ -22,6 +22,15 @@ export type Run = {
   readonly conclusion: string
   /** When it started, as an ISO date. */
   readonly createdAt: string
+  /** Its title (`display_title`): E2E's names the harnesses a night or a dispatch ran. */
+  readonly title: string
+}
+
+/** A job of a run's latest attempt. */
+export type Job = {
+  readonly name: string
+  readonly labels: readonly string[]
+  readonly conclusion: string | null
 }
 
 /** A nightly workflow a release must have passed. */
@@ -32,14 +41,22 @@ export type Nightly = {
   readonly file: string
   /** Whether a run of the workflow is this nightly. */
   readonly counts: (run: Run) => boolean
-  /** Whether it must have passed on all three systems, which only its jobs say. */
-  readonly everySystem: boolean
+  /**
+   * Whether a job is one of its test rows, which alone cover a system: its bookkeeping jobs
+   * (a plan, a gate, the start of the next run) and checks run on Linux and say nothing of
+   * Windows or macOS, nor of Linux's tests.
+   */
+  readonly testRow: (name: string) => boolean
+  /** The jobs, by exact name, that a counted run skips by design; any other skip refuses. */
+  readonly skips: readonly string[]
   /** What to run when no green night covers the release. */
   readonly unblock: string
 }
 
-// Nightly Quality dispatches E2E with the Actions token, always on the pinned harnesses.
-const actionsBot = "github-actions[bot]"
+// E2E's title for a run on the pinned harnesses (e2e.yml's `run-name`): Nightly Quality
+// dispatches it so, and a person may. Runs from before the title was set carry none, and a
+// run on the latest harnesses (its night, or a dispatch) another, so neither counts.
+export const pinnedTitle = "E2E on the pinned harnesses"
 
 const startNight = "`gh workflow run quality-nightly.yml --ref main`"
 
@@ -54,14 +71,17 @@ export const nightlies: readonly Nightly[] = [
     name: "Nightly Quality",
     file: "quality-nightly.yml",
     counts: (run) => run.event === "schedule" || run.event === "workflow_dispatch",
-    everySystem: false,
+    testRow: (name) => name.startsWith("Test ("),
+    skips: [],
     unblock: `start a night: ${startNight}`,
   },
   {
     name: "E2E on the pinned harnesses",
     file: "e2e.yml",
-    counts: (run) => run.event === "workflow_dispatch" && run.actor === actionsBot,
-    everySystem: true,
+    counts: (run) => run.event === "workflow_dispatch" && run.title === pinnedTitle,
+    testRow: (name) => name !== "Plan" && name !== "E2E" && !name.startsWith("Probes ("),
+    // The probes run only when a dispatch asks for them, as E2E's own night does.
+    skips: ["Probes (${{ matrix.setup.name }}, ${{ matrix.slice.name }})"],
     unblock: `start a night, which starts this run when its tests are done: ${startNight}`,
   },
 ]
@@ -88,18 +108,32 @@ export const systemOf = (labels: readonly string[]): System | undefined => {
   return undefined
 }
 
-/** The systems a run passed on: those of its jobs that succeeded. */
-export const passedOn = (
-  jobs: readonly { readonly labels: readonly string[]; readonly conclusion: string | null }[],
-): ReadonlySet<System> =>
-  new Set(
+const all: readonly System[] = ["Linux", "Windows", "macOS"]
+
+/**
+ * What a green run's jobs say of it: the systems its test rows passed on, and what keeps it
+ * from counting at all. Every job must have succeeded, but for the nightly's skips by design:
+ * a skipped, cancelled or failed one refuses the run, whatever system it ran on or none. A
+ * system is covered only by a test row that passed on it, so one whose rows were all skipped,
+ * or never ran, is not.
+ */
+export type Coverage = { readonly systems: ReadonlySet<System>; readonly faults: readonly string[] }
+
+export const coverage = (nightly: Nightly, jobs: readonly Job[]): Coverage => ({
+  systems: new Set(
     jobs
-      .filter((job) => job.conclusion === "success")
+      .filter((job) => job.conclusion === "success" && nightly.testRow(job.name))
       .map((job) => systemOf(job.labels))
       .filter((system) => system !== undefined),
-  )
-
-const all: readonly System[] = ["Linux", "Windows", "macOS"]
+  ),
+  faults: jobs
+    .filter(
+      (job) =>
+        job.conclusion !== "success" &&
+        !(job.conclusion === "skipped" && nightly.skips.includes(job.name)),
+    )
+    .map((job) => `\`${job.name}\` ${job.conclusion ?? "unfinished"}`),
+})
 
 export type Verdict =
   | { readonly ok: true; readonly run: Run }
@@ -107,8 +141,17 @@ export type Verdict =
       readonly ok: false
       /** The newest run at or after the release, when one ran and didn't pass. */
       readonly failed?: Run | undefined
-      /** The newest green run at or after it that skipped a system, and the ones it skipped. */
-      readonly partial?: { readonly run: Run; readonly missing: readonly System[] } | undefined
+      /**
+       * The newest green run at or after it that doesn't count: the systems no test row passed
+       * on, and its jobs that didn't succeed.
+       */
+      readonly partial?:
+        | {
+            readonly run: Run
+            readonly missing: readonly System[]
+            readonly faults: readonly string[]
+          }
+        | undefined
       /** The newest green run, when it ran on an older commit than the release's. */
       readonly older?: Run | undefined
     }
@@ -119,26 +162,27 @@ const covers = (relation: Relation | undefined): boolean =>
 /**
  * Whether the nightly passed at or after the release's commit, from its runs, how each run's
  * commit stands to the release's (`relations`, by commit; a commit missing there counts as
- * not after it), and, where the nightly must pass on every system, which ones each green run
- * passed on (`systems`, by run id; a run missing there passed on none).
+ * not after it), and what each green run's jobs say of it (`coverages`, by run id; a run
+ * missing there covers no system, so it doesn't count).
  */
 export const judge = (
   nightly: Nightly,
   runs: readonly Run[],
   relations: ReadonlyMap<string, Relation>,
-  systems: ReadonlyMap<number, ReadonlySet<System>> = new Map(),
+  coverages: ReadonlyMap<number, Coverage> = new Map(),
 ): Verdict => {
   const ordered = candidates(nightly, runs, Number.POSITIVE_INFINITY)
   const after = ordered.filter((run) => covers(relations.get(run.sha)))
   const green = after.filter((run) => run.conclusion === "success")
   const missing = (run: Run): readonly System[] =>
-    nightly.everySystem ? all.filter((system) => !systems.get(run.id)?.has(system)) : []
-  const whole = green.find((run) => missing(run).length === 0)
+    all.filter((system) => !coverages.get(run.id)?.systems.has(system))
+  const faults = (run: Run): readonly string[] => coverages.get(run.id)?.faults ?? []
+  const whole = green.find((run) => missing(run).length === 0 && faults(run).length === 0)
   if (whole) return { ok: true, run: whole }
   return {
     ok: false,
     failed: after.find((run) => run.conclusion !== "success"),
-    partial: green[0] && { run: green[0], missing: missing(green[0]) },
+    partial: green[0] && { run: green[0], missing: missing(green[0]), faults: faults(green[0]) },
     older: ordered.find((run) => run.conclusion === "success"),
   }
 }
@@ -150,7 +194,12 @@ export const explain = (nightly: Nightly, tag: string, sha: string, verdict: Ver
   if (verdict.ok)
     return `${nightly.name} passed on ${short(verdict.run.sha)}, at or after ${tag} (${short(sha)}): ${verdict.run.url}`
   const seen = verdict.partial
-    ? `Its newest green run at or after it has no passed job on ${verdict.partial.missing.join(" or ")}: ${verdict.partial.run.url}.`
+    ? `Its newest green run at or after it doesn't count: ${[
+        ...(verdict.partial.faults.length ? [`${verdict.partial.faults.join(", ")}`] : []),
+        ...(verdict.partial.missing.length
+          ? [`no test row passed on ${verdict.partial.missing.join(" or ")}`]
+          : []),
+      ].join("; ")}: ${verdict.partial.run.url}.`
     : verdict.failed
       ? `Its newest run at or after it ended \`${verdict.failed.conclusion}\` on ${short(verdict.failed.sha)}: ${verdict.failed.url}. Fix what failed, or if it was a flake rerun its failed jobs: \`gh run rerun ${verdict.failed.id} --failed\`.`
       : verdict.older

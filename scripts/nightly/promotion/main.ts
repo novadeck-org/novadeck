@@ -3,14 +3,15 @@ import { appendFileSync } from "node:fs"
 
 import {
   candidates,
+  coverage,
   explain,
   judge,
   nightlies,
-  passedOn,
+  type Coverage,
+  type Job,
   type Nightly,
   type Relation,
   type Run,
-  type System,
 } from "./promotion.ts"
 
 // `node scripts/nightly/promotion/main.ts`: Promote to Stable's check that every full nightly
@@ -18,7 +19,7 @@ import {
 // GITHUB_REPOSITORY and GH_TOKEN as Actions sets them. Exits non-zero, with an error for each
 // nightly missing, when the release may not be promoted. At most about forty requests: two
 // lists of runs, the release's commit, a compare for each recent full run's commit, and the
-// jobs of each green E2E run at or after the release, for the systems it passed on.
+// jobs of each green run at or after the release, for the systems its test rows passed on.
 
 const required = (name: string): string => {
   const value = process.env[name]
@@ -42,6 +43,7 @@ const runsOf = (nightly: Nightly): readonly Run[] =>
       actor: { login: string } | null
       conclusion: string | null
       created_at: string
+      display_title: string
     }[]
   }>(
     `repos/${repo()}/actions/workflows/${nightly.file}/runs?branch=main&status=completed&per_page=100`,
@@ -53,15 +55,25 @@ const runsOf = (nightly: Nightly): readonly Run[] =>
     actor: run.actor?.login ?? "",
     conclusion: run.conclusion ?? "",
     createdAt: run.created_at,
+    title: run.display_title,
   }))
 
-/** The systems a run's latest attempt passed on. */
-const systemsOf = (run: Run): ReadonlySet<System> =>
-  passedOn(
-    api<{ jobs: { labels: string[]; conclusion: string | null }[] }>(
+/** Every job of a run's latest attempt, page by page, so none goes unread. */
+const jobsOf = (run: Run): readonly Job[] =>
+  execFileSync(
+    "gh",
+    [
+      "api",
+      "--paginate",
       `repos/${repo()}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`,
-    ).jobs,
+      "--jq",
+      ".jobs[] | {name, labels, conclusion}",
+    ],
+    { encoding: "utf8" },
   )
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as Job)
 
 /** How `head` stands to `base` in main's history. */
 const relation = (base: string, head: string): Relation =>
@@ -78,15 +90,14 @@ export const main = (): boolean => {
       const runs = candidates(nightly, runsOf(nightly))
       for (const run of runs)
         if (!relations.has(run.sha)) relations.set(run.sha, relation(sha, run.sha))
-      const systems = new Map<number, ReadonlySet<System>>()
-      if (nightly.everySystem)
-        for (const run of runs)
-          if (
-            run.conclusion === "success" &&
-            ["identical", "ahead"].includes(relations.get(run.sha)!)
-          )
-            systems.set(run.id, systemsOf(run))
-      const verdict = judge(nightly, runs, relations, systems)
+      const coverages = new Map<number, Coverage>()
+      for (const run of runs)
+        if (
+          run.conclusion === "success" &&
+          ["identical", "ahead"].includes(relations.get(run.sha)!)
+        )
+          coverages.set(run.id, coverage(nightly, jobsOf(run)))
+      const verdict = judge(nightly, runs, relations, coverages)
       line = explain(nightly, tag, sha, verdict)
       ok = verdict.ok
     } catch (error) {
