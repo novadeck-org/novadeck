@@ -5,10 +5,9 @@ import { ArtifactMeta, type ArtifactBodyProps } from "../../ArtifactViewer"
 import { FileTree } from "./FileTree"
 import { FileView } from "./FileView"
 import { LayerList } from "./LayerList"
-import { anchored, idsOf, pick, selectedOf, selectionName } from "./selection"
+import { alone, idsOf, pick, selectedOf, selectionName } from "./selection"
 import { filesOf, filesOfRange, rowsOf } from "./tree"
 import { useDrillDown } from "./use-drill-down"
-import { useRange } from "./use-range"
 import { useChangesView } from "./view-state"
 
 // An agent's change, measured against main: its layers (the uncommitted work and each commit
@@ -37,7 +36,7 @@ export const ChangesViewer = ({
   actions,
 }: ArtifactBodyProps<"changes">): React.JSX.Element => {
   const [view, update] = useChangesView(itemStore, item.id)
-  // What the files' diffs and ranges are read at: the content's stamp, kept where only the files
+  // What the files' diffs are read at: the content's stamp, kept where only the files
   // read changed, so marking one read does not read the open file's diff again.
   const shape = useMemo(() => JSON.stringify({ ...content, read: [] }), [content])
   // eslint-disable-next-line react-hooks/exhaustive-deps -- The stamp of the shape's first sight.
@@ -45,19 +44,15 @@ export const ChangesViewer = ({
   const ids = useMemo(() => idsOf(content.layers), [content.layers])
   const selected = useMemo(() => selectedOf(ids, view.picked), [ids, view.picked])
   const layers = useMemo(() => ids.filter((id) => selected.has(id)), [ids, selected])
-  // All the layers are the change as a whole, whose files the content carries; two or more of
-  // them are a range git lists when asked; until it answers, or where the backend can't, and
-  // for one layer, the layers' files added up.
+  // All the layers are the change as a whole, whose files the content carries; one layer is its
+  // own files.
   const whole = layers.length === ids.length
-  const ranged = useRange(itemStore, target, item.id, diffStamp, whole ? [] : layers)
   const files = useMemo(
     () =>
       whole
         ? filesOfRange(content.files, content.layers, layers)
-        : ranged
-          ? filesOfRange(ranged.files, content.layers, layers)
-          : filesOf(content.layers, selected),
-    [whole, ranged, layers, content.files, content.layers, selected],
+        : filesOf(content.layers, selected),
+    [whole, layers, content.files, content.layers, selected],
   )
   const rows = useMemo(() => rowsOf(files), [files])
   // The files in the order the tree shows them, which J and K step through.
@@ -199,8 +194,8 @@ export const ChangesViewer = ({
                   )}
                 </div>
                 <div className="changes-hint">
-                  {anchored(ids, view.picked)
-                    ? "Click another to take everything between"
+                  {alone(ids, view.picked)
+                    ? "Click it again to see everything"
                     : "Click a commit to see only it"}{" "}
                   · click a file to unfold it · double-click opens it
                 </div>

@@ -315,35 +315,15 @@ describe("a change beside a terminal", () => {
       expect(layers()[1]?.getAttribute("aria-selected")).toBe("true")
     })
 
-    it("takes every row between the anchor and the next row clicked, in one unbroken rail", async () => {
+    it("keeps only the other row when another is clicked while one is kept", async () => {
       const { rail, click, layers, files, container } = show(change())
 
       await click(layers()[0])
       await click(layers()[2])
 
-      expect(rail()).toEqual(["on start", "on", "on end"])
-      expect(files()).toHaveLength(4)
-      expect(container.querySelector(".changes-files-of")?.textContent).toBe("4 files · everything")
-    })
-
-    it("takes the range upward as well as downward", async () => {
-      const { rail, click, layers, container } = show(change())
-
-      await click(layers()[2])
-      await click(layers()[1])
-
-      expect(rail()).toEqual(["off", "on start", "on end"])
-      expect(container.querySelector(".changes-files-of")?.textContent).toBe("3 files · 2 of 3")
-    })
-
-    it("starts over from the row clicked after a range", async () => {
-      const { rail, click, layers } = show(change())
-
-      await click(layers()[1])
-      await click(layers()[2])
-      await click(layers()[0])
-
-      expect(rail()).toEqual(["on start end", "off", "off"])
+      expect(rail()).toEqual(["off", "off", "on start end"])
+      expect(files()).toEqual(["src/components/Header.tsx"])
+      expect(container.querySelector(".changes-files-of")?.textContent).toBe("1 file · c1c1c1c")
     })
 
     it("returns to all when the only row selected is clicked", async () => {
@@ -362,7 +342,10 @@ describe("a change beside a terminal", () => {
       expect(hint()).toBe(`Click a commit to see only it${rest}`)
 
       await click(layers()[1])
-      expect(hint()).toBe(`Click another to take everything between${rest}`)
+      expect(hint()).toBe(`Click it again to see everything${rest}`)
+
+      await click(layers()[2])
+      expect(hint()).toBe(`Click it again to see everything${rest}`)
 
       await click(layers()[2])
       expect(hint()).toBe(`Click a commit to see only it${rest}`)
@@ -631,41 +614,16 @@ describe("a change beside a terminal", () => {
   })
 
   context("when the backend lists a range's own files", () => {
-    it("shows those for a selection of more than one layer, not every layer", async () => {
-      const net = [file("src/auth/session.ts", { status: "added", added: 20, removed: 0 })]
+    it("shows a single layer's own files, which no range is asked for", async () => {
+      const net = [file("elsewhere.ts")]
       const { files, click, layers, settle, ranges } = show(change(), undefined, true, net)
       await settle()
 
       await click(layers()[1])
-      await click(layers()[2])
       await settle()
-
-      expect(files()).toEqual(["src/auth/session.ts"])
-      expect(ranges).toEqual([["c2c2c2c2c2", "c1c1c1c1c1"]])
-    })
-
-    it("shows a single layer's own files, which no range is asked for", async () => {
-      const net = [file("elsewhere.ts")]
-      const { files, click, layers, settle } = show(change(), undefined, true, net)
-      await settle()
-
-      await click(layers()[1])
 
       expect(files()).toEqual(["src/auth/session.test.ts", "src/auth/session.ts"])
-    })
-  })
-
-  context("when the backend has no range", () => {
-    it("adds the layers' files up for a selection of more than one", async () => {
-      const { files, click, layers, settle } = show(change(), undefined, true, null)
-      await settle()
-      await click(layers()[1])
-      await click(layers()[2])
-      expect(files()).toEqual([
-        "src/auth/session.test.ts",
-        "src/auth/session.ts",
-        "src/components/Header.tsx",
-      ])
+      expect(ranges).toEqual([])
     })
   })
 
@@ -716,21 +674,6 @@ describe("a change beside a terminal", () => {
       )
       expect(body().querySelector(".changes-run")).toBe(run)
       expect(body().querySelectorAll(".diff-row")).toHaveLength(lines)
-    })
-
-    it("keeps the files' counts from the range while the new one is read", async () => {
-      const net = [file("src/auth/session.ts", { added: 9, removed: 8 })]
-      const shown = show(change(), undefined, true, net)
-      await shown.settle()
-      await shown.click(shown.layers()[1])
-      await shown.click(shown.layers()[2])
-      await shown.settle()
-      const counts = () => shown.row("src/auth/session.ts").textContent
-      expect(counts()).toContain("+9")
-
-      await shown.emit(change(), "2")
-
-      expect(counts()).toContain("+9")
     })
   })
 

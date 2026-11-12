@@ -315,10 +315,9 @@ own, of what the selected rows changed together (their counts added up, names co
 file changed, folders with guides), and a hint line saying what a click does. All rows are
 selected to start; the selection is a 2px `--color-strong` rail on a row's left edge, joined across
 selected neighbours, growing and shrinking by scale and opacity and sliding its ends over
-`--motion-state` (none under reduced motion). The first click keeps only the row clicked, the next
-click takes every row between the first one clicked (the anchor) and it, either way, a click
-after that starts over from the row clicked, and clicking the only row selected is all again: it
-works as a slicer, and a selection is always one range (`selection.ts`). A file the person opened is gray in the tree, in
+`--motion-state` (none under reduced motion). A click on a row keeps only that row, a click on
+another row keeps only that one instead, and clicking the row kept alone is all again: a selection
+is all the rows or one (`selection.ts`). A file the person opened is gray in the tree, in
 any selection, until the file changes again: the runner keeps it read (`changeRead`, in the
 content's `read`), across restarts, and the pane grays it at once until the content comes again. One click on a file unfolds what it changed under its row, one file
 at a time, as `.terminal-tab-branches` unfold a terminal tab's subagents (├ └ rows with the
@@ -469,7 +468,7 @@ with every safety check again at that time:
   case on Windows) and named "Changes · <folder>"
   unless a title is given; showing it again updates it. Its detail counts the files the change
   as a whole differs from main by and their lines (the net, not its layers added up), and follows each read the pane triggers. The content
-  (`companions.content`) is each layer's files with their counts, and the whole change's own list of files (the net), not their diffs; for every layer selected the pane reads that list, and asks `changeRange` only for a selection of two or more layers that is not all of them: it is read
+  (`companions.content`) is each layer's files with their counts, and the whole change's own list of files (the net), not their diffs; for every layer selected the pane reads that list, and for one layer that layer's own files (it selects all or one, so it never asks `changeRange`, which the API still offers): it is read
   with git at the start and again about every 2 seconds while followed, and sent only
   when it changed. One file's diff for a selection of layers is `companions.changeFile`: the
   selection is one range, diffed from the oldest layer's parent to the newest (the uncommitted
@@ -477,8 +476,8 @@ with every safety check again at that time:
   work as the range's end holds it merged in (in memory) where the parent lacks it, so the range
   shows its own work only; only a range that reaches the oldest layer starts at the merge base
   (for the newest layer's commit, where that commit left main), so the whole of it is
-  `git diff main...HEAD`. `companions.changeRange` lists the files of a selection of more than
-  one layer the same way, git's own listing for the range (a file added and dropped inside it
+  `git diff main...HEAD`. `companions.changeRange` lists the files of any run of layers the same
+  way (the pane no longer asks it), git's own listing for the range (a file added and dropped inside it
   is not there, a rename is one row, the counts are the range's) up to the file bound, with
   `truncated` where more exist.
 
