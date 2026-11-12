@@ -156,6 +156,7 @@ export const connectRunnerBackend = async (
         inboxOrder,
         inboxSnoozed,
         hibernateAfterMinutes,
+        worktrees,
       },
       agents,
     ] = await Promise.all([runner.settings.get(), runner.agents.list()])
@@ -177,6 +178,7 @@ export const connectRunnerBackend = async (
           inboxOrder,
           inboxSnoozed,
           hibernateAfterMinutes,
+          worktrees,
         })
         created.push(next)
         return next.backend

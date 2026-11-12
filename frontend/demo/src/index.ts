@@ -100,6 +100,7 @@ export const demoBackend = (
   const transcripts = createStore(true)
   // Idle agents are stopped after an hour unless the person chooses otherwise, as in the app.
   const hibernateAfter = createStore<number | null>(60)
+  const worktrees = createStore(false)
   const agents = createStore(sampleAgents)
   const welcomeOpen = createStore(welcome)
   // Installed unless the address asks otherwise (`&voice=uninstalled`), as the try demo shows it,
@@ -166,6 +167,7 @@ export const demoBackend = (
       set: (enabled) => transcripts.update(() => enabled),
     },
     hibernation: { after: hibernateAfter, set: (minutes) => hibernateAfter.update(() => minutes) },
+    worktrees: { enabled: worktrees, set: (enabled) => worktrees.update(() => enabled) },
     agents: {
       state: agents,
       set: (agent, connected) =>

@@ -25,6 +25,9 @@ export const runnerSettings = z.strictObject({
   // After how many idle minutes a terminal's agent is stopped, its session resting until a
   // message or a look wakes it; null for never.
   hibernateAfterMinutes: z.number().int().min(1).max(maxHibernateMinutes).nullable(),
+  // Whether agents may open git worktrees through Novadeck's tools, which tracks and cleans
+  // them up; an Experimental feature, off until the person turns it on.
+  worktrees: z.boolean(),
 })
 
 // The settings as the runner reports them, with what it can do whatever they say.

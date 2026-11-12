@@ -129,6 +129,7 @@ export const Preferences = ({
   onFocusedAgent,
   transcripts,
   hibernation,
+  worktrees,
   agents,
   voice,
   murmur,
@@ -165,6 +166,12 @@ export const Preferences = ({
   hibernation?: {
     readonly minutes: number | null
     readonly onChange: (minutes: number | null) => void
+  }
+  // Whether agents get git worktrees, an Experimental feature the backend keeps; absent
+  // where the backend has none.
+  worktrees?: {
+    readonly enabled: boolean
+    readonly onChange: (enabled: boolean) => void
   }
   // Whether the page can show desktop notifications, as the desktop app can.
   notices?: boolean
@@ -274,6 +281,16 @@ export const Preferences = ({
       checked: value.agentAvatars,
       onToggle: (agentAvatars: boolean) => onChange({ ...value, agentAvatars }),
       disabled: false,
+    },
+    {
+      id: "agent-worktrees",
+      label: "Agent worktrees",
+      description: worktrees
+        ? "Agents work in their own git worktrees, which Novadeck lists in the Changes panel and cleans up once they're merged or their terminal is closed."
+        : "Not available here.",
+      checked: worktrees?.enabled ?? false,
+      onToggle: (enabled: boolean) => worktrees?.onChange(enabled),
+      disabled: !worktrees,
     },
   ]
   const lastView = value.enabledViews.length === 1

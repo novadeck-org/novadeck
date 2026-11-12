@@ -53,6 +53,7 @@ import {
   sameItems,
   shallowEqual,
 } from "./selectors"
+import { switchOffWorktrees } from "./ui-store"
 
 // Rendered beside a deferred dialog, so it mounts only once the dialog's view has loaded.
 const Loaded = ({
@@ -99,6 +100,17 @@ const useHibernation = (
     () => hibernation?.after.getSnapshot() ?? null,
   )
   return hibernation && { minutes, onChange: hibernation.set }
+}
+
+// Whether agents get worktrees, for Preferences; undefined where the backend has none.
+const useWorktrees = (
+  worktrees: Backend["worktrees"],
+): { readonly enabled: boolean; readonly onChange: (enabled: boolean) => void } | undefined => {
+  const enabled = useSyncExternalStore(
+    worktrees?.enabled.subscribe ?? always,
+    () => worktrees?.enabled.getSnapshot() ?? false,
+  )
+  return worktrees && { enabled, onChange: worktrees.set }
 }
 
 const noAsks: readonly never[] = []
@@ -152,8 +164,10 @@ type ExperimentalSetting = {
 // Preferences' Experimental switch: whether the desktop app follows experimental builds, which is
 // the IS_EXPERIMENTAL flag, asked of it each time Preferences opens; undefined where the app
 // offers no choice. The switch and the flag change at once, as the app remembers the choice.
+// Turning it off turns agent worktrees off with it.
 const useExperimental = (
   channel: NonNullable<Backend["updates"]>["channel"],
+  worktrees: Backend["worktrees"],
   open: boolean,
 ): ExperimentalSetting | undefined => {
   const { setFeatureFlag } = useWorkspaceServices().commands
@@ -186,6 +200,7 @@ const useExperimental = (
         setFeatureFlag("IS_EXPERIMENTAL", next)
         setKnown(true)
         channel.set(next ? "experimental" : "stable")
+        if (!next) switchOffWorktrees(worktrees)
       },
     }
   )
@@ -260,6 +275,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const { backend, commands, navigation, ui } = useWorkspaceServices()
   const transcripts = useTranscripts(backend.transcripts)
   const hibernation = useHibernation(backend.hibernation)
+  const worktrees = useWorktrees(backend.worktrees)
   const agents = useAgents(backend.agents)
   const approval = useApproval(backend.approvals)
   const voice = useVoice(backend.voice)
@@ -306,7 +322,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   )
   const searchLabel = view === "canvas" ? "Canvas" : view === "grid" ? "Grid" : "Focus"
   const { searching, settings, onExitComplete, onLoaded } = useRouteDialog(dialog, context)
-  const experimental = useExperimental(backend.updates?.channel, settings)
+  const experimental = useExperimental(backend.updates?.channel, backend.worktrees, settings)
   const version = useVersion(backend.version, settings)
   const connectedAgents = useMemo(
     () => agents.list.filter((agent) => agent.connected).map((agent) => agent.agent),
@@ -397,6 +413,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           onClose={closeDialog}
           {...(transcripts ? { transcripts } : {})}
           {...(hibernation ? { hibernation } : {})}
+          {...(worktrees ? { worktrees } : {})}
           notices={backend.notices !== undefined}
           systemSounds={backend.notices?.sounds === true}
           hearSound={dingOf(backend, ui).preview}

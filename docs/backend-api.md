@@ -1716,13 +1716,15 @@ one from an earlier runner.
   the plans its bar mirrored of the earlier one go; moved ones stay.
 
 - `settings.get()` and
-  `settings.set({ transcripts?, welcomed?, inboxOrder?, inboxSnoozed?, hibernateAfterMinutes? })`
+  `settings.set({ transcripts?, welcomed?, inboxOrder?, inboxSnoozed?, hibernateAfterMinutes?, worktrees? })`
   read and change whether transcripts are kept (unless turned off; turning them off forgets
   every saved transcript), whether the person has seen the first-run choice of agents, the
   Inbox rows that ask in the order the person dragged them into, and the rows they snoozed
   (each `<row id>@<when it began>`, at most 200 of each, and 200 characters), and after how
   many idle minutes an agent is stopped to rest as a sleeper (30 by default, at most a week,
-  `null` for never; see "Idle agents rest" in agent-messaging.md). `get` also
+  `null` for never; see "Idle agents rest" in agent-messaging.md), and whether agents may
+  open git worktrees through Novadeck's tools (off until the person turns it on, in
+  Preferences' Experimental tab). `get` also
   reports `transcriptsAvailable`: false once it is known there is no key to seal
   transcripts with, true when there is one and while it is still awaited (it waits about a
   second for it).

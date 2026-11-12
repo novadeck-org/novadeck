@@ -2490,6 +2490,7 @@ describe("saved terminals", () => {
       inboxOrder: [],
       inboxSnoozed: [],
       hibernateAfterMinutes: 60,
+      worktrees: false,
     })
     workspace.settings.saveRunner({ transcripts: false })
     workspace.settings.saveRunner({ welcomed: true })
@@ -2499,6 +2500,7 @@ describe("saved terminals", () => {
       inboxOrder: [],
       inboxSnoozed: [],
       hibernateAfterMinutes: 60,
+      worktrees: false,
     })
   })
 
@@ -2514,6 +2516,18 @@ describe("saved terminals", () => {
     // A value that can't be read is the default, not off.
     workspace.settings.saveRunner({ hibernateAfterMinutes: 0 })
     expect(workspace.settings.runner().hibernateAfterMinutes).toBe(60)
+  })
+
+  it("keep whether agents get worktrees, off until turned on", ({ kept }) => {
+    const workspace = kept()
+    expect(workspace.settings.runner().worktrees).toBe(false)
+    workspace.settings.saveRunner({ worktrees: true })
+    expect(workspace.settings.runner().worktrees).toBe(true)
+    // Changing another setting leaves it as it was.
+    workspace.settings.saveRunner({ transcripts: false })
+    expect(workspace.settings.runner().worktrees).toBe(true)
+    workspace.settings.saveRunner({ worktrees: false })
+    expect(workspace.settings.runner().worktrees).toBe(false)
   })
 
   it("keep the Inbox's order the person dragged its rows into, and read a broken one as none", ({
@@ -2626,6 +2640,7 @@ describe("the messages", () => {
       inboxOrder: [],
       inboxSnoozed: [],
       hibernateAfterMinutes: 60,
+      worktrees: false,
     })
     expect(reopened.terminalIdentity("a")).toMatchObject({ handle: "moth" })
     expect(reopened.terminalIdentity("b")).toBeUndefined()

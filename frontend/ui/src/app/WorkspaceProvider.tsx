@@ -168,8 +168,10 @@ export const WorkspaceProvider = ({
   useEffect(() => watchUpdates(services.backend.updates, services.ui), [services])
   useEffect(
     () =>
-      watchExperimental(services.backend.updates, (on) =>
-        services.commands.setFeatureFlag("IS_EXPERIMENTAL", on),
+      watchExperimental(
+        services.backend.updates,
+        (on) => services.commands.setFeatureFlag("IS_EXPERIMENTAL", on),
+        services.backend.worktrees,
       ),
     [services],
   )

@@ -348,17 +348,26 @@ export const setFeatureFlag = (ui: UiStore, flag: FeatureFlag, on: boolean): voi
   )
 }
 
+// Turns agent worktrees off where they are on, as the Experimental switch going off does, so the
+// setting never stays on without its toggle.
+export const switchOffWorktrees = (worktrees: Backend["worktrees"]): void => {
+  if (worktrees?.enabled.getSnapshot()) worktrees.set(false)
+}
+
 // Asks the backend once, as the workspace comes up, whether the desktop app follows experimental
 // builds, which is what turns IS_EXPERIMENTAL on, through `set`. A desktop app that fails to say
-// leaves it off.
+// leaves it off. A channel found stable also turns agent worktrees off.
 export const watchExperimental = (
   updates: Backend["updates"],
   set: (on: boolean) => void,
+  worktrees?: Backend["worktrees"],
 ): (() => void) => {
   let live = true
   void updates?.channel?.get().then(
     (channel) => {
-      if (live) set(channel === "experimental")
+      if (!live) return
+      set(channel === "experimental")
+      if (channel !== "experimental") switchOffWorktrees(worktrees)
     },
     () => undefined,
   )

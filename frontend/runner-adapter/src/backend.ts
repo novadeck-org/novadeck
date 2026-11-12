@@ -155,6 +155,9 @@ export type RunnerBackendOptions = {
   // After how many idle minutes the runner stops an agent, null for never, as it said at
   // startup; not offered when absent.
   readonly hibernateAfterMinutes?: number | null
+  // Whether the runner lets agents open worktrees, as it said at startup; not offered when
+  // absent.
+  readonly worktrees?: boolean
   // The agents the runner can connect, and whether the person has seen the first-run
   // choice, as it said at startup; agents are not offered when absent.
   readonly agents?: readonly AgentIntegration[]
