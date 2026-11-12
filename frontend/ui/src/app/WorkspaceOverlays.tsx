@@ -184,14 +184,18 @@ const useExperimental = (
       (value) => {
         if (!current || flips.current !== asked) return
         setFeatureFlag("IS_EXPERIMENTAL", value === "experimental")
+        if (value !== "experimental") switchOffWorktrees(worktrees)
         setKnown(true)
       },
-      () => {},
+      // A channel that can't be read counts as not experimental for worktrees.
+      () => {
+        if (current && flips.current === asked) switchOffWorktrees(worktrees)
+      },
     )
     return () => {
       current = false
     }
-  }, [open, channel, setFeatureFlag])
+  }, [open, channel, worktrees, setFeatureFlag])
   return (
     channel && {
       on: known ? flag : undefined,

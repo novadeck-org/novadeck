@@ -1,7 +1,7 @@
 import { onTestFinished } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
-import { restartsAsked } from "../support/backend"
+import { restartsAsked, setChannelStable } from "../support/backend"
 import { closePreferences, openPreferencesOn, preferencesDialog } from "../support/keyboard"
 import {
   commandInput,
@@ -223,6 +223,24 @@ describe("the Experimental switch in Preferences", () => {
     await expect.element(worktrees()).toHaveAttribute("aria-checked", "true")
     await preferencesDialog().getByRole("tab", { name: "About" }).click()
     await experimental().click()
+    await experimental().click()
+    await experimentalTab().click()
+    await expect.element(worktrees()).toHaveAttribute("aria-checked", "false")
+  })
+
+  it("turns agent worktrees off when Preferences opens again and the channel reads stable", async () => {
+    const worktrees = () => preferencesDialog().getByRole("switch", { name: "Agent worktrees" })
+    await openWorkspace("/?update=ready")
+    await openPreferencesOn("About")
+    await experimental().click()
+    await experimentalTab().click()
+    await worktrees().click()
+    await expect.element(worktrees()).toHaveAttribute("aria-checked", "true")
+    await closePreferences()
+    setChannelStable()
+    await openPreferencesOn("About")
+    await expect.element(experimental()).toHaveAttribute("aria-checked", "false")
+    await expect.element(experimentalTab()).not.toBeInTheDocument()
     await experimental().click()
     await experimentalTab().click()
     await expect.element(worktrees()).toHaveAttribute("aria-checked", "false")

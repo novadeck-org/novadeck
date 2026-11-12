@@ -85,6 +85,10 @@ export const restartsAsked = (): number => restarts
 export const startDownload = (version: string): void =>
   made.forEach((each) => each.download(version))
 
+/** Has the app's update channel read as stable, in the backend the page uses (and its twin), as the debug panel's Experimental off does. */
+export const setChannelStable = (): void =>
+  made.forEach((each) => each.updates?.channel?.set("stable"))
+
 /** Has the app report this download progress, in the backend the page uses (and its twin). */
 export const reportProgress = (version: string, percent: number): void =>
   made.forEach((each) => each.offer({ kind: "downloading", version, percent }))

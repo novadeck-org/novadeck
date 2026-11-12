@@ -75,6 +75,10 @@ export type DemoLaunch = {
   readonly uninstall: DemoUninstall | undefined
   // Boots again with the desktop app offering this uninstall (or none).
   readonly setUninstall: (uninstall: DemoUninstall | undefined) => void
+  // Whether the backend offers agent worktrees; false for a runner without the setting.
+  readonly worktrees: boolean
+  // Boots again with the backend offering agent worktrees or not.
+  readonly setWorktrees: (offered: boolean) => void
 }
 
 // What the panel's groups read and change of the shell around the demo.
@@ -197,8 +201,10 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     failed = []
   }
 
+  const { worktrees: offered, ...withoutWorktrees } = inner
   const backend: Backend = {
-    ...inner,
+    ...withoutWorktrees,
+    ...(launch.worktrees && offered ? { worktrees: offered } : {}),
     commit: (workspace, actions) => {
       latest = workspace
       inner.commit(workspace, actions)

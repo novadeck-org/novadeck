@@ -356,7 +356,7 @@ export const switchOffWorktrees = (worktrees: Backend["worktrees"]): void => {
 
 // Asks the backend once, as the workspace comes up, whether the desktop app follows experimental
 // builds, which is what turns IS_EXPERIMENTAL on, through `set`. A desktop app that fails to say
-// leaves it off. A channel found stable also turns agent worktrees off.
+// leaves it off. A channel found stable, or unreadable, also turns agent worktrees off.
 export const watchExperimental = (
   updates: Backend["updates"],
   set: (on: boolean) => void,
@@ -369,7 +369,10 @@ export const watchExperimental = (
       set(channel === "experimental")
       if (channel !== "experimental") switchOffWorktrees(worktrees)
     },
-    () => undefined,
+    // A desktop app that fails to say counts as not experimental for worktrees.
+    () => {
+      if (live) switchOffWorktrees(worktrees)
+    },
   )
   return () => {
     live = false

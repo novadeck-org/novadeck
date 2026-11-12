@@ -387,10 +387,30 @@ describe("the IS_EXPERIMENTAL flag", () => {
     watchExperimental(updates(Promise.resolve("stable")), () => {}, stable)
     await vi.waitFor(() => expect(stable.enabled.getSnapshot()).toBe(false))
     const experimental = worktrees()
-    watchExperimental(updates(Promise.resolve("experimental")), () => {}, experimental)
-    await Promise.resolve()
-    await Promise.resolve()
+    const read = Promise.resolve<UpdateChannel>("experimental")
+    watchExperimental(updates(read), () => {}, experimental)
+    await read
+    await new Promise((resolve) => setTimeout(resolve, 0))
     expect(experimental.enabled.getSnapshot()).toBe(true)
+  })
+
+  it("turns agent worktrees off where the channel can't be read, and keeps the flag as it was", async () => {
+    const enabled = createStore(true)
+    const worktrees = { enabled, set: (on: boolean) => enabled.update(() => on) }
+    const ui = createUiStore(initial())
+    watchExperimental(updates(Promise.reject(new Error("no"))), into(ui), worktrees)
+    await vi.waitFor(() => expect(enabled.getSnapshot()).toBe(false))
+    expect(flag(ui)).toBe(false)
+  })
+
+  it("leaves worktrees on when a failed read comes after the watch is stopped", async () => {
+    const enabled = createStore(true)
+    const worktrees = { enabled, set: (on: boolean) => enabled.update(() => on) }
+    const failed = Promise.reject(new Error("no"))
+    watchExperimental(updates(failed), () => {}, worktrees)()
+    await failed.catch(() => {})
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(enabled.getSnapshot()).toBe(true)
   })
 
   it("asks to turn worktrees off only where they are on", () => {

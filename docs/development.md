@@ -525,6 +525,9 @@ App:
 - **Sandbox:** boot as a desktop app running without Electron's sandbox, for the footer's No
   sandbox chip and its fix command; "No sandbox, no fix" as one with no command to offer;
   and "Sandboxed" back to normal.
+- **Agent worktrees:** "Not offered" boots a backend without the setting, so Preferences >
+  Experimental shows the Agent worktrees row disabled, reading "Not available here."; "Offered"
+  boots back to normal.
 - **Guides:** "Toggle icon guides" draws a dashed box over every icon (`svg.lucide`) and a
   dashed line through its middle, 20 px past each side, both 1 px and half see-through
   (`--icon-guide-color` changes them), for checking how icons line up with their text;

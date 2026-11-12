@@ -117,6 +117,24 @@ export const shellGroups = ({
         },
       ],
     },
+    {
+      section: "App",
+      title: "Agent worktrees",
+      actions: [
+        {
+          label: "Not offered",
+          hint: "Preferences > Experimental: the Agent worktrees row is disabled and reads Not available here, as on a runner without the setting",
+          reboots: true,
+          run: () => launch.setWorktrees(false),
+        },
+        {
+          label: "Offered",
+          hint: "The Agent worktrees row switches again",
+          reboots: true,
+          run: () => launch.setWorktrees(true),
+        },
+      ],
+    },
     iconGuidesGroup,
   ]
 }
