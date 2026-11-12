@@ -66,7 +66,7 @@ const projectOf = ({ pinned, ...project }: ProjectRow): Project => ({
 // record (`interruptions`), which only the runner's memory held until then.
 // 10: a terminal keeps the title its own agent gave (`own_title`), the lowest layer of its
 // naming above the default.
-// 11: a closed terminal is kept in History (`closed_terminals`) for 30 days, and a terminal
+// 11: a closed terminal is kept in History (`closed_terminals`), and a terminal
 // remembers whether anything was ever run in it (`ran`).
 // 12: a session keeps where the person put it among its project's (`rank`); `position`
 // stays the order it was created in.
@@ -307,7 +307,7 @@ const schema = `
   CREATE INDEX companion_items_session ON companion_items(session_id);
   CREATE UNIQUE INDEX companion_windows_project ON companion_windows(session_id)
     WHERE home = 'project';
-  -- Every terminal closed in the last 30 days, with what restores it. A row outlives its
+  -- Every terminal closed in the last 7 days, with what restores it. A row outlives its
   -- session, so that has no foreign key; the project's removal takes its rows.
   CREATE TABLE closed_terminals (
     id TEXT PRIMARY KEY,

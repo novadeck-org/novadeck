@@ -516,7 +516,7 @@ export const contract = {
       .input(z.strictObject({ agent: agentName, connected: z.boolean() }))
       .output(agentIntegration),
   },
-  // Terminals closed in the last 30 days, per project, to restore (`terminals.create`
+  // Terminals closed in the last 7 days, per project, to restore (`terminals.create`
   // with `closed`).
   history: {
     // A project's closed terminals, newest first, each with whether it can be restored now.
