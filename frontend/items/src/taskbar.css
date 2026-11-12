@@ -27,6 +27,8 @@
    --taskbar-item-grabbed-shadow (shadow-floating): an icon pulled out of a peek.
    --taskbar-mark-bg (muted): the mark of something seen.
    --taskbar-mark-active-bg (ink): the mark of something new, or showing.
+   --taskbar-dot-live-bg (success-fg), --taskbar-dot-failed-bg (danger-fg): the dot on the shells'
+   icon while one runs, and once one failed (data-shells="running" | "failed").
    --taskbar-count-bg (badge-bg, then soft), --taskbar-count-fg (badge-fg, then ink):
    a count.
    --taskbar-count-held-bg (warning), --taskbar-count-held-fg (warning-fg): messages
@@ -235,6 +237,21 @@
   font-weight: 600;
   font-style: normal;
   line-height: 13px;
+}
+/* A shell's state on the shells item: a dot in the icon's corner, running or failed, ringed by
+   the icon's own ground. */
+.taskbar-dot {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--taskbar-dot-live-bg, var(--color-success-fg));
+  box-shadow: 0 0 0 2px var(--_bg);
+}
+.taskbar-dot[data-shells="failed"] {
+  background: var(--taskbar-dot-failed-bg, var(--color-danger-fg));
 }
 .taskbar-count[data-messages="held"] {
   --_bg: var(--taskbar-count-held-bg, var(--color-warning));

@@ -1,0 +1,193 @@
+/* The shells recipe: a terminal's agent's background shells in the pane, under the artifact
+   header (`.shells-title` names whose they are). Each shell is a row (`.shells-row` in the
+   `.shells-list`): a head (`.shells-head`) holding the toggle that unfolds it (`.shells-toggle`:
+   its dot `.shells-dot`, its command `.shells-command` and how it stands, `.shells-state`) and,
+   on a failed one, the button that tells the agent (`.shells-tell`); then its output
+   (`.shells-log`, a `.shells-line` each with its number `.shells-num` and its `.shells-text`),
+   or a `.shells-note` saying why there's none; and, on a running one that is unfolded, a
+   footer (`.shells-foot`) saying it follows the end (`.shells-live`) over its pause. The same
+   dot marks a shell in a peek (`.peek-shells`).
+
+   Hooks: on a row, data-state="running" | "failed" | "ended" | "stopped" and data-open while
+   unfolded; on a dot and a state, data-state the same.
+
+   Tokens, each optional (its fallback in brackets):
+   --shells-running-fg (success-fg), --shells-failed-fg (danger-fg), --shells-quiet-fg (muted):
+   a dot, and what a state says.
+   --shells-failed-bg (the danger colour at 55% over the ground, 50% on a light scheme): a failed
+   row's tint.
+   --shells-number-fg (muted): a line's number.
+   --pane-bg (paper): the ground. */
+.shells-view {
+  --_running: var(--shells-running-fg, var(--color-success-fg));
+  --_failed: var(--shells-failed-fg, var(--color-danger-fg));
+  --_quiet: var(--shells-quiet-fg, var(--color-muted));
+  --_tint: var(
+    --shells-failed-bg,
+    color-mix(in srgb, var(--color-danger) var(--_tint-ground, 55%), transparent)
+  );
+}
+:root[data-scheme="light"] .shells-view {
+  --_tint-ground: 50%;
+}
+.shells-title {
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--color-ink);
+}
+.shells-list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+.shells-row {
+  border-bottom: var(--border-width) solid var(--artifact-meta-border-color, var(--color-line));
+}
+.shells-row[data-state="failed"] {
+  background: var(--_tint);
+}
+.shells-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 14px;
+  font-size: var(--text-control);
+  color: var(--color-muted);
+}
+.shells-toggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 0 8px 14px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.shells-command {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  color: var(--color-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shells-row[data-open] .shells-command {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.shells-state {
+  flex-shrink: 0;
+  color: var(--_quiet);
+}
+.shells-state[data-state="failed"] {
+  color: var(--_failed);
+}
+.shells-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--_quiet, var(--color-muted));
+}
+.shells-dot[data-state="running"] {
+  background: var(--_running, var(--color-success-fg));
+}
+.shells-dot[data-state="failed"] {
+  background: var(--_failed, var(--color-danger-fg));
+}
+.shells-log {
+  padding: 0 0 8px;
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  line-height: var(--text-code--line-height);
+}
+.shells-row[data-open] .shells-log {
+  max-height: 60vh;
+  overflow: auto;
+}
+.shells-line {
+  display: flex;
+  gap: 1.5ch;
+  white-space: pre;
+}
+.shells-num {
+  flex-shrink: 0;
+  width: 5ch;
+  padding-right: 1ch;
+  text-align: right;
+  color: var(--shells-number-fg, var(--color-muted));
+  opacity: 0.7;
+  user-select: none;
+}
+.shells-text {
+  color: var(--color-ink);
+}
+.shells-earlier,
+.shells-note {
+  margin: 0;
+  padding: 0 14px 10px;
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
+  color: var(--_quiet);
+}
+.shells-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-top: var(--border-width) solid var(--artifact-meta-border-color, var(--color-line));
+  font-size: var(--text-control);
+  color: var(--color-muted);
+}
+.shells-pause {
+  margin-left: auto;
+}
+.shells-live {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--_running);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--_running) 25%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .shells-live {
+    animation: shells-live 1.6s ease-in-out infinite;
+  }
+}
+@keyframes shells-live {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* The peek's miniature: a dot and a command each. */
+.peek-shells {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+}
+.peek-shells li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--prose-fg, var(--color-ink));
+}
+.peek-shells code {
+  overflow: hidden;
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

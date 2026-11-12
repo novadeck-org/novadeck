@@ -13,6 +13,7 @@ import type {
 
 import { chatAgent } from "../samples"
 import type { DemoAgentVerbs, DemoShell, DemoWaiting } from "./link"
+import { demoOutputPath } from "./shell-output"
 
 // How long a demo agent's turn works before it finishes.
 export const demoTurnMs = 1500
@@ -72,15 +73,17 @@ const waitingOf = (waits: DemoWaiting, now: number): AgentWaiting =>
       }
     : { jobs: [], wake: { at: now + waits.inMinutes * 60_000, reason: waits.wake.reason } }
 
-// The background shells an agent reports at `now`, running since their minutes ago.
+// The background shells an agent reports at `now`, started their minutes ago, running unless
+// they ended. Their output is where `demoShellOutput` finds it.
 const shellsOf = (list: readonly DemoShell[] | undefined, now: number) =>
   list && list.length > 0
     ? {
-        shells: list.map(({ command, minutes }, index) => ({
+        shells: list.map(({ command, minutes, ended, output }, index) => ({
           id: `demo-shell-${index + 1}`,
           command,
           since: now - minutes * 60_000,
-          exit: null,
+          exit: ended ? { at: now - (ended.ago ?? 1) * 60_000, code: ended.code } : null,
+          output: demoOutputPath(output ?? "ready"),
         })),
       }
     : {}

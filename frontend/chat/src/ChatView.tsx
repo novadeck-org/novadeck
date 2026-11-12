@@ -44,7 +44,7 @@ import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
 import { Requests } from "./Requests"
 import { recordedImagesOf, takeSentImages, type ChatSend } from "./sends"
 import { settledSent, settleSent } from "./settled"
-import { ShellLines, runningShells } from "./ShellLines"
+import { ShellLines, listedShells } from "./ShellLines"
 import { LiveSlice, SliceKeys } from "./Slice"
 import { ThumbsContext, useThumbs } from "./Thumbs"
 import { mentionOf, Transcript, type PeerLooks } from "./Transcript"
@@ -55,6 +55,7 @@ import { useTranscriptMotion } from "./use-transcript-motion"
 import { useTurnHold } from "./use-turn-hold"
 
 const noShells: readonly SentShell[] = []
+const noTails: Readonly<Record<string, string>> = {}
 
 // How many blocks of a long conversation show, and how many more "Show earlier" adds.
 const windowSize = 60
@@ -88,6 +89,8 @@ export const ChatView = ({
   onImage,
   onSend,
   shells = noShells,
+  shellTails = noTails,
+  onOpenShell,
   onInterrupt,
   onClearBox,
   onAnswer,
@@ -156,6 +159,11 @@ export const ChatView = ({
   ) => Promise<boolean>
   // The shell commands sent from this chat, which its history recalls.
   readonly shells?: readonly SentShell[] | undefined
+  // The last line of each of the agent's background shells' output, by the shell's id, which
+  // shows under its line; and what opens a shell's output, which makes its line a button.
+  // Both come from the app where it can show the output; without them the lines stand alone.
+  readonly shellTails?: Readonly<Record<string, string>> | undefined
+  readonly onOpenShell?: ((shellId: string) => void) | undefined
   readonly onInterrupt: () => Promise<void>
   // Empties the agent's own input box of the text the chat showed it holds.
   readonly onClearBox: (seen: string) => Promise<void>
@@ -204,8 +212,8 @@ export const ChatView = ({
   const thumbs = useThumbs(onImage, previews)
   const status = turnStatus(agent)
   const working = status?.working === true
-  // The background shells still running, which stand under the working line.
-  const running = runningShells(agent?.shells)
+  // The background shells still running or failed, which stand under the working line.
+  const listed = listedShells(agent?.shells)
   const [shellsOpen, setShellsOpen] = useState(false)
   // When the turn began, for the working line's clock.
   const turnStart = useMemo(() => turnStartedAt(blocks), [blocks])
@@ -622,7 +630,7 @@ export const ChatView = ({
                   onShowTerminal={onAnswerInTerminal}
                 />
               </ThumbsContext.Provider>
-              {(status || running.length > 0) && (
+              {(status || listed.length > 0) && (
                 // While the agent works, or a shell runs, the log's last rows: the turn's clock and
                 // stop and a line for each shell. They scroll with the log.
                 <div className="chat-running" data-working={working || undefined}>
@@ -656,7 +664,13 @@ export const ChatView = ({
                       </button>
                     </span>
                   )}
-                  <ShellLines shells={running} open={shellsOpen} onOpen={setShellsOpen} />
+                  <ShellLines
+                    shells={listed}
+                    tails={shellTails}
+                    onShell={onOpenShell}
+                    open={shellsOpen}
+                    onOpen={setShellsOpen}
+                  />
                 </div>
               )}
             </div>

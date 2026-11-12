@@ -20,6 +20,8 @@
     "./ProjectWindow": "./src/homes/project/ProjectWindow.tsx",
     "./prose.css": "./src/prose.css",
     "./registry": "./src/registry.ts",
+    "./shells": "./src/kinds/shells/tails.ts",
+    "./shells.css": "./src/shells.css",
     "./store": "./src/store/item-store.ts",
     "./syntax.css": "./src/syntax.css",
     "./TabKinds": "./src/homes/terminal/TabKinds.tsx",

@@ -1,6 +1,7 @@
 import type { Backend } from "@novadeck/core/port"
 
 import { addressParams } from "./address"
+import { withShellItems } from "./agents/shell-items"
 import type { DemoTurns } from "./agents/turns"
 import { plainDemo, type PlainVariant } from "./index"
 import { withMoves } from "./moves"
@@ -32,8 +33,9 @@ export const createDemo = (
     variant === "showcase"
       ? showcaseDemo(terminals, turns)
       : plainDemo(variant, terminals, undefined, turns)
-  // The videos' demos keep their cues by the backend they made, and move nothing.
-  return variant === "babcia" || variant === "launch" ? backend : withMoves(backend)
+  // The videos' demos keep their cues by the backend they made, and move nothing. The others
+  // make each agent's shells an item on its bar, as the runner does.
+  return variant === "babcia" || variant === "launch" ? backend : withShellItems(withMoves(backend))
 }
 
 const remembered = "novadeck.demo-variant"

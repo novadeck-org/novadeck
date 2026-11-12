@@ -23,6 +23,7 @@ import { createStore } from "@novadeck/core/store"
 import type { CompanionWindowMeta, TerminalMetadata, Tile } from "@novadeck/core/types"
 import { Avatar } from "@novadeck/items/Avatar"
 import { ProjectWindow } from "@novadeck/items/ProjectWindow"
+import { useShellTails } from "@novadeck/items/shells"
 import { TerminalCompanion } from "@novadeck/items/TerminalCompanion"
 import { UndockedWindow } from "@novadeck/items/UndockedWindow"
 import {
@@ -319,6 +320,20 @@ export const WorkspaceTerminal = memo(
     )
     const shells = useChat(chat, (state) => chatShellsOf(state.shells, chatContext, terminalId))
     const conversation = showChat ? candidate : undefined
+    // The terminal's shells item, whose pane the chat's shell lines open, and whose output
+    // gives each its last line.
+    const shellsItem = items.find((item) => item.kind === "shells")
+    const shellTarget = useMemo(
+      () => ({ projectId, workspaceSessionId }),
+      [projectId, workspaceSessionId],
+    )
+    const agentShells = terminal.state === "running" ? terminal.agent?.shells : undefined
+    const shellTails = useShellTails(
+      itemStore,
+      shellTarget,
+      shellsItem,
+      conversation !== undefined && (agentShells?.length ?? 0) > 0,
+    )
     // Stable while the terminal and the backend are: a new one would draw every thumbnail again.
     const onImage = useMemo(
       () =>
@@ -326,6 +341,18 @@ export const WorkspaceTerminal = memo(
           ? (image: ChatImage) => conversations.image!(terminalKey, image)
           : undefined,
       [conversations, terminalKey],
+    )
+    // A shell line of the chat opens the shells item at that shell, bringing it back to the bar
+    // if the person had hidden it. Without the item or its store the lines only stand there.
+    const onOpenShell = useMemo(
+      () =>
+        itemStore && shellsItem
+          ? (shellId: string) => {
+              itemStore.unfold(shellsItem.id, shellId)
+              commands.openBarTab(terminalId, shellsItem.id)
+            }
+          : undefined,
+      [itemStore, shellsItem, commands, terminalId],
     )
     useBoxHandover(conversation, {
       take: (ahead) => commands.takeBox(terminalKey, { ahead }),
@@ -335,6 +362,14 @@ export const WorkspaceTerminal = memo(
     // Keyboard focus waits for the node to be on screen: its input is in a subtree a
     // Canvas node out of sight hides, and a request spent there would be lost. The request
     // stays until the surface can take it.
+    // Failed shells offer to tell the agent, drafting into the chat's box: only where it shows.
+    const tell = useMemo(
+      () =>
+        conversation !== undefined
+          ? (words: string) => commands.appendChatDraft(chatContext, terminalId, words)
+          : undefined,
+      [conversation, commands, chatContext, terminalId],
+    )
     const wanted = keyboardFocus?.view === view && active && onScreen
     const chatHost = useRef<HTMLDivElement>(null)
     useChatTakesFocus(chatHost, conversation !== undefined, active && onScreen)
@@ -363,6 +398,8 @@ export const WorkspaceTerminal = memo(
                 onReplyTo={(to) => commands.setChatReply(chatContext, terminalId, to)}
                 sending={sending}
                 shells={shells}
+                shellTails={shellTails}
+                onOpenShell={onOpenShell}
                 attachments={attachments}
                 imageNote={imageNote}
                 onRestore={(words, images) =>
@@ -443,6 +480,8 @@ export const WorkspaceTerminal = memo(
               fresh={fresh}
               terminalName={(id) => terminalName[id]}
               commands={commands}
+              shells={agentShells}
+              tell={tell}
             >
               {hosted(content)}
             </TerminalCompanion>

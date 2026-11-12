@@ -237,6 +237,41 @@ const manyShells: readonly DemoShell[] = [
   { command: "docker compose up postgres", minutes: 3 },
 ]
 
+// The shells the item's states are reached with: one that failed (its output ends in the error),
+// one that ended without trouble, one that was stopped, one whose output Novadeck can't read
+// (run in a terminal of the agent's own), and one whose output went with its session.
+const failedShell: DemoShell = {
+  command: "docker compose up postgres",
+  minutes: 3,
+  ended: { code: 1, ago: 1 },
+}
+const doneShell: DemoShell = {
+  command: "pnpm build --filter storefront",
+  minutes: 2,
+  ended: { code: 0, ago: 1 },
+}
+const stoppedShell: DemoShell = { command: "sleep 600", minutes: 5, ended: { code: null, ago: 2 } }
+const unreadableShell: DemoShell = { command: "npm run seed", minutes: 2, output: "none" }
+const clearedShell: DemoShell = {
+  command: "pytest -x tests/api",
+  minutes: 30,
+  ended: { code: 0, ago: 20 },
+  output: "gone",
+}
+const failedShells: readonly DemoShell[] = [manyShells[0]!, manyShells[1]!, failedShell]
+// Past what one screen holds: every state of a shell, some of them twice, and a running one with
+// output of its own to unfold.
+const crowdOfShells: readonly DemoShell[] = [
+  ...manyShells,
+  failedShell,
+  { ...failedShell, command: "pnpm test --filter api", minutes: 9 },
+  doneShell,
+  stoppedShell,
+  unreadableShell,
+  clearedShell,
+  { command: "pnpm lint --watch", minutes: 1 },
+]
+
 // How long from now the gallery's paused agent's usage limit resets.
 const limitResetMs = 80 * 60_000
 
@@ -285,6 +320,16 @@ const gallery: readonly {
     name: "3 shells running",
     agent: (verbs, key) =>
       verbs.finish(key, undefined, "completed", { after: turnMs, shells: manyShells }),
+  },
+  {
+    name: "Shells, one failed",
+    agent: (verbs, key) =>
+      verbs.finish(key, undefined, "completed", { after: turnMs, shells: failedShells }),
+  },
+  {
+    name: "Many shells",
+    agent: (verbs, key) =>
+      verbs.finish(key, undefined, "completed", { after: turnMs, shells: crowdOfShells }),
   },
   {
     name: "Asks a question",
@@ -811,6 +856,42 @@ export const createDemoStates = (
           "3 shells running",
           "Turn over; three background shells run on, folded into one line",
           (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: manyShells }),
+          verbs,
+        ),
+        verb(
+          "Shells, one failed",
+          "Turn over; two shells run on and a third failed: the Shells item's icon gets a red dot, its failed row is tinted and offers to tell the agent, and the chat's shell lines show each one's last line",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: failedShells }),
+          verbs,
+        ),
+        verb(
+          "Shell ended ok",
+          "Turn over; the only shell exited 0: the Shells item stays, its row muted, its icon without a dot",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: [doneShell] }),
+          verbs,
+        ),
+        verb(
+          "Shell stopped",
+          "Turn over; the only shell was stopped, with no exit code: the row says stopped, its output empty",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: [stoppedShell] }),
+          verbs,
+        ),
+        verb(
+          "Shell output unreadable",
+          "Turn over; a shell the agent ran in a terminal of its own: its row says Novadeck can't read its output",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: [unreadableShell] }),
+          verbs,
+        ),
+        verb(
+          "Shell output gone",
+          "Turn over; a shell whose output went with the agent's session: its row says it is gone",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: [clearedShell] }),
+          verbs,
+        ),
+        verb(
+          "Many shells",
+          "Turn over; ten shells in every state: the Shells item lists failed first, then running, then ended",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: crowdOfShells }),
           verbs,
         ),
         verb(

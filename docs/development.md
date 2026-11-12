@@ -329,8 +329,18 @@ Agents:
   the tab failed; Interrupted ends with a short reply (no unread mark); Ends without reply
   has none. Background work (2 tasks counted) and Background, uncounted end the
   turn and leave work running; Finishing subagents keeps the agent working until its 2
-  subagents finish. Rest leaves it at its prompt with nothing running or asking; the Inbox
-  rows it wrote (a done report, a failed turn) stay.
+  subagents finish. Shell running, 3 shells running and Working, 3 shells leave background shells
+  under the chat's working line; as the runner does, the demo then makes the terminal's Shells item
+  (one per terminal, on its bar, not opened by itself) from the agent's shells, each with sample
+  output (`frontend/demo/src/agents/shell-output.ts`) that a running shell goes on printing every
+  3 s. The shells' states are one verb each: Shells, one failed (two run, a third exited 1: the
+  item's icon gets a red dot, its row is tinted and has "Tell <agent>", which drafts into the
+  chat's box when the chat view is on, and the chat's shell lines show each one's last line, red
+  for the failed one, and open the item at that shell), Shell ended ok, Shell stopped (no exit
+  code), Shell output unreadable (the agent ran it in a terminal of its own), Shell output gone
+  (cleared with its session) and Many shells (ten, in every state, to scroll and unfold). Rest
+  leaves it at its prompt with nothing running or asking; the Inbox rows it wrote (a done report,
+  a failed turn) stay. "Every state at once" has Shells, one failed and Many shells.
 - **Agent fixtures:** what no turn produces: an unheard agent (of the chosen harness, in
   place of whatever ran, whose hooks say nothing), an agent held at its startup screen (of the
   chosen harness) or Antigravity at its sign-in screen, before its first session, and context and limits or tokens alone, in the tooltip and status; those two set

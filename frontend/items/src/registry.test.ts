@@ -22,6 +22,7 @@ const oldStackNames: Record<StackKind, { one: string; many: string }> = {
   file: { one: "file", many: "Files" },
   page: { one: "page", many: "Pages" },
   changes: { one: "change", many: "Changes" },
+  shells: { one: "shells", many: "Shells" },
 }
 
 describe("the registry", () => {
@@ -33,6 +34,7 @@ describe("the registry", () => {
         page: true,
         changes: true,
         plan: true,
+        shells: true,
       }
       expect(Object.keys(registry).toSorted()).toEqual(Object.keys(kinds).toSorted())
       for (const [key, registration] of Object.entries(registry))

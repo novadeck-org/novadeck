@@ -127,6 +127,20 @@ afterEach(() => {
 })
 
 describe("the item store", () => {
+  context("when a shell is unfolded", () => {
+    it("holds one shell per item, and folds it with null, or once the item is gone", () => {
+      const workspace = workspaceWith()
+      const itemStore = createItemStore({ companions: backend().companions, workspace })
+      const stop = itemStore.connect()
+      itemStore.unfold(hero.id, "a")
+      itemStore.unfold(hero.id, "b")
+      expect(itemStore.store.getSnapshot().unfolded).toEqual({ [hero.id]: "b" })
+      itemStore.unfold(hero.id, null)
+      expect(itemStore.store.getSnapshot().unfolded).toEqual({})
+      stop()
+    })
+  })
+
   context("when an agent's rewrite arrives while a save is under way", () => {
     it("waits for the save's answer and merges over it, so the person's edit stays once", async () => {
       const { companions, saves, emit } = backend()

@@ -23,7 +23,7 @@ export const itemIdOf = (id: string): ItemId => id as ItemId
 // Who holds the item: a terminal's bar, or a window of its own.
 export type ItemHolder = { readonly terminalId: string } | { readonly windowId: string }
 
-export type ItemKind = ShownKind | "plan"
+export type ItemKind = ShownKind | "plan" | "shells"
 
 export type Item = {
   readonly id: ItemId
@@ -75,13 +75,14 @@ export const windowOfItem = (item: Item): string | undefined =>
 type KindRule = {
   // What the kind points at, so showing the same thing again finds it: a file by its path, a
   // page by the runner's own key for its address, a change by its repository's folder. A
-  // plan has none here: which agent's plan slot it fills is the backend's to know.
+  // plan or a terminal's shells have none here: which agent's slot they fill is the backend's
+  // to know.
   readonly pointer: "none" | "file" | "page" | "changes"
   // How long the pane follows its content: a plan is followed whether shown or not, anything
   // else only while something shows it.
   readonly follow: "always" | "shown"
-  // What closing one does on its own terminal's bar: a plan hides until it's rewritten,
-  // anything else is gone.
+  // What closing one does on its own terminal's bar: a plan hides until it's rewritten, and
+  // the shells until a new one starts; anything else is gone.
   readonly close: "hide" | "remove"
 }
 
@@ -91,6 +92,7 @@ export const kindRules: Record<ItemKind, KindRule> = {
   page: { pointer: "page", follow: "shown", close: "remove" },
   changes: { pointer: "changes", follow: "shown", close: "remove" },
   plan: { pointer: "none", follow: "always", close: "hide" },
+  shells: { pointer: "none", follow: "shown", close: "hide" },
 }
 
 type Pointer = Pick<Item, "kind" | "path" | "url">
@@ -260,6 +262,37 @@ export type ChangesContent = {
 
 export type ShownContent = ImageContent | FileContent | PageContent | ChangesContent
 
+// How a background shell's output stands: its last `lines` (numbered from `firstLine`) of
+// `total` read; `none` where its harness writes it nowhere Novadeck can read; `gone` where its
+// file was there and no longer is.
+export type ShellOutput =
+  | {
+      readonly state: "ready"
+      readonly firstLine: number
+      readonly lines: readonly string[]
+      readonly total: number
+    }
+  | { readonly state: "none" }
+  | { readonly state: "gone" }
+
+// One background shell of a terminal's agent, as the shells item shows it: `since` and the
+// `exit` (when, and with which code, null where it was stopped) are epoch milliseconds.
+export type ShellEntry = {
+  readonly id: string
+  readonly command: string
+  readonly since: number
+  readonly exit: { readonly at: number; readonly code: number | null } | null
+  readonly output: ShellOutput
+}
+
+// The background shells of the agent in an item's terminal, with the end of each one's output.
+// `agent` is the name the person knows the agent by.
+export type ShellsContent = {
+  readonly kind: "shells"
+  readonly agent: string
+  readonly shells: readonly ShellEntry[]
+}
+
 // A plan's text as it stands. `writable` when `save` can write it: a plan that lives only
 // in the agent's messages, or a backend that can't write plans yet, leaves it read-only.
 // `skill` when Novadeck's skill is installed for its agent, which tells the agent to
@@ -291,7 +324,7 @@ export type ItemContent =
   | {
       readonly state: "ready"
       readonly stamp: string
-      readonly content: ShownContent | PlanContent
+      readonly content: ShownContent | PlanContent | ShellsContent
     }
   | {
       readonly state: "unavailable"

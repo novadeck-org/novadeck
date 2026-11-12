@@ -10,6 +10,7 @@ import {
   Globe,
   Image,
   MessagesSquare,
+  SquareTerminal,
   type LucideIcon,
 } from "lucide-react"
 
@@ -23,14 +24,15 @@ import { noLinks, type MessagesHandle } from "./messages/messages"
 // What the icons, names and labels were before the registry, as the switches wrote them. A
 // terminal's drawing of its bar, from the registry and its own messages, must give the same
 // for every shape of member.
-const expectedKindIcons: Record<ShownKind, LucideIcon> = {
+const expectedKindIcons: Record<ShownKind | "shells", LucideIcon> = {
   image: Image,
   file: FileCode2,
   page: Globe,
   changes: GitCompare,
+  shells: SquareTerminal,
 }
 const expectedIsMarkdown = (path: string): boolean => /\.(md|markdown)$/i.test(path)
-const expectedIconOf = (artifact: { kind: ShownKind; name: string }): LucideIcon =>
+const expectedIconOf = (artifact: { kind: ShownKind | "shells"; name: string }): LucideIcon =>
   artifact.kind === "file" && expectedIsMarkdown(artifact.name)
     ? BookText
     : expectedKindIcons[artifact.kind]
@@ -96,6 +98,7 @@ const code = itemFixture("app", "01", { kind: "file", name: "App.tsx" })
 const picture = itemFixture("hero", "01", { kind: "image", name: "hero.png" })
 const web = itemFixture("web", "01", { kind: "page", name: "localhost:5173", path: null })
 const change = itemFixture("change", "01", { kind: "changes", name: "Changes", path: "/repo" })
+const shellList = itemFixture("shells", "01", { kind: "shells", name: "Shells", path: null })
 const messages: BarMember = { kind: "messages", key: messagesKey }
 
 const shapes: Record<string, BarMember> = {
@@ -107,6 +110,7 @@ const shapes: Record<string, BarMember> = {
   image: itemMember(picture),
   page: itemMember(web),
   changes: itemMember(change),
+  shells: itemMember(shellList),
   messages,
   "placed plan": itemMember(plan, true),
   "placed markdown file": itemMember(markdown, true),
@@ -130,6 +134,7 @@ describe("a terminal's drawing of its bar", () => {
         image: [shapes.image!, shapes.image!],
         page: [shapes.page!, shapes.page!],
         changes: [shapes.changes!, shapes.changes!],
+        shells: [shapes.shells!],
       }
       for (const [stack, members] of Object.entries(stacks) as [StackKind, BarMember[]][]) {
         const slot: BarSlot = { key: `stack-${stack}`, stack, members }

@@ -35,9 +35,12 @@ export type ItemStoreState = {
   // Items that may hold secrets, which the person asked to see, each with what it pointed at
   // then. Pointed elsewhere since, the yes is no longer there: see `isRevealed`.
   readonly revealed: Readonly<Record<ItemId, string>>
+  // The shell each shells item has unfolded to its whole tail, by the shell's id: what the
+  // person unfolded, or the chat's shell line they opened it from.
+  readonly unfolded: Readonly<Record<ItemId, string>>
 }
 
-const emptyState: ItemStoreState = { plans: {}, content: {}, revealed: {} }
+const emptyState: ItemStoreState = { plans: {}, content: {}, revealed: {}, unfolded: {} }
 
 // What can be done with a plan, apart from showing it.
 export type PlanActions = {
@@ -63,6 +66,9 @@ export type ItemStore = {
   // The person asked to see an item that may hold secrets, as the file at `shown` they saw
   // its gate for: an item pointed elsewhere since stays held.
   readonly reveal: (itemId: ItemId, shown: string | null) => void
+  // Unfolds one shell of a shells item to its whole tail, folding the one that was, or
+  // folds it all with null. The pane shows it that way, whoever opens it.
+  readonly unfold: (itemId: ItemId, shellId: string | null) => void
   readonly plan: (target: WorkspaceTarget, itemId: ItemId) => PlanActions
   // Tells what went wrong on a live page that shows `shown` of the item loaded.
   readonly trouble: (
@@ -522,10 +528,12 @@ const reconcile = (session: Session, workspace: Workspace): void => {
       plans: keep(present, state.plans),
       content: keep(present, state.content),
       revealed: keep(present, state.revealed),
+      unfolded: keep(present, state.unfolded),
     }
     return next.plans === state.plans &&
       next.content === state.content &&
-      next.revealed === state.revealed
+      next.revealed === state.revealed &&
+      next.unfolded === state.unfolded
       ? state
       : next
   })
@@ -584,6 +592,13 @@ export const createItemStore = ({
     entry.stop()
     entry.reveal = path
     listen(session, id, entry)
+  }
+  const unfold = (id: ItemId, shellId: string | null): void => {
+    session.store.update((state) => {
+      if ((state.unfolded[id] ?? null) === shellId) return state
+      const { [id]: _folded, ...rest } = state.unfolded
+      return { ...state, unfolded: shellId === null ? rest : { ...rest, [id]: shellId } }
+    })
   }
   const plan = (target: WorkspaceTarget, id: ItemId): PlanActions => ({
     edit: (text, marks) => {
@@ -666,6 +681,7 @@ export const createItemStore = ({
     store: session.store,
     watch,
     reveal,
+    unfold,
     plan,
     trouble,
     changeFile,
