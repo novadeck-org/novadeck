@@ -197,31 +197,56 @@ describe("the prompt that holds the top of the log", () => {
   })
 })
 
-describe("the prompt's time and steps", () => {
-  it("show its time, and steps that stop at the first and the latest prompt", () => {
+describe("the prompt's time", () => {
+  it("shows when it was sent, and no steps to other prompts", () => {
     const layout = scenario(tops)
     const { container } = open(twoTurns)
     scrollTo(container, layout, 400)
     expect(container.querySelector(".chat-hold-time")?.textContent).toMatch(/\d/)
-    const before = container.querySelector<HTMLButtonElement>('[aria-label="Previous prompt"]')!
-    const after = container.querySelector<HTMLButtonElement>('[aria-label="Next prompt"]')!
-    expect(before.disabled).toBe(false)
-    expect(after.disabled).toBe(true)
-    scrollTo(container, layout, 100)
-    expect(before.disabled).toBe(true)
-    expect(after.disabled).toBe(false)
+    expect(container.querySelector(".chat-hold-end button")).toBeNull()
+  })
+})
+
+describe("the prompt that holds the top of a log showing only its latest blocks", () => {
+  // More turns than the log shows at first (its latest 60 blocks): the first shown block is the
+  // answer of turn "11", whose prompt is among those not shown.
+  const longLog = [
+    ...Array.from({ length: 35 }, (_, turn) => [
+      said(String(2 * turn + 1), `prompt ${2 * turn + 1}`),
+      answer(String(2 * turn + 2)),
+    ]).flat(),
+    said("71", "prompt 71"),
+  ]
+  // The control that shows the earlier blocks stands for turn "11"'s row, at the top; each shown
+  // prompt 100 below the one before, and "9" at the top too once the earlier blocks show.
+  const longTops = Object.fromEntries(
+    Array.from({ length: 31 }, (_, at) => [String(11 + 2 * at), at * 100]),
+  )
+
+  it("is the turn's prompt the log begins inside, once the control for the earlier ones passed", () => {
+    const layout = scenario(longTops, 5000)
+    const { container } = open(longLog)
+    const earlier = container.querySelector<HTMLElement>(".chat-earlier")
+    expect(earlier?.dataset.turn).toBe("11")
+    scrollTo(container, layout, 10)
+    expect(hold(container)).toBeNull()
+    scrollTo(container, layout, 50)
+    expect(words(container)?.textContent).toBe("prompt 11")
+    scrollTo(container, layout, 130)
+    expect(words(container)?.textContent).toBe("prompt 13")
   })
 
-  it("scroll to the prompt before or after, so that it holds the top", () => {
-    const layout = scenario(tops)
-    const { container } = open(twoTurns)
-    scrollTo(container, layout, 400)
+  it("shows the earlier blocks as far back as the prompt, to go to it", () => {
+    const layout = scenario(longTops, 5000)
+    const { container } = open(longLog)
+    scrollTo(container, layout, 50)
+    expect(words(container)?.textContent).toBe("prompt 11")
     layout.set.length = 0
-    press(container.querySelector('[aria-label="Previous prompt"]')!)
-    expect(layout.set.at(-1)).toBe(20)
-    scrollTo(container, layout, 100)
-    press(container.querySelector('[aria-label="Next prompt"]')!)
-    expect(layout.set.at(-1)).toBe(220)
+    press(container.querySelector(".chat-hold-line")!)
+    press(container.querySelector(".chat-hold-go")!)
+    expect(container.querySelector('[data-turn="11"]')?.matches(".chat-message")).toBe(true)
+    // Where the earlier blocks put it, the row at the top, under the room a first row has.
+    expect(layout.set).toEqual([50, 0])
   })
 })
 
@@ -299,20 +324,6 @@ describe("the peek", () => {
 describe("where focus goes as the log scrolls to a prompt", () => {
   const frame = (): Promise<void> =>
     act(async () => void (await new Promise<void>((done) => requestAnimationFrame(() => done()))))
-
-  it("stays in the chat when the step pressed is disabled by arriving", async () => {
-    const layout = scenario(tops)
-    const { container } = open(twoTurns)
-    scrollTo(container, layout, 400)
-    const before = container.querySelector<HTMLButtonElement>('[aria-label="Previous prompt"]')!
-    before.focus()
-    press(before)
-    scrollTo(container, layout, 100)
-    await frame()
-    expect(container.querySelector(".chat")?.contains(document.activeElement)).toBe(true)
-    expect(document.activeElement).not.toBe(document.body)
-    expect(document.activeElement).not.toBe(before)
-  })
 
   it("goes to the box once going to a prompt has taken the held line away", async () => {
     const layout = scenario(tops)

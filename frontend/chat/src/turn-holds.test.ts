@@ -5,10 +5,10 @@ import { describe, expect, it } from "./test"
 import {
   currentPrompt,
   heldAt,
-  neighbours,
   oneLine,
   peekHeight,
   scrollFor,
+  startBefore,
   startRows,
   sentence,
   turnStarts,
@@ -202,36 +202,15 @@ describe("which prompt holds the top", () => {
   })
 })
 
-describe("the steps between prompts", () => {
-  const starts = [
-    { id: "a", mine: true },
-    { id: "r", mine: false },
-    { id: "b", mine: true },
-    { id: "c", mine: true },
-  ]
-
-  it("go to the person's prompts either side, skipping a ring's turn", () => {
-    expect(neighbours(starts, "b")).toEqual({ before: "a", after: "c" })
-  })
-
-  it("have none before the first and none after the latest", () => {
-    expect(neighbours(starts, "a")).toEqual({ before: null, after: "b" })
-    expect(neighbours(starts, "c")).toEqual({ before: "b", after: null })
-  })
-})
-
 describe("scrolling to a prompt", () => {
-  it("goes to its row, where a first row sits, or just past it so the prompt holds the top", () => {
-    expect(scrollFor(row("b", 100), "row", 22)).toBe(78)
-    expect(scrollFor(row("b", 100), "past")).toBe(120)
-    expect(scrollFor(row("a", -5), "row", 22)).toBe(0)
+  it("goes to its row, where a first row sits, in whole pixels", () => {
+    expect(scrollFor(row("b", 100), 22)).toBe(78)
+    expect(scrollFor(row("b", 100.6), 22)).toBe(78)
+    expect(scrollFor(row("a", -5), 22)).toBe(0)
   })
 
-  it("keeps whole pixels, so a row's fraction never leaves its last pixel showing", () => {
+  it("holds a prompt at a scroll position the browser rounded down to just past its row", () => {
     const fractional = { ...row("b", 70.4), bottom: 90.40625 }
-    expect(scrollFor(fractional, "past")).toBe(91)
-    expect(heldAt([row("a", 0), fractional], scrollFor(fractional, "past"), height)?.id).toBe("b")
-    // Even a position the browser rounded down to leaves the prompt held.
     expect(heldAt([row("a", 0), fractional], 90, height)?.id).toBe("b")
   })
 })
@@ -283,5 +262,15 @@ describe("a prompt as a sentence in a label", () => {
     expect(sentence("Which build tool does this project use?")).toBe(
       "Which build tool does this project use?",
     )
+  })
+})
+
+describe("startBefore", () => {
+  const blocks = [prompt("1"), reply("2"), prompt("3"), reply("4")]
+
+  it("is the turn under way where the shown blocks begin", () => {
+    expect(startBefore(blocks, 0)).toBeNull()
+    expect(startBefore(blocks, 1)).toEqual({ id: "1", mine: true })
+    expect(startBefore(blocks, 3)).toEqual({ id: "3", mine: true })
   })
 })

@@ -19,7 +19,7 @@ afterEach(() => {
   unmounts.splice(0).forEach((unmount) => unmount())
   onSettled.mockClear()
   onReply.mockClear()
-  onChatting.mockClear()
+  onSubmitted.mockClear()
 })
 
 const fieldChoices: ChatDialog = {
@@ -78,7 +78,7 @@ const questions = (chat: "field" | "prompt"): ChatDialog => ({
 
 const onSettled = vi.fn<() => void>()
 const onReply = vi.fn<(request: string, dialog: string | null) => void>()
-const onChatting = vi.fn<() => void>()
+const onSubmitted = vi.fn<() => void>()
 
 const show = (
   dialog: ChatDialog | null,
@@ -100,7 +100,7 @@ const show = (
       replySending,
       onReply,
       refused: refusing("/tmp is full", "x @a "),
-      onChatting,
+      onSubmitted,
     })
   const { container, rerender, unmount } = render(element(dialog, answered))
   unmounts.push(unmount)
@@ -137,6 +137,20 @@ describe("a request's card", () => {
     finishers.forEach((finish) => finish())
     await settle()
     expect(button(container, "Yes").disabled).toBe(false)
+  })
+
+  it("takes focus to the box as the person submits a pick, before the answer has gone", () => {
+    const onAnswer = vi.fn<() => Promise<void>>(() => new Promise<void>(() => {}))
+    const { container } = show(choices, onAnswer)
+    button(container, "Yes").focus()
+    click(button(container, "Yes"))
+    expect(onSubmitted).toHaveBeenCalledOnce()
+  })
+
+  it("leaves focus be for a pick that asks for words first", () => {
+    const { container } = show(choices, async () => {})
+    click(button(container, "No, and tell"))
+    expect(onSubmitted).not.toHaveBeenCalled()
   })
 
   it("says why an answer didn't go, and clears it once the person changes something", async () => {
@@ -210,7 +224,7 @@ describe("a request's card", () => {
     expect(onAnswer).toHaveBeenCalledWith("r1", { type: "chat", dialog: "q1" })
     expect(container.querySelector("textarea")).toBeNull()
     await settle()
-    expect(onChatting).toHaveBeenCalledOnce()
+    expect(onSubmitted).toHaveBeenCalledOnce()
     expect(onReply).not.toHaveBeenCalled()
   })
 
@@ -234,19 +248,14 @@ describe("a request's card", () => {
     expect(button(container, "Back to the questions").disabled).toBe(true)
   })
 
-  it("leaves focus where the person moved it once the questions went aside", async () => {
-    const finishers: (() => void)[] = []
-    const onAnswer = vi.fn<(request: string, answer: ChatAnswer) => Promise<void>>(
-      () => new Promise<void>((resolve) => finishers.push(resolve)),
-    )
+  it("leaves focus where the person put it outside the card as they submit", () => {
     const elsewhere = document.createElement("input")
     document.body.append(elsewhere)
     try {
-      const { container } = show(questions("prompt"), onAnswer)
-      click(button(container, "Chat about this"))
+      const { container } = show(questions("prompt"), async () => {})
       elsewhere.focus()
-      await act(async () => finishers[0]!())
-      expect(onChatting).not.toHaveBeenCalled()
+      click(button(container, "Chat about this"))
+      expect(onSubmitted).not.toHaveBeenCalled()
       expect(document.activeElement).toBe(elsewhere)
     } finally {
       elsewhere.remove()
@@ -593,7 +602,7 @@ describe("a dialog's menu", () => {
           replySending: false,
           onReply,
           refused: refusing(),
-          onChatting,
+          onSubmitted,
         }),
       ),
     )
@@ -641,7 +650,7 @@ describe("a dialog's menu", () => {
           replySending: false,
           onReply,
           refused: refusing(),
-          onChatting,
+          onSubmitted,
         }),
       )
     const head = (container: HTMLElement) =>
@@ -696,7 +705,7 @@ describe("a dialog's menu", () => {
         replySending: false,
         onReply,
         refused: refusing(),
-        onChatting,
+        onSubmitted,
       }),
     )
     expect(container.querySelector(".chat-request-head")?.textContent).toContain("subagent")
@@ -767,7 +776,7 @@ describe("a dialog of questions", () => {
         replySending: false,
         onReply,
         refused: refusing("/tmp is full", "x @a "),
-        onChatting,
+        onSubmitted,
       }),
     )
     unmounts.push(unmount)
@@ -852,7 +861,7 @@ describe("a dialog of questions", () => {
           replySending: false,
           onReply,
           refused: refusing("/tmp is full", "x @a "),
-          onChatting,
+          onSubmitted,
         }),
       )
     const { container, rerender, unmount } = render(element([]))

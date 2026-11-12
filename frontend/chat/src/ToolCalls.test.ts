@@ -2,7 +2,7 @@ import type { ToolOutcome } from "@novadeck/core/conversation"
 import type { ToolEntry } from "@novadeck/core/conversation/turns"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
-import { afterEach } from "vitest"
+import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "./test"
 import { ToolCalls } from "./ToolCalls"
@@ -239,6 +239,26 @@ describe("a run of tool calls", () => {
         show([{ ...call("1", "Ran", "x"), result: { id: "r", text: "long", truncated: true } }]),
       )
       expect(container.querySelector(".chat-tool-note")?.textContent).toContain("Shortened here")
+    })
+
+    it("shows a long script and its output to their first lines, as another agent's message", async () => {
+      // jsdom lays nothing out: each part takes nine lines of 20px.
+      vi.spyOn(window, "getComputedStyle").mockReturnValue({ lineHeight: "20px" } as never)
+      vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(9 * 20)
+      const script = { ...call("1", "Ran", "python3 - <<EOF"), input: '{"command":"long"}' }
+      const container = await opened(show([script]))
+      const parts = [...container.querySelectorAll<HTMLElement>(".chat-tool-part")]
+      expect(parts.map((part) => part.getAttribute("aria-label"))).toEqual(["Call", "Result"])
+      for (const part of parts) {
+        const words = part.querySelector("pre")!
+        const more = part.querySelector<HTMLElement>(".chat-more")!
+        expect(words.hasAttribute("data-folded")).toBe(true)
+        expect(more.textContent).toBe("… 5 more lines")
+        expect(more.getAttribute("aria-controls")).toBe(words.id)
+      }
+      await act(async () => parts[1]!.querySelector<HTMLElement>(".chat-more")!.click())
+      expect(parts[1]!.querySelector("pre")!.hasAttribute("data-folded")).toBe(false)
+      expect(parts[0]!.querySelector("pre")!.hasAttribute("data-folded")).toBe(true)
     })
   })
 

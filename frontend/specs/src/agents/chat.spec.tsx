@@ -658,15 +658,17 @@ describe("A request that waits on the person", () => {
   })
 
   context("focus after an answer", () => {
-    it("goes to the answered line, then to the box once the card has gone", async () => {
+    it("goes to the box as the answer is submitted, and stays there as the card goes", async () => {
       await openChatDemo()
       const chat = await openChat("Checkout review")
       const card = requestCard(chat, /^Needs your permission/)
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
       try {
         await card.getByRole("button", { name: "Yes, proceed" }).click()
+        await expect.element(composer(chat)).toHaveFocus()
         await vi.advanceTimersByTimeAsync(answerMs)
-        await expect.element(card.getByText(/Answered\. Waiting for Codex/)).toHaveFocus()
+        await expect.element(card.getByText(/Answered\. Waiting for Codex/)).toBeVisible()
+        await expect.element(composer(chat)).toHaveFocus()
         await vi.advanceTimersByTimeAsync(answeredMs)
         await expect.element(card).not.toBeInTheDocument()
         await expect.element(composer(chat)).toHaveFocus()
@@ -774,6 +776,7 @@ describe("A request that waits on the person", () => {
       await userEvent.keyboard("{Enter}")
       await expect.element(card.getByRole("button", { name: "Submit answers" })).toHaveFocus()
       await userEvent.keyboard("{Enter}")
+      await expect.element(composer(chat)).toHaveFocus()
       await expect.element(card).not.toBeInTheDocument()
       await expect
         .element(chat.getByText("Noted: Unit tests; The README", { exact: false }), {

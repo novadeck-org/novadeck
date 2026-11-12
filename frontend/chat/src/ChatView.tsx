@@ -39,7 +39,7 @@ import { promptsOf, type SentShell } from "./history"
 import { Hold } from "./Hold"
 import { markPhase, type WindowPhase } from "./mark-phase"
 import { otherMenu } from "./other-menu"
-import { usePassing } from "./passing"
+import { usePassing, type PassingState } from "./passing"
 import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
 import { Requests } from "./Requests"
 import { recordedImagesOf, takeSentImages, type ChatSend } from "./sends"
@@ -48,7 +48,7 @@ import { ShellLines, runningShells } from "./ShellLines"
 import { LiveSlice, SliceKeys } from "./Slice"
 import { ThumbsContext, useThumbs } from "./Thumbs"
 import { mentionOf, Transcript, type PeerLooks } from "./Transcript"
-import { currentPrompt, logPadding, neighbours, scrollFor, startRows } from "./turn-holds"
+import { currentPrompt, logPadding, scrollFor, startBefore, startRows } from "./turn-holds"
 import { useBoxReturn } from "./use-box-return"
 import { useMounted } from "./use-mounted"
 import { useTurnHold } from "./use-turn-hold"
@@ -168,9 +168,9 @@ export const ChatView = ({
   readonly refused: Refused
   // Writes keys to the agent's terminal, for what shows of its own; absent where it takes none.
   readonly onKeys?: ((keys: string) => Promise<void>) | undefined
-  // Tells whether keys pass to the terminal's box; and the draft goes as the chat leaves with
-  // a menu up, whatever session shows by then.
-  readonly onPassing?: ((on: boolean) => void) | undefined
+  // Tells whether keys pass to the terminal's box, or may still show there; and the draft goes as
+  // the chat leaves with a menu up, whatever session shows by then.
+  readonly onPassing?: ((state: PassingState) => void) | undefined
   readonly onLeftMenu?: (() => void) | undefined
 }): React.JSX.Element => {
   const {
@@ -251,7 +251,10 @@ export const ChatView = ({
 
   const fromLooks = useMemo(() => mentionOf(peerLooks), [peerLooks])
   const mention = peerMention ?? fromLooks
-  const turns = useTurnHold(shown, compact)
+  // Every turn's start, those whose rows aren't shown yet too: the earlier turn whose end the log
+  // begins with still holds the top.
+  const turns = useTurnHold(blocks, compact)
+  const carried = useMemo(() => startBefore(blocks, shownFrom), [blocks, shownFrom])
   const { peek, setPeek } = turns
   const scroller = useRef<HTMLDivElement>(null)
   const chatSection = useRef<HTMLElement>(null)
@@ -267,12 +270,17 @@ export const ChatView = ({
     const element = scroller.current
     if (element && following.current) element.scrollTop = element.scrollHeight
   }, [])
+  // A prompt to scroll to once the earlier blocks it is among are shown.
+  const pendingTurn = useRef<((element: HTMLElement) => void) | null>(null)
   useLayoutEffect(() => {
     const element = scroller.current
     if (element && prepended.current !== null) {
-      // Earlier blocks went in above: stay on what was in view.
+      // Earlier blocks went in above: stay on what was in view, or go to the prompt they were
+      // shown for.
       element.scrollTop += element.scrollHeight - prepended.current
       prepended.current = null
+      pendingTurn.current?.(element)
+      pendingTurn.current = null
       return
     }
     follow()
@@ -359,11 +367,24 @@ export const ChatView = ({
     else focusBox()
   }
 
-  // Scrolls the log to a prompt: to its row, or just past it so that it holds the top.
-  const scrollToTurn = (id: string, to: "row" | "past"): void => {
-    const element = scroller.current
-    const row = element && startRows(element, turns.starts).find((each) => each.id === id)
-    if (element && row) element.scrollTop = scrollFor(row, to, logPadding(compact))
+  // Scrolls the log to a prompt's row. One among the earlier blocks not shown yet shows them
+  // first, as far back as it, and is scrolled to once they are there.
+  const scrollToTurn = (id: string): void => {
+    const index = blocks.findIndex((block) => block.id === id)
+    if (index !== -1 && index < shownFrom) {
+      pendingTurn.current = (element) => {
+        const row = startRows(element, turns.starts).find((each) => each.id === id)
+        if (!row) return
+        following.current = false
+        element.scrollTop = scrollFor(row, logPadding(compact))
+      }
+      prepended.current = scroller.current?.scrollHeight ?? null
+      setMore({ session, extra: blocks.length - index - windowSize })
+    } else {
+      const element = scroller.current
+      const row = element && startRows(element, turns.starts).find((each) => each.id === id)
+      if (element && row) element.scrollTop = scrollFor(row, logPadding(compact))
+    }
     // The control pressed may be gone or disabled by the time the log has scrolled: focus stays in
     // the chat, where Esc is heard.
     // Once the held line has followed, in the effect below; a log that was already there leaves
@@ -524,12 +545,11 @@ export const ChatView = ({
 
   // The window's phase as the current turn's prompt mark wears it.
   const phase = windowPhase && markPhase(windowPhase)
-  // The person's prompt holding the top of the log, if one does, and those either side of it.
+  // The person's prompt holding the top of the log, if one does.
   const holding = useMemo(() => {
-    const block = shown.find(({ id }) => id === heldId)
+    const block = blocks.find(({ id }) => id === heldId)
     return block?.kind === "user" ? block : null
-  }, [shown, heldId])
-  const around = neighbours(turns.starts, heldId ?? "")
+  }, [blocks, heldId])
   const empty = items.length === 0 && bubbles.length === 0 && shownEchoes.length === 0
   return (
     <SliceKeys.Provider value={sliceKeys ?? null}>
@@ -563,6 +583,7 @@ export const ChatView = ({
                 <button
                   type="button"
                   className="button quiet chat-earlier"
+                  data-turn={carried?.id}
                   onClick={() => {
                     prepended.current = scroller.current?.scrollHeight ?? null
                     setMore({ session, extra: extra + windowSize })
@@ -644,19 +665,13 @@ export const ChatView = ({
               mention={mention}
               at={holding.at}
               offset={turns.held!.offset}
-              phase={holding.id === currentPrompt(shown) ? phase : undefined}
+              phase={holding.id === currentPrompt(blocks) ? phase : undefined}
               open={peeking}
-              before={around.before !== null}
-              after={around.after !== null}
               onOpen={() => setPeek(holding.id)}
               onClose={() => setPeek(null)}
-              onStep={(to) => {
-                const target = to === "before" ? around.before : around.after
-                if (target !== null) scrollToTurn(target, "past")
-              }}
               onGo={() => {
                 setPeek(null)
-                scrollToTurn(holding.id, "row")
+                scrollToTurn(holding.id)
               }}
             />
           )}
@@ -703,8 +718,8 @@ export const ChatView = ({
             onReplyTo(dialog === null ? null : { request, dialog })
             if (dialog !== null) focusBox()
           }}
-          // The dialog went to talk it over: the person's words go in the box, as a prompt.
-          onChatting={focusBox}
+          // An answer went from a card: the person's next words go in the box.
+          onSubmitted={focusBox}
           refused={refused}
         />
         {/* Always in the page, so a screen reader announces the note as it appears. */}

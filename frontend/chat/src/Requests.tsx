@@ -45,7 +45,7 @@ const Card = ({
   replying,
   replySending,
   onReply,
-  onChatting,
+  onSubmitted,
   refused,
 }: {
   readonly request: ChatRequest
@@ -60,8 +60,8 @@ const Card = ({
   readonly replying: boolean
   readonly replySending: boolean
   readonly onReply: (dialog: string | null) => void
-  // The dialog was set aside to talk it over: the person's next words go in the box.
-  readonly onChatting: () => void
+  // The person submitted an answer from the card: what they type next goes in the box.
+  readonly onSubmitted: () => void
   readonly refused: Refused
 }): React.JSX.Element => {
   const title = titles[request.kind]
@@ -80,8 +80,9 @@ const Card = ({
   const [handedBack, setHandedBack] = useState(0)
   // The dialog the notice of an identical request is about.
   const [again, setAgain] = useState<string | null>(null)
-  // Focus goes where the person's attention follows once an answer took: the answered line,
-  // then the box when the card goes.
+  // Focus goes to the box as the person submits an answer here. An answer that took otherwise, as
+  // in the terminal, puts it on the answered line where it was in the card, and on the box once
+  // the card goes.
   const took = useRef(false)
   const card = useRef<HTMLElement>(null)
   const status = useRef<HTMLParagraphElement>(null)
@@ -96,10 +97,8 @@ const Card = ({
       status.current?.focus({ preventScroll: true })
   }, [request.answered])
   const settled = useRef(onSettled)
-  const chatting = useRef(onChatting)
   useEffect(() => {
     settled.current = onSettled
-    chatting.current = onChatting
   })
   useEffect(
     () => () => {
@@ -114,19 +113,15 @@ const Card = ({
     setAgain(null)
     clearTimeout(settling.current)
     const asked = request.dialog && "id" in request.dialog ? request.dialog.id : null
+    // The person's next words go in the box, unless they have moved focus out of the card.
+    const active = document.activeElement
+    if (!active || active === document.body || card.current?.contains(active)) onSubmitted()
     // Once it took, the request goes and so does this card.
     onAnswer(request.id, answer).then(
       () => {
         if (!mounted.current) return
         took.current = true
         setSending(false)
-        // The box takes focus, unless the person moved it out of the card meanwhile.
-        const active = document.activeElement
-        if (
-          answer.type === "chat" &&
-          (!active || active === document.body || card.current?.contains(active))
-        )
-          chatting.current()
         // Identical calls the agent queued fold into one request: if the same dialog is
         // still here after a moment, say so, or the card looks as if nothing happened.
         clearTimeout(settling.current)
@@ -251,7 +246,7 @@ export const Requests = ({
   replying,
   replySending,
   onReply,
-  onChatting,
+  onSubmitted,
   refused,
 }: {
   readonly requests: readonly ChatRequest[]
@@ -265,7 +260,7 @@ export const Requests = ({
   readonly replying: string | null
   readonly replySending: boolean
   readonly onReply: (request: string, dialog: string | null) => void
-  readonly onChatting: () => void
+  readonly onSubmitted: () => void
   // Whether words that go on as the agent's next prompt would be refused for their shape.
   readonly refused: Refused
 }): React.JSX.Element | null =>
@@ -283,7 +278,7 @@ export const Requests = ({
           replying={replying === request.id}
           replySending={replySending}
           onReply={(dialog) => onReply(request.id, dialog)}
-          onChatting={onChatting}
+          onSubmitted={onSubmitted}
           refused={refused}
         />
       ))}

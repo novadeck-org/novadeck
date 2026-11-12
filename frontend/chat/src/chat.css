@@ -77,10 +77,9 @@
    `.chat-hold-words`, bold, in full ink, cut to the measure, over the chat's ground and a short
    fade. The next turn's start pushes it up and out (data-pushed). Pointed at or focused, it takes a
    hover ground and `.chat-hold-end` shows, left of the window's stats ring: the prompt's time
-   `.chat-hold-time` and the steps `.chat-hold-step` (‹ ›, :disabled at the first and the latest
-   prompt). Pressed, data-open on `.chat-hold` unfolds the line in place into the whole prompt
-   (pre-wrap, scrolling inside past two fifths of the chat, `--_peek`), a hairline and shadow under
-   it, and `.chat-hold-foot`: its time, `.chat-hold-go` and the `esc` key to close.
+   `.chat-hold-time`. Pressed, data-open on `.chat-hold` unfolds the line in place into the whole
+   prompt (pre-wrap, scrolling inside past two fifths of the chat, `--_peek`), a hairline and
+   shadow under it, and `.chat-hold-foot`: its time, `.chat-hold-go` and the `esc` key to close.
 
    The mark of the prompt that started the latest turn wears the window's phase line, upright
    (`.chat-mark[data-phase]`: "running" | "need" | "done" | "failed" | "starting" | "sleeping" |
@@ -216,11 +215,20 @@
 .chat-request > :not(.chat-request-head) {
   max-width: calc(var(--_inset) + var(--_measure) + var(--_pad));
 }
-/* Lines of work keep the words' width too, so a long one never runs under its fact. */
+/* Lines of work keep the words' width too, and stop short of their fact at the row's right edge
+   where the row is narrower than that and its fact, so a long one never runs under it. Where the
+   facts step aside, the line takes the row. */
 .chat-tool-summary,
 .chat-subagent-summary,
 .chat-tools-fold {
-  max-width: var(--_measure);
+  max-width: min(var(--_measure), 100% - 10ch);
+}
+@container chat (max-width: 920px) {
+  .chat-tool-summary,
+  .chat-subagent-summary,
+  .chat-tools-fold {
+    max-width: min(var(--_measure), 100%);
+  }
 }
 
 /* The fact at a row's right edge: its time, a clock, how long it took. */
@@ -460,8 +468,10 @@
 .chat-message[data-role="agent"] + .chat-message[data-role="agent"] {
   margin-top: calc(var(--_lh) / 2);
 }
-/* A long message shows its first lines, fading out, then a key for the rest. */
-.chat-words[data-folded] {
+/* A long message, or a tool call's input or output, shows its first lines, fading out, then a key
+   for the rest; opened, it shows whole. */
+.chat-words[data-folded],
+.chat-tool-part pre[data-folded] {
   max-height: var(--_shown);
   overflow: hidden;
   mask-image: linear-gradient(to bottom, currentColor calc(100% - var(--_lh)), transparent);
@@ -683,7 +693,6 @@
 .chat-subagent-summary {
   display: flex;
   gap: 1ch;
-  max-width: 100%;
   padding: 0;
   overflow: hidden;
   border: 0;
@@ -747,7 +756,6 @@
 .chat-tool-summary,
 .chat-tools-fold {
   display: flex;
-  max-width: 100%;
   padding: 0;
   overflow: hidden;
   border: 0;
@@ -824,7 +832,6 @@
   padding-left: 2ch;
 }
 .chat-tool-part pre {
-  max-height: calc(14 * var(--_lh));
   margin: 0;
   overflow: auto;
   font: inherit;
@@ -832,6 +839,10 @@
   overflow-wrap: anywhere;
   scrollbar-width: thin;
   scrollbar-color: var(--_line) transparent;
+}
+/* A diff scrolls inside past its first lines. */
+.chat-tool-part pre.chat-changes {
+  max-height: calc(14 * var(--_lh));
 }
 .chat-tool-part pre:focus-visible {
   outline-offset: -2px;
@@ -1072,14 +1083,6 @@ button.chat-hold-line:focus-visible::before {
   .chat-hold-end {
     transition: none;
   }
-}
-.chat-hold-step {
-  color: var(--_mid);
-  font-size: 13px;
-}
-.chat-hold-step:disabled {
-  color: var(--_muted);
-  opacity: 0.5;
 }
 /* Unfolded: the whole prompt as the log has it, over the log, which stays where it was. */
 .chat-hold[data-open] {
