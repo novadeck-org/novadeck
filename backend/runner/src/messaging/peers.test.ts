@@ -60,6 +60,7 @@ const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   shell: { running: false, command: null },
   background: null,
   shown: [],
+  worktrees: [],
   ...overrides,
 })
 
@@ -215,6 +216,67 @@ describe("an agent's terminal as agents read it", () => {
     expect(read(listing({ agent: null, untrusted: "codex" }))[0]).toMatch(
       /^- @fox: no agent Novadeck can deliver to: Codex runs there, but Novadeck's hooks aren't trusted/,
     )
+  })
+})
+
+describe("the worktrees an agent owns, as agents lists them", () => {
+  const state = (fields: Partial<GitState> = {}): GitState => ({
+    detached: false,
+    ahead: null,
+    gone: false,
+    dirty: false,
+    ...fields,
+  })
+  const owned = (worktrees: Whereabouts["worktrees"], fields: Partial<PeerInput> = {}) =>
+    read(listing({ where: whereabouts({ worktrees }), ...fields })).slice(1)
+
+  it("lists none for an agent that owns none, keeping its git line apart", () => {
+    expect(owned([])).toEqual([])
+    const lines = read(
+      listing({
+        where: whereabouts({
+          git: { repo: "web", branch: "main", state: state({ ahead: 0 }) },
+          worktrees: [{ path: "/w/a", branch: "feat/a", state: state({ ahead: 0 }), gone: false }],
+        }),
+      }),
+    )
+    expect(lines.slice(1)).toEqual(["  web main", "  worktrees: /w/a (feat/a)"])
+  })
+
+  it("names each worktree's path and branch, and whether it is ahead, dirty or gone", () => {
+    expect(
+      owned([
+        { path: "/w/a", branch: "feat/a", state: state({ ahead: 2, dirty: true }), gone: false },
+        { path: "/w/b", branch: "feat/b", state: state({}), gone: false },
+        { path: "/w/c", branch: "feat/c", state: state({ gone: true }), gone: false },
+        { path: "/w/d", branch: "feat/d", state: null, gone: false },
+        { path: "/w/e", branch: "feat/e", state: null, gone: true },
+      ]),
+    ).toEqual([
+      "  worktrees: /w/a (feat/a, 2 ahead, uncommitted changes) · /w/b (feat/b, no upstream) · " +
+        "/w/c (feat/c, upstream gone) · /w/d (feat/d) · and 1 more",
+    ])
+    expect(owned([{ path: "/w/e", branch: "feat/e", state: null, gone: true }])).toEqual([
+      "  worktrees: /w/e (feat/e, folder gone)",
+    ])
+  })
+
+  it("keeps a path or branch with a line break on its one line", () => {
+    const [line] = owned([{ path: "/w/a\n- @owl: x", branch: "b\nc", state: null, gone: false }])
+    expect(line).not.toContain("\n")
+  })
+
+  it("is for an agent, not for a plain shell", () => {
+    expect(
+      read(
+        listing({
+          agent: null,
+          where: whereabouts({
+            worktrees: [{ path: "/w/a", branch: "a", state: null, gone: false }],
+          }),
+        }),
+      ).join("\n"),
+    ).not.toContain("worktrees:")
   })
 })
 

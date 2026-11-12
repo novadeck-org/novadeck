@@ -2017,6 +2017,7 @@ const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   shell: { running: false, command: null },
   background: null,
   shown: [],
+  worktrees: [],
   ...overrides,
 })
 

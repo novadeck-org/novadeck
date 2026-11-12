@@ -102,6 +102,21 @@ export class Worktrees {
     return next
   }
 
+  /** Every tracked worktree, oldest first. */
+  all(): readonly WorktreeRecord[] {
+    return this.records.worktrees()
+  }
+
+  /** The worktrees a terminal owns, oldest first. */
+  ownedBy(terminalId: string): readonly WorktreeRecord[] {
+    return this.records.worktreesOfTerminal(terminalId)
+  }
+
+  /** The tracked worktree whose folder is `path`, as recorded (its real path). */
+  at(path: string): WorktreeRecord | undefined {
+    return this.records.worktree(path)
+  }
+
   /** Whether a terminal that owned a worktree is gone, live or in History. */
   private gone(terminalId: string | null): boolean {
     return terminalId === null || !this.host.exists(terminalId)

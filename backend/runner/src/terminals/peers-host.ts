@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs"
 import { basename, isAbsolute, relative } from "node:path"
 
 import type { CompanionItem, TerminalMessages } from "@novadeck/protocol"
@@ -13,6 +14,7 @@ import {
   waitsOnNote,
   type Git,
   type Happening,
+  type OwnedWorktree,
   type Waiting,
   type Whereabouts,
 } from "../messaging/peers.js"
@@ -87,6 +89,8 @@ export type PeersOptions = {
   readonly bar: (
     terminalId: string,
   ) => readonly Pick<CompanionItem, "kind" | "name" | "path" | "url" | "secret" | "shownAt">[]
+  /** The git worktrees a terminal owns, oldest first. */
+  readonly worktrees: (terminalId: string) => readonly { path: string; branch: string }[]
   /** Whether the runner is stopping. */
   readonly stopping: () => boolean
 }
@@ -275,6 +279,7 @@ export class TerminalPeers {
               secret: item.secret,
               at: item.shownAt,
             })),
+            worktrees: await this.owned(terminal.summary.id),
             shell: {
               running: terminal.summary.busy,
               command: terminal.summary.busy ? shownCommand(terminal.summary.process?.argv) : null,
@@ -284,6 +289,16 @@ export class TerminalPeers {
         }),
     )
     return new Map(entries)
+  }
+
+  /** The worktrees a terminal owns with their states, as last read (see `GitStates`). */
+  private owned(terminalId: string): Promise<OwnedWorktree[]> {
+    return Promise.all(
+      this.options.worktrees(terminalId).map(async ({ path, branch }) => {
+        const gone = !existsSync(path)
+        return { path, branch, gone, state: gone ? null : await this.states.of(path) }
+      }),
+    )
   }
 
   /**

@@ -67,6 +67,7 @@ describe("what a terminal's dictation hint is made of", () => {
     projectFolder: () => "/w/repo",
     happenings: () => [],
     bar: () => [],
+    worktrees: () => [],
     stopping: () => false,
   })
   const terminal = (fields: Partial<PeerTerminal>): PeerTerminal => ({
@@ -136,6 +137,7 @@ describe("what a terminal's dictation hint is made of", () => {
       projectFolder: () => undefined,
       happenings: () => [],
       bar: () => [],
+      worktrees: () => [],
       stopping: () => false,
     })
     const work = {
@@ -177,6 +179,7 @@ describe("what peers read of a terminal", () => {
         projectFolder: () => undefined,
         happenings: () => [{ kind: "asked", at: 1, subject: "Which?" }],
         bar: () => [],
+        worktrees: () => [],
         stopping: () => false,
       },
       new GitStates(async () => null),
@@ -332,6 +335,7 @@ describe("a tell and a shown page of each harness's agent, as agents lists them"
             },
           ],
           bar: (id: string) => (id === "t1" ? (bar as never) : []),
+          worktrees: () => [],
           stopping: () => false,
         },
         new GitStates(async () => null),
@@ -362,6 +366,64 @@ describe("a tell and a shown page of each harness's agent, as agents lists them"
       expect(asleep).toContain("told:")
     })
   }
+})
+
+describe("the worktrees a terminal owns, as agents lists them", () => {
+  it("come from the owner's rows, with the state git reads in each and whether its folder is gone", async ({
+    resources,
+  }) => {
+    const here = await folder(resources)
+    const record = {
+      summary: { id: "t1", cwd: "/nowhere", sessionId: "s", title: "t", activity: null },
+      naming: { person: null, opener: null, murmur: null, own: null, summary: null },
+      work: null,
+      openedBy: null,
+      bound: { activity: { pending: [], plans: [], turnAt: 7 } },
+    } as unknown as PeerRecord
+    let where: Whereabouts | undefined
+    const asked: string[] = []
+    const peers = new TerminalPeers(
+      {
+        messaging: {
+          agents: (_terminalId: string, about: (id: string) => Whereabouts) => {
+            where = about("t1")
+            return { ok: true }
+          },
+        } as unknown as Messaging,
+        caller: () => record,
+        terminal: () => undefined,
+        running: () => [record],
+        projectFolder: () => undefined,
+        happenings: () => [],
+        bar: () => [],
+        worktrees: (id) => {
+          asked.push(id)
+          return [
+            { path: here, branch: "feat/here" },
+            { path: join(here, "missing"), branch: "feat/missing" },
+          ]
+        },
+        stopping: () => false,
+      },
+      new GitStates(async (top) => ({
+        detached: false,
+        ahead: top === here ? 3 : 0,
+        gone: false,
+        dirty: true,
+      })),
+    )
+    await peers.agents({ type: "agents", terminalId: "t1", token: "k", request: {} })
+    expect(asked).toEqual(["t1"])
+    expect(where?.worktrees).toEqual([
+      {
+        path: here,
+        branch: "feat/here",
+        gone: false,
+        state: { detached: false, ahead: 3, gone: false, dirty: true },
+      },
+      { path: join(here, "missing"), branch: "feat/missing", gone: true, state: null },
+    ])
+  })
 })
 
 describe("what peers read of a terminal's reports and rest", () => {
@@ -407,6 +469,7 @@ describe("what peers read of a terminal's reports and rest", () => {
           return (over.happenings ?? []) as never
         },
         bar: () => [],
+        worktrees: () => [],
         stopping: () => false,
       },
       new GitStates(async () => null),
@@ -499,6 +562,7 @@ describe("where a peer's agent works now", () => {
         projectFolder: () => root,
         happenings: () => [],
         bar: () => [],
+        worktrees: () => [],
         stopping: () => false,
       },
       new GitStates(async () => ({ detached: false, ahead: 1, gone: false, dirty: false })),
