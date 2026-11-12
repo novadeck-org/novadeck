@@ -10,6 +10,7 @@ on:
     paths:
       - .github/workflows/shell-output-probe.yml
       - backend/runner/src/e2e/probes/shell-output.e2e.ts
+      - backend/relay/src/**
 
 permissions:
   contents: read
