@@ -61,6 +61,12 @@ export const git = (
     readonly input?: string
     /** How long it may take, where that is more than `timing.gitMs`. */
     readonly ms?: number
+    /**
+     * On a timeout, ask git to stop (SIGTERM, so it removes the lock files it holds) and kill
+     * it only after this many milliseconds. Windows has no graceful stop for a process tree
+     * here, so there it is ended at once, which is why callers keep `ms` generous.
+     */
+    readonly graceMs?: number
   },
 ): Promise<Run> =>
   new Promise((done) => {
@@ -68,10 +74,13 @@ export const git = (
     if (!program) return done({ ok: false, kind: "no-git", status: 0, said: "" })
     let settled = false
     const scope = gitScope.getStore()
+    let timedOut = false
+    let hard: ReturnType<typeof setTimeout> | undefined
     const finish = (run: Run) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
+      clearTimeout(hard)
       scope?.removeEventListener("abort", ended)
       done(run)
     }
@@ -105,8 +114,21 @@ export const git = (
     let capped = false
     let errors = Buffer.alloc(0)
     const timer = setTimeout(() => {
-      killTree(child.pid)
-      finish({ ok: false, kind: "timeout", status: 0, said: "" })
+      if (limit.graceMs === undefined || process.platform === "win32" || child.pid === undefined) {
+        killTree(child.pid)
+        finish({ ok: false, kind: "timeout", status: 0, said: "" })
+        return
+      }
+      timedOut = true
+      try {
+        process.kill(-child.pid, "SIGTERM")
+      } catch {
+        // Already gone.
+      }
+      hard = setTimeout(() => {
+        killTree(child.pid)
+        finish({ ok: false, kind: "timeout", status: 0, said: "" })
+      }, limit.graceMs)
     }, limit.ms ?? timing.gitMs)
     if (scope?.aborted) ended()
     else scope?.addEventListener("abort", ended, { once: true })
@@ -135,6 +157,7 @@ export const git = (
       })
     })
     child.on("close", (code) => {
+      if (timedOut) return finish({ ok: false, kind: "timeout", status: 0, said: "" })
       const out = Buffer.concat(chunks).toString("utf8")
       if (capped)
         return finish(

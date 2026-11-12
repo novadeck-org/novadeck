@@ -435,6 +435,7 @@ export class Terminals {
         drawHandle: (sessionId) => this.names.next(sessionId),
         resting: (agent, sessionId) => this.sleepers.holder(agent, sessionId),
         announce: (record) => this.announce(record),
+        worktrees: options.worktrees?.service,
       }),
       options.historyTimes,
     )
@@ -1392,6 +1393,7 @@ export class Terminals {
       this.claims.release(terminalId)
       // Its row, if History kept one, no longer reads as held by it.
       this.history.released(terminalId)
+      this.options.worktrees?.service.ownerClosed()
     }
     this.calls.forgetOpener(terminalId)
     // Forgotten while the runner stops too, as a close then still stands.

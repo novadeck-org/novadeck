@@ -150,6 +150,8 @@ const setup = (
     restoredAs: vi.fn<() => TerminalSummary | undefined>(() => undefined),
     ran: vi.fn<() => boolean>(() => true),
     announce: vi.fn<(record: Record) => void>(),
+    pruned: vi.fn<(ids: readonly string[]) => void>(),
+    restored: vi.fn<(from: string, to: string) => void>(),
     say: vi.fn<(record: Record, text: string) => void>(
       (_record: Record, text: string) => void said.push(text),
     ),
@@ -514,6 +516,17 @@ describe("pruning and watching", () => {
     )
     expect([...store.rows.keys()]).toEqual(["new"])
     watching.stop()
+  })
+
+  it("tells the host which terminals it pruned, so their worktrees can go", () => {
+    const pruned = vi.fn<(ids: readonly string[]) => void>()
+    const { history, store } = setup({ pruned })
+    store.rows.set("old", row({ id: "old", closedAt: Date.now() - 31 * day }))
+    store.rows.set("new", row({ id: "new", closedAt: Date.now() - day }))
+    history.prune()
+    expect(pruned).toHaveBeenCalledExactlyOnceWith(["old"])
+    history.prune()
+    expect(pruned).toHaveBeenCalledOnce()
   })
 
   it("prunes as it starts", () => {
@@ -942,12 +955,16 @@ describe("confirming an agent's restore", () => {
   }
 
   it("removes the row when the session binds as claimed, and emits it", async () => {
-    const { history, store, record } = await begin()
+    const { history, store, record, host } = await begin()
     const watching = await follow(history)
     expect(store.rows.has("old-1")).toBe(true)
     record.bound = bound("claude", "conv-0001")
     history.observe(record)
     expect(store.rows.size).toBe(0)
+    // A restore leaves History, but it is not a prune: the owner's worktrees stay.
+    expect(host.pruned).not.toHaveBeenCalled()
+    // What the old terminal owned is the restored one's, before the row goes.
+    expect(host.restored).toHaveBeenCalledExactlyOnceWith("old-1", "new-1")
     expect(record.restoring).toBeUndefined()
     await vi.waitFor(() =>
       expect(watching.later).toContainEqual({ type: "removed", id: "old-1", projectId: "p1" }),

@@ -44,6 +44,8 @@ export type WorkPlan = {
   readonly branch?: string
   // How long ago it first differed from main.
   readonly minutesAgo: number
+  // How long ago its repository's origin was last fetched, so main is that old; left out: never.
+  readonly fetchedMinutesAgo?: number
   // None: the worktree differs from nothing, so closing it asks no question.
   readonly files: readonly FilePlan[]
   readonly conflicts?: readonly string[]
@@ -145,6 +147,9 @@ export const worksFromPlans = (
         working: plan.working === true,
         branch: at.branch,
         base: "main",
+        ...(plan.fetchedMinutesAgo !== undefined && {
+          fetchedAt: now - plan.fetchedMinutesAgo * minute,
+        }),
         firstSeenAt: now - plan.minutesAgo * minute,
         added: 0,
         removed: 0,

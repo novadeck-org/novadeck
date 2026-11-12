@@ -8,6 +8,7 @@ import {
   closeMode,
   conflictWords,
   orderedFiles,
+  mainWords,
   ownerOpen,
   selectedRoot,
   unreadStates,
@@ -230,5 +231,30 @@ describe("arrivals", () => {
     // Opening the panel lists every row, which is not news; a later gain is.
     expect(arrivals(unreadStates(works, false), works)).toEqual([])
     expect(arrivals(baseline, [work("a", 1), work("b", 2)])).toEqual(["/r/b"])
+  })
+})
+
+describe("how old main is", () => {
+  const now = 10_000_000_000
+  const minute = 60_000
+
+  it("says nothing for a repository never fetched, and how long ago otherwise", () => {
+    expect(mainWords(undefined, now)).toBeUndefined()
+    expect(mainWords(now - 20_000, now)).toBe("main as of just now")
+    expect(mainWords(now - 12 * minute - 5_000, now)).toBe("main as of 12 min ago")
+    expect(mainWords(now - 135 * minute, now)).toBe("main as of 2 h ago")
+    expect(mainWords(now - 49 * 60 * minute, now)).toBe("main as of 2 d ago")
+    expect(mainWords(now + minute, now)).toBe("main as of just now")
+  })
+
+  it("is on the row of a work fetched, and not on one that never was", () => {
+    const rows = changeRows(
+      [work("a", 1, { fetchedAt: now - 3 * minute }), work("b", 2)],
+      new Map(),
+      [],
+      now,
+    )
+    expect(rows.find((row) => row.work.root === "/r/a")?.mainWords).toBe("main as of 3 min ago")
+    expect(rows.find((row) => row.work.root === "/r/b")?.mainWords).toBeUndefined()
   })
 })

@@ -2256,6 +2256,14 @@ export class WorkspaceStore
     )
   }
 
+  /** Whether a terminal is closed into History (and not yet pruned or restored). */
+  closedExists(terminalId: string): boolean {
+    return (
+      this.queries.get`SELECT 1 AS found FROM closed_terminals WHERE id = ${terminalId}` !==
+      undefined
+    )
+  }
+
   worktree(path: string): WorktreeRecord | undefined {
     const row = this.queries.get`SELECT * FROM worktrees WHERE path = ${path}` as
       | WorktreeRow

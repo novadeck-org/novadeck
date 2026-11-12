@@ -40,7 +40,8 @@ export const workConflict = z.discriminatedUnion("with", [
 // now; `branch` its branch, null when detached;
 // `base` the main branch it's measured against (as `main` or `origin/main`); `firstSeenAt`
 // when it first differed from main, which orders the panel; the totals are its files' sums,
-// the unread ones what the person hasn't read. `truncated` when more files changed than
+// the unread ones what the person hasn't read. `fetchedAt` is when its repository's origin was
+// last fetched, so main is as old as that; absent when it never was. `truncated` when more files changed than
 // `files` lists.
 export const work = z.strictObject({
   root: directory,
@@ -50,6 +51,7 @@ export const work = z.strictObject({
   branch: z.string().min(1).max(workLimits.branch).nullable(),
   base: z.string().min(1).max(workLimits.branch),
   firstSeenAt: z.number(),
+  fetchedAt: z.number().optional(),
   added: count,
   removed: count,
   unreadAdded: count,

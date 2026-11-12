@@ -110,6 +110,8 @@ type Where = {
   readonly terminalId: string | null
   readonly root: string
   readonly working?: boolean
+  /** When its repository's origin was last fetched. */
+  readonly fetchedAt?: number
 }
 
 // A watch tells `synced` without the checkouts not read within 1.5 s, which three can take on a
@@ -135,11 +137,12 @@ afterEach(async () => {
 })
 
 // The row of a tracked worktree, as the runner's table gives it.
-const tracked = ({ terminalId, root }: Where): Tracked => ({
+const tracked = ({ terminalId, root, fetchedAt }: Where): Tracked => ({
   root,
   projectId: project,
   terminalId,
   createdAt: 50,
+  ...(fetchedAt !== undefined && { fetchedAt }),
 })
 
 // A Works over the worktrees `where` names, read as fast as the test needs.
@@ -219,6 +222,41 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
       conflicts: [],
       working: false,
     })
+  })
+
+  it("carries when origin was fetched where main is a remote-tracking ref, and nothing before it was", async ({
+    fixture,
+    resources,
+  }) => {
+    fixture.main.git("update-ref", "refs/remotes/origin/main", "HEAD")
+    fixture.main.git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+    const fetched = fixture.worktree("fetched")
+    const never = fixture.worktree("never")
+    const { works } = open(() => [
+      { terminalId: terminal(1), root: fetched.root, fetchedAt: 1_700_000_000_000 },
+      { terminalId: terminal(1), root: never.root },
+    ])
+    resources.defer(() => works.close())
+    const found = await current(works)
+    expect(found.get(fetched.root)).toMatchObject({
+      base: "origin/main",
+      fetchedAt: 1_700_000_000_000,
+    })
+    expect(found.get(never.root)).not.toHaveProperty("fetchedAt")
+  })
+
+  it("says nothing of a fetch where main is the local branch, which a fetch cannot move", async ({
+    fixture,
+    resources,
+  }) => {
+    const local = fixture.worktree("local")
+    const { works } = open(() => [
+      { terminalId: terminal(1), root: local.root, fetchedAt: 1_700_000_000_000 },
+    ])
+    resources.defer(() => works.close())
+    const found = await current(works)
+    expect(found.get(local.root)).toMatchObject({ base: "main" })
+    expect(found.get(local.root)).not.toHaveProperty("fetchedAt")
   })
 
   it("has no work for a checkout no worktree is tracked at", async ({ fixture, resources }) => {

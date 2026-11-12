@@ -1554,6 +1554,10 @@ describe("runner client works", () => {
     git(repo, "add", "-A")
     git(repo, "commit", "--quiet", "-m", "first")
     git(repo, "worktree", "add", "--quiet", "-b", "feat/x", worktree)
+    // Unmerged, as cleanup removes an orphaned worktree main holds all of.
+    await writeFile(join(worktree, "x.txt"), "x\n")
+    git(worktree, "add", "-A")
+    git(worktree, "commit", "--quiet", "-m", "work")
     // The runner of an earlier run left the table: an orphaned worktree of this project.
     const database = join(directory, "workspace.sqlite")
     const earlier = new WorkspaceStore(database)

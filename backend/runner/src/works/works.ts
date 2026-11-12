@@ -31,6 +31,8 @@ export type Tracked = {
   readonly terminalId: string | null
   /** When it was recorded, in epoch milliseconds: the time of a work that differs from nothing. */
   readonly createdAt: number
+  /** When its repository's origin was last fetched; undefined if never. */
+  readonly fetchedAt?: number | undefined
 }
 
 /** A running terminal, the git checkout it works in now (its top folder) and whether its agent is mid-turn. */
@@ -541,7 +543,7 @@ export class Works {
     const between = await this.between(reads)
     const owners = new Map(reads.map(({ root, terminalId }) => [root, terminalId]))
     const found = new Map<string, Work>()
-    for (const { root, terminalId, projectId, createdAt, read, remembered } of reads) {
+    for (const { root, terminalId, projectId, createdAt, fetchedAt, read, remembered } of reads) {
       const mine = between.get(root) ?? new Map<string, Set<string>>()
       const conflicting = new Set([
         ...(read.conflicts ?? []),
@@ -559,6 +561,8 @@ export class Works {
           ),
         branch: read.branch,
         base: read.base,
+        // Only a main that a fetch moves (a remote-tracking ref) is as old as the fetch.
+        ...(fetchedAt !== undefined && read.base.startsWith("origin/") && { fetchedAt }),
         firstSeenAt: remembered?.firstSeenAt ?? createdAt,
         added: listed.total.added,
         removed: listed.total.removed,
