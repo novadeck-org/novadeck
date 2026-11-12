@@ -553,6 +553,8 @@ export const contract = {
         z.strictObject({
           // The ref the uncommitted work was kept at, where there was any.
           kept: z.string().min(1).max(workLimits.path).optional(),
+          // The ref commits only a detached HEAD reached were kept at, where there were any.
+          keptHead: z.string().min(1).max(workLimits.path).optional(),
           branchDeleted: z.boolean(),
         }),
       ),

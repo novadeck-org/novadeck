@@ -327,11 +327,12 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       if (!shown.ok) throw new DomainError("NOT_FOUND", shown.reason)
       return shown.id
     },
-    // The person is the actor: whoever owns the worktree, it closes on their say.
+    // The person is the actor: whoever owns the worktree, it closes on their say, in the
+    // service's own queue, so it can't race an agent's take, give or close.
     remove: async (root, force) => {
       const row = worktrees.at(root)
       if (!row) return { ok: false, reason: "Novadeck no longer tracks that worktree." }
-      return worktrees.close(row, force)
+      return worktrees.remove(row, force)
     },
     snapshots,
     ...(memory !== undefined && { memory }),

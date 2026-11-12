@@ -170,7 +170,7 @@ const ChangeItem = ({
 // What the dialog asks about, and what it says is kept.
 const keptNotes = (row: ChangeRow): readonly string[] => [
   `Committed work stays on the branch ${row.branch}.`,
-  "Uncommitted work is kept on a ref (refs/novadeck/kept/) in the repository.",
+  "Uncommitted work, and commits only a detached HEAD reaches, are kept on a ref under refs/novadeck/kept/ in the repository.",
   "Ignored files, such as .env, are not kept.",
 ]
 

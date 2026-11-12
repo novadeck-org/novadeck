@@ -108,7 +108,7 @@ export class Worktrees {
   }
 
   /** The worktrees a terminal owns, oldest first. */
-  ownedBy(terminalId: string): readonly WorktreeRecord[] {
+  ownedRows(terminalId: string): readonly WorktreeRecord[] {
     return this.records.worktreesOfTerminal(terminalId)
   }
 

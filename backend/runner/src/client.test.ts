@@ -1567,6 +1567,7 @@ describe("runner client works", () => {
       projectId,
       terminalId: null,
       adopted: false,
+      branchMade: true,
       diverged: false,
       createdAt: 5,
     })
@@ -1604,7 +1605,7 @@ describe("runner client works", () => {
       code: "NOT_FOUND",
     })
     const closed = await client.works.close(worktree, true)
-    expect(closed.kept).toContain("refs/novadeck/kept/feat/x")
+    expect(closed.kept).toMatch(/^refs\/novadeck\/kept\/feat-x-work-/)
     expect(existsSync(worktree)).toBe(false)
     for (;;) {
       // eslint-disable-next-line no-await-in-loop -- Events arrive in order.

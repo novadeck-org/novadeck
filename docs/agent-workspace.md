@@ -508,10 +508,12 @@ with every safety check again at that time:
   `works.show({ root, terminalId })`). `working` says the owner's agent is mid-turn in this very
   worktree (its activity is working, or a shell command runs, and its current checkout is the
   worktree). The row's × calls `works.close({ root, force })`, which closes the worktree with the
-  person as the actor, through the worktrees service's removal (see "Worktrees": uncommitted work is
-  kept at `refs/novadeck/kept/<branch>`, the branch goes only when main holds all of it). The panel
+  person as the actor, through the worktrees service's removal (see "Worktrees": uncommitted work, and commits only a detached HEAD reaches, are kept on
+  `refs/novadeck/kept/` refs, and the branch goes only when Novadeck made it and main holds all of
+  it). The panel
   asks first when files differ from main (committed work stays on the branch, uncommitted work is
-  kept on a ref, ignored files like `.env` are not kept) and forces the close once confirmed; the ×
+  kept on a ref, ignored files like `.env` are not kept); the close is queued in the worktrees
+  service, so it can't race an agent's take, give or close and forces the close once confirmed; the ×
   waits while `working`, and the runner refuses it then too. A refusal (`CONFLICT`, with the
   service's reason, such as git status being unreadable) shows above the list. With no works the
   list says what appears there, and, with the switch off, to turn on Agent worktrees in Preferences →

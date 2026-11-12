@@ -42,7 +42,13 @@ export type Presence = {
 
 /** What closing a worktree comes to: see `Worktrees.close`. */
 export type Removal =
-  | { readonly ok: true; readonly kept?: string; readonly branchDeleted: boolean }
+  | {
+      readonly ok: true
+      readonly kept?: string
+      /** Where commits only a detached HEAD reached were kept. */
+      readonly keptHead?: string
+      readonly branchDeleted: boolean
+    }
   | { readonly ok: false; readonly reason: string }
 
 export type WorksOptions = {
@@ -240,7 +246,7 @@ export class Works {
   async closeWork(
     root: string,
     force: boolean,
-  ): Promise<{ kept?: string; branchDeleted: boolean }> {
+  ): Promise<{ kept?: string; keptHead?: string; branchDeleted: boolean }> {
     const work = await this.workOf(root)
     if (work.working)
       throw new DomainError(
@@ -256,6 +262,7 @@ export class Works {
     })
     return {
       ...(closed.kept !== undefined && { kept: closed.kept }),
+      ...(closed.keptHead !== undefined && { keptHead: closed.keptHead }),
       branchDeleted: closed.branchDeleted,
     }
   }

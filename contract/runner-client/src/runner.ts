@@ -460,7 +460,11 @@ export type Runner = {
     close(
       root: string,
       force?: boolean,
-    ): Promise<{ readonly kept?: string | undefined; readonly branchDeleted: boolean }>
+    ): Promise<{
+      readonly kept?: string | undefined
+      readonly keptHead?: string | undefined
+      readonly branchDeleted: boolean
+    }>
   }
   /**
    * What agents show and the person attaches beside terminals: items, each held by a

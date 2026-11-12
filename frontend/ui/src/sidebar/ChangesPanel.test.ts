@@ -124,7 +124,10 @@ describe("the × on a row", () => {
     const text = dialog()!.textContent!
     expect(text).toContain("Close this worktree?")
     expect(text).toContain("Committed work stays on the branch feat/a.")
-    expect(text).toContain("Uncommitted work is kept on a ref")
+    expect(text).toContain(
+      "Uncommitted work, and commits only a detached HEAD reaches, are kept on a ref",
+    )
+    expect(text).toContain("refs/novadeck/kept/")
     expect(text).toContain("Ignored files, such as .env, are not kept.")
     act(() => answer("Close worktree").click())
     expect(onCloseWork).toHaveBeenCalledWith("/w/a", true)

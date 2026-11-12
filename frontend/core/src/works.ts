@@ -79,7 +79,12 @@ export type Works = {
 
 // What closing a worktree kept: the ref its uncommitted work went to, if it had any, and
 // whether its branch went too (only when main held all of it).
-export type WorkClosed = { readonly kept?: string | undefined; readonly branchDeleted: boolean }
+export type WorkClosed = {
+  readonly kept?: string | undefined
+  // Where commits only a detached HEAD reached were kept, if there were any.
+  readonly keptHead?: string | undefined
+  readonly branchDeleted: boolean
+}
 
 // Whether the work has lines the person hasn't read.
 export const unread = (work: Work): boolean => work.unreadAdded + work.unreadRemoved > 0
