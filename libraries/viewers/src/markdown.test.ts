@@ -189,8 +189,7 @@ describe("the markdown viewer", () => {
     first.pane.dispatchEvent(new WheelEvent("wheel"))
     first.pane.scrollTop = 1200
     await expect.poll(() => first.pane.scrollTop).toBe(1200)
-    // The viewer notes where it is as the scroller scrolls.
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    // Taken at once, before the scroll's event: the state notes where the scroller is.
     const saved = first.viewer.state()
     first.viewer.destroy()
     viewers.splice(viewers.indexOf(first.viewer), 1)

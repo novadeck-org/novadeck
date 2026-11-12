@@ -963,11 +963,10 @@ describe("a setup command's retries", () => {
 })
 
 describe("the test browser's install, where a job makes it", () => {
-  // Quality's test jobs, the Counter run, the setup action (Nightly Quality's) and Warm Caches
-  // each install the browser alone where its cache missed, then its system packages on Linux
-  // through the browser-packages action.
+  // The Counter run, the setup action (Quality's test jobs' and Nightly Quality's) and Warm
+  // Caches each install the browser alone where its cache missed, then its system packages on
+  // Linux through the browser-packages action.
   const places = [
-    [".github/workflows/quality.yml", "matrix.browser", " && runner.os == 'Linux'"],
     [".github/workflows/benchmark.yml", "steps.changes.outputs.counts == 'true'", ""],
     [".github/actions/setup/action.yml", "inputs.browser == 'true'", " && runner.os == 'Linux'"],
   ] as const
@@ -1002,6 +1001,15 @@ describe("the test browser's install, where a job makes it", () => {
       expect(yaml).not.toContain("playwright install-deps chromium")
     },
   )
+
+  // Quality's test jobs make no install of their own: they ask the setup action for a browser.
+  it("has Quality's test jobs take the browser from the setup action", () => {
+    const quality = read(".github/workflows/quality.yml")
+    expect(quality).toContain("uses: ./.github/actions/setup")
+    expect(quality).toContain("browser: ${{ matrix.browser || false }}")
+    expect(quality).not.toContain("- name: Install Test Browser")
+    expect(quality).not.toContain("uses: ./.github/actions/browser-packages")
+  })
 
   // A pull request reads main's caches, never another's: Warm Caches fills the debs' on main.
   it("has Warm Caches fill the packages' cache on main, on Linux", () => {

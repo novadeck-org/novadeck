@@ -152,7 +152,7 @@ runs:
       # Without the browser packages' fail-fast apt settings, should a cancelled step have left them.
       run: |
         sudo rm -f /etc/apt/apt.conf.d/99novadeck-fail-fast
-        sudo timeout 120 sh -c 'apt-get update -qq && apt-get install -y --no-install-recommends fish'
+        sudo timeout --kill-after=10s 120 sh -c 'apt-get update -qq && apt-get install -y --no-install-recommends fish'
 
     - name: Warn That fish Is Missing
       if: inputs.fish == 'true' && runner.os == 'Linux' && steps.fish.outcome != 'success'

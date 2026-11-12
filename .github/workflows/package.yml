@@ -143,6 +143,8 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || inputs.source_sha }}
 
+      # Inline, not .github/actions/setup: this checks out the source it packages, so a local
+      # action would be read from that commit, which may be older than the action.
       - name: Set Up Toolchain
         id: toolchain
         continue-on-error: true

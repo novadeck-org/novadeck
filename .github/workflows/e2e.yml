@@ -80,28 +80,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set Up Toolchain
-        id: toolchain
-        continue-on-error: true
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
-        with:
-          runtime: node@26
-          cache: true
-          require-lockfile: true
-
-      # An immediate retry hit the same registry outage in the flake audit.
-      - name: Wait Before Retrying Toolchain
-        if: steps.toolchain.outcome == 'failure'
-        shell: bash
-        run: sleep 180
-
-      - name: Set Up Toolchain Again
-        if: steps.toolchain.outcome == 'failure'
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
-        with:
-          runtime: node@26
-          cache: true
-          require-lockfile: true
+      # The toolchain, with its retry (.github/actions/setup).
+      - name: Set Up
+        uses: ./.github/actions/setup
 
       - name: Plan Jobs
         id: plan
@@ -150,28 +131,9 @@ jobs:
       - name: Check Out Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set Up Toolchain
-        id: toolchain
-        continue-on-error: true
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
-        with:
-          runtime: node@26
-          cache: true
-          require-lockfile: true
-
-      # An immediate retry hit the same registry outage in the flake audit.
-      - name: Wait Before Retrying Toolchain
-        if: steps.toolchain.outcome == 'failure'
-        shell: bash
-        run: sleep 180
-
-      - name: Set Up Toolchain Again
-        if: steps.toolchain.outcome == 'failure'
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
-        with:
-          runtime: node@26
-          cache: true
-          require-lockfile: true
+      # The toolchain, with its retry (.github/actions/setup).
+      - name: Set Up
+        uses: ./.github/actions/setup
 
       # Pinned harnesses are cached each on its own, by its pin and the installer, so the job
       # of one harness and the mixed job share them; a run against latest installs fresh. A
@@ -406,28 +368,9 @@ jobs:
       - name: Check Out Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set Up Toolchain
-        id: toolchain
-        continue-on-error: true
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
-        with:
-          runtime: node@26
-          cache: true
-          require-lockfile: true
-
-      # An immediate retry hit the same registry outage in the flake audit.
-      - name: Wait Before Retrying Toolchain
-        if: steps.toolchain.outcome == 'failure'
-        shell: bash
-        run: sleep 180
-
-      - name: Set Up Toolchain Again
-        if: steps.toolchain.outcome == 'failure'
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
-        with:
-          runtime: node@26
-          cache: true
-          require-lockfile: true
+      # The toolchain, with its retry (.github/actions/setup).
+      - name: Set Up
+        uses: ./.github/actions/setup
 
       # The e2e jobs' caches, restored only: those jobs save them.
       - name: Restore Harness
@@ -526,28 +469,9 @@ jobs:
       - name: Check Out Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set Up Toolchain
-        id: toolchain
-        continue-on-error: true
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
-        with:
-          runtime: node@26
-          cache: true
-          require-lockfile: true
-
-      # An immediate retry hit the same registry outage in the flake audit.
-      - name: Wait Before Retrying Toolchain
-        if: steps.toolchain.outcome == 'failure'
-        shell: bash
-        run: sleep 180
-
-      - name: Set Up Toolchain Again
-        if: steps.toolchain.outcome == 'failure'
-        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
-        with:
-          runtime: node@26
-          cache: true
-          require-lockfile: true
+      # The toolchain, with its retry (.github/actions/setup).
+      - name: Set Up
+        uses: ./.github/actions/setup
 
       # The e2e jobs' caches, restored only: those jobs save them.
       - name: Restore Harness

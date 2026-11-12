@@ -149,6 +149,8 @@ export const mountMarkdown: Mount<MarkdownContent, MarkdownOptions, MarkdownView
 
   const followers: Followers = { onEdit, scroll: null, restoring: null }
   let stopFollowing = nothing
+  // Notes where the scroller is now, while it's followed: not while a restore still places it.
+  let noteNow = nothing
   let stopRestore = nothing
   let closing = false
   let taking = editable
@@ -185,6 +187,7 @@ export const mountMarkdown: Mount<MarkdownContent, MarkdownOptions, MarkdownView
   const begin = (from: MarkdownState["markdown"] | undefined): void => {
     stopRestore()
     stopFollowing()
+    noteNow = nothing
     followers.restoring = null
     followers.scroll = from?.scroll ?? null
     // A state saved by another viewer takes this one's behaviour.
@@ -193,9 +196,11 @@ export const mountMarkdown: Mount<MarkdownContent, MarkdownOptions, MarkdownView
     const follow = (): void => {
       // A restore ended by closing leaves the place it was restoring to.
       if (closing) return
-      stopFollowing = followScroll(view, (at) => {
+      const following = followScroll(view, (at) => {
         followers.scroll = at
       })
+      stopFollowing = following.stop
+      noteNow = following.note
     }
     if (followers.scroll) {
       followers.restoring = restoreScroll(view, () => followers.scroll, follow)
@@ -213,10 +218,13 @@ export const mountMarkdown: Mount<MarkdownContent, MarkdownOptions, MarkdownView
 
   return {
     update: sync,
-    state: () =>
-      ({
+    state: () => {
+      // A scroll whose event hasn't come yet counts: a state taken right after it keeps it.
+      noteNow()
+      return {
         markdown: { state: view.state, scroll: followers.scroll },
-      }) satisfies MarkdownState as unknown as ViewerState,
+      } satisfies MarkdownState as unknown as ViewerState
+    },
     // Takes the saved history, selection and place, and keeps the content the viewer has:
     // what differs applies as an outside change, as `update()`'s does, so the app hears
     // nothing and nothing it changed meanwhile is lost.
@@ -251,6 +259,7 @@ export const mountMarkdown: Mount<MarkdownContent, MarkdownOptions, MarkdownView
     },
     destroy: () => {
       closing = true
+      noteNow = nothing
       stopRestore()
       stopJump(view)
       stopFollowing()
