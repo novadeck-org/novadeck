@@ -39,6 +39,8 @@ export type InstallOptions = {
   readonly cmdShim?: string
   /** For tests: how to tell whether cmd prints (the machine's own check by default). */
   readonly prints?: typeof cmdPrints
+  /** Where agents' worktrees live, for the shims to pass on (`~/.novadeck/worktrees` by default). */
+  readonly worktrees?: string
   /** For tests: the platform to write the files for, and how a path is shortened. */
   readonly platform?: NodeJS.Platform
   readonly short?: (path: string) => Promise<string>
@@ -48,6 +50,11 @@ export type InstallOptions = {
  * Writes the shell integration, hook, relay and agent plugins into Novadeck's own
  * directory, each only when it changed, replacing it whole so a shell starting at that
  * moment reads the old or the new file.
+ *
+ * It is also how the shell files are rewritten on demand: it is safe to call again, and
+ * changes only what differs. Antigravity's Windows shim exists only while the worktrees
+ * folder does, so whoever first creates that folder calls this right after (the runner's
+ * `rewriteShellFiles`), and the next shell finds the shim.
  */
 export const installShellFiles = async (
   directory: string,
@@ -55,6 +62,7 @@ export const installShellFiles = async (
     relay = relayPath,
     cmdShim = join(dirname(relay), cmdShimName),
     prints: printing = cmdPrints,
+    worktrees,
     platform = process.platform,
     short = shortName,
   }: InstallOptions = {},
@@ -96,12 +104,15 @@ export const installShellFiles = async (
           : ""
       } It looks again at the next start.`,
     )
-  // A shim a start left while cmd printed is gone once it no longer applies.
-  if (!covered) await rm(join(paths.bin, "agy.cmd"), { force: true })
-  for (const file of shellFiles(paths, platform, undefined, {
+  const files = shellFiles(paths, platform, undefined, {
     cmdPrints: prints !== undefined,
+    ...(worktrees !== undefined && { worktreesRoot: worktrees }),
     ...(cmdShimDir !== undefined && { cmdShimDir }),
-  })) {
+  })
+  // Antigravity's Windows shim a start left is gone once nothing needs it.
+  if (!files.some((file) => file.path === join(paths.bin, "agy.cmd")))
+    await rm(join(paths.bin, "agy.cmd"), { force: true })
+  for (const file of files) {
     // eslint-disable-next-line no-await-in-loop -- A few small files, one after another.
     await mkdir(dirname(file.path), { recursive: true, mode: 0o700 })
     // eslint-disable-next-line no-await-in-loop -- Unchanged files are left alone.

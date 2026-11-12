@@ -51,6 +51,7 @@ import { mentionOf, Transcript, type PeerLooks } from "./Transcript"
 import { currentPrompt, logPadding, scrollFor, startBefore, startRows } from "./turn-holds"
 import { useBoxReturn } from "./use-box-return"
 import { useMounted } from "./use-mounted"
+import { useTranscriptMotion } from "./use-transcript-motion"
 import { useTurnHold } from "./use-turn-hold"
 
 const noShells: readonly SentShell[] = []
@@ -261,6 +262,7 @@ export const ChatView = ({
   const heldId = turns.held?.id ?? null
   const peeking = peek !== null && peek === heldId
   const thread = useRef<HTMLDivElement>(null)
+  useTranscriptMotion(thread, session, loaded)
   // Following the end: true while the person is at it, so new text keeps in view and
   // scrolling up lets go.
   const following = useRef(true)

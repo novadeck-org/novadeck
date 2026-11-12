@@ -1,4 +1,5 @@
 import { header } from "@novadeck/harness-core/header"
+import { cmdAdd, posixAdd } from "@novadeck/harness-core/shim-root"
 
 // Claude Code's commands other than a session, which a status line has no part in.
 export const commands = [
@@ -81,11 +82,15 @@ export const many = [
 
 // While Claude Code is connected, Novadeck's shells run it through this shim, which adds
 // Novadeck's settings: a status line that tells Novadeck the session's rate limits and
-// context, then shows the person's own status line. Its other commands, and anything
-// outside Novadeck's shells, run unchanged.
-export const posixShim = `#!/bin/sh
+// context, then shows the person's own status line. It also passes --add-dir for the folder
+// where agents' worktrees live, once that exists, so the session may write there as in its
+// own folder; it never passes a second --settings, which would replace the first.
+// Its other commands, and anything outside Novadeck's shells, run unchanged.
+export const posixShim = (root?: string): string => `#!/bin/sh
 ${header("#", "shim for claude")}
-# Runs the real claude with Novadeck's status line, which passes on the person's own.
+# Runs the real claude with Novadeck's status line, which passes on the person's own, and with
+# access to the folder where agents' worktrees live.
+${posixAdd(root)}
 novadeck_real=
 novadeck_ifs=$IFS
 IFS=:
@@ -110,7 +115,8 @@ fi
 [ -n "\${NOVADECK_TERMINAL_ID:-}" ] || exec "$novadeck_real" "$@"
 case " \${NOVADECK_SHIMS:-} " in *" claude "*) ;; *) exec "$novadeck_real" "$@" ;; esac
 novadeck_settings=$(dirname "$0")/../plugins/claude/statusline.json
-[ -f "$novadeck_settings" ] || exec "$novadeck_real" "$@"
+[ -f "$novadeck_settings" ] || novadeck_settings=
+[ -n "$novadeck_settings$novadeck_add" ] || exec "$novadeck_real" "$@"
 novadeck_value=
 novadeck_list=
 for novadeck_arg in "$@"; do
@@ -132,7 +138,7 @@ for novadeck_arg in "$@"; do
     *) break ;;
   esac
 done
-exec "$novadeck_real" --settings "$novadeck_settings" "$@"
+exec "$novadeck_real" \${novadeck_settings:+--settings "$novadeck_settings"} \${novadeck_add:+"$novadeck_add"} "$@"
 `
 
 // The same on Windows, as Codex's (`harnesses/codex/src/shim.ts`): `where` lists matches in PATH
@@ -150,9 +156,10 @@ exec "$novadeck_real" --settings "$novadeck_settings" "$@"
 // And `%*` ends its line: after an odd count of quotes, the rest of that line is in quotes too.
 // The walk stays out of a `call`, which reads `%*` a second time: `/?` would print its help, `%~`
 // an error, and a `%` could uncover a `&`. `shift` leaves `%*` as it was, for the line that runs it.
-export const cmdShim = `@echo off
+export const cmdShim = (root?: string): string => `@echo off
 ${header("rem", "shim for claude")}
-rem Runs the real claude with Novadeck's status line, which passes on the person's own.
+rem Runs the real claude with Novadeck's status line, which passes on the person's own, and with
+rem access to the folder where agents' worktrees live.
 setlocal
 set "novadeck_real="
 for /f "delims=" %%i in ('where $PATH:claude 2^>nul') do call :consider "%%~fi"
@@ -163,8 +170,11 @@ if not defined novadeck_real (
 if not defined NOVADECK_TERMINAL_ID goto plain
 rem Only while Claude Code is connected: Novadeck's shells name the harnesses whose shims apply.
 echo " %NOVADECK_SHIMS% " | findstr /c:" claude " >nul || goto plain
+${cmdAdd(root)}
 set "novadeck_settings=%~dp0..\\plugins\\claude\\statusline.json"
-if not exist "%novadeck_settings%" goto plain
+set "novadeck_with="
+if exist "%novadeck_settings%" set novadeck_with=--settings "%novadeck_settings%"
+if not defined novadeck_with if not defined novadeck_add goto plain
 rem The first word that isn't an option or an option's value may be another command.
 :command
 set novadeck_arg=""%1
@@ -209,7 +219,7 @@ shift
 goto more
 :session
 set "novadeck_arg="
-"%novadeck_real%" --settings "%novadeck_settings%" %*
+"%novadeck_real%" %novadeck_with% %novadeck_add% %*
 exit /b %ERRORLEVEL%
 :plain
 "%novadeck_real%" %*

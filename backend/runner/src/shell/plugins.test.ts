@@ -28,7 +28,9 @@ const it = base.extend<{ plugins: Fixture }>({
   plugins: async ({ resources }, use) => {
     const root = mkdtempSync(join(tmpdir(), "novadeck-plugins-"))
     resources.defer(() => rmSync(root, { recursive: true, force: true }))
-    const paths = await installShellFiles(join(root, "shell"))
+    const paths = await installShellFiles(join(root, "shell"), {
+      worktrees: join(root, "worktrees"),
+    })
     const log = join(root, "launched.json")
     const recorder = join(root, "record.cjs")
     writeFileSync(
@@ -229,7 +231,9 @@ describe.runIf(windows)("the hook launcher on Windows", () => {
   it("is named without spaces or brackets, so cmd runs it unquoted", async ({ resources }) => {
     const root = mkdtempSync(join(tmpdir(), "novadeck plugins ("))
     resources.defer(() => rmSync(root, { recursive: true, force: true }))
-    const paths = await installShellFiles(join(root, "shell"))
+    const paths = await installShellFiles(join(root, "shell"), {
+      worktrees: join(root, "worktrees"),
+    })
     expect(paths.launcher).toMatch(/^[\w.:\\~-]+$/)
   })
 })
@@ -353,7 +357,9 @@ describe("Novadeck's MCP server in each agent's plugin", () => {
         join(tmpdir(), windows ? "novadeck Jo Doe (x) " : `novadeck it's "$x" `),
       )
       resources.defer(() => rmSync(root, { recursive: true, force: true }))
-      const paths = await installShellFiles(join(root, "shell"))
+      const paths = await installShellFiles(join(root, "shell"), {
+        worktrees: join(root, "worktrees"),
+      })
       const { command, args } = server(paths.plugins.claude, join("novadeck", ".mcp.json"))
       const result = spawnSync(command, args ?? [], {
         env: outside(),

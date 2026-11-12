@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest"
 
 import { agy } from "./index.js"
-import { makeCmdShim } from "./shim.js"
+import { makeCmdShim, posixShim } from "./shim.js"
 
 const dir = "C:\\NOVADE~1\\shell\\agy-cmd"
-const shim = makeCmdShim(dir)
+const shim = makeCmdShim({ cmdShimDir: dir })
 
 describe("the Windows shim", () => {
   it("looks for the real agy on PATH only, never in the current folder where cmd looks first", () => {
@@ -37,14 +37,31 @@ describe("the Windows shim", () => {
 })
 
 describe("where Antigravity gets a shim", () => {
-  it("is Windows only, and only where Novadeck's cmd.exe pass-through is installed", () => {
+  it("is always on Linux and macOS, and on Windows only where it is needed", () => {
     expect(agy.shims("win32", { cmdPrints: true, cmdShimDir: dir })).toEqual([
       { path: "agy.cmd", content: shim },
     ])
-    // cmd printing without a verified pass-through, and cmd printing nothing, get none.
-    expect(agy.shims("win32", { cmdPrints: true })).toEqual([])
+    // A batch file in place of agy.exe only where it is needed.
     expect(agy.shims("win32")).toEqual([])
+    expect(agy.shims("win32", { worktreesRoot: "C:\\w", worktreesPresent: false })).toEqual([])
+    const plain = agy.shims("win32", { worktreesRoot: "C:\\w", worktreesPresent: true })
+    expect(plain.map((file) => file.path)).toEqual(["agy.cmd"])
+    expect(plain[0]?.content).not.toContain('set "PATH=')
     for (const platform of ["linux", "darwin"] as const)
-      expect(agy.shims(platform, { cmdShimDir: dir })).toEqual([])
+      expect(agy.shims(platform, { cmdShimDir: dir }).map((file) => file.path)).toEqual(["agy"])
+  })
+
+  it("passes the folder of agents' worktrees on, once it exists", () => {
+    const root = "C:\\Users\\x\\.novadeck\\worktrees"
+    const cmd = makeCmdShim({ cmdShimDir: dir, root })
+    expect(cmd).toContain(`set "novadeck_root=${root}"`)
+    expect(cmd).toContain(
+      'if exist "%novadeck_root%\\" set novadeck_add=--add-dir="%novadeck_root%"',
+    )
+    expect(cmd).toContain('"%novadeck_real%" %novadeck_add% %*')
+    const posix = posixShim("/home/it's/.novadeck/worktrees")
+    expect(posix).toContain(`novadeck_root='/home/it'\\''s/.novadeck/worktrees'`)
+    expect(posix).toContain('[ -d "$novadeck_root" ]')
+    expect(posixShim()).toContain("novadeck_root=\n")
   })
 })

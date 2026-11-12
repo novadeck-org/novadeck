@@ -164,11 +164,6 @@ describe("decoding captured hooks", () => {
   })
 })
 
-const shimmed = (platform: NodeJS.Platform) =>
-  Object.values(harnesses)
-    .filter((harness) => (harness.shims?.(platform) ?? []).length > 0)
-    .map(({ id }) => id)
-
 describe("the harness registry", () => {
   it("resumes each harness's session by its own command", () => {
     expect(harnesses.claude.launch.resume?.("s")).toEqual(["claude", "--resume", "s"])
@@ -246,12 +241,7 @@ describe("the harness registry", () => {
     expect(harnesses.codex.launch.resumed("a", seen("a", false))).toBe("worked")
   })
 
-  it("gives Claude Code and Codex a shim everywhere", () => {
-    expect(shimmed("linux")).toEqual(["claude", "codex"])
-    expect(shimmed("win32")).toEqual(["claude", "codex"])
-  })
-
-  it("gives Antigravity a shim on Windows alone, where the cmd.exe pass-through is installed", () => {
+  it("gives all three harnesses a shim on every platform", () => {
     const withShim = (platform: NodeJS.Platform) =>
       Object.values(harnesses)
         .filter(
@@ -261,8 +251,8 @@ describe("the harness registry", () => {
         )
         .map(({ id }) => id)
     expect(withShim("win32")).toEqual(["claude", "codex", "agy"])
-    expect(withShim("linux")).toEqual(["claude", "codex"])
-    expect(withShim("darwin")).toEqual(["claude", "codex"])
+    expect(withShim("linux")).toEqual(["claude", "codex", "agy"])
+    expect(withShim("darwin")).toEqual(["claude", "codex", "agy"])
   })
 })
 
