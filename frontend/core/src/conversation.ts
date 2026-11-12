@@ -50,6 +50,14 @@ export type ToolOutcome = {
   readonly opening: boolean
 }
 
+// An image the person's prompt carried, as its record holds it: not its bytes, but what
+// `Conversations.image` finds the picture again by, with its media type where the record says one.
+export type ChatImage = {
+  readonly offset: number
+  readonly index: number
+  readonly mime: string | null
+}
+
 // One record of the conversation, in the order its harness wrote it: the person's or the
 // agent's text, another agent's message to it (`author` names that agent, in its
 // harness's words), a tool call with its input as text (often JSON), or a tool's result,
@@ -91,6 +99,9 @@ export type ChatItem = {
     | { readonly type: "compaction" }
     | { readonly type: "gap" }
     | undefined
+  // On a user item, the images the prompt carried, in the order of their `[Image #N]`
+  // placeholders in its words; absent where it had none or its record doesn't hold them.
+  readonly images?: readonly ChatImage[] | undefined
 }
 
 // What a request's dialog in the agent's TUI offers, as the backend read it, so the chat
@@ -389,6 +400,10 @@ export type Conversations = {
       readonly at?: readonly number[]
     },
   ) => Promise<SendResult | void>
+  // The picture of a prompt image a recorded item lists (`ChatItem.images`), as a data URL, or
+  // null where it can't be shown (swept, moved, too large, refused). Absent where the backend
+  // can't find one again. Rejects with an Error where it couldn't ask.
+  readonly image?: (key: TerminalKey, image: ChatImage) => Promise<string | null>
   // Saves an image the person pasted on the agent's machine, which may not be this one, and
   // resolves with its path there, for `send`'s `images`. Absent where the backend takes no
   // images: the chat refuses a paste of one. Rejects with an Error whose message says why.

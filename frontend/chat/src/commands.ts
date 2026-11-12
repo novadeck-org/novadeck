@@ -46,6 +46,7 @@ import {
 import {
   chatReplySendOf,
   chatSendsOf,
+  keepRecordedImages,
   keepSentImages,
   keptImageAt,
   setChatSends,
@@ -319,7 +320,9 @@ export const createChatCommands = ({
           contextOf(key),
           key.terminalId,
         )
-        releaseImages(
+        // The record holds them now: their previews stay for its thumbnails, as long as it has room.
+        keepRecordedImages(
+          ref,
           own.images.filter((image) => !held.some((each) => each.preview === image.preview)),
         )
       }

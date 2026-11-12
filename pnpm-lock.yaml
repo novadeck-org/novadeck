@@ -478,6 +478,9 @@ importers:
       '@novadeck/toolkit':
         specifier: workspace:*
         version: link:../toolkit
+      '@novadeck/viewers':
+        specifier: workspace:*
+        version: link:../../libraries/viewers
       lucide-react:
         specifier: ^1.64.0
         version: 1.64.0(@types/react@19.3.0)(react@19.3.1)

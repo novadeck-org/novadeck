@@ -79,6 +79,11 @@ const setup = () => {
       transcripts[actor] = next
       return next.iterator
     }),
+    transcriptImage: vi.fn<ConversationStreams["transcriptImage"]>(async () => ({
+      state: "ready",
+      mime: "image/png",
+      src: "data:image/png;base64,AAAA",
+    })),
     prompt: vi.fn<ConversationStreams["prompt"]>(async (_terminal, _text, options) => ({
       ref: options?.ref ?? "runner-picked-ref",
       tracked: true,
@@ -531,6 +536,19 @@ describe("the runner's conversations", () => {
       expect(store.getSnapshot().items.map((each) => each.text)).toEqual(["text 0", "again"])
     })
 
+    it("carry the images a prompt listed, and none an item lacks", async () => {
+      const { details, transcripts, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      const images = [{ offset: 90, index: 0, mime: "image/png" }]
+      transcripts[root]!.push(batch({ ...item(0), images }, item(1)))
+      await settle()
+      const [first, second] = store.getSnapshot().items
+      expect(first!.images).toEqual(images)
+      expect(second).not.toHaveProperty("images")
+    })
+
     it("update once per batch, as immutable snapshots", async () => {
       const { details, transcripts, store } = setup()
       const listener = vi.fn<() => void>()
@@ -754,6 +772,45 @@ describe("the runner's conversations", () => {
       transcripts[root]!.end()
       await settle()
       expect(store.getSnapshot()).toMatchObject({ loaded: true, items: [] })
+    })
+  })
+
+  describe("a prompt's images", () => {
+    const image = { offset: 90, index: 1, mime: null }
+    const opened = async () => {
+      const made = setup()
+      made.store.subscribe(() => {})
+      made.details.push(detail())
+      await settle()
+      return made
+    }
+
+    it("are asked of the runner by the conversation's session, offset and index, and answered as a data URL", async () => {
+      const { conversations, streams, store } = await opened()
+      await expect(conversations.image?.(key, image)).resolves.toBe("data:image/png;base64,AAAA")
+      expect(streams.transcriptImage).toHaveBeenCalledWith("t", {
+        sessionId: store.getSnapshot().session,
+        offset: 90,
+        index: 1,
+      })
+      expect(store.getSnapshot().session).not.toBeNull()
+    })
+
+    it("are none where the runner has no picture", async () => {
+      const { conversations, streams } = await opened()
+      streams.transcriptImage.mockResolvedValueOnce({ state: "unavailable", reason: "too-large" })
+      await expect(conversations.image?.(key, image)).resolves.toBeNull()
+    })
+
+    it("fail where the runner could not be asked, the session moved on or none is open, for the chat to ask again", async () => {
+      const { conversations, streams } = await opened()
+      streams.transcriptImage.mockRejectedValueOnce(new WireError("DISCONNECTED"))
+      await expect(conversations.image?.(key, image)).rejects.toThrow("couldn't show it")
+      streams.transcriptImage.mockRejectedValueOnce(new WireError("NOT_FOUND"))
+      await expect(conversations.image?.(key, image)).rejects.toThrow("couldn't show it")
+      const idle = setup()
+      await expect(idle.conversations.image?.(key, image)).rejects.toThrow("isn't open")
+      expect(idle.streams.transcriptImage).not.toHaveBeenCalled()
     })
   })
 

@@ -303,4 +303,25 @@ export const codexVocabulary: readonly Written[] = [
       ]),
     ],
   },
+  {
+    // A prompt that carried images: each between tags naming its file, the words holding its
+    // place (`[Image #N]`).
+    name: "image-prompts",
+    records: [
+      item({
+        type: "message",
+        role: "user",
+        content: [
+          { type: "input_text", text: '<image name=[Image #1] path="/work/a.png">' },
+          { type: "input_image", image_url: "data:image/png;base64,AAAA" },
+          { type: "input_text", text: "</image>" },
+          { type: "input_text", text: '<image name=[Image #2] path="/work/b.jpg">' },
+          { type: "input_image", image_url: "data:image/jpeg;base64,BBBB" },
+          { type: "input_text", text: "</image>" },
+          { type: "input_text", text: "Compare [Image #1] with [Image #2]" },
+        ],
+      }),
+      replied("They differ in the header."),
+    ],
+  },
 ]

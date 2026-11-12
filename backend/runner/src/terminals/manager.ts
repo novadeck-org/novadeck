@@ -91,6 +91,7 @@ import { StartupWatch } from "./startup-watch.js"
 import { Streams } from "./streams.js"
 import { noAgent, summaryOf, type AgentSummary } from "./summary.js"
 import { openedWith, renamed as renamedTo, summaryTitle, unnamed, type Naming } from "./titles.js"
+import { transcriptImage } from "./transcript-images.js"
 import { followTranscript } from "./transcripts.js"
 import { Typing, type InterruptInput, type Prompted, type PromptInput } from "./typing.js"
 
@@ -1651,6 +1652,12 @@ export class Terminals {
   ): AsyncGenerator<TranscriptChange> {
     if (this.stopping) throw new DomainError("CLOSING")
     yield* followTranscript(this.record(terminalId), actor, signal)
+  }
+
+  /** A prompt image of the terminal's session, found in its transcript (see `transcript-images.ts`). */
+  transcriptImage(terminalId: string, image: { sessionId: string; offset: number; index: number }) {
+    if (this.stopping) throw new DomainError("CLOSING")
+    return transcriptImage(this.record(terminalId), image)
   }
 
   ack(input: { terminalId: string; sequence: number }, ownerId: string): void {

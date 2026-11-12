@@ -353,6 +353,11 @@ Agents:
   from an older runner (check the terminal). Arm the next Stop to fail as the runner's does
   when the words queued behind the turn stay in the box (with Open terminal), or when a
   request waits (answer it first).
+- **Chat: pictures of recorded prompts:** how the thumbnails of a prompt's images come, for the
+  pictures not asked for yet: found (as the demo has them: the content preview's first prompt
+  has two, and an image pasted into any demo chat shows as pasted once the prompt is
+  recorded), gone (boxes naming each `[Image #N]`), slow (quiet boxes for 6 s) or unreachable
+  (the boxes, asked again when the row is drawn again). Click a thumbnail to see it larger.
 - **Plan:** only in the `showcase` variant, on the selected terminal's agent (Build Studio or
   the auth agent), for what happens to a plan the person has edited. "Plan in the agent's
   messages" makes it read-only; "Plan file deleted" shows that its file is gone, with the

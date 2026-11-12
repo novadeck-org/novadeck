@@ -6,7 +6,7 @@ import { transcripts as agy } from "@novadeck/harness-agy/transcripts"
 import { transcripts as claude } from "@novadeck/harness-claude/transcripts"
 import { transcripts as codex } from "@novadeck/harness-codex/transcripts"
 import type { TranscriptDecoder, TranscriptEntry } from "@novadeck/harness-core/harness"
-import { transcriptItem } from "@novadeck/protocol"
+import { transcriptItem, type TranscriptItem } from "@novadeck/protocol"
 import type { AgentName } from "@novadeck/protocol/harnesses"
 import { withBatch } from "@novadeck/runner-adapter/conversations"
 import { render } from "@novadeck/test-kit/render"
@@ -24,12 +24,28 @@ const session = "contract"
 // The chat items of a conversation: each record line through its harness's decoder, the
 // entries given the index the runner gives them and parsed by the protocol's strict schema,
 // and mapped by the runner adapter.
-export const chatItemsOf = (harness: AgentName, lines: readonly string[]): readonly ChatItem[] =>
-  chatItemsFrom(lines.flatMap((line) => transcriptsOf[harness].items(line)))
+export const chatItemsOf = (harness: AgentName, lines: readonly string[]): readonly ChatItem[] => {
+  // As the runner tells where a line ends, which an item's images are found again by.
+  let end = 0
+  return chatItemsFrom(
+    lines.flatMap((line) => {
+      end += Buffer.byteLength(line) + 1
+      return transcriptsOf[harness].items(line).map((entry) => withOffset(entry, end))
+    }),
+  )
+}
+
+// An entry as the runner sends it: its images told where their line ends.
+const withOffset = (entry: TranscriptEntry, offset: number): Omit<TranscriptItem, "index"> => {
+  const { images, ...rest } = entry
+  return { ...rest, ...(images && { images: images.map((each) => ({ ...each, offset })) }) }
+}
 
 // The chat items of a transcript's entries, as the runner numbers and sends them, whether a
 // harness's decoder read them or the runner joined one of its own.
-export const chatItemsFrom = (entries: readonly TranscriptEntry[]): readonly ChatItem[] => {
+export const chatItemsFrom = (
+  entries: readonly (TranscriptEntry | Omit<TranscriptItem, "index">)[],
+): readonly ChatItem[] => {
   const batch = entries.map((entry, index) => transcriptItem.parse({ ...entry, index }))
   return withBatch([], session, batch)
 }
@@ -190,6 +206,14 @@ const lineOf = (block: Element): { line: string; rows: number } => {
     const words = block.cloneNode(true) as Element
     words.querySelector(".chat-author")?.remove()
     return { line: `agent (${from}): ${textOf(words)}`, rows: 0 }
+  }
+  // The person's words with the images the record lists for them, each by the name it shows
+  // (its thumbnail has no picture to draw here: nothing asks a backend).
+  const pictures = block.querySelector(".chat-images")
+  if (role === "user" && pictures) {
+    const names = [...pictures.querySelectorAll("li")].map((one) => textOf(one) || "?")
+    const words = textOf(block.querySelector(".chat-text")!)
+    return { line: `user (images: ${names.join(", ")}): ${words}`, rows: 0 }
   }
   if (role === "user" || role === "assistant") return { line: `${role}: ${textOf(block)}`, rows: 0 }
   throw unknownBlock(block)

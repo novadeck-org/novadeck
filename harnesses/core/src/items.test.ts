@@ -1,7 +1,12 @@
-import { transcriptItem, transcriptLimits, type ToolRun } from "@novadeck/protocol"
+import {
+  maxTranscriptImages,
+  transcriptItem,
+  transcriptLimits,
+  type ToolRun,
+} from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
-import { entry } from "./items.js"
+import { entry, withImages } from "./items.js"
 
 // A describe that shows what it was given.
 const seen = (tool: string, input: string): ToolRun => ({
@@ -135,5 +140,30 @@ describe("an item's ring", () => {
     expect(entry("assistant", "text", line, { at: 1 }).ring).toBeNull()
     expect(entry("tool", "tool-result", line, { at: 1 }).ring).toBeNull()
     expect(entry("user", "text", "my words", { at: 1 }).ring).toBeNull()
+  })
+})
+
+describe("the images listed on a prompt", () => {
+  const words = [entry("user", "text", "See [Image #1]", { at: null })]
+
+  it("are at most the protocol's, the first kept, each type cut to a name's length", () => {
+    const mimes = Array.from({ length: maxTranscriptImages + 5 }, () => "image/".padEnd(500, "x"))
+    const [item] = withImages(words, mimes)
+    expect(item!.images).toHaveLength(maxTranscriptImages)
+    expect(item!.images![0]).toEqual({ index: 0, mime: "image/".padEnd(500, "x").slice(0, 256) })
+    expect(() =>
+      transcriptItem.parse({
+        ...item,
+        index: 0,
+        images: item!.images!.map((each) => ({ ...each, offset: 1 })),
+      }),
+    ).not.toThrow()
+  })
+
+  it("are none where there is no text of the person's to hold them", () => {
+    expect(
+      withImages([entry("assistant", "text", "ok", { at: null })], [null])[0],
+    ).not.toHaveProperty("images")
+    expect(withImages(words, [])[0]).not.toHaveProperty("images")
   })
 })

@@ -1747,8 +1747,76 @@ button.chat-hold-line:focus-visible::before {
   display: block;
   max-width: 160px;
   max-height: 120px;
+  /* A very tall or wide picture keeps a box one can see and press, drawn whole inside it. */
+  min-width: 24px;
+  min-height: 24px;
+  object-fit: contain;
   border: var(--border-width) solid var(--_line);
-  object-fit: cover;
+}
+/* A recorded prompt's thumbnails open larger; the picture is the button. */
+.chat-image {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: 0;
+  cursor: zoom-in;
+}
+.chat-image:focus-visible {
+  outline: var(--focus-ring-width, 2px) solid var(--focus-ring-color, var(--color-strong));
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .chat-image:hover img {
+    border-color: var(--_mid);
+  }
+}
+/* While a picture comes, or where there is none: a quiet box, the picture's name in it. */
+.chat-image-none {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  min-width: 96px;
+  height: 72px;
+  padding: 0 8px;
+  border: var(--border-width) dashed var(--_line);
+  color: var(--_muted);
+  font-size: var(--_work-size);
+}
+.chat-image-none[data-state="wait"] {
+  border-style: solid;
+  background: color-mix(in srgb, var(--_muted) 8%, transparent);
+}
+/* The picture larger: the image viewer on the modal's ground, over the scrim. */
+.chat-image-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+.chat-image-positioner {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  pointer-events: none;
+}
+.chat-image-dialog {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  width: min(100%, 1100px);
+  height: min(100%, 780px);
+  pointer-events: auto;
+}
+.chat-image-stage {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
 }
 .chat-composer-box {
   display: grid;
@@ -1787,4 +1855,9 @@ button.chat-hold-line:focus-visible::before {
 .chat-send {
   --icon-button-fg: var(--_accent);
   --icon-button-hover-fg: var(--_accent);
+}
+.chat-image-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
 }

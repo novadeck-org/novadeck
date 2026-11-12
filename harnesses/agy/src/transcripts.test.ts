@@ -52,6 +52,59 @@ describe("what Antigravity says between turns", () => {
     expect(decoded(prompt("Go on"))[0]).toMatchObject({ note: { type: "mode", mode: "not-plan" } })
   })
 
+  it("lists the images saved with a prompt on its words, from the media its step names", () => {
+    const step = {
+      ...prompt("See [Image #1] and [Image #2]"),
+      media: [
+        { mime_type: "image/png", uri: "/h/.gemini/antigravity-cli/brain/s/.user_uploaded/a.png" },
+        { mime_type: "application/pdf", uri: "/h/.user_uploaded/b.pdf" },
+        { mime_type: "image/jpeg", uri: "file:///h/My%20Files/c.jpg" },
+        { mime_type: "image/webp", uri: "C:\\Users\\a\\.user_uploaded\\d.webp" },
+        { mime_type: "image/gif", uri: "file:///C:/Users/a/e.gif" },
+      ],
+    }
+    expect(decoded(step).at(-1)).toMatchObject({
+      role: "user",
+      text: "See [Image #1] and [Image #2]",
+      images: [
+        { index: 0, mime: "image/png" },
+        { index: 1, mime: "image/jpeg" },
+        { index: 2, mime: "image/webp" },
+        { index: 3, mime: "image/gif" },
+      ],
+    })
+    expect(transcripts.images(JSON.stringify(step))).toEqual([
+      { mime: "image/png", file: "/h/.gemini/antigravity-cli/brain/s/.user_uploaded/a.png" },
+      { mime: "image/jpeg", file: "/h/My Files/c.jpg" },
+      { mime: "image/webp", file: "C:\\Users\\a\\.user_uploaded\\d.webp" },
+      { mime: "image/gif", file: "C:/Users/a/e.gif" },
+    ])
+  })
+
+  it("lists none for a prompt of 1.4.3 and before, which keeps the path as text and no media", () => {
+    const old = prompt("Look at /tmp/a.png")
+    expect(decoded(old).at(-1)).not.toHaveProperty("images")
+    expect(transcripts.images(JSON.stringify(old))).toEqual([])
+    const tool = { step_index: 3, source: "MODEL", type: "GENERIC", media: [{ uri: "/t/a.png" }] }
+    expect(transcripts.images(JSON.stringify(tool))).toEqual([])
+  })
+
+  it("keeps a session's uploads in the folder beside its logs", () => {
+    const logs = (root: string, sep: string) =>
+      [root, "brain", "s-1", ".system_generated", "logs", "transcript_full.jsonl"].join(sep)
+    expect(transcripts.imageFolder!(logs("/h/.gemini/antigravity-cli", "/"), "s-1")).toBe(
+      "/h/.gemini/antigravity-cli/brain/s-1/.user_uploaded",
+    )
+    expect(transcripts.imageFolder!(logs("C:\\Users\\a\\.gemini", "\\"), "s-1")).toBe(
+      "C:\\Users\\a\\.gemini\\brain\\s-1\\.user_uploaded",
+    )
+    // Another session's folder, or none of the brain, names no folder.
+    expect(transcripts.imageFolder!(logs("/h", "/"), "s-2")).toBeUndefined()
+    expect(transcripts.imageFolder!("/h/other/s-1/.system_generated/logs/t.jsonl", "s-1")).toBe(
+      undefined,
+    )
+  })
+
   it("says a plan was approved in place of the line its review typed", () => {
     expect(decoded(prompt("[Approved] implementation_plan.md"))).toMatchObject([
       { role: "note", note: { type: "plan-approved" } },

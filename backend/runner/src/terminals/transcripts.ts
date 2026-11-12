@@ -119,6 +119,11 @@ const reasoning = /thinking|reasoning/i
 export type Reading = {
   /** The interruptions it doesn't record (see `Interruption`). */
   readonly interruptions?: () => readonly Interruption[]
+  /**
+   * Whether items list their images: not for a subagent's transcript, whose lines
+   * `agents.transcriptImage` doesn't read (it finds the root's).
+   */
+  readonly images?: boolean
   /** Told each shape a line holds that its decoder has never seen. */
   readonly unknown?: (key: string, conversational: boolean) => void
 }
@@ -129,6 +134,7 @@ export const readingOf = (
   native: string | null,
 ): Reading => ({
   interruptions: interruptionsOf(record, native),
+  images: native === null,
   unknown: (key, conversational) => unknownShape(record.bound?.binding, key, conversational),
 })
 
@@ -155,7 +161,7 @@ export const transcriptChanges = async function* (
   }: Pick<NonNullable<Harness["transcripts"]>, "items"> &
     Partial<Pick<NonNullable<Harness["transcripts"]>, "step" | "shapes" | "conversational">>,
   outer: AbortSignal,
-  { interruptions = () => [], unknown }: Reading = {},
+  { interruptions = () => [], images: listing = true, unknown }: Reading = {},
 ): AsyncGenerator<TranscriptChange> {
   // Its own, so leaving early stops the reading as `outer` aborting does.
   const controller = new AbortController()
@@ -184,8 +190,18 @@ export const transcriptChanges = async function* (
     collected = []
     notify()
   }
-  const collect = (item: TranscriptEntry) => {
-    collected.push({ ...item, index })
+  // `end` is where the line that gave the item ends, which its images are found again by.
+  const collect = (item: TranscriptEntry, end?: number) => {
+    const { images, ...rest } = item
+    collected.push({
+      ...rest,
+      index,
+      ...(images &&
+        listing &&
+        end !== undefined && {
+          images: images.map((each) => ({ ...each, offset: end })),
+        }),
+    })
     index += 1
     queued += 1
     if (collected.length === batch) flush()
@@ -203,7 +219,7 @@ export const transcriptChanges = async function* (
   const reading = followLines(
     path,
     signal,
-    (line) => {
+    (line, end) => {
       const found = shapes?.(line) ?? []
       let gap = false
       for (const shape of found) {
@@ -215,7 +231,7 @@ export const transcriptChanges = async function* (
       const read = items(line)
       if (read.some((item) => item.role === "user")) interrupted(reached)
       reached = Math.max(reached, step?.(line) ?? reached)
-      for (const item of read) collect(item)
+      for (const item of read) collect(item, end)
       if (gap) {
         const reasons = found.some(({ key }) => reasoning.test(key))
         collect(noteEntry({ type: "gap" }, null, reasons ? "" : line))

@@ -3,8 +3,12 @@ import { dirname, join } from "node:path"
 
 import { reportedOr, rulesOf } from "@novadeck/harness-core/conversation"
 import { parseFields, type Fields } from "@novadeck/harness-core/fields"
-import type { TranscriptDecoder, TranscriptEntry } from "@novadeck/harness-core/harness"
-import { at, entry, joined, noteEntry, textOf } from "@novadeck/harness-core/items"
+import type {
+  ImageSource,
+  TranscriptDecoder,
+  TranscriptEntry,
+} from "@novadeck/harness-core/harness"
+import { at, entry, joined, noteEntry, textOf, withImages } from "@novadeck/harness-core/items"
 import { exited } from "@novadeck/harness-core/outcomes"
 import { fileList, shellCall } from "@novadeck/harness-core/tools"
 
@@ -49,6 +53,15 @@ const withoutImageTags = (content: unknown): unknown => {
       ),
   )
 }
+
+// The images in a message's parts: the ones Codex holds inline, as a data URL of base64.
+const dataImage = /^data:(image\/[\w.+-]+);base64,([A-Za-z0-9+/=_-]+)$/
+const imagesIn = (content: unknown): ImageSource[] =>
+  (Array.isArray(content) ? content : []).flatMap((part): ImageSource[] => {
+    const { type, image_url: url } = (part ?? {}) as { type?: unknown; image_url?: unknown }
+    const found = type === "input_image" && typeof url === "string" ? dataImage.exec(url) : null
+    return found ? [{ mime: found[1]!, base64: found[2]! }] : []
+  })
 
 // How many days after its parent's a subagent's rollout may start: Codex files each
 // rollout under the day it starts, and a session can outlast midnight.
@@ -208,6 +221,13 @@ const turnMode = (fields: Fields): readonly TranscriptEntry[] => {
 }
 
 export const transcripts: TranscriptDecoder = {
+  images: (line) => {
+    const fields = parseFields(line)
+    const payload = (fields?.payload ?? {}) as Fields
+    return fields?.type === "response_item" && payload.type === "message" && payload.role === "user"
+      ? imagesIn(payload.content)
+      : []
+  },
   locate: async (reported, sessionId, subagent) => {
     const root = await reportedOr(reported, sessionId, () =>
       rolloutAway(reported, sessionId, rulesOf({ platform: process.platform })),
@@ -262,7 +282,13 @@ export const transcripts: TranscriptDecoder = {
             }),
           ]
         }
-        return text && !context.test(text) ? [entry(role, "text", text, { at: time })] : []
+        const said = text && !context.test(text) ? [entry(role, "text", text, { at: time })] : []
+        return role === "user"
+          ? withImages(
+              said,
+              imagesIn(payload.content).map(({ mime }) => mime),
+            )
+          : said
       }
       case "function_call":
       case "custom_tool_call": {

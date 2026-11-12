@@ -340,4 +340,29 @@ export const agyVocabulary: readonly Written[] = [
       0,
     ),
   },
+  {
+    // A prompt that carried images (from 1.4.9): listed apart from the words, as media saved
+    // under the session; and one of 1.4.3, whose path stayed in its words.
+    name: "image-prompts",
+    records: [
+      {
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        content: "<USER_REQUEST>\nCompare [Image #1] with [Image #2]\n</USER_REQUEST>",
+        media: [
+          {
+            mime_type: "image/png",
+            uri: "/home/user/.gemini/antigravity-cli/brain/s/.user_uploaded/a.png",
+          },
+          {
+            mime_type: "image/jpeg",
+            uri: "file:///home/user/.gemini/antigravity-cli/brain/s/.user_uploaded/b.jpg",
+          },
+        ],
+      },
+      ...turn("Is it the same as /work/c.png?", "Looking.", [], 1),
+    ],
+  },
 ]

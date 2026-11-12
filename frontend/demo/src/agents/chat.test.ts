@@ -129,6 +129,26 @@ describe("demo conversations", () => {
     expect(other.session).not.toBe(chat.conversation(key("06")).getSnapshot().session)
   })
 
+  it("records a prompt's pasted images and gives them back as pasted", async () => {
+    const { chat } = open()
+    const upload = chat.uploadImage!(key("06"), {
+      name: "shot.png",
+      data: Uint8Array.of(137, 80, 78, 71),
+    })
+    await vi.advanceTimersByTimeAsync(1000)
+    const path = await upload
+    await chat.send(key("06"), "Fix this", { images: [path], at: [0] })
+    const item = chat
+      .conversation(key("06"))
+      .getSnapshot()
+      .items.findLast((each) => each.role === "user")!
+    expect(item.text).toBe("[Image #1] Fix this")
+    expect(item.images).toEqual([{ offset: expect.any(Number), index: 0, mime: "image/png" }])
+    await expect(chat.image!(key("06"), item.images![0]!)).resolves.toBe(
+      "data:image/png;base64,iVBORw==",
+    )
+  })
+
   it("holds the kinds of records the chat shows", () => {
     const { chat } = open()
     const items = ["01", "03", "04", "06"].flatMap(

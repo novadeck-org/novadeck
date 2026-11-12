@@ -997,6 +997,28 @@ one from an earlier runner.
   client's `agents.transcript(terminalId, actor)` resubscribes across reconnections,
   yielding `reset` before the items follow again, and ends without one when the actor
   is gone.
+  A user item whose prompt carried images lists them as `images`, in the order of the
+  `[Image #N]` places in its text: for each, `offset` (where the line that holds it ends in
+  the record, in bytes), `index` (which of that line's images it is) and `mime` where the
+  record says one. They carry no bytes and no path. All three harnesses list them, each from
+  its own record: Claude Code's `image` blocks of a user message or of a prompt queued into a
+  running turn (inline base64; the `isMeta` record that follows with the file's path is not
+  read), Codex's `input_image` parts (inline `data:` URLs, between the tags that name the
+  file), and Antigravity's `media` (from 1.4.9, listing the copy saved under the
+  conversation's `.user_uploaded`). An Antigravity of 1.4.3 and before keeps the path in the
+  words and lists no image, and an image the record holds some other way (a URL) is none.
+- `agents.transcriptImage({ terminalId, offset, index })` answers a listed image as `{ state:
+  "ready", mime, src }`, `src` a data URL of a PNG, JPEG, GIF or WebP of at most 8 MiB, or
+  `{ state: "unavailable", reason }`: `gone` (the file is no longer there or isn't in the
+  session's uploads), `too-large`, or `unreadable` (not one of those formats by its first
+  bytes, not a plain file, or a file that may hold secrets, as `companions.content` reads
+  them). The runner finds the picture again itself: it reads the one line of the bound
+  session's own transcript that ends at `offset` (never anything the caller names), takes the
+  `index`th image its harness reads in it, and for Antigravity's file serves it only if it
+  lies, links resolved, under `brain/<session>/.user_uploaded`. The type is the bytes', not the
+  record's. A terminal with no bound session, a record gone or rewritten, or a line with no such
+  image is `NOT_FOUND`; an unknown terminal is `TERMINAL_NOT_FOUND`. The client's
+  `agents.transcriptImage(terminalId, { offset, index })` makes the call.
 - `agents.prompt({ terminalId, text, images?, at?, automatic?, along?, ref?, setAside? })` gives the terminal's agent a prompt as the person
   would paste and submit it (`automatic: true` marks a fixed line an Inbox button sends, such as "continue", not words the person wrote: the turn it starts withdraws no ask from the Inbox, see [Agent messaging](agent-messaging.md); a strict-schema field added with the protocol version unchanged, as the repo does while client and runner ship together; `text` is 1 to 16,384 characters; its line breaks, CRLF and a lone CR included, are taken as one line break each and stay
   line breaks in the box). It needs an agent bound, or one showing its own empty prompt

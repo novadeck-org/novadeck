@@ -41,6 +41,7 @@ import {
   type TerminalRequestAnswer,
   type TerminalSummary,
   type TranscriptChange,
+  type TranscriptImageResult,
   type VoiceChange,
   type VoiceState,
   type VoiceTranscript,
@@ -342,6 +343,16 @@ export type Runner = {
       terminalId: string,
       actor: string,
     ): AsyncIterableIterator<TranscriptChange, undefined>
+    /**
+     * The picture of a prompt image a transcript item lists (`TranscriptItem.images`, by its
+     * `sessionId`, `offset` and `index`), as the runner finds it again in the terminal's session: a data
+     * URL, or why there is none. Rejects with `NOT_FOUND` where the session or the line is
+     * gone.
+     */
+    transcriptImage(
+      terminalId: string,
+      image: { readonly sessionId: string; readonly offset: number; readonly index: number },
+    ): Promise<TranscriptImageResult>
     /**
      * Gives the terminal's agent a prompt as the person would type it: pasted into its
      * input box, then Enter once exactly the text shows there. Rejects with `CONFLICT`
@@ -793,6 +804,8 @@ export const connectRunner = async (
           (client, signal) => client.agents.transcript({ terminalId, actor }, { signal }),
           { type: "reset" },
         ),
+      transcriptImage: (terminalId, { sessionId, offset, index }) =>
+        call((client) => client.agents.transcriptImage({ terminalId, sessionId, offset, index })),
       prompt: (terminalId, text, { automatic, along, ref, images, at, setAside } = {}) =>
         call((client) =>
           client.agents.prompt({

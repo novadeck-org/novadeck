@@ -1,4 +1,11 @@
-import type { ChatItem, ChatPrompt, ToolChange, ToolOutcome, ToolRun } from "../conversation"
+import type {
+  ChatImage,
+  ChatItem,
+  ChatPrompt,
+  ToolChange,
+  ToolOutcome,
+  ToolRun,
+} from "../conversation"
 import { harnesses } from "../harnesses"
 import type { AgentMessage } from "../messages"
 import type { AgentStatus } from "../types"
@@ -43,6 +50,8 @@ export type ChatBlock =
       readonly text: string
       readonly truncated: boolean
       readonly at: number | null
+      // On the person's message, the images its prompt carried (`ChatItem.images`).
+      readonly images?: readonly ChatImage[] | undefined
     }
   | {
       // Another agent's message, `author` in its harness's words.
@@ -345,6 +354,7 @@ export const groupItems = (
                 text: item.text,
                 truncated: item.truncated,
                 at: item.at,
+                ...(item.images && { images: item.images }),
               },
       )
     } else if (item.role === "agent" && codexSubagent(item.author))
@@ -449,7 +459,18 @@ export const sameBlock = (a: ChatBlock, b: ChatBlock): boolean => {
     a.text === b.text &&
     a.truncated === b.truncated &&
     a.at === b.at &&
-    (a.kind !== "agent" || (b.kind === "agent" && a.author === b.author))
+    (a.kind !== "agent" || (b.kind === "agent" && a.author === b.author)) &&
+    sameImages(a, b)
+  )
+}
+
+// Whether two messages list the same images.
+const sameImages = (a: ChatBlock, b: ChatBlock): boolean => {
+  const one = a.kind === "user" ? (a.images ?? []) : []
+  const other = b.kind === "user" ? (b.images ?? []) : []
+  return (
+    one.length === other.length &&
+    one.every((image, at) => image.offset === other[at]!.offset && image.index === other[at]!.index)
   )
 }
 

@@ -7,9 +7,13 @@ import {
   reportedOr,
   sessionName,
 } from "@novadeck/harness-core/conversation"
-import { isFields, parseFields } from "@novadeck/harness-core/fields"
-import type { TranscriptDecoder, TranscriptEntry } from "@novadeck/harness-core/harness"
-import { at, entry, joined, noteEntry, textOf } from "@novadeck/harness-core/items"
+import { isFields, parseFields, type Fields } from "@novadeck/harness-core/fields"
+import type {
+  ImageSource,
+  TranscriptDecoder,
+  TranscriptEntry,
+} from "@novadeck/harness-core/harness"
+import { at, entry, joined, noteEntry, textOf, withImages } from "@novadeck/harness-core/items"
 import { outcome } from "@novadeck/harness-core/outcomes"
 import { shellCall } from "@novadeck/harness-core/tools"
 
@@ -135,6 +139,16 @@ export const queuedPrompt = (
   return { text, at: queued.timestamp ?? fields.timestamp }
 }
 
+// The images in a list of the person's content blocks: the ones that hold their bytes, base64.
+const imagesIn = (parts: unknown): ImageSource[] =>
+  (Array.isArray(parts) ? parts : []).flatMap((part): ImageSource[] => {
+    const { type, source } = (part ?? {}) as { type?: unknown; source?: unknown }
+    const { type: kind, media_type: mime, data } = (source ?? {}) as Record<string, unknown>
+    return type === "image" && kind === "base64" && typeof data === "string" && data
+      ? [{ mime: typeof mime === "string" ? mime : null, base64: data }]
+      : []
+  })
+
 // A background task's notice a `queued_command` attachment carries (origin `task-notification`),
 // and when it came.
 const queuedNotice = (
@@ -254,7 +268,12 @@ export const transcripts: TranscriptDecoder = {
       const notice = queuedNotice(fields)
       if (notice) return notified(notice.text, at(notice.at))
       const queued = queuedPrompt(fields)
-      return queued ? textItems("user", queued.text, at(queued.at), fields) : []
+      return queued
+        ? withImages(
+            textItems("user", queued.text, at(queued.at), fields),
+            imagesIn((fields.attachment as Fields).prompt).map(({ mime }) => mime),
+          )
+        : []
     }
     const role = fields.type
     if (role !== "user" && role !== "assistant") return []
@@ -307,6 +326,23 @@ export const transcripts: TranscriptDecoder = {
       }
       return []
     })
-    return [...mode, ...items]
+    return [
+      ...mode,
+      ...(role === "user"
+        ? withImages(
+            items,
+            imagesIn(parts).map(({ mime }) => mime),
+          )
+        : items),
+    ]
+  },
+  images: (line) => {
+    const fields = parseFields(line)
+    if (!fields || fields.isMeta === true) return []
+    if (fields.type === "attachment")
+      return queuedPrompt(fields) ? imagesIn((fields.attachment as Fields).prompt) : []
+    return fields.type === "user"
+      ? imagesIn((fields.message as { content?: unknown } | undefined)?.content)
+      : []
   },
 }

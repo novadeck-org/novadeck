@@ -67,7 +67,7 @@ import {
   terminalMove,
   terminalMoved,
 } from "./terminals.js"
-import { transcriptChange } from "./transcripts.js"
+import { maxTranscriptImages, transcriptChange, transcriptImageResult } from "./transcripts.js"
 import { workChange } from "./works.js"
 
 export const errors = {
@@ -350,6 +350,28 @@ export const contract = {
     transcript: procedure
       .input(z.strictObject({ terminalId: id, actor: agentRef }))
       .output(eventIterator(transcriptChange)),
+    // The picture of a prompt image a transcript item lists (`TranscriptItem.images`): `offset`
+    // and `index` are the ones the item carries, `sessionId` the session it was read in. The runner finds it again in the terminal's
+    // bound session's own record, never at a path the caller names, and answers it as a data URL
+    // if it is a PNG, JPEG, GIF or WebP of at most 8 MiB, else with why it is none. An
+    // Antigravity picture lives in a file it saved under the session's own uploads, and is
+    // answered only from there. A terminal with no bound session or transcript, or a line that
+    // holds no such image, is NOT_FOUND; an unknown terminal is TERMINAL_NOT_FOUND.
+    transcriptImage: procedure
+      .input(
+        z.strictObject({
+          terminalId: id,
+          // The session the item was read in, as `agents.detail` names it; another bound now is
+          // NOT_FOUND, so a picture is never read from a session the caller didn't mean.
+          sessionId: z.string().min(1).max(256),
+          offset: z.int().nonnegative(),
+          index: z
+            .int()
+            .nonnegative()
+            .max(maxTranscriptImages - 1),
+        }),
+      )
+      .output(transcriptImageResult),
     // The rows of the terminal's screen that stand for something of its harness's own at its
     // input (a menu at its box, a view of its own, a dialog no adapter reads): a snapshot, then
     // another on each change, null while nothing shows. It follows the terminal from agent to

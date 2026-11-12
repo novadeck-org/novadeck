@@ -1,5 +1,6 @@
 import {
   noConversation,
+  type ChatImage,
   type ChatItem,
   type ChatRequest,
   type Conversation,
@@ -17,6 +18,7 @@ import type { AgentStatus, TerminalMetadata, Workspace } from "@novadeck/core/ty
 
 import { chatAgent, chatAgents, terminalSlot } from "../samples"
 import { sessionOf } from "../workspace"
+import { dataUrl, typeOfName } from "./pictures"
 import { promptRefused } from "./prompt-refusal"
 import { madeRequest, type DemoRequestOutcome } from "./requests"
 import { outcomeAmong, type DemoDraft, type DemoTranscript } from "./transcripts"
@@ -43,7 +45,11 @@ const demoImageMaxBytes = 5 * 1024 * 1024
 const movedOn = "The agent moved on before your answer reached it."
 
 // A line sent to an agent, and when the person sent it.
-type Sent = { readonly text: string; readonly submittedAt: number }
+type Sent = {
+  readonly text: string
+  readonly submittedAt: number
+  readonly images?: readonly ChatImage[]
+}
 
 // A prompt as the runner reads it once sent: line ends as `\n`, trimmed.
 const sentText = (line: string): string => line.replace(/\r\n?/g, "\n").trim()
@@ -243,6 +249,11 @@ export const createDemoChat = (
     }
   >()
   let requested = 0
+  // The images pasted in this page, as data URLs, by the path `uploadImage` answered; and the
+  // pictures of the prompts that went with them, by the offset and index their items carry.
+  const pasted = new Map<string, string>()
+  const pictures = new Map<string, string>()
+  let recorded = 0
   // The transcript requests each agent has asked, by terminal and the request's id in its
   // transcript: each but a plan is asked once, then the agent makes one up.
   const asked = new Set<string>()
@@ -409,7 +420,11 @@ export const createDemoChat = (
     const command = shellCommand(prompt)
     if (command === undefined) {
       const automatic = spendMarks(marks.get(terminalKeyId(found.key)), prompt)
-      turns.prompt(prompt, found.terminal, found.key, { automatic, submittedAt: sent.submittedAt })
+      turns.prompt(prompt, found.terminal, found.key, {
+        automatic,
+        submittedAt: sent.submittedAt,
+        ...(sent.images && { images: sent.images }),
+      })
       return
     }
     // A shell command runs without a turn. Antigravity keeps no record of it; the
@@ -478,7 +493,11 @@ export const createDemoChat = (
     const { key } = event
     if (event.type === "begin") {
       clear(key)
-      if (event.prompt !== undefined) append(key, text("user", event.prompt))
+      if (event.prompt !== undefined)
+        append(key, {
+          ...text("user", event.prompt),
+          ...(event.images && { images: event.images }),
+        })
     } else if (event.type === "tool") {
       const found = locate(key)
       if (!found) return
@@ -639,8 +658,16 @@ export const createDemoChat = (
       maxImages: 8,
       uploadImage: async (_key, file) => {
         await new Promise((resolve) => setTimeout(resolve, 600))
-        return `/tmp/novadeck-demo/${file.name}`
+        const path = `/tmp/novadeck-demo/${file.name}`
+        pasted.set(path, dataUrl(typeOfName(file.name), file.data))
+        return path
       },
+      // A pasted image shows as pasted, any other as a sample, as the runner finds a picture in
+      // its record (a recorded item that lists one). The samples load only now, out of the
+      // visitor build's demo load.
+      image: async (_key, { offset, index }) =>
+        pictures.get(`${offset}:${index}`) ??
+        (await import("./sample-pictures")).samplePicture(index),
       send: async (key, given, options) => {
         const found = agentFor(key)
         const images = options?.images ?? []
@@ -692,7 +719,18 @@ export const createDemoChat = (
         }
         // The mark and the time go with the line, so a line that waits, is dropped or never
         // goes takes them along.
-        const sent: Sent = { text: prompt, submittedAt: Date.now() }
+        // Its images are told apart by where the record would find them.
+        recorded += 1
+        const listed = images.map((path, index): ChatImage => {
+          const picture = pasted.get(path)
+          if (picture !== undefined) pictures.set(`${recorded}:${index}`, picture)
+          return { offset: recorded, index, mime: typeOfName(path) }
+        })
+        const sent: Sent = {
+          text: prompt,
+          submittedAt: Date.now(),
+          ...(listed.length > 0 && { images: listed }),
+        }
         const id = terminalKeyId(found.key)
         if (options?.automatic) marks.set(id, [...(marks.get(id) ?? []), sentText(prompt)])
         // Behind a turn, or behind what already waits for one, it waits its turn.

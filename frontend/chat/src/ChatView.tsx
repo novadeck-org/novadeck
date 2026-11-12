@@ -1,4 +1,9 @@
-import { WordsLost, type ChatAnswer, type Conversation } from "@novadeck/core/conversation"
+import {
+  WordsLost,
+  type ChatAnswer,
+  type ChatImage,
+  type Conversation,
+} from "@novadeck/core/conversation"
 import { wordsOf } from "@novadeck/core/conversation/picks"
 import { shellCommand, type Refused } from "@novadeck/core/conversation/prompt-refusal"
 import {
@@ -37,10 +42,11 @@ import { otherMenu } from "./other-menu"
 import { usePassing } from "./passing"
 import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
 import { Requests } from "./Requests"
-import { takeSentImages, type ChatSend } from "./sends"
+import { recordedImagesOf, takeSentImages, type ChatSend } from "./sends"
 import { settledSent, settleSent } from "./settled"
 import { ShellLines, runningShells } from "./ShellLines"
 import { LiveSlice, SliceKeys } from "./Slice"
+import { ThumbsContext, useThumbs } from "./Thumbs"
 import { mentionOf, Transcript, type PeerLooks } from "./Transcript"
 import { currentPrompt, logPadding, neighbours, scrollFor, startRows } from "./turn-holds"
 import { useBoxReturn } from "./use-box-return"
@@ -78,6 +84,7 @@ export const ChatView = ({
   onRestore,
   onAttach,
   onDetach,
+  onImage,
   onSend,
   shells = noShells,
   onInterrupt,
@@ -134,6 +141,9 @@ export const ChatView = ({
       ) => { readonly refusal: string | null; readonly caret: number | null })
     | undefined
   readonly onDetach: (id: string) => void
+  // The picture of a prompt image the record lists, as a data URL, null where it can't be shown;
+  // absent where the backend can't find one again.
+  readonly onImage?: ((image: ChatImage) => Promise<string | null>) | undefined
   // Sends the box's words, as a prompt or as the reply `to` names: the app takes them
   // out of the draft as they go, queues a prompt behind those still on their way, and puts
   // them back should they not arrive. It resolves whether they went: false once they came
@@ -179,6 +189,18 @@ export const ChatView = ({
     () => groupItems(wentItems(items, prompts), doorbell.delivered),
     [items, prompts, doorbell.delivered],
   )
+  // The pictures the thumbnails of recorded prompts show: this window's own previews of what it
+  // sent, where it still has them, else what the backend finds in the record.
+  const previews = useCallback(
+    (item: string) => {
+      const prompt = prompts.find(
+        ({ state, item: at }) => state === "settled" && at !== null && `${session}:${at}` === item,
+      )
+      return prompt && recordedImagesOf(prompt.ref)
+    },
+    [prompts, session],
+  )
+  const thumbs = useThumbs(onImage, previews)
   const status = turnStatus(agent)
   const working = status?.working === true
   // The background shells still running, which stand under the working line.
@@ -558,23 +580,25 @@ export const ChatView = ({
                       : "Nothing said yet. Send a prompt below."}
                 </p>
               )}
-              <Transcript
-                blocks={shown}
-                agent={name}
-                working={working}
-                gone={agent === undefined}
-                sent={bubbles}
-                echoes={shownEchoes}
-                looks={peerLooks}
-                mention={mention}
-                personFace={personFace}
-                phase={phase}
-                {...(plain &&
-                  draft.trim() === "" &&
-                  attachments.length === 0 && { onResend: resend })}
-                {...(plain && { onEdit: edit })}
-                onShowTerminal={onAnswerInTerminal}
-              />
+              <ThumbsContext.Provider value={thumbs}>
+                <Transcript
+                  blocks={shown}
+                  agent={name}
+                  working={working}
+                  gone={agent === undefined}
+                  sent={bubbles}
+                  echoes={shownEchoes}
+                  looks={peerLooks}
+                  mention={mention}
+                  personFace={personFace}
+                  phase={phase}
+                  {...(plain &&
+                    draft.trim() === "" &&
+                    attachments.length === 0 && { onResend: resend })}
+                  {...(plain && { onEdit: edit })}
+                  onShowTerminal={onAnswerInTerminal}
+                />
+              </ThumbsContext.Provider>
               {(status || running.length > 0) && (
                 // While the agent works, or a shell runs, the log's last rows: the turn's clock and
                 // stop and a line for each shell. They scroll with the log.

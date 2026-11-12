@@ -31,6 +31,7 @@ import {
   type SliceChange,
   type RequestAnswer,
   type TranscriptChange,
+  type TranscriptImageResult,
   type TranscriptItem,
 } from "@novadeck/protocol"
 import { hasCode } from "@novadeck/runner-client"
@@ -47,6 +48,11 @@ export type ConversationStreams = {
     terminalId: string,
     actor: string,
   ) => AsyncIterableIterator<TranscriptChange, undefined>
+  // The picture of a prompt image an item lists, by its session, offset and index.
+  readonly transcriptImage: (
+    terminalId: string,
+    image: { readonly sessionId: string; readonly offset: number; readonly index: number },
+  ) => Promise<TranscriptImageResult>
   readonly prompt: (
     terminalId: string,
     text: string,
@@ -138,6 +144,7 @@ const itemOf = (session: string, item: TranscriptItem): ChatItem => ({
   interrupted: item.interrupted,
   ring: item.ring,
   note: item.note,
+  ...(item.images && { images: item.images }),
 })
 
 // The items once a batch arrived: each item at an index replaces everything from there on.
@@ -656,6 +663,20 @@ export const createRunnerConversations = (
           throw new Error("It is over the size the runner takes.")
         throw new Error("The runner couldn't save it.")
       }),
+    // A picture the runner can't show is none. One it could not be asked for, or that its session
+    // no longer has (rebound, resumed, the record rewritten), is a failure, so the chat asks again.
+    image: (key, { offset, index }) => {
+      const { session } = entryOf(key).conversation.getSnapshot()
+      if (session === null) return Promise.reject(new Error("The conversation isn't open."))
+      return track(
+        streams.transcriptImage(key.terminalId, { sessionId: session, offset, index }),
+      ).then(
+        (found) => (found.state === "ready" ? found.src : null),
+        () => {
+          throw new Error("The runner couldn't show it.")
+        },
+      )
+    },
     imageMaxBytes: maxUploadBytes,
     imageTypes: promptImageTypes,
     maxImages: maxPromptImages,

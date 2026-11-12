@@ -134,3 +134,64 @@ export const createChatFailures = (): {
     ],
   }
 }
+
+// How the pictures of recorded prompts come, which the demo always finds: the backend may have
+// none (swept, moved, refused), be slow, or be unreachable. It holds for every picture asked for
+// from then on; one already shown stays, as the chat keeps what it found.
+export type PictureMode = "found" | "none" | "slow" | "offline"
+
+const pictures: readonly {
+  readonly mode: PictureMode
+  readonly label: string
+  readonly hint: string
+}[] = [
+  { mode: "found", label: "Pictures found", hint: "Thumbnails show their pictures" },
+  {
+    mode: "none",
+    label: "Pictures gone",
+    hint: "Boxes naming each image, [Image #N] · for pictures not asked for yet",
+  },
+  {
+    mode: "slow",
+    label: "Pictures slow",
+    hint: "Quiet boxes for 6 s, then the pictures · for pictures not asked for yet",
+  },
+  {
+    mode: "offline",
+    label: "Pictures unreachable",
+    hint: "Boxes naming each image, asked again when the row is drawn again",
+  },
+]
+
+// How long a slow picture takes, in milliseconds.
+export const slowPictureMs = 6000
+
+// Wraps the demo's conversations so the pictures of recorded prompts come as the panel armed.
+export const createChatPictures = (): {
+  readonly wrap: (conversations: Conversations) => Conversations
+  readonly actions: readonly DemoAction[]
+} => {
+  let mode: PictureMode = "found"
+  return {
+    wrap: (conversations) => {
+      const found = conversations.image
+      if (!found) return conversations
+      return {
+        ...conversations,
+        image: async (key, image) => {
+          if (mode === "none") return null
+          if (mode === "offline") throw new Error("The runner is offline.")
+          if (mode === "slow") await new Promise((resolve) => setTimeout(resolve, slowPictureMs))
+          return found(key, image)
+        },
+      }
+    },
+    actions: pictures.map(({ mode: each, label, hint }) => ({
+      label,
+      hint,
+      run: () => {
+        mode = each
+      },
+    })),
+  }
+}

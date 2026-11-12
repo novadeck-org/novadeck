@@ -1,4 +1,4 @@
-import type { Attachment } from "./attachments"
+import { releaseImages, type Attachment } from "./attachments"
 import { valueOf, withValue, type ByTerminal } from "./by-terminal"
 import type { ChatReply } from "./replies"
 
@@ -94,6 +94,27 @@ export const keptDraftOf = (ref: string): string | undefined => kept.get(ref)?.d
 // The kept image saved at `path`, if one is.
 export const keptImageAt = (path: string): Attachment | undefined =>
   [...kept.values()].flatMap(({ images }) => images).find((image) => image.path === path)
+
+// The images of the latest prompts the record holds, by ref, which this window sent: their
+// thumbnails show at once where the record's item takes the place of the prompt's bubble, in place
+// of asking the backend for the pictures. The longest kept goes first, its previews let go.
+const recorded = new Map<string, readonly Attachment[]>()
+const recordedLimit = 16
+
+export const keepRecordedImages = (ref: string, images: readonly Attachment[]): void => {
+  if (images.length === 0) return
+  recorded.delete(ref)
+  recorded.set(ref, images)
+  for (const [oldest, old] of recorded) {
+    if (recorded.size <= recordedLimit) break
+    recorded.delete(oldest)
+    releaseImages(old)
+  }
+}
+
+// The images a recorded prompt was sent with, left kept.
+export const recordedImagesOf = (ref: string): readonly Attachment[] | undefined =>
+  recorded.get(ref)
 
 // Takes a line's kept images out, to go on with them.
 export const takeSentImages = (ref: string): readonly Attachment[] => {

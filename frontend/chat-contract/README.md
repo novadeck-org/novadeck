@@ -56,6 +56,12 @@ known` for an entry the chat keeps today's line for. A call made inside a Codex 
 `in script:`. It is the chat's data, not yet drawn: the rendered golden of the same fixture
 shows today's rows.
 
+A prompt that carried images reads `user (images: Image #1, Image #2): <words>`: the names the
+thumbnails show (the words' own `[Image #N]`), with no picture, since nothing here asks a backend.
+Each harness's vocabulary has an `image-prompts` conversation: Claude Code's blocks (and one
+queued into a running turn), Codex's `input_image` parts and Antigravity's `media` (and a prompt
+of 1.4.3, which lists none).
+
 What it does not read: which icon a kind maps to, styling, and the Markdown rendering of
 assistant text beyond its words.
 

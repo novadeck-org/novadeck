@@ -221,6 +221,37 @@ describe("Codex's rollout records", () => {
     ).toEqual(["Look at this picture [Image #1]", "what does </image> close?"])
   })
 
+  it("list the images of a prompt on the person's text, and give their bytes by the line", () => {
+    const content = [
+      { type: "input_text", text: '<image name=[Image #1] path="/p/a.png">' },
+      { type: "input_image", image_url: "data:image/png;base64,AAAA" },
+      { type: "input_text", text: "</image>" },
+      { type: "input_text", text: '<image name=[Image #2] path="/p/b.jpg">' },
+      { type: "input_image", image_url: "data:image/jpeg;base64,BBBB" },
+      { type: "input_text", text: "</image>" },
+      { type: "input_image", image_url: "https://example.com/c.png" },
+      { type: "input_text", text: "Compare [Image #1] with [Image #2]" },
+    ]
+    const line = JSON.stringify(item({ type: "message", role: "user", content }))
+    expect(transcripts.items(line)).toMatchObject([
+      {
+        role: "user",
+        text: "Compare [Image #1] with [Image #2]",
+        images: [
+          { index: 0, mime: "image/png" },
+          { index: 1, mime: "image/jpeg" },
+        ],
+      },
+    ])
+    expect(transcripts.images(line)).toEqual([
+      { mime: "image/png", base64: "AAAA" },
+      { mime: "image/jpeg", base64: "BBBB" },
+    ])
+    const agent = JSON.stringify(item({ type: "message", role: "assistant", content }))
+    expect(transcripts.images(agent)).toEqual([])
+    expect(transcripts.images("not json")).toEqual([])
+  })
+
   it("give a function call's arguments, and its text output", () => {
     const [call, output] = items([
       item({ type: "function_call", name: "shell", arguments: '{"cmd":"ls"}', call_id: "c1" }),
