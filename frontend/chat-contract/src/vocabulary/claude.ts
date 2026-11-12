@@ -159,6 +159,18 @@ export const claudeVocabulary: readonly Written[] = [
         [`${novadeck}open_terminal`, { command: "npm run dev", title: "dev" }, "Opened 03"],
         [`${novadeck}close_terminal`, { to: "builder" }, "Closed"],
         [`${novadeck}close_terminal`, {}, "Closed"],
+        [`${novadeck}open_worktree`, { branch: "feat/login" }, "Opened"],
+        [`${novadeck}take_worktree`, { path: "/home/user/.novadeck/worktrees/p/g/api" }, "Took"],
+        [
+          `${novadeck}give_worktree`,
+          { path: "/home/user/.novadeck/worktrees/p/g/api", to: "builder" },
+          "Gave",
+        ],
+        [
+          `${novadeck}close_worktree`,
+          { path: "/home/user/.novadeck/worktrees/p/g/api", force: true },
+          "Closed",
+        ],
         [`${novadeck}lead`, { to: "builder", message: "Fix the tests" }, "Asked"],
         [`${novadeck}release`, { to: "builder" }, "Released"],
         [`${novadeck}show`, { page: { url: "http://localhost:5173" } }, "Showing"],

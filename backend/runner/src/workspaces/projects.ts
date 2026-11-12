@@ -3,6 +3,7 @@ import type { Project, TerminalMove, TerminalMoved, WorkspaceSession } from "@no
 import type { CompanionItems } from "../companions/items.js"
 import { DomainError } from "../errors.js"
 import type { Terminals } from "../terminals/index.js"
+import type { Worktrees } from "../worktrees/worktrees.js"
 import type { WorkspaceStore } from "./store.js"
 
 /**
@@ -23,6 +24,7 @@ export class Projects {
     private readonly store: WorkspaceStore,
     private readonly terminals: Terminals,
     private readonly items: CompanionItems,
+    private readonly worktrees?: Pick<Worktrees, "removeProject">,
   ) {}
 
   /** Every project, in order, but those being removed, which are as good as gone. */
@@ -109,6 +111,8 @@ export class Projects {
     await Promise.allSettled(this.creating.get(projectId) ?? [])
     const sessions = this.store.sessions(projectId).map(({ id }) => id)
     await this.terminals.closeProject(projectId, sessions)
+    // Before its rows cascade away: what the agents' worktrees hold is kept on refs first.
+    await this.worktrees?.removeProject(projectId)
     // In the same tick as the records go, so nothing new lands in between: watchers hear
     // of each item and window left, as its window outlived its terminal.
     try {

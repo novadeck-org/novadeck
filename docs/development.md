@@ -324,7 +324,8 @@ Agents:
 - **Approvals:** "Ask to close selected" has another terminal of the session ask to close the
   selected one, and "Ask to lead selected" has it ask to lead the selected one, which raises the
   approval modal (two presses queue two; approving closes the terminal, or makes the asker its
-  lead); "Withdraw approvals" takes them back.
+  lead); "Ask to take selected's worktree" has it ask to take the selected terminal's worktree
+  (allowing changes nothing in the demo); "Withdraw approvals" takes them back.
 - **Doorbell** and **Messages:** only in the `messages` variant, on the selected terminal.
   Doorbell puts its idle agent where the doorbell can't ring it (working, a prompt queued,
   shell mode, text in its box, a dialog, asking you, failed, away), which its Messages pane

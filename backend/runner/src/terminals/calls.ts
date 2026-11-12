@@ -13,6 +13,7 @@ import { agentLabel } from "../messaging/messages.js"
 import type { AgentsAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.js"
 import { unansweredCalls, type Call } from "../shell/reports.js"
 import { list } from "../text.js"
+import { WorktreeCalls, type WorktreeCallsHost } from "../worktrees/calls.js"
 import { closeWay, type ApprovalOutcome } from "./approvals.js"
 import { callerOf } from "./callers.js"
 import {
@@ -89,43 +90,44 @@ const unopened = {
 
 // `LeadsHost` holds the runner's records and stop, its messaging, peers, approvals,
 // bindings, and whether a terminal is closing.
-export type CallsHost = LeadsHost & {
-  readonly inbox: () => Inbox
-  readonly feedback: () => Feedback
-  /** Agents' requests for a new terminal, on their way to the client. */
-  readonly opens: () => OpenRequests
-  readonly companion: () => Companion
-  readonly launcher: () => Launcher
-  /** Windows' process trees, which tell whether a shell has a job under it. */
-  readonly trees: () => Pick<Trees, "read">
-  /** The sessions given out to resume, one to a terminal. */
-  readonly claims: () => Claims
-  /** The terminals whose agents sleep. */
-  readonly sleepers: () => Sleepers
-  /** Every terminal's sessions, running or saved, which a resume reads its kept launch flags from. */
-  readonly rows: () => Iterable<{ readonly agents: Record["agents"] }>
-  /** Closes a terminal for good, the person's close: one with no shell is forgotten as its row. */
-  readonly close: (terminalId: string, closedBy: string | null) => Promise<void>
-  /** Where a harness lives on this machine, which says how it may start with a task. */
-  readonly install: (agent: AgentName) => Promise<Install | undefined>
-  /** The models a harness can start with here, none where that can't be told. */
-  readonly models: (agent: AgentName) => Promise<readonly Model[]>
-  // A close, in the manager's steps: `closePeer` checks the runner's stop between them.
-  /** Starts closing a terminal for good; `closedBy` is the handle of the agent that closed it, null when the person did or the agent closed its own. */
-  readonly closeForGood: (record: Record, closedBy?: string | null) => void
-  readonly terminate: (record: Record) => Promise<void>
-  readonly remove: (record: Record) => void
-  readonly forget: (terminalId: string) => void
-  /** Saves what restores the terminal, without its screen. */
-  readonly save: (record: Record) => void
-  /** Shows the terminal's title after what names it changed (see `titleOf`), as `Names.retitle`. */
-  readonly retitle: (record: Record) => void
-  /** Tells murmur the terminal's agent described its work. */
-  readonly summarized: (terminalId: string) => void
-  readonly send: (call: Call) => Promise<SendAnswer | TeamAnswer>
-  readonly agents: (call: Call) => Promise<AgentsAnswer>
-  readonly team: (call: Call) => Promise<AgentsAnswer>
-}
+export type CallsHost = LeadsHost &
+  WorktreeCallsHost & {
+    readonly inbox: () => Inbox
+    readonly feedback: () => Feedback
+    /** Agents' requests for a new terminal, on their way to the client. */
+    readonly opens: () => OpenRequests
+    readonly companion: () => Companion
+    readonly launcher: () => Launcher
+    /** Windows' process trees, which tell whether a shell has a job under it. */
+    readonly trees: () => Pick<Trees, "read">
+    /** The sessions given out to resume, one to a terminal. */
+    readonly claims: () => Claims
+    /** The terminals whose agents sleep. */
+    readonly sleepers: () => Sleepers
+    /** Every terminal's sessions, running or saved, which a resume reads its kept launch flags from. */
+    readonly rows: () => Iterable<{ readonly agents: Record["agents"] }>
+    /** Closes a terminal for good, the person's close: one with no shell is forgotten as its row. */
+    readonly close: (terminalId: string, closedBy: string | null) => Promise<void>
+    /** Where a harness lives on this machine, which says how it may start with a task. */
+    readonly install: (agent: AgentName) => Promise<Install | undefined>
+    /** The models a harness can start with here, none where that can't be told. */
+    readonly models: (agent: AgentName) => Promise<readonly Model[]>
+    // A close, in the manager's steps: `closePeer` checks the runner's stop between them.
+    /** Starts closing a terminal for good; `closedBy` is the handle of the agent that closed it, null when the person did or the agent closed its own. */
+    readonly closeForGood: (record: Record, closedBy?: string | null) => void
+    readonly terminate: (record: Record) => Promise<void>
+    readonly remove: (record: Record) => void
+    readonly forget: (terminalId: string) => void
+    /** Saves what restores the terminal, without its screen. */
+    readonly save: (record: Record) => void
+    /** Shows the terminal's title after what names it changed (see `titleOf`), as `Names.retitle`. */
+    readonly retitle: (record: Record) => void
+    /** Tells murmur the terminal's agent described its work. */
+    readonly summarized: (terminalId: string) => void
+    readonly send: (call: Call) => Promise<SendAnswer | TeamAnswer>
+    readonly agents: (call: Call) => Promise<AgentsAnswer>
+    readonly team: (call: Call) => Promise<AgentsAnswer>
+  }
 
 /**
  * The tool calls agents make through Novadeck's MCP server in their terminals' shells,
@@ -158,6 +160,8 @@ export class Calls {
 
   /** Leads formed and ended after the fact. */
   readonly leads: Leads
+  /** The git worktrees agents open, take, give and close. */
+  private readonly worktrees: WorktreeCalls
 
   constructor(
     /** How long an agent's request for a new terminal waits for the client's answer. */
@@ -165,6 +169,7 @@ export class Calls {
     readonly host: CallsHost,
   ) {
     this.leads = new Leads(host)
+    this.worktrees = new WorktreeCalls(host)
   }
 
   /**
@@ -696,6 +701,16 @@ export class Calls {
         return this.leads.lead(call)
       case "release":
         return this.leads.release(call)
+      case "worktrees":
+        return Promise.resolve(this.worktrees.listed(call))
+      case "openWorktree":
+        return this.worktrees.open(call)
+      case "takeWorktree":
+        return this.worktrees.take(call)
+      case "closeWorktree":
+        return this.worktrees.close(call)
+      case "giveWorktree":
+        return this.worktrees.give(call)
       case "ask":
       case "tell":
       case "done": {

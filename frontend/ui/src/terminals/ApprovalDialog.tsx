@@ -64,16 +64,20 @@ const agentOf = (terminal: Party): string | undefined =>
 const short = (terminal: Party): string =>
   terminal.handle ? handleText(terminal.handle) : `“${clipped(terminal.name, 40)}”`
 
-const titleOf = ({ action, asker, target }: ApprovalView): string =>
-  action.type === "run"
-    ? "Run this in a new terminal?"
-    : asker && target
-      ? `Let ${short(asker)} ${action.type === "lead" ? "lead" : "close"} ${short(target)}?`
-      : action.type === "lead"
-        ? "Let an agent lead a terminal?"
-        : target
-          ? `Close ${short(target)}?`
-          : "Close a terminal?"
+const titleOf = ({ action, asker, target }: ApprovalView): string => {
+  if (action.type === "run") return "Run this in a new terminal?"
+  if (action.type === "take")
+    return asker && target
+      ? `Let ${short(asker)} take ${short(target)}’s worktree?`
+      : "Let an agent take another’s worktree?"
+  return asker && target
+    ? `Let ${short(asker)} ${action.type === "lead" ? "lead" : "close"} ${short(target)}?`
+    : action.type === "lead"
+      ? "Let an agent lead a terminal?"
+      : target
+        ? `Close ${short(target)}?`
+        : "Close a terminal?"
+}
 
 // A terminal in the bar, or where the app doesn't know it yet, what it would be.
 const Side = ({
@@ -162,6 +166,8 @@ const CommandView = ({
 // The words under the title: none for a command, whose body says it.
 const descriptionOf = ({ action, target }: ApprovalView): string | null => {
   if (action.type === "run") return null
+  if (action.type === "take")
+    return `It would own the worktree on branch “${clipped(action.branch, 60)}” from now on, and ${target ? short(target) : "its agent"} is told.`
   if (action.type === "lead")
     return `It would direct ${target ? short(target) : "it"} from now on, and could close it too. The brief it would send:`
   const agent = target && agentOf(target)
@@ -193,6 +199,13 @@ const bodyOf = (
         {action.brief}
       </pre>
     )
+  if (action.type === "take")
+    return (
+      <div className="max-h-16 overflow-auto text-caption break-all">
+        {"At "}
+        <code>{visibleText(action.path)}</code>
+      </div>
+    )
   return null
 }
 
@@ -208,7 +221,7 @@ type ApprovalDialogProps = {
 
 // Asks before an agent does something the person should allow: closing a terminal that runs
 // an agent it doesn't lead or a program, since closing ends it, leading one with a brief, or
-// running a command in a new terminal.
+// running a command in a new terminal, or taking another terminal's git worktree.
 // Declining is focused first; Escape and a click outside decline too.
 export const ApprovalDialog = ({ approval, onAnswer }: ApprovalDialogProps): React.JSX.Element => {
   // Each approval gets its own dialog: one answered while the next waits would otherwise
@@ -218,6 +231,7 @@ export const ApprovalDialog = ({ approval, onAnswer }: ApprovalDialogProps): Rea
     setGeneration({ id: approval.requestId, count: generation.count + 1 })
   const lead = approval?.action.type === "lead"
   const run = approval?.action.type === "run"
+  const take = approval?.action.type === "take"
   // The request whose command has been seen to its end.
   const [seen, setSeen] = useState("")
   return (
@@ -229,16 +243,17 @@ export const ApprovalDialog = ({ approval, onAnswer }: ApprovalDialogProps): Rea
       description={descriptionOf}
       body={(view) => bodyOf(view, { id: seen, mark: setSeen })}
       confirmDisabled={
-        (lead && !(approval?.asker && approval.target)) || (run && approval?.requestId !== seen)
+        ((lead || take) && !(approval?.asker && approval.target)) ||
+        (run && approval?.requestId !== seen)
       }
       armMs={armMs}
       armKey={approval?.requestId ?? ""}
-      confirmLabel={run ? "Run command" : lead ? "Let it lead" : "Close terminal"}
-      cancelLabel={run ? "Don't run" : lead ? "Decline" : "Keep open"}
+      confirmLabel={run ? "Run command" : lead ? "Let it lead" : take ? "Allow" : "Close terminal"}
+      cancelLabel={run ? "Don't run" : lead ? "Decline" : take ? "Deny" : "Keep open"}
       onConfirm={() => approval && onAnswer(approval.requestId, true)}
       onCancel={() => approval && onAnswer(approval.requestId, false)}
       widthClassName={
-        lead || run ? "w-[min(480px,calc(100vw-32px))]" : "w-[min(360px,calc(100vw-32px))]"
+        lead || run || take ? "w-[min(480px,calc(100vw-32px))]" : "w-[min(360px,calc(100vw-32px))]"
       }
     />
   )

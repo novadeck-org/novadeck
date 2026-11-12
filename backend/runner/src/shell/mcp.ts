@@ -16,6 +16,9 @@
  *   brief as its task (its model choices come from the runner when the tools are listed);
  *   `close_terminal` closes one of the project's terminals by its handle, or the agent's
  *   own.
+ * - `open_worktree` makes a git worktree for the agent's work and `take_worktree`,
+ *   `give_worktree` and `close_worktree` claim, hand on and remove one; they are listed only
+ *   while the user has agent worktrees on (Preferences, Experimental).
  * - `lead` asks the person to let it lead an agent already running in another terminal,
  *   and `release` ends such a lead; `send` and `agents` message the agents in the
  *   project's other terminals and list them; `describe` names and says what the agent's own
@@ -62,6 +65,8 @@ type Tool<A> = {
   readonly inputSchema: object
   /** The schema as the runner's state makes it now, when that differs from `inputSchema`. */
   schema?(call: McpCall): Promise<object>
+  /** A setting of the user's the tool is listed only while on; always listed when omitted. */
+  readonly needs?: "worktrees"
   readonly call: CallType
   request(args: Arguments): Arguments
   /** Why the call can't go at all, said before anything goes to the runner. */
@@ -1281,6 +1286,213 @@ const feedback: Tool<unknown> = {
   failed: "Novadeck couldn't save the feedback draft.",
 }
 
+// What the runner answers the worktree calls with, as the tools read it.
+type Worktree = {
+  readonly path: string
+  readonly branch: string
+  readonly existing?: boolean
+  readonly instructions?: readonly string[]
+  readonly already?: true
+  readonly asked?: true
+  readonly owner?: string
+  readonly kept?: string
+  readonly keptHead?: string
+  readonly branchDeleted?: boolean
+}
+
+const openWorktree: Tool<Worktree> = {
+  needs: "worktrees",
+  name: "open_worktree",
+  description:
+    "Make a git worktree for your work in Novadeck, on a branch you name, in a folder " +
+    "Novadeck picks and tracks, and own it: change files there, not in the user's checkout. " +
+    "It starts from from (this checkout's HEAD when left out), or checks out the branch if " +
+    "it exists. Name the branch as the repository's conventions and instructions say. " +
+    "repo is a folder in the repository when your terminal isn't in it; give the same " +
+    "group to the worktrees of several repositories for one piece of work, and they share " +
+    "a folder. The answer lists the worktree's instruction files (AGENTS.md, CLAUDE.md, " +
+    "GEMINI.md): your harness doesn't load them from here, so read them. Work there with " +
+    "absolute paths and git -C, never cd and then git. Refused while the user has agent " +
+    "worktrees off.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      branch: {
+        type: "string",
+        description: "The branch: new, or an existing one to check out.",
+      },
+      repo: {
+        type: "string",
+        description:
+          "A folder in the repository, absolute or relative to this terminal's current " +
+          "directory; this terminal's checkout when left out.",
+      },
+      from: {
+        type: "string",
+        description:
+          "The commit, branch or tag a new branch starts from; the checkout's HEAD when left out.",
+      },
+      group: {
+        type: "string",
+        description:
+          "Names the folder shared by one piece of work's repositories; the branch's name when left out.",
+      },
+    },
+    required: ["branch"],
+    additionalProperties: false,
+  },
+  call: "openWorktree",
+  request: (args) => picked(args, ["branch", "repo", "from", "group"]),
+  said: (answer) =>
+    "Opened the worktree " +
+    answer.path +
+    " on " +
+    (answer.existing ? "the existing branch " : "the new branch ") +
+    answer.branch +
+    ". You own it. Work there with absolute paths and git -C " +
+    answer.path +
+    ", never cd and then git. " +
+    (answer.instructions?.length
+      ? "Read its instruction files before you start, as your harness doesn't load them from " +
+        "here: " +
+        answer.instructions.join(", ") +
+        "."
+      : "It has no AGENTS.md, CLAUDE.md or GEMINI.md at its top."),
+  failed: "Novadeck couldn't open the worktree.",
+}
+
+const takeWorktree: Tool<Worktree> = {
+  needs: "worktrees",
+  name: "take_worktree",
+  description:
+    "Own a git worktree of this project that has no owner, or that something else made, such " +
+    "as a repository's own script, so Novadeck tracks it and you may close it. A worktree " +
+    "nobody owns, or whose terminal is gone, is yours at once; one made another way is " +
+    "recorded as yours. One another terminal owns is yours only if the user agrees: " +
+    "Novadeck asks them and this answers at once, so end your turn rather than wait, and " +
+    "you hear the outcome as a message from Novadeck; its owner is told if they agree. Use " +
+    "it to carry on work from a session that is stuck or gone. Refused while the user has " +
+    "agent worktrees off.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description:
+          "The worktree's folder, absolute or relative to this terminal's current directory.",
+      },
+    },
+    required: ["path"],
+    additionalProperties: false,
+  },
+  call: "takeWorktree",
+  request: (args) => picked(args, ["path"]),
+  said: (answer) =>
+    answer.asked
+      ? "Asked the user to let you take the worktree " +
+        answer.path +
+        " (branch " +
+        answer.branch +
+        ")" +
+        (answer.owner ? " from " + mention(answer.owner) : "") +
+        ". It is yours only if they agree, and Novadeck tells you either way, as a message. " +
+        "End your turn rather than wait."
+      : answer.already
+        ? "The worktree " + answer.path + " (branch " + answer.branch + ") is yours already."
+        : "You now own the worktree " +
+          answer.path +
+          " (branch " +
+          answer.branch +
+          "). Work there with absolute paths and git -C, never cd and then git, and read its " +
+          "instruction files (AGENTS.md, CLAUDE.md, GEMINI.md) if it has them.",
+  failed: "Novadeck couldn't take the worktree.",
+}
+
+const closeWorktree: Tool<Worktree> = {
+  needs: "worktrees",
+  name: "close_worktree",
+  description:
+    "Remove a git worktree you own, with its folder, when its work is done or merged. It is " +
+    "refused while the worktree holds uncommitted or untracked files, or commits the main " +
+    "branch doesn't have; commit or push what matters first. force closes it anyway: " +
+    "uncommitted and untracked files are kept as a commit on a ref the answer names, but " +
+    "ignored files (such as .env or generated data) are not kept and go with the folder, " +
+    "and a branch with commits stays. A branch is deleted only if Novadeck made it and the " +
+    "main branch holds all of it. A worktree Novadeck can't read, or with submodules, is " +
+    "never closed. Only the owner may close a worktree. Refused while the user has agent " +
+    "worktrees off.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description:
+          "The worktree's folder, absolute or relative to this terminal's current directory.",
+      },
+      force: {
+        type: "boolean",
+        description: "True only when the user asked, or the work is safely kept.",
+      },
+    },
+    required: ["path"],
+    additionalProperties: false,
+  },
+  call: "closeWorktree",
+  request: (args) => picked(args, ["path", "force"]),
+  said: (answer) =>
+    "Closed the worktree " +
+    answer.path +
+    ". " +
+    (answer.kept
+      ? "Its uncommitted and untracked files are kept on " +
+        answer.kept +
+        "; ignored files were not kept. "
+      : "") +
+    (answer.keptHead ? "Commits only its HEAD reached are kept on " + answer.keptHead + ". " : "") +
+    (answer.branchDeleted
+      ? "Its branch " + answer.branch + " is deleted, as the main branch holds all of it."
+      : "Its branch " + answer.branch + " stays."),
+  failed: "Novadeck couldn't close the worktree.",
+}
+
+const giveWorktree: Tool<Worktree> = {
+  needs: "worktrees",
+  name: "give_worktree",
+  description:
+    "Give a git worktree you own to another terminal of this project and session, by the " +
+    "terminal's exact handle as agents lists it (such as @fox), so it owns and may close it: " +
+    "for example a lead handing work to an agent it opened. The terminal is told. You no " +
+    "longer own it, so don't change files there. Only the owner may give it. Refused while " +
+    "the user has agent worktrees off.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description:
+          "The worktree's folder, absolute or relative to this terminal's current directory.",
+      },
+      to: {
+        type: "string",
+        description: "The terminal's exact handle, such as @fox, as agents lists it.",
+      },
+    },
+    required: ["path", "to"],
+    additionalProperties: false,
+  },
+  call: "giveWorktree",
+  request: (args) => picked(args, ["path", "to"]),
+  said: (answer) =>
+    "Gave the worktree " +
+    answer.path +
+    " (branch " +
+    answer.branch +
+    ") to " +
+    mention(answer.owner ?? "") +
+    ", who is told. It is theirs now.",
+  failed: "Novadeck couldn't give the worktree.",
+}
+
 const tools: readonly Tool<unknown>[] = [
   ask,
   tell,
@@ -1292,6 +1504,10 @@ const tools: readonly Tool<unknown>[] = [
   openTerminal,
   openAgent,
   closeTerminal,
+  openWorktree,
+  takeWorktree,
+  closeWorktree,
+  giveWorktree,
   leadTerminal,
   release,
   send,
@@ -1370,14 +1586,35 @@ const initialized = (params: unknown, inTerminal: boolean) => {
 }
 
 // Every tool as the agent lists it, with the schema the runner's state makes now.
-const listedTools = (call: McpCall) =>
-  Promise.all(
-    tools.map(async ({ name, description, inputSchema, schema }) => ({
-      name,
-      description,
-      inputSchema: (await schema?.(call)) ?? inputSchema,
-    })),
-  )
+const listedTools = async (call: McpCall) => {
+  // Asked together, so a listing waits for the slowest, not for each in turn.
+  const [on, listing] = await Promise.all([
+    worktreesAreOn(call),
+    Promise.all(
+      tools.map(async ({ name, description, inputSchema, schema, needs }) => ({
+        needs,
+        name,
+        description,
+        inputSchema: (await schema?.(call)) ?? inputSchema,
+      })),
+    ),
+  ])
+  return listing
+    .filter(({ needs }) => needs !== "worktrees" || on)
+    .map(({ name, description, inputSchema }) => ({ name, description, inputSchema }))
+}
+
+// Whether the user turned agent worktrees on, as the runner says; off where it can't say. The
+// listing is cached by some harnesses for the whole session, so the runner refuses the calls
+// while it is off all the same.
+const worktreesAreOn = async (call: McpCall): Promise<boolean> => {
+  try {
+    const answer = await call("worktrees", {})
+    return object(answer) && answer.ok === true && answer.on === true
+  } catch {
+    return false
+  }
+}
 
 const respond = async (
   line: string,

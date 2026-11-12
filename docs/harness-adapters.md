@@ -103,7 +103,7 @@ harnesses/core/src/          # @novadeck/harness-core
   hook-command.ts  # The hook command line, per shell dialect, and how long a hook may take
   follow.ts        # The shared JSONL follower
   items.ts         # Transcript items, bounded as the protocol takes them
-  tools.ts         # What a tool call was, in one line, and Novadeck's own MCP tools
+  tools.ts         # What a tool call was, in one line, and Novadeck's own MCP tools (worktree tools included)
   report.ts, header.ts
   testing/         # Test helpers: probes.ts (`loadProbe`), screens.ts, dialogs.ts, reports.ts
 harnesses/<id>/src/          # @novadeck/harness-<id>, one per harness, all shaped alike:

@@ -133,6 +133,22 @@ export const novadeckTool = (tool: string, fields: Fields | undefined): ToolRun 
         title: `Close${text("to") ? ` ${text("to")}` : " a terminal"}`,
         detail: "",
       }
+    case "open_worktree":
+      return { kind: "agent", title: "Opened a worktree", detail: text("branch") }
+    case "take_worktree":
+      return { kind: "agent", title: "Took a worktree", detail: shortPath(text("path")) }
+    case "close_worktree":
+      return {
+        kind: "agent",
+        title: fields?.force === true ? "Closed a worktree (forced)" : "Closed a worktree",
+        detail: shortPath(text("path")),
+      }
+    case "give_worktree":
+      return {
+        kind: "agent",
+        title: `Gave a worktree${text("to") ? ` to ${text("to")}` : ""}`,
+        detail: shortPath(text("path")),
+      }
     case "lead":
       return {
         kind: "agent",

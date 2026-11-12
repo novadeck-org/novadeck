@@ -259,7 +259,7 @@ describe("workspace metadata", () => {
     expect(first.id).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(13)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(14)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       expect(() =>
         database
@@ -493,13 +493,13 @@ describe("workspace metadata", () => {
     const path = join(directory(), "workspace.sqlite")
     const future = new DatabaseSync(path)
     future.exec(
-      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 14",
+      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 15",
     )
     future.close()
     expect(() => new WorkspaceStore(path)).toThrow(/newer/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(14)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(15)
       expect(database.prepare("SELECT value FROM future_data").get()?.value).toBe("saved")
     } finally {
       database.close()
@@ -551,7 +551,7 @@ describe("workspace metadata", () => {
     new WorkspaceStore(path).close()
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(13)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(14)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       // Every old table is gone, and so are the old names.
       expect(Object.keys(rowsOf(database)).toSorted()).toEqual(
@@ -568,6 +568,7 @@ describe("workspace metadata", () => {
           "sessions",
           "settings",
           "terminals",
+          "worktrees",
         ].toSorted(),
       )
       const rows = (sql: string) =>
@@ -1596,6 +1597,79 @@ describe("workspace metadata", () => {
     expect(carried).toEqual(created)
   })
 
+  it("adds the worktrees table in the step from 13, keeping what was there", ({ directory }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/13.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 13;
+      INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'P', '/p');`)
+    old.close()
+    const migrated = new WorkspaceStore(path)
+    expect(migrated.worktrees()).toEqual([])
+    const record = {
+      path: "/w/p/g/repo",
+      commonDir: "/p/.git",
+      branch: "feat",
+      base: "abc",
+      projectId: "p",
+      terminalId: "gone-terminal",
+      adopted: false,
+      branchMade: false,
+      createdAt: 5,
+    }
+    migrated.insertWorktree(record)
+    expect(migrated.worktree(record.path)).toEqual(record)
+    expect(migrated.projects().map(({ id }) => id)).toEqual(["p"])
+    migrated.close()
+    const fresh = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(fresh).close()
+    const [carried, created] = [path, fresh].map((file) => {
+      const database = new DatabaseSync(file)
+      try {
+        return normalisedSchemaOf(database)
+      } finally {
+        database.close()
+      }
+    })
+    expect(carried).toEqual(created)
+  })
+
+  it("keeps and moves worktree rows, and drops a project's with it", async ({
+    directory,
+    store: open,
+  }) => {
+    const store = open()
+    const project = await store.createProject({ id: randomUUID(), name: "P", cwd: directory() })
+    const make = (path: string, terminalId: string | null) => ({
+      path,
+      commonDir: "/p/.git",
+      branch: path,
+      base: "abc",
+      projectId: project.id,
+      terminalId,
+      adopted: true,
+      branchMade: false,
+      createdAt: path === "/a" ? 1 : 2,
+    })
+    store.insertWorktree(make("/a", "t1"))
+    store.insertWorktree(make("/b", null))
+    expect(store.worktreesOfTerminal("t1").map(({ path }) => path)).toEqual(["/a"])
+    expect(store.worktreesOfProject(project.id).map(({ path }) => path)).toEqual(["/a", "/b"])
+    expect(store.setWorktreeOwner("/b", "t2")).toBe(true)
+    expect(store.worktree("/b")?.terminalId).toBe("t2")
+    expect(store.orphanWorktree("/a")).toBe(true)
+    expect(store.worktree("/a")?.terminalId).toBeNull()
+    expect(store.setWorktreeOwner("/none", "t2")).toBe(false)
+    expect(store.removeWorktree("/a")).toBe(true)
+    expect(store.removeWorktree("/a")).toBe(false)
+    expect(() => store.insertWorktree({ ...make("/c", null), projectId: "nope" })).toThrow()
+    // A path that is tracked is never taken over by another insert.
+    expect(() => store.insertWorktree({ ...make("/b", "t9"), branch: "other" })).toThrow()
+    expect(store.worktree("/b")).toMatchObject({ terminalId: "t2" })
+    store.removeProject(project.id)
+    expect(store.worktrees()).toEqual([])
+  })
+
   it("skips only what the table refuses in the step from 12, and fails the step on any other error", () => {
     const sqlite = (errcode: number) => Object.assign(new Error("sqlite"), { errcode })
     // SQLITE_CONSTRAINT and its extended codes (a unique key, a check, a foreign key).
@@ -1621,8 +1695,8 @@ describe("workspace metadata", () => {
       // and adds a step in store.ts's migrations, from schemas/<version before>.sql, which
       // is added for it. Then record the new digest here.
       expect({ version, digest }).toEqual({
-        version: 13,
-        digest: "ddab66768d225ebec3d902cdef376652185b089f4d285dfd7b18a496afb4c0b4",
+        version: 14,
+        digest: "a7e5237c57a1b2e640c3421f293d19c780e1305268f9aad638d57f7aee2d6fc0",
       })
     } finally {
       database.close()

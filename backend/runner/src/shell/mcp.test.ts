@@ -13,7 +13,7 @@ import {
   startupCommand,
 } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
-import { afterAll, beforeAll, onTestFinished } from "vitest"
+import { afterAll, afterEach, beforeAll, onTestFinished } from "vitest"
 
 import { readCloseShownRequest, readShowRequest } from "../companions/request.js"
 import { unboundNote } from "../messaging/peers.js"
@@ -125,6 +125,8 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
   let reports: Reports
   const calls: Call[] = []
   let answer: unknown = { ok: true, id: "abc", kind: "image", name: "hero.png", opened: true }
+  // Answers by call type, over `answer`.
+  const answersBy: { [type: string]: unknown } = {}
   // How long the runner takes to answer.
   let delay = 0
 
@@ -136,7 +138,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       call: async (call) => {
         calls.push(call)
         await new Promise((resolve) => setTimeout(resolve, delay))
-        return answer
+        return call.type in answersBy ? answersBy[call.type] : answer
       },
       tools: () => {},
     })
@@ -474,7 +476,10 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       return agent?.inputSchema as { properties: Record<string, any>; required: string[] }
     }
     const listed = await properties()
-    expect(calls[0]).toMatchObject({ type: "models", request: {} })
+    expect(calls.find((each) => each.type === "models")).toMatchObject({
+      type: "models",
+      request: {},
+    })
     expect(listed.required).toEqual(["agent"])
     expect(listed.properties.model.enum).toEqual(["opus", "sonnet", "gpt-5"])
     expect(listed.properties.model.description).toContain(
@@ -496,6 +501,116 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     expect((await properties()).properties.model.description).toContain(
       "An agent not named here can't take a model now: leave model out for it.",
     )
+  })
+
+  describe("worktree tools", () => {
+    const names = async () => {
+      const [, tools] = await session(terminal(), [initialize, list])
+      return tools?.result?.tools?.map((tool) => tool.name) ?? []
+    }
+    const worktreeTools = ["open_worktree", "take_worktree", "close_worktree", "give_worktree"]
+    afterEach(() => {
+      for (const key of Object.keys(answersBy)) delete answersBy[key]
+    })
+
+    it("lists the four tools only while the user has agent worktrees on", async () => {
+      answersBy.worktrees = { ok: true, on: false }
+      expect(await names()).not.toEqual(expect.arrayContaining(worktreeTools))
+      expect((await names()).some((name) => name.endsWith("_worktree"))).toBe(false)
+      answersBy.worktrees = { ok: true, on: true }
+      expect((await names()).filter((name) => name.endsWith("_worktree"))).toEqual(worktreeTools)
+      // A runner that can't say counts as off.
+      answersBy.worktrees = { ok: false, reason: "Novadeck couldn't tell." }
+      expect((await names()).some((name) => name.endsWith("_worktree"))).toBe(false)
+    })
+
+    it("still sends a call to a tool a harness cached, so the runner can refuse it", async () => {
+      calls.length = 0
+      answersBy.openWorktree = { ok: false, reason: "Agent worktrees are off: ask the user." }
+      const [, result] = await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: { name: "open_worktree", arguments: { branch: "feat/x" } },
+        },
+      ])
+      expect(calls.map((each) => each.type)).toEqual(["openWorktree"])
+      expect(result?.result).toMatchObject({
+        isError: true,
+        content: [{ text: expect.stringContaining("Agent worktrees are off") }],
+      })
+    })
+
+    it("sends only what each takes, and tells the path, branch and instruction files", async () => {
+      calls.length = 0
+      answersBy.openWorktree = {
+        ok: true,
+        path: "/h/.novadeck/worktrees/p/feat-x/api",
+        branch: "feat/x",
+        existing: false,
+        instructions: ["/h/.novadeck/worktrees/p/feat-x/api/AGENTS.md"],
+      }
+      answersBy.takeWorktree = {
+        ok: true,
+        asked: true,
+        path: "/w",
+        branch: "b",
+        owner: "@fox",
+      }
+      answersBy.closeWorktree = {
+        ok: true,
+        path: "/w",
+        branch: "b",
+        kept: "refs/novadeck/kept/b",
+        branchDeleted: false,
+      }
+      answersBy.giveWorktree = { ok: true, path: "/w", branch: "b", owner: "fox" }
+      const [, open, take, close, give] = await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: {
+            name: "open_worktree",
+            arguments: { branch: "feat/x", from: "main", extra: 1 },
+          },
+        },
+        {
+          id: 4,
+          method: "tools/call",
+          params: { name: "take_worktree", arguments: { path: "/w" } },
+        },
+        {
+          id: 5,
+          method: "tools/call",
+          params: { name: "close_worktree", arguments: { path: "/w", force: true } },
+        },
+        {
+          id: 6,
+          method: "tools/call",
+          params: { name: "give_worktree", arguments: { path: "/w", to: "@fox" } },
+        },
+      ])
+      expect(calls.map(({ type, request }) => [type, request])).toEqual([
+        ["openWorktree", { branch: "feat/x", from: "main" }],
+        ["takeWorktree", { path: "/w" }],
+        ["closeWorktree", { path: "/w", force: true }],
+        ["giveWorktree", { path: "/w", to: "@fox" }],
+      ])
+      const text = (reply: Answer | undefined) => {
+        const content = (reply?.result as { content?: { text: string }[] } | undefined)?.content
+        return content?.[0]?.text ?? ""
+      }
+      expect(text(open)).toContain("/h/.novadeck/worktrees/p/feat-x/api on the new branch feat/x")
+      expect(text(open)).toContain("Read its instruction files")
+      expect(text(open)).toContain("AGENTS.md")
+      expect(text(take)).toContain("Asked the user to let you take the worktree /w")
+      expect(text(take)).toContain("@fox")
+      expect(text(close)).toContain("refs/novadeck/kept/b")
+      expect(text(close)).toContain("Its branch b stays")
+      expect(text(give)).toContain("@fox")
+    })
   })
 
   it("says an ask is held back while the user looks at its terminal", async () => {
@@ -1596,7 +1711,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     ])
     expect(shown?.result).toMatchObject({ isError: false })
     // Listing the tools asks the runner for the models, then the show goes through.
-    expect(calls.map((each) => each.type)).toEqual(["models", "show"])
+    expect(calls.map((each) => each.type)).toEqual(["worktrees", "models", "show"])
   }, 30_000)
 
   // On Windows, cmd starts the launcher; its content is checked below.

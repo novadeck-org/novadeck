@@ -282,6 +282,33 @@ describe("approval dialog", () => {
     })
   })
 
+  context("when an agent asks to take another terminal's worktree", () => {
+    const take = (branch = "feat/login", path = "/home/me/.novadeck/worktrees/p/g/api") =>
+      view({ action: { type: "take", path, branch } })
+
+    it("names both agents, the branch and the folder, with Allow and Deny", async () => {
+      const { button, onAnswer } = show(take("feat/<b>x</b>"))
+      await settle()
+      expect(dialog()?.textContent).toContain("Let @moth take @fox’s worktree?")
+      expect(dialog()?.textContent).toContain("feat/<b>x</b>")
+      expect(dialog()?.querySelector("code")?.textContent).toBe(
+        "/home/me/.novadeck/worktrees/p/g/api",
+      )
+      expect(button("Deny")).toBeDefined()
+      await armed()
+      act(() => button("Allow").click())
+      expect(onAnswer).toHaveBeenCalledWith("approval-1", true)
+    })
+
+    it("denies on the button, and holds Allow back a moment", async () => {
+      const { button, onAnswer } = show(take())
+      await settle()
+      expect(button("Allow").disabled).toBe(true)
+      act(() => button("Deny").click())
+      expect(onAnswer).toHaveBeenCalledWith("approval-1", false)
+    })
+  })
+
   context("when an agent asks to lead a terminal", () => {
     const lead = (brief = "Review the diff.\nDon't push.") =>
       view({ action: { type: "lead", brief } })

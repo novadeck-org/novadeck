@@ -72,6 +72,23 @@ suite("what a Claude Code tool call was", () => {
     ["open_agent", { agent: "claude", effort: "high" }, "agent", "Opened an agent", "claude"],
     ["open_terminal", { command: "pnpm dev" }, "agent", "Opened a terminal", "pnpm dev"],
     ["close_terminal", { to: "owl" }, "agent", "Close owl", ""],
+    ["open_worktree", { branch: "feat/x", repo: "." }, "agent", "Opened a worktree", "feat/x"],
+    ["take_worktree", { path: "/a/b/c/d/wt" }, "agent", "Took a worktree", "…/c/d/wt"],
+    ["close_worktree", { path: "/a/b/c/d/wt" }, "agent", "Closed a worktree", "…/c/d/wt"],
+    [
+      "close_worktree",
+      { path: "/a/b/c/d/wt", force: true },
+      "agent",
+      "Closed a worktree (forced)",
+      "…/c/d/wt",
+    ],
+    [
+      "give_worktree",
+      { path: "/a/b/c/d/wt", to: "owl" },
+      "agent",
+      "Gave a worktree to owl",
+      "…/c/d/wt",
+    ],
     [
       "lead",
       { to: "owl", message: "Fix the lint\nerrors" },

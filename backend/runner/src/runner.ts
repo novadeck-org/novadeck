@@ -29,6 +29,7 @@ import {
   WorkspaceStore,
   WorkspaceTooNewError,
 } from "./workspaces/store.js"
+import { Worktrees } from "./worktrees/worktrees.js"
 
 const log = logs.for("runner")
 
@@ -267,10 +268,23 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   const scopes = userScopes()
   // Without a key from the app no transcript is saved or shown.
   const sealer = createTranscriptSealer(options.transcriptKey)
+  // What owns a worktree is a terminal, live or closed but still in History.
+  const worktrees = new Worktrees(store, {
+    projectFolder: (projectId) => {
+      try {
+        return store.project(projectId).cwd
+      } catch {
+        return undefined
+      }
+    },
+    exists: (terminalId) =>
+      terminals.place(terminalId) !== undefined || store.terminalExists(terminalId),
+  })
   const terminals = new Terminals({
     records: store,
     closed: store,
     projects: () => store.projects().map(({ id }) => id),
+    worktrees: { service: worktrees, enabled: () => store.settings.runner().worktrees },
     sealer,
     shellFiles,
     ...relay,
@@ -294,7 +308,13 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     ...(scopes && { pty: { scopes } }),
     ...options.terminals,
   })
-  const projects = new Projects(store, terminals, items)
+  const projects = new Projects(store, terminals, items, worktrees)
+  // Not awaited: the runner starts at once, and a failure only leaves rows for the next start.
+  void worktrees.reconcile().catch((error: unknown) =>
+    log.error("worktrees.reconcile-failed", "Novadeck could not check its worktrees", {
+      err: error,
+    }),
+  )
   const works = new Works({
     placements: async () =>
       (await terminals.checkouts()).flatMap(({ terminalId, sessionId, root }) => {

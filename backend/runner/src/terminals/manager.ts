@@ -41,6 +41,7 @@ import type { AgentsAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.
 import { stripInherited } from "../shell/inherited.js"
 import { type Ack, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
+import { worktreeHost, type WorktreesWiring } from "../worktrees/calls.js"
 import { Approvals } from "./approvals.js"
 import { Bindings } from "./binding/facts.js"
 import { Reports } from "./binding/reports.js"
@@ -199,6 +200,7 @@ export class Terminals {
       | "records"
       | "closed"
       | "projects"
+      | "worktrees"
       | "historyTimes"
       | "handleOrder"
       | "shims"
@@ -233,6 +235,7 @@ export class Terminals {
     records: TerminalRecords | undefined
     projectFolder: ((sessionId: string) => string | undefined) | undefined
     projectOf: ((sessionId: string) => string | undefined) | undefined
+    worktrees: WorktreesWiring | undefined
     shims: () => Promise<readonly AgentName[]>
     connected: (agent: AgentName) => Promise<boolean>
     install: (agent: AgentName) => Promise<Install | undefined>
@@ -299,6 +302,7 @@ export class Terminals {
       transcriptChars: positive(options.transcriptChars, 256 * 1024),
       projectFolder: options.projectFolder,
       projectOf: options.projectOf,
+      worktrees: options.worktrees,
       openMs: positive(options.openMs, 6_000),
       install: options.install ?? (() => Promise.resolve(undefined)),
       models: options.models ?? (() => Promise.resolve([])),
@@ -713,6 +717,7 @@ export class Terminals {
       send: (call) => this.send(call),
       agents: (call) => this.agents(call),
       team: (call) => this.peers.team(call),
+      ...worktreeHost(this.options.worktrees, (sessionId) => this.projectOf(sessionId)),
     })
     this.moves = new Moves({
       stopping: () => this.stopping,
