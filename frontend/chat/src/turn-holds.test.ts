@@ -9,6 +9,7 @@ import {
   oneLine,
   peekHeight,
   scrollFor,
+  startBefore,
   startRows,
   sentence,
   turnStarts,
@@ -283,5 +284,15 @@ describe("a prompt as a sentence in a label", () => {
     expect(sentence("Which build tool does this project use?")).toBe(
       "Which build tool does this project use?",
     )
+  })
+})
+
+describe("startBefore", () => {
+  const blocks = [prompt("1"), reply("2"), prompt("3"), reply("4")]
+
+  it("is the turn under way where the shown blocks begin", () => {
+    expect(startBefore(blocks, 0)).toBeNull()
+    expect(startBefore(blocks, 1)).toEqual({ id: "1", mine: true })
+    expect(startBefore(blocks, 3)).toEqual({ id: "3", mine: true })
   })
 })

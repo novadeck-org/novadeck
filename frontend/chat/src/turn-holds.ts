@@ -21,6 +21,13 @@ export const turnStarts = (blocks: readonly ChatBlock[]): readonly TurnStart[] =
         : [],
   )
 
+// The turn under way where the log's shown blocks begin at `from`: the latest start among the
+// blocks before them, null where none is. The log's control that shows them stands for its row,
+// so that its prompt holds the top once the control has passed, as though the earlier blocks were
+// there.
+export const startBefore = (blocks: readonly ChatBlock[], from: number): TurnStart | null =>
+  turnStarts(blocks.slice(0, from)).at(-1) ?? null
+
 // The prompt that started the latest turn, if it is the person's: the one whose mark speaks for
 // the window's state. A turn a ring started has none.
 export const currentPrompt = (blocks: readonly ChatBlock[]): string | null => {
