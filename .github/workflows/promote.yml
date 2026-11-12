@@ -1,6 +1,6 @@
 name: Promote to Stable
 
-run-name: Promote ${{ inputs.version || 'the newest prerelease' }} to stable
+run-name: Promote ${{ inputs.version || 'the newest prerelease' }} to stable${{ inputs.skip-nightlies != '' && ' (nightlies skipped)' || '' }}
 
 # Every merge to main publishes a prerelease. Promoting one makes it the stable release
 # that people who install the app, and apps checking for updates, get from now on. The
