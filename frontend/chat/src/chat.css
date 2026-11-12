@@ -215,11 +215,20 @@
 .chat-request > :not(.chat-request-head) {
   max-width: calc(var(--_inset) + var(--_measure) + var(--_pad));
 }
-/* Lines of work keep the words' width too, so a long one never runs under its fact. */
+/* Lines of work keep the words' width too, and stop short of their fact at the row's right edge
+   where the row is narrower than that and its fact, so a long one never runs under it. Where the
+   facts step aside, the line takes the row. */
 .chat-tool-summary,
 .chat-subagent-summary,
 .chat-tools-fold {
-  max-width: var(--_measure);
+  max-width: min(var(--_measure), 100% - 10ch);
+}
+@container chat (max-width: 920px) {
+  .chat-tool-summary,
+  .chat-subagent-summary,
+  .chat-tools-fold {
+    max-width: min(var(--_measure), 100%);
+  }
 }
 
 /* The fact at a row's right edge: its time, a clock, how long it took. */
@@ -684,7 +693,6 @@
 .chat-subagent-summary {
   display: flex;
   gap: 1ch;
-  max-width: 100%;
   padding: 0;
   overflow: hidden;
   border: 0;
@@ -748,7 +756,6 @@
 .chat-tool-summary,
 .chat-tools-fold {
   display: flex;
-  max-width: 100%;
   padding: 0;
   overflow: hidden;
   border: 0;
