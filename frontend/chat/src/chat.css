@@ -460,8 +460,10 @@
 .chat-message[data-role="agent"] + .chat-message[data-role="agent"] {
   margin-top: calc(var(--_lh) / 2);
 }
-/* A long message shows its first lines, fading out, then a key for the rest. */
-.chat-words[data-folded] {
+/* A long message, or a tool call's input or output, shows its first lines, fading out, then a key
+   for the rest; opened, it shows whole. */
+.chat-words[data-folded],
+.chat-tool-part pre[data-folded] {
   max-height: var(--_shown);
   overflow: hidden;
   mask-image: linear-gradient(to bottom, currentColor calc(100% - var(--_lh)), transparent);
@@ -824,7 +826,6 @@
   padding-left: 2ch;
 }
 .chat-tool-part pre {
-  max-height: calc(14 * var(--_lh));
   margin: 0;
   overflow: auto;
   font: inherit;
@@ -832,6 +833,10 @@
   overflow-wrap: anywhere;
   scrollbar-width: thin;
   scrollbar-color: var(--_line) transparent;
+}
+/* A diff scrolls inside past its first lines. */
+.chat-tool-part pre.chat-changes {
+  max-height: calc(14 * var(--_lh));
 }
 .chat-tool-part pre:focus-visible {
   outline-offset: -2px;

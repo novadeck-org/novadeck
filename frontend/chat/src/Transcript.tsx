@@ -4,12 +4,13 @@ import { counted } from "@novadeck/core/units"
 import { Markdown } from "@novadeck/toolkit/Markdown"
 import { MentionedText } from "@novadeck/toolkit/Mentioned"
 import type { Mention } from "@novadeck/toolkit/mentions"
-import { memo, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { memo, useId, useMemo, useState } from "react"
 
 import { withBubbles, type SentBubble } from "./bubbles"
 import type { Echo } from "./echoes"
 import { Fact, Since, TimeFact } from "./Fact"
 import { longMs, span } from "./facts"
+import { MoreKey, useFold } from "./fold"
 import { Mark } from "./Mark"
 import type { MarkPhase } from "./mark-phase"
 import { shownControls } from "./shown-controls"
@@ -84,10 +85,6 @@ const keyFocus = (target: EventTarget): boolean => {
   }
 }
 
-// A message shows its first lines when it runs past this many, and the key opens the rest.
-const foldedAt = 5
-const shownLines = foldedAt - 1
-
 // Another agent's message: its face in the gutter, its handle and where it runs, its words. A
 // long one is cut to its first lines, with a key that says how many more.
 const PeerMessage = ({
@@ -108,26 +105,8 @@ const PeerMessage = ({
   readonly mention: Mention | undefined
 }): React.JSX.Element => {
   const look = from.startsWith("@") ? (looks?.(from.slice(1)) ?? null) : null
-  const words = useRef<HTMLDivElement>(null)
-  const [lines, setLines] = useState(0)
-  const [open, setOpen] = useState(false)
-  const id = useId()
-  // The lines the words take at the column's width, whether cut short or not.
-  useLayoutEffect(() => {
-    const element = words.current
-    if (!element) return
-    const measure = (): void => {
-      const height = parseFloat(getComputedStyle(element).lineHeight)
-      setLines(height > 0 ? Math.round(element.scrollHeight / height) : 0)
-    }
-    measure()
-    if (typeof ResizeObserver === "undefined") return
-    const watch = new ResizeObserver(measure)
-    // The Markdown inside, which the cut doesn't clamp: it changes with the words and the width.
-    if (element.firstElementChild) watch.observe(element.firstElementChild)
-    return () => watch.disconnect()
-  }, [])
-  const folds = lines > foldedAt
+  const [ref, fold] = useFold<HTMLDivElement>(text)
+  const { folds, open, setOpen } = fold
   return (
     <article
       className="chat-message"
@@ -142,33 +121,18 @@ const PeerMessage = ({
       </p>
       <TimeFact at={at} hover />
       <div
-        ref={words}
-        id={id}
+        ref={ref}
+        id={fold.id}
         className="chat-words"
-        data-folded={(folds && !open) || undefined}
+        {...fold.cut}
         // The keys taking a link or a field into the cut-off lines would put focus out of sight:
         // the rest opens to them. A click (on a link, a code block, its copy key) leaves it shut.
         onFocus={folds && !open ? (event) => keyFocus(event.target) && setOpen(true) : undefined}
-        style={
-          folds && !open
-            ? ({ "--_shown": `calc(${shownLines} * var(--_lh))` } as React.CSSProperties)
-            : undefined
-        }
       >
         <Markdown text={text} mention={mention} />
       </div>
       {truncated && <Shortened />}
-      {folds && (
-        <button
-          type="button"
-          className="chat-key chat-more nodrag nopan"
-          aria-expanded={open}
-          aria-controls={id}
-          onClick={() => setOpen((value) => !value)}
-        >
-          {open ? "show less" : `… ${lines - shownLines} more lines`}
-        </button>
-      )}
+      <MoreKey fold={fold} />
     </article>
   )
 }

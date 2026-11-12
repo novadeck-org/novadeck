@@ -5,6 +5,7 @@ import { useId, useState } from "react"
 
 import { Fact, Since, TimeFact } from "./Fact"
 import { longMs, span } from "./facts"
+import { MoreKey, useFold } from "./fold"
 import { inputBeyondLine } from "./input-text"
 import { shownControls } from "./shown-controls"
 import {
@@ -42,6 +43,8 @@ const Note = ({ note }: { readonly note: ToolNote }): React.JSX.Element =>
 const Failed = ({ count }: { readonly count: number }): React.JSX.Element | null =>
   count > 0 ? <span className="chat-tool-failed"> · {count} failed</span> : null
 
+// A call's input or what it printed: a long one shows its first lines, as another agent's message
+// does, and the key under it the rest.
 const Detail = ({
   label,
   text,
@@ -50,15 +53,18 @@ const Detail = ({
   readonly label: string
   readonly text: string
   readonly truncated: boolean
-}): React.JSX.Element => (
-  <section className="chat-tool-part" aria-label={label}>
-    {/* Focusable, so a long output can be scrolled by keyboard. */}
-    <pre tabIndex={0} className="nodrag nopan nowheel">
-      {shownControls(text) || "(empty)"}
-    </pre>
-    {truncated && <p className="chat-tool-note">Shortened here; the rest isn't carried over.</p>}
-  </section>
-)
+}): React.JSX.Element => {
+  const [ref, fold] = useFold<HTMLPreElement>(text)
+  return (
+    <section className="chat-tool-part" aria-label={label}>
+      <pre ref={ref} id={fold.id} className="nodrag nopan" {...fold.cut}>
+        {shownControls(text) || "(empty)"}
+      </pre>
+      <MoreKey fold={fold} />
+      {truncated && <p className="chat-tool-note">Shortened here; the rest isn't carried over.</p>}
+    </section>
+  )
+}
 
 // The lines a call changed, each with its number where the harness records one, and how many
 // more it counted.
@@ -66,7 +72,8 @@ const Changes = ({ change }: { readonly change: ToolChange }): React.JSX.Element
   const more = moreChanged(change)
   return (
     <section className="chat-tool-part" aria-label="Changes">
-      <pre tabIndex={0} className="nodrag nopan nowheel">
+      {/* Focusable, so a long diff can be scrolled by keyboard. */}
+      <pre tabIndex={0} className="chat-changes nodrag nopan nowheel">
         {change.lines.map((line, at) => (
           // A line of a diff has no identity but its place.
           // eslint-disable-next-line react/no-array-index-key
