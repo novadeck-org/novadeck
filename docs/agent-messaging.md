@@ -2589,16 +2589,23 @@ again on each call.
   - **Antigravity**, whose injection lasts one model call, is told at every turn's start
     while the setting is on, so the notice holds on every turn; its `told.worktrees` is
     kept all the same, to know on a flip off that it was told.
-  - **A session that started too early.** The harness shims pass `--add-dir` for the
-    worktrees folder (`~/.novadeck/worktrees`) only if it exists when the agent launches. So
-    the runner makes it (`RootFolder`, `worktrees/root-folder.ts`) at its start while the
-    setting is on and when the setting is saved on, and keeps when it first saw it. An
-    agent process first seen (at its first report, `Reports.launches`, by instance, so a
-    `/clear` is no restart) before that can't write in worktrees, and is told
-    `worktreesEarlyNotice` instead, held as the on notice is: "agent worktrees are on, but
-    this session started before they were, so it can't write in them: keep working in your
-    terminal's own checkout. A new or resumed session will use worktrees." A resume or a
-    wake from hibernation starts a new process, which gets the normal on notice at its first
+  - **A session that can't use worktrees yet.** The harness shims pass `--add-dir` for the
+    worktrees folder (`~/.novadeck/worktrees`) only if it exists when the agent launches, and
+    Novadeck's MCP server lists the worktree tools only while the setting is on, a list
+    Claude Code and Codex keep for the whole process (Antigravity, `toolsAtTurnStart`, lists
+    them at each turn, so only the folder matters to it). `RootFolder`
+    (`worktrees/root-folder.ts`) makes the folder while the setting is on, at the runner's
+    start and each time the settings are saved, and knows when the folder came to be there
+    and when the setting last went on (a folder or setting that was there at the runner's
+    start counts from the beginning, as agent processes don't outlive a runner). The turn's
+    report carries when the agent process started (`Report.processStart`, the start the
+    relay read for the process `instance` names). A process that started after both (for
+    Antigravity, the folder only) is told the on notice; any other, and one whose start
+    couldn't be read, is told `worktreesEarlyNotice` instead, held as the on notice is: agent
+    worktrees are on, but the session's process began before the folder was there or before
+    they were turned on, so keep working in the terminal's own checkout; restarting the
+    agent (exit and resume it, or start a new one) lets it use worktrees, `/clear` doesn't.
+    A resume or a wake from hibernation starts a new process and is judged anew at its first
     turn. A folder that can't be made is told the same way, and tried again at each turn.
   - **Off.** A session last told the notice "on" hears `worktreesOffNotice` once at its next
     turn: "agent worktrees are off now: work in your terminal's own checkout; worktrees you

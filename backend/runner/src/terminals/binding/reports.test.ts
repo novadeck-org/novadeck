@@ -4,6 +4,7 @@ import { vi } from "vitest"
 import { harnesses } from "../../harnesses/registry.js"
 import type { Answer } from "../../messaging/hook-answers.js"
 import { describe, expect, it } from "../../test.js"
+import { RootFolder } from "../../worktrees/root-folder.js"
 import {
   fired,
   noNudges,
@@ -135,7 +136,13 @@ describe("the worktrees notice at a root turn's start", () => {
   const harnessNames = ["claude", "codex", "agy"] as const
 
   /** A terminal with a root session of `agent`, whose turns the host answers as the setting says. */
-  const terminal = (agent: (typeof harnessNames)[number]) => {
+  const terminal = (
+    agent: (typeof harnessNames)[number],
+    // Whether the worktrees folder was there when the runner started.
+    folderExisted = true,
+    // Whether the folder can be made.
+    makes = true,
+  ) => {
     const record = {
       summary: { id: "T" },
       root: { agent, sessionId: "s", instance: "1", source: "status-line" },
@@ -143,10 +150,33 @@ describe("the worktrees notice at a root turn's start", () => {
       naming: { summary: "work", own: { title: "Work" } },
       nudges: noNudges,
     } as unknown as Record
-    const setting = { on: false, since: 0 as number | null }
+    // The runner's folder and clock, as `runner.ts` wires them: the setting saved calls `ensure`.
+    const clock = { now: 0 }
+    const state = { on: false }
+    const root = new RootFolder({
+      enabled: () => state.on,
+      path: "/w",
+      now: () => clock.now,
+      exists: () => folderExisted,
+      make: () => {
+        if (!makes) throw new Error("EACCES")
+      },
+    })
+    const setting = {
+      get on() {
+        return state.on
+      },
+      set on(on: boolean) {
+        state.on = on
+        root.ensure()
+      },
+    }
     const saved = vi.fn<() => void>()
     const reports = new Reports({
-      worktrees: () => ({ enabled: () => setting.on, since: () => setting.since }),
+      worktrees: () => ({
+        enabled: () => state.on,
+        ready: (startedAt: number | undefined, relists: boolean) => root.ready(startedAt, relists),
+      }),
       save: saved,
       peers: () => ({ facts: () => Promise.resolve(undefined) }),
     } as unknown as ReportsHost)
@@ -162,8 +192,19 @@ describe("the worktrees notice at a root turn's start", () => {
     ]
     const answer: Answer = { leaseId: null, stdout: "", adding: (extra) => extra }
     /** What the next prompt's hook prints. */
-    const turn = async (deadline = Date.now() + 60_000): Promise<string> =>
-      (await reports.nudged(record, { agent } as never, events, answer, deadline)).stdout ?? ""
+    const turn = async (
+      processStart: number | null = 10,
+      deadline = Date.now() + 60_000,
+    ): Promise<string> =>
+      (
+        await reports.nudged(
+          record,
+          { agent, ...(processStart !== null && { processStart }) } as never,
+          events,
+          answer,
+          deadline,
+        )
+      ).stdout ?? ""
     /** The runner restarting: the record comes back from its saved row, the nudges' memory gone. */
     const restart = () => {
       record.nudges = { ...noNudges }
@@ -172,7 +213,7 @@ describe("the worktrees notice at a root turn's start", () => {
       record.agents = { [agent]: { sessionId: "s", seq: 1 } } as never
       record.nudges = fired(record.nudges, "compaction")
     }
-    return { record, setting, reports, turn, restart, compact }
+    return { record, setting, clock, turn, restart, compact }
   }
 
   for (const agent of harnessNames) {
@@ -232,24 +273,60 @@ describe("the worktrees notice at a root turn's start", () => {
       expect(await t.turn()).toBe(lasting ? "" : worktreesOnNotice)
     })
 
-    it(`tells ${agent} it can't write in worktrees when its process started before the folder, until it restarts`, async () => {
-      const t = terminal(agent)
+    it(`tells ${agent} it can't use worktrees when its process started before the folder, until it restarts`, async () => {
+      // The folder is made when the setting is saved on, at 1000.
+      const t = terminal(agent, false)
+      t.clock.now = 1_000
       t.setting.on = true
-      t.setting.since = 1_000
-      t.reports.launches.set("T", { instance: "1", at: 500 })
-      expect(await t.turn()).toBe(worktreesEarlyNotice)
-      expect(await t.turn()).toBe(lasting ? "" : worktreesEarlyNotice)
+      // Its first report comes later, as Codex's SessionStart does at its first prompt,
+      // but the process began at 500.
+      t.clock.now = 5_000
+      expect(await t.turn(500)).toBe(worktreesEarlyNotice)
+      expect(await t.turn(500)).toBe(lasting ? "" : worktreesEarlyNotice)
       // A resume or a wake starts a new process, which got the folder as an added directory.
-      t.reports.launches.set("T", { instance: "2", at: 2_000 })
-      expect(await t.turn()).toBe(worktreesOnNotice)
-      expect(await t.turn()).toBe(lasting ? "" : worktreesOnNotice)
+      expect(await t.turn(2_000)).toBe(worktreesOnNotice)
+      expect(await t.turn(2_000)).toBe(lasting ? "" : worktreesOnNotice)
     })
 
-    it(`tells ${agent} it can't write in worktrees while the folder could not be made`, async () => {
+    it(`takes ${agent}'s process of unknown start for early, and judges its resume anew`, async () => {
       const t = terminal(agent)
       t.setting.on = true
-      t.setting.since = null
+      expect(await t.turn(null)).toBe(worktreesEarlyNotice)
+      expect(await t.turn(null)).toBe(lasting ? "" : worktreesEarlyNotice)
+      // The resume reports where its process started is read, and is told the on notice.
+      expect(await t.turn(10)).toBe(worktreesOnNotice)
+    })
+
+    it(`tells ${agent} it can't use worktrees while the folder could not be made`, async () => {
+      const t = terminal(agent, false, false)
+      t.setting.on = true
       expect(await t.turn()).toBe(worktreesEarlyNotice)
+    })
+
+    it(`judges ${agent}'s session started while the setting was off, after on, off and on again`, async () => {
+      const t = terminal(agent, false)
+      t.clock.now = 100
+      t.setting.on = true
+      // A process that started while it was on can use them.
+      expect(await t.turn(150)).toBe(worktreesOnNotice)
+      t.clock.now = 200
+      t.setting.on = false
+      t.clock.now = 300
+      t.setting.on = true
+      // One that started while it was off has the folder, but no worktree tools, which
+      // Claude Code and Codex list once; Antigravity lists them at each turn.
+      const started = 250
+      const tools = harnesses[agent].messaging.toolsAtTurnStart
+      expect(await t.turn(started)).toBe(tools ? worktreesOnNotice : worktreesEarlyNotice)
+    })
+
+    it(`judges ${agent}'s session started while off, with a folder left from before`, async () => {
+      const t = terminal(agent, true)
+      t.clock.now = 300
+      t.setting.on = true
+      const tools = harnesses[agent].messaging.toolsAtTurnStart
+      expect(await t.turn(250)).toBe(tools ? worktreesOnNotice : worktreesEarlyNotice)
+      expect(await t.turn(350)).toBe(worktreesOnNotice)
     })
 
     it(`tells ${agent}'s next session, which holds nothing of the last`, async () => {
@@ -264,7 +341,7 @@ describe("the worktrees notice at a root turn's start", () => {
   it("is not spent by an answer too late to print it", async () => {
     const t = terminal("claude")
     t.setting.on = true
-    const late = await t.turn(Date.now())
+    const late = await t.turn(10, Date.now())
     expect(late).toBe("")
     expect(await t.turn()).toBe(worktreesOnNotice)
   })

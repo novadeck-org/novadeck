@@ -27,6 +27,11 @@ export type Report = {
    * resume carries over (see `SessionObserved.launch`).
    */
   readonly launch?: readonly string[]
+  /**
+   * When the agent process that ran the hook started, in epoch milliseconds, where the relay
+   * could read it (`instance` names it).
+   */
+  readonly processStart?: number
   /** What of the hook's environment tells nested agents apart. */
   readonly env: { readonly cursor: boolean; readonly codexThread?: string }
   readonly payload: { readonly [key: string]: unknown }

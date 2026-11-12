@@ -379,7 +379,7 @@ describe("the worktrees notice", () => {
       "Name branches as the repository's own instructions say",
       "absolute paths into the worktree",
       "git -C <worktree>",
-      "never cd into it and then run git",
+      "git -C <worktree> for git rather than cd",
       "read the ones open_worktree lists",
       "give the worktree to whoever continues the work",
       "close_worktree is for work that's merged or abandoned",
@@ -413,9 +413,15 @@ describe("the worktrees notice", () => {
     expect(worktreesDue(true, early, false, false)).toBe("early")
     expect(worktreesDue(false, early, true, false)).toBeNull()
     expect(worktreesDue(false, off, true, false)).toBeNull()
-    expect(worktreesEarlyNotice).toContain("started before they were, so it can't write in them")
+    expect(worktreesOnNotice).not.toContain("Claude Code")
+    expect(worktreesEarlyNotice).toContain(
+      "before the worktrees folder was there or before they were turned on",
+    )
     expect(worktreesEarlyNotice).toContain("keep working in your terminal's own checkout")
-    expect(worktreesEarlyNotice).toContain("A new or resumed session will use worktrees")
+    expect(worktreesEarlyNotice).toContain(
+      "Restarting the agent (exit and resume it, or start a new one)",
+    )
+    expect(worktreesEarlyNotice).toContain("/clear doesn't")
     expect(
       noticesAt(
         { companion: false, summarize: false, pages: [], worktrees: "early" },

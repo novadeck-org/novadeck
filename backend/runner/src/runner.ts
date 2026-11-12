@@ -280,7 +280,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     worktrees: {
       service: worktrees,
       enabled: () => store.settings.runner().worktrees,
-      since: () => rootFolder.since(),
+      ready: (startedAt, relists) => rootFolder.ready(startedAt, relists),
     },
     sealer,
     shellFiles,

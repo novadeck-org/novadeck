@@ -69,7 +69,12 @@ export type ReportsHost = {
   /** The platform harnesses run their hooks on. */
   readonly platform: () => NodeJS.Platform
   /** The agent worktrees wiring, read live at each turn's start; none where there are none. */
-  readonly worktrees: () => { enabled: () => boolean; since: () => number | null } | undefined
+  readonly worktrees: () =>
+    | {
+        enabled: () => boolean
+        ready: (startedAt: number | undefined, relists: boolean) => boolean
+      }
+    | undefined
 }
 
 /**
@@ -82,8 +87,6 @@ export class Reports {
   readonly queues = new Map<string, Promise<void>>()
   /** How many times each harness was disconnected, so a report that waited meanwhile is dropped. */
   readonly disconnections = new Map<AgentName, number>()
-  /** When each terminal's root agent process was first seen, by its instance, as it launched. */
-  readonly launches = new Map<string, { readonly instance: string | null; readonly at: number }>()
 
   constructor(readonly host: ReportsHost) {}
 
@@ -494,16 +497,15 @@ export class Reports {
     // Antigravity's at each turn; a flip is told by what the session's `told` holds.
     const lasting = messaging.lasting.includes("prompt")
     const wiring = this.host.worktrees()
-    // An agent launched before the worktrees folder existed has no right to write there
-    // until its process restarts; one the runner has no launch of is judged by its session.
-    const since = wiring?.enabled() ? wiring.since() : null
-    const launched = this.launches.get(record.summary.id)?.at ?? record.nudges.since
+    // An agent whose process started before the worktrees folder was there, or (where its
+    // harness keeps the tool list) before the setting went on, can't use them until it
+    // restarts; one whose start the relay couldn't read is taken to be such.
     const worktrees = record.root
       ? worktreesDue(
           wiring?.enabled() ?? false,
           toldOf(record.agents, record.root).worktrees,
           lasting,
-          since !== null && launched >= since,
+          wiring?.ready(report.processStart, messaging.toolsAtTurnStart) ?? false,
         )
       : null
     const taken = atTurnStart(record.nudges, {
@@ -575,8 +577,6 @@ export class Reports {
       awaited: (sessionId) => this.host.messaging().awaits(id, sessionId),
     })
     record.root = root
-    if (root && this.launches.get(id)?.instance !== root.instance)
-      this.launches.set(id, { instance: root.instance, at: Date.now() })
     // What the root session was told before and holds still, kept with its report: a
     // session resumed after a restart is the same session, while another holds nothing.
     const told = toldOf(record.agents, root)

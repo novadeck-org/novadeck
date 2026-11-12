@@ -284,6 +284,7 @@ export const relayHook = (
   const shells = dialectPrograms[harnesses[agent.data].hookDialect(platform, event)]
   const firedAt = firedAtOf(instance, seq, ancestors, shells, platform)
   const launch = launchOf(instance, ancestors)
+  const processStart = ancestors.find((each) => String(each.pid) === instance)?.startedAt
   const whole = harnesses[agent.data].commandFields
   const report = {
     agent: agent.data,
@@ -292,6 +293,7 @@ export const relayHook = (
     ...(firedAt !== undefined && { firedAt }),
     instance,
     ...(launch !== undefined && { launch }),
+    ...(processStart !== undefined && { processStart }),
     // Only what tells nested agents apart; nothing else of the environment is kept.
     env: {
       cursor: text(env.CURSOR_VERSION, 128) !== undefined,

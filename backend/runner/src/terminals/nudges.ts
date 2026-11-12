@@ -352,17 +352,16 @@ export const inboxNotice =
  * What a session is told of agent worktrees (see docs/agent-messaging.md,
  * "Nudges") while the runner setting `worktrees` is on: to work in a worktree it opens
  * or takes with Novadeck's tools, not in its terminal's checkout. It says nothing of
- * committing: some sandboxes (Codex's workspace-write) can't. `cd` then git is named
- * because Claude Code refuses it and no harness's shell stays in a folder outside the one
- * it started in; the instruction files are named because none is loaded from there.
+ * committing: some sandboxes (Codex's workspace-write) can't. It names absolute paths and
+ * `git -C` for no harness-specific reason; the instruction files are named because none is
+ * loaded from there.
  */
 export const worktreesOnNotice =
   "Novadeck: automatic notice, not from the user: agent worktrees are on. Before you " +
   "change any file, open a worktree with Novadeck's open_worktree tool, or take an " +
   "existing one with take_worktree, and work there; one for each repository you change, " +
   "or more if that helps. Name branches as the repository's own instructions say. Use " +
-  "absolute paths into the worktree and git -C <worktree> for git; never cd into it and " +
-  "then run git: Claude Code refuses that, and the shell's folder doesn't stay there. " +
+  "absolute paths into the worktree and git -C <worktree> for git rather than cd. " +
   "The worktree's instruction files (AGENTS.md, CLAUDE.md and the like) aren't loaded " +
   "from there, so read the ones open_worktree lists. When you're done, give the worktree " +
   "to whoever continues the work with give_worktree, or leave it for the person; " +
@@ -381,9 +380,11 @@ export const worktreesOffNotice =
  */
 export const worktreesEarlyNotice =
   "Novadeck: automatic notice, not from the user: agent worktrees are on, but this " +
-  "session started before they were, so it can't write in them: keep working in your " +
-  "terminal's own checkout. A new or resumed session will use worktrees. This notice " +
-  "needs no reply."
+  "session started before they could be used (its process began before the worktrees " +
+  "folder was there or before they were turned on, so it can't write in them or has no " +
+  "worktree tools): keep working in your terminal's own checkout. Restarting the agent " +
+  "(exit and resume it, or start a new one) lets it use worktrees; /clear doesn't. This " +
+  "notice needs no reply."
 
 /**
  * Which worktrees notice is due: the setting is on (`on`), or on for a session that
