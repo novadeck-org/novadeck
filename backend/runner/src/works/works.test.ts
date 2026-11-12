@@ -11,8 +11,8 @@ import {
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
-import type { Work } from "@novadeck/protocol"
-import { afterEach } from "vitest"
+import type { Work, WorkMade } from "@novadeck/protocol"
+import { afterEach, vi } from "vitest"
 
 import { Snapshots } from "../checkouts/snapshots.js"
 import { DomainError } from "../errors.js"
@@ -158,6 +158,7 @@ const open = (
     /** Terminals in checkouts that are no tracked worktree, as plain terminals are. */
     plain?: readonly { terminalId: string; root: string }[]
     show?: (terminalId: string, root: string) => Promise<string>
+    onMade?: (listener: (made: WorkMade) => void) => () => void
   } = {},
 ) => {
   const shown: [string, string][] = []
@@ -182,6 +183,7 @@ const open = (
         removed.push([root, force])
         return { ok: true, branchDeleted: false }
       }),
+    ...(options.onMade && { onMade: options.onMade }),
     everyMs: 20,
     firstMs: everything,
     snapshots: snapshotsFor(options.memory, options.repackAfter),
@@ -1191,3 +1193,69 @@ const readableWatermark = (path: string): boolean => {
     return false
   }
 }
+
+describe("the worktrees made", () => {
+  // A source of made worktrees, and how many listen to it.
+  const source = () => {
+    const listeners = new Set<(made: WorkMade) => void>()
+    return {
+      listeners,
+      onMade: (listener: (made: WorkMade) => void) => {
+        listeners.add(listener)
+        return () => {
+          listeners.delete(listener)
+        }
+      },
+      make: (root: string) => {
+        for (const listener of listeners) listener({ root, projectId: project })
+      },
+    }
+  }
+
+  it("tells each worktree made after subscribing, in order, and none before", async ({
+    resources,
+  }) => {
+    const from = source()
+    from.make("/before")
+    const { works } = open(() => [], { onMade: from.onMade })
+    resources.defer(() => works.close())
+    const stop = new AbortController()
+    const seen: string[] = []
+    const done = (async () => {
+      for await (const one of works.made("owner", stop.signal)) seen.push(one.root)
+    })()
+    await new Promise((resolve) => setTimeout(resolve))
+    from.make("/a")
+    from.make("/b")
+    await vi.waitFor(() => expect(seen).toEqual(["/a", "/b"]))
+    stop.abort()
+    await done
+    // Ended on abort: it no longer listens.
+    expect(from.listeners.size).toBe(0)
+  })
+
+  it("ends when its owner's connection goes, and not for another's", async ({ resources }) => {
+    const from = source()
+    const { works } = open(() => [], { onMade: from.onMade })
+    resources.defer(() => works.close())
+    const run = (owner: string) => {
+      const seen: string[] = []
+      const done = (async () => {
+        for await (const one of works.made(owner)) seen.push(one.root)
+      })()
+      return { seen, done }
+    }
+    const gone = run("gone")
+    const stays = run("stays")
+    await new Promise((resolve) => setTimeout(resolve))
+    works.release("gone")
+    await gone.done
+    from.make("/a")
+    await vi.waitFor(() => expect(stays.seen).toEqual(["/a"]))
+    expect(gone.seen).toEqual([])
+    expect(from.listeners.size).toBe(1)
+    await works.close()
+    await stays.done
+    expect(from.listeners.size).toBe(0)
+  })
+})

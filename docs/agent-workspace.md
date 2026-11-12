@@ -535,6 +535,12 @@ with every safety check again at that time:
   as merged here only after the next fetch (see "Worktrees": cleanup and fetching). Worktrees the
   runner removes by itself drop out of the list like one the person closed.
 
+  The Changes toggle flares the History toggle's dot and ring once for every worktree the runner
+  starts tracking (an agent's `open_worktree`, or `take_worktree` adopting one; not a worktree
+  changing hands). The panel's feed is followed only while it shows, so a separate stream,
+  `works.made`, carries one event per new worktree for the backend's whole life, without
+  replaying any and without reading git; the adapter counts them (`Works.made`).
+
   The files the person read are kept in the same memory file (`works.json`), each by its object
   as the change listed it (all zeros for a file deleted): `companions.changeRead` marks one,
   and the content's `read` names the files of the change whose object is still that one. A

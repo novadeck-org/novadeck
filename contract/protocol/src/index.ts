@@ -106,6 +106,8 @@ export {
   type WorkFile,
   workFile,
   workLimits,
+  type WorkMade,
+  workMade,
 } from "./works.js"
 export { maxWebSocketMessageBytes, protocolVersion } from "./connection.js"
 export {

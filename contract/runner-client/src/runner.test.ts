@@ -290,6 +290,28 @@ describe("Works", () => {
   })
 })
 
+describe("Works made", () => {
+  it("follows each worktree made, with no reset and no synced", async () => {
+    const projectId = "22222222-2222-4222-8222-222222222222"
+    const { runner } = await fakeRunner({
+      works: {
+        made: api.works.made.handler(async function* () {
+          yield { root: "/w/a", projectId }
+          yield { root: "/w/b", projectId }
+        }),
+      },
+    })
+    const made = runner.works.made()
+    onTestFinished(() => void made.return?.())
+    const first = await made.next()
+    const second = await made.next()
+    expect([first.value, second.value]).toEqual([
+      { root: "/w/a", projectId },
+      { root: "/w/b", projectId },
+    ])
+  })
+})
+
 describe("a prompt with images", () => {
   const sent = async (at: readonly number[]) => {
     const inputs: unknown[] = []

@@ -28,6 +28,7 @@ export const noHistory = {
 // A runner whose terminals have no work against main and never change.
 export const noWorks = {
   watch: () => channel<never>().iterator,
+  made: () => channel<never>().iterator,
   look: async () => {},
   show: async () => ({ itemId: "none" }),
 }

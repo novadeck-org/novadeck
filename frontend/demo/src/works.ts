@@ -1,6 +1,6 @@
 import type { Backend, TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
-import { createStore } from "@novadeck/core/store"
+import { createStore, type Store } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
 import type { Work, WorkConflict, WorkFile, Works, WorksState } from "@novadeck/core/works"
 
@@ -284,6 +284,8 @@ export type DemoWorksControl = {
   readonly merge: (root: string) => void
   // The terminal's worktree, just made: it differs from nothing.
   readonly openClean: (at: Placed) => void
+  // Another worktree of the terminal's, just made beside the ones it has: a new one each call.
+  readonly makeAnother: (at: Placed) => void
   // The worktree has no owner.
   readonly orphan: (root: string) => void
   // Its owner is closed, in History: the row still names an owner, no terminal of the project.
@@ -303,7 +305,7 @@ export type DemoWorksControl = {
   readonly worksOf: (projectId: string) => readonly Work[]
 }
 
-export type DemoWorks = Works & DemoWorksControl
+export type DemoWorks = Works & DemoWorksControl & { readonly made: Store<number> }
 
 export const isDemoWorks = (works: Backend["works"]): works is DemoWorks =>
   works !== undefined && "conflictBetween" in works && "gain" in works && "spread" in works
@@ -336,6 +338,10 @@ export const createDemoWorks = (
 ): DemoWorks => {
   const { now = Date.now, show } = options
   const state = createStore<WorksState>({ works: initial, synced: true })
+  // How many worktrees were made since the demo began, which the Changes toggle flares for.
+  const made = createStore(0)
+  // How many extra worktrees the debug panel made, to name each one apart.
+  let extras = 0
   let refuse = false
   // The commits main lacks of worktrees that differ from it in no file, by root.
   const unmerged = new Map<string, number>()
@@ -349,16 +355,14 @@ export const createDemoWorks = (
     state.getSnapshot().works.find((work) => work.root === root)
   const ownedBy = (terminalId: string): Work | undefined =>
     state.getSnapshot().works.find((work) => work.terminalId === terminalId)
-  // The work of a terminal, made at its first change.
-  const ensure = (at: Placed): Work => {
-    const own = ownedBy(at.terminalId)
-    if (own) return own
+  // A worktree just made: it differs from nothing. It counts as made.
+  const make = (at: Placed, name = slug(at.terminalId)): Work => {
     const fresh: Work = {
       root: at.root,
       terminalId: at.terminalId,
       projectId: at.projectId,
       working: false,
-      branch: `agent/${slug(at.terminalId)}`,
+      branch: `agent/${name}`,
       base: "main",
       firstSeenAt: now(),
       merged: false,
@@ -371,10 +375,14 @@ export const createDemoWorks = (
       conflicts: [],
     }
     state.update((current) => ({ ...current, works: [...current.works, fresh] }))
+    made.update((count) => count + 1)
     return fresh
   }
+  // The work of a terminal, made at its first change.
+  const ensure = (at: Placed): Work => ownedBy(at.terminalId) ?? make(at)
   return {
     state,
+    made,
     // The demo's works are always current.
     watch: () => () => {},
     look: (root) => change(root, looked),
@@ -456,6 +464,10 @@ export const createDemoWorks = (
       const { root } = ensure(at)
       unmerged.delete(root)
       change(root, emptied)
+    },
+    makeAnother: (at) => {
+      extras += 1
+      make({ ...at, root: `${at.root}-${extras + 1}` }, `${slug(at.terminalId)}-${extras + 1}`)
     },
     ownerClosed: (root) =>
       change(root, (work) => ({
