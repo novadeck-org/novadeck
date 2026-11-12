@@ -56,7 +56,9 @@ const rootDir = join(homedir(), ".novadeck-shell-root")
 const commands = (agent: string) =>
   powershell(agent)
     ? [
-        `. ./probe.ps1 ${agent}-1; 1..12 | ForEach-Object { "tick $_"; Start-Sleep 2 }; exit 3`,
+        // Codex on Windows starts the next command only once the last has waited out its
+        // yield, so the first runs long enough to be sampled after the third has started.
+        `. ./probe.ps1 ${agent}-1; 1..${agent === "codex" ? 45 : 12} | ForEach-Object { "tick $_"; Start-Sleep 2 }; exit 3`,
         `. ./probe.ps1 ${agent}-2; sleep 30; exit 0`,
         "sleep 600",
       ]
