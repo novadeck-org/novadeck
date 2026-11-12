@@ -35,10 +35,11 @@ describe("the layers selected", () => {
     expect(pick(ids, ["c1"], "nope")).toEqual(["c1"])
   })
 
-  it("is all of them when the change has one layer, whichever is clicked", () => {
-    expect(selectedOf(["uncommitted"], pick(["uncommitted"], [], "uncommitted"))).toEqual(
-      new Set(["uncommitted"]),
-    )
+  it("keeps no row of a change with one layer, so layers that come after show too", () => {
+    const picked = pick(["uncommitted"], [], "uncommitted")
+    expect(picked).toEqual([])
+    expect(alone(["uncommitted"], picked)).toBe(false)
+    expect(selectedOf(["uncommitted", "c1"], picked)).toEqual(new Set(["uncommitted", "c1"]))
   })
 
   it("lists the ids of the layers in their order", () => {
@@ -90,6 +91,5 @@ describe("what the files below are of", () => {
     )
     expect(selectionName(layers, new Set(["uncommitted"]))).toBe("uncommitted")
     expect(selectionName(layers, new Set(["abcdef0123"]))).toBe("abcdef0")
-    expect(selectionName(layers, new Set(["uncommitted", "1234567890"]))).toBe("2 of 3")
   })
 })

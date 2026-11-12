@@ -590,8 +590,8 @@ export const contract = {
       )
       .output(changeFileDiff),
     // The files a selection of a changes item's layers changed as one range (see
-    // `changeRange`), which is what a selection of more than one layer shows, instead of
-    // its layers' files added up. An unknown item, or one that is no change, is NOT_FOUND.
+    // `changeRange`), with the range's own counts. The pane selects all its layers or one, so it
+    // doesn't ask. An unknown item, or one that is no change, is NOT_FOUND.
     changeRange: procedure
       .input(
         z.strictObject({

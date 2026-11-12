@@ -376,8 +376,9 @@ export type Companions = {
     path: string,
     layers: readonly string[],
   ) => Promise<ChangeFileDiff>
-  // The files a selection of a changes item's layers changed as one range: what a selection of
-  // more than one layer shows. Absent where the backend can't, with `changeFile`.
+  // The files a selection of a changes item's layers changed as one range, with its own counts;
+  // the pane, which selects all or one, doesn't ask. Absent where the backend can't, with
+  // `changeFile`.
   readonly changeRange?: (
     target: WorkspaceTarget,
     itemId: ItemId,

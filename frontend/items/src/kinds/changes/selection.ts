@@ -16,15 +16,20 @@ export const selectedOf = (ids: readonly string[], picked: Picked): ReadonlySet<
   return only !== undefined && ids.includes(only) ? new Set([only]) : new Set(ids)
 }
 
-/** The pick after a click on a layer: that row alone, or all where it was kept alone already. */
+/**
+ * The pick after a click on a layer: that row alone, or all where it was kept alone already. A
+ * change of one layer keeps none, as that row is all of them: kept, it would hide the layers
+ * that come after.
+ */
 export const pick = (ids: readonly string[], picked: Picked, id: string): Picked => {
   if (!ids.includes(id)) return picked
+  if (ids.length < 2) return []
   return alone(ids, picked) && picked[0] === id ? [] : [id]
 }
 
-/** Whether one row is kept alone, which a click on it again takes back to all. */
+/** Whether one row of several is kept alone, which a click on it again takes back to all. */
 export const alone = (ids: readonly string[], picked: Picked): boolean =>
-  picked[0] !== undefined && ids.includes(picked[0])
+  ids.length > 1 && picked[0] !== undefined && ids.includes(picked[0])
 
 /** Where a layer's rail starts and ends: not joined to the selected row above or below. */
 export type Rail = { readonly on: boolean; readonly start: boolean; readonly end: boolean }
@@ -45,9 +50,7 @@ export const selectionName = (
   layers: readonly ChangeLayer[],
   selected: ReadonlySet<string>,
 ): string => {
-  if (selected.size === layers.length) return "everything"
   const only = layers.find((layer) => selected.has(layer.id))
-  if (selected.size === 1 && only)
-    return only.kind === "uncommitted" ? "uncommitted" : only.id.slice(0, 7)
-  return `${selected.size} of ${layers.length}`
+  if (selected.size === layers.length || !only) return "everything"
+  return only.kind === "uncommitted" ? "uncommitted" : only.id.slice(0, 7)
 }

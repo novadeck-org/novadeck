@@ -616,12 +616,14 @@ describe("a change beside a terminal", () => {
   context("when the backend lists a range's own files", () => {
     it("shows a single layer's own files, which no range is asked for", async () => {
       const net = [file("elsewhere.ts")]
-      const { files, click, layers, settle } = show(change(), undefined, true, net)
+      const { files, click, layers, settle, ranges } = show(change(), undefined, true, net)
       await settle()
 
       await click(layers()[1])
+      await settle()
 
       expect(files()).toEqual(["src/auth/session.test.ts", "src/auth/session.ts"])
+      expect(ranges).toEqual([])
     })
   })
 
