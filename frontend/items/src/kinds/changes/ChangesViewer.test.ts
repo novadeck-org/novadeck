@@ -247,7 +247,7 @@ describe("a change beside a terminal", () => {
     it("lists the uncommitted work and each commit, newest first, with their hash, subject and lines", () => {
       const { layers } = show(change())
       expect(layers().map((each) => each.textContent)).toEqual([
-        expect.stringMatching(/^Uncommitted.*\+1 −1$/),
+        expect.stringMatching(/^·······Uncommitted.*\+1 −1$/),
         expect.stringMatching(/^c2c2c2cCheck session expiry in one place.*\+31 −0$/),
         expect.stringMatching(/^c1c1c1cUse the session in the header.*\+4 −6$/),
       ])
