@@ -16,6 +16,7 @@ import type { ShellPaths } from "../shell/scripts.js"
 import { describe, expect, it as base } from "../test.js"
 import type { Resources } from "../testing/resources.js"
 import { WorkspaceStore } from "../workspaces/store.js"
+import { worktreesRoot } from "../worktrees/root.js"
 import { createHarnesses } from "./service.js"
 
 const windows = process.platform === "win32"
@@ -103,7 +104,9 @@ const it = base.extend<{ fixture: Fixture }>({
           { mode: 0o755 },
         )
     const log = join(root, "calls.log")
-    const paths = await installShellFiles(join(root, "shell"))
+    const paths = await installShellFiles(join(root, "shell"), {
+      worktrees: join(root, "worktrees"),
+    })
     const environment = (env: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({
       ...process.env,
       HOME: home,
@@ -242,7 +245,9 @@ describe("agents Novadeck can connect", () => {
         platform: "win32",
       })
     expect(await onWindows("C:\\NOVADE~1\\shell\\agy-cmd").shims()).toEqual(["agy"])
-    // Its shim passes the folder of agents' worktrees on, so it needs no pass-through.
+    // Without the pass-through its shim is a batch file only for the worktrees folder.
+    expect(await onWindows().shims()).toEqual([])
+    mkdirSync(worktreesRoot(fixture.home), { recursive: true })
     expect(await onWindows().shims()).toEqual(["agy"])
   })
 

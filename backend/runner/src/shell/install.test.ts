@@ -1,5 +1,6 @@
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -209,6 +210,7 @@ describe("the cmd.exe pass-through", () => {
       relay,
       cmdShim: shim,
       platform: "win32" as const,
+      worktrees: join(folder, "worktrees"),
       prints: () => Promise.resolve("prints" as const),
       short: (path: string) => Promise.resolve(path.replaceAll("/", "\\").replace(/^\\/, "C:\\")),
       ...over,
@@ -249,14 +251,14 @@ describe("the cmd.exe pass-through", () => {
       options({ cmdShim: join(folder, "none.exe") }),
     )
     expect(without.cmdShimDir).toBeUndefined()
-    expect(readFileSync(agyShim(without), "utf8")).not.toContain('set "PATH=')
+    expect(existsSync(agyShim(without))).toBe(false)
     // A folder whose path still needs quoting (no short name) is not put on PATH.
     const spaced = await installShellFiles(
       directory,
       options({ short: (path: string) => Promise.resolve(`${path} with space`) }),
     )
     expect(spaced.cmdShimDir).toBeUndefined()
-    expect(readFileSync(agyShim(spaced), "utf8")).not.toContain('set "PATH=')
+    expect(existsSync(agyShim(spaced))).toBe(false)
   })
 
   it("is not used where cmd prints nothing, and not on another platform", async ({ resources }) => {
@@ -264,21 +266,41 @@ describe("the cmd.exe pass-through", () => {
     const quiet = await installShellFiles(directory, options({ prints: () => Promise.resolve() }))
     expect(quiet.cmdShimDir).toBeUndefined()
     expect(existsSync(quiet.agyCmdDir)).toBe(false)
-    // Its shim stays, for the worktrees folder, and leaves PATH alone.
-    expect(readFileSync(agyShim(quiet), "utf8")).not.toContain('set "PATH=')
+    expect(existsSync(agyShim(quiet))).toBe(false)
     const linux = await installShellFiles(directory, options({ platform: "linux" }))
     expect(linux.cmdShimDir).toBeUndefined()
     expect(existsSync(linux.agyCmdDir)).toBe(false)
   })
 
-  it("takes the folder off the shim's PATH again once cmd prints nothing", async ({
+  it("takes the shim away again once cmd prints nothing", async ({ resources }) => {
+    const { directory, options } = setup(resources)
+    const printing = await installShellFiles(directory, options())
+    expect(existsSync(agyShim(printing))).toBe(true)
+    const quiet = await installShellFiles(directory, options({ prints: () => Promise.resolve() }))
+    expect(existsSync(agyShim(quiet))).toBe(false)
+  })
+
+  it("is written, without the pass-through, while the worktrees folder exists, and goes with it", async ({
+    resources,
+  }) => {
+    const { directory, folder, options } = setup(resources)
+    const quiet = options({ prints: () => Promise.resolve() })
+    expect(existsSync(agyShim(await installShellFiles(directory, quiet)))).toBe(false)
+    mkdirSync(join(folder, "worktrees"))
+    const present = await installShellFiles(directory, quiet)
+    const written = readFileSync(agyShim(present), "utf8")
+    expect(written).toContain("--add-dir=")
+    expect(written).not.toContain('set "PATH=')
+    rmSync(join(folder, "worktrees"), { recursive: true })
+    expect(existsSync(agyShim(await installShellFiles(directory, quiet)))).toBe(false)
+  })
+
+  it("is written with the pass-through as before, whether or not the folder exists", async ({
     resources,
   }) => {
     const { directory, options } = setup(resources)
-    const printing = await installShellFiles(directory, options())
-    expect(readFileSync(agyShim(printing), "utf8")).toContain('set "PATH=')
-    const quiet = await installShellFiles(directory, options({ prints: () => Promise.resolve() }))
-    expect(readFileSync(agyShim(quiet), "utf8")).not.toContain('set "PATH=')
+    const shell = await installShellFiles(directory, options())
+    expect(readFileSync(agyShim(shell), "utf8")).toContain('set "PATH=')
   })
 
   it("is replaced by an upgrade and stays in use, though a previous runner's Antigravity runs the old one", async ({

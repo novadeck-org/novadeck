@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs"
 import { join } from "node:path"
 
 import type { Launchers, Machine, Start } from "@novadeck/harness-core/harness"
@@ -237,7 +238,12 @@ export const shellFiles = (
   given: Machine = {},
 ): ShellFile[] => {
   // The shims pass the folder of agents' worktrees on, where it exists.
-  const machine: Machine = { worktreesRoot: worktreesRoot(), ...given }
+  const root = given.worktreesRoot ?? worktreesRoot()
+  const machine: Machine = {
+    worktreesRoot: root,
+    worktreesPresent: existsSync(root),
+    ...given,
+  }
   const common = [
     file(paths.relayConfig, `${JSON.stringify(relayConfig, null, 2)}\n`),
     ...shellScripts(paths, header),

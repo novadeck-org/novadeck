@@ -155,18 +155,22 @@ export const agy = {
   hookDialect,
   hook,
   files,
-  // A shim on every platform, which passes --add-dir for the folder of agents' worktrees. On
-  // Windows, where cmd's AutoRun prints and Novadeck's cmd.exe pass-through is installed
-  // (`machine.cmdShimDir`), it also puts the pass-through first on PATH.
+  // A shim which passes --add-dir for the folder of agents' worktrees: always on Linux and
+  // macOS. On Windows a batch file stands in for `agy.exe` (Ctrl+C asks to end it, cmd reads
+  // `& | < > ^` in what it gets), so it exists only where it is needed: the folder exists
+  // (`machine.worktreesPresent`), or cmd's AutoRun prints and Novadeck's cmd.exe pass-through
+  // is installed (`machine.cmdShimDir`), when it also puts the pass-through first on PATH.
   shims: (platform, machine = {}) =>
-    platform === "win32"
-      ? [
-          {
-            path: "agy.cmd",
-            content: makeCmdShim({ cmdShimDir: machine.cmdShimDir, root: machine.worktreesRoot }),
-          },
-        ]
-      : [{ path: "agy", content: posixShim(machine.worktreesRoot), mode: 0o700 }],
+    platform !== "win32"
+      ? [{ path: "agy", content: posixShim(machine.worktreesRoot), mode: 0o700 }]
+      : machine.cmdShimDir !== undefined || machine.worktreesPresent === true
+        ? [
+            {
+              path: "agy.cmd",
+              content: makeCmdShim({ cmdShimDir: machine.cmdShimDir, root: machine.worktreesRoot }),
+            },
+          ]
+        : [],
   // Its status line tells what no hook does: working or idle, a confirmation waiting on
   // the person, and its context and quotas.
   settings: statusLineSettings,

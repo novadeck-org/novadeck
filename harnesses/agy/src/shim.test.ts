@@ -37,11 +37,14 @@ describe("the Windows shim", () => {
 })
 
 describe("where Antigravity gets a shim", () => {
-  it("is on every platform, and puts the pass-through on PATH only where Novadeck installed one", () => {
+  it("is always on Linux and macOS, and on Windows only where it is needed", () => {
     expect(agy.shims("win32", { cmdPrints: true, cmdShimDir: dir })).toEqual([
       { path: "agy.cmd", content: shim },
     ])
-    const plain = agy.shims("win32")
+    // A batch file in place of agy.exe only where it is needed.
+    expect(agy.shims("win32")).toEqual([])
+    expect(agy.shims("win32", { worktreesRoot: "C:\\w", worktreesPresent: false })).toEqual([])
+    const plain = agy.shims("win32", { worktreesRoot: "C:\\w", worktreesPresent: true })
     expect(plain.map((file) => file.path)).toEqual(["agy.cmd"])
     expect(plain[0]?.content).not.toContain('set "PATH=')
     for (const platform of ["linux", "darwin"] as const)

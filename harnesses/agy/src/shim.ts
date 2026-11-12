@@ -5,6 +5,7 @@ import { cmdAdd, posixAdd } from "@novadeck/harness-core/shim-root"
 // value: the word after one is its value, never a command, to the shims and to the runner's
 // reading of a command line.
 export const commands = [
+  "acp",
   "agent",
   "agents",
   "changelog",

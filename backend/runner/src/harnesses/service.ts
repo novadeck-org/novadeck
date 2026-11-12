@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process"
+import { existsSync } from "node:fs"
 import { readFile, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
@@ -15,6 +16,7 @@ import { logs } from "../log.js"
 import { cmdPath, findProgram, killTree } from "../programs.js"
 import { withoutInherited } from "../shell/inherited.js"
 import type { ShellPaths } from "../shell/scripts.js"
+import { worktreesRoot } from "../worktrees/root.js"
 import { agents, harnesses } from "./registry.js"
 
 const log = logs.for("harnesses")
@@ -377,9 +379,13 @@ export const createHarnesses = (
     shims: async (): Promise<AgentName[]> => {
       const install = await installs()
       if (!install) return []
-      // Antigravity's shim exists only where Novadeck's cmd.exe pass-through is installed.
+      // Antigravity's Windows shim exists only where Novadeck's cmd.exe pass-through is
+      // installed, or the worktrees folder is.
       const cmdShimDir = (await paths())?.cmdShimDir
-      const machine = cmdShimDir === undefined ? {} : { cmdShimDir }
+      const machine = {
+        worktreesPresent: existsSync(worktreesRoot(home)),
+        ...(cmdShimDir !== undefined && { cmdShimDir }),
+      }
       const shimmed = agents.filter(
         (agent) => (harnesses[agent].shims?.(platform, machine) ?? []).length > 0,
       )

@@ -129,7 +129,8 @@ export type Harness = {
   }
   /**
    * Programs Novadeck's shells put first on PATH while it is connected; `machine` is what the
-   * machine does to a hook (Antigravity's shim exists only where it names a `cmdShimDir`).
+   * machine does to a hook. Antigravity's Windows shim exists only where it names a
+   * `cmdShimDir` or the worktrees folder is `worktreesPresent`; its other shims always do.
    */
   readonly shims?: (platform: NodeJS.Platform, machine?: Machine) => readonly File[]
   /**
@@ -558,6 +559,12 @@ export type Machine = {
    * project's folder, under the person's own permission mode.
    */
   readonly worktreesRoot?: string
+  /**
+   * Whether `worktreesRoot` is a directory as the shell files are written. A shim that exists
+   * for nothing but the folder (Antigravity's on Windows, where a batch file in place of
+   * `agy.exe` has costs of its own) is written only then.
+   */
+  readonly worktreesPresent?: boolean
 }
 
 /** A plan a transcript or rollout line records, and when it was written where it says. */
