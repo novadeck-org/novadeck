@@ -1590,6 +1590,7 @@ button.chat-hold-line:focus-visible::before {
 
 /* The prompt: the terminal's last line, under a hairline. */
 .chat-composer {
+  position: relative;
   flex-shrink: 0;
   padding: 14px var(--_pad);
   border-top: var(--border-width) solid var(--_line);
@@ -1869,7 +1870,7 @@ button.chat-hold-line:focus-visible::before {
    steady. Disclosures reveal in their final layout, so the log's
    scroll anchoring and the held prompt's measurements remain immediate. */
 .chat-composer:focus-within {
-  border-top-color: color-mix(in srgb, var(--_accent) 45%, var(--_line));
+  border-top-color: color-mix(in srgb, var(--_accent) 25%, var(--_line));
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -1924,4 +1925,22 @@ button.chat-hold-line:focus-visible::before {
     opacity: 1;
     translate: 0 0;
   }
+}
+
+/* A short transmit scan on submit, separate from the prompt's transcript arrival. It
+   takes the theme's accent and lives above the composer without moving its contents. */
+.chat-transmit {
+  position: absolute;
+  inset: calc(-1 * var(--border-width)) 0 auto;
+  height: 8px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.chat-transmit-beam {
+  display: block;
+  width: 28%;
+  height: 2px;
+  opacity: 0;
+  background: linear-gradient(90deg, transparent, var(--_accent), transparent);
+  box-shadow: 0 2px 5px color-mix(in srgb, var(--_accent) 55%, transparent);
 }

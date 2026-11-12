@@ -371,8 +371,9 @@ export const WorkspaceTerminal = memo(
               />
             </div>
           )}
+          {/* Keep the emulator's high-z-index scrollbar beneath the chat overlay. */}
           <div
-            className="flex min-h-0 min-w-0 flex-1 flex-col"
+            className="isolate flex min-h-0 min-w-0 flex-1 flex-col"
             aria-hidden={showChat || undefined}
             inert={showChat}
           >

@@ -16,6 +16,7 @@ export const useTranscriptMotion = (
     session: string | null
     loaded: boolean
     lists: Map<Element, Element[]>
+    turns: ReadonlySet<string>
   } | null>(null)
   const running = useRef(new Set<Animation>())
 
@@ -39,7 +40,12 @@ export const useTranscriptMotion = (
       [root, ...root.querySelectorAll(".chat-tools-list")].map((list) => [list, rowsOf(list)]),
     )
     const before = previous.current
-    previous.current = { session, loaded, lists }
+    const beforeTurns = before?.session === session ? before.turns : new Set<string>()
+    const turns = new Set(beforeTurns)
+    root
+      .querySelectorAll<HTMLElement>(":scope > [data-turn]")
+      .forEach((row) => turns.add(row.dataset.turn!))
+    previous.current = { session, loaded, lists, turns }
     if (!before || before.session !== session || !before.loaded || !loaded) return
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return
 
@@ -48,17 +54,25 @@ export const useTranscriptMotion = (
       const old = before.lists.get(list)
       if (!old) continue
       const last = old.at(-1)
-      const boundary = last ? rows.indexOf(last) : -1
-      // A replaced record or a different window of history is not a new arrival.
-      if (last && boundary === -1) continue
+      let boundary = last ? rows.indexOf(last) : -1
+      if (last && boundary === -1) {
+        // A pending tail gives way to the recorded prompt and its first reply. Anchor to
+        // the last surviving row, or the start of a chat that held only pending prompts.
+        if (!last.matches("[data-sent]")) continue
+        const anchor = old.findLast((row) => rows.includes(row))
+        if (!anchor && old.some((row) => !row.matches("[data-sent]"))) continue
+        boundary = anchor ? rows.indexOf(anchor) : -1
+      }
       for (const row of rows.slice(boundary + 1)) {
         if (!old.includes(row)) entering.add(row)
       }
     }
     for (const row of entering) {
-      // Own prompts are already visible as pending sends. Their recorded replacement must
-      // not fade a second time as the harness acknowledges it.
-      if (row.matches('.chat-message[data-role="user"]')) continue
+      // A send may have an optimistic row before the real transcript records it. Only
+      // the recorded prompt fades, once by its turn id; queued/sending labels stay steady.
+      if (row.matches("[data-sent]")) continue
+      const turn = (row as HTMLElement).dataset.turn
+      if (turn !== undefined && beforeTurns.has(turn)) continue
       // A new tool group enters once, with its rows, not once per nested list as well.
       if ([...entering].some((parent) => parent !== row && parent.contains(row))) continue
       if (typeof row.animate !== "function") continue

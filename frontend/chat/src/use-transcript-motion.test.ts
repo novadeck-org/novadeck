@@ -37,6 +37,7 @@ const Host = ({
   text = "words",
   tools = [],
   role,
+  pending = false,
 }: {
   ids: string[]
   loaded?: boolean
@@ -44,6 +45,7 @@ const Host = ({
   text?: string
   tools?: string[]
   role?: string
+  pending?: boolean
 }) => {
   const thread = useRef<HTMLDivElement>(null)
   useTranscriptMotion(thread, session, loaded)
@@ -56,7 +58,18 @@ const Host = ({
       },
     },
     ...ids.map((id) =>
-      createElement("article", { key: id, id, className: "chat-message", "data-role": role }, text),
+      createElement(
+        "article",
+        {
+          key: id,
+          id,
+          className: "chat-message",
+          "data-role": role,
+          "data-sent": pending ? "sending" : undefined,
+          "data-turn": role === "user" && !pending ? id : undefined,
+        },
+        text,
+      ),
     ),
     ...(tools.length
       ? [
@@ -114,11 +127,30 @@ describe("transcript arrivals", () => {
     expect(names()).toEqual(["chat-tools", "write"])
   })
 
-  it("keeps own prompts steady as a pending send becomes a recorded prompt", () => {
+  it("fades the recorded prompt once while its pending row stays steady", () => {
     const { rerender } = render(createElement(Host, { ids: [], role: "user" }))
-    rerender(createElement(Host, { ids: ["pending"], role: "user" }))
-    rerender(createElement(Host, { ids: ["recorded"], role: "user" }))
+    rerender(createElement(Host, { ids: ["pending"], role: "user", pending: true }))
     expect(names()).toEqual([])
+    rerender(createElement(Host, { ids: ["recorded"], role: "user" }))
+    expect(names()).toEqual(["recorded"])
+    rerender(createElement(Host, { ids: ["recorded"], role: "user", text: "same prompt" }))
+    expect(names()).toEqual(["recorded"])
+  })
+
+  it("fades the recorded prompt and the next agent segment after a pending tail disappears", () => {
+    const { rerender } = render(createElement(Host, { ids: ["history"] }))
+    rerender(createElement(Host, { ids: ["history", "pending"], pending: true }))
+    expect(names()).toEqual([])
+    rerender(createElement(Host, { ids: ["history", "recorded", "reply"] }))
+    expect(names()).toEqual(["recorded", "reply"])
+  })
+
+  it("leaves loaded and prepended user history steady, fading only new recorded turns", () => {
+    const { rerender } = render(createElement(Host, { ids: ["old"], role: "user" }))
+    rerender(createElement(Host, { ids: ["older", "old"], role: "user" }))
+    expect(names()).toEqual([])
+    rerender(createElement(Host, { ids: ["older", "old", "new"], role: "user" }))
+    expect(names()).toEqual(["new"])
   })
 
   it("does not queue arrivals for replay when reduced motion is enabled", () => {

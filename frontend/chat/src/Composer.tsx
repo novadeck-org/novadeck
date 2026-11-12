@@ -21,6 +21,7 @@ import { Mark } from "./Mark"
 import { cleaned, splitDraft, unitEdit } from "./placeholders"
 import { submitOnEnter } from "./submit-on-enter"
 import { useMounted } from "./use-mounted"
+import { useTransmitPulse } from "./use-transmit-pulse"
 
 // The most a reply to the agent's question carries.
 const replyMax = 16_384
@@ -143,6 +144,7 @@ export const Composer = ({
   readonly history: readonly string[]
 }): React.JSX.Element => {
   const input = useRef<HTMLTextAreaElement>(null)
+  const transmit = useTransmitPulse(input)
   // Where Up and Down are in the history, and whether the caret is due at the end of the words
   // they put in the box once it shows them.
   const walk = useRef<Walk | null>(null)
@@ -216,6 +218,7 @@ export const Composer = ({
     }
     setError(null)
     walk.current = null
+    transmit()
     onSend(text).catch((failure: unknown) => {
       if (mounted.current) setError(failed(failure))
     })
@@ -296,6 +299,9 @@ export const Composer = ({
         send()
       }}
     >
+      <span className="chat-transmit" aria-hidden>
+        <span className="chat-transmit-beam" />
+      </span>
       {shownError && (
         <p className="chat-error" role="alert" data-terminal={shownError.terminal || undefined}>
           <span>{shownError.text}</span>
