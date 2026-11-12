@@ -40,6 +40,7 @@ import { sealedShape } from "../terminals/sealing.js"
 import type { Naming } from "../terminals/titles.js"
 import type { Work } from "../terminals/work.js"
 import type { ClosedRecord, ClosedRecords, ListedClosed } from "./closed.js"
+import type { WorktreeRecord, WorktreeRecords } from "../worktrees/records.js"
 import { Settings } from "./settings.js"
 
 const log = logs.for("store")
@@ -72,7 +73,8 @@ const projectOf = ({ pinned, ...project }: ProjectRow): Project => ({
 // stays the order it was created in.
 // 13: what agents reported and how their turns ended has a log of its own (`report_log`),
 // apart from the Inbox's entries, filled from them in the step from 12.
-const schemaVersion = 13
+// 14: the worktrees agents work in have an ownership table of their own (`worktrees`).
+const schemaVersion = 14
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -251,6 +253,24 @@ const schema = `
   ) STRICT;
   CREATE INDEX report_log_session ON report_log(agent, agent_session, at);
   CREATE INDEX report_log_project ON report_log(project_id);
+  -- The git worktrees agents work in, which Novadeck made or was told of, and who owns each.
+  -- path is the worktree's top folder, common_dir its repository's git common dir and
+  -- base the commit it started from. The owner is a terminal, live or closed but still in
+  -- History, so terminal_id has no foreign key; it is null once orphaned. adopted is 1
+  -- for a worktree some other tool made, and diverged 1 once it has differed from base.
+  CREATE TABLE worktrees (
+    path TEXT PRIMARY KEY,
+    common_dir TEXT NOT NULL,
+    branch TEXT NOT NULL,
+    base TEXT NOT NULL,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    terminal_id TEXT,
+    adopted INTEGER NOT NULL CHECK (adopted IN (0, 1)),
+    diverged INTEGER NOT NULL DEFAULT 0 CHECK (diverged IN (0, 1)),
+    created_at INTEGER NOT NULL
+  ) STRICT;
+  CREATE INDEX worktrees_project ON worktrees(project_id);
+  CREATE INDEX worktrees_terminal ON worktrees(terminal_id);
   -- What agents show and the person attaches beside a terminal: pointers, never copies.
   -- Each item is held by one terminal's bar or one window, and goes with it.
   CREATE TABLE companion_windows (
@@ -805,6 +825,22 @@ const migrations: Readonly<Record<number, Step>> = {
       )
     }
   },
+  // The worktrees agents work in get their ownership table; nothing is carried into it.
+  13: `
+    CREATE TABLE worktrees (
+      path TEXT PRIMARY KEY,
+      common_dir TEXT NOT NULL,
+      branch TEXT NOT NULL,
+      base TEXT NOT NULL,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      terminal_id TEXT,
+      adopted INTEGER NOT NULL CHECK (adopted IN (0, 1)),
+      diverged INTEGER NOT NULL DEFAULT 0 CHECK (diverged IN (0, 1)),
+      created_at INTEGER NOT NULL
+    ) STRICT;
+    CREATE INDEX worktrees_project ON worktrees(project_id);
+    CREATE INDEX worktrees_terminal ON worktrees(terminal_id);
+  `,
 }
 // SQLite's primary result codes that say a step doesn't fit the database it met, or that
 // it is damaged, as against a full disk, an I/O error or a lock, after which a later start
@@ -1444,8 +1480,38 @@ const forgetUnsealedRows = (
   return { changes }
 }
 
+type WorktreeRow = {
+  path: string
+  common_dir: string
+  branch: string
+  base: string
+  project_id: string
+  terminal_id: string | null
+  adopted: number
+  diverged: number
+  created_at: number
+}
+
+const worktreeOf = (row: WorktreeRow): WorktreeRecord => ({
+  path: row.path,
+  commonDir: row.common_dir,
+  branch: row.branch,
+  base: row.base,
+  projectId: row.project_id,
+  terminalId: row.terminal_id,
+  adopted: row.adopted === 1,
+  diverged: row.diverged === 1,
+  createdAt: row.created_at,
+})
+
 export class WorkspaceStore
-  implements TerminalRecords, MessageRecords, InboxRecords, ItemRecords, ClosedRecords
+  implements
+    TerminalRecords,
+    MessageRecords,
+    InboxRecords,
+    ItemRecords,
+    ClosedRecords,
+    WorktreeRecords
 {
   private readonly database: DatabaseSync
   private readonly queries: SQLTagStore
@@ -2135,6 +2201,60 @@ export class WorkspaceStore
       () => this.queries.all`DELETE FROM closed_terminals WHERE closed_at < ${before} RETURNING id`,
     ) as { id: string }[]
     return rows.map(({ id }) => id)
+  }
+
+  insertWorktree(record: WorktreeRecord): void {
+    void referencing(
+      "NOT_FOUND",
+      () =>
+        this.queries.run`
+        INSERT OR REPLACE INTO worktrees (path, common_dir, branch, base, project_id, terminal_id,
+          adopted, diverged, created_at)
+        VALUES (${record.path}, ${record.commonDir}, ${record.branch}, ${record.base},
+          ${record.projectId}, ${record.terminalId}, ${record.adopted ? 1 : 0},
+          ${record.diverged ? 1 : 0}, ${record.createdAt})`,
+    )
+  }
+
+  setWorktreeOwner(path: string, terminalId: string): boolean {
+    return (
+      this.queries.run`UPDATE worktrees SET terminal_id = ${terminalId} WHERE path = ${path}`
+        .changes > 0
+    )
+  }
+
+  orphanWorktree(path: string): boolean {
+    return (
+      this.queries.run`UPDATE worktrees SET terminal_id = NULL WHERE path = ${path}`.changes > 0
+    )
+  }
+
+  worktreesOfProject(projectId: string): WorktreeRecord[] {
+    const rows = this.queries.all`
+      SELECT * FROM worktrees WHERE project_id = ${projectId} ORDER BY created_at, rowid`
+    return (rows as WorktreeRow[]).map(worktreeOf)
+  }
+
+  worktreesOfTerminal(terminalId: string): WorktreeRecord[] {
+    const rows = this.queries.all`
+      SELECT * FROM worktrees WHERE terminal_id = ${terminalId} ORDER BY created_at, rowid`
+    return (rows as WorktreeRow[]).map(worktreeOf)
+  }
+
+  worktrees(): WorktreeRecord[] {
+    const rows = this.queries.all`SELECT * FROM worktrees ORDER BY created_at, rowid`
+    return (rows as WorktreeRow[]).map(worktreeOf)
+  }
+
+  worktree(path: string): WorktreeRecord | undefined {
+    const row = this.queries.get`SELECT * FROM worktrees WHERE path = ${path}` as
+      | WorktreeRow
+      | undefined
+    return row && worktreeOf(row)
+  }
+
+  removeWorktree(path: string): boolean {
+    return this.queries.run`DELETE FROM worktrees WHERE path = ${path}`.changes > 0
   }
 
   item(itemId: string): ItemRecord | undefined {
