@@ -10,6 +10,7 @@ import { vi } from "vitest"
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import type { OwnerState } from "./cleanup.js"
+import { removeFolder } from "./repo.js"
 import { Worktrees } from "./worktrees.js"
 
 const git = (cwd: string, ...args: string[]) =>
@@ -43,6 +44,8 @@ type Fixture = {
   /** The worktrees an agent is working in. */
   busy: Set<string>
   worktrees: Worktrees
+  /** The service's clock. */
+  clock: { t: number }
   /** Makes a worktree owned by `t1` with a commit on its branch. */
   work: (branch: string, committed?: boolean) => Promise<string>
 }
@@ -57,7 +60,9 @@ const it = base.extend<{ fx: Fixture }>({
     resources.defer(() => store.close())
     const project = randomUUID()
     await store.createProject({ id: project, name: "P", cwd: repo })
+    const clock = { t: Date.now() }
     const worktrees = new Worktrees(store, {
+      now: () => clock.t,
       exists: (id) => owners.has(id),
       owner: (id) => owners.get(id) ?? "gone",
       busy: (row) =>
@@ -81,7 +86,7 @@ const it = base.extend<{ fx: Fixture }>({
       }
       return opened.path
     }
-    await use({ repo, project, store, owners, busy, worktrees, work })
+    await use({ repo, project, store, owners, busy, worktrees, clock, work })
   },
 })
 
@@ -278,5 +283,133 @@ describe("cleaning up when History lets a terminal go", () => {
     await f.worktrees.ownersPruned(["t1"])
     expect(existsSync(path)).toBe(true)
     expect(f.store.worktree(path)?.terminalId).toBe("t2")
+  })
+})
+
+describe("a terminal restored from History", () => {
+  it("keeps its worktrees: merged ones stay under it, and prune later cleans the unmerged", async ({
+    fx: f,
+  }) => {
+    const unmerged = await f.work("unmerged")
+    const merged = await f.work("merged")
+    git(f.repo, "merge", "--quiet", "merged")
+    // t1 closed into History, then was restored as t2: the row went, the worktrees followed.
+    f.owners.set("t1", "history")
+    await f.worktrees.tidy()
+    expect(existsSync(unmerged)).toBe(true)
+    expect(existsSync(merged)).toBe(false)
+    f.owners.set("t2", "open")
+    await f.worktrees.ownerRestored("t1", "t2")
+    f.owners.delete("t1")
+    await f.worktrees.tidy()
+    expect(existsSync(unmerged)).toBe(true)
+    expect(f.store.worktree(unmerged)?.terminalId).toBe("t2")
+    // Merged after the restore, still under an open owner: kept.
+    git(f.repo, "merge", "--quiet", "unmerged")
+    await f.worktrees.tidy()
+    expect(existsSync(unmerged)).toBe(true)
+  })
+
+  it("is force-cleaned when the restored terminal is closed and pruned", async ({ fx: f }) => {
+    const path = await f.work("later")
+    writeFileSync(join(path, "loose.txt"), "keep\n")
+    f.owners.set("t2", "open")
+    await f.worktrees.ownerRestored("t1", "t2")
+    f.owners.delete("t1")
+    f.owners.set("t2", "history")
+    await f.worktrees.tidy()
+    expect(existsSync(path)).toBe(true)
+    f.owners.delete("t2")
+    await f.worktrees.ownersPruned(["t2"])
+    expect(existsSync(path)).toBe(false)
+    expect(git(f.repo, "for-each-ref", "--format=%(refname)", "refs/novadeck/kept")).toContain(
+      "later-work",
+    )
+    expect(git(f.repo, "branch", "--list", "later")).toContain("later")
+  })
+
+  it("is never read as gone while its row is still in History and the move is queued", async ({
+    fx: f,
+  }) => {
+    const path = await f.work("racing")
+    git(f.repo, "merge", "--quiet", "racing")
+    f.owners.set("t1", "history")
+    f.owners.set("t2", "open")
+    // The sweep asked while the move is ahead of it in the queue; its guard sees t2 open.
+    const moved = f.worktrees.ownerRestored("t1", "t2")
+    f.owners.delete("t1")
+    await f.worktrees.tidy()
+    await moved
+    expect(existsSync(path)).toBe(true)
+    expect(f.store.worktree(path)?.terminalId).toBe("t2")
+  })
+})
+
+describe("removal re-checks through git", () => {
+  it("does not delete files written after the check: git refuses unforced", async ({ fx: f }) => {
+    const path = await f.work("late")
+    git(f.repo, "merge", "--quiet", "late")
+    writeFileSync(join(path, "late.txt"), "written after the check\n")
+    const refused = await removeFolder(f.repo, path, false)
+    expect(refused.ok).toBe(false)
+    expect(existsSync(join(path, "late.txt"))).toBe(true)
+    expect((await removeFolder(f.repo, path, true)).ok).toBe(true)
+    expect(existsSync(path)).toBe(false)
+  })
+})
+
+describe("looking again", () => {
+  it("does not enter the queue again for an unchanged worktree, until it changes or a while passes", async ({
+    fx: f,
+  }) => {
+    const path = await f.work("quiet")
+    f.store.orphanWorktree(path)
+    const spy = vi.spyOn(f.worktrees, "closeAt")
+    await f.worktrees.tidy()
+    expect(spy).toHaveBeenCalledTimes(1)
+    await f.worktrees.tidy()
+    await f.worktrees.tidy()
+    expect(spy).toHaveBeenCalledTimes(1)
+    // A commit changes HEAD.
+    writeFileSync(join(path, "more.txt"), "m\n")
+    git(path, "add", "-A")
+    git(path, "commit", "--quiet", "-m", "more")
+    await f.worktrees.tidy()
+    expect(spy).toHaveBeenCalledTimes(2)
+    await f.worktrees.tidy()
+    expect(spy).toHaveBeenCalledTimes(2)
+    // Main moving on changes the answer too.
+    git(f.repo, "commit", "--quiet", "--allow-empty", "-m", "main moves")
+    await f.worktrees.tidy()
+    expect(spy).toHaveBeenCalledTimes(3)
+    // And every fifteen minutes it is looked at anyway.
+    f.clock.t += 16 * 60_000
+    await f.worktrees.tidy()
+    expect(spy).toHaveBeenCalledTimes(4)
+  })
+
+  it("looks at once when a worktree that was held becomes merged", async ({ fx: f }) => {
+    const path = await f.work("becomes")
+    f.owners.set("t1", "history")
+    await f.worktrees.tidy()
+    expect(existsSync(path)).toBe(true)
+    git(f.repo, "merge", "--quiet", "becomes")
+    await f.worktrees.tidy()
+    expect(existsSync(path)).toBe(false)
+  })
+})
+
+describe("stopping", () => {
+  it("waits for a prune's removal, so none outlives the store", async ({ fx: f }) => {
+    const path = await f.work("ending")
+    f.owners.clear()
+    const pruning = f.worktrees.ownersPruned(["t1"])
+    await f.worktrees.stop()
+    expect(existsSync(path)).toBe(false)
+    await pruning
+    // After a stop, a prune starts nothing.
+    const second = await f.work("after")
+    await f.worktrees.ownersPruned(["t1"])
+    expect(existsSync(second)).toBe(true)
   })
 })

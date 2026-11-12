@@ -435,7 +435,7 @@ export class Terminals {
         drawHandle: (sessionId) => this.names.next(sessionId),
         resting: (agent, sessionId) => this.sleepers.holder(agent, sessionId),
         announce: (record) => this.announce(record),
-        pruned: (ids) => void options.worktrees?.service.ownersPruned(ids),
+        worktrees: options.worktrees?.service,
       }),
       options.historyTimes,
     )

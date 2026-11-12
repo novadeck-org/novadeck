@@ -1,4 +1,4 @@
-import { git, type Run } from "../checkouts/git.js"
+import { git, gitScope, type Run } from "../checkouts/git.js"
 import { logs } from "../log.js"
 import { homeOf } from "./repo.js"
 
@@ -6,8 +6,10 @@ const log = logs.for("worktrees")
 
 /** How often a repository's remote is fetched at most, in milliseconds. */
 export const fetchEveryMs = 5 * 60 * 1000
-/** How long one fetch may take before it is given up on. */
-export const fetchTimeoutMs = 60 * 1000
+/** How long one fetch may take before it is asked to stop (a big repository's first one is slow). */
+export const fetchTimeoutMs = 300 * 1000
+/** How long git has to stop after that, removing its lock files, before it is killed. */
+export const fetchGraceMs = 10 * 1000
 /** A repository that keeps failing is tried this seldom at the most. */
 const longestWaitMs = 60 * 60 * 1000
 
@@ -15,14 +17,19 @@ const longestWaitMs = 60 * 60 * 1000
  * The variables a fetch runs with so it can never ask the person for anything: no terminal
  * prompt (the runner's git has that off already), no askpass program (a graphical one would
  * open a window), no credential manager dialog, and ssh that fails rather than asks, unless
- * `sshCommand` says the person has their own way.
+ * the person has their own way: `ownSsh` (git's `core.sshCommand`), or `GIT_SSH_COMMAND`,
+ * `GIT_SSH` or `GIT_SSH_VARIANT` in the environment. (PuTTY's plink takes no BatchMode, and
+ * cannot be made to fail rather than ask here.)
  */
 export const fetchEnv = (person: NodeJS.ProcessEnv, ownSsh: boolean): NodeJS.ProcessEnv => ({
   GIT_TERMINAL_PROMPT: "0",
   GIT_ASKPASS: "",
   SSH_ASKPASS: "",
   GCM_INTERACTIVE: "never",
-  ...(ownSsh || person.GIT_SSH_COMMAND !== undefined
+  ...(ownSsh ||
+  person.GIT_SSH_COMMAND !== undefined ||
+  person.GIT_SSH !== undefined ||
+  person.GIT_SSH_VARIANT !== undefined
     ? {}
     : { GIT_SSH_COMMAND: "ssh -o BatchMode=yes" }),
 })
@@ -54,6 +61,7 @@ export class MainFetcher {
   private readonly run: typeof git
   private readonly every: number
   private readonly environment: NodeJS.ProcessEnv
+  private readonly ending = new AbortController()
 
   constructor(options: FetcherOptions = {}) {
     this.now = options.now ?? Date.now
@@ -67,16 +75,23 @@ export class MainFetcher {
     return this.states.get(commonDir)?.fetchedAt
   }
 
+  /** Ends the fetch under way and starts no more, as the runner closes. */
+  abort(): void {
+    this.ending.abort()
+  }
+
   /** Fetches the repositories that are due, one after another; the rest are forgotten. */
   async fetchDue(commonDirs: Iterable<string>): Promise<void> {
     const wanted = new Set(commonDirs)
     for (const known of this.states.keys()) if (!wanted.has(known)) this.states.delete(known)
     for (const commonDir of wanted) {
+      if (this.ending.signal.aborted) return
       const state = this.states.get(commonDir) ?? { fetchedAt: undefined, nextAt: 0, failures: 0 }
       this.states.set(commonDir, state)
       if (this.now() < state.nextAt) continue
       // eslint-disable-next-line no-await-in-loop -- Never two fetches at once.
-      const done = await this.fetch(commonDir)
+      const done = await gitScope.run(this.ending.signal, () => this.fetch(commonDir))
+      if (this.ending.signal.aborted) return
       const at = this.now()
       if (done.ok) {
         state.fetchedAt = at
@@ -99,12 +114,31 @@ export class MainFetcher {
     // The person's own ssh command in their git config is theirs to keep.
     const config = await this.run(home, ["config", "--get", "core.sshCommand"], { cap: 4096 })
     const ownSsh = config.ok && config.out.trim() !== ""
-    const run = await this.run(home, ["fetch", "--quiet", "--no-tags", "--prune", "origin"], {
-      cap: 64 * 1024,
-      truncate: true,
-      ms: fetchTimeoutMs,
-      env: fetchEnv(this.environment, ownSsh),
-    })
+    // Nothing in the person's repository changes but `refs/remotes/origin/*`: no FETCH_HEAD,
+    // no pruning of refs, no background maintenance or commit-graph.
+    const run = await this.run(
+      home,
+      [
+        "-c",
+        "maintenance.auto=false",
+        "-c",
+        "gc.auto=0",
+        "-c",
+        "fetch.writeCommitGraph=false",
+        "fetch",
+        "--quiet",
+        "--no-tags",
+        "--no-write-fetch-head",
+        "origin",
+      ],
+      {
+        cap: 64 * 1024,
+        truncate: true,
+        ms: fetchTimeoutMs,
+        graceMs: fetchGraceMs,
+        env: fetchEnv(this.environment, ownSsh),
+      },
+    )
     return run.ok ? { ok: true } : run
   }
 }

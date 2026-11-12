@@ -7,7 +7,7 @@ import { join } from "node:path"
 import type { git as realGit, Run } from "../checkouts/git.js"
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
-import { fetchEnv, fetchEveryMs, fetchTimeoutMs, MainFetcher } from "./fetching.js"
+import { fetchEnv, fetchEveryMs, fetchGraceMs, fetchTimeoutMs, MainFetcher } from "./fetching.js"
 import { Worktrees } from "./worktrees.js"
 
 const minute = 60_000
@@ -25,7 +25,13 @@ const fake = (options: { failing?: (cwd: string) => boolean; sshCommand?: string
   let running = 0
   let most = 0
   const run: typeof realGit = async (cwd, args, limit) => {
-    calls.push({ cwd, args, env: limit.env, ...(limit.ms !== undefined && { ms: limit.ms }) })
+    calls.push({
+      cwd,
+      args,
+      env: limit.env,
+      ...(limit.ms !== undefined && { ms: limit.ms }),
+      ...(limit.graceMs !== undefined && { graceMs: limit.graceMs }),
+    })
     if (args[0] === "config")
       return options.sshCommand
         ? { ok: true, out: `${options.sshCommand}\n`, cut: false }
@@ -40,7 +46,7 @@ const fake = (options: { failing?: (cwd: string) => boolean; sshCommand?: string
   }
   return {
     run,
-    fetches: () => calls.filter(({ args }) => args[0] === "fetch"),
+    fetches: () => calls.filter(({ args }) => args.includes("fetch")),
     calls,
     most: () => most,
   }
@@ -65,16 +71,31 @@ describe("fetching origins", () => {
     expect(fetchEveryMs).toBe(5 * minute)
   })
 
-  it("runs in the repository's folder with a timeout, pruning and no tags", async () => {
+  it("runs in the repository's folder, changing nothing but origin's refs, with a long timeout and a grace", async () => {
     const git = fake()
     const fetcher = new MainFetcher({ run: git.run, environment: {} })
     await fetcher.fetchDue(["/r/api/.git"])
     expect(git.fetches()[0]).toMatchObject({
       cwd: "/r/api",
-      args: ["fetch", "--quiet", "--no-tags", "--prune", "origin"],
+      args: [
+        "-c",
+        "maintenance.auto=false",
+        "-c",
+        "gc.auto=0",
+        "-c",
+        "fetch.writeCommitGraph=false",
+        "fetch",
+        "--quiet",
+        "--no-tags",
+        "--no-write-fetch-head",
+        "origin",
+      ],
       ms: fetchTimeoutMs,
+      graceMs: fetchGraceMs,
     })
-    expect(fetchTimeoutMs).toBe(60_000)
+    expect(git.fetches()[0]?.args).not.toContain("--prune")
+    expect(fetchTimeoutMs).toBe(300_000)
+    expect(fetchGraceMs).toBe(10_000)
   })
 
   it("fetches one repository at a time, each once", async () => {
@@ -122,11 +143,45 @@ describe("fetching origins", () => {
   })
 
   it("keeps the person's own ssh command, from the environment or git's config", async () => {
-    expect(fetchEnv({ GIT_SSH_COMMAND: "ssh -i key" }, false)).not.toHaveProperty("GIT_SSH_COMMAND")
+    for (const own of [
+      { GIT_SSH_COMMAND: "ssh -i key" },
+      { GIT_SSH: "/usr/bin/plink" },
+      { GIT_SSH_VARIANT: "putty" },
+    ])
+      expect(fetchEnv(own, false)).not.toHaveProperty("GIT_SSH_COMMAND")
     const git = fake({ sshCommand: "ssh -i ~/.ssh/work" })
     await new MainFetcher({ run: git.run, environment: {} }).fetchDue(["/a/.git"])
     expect(git.fetches()[0]?.env).not.toHaveProperty("GIT_SSH_COMMAND")
     expect(git.fetches()[0]?.env).toMatchObject({ GIT_ASKPASS: "", SSH_ASKPASS: "" })
+  })
+
+  it("starts no fetch once aborted, and aborts the one under way", async () => {
+    const git = fake()
+    const fetcher = new MainFetcher({ run: git.run, environment: {} })
+    fetcher.abort()
+    await fetcher.fetchDue(["/a/.git", "/b/.git"])
+    expect(git.fetches()).toHaveLength(0)
+  })
+
+  it("backs off a repository whose fetch keeps timing out", async () => {
+    const calls: string[] = []
+    const run: typeof realGit = (cwd, args) => {
+      if (args.includes("fetch")) calls.push(cwd)
+      return Promise.resolve(
+        args.includes("fetch")
+          ? ({ ok: false, kind: "timeout", status: 0, said: "" } satisfies Run)
+          : { ok: false, kind: "exit", status: 1, said: "" },
+      )
+    }
+    let now = 0
+    const fetcher = new MainFetcher({ now: () => now, run, environment: {} })
+    await fetcher.fetchDue(["/slow/.git"])
+    now = 6 * minute
+    await fetcher.fetchDue(["/slow/.git"])
+    expect(calls).toHaveLength(1)
+    now = 10 * minute
+    await fetcher.fetchDue(["/slow/.git"])
+    expect(calls).toHaveLength(2)
   })
 
   it("forgets a repository no longer tracked", async () => {
@@ -210,5 +265,7 @@ describe("fetching for real", () => {
     expect(existsSync(opened.path)).toBe(false)
     expect(sh(f.clone, "branch", "--list", "feature")).toBe("")
     expect(worktrees.fetchedAt(common)).toBeTypeOf("number")
+    // Nothing in the repository changed but origin's refs.
+    expect(existsSync(join(f.clone, ".git", "FETCH_HEAD"))).toBe(false)
   })
 })

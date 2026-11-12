@@ -151,6 +151,7 @@ const setup = (
     ran: vi.fn<() => boolean>(() => true),
     announce: vi.fn<(record: Record) => void>(),
     pruned: vi.fn<(ids: readonly string[]) => void>(),
+    restored: vi.fn<(from: string, to: string) => void>(),
     say: vi.fn<(record: Record, text: string) => void>(
       (_record: Record, text: string) => void said.push(text),
     ),
@@ -942,6 +943,8 @@ describe("confirming an agent's restore", () => {
     expect(store.rows.size).toBe(0)
     // A restore leaves History, but it is not a prune: the owner's worktrees stay.
     expect(host.pruned).not.toHaveBeenCalled()
+    // What the old terminal owned is the restored one's, before the row goes.
+    expect(host.restored).toHaveBeenCalledExactlyOnceWith("old-1", "new-1")
     expect(record.restoring).toBeUndefined()
     await vi.waitFor(() =>
       expect(watching.later).toContainEqual({ type: "removed", id: "old-1", projectId: "p1" }),

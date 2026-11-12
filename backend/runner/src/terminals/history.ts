@@ -117,6 +117,8 @@ export type HistoryHost = {
   readonly announce: (record: Closing) => void
   /** Called with the ids of the terminals pruned for good; a restore, which also removes a row, never calls it. */
   readonly pruned?: (terminalIds: readonly string[]) => void
+  /** Called when a restore was confirmed, or a newer row of the conversation replaced the row: what `from` owned is `to`'s. */
+  readonly restored?: (from: string, to: string) => void
   /** Shows the person a line in a terminal. */
   readonly say: (record: Closing, text: string) => void
 }
@@ -313,7 +315,7 @@ export class ClosedTerminals {
             (sealed) => {
               this.keep(row.id, sealed)
               // The screen it showed is kept as this row now, so the row it came from can go.
-              if (origin && this.pending.delete(origin.id)) this.gone(origin)
+              if (origin && this.pending.delete(origin.id)) this.gone(origin, row.id)
             },
             () => {
               if (this.archiving.delete(row.id)) this.announce(row)
@@ -391,7 +393,7 @@ export class ClosedTerminals {
             )
         : []
     records.insertClosed(row)
-    for (const one of older) this.gone(one)
+    for (const one of older) this.gone(one, row.id)
     this.announce(row)
   }
 
@@ -732,10 +734,10 @@ export class ClosedTerminals {
         this.pending.add(row.id)
         void shown.then(() =>
           this.host.saved(record, () => {
-            if (this.pending.delete(row.id)) this.gone(row)
+            if (this.pending.delete(row.id)) this.gone(row, record.summary.id)
           }),
         )
-      } else this.gone(row)
+      } else this.gone(row, record.summary.id)
       return
     }
     record.restoring = {
@@ -751,7 +753,10 @@ export class ClosedTerminals {
     else this.observe(record)
   }
 
-  private gone(row: { readonly id: string; readonly projectId: string }): void {
+  /** Removes a row that was restored; `successor` is the terminal (or row) that carries on from it. */
+  private gone(row: { readonly id: string; readonly projectId: string }, successor: string): void {
+    // Before the row goes, so the terminal it owned worktrees for never reads as gone.
+    this.host.restored?.(row.id, successor)
     try {
       this.host.records?.removeClosed(row.id)
     } catch (error) {
@@ -802,7 +807,7 @@ export class ClosedTerminals {
     clearTimeout(waiting.timer)
     clearTimeout(waiting.recheck)
     record.restoring = undefined
-    this.gone({ id: waiting.row, projectId: waiting.projectId })
+    this.gone({ id: waiting.row, projectId: waiting.projectId }, record.summary.id)
   }
 
   /**

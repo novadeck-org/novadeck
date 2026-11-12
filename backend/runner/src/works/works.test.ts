@@ -224,10 +224,12 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
     })
   })
 
-  it("carries when the repository's origin was fetched, and nothing before it was", async ({
+  it("carries when origin was fetched where main is a remote-tracking ref, and nothing before it was", async ({
     fixture,
     resources,
   }) => {
+    fixture.main.git("update-ref", "refs/remotes/origin/main", "HEAD")
+    fixture.main.git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
     const fetched = fixture.worktree("fetched")
     const never = fixture.worktree("never")
     const { works } = open(() => [
@@ -236,8 +238,25 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
     ])
     resources.defer(() => works.close())
     const found = await current(works)
-    expect(found.get(fetched.root)?.fetchedAt).toBe(1_700_000_000_000)
+    expect(found.get(fetched.root)).toMatchObject({
+      base: "origin/main",
+      fetchedAt: 1_700_000_000_000,
+    })
     expect(found.get(never.root)).not.toHaveProperty("fetchedAt")
+  })
+
+  it("says nothing of a fetch where main is the local branch, which a fetch cannot move", async ({
+    fixture,
+    resources,
+  }) => {
+    const local = fixture.worktree("local")
+    const { works } = open(() => [
+      { terminalId: terminal(1), root: local.root, fetchedAt: 1_700_000_000_000 },
+    ])
+    resources.defer(() => works.close())
+    const found = await current(works)
+    expect(found.get(local.root)).toMatchObject({ base: "main" })
+    expect(found.get(local.root)).not.toHaveProperty("fetchedAt")
   })
 
   it("has no work for a checkout no worktree is tracked at", async ({ fixture, resources }) => {

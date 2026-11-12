@@ -733,14 +733,28 @@ with every safety check again at that time:
     once), and every minute.
   - **Fetching** (`worktrees/fetching.ts`) is what makes a merge on the remote visible, since
     nothing else fetches. On the minute pass, each repository (git common dir) with a tracked
-    worktree gets `git fetch --quiet --no-tags --prune origin` in its main folder, one repository
-    at a time and at most every five minutes, with a 60 second timeout. The run never asks for
-    anything: `GIT_TERMINAL_PROMPT=0`, empty `GIT_ASKPASS` and `SSH_ASKPASS`,
+    worktree gets `git -c maintenance.auto=false -c gc.auto=0 -c fetch.writeCommitGraph=false
+    fetch --quiet --no-tags --no-write-fetch-head origin` in its main folder, so nothing in the
+    person's repository changes but `refs/remotes/origin/*` (no `--prune`, no FETCH_HEAD). It runs
+    one repository at a time and at most every five minutes. At 300 seconds git is sent SIGTERM so
+    it removes its lock files, and killed after 10 more (Windows has no graceful stop here, so
+    there it ends at once, which is why the timeout is long); shutdown aborts a fetch under way. The
+    run never asks for anything: `GIT_TERMINAL_PROMPT=0`, empty `GIT_ASKPASS` and `SSH_ASKPASS`,
     `GCM_INTERACTIVE=never`, and `GIT_SSH_COMMAND="ssh -o BatchMode=yes"` unless the person set
-    their own `GIT_SSH_COMMAND` or `core.sshCommand`. A failure (offline, no access, no origin)
-    is ignored and logged at debug level, and that repository waits twice as long after each
-    one, up to an hour. The main branch is `origin/HEAD` where the repository sets it, so a
-    clone with no `origin/HEAD` measures against its local `main`, which a fetch doesn't move.
+    `GIT_SSH_COMMAND`, `GIT_SSH` or `GIT_SSH_VARIANT`, or git's `core.sshCommand` (PuTTY's plink takes no
+    BatchMode, so it may still ask). A failure or timeout (offline, no access, no origin) is ignored and
+    logged at debug level, and that repository waits twice as long after each one, up to an hour.
+    The main branch is `origin/HEAD` where the repository sets it; a clone with no `origin/HEAD`
+    measures against its local `main`, which a fetch doesn't move, so such a work carries no
+    `fetchedAt` and its row doesn't say "main as of".
+  - **Restore and looking again.** A restore from History makes a new terminal id; when the restore
+    is confirmed (or a newer row of the same conversation replaces the row) `ClosedTerminals` tells
+    the service, which moves the old id's worktrees to the new one in its queue before the row goes.
+    Removal without `force` does not pass `--force` to `git worktree remove`, so git itself refuses
+    a worktree with files written after Novadeck's check. Each minute, a History, gone or orphaned
+    worktree that was refused is looked at again in the queue only when its HEAD, the main
+    branch's commit or its index file's time changed, or fifteen minutes passed; shutdown waits
+    for removals a prune started.
 - **Messages** between agents come from the same server's `send`, `agents` and `team` tools,
   listed only inside Novadeck's terminals like the others: an agent messages another
   terminal of its project and session by its handle, such as `@moth`, which `open_terminal` and `open_agent`

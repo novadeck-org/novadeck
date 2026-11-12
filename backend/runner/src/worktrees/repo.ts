@@ -304,9 +304,16 @@ export const keepStrayHead = async (
   return (await keepCommit(path, branch, "head", head)) ?? null
 }
 
-/** Removes the worktree's folder and git's record of it. */
-export const removeFolder = (home: string, path: string): Promise<Run> =>
-  git(home, ["worktree", "remove", "--force", "--", path], { ...small, ms: addMs })
+/**
+ * Removes the worktree's folder and git's record of it. Without `force` git itself refuses
+ * a worktree with modified or untracked files, so a file written after Novadeck's own check is
+ * never deleted; with it (after what it holds was kept on refs) git removes it whatever it holds.
+ */
+export const removeFolder = (home: string, path: string, force: boolean): Promise<Run> =>
+  git(home, ["worktree", "remove", ...(force ? ["--force"] : []), "--", path], {
+    ...small,
+    ms: addMs,
+  })
 
 /**
  * Forgets one worktree whose folder is gone, by deleting its own entry in the repository's

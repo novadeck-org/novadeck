@@ -561,7 +561,8 @@ export class Works {
           ),
         branch: read.branch,
         base: read.base,
-        ...(fetchedAt !== undefined && { fetchedAt }),
+        // Only a main that a fetch moves (a remote-tracking ref) is as old as the fetch.
+        ...(fetchedAt !== undefined && read.base.startsWith("origin/") && { fetchedAt }),
         firstSeenAt: remembered?.firstSeenAt ?? createdAt,
         added: listed.total.added,
         removed: listed.total.removed,

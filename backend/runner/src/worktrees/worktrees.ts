@@ -149,6 +149,17 @@ export class Worktrees {
     return this.cleanup.look(fetch)
   }
 
+  /**
+   * A restore from History was confirmed: the terminal it made, `to`, owns what `from` did.
+   * In the queue, so a look at the worktrees sees the new owner or the old row, never neither.
+   */
+  ownerRestored(from: string, to: string): Promise<void> {
+    return this.serial(async () => {
+      for (const row of this.records.worktreesOfTerminal(from))
+        this.records.setWorktreeOwner(row.path, to)
+    })
+  }
+
   /** Leaves a worktree with no owner, if `terminalId` still owns it. */
   orphanIf(path: string, terminalId: string): Promise<void> {
     return this.serial(async () => {
@@ -539,7 +550,7 @@ export class Worktrees {
       if (kept === undefined)
         return refused("Novadeck couldn't keep the uncommitted files, so the worktree stays.")
     }
-    const removed = await removeFolder(home, row.path)
+    const removed = await removeFolder(home, row.path, force)
     if (!removed.ok && existsSync(row.path))
       return refused(`git couldn't remove the worktree: ${said(removed)}.`)
     let branchDeleted = false
