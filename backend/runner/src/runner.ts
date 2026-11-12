@@ -29,6 +29,7 @@ import {
   WorkspaceStore,
   WorkspaceTooNewError,
 } from "./workspaces/store.js"
+import { RootFolder } from "./worktrees/root-folder.js"
 import { Worktrees } from "./worktrees/worktrees.js"
 
 const log = logs.for("runner")
@@ -280,11 +281,29 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     exists: (terminalId) =>
       terminals.place(terminalId) !== undefined || store.terminalExists(terminalId),
   })
+  const rootFolder = new RootFolder({
+    enabled: () => store.settings.runner().worktrees,
+    // Antigravity's Windows shim is written only while the folder exists: write the shell
+    // files again once it is made, after the first writing so the two never overlap.
+    made: () =>
+      void shellFiles
+        .then(() => rewriteShellFiles())
+        .catch((error: unknown) =>
+          log.error("worktrees.shims-failed", "Novadeck could not rewrite its shims", {
+            err: error,
+          }),
+        ),
+  })
+  rootFolder.ensure()
   const terminals = new Terminals({
     records: store,
     closed: store,
     projects: () => store.projects().map(({ id }) => id),
-    worktrees: { service: worktrees, enabled: () => store.settings.runner().worktrees },
+    worktrees: {
+      service: worktrees,
+      enabled: () => store.settings.runner().worktrees,
+      ready: (startedAt, relists) => rootFolder.ready(startedAt, relists),
+    },
     sealer,
     shellFiles,
     ...relay,
@@ -353,6 +372,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     voice,
     murmur,
     sealer,
+    rootFolder,
   }
 }
 
@@ -425,6 +445,7 @@ const startRunner = (options: RunnerOptions): Runner => {
     voice,
     murmur,
     sealer,
+    rootFolder,
   } = wire(options)
   let closing: Promise<void> | undefined
   return {
@@ -444,6 +465,7 @@ const startRunner = (options: RunnerOptions): Runner => {
         murmur,
         transcriptsAvailable: () => transcriptsAvailable(sealer),
         closing: () => closing !== undefined,
+        settingsSaved: () => rootFolder.ensure(),
       }),
       error: apiError,
       failed: logFailure,

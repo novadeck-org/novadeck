@@ -179,8 +179,10 @@ describe("agent hook", () => {
   }) => {
     expect(await fixture.hook("claude", start(), {}, "SessionStart")).toBe(0)
     // The words of the agent process that ran it, if one of its ancestors is (`launch`), are
-    // whatever this machine's are.
-    expect(fixture.reports.map((report) => ({ ...report, launch: undefined }))).toEqual([
+    // whatever this machine's are, and so is when it started (`processStart`).
+    expect(
+      fixture.reports.map((report) => ({ ...report, launch: undefined, processStart: undefined })),
+    ).toEqual([
       {
         terminalId,
         token,
@@ -710,6 +712,26 @@ describe("reading a relay's hook", () => {
       env: { CLAUDE_PID: "4242" },
     })
     expect(relayHook(claude)?.report.instance).toBe("4242")
+  })
+
+  it("reports when its agent process started, where the relay read it", () => {
+    const ancestors = [
+      { pid: 10, name: "sh", startedAt: 5_000 },
+      { pid: 20, name: "codex", startedAt: 1_000 },
+    ]
+    expect(relayHook(hook({ ancestors }))?.report.processStart).toBe(1_000)
+    // Claude Code's own pid names its process, whatever it is called.
+    expect(
+      relayHook(hook({ agent: "claude", env: { CLAUDE_PID: "10" }, ancestors }))?.report
+        .processStart,
+    ).toBe(5_000)
+    expect(relayHook(hook({ ancestors: [{ pid: 20, name: "codex" }] }))?.report).not.toHaveProperty(
+      "processStart",
+    )
+    // Where no agent process is named, no start is guessed.
+    expect(
+      relayHook(hook({ ancestors: [{ pid: 10, name: "sh", startedAt: 1 }] }))?.report,
+    ).not.toHaveProperty("processStart")
   })
 
   it("reports the words its agent process was started with, as the relay read them", () => {

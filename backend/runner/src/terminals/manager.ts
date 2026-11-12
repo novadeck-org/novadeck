@@ -479,6 +479,7 @@ export class Terminals {
       connected: (agent) => this.launcher.connected(agent),
       trees: () => this.trees,
       platform: () => this.options.platform,
+      worktrees: () => this.options.worktrees,
     })
     this.companion = new Companion(this.options.items, {
       records: () => this.records,
