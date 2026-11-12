@@ -28,6 +28,8 @@ export class RootFolder {
       readonly now?: () => number
       readonly exists?: (path: string) => boolean
       readonly make?: (path: string) => void
+      /** Called once the folder is made, so what depends on it being there can follow. */
+      readonly made?: () => void
     },
   ) {
     this.#folder = (host.exists ?? existsSync)(this.path) ? 0 : null
@@ -52,7 +54,9 @@ export class RootFolder {
       this.#folder = now
     } catch {
       // Agents are then told they can't write there yet.
+      return
     }
+    this.host.made?.()
   }
 
   /**

@@ -281,7 +281,19 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     exists: (terminalId) =>
       terminals.place(terminalId) !== undefined || store.terminalExists(terminalId),
   })
-  const rootFolder = new RootFolder({ enabled: () => store.settings.runner().worktrees })
+  const rootFolder = new RootFolder({
+    enabled: () => store.settings.runner().worktrees,
+    // Antigravity's Windows shim is written only while the folder exists: write the shell
+    // files again once it is made, after the first writing so the two never overlap.
+    made: () =>
+      void shellFiles
+        .then(() => rewriteShellFiles())
+        .catch((error: unknown) =>
+          log.error("worktrees.shims-failed", "Novadeck could not rewrite its shims", {
+            err: error,
+          }),
+        ),
+  })
   rootFolder.ensure()
   const terminals = new Terminals({
     records: store,
