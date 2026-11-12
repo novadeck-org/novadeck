@@ -145,21 +145,13 @@ export const renamed = (naming: Naming, title: string | null): Naming => ({
 })
 
 /**
- * The title an agent asked for as it opened the terminal: the opener's, never the person's,
- * with the handle the agent's terminal had, which the title's source names.
+ * The title an agent asked for as it opened the terminal, if it did: the opener's, never the
+ * person's, with the handle the agent's terminal had, which the title's source names. The
+ * handle is kept for an agent that asked for no title too.
  */
-export const openedWith = (naming: Naming, title: string, by: string): Naming => ({
+export const openedWith = (naming: Naming, title: string | undefined, by: string): Naming => ({
   ...naming,
-  opener: { title, by },
-})
-
-/**
- * An agent opened the terminal and asked for no title: only the handle its terminal had is
- * kept, for what names it should the agent give one later.
- */
-export const openedBy = (naming: Naming, by: string): Naming => ({
-  ...naming,
-  opener: { ...naming.opener, by },
+  opener: { ...(title !== undefined && { title }), by },
 })
 
 /** Murmur's latest title for the terminal. */

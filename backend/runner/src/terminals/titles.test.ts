@@ -133,6 +133,10 @@ describe("naming a terminal", () => {
     expect(openedWith(renamed(unnamed, "Mine"), "Server", "moth").person).toBe("Mine")
   })
 
+  it("keeps the opener's handle for an agent that asked for no title", () => {
+    expect(openedWith(unnamed, undefined, "moth").opener).toEqual({ by: "moth" })
+  })
+
   it("keeps the opening agent's title as it is while murmur titles, and replaces murmur's each time", () => {
     const first = murmured(openedWith(unnamed, "Server", "moth"), "Fixing login")
     expect(first.opener).toEqual({ title: "Server", by: "moth" })
