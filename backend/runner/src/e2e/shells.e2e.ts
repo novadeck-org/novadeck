@@ -157,6 +157,27 @@ for (const setup of setups) {
         )
         expect(new Set(told.map(({ output }) => output)).size).toBe(3)
 
+        // The terminal's bar has their shells item, whose content holds what each printed.
+        await t.poll(
+          async () => {
+            const item = run.deck.items.bar(t.id).find((each) => each.kind === "shells")
+            const content = item && (await run.deck.items.load(item.id, false))
+            if (content?.state !== "ready" || content.content.kind !== "shells") return undefined
+            const { shells } = content.content
+            return shells.length === 3 &&
+              words.every((word) =>
+                shells.some(
+                  ({ output }) =>
+                    output.state === "ready" && output.lines.some((line) => line.includes(word)),
+                ),
+              )
+              ? true
+              : undefined
+          },
+          "their shells item, with what each printed",
+          30_000,
+        )
+
         // Whatever the outcome, the shell that runs on is stopped, so none outlives the test.
         const stop = async () => {
           if (setup.agent === "codex") await t.submit("/stop")
