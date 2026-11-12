@@ -1,4 +1,5 @@
 import { chatShown, dictateIntoDraft, type Chat } from "@novadeck/chat/state"
+import type { Conversation } from "@novadeck/core/conversation"
 import type { TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceStore } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
@@ -31,12 +32,21 @@ export const dictateInto =
     chat: Chat,
     typeInto: (key: TerminalKey, text: string) => boolean,
     terminalOf: (key: TerminalKey) => TerminalMetadata | undefined,
+    conversationOf?: (key: TerminalKey) => Conversation | undefined,
   ) =>
   (key: TerminalKey, text: string): boolean => {
     const context = `${key.projectId}/${key.workspaceSessionId}`
     const terminal = terminalOf(key)
+    const conversation = conversationOf?.(key)
+    const boundSession =
+      conversation !== undefined &&
+      conversation.agent === terminal?.process &&
+      conversation.session !== null
     const { answering } = chat.store.getSnapshot()
-    if (!terminal || !chatShown(chatViewOn(ui.getSnapshot()), answering, context, terminal))
+    if (
+      !terminal ||
+      !chatShown(chatViewOn(ui.getSnapshot()), answering, context, terminal, boundSession)
+    )
       return typeInto(key, text)
     dictateIntoDraft(chat, context, key.terminalId, text)
     return true
@@ -105,14 +115,19 @@ export const useDictationController = ({
       createDictation({
         voice,
         offered: () => void commands.takeAddonOffer("voice"),
-        typeInto: dictateInto(ui, chat, typeInto, (key) =>
-          backend.conversations
-            ? workspace
-                .getSnapshot()
-                .projects.find((project) => project.id === key.projectId)
-                ?.history.find((session) => session.id === key.workspaceSessionId)
-                ?.state.roster.terminals.find((each) => each.id === key.terminalId)
-            : undefined,
+        typeInto: dictateInto(
+          ui,
+          chat,
+          typeInto,
+          (key) =>
+            backend.conversations
+              ? workspace
+                  .getSnapshot()
+                  .projects.find((project) => project.id === key.projectId)
+                  ?.history.find((session) => session.id === key.workspaceSessionId)
+                  ?.state.roster.terminals.find((each) => each.id === key.terminalId)
+              : undefined,
+          (key) => backend.conversations?.conversation(key).getSnapshot(),
         ),
         startCapture,
         now: domEffects.now,

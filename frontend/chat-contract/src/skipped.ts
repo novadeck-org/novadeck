@@ -5,6 +5,7 @@
 // Claude's ask scenarios recorded without a `transcriptTail`.
 
 export const claudeAskSkipped: readonly string[] = [
+  "ask-grid-wrapped",
   "channel-relay-allow",
   "elicit-dialog",
   "elicit-hook",

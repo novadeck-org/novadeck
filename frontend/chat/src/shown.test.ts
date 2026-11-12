@@ -53,6 +53,33 @@ describe("answers in the terminal", () => {
       expect(chatShown(true, noTerminalAnswers, "p/s", held)).toBe(false)
       expect(chatShown(true, noTerminalAnswers, "p/s", { ...terminal, state: "idle" })).toBe(false)
     })
+
+    for (const process of ["claude", "codex", "agy"])
+      it(`keeps ${process}'s screen visible until its prompt or session is known`, () => {
+        // A manually launched agent can hold at an update or trust screen without an
+        // expected-agent startup watch. Its foreground process alone says nothing is ready.
+        const starting = { ...terminal, process, state: "running" as const }
+        expect(chatAvailable(starting)).toBe(true)
+        expect(chatKept(starting)).toBe(true)
+        expect(chatShown(true, noTerminalAnswers, "p/s", starting)).toBe(false)
+
+        // A bound conversation proves a session even without a reported status.
+        expect(chatShown(true, noTerminalAnswers, "p/s", starting, true)).toBe(true)
+
+        const ready = { ...starting, agent: { working: false } }
+        expect(chatShown(true, noTerminalAnswers, "p/s", ready)).toBe(true)
+        // A fresh launch in the same shell must reveal its screen again.
+        expect(chatShown(true, noTerminalAnswers, "p/s", starting)).toBe(false)
+        expect(
+          chatShown(
+            true,
+            noTerminalAnswers,
+            "p/s",
+            { ...ready, agent: { working: false, startup: "startup" } },
+            true,
+          ),
+        ).toBe(false)
+      })
   })
 })
 

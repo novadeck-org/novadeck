@@ -16,7 +16,7 @@ import type { Harness, Run, WrittenPlan } from "@novadeck/harness-core/harness"
 import { agentLimits, telemetryLimits, type AgentTelemetry } from "@novadeck/protocol"
 
 import { callOf } from "./decode.js"
-import { commandRanIn, mcpTool } from "./tools.js"
+import { commandRanIn, mcpTool, scriptOf } from "./tools.js"
 import { transcripts } from "./transcripts.js"
 
 // A failed turn's `task_complete` error: its message, and `codex_error_info`, which is
@@ -162,6 +162,7 @@ export const rolloutEvents = (
         const folder = source === "user_shell" ? undefined : commandRanIn(command, cwd)
         return [
           ...(folder === undefined ? [] : [{ type: "command-ran" as const, ...base, folder }]),
+          ...commandSettled(base, null, fields.item as Fields),
           ...shellEnded(base, fields.item as Fields),
         ]
       }
@@ -265,6 +266,37 @@ const shellEnded = (base: EventBase<"codex">, item: Fields): HarnessEvent[] => {
   ]
 }
 
+// A yielded exec_command fires no PostToolUse even once it exits (probed 0.167.2,
+// code mode with auto review). Its completed item settles only that actor's exact Bash
+// request; a user shell command or a command still waiting for approval says nothing.
+const commandSettled = (
+  base: EventBase<"codex">,
+  actor: string | null,
+  { command, source, status }: Fields,
+): HarnessEvent[] => {
+  if (
+    source === "user_shell" ||
+    (status !== "completed" && status !== "failed") ||
+    !Array.isArray(command) ||
+    command.length === 0 ||
+    !command.every((word) => typeof word === "string")
+  )
+    return []
+  const script = scriptOf({ command })
+  if (script === "") return []
+  return [
+    {
+      type: "attention-resolved",
+      ...base,
+      requestId: callId(actor, "Bash", { command: script }),
+      actor,
+      toolName: "Bash",
+      loose: false,
+      outcome: "settled",
+    },
+  ]
+}
+
 // The request an MCP tool call's completed item settles, by the tool its hooks name and
 // the actor whose call it is: the root's, or a subagent's in its own rollout.
 const mcpSettled = (
@@ -323,13 +355,15 @@ const telemetry = (
 const backlogKind = (event: HarnessEvent): string =>
   event.type === "shell-started" || event.type === "shell-ended"
     ? `${event.type}:${event.id}`
-    : event.type !== "telemetry-observed"
-      ? event.type
-      : event.model !== undefined || event.effort
-        ? "model"
-        : event.version !== undefined && event.context === undefined && event.limits === undefined
-          ? "version"
-          : event.type
+    : event.type === "attention-resolved"
+      ? `${event.type}:${event.requestId}`
+      : event.type !== "telemetry-observed"
+        ? event.type
+        : event.model !== undefined || event.effort
+          ? "model"
+          : event.version !== undefined && event.context === undefined && event.limits === undefined
+            ? "version"
+            : event.type
 
 /**
  * Follows a bound session's rollout. Codex writes a turn's mode before the hook that
@@ -364,8 +398,17 @@ export const followRollout: NonNullable<Harness["watch"]> = async (run, signal, 
         )
           continue
         latest = Math.max(latest, event.startedAt)
-        if (backlog) backlog.set(backlogKind(event), event)
-        else emit(event)
+        if (backlog) {
+          const key = backlogKind(event)
+          backlog.delete(key)
+          backlog.set(key, event)
+          // The runner can hold this many requests. Keep their separate settlements
+          // without retaining every command ever completed in a long conversation.
+          if (event.type === "attention-resolved") {
+            const settled = [...backlog].filter(([, held]) => held.type === "attention-resolved")
+            if (settled.length > agentLimits.requests) backlog.delete(settled[0]![0])
+          }
+        } else emit(event)
       }
     },
     {
@@ -410,7 +453,12 @@ export const subagentEvents = (
   actor: string,
   since: number,
 ): readonly HarnessEvent[] => {
-  if (!line.includes('"turn_aborted"') && !line.includes('"McpToolCall"')) return []
+  if (
+    !line.includes('"turn_aborted"') &&
+    !line.includes('"McpToolCall"') &&
+    !line.includes('"CommandExecution"')
+  )
+    return []
   const { type, timestamp, payload } = parseFields(line) ?? {}
   if (type !== "event_msg" || typeof timestamp !== "string") return []
   const startedAt = Date.parse(timestamp)
@@ -422,6 +470,8 @@ export const subagentEvents = (
     ]
   if (kind === "item_completed" && isFields(item) && item.type === "McpToolCall")
     return mcpSettled({ agent: "codex", sessionId, instance, startedAt }, actor, item)
+  if (kind === "item_completed" && isFields(item) && item.type === "CommandExecution")
+    return commandSettled({ agent: "codex", sessionId, instance, startedAt }, actor, item)
   return []
 }
 

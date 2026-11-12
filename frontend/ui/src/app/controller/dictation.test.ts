@@ -1,4 +1,5 @@
 import { chatDraftOf, createChat, setChatDraft } from "@novadeck/chat/state"
+import { noConversation } from "@novadeck/core/conversation"
 import type { TerminalKey } from "@novadeck/core/port"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { createStore } from "@novadeck/core/store"
@@ -66,6 +67,41 @@ const chatOn = (store: UiStore): void => {
 }
 
 describe("dictated words", () => {
+  for (const process of ["claude", "codex", "agy"])
+    it(`follow ${process}'s bound chat even without a reported status`, () => {
+      const store = ui()
+      const chat = createChat()
+      chatOn(store)
+      const terminal: TerminalMetadata = {
+        id: "01",
+        name: "Terminal",
+        directory: "/",
+        command: "zsh",
+        process,
+        state: "running",
+      }
+      const typeInto = vi.fn<(key: TerminalKey, text: string) => boolean>(() => true)
+      let snapshot = { ...noConversation, agent: process, session: "session" as string | null }
+      const dictate = dictateInto(
+        store,
+        chat,
+        typeInto,
+        () => terminal,
+        () => snapshot,
+      )
+      dictate(key, "hello")
+      expect(typeInto).not.toHaveBeenCalled()
+      expect(chatDraftOf(chat.store.getSnapshot().drafts, context, "01")).toBe("hello")
+
+      snapshot = { ...snapshot, session: null, loaded: true }
+      dictate(key, "unbound")
+      expect(typeInto).toHaveBeenLastCalledWith(key, "unbound")
+      snapshot = { ...snapshot, session: "old", agent: "other-harness" }
+      dictate(key, "different agent")
+      expect(typeInto).toHaveBeenLastCalledWith(key, "different agent")
+      expect(chatDraftOf(chat.store.getSnapshot().drafts, context, "01")).toBe("hello")
+    })
+
   it("are typed into a terminal showing its screen", () => {
     const store = ui()
     const chat = createChat()

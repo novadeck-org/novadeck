@@ -228,43 +228,50 @@ describe.skipIf(!out || !supported)("probe: startup screens", () => {
       const terminal = await run.deck.open(`env -u OPENAI_API_KEY CODEX_HOME=${home} codex`)
       await watch(run, codex, terminal, "codex-sign-in")
     })
-    // Its update screen, read and never answered: no key reaches this terminal, and its PATH
+    // Its update screen, read and never accepted: its PATH
     // holds no npm, so an accepted update could install nothing. It uses the sandbox's own
     // CODEX_HOME and the scratch install, and ends with the deck.
-    e2e.seeded(trusted, codex)("update", async ({ e2e: run }) => {
-      const home = join(run.sandbox.home, ".codex")
-      const file = join(home, "config.toml")
-      writeFileSync(
-        file,
-        readFileSync(file, "utf8").replace(
-          "check_for_update_on_startup = false",
-          "check_for_update_on_startup = true",
-        ),
-      )
-      writeFileSync(
-        join(home, "version.json"),
-        JSON.stringify({ latest_version: "99.0.0", last_checked_at: new Date().toISOString() }),
-      )
-      const { bin } = await installHarness("codex")
-      const path = join(run.sandbox.root, "no-npm")
-      mkdirSync(path)
-      symlinkSync(process.execPath, join(path, "node"))
-      symlinkSync(join(bin, "codex"), join(path, "codex"))
-      symlinkSync("/usr/bin/ps", join(path, "ps"))
-      const terminal = await run.deck.open(`env PATH=${path} codex`)
-      await watch(run, codex, terminal, "codex-update")
-      await quit(run, terminal)
-      // The app server and updater it started, which a managed install keeps running after
-      // the TUI exits: ended by the pids in its own files, in the sandbox's home.
-      const daemon = join(home, "app-server-daemon")
-      for (const pidFile of ["daemon.pid", "daemon-updater.pid"])
-        try {
-          process.kill(JSON.parse(readFileSync(join(daemon, pidFile), "utf8")).pid, "SIGTERM")
-        } catch {
-          // Not started, or gone already.
-        }
-      await sleep(1000)
-    })
+    for (const launch of ["wrapped", "manual", "expected"] as const)
+      e2e.seeded(trusted, codex)(`update (${launch})`, async ({ e2e: run }) => {
+        const home = join(run.sandbox.home, ".codex")
+        const file = join(home, "config.toml")
+        writeFileSync(
+          file,
+          readFileSync(file, "utf8").replace(
+            "check_for_update_on_startup = false",
+            "check_for_update_on_startup = true",
+          ),
+        )
+        writeFileSync(
+          join(home, "version.json"),
+          JSON.stringify({ latest_version: "99.0.0", last_checked_at: new Date().toISOString() }),
+        )
+        const { bin } = await installHarness("codex")
+        const path = join(run.sandbox.root, "no-npm")
+        mkdirSync(path)
+        symlinkSync(process.execPath, join(path, "node"))
+        symlinkSync(join(bin, "codex"), join(path, "codex"))
+        symlinkSync("/usr/bin/ps", join(path, "ps"))
+        const wrapper = join(run.sandbox.root, "codex")
+        writeFileSync(wrapper, `#!/bin/sh\nexec env PATH="${path}" codex\n`, { mode: 0o755 })
+        // A command named codex is expected; an env wrapper and a command typed into an
+        // ordinary shell are not. All three must leave its startup screen reachable.
+        const command = launch === "expected" ? wrapper : `env PATH=${path} codex`
+        const terminal = await run.deck.open(launch === "manual" ? undefined : command)
+        if (launch === "manual") await terminal.submit(command)
+        await watch(run, codex, terminal, `codex-update-${launch}`)
+        await quit(run, terminal)
+        // The app server and updater it started, which a managed install keeps running after
+        // the TUI exits: ended by the pids in its own files, in the sandbox's home.
+        const daemon = join(home, "app-server-daemon")
+        for (const pidFile of ["daemon.pid", "daemon-updater.pid"])
+          try {
+            process.kill(JSON.parse(readFileSync(join(daemon, pidFile), "utf8")).pid, "SIGTERM")
+          } catch {
+            // Not started, or gone already.
+          }
+        await sleep(1000)
+      })
     e2e.seeded(trusted, codex)("mcp slow", async ({ e2e: run }) => {
       const file = join(run.sandbox.home, ".codex", "config.toml")
       appendFileSync(

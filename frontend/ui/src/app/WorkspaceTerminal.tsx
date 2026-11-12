@@ -1,5 +1,6 @@
 import {
   chatAttachmentsOf,
+  chatAvailable,
   chatDraftOf,
   chatImageNoteOf,
   chatReplyOf,
@@ -10,7 +11,7 @@ import {
 import { useBoxHandover } from "@novadeck/chat/use-box-handover"
 import { useChat } from "@novadeck/chat/use-chat"
 import { agentStats } from "@novadeck/core/agents/stats"
-import type { ChatImage } from "@novadeck/core/conversation"
+import { noConversation, type ChatImage } from "@novadeck/core/conversation"
 import {
   critterLive,
   ledTerminals,
@@ -18,6 +19,7 @@ import {
   terminalOrigins,
 } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
+import { createStore } from "@novadeck/core/store"
 import type { CompanionWindowMeta, TerminalMetadata, Tile } from "@novadeck/core/types"
 import { Avatar } from "@novadeck/items/Avatar"
 import { ProjectWindow } from "@novadeck/items/ProjectWindow"
@@ -70,6 +72,8 @@ import { useFoldTeam } from "./team-fold"
 import { useTerminalBar } from "./terminal-bar"
 import { agentAvatarsOn, chatViewOn } from "./ui-store"
 import { useTerminalMarks } from "./useTerminalMarks"
+
+const noChatConversation = createStore(noConversation)
 
 // What every window in the current view takes from the workspace, a terminal's or one
 // undocked from a companion: its header, its menu, and the controls its layout offers.
@@ -275,17 +279,34 @@ export const WorkspaceTerminal = memo(
       ),
       ...(processWindow ? { processWindow } : {}),
     }
-    // The chat is drawn over the content, which stays mounted at its size, so the terminal
-    // keeps its dimensions and its emulator its state. The content is inert beneath, where
+    // Chat is drawn over the mounted content, whose hidden terminal gets extra height for
+    // dialogs while keeping its width and emulator state. The content is inert beneath, where
     // neither focus nor typing can reach it, and the chat's box takes keyboard focus.
     const conversations = backend.conversations
     // A terminal whose agent has a conversation to show, with the chat view on (an
     // experimental feature), on a backend that reads it.
     const chatView = useUiState(chatViewOn)
+    // Listen before showing chat: an agent without reported activity can still have a
+    // bound conversation. A program name or an empty, loaded transcript alone is no session.
+    const available = chatView && chatAvailable(terminal)
+    const candidate = useMemo(
+      () => (available ? conversations?.conversation(terminalKey) : undefined),
+      [available, conversations, terminalKey],
+    )
+    const observed =
+      terminal.state === "running" && terminal.agent === undefined
+        ? (candidate ?? noChatConversation)
+        : noChatConversation
+    const boundSnapshot = useCallback(() => {
+      const { agent, session } = observed.getSnapshot()
+      return agent === terminal.process && session !== null
+    }, [observed, terminal.process])
+    const boundSession = useSyncExternalStore(observed.subscribe, boundSnapshot, boundSnapshot)
     const showChat = useChat(
       chat,
       (state) =>
-        conversations !== undefined && chatShown(chatView, state.answering, chatContext, terminal),
+        conversations !== undefined &&
+        chatShown(chatView, state.answering, chatContext, terminal, boundSession),
     )
     const draft = useChat(chat, (state) => chatDraftOf(state.drafts, chatContext, terminalId))
     const replyTo = useChat(chat, (state) => chatReplyOf(state.replies, chatContext, terminalId))
@@ -297,10 +318,7 @@ export const WorkspaceTerminal = memo(
       chatImageNoteOf(state.imageNotes, chatContext, terminalId),
     )
     const shells = useChat(chat, (state) => chatShellsOf(state.shells, chatContext, terminalId))
-    const conversation = useMemo(
-      () => (showChat ? conversations?.conversation(terminalKey) : undefined),
-      [showChat, conversations, terminalKey],
-    )
+    const conversation = showChat ? candidate : undefined
     // Stable while the terminal and the backend are: a new one would draw every thumbnail again.
     const onImage = useMemo(
       () =>
@@ -322,7 +340,10 @@ export const WorkspaceTerminal = memo(
     useChatTakesFocus(chatHost, conversation !== undefined, active && onScreen)
     const withChat = (content: ReactNode): ReactNode =>
       conversations ? (
-        <div ref={chatHost} className="chat-host relative flex min-h-0 min-w-0 flex-1 flex-col">
+        <div
+          ref={chatHost}
+          className="chat-host relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+        >
           {/* Before the content, so the first terminal input in the window is the chat's. */}
           {conversation && (
             <div
@@ -373,7 +394,7 @@ export const WorkspaceTerminal = memo(
           )}
           {/* Keep the emulator's high-z-index scrollbar beneath the chat overlay. */}
           <div
-            className="isolate flex min-h-0 min-w-0 flex-1 flex-col"
+            className="chat-terminal isolate flex min-w-0 flex-1 flex-col"
             aria-hidden={showChat || undefined}
             inert={showChat}
           >

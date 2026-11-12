@@ -28066,6 +28066,225 @@
           ]
         }
       ]
+    },
+    "ask-grid-wrapped": {
+      "what": "The Grid question at several sizes; Claude clips its header at60x20, reads at60x40 and accepts option2 through Novadeck",
+      "version": "2.1.316",
+      "events": [
+        {
+          "event": "PermissionRequest",
+          "payload": {
+            "tool_name": "AskUserQuestion",
+            "tool_input": {
+              "questions": [
+                {
+                  "question": "Canvas windows are a fixed 864×576. If Canvas used Grid's split pane, the terminal would shrink to about 45 columns while the pane is open. Which version should I build?",
+                  "header": "Canvas pane",
+                  "options": [
+                    {
+                      "label": "Straight swap (Recommended)",
+                      "description": "Canvas uses Grid's split exactly: divider, cover mode, and the hanging sheet code is deleted. The terminal gets narrower while the pane is open."
+                    },
+                    {
+                      "label": "Split + widen window",
+                      "description": "The window grows to the right when the pane opens, so the terminal keeps its width. Needs a size per window across all Canvas geometry; bigger and riskier."
+                    },
+                    {
+                      "label": "Just the opinion",
+                      "description": "Don't build anything yet."
+                    }
+                  ],
+                  "multiSelect": false
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "screens": {
+        "120x40": {
+          "height": 26,
+          "columns": 120,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.316",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "7": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "8": " ☐ Canvas pane",
+            "10": "│ Canvas windows are a fixed 864×576. If Canvas used Grid's split pane, the terminal would shrink to about 45 columns",
+            "11": "│ while the pane is open. Which version should I build?",
+            "13": "❯ 1. Straight swap (Recommended)",
+            "14": "     Canvas uses Grid's split exactly: divider, cover mode, and the hanging sheet code is deleted. The terminal gets",
+            "15": "     narrower while the pane is open.",
+            "16": "  2. Split + widen window",
+            "17": "     The window grows to the right when the pane opens, so the terminal keeps its width. Needs a size per window across",
+            "18": "     all Canvas geometry; bigger and riskier.",
+            "19": "  3. Just the opinion",
+            "20": "     Don't build anything yet.",
+            "21": "  4. Type something.",
+            "22": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "23": "  5. Chat about this",
+            "25": "Enter to select · ↑/↓ to navigate · Esc to cancel"
+          }
+        },
+        "80x24": {
+          "height": 24,
+          "columns": 80,
+          "rows": {
+            "2": "❯ Ask now",
+            "3": "────────────────────────────────────────────────────────────────────────────────",
+            "4": " ☐ Canvas pane",
+            "6": "│ Canvas windows are a fixed 864×576. If Canvas used Grid's split pane, the",
+            "7": "│ terminal would shrink to about 45 columns while the pane is open. Which",
+            "8": "│ version should I build?",
+            "10": "❯ 1. Straight swap (Recommended)",
+            "11": "     Canvas uses Grid's split exactly: divider, cover mode, and the hanging",
+            "12": "     sheet code is deleted. The terminal gets narrower while the pane is open.",
+            "13": "  2. Split + widen window",
+            "14": "     The window grows to the right when the pane opens, so the terminal keeps",
+            "15": "     its width. Needs a size per window across all Canvas geometry; bigger and",
+            "16": "     riskier.",
+            "17": "  3. Just the opinion",
+            "18": "     Don't build anything yet.",
+            "19": "  4. Type something.",
+            "20": "────────────────────────────────────────────────────────────────────────────────",
+            "21": "  5. Chat about this",
+            "23": "Enter to select · ↑/↓ to navigate · Esc to cancel"
+          }
+        },
+        "80x30": {
+          "height": 28,
+          "columns": 80,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.316",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "7": "────────────────────────────────────────────────────────────────────────────────",
+            "8": " ☐ Canvas pane",
+            "10": "│ Canvas windows are a fixed 864×576. If Canvas used Grid's split pane, the",
+            "11": "│ terminal would shrink to about 45 columns while the pane is open. Which",
+            "12": "│ version should I build?",
+            "14": "❯ 1. Straight swap (Recommended)",
+            "15": "     Canvas uses Grid's split exactly: divider, cover mode, and the hanging",
+            "16": "     sheet code is deleted. The terminal gets narrower while the pane is open.",
+            "17": "  2. Split + widen window",
+            "18": "     The window grows to the right when the pane opens, so the terminal keeps",
+            "19": "     its width. Needs a size per window across all Canvas geometry; bigger and",
+            "20": "     riskier.",
+            "21": "  3. Just the opinion",
+            "22": "     Don't build anything yet.",
+            "23": "  4. Type something.",
+            "24": "────────────────────────────────────────────────────────────────────────────────",
+            "25": "  5. Chat about this",
+            "27": "Enter to select · ↑/↓ to navigate · Esc to cancel"
+          }
+        },
+        "60x20": {
+          "height": 20,
+          "columns": 60,
+          "rows": {
+            "1": "│ Canvas windows are a fixed 864×576. If Canvas used Grid's",
+            "2": "│ split pane, the terminal would shrink to about 45 columns",
+            "3": "│ while the pane is open. Which version should I build?",
+            "5": "❯ 1. Straight swap (Recommended)",
+            "6": "     Canvas uses Grid's split exactly: divider, cover mode,",
+            "7": "     and the hanging sheet code is deleted. The terminal",
+            "8": "     gets narrower while the pane is open.",
+            "9": "  2. Split + widen window",
+            "10": "     The window grows to the right when the pane opens, so",
+            "11": "     the terminal keeps its width. Needs a size per window",
+            "12": "     across all Canvas geometry; bigger and riskier.",
+            "13": "  3. Just the opinion",
+            "14": "     Don't build anything yet.",
+            "15": "  4. Type something.",
+            "16": "────────────────────────────────────────────────────────────",
+            "17": "  5. Chat about this",
+            "19": "Enter to select · ↑/↓ to navigate · Esc to cancel"
+          }
+        },
+        "60x40": {
+          "height": 29,
+          "columns": 60,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.316",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": " ☐ Canvas pane",
+            "10": "│ Canvas windows are a fixed 864×576. If Canvas used Grid's",
+            "11": "│ split pane, the terminal would shrink to about 45 columns",
+            "12": "│ while the pane is open. Which version should I build?",
+            "14": "❯ 1. Straight swap (Recommended)",
+            "15": "     Canvas uses Grid's split exactly: divider, cover mode,",
+            "16": "     and the hanging sheet code is deleted. The terminal",
+            "17": "     gets narrower while the pane is open.",
+            "18": "  2. Split + widen window",
+            "19": "     The window grows to the right when the pane opens, so",
+            "20": "     the terminal keeps its width. Needs a size per window",
+            "21": "     across all Canvas geometry; bigger and riskier.",
+            "22": "  3. Just the opinion",
+            "23": "     Don't build anything yet.",
+            "24": "  4. Type something.",
+            "25": "────────────────────────────────────────────────────────────",
+            "26": "  5. Chat about this",
+            "28": "Enter to select · ↑/↓ to navigate · Esc to cancel"
+          }
+        }
+      },
+      "steps": {
+        "native": {
+          "height": 29,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.316",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": " ☐ Canvas pane",
+            "10": "│ Canvas windows are a fixed 864×576. If Canvas used Grid's",
+            "11": "│ split pane, the terminal would shrink to about 45 columns",
+            "12": "│ while the pane is open. Which version should I build?",
+            "14": "❯ 1. Straight swap (Recommended)",
+            "15": "     Canvas uses Grid's split exactly: divider, cover mode,",
+            "16": "     and the hanging sheet code is deleted. The terminal",
+            "17": "     gets narrower while the pane is open.",
+            "18": "  2. Split + widen window",
+            "19": "     The window grows to the right when the pane opens, so",
+            "20": "     the terminal keeps its width. Needs a size per window",
+            "21": "     across all Canvas geometry; bigger and riskier.",
+            "22": "  3. Just the opinion",
+            "23": "     Don't build anything yet.",
+            "24": "  4. Type something.",
+            "25": "────────────────────────────────────────────────────────────",
+            "26": "  5. Chat about this",
+            "28": "Enter to select · ↑/↓ to navigate · Esc to cancel"
+          }
+        },
+        "answered": {
+          "height": 40,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.316",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "8": "● User answered Claude's questions:",
+            "9": "  ⎿  · Canvas windows are a fixed 864×576. If Canvas used",
+            "10": "     Grid's split pane, the terminal would shrink to about",
+            "11": "     45 columns while the pane is open. Which version should",
+            "12": "     I build? → Split + widen window",
+            "14": "● Done.",
+            "16": "✻ Cogitated for 0s · done 6:14 PM",
+            "34": "                                        ◐ medium · /effort",
+            "35": "────────────────────────────────────────────────────────────",
+            "36": "❯",
+            "37": "────────────────────────────────────────────────────────────",
+            "39": "  ⏸ manual mode on · ← for agents"
+          }
+        }
+      }
     }
   }
 }

@@ -16,9 +16,9 @@ import { adapterFolder } from "../../testing/adapters.js"
 import { codex } from "../agents/codex.js"
 import type { DeckTerminal } from "../deck.js"
 import { poll } from "../deck.js"
-import { describe, e2e, supported, type E2E } from "../fixture.js"
+import { describe, e2e, expect, supported, type E2E } from "../fixture.js"
 import { installHarness, pins } from "../install.js"
-import { asked, type Call, type Rule } from "../model/script.js"
+import { asked, gate, type Call, type Rule } from "../model/script.js"
 import { prompted } from "../scenarios.js"
 import { sleep } from "./support.js"
 
@@ -456,6 +456,67 @@ const surface = async (
 }
 
 describe.skipIf(!supported)("Codex ask surfaces (probe)", () => {
+  it("auto-reviewed code mode exec approval", async ({ e2e: run }) => {
+    const file = join(run.sandbox.home, ".codex", "models.json")
+    const catalog = JSON.parse(readFileSync(file, "utf8")) as { models: Json[] }
+    writeFileSync(
+      file,
+      JSON.stringify({
+        ...catalog,
+        models: catalog.models.map((model) => ({ ...model, tool_mode: "code_mode_only" })),
+      }),
+    )
+    const hooks = probe(run)
+    const returned = gate()
+    const finish = gate()
+    run.model.use(
+      (call) =>
+        call.side
+          ? {
+              text: JSON.stringify({
+                risk_level: "low",
+                user_authorization: "high",
+                outcome: "allow",
+                rationale: "An isolated test echo requested by the user.",
+              }),
+            }
+          : undefined,
+      async (call) => {
+        if (call.side || call.turns.at(-1)?.role !== "tool") return undefined
+        returned.open()
+        await finish.opened
+        return { text: "Finished the request." }
+      },
+      ...script("Run the command", () => ({
+        calls: [
+          {
+            name: "exec",
+            input: {
+              input:
+                'text(await tools.exec_command({cmd:"sleep 3; echo approved > probe-out.txt",yield_time_ms:1000,sandbox_permissions:"require_escalated",justification:"Echo outside the sandbox"}));',
+            },
+          },
+        ],
+      })),
+    )
+    const t = await open(run, '-c approvals_reviewer="auto_review"')
+    await t.prompt("Run the command")
+    await returned.opened
+    await sleep(4000)
+    const detail = await t.detail()
+    save(run, "auto-review-code-mode-exec-approve", {
+      hooksAll: hookLines(hooks),
+      novadeckSees: { activity: detail.activity, requests: detail.requests },
+      rolloutAfter: interesting(rollout(run)),
+      toolOutputSeenByModel: lastTool(run) ?? null,
+    })
+    finish.open()
+    await t.until("Finished the request.", 30_000)
+    expect(detail.activity?.state).toBe("working")
+    expect(detail.activity?.attention.pending).toBe(0)
+    expect(detail.requests).toEqual([])
+  })
+
   // The command approval, answered with each of its keys.
   for (const [key, label] of [
     ["y", "approve"],

@@ -1,0 +1,125 @@
+{
+  "harness": "codex",
+  "version": "0.167.2",
+  "source": "captured",
+  "how": "code-mode exec_command with auto_review and yield_time_ms=1000 in the E2E sandbox; model turn held open after tool result; no PostToolUse emitted before or after the process completed; extracted from codex-ask.e2e.ts auto-reviewed code mode exec approval",
+  "hooks": [
+    {
+      "kind": "start",
+      "event": "SessionStart",
+      "payload": {
+        "session_id": "<uuid>",
+        "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+        "cwd": "/tmp/sandbox/project",
+        "hook_event_name": "SessionStart",
+        "model": "fake-model",
+        "permission_mode": "default",
+        "source": "startup"
+      }
+    },
+    {
+      "kind": "end",
+      "event": "SessionStart"
+    },
+    {
+      "kind": "start",
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "<uuid>",
+        "turn_id": "<uuid>",
+        "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+        "cwd": "/tmp/sandbox/project",
+        "hook_event_name": "UserPromptSubmit",
+        "model": "fake-model",
+        "permission_mode": "default",
+        "prompt": "Run the command"
+      }
+    },
+    {
+      "kind": "end",
+      "event": "UserPromptSubmit"
+    },
+    {
+      "kind": "start",
+      "event": "PreToolUse",
+      "payload": {
+        "session_id": "<uuid>",
+        "turn_id": "<uuid>",
+        "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+        "cwd": "/tmp/sandbox/project",
+        "hook_event_name": "PreToolUse",
+        "model": "fake-model",
+        "permission_mode": "default",
+        "tool_name": "Bash",
+        "tool_input": {
+          "command": "sleep 3; echo approved > probe-out.txt"
+        },
+        "tool_use_id": "exec-<uuid>"
+      }
+    },
+    {
+      "kind": "end",
+      "event": "PreToolUse"
+    },
+    {
+      "kind": "start",
+      "event": "PermissionRequest",
+      "payload": {
+        "session_id": "<uuid>",
+        "turn_id": "<uuid>",
+        "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+        "cwd": "/tmp/sandbox/project",
+        "hook_event_name": "PermissionRequest",
+        "model": "fake-model",
+        "permission_mode": "default",
+        "tool_name": "Bash",
+        "tool_input": {
+          "command": "sleep 3; echo approved > probe-out.txt",
+          "description": "Echo outside the sandbox"
+        }
+      }
+    },
+    {
+      "kind": "end",
+      "event": "PermissionRequest"
+    }
+  ],
+  "completion": {
+    "timestamp": "2000-01-01T00:00:00.000Z",
+    "ordinal": 14,
+    "type": "event_msg",
+    "payload": {
+      "type": "item_completed",
+      "thread_id": "<uuid>",
+      "turn_id": "<uuid>",
+      "item": {
+        "type": "CommandExecution",
+        "id": "exec-<uuid>",
+        "process_id": "0",
+        "command": ["/bin/bash", "-lc", "sleep 3; echo approved > probe-out.txt"],
+        "cwd": "file:///tmp/sandbox/project",
+        "parsed_cmd": [
+          {
+            "type": "unknown",
+            "cmd": "sleep 3; echo approved > probe-out.txt"
+          }
+        ],
+        "source": "unified_exec_startup",
+        "status": "completed",
+        "aggregated_output": "",
+        "exit_code": 0,
+        "duration": {
+          "secs": 2,
+          "nanos": 0
+        }
+      },
+      "started_at_ms": 0,
+      "completed_at_ms": 0
+    }
+  },
+  "attentionAfterCompletion": {
+    "pending": 1,
+    "kind": "permission"
+  },
+  "toolOutputSeenByModel": "Script completed\nWall time 1.3 seconds\nOutput:\n\n{\"chunk_id\":\"d5a404\",\"wall_time_seconds\":1.000997465,\"session_id\":96709,\"original_token_count\":0,\"output\":\"\"}"
+}

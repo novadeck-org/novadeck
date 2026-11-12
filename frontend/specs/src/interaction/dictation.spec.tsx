@@ -297,7 +297,9 @@ describe("dictation", () => {
       await expect.element(offer()).toBeVisible()
       const strip = win().querySelector<HTMLElement>(".dictation-strip:not([hidden])")!
       const host = strip.parentElement!.getBoundingClientRect()
-      const form = strip.parentElement!.querySelector(".terminal-xterm")!.getBoundingClientRect()
+      // The visible chat fits beside voice setup. Its hidden terminal is deliberately
+      // taller so the harness can draw whole dialogs, and the chat host clips it.
+      const form = strip.parentElement!.querySelector(".chat-pane")!.getBoundingClientRect()
       expect(form.bottom).toBeLessThanOrEqual(host.bottom + 0.5)
       expect(overflow()).toBe(without)
       expect(overflow()).toBe(0)
