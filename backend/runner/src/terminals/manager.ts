@@ -1388,6 +1388,7 @@ export class Terminals {
     this.sleepers.forget(terminalId)
     this.inbox.reconcile(terminalId)
     this.typing.forget(terminalId)
+    this.bindings.forgetCaptures(terminalId)
     this.murmur?.gone(terminalId)
     if (claims) {
       this.claims.release(terminalId)

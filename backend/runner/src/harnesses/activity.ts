@@ -11,7 +11,15 @@ import {
 
 import { cut } from "../text.js"
 import type { Binding } from "./bindings.js"
-import { shellEnded, shellStarted, shellsListed, shellsOf, type Shell } from "./shells.js"
+import {
+  type Output,
+  shellEnded,
+  shellOutput,
+  shellStarted,
+  shellsListed,
+  shellsOf,
+  type Shell,
+} from "./shells.js"
 import { endless } from "./waits.js"
 
 /** The reference clients know a subagent by. */
@@ -130,6 +138,8 @@ export type Activity = {
    * `AgentActivity.shells`); a turn's start or end changes none, only their own events do.
    */
   readonly shells: readonly Shell[]
+  /** Output files told of shells not started yet, until each shell is (see `shell-output`). */
+  readonly outputs: readonly Output[]
   /**
    * How many subagents the running turn's latest working status line counts running; zero
    * once the turn ends, whose `background` tells what runs on then.
@@ -266,6 +276,7 @@ export const started = (at: number, wakes = true, records = true): Activity => (
   wakeId: null,
   waits: null,
   shells: [],
+  outputs: [],
   running: 0,
   wakes,
   records,
@@ -753,8 +764,26 @@ export const apply = (
       }
     }
     case "shell-started": {
-      const shells = shellStarted(activity.shells, event.id, event.command, event.startedAt)
-      return shells === activity.shells ? undefined : { ...activity, shells }
+      const held = activity.outputs.find(({ id }) => id === event.id)
+      const shells = shellStarted(
+        activity.shells,
+        event.id,
+        event.command,
+        event.startedAt,
+        held?.path,
+      )
+      if (shells === activity.shells) return undefined
+      return {
+        ...activity,
+        shells,
+        ...(held && { outputs: activity.outputs.filter((each) => each !== held) }),
+      }
+    }
+    case "shell-output": {
+      const { shells, held } = shellOutput(activity.shells, activity.outputs, event.id, event.path)
+      return shells === activity.shells && held === activity.outputs
+        ? undefined
+        : { ...activity, shells, outputs: held }
     }
     case "shell-ended": {
       const shells = shellEnded(activity.shells, event.id, event.code, event.startedAt)

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs"
+
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
@@ -9,15 +11,28 @@ import { own, start } from "./scenarios.js"
 // messaging.e2e.ts for the rule on parity): the agent starts three in turn and ends its turn
 // with all running; one exits 3, one exits 0, and one runs until it is stopped. The runner
 // tells each with its id, command and start, and its exit while it lasts after the turn
-// (`activity.shells`). Probed 2026-11-10 on Claude Code 2.1.316, Codex 0.167.0, Antigravity 1.5.3.
+// (`activity.shells`), and the file its output is in (`output`): Claude Code's and Antigravity's
+// own, Codex's Novadeck's capture of its commands (shell/capture.ts), which holds what each
+// printed while it runs. Probed 2026-11-10 on Claude Code 2.1.316, Codex 0.167.0, Antigravity 1.5.3.
 // Long enough that a slow runner still sees all three running, and that Codex on Windows, which
 // waits for a command longer than its yield, hands them to the background.
+// Each prints its own word first, which reads the same in sh, PowerShell and Git Bash.
+const words = ["shell-a", "shell-c", "shell-b"]
 const commands = (agent: string) => [
-  "sleep 40; exit 3",
-  "sleep 30; exit 0",
+  "echo shell-a; sleep 40; exit 3",
+  "echo shell-c; sleep 30; exit 0",
   // Claude Code on Windows stops the loop but leaves the sleep it was in running: short ones.
-  agent === "claude" ? "while true; do sleep 1; done" : "sleep 600",
+  agent === "claude" ? "echo shell-b; while true; do sleep 1; done" : "echo shell-b; sleep 600",
 ]
+
+// What a shell's output file holds now; nothing while it is not there yet.
+const printed = (path: string | undefined): string => {
+  try {
+    return path === undefined ? "" : readFileSync(path, "utf8")
+  } catch {
+    return ""
+  }
+}
 
 const launch = (agent: string, command: string, summary: string): Reply => {
   if (agent === "claude")
@@ -127,6 +142,20 @@ for (const setup of setups) {
           expect(shell.since).toBeLessThanOrEqual(Date.now())
         }
         const [a, c, b] = running.map(({ id }) => id) as [string, string, string]
+
+        // Each tells the file its output is in, which holds what it printed while it runs.
+        const told = await t.poll(
+          () => {
+            const now = shellsOf(t)
+            return now.length === 3 &&
+              now.every(({ output }, index) => printed(output).includes(words[index]!))
+              ? now
+              : undefined
+          },
+          "each shell's output",
+          30_000,
+        )
+        expect(new Set(told.map(({ output }) => output)).size).toBe(3)
 
         // Whatever the outcome, the shell that runs on is stopped, so none outlives the test.
         const stop = async () => {

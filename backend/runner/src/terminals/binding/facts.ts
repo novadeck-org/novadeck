@@ -13,6 +13,7 @@ import {
   withLimit,
 } from "../../harnesses/activity.js"
 import { withVersion } from "../../harnesses/bindings.js"
+import { Captures } from "../../harnesses/captures.js"
 import { harnesses } from "../../harnesses/registry.js"
 import { lastReply } from "../../harnesses/replies.js"
 import { limitOf, observeTelemetry, telemetrySummary } from "../../harnesses/telemetry.js"
@@ -85,7 +86,11 @@ export class Bindings {
     turns: () => this.host.turns(),
     owner: (terminalId) => this.host.messaging().inboxOwner(terminalId),
   })
-  constructor(readonly host: BindingsHost) {}
+  constructor(
+    readonly host: BindingsHost,
+    /** The capture of Codex's commands, which gives its background shells an output. */
+    readonly captures = new Captures(),
+  ) {}
 
   /**
    * Ends the binding of an agent process known to have exited without the shell showing
@@ -559,7 +564,40 @@ export class Bindings {
     if (next && fact.type === "plan-observed")
       void this.host.companion().planned(record, binding, fact)
     if (next && fact.type === "turn-ended") this.latchLimit(record)
+    if (next && binding.agent === "codex") this.captured(record, fact)
     return Boolean(next)
+  }
+
+  /**
+   * Codex writes a background shell's output nowhere readable, so Novadeck's capture of its
+   * commands holds it: a shell just started finds its log there (`Captures`), and the logs
+   * no shell claims are cleared as the agent works.
+   */
+  private captured(record: Record, fact: Exclude<HarnessEvent, SessionObserved>): void {
+    const id = record.summary.id
+    const claimed = (): ReadonlySet<string> =>
+      new Set(record.bound?.activity.shells.flatMap(({ output }) => (output ? [output] : [])))
+    void this.captures.tend(id, claimed())
+    if (fact.type !== "shell-started") return
+    const { agent, sessionId, instance, id: shell, command, startedAt } = fact
+    void this.captures.find(id, { command, since: startedAt }, claimed, (path) => {
+      const binding = record.bound?.binding
+      if (record.closed || binding?.sessionId !== sessionId) return
+      this.sourceFact(record, {
+        type: "shell-output",
+        agent,
+        sessionId,
+        instance,
+        startedAt: Date.now(),
+        id: shell,
+        path,
+      })
+    })
+  }
+
+  /** Removes the capture folder of a terminal that closed for good. */
+  forgetCaptures(terminalId: string): void {
+    void this.captures.closed(terminalId)
   }
 
   /**

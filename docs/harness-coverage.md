@@ -437,9 +437,20 @@ out), the same for every harness: the id its harness names it by, its command, w
 started, and `exit` (null while it runs; else when it ended and its exit code, null where the
 harness gives none, as for a shell the agent or the person stopped). It stays through turns
 until the harness says the shell ended, then among the last four that did. It is kept in the
-runner's memory only. It carries no output: Codex writes a running shell's output nowhere
-Novadeck can read (probed 2026-11-10, 0.167.0: its rollout, hooks and app-server schema hold
-only the first chunk, and the `/ps` screen the rest), so no harness has an output line.
+runner's memory only. Each also names `output`, the file holding what it prints, which fills
+as it runs (probed 2026-11-12 on Linux, macOS and Windows): Claude Code's and Antigravity's
+own, and for Codex, which writes a running shell's output nowhere Novadeck can read (its
+rollout, hooks and app-server stream aside, probed 2026-11-10, 0.167.0), Novadeck's capture of
+its commands.
+
+| Harness     | Output                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Claude Code | Its own `tasks/<id>.output`, which its transcript names in the call's result (`Output is being written to: <path>.`) and its `<task-notification>` as `<output-file>`; the hook names none                                                                                                                                                                                                                                                                                                                                     |
+| Codex       | Novadeck's capture (`backend/runner/src/shell/capture.ts`): the shim has Codex give its commands a shell that copies what they print, where they print to no terminal, to `out-<id>.log` in the terminal's folder in the system's temporary folder, which Codex's sandbox lets them write (on Linux and macOS through BASH_ENV, or ZDOTDIR's `.zshenv`, the person's own passed on; on Windows through `novadeck-pwsh` as `pwsh.exe` first on Codex's PATH). The runner matches each log to its shell by its command and start |
+| Antigravity | Its own `task-N.log`, which the `RUNNING` step names as `Task logs are available at: file:///…`                                                                                                                                                                                                                                                                                                                                                                                                                                |
+
+A Codex command run in a terminal of its own (`tty`) prints to that terminal, which the
+capture leaves alone, so it has no `output`.
 
 | Harness     | Start                                                                                                                                              | End                                                                                                                                                                                                                    |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
