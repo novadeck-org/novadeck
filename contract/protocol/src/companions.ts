@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { agentName } from "./agents.js"
+import { agentLimits, agentName } from "./agents.js"
 import { id } from "./fields.js"
 import { handle, terminalTitle } from "./terminals.js"
 
@@ -16,6 +16,10 @@ export const companionLimits = {
   lines: 2000,
   lineLength: 4096,
   plan: 256 * 1024,
+  // The last lines of a background shell's output a shells item holds, each of at most
+  // `lineLength`, and how much of all its shells' outputs it holds at most, in UTF-16 code units.
+  shellLines: 400,
+  shellsText: 1024 * 1024,
 } as const
 
 // What agents show and the person attaches beside a terminal: a pointer to a file, a
@@ -25,13 +29,15 @@ export const companionLimits = {
 // came from no terminal. `version` counts its shows, `openAsked` says the
 // latest one asked to open it, and `secret` marks a file that may hold secrets, which
 // opens only when the person picks it. A plan names its agent, its actor's role, and
-// whether it is a file or text in the agent's own transcript or rollout.
+// whether it is a file or text in the agent's own transcript or rollout. A shells item is
+// the background shells the agent in its terminal left running, one per terminal, which the
+// runner makes as the first one starts; it points at nothing (`path` and `url` are null).
 const itemHolder = z.union([z.strictObject({ terminalId: id }), z.strictObject({ windowId: id })])
 export const companionItem = z.strictObject({
   id,
   sessionId: id,
   holder: itemHolder,
-  kind: z.enum(["image", "file", "page", "plan", "changes"]),
+  kind: z.enum(["image", "file", "page", "plan", "changes", "shells"]),
   name: z.string().max(companionLimits.name),
   detail: z.string().max(companionLimits.detail),
   path: z.string().max(companionLimits.path).nullable(),
@@ -268,7 +274,12 @@ export const changeFileDiff = z.strictObject({
 // `maxChangeLayers` layers and `maxLayerFiles` files are listed, `truncated` says when
 // more changed (in `files` too); `root` is the repository's folder, which its paths are from.
 // `read` names the files of `files` the person read (`companions.changeRead`) that are still as
-// they were then. Or why it can't be shown, with the file's size where known.
+// they were then. Shells are the background shells of the agent in the item's terminal, as
+// its `activity.shells` lists them, each with the end of its output (`output`): its last
+// lines, numbered from `firstLine`, of `total` read; `none` where its harness writes it nowhere
+// Novadeck can read (a Codex command run in a terminal of its own); `gone` where its file was
+// there and no longer is, as Claude Code's goes with its session. Or why it can't be shown,
+// with the file's size where known.
 export const itemContent = z.discriminatedUnion("state", [
   z.strictObject({
     state: z.literal("ready"),
@@ -302,6 +313,34 @@ export const itemContent = z.discriminatedUnion("state", [
         files: z.array(changedFile).max(maxChangedFiles),
         read: z.array(z.string().max(companionLimits.path)).max(maxChangedFiles),
         truncated: z.boolean(),
+      }),
+      z.strictObject({
+        kind: z.literal("shells"),
+        agent: agentName,
+        shells: z
+          .array(
+            z.strictObject({
+              id: z.string().min(1).max(agentLimits.name),
+              command: z.string().max(agentLimits.command),
+              since: z.number(),
+              exit: z
+                .strictObject({ at: z.number(), code: z.number().int().nullable() })
+                .nullable(),
+              output: z.discriminatedUnion("state", [
+                z.strictObject({
+                  state: z.literal("ready"),
+                  firstLine: z.int().min(1),
+                  lines: z
+                    .array(z.string().max(companionLimits.lineLength))
+                    .max(companionLimits.shellLines),
+                  total: z.int().nonnegative(),
+                }),
+                z.strictObject({ state: z.literal("none") }),
+                z.strictObject({ state: z.literal("gone") }),
+              ]),
+            }),
+          )
+          .max(agentLimits.shells),
       }),
       z.strictObject({
         kind: z.literal("plan"),
