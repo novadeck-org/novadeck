@@ -319,7 +319,8 @@ Agents:
   the notice); or the first terminal of another project, for the switcher's marks. A second
   switch, here and on New terminals, Agent fixtures and Waiting agents, picks what a terminal
   that runs no agent becomes first: Claude Code, Codex or Antigravity. A verb leaves an agent
-  already running as it is. Work, Plan mode and Subagents start a turn that works on.
+  already running as it is. Work, Plan mode and Subagents start a turn that works on; Many tool
+  calls works through 12 calls, which the chat keeps to a box of its latest 5.
   Needs permission, Asks a question, Plan ready and 3 permissions stop it on
   requests you can answer in the chat or on the screen, which clears the tab and the
   notification. Completes, Replies (no done call), Fails, Interrupted and Ends without reply
