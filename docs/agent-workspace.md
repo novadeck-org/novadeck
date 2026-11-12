@@ -562,8 +562,8 @@ with every safety check again at that time:
   name and the old one of a rename, tracked or not) carry no hunks and no text: they are
   listed by name with their counts, and `changeFile` never reads them. v1 has no way to
   reveal either. An untracked file that may hold secrets (a stray `.env`) is never read or
-  hashed into the snapshot, but the uncommitted layer and the ranges that include it list it
-  by name, `added` and `secret`, with no counts.
+  hashed into the snapshot, but the uncommitted layer, the change's own list of files and
+  `changeFile`'s run over a range that takes it in name it, `added` and `secret`, with no counts.
 
   The runner finds `git` once on the PATH (absolute entries only) and runs it with a
   fixed argument list, no shell, in the repository, for at most 5 seconds, ending its

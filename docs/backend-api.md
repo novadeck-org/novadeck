@@ -1657,8 +1657,9 @@ one from an earlier runner.
     the file on each side (`before`, `after`; null where it doesn't exist, is binary, may hold
     secrets or passes 512 KiB). Past 4 MiB of diff text the run is `big`: no hunks, no sides.
     A name that is no valid text is `badName`: named, not read. An unknown item, or one that is
-    no change, is `NOT_FOUND`. A range that reaches the oldest layer, or takes in a merge, starts
-    at the merge base with main, so what main brought in is no part of it. A snapshot's objects
+    no change, is `NOT_FOUND`. A range that reaches the oldest layer starts at the merge base with
+    main; one that takes in a merge without reaching it starts at its oldest layer's parent with
+    main's work merged in (in memory), so what main brought in is no part of either. A snapshot's objects
     are written to a folder of the runner's own, never to the person's object store, and a file
     that may hold secrets is never hashed.
   - `companions.changeRead({ itemId, path })` marks a file of a changes item read, by the path
