@@ -718,8 +718,8 @@ export const ChatView = ({
             onReplyTo(dialog === null ? null : { request, dialog })
             if (dialog !== null) focusBox()
           }}
-          // The dialog went to talk it over: the person's words go in the box, as a prompt.
-          onChatting={focusBox}
+          // An answer went from a card: the person's next words go in the box.
+          onSubmitted={focusBox}
           refused={refused}
         />
         {/* Always in the page, so a screen reader announces the note as it appears. */}
