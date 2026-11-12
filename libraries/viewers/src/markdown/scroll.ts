@@ -107,10 +107,14 @@ const scaleOf = (view: EditorView): number => {
 // then the old zoom's, and a place worked out from them lands somewhere else.
 const behindOnZoom = (view: EditorView): boolean => Math.abs(view.scaleY - scaleOf(view)) > 0.01
 
-// Follows where the scroller is scrolled in the text, while it's on screen; returns the stop.
-export const followScroll = (view: EditorView, on: (scroll: Scroll) => void): (() => void) => {
+// Following the scroller: its stop, and a note of where it is now, ahead of its next scroll
+// event, as a state taken just after a scroll would otherwise miss it.
+export type Following = { readonly stop: () => void; readonly note: () => void }
+
+// Follows where the scroller is scrolled in the text, while it's on screen.
+export const followScroll = (view: EditorView, on: (scroll: Scroll) => void): Following => {
   const scroller = scrollerOf(view.dom)
-  if (!scroller) return () => {}
+  if (!scroller) return { stop: () => {}, note: () => {} }
   const note = (): void => {
     // Out of sight it has no size, and no place to note.
     if (!scroller.clientHeight) return
@@ -123,7 +127,7 @@ export const followScroll = (view: EditorView, on: (scroll: Scroll) => void): ((
   // once the editor has measured its padding.
   view.requestMeasure({ read: note })
   scroller.addEventListener("scroll", note, { passive: true })
-  return () => scroller.removeEventListener("scroll", note)
+  return { stop: () => scroller.removeEventListener("scroll", note), note }
 }
 
 export type ScrollRestore = { readonly stop: () => void; readonly layout: () => void }
