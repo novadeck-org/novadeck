@@ -778,6 +778,17 @@ or taskkill for:
 - `novadeck-relay end <pid>:<startedAt>...` ends each of those processes still running
   that started then, and no other given its pid since.
 
+The runner keeps who owns each git worktree its agents work in in a `worktrees` table (schema 14):
+the worktree's real path (the key), its repository's git common dir, branch, the commit it started
+from, its project (which cascades), its owner terminal (plain text: a live terminal or one in History,
+null once orphaned), whether it was adopted and whether it has diverged. The agents' `open_worktree`,
+`take_worktree`, `close_worktree` and `give_worktree` tools are the only way ownership changes; they
+reach the runner as the relay's `openWorktree`, `takeWorktree`, `closeWorktree` and `giveWorktree`
+calls, and a listing of the tools asks it `worktrees` (whether Preferences has them on). At start the
+runner checks every row against the disk and the terminals (see agent-workspace.md, "Worktrees"). A
+`take` approval on `terminals.approvals` asks the person to let one agent take a worktree another
+terminal owns.
+
 The runner saves, per terminal, in a `terminals` table next to the sessions: its
 session, last directory, latest session per agent, when it last showed a prompt, and
 its transcript (the serialized screen and scrollback, without the alternate screen,

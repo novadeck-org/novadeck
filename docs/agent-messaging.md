@@ -128,14 +128,14 @@ flowchart LR
   R --> U[Runner API: messages, pause, release, stop]
 ```
 
-| Part         | Where                                                                                                                         | Owns                                                                                |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `look`, `close`, `open_terminal`, `open_agent`, `close_terminal`                    | `send`, `agents`, `describe` and `feedback`; the terminal's token on every call     |
-| Messages     | Runner, stored with the workspace (`WorkspaceStore`)                                                                          | Messages, threads, guards, pause, retention                                         |
-| Delivery     | Runner, one state machine per recipient terminal                                                                              | When and how a recipient notices: leases to hooks and the doorbell                  |
-| Hook answers | `shell/hook.ts` asks the runner; the runner returns stdout                                                                    | Each harness's output encoding, in its adapter beside its decoder                   |
-| Doorbell     | `messaging/doorbell.ts`, behind `DoorbellHost` (built in `terminals/doorbell-host.ts`); the manager owns every PTY and screen | The settle window, the calm check, the test paste, Enter, holding input and resizes |
-| Runner API   | Protocol and router                                                                                                           | Listing messages, pause and release, for the UI to come                             |
+| Part         | Where                                                                                                                                                                                                                        | Owns                                                                                |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `look`, `close`, `open_terminal`, `open_agent`, `close_terminal` (and, while the user has agent worktrees on, `open_worktree`, `take_worktree`, `close_worktree`, `give_worktree`) | `send`, `agents`, `describe` and `feedback`; the terminal's token on every call     |
+| Messages     | Runner, stored with the workspace (`WorkspaceStore`)                                                                                                                                                                         | Messages, threads, guards, pause, retention                                         |
+| Delivery     | Runner, one state machine per recipient terminal                                                                                                                                                                             | When and how a recipient notices: leases to hooks and the doorbell                  |
+| Hook answers | `shell/hook.ts` asks the runner; the runner returns stdout                                                                                                                                                                   | Each harness's output encoding, in its adapter beside its decoder                   |
+| Doorbell     | `messaging/doorbell.ts`, behind `DoorbellHost` (built in `terminals/doorbell-host.ts`); the manager owns every PTY and screen                                                                                                | The settle window, the calm check, the test paste, Enter, holding input and resizes |
+| Runner API   | Protocol and router                                                                                                                                                                                                          | Listing messages, pause and release, for the UI to come                             |
 
 Messaging is an application operation like `show`, `open_terminal` and `open_agent`: the MCP
 server only forwards calls with the terminal's token, and the runner decides.
@@ -349,7 +349,11 @@ agent session; never a name the model passes.
 ## Agent interface
 
 Three tools join `show`, `showing`, `look`, `close`, `open_terminal`, `open_agent`, `close_terminal`, `lead` and `release`, listed,
-like them, only inside Novadeck's terminals.
+like them, only inside Novadeck's terminals. The worktree tools (`open_worktree`, `take_worktree`,
+`close_worktree`, `give_worktree`; see agent-workspace.md) are listed besides them only while the user
+has agent worktrees on, and refuse their calls while it is off. Taking another live terminal's worktree
+is an approval of an action, only the user's: the `take` action goes to the owner's terminal and the user
+answers it in the Inbox.
 
 - **`send(to, text)`** answers with the recipient's handle, the message id and one of:
   - `queued`, with the route it will take: "when its current turn ends", "when its next

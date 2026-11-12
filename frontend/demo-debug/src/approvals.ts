@@ -35,6 +35,13 @@ export const createDemoApprovals = (
   readonly askToRun: (from: TerminalKey, command: string, cwd: string) => void
   // Makes `from` ask to lead `terminal` with a brief.
   readonly askToLead: (from: TerminalKey, terminal: TerminalKey, brief: string) => void
+  // Makes `from` ask to take `terminal`'s worktree on `branch` at `path`.
+  readonly askToTake: (
+    from: TerminalKey,
+    terminal: TerminalKey,
+    branch: string,
+    path: string,
+  ) => void
   // The person ends `terminal`'s lead.
   readonly release: (terminal: TerminalKey) => void
   // Takes back every approval waiting, as the runner does when the terminals closed.
@@ -64,6 +71,8 @@ export const createDemoApprovals = (
         if (!approved || !found || !action) return
         // A run's terminal would be new: the demo opens none.
         if (action.type === "run") return
+        // The demo has no worktrees: the answer only goes away.
+        if (action.type === "take") return
         if (action.type === "close")
           dispatch()?.([
             {
@@ -89,6 +98,8 @@ export const createDemoApprovals = (
     askToClose: (from, terminal) => queue(from, terminal, { type: "close" }),
     askToRun: (from, command, cwd) => queue(from, from, { type: "run", command, cwd }),
     askToLead: (from, terminal, brief) => queue(from, terminal, { type: "lead", brief }),
+    askToTake: (from, terminal, branch, path) =>
+      queue(from, terminal, { type: "take", path, branch }),
     release: (terminal) =>
       dispatch()?.([
         {
@@ -135,6 +146,22 @@ export const approvalGroups = (
           const [asker] = othersOf(workspace(), key)
           if (!asker) return note("Add a second terminal first.")
           controls.askToLead({ ...key, terminalId: asker.id }, key, demoBrief)
+        },
+      },
+      {
+        label: "Ask to take selected's worktree",
+        hint: "Modal: another terminal's agent asks to take the selected terminal's worktree; allowing changes nothing in the demo",
+        run: ({ selected, note }) => {
+          const key = selected()
+          if (!key) return note("Select a terminal first.")
+          const [asker] = othersOf(workspace(), key)
+          if (!asker) return note("Add a second terminal first.")
+          controls.askToTake(
+            { ...key, terminalId: asker.id },
+            key,
+            "feat/billing-events",
+            "~/.novadeck/worktrees/billing/feat-billing-events/api",
+          )
         },
       },
       {

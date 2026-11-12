@@ -118,4 +118,32 @@ describe("project removal", () => {
       store.removeProject = removeProject
     },
   )
+
+  it("removes the project's worktrees before its rows cascade away", async ({ resources }) => {
+    const directory = mkdtempSync(join(tmpdir(), "novadeck-projects-"))
+    resources.defer(() => rmSync(directory, { recursive: true, force: true }))
+    const store = new WorkspaceStore(join(directory, "workspace.sqlite"))
+    resources.defer(() => store.close())
+    const items = new CompanionItems({
+      records: store,
+      terminal: (terminalId) => terminals.place(terminalId),
+      project: () => undefined,
+    })
+    const terminals: Terminals = new Terminals({ records: store, doorbell: false, items })
+    resources.defer(() => terminals.shutdown())
+    const seen: string[] = []
+    const worktrees = {
+      removeProject: (projectId: string) => {
+        // The rows are still there while the worktrees go.
+        seen.push(`${projectId}:${store.projects().length}`)
+        return Promise.resolve()
+      },
+    }
+    const projects = new Projects(store, terminals, items, worktrees)
+    const project = await store.createProject({ id: randomUUID(), name: "Gone", cwd: directory })
+    store.createSession({ id: randomUUID(), projectId: project.id, name: "S" })
+    await projects.remove(project.id)
+    expect(seen).toEqual([`${project.id}:1`])
+    expect(store.projects()).toEqual([])
+  })
 })

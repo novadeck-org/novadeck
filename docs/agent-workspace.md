@@ -637,6 +637,41 @@ with every safety check again at that time:
   it. A terminal already closing is refused as such, at no cost, and a close the
   runner's own shutdown overtakes answers that it failed, the terminal kept as
   shutdown keeps every terminal.
+- **Worktrees** come from the same server's `open_worktree`, `take_worktree`, `close_worktree`
+  and `give_worktree` (`backend/runner/src/worktrees/`, called from `terminals/calls.ts`). They
+  are experimental: listed (the tool listing asks the runner, with the `worktrees` call) and
+  allowed only while the person has Preferences → Experimental → Agent worktrees on
+  (`runnerSettings.worktrees`); the listing doesn't refresh mid-session, so a call made while
+  it is off is refused with a sentence that says how to turn it on. A worktree lives at
+  `~/.novadeck/worktrees/<project id>/<group>/<repo folder>` (`worktrees/root.ts`); `group`
+  defaults to the branch made safe as a folder name, and two repositories with one folder
+  name can't share a group. The `worktrees` table (schema 14) records each one's path, git
+  common dir, branch, the commit it `base`d on, project, owner terminal (plain text: a live
+  terminal or one in History, null once orphaned), whether it was `adopted` and whether it has
+  `diverged`. A terminal may own several, and ownership moves only through agents.
+  - **`open_worktree({ branch, repo?, from?, group? })`** runs `git worktree add -b` from
+    `from` (the checkout's `HEAD`), or checks out the branch if it exists, with 60 seconds,
+    and `core.longpaths` on Windows, after `git check-ref-format --branch`. It answers the path,
+    the branch and the paths of AGENTS.md, CLAUDE.md and GEMINI.md at the worktree's top, and
+    tells the agent to read them, as no harness loads them from an added folder.
+  - **`take_worktree({ path })`** records a linked worktree some other tool made, as adopted;
+    takes one with no owner, or whose owner terminal exists neither live nor in History, at
+    once; and, for one another existing terminal owns, asks the person (a `take` approval
+    aimed at the owner, `{ type: "take", path, branch }`, answered like `close` and `lead`
+    through `terminals.approvals`: "Let @claude take @codex's worktree?" with Allow and
+    Deny). The call answers `asked` at once; both agents hear the outcome as a notice, and
+    ownership moves only if it hasn't changed meanwhile. The nudge about the old owner
+    arrives with the later step that nudges agents.
+  - **`give_worktree({ path, to })`** hands the owner's worktree to a terminal of its
+    project and session by handle, which is told. **`close_worktree({ path, force? })`** is the
+    owner's: refused while the worktree has uncommitted or untracked files or commits the main
+    branch lacks; `force` keeps the files as a commit on `refs/novadeck/kept/<branch>`, removes
+    the folder, and keeps the branch unless the main branch holds all of it. The row goes last.
+  - **At the runner's start** every row is checked: a folder that is gone is pruned from its
+    repository and its row deleted, an owner that exists neither live nor in History leaves
+    the worktree orphaned. Removing a project removes its worktrees first, the same way as
+    `force`, before the rows cascade away. Nothing here watches git for worktrees made
+    another way.
 - **Messages** between agents come from the same server's `send`, `agents` and `team` tools,
   listed only inside Novadeck's terminals like the others: an agent messages another
   terminal of its project and session by its handle, such as `@moth`, which `open_terminal` and `open_agent`

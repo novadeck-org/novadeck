@@ -9,6 +9,7 @@ import type { InboxRecords } from "../messaging/inbox.js"
 import type { MessageRecords } from "../messaging/records.js"
 import type { Describer } from "../murmur/describer.js"
 import type { InstalledShell } from "../shell/install.js"
+import type { WorktreesWiring } from "../worktrees/calls.js"
 import type { AnswersOptions } from "./answers.js"
 import type { MurmurTimes } from "./descriptions.js"
 import type { DialogsOptions } from "./dialogs.js"
@@ -48,6 +49,8 @@ export type TerminalOptions = {
   shellFiles?: Promise<InstalledShell | undefined>
   /** Where terminals are saved for restoring; unsaved when omitted. */
   records?: TerminalRecords
+  /** The git worktrees agents open and own, and whether they are on; agents get none when omitted. */
+  worktrees?: WorktreesWiring
   /** Where closed terminals are kept for History; none is kept when omitted. */
   closed?: HistoryRecords
   /** Every project's id, for History's list of all closed terminals. */

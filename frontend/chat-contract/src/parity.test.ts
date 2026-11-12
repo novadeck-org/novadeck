@@ -234,6 +234,22 @@ const novadeckTool = (tool: string, fields: Fields | null): ToolSummary | undefi
         title: `Close${text("to") ? ` ${text("to")}` : " a terminal"}`,
         detail: "",
       }
+    case "open_worktree":
+      return { kind: "agent", title: "Opened a worktree", detail: text("branch") }
+    case "take_worktree":
+      return { kind: "agent", title: "Took a worktree", detail: shortPath(text("path")) }
+    case "close_worktree":
+      return {
+        kind: "agent",
+        title: fields?.force === true ? "Closed a worktree (forced)" : "Closed a worktree",
+        detail: shortPath(text("path")),
+      }
+    case "give_worktree":
+      return {
+        kind: "agent",
+        title: `Gave a worktree${text("to") ? ` to ${text("to")}` : ""}`,
+        detail: shortPath(text("path")),
+      }
     case "lead":
       return {
         kind: "agent",
@@ -696,6 +712,10 @@ const novadeck = [
   "open_terminal",
   "open_agent",
   "close_terminal",
+  "open_worktree",
+  "take_worktree",
+  "close_worktree",
+  "give_worktree",
   "lead",
   "release",
   "show",
@@ -715,6 +735,9 @@ const novadeckInputs = [
   { command: "pnpm dev" },
   { title: "t", cwd: "/a/b/c/d" },
   { to: "owl" },
+  { branch: "feat/x", repo: "." },
+  { path: "/a/b/c/d/wt", force: true },
+  { path: "/a/b/c/d/wt", to: "owl" },
   { page: { url: "http://localhost:5173/" } },
   { page: '{"url":"http://localhost:5173/"}' },
   { url: "http://localhost:5173/" },

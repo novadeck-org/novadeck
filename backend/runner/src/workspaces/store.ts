@@ -39,8 +39,8 @@ import type {
 import { sealedShape } from "../terminals/sealing.js"
 import type { Naming } from "../terminals/titles.js"
 import type { Work } from "../terminals/work.js"
-import type { ClosedRecord, ClosedRecords, ListedClosed } from "./closed.js"
 import type { WorktreeRecord, WorktreeRecords } from "../worktrees/records.js"
+import type { ClosedRecord, ClosedRecords, ListedClosed } from "./closed.js"
 import { Settings } from "./settings.js"
 
 const log = logs.for("store")
@@ -2244,6 +2244,15 @@ export class WorkspaceStore
   worktrees(): WorktreeRecord[] {
     const rows = this.queries.all`SELECT * FROM worktrees ORDER BY created_at, rowid`
     return (rows as WorktreeRow[]).map(worktreeOf)
+  }
+
+  /** Whether a terminal is saved, or kept in History: a worktree it owns still has an owner. */
+  terminalExists(terminalId: string): boolean {
+    return (
+      this.queries.get`SELECT 1 AS found FROM terminals WHERE id = ${terminalId}` !== undefined ||
+      this.queries.get`SELECT 1 AS found FROM closed_terminals WHERE id = ${terminalId}` !==
+        undefined
+    )
   }
 
   worktree(path: string): WorktreeRecord | undefined {

@@ -15,6 +15,7 @@ const managerFile = "backend/runner/src/terminals/manager.ts"
 const companionFile = "backend/runner/src/terminals/companion.ts"
 const callsFile = "backend/runner/src/terminals/calls.ts"
 const leadsFile = "backend/runner/src/terminals/leads.ts"
+const worktreeCallsFile = "backend/runner/src/worktrees/calls.ts"
 const feedbackFile = "backend/runner/src/messaging/feedback.ts"
 const peersFile = "backend/runner/src/terminals/peers-host.ts"
 const contractFile = "harnesses/core/src/harness.ts"
@@ -36,6 +37,10 @@ const handlers: Record<string, { readonly file: string; readonly method: string 
   open_terminal: { file: callsFile, method: "open" },
   open_agent: { file: callsFile, method: "open" },
   close_terminal: { file: callsFile, method: "closePeer" },
+  open_worktree: { file: worktreeCallsFile, method: "open" },
+  take_worktree: { file: worktreeCallsFile, method: "take" },
+  close_worktree: { file: worktreeCallsFile, method: "close" },
+  give_worktree: { file: worktreeCallsFile, method: "give" },
   lead: { file: leadsFile, method: "lead" },
   release: { file: leadsFile, method: "release" },
   send: { file: managerFile, method: "send" },

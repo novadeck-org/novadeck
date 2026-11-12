@@ -233,11 +233,17 @@ export type TerminalMoved = z.infer<typeof terminalMoved>
 // shell; `lead`, to lead the agent there from now on, with `brief` as the first message it
 // sends it; or `run`, to open a terminal that starts `command` in `cwd`, the one-line command
 // exactly as the shell would be given it. For `run`, the request's `terminalId` is the asking
-// terminal's own, as no terminal exists yet.
+// terminal's own, as no terminal exists yet. `take`, to take the git worktree at `path`, on
+// `branch`, from the terminal that owns it, which is the request's `terminalId`.
 const approvalAction = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("close") }),
   z.strictObject({ type: z.literal("run"), command: startupCommand, cwd: directory }),
   z.strictObject({ type: z.literal("lead"), brief: z.string().min(1).max(4096) }),
+  z.strictObject({
+    type: z.literal("take"),
+    path: z.string().min(1).max(4096),
+    branch: z.string().min(1).max(512),
+  }),
 ])
 
 // `terminals.approvals` items: an agent in terminal `from` asked, through Novadeck's MCP

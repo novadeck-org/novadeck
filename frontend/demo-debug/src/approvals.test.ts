@@ -103,6 +103,22 @@ describe("demo approvals", () => {
     expect(controls.approvals.pending.getSnapshot()).toEqual([])
   })
 
+  it("asks to take the selected terminal's worktree, and changes nothing in the demo", () => {
+    const { controls, dispatched, run } = setup()
+    run("Ask to take selected's worktree")
+    expect(controls.approvals.pending.getSnapshot()).toMatchObject([
+      {
+        requestId: "approval-1",
+        from: "b",
+        terminalId: "a",
+        action: { type: "take", branch: "feat/billing-events" },
+      },
+    ])
+    controls.approvals.answer("approval-1", true)
+    expect(dispatched).toEqual([])
+    expect(controls.approvals.pending.getSnapshot()).toEqual([])
+  })
+
   it("ends a lead when the person releases the terminal", () => {
     const { controls, dispatched } = setup()
     controls.release(key("a"))

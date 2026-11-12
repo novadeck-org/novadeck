@@ -95,6 +95,19 @@ suite("what a Codex tool call was", () => {
     expect(run("mcp__novadeck__send", send)).toEqual(labelled)
     expect(run("mcp__novadeck.send", send)).toEqual(labelled)
     expect(run("mcp__novadeck__agents", {})).toMatchObject({ title: "Listed agents" })
+    expect(run("mcp__novadeck__open_worktree", { branch: "feat/x" })).toMatchObject({
+      title: "Opened a worktree",
+      detail: "feat/x",
+    })
+    expect(run("mcp__novadeck.take_worktree", { path: "/a/b/c/d/wt" })).toMatchObject({
+      title: "Took a worktree",
+    })
+    expect(run("mcp__novadeck__give_worktree", { path: "/w", to: "owl" })).toMatchObject({
+      title: "Gave a worktree to owl",
+    })
+    expect(run("mcp__novadeck__close_worktree", { path: "/w", force: true })).toMatchObject({
+      title: "Closed a worktree (forced)",
+    })
     expect(run("mcp__novadeck__describe", { title: "Cart", summary: "Rounding." })).toEqual({
       kind: "agent",
       title: "Described this terminal",
