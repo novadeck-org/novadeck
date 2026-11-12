@@ -9,7 +9,7 @@ import type { RunSpec, Terminal } from "@novadeck/terminal/host"
 import { pathKey, refreshPath, startsCommands, type ShellLaunch } from "@novadeck/terminal/shell"
 
 import { DomainError } from "../errors.js"
-import { captureFolder, captureVariable } from "../shell/capture.js"
+import { captureVariable, prepareCaptureFolder } from "../shell/capture.js"
 import type { InstalledShell } from "../shell/install.js"
 import { shellLaunch } from "../shell/integration.js"
 import { listenForReports, type ReportHandlers, type Reports } from "../shell/reports.js"
@@ -222,16 +222,17 @@ export class Launcher {
     if (startup?.required && !launched.resumes)
       throw new DomainError("SPAWN_FAILED", "This terminal's shell can't start a command.")
     const { resumeFile } = launched
+    // Where an agent that writes its commands' output nowhere readable (Codex) has Novadeck
+    // capture it, for the terminal's companion pane (see shell/capture.ts).
+    const capture = integration ? prepareCaptureFolder(id) : undefined
     const env: NodeJS.ProcessEnv = {
       ...launched.env,
       NOVADECK_TERMINAL_ID: id,
       ...(integration && {
         NOVADECK_REPORT: integration.reports.endpoint,
         NOVADECK_REPORT_TOKEN: token,
-        // Where an agent that writes its commands' output nowhere readable (Codex) has
-        // Novadeck capture it, for the terminal's companion pane (see shell/capture.ts).
-        [captureVariable]: captureFolder(id),
       }),
+      ...(capture !== undefined && { [captureVariable]: capture }),
     }
     return {
       spec: { file: shell, args: this.options.shellArgs ?? launched.args, cwd, env, cols, rows },

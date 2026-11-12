@@ -7,7 +7,14 @@ import { afterEach, beforeEach } from "vitest"
 
 import { captureFolder } from "../shell/capture.js"
 import { describe, expect, it } from "../test.js"
-import { Captures, commandTexts, holds, matchCapture, readCaptures } from "./captures.js"
+import {
+  Captures,
+  commandTexts,
+  holds,
+  matchCapture,
+  readCaptures,
+  windowsWords,
+} from "./captures.js"
 
 let temporary = ""
 let folder = ""
@@ -31,9 +38,13 @@ const posix = async (id: string, script: string, at: number, log = "out\n") => {
   await writeFile(join(folder, `out-${id}.log`), log)
   await utimes(join(folder, `out-${id}.command`), at / 1000, at / 1000)
 }
+// One word of a Windows command line as Rust's Command writes it (Codex's): in quotes, each
+// quote and the backslashes before it escaped, the backslashes before the closing quote doubled.
+const windowsArg = (text: string) =>
+  `"${text.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, "$1$1")}"`
 // Writes a Windows capture.
 const windows = async (id: string, command: string, started: number) => {
-  const commandLine = `-Command "try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n${command.replaceAll('"', '\\"')}"`
+  const commandLine = `-Command ${windowsArg(`try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n${command}`)}`
   await writeFile(
     join(folder, `out-${id}.json`),
     JSON.stringify({
@@ -51,13 +62,25 @@ const windows = async (id: string, command: string, started: number) => {
 const fast = { pollMs: 10, polls: 5 }
 const log = (id: string) => join(folder, `out-${id}.log`)
 
-describe("the texts a capture's record may hold a command in", () => {
-  it("are the script as given, and the command out of Codex's wrapper with its quotes undone", () => {
+describe("the texts a capture's record may be a command as", () => {
+  it("are the script as given, or the command out of Codex's wrapper with its quotes undone", () => {
     const command = `echo 'it''s' && echo "x"`
-    expect(commandTexts(wrapper(command))).toContain(command)
+    expect(commandTexts(wrapper(command))).toEqual([command])
     expect(commandTexts("sleep 5")).toEqual(["sleep 5"])
     expect(holds(commandTexts(wrapper("sleep 30 # it's")), "sleep 30 # it's")).toBe(true)
     expect(holds(commandTexts(wrapper("sleep 30")), "sleep 31")).toBe(false)
+  })
+
+  it("are the command alone: not what the snapshot's functions and aliases hold, nor a longer one", () => {
+    const snapshot = `alias serve='npm run dev'\nnpm_dev() { npm run dev; }\nexec '/bin/bash' -c 'ls'\n`
+    expect(holds(commandTexts(snapshot), "npm run dev")).toBe(false)
+    expect(holds(commandTexts("python -m http.server 10"), "python -m http.server 1")).toBe(false)
+  })
+
+  it("read a Windows command line as Windows does", () => {
+    expect(windowsWords(String.raw`-Command "a \"b\" c" d`)).toEqual(["-Command", 'a "b" c', "d"])
+    expect(windowsWords(String.raw`-Command "dir C:\a\\"`)).toEqual(["-Command", "dir C:\\a\\"])
+    expect(windowsWords(String.raw`x "a\\\"b"`)).toEqual(["x", 'a\\"b'])
   })
 })
 
@@ -79,6 +102,13 @@ describe("finding the capture of a shell", () => {
       matchCapture([capture!], 'node -e "setTimeout(()=>{},9e4)"', 50_500, new Set())?.log,
     ).toBe(log("w"))
     expect(matchCapture([capture!], "node other", 50_500, new Set())).toBeUndefined()
+  })
+
+  it("matches a Windows command with backslashes before its quotes and at its end", async () => {
+    const command = 'Get-ChildItem "C:\\work\\" | Out-File "C:\\logs\\out.txt"; dir C:\\tmp\\'
+    await windows("w", command, 50_000)
+    const captures = await readCaptures(folder)
+    expect(matchCapture(captures, command, 50_000, new Set())?.log).toBe(log("w"))
   })
 
   it("gives two identical commands each its own, the nearest in time first", async () => {

@@ -53,7 +53,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
             String.raw`codex args: --no-daemon -c tui\.terminal_title=\['status','thread-id'\]`,
             String.raw`-c shell_environment_policy\.set\.BASH_ENV=\S+/capture/bash-env`,
             String.raw`-c shell_environment_policy\.set\.ZDOTDIR=\S+/capture/zsh`,
-            String.raw`-c shell_environment_policy\.set\.NOVADECK_CAPTURE=\S+/novadeck-capture/${on.id}`,
+            String.raw`-c shell_environment_policy\.set\.NOVADECK_CAPTURE=\S+/novadeck-capture-\d+/${on.id}`,
             String.raw`-c shell_environment_policy\.set\.NOVADECK_USER_BASH_ENV=`,
             String.raw`-c shell_environment_policy\.set\.NOVADECK_USER_ZDOTDIR=\S* resume abc`,
           ].join(" "),

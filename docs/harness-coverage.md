@@ -450,7 +450,12 @@ its commands.
 | Antigravity | Its own `task-N.log`, which the `RUNNING` step names as `Task logs are available at: file:///…`                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 A Codex command run in a terminal of its own (`tty`) prints to that terminal, which the
-capture leaves alone, so it has no `output`.
+capture leaves alone, so it has no `output`; nor does any where the person's Codex config sets
+its commands' environment (`shell_environment_policy`), which the capture would change. The
+terminal's folder is the person's alone (`novadeck-capture-<uid>`, made private by the runner,
+which captures nowhere else), and the logs no shell claims are cleared as the terminal's agents
+work. The two copies of what a command prints (its output and its errors) each pass through a
+`tee` of their own, so the order between them may differ from a terminal's.
 
 | Harness     | Start                                                                                                                                              | End                                                                                                                                                                                                                    |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

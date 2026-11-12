@@ -127,6 +127,51 @@ describe("codex shim", { timeout: 60_000 }, () => {
     expect(shim.run(["exec", "hi"], { NOVADECK_TERMINAL_ID: "" })).toEqual(["exec", "hi"])
   })
 
+  it.skipIf(windows)(
+    "has Codex's commands capture into the terminal's folder, the person's own BASH_ENV and ZDOTDIR passed on",
+    async ({ shim }) => {
+      // Paths with a blank and a quote in them stay one word each.
+      const shell = await installShellFiles(join(shim.root, "it's shell"), {
+        worktrees: shim.worktrees,
+      })
+      const env = { NOVADECK_CAPTURE: "/tmp/cap dir", BASH_ENV: "/home/u/my env", ZDOTDIR: "" }
+      const set = (name: string, value: string) => `shell_environment_policy.set.${name}=${value}`
+      const { received } = shim.launch(join(shell.bin, "codex"), ["exec", "hi"], env)
+      expect(received).toEqual([
+        "--no-daemon",
+        "-c",
+        "tui.terminal_title=['status','thread-id']",
+        "-c",
+        set("BASH_ENV", shell.capture.bashEnv),
+        "-c",
+        set("ZDOTDIR", shell.capture.zdotdir),
+        "-c",
+        set("NOVADECK_CAPTURE", "/tmp/cap dir"),
+        "-c",
+        set("NOVADECK_USER_BASH_ENV", "/home/u/my env"),
+        "-c",
+        set("NOVADECK_USER_ZDOTDIR", ""),
+        "exec",
+        "hi",
+      ])
+      // Not where the person's Codex sets its commands' environment itself.
+      const home = join(shim.root, "codex-home")
+      mkdirSync(home)
+      writeFileSync(join(home, "config.toml"), '[shell_environment_policy]\ninherit = "core"\n')
+      const own = shim.launch(join(shell.bin, "codex"), ["exec", "hi"], {
+        ...env,
+        CODEX_HOME: home,
+      })
+      expect(own.received).toEqual([
+        "--no-daemon",
+        "-c",
+        "tui.terminal_title=['status','thread-id']",
+        "exec",
+        "hi",
+      ])
+    },
+  )
+
   it("reads each word of a line with quotes in it", ({ shim }) => {
     const title = ["-c", "tui.terminal_title=['status','thread-id']"]
     expect(shim.run(["", "agents"])).toEqual(["", "agents"])

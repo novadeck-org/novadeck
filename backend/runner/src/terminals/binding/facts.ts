@@ -564,21 +564,26 @@ export class Bindings {
     if (next && fact.type === "plan-observed")
       void this.host.companion().planned(record, binding, fact)
     if (next && fact.type === "turn-ended") this.latchLimit(record)
-    if (next && binding.agent === "codex") this.captured(record, fact)
+    if (next) this.captured(record, binding.agent, fact)
     return Boolean(next)
   }
 
   /**
    * Codex writes a background shell's output nowhere readable, so Novadeck's capture of its
-   * commands holds it: a shell just started finds its log there (`Captures`), and the logs
-   * no shell claims are cleared as the agent works.
+   * commands holds it: a Codex shell just started finds its log there (`Captures`), and the
+   * logs no shell claims are cleared as any agent there works.
    */
-  private captured(record: Record, fact: Exclude<HarnessEvent, SessionObserved>): void {
+  private captured(
+    record: Record,
+    bound: AgentName,
+    fact: Exclude<HarnessEvent, SessionObserved>,
+  ): void {
     const id = record.summary.id
     const claimed = (): ReadonlySet<string> =>
       new Set(record.bound?.activity.shells.flatMap(({ output }) => (output ? [output] : [])))
+    // Any agent's terminal may hold captures: a Codex another agent started captures there.
     void this.captures.tend(id, claimed())
-    if (fact.type !== "shell-started") return
+    if (bound !== "codex" || fact.type !== "shell-started") return
     const { agent, sessionId, instance, id: shell, command, startedAt } = fact
     void this.captures.find(id, { command, since: startedAt }, claimed, (path) => {
       const binding = record.bound?.binding

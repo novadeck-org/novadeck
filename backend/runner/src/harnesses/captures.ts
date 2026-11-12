@@ -32,23 +32,78 @@ const named = /^out-(.+)\.(log|command|json|out|err)$/
 // command single-quoted with `'\''` for each quote in it.
 const wrapped = /(?:^|\n)exec '[^'\n]*' -c '((?:[^']|'\\'')*)'\s*$/
 
-/** The texts a record's script may hold the command in: as given, and out of Codex's wrapper. */
+/**
+ * The texts a record's script may be the command as: the command itself, out of Codex's
+ * wrapper where the shell got that (whose snapshot of the person's shell holds functions and
+ * aliases, which must not count), else the script as given.
+ */
 export const commandTexts = (script: string): string[] => {
   const inner = wrapped.exec(script)?.[1]
-  return inner === undefined ? [script] : [script, inner.replaceAll("'\\''", "'")]
+  return inner === undefined ? [script] : [inner.replaceAll("'\\''", "'")]
 }
 
-// A Windows record: the command line novadeck-pwsh was given, whose command is in double
-// quotes with each quote in it written `\"`, and when the command started.
+/**
+ * The words of a Windows command line, as the C runtime reads them: in quotes where they hold
+ * a blank, a quote after an odd run of backslashes taken as one, the run halved before it.
+ */
+export const windowsWords = (line: string): string[] => {
+  const words: string[] = []
+  let word = ""
+  let inWord = false
+  let quoted = false
+  for (let at = 0; at < line.length; at++) {
+    const char = line[at]!
+    if (char === "\\") {
+      let run = 0
+      while (line[at] === "\\") {
+        run++
+        at++
+      }
+      if (line[at] === '"') {
+        word += "\\".repeat(Math.floor(run / 2))
+        if (run % 2 === 1) word += '"'
+        else at--
+      } else {
+        word += "\\".repeat(run)
+        at--
+      }
+      inWord = true
+    } else if (char === '"') {
+      if (quoted && line[at + 1] === '"') {
+        word += '"'
+        at++
+      } else quoted = !quoted
+      inWord = true
+    } else if ((char === " " || char === "\t") && !quoted) {
+      if (inWord) words.push(word)
+      word = ""
+      inWord = false
+    } else {
+      word += char
+      inWord = true
+    }
+  }
+  if (inWord) words.push(word)
+  return words
+}
+
+// The line Codex puts ahead of a command it gives PowerShell, so its output is UTF-8.
+const encodingLine = /^try \{[^\n]*OutputEncoding[^\n]*\} catch \{\}\r?\n/
+
+// A Windows record: what novadeck-pwsh was given after the shell's name, whose -Command word
+// is the command (after Codex's encoding line), and when the command started.
 const windowsRecord = (json: string): { started?: number; texts: string[] } => {
   try {
     const { commandLine, started } = JSON.parse(json) as {
       commandLine?: unknown
       started?: unknown
     }
+    const words = typeof commandLine === "string" ? windowsWords(commandLine) : []
+    const at = words.findIndex((word) => /^-command$/i.test(word))
+    const script = at >= 0 ? words.slice(at + 1).join(" ") : undefined
     return {
       ...(typeof started === "number" && { started }),
-      texts: typeof commandLine === "string" ? [commandLine.replaceAll('\\"', '"')] : [],
+      texts: script === undefined ? [] : [script.replace(encodingLine, "")],
     }
   } catch {
     return { texts: [] }
@@ -57,10 +112,10 @@ const windowsRecord = (json: string): { started?: number; texts: string[] } => {
 
 const unified = (text: string): string => text.replaceAll("\r\n", "\n").trim()
 
-/** Whether a record's texts hold `command`. */
+/** Whether one of a record's texts is `command`. */
 export const holds = (texts: readonly string[], command: string): boolean => {
   const wanted = unified(command)
-  return wanted !== "" && texts.some((text) => unified(text).includes(wanted))
+  return wanted !== "" && texts.some((text) => unified(text) === wanted)
 }
 
 /**

@@ -24,12 +24,17 @@ const commandsGet = (name: string, value: string): string =>
 
 /**
  * What the POSIX shim adds ahead of Codex's own words where the terminal captures: its
- * commands' shell loads the capture, and the person's own BASH_ENV and ZDOTDIR after it.
+ * commands' shell loads the capture, and the person's own BASH_ENV and ZDOTDIR after it. Where
+ * the person's Codex config (theirs, or the project's) sets its commands' environment
+ * (\`shell_environment_policy\`), which an \`include_only\` or their own BASH_ENV there would
+ * fight with, it adds nothing, and their commands go uncaptured.
  * Each value stays a plain string: Codex reads a `-c` value as TOML only where it is TOML.
  */
 const posixCapture = (capture: NonNullable<Machine["capture"]>): string => `
-# Codex's commands capture what they print where this terminal names a folder for it.
-if [ -n "\${NOVADECK_CAPTURE:-}" ]; then
+# Codex's commands capture what they print where this terminal names a folder for it, unless
+# the person's Codex sets its commands' environment itself, which the capture would change.
+if [ -n "\${NOVADECK_CAPTURE:-}" ] &&
+  ! grep -qs shell_environment_policy "\${CODEX_HOME:-$HOME/.codex}/config.toml" .codex/config.toml; then
   set -- -c ${commandsGet("BASH_ENV", shQuote(capture.bashEnv))} \\
     -c ${commandsGet("ZDOTDIR", shQuote(capture.zdotdir))} \\
     -c "${commandsGet("NOVADECK_CAPTURE", "$NOVADECK_CAPTURE")}" \\
