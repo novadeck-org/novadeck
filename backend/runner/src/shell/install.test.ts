@@ -330,6 +330,7 @@ describe("the PowerShell pass-through", () => {
     const options = (over: object = {}) => ({
       relay,
       pwshShim: shim,
+      pwsh: true,
       platform: "win32" as const,
       worktrees: join(folder, "worktrees"),
       prints: () => Promise.resolve(undefined),
@@ -384,6 +385,18 @@ describe("the PowerShell pass-through", () => {
     expect(spaced.pwshShimDir).toBeUndefined()
     const linux = await installShellFiles(directory, options({ platform: "linux" }))
     expect(linux.pwshShimDir).toBeUndefined()
+  })
+
+  it("is there only while asked for, as while Codex is connected, and goes once not", async ({
+    resources,
+  }) => {
+    const { directory, options } = setup(resources)
+    const on = await installShellFiles(directory, options())
+    expect(on.pwshShimDir).toBeDefined()
+    const off = await installShellFiles(directory, options({ pwsh: false }))
+    expect(off.pwshShimDir).toBeUndefined()
+    expect(existsSync(off.pwshDir)).toBe(false)
+    expect(codexShim(off)).not.toContain('set "PATH=')
   })
 
   it("is replaced by an upgrade in the same folder", async ({ resources }) => {

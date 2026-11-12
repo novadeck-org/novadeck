@@ -47,6 +47,12 @@ export type InstallOptions = {
    * The PowerShell pass-through to install (Windows only); the one beside the relay by default.
    */
   readonly pwshShim?: string
+  /**
+   * Whether to install it: on Windows only while Codex, whose commands capture through it, is
+   * connected. Off, one installed before is taken away. A program named `pwsh.exe` that isn't
+   * Microsoft's is one a machine's security software may question, so none sits there unused.
+   */
+  readonly pwsh?: boolean
   /** For tests: how to tell whether cmd prints (the machine's own check by default). */
   readonly prints?: typeof cmdPrints
   /** Where agents' worktrees live, for the shims to pass on (`~/.novadeck/worktrees` by default). */
@@ -72,6 +78,7 @@ export const installShellFiles = async (
     relay = relayPath,
     cmdShim = join(dirname(relay), cmdShimName),
     pwshShim = join(dirname(relay), pwshShimName),
+    pwsh = false,
     prints: printing = cmdPrints,
     worktrees,
     platform = process.platform,
@@ -97,10 +104,12 @@ export const installShellFiles = async (
   // shipped one, with a path to put on PATH. Without it, as before.
   const cmdShimDir = prints !== undefined ? await installCmdShim(cmdShim, paths, short) : undefined
   const covered = cmdShimDir !== undefined
-  // On Windows Codex's commands capture through Novadeck's PowerShell, once it is installed and
-  // is the shipped one. Without it, they run as before, uncaptured.
+  // On Windows Codex's commands capture through Novadeck's PowerShell, while Codex is connected,
+  // once it is installed and is the shipped one. Without it, they run as before, uncaptured.
   const pwshShimDir =
-    platform === "win32" ? await installPwshShim(pwshShim, paths, short) : undefined
+    platform === "win32" && pwsh ? await installPwshShim(pwshShim, paths, short) : undefined
+  if (pwshShimDir === undefined)
+    await rm(paths.pwshDir, { recursive: true, force: true }).catch(() => {})
   if (prints === "prints")
     log.warn(
       "shell.cmd-prints",
