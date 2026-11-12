@@ -665,8 +665,13 @@ with every safety check again at that time:
   - **`give_worktree({ path, to })`** hands the owner's worktree to a terminal of its
     project and session by handle, which is told. **`close_worktree({ path, force? })`** is the
     owner's: refused while the worktree has uncommitted or untracked files or commits the main
-    branch lacks; `force` keeps the files as a commit on `refs/novadeck/kept/<branch>`, removes
-    the folder, and keeps the branch unless the main branch holds all of it. The row goes last.
+    branch lacks. `force` keeps the files git lists (ignored files, such as `.env` or data, are
+    not kept) as a commit at `refs/novadeck/kept/<branch>-work-<sha>`, and commits only a
+    detached HEAD or a stopped rebase reaches at `…-head-<sha>`, then removes the folder. The
+    branch goes only if Novadeck created it and the main branch holds all of it. A worktree
+    whose status git couldn't read, or that has submodules, is never removed, forced or not.
+    The row goes last. Every `path` may be a folder inside the worktree. Only a worktree of
+    the project's repositories, and not locked, is adopted.
   - **At the runner's start** every row is checked: a folder that is gone is pruned from its
     repository and its row deleted, an owner that exists neither live nor in History leaves
     the worktree orphaned. Removing a project removes its worktrees first, the same way as

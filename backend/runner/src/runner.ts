@@ -260,6 +260,13 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   const sealer = createTranscriptSealer(options.transcriptKey)
   // What owns a worktree is a terminal, live or closed but still in History.
   const worktrees = new Worktrees(store, {
+    projectFolder: (projectId) => {
+      try {
+        return store.project(projectId).cwd
+      } catch {
+        return undefined
+      }
+    },
     exists: (terminalId) =>
       terminals.place(terminalId) !== undefined || store.terminalExists(terminalId),
   })

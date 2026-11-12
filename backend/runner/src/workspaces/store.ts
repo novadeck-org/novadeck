@@ -257,7 +257,8 @@ const schema = `
   -- path is the worktree's top folder, common_dir its repository's git common dir and
   -- base the commit it started from. The owner is a terminal, live or closed but still in
   -- History, so terminal_id has no foreign key; it is null once orphaned. adopted is 1
-  -- for a worktree some other tool made, and diverged 1 once it has differed from base.
+  -- for a worktree some other tool made, branch_made 1 when Novadeck created its branch
+  -- (only such a branch is ever deleted), and diverged 1 once it has differed from base.
   CREATE TABLE worktrees (
     path TEXT PRIMARY KEY,
     common_dir TEXT NOT NULL,
@@ -266,6 +267,7 @@ const schema = `
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     terminal_id TEXT,
     adopted INTEGER NOT NULL CHECK (adopted IN (0, 1)),
+    branch_made INTEGER NOT NULL DEFAULT 0 CHECK (branch_made IN (0, 1)),
     diverged INTEGER NOT NULL DEFAULT 0 CHECK (diverged IN (0, 1)),
     created_at INTEGER NOT NULL
   ) STRICT;
@@ -835,6 +837,7 @@ const migrations: Readonly<Record<number, Step>> = {
       project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
       terminal_id TEXT,
       adopted INTEGER NOT NULL CHECK (adopted IN (0, 1)),
+      branch_made INTEGER NOT NULL DEFAULT 0 CHECK (branch_made IN (0, 1)),
       diverged INTEGER NOT NULL DEFAULT 0 CHECK (diverged IN (0, 1)),
       created_at INTEGER NOT NULL
     ) STRICT;
@@ -1488,6 +1491,7 @@ type WorktreeRow = {
   project_id: string
   terminal_id: string | null
   adopted: number
+  branch_made: number
   diverged: number
   created_at: number
 }
@@ -1500,6 +1504,7 @@ const worktreeOf = (row: WorktreeRow): WorktreeRecord => ({
   projectId: row.project_id,
   terminalId: row.terminal_id,
   adopted: row.adopted === 1,
+  branchMade: row.branch_made === 1,
   diverged: row.diverged === 1,
   createdAt: row.created_at,
 })
@@ -2208,10 +2213,10 @@ export class WorkspaceStore
       "NOT_FOUND",
       () =>
         this.queries.run`
-        INSERT OR REPLACE INTO worktrees (path, common_dir, branch, base, project_id, terminal_id,
-          adopted, diverged, created_at)
+        INSERT INTO worktrees (path, common_dir, branch, base, project_id, terminal_id,
+          adopted, branch_made, diverged, created_at)
         VALUES (${record.path}, ${record.commonDir}, ${record.branch}, ${record.base},
-          ${record.projectId}, ${record.terminalId}, ${record.adopted ? 1 : 0},
+          ${record.projectId}, ${record.terminalId}, ${record.adopted ? 1 : 0}, ${record.branchMade ? 1 : 0},
           ${record.diverged ? 1 : 0}, ${record.createdAt})`,
     )
   }

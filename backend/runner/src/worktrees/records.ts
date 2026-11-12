@@ -12,6 +12,8 @@ export type WorktreeRecord = {
   readonly terminalId: string | null
   /** Whether some other tool made it and an agent took it. */
   readonly adopted: boolean
+  /** Whether Novadeck created its branch: only such a branch is ever deleted. */
+  readonly branchMade: boolean
   /** Whether it has ever differed from `base`. */
   readonly diverged: boolean
   /** When it was recorded, in epoch milliseconds. */

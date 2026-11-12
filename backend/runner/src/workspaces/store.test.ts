@@ -1614,6 +1614,7 @@ describe("workspace metadata", () => {
       projectId: "p",
       terminalId: "gone-terminal",
       adopted: false,
+      branchMade: false,
       diverged: false,
       createdAt: 5,
     }
@@ -1648,6 +1649,7 @@ describe("workspace metadata", () => {
       projectId: project.id,
       terminalId,
       adopted: true,
+      branchMade: false,
       diverged: false,
       createdAt: path === "/a" ? 1 : 2,
     })
@@ -1663,6 +1665,9 @@ describe("workspace metadata", () => {
     expect(store.removeWorktree("/a")).toBe(true)
     expect(store.removeWorktree("/a")).toBe(false)
     expect(() => store.insertWorktree({ ...make("/c", null), projectId: "nope" })).toThrow()
+    // A path that is tracked is never taken over by another insert.
+    expect(() => store.insertWorktree({ ...make("/b", "t9"), branch: "other" })).toThrow()
+    expect(store.worktree("/b")).toMatchObject({ terminalId: "t2" })
     store.removeProject(project.id)
     expect(store.worktrees()).toEqual([])
   })
@@ -1693,7 +1698,7 @@ describe("workspace metadata", () => {
       // is added for it. Then record the new digest here.
       expect({ version, digest }).toEqual({
         version: 14,
-        digest: "e0a1d59d5116e4b7a80d7cf30371c9474132bdb838e81a0c930d3684bbe54762",
+        digest: "c275f8e3eba37cbb1e1b7d30864207d926fb750c477b7a78d9fd92b3ba05da18",
       })
     } finally {
       database.close()

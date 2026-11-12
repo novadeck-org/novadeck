@@ -4,6 +4,8 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { vi } from "vitest"
+
 import type { Call } from "../shell/reports.js"
 import type { ApprovalOutcome } from "../terminals/approvals.js"
 import { describe, expect, it as base } from "../test.js"
@@ -61,8 +63,13 @@ const fixture = (cleanup: (run: () => void) => void) => {
     peers: () => ({
       target: (_caller: unknown, to: string) =>
         Promise.resolve(
-          to === "fox"
-            ? { ok: true, terminalId: "t2", handle: "fox", agent: "codex" }
+          to === "fox" || to === "moth"
+            ? {
+                ok: true,
+                terminalId: to === "fox" ? "t2" : "t1",
+                handle: to,
+                agent: "codex",
+              }
             : { ok: false, reason: `No terminal @${to}.` },
         ),
     }),
@@ -177,7 +184,7 @@ describe("worktree calls", () => {
     })
     expect(await fx.calls.close(fx.call("t1", { path: opened.path, force: true }))).toMatchObject({
       ok: true,
-      kept: "refs/novadeck/kept/c",
+      kept: expect.stringMatching(/^refs\/novadeck\/kept\/c-work-/),
     })
   })
 
@@ -195,10 +202,23 @@ describe("worktree calls", () => {
     })
     expect(fx.store.worktree(path)?.terminalId).toBe("t1")
     fx.asked[0]!.settle("confirmed")
-    expect(fx.store.worktree(path)?.terminalId).toBe("t2")
+    await vi.waitFor(() => expect(fx.store.worktree(path)?.terminalId).toBe("t2"))
     expect(fx.notices.map(({ id }) => id).toSorted()).toEqual(["t1", "t2"])
     expect(fx.notices.find(({ id }) => id === "t1")?.text).toContain("@fox take your worktree")
     expect(fx.notices.find(({ id }) => id === "t2")?.text).toContain("you now own")
+  })
+
+  it("take does not move ownership if the setting went off before the person answered", async ({
+    fx,
+  }) => {
+    const opened = await fx.calls.open(fx.call("t1", { branch: "late" }))
+    if (!opened.ok) throw new Error(opened.reason)
+    await fx.calls.take(fx.call("t2", { path: opened.path }))
+    fx.state.enabled = false
+    fx.asked[0]!.settle("confirmed")
+    await vi.waitFor(() => expect(fx.notices).toHaveLength(1))
+    expect(fx.notices[0]).toMatchObject({ id: "t2", text: expect.stringContaining("turned off") })
+    expect(fx.store.worktree(opened.path)?.terminalId).toBe("t1")
   })
 
   it("take leaves it with its owner on a no, or when no one can be asked", async ({ fx }) => {

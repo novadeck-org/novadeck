@@ -80,6 +80,9 @@ export const worktreeNotice = {
     "longer yours: don't change files there, and don't close it.",
   declined: (path: string): string =>
     notice + `The user did not let you take the worktree ${path}: it stays with its owner.`,
+  off: (path: string): string =>
+    notice +
+    `Nothing changed: agent worktrees were turned off before the user answered the ask to take ${path}.`,
   gone: (path: string): string =>
     notice +
     `Nothing changed: Novadeck's window went away before the user answered the ask to take ` +
@@ -114,6 +117,8 @@ export type WorktreeAnswer =
       readonly owner?: string
       /** close_worktree: where the uncommitted work was kept. */
       readonly kept?: string
+      /** close_worktree: where commits only HEAD reached were kept. */
+      readonly keptHead?: string
       readonly branchDeleted?: boolean
     }
   | Failure
@@ -229,16 +234,20 @@ export class WorktreeCalls {
         action: { type: "take", path, branch },
       },
       (outcome: ApprovalOutcome) => {
-        if (this.host.stopping()) return
-        if (outcome === "declined") return tell(call.terminalId, worktreeNotice.declined(path))
-        if (outcome === "gone") return tell(call.terminalId, worktreeNotice.gone(path))
-        if (outcome === "withdrawn") return tell(call.terminalId, worktreeNotice.vanished(path))
-        if (!service.transfer(path, ownerId, call.terminalId))
-          return tell(call.terminalId, worktreeNotice.moved(path))
-        tell(call.terminalId, worktreeNotice.taken(path, branch))
-        // Its old owner's agent, if it still runs, learns on its next turn.
-        if (this.host.records().has(ownerId))
-          tell(ownerId, worktreeNotice.lost(caller.summary.handle, path, branch))
+        void (async () => {
+          if (this.host.stopping()) return
+          if (outcome === "declined") return tell(call.terminalId, worktreeNotice.declined(path))
+          if (outcome === "gone") return tell(call.terminalId, worktreeNotice.gone(path))
+          if (outcome === "withdrawn") return tell(call.terminalId, worktreeNotice.vanished(path))
+          // The setting may have gone off while the person decided: nothing moves then.
+          if (!this.host.enabled()) return tell(call.terminalId, worktreeNotice.off(path))
+          if (!(await service.transfer(path, ownerId, call.terminalId)))
+            return tell(call.terminalId, worktreeNotice.moved(path))
+          tell(call.terminalId, worktreeNotice.taken(path, branch))
+          // Its old owner's agent, if it still runs, learns on its next turn.
+          if (this.host.records().has(ownerId))
+            tell(ownerId, worktreeNotice.lost(caller.summary.handle, path, branch))
+        })().catch(() => undefined)
       },
     )
     return {
@@ -260,9 +269,12 @@ export class WorktreeCalls {
       "close_worktree needs path, and takes only force besides.",
     )
     if (!read1.ok) return read1
-    const owned = await service.owned(call.terminalId, record.summary.cwd, read1.request.path)
-    if (!owned.ok) return owned
-    const closed = await service.close(owned.row, read1.request.force === true)
+    const closed = await service.closeOwned({
+      terminalId: call.terminalId,
+      cwd: record.summary.cwd,
+      path: read1.request.path,
+      force: read1.request.force === true,
+    })
     if (!closed.ok) return closed
     return {
       ok: true,
@@ -270,6 +282,7 @@ export class WorktreeCalls {
       branch: closed.branch,
       branchDeleted: closed.branchDeleted,
       ...(closed.kept !== undefined && { kept: closed.kept }),
+      ...(closed.keptHead !== undefined && { keptHead: closed.keptHead }),
     }
   }
 
@@ -284,17 +297,19 @@ export class WorktreeCalls {
     )
     if (!read1.ok) return read1
     const { path, to } = read1.request
-    const owned = await service.owned(call.terminalId, record.summary.cwd, path)
-    if (!owned.ok) return owned
     if (to === record.summary.handle) return refused("That worktree is yours already.")
     const target = await this.host.peers().target(peerOf(record), to)
     if (!target.ok) return target
     // Closed, or the runner stopped, while the terminals were described.
     if (!this.standing(call, record)) return unansweredCalls.giveWorktree
-    const { row } = owned
-    // Still the caller's, and the receiver still there.
-    if (service.transfer(row.path, call.terminalId, target.terminalId) === false)
-      return refused("That worktree changed owner meanwhile.")
+    const given = await service.give({
+      terminalId: call.terminalId,
+      cwd: record.summary.cwd,
+      path,
+      to: target.terminalId,
+    })
+    if (!given.ok) return given
+    const { row } = given
     this.host
       .messaging()
       .notice(

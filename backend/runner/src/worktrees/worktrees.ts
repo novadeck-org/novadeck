@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs"
 import { mkdir, realpath } from "node:fs/promises"
-import { join, resolve } from "node:path"
+import { join, resolve, sep } from "node:path"
 
 import { logs } from "../log.js"
 import type { WorktreeRecord, WorktreeRecords } from "./records.js"
@@ -10,10 +10,12 @@ import {
   commitAt,
   deleteBranch,
   entriesOf,
+  forgetEntry,
+  hasSubmodules,
   heldByMain,
   homeOf,
+  keepStrayHead,
   keepWork,
-  prune,
   removeFolder,
   repositoryAt,
   said,
@@ -29,6 +31,8 @@ const log = logs.for("worktrees")
 export type WorktreesHost = {
   /** Whether the terminal exists, live or closed but still in History. */
   readonly exists: (terminalId: string) => boolean
+  /** The folder of the project, whose repositories a worktree may be adopted from. */
+  readonly projectFolder?: (projectId: string) => string | undefined
   /** The folder the worktrees live in; `~/.novadeck/worktrees` when omitted. */
   readonly root?: string
   readonly now?: () => number
@@ -65,6 +69,8 @@ export type Closed =
       readonly branch: string
       /** The ref the uncommitted work was kept at, where there was any. */
       readonly kept?: string
+      /** The ref HEAD was kept at, where only a detached HEAD or a stopped rebase reached it. */
+      readonly keptHead?: string
       readonly branchDeleted: boolean
     }
   | Failure
@@ -79,6 +85,7 @@ export const folderName = (text: string): string =>
 /**
  * The git worktrees agents work in: who owns each, and how they are made, taken, given and
  * closed. Only agents move ownership; nothing here watches git for worktrees made another way.
+ * Every operation that reads or changes a row or a worktree runs after the ones before it.
  */
 export class Worktrees {
   private chain: Promise<unknown> = Promise.resolve()
@@ -100,9 +107,14 @@ export class Worktrees {
     return terminalId === null || !this.host.exists(terminalId)
   }
 
-  /** The tracked worktree at a folder, found by its real path. */
-  private async tracked(path: string): Promise<WorktreeRecord | undefined> {
-    return this.records.worktree(await realpath(path).catch(() => path))
+  /**
+   * The top folder of the worktree a path is in, as a real path, which is how rows are keyed:
+   * a path inside a worktree names it. Where git can't tell (the folder is gone), the path itself.
+   */
+  private async topOf(cwd: string, path: string): Promise<string> {
+    const resolved = resolve(cwd, path)
+    const found = await repositoryAt(resolved)
+    return found.ok ? found.repository.top : await realpath(resolved).catch(() => resolved)
   }
 
   /**
@@ -130,13 +142,13 @@ export class Worktrees {
     if (!(await validBranch(repository.home, input.branch)))
       return refused(`"${input.branch}" isn't a branch name git accepts.`)
     const group = folderName(input.group ?? input.branch) || "work"
-    const path = join(this.host.root ?? worktreesRoot(), input.projectId, group, repository.name)
-    const tracked = this.records.worktree(path)
-    if (tracked || existsSync(path))
+    const wanted = join(this.host.root ?? worktreesRoot(), input.projectId, group, repository.name)
+    const tracked = this.records.worktree(wanted)
+    if (tracked || existsSync(wanted))
       return refused(
         tracked && tracked.commonDir !== repository.commonDir
           ? `Another repository named ${repository.name} is already in the group ${group}; pick another group.`
-          : `There is already a worktree of ${repository.name} in the group ${group}, at ${path}; ` +
+          : `There is already a worktree of ${repository.name} in the group ${group}, at ${wanted}; ` +
               "pick another group, or take_worktree it.",
       )
     const tip = await branchTip(repository.home, input.branch)
@@ -147,16 +159,10 @@ export class Worktrees {
     const start = input.from ?? "HEAD"
     const base = tip ?? (await commitAt(folder, start))
     if (base === undefined) return refused(`${start} isn't a commit in ${repository.name}.`)
-    await mkdir(join(path, ".."), { recursive: true })
-    const added = await addWorktree(
-      repository.home,
-      path,
-      input.branch,
-      tip === undefined ? { create: true, from: base } : { create: false },
-      this.host.platform,
-    )
-    if (!added.ok) return refused(`git couldn't make the worktree: ${said(added)}.`)
-    const real = await realpath(path).catch(() => path)
+    await mkdir(join(wanted, ".."), { recursive: true })
+    const real = join(await realpath(join(wanted, "..")), repository.name)
+    // The row first: a crash between the two leaves a row whose folder never appeared, which
+    // the next start drops, never a worktree nobody tracks.
     try {
       this.records.insertWorktree({
         path: real,
@@ -166,13 +172,26 @@ export class Worktrees {
         projectId: input.projectId,
         terminalId: input.terminalId,
         adopted: false,
+        branchMade: tip === undefined,
         diverged: false,
         createdAt: (this.host.now ?? Date.now)(),
       })
     } catch {
-      // The project went meanwhile: nothing keeps the folder, so it goes.
-      await removeFolder(repository.home, real)
       return refused("Novadeck couldn't record the worktree: its project is gone.")
+    }
+    const added = await addWorktree(
+      repository.home,
+      real,
+      input.branch,
+      tip === undefined ? { create: true, from: base } : { create: false },
+      this.host.platform,
+    )
+    if (!added.ok) {
+      this.records.removeWorktree(real)
+      // A branch git made before it failed is ours to take back.
+      if (tip === undefined && (await branchTip(repository.home, input.branch)) !== undefined)
+        await deleteBranch(repository.home, input.branch)
+      return refused(`git couldn't make the worktree: ${said(added)}.`)
     }
     return {
       ok: true,
@@ -187,9 +206,10 @@ export class Worktrees {
   }
 
   /**
-   * Makes the worktree at `path` the terminal's: at once where it has no owner, or its owner
-   * is gone; one git lists but Novadeck never made is recorded as adopted. Another live
-   * terminal's is returned for the person to approve (`transfer` then moves it).
+   * Makes the worktree at `path` (or the one it is in) the terminal's: at once where it has
+   * no owner, or its owner is gone; one git lists but Novadeck never made is recorded as
+   * adopted, if it is of the project's repositories and not locked. Another live terminal's
+   * is returned for the person to approve (`transfer` then moves it).
    */
   take(input: {
     readonly projectId: string
@@ -200,9 +220,27 @@ export class Worktrees {
     return this.serial(() => this.taking(input))
   }
 
+  /** Whether a repository is the caller's or the project's, or is inside the project's folder. */
+  private async ofProject(
+    projectId: string,
+    cwd: string,
+    repository: { readonly commonDir: string; readonly home: string },
+  ): Promise<boolean> {
+    const same = async (folder: string): Promise<boolean> => {
+      const found = await repositoryAt(folder)
+      return found.ok && found.repository.commonDir === repository.commonDir
+    }
+    if (await same(cwd)) return true
+    const folder = this.host.projectFolder?.(projectId)
+    if (folder === undefined) return false
+    if (await same(folder)) return true
+    const inside = await realpath(folder).catch(() => folder)
+    return repository.home.startsWith(inside.endsWith(sep) ? inside : inside + sep)
+  }
+
   private async taking(input: Parameters<Worktrees["take"]>[0]): Promise<Taken> {
-    const asked = resolve(input.cwd, input.path)
-    const row = await this.tracked(asked)
+    const top = await this.topOf(input.cwd, input.path)
+    const row = this.records.worktree(top)
     if (row) {
       if (row.projectId !== input.projectId)
         return refused("That worktree belongs to another project.")
@@ -214,9 +252,13 @@ export class Worktrees {
       }
       return { ok: true, approval: row }
     }
-    const found = await repositoryAt(asked)
-    if (!found.ok) return refused(`${asked} isn't a git worktree.`)
+    const found = await repositoryAt(top)
+    if (!found.ok) return refused(`${top} isn't a git worktree.`)
     const { repository } = found
+    if (!(await this.ofProject(input.projectId, input.cwd, repository)))
+      return refused(
+        "That worktree is of a repository outside this project, so Novadeck won't adopt it.",
+      )
     const entries = await entriesOf(repository.home)
     if (entries === undefined) return refused("Novadeck couldn't list the repository's worktrees.")
     const real = repository.top
@@ -233,19 +275,29 @@ export class Worktrees {
       return refused(
         `${real} isn't a linked worktree: git lists it as the repository's own checkout, or not at all.`,
       )
+    if (entry.locked) return refused("That worktree is locked in git, so Novadeck won't take it.")
     if (entry.branch === null)
       return refused("That worktree has a detached HEAD, with no branch to track.")
-    this.records.insertWorktree({
-      path: real,
-      commonDir: repository.commonDir,
-      branch: entry.branch,
-      base: await startOf(real),
-      projectId: input.projectId,
-      terminalId: input.terminalId,
-      adopted: true,
-      diverged: false,
-      createdAt: (this.host.now ?? Date.now)(),
-    })
+    try {
+      this.records.insertWorktree({
+        path: real,
+        commonDir: repository.commonDir,
+        branch: entry.branch,
+        base: await startOf(real),
+        projectId: input.projectId,
+        terminalId: input.terminalId,
+        adopted: true,
+        branchMade: false,
+        diverged: false,
+        createdAt: (this.host.now ?? Date.now)(),
+      })
+    } catch {
+      return refused(
+        this.records.worktree(real)
+          ? "That worktree is tracked already."
+          : "Novadeck couldn't record the worktree: its project is gone.",
+      )
+    }
     return { ok: true, path: real, branch: entry.branch }
   }
 
@@ -253,64 +305,115 @@ export class Worktrees {
    * Moves a worktree to `to`, once the person approved: only if it is still `from`'s (or no
    * one's), as the approval was asked about. False when it changed meanwhile.
    */
-  transfer(path: string, from: string, to: string): boolean {
-    const row = this.records.worktree(path)
-    if (!row || (row.terminalId !== from && !this.gone(row.terminalId))) return false
-    return this.records.setWorktreeOwner(path, to)
+  transfer(path: string, from: string, to: string): Promise<boolean> {
+    return this.serial(async () => {
+      const row = this.records.worktree(path)
+      if (!row || (row.terminalId !== from && !this.gone(row.terminalId))) return false
+      return this.records.setWorktreeOwner(path, to)
+    })
   }
 
-  /** The caller's worktree at `path`, or why it isn't one. */
-  async owned(
+  /** The caller's worktree at (or containing) `path`, or why it isn't one. Run in the queue. */
+  private async ownedBy(
     terminalId: string,
     cwd: string,
     path: string,
   ): Promise<{ readonly ok: true; readonly row: WorktreeRecord } | Failure> {
-    const row = await this.tracked(resolve(cwd, path))
+    const row = this.records.worktree(await this.topOf(cwd, path))
     if (!row)
       return refused(
         "Novadeck doesn't track a worktree there: open_worktree or take_worktree makes one.",
       )
     if (row.terminalId !== terminalId)
       return refused(
-        row.terminalId === null || this.gone(row.terminalId)
+        this.gone(row.terminalId)
           ? "That worktree has no owner: take_worktree it first."
           : "That worktree is another terminal's: only its owner may do that.",
       )
     return { ok: true, row }
   }
 
+  /** Gives the caller's worktree to another terminal, which must exist. */
+  give(input: {
+    readonly terminalId: string
+    readonly cwd: string
+    readonly path: string
+    readonly to: string
+  }): Promise<{ readonly ok: true; readonly row: WorktreeRecord } | Failure> {
+    return this.serial(async () => {
+      const owned = await this.ownedBy(input.terminalId, input.cwd, input.path)
+      if (!owned.ok) return owned
+      if (!this.host.exists(input.to)) return refused("That terminal is gone.")
+      this.records.setWorktreeOwner(owned.row.path, input.to)
+      return owned
+    })
+  }
+
   /**
    * Closes the caller's worktree: refused while it holds uncommitted or untracked files, or
-   * commits the main branch doesn't have, unless `force`, which keeps the files at a ref first.
+   * commits the main branch doesn't have, unless `force`, which keeps what can be kept on
+   * refs first. Ownership is checked in the queue, just before the removal.
    */
-  close(row: WorktreeRecord, force: boolean): Promise<Closed> {
+  closeOwned(input: {
+    readonly terminalId: string
+    readonly cwd: string
+    readonly path: string
+    readonly force: boolean
+  }): Promise<Closed> {
+    return this.serial(async () => {
+      const owned = await this.ownedBy(input.terminalId, input.cwd, input.path)
+      return owned.ok ? this.removal(owned.row, input.force) : owned
+    })
+  }
+
+  /** Removes a worktree whoever owns it (cleanup's entry; see `removal`). */
+  remove(row: WorktreeRecord, force: boolean): Promise<Closed> {
     return this.serial(() => this.removal(row, force))
   }
 
   /**
-   * Removes a worktree for good, whoever owns it: its uncommitted work is kept at
-   * `refs/novadeck/kept/<branch>` first, the folder goes, the branch goes only when the main
-   * branch holds all of it, and the row goes last. Without `force` it refuses a worktree that
-   * holds anything the main branch doesn't. This is the one removal, for closing, for the
-   * project going and for cleanup.
+   * Removes a worktree for good: what git couldn't read is never removed, uncommitted work
+   * and commits only HEAD reaches are kept on `refs/novadeck/kept/` first, the folder goes,
+   * the branch goes only when Novadeck made it and the main branch holds all of it, and the
+   * row goes last. Without `force` it refuses a worktree that holds anything the main branch
+   * doesn't. Ignored files (such as .env or data) are not kept. Run in the queue.
    */
-  async removal(row: WorktreeRecord, force: boolean): Promise<Closed> {
+  private async removal(row: WorktreeRecord, force: boolean): Promise<Closed> {
     const home = homeOf(row.commonDir)
-    const finish = (extra: { kept?: string; branchDeleted?: boolean } = {}): Closed => {
+    const finish = (extra: { kept?: string; keptHead?: string; branchDeleted?: boolean } = {}) => {
       this.records.removeWorktree(row.path)
-      return { ok: true, path: row.path, branch: row.branch, branchDeleted: false, ...extra }
+      return {
+        ok: true,
+        path: row.path,
+        branch: row.branch,
+        branchDeleted: false,
+        ...extra,
+      } as const
     }
     if (!existsSync(row.path)) {
-      await prune(home)
+      await forgetEntry(row.commonDir, row.path)
       return finish()
     }
     const standing = await standingOf(row.path)
+    if (!standing.readable)
+      return refused(
+        `Novadeck couldn't read what the worktree holds (${standing.why}), so it stays, even ` +
+          "with force. Commit or clean up, or ask the user.",
+      )
+    const submodules = await hasSubmodules(row.path)
+    if (submodules !== false)
+      return refused(
+        submodules === undefined
+          ? "Novadeck couldn't tell whether the worktree has submodules, so it stays."
+          : "The worktree has submodules checked out, whose commits Novadeck can't keep, so it " +
+              "stays: close it yourself or ask the user.",
+      )
     const dirty = standing.dirty > 0
     const unmerged = !standing.inMain
     if ((dirty || unmerged) && !force) {
       const parts = [
         ...(dirty
-          ? [`${standing.dirty} uncommitted or untracked file${standing.dirty === 1 ? "" : "s"}`]
+          ? [`${standing.dirty} uncommitted or untracked path${standing.dirty === 1 ? "" : "s"}`]
           : []),
         ...(unmerged
           ? [
@@ -322,10 +425,15 @@ export class Worktrees {
       ]
       return refused(
         `The worktree holds ${parts.join(" and ")}, so it stays. To close it anyway, call ` +
-          "close_worktree with force: uncommitted files are kept on a ref, and a branch with " +
-          "commits stays.",
+          "close_worktree with force: uncommitted files are kept on a ref (ignored files, such " +
+          "as .env or data, are not), and a branch with commits stays.",
       )
     }
+    const stray = await keepStrayHead(row.path, row.branch, standing.main)
+    if (stray === null)
+      return refused(
+        "Novadeck couldn't keep the commits HEAD alone reaches, so the worktree stays.",
+      )
     let kept: string | undefined
     if (dirty) {
       kept = await keepWork(row.path, row.branch)
@@ -339,16 +447,25 @@ export class Worktrees {
     const { main } = standing
     const tip = await branchTip(home, row.branch)
     if (
+      row.branchMade &&
       main &&
       tip !== undefined &&
       row.branch !== main.name &&
       (await heldByMain(home, tip, main))
     )
       branchDeleted = await deleteBranch(home, row.branch)
-    return finish({ ...(kept !== undefined && { kept }), branchDeleted })
+    return finish({
+      ...(kept !== undefined && { kept }),
+      ...(stray !== undefined && { keptHead: stray }),
+      branchDeleted,
+    })
   }
 
-  /** Removes all of a project's worktrees, keeping what isn't safe elsewhere, before its rows go. */
+  /**
+   * Removes all of a project's worktrees, keeping what isn't safe elsewhere, before its rows
+   * go. One git couldn't read, or that has submodules, stays on disk (its row goes with the
+   * project), and is logged.
+   */
   removeProject(projectId: string): Promise<void> {
     return this.serial(async () => {
       for (const row of this.records.worktreesOfProject(projectId)) {
@@ -366,15 +483,16 @@ export class Worktrees {
 
   /**
    * Checks every row against the disk and the terminals, at the runner's start: a folder gone
-   * is pruned from its repository and its row dropped, and an owner that is gone leaves the
-   * worktree with no owner. Each step stands alone, so a crash midway finishes next start.
+   * (or never made, as a crash left it) is forgotten by its repository, its own entry only,
+   * and its row dropped, and an owner that is gone leaves the worktree with no owner. Each
+   * step stands alone, so a crash midway finishes next start.
    */
   reconcile(): Promise<void> {
     return this.serial(async () => {
       for (const row of this.records.worktrees()) {
         if (!existsSync(row.path)) {
-          // eslint-disable-next-line no-await-in-loop -- One git run at a time.
-          if (existsSync(homeOf(row.commonDir))) await prune(homeOf(row.commonDir))
+          // eslint-disable-next-line no-await-in-loop -- One at a time.
+          await forgetEntry(row.commonDir, row.path)
           this.records.removeWorktree(row.path)
         } else if (row.terminalId !== null && !this.host.exists(row.terminalId)) {
           this.records.orphanWorktree(row.path)

@@ -1,4 +1,4 @@
-import { mkdtemp, realpath, rm } from "node:fs/promises"
+import { mkdtemp, readdir, readFile, realpath, rm, stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, dirname, join } from "node:path"
 
@@ -82,7 +82,13 @@ export const branchTip = async (folder: string, branch: string): Promise<string 
 export const commitAt = async (folder: string, revision: string): Promise<string | undefined> =>
   line(await git(folder, ["rev-parse", "--verify", "-q", `${revision}^{commit}`], small))
 
-export type Entry = { readonly path: string; readonly branch: string | null; readonly head: string }
+export type Entry = {
+  readonly path: string
+  readonly branch: string | null
+  readonly head: string
+  /** Whether git (or the person) locked it: it is never adopted or removed. */
+  readonly locked: boolean
+}
 
 /** The repository's worktrees as git lists them, the main checkout first. */
 export const entriesOf = async (folder: string): Promise<readonly Entry[] | undefined> => {
@@ -95,9 +101,10 @@ export const entriesOf = async (folder: string): Promise<readonly Entry[] | unde
       const path = lines.find((each) => each.startsWith("worktree "))?.slice(9)
       const head = lines.find((each) => each.startsWith("HEAD "))?.slice(5) ?? ""
       const branch = lines.find((each) => each.startsWith("branch "))?.slice(7)
+      const locked = lines.some((each) => each === "locked" || each.startsWith("locked "))
       return path === undefined
         ? []
-        : [{ path, head, branch: branch?.replace(/^refs\/heads\//, "") ?? null }]
+        : [{ path, head, locked, branch: branch?.replace(/^refs\/heads\//, "") ?? null }]
     })
 }
 
@@ -124,7 +131,14 @@ export const addWorktree = (
 export type Standing = {
   /** The main branch it is measured against; undefined where the repository has none. */
   readonly main: Main | undefined
-  /** How many files are changed or untracked. */
+  /**
+   * Whether git could say what the worktree holds. Where it couldn't (a timeout, output too
+   * long, any error), nothing else here is known, and a worktree is never removed on it.
+   */
+  readonly readable: boolean
+  /** Why it couldn't, where it couldn't. */
+  readonly why: string
+  /** How many paths are changed or untracked (an untracked folder counts once). */
   readonly dirty: number
   /** Commits on HEAD that the main branch doesn't have; null where that can't be told. */
   readonly ahead: number | null
@@ -132,19 +146,37 @@ export type Standing = {
   readonly inMain: boolean
 }
 
+/** A big repository's status may take a while to read. */
+export const statusMs = 120_000
+
 /** What a worktree holds, read now. */
 export const standingOf = async (path: string): Promise<Standing> => {
-  const status = await git(
-    path,
-    ["status", "--porcelain=v1", "--untracked-files=all", "-z"],
-    listing,
-  )
-  const dirty = status.ok ? status.out.split("\0").filter((each) => each !== "").length : 0
+  const status = await git(path, ["status", "--porcelain=v1", "--untracked-files=normal", "-z"], {
+    cap: 16 * 1024 * 1024,
+    ms: statusMs,
+  })
   const main = await mainBranch(path)
-  if (!main) return { main, dirty, ahead: null, inMain: false }
+  if (!status.ok)
+    return {
+      main,
+      readable: false,
+      why: status.kind === "big" ? "its status is too long to read" : said(status),
+      dirty: 0,
+      ahead: null,
+      inMain: false,
+    }
+  const dirty = status.out.split("\0").filter((each) => each !== "").length
+  if (!main) return { main, readable: true, why: "", dirty, ahead: null, inMain: false }
   const count = line(await git(path, ["rev-list", "--count", `${main.commit}..HEAD`], small))
   const ahead = count === undefined ? null : Number(count)
-  return { main, dirty, ahead, inMain: ahead === 0 }
+  return { main, readable: true, why: "", dirty, ahead, inMain: ahead === 0 }
+}
+
+/** Whether the worktree has submodules checked out, whose commits a removal would lose. */
+export const hasSubmodules = async (path: string): Promise<boolean | undefined> => {
+  const run = await git(path, ["submodule", "status"], listing)
+  if (!run.ok) return undefined
+  return run.out.split("\n").some((each) => each !== "" && !each.startsWith("-"))
 }
 
 /** Whether every commit of `ref` is in the main branch's history. */
@@ -167,11 +199,28 @@ const author = {
   GIT_COMMITTER_EMAIL: "novadeck@localhost",
 }
 
+/** A branch name as one ref component: slashes can't clash with a branch of the same stem. */
+const flat = (name: string): string => name.replaceAll("/", "-")
+
+/**
+ * Names `commit` at a ref of its own, `refs/novadeck/kept/<branch, flat>-<what>-<short sha>`,
+ * which no other branch's can clash with; its name, or undefined where it couldn't be made.
+ */
+export const keepCommit = async (
+  folder: string,
+  branch: string,
+  what: string,
+  commit: string,
+): Promise<string | undefined> => {
+  const ref = `refs/novadeck/kept/${flat(branch)}-${what}-${commit.slice(0, 8)}`
+  const set = await git(folder, ["update-ref", ref, commit], small)
+  return set.ok ? ref : undefined
+}
+
 /**
  * Keeps a worktree's uncommitted and untracked files (those no ignore rule hides) as a
- * commit on top of its HEAD, at `refs/novadeck/kept/<branch>` (with the commit's short name
- * after it where that ref is taken), made with a private index so the worktree's own is
- * never touched. Its name, or undefined where it couldn't be made.
+ * commit on top of its HEAD, at a ref of `keepCommit`'s kind, made with a private index so
+ * the worktree's own is never touched. Its name, or undefined where it couldn't be made.
  */
 export const keepWork = async (path: string, branch: string): Promise<string | undefined> => {
   const folder = await mkdtemp(join(tmpdir(), "novadeck-kept-"))
@@ -183,7 +232,7 @@ export const keepWork = async (path: string, branch: string): Promise<string | u
     ]
     for (const args of steps) {
       // eslint-disable-next-line no-await-in-loop -- Each step reads what the one before made.
-      const run = await git(path, args, { ...listing, env, ms: 30_000 })
+      const run = await git(path, args, { ...listing, env, ms: statusMs })
       if (!run.ok) return undefined
     }
     const tree = line(await git(path, ["write-tree"], { ...small, env }))
@@ -204,24 +253,62 @@ export const keepWork = async (path: string, branch: string): Promise<string | u
         { ...small, env: { ...env, ...author } },
       ),
     )
-    if (!commit) return undefined
-    const taken = (
-      await git(path, ["rev-parse", "--verify", "-q", `refs/novadeck/kept/${branch}`], small)
-    ).ok
-    const ref = `refs/novadeck/kept/${branch}${taken ? `-${commit.slice(0, 8)}` : ""}`
-    const set = await git(path, ["update-ref", ref, commit], small)
-    return set.ok ? ref : undefined
+    return commit ? await keepCommit(path, branch, "work", commit) : undefined
   } finally {
     await rm(folder, { recursive: true, force: true }).catch(() => {})
   }
 }
 
+/**
+ * Keeps HEAD when only it reaches some commits: a detached HEAD, or a rebase stopped midway,
+ * leaves commits that neither the branch nor the main branch holds. Its ref, undefined when
+ * the branch or the main branch holds all of HEAD, and null where git couldn't tell.
+ */
+export const keepStrayHead = async (
+  path: string,
+  branch: string,
+  main: Main | undefined,
+): Promise<string | undefined | null> => {
+  const head = await commitAt(path, "HEAD")
+  if (head === undefined) return null
+  const tip = await branchTip(path, branch)
+  const held = async (ref: string | undefined): Promise<boolean | null> => {
+    if (ref === undefined) return false
+    const run = await git(path, ["merge-base", "--is-ancestor", head, ref], small)
+    if (run.ok) return true
+    return run.kind === "exit" && run.status === 1 ? false : null
+  }
+  const inBranch = await held(tip)
+  const inMain = await held(main?.commit)
+  if (inBranch === null || inMain === null) return null
+  if (inBranch || inMain) return undefined
+  return (await keepCommit(path, branch, "head", head)) ?? null
+}
+
 /** Removes the worktree's folder and git's record of it. */
 export const removeFolder = (home: string, path: string): Promise<Run> =>
-  git(home, ["worktree", "remove", "--force", "--force", "--", path], { ...small, ms: addMs })
+  git(home, ["worktree", "remove", "--force", "--", path], { ...small, ms: addMs })
 
-/** Forgets the worktrees whose folders are gone. */
-export const prune = (home: string): Promise<Run> => git(home, ["worktree", "prune"], small)
+/**
+ * Forgets one worktree whose folder is gone, by deleting its own entry in the repository's
+ * `worktrees` folder, and nothing else: `git worktree prune` would also forget the person's
+ * own worktrees whose folders are away for now (an unmounted drive). A locked one stays.
+ */
+export const forgetEntry = async (commonDirectory: string, path: string): Promise<void> => {
+  const parent = join(commonDirectory, "worktrees")
+  const names = await readdir(parent).catch((): string[] => [])
+  for (const name of names) {
+    const entry = join(parent, name)
+    // eslint-disable-next-line no-await-in-loop -- A few entries, read one at a time.
+    const gitdir = await readFile(join(entry, "gitdir"), "utf8").catch(() => undefined)
+    if (gitdir === undefined) continue
+    const where = gitdir.trim().replace(/[\\/]\.git$/, "")
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    if (where === path && !(await stat(join(entry, "locked")).catch(() => undefined)))
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await rm(entry, { recursive: true, force: true })
+  }
+}
 
 /** Deletes a branch whose commits the main branch holds; false where it wasn't deleted. */
 export const deleteBranch = async (home: string, branch: string): Promise<boolean> =>

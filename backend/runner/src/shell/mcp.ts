@@ -1296,6 +1296,7 @@ type Worktree = {
   readonly asked?: true
   readonly owner?: string
   readonly kept?: string
+  readonly keptHead?: string
   readonly branchDeleted?: boolean
 }
 
@@ -1414,9 +1415,12 @@ const closeWorktree: Tool<Worktree> = {
     "Remove a git worktree you own, with its folder, when its work is done or merged. It is " +
     "refused while the worktree holds uncommitted or untracked files, or commits the main " +
     "branch doesn't have; commit or push what matters first. force closes it anyway: " +
-    "uncommitted files are kept as a commit on a ref the answer names, and a branch with " +
-    "commits stays. The branch is deleted only when the main branch holds all of it. Only " +
-    "the owner may close a worktree. Refused while the user has agent worktrees off.",
+    "uncommitted and untracked files are kept as a commit on a ref the answer names, but " +
+    "ignored files (such as .env or generated data) are not kept and go with the folder, " +
+    "and a branch with commits stays. A branch is deleted only if Novadeck made it and the " +
+    "main branch holds all of it. A worktree Novadeck can't read, or with submodules, is " +
+    "never closed. Only the owner may close a worktree. Refused while the user has agent " +
+    "worktrees off.",
   inputSchema: {
     type: "object",
     properties: {
@@ -1439,7 +1443,12 @@ const closeWorktree: Tool<Worktree> = {
     "Closed the worktree " +
     answer.path +
     ". " +
-    (answer.kept ? "Its uncommitted files are kept on " + answer.kept + ". " : "") +
+    (answer.kept
+      ? "Its uncommitted and untracked files are kept on " +
+        answer.kept +
+        "; ignored files were not kept. "
+      : "") +
+    (answer.keptHead ? "Commits only its HEAD reached are kept on " + answer.keptHead + ". " : "") +
     (answer.branchDeleted
       ? "Its branch " + answer.branch + " is deleted, as the main branch holds all of it."
       : "Its branch " + answer.branch + " stays."),
