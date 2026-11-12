@@ -48,6 +48,8 @@ const powershell = (agent: string) => windows && agent !== "claude"
 // A folder in the real home, as Novadeck's data folder is, and one in the system's temp folder.
 const homeDir = join(homedir(), ".novadeck-shell-probe")
 const tempDir = join(tmpdir(), "novadeck-shell-probe")
+// A folder in the real home that Codex's sandbox is told it may write (`writable_roots`).
+const rootDir = join(homedir(), ".novadeck-shell-root")
 
 const commands = (agent: string) =>
   powershell(agent)
@@ -127,7 +129,8 @@ if [ -t 0 ]; then nd_t0=yes; else nd_t0=no; fi
   echo "self=$(ps -o args= -p $$ 2>&1 | cut -c1-400)"
   echo "parent=$(ps -o args= -p $PPID 2>&1 | cut -c1-300)"
   echo "BASH_ENV=\${BASH_ENV-unset} ZDOTDIR=\${ZDOTDIR-unset} SHELL=$SHELL TMPDIR=\${TMPDIR-unset} TERM=\${TERM-unset}"
-  for nd_d in "${homeDir}" "${tempDir}" "${project}"; do
+  mkdir -p "\${TMPDIR:-/tmp}/novadeck-shell-probe" 2>&1
+  for nd_d in "${rootDir}" "\${TMPDIR:-/tmp}/novadeck-shell-probe" "${homeDir}" "${tempDir}" "${project}"; do
     if : > "$nd_d/write-$nd_label" 2>/dev/null; then echo "write ok $nd_d"; else echo "write FAIL $nd_d"; fi
   done
   if nd_r=$("${join(homeDir, "bin", "nd-id")}" -un 2>&1); then echo "run ok from home: $nd_r"; else echo "run FAIL from home: $nd_r"; fi
@@ -147,7 +150,8 @@ try {
 $lines += "label=$label pid=$PID outRedirected=$([Console]::IsOutputRedirected) inRedirected=$([Console]::IsInputRedirected) ps=$($PSVersionTable.PSVersion) edition=$($PSVersionTable.PSEdition)"
 $lines += "user=$([Security.Principal.WindowsIdentity]::GetCurrent().Name)"
 $lines += "TEMP=$env:TEMP USERPROFILE=$env:USERPROFILE PATH0=$(($env:PATH -split ';')[0])"
-foreach ($d in @('${homeDir}', '${tempDir}', '${project}')) {
+try { New-Item -ItemType Directory -Force -Path (Join-Path $env:TEMP 'novadeck-shell-probe') -ErrorAction Stop | Out-Null } catch { $lines += "mkdir FAIL TEMP $($_.Exception.Message)" }
+foreach ($d in @('${rootDir}', (Join-Path $env:TEMP 'novadeck-shell-probe'), '${homeDir}', '${tempDir}', '${project}')) {
   try { Set-Content -Path (Join-Path $d "write-$label") -Value x -ErrorAction Stop; $lines += "write ok $d" }
   catch { $lines += "write FAIL $d $($_.Exception.Message)" }
 }
@@ -161,7 +165,8 @@ const hookSh = (project: string) => `unset BASH_ENV
 nd_id=$(date +%s)-$$-$RANDOM
 if [ -t 1 ]; then nd_t1=yes; else nd_t1=no; fi
 nd_log=
-for nd_d in "${homeDir}" "${tempDir}" "${project}"; do
+mkdir -p "\${TMPDIR:-/tmp}/novadeck-shell-probe" 2>/dev/null
+for nd_d in "${rootDir}" "\${TMPDIR:-/tmp}/novadeck-shell-probe" "${homeDir}" "${tempDir}" "${project}"; do
   if : > "$nd_d/out-$nd_id.log" 2>/dev/null; then nd_log=$nd_d/out-$nd_id.log; break; fi
 done
 {
@@ -173,9 +178,13 @@ if [ -n "$nd_log" ] && [ "$nd_t1" = no ]; then exec > >(tee -a "$nd_log") 2> >(t
 `
 
 // Every log that may hold the first command's output, and how big each is now.
-const logs = (home: string, claudeOutputs: ReadonlySet<string>): string[] => {
+const logs = (
+  home: string,
+  claudeOutputs: ReadonlySet<string>,
+  more: readonly string[] = [],
+): string[] => {
   const found = [...claudeOutputs]
-  for (const dir of [homeDir, tempDir])
+  for (const dir of [rootDir, homeDir, tempDir, ...more])
     if (existsSync(dir))
       for (const name of readdirSync(dir))
         if (/^out-.*\.log$/.test(name)) found.push(join(dir, name))
@@ -210,6 +219,12 @@ for (const setup of setups) {
         const { project, home } = run.sandbox
         mkdirSync(join(homeDir, "bin"), { recursive: true })
         mkdirSync(tempDir, { recursive: true })
+        mkdirSync(rootDir, { recursive: true })
+        // The commands' own temp folder, as the sandbox gives it them.
+        const commandTemp = join(
+          run.sandbox.env.TMPDIR ?? run.sandbox.env.TEMP ?? tmpdir(),
+          "novadeck-shell-probe",
+        )
         if (windows)
           copyFileSync(
             join(process.env.SystemRoot ?? "C:\\Windows", "System32", "whoami.exe"),
@@ -236,6 +251,7 @@ for (const setup of setups) {
           writeFileSync(
             config,
             hooks +
+              `sandbox_workspace_write = { writable_roots = [${JSON.stringify(rootDir)}] }\n` +
               readFileSync(config, "utf8").replace(
                 'sandbox_mode = "danger-full-access"',
                 'sandbox_mode = "workspace-write"',
@@ -277,7 +293,7 @@ for (const setup of setups) {
           for (const name of readdirSync(project))
             if (/^(probe-.*|hook-.*)\.txt$/.test(name))
               writeFileSync(join(out, name), readFileSync(join(project, name)))
-          for (const file of logs(home, claudeOutputs))
+          for (const file of logs(home, claudeOutputs, [commandTemp, project]))
             note(
               "logs.txt",
               `== ${file} (${sizeOf(file)} bytes)\n${existsSync(file) ? readFileSync(file, "utf8").slice(0, 2000) : ""}`,
@@ -301,7 +317,9 @@ for (const setup of setups) {
           note("shells.json", JSON.stringify(shells(), null, 2))
           // The first prints a line every 2 s for 24 s: a log that grows between samples is live.
           for (let i = 0; i < 8; i++) {
-            const sizes = logs(home, claudeOutputs).map((file) => `${file}=${sizeOf(file)}`)
+            const sizes = logs(home, claudeOutputs, [commandTemp, project]).map(
+              (file) => `${file}=${sizeOf(file)}`,
+            )
             note("sizes.txt", `${Date.now()} ${sizes.join(" ")}`)
             await sleep(2000)
           }

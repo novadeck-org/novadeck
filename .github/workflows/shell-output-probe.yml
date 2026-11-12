@@ -34,9 +34,7 @@ jobs:
           - { name: macOS, os: macos-latest }
           - { name: Windows, os: windows-latest }
         setup:
-          - { name: Claude Code, agents: claude }
           - { name: Codex, agents: codex }
-          - { name: Antigravity, agents: agy }
     env:
       NOVADECK_E2E_CACHE: ${{ github.workspace }}/.e2e-cache
       NOVADECK_E2E_AGENTS: ${{ matrix.setup.agents }}
