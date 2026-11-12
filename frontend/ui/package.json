@@ -36,8 +36,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@dnd-kit/dom": "^0.5.1",
-    "@dnd-kit/react": "^0.5.1",
+    "@dnd-kit/dom": "^0.5.3",
+    "@dnd-kit/react": "^0.5.3",
     "@fontsource-variable/archivo": "5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@fontsource/share-tech-mono": "5.3.0",
@@ -46,9 +46,9 @@
     "@novadeck/items": "workspace:*",
     "@novadeck/toolkit": "workspace:*",
     "@novadeck/viewers": "workspace:*",
-    "@xyflow/react": "^12.12.0",
+    "@xyflow/react": "^12.12.1",
     "allotment": "^1.20.6",
-    "lucide-react": "^1.64.0",
+    "lucide-react": "^1.70.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router": "^8.5.1"
@@ -56,16 +56,16 @@
   "devDependencies": {
     "@novadeck/build-kit": "workspace:*",
     "@novadeck/test-kit": "workspace:*",
-    "@tailwindcss/vite": "^4.3.3",
+    "@tailwindcss/vite": "^4.3.5",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.2.0",
     "jsdom": "^31.0.0",
-    "tailwindcss": "^4.3.3",
+    "tailwindcss": "^4.3.5",
     "typescript": "^7.0.2",
     "vite": "^7.3.7",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   },
   "novadeck": {
     "platform": "neutral",

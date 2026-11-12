@@ -68,11 +68,11 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@ark-ui/react": "^5.39.3",
-    "@dnd-kit/abstract": "^0.5.1",
+    "@ark-ui/react": "^5.40.0",
+    "@dnd-kit/abstract": "^0.5.3",
     "@novadeck/viewers": "workspace:*",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.64.0",
+    "lucide-react": "^1.70.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "tailwind-merge": "^3.3.1"
@@ -86,7 +86,7 @@
     "jsdom": "^31.0.0",
     "typescript": "^7.0.2",
     "vite": "^7.3.7",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   },
   "novadeck": {
     "platform": "neutral"
