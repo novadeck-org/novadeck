@@ -783,11 +783,12 @@ projectId, working, branch, base, firstSeenAt, added, removed, files, conflicts,
 carries the root, and a conflict with another work names its root and owner). `works.look({ root })`
 marks it read, `works.show({ root, terminalId? })` shows it as a changes item on its owner's bar
 (`terminalId` names the bar for a work with no owner), and `works.close({ root, force? })` closes the
-worktree as the person asks, through the worktrees service: it answers `{ kept?, keptHead?, branchDeleted }`,
-refuses with `CONFLICT` and the reason while the worktree holds files or commits main lacks (unless
-`force`), while its owner's agent is working in it, when git status can't be read or the worktree has
-submodules (even with `force`), and `NOT_FOUND` for
-a root that is no work. These work with the Experimental switch off.
+worktree as the person asks, through the worktrees service: it answers `{ closed: true, kept?, keptHead?, branchDeleted }`, or, without `force`
+and with the worktree holding uncommitted files or commits main lacks (squash- and rebase-merged
+work does not count), `{ closed: false, holds }` for the person to confirm before `force`. It
+refuses with `CONFLICT` and the reason while its owner's agent is working in it (checked afresh in
+the service's queue), when git status can't be read or the worktree has submodules (even with
+`force`), and answers `NOT_FOUND` for a root that is no work. These work with the Experimental switch off.
 
 The runner keeps who owns each git worktree its agents work in in a `worktrees` table (schema 14):
 the worktree's real path (the key), its repository's git common dir, branch, the commit it started

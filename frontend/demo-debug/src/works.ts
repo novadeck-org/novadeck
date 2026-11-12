@@ -113,12 +113,31 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Worktree with changes",
-              hint: "Open Changes: the selected terminal's row has files; click its ×: a dialog says committed work stays on the branch, uncommitted work is kept on a ref and ignored files like .env are not kept",
+              hint: "Open Changes: the selected terminal's row has files; click its ×: a dialog says it holds changed files, committed work stays on the branch, uncommitted work (and commits only a detached HEAD reaches) is kept on a ref and ignored files like .env are not kept",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (!key) return
                 const own = works.ownedBy(key.terminalId)
                 if (!own || own.files.length === 0) works.gain(placed(workspace(), key), 30)
+              },
+            },
+            {
+              label: "Commits main lacks",
+              hint: "Open Changes: the selected terminal's worktree has no changed files but two commits main lacks; click its ×: the dialog says it holds 2 commits the main branch doesn't have, and closing needs your Close worktree",
+              run: ({ selected, workspace }) => {
+                const key = selected()
+                if (key) works.commitsMainLacks(placed(workspace(), key), 2)
+              },
+            },
+            {
+              label: "Owner in History",
+              hint: "Open Changes: the selected terminal's worktree reads Closed terminal (its owner is in History); click it: its changes open on the selected terminal's bar instead",
+              run: ({ selected, workspace }) => {
+                const key = selected()
+                if (!key) return
+                works.gain(placed(workspace(), key))
+                const own = works.ownedBy(key.terminalId)
+                if (own) works.ownerClosed(own.root)
               },
             },
             {

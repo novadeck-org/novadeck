@@ -47,6 +47,7 @@ import {
   type VoiceTranscript,
   type WireClient,
   type WorkChange,
+  type WorkClosing,
   type WorkspaceSession,
 } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
@@ -453,18 +454,12 @@ export type Runner = {
      */
     show(root: string, terminalId?: string): Promise<{ readonly itemId: string }>
     /**
-     * Closes the worktree as the person asks. `CONFLICT` (its message says why) while it
-     * holds uncommitted files or unmerged commits and `force` is not set, while its owner's
-     * agent is mid-turn in it, or when git can't be read.
+     * Closes the worktree as the person asks. Without `force`, one that holds uncommitted
+     * files or unmerged commits is answered `closed: false` with what it holds. `CONFLICT`
+     * (its message says why) while its owner's agent is working in it, when git can't be read
+     * or it has submodules.
      */
-    close(
-      root: string,
-      force?: boolean,
-    ): Promise<{
-      readonly kept?: string | undefined
-      readonly keptHead?: string | undefined
-      readonly branchDeleted: boolean
-    }>
+    close(root: string, force?: boolean): Promise<WorkClosing>
   }
   /**
    * What agents show and the person attaches beside terminals: items, each held by a

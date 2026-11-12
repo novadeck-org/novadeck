@@ -268,6 +268,11 @@ export type DemoWorksControl = {
   readonly openClean: (at: Placed) => void
   // The worktree has no owner.
   readonly orphan: (root: string) => void
+  // Its owner is closed, in History: the row still names an owner, no terminal of the project.
+  readonly ownerClosed: (root: string) => void
+  // The terminal's worktree differs from nothing but has `count` commits main lacks, as one
+  // whose commits net to nothing does.
+  readonly commitsMainLacks: (at: Placed, count: number) => void
   // The owner's agent is mid-turn in the terminal's first worktree, or no longer.
   readonly setWorking: (terminalId: string, working: boolean) => void
   // The next close is refused, as when git status couldn't be read.
@@ -314,6 +319,8 @@ export const createDemoWorks = (
   const { now = Date.now, show } = options
   const state = createStore<WorksState>({ works: initial, synced: true })
   let refuse = false
+  // The commits main lacks of worktrees that differ from it in no file, by root.
+  const unmerged = new Map<string, number>()
   const change = (root: string, step: (work: Work) => Work): void => {
     state.update((current) => ({
       ...current,
@@ -354,7 +361,8 @@ export const createDemoWorks = (
     look: (root) => change(root, looked),
     show: (root, terminalId) => {
       const work = find(root)
-      const on = work?.terminalId ?? terminalId
+      // The terminal the panel names: the owner's, or the selected one's where the owner is closed.
+      const on = terminalId ?? work?.terminalId ?? undefined
       return work && show && on !== undefined ? show(work, on) : Promise.resolve(null)
     },
     close: async (root, force = false) => {
@@ -368,15 +376,23 @@ export const createDemoWorks = (
         refuse = false
         throw new Error(closeRefusal)
       }
-      const holds = work.files.length > 0 || work.truncated
-      if (holds && !force)
-        throw new Error(
-          `The worktree holds ${work.files.length} changed file${work.files.length === 1 ? "" : "s"}, so it stays.`,
-        )
+      const commits = unmerged.get(root) ?? 0
+      const files = work.files.length
+      const holds = [
+        ...(files > 0 || work.truncated
+          ? [`${files} changed file${files === 1 ? "" : "s"}${work.truncated ? " or more" : ""}`]
+          : []),
+        ...(commits > 0
+          ? [`${commits} commit${commits === 1 ? "" : "s"} the main branch doesn't have`]
+          : []),
+      ].join(" and ")
+      if (holds !== "" && !force) return { closed: false, holds }
+      unmerged.delete(root)
       state.update((current) => drop(current, root))
       return {
-        ...(holds && { kept: `refs/novadeck/kept/${work.branch ?? "detached"}` }),
-        branchDeleted: !holds,
+        closed: true,
+        ...(holds !== "" && { kept: `refs/novadeck/kept/${slug(work.branch ?? "detached")}-work` }),
+        branchDeleted: holds === "",
       }
     },
     gain: (at, lines = turnLines) => {
@@ -401,7 +417,8 @@ export const createDemoWorks = (
       change(theirs.root, (work) => withConflict(work, mine))
     },
     settle: (root) => change(root, settled),
-    merge: (root) =>
+    merge: (root) => {
+      unmerged.delete(root)
       state.update((current) => ({
         ...current,
         works: current.works.map((work) =>
@@ -414,10 +431,23 @@ export const createDemoWorks = (
                 ),
               },
         ),
-      })),
+      }))
+    },
     openClean: (at) => {
       const { root } = ensure(at)
+      unmerged.delete(root)
       change(root, merged)
+    },
+    ownerClosed: (root) =>
+      change(root, (work) => ({
+        ...work,
+        terminalId: `closed-${slug(root)}`,
+        working: false,
+      })),
+    commitsMainLacks: (at, count) => {
+      const { root } = ensure(at)
+      change(root, merged)
+      unmerged.set(root, count)
     },
     orphan: (root) => change(root, (work) => ({ ...work, terminalId: null, working: false })),
     setWorking: (terminalId, working) => {
@@ -427,7 +457,10 @@ export const createDemoWorks = (
     refuseNextClose: () => {
       refuse = true
     },
-    remove: (root) => state.update((current) => drop(current, root)),
+    remove: (root) => {
+      unmerged.delete(root)
+      state.update((current) => drop(current, root))
+    },
     removeAll: (projectId) =>
       state.update((current) => ({
         ...current,

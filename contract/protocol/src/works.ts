@@ -67,7 +67,21 @@ export const workChange = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("synced") }),
 ])
 
+// What `works.close` answers: the worktree closed (with where its uncommitted work, and commits
+// only a detached HEAD reached, were kept, and whether its branch went), or, without `force`,
+// not closed because it holds something the person should say yes to first.
+export const workClosing = z.discriminatedUnion("closed", [
+  z.strictObject({
+    closed: z.literal(true),
+    kept: z.string().min(1).max(workLimits.path).optional(),
+    keptHead: z.string().min(1).max(workLimits.path).optional(),
+    branchDeleted: z.boolean(),
+  }),
+  z.strictObject({ closed: z.literal(false), holds: z.string().min(1).max(512) }),
+])
+
 export type WorkFile = z.infer<typeof workFile>
 export type WorkConflict = z.infer<typeof workConflict>
 export type Work = z.infer<typeof work>
 export type WorkChange = z.infer<typeof workChange>
+export type WorkClosing = z.infer<typeof workClosing>

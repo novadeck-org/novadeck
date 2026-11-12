@@ -511,13 +511,20 @@ with every safety check again at that time:
   person as the actor, through the worktrees service's removal (see "Worktrees": uncommitted work, and commits only a detached HEAD reaches, are kept on
   `refs/novadeck/kept/` refs, and the branch goes only when Novadeck made it and main holds all of
   it). The panel
-  asks first when files differ from main (committed work stays on the branch, uncommitted work is
-  kept on a ref, ignored files like `.env` are not kept); the close is queued in the worktrees
-  service, so it can't race an agent's take, give or close and forces the close once confirmed; the ×
-  waits while `working`, and the runner refuses it then too. A refusal (`CONFLICT`, with the
-  service's reason, such as git status being unreadable) shows above the list. With no works the
-  list says what appears there, and, with the switch off, to turn on Agent worktrees in Preferences →
-  Experimental. A closed worktree's memory goes with it (`works.json` and its snapshot).
+  always asks the runner to close unforced; the runner's own standing decides, not the files the row
+  lists. A worktree is merged when HEAD is an ancestor of main, or merging it changes nothing (the
+  test Works uses, so squash and rebase merges count) and holds no uncommitted file, and then it
+  closes with no question. Otherwise the runner answers `closed: false` with what it holds, and the
+  panel asks (committed work stays on the branch, uncommitted work and commits only a detached HEAD
+  reaches are kept on refs, ignored files like `.env` are not kept), forcing the close only once
+  confirmed. The close is queued in the worktrees service (the row looked up there, and a fresh check
+  that no terminal's current checkout is the worktree with its agent working or a command running),
+  so it can't race an agent's take, give or close; a command run elsewhere with `git -C` into it is
+  not seen. The × waits while `working`. A refusal (`CONFLICT`, with the service's reason: git
+  status unreadable, submodules) shows above the list, as does a work that can't be shown; a
+  worktree an agent closed meanwhile counts as closed. A work whose owner is closed (in History)
+  shows on the selected terminal's bar. With no works the list says what appears there, and, with
+  the switch off, to turn on Agent worktrees in Preferences → Experimental. A closed worktree's memory goes with it (`works.json` and its snapshot).
 
   The files the person read are kept in the same memory file (`works.json`), each by its object
   as the change listed it (all zeros for a file deleted): `companions.changeRead` marks one,

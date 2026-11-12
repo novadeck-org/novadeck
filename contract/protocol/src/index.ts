@@ -99,6 +99,7 @@ export {
   type Work,
   work,
   type WorkChange,
+  type WorkClosing,
   workChange,
   type WorkConflict,
   workConflict,

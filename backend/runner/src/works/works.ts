@@ -49,7 +49,13 @@ export type Removal =
       readonly keptHead?: string
       readonly branchDeleted: boolean
     }
-  | { readonly ok: false; readonly reason: string }
+  /** Refused; `holds` says what the worktree holds where only that stands in the way of `force`. */
+  | { readonly ok: false; readonly reason: string; readonly holds?: string }
+
+/** What closing a work comes to for the person: closed, or in need of their say first. */
+export type WorkClosing =
+  | { readonly closed: true; kept?: string; keptHead?: string; branchDeleted: boolean }
+  | { readonly closed: false; readonly holds: string }
 
 export type WorksOptions = {
   /** The worktrees Novadeck tracks, whether or not agent worktrees are on: the works. */
@@ -58,7 +64,10 @@ export type WorksOptions = {
   readonly presences: () => Promise<readonly Presence[]>
   /** Shows the work's changes on the terminal's bar; resolves to the item's id. */
   readonly show: (terminalId: string, root: string) => Promise<string>
-  /** Closes the tracked worktree at `root` for the person (`Worktrees.close`). */
+  /**
+   * Closes the tracked worktree at `root` for the person, in the worktrees service's queue,
+   * after checking there that no agent works in it now (`Worktrees.closeAt`).
+   */
   readonly remove: (root: string, force: boolean) => Promise<Removal>
   /** What takes the checkouts' working trees as trees, shared with the changes items. */
   readonly snapshots: Snapshots
@@ -140,6 +149,8 @@ export class Works {
   /** The works told, by root. */
   private readonly published = new Map<string, Work>()
   private readonly roots = new Map<string, RootState>()
+  /** The roots tracked as of the last pass: one that leaves was closed, by whoever. */
+  private lastTracked = new Set<string>()
   /** The conflicts found between two snapshots, by their commits. */
   private readonly pairs = new Map<string, readonly string[]>()
   private readonly every: number
@@ -228,25 +239,34 @@ export class Works {
 
   /**
    * Shows the work at `root` as a changes item on its owner's bar, or on `terminalId`'s where
-   * it has no owner; NOT_FOUND without a work, or without a terminal to show it on.
+   * it has no owner or its owner has no bar (it is closed, in History); NOT_FOUND without a
+   * work, or without a terminal to show it on.
    */
   async show(root: string, terminalId?: string): Promise<{ readonly itemId: string }> {
     const work = await this.workOf(root)
     const on = work.terminalId ?? terminalId
     if (on === undefined)
       throw new DomainError("NOT_FOUND", "That work has no terminal to show it on.")
-    return { itemId: await this.options.show(on, work.root) }
+    try {
+      return { itemId: await this.options.show(on, work.root) }
+    } catch (error) {
+      if (
+        !(error instanceof DomainError && error.code === "TERMINAL_NOT_FOUND") ||
+        terminalId === undefined ||
+        terminalId === on
+      )
+        throw error
+      return { itemId: await this.options.show(terminalId, work.root) }
+    }
   }
 
   /**
-   * Closes the worktree of the work at `root` for the person: refused (CONFLICT, saying why)
-   * unless `force` while it holds files or commits main lacks, and while its owner's agent is
-   * mid-turn in it. What it remembered of it goes with it.
+   * Closes the worktree of the work at `root` for the person. Without `force`, one that holds
+   * files or commits main lacks is not closed but answered with what it holds, for the person to
+   * confirm; any other refusal (its owner's agent is working in it, git couldn't be read) is a
+   * CONFLICT saying why. What it remembered of the root goes with it.
    */
-  async closeWork(
-    root: string,
-    force: boolean,
-  ): Promise<{ kept?: string; keptHead?: string; branchDeleted: boolean }> {
+  async closeWork(root: string, force: boolean): Promise<WorkClosing> {
     const work = await this.workOf(root)
     if (work.working)
       throw new DomainError(
@@ -254,13 +274,17 @@ export class Works {
         "Its agent is working in that worktree right now: wait for its turn to end.",
       )
     const closed = await this.options.remove(root, force)
-    if (!closed.ok) throw new DomainError("CONFLICT", closed.reason)
+    if (!closed.ok) {
+      if (closed.holds !== undefined && !force) return { closed: false, holds: closed.holds }
+      throw new DomainError("CONFLICT", closed.reason)
+    }
     await this.exclusive(async () => {
       this.roots.delete(root)
       this.options.snapshots.forget(root)
       await this.pass(new Set())
     })
     return {
+      closed: true,
       ...(closed.kept !== undefined && { kept: closed.kept }),
       ...(closed.keptHead !== undefined && { keptHead: closed.keptHead }),
       branchDeleted: closed.branchDeleted,
@@ -364,7 +388,15 @@ export class Works {
     for (let at = 0; at < due.length; at += 4)
       // eslint-disable-next-line no-await-in-loop -- A few checkouts at once.
       await Promise.all(due.slice(at, at + 4).map((root) => this.readRoot(root)))
-    this.forgetAbandoned(new Set(tracked.map(({ root }) => root)))
+    const tracking = new Set(tracked.map(({ root }) => root))
+    // A worktree closed (by the person, an agent's close, or cleanup) takes its memory with it.
+    for (const root of this.lastTracked)
+      if (!tracking.has(root)) {
+        this.roots.delete(root)
+        this.options.snapshots.forget(root)
+      }
+    this.lastTracked = tracking
+    this.forgetAbandoned(tracking, new Set(presences.map((each) => each.root)))
     const found = await this.compose(tracked, presences)
     this.publish(found)
     this.remember()
@@ -618,8 +650,9 @@ export class Works {
   }
 
   /** Forgets the checkouts that are no tracked worktree, but the latest few that have a memory. */
-  private forgetAbandoned(tracked: ReadonlySet<string>): void {
-    const abandoned = [...this.roots].filter(([root]) => !tracked.has(root))
+  private forgetAbandoned(tracked: ReadonlySet<string>, inUse: ReadonlySet<string>): void {
+    // The checkouts terminals work in now stay, as a changes item reads their files' marks.
+    const abandoned = [...this.roots].filter(([root]) => !tracked.has(root) && !inUse.has(root))
     const keep = abandoned
       .filter(([, state]) => state.remembered)
       .toSorted(([, a], [, b]) => b.remembered!.firstSeenAt - a.remembered!.firstSeenAt)

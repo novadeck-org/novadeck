@@ -329,11 +329,18 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     },
     // The person is the actor: whoever owns the worktree, it closes on their say, in the
     // service's own queue, so it can't race an agent's take, give or close.
-    remove: async (root, force) => {
-      const row = worktrees.at(root)
-      if (!row) return { ok: false, reason: "Novadeck no longer tracks that worktree." }
-      return worktrees.remove(row, force)
-    },
+    remove: (root, force) =>
+      worktrees.closeAt(root, force, async (row) => {
+        // Read afresh in the queue: a turn may have started since the person asked. A shell
+        // command or agent whose current checkout is the worktree counts, whoever's it is. (A
+        // command run elsewhere with `git -C` into it can't be seen.)
+        const busy = (await terminals.checkouts()).some(
+          (each) => each.root === row.path && each.working,
+        )
+        return busy
+          ? "An agent is working in that worktree right now: wait for its turn to end."
+          : undefined
+      }),
     snapshots,
     ...(memory !== undefined && { memory }),
   })

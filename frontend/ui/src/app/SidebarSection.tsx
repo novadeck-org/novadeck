@@ -184,23 +184,18 @@ export const SidebarSection = memo((): React.JSX.Element => {
   )
   const selectedId = useWorkspaceState((workspace) => currentState(workspace).selected)
   const { revealTerminal, openBarTab } = commands
-  // A work is shown on its owner's bar, or, with no owner, on the selected terminal's.
+  // A work is shown on the bar of the terminal the panel names (its owner's, or the selected
+  // terminal's where it has none or its owner is closed). A failure reaches the panel.
   const showWork = useCallback(
-    (work: Work) => {
+    async (work: Work, terminalId: string | undefined): Promise<void> => {
       if (!worksFeed) return
-      const terminalId = work.terminalId ?? selectedId
-      if (terminalId !== undefined) {
-        revealTerminal(terminalId, projectId)
-        worksFeed.show(work.root, terminalId).then(
-          (itemId) => {
-            if (itemId !== null) openBarTab(terminalId, itemIdOf(itemId))
-          },
-          () => {},
-        )
-      }
       worksFeed.look(work.root)
+      if (terminalId === undefined) return
+      revealTerminal(terminalId, projectId)
+      const itemId = await worksFeed.show(work.root, terminalId)
+      if (itemId !== null) openBarTab(terminalId, itemIdOf(itemId))
     },
-    [worksFeed, revealTerminal, openBarTab, projectId, selectedId],
+    [worksFeed, revealTerminal, openBarTab, projectId],
   )
   const worktreesOn = useStoreSelector(backend.worktrees?.enabled ?? noWorktrees, (on) => on)
   const agentWorktrees: "on" | "off" | "absent" = backend.worktrees

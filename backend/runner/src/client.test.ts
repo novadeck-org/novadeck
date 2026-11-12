@@ -1597,15 +1597,18 @@ describe("runner client works", () => {
     })
 
     await writeFile(join(worktree, "new.txt"), "new\n")
-    await expect(client.works.close(worktree)).rejects.toMatchObject({
-      message: expect.stringContaining("uncommitted"),
+    // Unforced it is not closed, and says what it holds for the person to confirm.
+    expect(await client.works.close(worktree)).toEqual({
+      closed: false,
+      holds: expect.stringContaining("uncommitted"),
     })
     expect(existsSync(worktree)).toBe(true)
     await expect(client.works.close(join(directory, "nowhere"))).rejects.toMatchObject({
       code: "NOT_FOUND",
     })
     const closed = await client.works.close(worktree, true)
-    expect(closed.kept).toMatch(/^refs\/novadeck\/kept\/feat-x-work-/)
+    expect(closed).toMatchObject({ closed: true })
+    expect(closed.closed && closed.kept).toMatch(/^refs\/novadeck\/kept\/feat-x-work-/)
     expect(existsSync(worktree)).toBe(false)
     for (;;) {
       // eslint-disable-next-line no-await-in-loop -- Events arrive in order.

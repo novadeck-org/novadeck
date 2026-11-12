@@ -264,7 +264,7 @@ describe("Works", () => {
         }),
         close: api.works.close.handler(({ input }) => {
           closed.push(input)
-          return { kept: "refs/novadeck/kept/x", branchDeleted: false }
+          return { closed: true as const, kept: "refs/novadeck/kept/x", branchDeleted: false }
         }),
       },
     })
@@ -282,6 +282,7 @@ describe("Works", () => {
     expect(await runner.works.show(root, terminalId)).toEqual({ itemId: terminalId })
     expect(shown).toEqual([{ root, terminalId }])
     expect(await runner.works.close(root, true)).toEqual({
+      closed: true,
       kept: "refs/novadeck/kept/x",
       branchDeleted: false,
     })

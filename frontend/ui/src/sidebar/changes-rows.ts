@@ -23,10 +23,10 @@ export type BranchView =
   | { readonly kind: "file"; readonly file: FileView }
   | { readonly kind: "more"; readonly text: string }
 
-// What a row's × does: closes the worktree at once (nothing to lose), asks first (files differ
-// from main: uncommitted work, or commits main lacks), or is not available because the owner's
-// agent is mid-turn in it.
-export type CloseMode = "close" | "confirm" | "busy"
+// What a row's × does: asks the runner to close the worktree, which answers at once or says what
+// it holds for the person to confirm; or is not available because the owner's agent is
+// mid-turn in it. Whether to ask is the runner's to say, not the row's files.
+export type CloseMode = "close" | "busy"
 
 export type ChangeRow = {
   readonly work: Work
@@ -86,6 +86,12 @@ export const branchViews = (
   return rows
 }
 
+// Whether the owner is a terminal of the project still open, which has a bar to show a work on.
+export const ownerOpen = (
+  terminalId: string | null,
+  titles: ReadonlyMap<string, string>,
+): boolean => terminalId !== null && titles.has(terminalId)
+
 // Whose a work is, as a row names it: its owner's title, "Closed terminal" for an owner no
 // longer among the project's terminals (it is in History), "No owner" without one.
 export const ownerTitle = (
@@ -114,10 +120,8 @@ export const conflictWords = (
   return `Conflicts with ${names.join(", ")}`
 }
 
-// What its × does: asks first while the work differs from main in any file (or lists only
-// part of them), and waits while the owner's agent is working in the worktree.
-export const closeMode = (work: Work): CloseMode =>
-  work.working ? "busy" : work.files.length > 0 || work.truncated ? "confirm" : "close"
+// What its × does: waits while the owner's agent is working in the worktree.
+export const closeMode = (work: Work): CloseMode => (work.working ? "busy" : "close")
 
 // Which work's row is the selected one: the one last clicked while the terminal it was shown
 // on is still the selected terminal, else the first work the selected terminal owns.

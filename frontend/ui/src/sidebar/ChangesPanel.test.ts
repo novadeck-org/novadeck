@@ -1,4 +1,4 @@
-import type { Work } from "@novadeck/core/works"
+import type { Work, WorkClosing } from "@novadeck/core/works"
 import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
@@ -36,13 +36,18 @@ const show = (
   works: readonly Work[],
   options: {
     agentWorktrees?: "on" | "off" | "absent"
-    close?: (root: string, force: boolean) => Promise<{ branchDeleted: boolean }>
+    close?: (root: string, force: boolean) => Promise<WorkClosing>
+    select?: () => Promise<void>
+    // The titles of terminals still open; every owner's by default.
+    open?: readonly string[]
     selectedId?: string
   } = {},
 ) => {
-  const onSelect = vi.fn<(work: Work) => void>()
-  const onCloseWork = vi.fn<(root: string, force: boolean) => Promise<{ branchDeleted: boolean }>>(
-    options.close ?? (async () => ({ branchDeleted: false })),
+  const onSelect = vi.fn<(work: Work, on: string | undefined) => Promise<void>>(
+    options.select ?? (async () => {}),
+  )
+  const onCloseWork = vi.fn<(root: string, force: boolean) => Promise<WorkClosing>>(
+    options.close ?? (async () => ({ closed: true, branchDeleted: false })),
   )
   const page = render(
     createElement(ChangesPanel, {
@@ -51,7 +56,9 @@ const show = (
       watch: () => () => {},
       titles: new Map(
         works.flatMap((each) =>
-          each.terminalId ? [[each.terminalId, `Title ${each.terminalId}`] as const] : [],
+          each.terminalId && (options.open ?? [each.terminalId]).includes(each.terminalId)
+            ? [[each.terminalId, `Title ${each.terminalId}`] as const]
+            : [],
         ),
       ),
       selectedId: options.selectedId,
@@ -96,7 +103,29 @@ describe("the Changes panel's rows", () => {
   it("shows the work on click, by the work itself", () => {
     const { row, onSelect } = show([work("a")])
     act(() => row("a").querySelector<HTMLButtonElement>(".sidebar-item-select")!.click())
-    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ root: "/w/a" }))
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ root: "/w/a" }), "t-a")
+  })
+
+  it("shows a work whose owner is closed, or has none, on the selected terminal's bar", () => {
+    const { row, onSelect } = show([work("a"), work("b", { terminalId: null })], {
+      selectedId: "t-sel",
+      open: [],
+    })
+    act(() => row("a").querySelector<HTMLButtonElement>(".sidebar-item-select")!.click())
+    act(() => row("b").querySelector<HTMLButtonElement>(".sidebar-item-select")!.click())
+    expect(onSelect.mock.calls.map(([, on]) => on)).toEqual(["t-sel", "t-sel"])
+    expect(row("a").querySelector("strong")?.textContent).toBe("Closed terminal")
+  })
+
+  it("says why a work can't be shown, rather than leaving the click silent", async () => {
+    const { row, page } = show([work("a")], {
+      select: () => Promise.reject(new Error("That terminal is gone.")),
+    })
+    act(() => row("a").querySelector<HTMLButtonElement>(".sidebar-item-select")!.click())
+    await eventually(() => expect(page.container.querySelector("[role=alert]")).not.toBeNull())
+    expect(page.container.querySelector("[role=alert]")!.textContent).toContain(
+      "can't be shown: That terminal is gone.",
+    )
   })
 
   it("marks only one of a terminal's worktrees selected", () => {
@@ -109,20 +138,38 @@ describe("the Changes panel's rows", () => {
 })
 
 describe("the × on a row", () => {
-  it("closes a worktree that differs from nothing at once", async () => {
+  const holding = async () =>
+    ({ closed: false, holds: "2 changed files and 1 commit the main branch doesn't have" }) as const
+
+  it("asks the runner to close, unforced, and closes at once when it did", async () => {
     const { cross, onCloseWork } = show([clean("a")])
     act(() => cross("a").click())
     expect(onCloseWork).toHaveBeenCalledWith("/w/a", false)
+    await Promise.resolve()
     expect(dialog()).toBeNull()
   })
 
-  it("asks first when files differ from main, saying what is kept", async () => {
-    const { cross, onCloseWork } = show([work("a")])
+  it("asks the runner even for a work with files: it is the runner's standing that decides", async () => {
+    const { cross, onCloseWork } = show([work("a")], {
+      close: async () => ({ closed: true, branchDeleted: true }),
+    })
+    act(() => cross("a").click())
+    expect(onCloseWork).toHaveBeenCalledWith("/w/a", false)
+    await Promise.resolve()
+    expect(dialog()).toBeNull()
+  })
+
+  it("asks first when the runner says it holds something, saying what, and forces only once confirmed", async () => {
+    const { cross, onCloseWork } = show([clean("a")], {
+      close: (_root, force) =>
+        force ? Promise.resolve({ closed: true, branchDeleted: false }) : holding(),
+    })
     act(() => cross("a").click())
     await eventually(() => expect(dialog()).not.toBeNull())
-    expect(onCloseWork).not.toHaveBeenCalled()
+    expect(onCloseWork).toHaveBeenCalledTimes(1)
     const text = dialog()!.textContent!
     expect(text).toContain("Close this worktree?")
+    expect(text).toContain("2 changed files and 1 commit the main branch doesn't have")
     expect(text).toContain("Committed work stays on the branch feat/a.")
     expect(text).toContain(
       "Uncommitted work, and commits only a detached HEAD reaches, are kept on a ref",
@@ -130,15 +177,33 @@ describe("the × on a row", () => {
     expect(text).toContain("refs/novadeck/kept/")
     expect(text).toContain("Ignored files, such as .env, are not kept.")
     act(() => answer("Close worktree").click())
-    expect(onCloseWork).toHaveBeenCalledWith("/w/a", true)
+    expect(onCloseWork).toHaveBeenLastCalledWith("/w/a", true)
+  })
+
+  it("words the dialog for a detached worktree, which has no branch", async () => {
+    const { cross } = show([work("a", { branch: null })], { close: holding })
+    act(() => cross("a").click())
+    await eventually(() => expect(dialog()).not.toBeNull())
+    expect(dialog()!.textContent).not.toContain("stays on the branch")
+    expect(dialog()!.textContent).toContain("commits only a detached HEAD reaches")
   })
 
   it("keeps the worktree when the person keeps it", async () => {
-    const { cross, onCloseWork } = show([work("a")])
+    const { cross, onCloseWork } = show([work("a")], { close: holding })
     act(() => cross("a").click())
     await eventually(() => expect(dialog()).not.toBeNull())
     act(() => answer("Keep it").click())
-    expect(onCloseWork).not.toHaveBeenCalled()
+    expect(onCloseWork).toHaveBeenCalledTimes(1)
+  })
+
+  it("takes a worktree an agent closed meanwhile as closed, with no complaint", async () => {
+    const { cross, page } = show([work("a")], {
+      close: () =>
+        Promise.reject(Object.assign(new Error("Novadeck tracks none"), { code: "NOT_FOUND" })),
+    })
+    act(() => cross("a").click())
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(page.container.querySelector("[role=alert]")).toBeNull()
   })
 
   it("waits while the owner's agent works in the worktree, and says why", () => {

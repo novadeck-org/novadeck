@@ -68,7 +68,7 @@ import {
   terminalMoved,
 } from "./terminals.js"
 import { maxTranscriptImages, transcriptChange, transcriptImageResult } from "./transcripts.js"
-import { workChange, workLimits } from "./works.js"
+import { workChange, workClosing } from "./works.js"
 
 export const errors = {
   ...wireErrors,
@@ -542,22 +542,16 @@ export const contract = {
     show: procedure
       .input(z.strictObject({ root: directory, terminalId: id.optional() }))
       .output(z.strictObject({ itemId: id })),
-    // Closes the worktree on the person's say: its uncommitted work is kept on a ref, its
-    // folder removed, and its branch deleted only when the main branch holds all of it. It
-    // is refused (CONFLICT, saying why) while it holds uncommitted files or commits main
-    // lacks, unless `force`; while its owner's agent is mid-turn in it; and when git can't
-    // be read. A root with no work is NOT_FOUND.
+    // Closes the worktree on the person's say: its uncommitted work (and commits only a
+    // detached HEAD reaches) is kept on a ref, its folder removed, and its branch deleted only
+    // when Novadeck made it and the main branch holds all of it (squash merges count). Without
+    // `force` a worktree that holds uncommitted files or commits main lacks is not closed but
+    // answered `closed: false` with what it holds, for the person to confirm. Refused as a
+    // CONFLICT, saying why, while its owner's agent is working in it, and when git can't be
+    // read or it has submodules. A root with no work is NOT_FOUND.
     close: procedure
       .input(z.strictObject({ root: directory, force: z.boolean().optional() }))
-      .output(
-        z.strictObject({
-          // The ref the uncommitted work was kept at, where there was any.
-          kept: z.string().min(1).max(workLimits.path).optional(),
-          // The ref commits only a detached HEAD reached were kept at, where there were any.
-          keptHead: z.string().min(1).max(workLimits.path).optional(),
-          branchDeleted: z.boolean(),
-        }),
-      ),
+      .output(workClosing),
   },
   // What agents show and the person attaches beside terminals: items held by a terminal's
   // bar or an undocked window, kept across restarts as pointers to files, pages and plans.

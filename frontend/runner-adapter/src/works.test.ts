@@ -1,4 +1,4 @@
-import type { Work } from "@novadeck/protocol"
+import type { Work, WorkClosing } from "@novadeck/protocol"
 import type { WorkWatchItem } from "@novadeck/runner-client"
 import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
@@ -31,7 +31,7 @@ const work = (n: number, change: Partial<Work> = {}): Work => ({
 const followed = (
   calls: {
     look?: (root: string) => Promise<void>
-    close?: (root: string, force?: boolean) => Promise<{ branchDeleted: boolean; kept?: string }>
+    close?: (root: string, force?: boolean) => Promise<WorkClosing>
   } = {},
 ) => {
   const stream = channel<WorkWatchItem>()
@@ -44,7 +44,7 @@ const followed = (
       shown.push(terminalId === undefined ? at : `${at} on ${terminalId}`),
       { itemId: `item-${at}` }
     ),
-    close: calls.close ?? (async () => ({ branchDeleted: false })),
+    close: calls.close ?? (async () => ({ closed: true as const, branchDeleted: false })),
   })
   const release = works.watch()
   const ids = () =>
@@ -134,7 +134,7 @@ describe("Works, as the runner reports them", () => {
       watch: () => ((watches += 1), channel<WorkWatchItem>().iterator),
       look: async () => {},
       show: async () => ({ itemId: "x" }),
-      close: async () => ({ branchDeleted: false }),
+      close: async () => ({ closed: true as const, branchDeleted: false }),
     })
     expect(watches).toBe(0)
   })
@@ -221,13 +221,14 @@ describe("looking at and showing a work", () => {
       close: async (at, force) => {
         closed.push([at, force])
         if (!force) throw new WireError("CONFLICT", "The worktree holds 2 uncommitted files.")
-        return { kept: "refs/novadeck/kept/feature", branchDeleted: false }
+        return { closed: true, kept: "refs/novadeck/kept/feature", branchDeleted: false }
       },
     })
     await expect(works.close(root(1))).rejects.toMatchObject({
       message: "The worktree holds 2 uncommitted files.",
     })
     expect(await works.close(root(1), true)).toEqual({
+      closed: true,
       kept: "refs/novadeck/kept/feature",
       branchDeleted: false,
     })

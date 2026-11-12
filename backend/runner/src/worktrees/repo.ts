@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { basename, dirname, join } from "node:path"
 
 import { git, type Run } from "../checkouts/git.js"
-import { commonDir, mainBranch, mergeBase, type Main } from "../checkouts/repository.js"
+import { commonDir, mainBranch, mergeBase, mergeTrees, type Main } from "../checkouts/repository.js"
 
 // Git, run for the worktrees agents open, take and close.
 
@@ -142,7 +142,10 @@ export type Standing = {
   readonly dirty: number
   /** Commits on HEAD that the main branch doesn't have; null where that can't be told. */
   readonly ahead: number | null
-  /** Whether HEAD is an ancestor of the main branch: it holds nothing beyond its history. */
+  /**
+   * Whether the main branch holds all of HEAD: HEAD is its ancestor, or merging HEAD into it
+   * changes nothing (a squash or rebase merge). Then there is nothing beyond it to lose.
+   */
   readonly inMain: boolean
 }
 
@@ -169,7 +172,19 @@ export const standingOf = async (path: string): Promise<Standing> => {
   if (!main) return { main, readable: true, why: "", dirty, ahead: null, inMain: false }
   const count = line(await git(path, ["rev-list", "--count", `${main.commit}..HEAD`], small))
   const ahead = count === undefined ? null : Number(count)
-  return { main, readable: true, why: "", dirty, ahead, inMain: ahead === 0 }
+  // Commits main lacks by hash may still be in it by content: squash- and rebase-merged.
+  const inMain = ahead === 0 || (ahead !== null && (await mergedInto(path, "HEAD", main)))
+  return { main, readable: true, why: "", dirty, ahead, inMain }
+}
+
+/**
+ * Whether merging `ref` into the main branch would change nothing: the same test the Changes
+ * panel's Works uses (`merge-tree` is clean and gives the main branch's own tree). That is so
+ * for a branch merged by any means, squash and rebase merges included.
+ */
+const mergedInto = async (folder: string, ref: string, main: Main): Promise<boolean> => {
+  const merge = await mergeTrees(folder, main.commit, ref)
+  return merge.state === "clean" && merge.tree === main.tree
 }
 
 /** Whether the worktree has submodules checked out, whose commits a removal would lose. */
@@ -179,9 +194,13 @@ export const hasSubmodules = async (path: string): Promise<boolean | undefined> 
   return run.out.split("\n").some((each) => each !== "" && !each.startsWith("-"))
 }
 
-/** Whether every commit of `ref` is in the main branch's history. */
+/**
+ * Whether the main branch holds all of `ref`: every commit is in its history, or merging it
+ * changes nothing (squash- and rebase-merged work, which git's own check calls unmerged).
+ */
 export const heldByMain = async (folder: string, ref: string, main: Main): Promise<boolean> =>
-  line(await git(folder, ["rev-list", "--count", `${main.commit}..${ref}`], small)) === "0"
+  line(await git(folder, ["rev-list", "--count", `${main.commit}..${ref}`], small)) === "0" ||
+  (await mergedInto(folder, ref, main))
 
 /** The commit a worktree adopted from elsewhere started from: where it left the main branch. */
 export const startOf = async (path: string): Promise<string> => {

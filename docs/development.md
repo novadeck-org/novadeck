@@ -290,7 +290,7 @@ Terminals:
   read row back above the line with the brief wash; Many files changed gives the unfolded row its
   "+N more"; the conflict actions turn the icon and the file names red, with what it conflicts with
   on hover; Work merged empties the row (a worktree with no files stays, and its × closes it at
-  once), and Mark read moves it below the line. Worktree just made and Worktree with changes show the
+  once), and Mark read moves it below the line. Commits main lacks gives a worktree with no changed files but two commits main lacks (its × asks, naming them); Owner in History names it "Closed terminal" and shows it on the selected terminal's bar. Worktree just made and Worktree with changes show the
   two sides of the ×: closing at once, and the confirm dialog saying what is kept. No owner reads
   "No owner" (click it to show it on the selected terminal's bar). Owner working in it and Owner
   done dim and restore the × (hover it for why). Refuse the next close shows the refusal above the

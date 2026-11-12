@@ -3,7 +3,7 @@ import type { ClosedTerminal } from "@novadeck/core/history"
 import type { AgentConnection } from "@novadeck/core/port"
 import type { SourceListing, SourceProject } from "@novadeck/core/source"
 import type { SidebarPanel as PanelId, Tile, WorkspaceSession } from "@novadeck/core/types"
-import type { Work, WorkClosed } from "@novadeck/core/works"
+import type { Work, WorkClosing } from "@novadeck/core/works"
 import { Plus } from "lucide-react"
 import type { ComponentProps } from "react"
 
@@ -70,8 +70,8 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
         titles: ReadonlyMap<string, string>
         selectedId: string | undefined
         agentWorktrees: "on" | "off" | "absent"
-        onSelect: (work: Work) => void
-        onCloseWork: (root: string, force: boolean) => Promise<WorkClosed>
+        onSelect: (work: Work, on: string | undefined) => Promise<void>
+        onCloseWork: (root: string, force: boolean) => Promise<WorkClosing>
       }
     | undefined
   onSessionSelect: (id: string) => void

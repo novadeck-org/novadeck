@@ -51,7 +51,7 @@ describe("the debug panel's Changes group", () => {
         watch: () => () => {},
         look: () => {},
         show: async () => null,
-        close: async () => ({ branchDeleted: false }),
+        close: async () => ({ closed: true, branchDeleted: false }),
       }),
     ).toEqual([])
   })
@@ -115,6 +115,16 @@ describe("the debug panel's Changes group", () => {
     expect(work(1)?.files).toEqual([])
     run("Worktree with changes", 1)
     expect(work(1)!.files.length).toBeGreaterThan(0)
+  })
+
+  it("leaves a worktree with commits main lacks, or whose owner is in History", () => {
+    const { run, work, works } = setup([])
+    run("Commits main lacks", 1)
+    expect(work(1)?.files).toEqual([])
+    run("Owner in History", 2)
+    expect(
+      works.state.getSnapshot().works.some((each) => each.terminalId?.startsWith("closed-")),
+    ).toBe(true)
   })
 
   it("leaves a worktree with no owner, or with its owner working in it", () => {

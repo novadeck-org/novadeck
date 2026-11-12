@@ -42,6 +42,12 @@ export type WorktreesHost = {
 type Failure = { readonly ok: false; readonly reason: string }
 const refused = (reason: string): Failure => ({ ok: false, reason })
 
+/** A close refused only for what the worktree holds, which `force` would keep on refs. */
+type Holding = Failure & {
+  /** What it holds, as the person reads it ("2 uncommitted or untracked paths"). */
+  readonly holds: string
+}
+
 /** The instruction files at a worktree's top, which harnesses don't load from an added folder. */
 const instructionFiles = ["AGENTS.md", "CLAUDE.md", "GEMINI.md"] as const
 
@@ -72,8 +78,11 @@ export type Closed =
       /** The ref HEAD was kept at, where only a detached HEAD or a stopped rebase reached it. */
       readonly keptHead?: string
       readonly branchDeleted: boolean
+      /** Nothing was there to close: the worktree was no longer tracked. */
+      readonly already?: true
     }
   | Failure
+  | Holding
 
 /** A path made safe as one folder name: letters, digits, dots, dashes and underscores. */
 export const folderName = (text: string): string =>
@@ -381,6 +390,25 @@ export class Worktrees {
     })
   }
 
+  /**
+   * Closes the worktree at `path` on the person's say, whoever owns it. The row is looked up
+   * in the queue, so a take, give or close that ran before is seen; one no longer tracked
+   * is `already` closed. `guard` runs there too, just before the removal: its answer is why
+   * the worktree must stay now (an agent works in it).
+   */
+  closeAt(
+    path: string,
+    force: boolean,
+    guard?: (row: WorktreeRecord) => Promise<string | undefined>,
+  ): Promise<Closed> {
+    return this.serial(async () => {
+      const row = this.records.worktree(path)
+      if (!row) return { ok: true, path, branch: "", branchDeleted: false, already: true }
+      const why = await guard?.(row)
+      return why === undefined ? this.removal(row, force) : refused(why)
+    })
+  }
+
   /** Removes a worktree whoever owns it (cleanup's entry; see `removal`). */
   remove(row: WorktreeRecord, force: boolean): Promise<Closed> {
     return this.serial(() => this.removal(row, force))
@@ -438,11 +466,15 @@ export class Worktrees {
             ]
           : []),
       ]
-      return refused(
-        `The worktree holds ${parts.join(" and ")}, so it stays. To close it anyway, call ` +
+      const holds = parts.join(" and ")
+      return {
+        ok: false,
+        holds,
+        reason:
+          `The worktree holds ${holds}, so it stays. To close it anyway, call ` +
           "close_worktree with force: uncommitted files are kept on a ref (ignored files, such " +
           "as .env or data, are not), and a branch with commits stays.",
-      )
+      }
     }
     const stray = await keepStrayHead(row.path, row.branch, standing.main)
     if (stray === null)

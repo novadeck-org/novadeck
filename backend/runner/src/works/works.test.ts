@@ -15,6 +15,7 @@ import type { Work } from "@novadeck/protocol"
 import { afterEach } from "vitest"
 
 import { Snapshots } from "../checkouts/snapshots.js"
+import { DomainError } from "../errors.js"
 import { describe, expect, it as base } from "../test.js"
 import { Works, type Removal, type Tracked } from "./works.js"
 
@@ -148,20 +149,27 @@ const open = (
     memory?: string
     repackAfter?: number
     remove?: (root: string, force: boolean) => Promise<Removal>
+    /** Terminals in checkouts that are no tracked worktree, as plain terminals are. */
+    plain?: readonly { terminalId: string; root: string }[]
+    show?: (terminalId: string, root: string) => Promise<string>
   } = {},
 ) => {
   const shown: [string, string][] = []
   const removed: [string, boolean][] = []
   const works = new Works({
     tracked: () => where().map(tracked),
-    presences: async () =>
-      where().flatMap(({ terminalId, root, working }) =>
+    presences: async () => [
+      ...where().flatMap(({ terminalId, root, working }) =>
         terminalId === null ? [] : [{ terminalId, root, working: working === true }],
       ),
-    show: async (terminalId, root) => {
-      shown.push([terminalId, root])
-      return "item"
-    },
+      ...(options.plain ?? []).map((each) => ({ ...each, working: false })),
+    ],
+    show:
+      options.show ??
+      (async (terminalId, root) => {
+        shown.push([terminalId, root])
+        return "item"
+      }),
     remove:
       options.remove ??
       (async (root, force) => {
@@ -830,6 +838,7 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
       await current(works)
       await works.markRead(gone.root, "b.txt", "1".repeat(40))
       expect(await works.closeWork(gone.root, true)).toEqual({
+        closed: true,
         kept: "refs/novadeck/kept/gone",
         branchDeleted: true,
       })
@@ -838,7 +847,7 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
       expect([...works.marks(gone.root).keys()]).toEqual([])
     })
 
-    it("passes the person's force on, and the service's refusal as a CONFLICT with its reason", async ({
+    it("answers what a worktree holds when unforced, for the person to confirm, and closes on force", async ({
       fixture,
       resources,
     }) => {
@@ -850,18 +859,110 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
           asked.push(force)
           return force
             ? { ok: true, branchDeleted: false }
-            : { ok: false, reason: "The worktree holds 1 uncommitted file, so it stays." }
+            : {
+                ok: false,
+                holds: "1 uncommitted or untracked path",
+                reason: "agent-facing: call close_worktree with force",
+              }
         },
       })
       resources.defer(() => works.close())
-      await expect(works.closeWork(dirty.root, false)).rejects.toMatchObject({
-        code: "CONFLICT",
-        message: "The worktree holds 1 uncommitted file, so it stays.",
+      expect(await works.closeWork(dirty.root, false)).toEqual({
+        closed: false,
+        holds: "1 uncommitted or untracked path",
       })
-      // A refusal leaves the work.
+      // Nothing was closed: the work is still there.
       expect((await current(works)).has(dirty.root)).toBe(true)
-      await works.closeWork(dirty.root, true)
+      expect(await works.closeWork(dirty.root, true)).toEqual({
+        closed: true,
+        branchDeleted: false,
+      })
       expect(asked).toEqual([false, true])
+    })
+
+    it("refuses as a CONFLICT with the service's reason where force would not help", async ({
+      fixture,
+      resources,
+    }) => {
+      const dirty = fixture.worktree("dirty")
+      dirty.write("b.txt", "dirty\n")
+      const { works } = open(() => [{ terminalId: terminal(1), root: dirty.root }], {
+        remove: async () => ({
+          ok: false,
+          reason: "Novadeck couldn't read its status, so it stays.",
+        }),
+      })
+      resources.defer(() => works.close())
+      for (const force of [false, true])
+        // eslint-disable-next-line no-await-in-loop -- One after the other.
+        await expect(works.closeWork(dirty.root, force)).rejects.toMatchObject({
+          code: "CONFLICT",
+          message: "Novadeck couldn't read its status, so it stays.",
+        })
+      expect((await current(works)).has(dirty.root)).toBe(true)
+    })
+
+    it("forgets a worktree's memory when it stops being tracked by any means, such as an agent's close", async ({
+      fixture,
+      resources,
+    }) => {
+      const memory = join(fixture.holder, "state", "works.json")
+      const a = fixture.worktree("a")
+      const b = fixture.worktree("b")
+      a.write("b.txt", "a\n")
+      b.write("b.txt", "b2\n")
+      const rows: Where[] = [
+        { terminalId: terminal(1), root: a.root },
+        { terminalId: terminal(1), root: b.root },
+      ]
+      const { works } = open(() => rows, { memory })
+      resources.defer(() => works.close())
+      await current(works)
+      await works.markRead(a.root, "b.txt", "1".repeat(40))
+      await works.markRead(b.root, "b.txt", "2".repeat(40))
+      // An agent's close_worktree drops the row without going through the panel.
+      rows.shift()
+      await current(works)
+      expect([...works.marks(a.root).keys()]).toEqual([])
+      expect([...works.marks(b.root).keys()]).toEqual(["b.txt"])
+    })
+
+    it("keeps the marks of a plain checkout a terminal works in, however many others are forgotten", async ({
+      fixture,
+      resources,
+    }) => {
+      const memory = join(fixture.holder, "state", "works.json")
+      const { works } = open(() => [], {
+        memory,
+        plain: [{ terminalId: terminal(1), root: fixture.main.root }],
+      })
+      resources.defer(() => works.close())
+      await works.markRead(fixture.main.root, "b.txt", "1".repeat(40))
+      // Others, newer, fill the cap of remembered abandoned checkouts (32).
+      for (let at = 0; at < 40; at += 1)
+        // eslint-disable-next-line no-await-in-loop -- Each mark follows the one before.
+        await works.markRead(`/elsewhere/${at}`, "b.txt", "2".repeat(40))
+      await current(works)
+      expect([...works.marks(fixture.main.root).keys()]).toEqual(["b.txt"])
+    })
+
+    it("shows a work on the bar asked for when its owner has none, and says so when that fails too", async ({
+      fixture,
+      resources,
+    }) => {
+      const owned = fixture.worktree("owned")
+      const shown: string[] = []
+      const { works } = open(() => [{ terminalId: terminal(1), root: owned.root }], {
+        show: async (terminalId) => {
+          shown.push(terminalId)
+          if (terminalId === terminal(1)) throw new DomainError("TERMINAL_NOT_FOUND")
+          return "item"
+        },
+      })
+      resources.defer(() => works.close())
+      expect(await works.show(owned.root, terminal(2))).toEqual({ itemId: "item" })
+      expect(shown).toEqual([terminal(1), terminal(2)])
+      await expect(works.show(owned.root)).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
     })
 
     it("refuses while the owner's agent is working in it, and for a root with no work", async ({

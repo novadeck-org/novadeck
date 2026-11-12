@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { work, workChange, workConflict } from "./works.js"
+import { work, workChange, workClosing, workConflict } from "./works.js"
 
 const id = "11111111-1111-4111-8111-111111111111"
 const base = {
@@ -48,5 +48,20 @@ describe("a work change", () => {
     expect(workChange.safeParse({ type: "removed", terminalId: id, projectId: id }).success).toBe(
       false,
     )
+  })
+})
+
+describe("what closing a work answers", () => {
+  it("is closed, with where work was kept, or not closed, with what it holds", () => {
+    expect(
+      workClosing.parse({ closed: true, kept: "refs/novadeck/kept/x", branchDeleted: false })
+        .closed,
+    ).toBe(true)
+    expect(workClosing.parse({ closed: false, holds: "2 changed files" })).toEqual({
+      closed: false,
+      holds: "2 changed files",
+    })
+    expect(workClosing.safeParse({ closed: false }).success).toBe(false)
+    expect(workClosing.safeParse({ closed: true }).success).toBe(false)
   })
 })

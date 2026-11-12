@@ -199,9 +199,10 @@ describe("the demo's works", () => {
   it("refuses a close that would lose changes unless forced, and says what it kept", async () => {
     const works = createDemoWorks([])
     works.gain(at, 10)
-    await expect(works.close(at.root)).rejects.toThrow(/holds 1 changed file/)
+    expect(await works.close(at.root)).toEqual({ closed: false, holds: "1 changed file" })
     expect(works.state.getSnapshot().works).toHaveLength(1)
     expect(await works.close(at.root, true)).toMatchObject({
+      closed: true,
       kept: expect.stringContaining("refs/novadeck/kept/"),
       branchDeleted: false,
     })
@@ -211,7 +212,7 @@ describe("the demo's works", () => {
   it("closes a worktree that differs from nothing without a question", async () => {
     const works = createDemoWorks([])
     works.openClean(at)
-    expect(await works.close(at.root)).toEqual({ branchDeleted: true })
+    expect(await works.close(at.root)).toEqual({ closed: true, branchDeleted: true })
     expect(works.state.getSnapshot().works).toEqual([])
   })
 
@@ -234,6 +235,26 @@ describe("the demo's works", () => {
     expect(works.state.getSnapshot().works[0]).toMatchObject({ terminalId: null })
     await expect(works.show(at.root, "t9")).resolves.toBe(`${at.root}@t9`)
     await expect(works.show(at.root)).resolves.toBeNull()
+  })
+
+  it("holds commits main lacks in a worktree with no changed files, until merged", async () => {
+    const works = createDemoWorks([])
+    works.commitsMainLacks(at, 2)
+    expect(works.state.getSnapshot().works[0]).toMatchObject({ files: [] })
+    expect(await works.close(at.root)).toEqual({
+      closed: false,
+      holds: "2 commits the main branch doesn't have",
+    })
+    works.merge(at.root)
+    expect(await works.close(at.root)).toEqual({ closed: true, branchDeleted: true })
+  })
+
+  it("leaves a worktree whose owner is closed, which shows on the terminal asked for", async () => {
+    const works = createDemoWorks([], { show: async (work, on) => `${work.root}@${on}` })
+    works.gain(at)
+    works.ownerClosed(at.root)
+    expect(works.state.getSnapshot().works[0]?.terminalId).toMatch(/^closed-/)
+    await expect(works.show(at.root, "t9")).resolves.toBe(`${at.root}@t9`)
   })
 
   it("empties a project's worktrees", () => {

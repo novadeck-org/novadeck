@@ -8,6 +8,7 @@ import {
   closeMode,
   conflictWords,
   orderedFiles,
+  ownerOpen,
   selectedRoot,
   unreadStates,
 } from "./changes-rows"
@@ -94,13 +95,10 @@ describe("the Changes panel's rows", () => {
 })
 
 describe("what a row's × does", () => {
-  it("closes at once a worktree that differs from nothing", () => {
+  it("asks the runner to close, whatever files the work lists: its standing is the runner's to say", () => {
     expect(closeMode(work("a", 1, { files: [], added: 0, unreadAdded: 0 }))).toBe("close")
-  })
-
-  it("asks first when files differ from main, or the work lists only some of them", () => {
-    expect(closeMode(work("a", 1))).toBe("confirm")
-    expect(closeMode(work("a", 1, { files: [], truncated: true }))).toBe("confirm")
+    expect(closeMode(work("a", 1))).toBe("close")
+    expect(closeMode(work("a", 1, { files: [], truncated: true }))).toBe("close")
   })
 
   it("waits while the owner's agent is working in it, whatever else it holds", () => {
@@ -110,7 +108,16 @@ describe("what a row's × does", () => {
 
   it("is on each row", () => {
     const rows = changeRows([work("a", 1), work("b", 2, { working: true })], new Map())
-    expect(rows.map((row) => row.close)).toEqual(["confirm", "busy"])
+    expect(rows.map((row) => row.close)).toEqual(["close", "busy"])
+  })
+})
+
+describe("whether an owner has a bar", () => {
+  it("is so for a terminal of the project, not for none or one in History", () => {
+    const titles = new Map([["t", "Open"]])
+    expect(ownerOpen("t", titles)).toBe(true)
+    expect(ownerOpen("gone", titles)).toBe(false)
+    expect(ownerOpen(null, titles)).toBe(false)
   })
 })
 

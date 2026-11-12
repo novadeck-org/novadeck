@@ -71,20 +71,25 @@ export type Works = {
   // the bar of `terminalId`) and resolves to the item's id, or null where the backend has
   // none to show. Rejects when the backend cannot say.
   readonly show: (root: string, terminalId?: string) => Promise<string | null>
-  // Closes the worktree on the person's say, keeping its uncommitted work on a ref; `force`
-  // when it holds uncommitted files or commits main lacks. Rejects with the backend's
-  // reason when it refuses (git couldn't be read, the owner's agent is working in it).
-  readonly close: (root: string, force?: boolean) => Promise<WorkClosed>
+  // Closes the worktree on the person's say. Without `force`, a worktree that holds uncommitted
+  // files or commits main lacks is not closed: the answer says what it holds, for the person
+  // to confirm before it is called again with `force`. Rejects with the backend's reason when it
+  // refuses (git couldn't be read, the owner's agent is working in it); a worktree already
+  // closed rejects with code NOT_FOUND.
+  readonly close: (root: string, force?: boolean) => Promise<WorkClosing>
 }
 
-// What closing a worktree kept: the ref its uncommitted work went to, if it had any, and
-// whether its branch went too (only when main held all of it).
-export type WorkClosed = {
-  readonly kept?: string | undefined
-  // Where commits only a detached HEAD reached were kept, if there were any.
-  readonly keptHead?: string | undefined
-  readonly branchDeleted: boolean
-}
+// What closing a worktree comes to: it closed, with the ref its uncommitted work (and commits
+// only a detached HEAD reached) went to if there was any, and whether its branch went too
+// (only one Novadeck made, and only when main held all of it); or it wasn't, and holds this.
+export type WorkClosing =
+  | {
+      readonly closed: true
+      readonly kept?: string | undefined
+      readonly keptHead?: string | undefined
+      readonly branchDeleted: boolean
+    }
+  | { readonly closed: false; readonly holds: string }
 
 // Whether the work has lines the person hasn't read.
 export const unread = (work: Work): boolean => work.unreadAdded + work.unreadRemoved > 0
