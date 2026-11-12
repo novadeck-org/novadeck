@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest"
 
 import { claude } from "./index.js"
-import { cmdShim, many, posixShim, valued } from "./shim.js"
+import { cmdShim as makeCmd, many, posixShim as makePosix, valued } from "./shim.js"
+
+const cmdShim = makeCmd("C:\\Users\\x\\.novadeck\\worktrees")
+const posixShim = makePosix("/home/x/.novadeck/worktrees")
 
 describe("the Windows shim", () => {
   it("looks for the real claude on PATH only, never in the current folder where cmd looks first", () => {
