@@ -228,6 +228,20 @@ describe("Claude Code's AskUserQuestion", () => {
     expect(readOf("ask-long", "60x12")).toBeUndefined()
   })
 
+  it("reads and answers the Grid question once its hidden terminal has room for the header", () => {
+    // Captured at the same width: Claude's alternate screen drops the header at 20
+    // rows, so chat keeps its hidden terminal tall enough to draw the whole dialog.
+    expect(readOf("ask-grid-wrapped", "60x20")).toBeUndefined()
+    const dialog = need(readOf("ask-grid-wrapped", "60x40"))
+    expect(dialog.dialog).toMatchObject({
+      type: "questions",
+      questions: [{ header: "Canvas pane", options: [{}, {}, {}] }],
+    })
+    expect(pressed(dialog.keys(answer(["2"])))).toEqual(["2"])
+    expect(dialog.answered(step("ask-grid-wrapped", "native"))).toBe(false)
+    expect(dialog.answered(step("ask-grid-wrapped", "answered"))).toBe(true)
+  })
+
   it("refuses the review screen, the answered screen, and screens of other questions", () => {
     const facts = factsOf("ask-multi")
     expect(dialogs.read(step("ask-multi-finish", "after-q3"), facts)).toBeUndefined()

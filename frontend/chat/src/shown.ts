@@ -45,16 +45,19 @@ export const keepTerminalAnswers = (
   keep: (context: string, id: string) => boolean,
 ): TerminalAnswers => settled(keepTerminals(answers, keep))
 
-// Whether a terminal shows its agent's conversation rather than its screen: the chat view
-// is on, an agent runs in it, the person hasn't gone to its screen to answer it, and no
-// startup screen of its holds it, which only that screen can answer.
+// Chat takes over once the agent's prompt or session is known. Its foreground program
+// alone may still be at an update, trust or sign-in screen, including a manual launch
+// that no startup watch follows. Keep the person's preference while its screen shows.
 export const chatShown = (
   chatView: boolean,
   answers: TerminalAnswers,
   context: string,
   terminal: TerminalMetadata,
+  boundSession = false,
 ): boolean =>
   chatView &&
   chatAvailable(terminal) &&
   !answeringInTerminal(answers, context, terminal.id) &&
-  !(terminal.state === "running" && terminal.agent?.startup)
+  terminal.state === "running" &&
+  (terminal.agent !== undefined || boundSession) &&
+  !terminal.agent?.startup

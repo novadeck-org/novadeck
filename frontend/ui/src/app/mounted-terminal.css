@@ -8,6 +8,20 @@
    draws in, greyed after a moment while locked), `.terminal-paste`. */
 
 @layer components {
+  .chat-terminal {
+    min-height: 0;
+  }
+
+  /* Chat reads the harness's real dialogs from the terminal behind it. Short tiles
+     make Claude's alternate screen discard a question's header, so give it extra room
+     scaled with the terminal font. Absolute positioning leaves the tile and chat
+     their own size; showing the terminal restores its normal fit. Width stays the tile's. */
+  .chat-terminal[aria-hidden="true"] {
+    position: absolute;
+    inset: 0;
+    min-height: calc(var(--terminal-font-size, 13px) * 60);
+  }
+
   /* The content's padding, which views override. */
   :where(.terminal-mounted) {
     @apply p-3;

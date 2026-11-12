@@ -811,6 +811,12 @@ harness.
   past 64 KiB reads as nothing and shows raw, as does a dialog whose ids or counts exceed
   the limits. A harness may cut its own form: Codex's cuts any long value, and for its
   task tools alone the `detail` tells that form as it is, `...` and all.
+- **Short chat tiles.** While chat shows, the terminal behind it keeps extra vertical room
+  at the pane's actual width, without enlarging the tile. Claude can otherwise discard a
+  question's header from its alternate screen in Grid: the captured question reads at
+  60 columns by 40 rows but not at 60 by 20, and neither buffer keeps the missing header.
+  Showing the terminal restores its normal fit. Dialog recognition stays strict, and a
+  question that still doesn't fit keeps the raw fallback.
 - **Commands taller than the screen.** A dialog shows only part of one: Claude Code's end
   (its header scrolled away), Codex's and Antigravity's start, up to a mark that says more is
   hidden. That part must be the request's own command, whitespace aside, and the `detail` is
@@ -952,6 +958,13 @@ time, and its status line's `tool_confirmation_pending` names no step, so its
 request is the fixed `confirmation`, resolved when a later snapshot shows the
 agent working without it. A matching tool result resolves the request as
 `allowed`.
+
+Codex 0.167.2 can omit `PostToolUse` for a code-mode `exec_command` that yields a running
+session, even after an automatic approval and the command's exit. Its rollout's completed
+`CommandExecution` item then settles the exact actor's `Bash` request by command, with the
+same timestamp fence as a hook. A failed execution also settles it; a user shell command,
+an unfinished command or a declined request does not. This fallback waits for completion:
+it cannot infer approval while a yielded command is still running.
 
 Denials differ by harness:
 

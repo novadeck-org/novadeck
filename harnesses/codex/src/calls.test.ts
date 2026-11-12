@@ -93,7 +93,7 @@ describe("a Codex tool call", () => {
           },
         }),
         run,
-      )
+      ).filter(({ type }) => type === "command-ran")
     expect(
       executed({
         command: ["/bin/bash", "-lc", "cargo test"],

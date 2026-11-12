@@ -967,7 +967,8 @@ but the label a run shows (`novadeckTool` in the harness core).
   still showing the confirmation, asks nothing.
 - **A request resolves** when its harness says so: `PostToolUse` for the call (its hook
   started after the request's: an earlier one answered an earlier ask), Codex's
-  `Interrupt`, Claude Code's transcript recording the call as interrupted or denied, or
+  `Interrupt` or a completed command item matching the actor and command, Claude Code's
+  transcript recording the call as interrupted or denied, or
   Antigravity's status line no longer showing a confirmation. A root turn starting or
   ending settles the root's own requests still waiting. No harness ends a root turn
   normally while its own dialog waits, since each blocks the call on it, and a denial
@@ -2427,6 +2428,12 @@ and Codex may raise a screen over a prompt it drew a few seconds before. It reac
 `TerminalSummary.startup`, the terminal's tab: the need mark, with "Waiting at its startup
 screen" in its tooltip, and the chat view gives way to the screen. It raises no Inbox row: no
 request stands behind it.
+
+Chat also leaves the terminal visible until the agent's prompt or session is known, even
+when no startup watch follows it (as for an agent typed into an ordinary shell). A foreground
+process name alone doesn't make chat ready. The chat preference and draft stay kept, and
+chat appears once its prompt is recognized or its conversation is bound to a session. Hooks
+may stay silent; a process with neither readiness signal keeps showing its terminal.
 
 ## Naming
 

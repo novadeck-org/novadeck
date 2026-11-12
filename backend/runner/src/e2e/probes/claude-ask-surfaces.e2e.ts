@@ -1,6 +1,6 @@
 import { text } from "../model/script.js"
 import { own, result } from "../scenarios.js"
-import { surface, tweak } from "./claude-support.js"
+import { capture, surface, tweak } from "./claude-support.js"
 import { sleep } from "./support.js"
 
 const q1 = {
@@ -138,6 +138,54 @@ surface({
   drive: async (t, _p, shot) => {
     t.press("4")
     await shot("pressed-4")
+  },
+})
+
+// The question reported in Grid: at 60×20 Claude's alternate screen discards its
+// header; at the chat's taller hidden size the full dialog reads and takes an answer.
+surface({
+  name: "ask-grid-wrapped",
+  reply: ask({
+    question:
+      "Canvas windows are a fixed 864×576. If Canvas used Grid's split pane, the terminal would shrink to about 45 columns while the pane is open. Which version should I build?",
+    header: "Canvas pane",
+    multiSelect: false,
+    options: [
+      {
+        label: "Straight swap (Recommended)",
+        description:
+          "Canvas uses Grid's split exactly: divider, cover mode, and the hanging sheet code is deleted. The terminal gets narrower while the pane is open.",
+      },
+      {
+        label: "Split + widen window",
+        description:
+          "The window grows to the right when the pane opens, so the terminal keeps its width. Needs a size per window across all Canvas geometry; bigger and riskier.",
+      },
+      { label: "Just the opinion", description: "Don't build anything yet." },
+    ],
+  }),
+  shows: /Which version should I build\?/,
+  sizes: [
+    [80, 24],
+    [80, 30],
+    [60, 20],
+    [60, 40],
+  ],
+  drive: async (t, _p, shot) => {
+    t.resize(60, 40)
+    await shot("native", 900)
+    const request = (await t.detail()).requests.find((each) => each.kind === "question")
+    const dialog = request?.dialog
+    if (!request || dialog?.type !== "questions") throw new Error("No native question at 60×40")
+    await t.answer(request.ref, {
+      type: "questions",
+      dialog: dialog.id,
+      answers: [{ question: "q1", options: ["2"] }],
+    })
+    await shot("answered", 900)
+    const remaining = (await t.detail()).requests.length
+    if (remaining !== 0) throw new Error("The question remained pending after its native answer")
+    capture("ask-grid-native-answer", { dialog, remaining })
   },
 })
 

@@ -1,4 +1,11 @@
-import { appendFileSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import {
+  appendFileSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -22,11 +29,136 @@ const ended = (turn: string, at: string) =>
 const turns = (told: readonly HarnessEvent[]) =>
   told.flatMap((event) => (event.type === "turn-ended" && event.turn ? [event.turn] : []))
 
+describe("a yielded command's permission", () => {
+  const capture = JSON.parse(
+    readFileSync(new URL("./fixtures/yielded-permission.probe.json", import.meta.url), "utf8"),
+  ) as {
+    hooks: { kind: string; event: string; payload?: Report["payload"] }[]
+    completion: { payload: { item: Record<string, unknown> } }
+  }
+  const payload = capture.hooks.find(
+    (hook) => hook.kind === "start" && hook.event === "PermissionRequest",
+  )!.payload!
+  const asked = (actor: string | null) =>
+    decode({
+      terminalId: "t",
+      token: "0".repeat(48),
+      agent: "codex",
+      event: "PermissionRequest",
+      seq: 0,
+      instance: session.instance,
+      env: { cursor: false },
+      payload: { ...payload, session_id: session.sessionId, agent_id: actor },
+    })[0]!
+  const completed = (fields = {}) =>
+    JSON.stringify({
+      timestamp: "2026-11-12T12:00:00Z",
+      type: "event_msg",
+      payload: {
+        type: "item_completed",
+        item: { ...capture.completion.payload.item, ...fields },
+      },
+    })
+
+  it("settles the exact request its missing PostToolUse would have settled", () => {
+    expect(capture.hooks.some((hook) => hook.event === "PostToolUse")).toBe(false)
+    const request = asked(null)
+    expect(rolloutEvents(completed(), session)).toContainEqual({
+      type: "attention-resolved",
+      agent: "codex",
+      ...session,
+      startedAt: Date.parse("2026-11-12T12:00:00Z"),
+      requestId: "requestId" in request ? request.requestId : undefined,
+      actor: null,
+      toolName: "Bash",
+      loose: false,
+      outcome: "settled",
+    })
+    expect(rolloutEvents(completed({ status: "failed", exit_code: 3 }), session)).toContainEqual(
+      expect.objectContaining({ type: "attention-resolved", outcome: "settled" }),
+    )
+  })
+
+  it("uses the subagent's identity for its own command, never its root's", () => {
+    const events = subagentEvents(completed(), session, "a1", 0)
+    expect(events).toMatchObject([
+      { actor: "a1", requestId: (asked("a1") as { requestId: string }).requestId },
+    ])
+    expect(events[0]).not.toHaveProperty(
+      "requestId",
+      (asked(null) as { requestId: string }).requestId,
+    )
+    expect(subagentEvents(completed(), session, "a1", Date.parse("2026-11-12T12:00:01Z"))).toEqual(
+      [],
+    )
+  })
+
+  it("takes no user command, uncompleted command, denied request or malformed argv as execution", () => {
+    for (const fields of [
+      { source: "user_shell" },
+      { status: "inProgress" },
+      { status: "declined" },
+      { command: [] },
+      { command: ["bash", "-lc", 42] },
+    ])
+      expect(
+        rolloutEvents(completed(fields), session).some(
+          (event) => event.type === "attention-resolved",
+        ),
+      ).toBe(false)
+  })
+})
+
 describe("following a rollout", () => {
   let folder: string | undefined
   afterEach(() => {
     if (folder) rmSync(folder, { recursive: true, force: true })
     folder = undefined
+  })
+
+  it("keeps separate command settlements from its first read, up to the pending-request limit", async () => {
+    folder = mkdtempSync(join(tmpdir(), "novadeck-rollout-"))
+    const path = join(folder, "rollout.jsonl")
+    writeFileSync(
+      path,
+      Array.from({ length: 35 }, (_, index) =>
+        JSON.stringify({
+          timestamp: `2026-11-12T12:00:${String(index).padStart(2, "0")}Z`,
+          type: "event_msg",
+          payload: {
+            type: "item_completed",
+            item: {
+              type: "CommandExecution",
+              command: ["bash", "-lc", `echo ${index}`],
+              status: "completed",
+            },
+          },
+        }),
+      ).join("\n") + "\n",
+    )
+    const told: HarnessEvent[] = []
+    let received!: () => void
+    const ready = new Promise<void>((resolve) => {
+      received = resolve
+    })
+    const controller = new AbortController()
+    const following = followRollout(
+      { ...session, transcript: path },
+      controller.signal,
+      (event) => {
+        told.push(event)
+        if (told.filter((held) => held.type === "attention-resolved").length === 32) received()
+      },
+    )
+    try {
+      await ready
+      const last = told.filter((event) => event.type === "attention-resolved")
+      expect(new Set(last.map((event) => event.requestId)).size).toBe(32)
+      expect(last[0]?.startedAt).toBe(Date.parse("2026-11-12T12:00:03Z"))
+    } finally {
+      controller.abort()
+      await following
+    }
   })
 
   it("tells only what a rewritten file records past the last record read, never an old one, losing none", async () => {
