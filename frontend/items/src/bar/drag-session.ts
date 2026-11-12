@@ -45,8 +45,8 @@ export type DragSession = {
 
 // Windows and taskbars say who they are by their data attributes: a window its terminal's
 // id in `data-terminal`, a taskbar `data-taskbar`, and a pane its terminal's in
-// `data-companion-of`. A pane over a window, as a Canvas sheet hangs beside its node over
-// a neighbour's, is its own terminal's, never a bar.
+// `data-companion-of`. A pane sits inside its terminal's window, so a drop on it is a drop on
+// that terminal, never on a bar.
 export const pageHitTest: HitTest = (x, y) => {
   const under = document.elementsFromPoint(x, y)
   const top = under.find((element) => element.matches("[data-terminal], [data-companion-of]"))

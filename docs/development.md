@@ -65,15 +65,16 @@ A taskbar along each terminal's bottom has an icon for the plan. Opening it show
 the plan beside its terminal, never over the workspace:
 
 - **Focus** and **Grid** split the window: terminal on the left, plan on the
-  right, with a draggable divider. In a window under 640 px wide, as most Grid windows
-  are, the pane covers the terminal instead, which keeps its size underneath, until you
+  right, with a draggable divider. In a Focus window of 640 px or less, or a Grid window of
+  864 px or less (most are), the pane covers the terminal instead, which keeps its size underneath, until you
   minimize or close it. While it covers the terminal, Escape minimizes it and never
   reaches the agent, Enter only uncovers the terminal, and any other key the terminal
   would take uncovers it and goes into it, so typing a reply brings the terminal back;
   keys typed into the pane's own fields, such as a plan, stay there.
-- **Canvas** attaches the plan as a sheet beside the node, which pans and zooms
-  with it; the canvas frames both as it opens. A window that recedes, unselected, fades
-  with its sheet, but the sheet stays solid over whatever lies under it.
+- **Canvas** opens the plan inside the node's window, which is 864 px wide, so it covers
+  the terminal as in a narrow Grid window, with the same keys. It pans and zooms with the
+  window, and a window that recedes, unselected, fades with its plan; over an unselected
+  window the wheel still zooms the canvas, and a click selects it.
 
 The plan is always editable: it's the file's
 Markdown in a CodeMirror 6 live-preview editor. Markdown syntax shows, dimmed,

@@ -23,8 +23,6 @@ import { WindowPhaseProvider } from "./window-phase"
 // What a layout contributes to each terminal it places.
 export type TerminalLayoutControls = {
   readonly onFlyTo?: () => void
-  // Frames the terminal together with content hanging past its right edge.
-  readonly onReveal?: (extent: { readonly right: number; readonly height: number }) => void
   // False while the layout holds the terminal out of the person's sight. Absent means in sight.
   readonly onScreen?: boolean
   // False while Canvas is zoomed out too far to read a node. Absent means legible.

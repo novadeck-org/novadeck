@@ -6,17 +6,7 @@ import type { TerminalKey, ViewMode } from "@novadeck/core/types"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 import { usePresence, type Presence } from "@novadeck/toolkit/presence"
 import { SubjectBar, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react"
-import { createPortal } from "react-dom"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
 import type { CompanionActions } from "../../actions"
 import {
@@ -40,21 +30,17 @@ import { CompanionPane } from "./CompanionPane"
 import { coverKey } from "./cover-keys"
 import { terminalDrawing } from "./drawing"
 import { useMessages, type MessageLinks } from "./messages/messages"
-import { presentationOf } from "./presentation"
 
 // What the app does with a terminal's bar and the items on it: the actions but docking, which
 // only a window's menu does.
 export type ItemCommands = Omit<CompanionActions, "dock">
 
-// How far the pane reaches into its window, as the window wants to know when it opens.
-type Reveal = (extent: { readonly right: number; readonly height: number }) => void
-
 const unnamed = (): undefined => undefined
 
-const clamp = (value: number): number => Math.min(0.7, Math.max(0.22, value))
+// What the pane shows.
+type PaneView = Parameters<typeof CompanionPane>[0]
 
-// What the pane shows, wherever it's presented.
-type PaneView = Omit<Parameters<typeof CompanionPane>[0], "presentation">
+const clamp = (value: number): number => Math.min(0.7, Math.max(0.22, value))
 
 // Terminal left, pane right, inside the terminal's own window. The divider drags. Where the
 // window is too narrow for both the pane covers the terminal, which keeps its size beneath;
@@ -158,64 +144,14 @@ const SplitPane = ({
         className="pane-split-reader nodrag nopan nowheel"
         data-companion-of={owner}
       >
-        <CompanionPane {...shown} presentation="split" />
+        <CompanionPane {...shown} />
       </div>
     </div>
   )
 }
 
-// Canvas units, matching .pane-attached.
-const attachedExtent = { right: 20 + 720, height: 560 }
-
-// Where an attached sheet hangs: the canvas node around the window, which the window's
-// clipping (its overflow and paint containment) doesn't reach. Null until the node has
-// mounted; left unset, as outside a canvas node, the sheet stays where it's rendered.
-export const AttachedContainer = createContext<HTMLElement | null | undefined>(undefined)
-
-// A sheet hanging off the canvas node's right edge, so it pans and zooms with it. It is
-// positioned against the node, outside the window's clipping. Hung there, outside its
-// terminal's region too, the region owns it, so assistive technology still finds it there.
-const AttachedPane = ({
-  view: shown,
-  owner,
-  within,
-  onReveal,
-  presence,
-}: {
-  view: PaneView
-  owner: string
-  // Inside the terminal's window, wherever the sheet hangs.
-  within: React.RefObject<HTMLElement | null>
-  onReveal: Reveal | undefined
-  presence: Presence
-}): React.JSX.Element | null => {
-  // Frame once as the sheet opens, not whenever the canvas hands over a new callback.
-  const reveal = useRef(onReveal)
-  useEffect(() => reveal.current?.(attachedExtent), [])
-  const container = useContext(AttachedContainer)
-  const id = useId()
-  useEffect(() => {
-    const region = container ? within.current?.closest("[data-terminal]") : undefined
-    if (!region) return
-    region.setAttribute("aria-owns", id)
-    return () => region.removeAttribute("aria-owns")
-  }, [container, within, id])
-  const sheet = (
-    <div
-      {...presence.props}
-      id={id}
-      className="pane-attached nodrag nopan nowheel"
-      data-companion-of={owner}
-    >
-      <CompanionPane {...shown} presentation="attached" />
-    </div>
-  )
-  if (container === undefined) return sheet
-  return container ? createPortal(sheet, container) : null
-}
-
 // A terminal's companion: its taskbar, and the pane it opens in the terminal's own
-// window or beside its canvas node. It wraps every terminal of a backend that reports
+// window. It wraps every terminal of a backend that reports
 // companions or messages, so the terminal keeps its content when its agent first shows
 // something.
 // The item a close asks about, as the pane names it: its icon and its name.
@@ -237,7 +173,6 @@ export const TerminalCompanion = ({
   links,
   terminalKey,
   view,
-  onReveal,
   children,
   bar,
   items,
@@ -251,7 +186,6 @@ export const TerminalCompanion = ({
   links: MessageLinks
   terminalKey: TerminalKey
   view: ViewMode
-  onReveal?: Reveal | undefined
   children: ReactNode
   // The bar as the person arranged it, the items on it, and which of them are new.
   bar: Bar
@@ -386,7 +320,6 @@ export const TerminalCompanion = ({
   }
 
   const trigger = useRef<HTMLButtonElement>(null)
-  const presentation = presentationOf(view)
   const present = slots.length > 0
   // The pane stays while it animates out. Only the pane animates: the terminal beside
   // it takes its new size once, never frame by frame.
@@ -431,8 +364,8 @@ export const TerminalCompanion = ({
     onRaise: (each) => openPicked(each.key),
   }
   return (
-    <div ref={within} className="terminal-companion">
-      {shown.mounted && presentation === "split" ? (
+    <div ref={within} className="terminal-companion" data-view={view}>
+      {shown.mounted ? (
         <SplitPane view={paneView} owner={terminal} terminalView={view} presence={shown}>
           {children}
         </SplitPane>
@@ -530,15 +463,6 @@ export const TerminalCompanion = ({
         }}
         widthClassName="w-[min(360px,calc(100vw-32px))]"
       />
-      {shown.mounted && presentation === "attached" && (
-        <AttachedPane
-          view={paneView}
-          owner={terminal}
-          within={within}
-          onReveal={onReveal}
-          presence={shown}
-        />
-      )}
     </div>
   )
 }

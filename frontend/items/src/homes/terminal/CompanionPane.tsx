@@ -9,7 +9,6 @@ import type { LookContext } from "../../registration"
 import type { ItemStore } from "../../store/item-store"
 import { memberLook, MemberView } from "./drawing"
 import type { MessagesHandle, MessageLinks } from "./messages/messages"
-import type { PanePresentation } from "./presentation"
 
 // Windows' restore glyph, drawn as lucide draws: a window lifting off the one it was
 // maximized in, as an item docked in the pane lifts into a window of its own.
@@ -204,7 +203,6 @@ export const CompanionPane = ({
   agent,
   messagesHandle,
   links,
-  presentation,
   plans,
   originOf,
   onUndock,
@@ -224,7 +222,6 @@ export const CompanionPane = ({
   agent: string
   messagesHandle: MessagesHandle
   links: MessageLinks
-  presentation: PanePresentation
   // The bar's plans, as the taskbar names them.
   plans: LookContext["plans"]
   originOf: (member: BarMember) => string | undefined
@@ -332,7 +329,6 @@ export const CompanionPane = ({
         tabIndex={-1}
         className="pane-reader"
         data-workspace-companion
-        data-presentation={presentation}
         aria-label={messages ? "Messages" : `What ${agent} showed you`}
         onKeyDown={(event) => {
           if (event.key === "Escape") {

@@ -26,17 +26,9 @@ export const taskbar = (name: string): Locator =>
 export const taskbarIcon = (name: string, label: string): Locator =>
   taskbar(name).getByRole("button", { name: new RegExp(`^${literal(label)}(,|$)`) })
 
-const pane = { name: /^(What .+ showed you|Messages)$/ }
-
-/**
- * The pane beside a terminal that shows what its taskbar opens: in its window, or in Canvas
- * hanging off its node, outside the window.
- */
-export const companionPane = (name: string): Locator => {
-  const inWindow = terminal(name).getByRole("region", pane)
-  const node = terminal(name).query()?.closest("[data-workspace-canvas-node]")
-  return node ? inWindow.or(page.elementLocator(node).getByRole("region", pane)) : inWindow
-}
+/** The pane beside a terminal that shows what its taskbar opens, in the terminal's window. */
+export const companionPane = (name: string): Locator =>
+  terminal(name).getByRole("region", { name: /^(What .+ showed you|Messages)$/ })
 
 /** How the icons on a terminal's taskbar read, in order. */
 export const taskbarIcons = (name: string): string[] =>

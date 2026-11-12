@@ -33,9 +33,6 @@ type NavigationProps = Pick<
   // Where the canvas put each window that opened since it last revealed one.
   createdPositions: RefObject<Map<string, XYPosition>>
   visit: ReturnType<typeof createCanvasVisit>
-  // Hands over the sheets open as Canvas mounts, by terminal, which the first camera also
-  // has to fit; after that, a sheet opening frames itself.
-  takeEntrySheets: () => Map<string, { right: number; height: number }>
   // Flies the camera in to a terminal, as `flyOnNavigate` asks.
   flyIn: (id: string) => void
 }
@@ -72,7 +69,6 @@ export const useCanvasNavigation = ({
   container,
   createdPositions,
   visit,
-  takeEntrySheets,
   flyIn,
 }: NavigationProps) => {
   const { fitView, getNode, getViewport, setCenter } = useReactFlow<TerminalNode>()
@@ -146,8 +142,6 @@ export const useCanvasNavigation = ({
   // in sight. A terminal gone to from outside the canvas is flown in to from the framing:
   // from here, once that camera is set.
   const initializeViewport = (instance: ReactFlowInstance<TerminalNode>) => {
-    // Taken whichever camera this sets, or keeps: from here, a sheet opening frames itself.
-    const sheets = takeEntrySheets()
     const framing = !restored || flyOnNavigate
     if (!container.current) return
     const selectedNode = framing ? undefined : instance.getNode(selected)
@@ -163,14 +157,6 @@ export const useCanvasNavigation = ({
     const visible = instance.getNodes().filter((node) => !node.hidden)
     if (!visible.length) return
     const bounds = getNodesBounds(target ? [target] : visible)
-    // A terminal's open sheet hangs off its right edge: the camera takes it in with the node.
-    for (const node of target ? [target] : visible) {
-      const sheet = sheets.get(node.id)
-      if (!sheet) continue
-      const own = getNodesBounds([node])
-      bounds.width = Math.max(bounds.width, own.x + own.width + sheet.right - bounds.x)
-      bounds.height = Math.max(bounds.height, own.y + sheet.height - bounds.y)
-    }
     // Compute the first camera before a view-transition snapshot, without waiting for paint.
     const framed = instance.setViewport(
       getViewportForBounds(

@@ -58,7 +58,7 @@ describe("a drag off a taskbar", () => {
 })
 
 describe("what the page has under a point", () => {
-  // Terminal 02's window with its taskbar, under terminal 01's Canvas sheet.
+  // Terminal 02's window with its taskbar, under terminal 01's pane.
   const layered = (withSheet: boolean): Element[] => {
     const window = document.createElement("section")
     window.dataset.terminal = "02"

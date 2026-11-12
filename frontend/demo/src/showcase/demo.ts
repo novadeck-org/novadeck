@@ -95,7 +95,7 @@ export const showcaseDemo = (
       terminals.map((terminal, index) => [
         terminal.id,
         {
-          // One column, so a plan attached beside a node covers none of the others.
+          // One column, so each window is its own; a pane opens inside its window and covers it alone.
           position: { x: 40, y: 40 + index * 620 },
           width: 640,
           height: 560,
