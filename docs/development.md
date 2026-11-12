@@ -282,20 +282,26 @@ Terminals:
   marks land on the others as you look away. Its shell an agent opened and its shell an agent
   exited from keep their handles on their tabs; its other plain shells show none. Also a
   burst of 30, a quick failure, a spawn failure and the terminal limit.
-- **Changes:** acts on the selected terminal's first worktree in the Changes panel (every demo seeds
-  a few from its own terminals: unread and read, one in conflict with main, two with each other; the
-  plain demos' storefront also has one with no owner, one just made and one its owner is working in;
-  a demo agent that starts a turn gains unread lines in the first worktree it owns and holds its ×
-  disabled until the turn ends). New lines make a worktree at a terminal's first change, or bring a
-  read row back above the line with the brief wash; Many files changed gives the unfolded row its
-  "+N more"; the conflict actions turn the icon and the file names red, with what it conflicts with
-  on hover; Work merged empties the row (a worktree with no files stays, and its × closes it at
-  once), and Mark read moves it below the line. Commits main lacks gives a worktree with no changed files but two commits main lacks (its × asks, naming them); Owner in History names it "Closed terminal" and shows it on the selected terminal's bar. Worktree just made and Worktree with changes show the
+- **Changes:** acts on the selected terminal's first worktree in the Changes panel, which lists the
+  worktrees of every project, naming each row's project beside its branch (every demo seeds a few
+  from its own terminals, in several projects: one in conflict with main, two with each other, one
+  merged; the plain demos' storefront also has one with no owner, one just made and one its owner is
+  working in; a demo agent that starts a turn gains lines in the first worktree it owns and holds its
+  × disabled until the turn ends; clicking another project's row switches to that project and
+  selects its owner). New lines make a worktree at a terminal's first change; Many files changed
+  gives the unfolded row its "+N more"; the conflict actions turn the icon and the file names red,
+  with what it conflicts with on hover; Work merged empties the row (a worktree with no files
+  stays, and its × closes it at once) and gives it the green merge icon and "Merged" on hover;
+  Worktree just made empties it without that, so it keeps the plain icon. Commits main lacks gives a
+  worktree with no changed files but two commits main lacks, which reads as merged too (its × asks,
+  naming them); Owner in History names it "Closed terminal" and shows it on the selected terminal's
+  bar. Worktree just made and Worktree with changes show the
   two sides of the ×: closing at once, and the confirm dialog saying what is kept. No owner reads
   "No owner" (click it to show it on the selected terminal's bar). Owner working in it and Owner
   done dim and restore the × (hover it for why). Refuse the next close shows the refusal above the
-  list. Close every worktree empties the project's list: with Agent worktrees off in Preferences >
-  Experimental (the demo starts with it off) the empty state points there. "Every state in Changes"
+  list. Close every worktree closes the selected project's, leaving other projects' rows; with Agent
+  worktrees off in Preferences > Experimental (the demo starts with it off) the empty state, once
+  every project's are gone, points there. "Every state in Changes"
   gives the session's first four terminals a worktree each. In the showcase, selecting a row shows its work as a changes item on the terminal's
   bar (see Changes below); in the other demos there is no pane to show it in.
 - **Projects and sessions:** mark the selected terminal running, then start a fresh

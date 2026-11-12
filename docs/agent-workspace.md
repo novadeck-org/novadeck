@@ -498,13 +498,18 @@ with every safety check again at that time:
   **The Changes panel** lists **works**, and a work is a tracked git worktree: a row of the
   `worktrees` table (see "Worktrees"), keyed by its root, whatever the Preferences switch says
   (with it off, the worktrees already tracked still show; terminals' plain checkouts are not works).
-  Each work is `{ root, terminalId | null, projectId, working, branch, base, firstSeenAt, files, … }`:
+  Each work is `{ root, terminalId | null, projectId, working, branch, base, firstSeenAt, merged, files, … }`:
   the owner comes from the table (null once orphaned), never inferred, and a worktree that differs
-  from nothing (just made, or merged) is a work with no files, first seen when it was recorded. It is
+  from nothing (just made, or merged) is a work with no files, first seen when it was recorded; `merged`
+  tells the two apart: it is true when nothing differs and the worktree has commits of its own since
+  it started that main holds (by content, as squash and rebase merges, or by history, off main's
+  first-parent line). It is not the close side's "merged" below (HEAD is in main, which a fresh
+  worktree is too). It is
   measured as before: the working tree against main by an in-memory `merge-tree`, with what is unread
   and what conflicts with main or another work (named by root, and its owner if it has one). A row
-  shows the owner terminal's title, or "No owner", and the branch; a click looks at the work and
-  shows it as a changes item on the owner's bar (a work with no owner, on the selected terminal's:
+  shows the owner terminal's title, or "No owner", the branch and, with several projects, the project;
+  the panel lists every project's worktrees, and a click switches to the owner's project and
+  shows the work as a changes item on the owner's bar (a work with no owner, on the selected terminal's:
   `works.show({ root, terminalId })`). `working` says the owner's agent is mid-turn in this very
   worktree (its activity is working, or a shell command runs, and its current checkout is the
   worktree). The row's × calls `works.close({ root, force })`, which closes the worktree with the

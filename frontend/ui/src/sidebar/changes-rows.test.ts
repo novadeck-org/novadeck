@@ -2,7 +2,6 @@ import type { Work, WorkFile } from "@novadeck/core/works"
 
 import { describe, expect, it } from "../test"
 import {
-  arrivals,
   branchViews,
   changeRows,
   closeMode,
@@ -11,7 +10,6 @@ import {
   mainWords,
   ownerOpen,
   selectedRoot,
-  unreadStates,
 } from "./changes-rows"
 
 const file = (
@@ -38,6 +36,7 @@ const work = (name: string, firstSeenAt: number, extra: Partial<Work> = {}): Wor
   branch: null,
   base: "main",
   firstSeenAt,
+  merged: false,
   added: 1,
   removed: 0,
   unreadAdded: 1,
@@ -51,19 +50,55 @@ const work = (name: string, firstSeenAt: number, extra: Partial<Work> = {}): Wor
 const read = { unreadAdded: 0, unreadRemoved: 0 }
 
 describe("the Changes panel's rows", () => {
-  it("puts unread works above read ones, each in the order it was first seen", () => {
+  it("lists works in the order they were first seen, whatever has been read", () => {
     const rows = changeRows(
       [work("c", 3), work("b", 2, read), work("a", 1, read), work("d", 4)],
       new Map(),
     )
-    expect(rows.map((row) => row.work.root)).toEqual(["/r/c", "/r/d", "/r/a", "/r/b"])
+    expect(rows.map((row) => row.work.root)).toEqual(["/r/a", "/r/b", "/r/c", "/r/d"])
   })
 
-  it("draws the line above the first read work only when unread ones come before it", () => {
-    const mixed = changeRows([work("a", 1), work("b", 2, read), work("c", 3, read)], new Map())
-    expect(mixed.map((row) => row.readStart)).toEqual([false, true, false])
-    const allRead = changeRows([work("a", 1, read)], new Map())
-    expect(allRead.map((row) => row.readStart)).toEqual([false])
+  it("keeps the order of works first seen together", () => {
+    const rows = changeRows([work("b", 1), work("a", 1)], new Map())
+    expect(rows.map((row) => row.work.root)).toEqual(["/r/b", "/r/a"])
+  })
+
+  it("shows a work's total lines, not its unread ones", () => {
+    const [row] = changeRows(
+      [work("a", 1, { added: 9, removed: 3, unreadAdded: 0, unreadRemoved: 0 })],
+      new Map(),
+    )
+    expect(row?.work).toMatchObject({ added: 9, removed: 3 })
+  })
+
+  it("names the project of a row only where the panel lists more than one", () => {
+    const rows = changeRows(
+      [work("a", 1, { projectId: "p" }), work("b", 2, { projectId: "q" })],
+      new Map(),
+      new Map([
+        ["p", "Storefront"],
+        ["q", "Api"],
+      ]),
+    )
+    expect(rows.map((row) => row.project)).toEqual(["Storefront", "Api"])
+    const alone = changeRows([work("a", 1)], new Map(), new Map([["p", "Storefront"]]))
+    expect(alone[0]?.project).toBeUndefined()
+  })
+
+  it("marks a merged work, unless it conflicts, which wins", () => {
+    const rows = changeRows(
+      [
+        work("a", 1, { merged: true, files: [] }),
+        work("b", 2, { merged: true, conflicts: [{ with: "main" }] }),
+        work("c", 3),
+      ],
+      new Map(),
+    )
+    expect(rows.map((row) => [row.merged, row.conflict])).toEqual([
+      [true, false],
+      [false, true],
+      [false, false],
+    ])
   })
 
   it("names a work by its owner terminal's title, with its branch", () => {
@@ -114,7 +149,7 @@ describe("what a row's × does", () => {
 })
 
 describe("whether an owner has a bar", () => {
-  it("is so for a terminal of the project, not for none or one in History", () => {
+  it("is so for a terminal of any project, not for none or one in History", () => {
     const titles = new Map([["t", "Open"]])
     expect(ownerOpen("t", titles)).toBe(true)
     expect(ownerOpen("gone", titles)).toBe(false)
@@ -160,9 +195,9 @@ describe("a work's files", () => {
     expect(files.map((each) => each.name)).toEqual(["clash.ts", "big.ts", "small.ts"])
   })
 
-  it("marks a file read once none of its lines are unread", () => {
+  it("counts a file's total lines, read or not", () => {
     const [only] = orderedFiles([file("a/b.ts", 4, 2, read)])
-    expect(only).toMatchObject({ name: "b.ts", unread: false, added: 0, removed: 0 })
+    expect(only).toMatchObject({ name: "b.ts", added: 4, removed: 2 })
   })
 
   it("unfolds up to six rows, then counts the rest on the last", () => {
@@ -204,36 +239,6 @@ describe("what a work conflicts with", () => {
   })
 })
 
-describe("arrivals", () => {
-  it("marks a read work that gained unread lines, and one new to the list", () => {
-    const before = new Map([
-      ["/r/a", false],
-      ["/r/b", true],
-    ])
-    const works = [work("a", 1), work("b", 2), work("c", 3), work("d", 4, read)]
-    expect(arrivals(before, works)).toEqual(["/r/a", "/r/c"])
-  })
-
-  it("marks nothing on the first look", () => {
-    expect(arrivals(null, [work("a", 1)])).toEqual([])
-  })
-
-  it("takes the unread rows of a state as the baseline only once it is synced", () => {
-    const works = [work("a", 1), work("b", 2, read)]
-    expect(unreadStates(works, false)).toBeNull()
-    const baseline = unreadStates(works, true)
-    expect(baseline).toEqual(
-      new Map([
-        ["/r/a", true],
-        ["/r/b", false],
-      ]),
-    )
-    // Opening the panel lists every row, which is not news; a later gain is.
-    expect(arrivals(unreadStates(works, false), works)).toEqual([])
-    expect(arrivals(baseline, [work("a", 1), work("b", 2)])).toEqual(["/r/b"])
-  })
-})
-
 describe("how old main is", () => {
   const now = 10_000_000_000
   const minute = 60_000
@@ -251,7 +256,7 @@ describe("how old main is", () => {
     const rows = changeRows(
       [work("a", 1, { fetchedAt: now - 3 * minute }), work("b", 2)],
       new Map(),
-      [],
+      new Map(),
       now,
     )
     expect(rows.find((row) => row.work.root === "/r/a")?.mainWords).toBe("main as of 3 min ago")

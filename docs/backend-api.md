@@ -779,7 +779,7 @@ or taskkill for:
   that started then, and no other given its pid since.
 
 `works.watch` reports a work per tracked worktree, keyed by its root (`{ root, terminalId | null,
-projectId, working, branch, base, firstSeenAt, added, removed, files, conflicts, … }`; `removed`
+projectId, working, branch, base, firstSeenAt, merged, added, removed, files, conflicts, … }`; `removed`
 carries the root, and a conflict with another work names its root and owner). `works.look({ root })`
 marks it read, `works.show({ root, terminalId? })` shows it as a changes item on its owner's bar
 (`terminalId` names the bar for a work with no owner), and `works.close({ root, force? })` closes the

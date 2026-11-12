@@ -43,7 +43,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
           actions: [
             {
               label: "New lines on its work",
-              hint: "Open Changes: the selected terminal's row (made now if it had no worktree) shows 14 more unread lines, top right; a read row moves above the line with the brief wash",
+              hint: "Open Changes: the selected terminal's row (made now if it had no worktree) shows 14 more lines in its +N −N, top right",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (key) works.gain(placed(workspace(), key))
@@ -87,7 +87,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Work merged",
-              hint: "Open Changes: the selected terminal's row stays but has no files, so its × closes it at once; any conflict with it clears on the others",
+              hint: 'Open Changes: the selected terminal\'s row stays, with a merge icon in green and "Merged" on hover, and has no files, so its × closes it at once; any conflict with it clears on the others',
               run: ({ selected }) => {
                 const key = selected()
                 const own = key && works.ownedBy(key.terminalId)
@@ -95,17 +95,8 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
               },
             },
             {
-              label: "Mark read",
-              hint: "Open Changes: the selected row's name and files turn gray, its +N −N goes, and it moves below the line",
-              run: ({ selected }) => {
-                const key = selected()
-                const own = key && works.ownedBy(key.terminalId)
-                if (own) works.look(own.root)
-              },
-            },
-            {
               label: "Worktree just made",
-              hint: "Open Changes: the selected terminal's row has its branch and no changes; hover it and click ×: it closes with no question",
+              hint: "Open Changes: the selected terminal's row has its branch, the plain icon and no changes (not merged); hover it and click ×: it closes with no question",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (key) works.openClean(placed(workspace(), key))
@@ -123,7 +114,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Commits main lacks",
-              hint: "Open Changes: the selected terminal's worktree has no changed files but two commits main lacks; click its ×: the dialog says it holds 2 commits the main branch doesn't have, and closing needs your Close worktree",
+              hint: "Open Changes: the selected terminal's worktree has no changed files but two commits main lacks (as a squash-merged one has, or a commit and its revert), so it reads as merged; click its ×: the dialog says it holds 2 commits the main branch doesn't have, and closing needs your Close worktree",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (key) works.commitsMainLacks(placed(workspace(), key), 2)
@@ -176,7 +167,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Close every worktree",
-              hint: "Open Changes: the project's list is empty, saying when an agent opens a worktree it shows up here; with Agent worktrees off in Preferences > Experimental it also points there",
+              hint: "Open Changes: the project's rows go, those of other projects stay; with every project's gone the list is empty, saying when an agent opens a worktree it shows up here; with Agent worktrees off in Preferences > Experimental it also points there",
               run: ({ selected }) => {
                 const key = selected()
                 if (key) works.removeAll(key.projectId)
@@ -184,25 +175,21 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Every state in Changes",
-              hint: "Open Changes: the session's first four terminals get a worktree each, one unread with many files, one read, one in conflict with main and one with the first",
+              hint: "Open Changes: the session's first four terminals get a worktree each, one with many files, one small, one in conflict with main and one with the first",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 const session = key && sessionOf(workspace(), key)
                 if (!key || !session) return
-                const [unread, read, main, between] = session.state.roster.terminals
+                const [many, small, main, between] = session.state.roster.terminals
                   .slice(0, 4)
                   .map((terminal) => placed(workspace(), { ...key, terminalId: terminal.id }))
-                if (unread) {
-                  works.gain(unread, 40)
-                  works.spread(unread, 8)
+                if (many) {
+                  works.gain(many, 40)
+                  works.spread(many, 8)
                 }
-                if (read) {
-                  works.gain(read, 12)
-                  const own = works.ownedBy(read.terminalId)
-                  if (own) works.look(own.root)
-                }
+                if (small) works.gain(small, 12)
                 if (main) works.conflictWithMain(main)
-                if (unread && between) works.conflictBetween(between, unread)
+                if (many && between) works.conflictBetween(between, many)
               },
             },
           ],

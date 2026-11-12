@@ -3,22 +3,11 @@ import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 import { SidebarItem, sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import { SubjectBar, SubjectDetail, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { GitCompare, X } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { GitCompare, GitMerge, X } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
 
-import {
-  arrivals,
-  changeRows,
-  ownerOpen,
-  selectedRoot,
-  unreadStates,
-  type ChangeRow,
-  type FileView,
-} from "./changes-rows"
+import { changeRows, ownerOpen, selectedRoot, type ChangeRow, type FileView } from "./changes-rows"
 import { SidebarPanel } from "./SidebarPanel"
-
-// How long a work that has just gained unread lines stays washed, as the Inbox's arrived rows.
-const arrivedMs = 1700
 
 // A count of lines, as a diff says it: what was added, what was removed; a side with none
 // says nothing.
@@ -32,7 +21,6 @@ const Lines = ({ added, removed }: { added: number; removed: number }): React.JS
 const FileName = ({ file, title }: { file: FileView; title?: boolean }): React.JSX.Element => (
   <span
     className="changes-file truncate"
-    data-read={!file.unread}
     data-conflict={file.conflict || undefined}
     {...(title ? { title: file.path } : {})}
   >
@@ -56,11 +44,9 @@ const Branches = ({ row }: { row: ChangeRow }): React.JSX.Element => (
             {branch.kind === "file" ? (
               <>
                 <FileName file={branch.file} title />
-                {branch.file.unread && (
-                  <span className="terminal-tab-wait-trail changes-trail">
-                    <Lines added={branch.file.added} removed={branch.file.removed} />
-                  </span>
-                )}
+                <span className="terminal-tab-wait-trail changes-trail">
+                  <Lines added={branch.file.added} removed={branch.file.removed} />
+                </span>
               </>
             ) : (
               <span className="truncate">{branch.text}</span>
@@ -72,14 +58,13 @@ const Branches = ({ row }: { row: ChangeRow }): React.JSX.Element => (
   </span>
 )
 
-// The unread lines in words, for the row's accessible label: "142 lines added, 38 removed unread".
-const unreadWords = (work: Work): string => {
+// The work's total lines in words, for the row's accessible label: "85 lines added, 18 removed".
+const linesWords = (work: Work): string | undefined => {
   const parts = [
-    work.unreadAdded > 0 &&
-      `${work.unreadAdded} ${work.unreadAdded === 1 ? "line" : "lines"} added`,
-    work.unreadRemoved > 0 && `${work.unreadRemoved} removed`,
+    work.added > 0 && `${work.added} ${work.added === 1 ? "line" : "lines"} added`,
+    work.removed > 0 && `${work.removed} removed`,
   ].filter(Boolean)
-  return `${parts.join(", ")} unread`
+  return parts.length > 0 ? parts.join(", ") : undefined
 }
 
 // What the × says, when it is not available.
@@ -88,10 +73,19 @@ const busyTip = "Its agent is working in this worktree. Close it once the turn e
 const closeTip = (row: ChangeRow): string =>
   row.close === "busy" ? busyTip : `Close the ${row.branch} worktree`
 
-// The row's branch, on its detail line.
+// The row's project (where the panel lists more than one) and branch, on its detail line.
 const BranchLine = ({ row }: { row: ChangeRow }): React.JSX.Element => (
   <>
     <span aria-hidden className="terminal-glyph inline-block w-[1ch] shrink-0 text-center" />
+    {row.project !== undefined && (
+      <>
+        <span className="changes-project min-w-0 max-w-[45%] shrink-0 truncate" title={row.project}>
+          {row.project}
+        </span>
+        {/* Outside the name, so a cut name keeps it. */}
+        <span className="changes-sep shrink-0">·</span>
+      </>
+    )}
     <span className="changes-branch min-w-0 truncate" title={row.branch}>
       {row.branch}
     </span>
@@ -115,25 +109,35 @@ const ChangeItem = ({
   const label = [
     row.title,
     row.branch,
+    row.project === undefined ? undefined : `in ${row.project}`,
     files,
-    row.unread ? unreadWords(work) : undefined,
+    linesWords(work),
     row.conflictWords?.replace(/^C/, "c"),
+    row.merged ? "merged" : undefined,
   ]
     .filter(Boolean)
     .join(", ")
-  const tooltip = [row.conflictWords, row.mainWords].filter(Boolean).join(" · ")
+  const tooltip = [row.conflictWords ?? (row.merged ? "Merged" : undefined), row.mainWords]
+    .filter(Boolean)
+    .join(" · ")
   return (
     <SidebarItem
       role="listitem"
       className={`terminal-tab changes-row${selected ? " selected" : ""}`}
       name={row.title}
-      icon={<GitCompare size={14} strokeWidth={1.5} />}
+      icon={
+        row.merged ? (
+          <GitMerge size={14} strokeWidth={1.5} />
+        ) : (
+          <GitCompare size={14} strokeWidth={1.5} />
+        )
+      }
       detail={<BranchLine row={row} />}
       below={<Branches row={row} />}
       badge={
-        row.unread ? (
+        work.added + work.removed > 0 ? (
           <span className="terminal-tab-kinds changes-size">
-            <Lines added={work.unreadAdded} removed={work.unreadRemoved} />
+            <Lines added={work.added} removed={work.removed} />
           </span>
         ) : undefined
       }
@@ -159,12 +163,9 @@ const ChangeItem = ({
       }
       onSelect={() => onSelect(work)}
       data-terminal-phase="idle"
-      data-terminal-unread={row.unread || undefined}
       data-changes-row={work.root}
-      data-read={!row.unread}
       data-conflict={row.conflict || undefined}
-      data-read-start={row.readStart || undefined}
-      data-arrived={row.arrived || undefined}
+      data-merged={row.merged || undefined}
     />
   )
 }
@@ -203,17 +204,17 @@ const closeBar = ({ row }: Asking): React.JSX.Element => (
   </SubjectBar>
 )
 
-// The sidebar's Changes panel: the project's works, each a git worktree Novadeck tracks,
+// The sidebar's Changes panel: every project's works, each a git worktree Novadeck tracks,
 // against main, drawn as the Terminals panel's tabs and named by the terminal that owns it (or
-// "No owner"). First come, first served, the unread ones above a line and the read below; a
-// read work that gains unread lines moves up with a brief wash. A click shows the work on its
-// owner's bar. The × asks the runner to close the worktree, which says what it holds when the
+// "No owner"), with its project where there are several. First come, first served. A merged
+// work (its changes already in main) has a merge icon, a conflicting one a red icon. A click
+// shows the work on its owner's bar. The × asks the runner to close the worktree, which says what it holds when the
 // person should confirm first, and waits while its owner's agent is working in it.
 export const ChangesPanel = ({
   works,
-  synced,
   watch,
   titles,
+  projects,
   selectedId,
   agentWorktrees,
   active,
@@ -223,12 +224,12 @@ export const ChangesPanel = ({
   onCloseWork,
 }: {
   works: readonly Work[]
-  // The backend has reported every work since it began following.
-  synced: boolean
   // Follows the works until the returned release is called.
   watch: () => () => void
-  // Each terminal's title, by id.
+  // Each terminal's title, by id, in every project.
   titles: ReadonlyMap<string, string>
+  // Each project's name, by id.
+  projects: ReadonlyMap<string, string>
   // The selected terminal, where a work with no owner is shown.
   selectedId: string | undefined
   // Whether agents may open worktrees: "off" points the empty list to Preferences. Absent
@@ -245,26 +246,12 @@ export const ChangesPanel = ({
   // NOT_FOUND once it is closed already.
   onCloseWork: (root: string, force: boolean) => Promise<WorkClosing>
 }): React.JSX.Element => {
-  const known = useRef<ReadonlyMap<string, boolean> | null>(null)
-  const timer = useRef<number | undefined>(undefined)
-  const [arrived, setArrived] = useState<readonly string[]>([])
   const [last, setLast] = useState<{ root: string; on: string | undefined } | undefined>()
   // What the dialog asks about, and what went wrong last, as one line under a name.
   const [asking, setAsking] = useState<Asking | null>(null)
   const [refusal, setRefusal] = useState<{ title: string; text: string } | null>(null)
   useEffect(() => (watching ? watch() : undefined), [watching, watch])
-  useEffect(() => {
-    // Nothing arrives until the works are synced: opening the panel or starting up lists
-    // every row once, which isn't news.
-    const fresh = synced ? arrivals(known.current, works) : []
-    known.current = unreadStates(works, synced)
-    if (fresh.length === 0) return
-    setArrived((now) => [...new Set([...now, ...fresh])])
-    window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => setArrived([]), arrivedMs)
-  }, [works, synced])
-  useEffect(() => () => window.clearTimeout(timer.current), [])
-  const rows = useMemo(() => changeRows(works, titles, arrived), [works, titles, arrived])
+  const rows = useMemo(() => changeRows(works, titles, projects), [works, titles, projects])
   const selected = selectedRoot(works, selectedId, last)
   // Asks the runner to close the worktree. Unforced, it may answer with what the worktree holds,
   // which the person confirms before it is asked again with force: nothing is forced unasked.

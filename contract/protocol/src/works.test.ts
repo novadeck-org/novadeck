@@ -11,6 +11,7 @@ const base = {
   branch: "feat/x",
   base: "main",
   firstSeenAt: 1,
+  merged: false,
   added: 0,
   removed: 0,
   unreadAdded: 0,
@@ -29,6 +30,12 @@ describe("a work", () => {
   it("needs to say whether its owner's agent is working in it", () => {
     const { working: _working, ...without } = base
     expect(work.safeParse(without).success).toBe(false)
+  })
+
+  it("needs to say whether its work was merged", () => {
+    const { merged: _merged, ...without } = base
+    expect(work.safeParse(without).success).toBe(false)
+    expect(work.parse({ ...base, merged: true }).merged).toBe(true)
   })
 
   it("names a conflicting work by its root and its owner, if any", () => {

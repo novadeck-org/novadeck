@@ -40,7 +40,9 @@ export const workConflict = z.discriminatedUnion("with", [
 // now; `branch` its branch, null when detached;
 // `base` the main branch it's measured against (as `main` or `origin/main`); `firstSeenAt`
 // when it first differed from main, which orders the panel; the totals are its files' sums,
-// the unread ones what the person hasn't read. `fetchedAt` is when its repository's origin was
+// the unread ones what the person hasn't read. `merged` when nothing differs from main and the
+// worktree has commits of its own that main holds, so its work was merged (a worktree just made
+// differs from nothing too, and is not). `fetchedAt` is when its repository's origin was
 // last fetched, so main is as old as that; absent when it never was. `truncated` when more files changed than
 // `files` lists.
 export const work = z.strictObject({
@@ -51,6 +53,7 @@ export const work = z.strictObject({
   branch: z.string().min(1).max(workLimits.branch).nullable(),
   base: z.string().min(1).max(workLimits.branch),
   firstSeenAt: z.number(),
+  merged: z.boolean(),
   fetchedAt: z.number().optional(),
   added: count,
   removed: count,

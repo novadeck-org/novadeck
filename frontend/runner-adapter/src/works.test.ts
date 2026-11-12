@@ -18,6 +18,7 @@ const work = (n: number, change: Partial<Work> = {}): Work => ({
   branch: "feature",
   base: "origin/main",
   firstSeenAt: n * 1_000,
+  merged: false,
   added: 3,
   removed: 1,
   unreadAdded: 3,

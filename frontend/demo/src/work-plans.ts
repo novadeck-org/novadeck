@@ -1,9 +1,9 @@
 import { planFile as file, type WorkPlan } from "./works"
 
 // The works each demo opens with, by the titles of its own terminals (see `WorkPlan`): a mix
-// of unread and read, one that conflicts with main and, where there are terminals enough, two
+// of read and unread, one that conflicts with main and, where there are terminals enough, two
 // that conflict with each other. The storefront's also has a worktree with no owner, one just
-// made (it differs from nothing), and one whose owner's agent is mid-turn in it.
+// made (it differs from nothing), one merged, and one whose owner's agent is mid-turn in it.
 
 // The sample projects of the plain and agents demos, whose terminals share their titles.
 export const storefrontPlans: readonly WorkPlan[] = [
@@ -59,6 +59,14 @@ export const storefrontPlans: readonly WorkPlan[] = [
     terminal: "Build",
     branch: "agent/build-cache",
     minutesAgo: 4,
+    files: [],
+  },
+  {
+    project: "storefront",
+    terminal: "Build",
+    branch: "agent/build-lint",
+    minutesAgo: 800,
+    merged: true,
     files: [],
   },
   {
@@ -128,6 +136,14 @@ export const showcasePlans: readonly WorkPlan[] = [
     terminal: "Dev server",
     minutesAgo: 190,
     files: [file("vite.config.ts", 7, 2, { read: true })],
+  },
+  {
+    project: "studio",
+    terminal: "Dev server",
+    branch: "agent/dev-server-hmr",
+    minutesAgo: 400,
+    merged: true,
+    files: [],
   },
   {
     project: "website",

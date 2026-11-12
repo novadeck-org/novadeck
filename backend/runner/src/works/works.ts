@@ -21,6 +21,7 @@ import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
 import { conflictsOf, listFiles, mayConflict, type Lines } from "./lines.js"
 import { loadRemembered, RememberedSaves, type Remembered } from "./memory.js"
+import { mergedWork } from "./merged.js"
 
 const log = logs.for("works")
 
@@ -31,6 +32,8 @@ export type Tracked = {
   readonly terminalId: string | null
   /** When it was recorded, in epoch milliseconds: the time of a work that differs from nothing. */
   readonly createdAt: number
+  /** The commit it started from; undefined where that is not known. */
+  readonly base?: string | undefined
   /** When its repository's origin was last fetched; undefined if never. */
   readonly fetchedAt?: number | undefined
 }
@@ -98,6 +101,8 @@ type Read = {
   readonly tree: string
   readonly branch: string | null
   readonly base: string
+  /** Nothing differs and it has commits of its own that main holds: its work was merged. */
+  readonly merged: boolean
   readonly changed: ReadonlyMap<string, Lines>
   /** The paths it touches: each file's, and a renamed one's old path too. */
   readonly touched: ReadonlySet<string>
@@ -380,16 +385,14 @@ export class Works {
     const tracked = this.options.tracked()
     const presences = await this.options.presences()
     const now = this.now()
-    const due = tracked
-      .map(({ root }) => root)
-      .filter((root) => {
-        const state = this.roots.get(root)
-        return force === "all" || force.has(root) || !state || now >= state.nextAt
-      })
+    const due = tracked.filter(({ root }) => {
+      const state = this.roots.get(root)
+      return force === "all" || force.has(root) || !state || now >= state.nextAt
+    })
     // A few at a time: a repository of many files takes a while, and the others wait on it.
     for (let at = 0; at < due.length; at += 4)
       // eslint-disable-next-line no-await-in-loop -- A few checkouts at once.
-      await Promise.all(due.slice(at, at + 4).map((root) => this.readRoot(root)))
+      await Promise.all(due.slice(at, at + 4).map(({ root, base }) => this.readRoot(root, base)))
     const tracking = new Set(tracked.map(({ root }) => root))
     // A worktree closed (by the person, an agent's close, or cleanup) takes its memory with it.
     for (const root of this.lastTracked)
@@ -404,8 +407,8 @@ export class Works {
     this.remember()
   }
 
-  /** Reads one checkout into its state. */
-  private async readRoot(root: string): Promise<void> {
+  /** Reads one checkout into its state; `start` is the commit it started from, if known. */
+  private async readRoot(root: string, start: string | undefined): Promise<void> {
     let state = this.roots.get(root)
     if (!state) {
       state = { remembered: undefined, read: undefined, nextAt: 0 }
@@ -413,7 +416,7 @@ export class Works {
     }
     const started = this.now()
     try {
-      const outcome = await this.read(root, state)
+      const outcome = await this.read(root, state, start)
       if (outcome === "keep") {
         // Not told by this read (git was slow, or failed): what was told stands.
       } else {
@@ -435,7 +438,11 @@ export class Works {
    * What the checkout differs from main by (nothing, once merging it changes nothing), null
    * when its repository has no main branch, "keep" when git failed and what was known stands.
    */
-  private async read(root: string, state: RootState): Promise<Read | null | "keep"> {
+  private async read(
+    root: string,
+    state: RootState,
+    start: string | undefined,
+  ): Promise<Read | null | "keep"> {
     const main = await mainBranch(root)
     if (!main) return null
     return this.options.snapshots.use(root, async (checkout) => {
@@ -451,9 +458,12 @@ export class Works {
         snapshot.skipped,
         // A rebuilt folder may have let go of the snapshot's commit.
         snapshot.generation,
+        // Commits that change no file leave the tree as it was, and make a work merged.
+        snapshot.head,
+        start,
       ].join(" ")
       if (state.read?.key === key) return state.read
-      return this.measure(root, state, { main, snapshot, branch, watermark, key })
+      return this.measure(root, state, { main, snapshot, branch, watermark, key, start })
     })
   }
 
@@ -467,30 +477,38 @@ export class Works {
       branch,
       watermark,
       key,
+      start,
     }: {
       readonly main: Main
       readonly snapshot: Snapshot
       readonly branch: string | null
       readonly watermark: string | null
       readonly key: string
+      readonly start: string | undefined
     },
   ): Promise<Read | "keep"> {
     const commit = await snapshotCommit(root, snapshot.tree, snapshot.head, snapshot.env)
     if (!commit) return "keep"
-    const nothing = async (): Promise<Read> => ({
-      key,
-      commit,
-      tree: snapshot.tree,
-      branch,
-      base: main.name,
-      changed: new Map(),
-      touched: new Set(),
-      unread: undefined,
-      conflicts: [],
-      skipped: snapshot.skipped,
-      common: await commonDir(root),
-      env: snapshot.env,
-    })
+    const nothing = async (): Promise<Read | "keep"> => {
+      const merged = await mergedWork(root, main, snapshot.head, start)
+      // Git failing is not an answer: what was told stands, and the next pass reads it again.
+      if (merged === undefined) return "keep"
+      return {
+        key,
+        commit,
+        tree: snapshot.tree,
+        branch,
+        base: main.name,
+        merged,
+        changed: new Map(),
+        touched: new Set(),
+        unread: undefined,
+        conflicts: [],
+        skipped: snapshot.skipped,
+        common: await commonDir(root),
+        env: snapshot.env,
+      }
+    }
     const merge = await mergeTrees(root, main.commit, commit, snapshot.env)
     if (merge.state === "clean" && merge.tree === main.tree) return nothing()
     const base = await mergeBase(root, main.commit, commit, snapshot.env)
@@ -517,6 +535,7 @@ export class Works {
       tree: snapshot.tree,
       branch,
       base: main.name,
+      merged: false,
       changed,
       touched: new Set(listed.flatMap(({ path, oldPath }) => (oldPath ? [path, oldPath] : [path]))),
       unread,
@@ -561,6 +580,7 @@ export class Works {
           ),
         branch: read.branch,
         base: read.base,
+        merged: read.merged,
         // Only a main that a fetch moves (a remote-tracking ref) is as old as the fetch.
         ...(fetchedAt !== undefined && read.base.startsWith("origin/") && { fetchedAt }),
         firstSeenAt: remembered?.firstSeenAt ?? createdAt,

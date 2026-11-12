@@ -57,17 +57,16 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
         onConnect: (agent: AgentName) => void
       }
     | undefined
-  // Where the backend reports each tracked worktree's work against main: this project's works,
-  // the terminals' titles by id, the selected terminal, whether agents may open worktrees,
+  // Where the backend reports each tracked worktree's work against main: every project's works,
+  // the terminals' titles by id and the projects' names, the selected terminal, whether agents may open worktrees,
   // what a row's click does and what its × does. Left out, there is no Changes panel.
   changes:
     | {
         works: readonly Work[]
-        // The backend has reported every work since it began following.
-        synced: boolean
         // Follows the works until the returned release is called.
         watch: () => () => void
         titles: ReadonlyMap<string, string>
+        projects: ReadonlyMap<string, string>
         selectedId: string | undefined
         agentWorktrees: "on" | "off" | "absent"
         onSelect: (work: Work, on: string | undefined) => Promise<void>
@@ -205,7 +204,7 @@ export const WorkspaceSidebar = ({
     </SidebarPanel>
     {changes && (
       <ChangesPanel
-        key={`changes/${projectId}`}
+        key="changes"
         {...changes}
         active={sidebarPanel === "changes"}
         watching={sidebarVisible && sidebarPanel === "changes"}

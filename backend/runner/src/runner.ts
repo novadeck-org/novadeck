@@ -354,11 +354,12 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     .finally(() => worktrees.start())
   const works = new Works({
     tracked: () =>
-      worktrees.all().map(({ path, projectId, terminalId, createdAt, commonDir }) => ({
+      worktrees.all().map(({ path, projectId, terminalId, createdAt, commonDir, base }) => ({
         root: path,
         projectId,
         terminalId,
         createdAt,
+        base,
         fetchedAt: worktrees.fetchedAt(commonDir),
       })),
     presences: async () =>

@@ -1,5 +1,4 @@
 import type { Workspace } from "@novadeck/core/types"
-import { unread } from "@novadeck/core/works"
 import { plainDemo } from "@novadeck/demo"
 import { storefrontPlans } from "@novadeck/demo/work-plans"
 import { createDemoWorks, worksFromPlans } from "@novadeck/demo/works"
@@ -106,13 +105,13 @@ describe("the debug panel's Changes group", () => {
   it("empties the row when its work is merged, keeping the worktree", () => {
     const { run, work } = setup()
     run("Work merged", 0)
-    expect(work(0)).toMatchObject({ files: [], added: 0 })
+    expect(work(0)).toMatchObject({ files: [], added: 0, merged: true })
   })
 
   it("makes a worktree that differs from nothing, or one with changes", () => {
     const { run, work } = setup([])
     run("Worktree just made", 1)
-    expect(work(1)?.files).toEqual([])
+    expect(work(1)).toMatchObject({ files: [], merged: false })
     run("Worktree with changes", 1)
     expect(work(1)!.files.length).toBeGreaterThan(0)
   })
@@ -120,7 +119,7 @@ describe("the debug panel's Changes group", () => {
   it("leaves a worktree with commits main lacks, or whose owner is in History", () => {
     const { run, work, works } = setup([])
     run("Commits main lacks", 1)
-    expect(work(1)?.files).toEqual([])
+    expect(work(1)).toMatchObject({ files: [], merged: true })
     run("Owner in History", 2)
     expect(
       works.state.getSnapshot().works.some((each) => each.terminalId?.startsWith("closed-")),
@@ -149,20 +148,14 @@ describe("the debug panel's Changes group", () => {
     expect(
       works.state.getSnapshot().works.filter((each) => each.projectId === "storefront"),
     ).toEqual([])
-  })
-
-  it("reads the selected work", () => {
-    const { run, work } = setup()
-    expect(unread(work(0)!)).toBe(true)
-    run("Mark read", 0)
-    expect(unread(work(0)!)).toBe(false)
+    // Other projects keep theirs.
+    expect(works.state.getSnapshot().works.length).toBeGreaterThan(0)
   })
 
   it("puts a spread of works in the session at once", () => {
     const { run, work, rootOf } = setup([])
     run("Every state in Changes", 0)
-    expect(unread(work(0)!)).toBe(true)
-    expect(unread(work(1)!)).toBe(false)
+    expect(work(0)!.files.length).toBeGreaterThan(work(1)!.files.length)
     expect(work(2)?.conflicts).toEqual([{ with: "main" }])
     expect(work(3)?.conflicts).toEqual([
       { with: "work", root: rootOf(0), terminalId: key(0).terminalId },

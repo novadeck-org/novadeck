@@ -166,20 +166,23 @@ export const SidebarSection = memo((): React.JSX.Element => {
   const away = useTabsAway()
   // The Changes panel shows where the backend reports the terminals' work; see `worksShown`.
   const worksFeed = worksShown(backend) ? backend.works : undefined
-  const projectWorks = useStoreSelector(
-    worksFeed?.state ?? noWorks,
-    (state) => state.works.filter((work) => work.projectId === projectId),
-    sameWorks,
-  )
-  const worksSynced = useStoreSelector(worksFeed?.state ?? noWorks, (state) => state.synced)
-  // Titles of the project's terminals, in every session of it, for the rows to name.
+  // Every project's works: the panel lists them all, naming each row's project.
+  const allWorks = useStoreSelector(worksFeed?.state ?? noWorks, (state) => state.works, sameWorks)
+  // Titles of every project's terminals, in every session of it, for the rows to name.
   const titles = useWorkspaceState(
     (workspace) =>
       new Map(
-        activeProject(workspace)!.history.flatMap((session) =>
-          session.state.roster.terminals.map((terminal) => [terminal.id, terminal.name] as const),
+        workspace.projects.flatMap((project) =>
+          project.history.flatMap((session) =>
+            session.state.roster.terminals.map((terminal) => [terminal.id, terminal.name] as const),
+          ),
         ),
       ),
+    sameHandles,
+  )
+  const projectNames = useWorkspaceState(
+    (workspace) =>
+      new Map(workspace.projects.map((project) => [project.id, project.name] as const)),
     sameHandles,
   )
   const selectedId = useWorkspaceState((workspace) => currentState(workspace).selected)
@@ -189,9 +192,9 @@ export const SidebarSection = memo((): React.JSX.Element => {
   const showWork = useCallback(
     async (work: Work, terminalId: string | undefined): Promise<void> => {
       if (!worksFeed) return
-      worksFeed.look(work.root)
       if (terminalId === undefined) return
-      revealTerminal(terminalId, projectId)
+      // The owner may be in another project; any other terminal is the selected one's.
+      revealTerminal(terminalId, terminalId === work.terminalId ? work.projectId : projectId)
       const itemId = await worksFeed.show(work.root, terminalId)
       if (itemId !== null) openBarTab(terminalId, itemIdOf(itemId))
     },
@@ -207,17 +210,17 @@ export const SidebarSection = memo((): React.JSX.Element => {
     () =>
       worksFeed
         ? {
-            works: projectWorks,
-            synced: worksSynced,
+            works: allWorks,
             watch: worksFeed.watch,
             titles,
+            projects: projectNames,
             selectedId,
             agentWorktrees,
             onSelect: showWork,
             onCloseWork: worksFeed.close,
           }
         : undefined,
-    [worksFeed, projectWorks, worksSynced, titles, selectedId, agentWorktrees, showWork],
+    [worksFeed, allWorks, titles, projectNames, selectedId, agentWorktrees, showWork],
   )
   const sidebarPanel = useUiState((state) => state.location.route.panel)
   const visible = useUiState((state) => sidebarVisible(state.shell, desktop))

@@ -48,6 +48,8 @@ export type WorkPlan = {
   readonly fetchedMinutesAgo?: number
   // None: the worktree differs from nothing, so closing it asks no question.
   readonly files: readonly FilePlan[]
+  // With no files: its work was merged (else the worktree was just made).
+  readonly merged?: true
   readonly conflicts?: readonly string[]
   // The owner's agent is mid-turn in it, so its × waits.
   readonly working?: true
@@ -68,6 +70,8 @@ const fileOf = (plan: FilePlan): WorkFile => {
 // A work's sums over its files; the files themselves stay as they are.
 const summed = (work: Work, files: readonly WorkFile[]): Work => ({
   ...work,
+  // A merged work that changes a file is no longer merged.
+  merged: work.merged && files.length === 0,
   files,
   added: files.reduce((sum, file) => sum + file.added, 0),
   removed: files.reduce((sum, file) => sum + file.removed, 0),
@@ -151,6 +155,7 @@ export const worksFromPlans = (
           fetchedAt: now - plan.fetchedMinutesAgo * minute,
         }),
         firstSeenAt: now - plan.minutesAgo * minute,
+        merged: plan.merged === true,
         added: 0,
         removed: 0,
         unreadAdded: 0,
@@ -235,9 +240,17 @@ const withConflict = (work: Work, other: Work): Work => {
   }
 }
 
-// Nothing differs from main any more: merged into it, or discarded. The worktree stays.
+// Nothing differs from main any more, and the worktree has commits of its own: merged into it.
+// The worktree stays.
 export const merged = (work: Work): Work => ({
+  ...emptied(work),
+  merged: true,
+})
+
+// Nothing differs from main, as in a worktree just made.
+export const emptied = (work: Work): Work => ({
   ...summed(work, []),
+  merged: false,
   conflicts: [],
   truncated: false,
 })
@@ -267,7 +280,7 @@ export type DemoWorksControl = {
   // The work conflicts with another terminal's, which gets a work of its own to conflict with.
   readonly conflictBetween: (at: Placed, other: Placed) => void
   readonly settle: (root: string) => void
-  // The work differs from nothing: merged into main, or discarded. The worktree stays.
+  // The work was merged into main: it differs from nothing, and the worktree stays.
   readonly merge: (root: string) => void
   // The terminal's worktree, just made: it differs from nothing.
   readonly openClean: (at: Placed) => void
@@ -276,7 +289,7 @@ export type DemoWorksControl = {
   // Its owner is closed, in History: the row still names an owner, no terminal of the project.
   readonly ownerClosed: (root: string) => void
   // The terminal's worktree differs from nothing but has `count` commits main lacks, as one
-  // whose commits net to nothing does.
+  // squash-merged does.
   readonly commitsMainLacks: (at: Placed, count: number) => void
   // The owner's agent is mid-turn in the terminal's first worktree, or no longer.
   readonly setWorking: (terminalId: string, working: boolean) => void
@@ -348,6 +361,7 @@ export const createDemoWorks = (
       branch: `agent/${slug(at.terminalId)}`,
       base: "main",
       firstSeenAt: now(),
+      merged: false,
       added: 0,
       removed: 0,
       unreadAdded: 0,
@@ -441,7 +455,7 @@ export const createDemoWorks = (
     openClean: (at) => {
       const { root } = ensure(at)
       unmerged.delete(root)
-      change(root, merged)
+      change(root, emptied)
     },
     ownerClosed: (root) =>
       change(root, (work) => ({

@@ -17,6 +17,7 @@ const work = (name: string, extra: Partial<Work> = {}): Work => ({
   branch: `feat/${name}`,
   base: "main",
   firstSeenAt: 1,
+  merged: false,
   added: 4,
   removed: 1,
   unreadAdded: 4,
@@ -27,6 +28,16 @@ const work = (name: string, extra: Partial<Work> = {}): Work => ({
   truncated: false,
   conflicts: [],
   ...extra,
+})
+
+// A file of 4 lines added and 1 removed, with `unreadAdded` and `unreadRemoved` as given.
+const file = (unreadAdded: number, unreadRemoved: number) => ({
+  path: "a.ts",
+  added: 4,
+  removed: 1,
+  unreadAdded,
+  unreadRemoved,
+  conflict: false,
 })
 
 const clean = (name: string, extra: Partial<Work> = {}) =>
@@ -41,6 +52,8 @@ const show = (
     // The titles of terminals still open; every owner's by default.
     open?: readonly string[]
     selectedId?: string
+    // The projects' names by id; the one project of the works' by default.
+    projects?: ReadonlyMap<string, string>
   } = {},
 ) => {
   const onSelect = vi.fn<(work: Work, on: string | undefined) => Promise<void>>(
@@ -52,7 +65,6 @@ const show = (
   const page = render(
     createElement(ChangesPanel, {
       works,
-      synced: true,
       watch: () => () => {},
       titles: new Map(
         works.flatMap((each) =>
@@ -61,6 +73,7 @@ const show = (
             : [],
         ),
       ),
+      projects: options.projects ?? new Map([["p", "Storefront"]]),
       selectedId: options.selectedId,
       agentWorktrees: options.agentWorktrees ?? "on",
       active: true,
@@ -88,6 +101,22 @@ describe("the Changes panel's rows", () => {
     const { row } = show([work("a")])
     expect(row("a").querySelector("strong")?.textContent).toBe("Title t-a")
     expect(row("a").querySelector(".sidebar-item-detail")?.textContent).toBe("feat/a")
+  })
+
+  it("shows the work's total lines on the row and on each file, never gray for being read", () => {
+    const { row } = show([work("a", { unreadAdded: 0, unreadRemoved: 0, files: [file(0, 0)] })])
+    expect(row("a").querySelector(".changes-size")?.textContent).toBe("+4−1")
+    expect(row("a").querySelector(".changes-trail")?.textContent).toBe("+4−1")
+    expect(row("a").querySelector("[data-read]")).toBeNull()
+    expect(row("a").dataset.read).toBeUndefined()
+    expect(row("a").dataset.readStart).toBeUndefined()
+    expect(row("a").dataset.arrived).toBeUndefined()
+  })
+
+  it("orders rows by when they were first seen, with no line between", () => {
+    const { rows } = show([work("b", { firstSeenAt: 2 }), work("a", { firstSeenAt: 1 })])
+    expect(rows().map((each) => each.dataset.changesRow)).toEqual(["/w/a", "/w/b"])
+    expect(rows().some((each) => each.dataset.readStart !== undefined)).toBe(false)
   })
 
   it("says No owner for a worktree without one, and keeps a row for each root", () => {
@@ -134,6 +163,73 @@ describe("the Changes panel's rows", () => {
     })
     expect(row("a").dataset.selected).toBe("true")
     expect(row("b").dataset.selected).toBe("false")
+  })
+})
+
+describe("a row's accessible label", () => {
+  const label = (page: Rendered) =>
+    page.container.querySelector(".sidebar-item-select")!.getAttribute("aria-label")
+
+  it("says the work's total lines, with line singular for one, and none for a work with none", () => {
+    expect(label(show([work("a")]).page)).toContain("1 file changed, 4 lines added, 1 removed")
+    const one = show([work("b", { added: 1, removed: 0 })])
+    expect(label(one.page)).toContain("1 line added")
+    expect(label(one.page)).not.toContain("removed")
+    expect(label(show([clean("c")]).page)).not.toContain("added")
+  })
+})
+
+describe("a merged work's row", () => {
+  const merged = () => clean("m", { merged: true })
+  const label = (page: Rendered) =>
+    page.container.querySelector(".sidebar-item-select")!.getAttribute("aria-label")
+
+  it("is marked merged, says so in its accessible label and keeps its branch", () => {
+    const { row, page } = show([merged()])
+    expect(row("m").dataset.merged).toBe("true")
+    expect(label(page)).toContain("merged")
+    expect(row("m").querySelector(".sidebar-item-detail")?.textContent).toBe("feat/m")
+  })
+
+  it("is not marked for a worktree just made", () => {
+    const { row, page } = show([clean("n")])
+    expect(row("n").dataset.merged).toBeUndefined()
+    expect(label(page)).not.toContain("merged")
+  })
+
+  it("lets a conflict win over merged", () => {
+    const { row, page } = show([work("c", { merged: true, conflicts: [{ with: "main" }] })])
+    expect(row("c").dataset.merged).toBeUndefined()
+    expect(row("c").dataset.conflict).toBe("true")
+    expect(label(page)).toContain("conflicts with main")
+    expect(label(page)).not.toContain("merged")
+  })
+})
+
+describe("the projects of the rows", () => {
+  const projects = new Map([
+    ["p", "Storefront"],
+    ["q", "Api"],
+  ])
+
+  it("names each row's project beside its branch where the panel lists several", () => {
+    const { row } = show([work("a"), work("b", { projectId: "q" })], { projects })
+    expect(row("a").querySelector(".changes-project")?.textContent).toBe("Storefront")
+    expect(row("b").querySelector(".changes-project")?.textContent).toBe("Api")
+  })
+
+  it("names none while the panel lists one project", () => {
+    const { row } = show([work("a")])
+    expect(row("a").querySelector(".changes-project")).toBeNull()
+  })
+
+  it("shows another project's work on its owner's bar", () => {
+    const { row, onSelect } = show([work("a"), work("b", { projectId: "q" })], { projects })
+    act(() => row("b").querySelector<HTMLButtonElement>(".sidebar-item-select")!.click())
+    expect(onSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ root: "/w/b", projectId: "q" }),
+      "t-b",
+    )
   })
 })
 

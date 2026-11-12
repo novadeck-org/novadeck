@@ -1,18 +1,16 @@
-import { unread, type Work, type WorkFile } from "@novadeck/core/works"
+import type { Work, WorkFile } from "@novadeck/core/works"
 
-// The Changes panel's rows, from the project's works (one per tracked worktree, keyed by its
+// The Changes panel's rows, from every project's works (one per tracked worktree, keyed by its
 // root): which come first, what each row says and which files it lists. The component only
 // draws them.
 
 // How many rows the selected work unfolds under its line before the last counts the rest.
 export const branchRows = 6
 
-// One file as a row shows it: its base name, whether it holds lines the person hasn't read, and
-// whether the conflict is in it.
+// One file as a row shows it: its base name, its lines and whether the conflict is in it.
 export type FileView = {
   readonly path: string
   readonly name: string
-  readonly unread: boolean
   readonly conflict: boolean
   readonly added: number
   readonly removed: number
@@ -32,17 +30,16 @@ export type ChangeRow = {
   readonly work: Work
   // The owner terminal's title, or "No owner".
   readonly title: string
+  // The name of the project the work belongs to, where the panel lists more than one.
+  readonly project: string | undefined
   // The branch, or "detached".
   readonly branch: string
   readonly close: CloseMode
-  readonly unread: boolean
-  // The work has just joined the unread rows.
-  readonly arrived: boolean
-  // The first of the read rows below unread ones: the line goes above it.
-  readonly readStart: boolean
   readonly conflict: boolean
   // What the conflict is with, in words ("Conflicts with main"), or none.
   readonly conflictWords: string | undefined
+  // The work was merged ("Merged" in words); a conflict wins over it.
+  readonly merged: boolean
   // How old the main branch it is measured against is ("main as of 12 min ago"), or none where
   // its repository's origin was never fetched.
   readonly mainWords: string | undefined
@@ -55,11 +52,9 @@ const baseName = (path: string): string => path.slice(path.lastIndexOf("/") + 1)
 const view = (file: WorkFile): FileView => ({
   path: file.path,
   name: baseName(file.path),
-  unread: file.unreadAdded + file.unreadRemoved > 0,
   conflict: file.conflict,
-  // What the row's right end says: the unread lines.
-  added: file.unreadAdded,
-  removed: file.unreadRemoved,
+  added: file.added,
+  removed: file.removed,
 })
 
 // The files, conflicting ones first, then the biggest change.
@@ -89,14 +84,14 @@ export const branchViews = (
   return rows
 }
 
-// Whether the owner is a terminal of the project still open, which has a bar to show a work on.
+// Whether the owner is a terminal still open (in any project), which has a bar to show a work on.
 export const ownerOpen = (
   terminalId: string | null,
   titles: ReadonlyMap<string, string>,
 ): boolean => terminalId !== null && titles.has(terminalId)
 
 // Whose a work is, as a row names it: its owner's title, "Closed terminal" for an owner no
-// longer among the project's terminals (it is in History), "No owner" without one.
+// longer among the terminals (it is in History), "No owner" without one.
 export const ownerTitle = (
   terminalId: string | null,
   titles: ReadonlyMap<string, string>,
@@ -151,60 +146,31 @@ export const selectedRoot = (
   return works.find((work) => work.terminalId === selectedTerminal)?.root
 }
 
-// Each work's (by root) unread state as the next `arrivals` compares with, or null while the works
-// aren't synced: what is listed then (the panel just opened, the backend just started) is a
-// baseline, not news.
-export const unreadStates = (
-  works: readonly Work[],
-  synced: boolean,
-): ReadonlyMap<string, boolean> | null =>
-  synced ? new Map(works.map((work) => [work.root, unread(work)])) : null
-
-// Which works (by root) have just joined the unread ones since `before` (each work's unread state
-// at the last look; null before the first synced one): a work new to the list, or one that
-// was read.
-export const arrivals = (
-  before: ReadonlyMap<string, boolean> | null,
-  works: readonly Work[],
-): readonly string[] =>
-  before === null
-    ? []
-    : works
-        .filter((work) => unread(work) && before.get(work.root) !== true)
-        .map((work) => work.root)
-
-// The works in the order of the list: unread above read, each first come, first served.
+// The works in the order of the list: first come, first served.
 export const orderedWorks = (works: readonly Work[]): readonly Work[] =>
   works
     .map((work, index) => ({ work, index }))
-    .toSorted(
-      (a, b) =>
-        Number(!unread(a.work)) - Number(!unread(b.work)) ||
-        a.work.firstSeenAt - b.work.firstSeenAt ||
-        a.index - b.index,
-    )
+    .toSorted((a, b) => a.work.firstSeenAt - b.work.firstSeenAt || a.index - b.index)
     .map(({ work }) => work)
 
 export const changeRows = (
   works: readonly Work[],
   titles: ReadonlyMap<string, string>,
-  arrived: readonly string[] = [],
+  projects: ReadonlyMap<string, string> = new Map(),
   now = Date.now(),
 ): readonly ChangeRow[] =>
-  orderedWorks(works).map((work, index, ordered) => {
+  orderedWorks(works).map((work) => {
     const files = orderedFiles(work.files)
-    const isUnread = unread(work)
     const words = conflictWords(work, titles, works)
     return {
       work,
       title: ownerTitle(work.terminalId, titles),
+      project: projects.size > 1 ? projects.get(work.projectId) : undefined,
       branch: work.branch ?? "detached",
       close: closeMode(work),
-      unread: isUnread,
-      arrived: arrived.includes(work.root),
-      readStart: !isUnread && index > 0 && unread(ordered[index - 1]!),
       conflict: words !== undefined,
       conflictWords: words,
+      merged: work.merged && words === undefined,
       mainWords: mainWords(work.fetchedAt, now),
       files,
       branches: branchViews(files, work.truncated),
