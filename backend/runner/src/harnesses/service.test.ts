@@ -242,7 +242,8 @@ describe("agents Novadeck can connect", () => {
         platform: "win32",
       })
     expect(await onWindows("C:\\NOVADE~1\\shell\\agy-cmd").shims()).toEqual(["agy"])
-    expect(await onWindows().shims()).toEqual([])
+    // Its shim passes the folder of agents' worktrees on, so it needs no pass-through.
+    expect(await onWindows().shims()).toEqual(["agy"])
   })
 
   it("install the plugin again where an agent's own copy of it differs from Novadeck's", async ({

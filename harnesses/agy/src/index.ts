@@ -31,7 +31,7 @@ import {
 import { statusLineLimit, statusLineSettings } from "./settings.js"
 import { conversational, shapes } from "./shapes.js"
 import { followShells } from "./shells.js"
-import { makeCmdShim } from "./shim.js"
+import { commands, makeCmdShim, posixShim, valued } from "./shim.js"
 import { shown, startupScreen } from "./status-line.js"
 import { transcripts, typedEntry } from "./transcripts.js"
 
@@ -74,40 +74,10 @@ const messaging: MessagingProfile = {
 /** How long a prompt with no id yet may wait for one before the resume counts as failed. */
 const resumeGraceMs = 3_000
 const nonSession = {
-  commands: [
-    "agent",
-    "agents",
-    "changelog",
-    "help",
-    "install",
-    "mcp",
-    "mic-serve",
-    "models",
-    "plugin",
-    "plugins",
-    "remote-control",
-    "update",
-  ],
+  commands,
   flags: ["-h", "--help", "--version"],
   print: ["-p", "--print", "--prompt"],
-  takesValue: [
-    "--add-dir",
-    "--agent",
-    "--conversation",
-    "--effort",
-    "-i",
-    "--input-format",
-    "--json-schema",
-    "--log-file",
-    "--mode",
-    "--model",
-    "--output-format",
-    "--print-timeout",
-    "--project",
-    "--prompt-interactive",
-    "--settings",
-    "-v",
-  ],
+  takesValue: valued,
   takesMany: [],
 }
 
@@ -185,12 +155,18 @@ export const agy = {
   hookDialect,
   hook,
   files,
-  // Windows only, and only where cmd's AutoRun prints and Novadeck's cmd.exe pass-through is
-  // installed (`machine.cmdShimDir`): a shim that puts the pass-through first on PATH.
+  // A shim on every platform, which passes --add-dir for the folder of agents' worktrees. On
+  // Windows, where cmd's AutoRun prints and Novadeck's cmd.exe pass-through is installed
+  // (`machine.cmdShimDir`), it also puts the pass-through first on PATH.
   shims: (platform, machine = {}) =>
-    platform === "win32" && machine.cmdShimDir !== undefined
-      ? [{ path: "agy.cmd", content: makeCmdShim(machine.cmdShimDir) }]
-      : [],
+    platform === "win32"
+      ? [
+          {
+            path: "agy.cmd",
+            content: makeCmdShim({ cmdShimDir: machine.cmdShimDir, root: machine.worktreesRoot }),
+          },
+        ]
+      : [{ path: "agy", content: posixShim(machine.worktreesRoot), mode: 0o700 }],
   // Its status line tells what no hook does: working or idle, a confirmation waiting on
   // the person, and its context and quotas.
   settings: statusLineSettings,

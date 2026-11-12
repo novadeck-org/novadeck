@@ -48,6 +48,11 @@
       "types": "./dist/header.d.ts",
       "default": "./dist/header.js"
     },
+    "./shim-root": {
+      "development": "./src/shim-root.ts",
+      "types": "./dist/shim-root.d.ts",
+      "default": "./dist/shim-root.js"
+    },
     "./kept-flags": {
       "development": "./src/kept-flags.ts",
       "types": "./dist/kept-flags.d.ts",

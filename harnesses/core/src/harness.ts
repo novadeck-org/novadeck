@@ -552,6 +552,12 @@ export type Machine = {
    * `cmdPrints` stays set.
    */
   readonly cmdShimDir?: string
+  /**
+   * Where agents' worktrees live (`~/.novadeck/worktrees`). A shim passes it to its harness
+   * as `--add-dir` while the folder exists, so the harness may write there as in the
+   * project's folder, under the person's own permission mode.
+   */
+  readonly worktreesRoot?: string
 }
 
 /** A plan a transcript or rollout line records, and when it was written where it says. */

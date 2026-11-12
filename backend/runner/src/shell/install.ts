@@ -39,6 +39,8 @@ export type InstallOptions = {
   readonly cmdShim?: string
   /** For tests: how to tell whether cmd prints (the machine's own check by default). */
   readonly prints?: typeof cmdPrints
+  /** Where agents' worktrees live, for the shims to pass on (`~/.novadeck/worktrees` by default). */
+  readonly worktrees?: string
   /** For tests: the platform to write the files for, and how a path is shortened. */
   readonly platform?: NodeJS.Platform
   readonly short?: (path: string) => Promise<string>
@@ -55,6 +57,7 @@ export const installShellFiles = async (
     relay = relayPath,
     cmdShim = join(dirname(relay), cmdShimName),
     prints: printing = cmdPrints,
+    worktrees,
     platform = process.platform,
     short = shortName,
   }: InstallOptions = {},
@@ -96,10 +99,9 @@ export const installShellFiles = async (
           : ""
       } It looks again at the next start.`,
     )
-  // A shim a start left while cmd printed is gone once it no longer applies.
-  if (!covered) await rm(join(paths.bin, "agy.cmd"), { force: true })
   for (const file of shellFiles(paths, platform, undefined, {
     cmdPrints: prints !== undefined,
+    ...(worktrees !== undefined && { worktreesRoot: worktrees }),
     ...(cmdShimDir !== undefined && { cmdShimDir }),
   })) {
     // eslint-disable-next-line no-await-in-loop -- A few small files, one after another.

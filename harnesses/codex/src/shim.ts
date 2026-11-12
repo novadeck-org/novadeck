@@ -1,4 +1,5 @@
 import { header } from "@novadeck/harness-core/header"
+import { cmdAdd, posixAdd } from "@novadeck/harness-core/shim-root"
 
 import { titleSetting } from "./title.js"
 
@@ -7,11 +8,15 @@ import { titleSetting } from "./title.js"
 // Novadeck's shells run it through this shim, which adds --no-daemon so the session and
 // its hook run in the terminal. `codex agents` and --remote need the server, so they go
 // unchanged, as does anything outside Novadeck's shells. It also names its terminal
-// title's items, so the title tells Novadeck once its prompt shows (`title.ts`).
-export const posixShim = `#!/bin/sh
+// title's items, so the title tells Novadeck once its prompt shows (`title.ts`). And it passes
+// --add-dir for the folder where agents' worktrees live, once that exists, which Codex adds to
+// its writable roots; the option goes ahead of any command (`resume` and `exec` take it too).
+export const posixShim = (root?: string): string => `#!/bin/sh
 ${header("#", "shim for codex")}
 # Runs the real codex with --no-daemon, so its hooks can tell Novadeck which session runs
-# in this terminal, and with a title that tells Novadeck once its prompt shows.
+# in this terminal, with a title that tells Novadeck once its prompt shows, and with access to
+# the folder where agents' worktrees live.
+${posixAdd(root)}
 novadeck_real=
 novadeck_ifs=$IFS
 IFS=:
@@ -44,7 +49,7 @@ for novadeck_arg in "$@"; do
     --no-daemon) novadeck_daemon= ;;
   esac
 done
-exec "$novadeck_real" \${novadeck_daemon:+"$novadeck_daemon"} -c "${titleSetting}" "$@"
+exec "$novadeck_real" \${novadeck_daemon:+"$novadeck_daemon"} \${novadeck_add:+"$novadeck_add"} -c "${titleSetting}" "$@"
 `
 
 // `where` lists matches in PATH order, including this shim, and on npm installs an
@@ -53,10 +58,11 @@ exec "$novadeck_real" \${novadeck_daemon:+"$novadeck_daemon"} -c "${titleSetting
 // where a cloned repo's `codex.cmd` would be taken for the real one (as Antigravity's shim).
 // Its words are walked as Claude Code's are, for the reasons there (`harnesses/claude/src/shim.ts`):
 // `for %%a in (%*)` loses its closing bracket to an odd count of quotes, and ends the batch.
-export const cmdShim = `@echo off
+export const cmdShim = (root?: string): string => `@echo off
 ${header("rem", "shim for codex")}
 rem Runs the real codex with --no-daemon, so its hooks can tell Novadeck which session
-rem runs in this terminal, and with a title that tells Novadeck once its prompt shows.
+rem runs in this terminal, with a title that tells Novadeck once its prompt shows, and with
+rem access to the folder where agents' worktrees live.
 setlocal
 set "novadeck_real="
 for /f "delims=" %%i in ('where $PATH:codex 2^>nul') do call :consider "%%~fi"
@@ -67,6 +73,7 @@ if not defined novadeck_real (
 if not defined NOVADECK_TERMINAL_ID goto plain
 rem Only while Codex is connected: Novadeck's shells name the harnesses whose shims apply.
 echo " %NOVADECK_SHIMS% " | findstr /c:" codex " >nul || goto plain
+${cmdAdd(root)}
 rem A word that needs the shared server leaves codex alone.
 :words
 set novadeck_arg=""%1
@@ -79,11 +86,11 @@ if /i "%novadeck_arg%"=="--no-daemon" goto titled
 goto words
 :session
 set "novadeck_arg="
-"%novadeck_real%" --no-daemon -c "${titleSetting}" %*
+"%novadeck_real%" --no-daemon %novadeck_add% -c "${titleSetting}" %*
 exit /b %ERRORLEVEL%
 rem Already without the shared server: only the title is added.
 :titled
-"%novadeck_real%" -c "${titleSetting}" %*
+"%novadeck_real%" %novadeck_add% -c "${titleSetting}" %*
 exit /b %ERRORLEVEL%
 :plain
 "%novadeck_real%" %*

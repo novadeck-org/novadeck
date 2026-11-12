@@ -22,6 +22,7 @@ type Fixture = {
     cwd?: string,
   ) => { result: SpawnSyncReturns<string>; received: string[] | undefined }
   bin: string
+  worktrees: string
   real: string
   settings: string
   remove: () => void
@@ -33,7 +34,8 @@ const it = base.extend<{ shim: Fixture }>({
   shim: async ({ resources }, use) => {
     const root = mkdtempSync(join(tmpdir(), "novadeck-claude-shim-"))
     resources.defer(() => rmSync(root, { recursive: true, force: true }))
-    const paths = await installShellFiles(join(root, "shell"))
+    const worktrees = join(root, "worktrees")
+    const paths = await installShellFiles(join(root, "shell"), { worktrees })
     const real = join(root, "real")
     mkdirSync(real)
     const log = join(root, "args.json")
@@ -93,6 +95,7 @@ const it = base.extend<{ shim: Fixture }>({
       run,
       launch,
       bin: paths.bin,
+      worktrees,
       real,
       settings,
       remove: () => rmSync(settings),
@@ -127,6 +130,57 @@ describe("claude shim", { timeout: 60_000 }, () => {
       "haiku",
       "fix a b",
       "$x",
+    ])
+  })
+
+  it("opens the folder of agents' worktrees to a session once it exists, with one --settings", ({
+    shim,
+  }) => {
+    const settings = expect.stringMatching(/statusline\.json$/)
+    mkdirSync(shim.worktrees)
+    const add = `--add-dir=${shim.worktrees}`
+    expect(shim.run([])).toEqual(["--settings", settings, add])
+    expect(shim.run(["--model", "haiku", "fix a b"])).toEqual([
+      "--settings",
+      settings,
+      add,
+      "--model",
+      "haiku",
+      "fix a b",
+    ])
+    // A list option before the prompt keeps its own words.
+    expect(shim.run(["--add-dir", "x", "y", "-p", "hi"])).toEqual([
+      "--settings",
+      settings,
+      add,
+      "--add-dir",
+      "x",
+      "y",
+      "-p",
+      "hi",
+    ])
+    expect(shim.run(["mcp", "list"])).toEqual(["mcp", "list"])
+    expect(shim.run(["--debug", "plugin", "install", "x"])).toEqual([
+      "--debug",
+      "plugin",
+      "install",
+      "x",
+    ])
+  })
+
+  it("opens the folder to a session even without the status line, and leaves commands alone", ({
+    shim,
+  }) => {
+    shim.remove()
+    expect(shim.run(["hi"])).toEqual(["hi"])
+    mkdirSync(shim.worktrees)
+    const add = `--add-dir=${shim.worktrees}`
+    expect(shim.run(["hi"])).toEqual([add, "hi"])
+    expect(shim.run(["mcp", "list"])).toEqual(["mcp", "list"])
+    expect(shim.run(["--model", "haiku", "update"], { NOVADECK_SHIMS: "codex" })).toEqual([
+      "--model",
+      "haiku",
+      "update",
     ])
   })
 

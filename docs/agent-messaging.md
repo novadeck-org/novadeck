@@ -1497,10 +1497,12 @@ pass-through passes any other command on unchanged, AutoRun included).
   one. The folder's path must be its short name with no character cmd reads as more
   (`InstalledShell.cmdShimDir`).
 - **Placement.** Antigravity's shim (`harnesses/agy/src/shim.ts`, `agy.cmd` in the shells'
-  `bin`, Windows only, and only with a `cmdShimDir`) puts that folder first on PATH for
+  `bin`; since the worktrees folder, on every platform, and the PATH part only with a
+  `cmdShimDir`) puts that folder first on PATH for
   Antigravity alone, under `setlocal` so the terminal's shell keeps its PATH, and only in a
   Novadeck terminal whose `NOVADECK_SHIMS` names `agy`. It finds the real `agy` on PATH only.
-  Where the pass-through is missing or differs, there is no shim and nothing changes.
+  Where the pass-through is missing or differs, the shim leaves PATH alone and only passes
+  `--add-dir` (see harness-adapters.md, "Shims and the worktrees folder").
 - **What stays.** The plugin is global, so under `cmdPrints` its PreToolUse hook stays
   unregistered: an Antigravity outside Novadeck's terminals runs the plugin's hooks through the
   person's own `cmd`, where the AutoRun's output breaks the answer. Its other hooks are

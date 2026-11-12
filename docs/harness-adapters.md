@@ -384,7 +384,7 @@ type Harness = {
   /** Plugin manifests and hook registrations, relative to its plugin directory. */
   readonly files: (platform: NodeJS.Platform) => readonly File[]
   /** Programs Novadeck's shells put first on PATH while it is connected, as Codex's shim. */
-  readonly shims?: (platform: NodeJS.Platform) => readonly File[]
+  readonly shims?: (platform: NodeJS.Platform, machine?: Machine) => readonly File[]
   /** The hook environment variable naming its own process, as Claude Code's `CLAUDE_PID`. */
   readonly pidVariable?: string
   /** What a hook report's native `source` says of the session it names. */
@@ -710,6 +710,28 @@ type LaunchProfile = {
 | Claude Code | `claude` | `claude "<line>"`                  | `claude --resume <id>`    | `--model <m> --effort <e>`                  |
 | Codex       | `codex`  | `codex "<line>"`                   | `codex resume <id>`       | `--model <m> -c model_reasoning_effort=<e>` |
 | Antigravity | `agy`    | none: started plain, the task rung | `agy --conversation <id>` | `--model <m> --effort <e>`                  |
+
+### Shims and the worktrees folder
+
+Every connected harness has a shim on every platform (`harnesses/*/src/shim.ts`; `claude`,
+`codex` and `agy` on Linux and macOS, `.cmd` files on Windows). Besides its own job (Claude
+Code's status line, Codex's `--no-daemon` and title), each passes `--add-dir=<folder>` for
+the folder where Novadeck's agent worktrees live (`~/.novadeck/worktrees`, from
+`backend/runner/src/worktrees/root.ts`, handed to the shims as `machine.worktreesRoot`), but
+only while that folder exists as a directory when the harness launches. Agents' worktrees are
+outside their starting folder, where all three block writes by default; with the flag the
+folder behaves like the project's, under the person's own permission mode or sandbox, and
+Novadeck writes nothing to a harness's config. The `=` form matters: Claude Code's
+`--add-dir <directories...>` would take a prompt after it as another folder.
+
+- **Claude Code** adds it to a session also when the status line's settings file is missing,
+  and never passes a second `--settings`, which would replace the first. Its commands (`mcp`,
+  `plugin`, ...) run unchanged.
+- **Codex** adds it ahead of any command: the interactive session, `resume` and `exec` take it.
+  `codex agents` and `--remote` run unchanged.
+- **Antigravity** has a Linux and macOS shim, which does nothing else, and leaves its own
+  subcommands (`agy --help`) unchanged. On Windows its cmd shim also adds it, with or
+  without the cmd.exe pass-through's folder on PATH, and passes every command the flag.
 
 ## Screen readers
 

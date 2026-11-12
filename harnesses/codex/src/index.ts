@@ -193,10 +193,10 @@ export const codex = {
   files,
   // Interactive Codex runs its sessions, and their hooks, in a shared background server
   // that knows nothing of the terminal it was started from; see `./shim.ts`.
-  shims: (platform) =>
+  shims: (platform, machine = {}) =>
     platform === "win32"
-      ? [{ path: "codex.cmd", content: cmdShim }]
-      : [{ path: "codex", content: posixShim, mode: 0o700 }],
+      ? [{ path: "codex.cmd", content: cmdShim(machine.worktreesRoot) }]
+      : [{ path: "codex", content: posixShim(machine.worktreesRoot), mode: 0o700 }],
   // Its subcommands other than a session (`codex --help`, 0.164.0), with help and version.
   // Its `exec` and `review` run it on the caller's text, as `queue` (a message into a
   // session) and `cloud` (`cloud exec` submits a task) do, so they are a session's use.

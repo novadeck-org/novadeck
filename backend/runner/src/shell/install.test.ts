@@ -238,7 +238,7 @@ describe("the cmd.exe pass-through", () => {
     expect(shell.cmdShimDir).toBeDefined()
   })
 
-  it("leaves Antigravity no shim, and has no folder, where it is missing or can't be verified", async ({
+  it("puts no folder on Antigravity's PATH where it is missing or can't be verified", async ({
     resources,
   }) => {
     const { directory, folder, options } = setup(resources)
@@ -249,14 +249,14 @@ describe("the cmd.exe pass-through", () => {
       options({ cmdShim: join(folder, "none.exe") }),
     )
     expect(without.cmdShimDir).toBeUndefined()
-    expect(existsSync(agyShim(without))).toBe(false)
+    expect(readFileSync(agyShim(without), "utf8")).not.toContain('set "PATH=')
     // A folder whose path still needs quoting (no short name) is not put on PATH.
     const spaced = await installShellFiles(
       directory,
       options({ short: (path: string) => Promise.resolve(`${path} with space`) }),
     )
     expect(spaced.cmdShimDir).toBeUndefined()
-    expect(existsSync(agyShim(spaced))).toBe(false)
+    expect(readFileSync(agyShim(spaced), "utf8")).not.toContain('set "PATH=')
   })
 
   it("is not used where cmd prints nothing, and not on another platform", async ({ resources }) => {
@@ -264,18 +264,21 @@ describe("the cmd.exe pass-through", () => {
     const quiet = await installShellFiles(directory, options({ prints: () => Promise.resolve() }))
     expect(quiet.cmdShimDir).toBeUndefined()
     expect(existsSync(quiet.agyCmdDir)).toBe(false)
-    expect(existsSync(agyShim(quiet))).toBe(false)
+    // Its shim stays, for the worktrees folder, and leaves PATH alone.
+    expect(readFileSync(agyShim(quiet), "utf8")).not.toContain('set "PATH=')
     const linux = await installShellFiles(directory, options({ platform: "linux" }))
     expect(linux.cmdShimDir).toBeUndefined()
     expect(existsSync(linux.agyCmdDir)).toBe(false)
   })
 
-  it("takes the shim away again once cmd prints nothing", async ({ resources }) => {
+  it("takes the folder off the shim's PATH again once cmd prints nothing", async ({
+    resources,
+  }) => {
     const { directory, options } = setup(resources)
     const printing = await installShellFiles(directory, options())
-    expect(existsSync(agyShim(printing))).toBe(true)
+    expect(readFileSync(agyShim(printing), "utf8")).toContain('set "PATH=')
     const quiet = await installShellFiles(directory, options({ prints: () => Promise.resolve() }))
-    expect(existsSync(agyShim(quiet))).toBe(false)
+    expect(readFileSync(agyShim(quiet), "utf8")).not.toContain('set "PATH=')
   })
 
   it("is replaced by an upgrade and stays in use, though a previous runner's Antigravity runs the old one", async ({
