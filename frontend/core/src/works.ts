@@ -39,6 +39,9 @@ export type Work = {
   readonly base: string
   // When it first differed from main, in milliseconds since the epoch: the panel's order.
   readonly firstSeenAt: number
+  // When the repository's origin was last fetched, in milliseconds since the epoch: main is as
+  // old as that. Absent when it never was.
+  readonly fetchedAt?: number | undefined
   // Its files' sums, and the unread part of them.
   readonly added: number
   readonly removed: number

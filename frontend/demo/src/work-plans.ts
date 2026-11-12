@@ -11,6 +11,7 @@ export const storefrontPlans: readonly WorkPlan[] = [
     project: "storefront",
     terminal: "Checkout implementation",
     minutesAgo: 52,
+    fetchedMinutesAgo: 3,
     conflicts: ["main", "Tests"],
     files: [
       file("src/checkout/Checkout.tsx", 120, 34, { conflict: true }),
@@ -40,6 +41,7 @@ export const storefrontPlans: readonly WorkPlan[] = [
     project: "storefront",
     terminal: "Build",
     minutesAgo: 300,
+    fetchedMinutesAgo: 47,
     files: [
       file("vite.config.ts", 9, 3, { read: true }),
       file("package.json", 2, 2, { read: true }),

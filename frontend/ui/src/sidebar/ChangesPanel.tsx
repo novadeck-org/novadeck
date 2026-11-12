@@ -121,6 +121,7 @@ const ChangeItem = ({
   ]
     .filter(Boolean)
     .join(", ")
+  const tooltip = [row.conflictWords, row.mainWords].filter(Boolean).join(" · ")
   return (
     <SidebarItem
       role="listitem"
@@ -138,7 +139,7 @@ const ChangeItem = ({
       }
       selected={selected}
       selectLabel={label}
-      {...(row.conflictWords ? { tooltip: row.conflictWords } : {})}
+      {...(tooltip ? { tooltip } : {})}
       actions={
         <div className="terminal-tab-actions flex items-center">
           <Tooltip content={closeTip(row)}>

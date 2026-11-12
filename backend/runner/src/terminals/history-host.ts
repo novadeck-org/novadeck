@@ -24,6 +24,7 @@ export type HistoryParts = {
   readonly connected: (agent: AgentName) => Promise<boolean>
   readonly drawHandle: (sessionId: string) => string
   readonly announce: (record: Record) => void
+  readonly pruned?: HistoryHost["pruned"]
   /** The terminal resting on the session, asleep or waking, with no agent bound yet. */
   readonly resting: (
     agent: AgentName,
@@ -94,6 +95,7 @@ export const historyHost = (parts: HistoryParts): HistoryHost => ({
   },
   ran: (terminalId) => parts.kept?.terminalRan?.(terminalId) ?? true,
   announce: parts.announce,
+  ...(parts.pruned && { pruned: parts.pruned }),
   // Above the prompt the shell just drew, drawn and sent to every window that shows it.
   say: (record, text) => void showNote(record.terminal, text, record.summary.id),
 })

@@ -43,6 +43,9 @@ export type ChangeRow = {
   readonly conflict: boolean
   // What the conflict is with, in words ("Conflicts with main"), or none.
   readonly conflictWords: string | undefined
+  // How old the main branch it is measured against is ("main as of 12 min ago"), or none where
+  // its repository's origin was never fetched.
+  readonly mainWords: string | undefined
   readonly files: readonly FileView[]
   readonly branches: readonly BranchView[]
 }
@@ -120,6 +123,18 @@ export const conflictWords = (
   return `Conflicts with ${names.join(", ")}`
 }
 
+// How old main is, in words, from when the repository's origin was last fetched; none when it
+// never was. Rounded down to the minute, hour or day, so it does not change by the second.
+export const mainWords = (fetchedAt: number | undefined, now: number): string | undefined => {
+  if (fetchedAt === undefined) return undefined
+  const minutes = Math.max(0, Math.floor((now - fetchedAt) / 60_000))
+  if (minutes < 1) return "main as of just now"
+  if (minutes < 60) return `main as of ${minutes} min ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `main as of ${hours} h ago`
+  return `main as of ${Math.floor(hours / 24)} d ago`
+}
+
 // What its × does: waits while the owner's agent is working in the worktree.
 export const closeMode = (work: Work): CloseMode => (work.working ? "busy" : "close")
 
@@ -174,6 +189,7 @@ export const changeRows = (
   works: readonly Work[],
   titles: ReadonlyMap<string, string>,
   arrived: readonly string[] = [],
+  now = Date.now(),
 ): readonly ChangeRow[] =>
   orderedWorks(works).map((work, index, ordered) => {
     const files = orderedFiles(work.files)
@@ -189,6 +205,7 @@ export const changeRows = (
       readStart: !isUnread && index > 0 && unread(ordered[index - 1]!),
       conflict: words !== undefined,
       conflictWords: words,
+      mainWords: mainWords(work.fetchedAt, now),
       files,
       branches: branchViews(files, work.truncated),
     }

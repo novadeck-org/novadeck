@@ -525,6 +525,10 @@ with every safety check again at that time:
   worktree an agent closed meanwhile counts as closed. A work whose owner is closed (in History)
   shows on the selected terminal's bar. With no works the list says what appears there, and, with
   the switch off, to turn on Agent worktrees in Preferences → Experimental. A closed worktree's memory goes with it (`works.json` and its snapshot).
+  A work also carries `fetchedAt`, when the runner last fetched its repository's origin (absent when
+  it never has), so a row's tooltip can say "main as of 12 min ago": a PR merged on the remote shows
+  as merged here only after the next fetch (see "Worktrees": cleanup and fetching). Worktrees the
+  runner removes by itself drop out of the list like one the person closed.
 
   The files the person read are kept in the same memory file (`works.json`), each by its object
   as the change listed it (all zeros for a file deleted): `companions.changeRead` marks one,
@@ -708,6 +712,35 @@ with every safety check again at that time:
     the worktree orphaned. Removing a project removes its worktrees first, the same way as
     `force`, before the rows cascade away. Nothing here watches git for worktrees made
     another way.
+  - **Cleanup** (`worktrees/cleanup.ts`) removes worktrees nobody needs, in the service's queue
+    and whatever the switch says. _Merged_ is the Changes panel's test (HEAD in main, or merging it
+    changes nothing, so squash and rebase merges count) with no uncommitted or untracked file.
+    A merged worktree stays while its owner is open (running, or asleep or hibernated). Once the
+    owner has closed into History, or is gone from both live terminals and History, or the
+    worktree has no owner, it is removed with the same checks as a close without `force`: it
+    stays if git couldn't read its status, it has submodules, or an agent works in it
+    (`terminals.checkouts()`, read again just before the removal). An unmerged worktree is never
+    removed by this: while its owner is in History it waits (a terminal restored from History
+    finds it still there), and an orphaned one is listed as "No owner" for the person to close.
+    When the owner's History row is pruned (`ClosedTerminals.prune`, the only place that tells
+    cleanup; a restore also deletes a row but does not), its worktrees are removed with `force`
+    semantics: uncommitted work and a detached HEAD are kept on `refs/novadeck/kept/` refs and an
+    unmerged branch is kept. If git couldn't read the worktree, it has submodules or an agent
+    works in it, the row is orphaned instead, the folder stays, and a warning is logged. Each
+    automatic removal is logged at info level (`worktrees.cleaned`); no agent is told. Cleanup
+    runs when a terminal is closed for good (`Terminals.forget`), at the runner's start after the
+    reconcile above (which orphans rows whose owner is gone, so a merged one among them goes at
+    once), and every minute.
+  - **Fetching** (`worktrees/fetching.ts`) is what makes a merge on the remote visible, since
+    nothing else fetches. On the minute pass, each repository (git common dir) with a tracked
+    worktree gets `git fetch --quiet --no-tags --prune origin` in its main folder, one repository
+    at a time and at most every five minutes, with a 60 second timeout. The run never asks for
+    anything: `GIT_TERMINAL_PROMPT=0`, empty `GIT_ASKPASS` and `SSH_ASKPASS`,
+    `GCM_INTERACTIVE=never`, and `GIT_SSH_COMMAND="ssh -o BatchMode=yes"` unless the person set
+    their own `GIT_SSH_COMMAND` or `core.sshCommand`. A failure (offline, no access, no origin)
+    is ignored and logged at debug level, and that repository waits twice as long after each
+    one, up to an hour. The main branch is `origin/HEAD` where the repository sets it, so a
+    clone with no `origin/HEAD` measures against its local `main`, which a fetch doesn't move.
 - **Messages** between agents come from the same server's `send`, `agents` and `team` tools,
   listed only inside Novadeck's terminals like the others: an agent messages another
   terminal of its project and session by its handle, such as `@moth`, which `open_terminal` and `open_agent`

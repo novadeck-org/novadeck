@@ -107,6 +107,13 @@ describe("the storefront's worktrees", () => {
     expect(works.some((work) => work.working)).toBe(true)
   })
 
+  it("has some whose main was fetched a while ago and one it never was", () => {
+    expect(works.some((work) => work.fetchedAt !== undefined)).toBe(true)
+    expect(works.some((work) => work.fetchedAt === undefined)).toBe(true)
+    for (const work of works)
+      if (work.fetchedAt !== undefined) expect(work.fetchedAt).toBeLessThan(Date.now())
+  })
+
   it("gives each a branch of its own, and a worktree of one owner is not another's", () => {
     expect(new Set(works.map((work) => work.branch)).size).toBe(works.length)
     const builds = works.filter((work) => work.branch?.startsWith("agent/build"))

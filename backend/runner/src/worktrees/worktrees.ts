@@ -3,6 +3,7 @@ import { mkdir, realpath } from "node:fs/promises"
 import { join, resolve, sep } from "node:path"
 
 import { logs } from "../log.js"
+import { Cleanup, type CleanupHost, type OwnerState } from "./cleanup.js"
 import type { WorktreeRecord, WorktreeRecords } from "./records.js"
 import {
   addWorktree,
@@ -37,6 +38,12 @@ export type WorktreesHost = {
   readonly root?: string
   readonly now?: () => number
   readonly platform?: NodeJS.Platform
+  /** Where a terminal is, for cleanup; an existing terminal reads as open when omitted. */
+  readonly owner?: (terminalId: string) => OwnerState
+  /** Why a worktree must stay now (an agent works in it), read afresh by cleanup before a removal. */
+  readonly busy?: CleanupHost["busy"]
+  /** Cleanup's own timing and fetcher, which tests replace. */
+  readonly cleanup?: Pick<CleanupHost, "sweepMs" | "fetcher">
 }
 
 type Failure = { readonly ok: false; readonly reason: string }
@@ -98,11 +105,56 @@ export const folderName = (text: string): string =>
  */
 export class Worktrees {
   private chain: Promise<unknown> = Promise.resolve()
+  private readonly cleanup: Cleanup
 
   constructor(
     private readonly records: WorktreeRecords,
     private readonly host: WorktreesHost,
-  ) {}
+  ) {
+    this.cleanup = new Cleanup(this, {
+      owner: host.owner ?? ((id) => (host.exists(id) ? "open" : "gone")),
+      ...(host.busy && { busy: host.busy }),
+      ...(host.now && { now: host.now }),
+      ...host.cleanup,
+    })
+  }
+
+  /** Starts removing the worktrees nobody needs, and fetching their repositories' origins. */
+  start(): void {
+    this.cleanup.start()
+  }
+
+  /** Stops that, and waits for a removal under way. */
+  stop(): Promise<void> {
+    return this.cleanup.stop()
+  }
+
+  /** A terminal was closed: its merged worktrees are looked at now. */
+  ownerClosed(): void {
+    this.cleanup.closed()
+  }
+
+  /** Terminals left History for good: see `Cleanup.pruned`. */
+  ownersPruned(terminalIds: readonly string[]): Promise<void> {
+    return this.cleanup.pruned(terminalIds)
+  }
+
+  /** When the repository's origin was last fetched, in epoch milliseconds; undefined if never. */
+  fetchedAt(commonDir: string): number | undefined {
+    return this.cleanup.fetchedAt(commonDir)
+  }
+
+  /** Looks at every worktree for cleanup and waits for that (tests; `start` does it on a timer). */
+  tidy(fetch = false): Promise<void> {
+    return this.cleanup.look(fetch)
+  }
+
+  /** Leaves a worktree with no owner, if `terminalId` still owns it. */
+  orphanIf(path: string, terminalId: string): Promise<void> {
+    return this.serial(async () => {
+      if (this.records.worktree(path)?.terminalId === terminalId) this.records.orphanWorktree(path)
+    })
+  }
 
   /** Runs `work` after the ones before, so two calls never meet in one worktree or repository. */
   private serial<T>(work: () => Promise<T>): Promise<T> {

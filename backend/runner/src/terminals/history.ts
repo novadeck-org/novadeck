@@ -115,6 +115,8 @@ export type HistoryHost = {
   readonly ran: (terminalId: string) => boolean
   /** Tells watchers of the terminal's summary. */
   readonly announce: (record: Closing) => void
+  /** Called with the ids of the terminals pruned for good; a restore, which also removes a row, never calls it. */
+  readonly pruned?: (terminalIds: readonly string[]) => void
   /** Shows the person a line in a terminal. */
   readonly say: (record: Closing, text: string) => void
 }
@@ -513,10 +515,12 @@ export class ClosedTerminals {
       const cutoff = now - retentionMs
       const owners = new Map<string, string>()
       for (const row of this.all()) if (row.closedAt < cutoff) owners.set(row.id, row.projectId)
-      for (const id of records.pruneClosed(cutoff)) {
+      const pruned = records.pruneClosed(cutoff)
+      for (const id of pruned) {
         const projectId = owners.get(id)
         if (projectId) this.remove({ id, projectId })
       }
+      if (pruned.length > 0) this.host.pruned?.(pruned)
     } catch (error) {
       log.error("history.prune-failed", "Novadeck could not prune closed terminals", { err: error })
     }

@@ -258,8 +258,22 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   const scopes = userScopes()
   // Without a key from the app no transcript is saved or shown.
   const sealer = createTranscriptSealer(options.transcriptKey)
+  // Whether an agent works in the worktree now, read afresh each time it is asked: a turn may
+  // have started since. A shell command or agent whose current checkout is the worktree counts,
+  // whoever's it is. (A command run elsewhere with `git -C` into it can't be seen.)
+  const workingIn = async (row: { readonly path: string }): Promise<string | undefined> =>
+    (await terminals.checkouts()).some((each) => each.root === row.path && each.working)
+      ? "An agent is working in that worktree right now: wait for its turn to end."
+      : undefined
   // What owns a worktree is a terminal, live or closed but still in History.
   const worktrees = new Worktrees(store, {
+    busy: workingIn,
+    owner: (terminalId) =>
+      terminals.place(terminalId) !== undefined
+        ? "open"
+        : store.closedExists(terminalId)
+          ? "history"
+          : "gone",
     projectFolder: (projectId) => {
       try {
         return store.project(projectId).cwd
@@ -300,18 +314,23 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   })
   const projects = new Projects(store, terminals, items, worktrees)
   // Not awaited: the runner starts at once, and a failure only leaves rows for the next start.
-  void worktrees.reconcile().catch((error: unknown) =>
-    log.error("worktrees.reconcile-failed", "Novadeck could not check its worktrees", {
-      err: error,
-    }),
-  )
+  void worktrees
+    .reconcile()
+    .catch((error: unknown) =>
+      log.error("worktrees.reconcile-failed", "Novadeck could not check its worktrees", {
+        err: error,
+      }),
+    )
+    // After it: the owners it found gone leave their merged worktrees to cleanup.
+    .finally(() => worktrees.start())
   const works = new Works({
     tracked: () =>
-      worktrees.all().map(({ path, projectId, terminalId, createdAt }) => ({
+      worktrees.all().map(({ path, projectId, terminalId, createdAt, commonDir }) => ({
         root: path,
         projectId,
         terminalId,
         createdAt,
+        fetchedAt: worktrees.fetchedAt(commonDir),
       })),
     presences: async () =>
       (await terminals.checkouts()).map(({ terminalId, root, working }) => ({
@@ -329,18 +348,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     },
     // The person is the actor: whoever owns the worktree, it closes on their say, in the
     // service's own queue, so it can't race an agent's take, give or close.
-    remove: (root, force) =>
-      worktrees.closeAt(root, force, async (row) => {
-        // Read afresh in the queue: a turn may have started since the person asked. A shell
-        // command or agent whose current checkout is the worktree counts, whoever's it is. (A
-        // command run elsewhere with `git -C` into it can't be seen.)
-        const busy = (await terminals.checkouts()).some(
-          (each) => each.root === row.path && each.working,
-        )
-        return busy
-          ? "An agent is working in that worktree right now: wait for its turn to end."
-          : undefined
-      }),
+    remove: (root, force) => worktrees.closeAt(root, force, workingIn),
     snapshots,
     ...(memory !== undefined && { memory }),
   })
@@ -354,6 +362,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     items,
     projects,
     works,
+    worktrees,
     snapshots,
     uploads,
     voice,
@@ -426,6 +435,7 @@ const startRunner = (options: RunnerOptions): Runner => {
     agents,
     projects,
     works,
+    worktrees,
     snapshots,
     uploads,
     voice,
@@ -470,10 +480,13 @@ const startRunner = (options: RunnerOptions): Runner => {
     },
     close() {
       closing ??= (async () => {
+        // No new removal starts once the runner closes; one under way ends before the store.
+        const tidying = worktrees.stop()
         try {
           await terminals.shutdown()
         } finally {
           await works.close()
+          await tidying
           // After both that take snapshots: the items ended with the terminals.
           await snapshots.close()
           // Downloads and the engine use no records, but end before the store they ask;
