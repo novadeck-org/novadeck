@@ -1,7 +1,7 @@
 import type { AgentName } from "./harnesses"
 import type { Store } from "./store"
 
-// History: the terminals closed in the last 30 days, per project, to restore. A backend that
+// History: the terminals closed in the last 7 days, per project, to restore. A backend that
 // keeps them reports every row (`state`) and reads a project's rows afresh when the pane
 // opens (`list`); it restores one when `newTerminal` is given its id as `closed`.
 

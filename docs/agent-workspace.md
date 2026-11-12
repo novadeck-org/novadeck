@@ -614,7 +614,7 @@ with every safety check again at that time:
   the person asked about, as closing ends whatever runs there. The runner checks the
   token, reads the request strictly, and closes it as the person's close does: it ends
   the shell, removes the terminal and forgets it, even while a window controls it (it
-  stays in History for 30 days, restorable as a new terminal, with `closedBy` the caller's handle, unless nothing ran in it), so
+  stays in History for 7 days, restorable as a new terminal, with `closedBy` the caller's handle, unless nothing ran in it), so
   the UI drops it from the layout on `terminals.watch`'s `removed`, as for a close in
   another window. Messages still waiting for it are `gone`, their senders told as
   always; the answer names the agent that ran there and counts them. Messages the closed
