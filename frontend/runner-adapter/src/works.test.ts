@@ -1,4 +1,4 @@
-import type { Work } from "@novadeck/protocol"
+import type { Work, WorkClosing } from "@novadeck/protocol"
 import type { WorkWatchItem } from "@novadeck/runner-client"
 import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
@@ -8,10 +8,13 @@ import { channel } from "./testing/channel"
 import { id } from "./testing/scripted"
 import { createRunnerWorks } from "./works"
 
+const root = (n: number) => `/shop/${n}`
+
 const work = (n: number, change: Partial<Work> = {}): Work => ({
+  root: root(n),
   terminalId: id(n),
   projectId: "p",
-  root: `/shop/${n}`,
+  working: false,
   branch: "feature",
   base: "origin/main",
   firstSeenAt: n * 1_000,
@@ -25,20 +28,29 @@ const work = (n: number, change: Partial<Work> = {}): Work => ({
   ...change,
 })
 
-const followed = (calls: { look?: (id: string) => Promise<void> } = {}) => {
+const followed = (
+  calls: {
+    look?: (root: string) => Promise<void>
+    close?: (root: string, force?: boolean) => Promise<WorkClosing>
+  } = {},
+) => {
   const stream = channel<WorkWatchItem>()
   const shown: string[] = []
   let watches = 0
   const { works, stop } = createRunnerWorks({
     watch: () => ((watches += 1), stream.iterator),
     look: calls.look ?? (async () => {}),
-    show: async (terminalId) => (shown.push(terminalId), { itemId: `item-${terminalId}` }),
+    show: async (at, terminalId) => (
+      shown.push(terminalId === undefined ? at : `${at} on ${terminalId}`),
+      { itemId: `item-${at}` }
+    ),
+    close: calls.close ?? (async () => ({ closed: true as const, branchDeleted: false })),
   })
   const release = works.watch()
   const ids = () =>
     works.state
       .getSnapshot()
-      .works.map((each) => each.terminalId)
+      .works.map((each) => each.root)
       .toSorted()
   return { works, stream, stop, release, ids, shown, watches: () => watches }
 }
@@ -50,7 +62,20 @@ describe("Works, as the runner reports them", () => {
     stream.push({ type: "changed", work: work(1) })
     expect(ids()).toEqual([])
     stream.push({ type: "synced" })
-    await vi.waitFor(() => expect(ids()).toEqual([id(1)]))
+    await vi.waitFor(() => expect(ids()).toEqual([root(1)]))
+  })
+
+  it("keeps works by root: one with no owner, and two of one owner", async () => {
+    const { works, stream, ids } = followed()
+    stream.push({ type: "reset" })
+    stream.push({ type: "changed", work: work(1, { terminalId: null }) })
+    stream.push({ type: "changed", work: work(2, { terminalId: id(9) }) })
+    stream.push({ type: "changed", work: work(3, { terminalId: id(9) }) })
+    stream.push({ type: "synced" })
+    await vi.waitFor(() => expect(ids()).toEqual([root(1), root(2), root(3)]))
+    expect(works.state.getSnapshot().works.find((each) => each.root === root(1))?.terminalId).toBe(
+      null,
+    )
   })
 
   it("follows later changes, and forgets what a new sequence doesn't report", async () => {
@@ -59,21 +84,21 @@ describe("Works, as the runner reports them", () => {
     stream.push({ type: "changed", work: work(1) })
     stream.push({ type: "changed", work: work(2) })
     stream.push({ type: "synced" })
-    await vi.waitFor(() => expect(ids()).toEqual([id(1), id(2)]))
+    await vi.waitFor(() => expect(ids()).toEqual([root(1), root(2)]))
     stream.push({ type: "changed", work: work(1, { unreadAdded: 0, unreadRemoved: 0 }) })
     await vi.waitFor(() =>
-      expect(works.state.getSnapshot().works.find((each) => each.terminalId === id(1))).toEqual(
+      expect(works.state.getSnapshot().works.find((each) => each.root === root(1))).toEqual(
         expect.objectContaining({ unreadAdded: 0 }),
       ),
     )
-    stream.push({ type: "removed", terminalId: id(2), projectId: "p" })
-    await vi.waitFor(() => expect(ids()).toEqual([id(1)]))
+    stream.push({ type: "removed", root: root(2), projectId: "p" })
+    await vi.waitFor(() => expect(ids()).toEqual([root(1)]))
     // After a reconnection: work 1 is no more, work 4 is new; until `synced` nothing changes.
     stream.push({ type: "reset" })
     stream.push({ type: "changed", work: work(4) })
-    expect(ids()).toEqual([id(1)])
+    expect(ids()).toEqual([root(1)])
     stream.push({ type: "synced" })
-    await vi.waitFor(() => expect(ids()).toEqual([id(4)]))
+    await vi.waitFor(() => expect(ids()).toEqual([root(4)]))
   })
 
   it("is synced once the first sequence is, and not after the last watcher lets go", async () => {
@@ -109,6 +134,7 @@ describe("Works, as the runner reports them", () => {
       watch: () => ((watches += 1), channel<WorkWatchItem>().iterator),
       look: async () => {},
       show: async () => ({ itemId: "x" }),
+      close: async () => ({ closed: true as const, branchDeleted: false }),
     })
     expect(watches).toBe(0)
   })
@@ -134,9 +160,9 @@ describe("Works, as the runner reports them", () => {
 describe("looking at and showing a work", () => {
   it("tells the runner the terminal's work was read, without waiting", async () => {
     const looked: string[] = []
-    const { works } = followed({ look: async (terminalId) => void looked.push(terminalId) })
-    works.look(id(1))
-    await vi.waitFor(() => expect(looked).toEqual([id(1)]))
+    const { works } = followed({ look: async (at) => void looked.push(at) })
+    works.look(root(1))
+    await vi.waitFor(() => expect(looked).toEqual([root(1)]))
   })
 
   it("reads the work at once, before the runner reports it again", async () => {
@@ -153,7 +179,7 @@ describe("looking at and showing a work", () => {
     stream.push({ type: "changed", work: work(1, { files: [file] }) })
     stream.push({ type: "synced" })
     await vi.waitFor(() => expect(works.state.getSnapshot().works).toHaveLength(1))
-    works.look(id(1))
+    works.look(root(1))
     const [looked] = works.state.getSnapshot().works
     expect(looked).toEqual(expect.objectContaining({ unreadAdded: 0, unreadRemoved: 0, added: 3 }))
     expect(looked?.files).toEqual([{ ...file, unreadAdded: 0, unreadRemoved: 0 }])
@@ -165,12 +191,12 @@ describe("looking at and showing a work", () => {
       const gone = followed({
         look: () => Promise.reject(new WireError("NOT_FOUND", "no work")),
       })
-      gone.works.look(id(1))
+      gone.works.look(root(1))
       await Promise.resolve()
       await new Promise((resolve) => setTimeout(resolve, 10))
       expect(quiet).not.toHaveBeenCalled()
       const broken = followed({ look: () => Promise.reject(new Error("offline")) })
-      broken.works.look(id(1))
+      broken.works.look(root(1))
       await vi.waitFor(() => expect(quiet).toHaveBeenCalledOnce())
     } finally {
       quiet.mockRestore()
@@ -179,7 +205,36 @@ describe("looking at and showing a work", () => {
 
   it("resolves a show to the item's id", async () => {
     const { works, shown } = followed()
-    expect(await works.show(id(2))).toBe(`item-${id(2)}`)
-    expect(shown).toEqual([id(2)])
+    expect(await works.show(root(2))).toBe(`item-${root(2)}`)
+    expect(shown).toEqual([root(2)])
+  })
+
+  it("names the terminal to show a work with no owner on", async () => {
+    const { works, shown } = followed()
+    await works.show(root(3), id(7))
+    expect(shown).toEqual([`${root(3)} on ${id(7)}`])
+  })
+
+  it("closes a worktree by its root and says what was kept, or passes the runner's refusal on", async () => {
+    const closed: [string, boolean | undefined][] = []
+    const { works } = followed({
+      close: async (at, force) => {
+        closed.push([at, force])
+        if (!force) throw new WireError("CONFLICT", "The worktree holds 2 uncommitted files.")
+        return { closed: true, kept: "refs/novadeck/kept/feature", branchDeleted: false }
+      },
+    })
+    await expect(works.close(root(1))).rejects.toMatchObject({
+      message: "The worktree holds 2 uncommitted files.",
+    })
+    expect(await works.close(root(1), true)).toEqual({
+      closed: true,
+      kept: "refs/novadeck/kept/feature",
+      branchDeleted: false,
+    })
+    expect(closed).toEqual([
+      [root(1), undefined],
+      [root(1), true],
+    ])
   })
 })

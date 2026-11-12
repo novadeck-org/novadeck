@@ -335,16 +335,19 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     }),
   )
   const works = new Works({
-    placements: async () =>
-      (await terminals.checkouts()).flatMap(({ terminalId, sessionId, root }) => {
-        try {
-          return [{ terminalId, projectId: store.session(sessionId).projectId, root }]
-        } catch (error) {
-          // A session gone from the store while its terminal winds down.
-          if (error instanceof DomainError && error.code === "NOT_FOUND") return []
-          throw error
-        }
-      }),
+    tracked: () =>
+      worktrees.all().map(({ path, projectId, terminalId, createdAt }) => ({
+        root: path,
+        projectId,
+        terminalId,
+        createdAt,
+      })),
+    presences: async () =>
+      (await terminals.checkouts()).map(({ terminalId, root, working }) => ({
+        terminalId,
+        root,
+        working,
+      })),
     show: async (terminalId, root) => {
       const place = terminals.place(terminalId)
       if (!place) throw new DomainError("TERMINAL_NOT_FOUND")
@@ -353,6 +356,20 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       if (!shown.ok) throw new DomainError("NOT_FOUND", shown.reason)
       return shown.id
     },
+    // The person is the actor: whoever owns the worktree, it closes on their say, in the
+    // service's own queue, so it can't race an agent's take, give or close.
+    remove: (root, force) =>
+      worktrees.closeAt(root, force, async (row) => {
+        // Read afresh in the queue: a turn may have started since the person asked. A shell
+        // command or agent whose current checkout is the worktree counts, whoever's it is. (A
+        // command run elsewhere with `git -C` into it can't be seen.)
+        const busy = (await terminals.checkouts()).some(
+          (each) => each.root === row.path && each.working,
+        )
+        return busy
+          ? "An agent is working in that worktree right now: wait for its turn to end."
+          : undefined
+      }),
     snapshots,
     ...(memory !== undefined && { memory }),
   })

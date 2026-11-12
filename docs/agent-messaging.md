@@ -422,10 +422,10 @@ answers it in the Inbox.
   "- led by you: @owl", from the running leads only, so no entry has to repeat its
   team. Then each terminal:
 
-  - an agent's terminal, two to eight lines:
+  - an agent's terminal, two to nine lines:
     `- @fox · ti listing: Claude Code, idle for 6 min, your teammate` and
     `  "Splitting the agents listing into session and team views" · novadeck task/ti-listing, 2 ahead, uncommitted changes, PR https://…`,
-    then, where there is something to say, its background shells, its `done` and `tell` reports, the items on its bar and its last failed turn (items 7 to 11):
+    then, where there is something to say, its worktrees, its background shells, its `done` and `tell` reports, the items on its bar and its last failed turn (the worktrees line, then items 7 to 11):
     1. its handle and title. A title is text the person, an agent or murmur may set, and
        says nothing of authority; the tool's description says so once, rather than each
        entry naming who set it;
@@ -454,7 +454,14 @@ answers it in the Inbox.
        is cached a few seconds per checkout, a listing waits for a checkout's first read at
        most a moment (every terminal in it waiting on that one read), and else shows the
        last known value while it refreshes. The pull request is never asked of GitHub: no network, sign-in or rate
-       limit stands between an agent and its listing;
+       limit stands between an agent and its listing. Beside this line, which says where the agent is
+       now, a `  worktrees: /path (branch, 2 ahead, uncommitted changes) · …` line lists the git
+       worktrees the agent owns (the runner's `worktrees` table, see agent-workspace.md,
+       "Worktrees"), so agents find each other's work: each one's path and branch, and its state
+       from the same cached `git status` (commits ahead of its upstream, "no upstream", "upstream
+       gone", "uncommitted changes", or "folder gone" once its folder is). Only worktrees that
+       terminal owns are listed, at most four and then "and N more", whether or not Preferences has
+       agent worktrees on, and for agents only. Nothing is said without any;
     7. its background shells, up to two lines, busy or idle alike, but not for a sleeping
        agent (no process runs). From `AgentActivity.shells`, which every harness fills
        (Claude Code's Bash in the background, Codex's `exec_command` sessions, Antigravity's

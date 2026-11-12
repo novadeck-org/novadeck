@@ -47,6 +47,7 @@ import {
   type VoiceTranscript,
   type WireClient,
   type WorkChange,
+  type WorkClosing,
   type WorkspaceSession,
 } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
@@ -435,23 +436,30 @@ export type Runner = {
      */
     watch(): AsyncIterableIterator<HistoryWatchItem, undefined>
   }
-  /** Each terminal's work that differs from its repository's main branch (Changes panel). */
+  /** Each tracked git worktree against its repository's main branch (Changes panel). */
   readonly works: {
     /**
      * Follows every work on the runner, as `history.watch()` follows closed terminals: each
      * time the stream opens it yields `reset`, every work as `changed`, then `synced`; at
      * `synced`, forget any not reported since. Later events report a work changed, or
-     * `removed` once it is merged, discarded or its terminal closed. Iteration ends only
-     * when the runner closes or on `return()`.
+     * `removed` (by root) once its worktree is closed or no longer tracked. Iteration ends
+     * only when the runner closes or on `return()`.
      */
     watch(): AsyncIterableIterator<WorkWatchItem, undefined>
-    /** The person has read the terminal's work as it is now; `NOT_FOUND` without a work. */
-    look(terminalId: string): Promise<void>
+    /** The person has read the work as it is now; `NOT_FOUND` without a work at `root`. */
+    look(root: string): Promise<void>
     /**
-     * Shows the terminal's work as a changes item on its bar and gives the item's id;
-     * `NOT_FOUND` without a work.
+     * Shows the work as a changes item on its owner's bar (or, for one with no owner,
+     * `terminalId`'s) and gives the item's id; `NOT_FOUND` without a work or a bar.
      */
-    show(terminalId: string): Promise<{ readonly itemId: string }>
+    show(root: string, terminalId?: string): Promise<{ readonly itemId: string }>
+    /**
+     * Closes the worktree as the person asks. Without `force`, one that holds uncommitted
+     * files or unmerged commits is answered `closed: false` with what it holds. `CONFLICT`
+     * (its message says why) while its owner's agent is working in it, when git can't be read
+     * or it has submodules.
+     */
+    close(root: string, force?: boolean): Promise<WorkClosing>
   }
   /**
    * What agents show and the person attaches beside terminals: items, each held by a
@@ -844,8 +852,13 @@ export const connectRunner = async (
     works: {
       watch: () =>
         followAll(connection, (client, signal) => client.works.watch(undefined, { signal })),
-      look: (terminalId) => call((client) => client.works.look({ terminalId })),
-      show: (terminalId) => call((client) => client.works.show({ terminalId })),
+      look: (root) => call((client) => client.works.look({ root })),
+      show: (root, terminalId) =>
+        call((client) =>
+          client.works.show({ root, ...(terminalId !== undefined && { terminalId }) }),
+        ),
+      close: (root, force) =>
+        call((client) => client.works.close({ root, ...(force && { force }) })),
     },
     companions: {
       list: (input) => call((client) => client.companions.list(input)),

@@ -262,10 +262,14 @@ export const showcaseDemo = (
       },
     }),
   )
-  // A work shows as a change on its terminal's bar, from the terminal's session.
-  const showWork = (work: Work, workspace: Workspace | undefined): Promise<string | null> => {
+  // A work shows as a change on a terminal's bar (its owner's), from the terminal's session.
+  const showWork = (
+    work: Work,
+    terminalId: string,
+    workspace: Workspace | undefined,
+  ): Promise<string | null> => {
     const found =
-      workspace && terminalsOf(workspace).find(({ key }) => key.terminalId === work.terminalId)
+      workspace && terminalsOf(workspace).find(({ key }) => key.terminalId === terminalId)
     if (!found) return Promise.resolve(null)
     const { key, terminal } = found
     return Promise.resolve(

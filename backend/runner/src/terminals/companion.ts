@@ -31,11 +31,13 @@ export type LookAnswer =
     }
   | { readonly ok: false; readonly reason: string }
 
-/** A terminal and the git checkout (its top folder) it works in now. */
+/** A terminal, the git checkout (its top folder) it works in now, and whether its agent works. */
 export type Checkout = {
   readonly terminalId: string
   readonly sessionId: string
   readonly root: string
+  /** Its agent is mid-turn, or a command runs in its shell: the same as a listing's "working". */
+  readonly working: boolean
 }
 
 export type CompanionHost = {
@@ -206,13 +208,14 @@ export class Companion {
    */
   async checkouts(terminals: readonly TerminalSummary[]): Promise<Checkout[]> {
     const found = await Promise.all(
-      terminals.map(async ({ id, sessionId, cwd }) => {
+      terminals.map(async ({ id, sessionId, cwd, activity, shellCommand }) => {
         const live = this.host.records().get(id)
         const work = live ? live.work : (this.host.saved(id)?.work ?? null)
         // A kept terminal's agent is asleep or awaiting restore, where its work was left.
         const agent = live ? live.bound != null : work !== null
         const root = await this.host.peers().workingCheckout(cwd, work, agent)
-        return root === null ? [] : [{ terminalId: id, sessionId, root }]
+        const working = activity?.state === "working" || shellCommand != null
+        return root === null ? [] : [{ terminalId: id, sessionId, root, working }]
       }),
     )
     return found.flat()

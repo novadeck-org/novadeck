@@ -1,7 +1,6 @@
 import { workLimits, type WorkConflict, type WorkFile } from "@novadeck/protocol"
 
-// The pure parts of Works: adding up lines, choosing which terminal's a shared checkout is,
-// and putting a work together. Nothing here runs git.
+// The pure parts of Works: adding up lines and putting a work together. Nothing here runs git.
 
 /** The lines one file gained and lost. */
 export type Lines = { readonly added: number; readonly removed: number }
@@ -74,38 +73,14 @@ export const mayConflict = (
   b: { readonly paths: ReadonlySet<string>; readonly truncated: boolean },
 ): boolean => a.truncated || b.truncated || [...a.paths].some((path) => b.paths.has(path))
 
-/** A terminal that is in a checkout, since when it has been in that one. */
-export type Claim = { readonly terminalId: string; readonly root: string; readonly since: number }
-
-/**
- * Whose a checkout's work is. One work per checkout: the terminal that has been in it the
- * longest keeps it, whoever else comes in; the earlier ids first on a tie. `owners` are the
- * ones from before: an owner still in its checkout keeps it, however long others have been
- * in it, so the row doesn't pass between terminals back and forth. Returns checkout to
- * terminal.
- */
-export const attribute = (
-  claims: readonly Claim[],
-  owners: ReadonlyMap<string, string>,
-): Map<string, string> => {
-  const chosen = new Map<string, Claim>()
-  for (const claim of claims) {
-    const held = chosen.get(claim.root)
-    const keeps = (each: Claim): boolean => owners.get(each.root) === each.terminalId
-    const better =
-      !held ||
-      (keeps(claim) && !keeps(held)) ||
-      (keeps(claim) === keeps(held) &&
-        (claim.since < held.since ||
-          (claim.since === held.since && claim.terminalId < held.terminalId)))
-    if (better) chosen.set(claim.root, claim)
-  }
-  return new Map([...chosen].map(([root, claim]) => [root, claim.terminalId]))
-}
-
-/** The conflicts of a work: with main, and with each other work, in a stable order. */
-export const conflictsOf = (withMain: boolean, others: readonly string[]): WorkConflict[] =>
+/** The conflicts of a work: with main, and with each other work (by root), in a stable order. */
+export const conflictsOf = (
+  withMain: boolean,
+  others: readonly { readonly root: string; readonly terminalId: string | null }[],
+): WorkConflict[] =>
   [
     ...(withMain ? [{ with: "main" as const }] : []),
-    ...others.toSorted().map((terminalId) => ({ with: "work" as const, terminalId })),
+    ...others
+      .toSorted((a, b) => byPath(a.root, b.root))
+      .map(({ root, terminalId }) => ({ with: "work" as const, root, terminalId })),
   ].slice(0, workLimits.conflicts)

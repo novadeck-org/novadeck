@@ -1,11 +1,10 @@
 /* The Changes panel's rows (ChangesPanel.tsx): each work is drawn as a terminal's tab (the
    `.terminal-tab` of tabs.css, so its size, name line, detail line and the unfold of its rows
    are the tab's own), and this adds what differs. Parts: `.changes-row`, `.changes-size` (the
-   unread `+N −N`, in the tab's item marks' place), `.changes-line` (the file names on the
-   detail line, a `.terminal-tab-subagents` that folds away as the rows unfold),
-   `.changes-file` (a file's name, wherever it is), `.changes-comma`, `.changes-branches` and
+   unread `+N −N`, in the tab's item marks' place), `.changes-file` (a file's name, wherever it is), `.changes-branch` (the row's branch),
+   `.changes-refusal`, `.changes-kept`, `.changes-branches` and
    `.changes-trail` (a file's unread lines, right-aligned in its row), `.changes-empty`. The
-   selected row's detail line folds to nothing with its names.
+   row's × is `.terminal-tab-revealed`, shown under the pointer as a tab's Rename.
 
    Hooks: on a row, data-read="true" once none of its lines are unread, data-conflict while it
    conflicts with main or another work, data-read-start on the first read row below unread
@@ -66,25 +65,40 @@
 .changes-file[data-conflict="true"] {
   color: var(--color-danger-fg);
 }
-.changes-comma {
-  color: var(--color-muted);
-}
-.changes-line {
-  flex: 1 1 auto;
-}
 /* The unfolded rows use the row's full width. */
 .changes-branches > span > span > span {
   padding-right: 2px;
 }
 
-/* The detail line holds only the file names, which fold away as the rows unfold: it folds
-   with them, so no empty line stands between the name and its files. */
-.changes-row .sidebar-item-detail {
-  max-height: 1.5rem;
-  transition: max-height var(--motion-layout) var(--ease-interface);
+/* The detail line holds the branch, which stays while the files unfold under it. */
+.changes-branch {
+  color: var(--color-muted);
 }
-.changes-row.selected:has(.changes-branches) .sidebar-item-detail {
-  max-height: 0;
+
+/* Why a close was refused, above the list. */
+.changes-refusal {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 8px 0;
+  padding: 8px 10px;
+  border: var(--border-width) solid var(--color-danger-fg);
+  border-radius: var(--radius-control, 4px);
+  color: var(--color-ink);
+}
+.changes-refusal p {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* What closing keeps, in the dialog. */
+.changes-kept {
+  margin: 0;
+  padding-left: 1.2em;
+  color: var(--color-muted);
+  list-style: disc;
 }
 
 /* New lines on a work: the Inbox's wash, a flash and never a held state. */
@@ -133,4 +147,10 @@
 .changes-empty p {
   max-width: 30ch;
   margin: 0;
+}
+
+/* A × that waits (the owner's agent is working in the worktree) stays in its place, dimmed. */
+.changes-row .terminal-tab-action[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.35;
 }

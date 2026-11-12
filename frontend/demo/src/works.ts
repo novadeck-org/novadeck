@@ -5,12 +5,13 @@ import type { Workspace } from "@novadeck/core/types"
 import type { Work, WorkConflict, WorkFile, Works, WorksState } from "@novadeck/core/works"
 
 import type { DemoTurns } from "./agents/turns"
-import { terminalOf } from "./workspace"
 
-// The demo's Changes: each terminal's work against main, from fixtures planned per demo
+// The demo's Changes: each tracked worktree's work against main, from fixtures planned per demo
 // (`WorkPlan`) and kept by the demo's own store, standing in for the runner, which reads the
-// terminals' checkouts. Looking at a work reads it; a demo agent that works gains a few
-// unread lines in its work; the debug panel changes the rest (see `DemoWorksControl`).
+// worktrees its table tracks. A work has an owner terminal or none. Looking at a work reads
+// it; closing one removes it (refusing while its owner's agent works in it, or when the
+// debug panel armed a refusal); a demo agent that works gains a few unread lines in its
+// first work and holds it busy; the debug panel changes the rest (see `DemoWorksControl`).
 
 const minute = 60_000
 
@@ -33,15 +34,21 @@ export const planFile = (
   rest: Omit<FilePlan, "path" | "added" | "removed"> = {},
 ): FilePlan => ({ path, added, removed, ...rest })
 
-// A work a demo opens with. The terminal is named by its title, in the project the plan
-// names, and a conflict with another work by that terminal's title in the same project.
+// A work a demo opens with: a worktree of the project the plan names. Its owner is named by
+// its terminal's title, or null for a worktree with no owner; a conflict with another work
+// is named by its owner's title in the same project, or "main".
 export type WorkPlan = {
   readonly project: string
-  readonly terminal: string
+  readonly terminal: string | null
+  // Its branch; the owner's title as a branch when left out.
+  readonly branch?: string
   // How long ago it first differed from main.
   readonly minutesAgo: number
+  // None: the worktree differs from nothing, so closing it asks no question.
   readonly files: readonly FilePlan[]
   readonly conflicts?: readonly string[]
+  // The owner's agent is mid-turn in it, so its × waits.
+  readonly working?: true
 }
 
 const fileOf = (plan: FilePlan): WorkFile => {
@@ -66,22 +73,19 @@ const summed = (work: Work, files: readonly WorkFile[]): Work => ({
   unreadRemoved: files.reduce((sum, file) => sum + file.unreadRemoved, 0),
 })
 
+// Where a terminal's work is made when it has none: its project, its id, and the root of the
+// worktree.
 export type Placed = {
   readonly projectId: string
   readonly terminalId: string
   readonly root: string
 }
 
-// Where a terminal of the seed is: its project and its folder.
-const placeOf = (seed: WorkspaceSeed, project: string, title: string): Placed | undefined => {
-  const found = seed.projects.find((each) => each.id === project)
-  const terminal = found?.sessions
-    .flatMap((session) => session.terminals)
-    .find((each) => each.name === title)
-  return found && terminal
-    ? { projectId: found.id, terminalId: terminal.id, root: terminal.directory }
-    : undefined
-}
+const slug = (text: string): string => text.toLowerCase().replace(/[^a-z0-9]+/g, "-")
+
+// The folder of a worktree of a project, as the runner places it: its group, then its repository.
+export const worktreeRoot = (project: string, group: string): string =>
+  `~/.novadeck/worktrees/${project}/${slug(group)}/${project}`
 
 // The works a demo opens with, from its plans and its own seed. A plan that names a project
 // or terminal the seed lacks has no work; a conflict between two works is on both.
@@ -91,33 +95,55 @@ export const worksFromPlans = (
   now: number,
 ): readonly Work[] => {
   const placed = plans.flatMap((plan) => {
-    const at = placeOf(seed, plan.project, plan.terminal)
-    return at ? [{ plan, at }] : []
+    const project = seed.projects.find((each) => each.id === plan.project)
+    const terminal =
+      plan.terminal === null
+        ? undefined
+        : project?.sessions
+            .flatMap((session) => session.terminals)
+            .find((each) => each.name === plan.terminal)
+    if (!project || (plan.terminal !== null && !terminal)) return []
+    const branch = plan.branch ?? `agent/${slug(plan.terminal ?? "unowned")}`
+    return [
+      {
+        plan,
+        projectId: project.id,
+        terminalId: terminal?.id ?? null,
+        branch,
+        root: worktreeRoot(project.id, branch),
+      },
+    ]
   })
-  const idOf = (project: string, title: string): string | undefined =>
-    placed.find(({ plan }) => plan.project === project && plan.terminal === title)?.at.terminalId
-  return placed.map(({ plan, at }) => {
-    const others = placed.flatMap(({ plan: other, at: elsewhere }) =>
-      other.project === plan.project &&
-      elsewhere.terminalId !== at.terminalId &&
-      other.conflicts?.includes(plan.terminal)
-        ? [elsewhere.terminalId]
-        : [],
+  const ownedBy = (project: string, title: string) =>
+    placed.find((each) => each.plan.project === project && each.plan.terminal === title)
+  return placed.map((at) => {
+    const { plan } = at
+    const others = placed.filter(
+      (other) =>
+        other.projectId === at.projectId &&
+        other.root !== at.root &&
+        plan.terminal !== null &&
+        other.plan.conflicts?.includes(plan.terminal),
     )
-    const own = (plan.conflicts ?? []).flatMap((title) =>
-      title === "main" ? [] : [idOf(plan.project, title)].filter((id) => id !== undefined),
-    )
+    const own = (plan.conflicts ?? []).flatMap((title) => {
+      const found = title === "main" ? undefined : ownedBy(plan.project, title)
+      return found ? [found] : []
+    })
     const conflicts: WorkConflict[] = [
       ...(plan.conflicts?.includes("main") ? [{ with: "main" as const }] : []),
-      ...[...new Set([...own, ...others])].map((terminalId) => ({
+      ...[...new Set([...own, ...others])].map((other) => ({
         with: "work" as const,
-        terminalId,
+        root: other.root,
+        terminalId: other.terminalId,
       })),
     ]
     return summed(
       {
-        ...at,
-        branch: `agent/${plan.terminal.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+        root: at.root,
+        terminalId: at.terminalId,
+        projectId: at.projectId,
+        working: plan.working === true,
+        branch: at.branch,
         base: "main",
         firstSeenAt: now - plan.minutesAgo * minute,
         added: 0,
@@ -191,18 +217,25 @@ export const conflictedWithMain = (work: Work): Work => {
   }
 }
 
-const withConflict = (work: Work, other: string): Work => {
+const withConflict = (work: Work, other: Work): Work => {
   const [first, ...rest] = work.files
   return {
     ...summed(work, first ? [{ ...first, conflict: true }, ...rest] : []),
     conflicts: [
       ...work.conflicts.filter(
-        (conflict) => conflict.with === "main" || conflict.terminalId !== other,
+        (conflict) => conflict.with === "main" || conflict.root !== other.root,
       ),
-      { with: "work", terminalId: other },
+      { with: "work", root: other.root, terminalId: other.terminalId },
     ],
   }
 }
+
+// Nothing differs from main any more: merged into it, or discarded. The worktree stays.
+export const merged = (work: Work): Work => ({
+  ...summed(work, []),
+  conflicts: [],
+  truncated: false,
+})
 
 // It no longer conflicts with anything.
 export const settled = (work: Work): Work => ({
@@ -215,8 +248,12 @@ export const settled = (work: Work): Work => ({
 
 // ---- The store ----
 
-// What the debug panel changes. A terminal without a work gets one at its first change, as the
-// runner's does at the first edit.
+// Why a close the debug panel armed is refused.
+export const closeRefusal =
+  "Novadeck couldn't read the worktree's git status, so it stays. Try again in a moment."
+
+// What the debug panel changes. A terminal without a work gets a worktree at its first change,
+// at the root `Placed` names; one that has works changes its first.
 export type DemoWorksControl = {
   readonly gain: (at: Placed, lines?: number) => void
   // The work changes `count` more files.
@@ -224,9 +261,27 @@ export type DemoWorksControl = {
   readonly conflictWithMain: (at: Placed) => void
   // The work conflicts with another terminal's, which gets a work of its own to conflict with.
   readonly conflictBetween: (at: Placed, other: Placed) => void
-  readonly settle: (terminalId: string) => void
-  // The work leaves the list: merged into main, or discarded.
-  readonly end: (terminalId: string) => void
+  readonly settle: (root: string) => void
+  // The work differs from nothing: merged into main, or discarded. The worktree stays.
+  readonly merge: (root: string) => void
+  // The terminal's worktree, just made: it differs from nothing.
+  readonly openClean: (at: Placed) => void
+  // The worktree has no owner.
+  readonly orphan: (root: string) => void
+  // Its owner is closed, in History: the row still names an owner, no terminal of the project.
+  readonly ownerClosed: (root: string) => void
+  // The terminal's worktree differs from nothing but has `count` commits main lacks, as one
+  // whose commits net to nothing does.
+  readonly commitsMainLacks: (at: Placed, count: number) => void
+  // The owner's agent is mid-turn in the terminal's first worktree, or no longer.
+  readonly setWorking: (terminalId: string, working: boolean) => void
+  // The next close is refused, as when git status couldn't be read.
+  readonly refuseNextClose: () => void
+  // The worktree is closed, by the debug panel rather than the person.
+  readonly remove: (root: string) => void
+  // Every worktree of the project is closed.
+  readonly removeAll: (projectId: string) => void
+  readonly ownedBy: (terminalId: string) => Work | undefined
   readonly worksOf: (projectId: string) => readonly Work[]
 }
 
@@ -238,30 +293,54 @@ export const isDemoWorks = (works: Backend["works"]): works is DemoWorks =>
 // How many lines a working agent's turn adds to its work.
 const turnLines = 14
 
+// The works without the one at `root`, and no conflict with it left on the others.
+const drop = (current: WorksState, root: string): WorksState => ({
+  ...current,
+  // Whoever conflicted with it no longer does.
+  works: current.works
+    .filter((work) => work.root !== root)
+    .map((work) => {
+      const conflicts = work.conflicts.filter(
+        (conflict) => conflict.with === "main" || conflict.root !== root,
+      )
+      return conflicts.length === work.conflicts.length ? work : { ...work, conflicts }
+    }),
+})
+
 export const createDemoWorks = (
   initial: readonly Work[],
   options: {
     readonly now?: () => number
-    // The item a work shows as, where the demo has a companion pane that can; null where not.
-    readonly show?: (work: Work) => Promise<string | null>
+    // The item a work shows as, on the terminal's bar; null where the demo has no companion
+    // pane that can.
+    readonly show?: (work: Work, terminalId: string) => Promise<string | null>
   } = {},
 ): DemoWorks => {
   const { now = Date.now, show } = options
   const state = createStore<WorksState>({ works: initial, synced: true })
-  const change = (terminalId: string, step: (work: Work) => Work): void => {
+  let refuse = false
+  // The commits main lacks of worktrees that differ from it in no file, by root.
+  const unmerged = new Map<string, number>()
+  const change = (root: string, step: (work: Work) => Work): void => {
     state.update((current) => ({
       ...current,
-      works: current.works.map((work) => (work.terminalId === terminalId ? step(work) : work)),
+      works: current.works.map((work) => (work.root === root ? step(work) : work)),
     }))
   }
-  const find = (terminalId: string): Work | undefined =>
+  const find = (root: string): Work | undefined =>
+    state.getSnapshot().works.find((work) => work.root === root)
+  const ownedBy = (terminalId: string): Work | undefined =>
     state.getSnapshot().works.find((work) => work.terminalId === terminalId)
   // The work of a terminal, made at its first change.
-  const ensure = (at: Placed): void => {
-    if (find(at.terminalId)) return
+  const ensure = (at: Placed): Work => {
+    const own = ownedBy(at.terminalId)
+    if (own) return own
     const fresh: Work = {
-      ...at,
-      branch: null,
+      root: at.root,
+      terminalId: at.terminalId,
+      projectId: at.projectId,
+      working: false,
+      branch: `agent/${slug(at.terminalId)}`,
       base: "main",
       firstSeenAt: now(),
       added: 0,
@@ -273,85 +352,162 @@ export const createDemoWorks = (
       conflicts: [],
     }
     state.update((current) => ({ ...current, works: [...current.works, fresh] }))
+    return fresh
   }
   return {
     state,
     // The demo's works are always current.
     watch: () => () => {},
-    look: (terminalId) => change(terminalId, looked),
-    show: (terminalId) => {
-      const work = find(terminalId)
-      return work && show ? show(work) : Promise.resolve(null)
+    look: (root) => change(root, looked),
+    show: (root, terminalId) => {
+      const work = find(root)
+      // The terminal the panel names: the owner's, or the selected one's where the owner is closed.
+      const on = terminalId ?? work?.terminalId ?? undefined
+      return work && show && on !== undefined ? show(work, on) : Promise.resolve(null)
+    },
+    close: async (root, force = false) => {
+      const work = find(root)
+      if (!work) throw new Error("Novadeck no longer tracks that worktree.")
+      if (work.working)
+        throw new Error(
+          "Its agent is working in that worktree right now: wait for its turn to end.",
+        )
+      if (refuse) {
+        refuse = false
+        throw new Error(closeRefusal)
+      }
+      const commits = unmerged.get(root) ?? 0
+      const files = work.files.length
+      const holds = [
+        ...(files > 0 || work.truncated
+          ? [`${files} changed file${files === 1 ? "" : "s"}${work.truncated ? " or more" : ""}`]
+          : []),
+        ...(commits > 0
+          ? [`${commits} commit${commits === 1 ? "" : "s"} the main branch doesn't have`]
+          : []),
+      ].join(" and ")
+      if (holds !== "" && !force) return { closed: false, holds }
+      unmerged.delete(root)
+      state.update((current) => drop(current, root))
+      return {
+        closed: true,
+        ...(holds !== "" && { kept: `refs/novadeck/kept/${slug(work.branch ?? "detached")}-work` }),
+        branchDeleted: holds === "",
+      }
     },
     gain: (at, lines = turnLines) => {
-      ensure(at)
-      change(at.terminalId, (work) => gained(work, lines))
+      const { root } = ensure(at)
+      change(root, (work) => gained(work, lines))
     },
     spread: (at, count) => {
-      ensure(at)
-      change(at.terminalId, (work) => spread(work, count))
+      const { root } = ensure(at)
+      change(root, (work) => spread(work, count))
     },
     conflictWithMain: (at) => {
-      ensure(at)
-      if (find(at.terminalId)?.files.length === 0) change(at.terminalId, (work) => gained(work, 12))
-      change(at.terminalId, conflictedWithMain)
+      const { root } = ensure(at)
+      if (find(root)?.files.length === 0) change(root, (work) => gained(work, 12))
+      change(root, conflictedWithMain)
     },
     conflictBetween: (at, other) => {
-      for (const each of [at, other]) {
-        ensure(each)
-        if (find(each.terminalId)?.files.length === 0)
-          change(each.terminalId, (work) => gained(work, 12))
-      }
-      change(at.terminalId, (work) => withConflict(work, other.terminalId))
-      change(other.terminalId, (work) => withConflict(work, at.terminalId))
+      const roots = [at, other].map((each) => ensure(each).root) as [string, string]
+      for (const root of roots)
+        if (find(root)?.files.length === 0) change(root, (w) => gained(w, 12))
+      const [mine, theirs] = roots.map((root) => find(root)!) as [Work, Work]
+      change(mine.root, (work) => withConflict(work, theirs))
+      change(theirs.root, (work) => withConflict(work, mine))
     },
-    settle: (terminalId) => change(terminalId, settled),
-    end: (terminalId) =>
+    settle: (root) => change(root, settled),
+    merge: (root) => {
+      unmerged.delete(root)
       state.update((current) => ({
         ...current,
-        // Whoever conflicted with it no longer does.
-        works: current.works
-          .filter((work) => work.terminalId !== terminalId)
-          .map((work) => {
-            const conflicts = work.conflicts.filter(
-              (conflict) => conflict.with === "main" || conflict.terminalId !== terminalId,
-            )
-            return conflicts.length === work.conflicts.length ? work : { ...work, conflicts }
-          }),
+        works: current.works.map((work) =>
+          work.root === root
+            ? merged(work)
+            : {
+                ...work,
+                conflicts: work.conflicts.filter(
+                  (conflict) => conflict.with === "main" || conflict.root !== root,
+                ),
+              },
+        ),
+      }))
+    },
+    openClean: (at) => {
+      const { root } = ensure(at)
+      unmerged.delete(root)
+      change(root, merged)
+    },
+    ownerClosed: (root) =>
+      change(root, (work) => ({
+        ...work,
+        terminalId: `closed-${slug(root)}`,
+        working: false,
       })),
+    commitsMainLacks: (at, count) => {
+      const { root } = ensure(at)
+      change(root, merged)
+      unmerged.set(root, count)
+    },
+    orphan: (root) => change(root, (work) => ({ ...work, terminalId: null, working: false })),
+    setWorking: (terminalId, working) => {
+      const own = ownedBy(terminalId)
+      if (own && own.working !== working) change(own.root, (work) => ({ ...work, working }))
+    },
+    refuseNextClose: () => {
+      refuse = true
+    },
+    remove: (root) => {
+      unmerged.delete(root)
+      state.update((current) => drop(current, root))
+    },
+    removeAll: (projectId) =>
+      state.update((current) => ({
+        ...current,
+        works: current.works.filter((work) => work.projectId !== projectId),
+      })),
+    ownedBy,
     worksOf: (projectId) =>
       state.getSnapshot().works.filter((work) => work.projectId === projectId),
   }
 }
 
-// A backend with the demo's Changes. A demo agent that starts a turn gains lines in its work
-// (its first change makes the work), once per turn; `show` is what a work shows as.
+// A backend with the demo's Changes. A demo agent that starts a turn gains lines in the first
+// work it owns, once per turn, and holds it busy until the turn ends; one that owns none
+// changes nothing. `show` is what a work shows as.
 export const withWorks = (
   backend: Backend,
   options: {
     readonly plans?: readonly WorkPlan[]
     readonly turns?: DemoTurns
-    readonly show?: (work: Work, workspace: Workspace | undefined) => Promise<string | null>
+    readonly show?: (
+      work: Work,
+      terminalId: string,
+      workspace: Workspace | undefined,
+    ) => Promise<string | null>
   } = {},
 ): Backend => {
   const { plans = [], turns, show } = options
   let latest: Workspace | undefined
   const works = createDemoWorks(worksFromPlans(backend.seed, plans, Date.now()), {
-    ...(show && { show: (work: Work) => show(work, latest) }),
+    ...(show && {
+      show: (work: Work, terminalId: string) => show(work, terminalId, latest),
+    }),
   })
   // The agents that work now, so a turn adds its lines once as it starts.
   const working = new Set<string>()
   turns?.watchStatus((key: TerminalKey, agent) => {
     const active = agent.working && !agent.attention
-    if (!active) return void working.delete(key.terminalId)
+    if (!active) {
+      if (working.delete(key.terminalId)) works.setWorking(key.terminalId, false)
+      return
+    }
     if (working.has(key.terminalId)) return
     working.add(key.terminalId)
-    const terminal = terminalOf(latest, key)
-    works.gain({
-      projectId: key.projectId,
-      terminalId: key.terminalId,
-      root: terminal?.directory ?? "~",
-    })
+    const own = works.ownedBy(key.terminalId)
+    if (!own) return
+    works.gain({ projectId: key.projectId, terminalId: key.terminalId, root: own.root })
+    works.setWorking(key.terminalId, true)
   })
   return {
     ...backend,

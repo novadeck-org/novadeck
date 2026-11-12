@@ -40,6 +40,19 @@ export type Whereabouts = {
   readonly background: Background | null
   /** What its terminal's bar holds, as a listing may name it (see `Shown`); oldest first. */
   readonly shown: readonly Shown[]
+  /** The git worktrees it owns, oldest first (see `OwnedWorktree`); empty for none. */
+  readonly worktrees: readonly OwnedWorktree[]
+}
+
+/**
+ * A git worktree Novadeck tracks that a terminal owns, as listings name it: its folder, its
+ * branch, and its `GitState`, null while unknown; `gone` when its folder is no longer there.
+ */
+export type OwnedWorktree = {
+  readonly path: string
+  readonly branch: string
+  readonly state: GitState | null
+  readonly gone: boolean
 }
 
 /**
@@ -177,6 +190,8 @@ export type Peer = {
   /** The handle of the terminal that leads it now: running, and in its session; else null. */
   readonly lead: string | null
   readonly git: Git | null
+  /** The worktrees it owns; empty for none, and for a plain shell. */
+  readonly worktrees: readonly OwnedWorktree[]
   /** The latest pull request link its agent gave in a `tell` or `done`; null without one. */
   readonly pr: string | null
   /** What runs in a terminal with no agent there or expected; null for an agent's. */
@@ -280,6 +295,7 @@ export const peerOf = (input: {
     shown: agent && !input.asleep ? (where?.shown ?? []) : [],
     lead: input.lead,
     git: where?.git ?? null,
+    worktrees: agent ? (where?.worktrees ?? []) : [],
     pr: reportedPullRequest(happenings),
     shell: agent || expecting || untrusted ? null : (where?.shell ?? null),
     happenings,
@@ -424,26 +440,54 @@ export const headLine = (peer: Peer, now: number, viewer: Viewer, full = false):
 }
 
 /**
+ * What a checkout's `GitState` says beyond its branch, as listings show it: how far ahead of
+ * its upstream (or that it has none, or that it is gone), and uncommitted changes.
+ */
+const stateParts = (
+  branch: string | null,
+  state: GitState | null,
+): (string | false | null | undefined)[] => [
+  state && branch && !state.detached
+    ? state.ahead !== null
+      ? state.ahead > 0 && `${state.ahead} ahead`
+      : state.gone
+        ? "upstream gone"
+        : "no upstream"
+    : null,
+  state?.dirty && "uncommitted changes",
+]
+
+/**
  * Where an agent works, as listings show it: its repository and branch, how far ahead of
  * its upstream (or that it has none), uncommitted changes, and its reported pull request.
  */
 const gitText = (peer: Peer): string | null => {
   const { git, pr } = peer
   const parts = git
-    ? [
-        [git.repo, git.branch].filter(Boolean).join(" "),
-        git.state && git.branch && !git.state.detached
-          ? git.state.ahead !== null
-            ? git.state.ahead > 0 && `${git.state.ahead} ahead`
-            : git.state.gone
-              ? "upstream gone"
-              : "no upstream"
-          : null,
-        git.state?.dirty && "uncommitted changes",
-      ]
+    ? [[git.repo, git.branch].filter(Boolean).join(" "), ...stateParts(git.branch, git.state)]
     : []
   const all = [...parts, pr && `PR ${pr}`].filter((part): part is string => Boolean(part))
   return all.length > 0 ? all.join(", ") : null
+}
+
+/** How many worktrees an agent's listing names, and how long a path shows. */
+const shownWorktrees = 4
+const worktreePathChars = 160
+
+/**
+ * The git worktrees a terminal owns, in one line: each with its path, branch and state
+ * (commits ahead, uncommitted changes, or that its folder is gone), so agents find each
+ * other's work. Null without any.
+ */
+export const worktreesLine = (peer: Peer): string | null => {
+  if (peer.worktrees.length === 0) return null
+  const named = peer.worktrees.slice(0, shownWorktrees).map(({ path, branch, state, gone }) => {
+    const notes = gone ? ["folder gone"] : stateParts(branch, state)
+    const detail = [flat(branch, titleChars), ...notes].filter((part) => Boolean(part))
+    return `${flat(path, worktreePathChars)} (${detail.join(", ")})`
+  })
+  const more = peer.worktrees.length - named.length
+  return `  worktrees: ${[...named, ...(more > 0 ? [`and ${more} more`] : [])].join(" · ")}`
 }
 
 /** How long a summary shows, in characters. */
@@ -618,11 +662,12 @@ export const failureLine = (peer: Peer, now: number): string | null => {
   return `  last turn failed ${ago(last.at, now)}${last.text ? `: ${flat(last.text, failureChars)}` : ""}`
 }
 
-/** One terminal as `agents` shows it: one line for a shell, up to eight for an agent. */
+/** One terminal as `agents` shows it: one line for a shell, up to nine for an agent. */
 export const renderPeer = (peer: Peer, now: number, viewer: Viewer): readonly string[] =>
   [
     headLine(peer, now, viewer),
     detailLine(peer),
+    worktreesLine(peer),
     runningLine(peer, now),
     endedLine(peer, now),
     doneLine(peer, now),

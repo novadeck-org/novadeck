@@ -298,6 +298,112 @@ describe("closing a worktree", () => {
     expect(f.store.worktree(a.path)).toBeDefined()
   })
 
+  it("says what it holds, apart from the agent's wording, where only force stands in the way", async ({
+    fx: f,
+  }) => {
+    const a = await open(f, "busy")
+    if (!a.ok) throw new Error("open")
+    writeFileSync(join(a.path, "new.txt"), "x\n")
+    const refused = await f.worktrees.remove(f.store.worktree(a.path)!, false)
+    expect(refused).toMatchObject({ ok: false, holds: "1 uncommitted or untracked path" })
+  })
+
+  it("closes a squash-merged worktree without force, deleting its branch with -D", async ({
+    fx: f,
+  }) => {
+    const a = await open(f, "squashed")
+    if (!a.ok) throw new Error("open")
+    writeFileSync(join(a.path, "s.txt"), "s\n")
+    git(a.path, "add", "-A")
+    git(a.path, "commit", "--quiet", "-m", "work")
+    git(f.repo, "merge", "--quiet", "--squash", "squashed")
+    git(f.repo, "commit", "--quiet", "-m", "squash")
+    // Git calls the branch unmerged (main has other hashes), but merging it changes nothing.
+    expect(git(f.repo, "rev-list", "--count", "main..squashed")).toBe("1")
+    const closed = await f.worktrees.remove(f.store.worktree(a.path)!, false)
+    expect(closed).toMatchObject({ ok: true, branchDeleted: true })
+    expect(existsSync(a.path)).toBe(false)
+    expect(git(f.repo, "branch", "--list", "squashed")).toBe("")
+  })
+
+  it("closes a rebase-merged worktree without force too", async ({ fx: f }) => {
+    const a = await open(f, "rebased")
+    if (!a.ok) throw new Error("open")
+    writeFileSync(join(a.path, "r.txt"), "r\n")
+    git(a.path, "add", "-A")
+    git(a.path, "commit", "--quiet", "-m", "work")
+    // Main moved on first, so the cherry-picked commit has another hash.
+    writeFileSync(join(f.repo, "other.txt"), "o\n")
+    git(f.repo, "add", "-A")
+    git(f.repo, "commit", "--quiet", "-m", "other")
+    git(f.repo, "cherry-pick", "rebased")
+    expect(await f.worktrees.remove(f.store.worktree(a.path)!, false)).toMatchObject({
+      ok: true,
+      branchDeleted: true,
+    })
+  })
+
+  it("still refuses a squash-merged worktree with loose files, or work main doesn't hold", async ({
+    fx: f,
+  }) => {
+    const a = await open(f, "squashed")
+    if (!a.ok) throw new Error("open")
+    writeFileSync(join(a.path, "s.txt"), "s\n")
+    git(a.path, "add", "-A")
+    git(a.path, "commit", "--quiet", "-m", "work")
+    git(f.repo, "merge", "--quiet", "--squash", "squashed")
+    git(f.repo, "commit", "--quiet", "-m", "squash")
+    writeFileSync(join(a.path, "loose.txt"), "l\n")
+    expect(await f.worktrees.remove(f.store.worktree(a.path)!, false)).toMatchObject({
+      ok: false,
+      holds: "1 uncommitted or untracked path",
+    })
+    rmSync(join(a.path, "loose.txt"))
+    // A commit after the squash is work main lacks.
+    writeFileSync(join(a.path, "more.txt"), "m\n")
+    git(a.path, "add", "-A")
+    git(a.path, "commit", "--quiet", "-m", "more")
+    expect(await f.worktrees.remove(f.store.worktree(a.path)!, false)).toMatchObject({
+      ok: false,
+      holds: expect.stringContaining("commit"),
+    })
+  })
+
+  it("closes at a path on the person's say, in the queue: a row gone meanwhile is already closed", async ({
+    fx: f,
+  }) => {
+    const a = await open(f, "queued")
+    if (!a.ok) throw new Error("open")
+    const first = f.worktrees.closeAt(a.path, false)
+    // Asked behind the first, which has removed the row by then.
+    const second = f.worktrees.closeAt(a.path, false)
+    expect(await first).toMatchObject({ ok: true, branchDeleted: true })
+    expect(await second).toMatchObject({ ok: true, already: true })
+  })
+
+  it("lets a guard keep a worktree at the moment of removal, inside the queue", async ({
+    fx: f,
+  }) => {
+    const a = await open(f, "guarded")
+    if (!a.ok) throw new Error("open")
+    let busy = false
+    const closing = f.worktrees.closeAt(a.path, true, async () =>
+      busy ? "An agent is working in that worktree." : undefined,
+    )
+    busy = true
+    // The guard ran when the queue reached it, not when the close was asked.
+    expect(await closing).toMatchObject({
+      ok: false,
+      reason: "An agent is working in that worktree.",
+    })
+    expect(existsSync(a.path)).toBe(true)
+    expect(f.store.worktree(a.path)).toBeDefined()
+    busy = false
+    expect(await f.worktrees.closeAt(a.path, true, async () => undefined)).toMatchObject({
+      ok: true,
+    })
+  })
+
   it("forced, keeps uncommitted files on a ref, removes the folder, and keeps a branch with commits", async ({
     fx: f,
   }) => {

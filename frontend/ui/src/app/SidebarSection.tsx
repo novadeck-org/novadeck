@@ -45,6 +45,8 @@ const noSource = createStore<SourceState>({ projects: {} })
 const noHistory = createStore<HistoryState>({ rows: [] })
 // What a backend without works reads in its place; its panel isn't drawn.
 const noWorks = createStore<WorksState>({ works: [], synced: true })
+// What a backend without the agent worktrees setting reads in its place.
+const noWorktrees = createStore(false)
 const noAgents: readonly never[] = []
 const always = (): (() => void) => () => {}
 
@@ -182,20 +184,25 @@ export const SidebarSection = memo((): React.JSX.Element => {
   )
   const selectedId = useWorkspaceState((workspace) => currentState(workspace).selected)
   const { revealTerminal, openBarTab } = commands
+  // A work is shown on the bar of the terminal the panel names (its owner's, or the selected
+  // terminal's where it has none or its owner is closed). A failure reaches the panel.
   const showWork = useCallback(
-    (terminalId: string) => {
+    async (work: Work, terminalId: string | undefined): Promise<void> => {
       if (!worksFeed) return
+      worksFeed.look(work.root)
+      if (terminalId === undefined) return
       revealTerminal(terminalId, projectId)
-      worksFeed.show(terminalId).then(
-        (itemId) => {
-          if (itemId !== null) openBarTab(terminalId, itemIdOf(itemId))
-        },
-        () => {},
-      )
-      worksFeed.look(terminalId)
+      const itemId = await worksFeed.show(work.root, terminalId)
+      if (itemId !== null) openBarTab(terminalId, itemIdOf(itemId))
     },
     [worksFeed, revealTerminal, openBarTab, projectId],
   )
+  const worktreesOn = useStoreSelector(backend.worktrees?.enabled ?? noWorktrees, (on) => on)
+  const agentWorktrees: "on" | "off" | "absent" = backend.worktrees
+    ? worktreesOn
+      ? "on"
+      : "off"
+    : "absent"
   const changes = useMemo(
     () =>
       worksFeed
@@ -205,10 +212,12 @@ export const SidebarSection = memo((): React.JSX.Element => {
             watch: worksFeed.watch,
             titles,
             selectedId,
+            agentWorktrees,
             onSelect: showWork,
+            onCloseWork: worksFeed.close,
           }
         : undefined,
-    [worksFeed, projectWorks, worksSynced, titles, selectedId, showWork],
+    [worksFeed, projectWorks, worksSynced, titles, selectedId, agentWorktrees, showWork],
   )
   const sidebarPanel = useUiState((state) => state.location.route.panel)
   const visible = useUiState((state) => sidebarVisible(state.shell, desktop))
