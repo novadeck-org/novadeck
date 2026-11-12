@@ -773,9 +773,9 @@
 .chat-more.chat-tools-whole {
   margin: 0;
 }
-/* Opaque, as the box's text is a dim one: the mask fades only its edge. */
+/* In the ink, opaque, as the box's text is a dim one: the mask fades only its edge. */
 .chat-tools-box[data-earlier] {
-  mask-image: linear-gradient(to bottom, transparent, black var(--_work-lh));
+  mask-image: linear-gradient(to bottom, transparent, var(--_ink) var(--_work-lh));
 }
 .chat-tool-summary,
 .chat-tools-fold {
