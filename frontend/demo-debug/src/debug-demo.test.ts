@@ -63,6 +63,8 @@ const launch = (): DemoLaunch => ({
   play: undefined,
   uninstall: undefined,
   setUninstall: () => {},
+  worktrees: true,
+  setWorktrees: () => {},
 })
 
 describe("the debug layer's demo", () => {
@@ -73,6 +75,11 @@ describe("the debug layer's demo", () => {
     expect(life.calls).toEqual(["start"])
     stop()
     expect(life.calls).toEqual(["start", "stop"])
+  })
+
+  it("offers agent worktrees unless the launch says the backend has none", () => {
+    expect(createDebugDemo(launch()).worktrees).toBeDefined()
+    expect(createDebugDemo({ ...launch(), worktrees: false }).worktrees).toBeUndefined()
   })
 
   it("restarts the terminals of every session a crash loop failed, not only the last's", () => {

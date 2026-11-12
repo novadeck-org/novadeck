@@ -1,7 +1,7 @@
 import type { PortableState } from "@novadeck/core/desktop/portable"
 import { clearPortableCardRaised } from "@novadeck/core/desktop/portable-card-raised"
 import type { UpdateChannel, UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
-import { createWorkspaceStore } from "@novadeck/core/store"
+import { createStore, createWorkspaceStore } from "@novadeck/core/store"
 import { appearance, workspaceFixture } from "@novadeck/core/testing"
 import { beforeEach, vi } from "vitest"
 
@@ -19,6 +19,7 @@ import {
   persist,
   setFeatureFlag,
   trackRecent,
+  switchOffWorktrees,
   watchExperimental,
   watchPortable,
   watchPresentation,
@@ -375,6 +376,54 @@ describe("the IS_EXPERIMENTAL flag", () => {
     await Promise.resolve()
     await Promise.resolve()
     expect(flag(ui)).toBe(false)
+  })
+
+  it("turns agent worktrees off where the channel is stable, and leaves them on where it is not", async () => {
+    const worktrees = () => {
+      const enabled = createStore(true)
+      return { enabled, set: (on: boolean) => enabled.update(() => on) }
+    }
+    const stable = worktrees()
+    watchExperimental(updates(Promise.resolve("stable")), () => {}, stable)
+    await vi.waitFor(() => expect(stable.enabled.getSnapshot()).toBe(false))
+    const experimental = worktrees()
+    const read = Promise.resolve<UpdateChannel>("experimental")
+    watchExperimental(updates(read), () => {}, experimental)
+    await read
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(experimental.enabled.getSnapshot()).toBe(true)
+  })
+
+  it("turns agent worktrees off where the channel can't be read, and keeps the flag as it was", async () => {
+    const enabled = createStore(true)
+    const worktrees = { enabled, set: (on: boolean) => enabled.update(() => on) }
+    const ui = createUiStore(initial())
+    watchExperimental(updates(Promise.reject(new Error("no"))), into(ui), worktrees)
+    await vi.waitFor(() => expect(enabled.getSnapshot()).toBe(false))
+    expect(flag(ui)).toBe(false)
+  })
+
+  it("leaves worktrees on when a failed read comes after the watch is stopped", async () => {
+    const enabled = createStore(true)
+    const worktrees = { enabled, set: (on: boolean) => enabled.update(() => on) }
+    const failed = Promise.reject(new Error("no"))
+    watchExperimental(updates(failed), () => {}, worktrees)()
+    await failed.catch(() => {})
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(enabled.getSnapshot()).toBe(true)
+  })
+
+  it("asks to turn worktrees off only where they are on", () => {
+    const asked: boolean[] = []
+    const of = (on: boolean) => ({
+      enabled: createStore(on),
+      set: (next: boolean) => asked.push(next),
+    })
+    switchOffWorktrees(of(false))
+    switchOffWorktrees(undefined)
+    expect(asked).toEqual([])
+    switchOffWorktrees(of(true))
+    expect(asked).toEqual([false])
   })
 
   it("is not set once the watch is stopped", async () => {

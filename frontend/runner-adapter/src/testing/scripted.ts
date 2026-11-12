@@ -323,6 +323,7 @@ export const scripted = ({
     transcripts: true,
     transcriptsAvailable,
     hibernateAfterMinutes: 60,
+    worktrees: false,
     agents: [
       { agent: "claude", available: true, connected: false },
       { agent: "agy", available: false, connected: false },

@@ -5,7 +5,7 @@ import type { Runner } from "@novadeck/runner-client"
 import type { RunnerBackendOptions } from "./backend"
 
 // The switches in Preferences the runner keeps: whether it keeps transcripts, how long it lets
-// idle agents run, which agents it connects, and whether the person has seen the first-run choice. Each shows a change at once;
+// idle agents run, whether agents get worktrees, which agents it connects, and whether the person has seen the first-run choice. Each shows a change at once;
 // one the runner doesn't take goes back to what it still does.
 
 type RunnerSwitchCalls = {
@@ -22,14 +22,21 @@ export const runnerSwitches = (
     agents: integrations,
     welcomed,
     hibernateAfterMinutes,
+    worktrees: allowed,
   }: Pick<
     RunnerBackendOptions,
-    "transcripts" | "transcriptsAvailable" | "agents" | "welcomed" | "hibernateAfterMinutes"
+    | "transcripts"
+    | "transcriptsAvailable"
+    | "agents"
+    | "welcomed"
+    | "hibernateAfterMinutes"
+    | "worktrees"
   >,
   track: <T>(work: Promise<T>) => Promise<T>,
-): Pick<Backend, "transcripts" | "hibernation" | "agents"> => {
+): Pick<Backend, "transcripts" | "hibernation" | "worktrees" | "agents"> => {
   const transcripts = createStore(kept ?? true)
   const hibernateAfter = createStore(hibernateAfterMinutes ?? null)
+  const worktrees = createStore(allowed ?? false)
   const agents = createStore<readonly AgentConnection[]>(
     (integrations ?? []).map((agent) => ({ ...agent, busy: false })),
   )
@@ -98,6 +105,21 @@ export const runnerSwitches = (
               // Unsaved, the choice shows what the runner still does.
               void track(runner.settings.set({ hibernateAfterMinutes: minutes })).catch(() =>
                 hibernateAfter.update(() => before),
+              )
+            },
+          },
+        }
+      : {}),
+    ...(allowed !== undefined
+      ? {
+          worktrees: {
+            enabled: worktrees,
+            set: (enabled) => {
+              const before = worktrees.getSnapshot()
+              worktrees.update(() => enabled)
+              // Unsaved, the switch shows what the runner still does.
+              void track(runner.settings.set({ worktrees: enabled })).catch(() =>
+                worktrees.update(() => before),
               )
             },
           },

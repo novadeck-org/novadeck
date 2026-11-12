@@ -115,6 +115,54 @@ describe("the Experimental tab", () => {
       panel?.querySelector('[role="switch"][aria-labelledby="agent-avatars-label"]'),
     ).not.toBeNull()
   })
+
+  const worktreesSwitch = (): HTMLElement | null =>
+    document.querySelector('[role="switch"][aria-labelledby="agent-worktrees-label"]')
+
+  it("holds the agent worktrees switch, which writes the backend's setting", async () => {
+    const changes: boolean[] = []
+    await show({
+      tab: "experimental",
+      experimental: experimental(true),
+      worktrees: { enabled: false, onChange: (enabled) => changes.push(enabled) },
+    })
+
+    expect(worktreesSwitch()?.getAttribute("aria-checked")).toBe("false")
+    expect(worktreesSwitch()?.hasAttribute("disabled")).toBe(false)
+    worktreesSwitch()?.click()
+    expect(changes).toEqual([true])
+  })
+
+  it("shows agent worktrees on, and disabled where the backend has none", async () => {
+    await show({
+      tab: "experimental",
+      experimental: experimental(true),
+      worktrees: { enabled: true, onChange: () => {} },
+    })
+    expect(worktreesSwitch()?.getAttribute("aria-checked")).toBe("true")
+    mounted.splice(0).forEach((page) => page.unmount())
+
+    await show({ tab: "experimental", experimental: experimental(true) })
+    expect(worktreesSwitch()?.getAttribute("aria-checked")).toBe("false")
+    expect(
+      worktreesSwitch()?.hasAttribute("disabled") ||
+        worktreesSwitch()?.getAttribute("aria-disabled") === "true" ||
+        worktreesSwitch()?.hasAttribute("data-disabled"),
+    ).toBe(true)
+    expect(document.body.textContent).toContain("Not available here.")
+  })
+
+  it("sits in the Experimental panel, which General's selection hides", async () => {
+    await show({
+      tab: "general",
+      experimental: experimental(true),
+      worktrees: { enabled: false, onChange: () => {} },
+    })
+    expect(selected()).toBe("General")
+    const panel = worktreesSwitch()?.closest('[role="tabpanel"]')
+    expect(panel?.getAttribute("aria-labelledby")).toMatch(/experimental$/)
+    expect(panel?.hasAttribute("hidden")).toBe(true)
+  })
 })
 
 describe("the Appearance tab", () => {
