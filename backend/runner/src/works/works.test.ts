@@ -595,6 +595,54 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
     expect(after.get(stays.root)?.files).toHaveLength(1)
   })
 
+  it("does not call a worktree merged that is behind its start, or took main in with no work of its own", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    main.write("g.txt", "g\n")
+    main.git("add", "-A")
+    main.git("commit", "--quiet", "-m", "main moves on")
+    const start = main.git("rev-parse", "HEAD").trim()
+    const behind = fixture.worktree("behind-start")
+    behind.git("checkout", "--quiet", "--detach", "HEAD~1")
+    const pulling = fixture.worktree("merging-main")
+    main.write("i.txt", "i\n")
+    main.git("add", "-A")
+    main.git("commit", "--quiet", "-m", "and on")
+    pulling.git("merge", "--quiet", "--no-ff", "-m", "take main in", "main")
+    const { works } = open(() => [
+      { terminalId: terminal(1), root: behind.root, base: start },
+      { terminalId: terminal(2), root: pulling.root, base: start },
+    ])
+    resources.defer(() => works.close())
+    const found = await current(works)
+    expect(found.get(behind.root)).toMatchObject({ files: [], merged: false })
+    expect(found.get(pulling.root)).toMatchObject({ files: [], merged: false })
+  })
+
+  it("calls a worktree rebased onto a moved main and then squash-merged merged", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const start = main.git("rev-parse", "HEAD").trim()
+    const rebased = fixture.worktree("rebased-late")
+    rebased.write("r.txt", "r\n")
+    rebased.git("add", "-A")
+    rebased.git("commit", "--quiet", "-m", "own work")
+    main.write("g.txt", "g\n")
+    main.git("add", "-A")
+    main.git("commit", "--quiet", "-m", "main moves on")
+    rebased.git("rebase", "--quiet", "main")
+    const { works } = open(() => [{ terminalId: terminal(1), root: rebased.root, base: start }])
+    resources.defer(() => works.close())
+    expect((await current(works)).get(rebased.root)?.merged).toBe(false)
+    main.git("merge", "--quiet", "--squash", "rebased-late")
+    main.git("commit", "--quiet", "-m", "squash")
+    expect((await current(works)).get(rebased.root)).toMatchObject({ files: [], merged: true })
+  })
+
   it("does not call a worktree merged that was only fast-forwarded to main", async ({
     fixture,
     resources,

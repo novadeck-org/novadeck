@@ -114,7 +114,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Commits main lacks",
-              hint: "Open Changes: the selected terminal's worktree has no changed files but two commits main lacks, so it reads as merged; click its ×: the dialog says it holds 2 commits the main branch doesn't have, and closing needs your Close worktree",
+              hint: "Open Changes: the selected terminal's worktree has no changed files but two commits main lacks (as a squash-merged one has, or a commit and its revert), so it reads as merged; click its ×: the dialog says it holds 2 commits the main branch doesn't have, and closing needs your Close worktree",
               run: ({ selected, workspace }) => {
                 const key = selected()
                 if (key) works.commitsMainLacks(placed(workspace(), key), 2)

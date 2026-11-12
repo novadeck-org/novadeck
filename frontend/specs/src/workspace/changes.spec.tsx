@@ -48,15 +48,15 @@ describe("The Changes panel", () => {
       await expect.element(rows().first()).toBeVisible()
       expect(labels()).toEqual([
         "Build, agent/build-lint, in storefront, 0 files changed, merged",
-        "No owner, agent/promo-banner, in storefront, 1 file changed",
-        "Build, agent/build, in storefront, 2 files changed",
-        "Checkout implementation, agent/checkout-implementation, in design-system, 3 files changed",
-        "Checkout review, agent/checkout-review, in storefront, 1 file changed",
-        "Tests, agent/tests, in docs-site, 1 file changed",
-        "Checkout implementation, agent/checkout-implementation, in api-service, 2 files changed",
-        "Checkout implementation, agent/checkout-implementation, in storefront, 4 files changed, conflicts with main, Tests",
-        "Tests, agent/tests, in storefront, 2 files changed, conflicts with Checkout implementation",
-        "Tests, agent/tests, in api-service, 1 file changed",
+        "No owner, agent/promo-banner, in storefront, 1 file changed, 18 lines added, 2 removed",
+        "Build, agent/build, in storefront, 2 files changed, 11 lines added, 5 removed",
+        "Checkout implementation, agent/checkout-implementation, in design-system, 3 files changed, 68 lines added, 22 removed",
+        "Checkout review, agent/checkout-review, in storefront, 1 file changed, 6 lines added, 2 removed",
+        "Tests, agent/tests, in docs-site, 1 file changed, 22 lines added, 9 removed",
+        "Checkout implementation, agent/checkout-implementation, in api-service, 2 files changed, 92 lines added, 11 removed",
+        "Checkout implementation, agent/checkout-implementation, in storefront, 4 files changed, 310 lines added, 56 removed, conflicts with main, Tests",
+        "Tests, agent/tests, in storefront, 2 files changed, 85 lines added, 18 removed, conflicts with Checkout implementation",
+        "Tests, agent/tests, in api-service, 1 file changed, 47 lines added, 5 removed",
         "Build, agent/build-cache, in storefront, 0 files changed",
       ])
     })
@@ -121,6 +121,17 @@ describe("The Changes panel", () => {
       await expect
         .element(itemOf("Checkout implementation", "", "api-service"))
         .toHaveAttribute("data-selected", "true")
+    })
+
+    it("keeps the clicked worktree selected across the switch to its owner's project", async () => {
+      await openWorkspace("/projects/api-service/sessions/initial/focus?panel=changes")
+
+      await row("Build", "agent/build-cache").click()
+
+      await expect
+        .element(itemOf("Build", "agent/build-cache"))
+        .toHaveAttribute("data-selected", "true")
+      await expect.element(itemOf("Build", "agent/build")).toHaveAttribute("data-selected", "false")
     })
 
     it("opens the work as a changes item on the terminal's bar where the backend can show it", async () => {

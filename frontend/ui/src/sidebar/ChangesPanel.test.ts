@@ -166,6 +166,19 @@ describe("the Changes panel's rows", () => {
   })
 })
 
+describe("a row's accessible label", () => {
+  const label = (page: Rendered) =>
+    page.container.querySelector(".sidebar-item-select")!.getAttribute("aria-label")
+
+  it("says the work's total lines, with line singular for one, and none for a work with none", () => {
+    expect(label(show([work("a")]).page)).toContain("1 file changed, 4 lines added, 1 removed")
+    const one = show([work("b", { added: 1, removed: 0 })])
+    expect(label(one.page)).toContain("1 line added")
+    expect(label(one.page)).not.toContain("removed")
+    expect(label(show([clean("c")]).page)).not.toContain("added")
+  })
+})
+
 describe("a merged work's row", () => {
   const merged = () => clean("m", { merged: true })
   const label = (page: Rendered) =>

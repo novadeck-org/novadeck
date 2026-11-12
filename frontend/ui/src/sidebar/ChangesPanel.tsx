@@ -58,6 +58,15 @@ const Branches = ({ row }: { row: ChangeRow }): React.JSX.Element => (
   </span>
 )
 
+// The work's total lines in words, for the row's accessible label: "85 lines added, 18 removed".
+const linesWords = (work: Work): string | undefined => {
+  const parts = [
+    work.added > 0 && `${work.added} ${work.added === 1 ? "line" : "lines"} added`,
+    work.removed > 0 && `${work.removed} removed`,
+  ].filter(Boolean)
+  return parts.length > 0 ? parts.join(", ") : undefined
+}
+
 // What the × says, when it is not available.
 const busyTip = "Its agent is working in this worktree. Close it once the turn ends."
 
@@ -102,6 +111,7 @@ const ChangeItem = ({
     row.branch,
     row.project === undefined ? undefined : `in ${row.project}`,
     files,
+    linesWords(work),
     row.conflictWords?.replace(/^C/, "c"),
     row.merged ? "merged" : undefined,
   ]

@@ -489,21 +489,26 @@ export class Works {
   ): Promise<Read | "keep"> {
     const commit = await snapshotCommit(root, snapshot.tree, snapshot.head, snapshot.env)
     if (!commit) return "keep"
-    const nothing = async (): Promise<Read> => ({
-      key,
-      commit,
-      tree: snapshot.tree,
-      branch,
-      base: main.name,
-      merged: await mergedWork(root, main, snapshot.head, start),
-      changed: new Map(),
-      touched: new Set(),
-      unread: undefined,
-      conflicts: [],
-      skipped: snapshot.skipped,
-      common: await commonDir(root),
-      env: snapshot.env,
-    })
+    const nothing = async (): Promise<Read | "keep"> => {
+      const merged = await mergedWork(root, main, snapshot.head, start)
+      // Git failing is not an answer: what was told stands, and the next pass reads it again.
+      if (merged === undefined) return "keep"
+      return {
+        key,
+        commit,
+        tree: snapshot.tree,
+        branch,
+        base: main.name,
+        merged,
+        changed: new Map(),
+        touched: new Set(),
+        unread: undefined,
+        conflicts: [],
+        skipped: snapshot.skipped,
+        common: await commonDir(root),
+        env: snapshot.env,
+      }
+    }
     const merge = await mergeTrees(root, main.commit, commit, snapshot.env)
     if (merge.state === "clean" && merge.tree === main.tree) return nothing()
     const base = await mergeBase(root, main.commit, commit, snapshot.env)

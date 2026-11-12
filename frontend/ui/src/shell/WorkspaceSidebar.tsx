@@ -204,7 +204,7 @@ export const WorkspaceSidebar = ({
     </SidebarPanel>
     {changes && (
       <ChangesPanel
-        key={`changes/${projectId}`}
+        key="changes"
         {...changes}
         active={sidebarPanel === "changes"}
         watching={sidebarVisible && sidebarPanel === "changes"}
