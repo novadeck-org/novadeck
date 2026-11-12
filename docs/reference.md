@@ -513,9 +513,10 @@ agent.
   terminal it runs in which session it is, and does nothing when the agent runs
   anywhere else. It adds nothing to the model's context but the messages other agents in
   Novadeck send it, wrapped as theirs (see [Agent messaging](agent-messaging.md)).
-  Agents address each other by terminal handle: a word its session gives each terminal,
-  never twice, such as `moth`, which Novadeck shows as `@moth` and which stays the
-  terminal's when you rename it. A sidebar tab shows it beside Close where an agent runs
+  Agents address each other by terminal handle: a word its project gives each terminal,
+  such as `moth`, which no other terminal of the project has. Novadeck shows it as `@moth`
+  and it stays the terminal's when you rename it. After a terminal closes, its handle can
+  go to a new terminal of the project an hour later. A sidebar tab shows it beside Close where an agent runs
   or has run, or where an agent opened or leads the terminal; a window's header shows it
   in its switcher, under the pointer.
   An agent that opens terminals with a brief leads them, and a worker's window header says

@@ -203,6 +203,7 @@ export class Terminals {
       | "worktrees"
       | "historyTimes"
       | "handleOrder"
+      | "handleCooldown"
       | "shims"
       | "connected"
       | "transcripts"
@@ -417,6 +418,7 @@ export class Terminals {
       stopping: () => this.stopping,
       records: () => this.records.values(),
       record: (terminalId) => this.records.get(terminalId),
+      projectOf: (sessionId) => this.projectOf(sessionId),
       announce: (record) => this.announce(record),
     })
     this.history = new ClosedTerminals(
@@ -432,7 +434,7 @@ export class Terminals {
         projectOf: (sessionId) => this.projectOf(sessionId),
         install: (agent) => this.options.install(agent),
         connected: (agent) => this.launcher.connected(agent),
-        drawHandle: (sessionId) => this.names.next(sessionId),
+        names: this.names,
         resting: (agent, sessionId) => this.sleepers.holder(agent, sessionId),
         announce: (record) => this.announce(record),
         worktrees: options.worktrees?.service,
@@ -738,11 +740,7 @@ export class Terminals {
       items: () => this.options.items,
       announce: (record) => this.announce(record),
       savedChanged: (row) => this.streams.savedChanged(row),
-      adopt: (sessionId, handle) =>
-        options.closed
-          ? options.closed.adoptHandle(sessionId, handle)
-          : this.names.adopt(sessionId, handle),
-      draw: (sessionId) => this.names.next(sessionId),
+      names: () => this.names,
     })
     this.launcher.integrate(options.shellFiles)
     this.sleepers.start()
@@ -896,6 +894,7 @@ export class Terminals {
         closed: false,
         foreground: undefined,
         origin,
+        handleGivenAt: this.names.givenAt(input.sessionId, handle),
         agents,
         bound: null,
         suspended: null,
@@ -1347,6 +1346,7 @@ export class Terminals {
     this.inbox.forgetProject(projectId)
     this.feedback.forgetProject(projectId)
     this.messaging.forgetProject(projectId)
+    this.names.forgetProject(projectId)
   }
 
   /** The project or session stays after all, as its removal failed: terminals start in it again. */
@@ -1376,7 +1376,6 @@ export class Terminals {
         this.streams.removed(terminal)
         this.streams.end(terminal.id)
       }
-      this.names.forgetSession(sessionId)
     }
   }
 
@@ -1921,6 +1920,7 @@ export class Terminals {
     if (this.records.get(id) !== record) return
     record.closed = true
     this.records.delete(id)
+    this.names.release(record.summary.sessionId, record.summary.handle, id)
     this.streams.removed(record.summary)
     this.streams.end(id)
     this.host.remove(id)

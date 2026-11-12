@@ -7,14 +7,8 @@ import { afterEach, beforeEach, vi } from "vitest"
 
 import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it } from "../test.js"
-import type { ClosedRecord, ListedClosed } from "../workspaces/closed.js"
-import {
-  ClosedTerminals,
-  type HistoryHost,
-  type HistoryRecords,
-  type HistoryTimes,
-  type Plan,
-} from "./history.js"
+import type { ClosedRecord, ClosedRecords, ListedClosed } from "../workspaces/closed.js"
+import { ClosedTerminals, type HistoryHost, type HistoryTimes, type Plan } from "./history.js"
 import type { Record } from "./record.js"
 import type { SavedTerminal } from "./saved-terminals.js"
 import { unnamed } from "./titles.js"
@@ -28,8 +22,7 @@ const day = 24 * 60 * 60 * 1000
 /** The store's closed rows and handles, in memory. */
 const memory = () => {
   const rows = new Map<string, ClosedRecord>()
-  const given = new Set<string>()
-  const records: HistoryRecords = {
+  const records: ClosedRecords = {
     insertClosed: (row) => void rows.set(row.id, row),
     closed: (projectId) =>
       [...rows.values()]
@@ -43,14 +36,8 @@ const memory = () => {
       for (const id of old) rows.delete(id)
       return old
     },
-    adoptHandle: (sessionId, handle) => {
-      const key = `${sessionId}/${handle}`
-      if (given.has(key)) return false
-      given.add(key)
-      return true
-    },
   }
-  return { rows, given, records }
+  return { rows, records }
 }
 
 const row = (changes: Partial<ClosedRecord> = {}): ClosedRecord => ({
@@ -109,7 +96,7 @@ const bound = (agent: AgentName, sessionId: string): Record["bound"] =>
 type Setup = {
   history: ClosedTerminals
   store: ReturnType<typeof memory>
-  host: { [name in keyof HistoryHost]: ReturnType<typeof vi.fn> } & { records: HistoryRecords }
+  host: { [name in keyof HistoryHost]: ReturnType<typeof vi.fn> } & { records: ClosedRecords }
   said: string[]
   released: string[]
   archived: { record: Record; write: (sealed: string) => void; settled: () => void }[]
@@ -136,7 +123,9 @@ const setup = (
     ),
     connected: vi.fn<() => Promise<boolean>>(() => Promise.resolve(true)),
     holder: vi.fn<() => { handle: string; terminalId: string } | undefined>(() => undefined),
-    terminalsIn: vi.fn<() => readonly { handle: string }[]>(() => []),
+    claimHandle: vi.fn<(sessionId: string, handle: string, terminalId: string) => boolean>(
+      () => true,
+    ),
     drawHandle: vi.fn<() => string>(() => "fox"),
     releaseClaim: vi.fn<(id: string) => void>((id: string) => void released.push(id)),
     archive: vi.fn<(record: Record, write: (sealed: string) => void, settled: () => void) => void>(
@@ -278,6 +267,7 @@ describe("keeping a terminal as it closes", () => {
         id: "k-1",
         sessionId: "s1",
         handle: "fox",
+        handleGivenAt: 0,
         naming: unnamed,
         openedBy: null,
         ledBy: null,
@@ -412,6 +402,7 @@ describe("keeping a terminal as it closes", () => {
       id: "k-1",
       sessionId: "s1",
       handle: "fox",
+      handleGivenAt: 0,
       naming: unnamed,
       openedBy: null,
       ledBy: null,
@@ -444,6 +435,7 @@ describe("keeping a terminal as it closes", () => {
       id: "k-2",
       sessionId: "s1",
       handle: "fox",
+      handleGivenAt: 0,
       naming: unnamed,
       openedBy: null,
       ledBy: null,
@@ -533,7 +525,7 @@ describe("pruning and watching", () => {
     const store = memory()
     store.rows.set("old", row({ id: "old", closedAt: Date.now() - 8 * day }))
     const { host } = setup()
-    ;(host as { records: HistoryRecords }).records = store.records
+    ;(host as { records: ClosedRecords }).records = store.records
     const history = new ClosedTerminals(host as unknown as HistoryHost)
     history.close()
     expect(store.rows.size).toBe(0)
@@ -1112,35 +1104,22 @@ describe("the handle of a restored terminal", () => {
     return handle
   }
 
-  it("is kept in its own session when no terminal there has it", async () => {
-    expect(await handleOf(row(), "s1")).toBe("moth")
-  })
-
-  it("is drawn anew where a terminal in the session has it", async () => {
-    const terminalsIn = () => [{ handle: "moth" }]
-    expect(await handleOf(row(), "s1", { terminalsIn })).toBe("fox")
-  })
-
-  it("is kept where a terminal there is led by a lead that had it: leads are ids, which a restore doesn't reuse", async () => {
-    const terminalsIn = () => [{ handle: "owl" }]
-    expect(await handleOf(row(), "s1", { terminalsIn })).toBe("moth")
-  })
-
-  it("is recorded in another session unless that session gave it already", async () => {
+  it("is its own when the project lets the terminal take it back", async () => {
     const s = setup()
-    s.store.rows.set("old-1", row({ sessionId: "s9" }))
+    s.store.rows.set("old-1", row())
     let handle = ""
-    await s.history.restore({ id: "new-1", sessionId: "s1", closed: "old-1" }, (plan) => {
-      handle = plan.identity("s1").handle
+    await s.history.restore({ id: "new-1", sessionId: "s2", closed: "old-1" }, (plan) => {
+      handle = plan.identity("s2").handle
       return Promise.resolve(summary)
     })
     expect(handle).toBe("moth")
-    expect(s.store.given.has("s1/moth")).toBe(true)
-    s.store.rows.set("old-2", row({ id: "old-2", sessionId: "s9" }))
-    await s.history.restore({ id: "new-2", sessionId: "s1", closed: "old-2" }, (plan) => {
-      handle = plan.identity("s1").handle
-      return Promise.resolve(summary)
-    })
-    expect(handle).toBe("fox")
+    // Claimed in the session it is restored into, for the terminal that closed with it.
+    expect(s.host.claimHandle).toHaveBeenCalledWith("s2", "moth", "old-1")
+    expect(s.host.drawHandle).not.toHaveBeenCalled()
+  })
+
+  it("is drawn anew where something in the project holds it, or it rests for another", async () => {
+    const claimHandle = () => false
+    expect(await handleOf(row(), "s1", { claimHandle })).toBe("fox")
   })
 })

@@ -5,6 +5,7 @@ import { logs } from "../log.js"
 import type { Record } from "./record.js"
 import type { TranscriptRedactor } from "./redaction.js"
 import type {
+  HandleOptions,
   ListedTerminal,
   SavedTerminal,
   TerminalIdentity,
@@ -668,12 +669,47 @@ export class Saves {
   }
 
   /** The handle the records give a session's next terminal, in its order; undefined when they can't. */
-  giveHandle(sessionId: string, order: readonly string[]): string | undefined {
+  giveHandle(
+    sessionId: string,
+    order: readonly string[],
+    options: HandleOptions,
+  ): string | undefined {
     let handle: string | undefined
     this.persisting(() => {
-      handle = this.options.records?.giveHandle(sessionId, order)
+      handle = this.options.records?.giveHandle(sessionId, order, options)
     })
     return handle
+  }
+
+  /** Whether the records let the terminal take the handle in its project (see `claimHandle`); false when they can't. */
+  claimHandle(
+    sessionId: string,
+    handle: string,
+    terminalId: string,
+    options: HandleOptions,
+  ): boolean {
+    let claimed = false
+    this.persisting(() => {
+      claimed = this.options.records?.claimHandle(sessionId, handle, terminalId, options) ?? false
+    })
+    return claimed
+  }
+
+  /** Starts the cooldown of a handle its terminal no longer holds; also while the runner stops. */
+  releaseHandle(sessionId: string, handle: string, terminalId: string): void {
+    this.persisting(
+      () => this.options.records?.releaseHandle(sessionId, handle, terminalId),
+      "untilStopped",
+    )
+  }
+
+  /** When the records say the project gave the handle; undefined when they can't. */
+  handleGivenAt(sessionId: string, handle: string): number | undefined {
+    let at: number | undefined
+    this.persisting(() => {
+      at = this.options.records?.handleGivenAt(sessionId, handle)
+    })
+    return at
   }
 
   /** Gives a kept terminal the person's title, or with null takes it away; whether one was kept. */

@@ -64,12 +64,15 @@ export const titleFrom = (text: string): string | undefined => {
   return title === "" ? undefined : title
 }
 
-// A terminal's handle: a word its Novadeck session gives it as it is created, such as
-// `moth`, never twice; once a session has given every word, they come again with a
-// letter, as `mothz` (an older session's with a number, as `moth2`). It stays as the
-// terminal is renamed, agents address each other by it, and people read it as `@moth`. It
-// changes only when the person moves the terminal to another session (`terminals.move`),
-// where a terminal may hold it, or lead under it, already.
+// A terminal's handle: a word its Novadeck project gives it as it is created, such as
+// `moth`. No other terminal of the project has it while this one is there (terminals made
+// before that rule may share one until they close); after the terminal closes it rests an
+// hour, then a new terminal of the project may be given it, the one freed longest ago
+// first. Once every word is held or resting, the words come again with a letter, as `mothz`
+// (an older session's with a number, as `moth2`). It stays as the terminal is renamed,
+// agents address each other by it, and people read it as `@moth`. It changes only when the
+// person moves the terminal to a session where a terminal made before the rule has it
+// already (`terminals.move`).
 export const handle = z.string().regex(/^[a-z]{2,12}(?:[2-9]|[1-9][0-9]{1,8})?$/)
 
 // Who a terminal's title is from: the person; murmur, the local model that describes
@@ -98,8 +101,8 @@ export const terminalSummary = z.strictObject({
   title: terminalTitle,
   // Who the title is from.
   titleSource,
-  // Its handle in its session; it changes only when the person moves the terminal
-  // (`terminals.move`).
+  // Its handle in its project; it changes only when the person moves the terminal to a
+  // session where another terminal has it already (`terminals.move`).
   handle,
   // Whether the runner started a shell for it in this lifetime. A terminal it keeps only
   // as saved, as after the runner restarted, has none until a client restores it, with
@@ -206,10 +209,11 @@ export const terminalRequestAnswer = z.union([
 
 // `terminals.move` input: the terminal the person moves and the session of the same project it
 // goes to. `handles` and `lead` undo an earlier move: the handles each moved terminal had
-// before, by id, taken back where no terminal of the session holds them now, and the id of
-// the lead the terminal left, which it rejoins while that lead is there. A terminal keeps
-// its handle in the new session unless a terminal there holds it, or the session gave it
-// to another; it gets that session's next then.
+// before, by id, taken back where nothing in the project holds them and they are not resting
+// for another terminal, and the id of the lead the terminal left, which it rejoins while that
+// lead is there. A terminal keeps its handle in the new session, since it is the project's,
+// unless a terminal there has it already (only terminals made before handles were unique in
+// a project can); it gets the project's next then.
 export const terminalMove = z.strictObject({
   terminalId: id,
   to: z.strictObject({ sessionId: id }),

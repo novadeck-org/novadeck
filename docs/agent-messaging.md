@@ -272,21 +272,41 @@ Delivery marks the messages whose `fromLead` is set.
 Each terminal has a **handle**, a word such as `moth`: part of the terminal's record,
 assigned by the terminal manager when the terminal is created and shown on its summary.
 Agents and people write it as `@moth`; tools that take a handle accept it with or
-without the `@`, and a delivered message's `from` is the bare word. The session draws it
+without the `@`, and a delivered message's `from` is the bare word. The project draws it
 from a list of short words (`terminals/handles.ts`), and every terminal draws one, even
 one created with its own title. Each session draws the words in its own order, seeded by
 its id so a restart keeps it: the best words, one per first letter, then the rest, each
 shuffled and dealt a word of each critter hue in turn, so eight handles in a row get
-eight colours, as in the list's own order. Each pick prefers a word whose first letter
-no open terminal of the session starts with, so a jump by letter lands in one key. The
-session records every handle it gives (`session_handles`), because terminal rows are deleted on close, and `(session_id, handle)` is unique on
-terminals. Terminals sort by creation order, never by their handle. A handle never
-changes, not when the terminal is renamed, and is never given to another terminal in that
-session: a closed terminal's handle stays unanswered rather than reaching another terminal.
-Only restoring it from History gives its own handle back, to the terminal it becomes, and
-only when no terminal there has it (else it draws a new one). Once a
-session has given every word, they come again with a letter from the end of the alphabet
-(`mothz`, then `mothy`), skipping one that reads badly after the word (`fizzz`, `foxz`). Agents
+eight colours, as in the list's own order. Each pick prefers a word the project has never
+given whose first letter no open terminal of the session starts with, so a jump by letter
+lands in one key.
+
+A handle is unique in a **project**, not a session: no two terminals of a project have the
+same one, and a move to another session of it keeps it. The project's pool
+(`project_handles`) records every handle it ever gave and when. A handle is **held** while
+a terminal has it: a row (open, asleep or saved only) or a record in the manager that is
+still closing (its row went when the close began, and its shell is still ending). A held
+handle is never given. When the last terminal that held it goes (its shell ends, or its
+row goes if it never had a record, or its session or project is deleted), the handle
+**rests** for an hour (`handleCooldown`, injectable for tests) from then. After that the
+project may give it to a new terminal: a closed terminal's handle can reach another
+terminal an hour after it closes. Words the project never gave come first; then the one
+freed longest ago; the words come again with a letter from the end of the alphabet
+(`mothz`, then `mothy`) only when every word is held or resting, skipping one that reads
+badly after the word (`fizzz`, `foxz`). A handle drawn for a create that has not ended, or
+that failed, is held the same hour, from the draw, so nothing releases it by hand.
+Restoring a terminal from History takes its own handle back if nothing holds it, and
+during the rest its own close started (else it draws a new one); a terminal that takes
+its own handle back keeps when it was given it, as a reference written before it closed
+meant this same terminal, while a handle given to another terminal is dated afresh. Terminals made before this
+rule may share a handle across sessions of a project; they keep it until they close, and
+no new terminal is given a handle anything in the project holds, and `(session_id, handle)`
+stays unique on terminals. Terminals sort by
+creation order, never by their handle: `handle_seq` is the place a handle was given in,
+so a reused handle's terminal sorts after the older ones. A terminal also keeps when its
+handle was given (`handle_given_at`, 0 for one made before it was kept), so a reference
+written before then can be told from one to the terminal that has the handle now. A
+handle never changes, not when the terminal is renamed. Agents
 tell the person about a terminal as `@fox · api-server`: its handle and its title. Handles exist because a title is text a person, or an agent through
 `open_terminal`'s or `open_agent`'s `title`, can set, and must never reach a prompt.
 

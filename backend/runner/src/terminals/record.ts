@@ -54,6 +54,11 @@ export type Record = {
   foreground: Foreground | undefined
   /** Where the terminal was created, for a restart once its last directory is gone. */
   origin: string
+  /**
+   * When it was given its handle, in epoch milliseconds (0, long ago, where that is not
+   * known); a reference to the handle older than this meant an earlier terminal.
+   */
+  handleGivenAt: number
   /** The latest session each agent reported in this terminal, across its shells. */
   agents: { [agent in AgentName]?: AgentReport }
   /**
