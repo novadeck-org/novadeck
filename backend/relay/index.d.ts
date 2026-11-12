@@ -9,3 +9,9 @@ export declare const cmdShimName: string
 
 /** The pass-through this package built, by `pnpm build`, on Windows. */
 export declare const cmdShimPath: string
+
+/** The PowerShell pass-through's file name, built on Windows alone. */
+export declare const pwshShimName: string
+
+/** The PowerShell pass-through this package built, by `pnpm build`, on Windows. */
+export declare const pwshShimPath: string
