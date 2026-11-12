@@ -1864,3 +1864,64 @@ button.chat-hold-line:focus-visible::before {
   top: 8px;
   right: 8px;
 }
+
+/* New transcript rows fade in through useTranscriptMotion; history and streaming words stay
+   steady. Disclosures reveal in their final layout, so the log's
+   scroll anchoring and the held prompt's measurements remain immediate. */
+.chat-composer:focus-within {
+  border-top-color: color-mix(in srgb, var(--_accent) 45%, var(--_line));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .chat-composer {
+    transition: border-color var(--motion-feedback) var(--ease-interface);
+  }
+
+  .chat
+    :is(
+      .chat-key,
+      .chat-tool-summary,
+      .chat-tools-fold,
+      .chat-subagent-summary,
+      .chat-shell-toggle,
+      .chat-jump
+    ) {
+    transition:
+      color var(--motion-feedback) var(--ease-interface),
+      background-color var(--motion-feedback) var(--ease-interface);
+  }
+
+  .chat-tool-body,
+  .chat-tools-fold ~ .chat-tools-list,
+  .chat-hold[data-open] .chat-hold-words,
+  .chat-hold-foot {
+    animation: chat-disclose var(--motion-state) var(--ease-interface);
+  }
+
+  .chat-jump,
+  .chat-reply {
+    animation: chat-arrive var(--motion-state) var(--ease-interface);
+  }
+}
+
+@keyframes chat-disclose {
+  from {
+    opacity: 0;
+    translate: 0 -3px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes chat-arrive {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
