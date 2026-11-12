@@ -30,9 +30,7 @@ jobs:
       fail-fast: false
       matrix:
         runner:
-          - { name: Linux, os: ubuntu-latest }
           - { name: macOS, os: macos-latest }
-          - { name: Windows, os: windows-latest }
         setup:
           - { name: Codex, agents: codex }
     env:

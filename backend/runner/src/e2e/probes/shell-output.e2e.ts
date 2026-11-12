@@ -174,7 +174,16 @@ done
   echo "command:"
   printf '%s\\n' "\${BASH_EXECUTION_STRING:-$ZSH_EXECUTION_STRING}" | tail -n 3
 } > "./hook-$nd_id.txt" 2>&1
-if [ -n "$nd_log" ] && [ "$nd_t1" = no ]; then exec > >(tee -a "$nd_log") 2> >(tee -a "$nd_log" >&2); fi
+if [ -n "$nd_log" ] && [ "$nd_t1" = no ]; then
+  exec > >(tee -a "$nd_log") 2> >(tee -a "$nd_log" >&2)
+  nd_rc=$?
+  {
+    echo "after exec rc=$nd_rc bash=$BASH_VERSION tee=$(command -v tee)"
+    ls -l /dev/fd/ 2>&1
+    echo probe-write >> "$nd_log" && echo "direct append ok"
+  } >> "./hook-$nd_id.txt" 2>&1
+  echo "hook-tee-test $nd_id"
+fi
 `
 
 // Every log that may hold the first command's output, and how big each is now.
