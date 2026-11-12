@@ -54,3 +54,7 @@ export const takenDraft = (taken: string, draft: string): string => {
   const both = taken.trimStart().startsWith("!") && draft.trimStart().startsWith("!")
   return mixes(taken, draft) && !both ? `${taken}\n\n${draft}` : joinDraft(taken, draft)
 }
+
+// Words typed ahead into the agent's box as it started, and what the person typed on in the
+// chat as it came: one run of keys, the chat's going on from the box's as typed.
+export const typedOn = (taken: string, draft: string): string => `${taken}${draft}`

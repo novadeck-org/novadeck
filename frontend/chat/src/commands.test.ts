@@ -188,10 +188,11 @@ describe("the chat's send queue", () => {
     const typing = open("s1", { takeBox: taken })
     typing.tell({ box })
     typing.commands.setChatDraft("01", "look at @src")
+    typing.commands.setChatPassing("01", "ending")
     await typing.commands.takeBox(key)
     const passing = open("s1", { takeBox: taken })
     passing.tell({ box: { ...box, text: "look at @src/file.ts" } })
-    passing.commands.setChatPassing("01", true)
+    passing.commands.setChatPassing("01", "on")
     await passing.commands.takeBox(key)
     expect(taken).not.toHaveBeenCalled()
   })
@@ -352,6 +353,25 @@ describe("the chat's send queue", () => {
     commands.setChatDraft("01", "from the chat")
     await commands.takeBox(key)
     expect(draft()).toBe("from the box\n\nfrom the chat")
+  })
+
+  it("takes words typed ahead that the draft starts like, where the chat passed no keys", async () => {
+    const taken = vi.fn<NonNullable<Conversations["takeBox"]>>(async () => ({ words: "aaaaaaaa" }))
+    const { commands, draft, tell } = open("s1", { takeBox: taken })
+    tell({ box: { text: "aaaaaaaa", mode: "prompt", tail: false, known: false } })
+    commands.setChatDraft("01", "a")
+    await commands.takeBox(key, { ahead: true })
+    expect(taken).toHaveBeenCalledOnce()
+    expect(draft()).toBe("aaaaaaaaa")
+  })
+
+  it("goes on from words typed ahead as the agent started with what was typed in the chat", async () => {
+    const { commands, draft } = open("s1", {
+      takeBox: async () => ({ words: "fix the bug in the par" }),
+    })
+    commands.setChatDraft("01", "ser")
+    await commands.takeBox(key, { ahead: true })
+    expect(draft()).toBe("fix the bug in the parser")
   })
 
   it("leaves the chat's box as it is where nothing was taken", async () => {

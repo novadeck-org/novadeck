@@ -39,7 +39,7 @@ import { promptsOf, type SentShell } from "./history"
 import { Hold } from "./Hold"
 import { markPhase, type WindowPhase } from "./mark-phase"
 import { otherMenu } from "./other-menu"
-import { usePassing } from "./passing"
+import { usePassing, type PassingState } from "./passing"
 import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
 import { Requests } from "./Requests"
 import { recordedImagesOf, takeSentImages, type ChatSend } from "./sends"
@@ -168,9 +168,9 @@ export const ChatView = ({
   readonly refused: Refused
   // Writes keys to the agent's terminal, for what shows of its own; absent where it takes none.
   readonly onKeys?: ((keys: string) => Promise<void>) | undefined
-  // Tells whether keys pass to the terminal's box; and the draft goes as the chat leaves with
-  // a menu up, whatever session shows by then.
-  readonly onPassing?: ((on: boolean) => void) | undefined
+  // Tells whether keys pass to the terminal's box, or may still show there; and the draft goes as
+  // the chat leaves with a menu up, whatever session shows by then.
+  readonly onPassing?: ((state: PassingState) => void) | undefined
   readonly onLeftMenu?: (() => void) | undefined
 }): React.JSX.Element => {
   const {

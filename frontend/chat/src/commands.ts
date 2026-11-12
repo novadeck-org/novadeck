@@ -23,7 +23,8 @@ import {
   type Attachment,
 } from "./attachments"
 import { withValue } from "./by-terminal"
-import { chatDraftOf, joinDraft, mixes, setChatDraft, takenDraft } from "./drafts"
+import { chatDraftOf, joinDraft, mixes, setChatDraft, takenDraft, typedOn } from "./drafts"
+import type { PassingState } from "./passing"
 import {
   comeBack,
   gathered,
@@ -85,8 +86,9 @@ export type ChatCommands = {
   // Takes an image off the terminal's draft, and its placeholder out of the words; one still
   // uploading is dropped when it arrives.
   readonly removeChatImage: (context: string, terminalId: string, id: string) => void
-  // Says whether the chat passes keys to the terminal's box, which it keeps off meanwhile.
-  readonly setChatPassing: (terminalId: string, on: boolean) => void
+  // Says whether the chat passes keys to the terminal's box, which it keeps off meanwhile, or
+  // its keys are still on their way out of the box as passing ended.
+  readonly setChatPassing: (terminalId: string, state: PassingState) => void
   // Adds words to the draft of the terminal in a session, on a line of their own, reading
   // the draft as it is when it changes: whatever the person typed meanwhile stays. They go
   // after it, or before a shell command, so they never become more of its lines.
@@ -109,8 +111,10 @@ export type ChatCommands = {
     // The images to send, where they aren't the box's: a line sent again takes its own.
     images?: readonly Attachment[],
   ) => Promise<boolean>
-  // Moves what the agent's own box holds into the chat's, ahead of what's written there.
-  readonly takeBox: (key: TerminalKey) => Promise<void>
+  // Moves what the agent's own box holds into the chat's, ahead of what's written there: a
+  // paragraph of its own, or, words typed `ahead` as the agent started, the start of the same
+  // run of keys as what the person typed on in the chat.
+  readonly takeBox: (key: TerminalKey, options?: { readonly ahead?: boolean }) => Promise<void>
   // Moves the chat's draft into the agent's own box, where it can go, as its terminal shows.
   readonly putDraft: (key: TerminalKey) => Promise<void>
   // Empties the agent's own box of `seen`, what the chat showed the person, gone for good, as
@@ -550,8 +554,8 @@ export const createChatCommands = ({
     return true
   }
 
-  // The terminals whose box the chat passes keys to.
-  const passing = new Set<string>()
+  // The terminals whose box the chat passes keys to, or whose box still shows them.
+  const passing = new Map<string, Exclude<PassingState, "off">>()
 
   // Saves a pasted image on the agent's machine and marks its attachment ready, or failed with
   // why. An attachment taken off meanwhile is left alone.
@@ -690,9 +694,9 @@ export const createChatCommands = ({
           joinDraft,
         ),
       })),
-    setChatPassing: (terminalId, on) => {
-      if (on) passing.add(terminalId)
-      else passing.delete(terminalId)
+    setChatPassing: (terminalId, state) => {
+      if (state === "off") passing.delete(terminalId)
+      else passing.set(terminalId, state)
     },
     setChatDraft: (terminalId, text, given) => {
       const context = given ?? currentContext()
@@ -727,7 +731,7 @@ export const createChatCommands = ({
           drafts: setChatDraft(state.drafts, context, terminalId, joinDraft(draft, words)),
         }
       }),
-    takeBox: async (key) => {
+    takeBox: async (key, { ahead = false } = {}) => {
       // A shell command and a message don't make one draft: the box stays, and shows.
       const shown = conversations?.conversation(key).getSnapshot()
       const box = shown?.box
@@ -735,8 +739,11 @@ export const createChatCommands = ({
       const draft = chatDraftOf(chat.store.getSnapshot().drafts, contextOf(key), key.terminalId)
       if (held && !mixes(held, draft)) return
       // The box's text is the keys the chat passes, or they are on their way out of it.
-      if (passing.has(key.terminalId) || shown?.slice?.reason === "menu") return
-      if (held && draft !== "" && (held.startsWith(draft) || draft.startsWith(held))) return
+      const passed = passing.get(key.terminalId)
+      if (passed === "on" || shown?.slice?.reason === "menu") return
+      if (passed === "ending" && held && draft !== "") {
+        if (held.startsWith(draft) || draft.startsWith(held)) return
+      }
       const taking = (
         conversations?.takeBox?.(key) ?? Promise.resolve<BoxReturn>({ words: null })
       ).then(({ words, images: paths, at }) => {
@@ -752,7 +759,7 @@ export const createChatCommands = ({
             terminalId,
             withMarks(words ?? "", images, at),
             most(),
-            takenDraft,
+            ahead && images.length === 0 ? typedOn : takenDraft,
           ),
         }))
       })

@@ -310,8 +310,9 @@ export const WorkspaceTerminal = memo(
       [conversations, terminalKey],
     )
     useBoxHandover(conversation, {
-      take: () => void commands.takeBox(terminalKey),
+      take: (ahead) => void commands.takeBox(terminalKey, { ahead }),
       put: () => void commands.putDraft(terminalKey),
+      draft,
     })
     // Keyboard focus waits for the node to be on screen: its input is in a subtree a
     // Canvas node out of sight hides, and a request spent there would be lost. The request
@@ -364,7 +365,7 @@ export const WorkspaceTerminal = memo(
                 focusInput={wanted}
                 onInputFocused={onInputFocused}
                 refused={conversations!.refused}
-                onPassing={(on) => commands.setChatPassing(terminalId, on)}
+                onPassing={(state) => commands.setChatPassing(terminalId, state)}
                 onLeftMenu={() => commands.setChatDraft(terminalId, "", chatContext)}
                 onKeys={conversations!.keys && ((keys) => conversations!.keys!(terminalKey, keys))}
               />

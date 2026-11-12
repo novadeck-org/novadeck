@@ -3,7 +3,14 @@ import { renderHook } from "@novadeck/test-kit/render"
 import { act } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { boxLagMs, editKeys, terminalKey, usePassing, type Passing } from "./passing"
+import {
+  boxLagMs,
+  editKeys,
+  terminalKey,
+  usePassing,
+  type Passing,
+  type PassingState,
+} from "./passing"
 import { describe, expect, it } from "./test"
 
 const box = (text: string): ChatBox => ({ text, mode: "prompt", tail: false, known: false })
@@ -241,15 +248,23 @@ describe("usePassing", () => {
     expect(onDraft).toHaveBeenLastCalledWith("/one two")
   })
 
-  it("says whether keys pass", () => {
-    const onPassing = vi.fn<(on: boolean) => void>()
+  it("says whether keys pass, and that they may still show in the box till it reads empty", () => {
+    const onPassing = vi.fn<(state: PassingState) => void>()
     const write = vi.fn<(keys: string) => Promise<void>>(async () => {})
-    const { result } = renderHook(
+    const { result, rerender } = renderHook(
       (props: Props) => usePassing({ ...props, onDraft: () => {}, write, onPassing }),
       given,
     )
-    act(() => result.current.edit("/"))
-    expect(onPassing).toHaveBeenLastCalledWith(true)
+    expect(onPassing).toHaveBeenLastCalledWith("off")
+    act(() => result.current.edit("look at @sr"))
+    expect(onPassing).toHaveBeenLastCalledWith("on")
+    rerender({ ...given, draft: "look at @sr", box: box("look at @sr"), slice: slice("menu") })
+    act(() => result.current.edit("look at @src "))
+    expect(write).toHaveBeenLastCalledWith("\x15")
+    rerender({ ...given, draft: "look at @src ", box: box("look at @sr"), slice: null })
+    expect(onPassing).toHaveBeenLastCalledWith("ending")
+    rerender({ ...given, draft: "look at @src ", box: null, slice: null })
+    expect(onPassing).toHaveBeenLastCalledWith("off")
   })
 
   it("takes a character's Backspace, not a UTF-16 unit's", () => {

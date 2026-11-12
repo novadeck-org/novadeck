@@ -66,6 +66,10 @@ const clearLine = "\x15"
 const assumedColumns = 60
 const boxInset = 8
 
+// Whether what is typed goes to the terminal (`on`), went there and may still show in its box
+// as passing ended (`ending`), until the box reads empty, or neither.
+export type PassingState = "on" | "ending" | "off"
+
 export type Passing = {
   // Whether what is typed goes to the terminal.
   readonly on: boolean
@@ -96,8 +100,9 @@ export const usePassing = (input: {
   readonly slice: ChatSlice | null
   readonly write: ((keys: string) => Promise<void>) | undefined
   readonly onKept?: () => void
-  // Tells whether keys pass, as the handover must keep off the box meanwhile.
-  readonly onPassing?: (on: boolean) => void
+  // Tells whether keys pass, or may still show in the box, as the handover must keep off the
+  // box meanwhile.
+  readonly onPassing?: (state: PassingState) => void
   // Lets the draft go as the person leaves with a menu up.
   readonly onLeft?: () => void
 }): Passing => {
@@ -181,9 +186,10 @@ export const usePassing = (input: {
     latest.current = { on, onDraft, onKept, onLeft }
   }, [on, onDraft, onKept, onLeft])
 
+  const state: PassingState = on ? "on" : ended ? "ending" : "off"
   useEffect(() => {
-    onPassing?.(on)
-  }, [on, onPassing])
+    onPassing?.(state)
+  }, [state, onPassing])
 
   // The harness's word on Tab or Enter, or on the box as the chat came back: the draft is what
   // the box holds, its wraps aside, as a draft that passes is one line.
