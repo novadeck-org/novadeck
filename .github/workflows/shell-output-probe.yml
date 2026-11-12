@@ -1,0 +1,126 @@
+name: Shell output probe
+
+# Where a background shell's output can be read while it runs, for each harness on each
+# system (src/e2e/probes/shell-output.e2e.ts), toward a companion-pane item that shows it.
+# Runs whenever it or this workflow changes. It records rather than checks: the findings are
+# in the job's artifact.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - .github/workflows/shell-output-probe.yml
+      - backend/runner/src/e2e/probes/shell-output.e2e.ts
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: ${{ matrix.setup.name }} (${{ matrix.runner.name }})
+    runs-on: ${{ matrix.runner.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - { name: Linux, os: ubuntu-latest }
+          - { name: macOS, os: macos-latest }
+          - { name: Windows, os: windows-latest }
+        setup:
+          - { name: Claude Code, agents: claude }
+          - { name: Codex, agents: codex }
+          - { name: Antigravity, agents: agy }
+    env:
+      NOVADECK_E2E_CACHE: ${{ github.workspace }}/.e2e-cache
+      NOVADECK_E2E_AGENTS: ${{ matrix.setup.agents }}
+      NOVADECK_E2E_HARNESS: pinned
+      NOVADECK_E2E_PROBES: "1"
+      PROBE_OUT: ${{ github.workspace }}/probe-out
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set Up Toolchain
+        id: toolchain
+        continue-on-error: true
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      # An immediate retry hit the same registry outage in the flake audit.
+      - name: Wait Before Retrying Toolchain
+        if: steps.toolchain.outcome == 'failure'
+        run: sleep 180
+
+      - name: Set Up Toolchain Again
+        if: steps.toolchain.outcome == 'failure'
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      # The e2e jobs' caches, restored only: those jobs save them. A step each, as steps
+      # can't loop, for the row that runs them all.
+      - name: Restore Claude Code
+        if: contains(matrix.setup.agents, 'claude')
+        uses: ./.github/actions/e2e-harness-cache/restore
+        with:
+          cache: ${{ env.NOVADECK_E2E_CACHE }}
+          harness: claude
+
+      - name: Restore Codex
+        if: contains(matrix.setup.agents, 'codex')
+        uses: ./.github/actions/e2e-harness-cache/restore
+        with:
+          cache: ${{ env.NOVADECK_E2E_CACHE }}
+          harness: codex
+
+      - name: Restore Antigravity
+        if: contains(matrix.setup.agents, 'agy')
+        uses: ./.github/actions/e2e-harness-cache/restore
+        with:
+          cache: ${{ env.NOVADECK_E2E_CACHE }}
+          harness: agy
+
+      - name: Build Protocol and Relay
+        run: pnpm --filter @novadeck/protocol... --filter @novadeck/relay build
+
+      - name: Install Harnesses
+        run: node scripts/e2e/install/main.ts
+
+      # As the e2e jobs do: Codex draws its first screen by this.
+      - name: Allow Motion
+        if: runner.os == 'macOS'
+        run: |
+          defaults write com.apple.universalaccess reduceMotion -bool false
+          [ "$(defaults read com.apple.universalaccess reduceMotion)" = 0 ]
+
+      - name: Run Probe
+        run: |
+          mkdir -p "$PROBE_OUT"
+          probe=(pnpm --filter @novadeck/runner test:e2e src/e2e/probes/shell-output.e2e.ts)
+          if [ "$RUNNER_OS" != Linux ]; then
+            "${probe[@]}"
+          else
+            node scripts/e2e/isolated/main.ts -- "${probe[@]}"
+          fi
+
+      # Whatever ended the job: the probe saves after every case for this.
+      - name: Upload Probe Findings
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: shell-output-${{ matrix.setup.agents }}-${{ runner.os }}
+          path: ${{ env.PROBE_OUT }}
+          if-no-files-found: ignore
+          retention-days: 14
