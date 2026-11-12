@@ -260,7 +260,7 @@ export class Terminals {
   private readonly peers: TerminalPeers
   /** Describes terminals with murmur; undefined without a describer. */
   private readonly murmur: Murmur | undefined
-  /** The terminals closed in the last 30 days, which History lists and restores. */
+  /** The terminals closed in the last 7 days, which History lists and restores. */
   readonly history: ClosedTerminals
   /** Terminals closed in this runner's lifetime, which no create brings back. */
   private readonly closedIds = new Set<string>()
@@ -480,6 +480,7 @@ export class Terminals {
       connected: (agent) => this.launcher.connected(agent),
       trees: () => this.trees,
       platform: () => this.options.platform,
+      worktrees: () => this.options.worktrees,
     })
     this.companion = new Companion(this.options.items, {
       records: () => this.records,

@@ -423,7 +423,7 @@ export type Runner = {
      */
     set(agent: AgentName, connected: boolean): Promise<AgentIntegration>
   }
-  /** Terminals closed in the last 30 days, per project, to restore. */
+  /** Terminals closed in the last 7 days, per project, to restore. */
   readonly history: {
     /** A project's closed terminals, newest first, each with whether it can be restored now. */
     list(input: { readonly projectId: string }): Promise<ClosedTerminal[]>

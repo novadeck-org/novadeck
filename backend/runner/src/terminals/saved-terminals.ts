@@ -14,12 +14,18 @@ export type AgentTurn = "running" | "waking"
 /**
  * What Novadeck told a session once, which stays in its context until it compacts: the
  * rules notes of deliveries it was given in full (`Held`), and the notices of its bar and
- * Inbox, each as worded when it was told. Kept only where its harness keeps what a hook printed for later turns.
+ * Inbox, each as worded when it was told. Kept only where its harness keeps what a hook printed for later turns, but for the worktrees notice (below).
  */
 export type Told = {
   readonly notes?: Held
   /** The bar's and Inbox's notices, by the digest of their wording when told (`barDigest`). */
   readonly bar?: string
+  /**
+   * The digest of the worktrees notice last told (`worktreesDigests`): "on" or "off" as
+   * worded then. Kept for every harness, as Antigravity's is told again each turn, but
+   * must still hear when the setting goes off.
+   */
+  readonly worktrees?: string
 }
 
 /**

@@ -504,9 +504,9 @@ describe("keeping a terminal as it closes", () => {
 })
 
 describe("pruning and watching", () => {
-  it("deletes rows older than 30 days and tells watchers", async () => {
+  it("deletes rows older than 7 days and tells watchers", async () => {
     const { history, store } = setup()
-    store.rows.set("old", row({ id: "old", closedAt: Date.now() - 31 * day }))
+    store.rows.set("old", row({ id: "old", closedAt: Date.now() - 8 * day }))
     store.rows.set("new", row({ id: "new", closedAt: Date.now() - day }))
     const watching = await follow(history)
     expect(watching.initial.map((c) => (c.type === "changed" ? c.closed.id : ""))).toContain("new")
@@ -531,7 +531,7 @@ describe("pruning and watching", () => {
 
   it("prunes as it starts", () => {
     const store = memory()
-    store.rows.set("old", row({ id: "old", closedAt: Date.now() - 31 * day }))
+    store.rows.set("old", row({ id: "old", closedAt: Date.now() - 8 * day }))
     const { host } = setup()
     ;(host as { records: HistoryRecords }).records = store.records
     const history = new ClosedTerminals(host as unknown as HistoryHost)
@@ -774,6 +774,26 @@ describe("restoring a row", () => {
       ),
     ).rejects.toMatchObject({ code: "CONFLICT" })
     expect((await history.list("p1"))[0]!.availability.state).toBe("gone")
+  })
+
+  it("shows no row for a failed restore whose row a prune took meanwhile", async () => {
+    const { history, store } = setup()
+    store.rows.set("old-1", row({ closedAt: Date.now() - 8 * day }))
+    const watching = await follow(history)
+    let fail!: () => void
+    const attempt = history.restore(
+      { id: "new-1", sessionId: "s1", closed: "old-1" },
+      () => new Promise<TerminalSummary>((_, reject) => (fail = () => reject(new Error("no")))),
+    )
+    await vi.waitFor(() => expect(fail).toBeDefined())
+    history.prune()
+    fail()
+    await expect(attempt).rejects.toThrow("no")
+    await vi.waitFor(() =>
+      expect(watching.later).toContainEqual({ type: "removed", id: "old-1", projectId: "p1" }),
+    )
+    expect(watching.later.at(-1)).toMatchObject({ type: "removed" })
+    watching.stop()
   })
 
   it("refuses a second restore of a row, and shows it restoring meanwhile", async () => {

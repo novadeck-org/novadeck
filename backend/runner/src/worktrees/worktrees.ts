@@ -260,7 +260,6 @@ export class Worktrees {
         terminalId: input.terminalId,
         adopted: false,
         branchMade: tip === undefined,
-        diverged: false,
         createdAt: (this.host.now ?? Date.now)(),
       })
     } catch {
@@ -375,7 +374,6 @@ export class Worktrees {
         terminalId: input.terminalId,
         adopted: true,
         branchMade: false,
-        diverged: false,
         createdAt: (this.host.now ?? Date.now)(),
       })
     } catch {

@@ -1615,7 +1615,6 @@ describe("workspace metadata", () => {
       terminalId: "gone-terminal",
       adopted: false,
       branchMade: false,
-      diverged: false,
       createdAt: 5,
     }
     migrated.insertWorktree(record)
@@ -1650,7 +1649,6 @@ describe("workspace metadata", () => {
       terminalId,
       adopted: true,
       branchMade: false,
-      diverged: false,
       createdAt: path === "/a" ? 1 : 2,
     })
     store.insertWorktree(make("/a", "t1"))
@@ -1698,7 +1696,7 @@ describe("workspace metadata", () => {
       // is added for it. Then record the new digest here.
       expect({ version, digest }).toEqual({
         version: 14,
-        digest: "c275f8e3eba37cbb1e1b7d30864207d926fb750c477b7a78d9fd92b3ba05da18",
+        digest: "a7e5237c57a1b2e640c3421f293d19c780e1305268f9aad638d57f7aee2d6fc0",
       })
     } finally {
       database.close()

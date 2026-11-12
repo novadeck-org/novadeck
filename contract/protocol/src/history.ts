@@ -20,7 +20,7 @@ export const closedTerminalState = z.discriminatedUnion("state", [
   z.strictObject({ state: z.literal("open"), handle, terminalId: id }),
 ])
 
-// A terminal the person or an agent closed, kept for 30 days. Its `id` is the one the
+// A terminal the person or an agent closed, kept for 7 days. Its `id` is the one the
 // terminal had; `agent` is the program's icon, null for a plain terminal, whose last
 // `program` stands in for it; `closedBy` is the handle of the agent that closed it, null
 // when the person did.

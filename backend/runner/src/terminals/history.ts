@@ -33,7 +33,7 @@ import { summaryTitle } from "./titles.js"
 const log = logs.for("history")
 
 /** A closed terminal is kept this long, in milliseconds. */
-const retentionMs = 30 * 24 * 60 * 60 * 1000
+const retentionMs = 7 * 24 * 60 * 60 * 1000
 
 /** What History needs of the store: closed rows, and keeping a handle in a session. */
 export type HistoryRecords = ClosedRecords & {
@@ -48,7 +48,7 @@ type OpenTerminal = { readonly handle: string; readonly terminalId: string }
 export type HistoryTimes = {
   /** How long a restore may wait to be confirmed, as held at a dialog, before its row is ready again. */
   readonly restoreMs: number
-  /** How often rows older than 30 days are deleted. */
+  /** How often rows older than 7 days are deleted. */
   readonly pruneMs: number
   /** The longest one availability check is waited for; an unanswered one reads as unknown. */
   readonly checkMs: number
@@ -218,7 +218,7 @@ const pooled = async <T, R>(items: readonly T[], work: (item: T) => Promise<R>):
   return out
 }
 
-/** The terminals closed in the last 30 days: kept at close, listed, restored, and pruned. */
+/** The terminals closed in the last 7 days: kept at close, listed, restored, and pruned. */
 export class ClosedTerminals {
   private readonly times: HistoryTimes
   /** The rows whose restore is under way, by their id. */
@@ -479,6 +479,8 @@ export class ClosedTerminals {
 
   /** Tells watchers of a row as it is now. */
   private announce(row: ListedClosed): void {
+    // A prune can take the row while a restore of it waits; a failed restore then has none to show.
+    if (!this.host.records?.closedTerminal(row.id)) return this.remove(row)
     const n = (this.counter += 1)
     this.latest.set(row.id, n)
     void this.wire(row)
@@ -509,7 +511,7 @@ export class ClosedTerminals {
     else if (change.type === "removed") watcher.removed(change.id, change)
   }
 
-  /** Deletes the rows closed more than 30 days ago, and tells watchers. */
+  /** Deletes the rows closed more than 7 days ago, and tells watchers. */
   prune(now = Date.now()): void {
     const { records } = this.host
     if (!records) return

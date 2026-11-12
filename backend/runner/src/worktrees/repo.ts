@@ -1,6 +1,6 @@
 import { mkdtemp, readdir, readFile, realpath, rm, stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { basename, dirname, join } from "node:path"
+import { basename, dirname, join, resolve } from "node:path"
 
 import { git, type Run } from "../checkouts/git.js"
 import { commonDir, mainBranch, mergeBase, mergeTrees, type Main } from "../checkouts/repository.js"
@@ -320,6 +320,15 @@ export const removeFolder = (home: string, path: string, force: boolean): Promis
  * `worktrees` folder, and nothing else: `git worktree prune` would also forget the person's
  * own worktrees whose folders are away for now (an unmounted drive). A locked one stays.
  */
+/**
+ * Whether two paths name the same folder as git writes them: git keeps a worktree's path with
+ * `/` on Windows too, and Windows doesn't tell case apart.
+ */
+const samePath = (a: string, b: string): boolean => {
+  const [left, right] = [resolve(a), resolve(b)]
+  return process.platform === "win32" ? left.toLowerCase() === right.toLowerCase() : left === right
+}
+
 export const forgetEntry = async (commonDirectory: string, path: string): Promise<void> => {
   const parent = join(commonDirectory, "worktrees")
   const names = await readdir(parent).catch((): string[] => [])
@@ -330,7 +339,7 @@ export const forgetEntry = async (commonDirectory: string, path: string): Promis
     if (gitdir === undefined) continue
     const where = gitdir.trim().replace(/[\\/]\.git$/, "")
     // eslint-disable-next-line no-await-in-loop -- As above.
-    if (where === path && !(await stat(join(entry, "locked")).catch(() => undefined)))
+    if (samePath(where, path) && !(await stat(join(entry, "locked")).catch(() => undefined)))
       // eslint-disable-next-line no-await-in-loop -- As above.
       await rm(entry, { recursive: true, force: true })
   }
