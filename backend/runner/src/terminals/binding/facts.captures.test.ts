@@ -35,13 +35,17 @@ const record = () =>
 // Bindings whose source facts apply to the record alone, as the published ones would.
 const bindings = () => {
   const captures = new Captures({ temporary, pollMs: 10, polls: 5 })
-  const bound = new Bindings({} as unknown as BindingsHost, captures)
+  const shelled = vi.fn<(record: Record) => void>()
+  const bound = new Bindings(
+    { companion: () => ({ shelled }) } as unknown as BindingsHost,
+    captures,
+  )
   const told: HarnessEvent[] = []
   vi.spyOn(bound, "sourceFact").mockImplementation((each, fact) => {
     told.push(fact)
     bound.appliedFact(each, fact)
   })
-  return { bound, told }
+  return { bound, told, shelled }
 }
 
 describe("a Codex shell's output", () => {
@@ -79,5 +83,22 @@ describe("a Codex shell's output", () => {
     await new Promise((resolve) => setTimeout(resolve, 100))
     expect(told).toEqual([])
     expect(each.bound?.activity.shells).toMatchObject([{ id: "77" }])
+  })
+})
+
+describe("the shells item of a terminal", () => {
+  it("is told as a shell starts or ends, not as its output is told", () => {
+    const { bound, shelled } = bindings()
+    const each = record()
+    const fact = { ...base, startedAt: Date.now(), id: "7" }
+    bound.appliedFact(each, { type: "shell-started", ...fact, command: "sleep 600" })
+    expect(shelled).toHaveBeenCalledTimes(1)
+    bound.appliedFact(each, { type: "shell-output", ...fact, path: "/tmp/out.log" })
+    expect(shelled).toHaveBeenCalledTimes(1)
+    bound.appliedFact(each, { type: "shell-ended", ...fact, startedAt: Date.now() + 1, code: 0 })
+    expect(shelled).toHaveBeenCalledTimes(2)
+    // A fact that changes no shell tells nothing.
+    bound.appliedFact(each, { type: "shell-ended", ...fact, startedAt: Date.now() + 2, code: 0 })
+    expect(shelled).toHaveBeenCalledTimes(2)
   })
 })

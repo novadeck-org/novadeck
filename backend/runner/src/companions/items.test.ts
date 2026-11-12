@@ -20,6 +20,7 @@ import {
 } from "@novadeck/protocol"
 
 import { timing } from "../checkouts/git.js"
+import type { Shell } from "../harnesses/shells.js"
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import type { PlanText } from "./content.js"
@@ -40,6 +41,8 @@ type Fixture = {
   sessionId: string
   /** Opens a terminal in the session, kept as the terminals keep one. */
   terminal: (handle: string, sessionId?: string) => TerminalPlace
+  /** The terminal as its agent's activity now lists these shells (none: no agent is bound). */
+  shell: (place: TerminalPlace, shells: readonly Shell[] | undefined) => TerminalPlace
   /** Closes a terminal as the terminals do: its items first, then its record. */
   close: (terminalId: string) => void
   items: CompanionItems
@@ -109,11 +112,17 @@ const it = base.extend<{ fixture: Fixture }>({
       places.delete(terminalId)
       store.removeTerminal(terminalId)
     }
+    const shell = (place: TerminalPlace, shells: readonly Shell[] | undefined): TerminalPlace => {
+      const moved = { ...place, shells: shells && { agent: "claude" as const, shells } }
+      places.set(place.terminalId, moved)
+      return moved
+    }
     await use({
       directory,
       store,
       sessionId: session.id,
       terminal,
+      shell,
       close,
       items,
       live,
@@ -1633,5 +1642,192 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     // The usual wait is 10 ms here; a read of 0.3 s waits four times as long.
     expect(starts.length).toBeGreaterThanOrEqual(2)
     expect((starts.at(-1) ?? 0) - (starts.at(-2) ?? 0)).toBeGreaterThan(900)
+  })
+})
+
+describe("background shells beside their terminal", () => {
+  const running = (id: string, output?: string): Shell => ({
+    id,
+    command: `sleep ${id}`,
+    since: 1,
+    exit: null,
+    ...(output !== undefined && { output }),
+  })
+  const ended = (shell: Shell, code: number | null): Shell => ({
+    ...shell,
+    exit: { at: 2, code },
+  })
+  const shellsOn = (fixture: Fixture, terminalId: string) =>
+    fixture.items.bar(terminalId).filter(({ kind }) => kind === "shells")
+
+  it("make one item on the bar as the first shell starts, which does not ask to open", ({
+    fixture,
+  }) => {
+    const moth = fixture.terminal("moth")
+    fixture.items.shellsObserved(fixture.shell(moth, []))
+    expect(shellsOn(fixture, moth.terminalId)).toEqual([])
+    fixture.items.shellsObserved(fixture.shell(moth, [running("1")]))
+    expect(shellsOn(fixture, moth.terminalId)).toMatchObject([
+      {
+        kind: "shells",
+        name: "Shells",
+        detail: "1 running",
+        by: "agent",
+        from: { terminalId: moth.terminalId, handle: "moth" },
+        path: null,
+        url: null,
+        version: 1,
+        openAsked: false,
+      },
+    ])
+  })
+
+  it("follow how many run and fail, without a new version for an end", ({ fixture }) => {
+    const moth = fixture.terminal("moth")
+    const [one, two, three] = [running("1"), running("2"), running("3")] as const
+    fixture.items.shellsObserved(fixture.shell(moth, [one, two, three]))
+    expect(shellsOn(fixture, moth.terminalId)).toMatchObject([{ detail: "3 running", version: 1 }])
+    fixture.items.shellsObserved(fixture.shell(moth, [ended(one, 1), two, three]))
+    expect(shellsOn(fixture, moth.terminalId)).toMatchObject([
+      { detail: "2 running · 1 failed", version: 1 },
+    ])
+    // An exit with no code is not a failure.
+    fixture.items.shellsObserved(fixture.shell(moth, [ended(one, 0), ended(two, null), three]))
+    expect(shellsOn(fixture, moth.terminalId)).toMatchObject([{ detail: "1 running" }])
+    fixture.items.shellsObserved(
+      fixture.shell(moth, [ended(one, 0), ended(two, null), ended(three, 0)]),
+    )
+    expect(shellsOn(fixture, moth.terminalId)).toMatchObject([{ detail: "ended", version: 1 }])
+  })
+
+  it("show again as a later version when a new shell starts, not when one ends", ({ fixture }) => {
+    const moth = fixture.terminal("moth")
+    fixture.items.shellsObserved(fixture.shell(moth, [running("1")]))
+    fixture.items.shellsObserved(fixture.shell(moth, [running("1"), running("2")]))
+    expect(shellsOn(fixture, moth.terminalId)).toMatchObject([
+      { detail: "2 running", version: 2, openAsked: false },
+    ])
+    // The same shells again change nothing.
+    fixture.items.shellsObserved(fixture.shell(moth, [running("1"), running("2")]))
+    expect(shellsOn(fixture, moth.terminalId)).toMatchObject([{ version: 2 }])
+  })
+
+  it("come back after the runner closed the item only with a new shell", ({ fixture }) => {
+    const moth = fixture.terminal("moth")
+    fixture.items.shellsObserved(fixture.shell(moth, [running("1")]))
+    const [item] = shellsOn(fixture, moth.terminalId)
+    fixture.items.close(item!.id)
+    // A shell ending is no reason to bring it back.
+    fixture.items.shellsObserved(fixture.shell(moth, [ended(running("1"), 0)]))
+    expect(shellsOn(fixture, moth.terminalId)).toEqual([])
+    fixture.items.shellsObserved(fixture.shell(moth, [ended(running("1"), 0), running("2")]))
+    expect(shellsOn(fixture, moth.terminalId)).toMatchObject([{ detail: "1 running" }])
+  })
+
+  it("go when the agent lists none, another session binds, or the terminal closes", ({
+    fixture,
+  }) => {
+    const moth = fixture.terminal("moth")
+    const fox = fixture.terminal("fox")
+    const owl = fixture.terminal("owl")
+    for (const place of [moth, fox, owl])
+      fixture.items.shellsObserved(fixture.shell(place, [running("1")]))
+    // The agent went.
+    fixture.items.shellsObserved(fixture.shell(moth, undefined))
+    expect(shellsOn(fixture, moth.terminalId)).toEqual([])
+    // A session bound.
+    fixture.items.sessionBound(fox.terminalId, "s2")
+    expect(shellsOn(fixture, fox.terminalId)).toEqual([])
+    // The terminal closed.
+    fixture.close(owl.terminalId)
+    expect(fixture.items.list(fixture.sessionId).items).toEqual([])
+    // Shells started again after a session bound are new.
+    fixture.items.shellsObserved(fixture.shell(fox, [running("1")]))
+    expect(shellsOn(fixture, fox.terminalId)).toMatchObject([{ version: 1 }])
+  })
+
+  it("go with the terminal even where the person moved the item to another bar", ({ fixture }) => {
+    const moth = fixture.terminal("moth")
+    const fox = fixture.terminal("fox")
+    fixture.items.shellsObserved(fixture.shell(moth, [running("1")]))
+    const [item] = shellsOn(fixture, moth.terminalId)
+    fixture.items.move(item!.id, fox.terminalId)
+    fixture.items.shellsObserved(fixture.shell(moth, [running("1"), running("2")]))
+    expect(shellsOn(fixture, fox.terminalId)).toMatchObject([{ id: item!.id, version: 2 }])
+    fixture.close(moth.terminalId)
+    expect(fixture.items.list(fixture.sessionId).items).toEqual([])
+  })
+
+  it("are gone from a database an earlier run left them in", ({ fixture }) => {
+    const moth = fixture.terminal("moth")
+    fixture.items.shellsObserved(fixture.shell(moth, [running("1")]))
+    const again = new CompanionItems({
+      records: fixture.store,
+      terminal: () => moth,
+      project: () => fixture.directory,
+    })
+    try {
+      expect(fixture.store.items().filter(({ kind }) => kind === "shells")).toEqual([])
+    } finally {
+      void again.shutdown()
+    }
+  })
+
+  it("read as the shells of the agent bound there now, each with the end of its output", async ({
+    fixture,
+  }) => {
+    const moth = fixture.terminal("moth")
+    const log = join(fixture.directory, "one.log")
+    writeFileSync(log, "a\nb\nc\n")
+    fixture.items.shellsObserved(fixture.shell(moth, [running("1", log), running("2")]))
+    const [item] = shellsOn(fixture, moth.terminalId)
+    const content = await fixture.items.load(item!.id, false)
+    expect(itemContent.safeParse(content).success).toBe(true)
+    expect(content).toMatchObject({
+      state: "ready",
+      content: {
+        kind: "shells",
+        agent: "claude",
+        shells: [
+          {
+            id: "1",
+            command: "sleep 1",
+            exit: null,
+            output: { state: "ready", firstLine: 1, lines: ["a", "b", "c"], total: 3 },
+          },
+          { id: "2", output: { state: "none" } },
+        ],
+      },
+    })
+    fixture.shell(moth, undefined)
+    expect(await fixture.items.load(item!.id, false)).toMatchObject({
+      state: "unavailable",
+      reason: "missing",
+    })
+  })
+
+  it("stream their content as an output file grows, and not for a version bump alone", async ({
+    fixture,
+  }) => {
+    const moth = fixture.terminal("moth")
+    const log = join(fixture.directory, "one.log")
+    writeFileSync(log, "a\n")
+    fixture.items.shellsObserved(fixture.shell(moth, [running("1", log)]))
+    const [item] = shellsOn(fixture, moth.terminalId)
+    const stream = fixture.items.content(item!.id, undefined)
+    const total = (content: ItemContent | undefined) => {
+      const output =
+        content?.state === "ready" && content.content.kind === "shells"
+          ? content.content.shells[0]?.output
+          : undefined
+      return output?.state === "ready" ? output.total : undefined
+    }
+    try {
+      expect(total(await next(stream))).toBe(1)
+      writeFileSync(log, "a\nb\n")
+      expect(total(await next(stream))).toBe(2)
+    } finally {
+      await stream.return(undefined)
+    }
   })
 })

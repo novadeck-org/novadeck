@@ -176,6 +176,7 @@ export class Bindings {
     record.bound = null
     record.resumeEnded = true
     this.unwatch(record)
+    this.host.companion().shelled(record)
     // A banner drawn by an agent that has ended is not the next one's; a session switch
     // inside the same process (`follow`) ends nothing, and keeps it.
     bannerForgotten(record)
@@ -563,6 +564,14 @@ export class Bindings {
     if (next) record.bound = { ...bound, activity: next }
     if (next && fact.type === "plan-observed")
       void this.host.companion().planned(record, binding, fact)
+    // Their output is read when the item is, so only a shell starting or ending moves it.
+    if (
+      next &&
+      (fact.type === "shell-started" ||
+        fact.type === "shell-ended" ||
+        fact.type === "shells-listed")
+    )
+      this.host.companion().shelled(record)
     if (next && fact.type === "turn-ended") this.latchLimit(record)
     if (next) this.captured(record, binding.agent, fact)
     return Boolean(next)

@@ -74,7 +74,8 @@ const projectOf = ({ pinned, ...project }: ProjectRow): Project => ({
 // 13: what agents reported and how their turns ended has a log of its own (`report_log`),
 // apart from the Inbox's entries, filled from them in the step from 12.
 // 14: the worktrees agents work in have an ownership table of their own (`worktrees`).
-const schemaVersion = 14
+// 15: an item may be a terminal's background shells (`kind` takes 'shells').
+const schemaVersion = 15
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -291,7 +292,7 @@ const schema = `
     window_id TEXT UNIQUE,
     -- A file's resolved path, a page's pageKey, or a plan's slot, unique on one bar.
     pointer_key TEXT NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('image', 'file', 'page', 'plan', 'changes')),
+    kind TEXT NOT NULL CHECK (kind IN ('image', 'file', 'page', 'plan', 'changes', 'shells')),
     path TEXT,
     url TEXT,
     lines_from INTEGER,
@@ -841,6 +842,63 @@ const migrations: Readonly<Record<number, Step>> = {
     ) STRICT;
     CREATE INDEX worktrees_project ON worktrees(project_id);
     CREATE INDEX worktrees_terminal ON worktrees(terminal_id);
+  `,
+  // A table's CHECK can't change in place, so the items are rebuilt with the new kind and
+  // copied by column name, rowids kept, as they order the rows. No table references them,
+  // so renaming the old one points nothing at it.
+  14: `
+    ALTER TABLE companion_items RENAME TO companion_items_14;
+    DROP INDEX companion_items_bar;
+    DROP INDEX companion_items_session;
+    CREATE TABLE companion_items (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      terminal_id TEXT,
+      window_id TEXT UNIQUE,
+      -- A file's resolved path, a page's pageKey, or a plan's slot, unique on one bar.
+      pointer_key TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('image', 'file', 'page', 'plan', 'changes', 'shells')),
+      path TEXT,
+      url TEXT,
+      lines_from INTEGER,
+      lines_to INTEGER,
+      -- A plan's agent, session and actor (empty for the root), and whether it is a file
+      -- or text in the transcript or rollout at path.
+      plan_agent TEXT,
+      plan_agent_session TEXT,
+      plan_actor TEXT,
+      plan_format TEXT CHECK (plan_format IN ('file', 'text')),
+      name TEXT NOT NULL,
+      detail TEXT NOT NULL,
+      -- Whether it is a file that may hold secrets, which opens only when the person picks it.
+      secret INTEGER NOT NULL,
+      shown_by TEXT NOT NULL CHECK (shown_by IN ('agent', 'person')),
+      -- The terminal it was shown or attached in, and its handle; both null for a file the
+      -- person opened in their project window.
+      from_terminal TEXT,
+      from_handle TEXT,
+      version INTEGER NOT NULL,
+      -- Whether its latest show asked to open it.
+      open_asked INTEGER NOT NULL,
+      shown_at REAL NOT NULL,
+      observed_at REAL,
+      FOREIGN KEY (terminal_id, session_id) REFERENCES terminals(id, session_id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+      FOREIGN KEY (window_id, session_id) REFERENCES companion_windows(id, session_id)
+        ON DELETE CASCADE,
+      CHECK ((terminal_id IS NULL) <> (window_id IS NULL)),
+      CHECK ((from_terminal IS NULL) = (from_handle IS NULL))
+    ) STRICT;
+    CREATE UNIQUE INDEX companion_items_bar ON companion_items(terminal_id, pointer_key)
+      WHERE terminal_id IS NOT NULL;
+    CREATE INDEX companion_items_session ON companion_items(session_id);
+    INSERT INTO companion_items (rowid, id, session_id, terminal_id, window_id, pointer_key, kind, path, url, lines_from,
+      lines_to, plan_agent, plan_agent_session, plan_actor, plan_format, name, detail, secret,
+      shown_by, from_terminal, from_handle, version, open_asked, shown_at, observed_at)
+    SELECT rowid, id, session_id, terminal_id, window_id, pointer_key, kind, path, url, lines_from,
+      lines_to, plan_agent, plan_agent_session, plan_actor, plan_format, name, detail, secret,
+      shown_by, from_terminal, from_handle, version, open_asked, shown_at, observed_at FROM companion_items_14;
+    DROP TABLE companion_items_14;
   `,
 }
 // SQLite's primary result codes that say a step doesn't fit the database it met, or that
