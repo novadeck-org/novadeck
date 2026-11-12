@@ -1,9 +1,10 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
+import { readSlice } from "@novadeck/harness-core/slices"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { checkPaste, newTurn, takesQueue } from "@novadeck/tui-input/box"
 import { describe, expect, it } from "vitest"
 
-import { box, clearPending } from "./box.js"
+import { box, clearPending, slice } from "./box.js"
 
 const rule = "─".repeat(60)
 
@@ -431,5 +432,115 @@ describe("the doorbell's line landing beside a feedback draft's card", () => {
       accepted: false,
       reason: "elsewhere",
     })
+  })
+})
+
+describe("the doorbell's line beside a feedback draft's card in its frame", () => {
+  // The card as Claude Code draws it unless it draws without borders: a round frame, the text
+  // a column in from its sides (bundles of 2.1.322 and 2.1.323). Over the box, as a terminal of
+  // 32 rows and 50 columns showed it on 2026-11-13: an Inbox reply's paste changed the card's
+  // keys and took the screen's last four rows, its box's closing rule and footer off the screen.
+  const columns = 50
+  const framed = (text: string) => `│ ${text.padEnd(columns - 4)} │`
+  const line =
+    '[Novadeck Inbox reply, suhZXY] Re your ask "Which design for the background-shell output item?": I picked "C with B\'s lines (recommended)". [suhZXY]'
+  const typed = [
+    "❯ [Novadeck Inbox reply, suhZXY] Re your ask",
+    '  "Which design for the background-shell output',
+    '  item?": I picked "C with B\'s lines',
+    '  (recommended)". [suhZXY]',
+  ]
+  const shown = (keys: string, bottom: readonly string[]): ScreenText => {
+    const rows = [
+      ...Array.from({ length: 13 }, (_, at) => `● A reply's row ${at}`),
+      "",
+      `╭${"─".repeat(columns - 2)}╮`,
+      framed("✻ Bug report drafted: Chat shows a view"),
+      ...Array.from({ length: 7 }, (_, at) => framed(`  - **Repro:** step ${at}`)),
+      framed(keys),
+      `╰${"─".repeat(columns - 2)}╯`,
+      "",
+      "✔ Update installed · /restart to apply",
+      "─".repeat(columns),
+      ...bottom,
+    ]
+    return {
+      rows,
+      bright: rows,
+      bracketedPaste: true,
+      alternate: true,
+      columns,
+      cursor: { row: rows.length - 1, column: rows.at(-1)!.length },
+    }
+  }
+  const empty = shown("1 to review · 2 to send · 0 to dismiss", [
+    "❯ ",
+    "─".repeat(columns),
+    "",
+    "  ⏵⏵ auto mode on · 1 feedback draft",
+  ])
+  const landed = shown("clear text to review, send, or dismiss", typed)
+  const still = box.still!
+
+  it("accepts the line though the keys in the card's frame changed", () => {
+    expect(checkPaste(empty.rows, landed.rows, line)).toEqual({
+      accepted: false,
+      reason: "elsewhere",
+    })
+    expect(checkPaste(empty.rows, landed.rows, line, { still })).toEqual({
+      accepted: true,
+      first: 28,
+      last: 31,
+    })
+  })
+
+  it("reads the keys alike where a narrow frame wraps them at other words", () => {
+    const wrapped = (first: string, second: string) =>
+      shown(first, ["❯ ", "─".repeat(columns), "", "  footer"]).rows.flatMap((row) =>
+        row === framed(first) ? [framed(first), framed(second)] : [row],
+      )
+    expect(still(wrapped("1 to review · 2 to send · 0 to dismiss ·", "+2 more queued"))).toEqual(
+      still(wrapped("clear text to review, send, or dismiss ·", "+2 more queued")),
+    )
+  })
+
+  it("still rejects a framed card whose text changed besides its keys", () => {
+    const retitled = landed.rows.map((row) => row.replace("Chat shows", "Chat hides"))
+    expect(checkPaste(empty.rows, retitled, line, { still })).toEqual({
+      accepted: false,
+      reason: "elsewhere",
+    })
+  })
+
+  it("reads the box the line took to the screen's end, holding it whole", () => {
+    expect(box.read(landed)).toMatchObject({
+      text: line.replace(/ (?="Which|item\?|\(recommended)/g, "\n"),
+      mode: "prompt",
+      first: 28,
+      last: 31,
+      clipped: true,
+    })
+    expect(box.overlay(landed)).toBe(false)
+  })
+
+  it("shows nothing of its own in the chat, no view where the box went", () => {
+    const { resting } = readSlice({
+      screen: empty,
+      rest: undefined,
+      box,
+      profile: slice,
+      waiting: false,
+      unread: false,
+    })
+    expect(
+      readSlice({
+        screen: landed,
+        rest: resting,
+        box,
+        profile: slice,
+        waiting: false,
+        unread: false,
+      }).bounds,
+    ).toBeUndefined()
   })
 })

@@ -25,6 +25,11 @@ export type InputBox = {
   /** Whether it draws, apart from the text, that it shows only part of what it holds. */
   readonly scrolled?: true
   /**
+   * Whether it runs to the screen's last row, its closing frame below the screen: what stands
+   * over it took the rows it would have grown into. It may hold more than it shows.
+   */
+  readonly clipped?: true
+  /**
    * Whether it shows nothing but holds more than an empty box does: rows of blank lines typed,
    * maybe under words scrolled out of sight. A blank box is one row tall.
    */
@@ -279,7 +284,7 @@ export const fillsViewport = (profile: BoxProfile, box: InputBox, rows: number):
  * What it shows then isn't all that keys would act on, so nothing may go by those words alone.
  */
 export const hidesText = (profile: BoxProfile, box: InputBox, rows: number): boolean =>
-  fillsViewport(profile, box, rows) || profile.cut?.(box) === true
+  box.clipped === true || fillsViewport(profile, box, rows) || profile.cut?.(box) === true
 
 /**
  * What shows of `text` in a box that hides the rest of it, without the rows that say so; undefined
@@ -341,7 +346,7 @@ export const pastesWhole = (profile: BoxProfile, text: string): boolean => {
 
 /** Whether the box holds nothing. */
 export const isEmpty = (box: InputBox): boolean =>
-  compact(box.text) === "" && !box.blanks && !box.scrolled
+  compact(box.text) === "" && !box.blanks && !box.scrolled && !box.clipped
 
 /**
  * Whether the keys that take what is queued may go on `screen`: only where it shows a queue,
@@ -466,8 +471,9 @@ export const boxRules = (rows: readonly string[]): { top: number; bottom: number
  */
 export const ruledBox = (screen: ScreenText, markers: Markers): InputBox | undefined => {
   const { top, bottom } = boxRules(screen.rows)
-  if (top < 0 || bottom - top < 2) return undefined
   const { cursor } = screen
+  if (bottom >= 0 && cursor.row > bottom) return clippedBox(screen, bottom, markers)
+  if (top < 0 || bottom - top < 2) return undefined
   if (cursor.row <= top || cursor.row >= bottom) return undefined
   for (let first = cursor.row; first > top; first -= 1)
     if (leads(screen.rows[first], markers)) return read(screen, first, bottom - 1, markers)
@@ -476,6 +482,24 @@ export const ruledBox = (screen: ScreenText, markers: Markers): InputBox | undef
 
 /** Whether a row is a line of a box's body: indented under its marker, and showing text. */
 const bodyRow = (row: string | undefined): boolean => /^ {2}.*\S/.test(row ?? "")
+
+/**
+ * A ruled box whose text took the screen's last rows and pushed its closing rule off the
+ * screen, as Claude Code's does when what stands over it (a feedback draft's card, a notice)
+ * leaves it no room to grow upwards: its top rule from the first column is the lowest rule, its
+ * marker's row right under it, and every row from there to the screen's end, the cursor's
+ * among them, a line of its body. It shows text, and may hold more (`clipped`). A row of
+ * anything else under the rule, a blank one included, is no such box.
+ */
+const clippedBox = (screen: ScreenText, top: number, markers: Markers): InputBox | undefined => {
+  const { rows } = screen
+  const first = top + 1
+  const last = rows.length - 1
+  if (!frameRule(rows[top]) || !leads(rows[first], markers)) return undefined
+  if (!rows.slice(first + 1).every(bodyRow)) return undefined
+  const box = read(screen, first, last, markers)
+  return box && compact(box.text) !== "" ? { ...box, clipped: true } : undefined
+}
 
 /**
  * A box drawn with no frame, its first row led by one of `markers`: rows indented under the

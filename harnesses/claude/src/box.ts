@@ -64,8 +64,8 @@ const agentRow = /^(\s*(?:❯ )?◯ .*?)\s+(?:\d+d )?(?:\d+h )?(?:\d+m )?\d+(?:\
 /**
  * The keys that end its card for a feedback draft it queued (its `SendFeedback` tool), which
  * stays until the person dismisses it: `✻ Bug report drafted: <title>`, a preview of the
- * details, then a row of keys, which reads by whether the box holds text, so every paste rewrites
- * it, far from the box. Read in its bundle (2.1.322, `yCe`; a key's name as `Esc`), and seen on a
+ * details, then a row of keys, all in a round frame (`unframed`), which reads by whether the box
+ * holds text, so every paste rewrites it, far from the box. Read in its bundle (2.1.322, `yCe`; a key's name as `Esc`), and seen on a
  * terminal whose rings all failed as `elsewhere` from its first draft on (2026-11-10). Idle, with
  * the box empty and with text, either with `+N more queued` after it; asking to send unreviewed,
  * after its question; and a send that failed, after its error. Each pair but the last is of one
@@ -88,11 +88,24 @@ const draftKeys = new RegExp(
 )
 
 /**
- * A run of rows that ends in a feedback draft's keys, wrapped or not, as one row with the keys
- * read alike, and the rest of the run blank, so where the keys wrapped doesn't count.
+ * A row as what a card's round frame holds: the text between its sides, and its top or bottom
+ * edge blank, as a gap between runs. Claude Code frames its feedback draft's card so (its
+ * `borderStyle: "round"`, `paddingX: 1`), unless it draws without borders: `│ <text> │` rows
+ * between `╭─…─╮` and `╰─…─╯`, its sides outside the text, so its keys don't end a row
+ * (2.1.322 and 2.1.323 bundles; seen 2026-11-13, a reply that failed as `elsewhere` beside one).
  */
-const draftCards = (rows: readonly string[]): readonly string[] => {
-  const out = [...rows]
+const unframed = (row: string): string => {
+  if (/^\s*(?:╭─*╮|╰─*╯)\s*$/.test(row)) return ""
+  return /^\s*│(.*)│\s*$/.exec(row)?.[1] ?? row
+}
+
+/**
+ * A run of rows that ends in a feedback draft's keys, wrapped or not, framed or not, as one row
+ * with the keys read alike, and the rest of the run blank, so where the keys wrapped doesn't count.
+ */
+const draftCards = (shown: readonly string[]): readonly string[] => {
+  const out = [...shown]
+  const rows = shown.map(unframed)
   let start = 0
   for (let end = 0; end <= rows.length; end++) {
     if (end < rows.length && rows[end]!.trim() !== "") continue
