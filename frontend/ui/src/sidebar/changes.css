@@ -1,30 +1,23 @@
 /* The Changes panel's rows (ChangesPanel.tsx): each work is drawn as a terminal's tab (the
    `.terminal-tab` of tabs.css, so its size, name line, detail line and the unfold of its rows
    are the tab's own), and this adds what differs. Parts: `.changes-row`, `.changes-size` (the
-   unread `+N −N`, in the tab's item marks' place), `.changes-file` (a file's name, wherever it is), `.changes-branch` (the row's branch),
-   `.changes-refusal`, `.changes-kept`, `.changes-branches` and
-   `.changes-trail` (a file's unread lines, right-aligned in its row), `.changes-empty`. The
-   row's × is `.terminal-tab-revealed`, shown under the pointer as a tab's Rename.
+   work's `+N −N`, in the tab's item marks' place), `.changes-file` (a file's name, wherever it is),
+   `.changes-project` and `.changes-branch` (the row's project, where there are several, and
+   branch), `.changes-refusal`, `.changes-kept`, `.changes-branches` and `.changes-trail` (a
+   file's lines, right-aligned in its row), `.changes-empty`. The row's × is
+   `.terminal-tab-revealed`, shown under the pointer as a tab's Rename.
 
-   Hooks: on a row, data-read="true" once none of its lines are unread, data-conflict while it
-   conflicts with main or another work, data-read-start on the first read row below unread
-   ones (the line above it), data-arrived while it has just gained unread lines; on a
-   `.changes-file`, data-read and data-conflict.
+   Hooks: on a row, data-conflict while it conflicts with main or another work, data-merged
+   once its work is merged (not while it conflicts); on a `.changes-file`, data-conflict.
 
-   Tokens: none of its own; it reads the palette's (ink, muted, success-fg, danger-fg, line,
-   strong) and the Inbox's, optional: --inbox-arrived-bg, --inbox-rule-color. */
+   Tokens: none of its own; it reads the palette's (ink, muted, success-fg, danger-fg). */
 
-/* Unread, the Inbox's way: the name bright while there are lines to read, gray once read
-   (as .inbox-row-subject); the selected row's name is bright. */
-.changes-row[data-read="true"] .sidebar-item-select strong {
-  color: var(--color-muted);
-}
-.changes-row[data-selected="true"] .sidebar-item-select strong {
-  color: var(--color-ink);
-}
-/* Fine: the icon gray. Conflict: red. */
+/* Fine: the icon gray. Merged: success. Conflict: red. */
 .changes-row .sidebar-item-icon {
   color: var(--color-muted);
+}
+.changes-row[data-merged="true"] .sidebar-item-icon {
+  color: var(--color-success-fg);
 }
 .changes-row[data-conflict="true"] .sidebar-item-icon {
   color: var(--color-danger-fg);
@@ -54,13 +47,9 @@
   color: var(--color-danger-fg);
 }
 
-/* Files: bright while they hold lines you haven't read, gray once read, red where the
-   conflict is. */
+/* Files: bright, red where the conflict is. */
 .changes-file {
   color: var(--color-ink);
-}
-.changes-file[data-read="true"] {
-  color: var(--color-muted);
 }
 .changes-file[data-conflict="true"] {
   color: var(--color-danger-fg);
@@ -70,9 +59,13 @@
   padding-right: 2px;
 }
 
-/* The detail line holds the branch, which stays while the files unfold under it. */
+/* The detail line holds the project and branch, which stay while the files unfold under it. */
+.changes-project,
 .changes-branch {
   color: var(--color-muted);
+}
+.changes-project::after {
+  content: "\00a0·\00a0";
 }
 
 /* Why a close was refused, above the list. */
@@ -99,34 +92,6 @@
   padding-left: 1.2em;
   color: var(--color-muted);
   list-style: disc;
-}
-
-/* New lines on a work: the Inbox's wash, a flash and never a held state. */
-.changes-row[data-arrived="true"] {
-  animation: changes-arrived calc(var(--motion-layout) * 8) var(--ease-interface);
-}
-@keyframes changes-arrived {
-  from {
-    background-color: var(
-      --inbox-arrived-bg,
-      color-mix(in srgb, var(--color-strong) 14%, transparent)
-    );
-  }
-}
-
-/* The line above the read rows (the Inbox's updates line). */
-.changes-row[data-read-start="true"] {
-  margin-top: 9px;
-}
-.changes-row[data-read-start="true"]::after {
-  content: "";
-  position: absolute;
-  top: -6px;
-  right: 6px;
-  left: 6px;
-  height: var(--border-width);
-  background-color: var(--inbox-rule-color, var(--color-line));
-  pointer-events: none;
 }
 
 .changes-empty {

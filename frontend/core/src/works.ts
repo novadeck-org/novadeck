@@ -39,6 +39,9 @@ export type Work = {
   readonly base: string
   // When it first differed from main, in milliseconds since the epoch: the panel's order.
   readonly firstSeenAt: number
+  // Nothing differs from main and the worktree has commits of its own that main holds: its work
+  // was merged. A worktree just made differs from nothing too, and is not.
+  readonly merged: boolean
   // When the repository's origin was last fetched, in milliseconds since the epoch: main is as
   // old as that. Absent when it never was.
   readonly fetchedAt?: number | undefined

@@ -152,6 +152,7 @@ describe("a work as a change", () => {
     branch: "feature",
     base: "main",
     firstSeenAt: 0,
+    merged: false,
     added: 7,
     removed: 3,
     unreadAdded: 0,

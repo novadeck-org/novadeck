@@ -65,6 +65,10 @@ describe("the demo's Changes seeds", () => {
         expect(works.some((work) => !unread(work))).toBe(true)
       })
 
+      it("lists the works of more than one project", () => {
+        expect(new Set(works.map((work) => work.projectId)).size).toBeGreaterThan(1)
+      })
+
       it("has a conflict with main and one between two works of a project", () => {
         expect(works.some((work) => work.conflicts.some((each) => each.with === "main"))).toBe(true)
         const roots = new Set(works.map((work) => work.root))
@@ -107,6 +111,13 @@ describe("the storefront's worktrees", () => {
     expect(works.some((work) => work.working)).toBe(true)
   })
 
+  it("has one merged: no files, and not a worktree just made", () => {
+    const merged = works.filter((work) => work.merged)
+    expect(merged).toHaveLength(1)
+    expect(merged[0]).toMatchObject({ files: [], added: 0 })
+    expect(works.filter((work) => !work.merged && work.files.length === 0)).not.toHaveLength(0)
+  })
+
   it("has some whose main was fetched a while ago and one it never was", () => {
     expect(works.some((work) => work.fetchedAt !== undefined)).toBe(true)
     expect(works.some((work) => work.fetchedAt === undefined)).toBe(true)
@@ -117,7 +128,7 @@ describe("the storefront's worktrees", () => {
   it("gives each a branch of its own, and a worktree of one owner is not another's", () => {
     expect(new Set(works.map((work) => work.branch)).size).toBe(works.length)
     const builds = works.filter((work) => work.branch?.startsWith("agent/build"))
-    expect(builds).toHaveLength(2)
+    expect(builds).toHaveLength(3)
     expect(new Set(builds.map((work) => work.terminalId)).size).toBe(1)
   })
 })
@@ -194,13 +205,29 @@ describe("the demo's works", () => {
     ])
   })
 
-  it("keeps a merged work as a worktree with no files", () => {
+  it("keeps a merged work as a worktree with no files, marked merged", () => {
     const works = createDemoWorks([])
     works.gain(at, 10)
     works.merge(at.root)
     expect(works.state.getSnapshot().works).toMatchObject([
-      { root: at.root, files: [], added: 0, conflicts: [] },
+      { root: at.root, files: [], added: 0, conflicts: [], merged: true },
     ])
+  })
+
+  it("is no longer merged once it changes a file again", () => {
+    const works = createDemoWorks([])
+    works.gain(at, 10)
+    works.merge(at.root)
+    works.gain(at, 4)
+    expect(works.state.getSnapshot().works[0]).toMatchObject({ merged: false, added: 4 })
+  })
+
+  it("makes a worktree just made that is not merged, and commits main lacks that read as merged", () => {
+    const works = createDemoWorks([])
+    works.openClean(at)
+    expect(works.state.getSnapshot().works[0]).toMatchObject({ files: [], merged: false })
+    works.commitsMainLacks(at, 2)
+    expect(works.state.getSnapshot().works[0]).toMatchObject({ files: [], merged: true })
   })
 
   it("refuses a close that would lose changes unless forced, and says what it kept", async () => {
