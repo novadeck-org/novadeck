@@ -68,7 +68,7 @@ import {
   terminalMoved,
 } from "./terminals.js"
 import { maxTranscriptImages, transcriptChange, transcriptImageResult } from "./transcripts.js"
-import { workChange, workClosing } from "./works.js"
+import { workChange, workClosing, workMade } from "./works.js"
 
 export const errors = {
   ...wireErrors,
@@ -533,6 +533,9 @@ export const contract = {
     // Every project's works: each `changed`, `synced`, then later changes (new lines, a
     // look, a conflict found or gone, a worktree closed or no longer tracked).
     watch: procedure.input(z.void()).output(eventIterator(workChange)),
+    // One event each time the runner starts tracking a worktree (any project's), from the
+    // moment of subscribing: nothing replayed, no `synced`. Costs the runner no git reads.
+    made: procedure.input(z.void()).output(eventIterator(workMade)),
     // The person has read the work as it is now: what's unread starts again from here. A
     // root with no work is NOT_FOUND.
     look: procedure.input(z.strictObject({ root: directory })).output(z.void()),

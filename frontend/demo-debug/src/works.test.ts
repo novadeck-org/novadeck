@@ -57,7 +57,8 @@ describe("the debug panel's Changes group", () => {
 
   it("gives every action a hint that names what appears", () => {
     const [group] = worksGroups(createDemoWorks([]))
-    for (const action of group!.actions) expect(action.hint, action.label).toMatch(/^Open Changes/)
+    for (const action of group!.actions)
+      expect(action.hint, action.label).toMatch(/^(Open|Close) Changes/)
   })
 
   context("on a terminal with no work", () => {
@@ -114,6 +115,18 @@ describe("the debug panel's Changes group", () => {
     expect(work(1)).toMatchObject({ files: [], merged: false })
     run("Worktree with changes", 1)
     expect(work(1)!.files.length).toBeGreaterThan(0)
+  })
+
+  it("makes another worktree each time, counting each as made", () => {
+    const { run, works } = setup([])
+    expect(works.made.getSnapshot()).toBe(0)
+    run("New worktree", 1)
+    run("New worktree", 1)
+    expect(works.made.getSnapshot()).toBe(2)
+    const roots = works.state.getSnapshot().works.map((each) => each.root)
+    expect(new Set(roots).size).toBe(2)
+    for (const each of works.state.getSnapshot().works)
+      expect(each).toMatchObject({ terminalId: key(1).terminalId, files: [], merged: false })
   })
 
   it("leaves a worktree with commits main lacks, or whose owner is in History", () => {

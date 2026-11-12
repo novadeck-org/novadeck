@@ -66,6 +66,12 @@ export type WorksState = {
 
 export type Works = {
   readonly state: Store<WorksState>
+  // How many worktrees the backend began tracking since this backend began (any project's, an
+  // agent's new one or one it adopted; a worktree changing hands is not one), counted whether
+  // or not anyone watches. It says only that one more was made, for the sidebar's Changes
+  // toggle to flare; the new work itself arrives through `state`. Absent where a backend
+  // makes none.
+  readonly made?: Store<number>
   // Asks the backend to follow the works for as long as someone watches: it starts with the
   // first watcher and stops when the last releases (the state then stays as it was, no longer
   // `synced`). Returns the release.

@@ -282,6 +282,7 @@ export const scriptedRunner = ({
     },
     works: {
       watch: api.works.watch.handler(idle),
+      made: api.works.made.handler(idle),
       look: api.works.look.handler(unplayed("works.look")),
       show: api.works.show.handler(unplayed("works.show")),
       close: api.works.close.handler(unplayed("works.close")),

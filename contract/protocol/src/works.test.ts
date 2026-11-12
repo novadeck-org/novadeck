@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { work, workChange, workClosing, workConflict } from "./works.js"
+import { work, workChange, workClosing, workConflict, workMade } from "./works.js"
 
 const id = "11111111-1111-4111-8111-111111111111"
 const base = {
@@ -70,5 +70,18 @@ describe("what closing a work answers", () => {
     })
     expect(workClosing.safeParse({ closed: false }).success).toBe(false)
     expect(workClosing.safeParse({ closed: true }).success).toBe(false)
+  })
+})
+
+describe("a made worktree", () => {
+  it("names its root and its project, and nothing else", () => {
+    expect(workMade.parse({ root: base.root, projectId: id })).toEqual({
+      root: base.root,
+      projectId: id,
+    })
+    expect(workMade.safeParse({ root: base.root }).success).toBe(false)
+    expect(workMade.safeParse({ root: base.root, projectId: id, terminalId: id }).success).toBe(
+      false,
+    )
   })
 })

@@ -47,6 +47,7 @@ import {
   type VoiceTranscript,
   type WireClient,
   type WorkChange,
+  type WorkMade,
   type WorkClosing,
   type WorkspaceSession,
 } from "@novadeck/protocol"
@@ -446,6 +447,13 @@ export type Runner = {
      * only when the runner closes or on `return()`.
      */
     watch(): AsyncIterableIterator<WorkWatchItem, undefined>
+    /**
+     * Follows the worktrees the runner starts tracking, as one event each, from now on: nothing
+     * before the call is replayed, and opening the stream again after a reconnection replays
+     * nothing either (a worktree made while disconnected is not told). Iteration ends only
+     * when the runner closes or on `return()`.
+     */
+    made(): AsyncIterableIterator<WorkMade, undefined>
     /** The person has read the work as it is now; `NOT_FOUND` without a work at `root`. */
     look(root: string): Promise<void>
     /**
@@ -852,6 +860,8 @@ export const connectRunner = async (
     works: {
       watch: () =>
         followAll(connection, (client, signal) => client.works.watch(undefined, { signal })),
+      made: () =>
+        followSession(connection, (client, signal) => client.works.made(undefined, { signal })),
       look: (root) => call((client) => client.works.look({ root })),
       show: (root, terminalId) =>
         call((client) =>

@@ -302,7 +302,10 @@ Terminals:
   done dim and restore the × (hover it for why). Refuse the next close shows the refusal above the
   list. Close every worktree closes the selected project's, leaving other projects' rows; with Agent
   worktrees off in Preferences > Experimental (the demo starts with it off) the empty state, once
-  every project's are gone, points there. "Every state in Changes"
+  every project's are gone, points there. New worktree adds another clean worktree to the selected
+  terminal's, and the Changes toggle in the rail flares the History toggle's dot and ring for a
+  moment (close Changes first: it shows nothing while Changes is open); any first change that makes a
+  terminal's worktree flares it too. "Every state in Changes"
   gives the session's first four terminals a worktree each. In the showcase, selecting a row shows its work as a changes item on the terminal's
   bar (see Changes below); in the other demos there is no pane to show it in.
 - **Projects and sessions:** mark the selected terminal running, then start a fresh

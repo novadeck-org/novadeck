@@ -19,6 +19,13 @@ export const createRunnerWorks = (
   track: <T>(work: Promise<T>) => Promise<T> = (work) => work,
 ): RunnerWorks => {
   const state = createStore<WorksState>({ works: [], synced: false })
+  // The worktrees made since the backend began, counted for as long as it lives: the stream
+  // carries one small event per worktree and the runner reads no git for it.
+  const made = createStore(0)
+  const madeStream = calls.made()
+  void consume(madeStream, () => {
+    made.update((count) => count + 1)
+  })
   // By root.
   const held = new Map<string, Work>()
   // The works of a sequence the runner has yet to finish with `synced`; until then `held` stays.
@@ -87,12 +94,14 @@ export const createRunnerWorks = (
 
   const stop = (): void => {
     closed = true
+    void madeStream.return?.()?.catch?.(() => {})
     watchers = 0
     unfollow()
   }
 
   const works: Works = {
     state,
+    made,
     // Follows the works from the first watcher until the last one lets go, and goes on across
     // reconnections meanwhile.
     watch: () => {

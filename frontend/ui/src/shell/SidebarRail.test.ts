@@ -97,7 +97,7 @@ describe("the rail's History dot", () => {
   it("flares for a landing, but not while History shows, nor afterwards for that one", () => {
     const { container, rerender, unmount } = render(historyRail(0))
     unmounts.push(unmount)
-    const dot = () => container.querySelector("#history-toggle .history-dot")
+    const dot = () => container.querySelector("#history-toggle .flare-dot")
     expect(dot()).toBeNull()
     rerender(historyRail(1))
     expect(dot()).not.toBeNull()
@@ -105,6 +105,49 @@ describe("the rail's History dot", () => {
     expect(dot()).toBeNull()
     rerender(historyRail(2))
     expect(dot()).toBeNull()
+  })
+})
+
+describe("the rail's Changes dot", () => {
+  const changesRail = (worksMade: number, open = false, mobile = false) =>
+    createElement(SidebarRail, {
+      mobile,
+      sidebarVisible: open,
+      sidebarPanel: open ? "changes" : "terminals",
+      zen: false,
+      badge: undefined,
+      bellRings: 0,
+      hasChanges: true,
+      hasHistory: true,
+      worksMade,
+      toggleSidebar: () => {},
+    })
+
+  it("flares for each worktree made, but not for the count at mount, nor while Changes shows", () => {
+    const { container, rerender, unmount } = render(changesRail(4))
+    unmounts.push(unmount)
+    const dot = () => container.querySelector("#changes-toggle .flare-dot")
+    expect(dot()).toBeNull()
+    rerender(changesRail(5))
+    expect(dot()).not.toBeNull()
+    expect(dot()?.querySelector(".bell-dot-ring")).not.toBeNull()
+    // History's toggle has none of it.
+    expect(container.querySelector("#history-toggle .flare-dot")).toBeNull()
+    rerender(changesRail(6, true))
+    expect(dot()).toBeNull()
+    rerender(changesRail(6))
+    expect(dot()).toBeNull()
+  })
+
+  it("flares afresh for a worktree made while another plays, on the phone's rail too", () => {
+    const { container, rerender, unmount } = render(changesRail(0, false, true))
+    unmounts.push(unmount)
+    const dot = () => container.querySelector("#mobile-changes-toggle .flare-dot")
+    rerender(changesRail(1, false, true))
+    const first = dot()
+    expect(first).not.toBeNull()
+    rerender(changesRail(2, false, true))
+    expect(dot()).not.toBe(first)
   })
 })
 
