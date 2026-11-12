@@ -177,16 +177,6 @@
   font-family: var(--font-mono);
   font-size: var(--text-caption);
 }
-/* The work not committed yet keeps a ring where a commit has its hash. */
-.changes-layer[data-kind="uncommitted"] .changes-sha::before {
-  content: "";
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  margin-left: 2px;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 1.5px var(--color-warning-fg);
-}
 .changes-subject-cell {
   display: flex;
   align-items: baseline;
