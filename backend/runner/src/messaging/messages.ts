@@ -46,12 +46,13 @@ export const senderTerminal = (from: Sender): string | undefined =>
  */
 export const senderParty = (from: Sender): MessageParty =>
   from.kind === "agent"
-    ? { kind: "agent", handle: from.handle, agent: from.agent }
+    ? { kind: "agent", terminalId: from.terminalId, handle: from.handle, agent: from.agent }
     : { kind: "person" }
 
 /** A message's recipient as the wire names it. */
 export const addresseeParty = (to: Addressee): MessageRecipient => ({
   kind: "agent",
+  terminalId: to.terminalId,
   handle: to.handle,
   agent: to.agent,
 })

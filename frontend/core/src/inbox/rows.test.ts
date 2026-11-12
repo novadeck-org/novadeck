@@ -22,7 +22,15 @@ import {
   type WrittenEntry,
 } from "./rows"
 
-const agentParty = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
+// The terminals these tests have, by handle: 01 is moth, 02 is fox.
+const idOf = (handle: string): string => ({ moth: "01", fox: "02", owl: "03", crow: "04" })[handle]!
+
+const agentParty = (handle: string): MessageParty => ({
+  kind: "agent",
+  terminalId: idOf(handle),
+  handle,
+  agent: null,
+})
 
 const choices: ChatDialog = {
   type: "choices",
@@ -114,7 +122,7 @@ const thread = (change: Partial<MessageThread> = {}): MessageThread => ({
 
 const messagesOf = (...threads: MessageThread[]): MessagesState => ({
   ...noMessages,
-  terminals: { "p/s/01": { handle: "moth", agent: true, threads } },
+  terminals: { "p/s/01": { terminalId: "01", handle: "moth", agent: true, threads } },
 })
 
 // The marks these tests state, by session context then terminal, stand for the stored row of
@@ -362,7 +370,7 @@ describe("The Inbox's rows", () => {
   })
 
   describe("whether a lead hears of a terminal", () => {
-    const worker: TerminalMetadata = { ...agentTerminal(2), ledBy: "moth" }
+    const worker: TerminalMetadata = { ...agentTerminal(2), ledBy: "01" }
 
     it("is so while the lead's agent runs, and not once it stopped, closed, or for a terminal it doesn't lead", () => {
       expect(leadHearsOf(workspaceOf(agentTerminal(1), worker), "p/s", "02")).toBe(true)
@@ -527,8 +535,13 @@ describe("The Inbox's rows", () => {
       const messages: MessagesState = {
         ...noMessages,
         terminals: {
-          "p/s/01": { handle: "moth", agent: true, threads: [thread()] },
-          "p/s/02": { handle: "fox", agent: true, threads: [thread({ peer: agentParty("moth") })] },
+          "p/s/01": { terminalId: "01", handle: "moth", agent: true, threads: [thread()] },
+          "p/s/02": {
+            terminalId: "02",
+            handle: "fox",
+            agent: true,
+            threads: [thread({ peer: agentParty("moth") })],
+          },
         },
       }
 
@@ -548,6 +561,19 @@ describe("The Inbox's rows", () => {
     it("comes from the recipient's terminal where the sender is gone", () => {
       const alone = workspaceOf(agentTerminal(2, { working: false }, "codex"))
       const [row] = inboxRows(inputs(alone, { messages: messagesOf(thread()) }))
+
+      expect(row).toMatchObject({
+        stopped: true,
+        source: { terminalId: "02", agent: "codex" },
+        held: { from: { handle: "moth", title: "moth" }, to: { title: "Terminal 2" } },
+      })
+    })
+
+    it("names its parties by terminal, not by handle: another terminal with a sender's handle isn't it", () => {
+      // moth (01) closed, and 03 has its handle now; the held message is moth's, to fox (02).
+      const stranger: TerminalMetadata = { ...agentTerminal(3), handle: "moth" }
+      const workspace = workspaceOf(agentTerminal(2, { working: false }, "codex"), stranger)
+      const [row] = inboxRows(inputs(workspace, { messages: messagesOf(thread()) }))
 
       expect(row).toMatchObject({
         stopped: true,
@@ -579,7 +605,9 @@ describe("The Inbox's rows", () => {
       const two = project("two", [agentTerminal(1), agentTerminal(2, { working: false }, "codex")])
       const messages: MessagesState = {
         ...noMessages,
-        terminals: { "two/two-s/01": { handle: "moth", agent: true, threads: [thread()] } },
+        terminals: {
+          "two/two-s/01": { terminalId: "01", handle: "moth", agent: true, threads: [thread()] },
+        },
       }
 
       for (const projects of [
@@ -619,6 +647,7 @@ describe("The Inbox's rows", () => {
       ...noMessages,
       terminals: {
         "p/s/02": {
+          terminalId: "02",
           handle: "fox",
           agent: true,
           waits,
@@ -768,6 +797,7 @@ describe("The Inbox's rows", () => {
         ...noMessages,
         terminals: {
           "p/s/01": {
+            terminalId: "01",
             handle: "moth",
             agent: true,
             threads: [

@@ -158,8 +158,10 @@ An agent weighs what reaches it at three levels:
    An agent opened with a brief and `lead: false` (the person's decision to start it on a
    task but not run it through the opener) gets the brief marked as the lead's, so it is
    its task, and the opener's lead is released once the brief is delivered: after that the
-   two are peers. The terminal's record keeps the opener's handle (or, after the person approved an agent's `lead`, that agent's) as `ledBy` (column
-   `led_by`), beside `openedBy`, which every opened terminal keeps. It is kept through a
+   two are peers. The terminal's record keeps the opener's terminal id (or, after the person approved an agent's `lead`, that agent's) as `ledBy` (column
+   `lead_terminal`), beside `openedBy` (column `opener_terminal`), the opener's id, which every opened terminal keeps.
+   Both are terminal ids, never handles: a handle reads as a terminal, an id is one, so a link
+   outlives a handle and names no other terminal once its own has closed. It is kept through a
    restore within the same Novadeck session only; a terminal restored under another
    session takes nothing from a record saved in a different one. `ledBy` on a summary is
    the stored value: clients work out whether the lead is running from the roster (the UI
@@ -187,8 +189,8 @@ The rules that keep this safe:
   `/clear` or a new session of the same running agent, a restart of the lead's agent,
   and a runner restart or restore that resumes the worker's agent (within the same
   Novadeck session); the worker's own agent ending ends it (below). If the lead's terminal is closed, the worker has no
-  running lead: it finishes its work, and later messages from that handle (which no other terminal is
-  given; a restore gives it back only to its own terminal, which regains no workers) are peer messages. A kept, not-running terminal leads no one for new
+  running lead: it finishes its work, and later messages from it (a restore gives the lead's handle back only to its own terminal,
+  a new one with an id of its own, which regains no workers) are peer messages. A kept, not-running terminal leads no one for new
   sends; what it sent while it led keeps its `fromLead` mark.
 - **A worker keeps its lead only while it is, or resumes, the agent the lead started or
   the person let it lead.**
@@ -259,7 +261,7 @@ The rules that keep this safe:
 
 The terminal manager tells messaging each terminal's `ledBy` as it registers the
 terminal, and again (`endLead`) when it ends. `Messaging.leadOf(terminalId)` names a
-terminal's running lead (the one `ledBy` names, running in the same project and
+terminal's running lead (the terminal whose id `ledBy` is, running in the same project and
 session), for `agents()` and for fixing a message's `fromLead` and `toLead` as it is sent.
 Delivery marks the messages whose `fromLead` is set.
 
@@ -282,7 +284,7 @@ terminals. Terminals sort by creation order, never by their handle. A handle nev
 changes, not when the terminal is renamed, and is never given to another terminal in that
 session: a closed terminal's handle stays unanswered rather than reaching another terminal.
 Only restoring it from History gives its own handle back, to the terminal it becomes, and
-only when no terminal there has it or leads under it (else it draws a new one). Once a
+only when no terminal there has it (else it draws a new one). Once a
 session has given every word, they come again with a letter from the end of the alphabet
 (`mothz`, then `mothy`), skipping one that reads badly after the word (`fizzz`, `foxz`). Agents
 tell the person about a terminal as `@fox · api-server`: its handle and its title. Handles exist because a title is text a person, or an agent through
@@ -2463,7 +2465,8 @@ in `terminals/describe-request.ts` and `Calls.describe` (`terminals/calls.ts`), 
   another subject, not as it progresses; the later nudge shows the current summary and
   asks for an update only then, or when it holds what a summary leaves out.
 - **Who wins the title.** The record keeps each layer apart (`naming`: `person`; `opener`,
-  the opener's title, which says who it is from by the terminal's `openedBy`; `murmur`, its
+  the opener's title, which says who it is from by the terminal's `openedBy` (the opener's id; the title
+  keeps the opener's handle then, `opener_handle`, for its source to name); `murmur`, its
   title; `own`, the title the terminal's own agent gave; and `summary`, the agent's own),
   and the store persists only these (`person_title`, `opener_title`, `murmur_title`,
   `own_title`, `summary`). The terminal manager derives the title by precedence:
@@ -3126,7 +3129,7 @@ resume probes sent it one prompt:
 | An agent calls `lead(to, message)` on an agent already running                                 | Refused at once if it can't be (itself, no agent there, already led, another lead, a cycle, an approval waiting, nobody to ask); else the person is asked and the call answers `asked`. On a yes, everything is checked again, `ledBy` is set, the worker is noticed, and the brief goes marked as the lead's; a no, a vanished terminal or a changed agent is a notice to the caller |
 | The lead calls `release(to)`                                                                   | `ledBy` is cleared and the worker noticed; the lead's messages already queued still arrive marked, as sent. Anyone but the running lead is refused                                                                                                                                                                                                                                    |
 | The person releases a teammate (`terminals.release`)                                           | As the lead's release, and the lead's messages to it not yet delivered, queued, held or leased and lapsing, are dropped and their sender told the user released it; both are noticed                                                                                                                                                                                                  |
-| The person moves a terminal to another session (`terminals.move`)                              | A lead takes its team, whose `ledBy` follow its handle there if it changed; a teammate moved alone leaves its lead, as a release does (the lead's undelivered messages dropped, the lead noticed). Running members are told changed handles; a pending brief refuses the move. It sees the new session's agents at once                                                               |
+| The person moves a terminal to another session (`terminals.move`)                              | A lead takes its team, whose `ledBy` ids stay as they are; a teammate moved alone leaves its lead, as a release does (the lead's undelivered messages dropped, the lead noticed). Running members are told changed handles; a pending brief refuses the move. It sees the new session's agents at once                                                                                |
 | The worker's agent exits (shell prompt returns, or its process is found gone)                  | `ledBy` is cleared, saved and announced; the former lead's later messages are a peer's. A new session of the same agent, or a restart or restore that resumes it, doesn't end it; one that resumes nothing, or typing that cancels the startup, does                                                                                                                                  |
 | `send` to "codex"                                                                              | Refused: no handle; every terminal there described, to pick by title, folder and work                                                                                                                                                                                                                                                                                                 |
 | Codex's hooks aren't trusted                                                                   | No session ever binds there. While its hooks review is open, a `send` to it waits; once the review was skipped, it shows as having no agent and a `send` to it is refused. Its own agent can still send, told replies can't reach it                                                                                                                                                  |

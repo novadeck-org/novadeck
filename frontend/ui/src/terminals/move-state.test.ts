@@ -50,8 +50,9 @@ describe("what the toast says of a move", () => {
               { terminalId: "01", handle: "wren", was: "glint" },
               { terminalId: "02", handle: "owl", was: "owl" },
             ],
-            left: "lynx",
+            left: "11111111-1111-4111-8111-111111111111",
           },
+          lead: "lynx",
         }),
       ),
     ).toBe(

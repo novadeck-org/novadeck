@@ -155,7 +155,7 @@ describe.skipIf(process.platform !== "linux" || !existsSync(bash))(
           hook: "Stop",
           payload: agent === "agy" ? { fullyIdle: true } : {},
         })
-        expect(manager.get(worker.id)).toMatchObject({ ledBy: "moth", agent })
+        expect(manager.get(worker.id)).toMatchObject({ ledBy: lead.id, agent })
       }
       const pid = Number(readFileSync(join(shell.home, `pid-${worker.id}`), "utf8"))
       // Text, arrows and the like are not what ends an agent.
@@ -190,12 +190,12 @@ describe.skipIf(process.platform !== "linux" || !existsSync(bash))(
         worker.back()
         controller.abort()
         await client
-        return { worker: worker.id, options, ledBy }
+        return { worker: worker.id, lead: lead.id, options, ledBy }
       }
       worker.back()
       controller.abort()
       await client
-      return { worker: worker.id, options, ledBy: manager.get(worker.id).ledBy }
+      return { worker: worker.id, lead: lead.id, options, ledBy: manager.get(worker.id).ledBy }
     }
 
     // What the app asks of the runner for a terminal it lists: resume the agent the saved
@@ -223,10 +223,10 @@ describe.skipIf(process.platform !== "linux" || !existsSync(bash))(
         ],
       ] as const)
         it(`resumes ${agent} in the teammate, still led, when ${when}`, async ({ shell }) => {
-          const { worker, options } = await quit(shell, agent, how)
+          const { worker, lead, options } = await quit(shell, agent, how)
           const manager = await restore(shell, worker, options)
           await shell.until(manager, worker, resumed[agent])
-          expect(manager.get(worker)).toMatchObject({ ledBy: "moth" })
+          expect(manager.get(worker)).toMatchObject({ ledBy: lead })
         })
 
       it(`restores a plain shell for ${agent} the person left with its exit command, unled`, async ({
@@ -260,7 +260,8 @@ describe.skipIf(process.platform !== "linux" || !existsSync(bash))(
       it(`keeps the lead of a gone ${agent} when the same session resumes there`, async ({
         shell,
       }) => {
-        expect((await quit(shell, agent, "system", "same")).ledBy).toBe("moth")
+        const kept = await quit(shell, agent, "system", "same")
+        expect(kept.ledBy).toBe(kept.lead)
       })
 
       it(`restores a plain shell for ${agent} the person ended, as they asked`, async ({

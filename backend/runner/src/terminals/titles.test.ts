@@ -17,9 +17,9 @@ import {
   type Naming,
 } from "./titles.js"
 
-const terminal = { handle: "fox", command: null, openedBy: "moth" }
-const alone = { handle: "fox", command: null, openedBy: null }
-const opener = { title: "Login fix" }
+const terminal = { handle: "fox", command: null }
+const alone = terminal
+const opener = { title: "Login fix", by: "moth" }
 const murmur = { title: "Fixing login" }
 const own = { title: "Login cookie" }
 
@@ -47,8 +47,8 @@ describe("a terminal's title", () => {
     })
   })
 
-  it("ignores an opener's title when no terminal opened it", () => {
-    const named: Naming = { ...unnamed, opener }
+  it("ignores an opener's title that has no opener's handle to say who it is from", () => {
+    const named: Naming = { ...unnamed, opener: { title: "Login fix" } }
     expect(titleOf(named, alone).source).toEqual({ kind: "default" })
     expect(titleOf({ ...named, murmur }, alone).source).toEqual({
       kind: "murmur",
@@ -56,10 +56,10 @@ describe("a terminal's title", () => {
   })
 
   it("is kept from murmur when the person or the agent that opened the terminal gave it", () => {
-    expect(titledByHand(unnamed, "moth")).toBe(false)
-    expect(titledByHand({ ...unnamed, person: "Mine" }, null)).toBe(true)
-    expect(titledByHand({ ...unnamed, opener }, "moth")).toBe(true)
-    expect(titledByHand({ ...unnamed, opener }, null)).toBe(false)
+    expect(titledByHand(unnamed)).toBe(false)
+    expect(titledByHand({ ...unnamed, person: "Mine" })).toBe(true)
+    expect(titledByHand({ ...unnamed, opener })).toBe(true)
+    expect(titledByHand({ ...unnamed, opener: { title: "Login fix" } })).toBe(false)
   })
 
   it("is its own agent's where nothing else named it, never made by a summary", () => {
@@ -88,9 +88,7 @@ describe("a terminal's title", () => {
     expect(defaultTitle("env A=1 B=2 /usr/bin/codex")).toBe("codex")
     expect(defaultTitle("A=1")).toBe("Terminal")
     expect(defaultTitle(null)).toBe("Terminal")
-    expect(titleOf(unnamed, { handle: "fox", command: "claude", openedBy: null }).title).toBe(
-      "claude",
-    )
+    expect(titleOf(unnamed, { handle: "fox", command: "claude" }).title).toBe("claude")
   })
 
   // A title kept before the rule took in bidirectional marks and C1 controls would fail every
@@ -100,7 +98,7 @@ describe("a terminal's title", () => {
     const kept = { ...unnamed, person: "build\u202eevil\u009b" }
     expect(titleOf(kept, terminal)).toEqual({ title: "build evil", source: { kind: "person" } })
     expect(title.safeParse(titleOf(kept, terminal).title).success).toBe(true)
-    const opened = { ...unnamed, opener: { title: "\u2066Server\u2069" } }
+    const opened = { ...unnamed, opener: { title: "\u2066Server\u2069", by: "moth" } }
     expect(titleOf(opened, terminal).title).toBe("Server")
     // One with nothing left gives way to the next.
     expect(titleOf({ ...kept, person: "\u202e", murmur }, terminal)).toEqual({
@@ -121,18 +119,18 @@ describe("naming a terminal", () => {
   })
 
   it("takes the title an opener asked for as that agent's, over murmur's and beneath the person's", () => {
-    expect(openedWith(unnamed, "Server")).toEqual({
+    expect(openedWith(unnamed, "Server", "moth")).toEqual({
       ...unnamed,
-      opener: { title: "Server" },
+      opener: { title: "Server", by: "moth" },
     })
-    const opened = openedWith(murmured(unnamed, "Fixing login"), "Server")
+    const opened = openedWith(murmured(unnamed, "Fixing login"), "Server", "moth")
     expect(titleOf(opened, terminal).title).toBe("Server")
-    expect(openedWith(renamed(unnamed, "Mine"), "Server").person).toBe("Mine")
+    expect(openedWith(renamed(unnamed, "Mine"), "Server", "moth").person).toBe("Mine")
   })
 
   it("keeps the opening agent's title as it is while murmur titles, and replaces murmur's each time", () => {
-    const first = murmured(openedWith(unnamed, "Server"), "Fixing login")
-    expect(first.opener).toEqual({ title: "Server" })
+    const first = murmured(openedWith(unnamed, "Server", "moth"), "Fixing login")
+    expect(first.opener).toEqual({ title: "Server", by: "moth" })
     const next = murmured(first, "Fixing signup")
     expect(next.murmur).toEqual({ title: "Fixing signup" })
     expect(next.opener).toEqual(first.opener)

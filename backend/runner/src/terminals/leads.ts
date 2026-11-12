@@ -112,6 +112,11 @@ export const leadNotice = {
     notice +
     `The user released you from ${mention(lead)}: it no longer leads you, and its messages ` +
     "are a peer's from now. What the user told you still stands.",
+  // To the led terminal, as the person ended the link to a lead that no longer runs.
+  personReleasedFromGone: (): string =>
+    notice +
+    "The user released you from your lead: it no longer leads you, and its messages are a " +
+    "peer's from now. What the user told you still stands.",
   // To the former lead, as the person ended the link.
   personReleasedFrom: (handle: string, title: string): string =>
     notice +
@@ -187,16 +192,15 @@ export type LeadsHost = {
  * Teams formed and ended after the fact: an agent's request to lead an agent already running
  * in another terminal, which the person must approve, and the ends of a lead, by the lead
  * or by the person. A lead formed this way is the one a spawned teammate has: kept in the
- * terminal's `ledBy`, ended when its agent exits.
+ * terminal's `ledBy` (the lead's terminal id), ended when its agent exits.
  */
 export class Leads {
   constructor(private readonly host: LeadsHost) {}
 
-  /** The running terminal of the session with this handle, if any. */
-  private byHandle(sessionId: string, handle: string): Record | undefined {
-    return [...this.host.records().values()].find(
-      (each) => each.summary.sessionId === sessionId && each.summary.handle === handle,
-    )
+  /** The running terminal in the session with this id, if any: a `ledBy` names it. */
+  private byId(sessionId: string, id: string): Record | undefined {
+    const found = this.host.records().get(id)
+    return found?.summary.sessionId === sessionId ? found : undefined
   }
 
   /** Whether `target` leads `caller`, directly or up the chain of leads above it. */
@@ -206,8 +210,8 @@ export class Leads {
       seen.add(at.summary.id)
       const lead = this.host.messaging().leadOf(at.summary.id)
       if (lead === undefined) return false
-      if (lead === target.summary.handle) return true
-      at = this.byHandle(at.summary.sessionId, lead)
+      if (lead.terminalId === target.summary.id) return true
+      at = this.byId(at.summary.sessionId, lead.terminalId)
     }
     return false
   }
@@ -250,10 +254,10 @@ export class Leads {
             (deliverable.code === "none" ? " To start an agent with a task, use open_agent." : "")
         : `${mention(handle)} runs no agent to lead. To start an agent with a task, use open_agent.`
     const lead = this.host.messaging().leadOf(target.summary.id)
-    if (lead === caller.summary.handle) return `You already lead ${mention(handle)}.`
+    if (lead?.terminalId === caller.summary.id) return `You already lead ${mention(handle)}.`
     if (lead !== undefined)
       return (
-        `${mention(handle)} already has a lead, ${mention(lead)}: only the user can change ` +
+        `${mention(handle)} already has a lead, ${mention(lead.handle)}: only the user can change ` +
         "that, so tell them if it should be you."
       )
     if (this.above(caller, target))
@@ -352,7 +356,7 @@ export class Leads {
     // The person approved what was true when the agent asked: it must be true still.
     const unfit = this.unfit(caller, led) ?? this.changed(caller, led, seen)
     if (unfit) return void tell(leadNotice.unfit(unfit))
-    host.bindings().setLead(led, caller.summary.handle)
+    host.bindings().setLead(led, caller.summary.id)
     host.messaging().notice(led.summary.id, leadNotice.nowLed(caller.summary.handle), {
       always: true,
     })
@@ -391,12 +395,12 @@ export class Leads {
     if (host.stopping() || host.records().get(call.terminalId) !== caller || !led)
       return unansweredCalls.release
     const lead = host.messaging().leadOf(led.summary.id)
-    if (lead !== caller.summary.handle)
+    if (lead?.terminalId !== caller.summary.id)
       return refused(
         lead === undefined
           ? `You don't lead ${mention(target.handle)}, so there is nothing to release.`
           : `Only the lead of ${mention(target.handle)} can release it, and that is ` +
-              `${mention(lead)}, not you.`,
+              `${mention(lead.handle)}, not you.`,
       )
     host.bindings().endLead(led)
     host.messaging().notice(led.summary.id, leadNotice.released(caller.summary.handle), {
@@ -417,8 +421,10 @@ export class Leads {
    * (messaging no longer holds the brief for it). In memory only: a runner that restarts
    * before the brief lands leaves the terminal an ordinary lead's.
    */
-  releaseAfterBrief(ledId: string, lead: string, messageId: string): void {
+  releaseAfterBrief(ledId: string, leadId: string, messageId: string): void {
     const { host } = this
+    // Its handle as the notice names it, taken now: the lead may close before the brief lands.
+    const lead = host.records().get(leadId)?.summary.handle ?? "the lead"
     let seen = false
     const stop = host.messaging().subscribe((change) => {
       if (change.kind !== "terminal" || change.terminalId !== ledId) return
@@ -430,7 +436,7 @@ export class Leads {
       // After the change that told of it is through, which may still be going over messages.
       queueMicrotask(() => {
         const now = host.records().get(ledId)
-        if (host.stopping() || !pending || !now || now.summary.ledBy !== lead) return
+        if (host.stopping() || !pending || !now || now.summary.ledBy !== leadId) return
         host.bindings().endLead(now)
         if (seen) host.messaging().notice(ledId, leadNotice.briefDone(lead), { always: true })
       })
@@ -445,9 +451,9 @@ export class Leads {
     const { host } = this
     const row = host.sleepers().peer(terminalId)
     if (!row) throw new DomainError("TERMINAL_NOT_FOUND")
-    const handle = row.summary.ledBy
-    if (handle === null) return
-    const lead = this.byHandle(row.summary.sessionId, handle)
+    const leadId = row.summary.ledBy
+    if (leadId === null) return
+    const lead = this.byId(row.summary.sessionId, leadId)
     host.messaging().dropLeadMessages(terminalId)
     host.sleepers().endLead(terminalId)
     if (lead)
@@ -470,13 +476,20 @@ export class Leads {
     if (host.stopping()) throw new DomainError("CLOSING")
     const led = host.records().get(terminalId)
     if (!led) return this.releaseSleeper(terminalId)
-    const handle = led.summary.ledBy
-    if (handle === null) return
-    const lead = this.byHandle(led.summary.sessionId, handle)
+    const leadId = led.summary.ledBy
+    if (leadId === null) return
+    const lead = this.byId(led.summary.sessionId, leadId)
     // First, so the lead hears the person released it, not that a session ended.
     host.messaging().dropLeadMessages(terminalId)
     host.bindings().endLead(led)
-    host.messaging().notice(terminalId, leadNotice.personReleased(handle), { always: true })
+    // A lead that is no longer running has no handle to name.
+    host
+      .messaging()
+      .notice(
+        terminalId,
+        lead ? leadNotice.personReleased(lead.summary.handle) : leadNotice.personReleasedFromGone(),
+        { always: true },
+      )
     if (lead)
       host
         .messaging()

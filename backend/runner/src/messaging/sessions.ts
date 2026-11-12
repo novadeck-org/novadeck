@@ -81,7 +81,7 @@ export class Sessions {
   }
 
   /**
-   * A terminal starts, or starts again, with the handle its record keeps, and the handle of
+   * A terminal starts, or starts again, with the handle its record keeps, and the id of
    * the terminal that leads it (`ledBy`), if one does. It sees, and is seen by, the
    * terminals of its project and Novadeck session.
    */

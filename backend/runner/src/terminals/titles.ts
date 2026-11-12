@@ -17,7 +17,8 @@ export type { TitleSource }
  * What names a terminal (see docs/agent-messaging.md, "Naming"), each layer kept on its
  * own so the title follows their precedence: the person's title; the title the agent that
  * opened the terminal gave through `open_terminal` or `open_agent`, which shows as that
- * terminal's (its `openedBy`) and which murmur never replaces, as it never replaces the
+ * terminal's (its `openedBy`, the opener's terminal id) and which murmur never replaces, as it
+ * never replaces the
  * person's; murmur's latest title, written by a local model; and the title the terminal's
  * own agent gave through `describe`, which shows when nothing above it has named the
  * terminal. The default comes from the program the terminal was opened to run, never from
@@ -26,7 +27,12 @@ export type { TitleSource }
  */
 export type Naming = {
   readonly person: string | null
-  readonly opener: { readonly title: string } | null
+  /**
+   * The title and the opener's handle when it asked, for the title's source to name: its
+   * terminal is `openedBy`, by id, and the handle is only what the source shows. Absent
+   * where none is kept (a closed terminal's).
+   */
+  readonly opener: { readonly title: string; readonly by?: string } | null
   readonly murmur: { readonly title: string } | null
   readonly own: { readonly title: string } | null
   readonly summary: string | null
@@ -85,12 +91,11 @@ const control = /[\x00-\x1f\x7f-\x9f]/g
 
 /**
  * Whether the terminal holds a title murmur never replaces: the person's, or the one the
- * agent that opened it gave, which needs that terminal to say who it is from.
+ * agent that opened it gave. That an agent opened the terminal is the opener's handle in
+ * `naming.opener`, not `openedBy`: the opener's terminal may have closed.
  */
-export const titledByHand = (
-  naming: Pick<Naming, "person" | "opener">,
-  openedBy: string | null,
-): boolean => naming.person !== null || (naming.opener !== null && openedBy !== null)
+export const titledByHand = (naming: Pick<Naming, "person" | "opener">): boolean =>
+  naming.person !== null || naming.opener?.by !== undefined
 
 /**
  * The terminal's title and who it is from, by precedence: the person, then the opening
@@ -103,7 +108,6 @@ export const titleOf = (
   terminal: {
     readonly handle: string
     readonly command: string | null
-    readonly openedBy: string | null
   },
 ): { readonly title: string; readonly source: TitleSource } => {
   // Each kept title as a title may be now: one kept before the rule took in more holds
@@ -112,8 +116,8 @@ export const titleOf = (
   if (person !== undefined) return { title: person, source: { kind: "person" } }
   // An opener's title needs the terminal that opened it to say who it is from.
   const opener = naming.opener ? titleFrom(naming.opener.title) : undefined
-  if (opener !== undefined && terminal.openedBy !== null)
-    return { title: opener, source: { kind: "agent", by: terminal.openedBy } }
+  if (opener !== undefined && naming.opener?.by)
+    return { title: opener, source: { kind: "agent", by: naming.opener.by } }
   const murmur = naming.murmur ? titleFrom(naming.murmur.title) : undefined
   if (murmur !== undefined) return { title: murmur, source: { kind: "murmur" } }
   // The agent's own, whose source is the terminal itself, by its handle.
@@ -128,7 +132,6 @@ export const summaryTitle = (
   terminal: {
     readonly handle: string
     readonly command: string | null
-    readonly openedBy: string | null
   },
 ): Pick<TerminalSummary, "title" | "titleSource"> => {
   const { title, source } = titleOf(naming, terminal)
@@ -141,10 +144,13 @@ export const renamed = (naming: Naming, title: string | null): Naming => ({
   person: title,
 })
 
-/** The title an agent asked for as it opened the terminal: the opener's, never the person's. */
-export const openedWith = (naming: Naming, title: string): Naming => ({
+/**
+ * The title an agent asked for as it opened the terminal: the opener's, never the person's,
+ * with the handle the agent's terminal had, which the title's source names.
+ */
+export const openedWith = (naming: Naming, title: string, by: string): Naming => ({
   ...naming,
-  opener: { title },
+  opener: { title, by },
 })
 
 /** Murmur's latest title for the terminal. */

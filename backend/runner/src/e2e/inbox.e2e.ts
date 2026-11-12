@@ -253,7 +253,12 @@ for (const setup of setups) {
       expect(history.filter((message) => message.inbox === "answer")).toMatchObject([
         {
           from: { kind: "person" },
-          to: { kind: "agent", handle: terminal.handle, agent: expect.anything() },
+          to: {
+            kind: "agent",
+            terminalId: terminal.id,
+            handle: terminal.handle,
+            agent: expect.anything(),
+          },
           state: "delivered",
           text: "Green\n\nUse green, please: zażółć, @flint, $5.",
         },

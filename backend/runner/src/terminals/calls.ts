@@ -314,7 +314,8 @@ export class Calls {
       // The title it asked for is its own, never the person's: the terminal takes it as
       // the client creates it for this request.
       {
-        by: record.summary.handle,
+        by: record.summary.id,
+        handle: record.summary.handle,
         ...(request.title !== undefined && { title: request.title }),
         ...(command !== undefined && { command }),
         // Led from the start, so a brief carries the lead mark, until it lands if the lead
@@ -400,7 +401,8 @@ export class Calls {
                 { from: id, sessionId, cwd, command, focus: request.focus === true },
                 this.openMs,
                 {
-                  by: handle,
+                  by: id,
+                  handle,
                   ...(request.title !== undefined && { title: request.title }),
                   command,
                   leads: false,
@@ -429,7 +431,7 @@ export class Calls {
   private endLeadAfter(lead: Record, led: Record, task: SendAnswer | undefined): void {
     const { id } = led.summary
     if (task?.ok && this.host.messaging().briefOf(id) === task.id)
-      this.leads.releaseAfterBrief(id, lead.summary.handle, task.id)
+      this.leads.releaseAfterBrief(id, lead.summary.id, task.id)
     else this.host.bindings().endLead(led)
   }
 
@@ -543,7 +545,8 @@ export class Calls {
     // Already on its way out, as another close ended its shell: nothing more to charge.
     if (this.host.closingNow(closing.summary.id) || ("closed" in closing && closing.closed))
       return refused(`${mention(target.handle)} is already closing.`)
-    const leadsIt = this.host.messaging().leadOf(target.terminalId) === record.summary.handle
+    const leadsIt =
+      this.host.messaging().leadOf(target.terminalId)?.terminalId === record.summary.id
     const way = closeWay({ leads: leadsIt, agent: target.agent, busy })
     if (way === "request") {
       const waiting = this.host.approvals().refusal(target.terminalId)

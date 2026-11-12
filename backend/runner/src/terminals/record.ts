@@ -129,7 +129,7 @@ export type Record = {
   root: Root | null
   /** What the root session worked on, kept with the terminal; null before any did. */
   work: Work | null
-  /** The handle of the terminal whose agent opened this one; null otherwise. */
+  /** The id of the terminal whose agent opened this one, closed since or not; null otherwise. */
   openedBy: string | null
   /**
    * The command the agent that opened it started there, whose prompt is never the

@@ -251,8 +251,8 @@ export const contract = {
     // The person moves a terminal to another session of its project, running or saved,
     // without restarting it. A lead takes its whole team along, at every depth; a teammate
     // moved on its own leaves its lead. Each keeps its handle unless the session it goes to
-    // has given it already, or a terminal there holds it or is led under it, then draws that
-    // session's next, and its leads' handles follow in its team's `ledBy`. Its Inbox rows and
+    // has given it already, or a terminal there holds it, then draws that session's next.
+    // Its team's `ledBy` ids stay, as a terminal keeps its id. Its Inbox rows and
     // the companion items its bar holds go with it, and `watch` tells each move as a `changed` with the new `sessionId`. A terminal
     // it keeps nothing of is TERMINAL_NOT_FOUND; a session it doesn't have NOT_FOUND; the
     // terminal's own session, one of another project, or one being removed, a CONFLICT, as

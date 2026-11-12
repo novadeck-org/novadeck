@@ -2,6 +2,7 @@ import type { AgentName } from "@novadeck/core/harnesses"
 import type { InboxRow } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
 import type { AgentStatus, AgentUsage, TerminalMetadata, Workspace } from "@novadeck/core/types"
+import { demoTerminalId } from "@novadeck/demo/samples"
 import { sessionOf, terminalOf } from "@novadeck/demo/workspace"
 
 // The actions that put a terminal in a state, as the backend would report it. Pure, so
@@ -37,7 +38,7 @@ export const leadsOthers = (
     type: "terminal/update",
     target: sessionTarget(key),
     terminalId: terminal.id,
-    ledBy: lead.handle!,
+    ledBy: lead.id,
   }))
 }
 
@@ -55,7 +56,7 @@ export const leadsNext = (workspace: Workspace | undefined, key: TerminalKey): B
       type: "terminal/update",
       target: sessionTarget(key),
       terminalId: next.id,
-      ledBy: lead.handle,
+      ledBy: lead.id,
     },
   ]
 }
@@ -140,14 +141,14 @@ export const runProgram = (key: TerminalKey, program: string): BackendAction[] =
   setStatus(key, { state: "running" }),
 ]
 
-// A shell an agent opened, here the demo's first terminal's, for a program it runs: its
+// A shell an agent opened, here the demo's first terminal's (moth), for a program it runs: its
 // tab keeps its handle, which the agent names it by.
 export const openedByAgent = (key: TerminalKey, program: string): BackendAction[] => [
   {
     type: "terminal/update",
     target: sessionTarget(key),
     terminalId: key.terminalId,
-    openedBy: "moth",
+    openedBy: demoTerminalId(sessionTarget(key), 1),
   },
   ...runProgram(key, program),
 ]

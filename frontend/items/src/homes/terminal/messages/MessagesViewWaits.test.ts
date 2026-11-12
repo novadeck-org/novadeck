@@ -7,7 +7,12 @@ import { describe, expect, it } from "../../../test"
 import { noLinks, type MessagesHandle } from "./messages"
 import { MessagesView } from "./MessagesView"
 
-const agent = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
+const agent = (handle: string): MessageParty => ({
+  kind: "agent",
+  terminalId: `id-${handle}`,
+  handle,
+  agent: null,
+})
 
 const message = {
   id: "m1",
@@ -23,6 +28,7 @@ const message = {
 
 const messagesOf = (waits: MessageWaits | null, paused = false): MessagesHandle => {
   const threads: TerminalThreads = {
+    terminalId: "id-moth",
     handle: "moth",
     agent: true,
     waits,

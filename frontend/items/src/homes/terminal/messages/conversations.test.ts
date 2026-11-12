@@ -18,9 +18,11 @@ import {
   type ChatLine,
 } from "./conversations"
 
-// A handle as the tests write it, or `you` for the person.
+// A handle as the tests write it, or `you` for the person. A terminal's id is `id-` and its handle.
 const party = (handle: string): MessageParty =>
-  handle === "you" ? { kind: "person" } : { kind: "agent", handle, agent: null }
+  handle === "you"
+    ? { kind: "person" }
+    : { kind: "agent", terminalId: `id-${handle}`, handle, agent: null }
 
 let sequence = 0
 const message = (
@@ -53,6 +55,7 @@ const thread = (id: string, peer: string, messages: readonly AgentMessage[]): Me
 })
 
 const messagesOf = (...threads: readonly MessageThread[]): TerminalThreads => ({
+  terminalId: "id-moth",
   handle: "moth",
   agent: true,
   threads,
@@ -75,7 +78,7 @@ describe("a terminal's conversations", () => {
         thread("t-owl", "owl", [message("owl", "moth", 2 * minute, "Hi")]),
       ),
     )
-    expect(conversations.map(({ key }) => key)).toEqual([youKey, "owl"])
+    expect(conversations.map(({ key }) => key)).toEqual([youKey, "id-owl"])
     const you = conversations[0]!
     expect(you.messages.map(({ text }) => text)).toEqual(["Done.", "Which route?", "The first."])
     expect(you.asked.get(answer.id)?.text).toBe("Which route?")
@@ -89,7 +92,7 @@ describe("a terminal's conversations", () => {
       ),
     )
     expect(conversations).toHaveLength(1)
-    expect(conversations[0]!.key).toBe("owl")
+    expect(conversations[0]!.key).toBe("id-owl")
     expect(conversations[0]!.messages.map(({ text }) => text)).toEqual(["Morning", "After lunch"])
   })
 
@@ -104,7 +107,7 @@ describe("a terminal's conversations", () => {
           ]),
         ),
       )
-      expect(listed(conversations).map(({ key }) => key)).toEqual([youKey, "owl", "fox"])
+      expect(listed(conversations).map(({ key }) => key)).toEqual([youKey, "id-owl", "id-fox"])
     })
 
     it("keep the person's entries in time order once nothing in them waits", () => {
@@ -116,7 +119,7 @@ describe("a terminal's conversations", () => {
           ]),
         ),
       )
-      expect(listed(conversations).map(({ key }) => key)).toEqual(["owl", youKey])
+      expect(listed(conversations).map(({ key }) => key)).toEqual(["id-owl", youKey])
     })
   })
 })
@@ -200,7 +203,7 @@ describe("a chat", () => {
         message("moth", "owl", 2 * minute + burstMs, "d"),
         message("owl", "moth", 3 * minute + burstMs, "e"),
       ]),
-      "moth",
+      "id-moth",
       false,
     )
     expect(kinds(lines)).toEqual([
@@ -222,7 +225,7 @@ describe("a chat", () => {
         message("moth", "owl", 2, "c", { state: "held", held: "release", deliveredAt: null }),
         message("owl", "moth", 3, "d", { state: "gone", deliveredAt: null }),
       ]),
-      "moth",
+      "id-moth",
       false,
     )
     expect(kinds(lines).slice(1)).toEqual([
@@ -239,7 +242,7 @@ describe("a chat", () => {
       message("moth", "owl", round * 2 + 1, "Once more."),
     ]).flat()
     const conversation = owl([...rounds, message("owl", "moth", 20, "3 of 10 failed.")])
-    expect(kinds(chatOf(conversation, "moth", false))).toEqual([
+    expect(kinds(chatOf(conversation, "id-moth", false))).toEqual([
       "time",
       "fold 4",
       "in:Run 5: failed.",
@@ -247,7 +250,7 @@ describe("a chat", () => {
       "in:3 of 10 failed.",
     ])
     expect(
-      kinds(chatOf(conversation, "moth", true)).filter((kind) => kind !== "time"),
+      kinds(chatOf(conversation, "id-moth", true)).filter((kind) => kind !== "time"),
     ).toHaveLength(11)
   })
 
@@ -256,7 +259,7 @@ describe("a chat", () => {
       message("owl", "moth", round * 2, `Run ${round + 1}`, round === 1 ? { state: "gone" } : {}),
       message("moth", "owl", round * 2 + 1, "Again"),
     ]).flat()
-    expect(kinds(chatOf(owl(rounds), "moth", false))).toContain("in:Run 2(gone)")
+    expect(kinds(chatOf(owl(rounds), "id-moth", false))).toContain("in:Run 2(gone)")
   })
 
   it("leaves two repeated rounds as they are", () => {
@@ -266,7 +269,7 @@ describe("a chat", () => {
       message("owl", "moth", 2, "Run 2"),
       message("moth", "owl", 3, "Again"),
     ])
-    expect(kinds(chatOf(conversation, "moth", false))).not.toContain("fold 1")
+    expect(kinds(chatOf(conversation, "id-moth", false))).not.toContain("fold 1")
   })
 
   it("puts the person on the right in their entries, a New line before the first unread", () => {
@@ -284,7 +287,7 @@ describe("a chat", () => {
         ]),
       ),
     )[0]!
-    expect(kinds(chatOf(conversation, "moth", false))).toEqual([
+    expect(kinds(chatOf(conversation, "id-moth", false))).toEqual([
       "time",
       "in:Tax?",
       "out:After.(delivered)",

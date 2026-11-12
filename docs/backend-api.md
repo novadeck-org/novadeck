@@ -299,15 +299,15 @@ from that saved session. The agents listing's "reported done" follows the same r
 `runner.terminals.move({ terminalId, to, handles?, lead? })` moves a terminal to another session
 of the same project without restarting it: a running one, or one kept only as saved (a
 sleeping agent). `to` is `{ sessionId }`. A lead takes its whole team,
-at every depth, in one step, so none is ever led by a handle that went; a teammate moved on its
-own leaves its lead, and the answer's `left` is that lead's handle (null if it had none). The
+at every depth, in one step; a teammate moved on its
+own leaves its lead, and the answer's `left` is that lead's terminal id (null if it had none). The
 answer is `{ sessionId, moved, left }`, `moved` listing the terminal asked for and then its team
 as `{ terminalId, handle, was }`. Each keeps its handle unless the target session gave it
-already, as a restore from History does (a terminal there has it or is led under it, or the
-session gave it to another): it then draws that session's next, and its workers' `ledBy` follow.
-`handles` (by terminal id) and `lead` undo an earlier move: a handle is taken back where no
-terminal of the session holds it or is led under it, and the terminal rejoins the lead with
-that handle if one is there, without asking. `terminals.watch` tells each moved terminal as a
+already, as a restore from History does (a terminal there has it, or the session gave it to
+another): it then draws that session's next. A terminal's `ledBy` and `openedBy` are terminal
+ids, so a move leaves its team's links as they are. `handles` (by terminal id) and `lead` (the
+id `left` gave) undo an earlier move: a handle is taken back where no terminal of the session
+holds it, and the terminal rejoins that lead if it is there, without asking. `terminals.watch` tells each moved terminal as a
 `changed` with its new `sessionId`; its Inbox rows and its companion bar's items go with it,
 and each running agent hears of it as a notice, with any new handles and the lead it left (a
 sleeping agent isn't woken for it). A terminal that is closing, stopping to rest, being woken,
@@ -394,7 +394,8 @@ for await (const listing of runner.messages.watch(terminalId)) show(listing) // 
 `messages.list(terminalId)` gives a running or exited terminal's handle, its delivery
 state (`unbound`, `fresh`, `working`, `settled`, `ringing`, `drafting` or `unknown`), whether
 messaging is paused, and its threads, newest first, each with its `peer`, the other party
-(a terminal's agent, `{ kind: "agent", handle, agent }`, or the person, `{ kind: "person" }`),
+(a terminal's agent, `{ kind: "agent", terminalId, handle, agent }`, or the person,
+`{ kind: "person" }`; the terminal is the `terminalId`, and the `handle` is how it reads there),
 its hops so far, its idle messages in a row (sent while neither end worked, see
 [Guards](agent-messaging.md#guards)), whether it is held and why (`heldFor`: `"loop"`, or
 null when not held or for a hold carried over from the twelve-hop rule), whether the person stopped it, and its messages, oldest first: id, hop, its `from` and `to`

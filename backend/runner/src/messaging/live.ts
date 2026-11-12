@@ -20,11 +20,12 @@ export type Live = Scope & {
   readonly terminalId: string
   readonly handle: string
   /**
-   * The handle of the terminal whose agent leads this one: it opened this terminal with a
+   * The id of the terminal whose agent leads this one: it opened this terminal with a
    * brief, and directs its work. It belongs to the terminal, not to a session, so it
    * outlasts a `/clear` or a restart of either agent, and ends when this terminal's agent
-   * exits (`endLead`). It means anything only while a running terminal in the same
-   * project and session has that handle (handles are never reused there): its running lead.
+   * exits (`endLead`). It means anything only while that terminal is running in the same
+   * project and session: its running lead. An id names one terminal for good, so a lead
+   * that closed names no other.
    */
   ledBy: string | null
   /** Its root session, as the terminal manager follows it. */
@@ -219,7 +220,7 @@ export const neverBound = (live: Live): boolean =>
 /** Whether `lead` is the running lead of `worker`. */
 export const leads = (worker: Live, lead: Live): boolean =>
   worker.ledBy !== null &&
-  worker.ledBy === lead.handle &&
+  worker.ledBy === lead.terminalId &&
   worker.projectId === lead.projectId &&
   worker.sessionId === lead.sessionId
 

@@ -13,9 +13,14 @@ import { context, describe, expect, it } from "../../../test"
 import type { MessagesHandle, MessageLinks } from "./messages"
 import { MessagesView } from "./MessagesView"
 
+// The terminals these tests have, by the handle they write: moth is 01, fox 02, owl 03.
+const ids: Readonly<Record<string, string>> = { moth: "01", fox: "02", owl: "03" }
+
 // A handle as the tests write it, or `you` for the person.
 const party = (handle: string): MessageParty =>
-  handle === "you" ? { kind: "person" } : { kind: "agent", handle, agent: null }
+  handle === "you"
+    ? { kind: "person" }
+    : { kind: "agent", terminalId: ids[handle]!, handle, agent: null }
 
 let sequence = 0
 const message = (
@@ -49,9 +54,9 @@ const thread = (id: string, peer: string, messages: readonly AgentMessage[]): Me
 
 const now = Date.now()
 const peers: Readonly<Record<string, MessagePeer>> = {
-  owl: { name: "Tests", terminalId: "03", program: "claude", live: "working" },
-  fox: { name: "Dev server", terminalId: "02", program: "zsh", live: "gone" },
-  moth: { name: "Checkout", terminalId: "01", program: "claude", live: "working" },
+  "03": { name: "Tests", terminalId: "03", program: "claude", live: "working" },
+  "02": { name: "Dev server", terminalId: "02", program: "zsh", live: "gone" },
+  "01": { name: "Checkout", terminalId: "01", program: "claude", live: "working" },
 }
 
 const unmounts: (() => void)[] = []
@@ -67,7 +72,7 @@ const mount = (
 ) => {
   const did = { goTo: [] as string[], answer: [] as string[], seen: [] as [string, number][] }
   const handle: MessagesHandle = {
-    threads: { handle: "moth", agent: true, threads },
+    threads: { terminalId: "01", handle: "moth", agent: true, threads },
     paused,
     pending: false,
     error: null,
@@ -160,7 +165,7 @@ describe("an open conversation", () => {
 
     it("reads as a chat, the terminal's agent on the right, notes only where worth a look", () => {
       const { $, view, open, did } = mount(threads)
-      open("owl")
+      open("03")
       expect($(".message-chat-name")?.textContent).toBe("Tests@owl")
       const sides = [...view.container.querySelectorAll(".message-bubble-row")].map((row) =>
         row.getAttribute("data-side"),
@@ -170,22 +175,22 @@ describe("an open conversation", () => {
         (note) => note.textContent,
       )
       expect(notes).toEqual(["Delivered", "Waiting"])
-      expect(did.seen).toEqual([["owl", now]])
+      expect(did.seen).toEqual([["03", now]])
     })
 
     it("leaves news unseen while its terminal is out of sight", () => {
       const { open, did } = mount(threads, { shown: false })
-      open("owl")
+      open("03")
       expect(did.seen).toEqual([])
     })
 
     it("goes to the other agent's terminal, and back to the list onto its row", () => {
       const { $, open, did } = mount(threads)
-      open("owl")
+      open("03")
       act(() => $(".message-go")!.click())
       expect(did.goTo).toEqual(["03"])
       act(() => $(".message-back")!.click())
-      expect(document.activeElement?.getAttribute("data-conversation")).toBe("owl")
+      expect(document.activeElement?.getAttribute("data-conversation")).toBe("03")
     })
   })
 

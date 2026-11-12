@@ -57,8 +57,10 @@ export type MessagesHandle = {
   readonly hasMessages: boolean
   readonly badge: MessageBadge | null
   readonly pause: (paused: boolean) => void
-  // When the person last saw a conversation, by its key, and that they saw it up to `at`.
-  readonly seenAt: (conversation: string) => number
+  // When the person last saw a conversation, by its key (the other terminal's id; `handle` is
+  // the key an earlier build kept it under, which counts where the id has none), and that
+  // they saw it up to `at`.
+  readonly seenAt: (conversation: string, handle?: string) => number
   readonly seen: (conversation: string, at: number) => void
 }
 
@@ -86,7 +88,8 @@ export const useMessages = (messages: Messages | undefined, key: TerminalKey): M
     hasMessages: hasMessages(threads),
     badge: messageBadge(threads, paused),
     pause,
-    seenAt: (conversation) => seenAt(record, seenKey(id, conversation)),
+    seenAt: (conversation, handle) =>
+      seenAt(record, seenKey(id, conversation), handle && seenKey(id, handle)),
     seen,
   }
 }

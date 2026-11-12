@@ -37,9 +37,10 @@ export type RunnerMessages = Messages & {
 const partyOf = (party: MessageParty): CoreParty =>
   party.kind === "person"
     ? { kind: "person" }
-    : { kind: "agent", handle: party.handle, agent: party.agent }
+    : { kind: "agent", terminalId: party.terminalId, handle: party.handle, agent: party.agent }
 
 export const messagesOf = (listing: TerminalMessages): TerminalThreads => ({
+  terminalId: listing.terminalId,
   handle: listing.handle,
   agent: listing.delivery !== "unbound",
   waits: listing.waits,

@@ -74,7 +74,10 @@ const projectOf = ({ pinned, ...project }: ProjectRow): Project => ({
 // 13: what agents reported and how their turns ended has a log of its own (`report_log`),
 // apart from the Inbox's entries, filled from them in the step from 12.
 // 14: the worktrees agents work in have an ownership table of their own (`worktrees`).
-const schemaVersion = 14
+// 15: a terminal's opener and lead are named by terminal id (`opener_terminal`,
+// `lead_terminal`), not by handle, with the opener's handle kept for display
+// (`opener_handle`).
+const schemaVersion = 15
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -117,17 +120,19 @@ const schema = `
     saved_at REAL NOT NULL,
     -- The title the person gave it; null when its title is automatic.
     person_title TEXT,
-    -- The title the agent that opened it asked for; its handle is opened_by.
+    -- The title the agent that opened it asked for; opener_handle is the handle that agent's
+    -- terminal had then, which the title's source names.
     opener_title TEXT,
     -- The title murmur last wrote for it.
     murmur_title TEXT,
     -- What its own agent said it works on, through describe.
     summary TEXT,
-    -- The handle of the terminal whose agent opened it; null otherwise.
-    opened_by TEXT,
-    -- The handle of its lead: the terminal whose agent opened it with a brief for the agent
+    -- The id of the terminal whose agent opened it, which may have closed since; null
+    -- otherwise.
+    opener_terminal TEXT,
+    -- The id of its lead: the terminal whose agent opened it with a brief for the agent
     -- there, until that agent exits; null otherwise.
-    led_by TEXT,
+    lead_terminal TEXT,
     -- The command it was opened to run at its first prompt.
     command TEXT,
     -- The program in its foreground when its shell was last seen.
@@ -142,6 +147,11 @@ const schema = `
     -- Whether a line was ever entered in it; closing one where none was leaves no row in
     -- History. New terminals start at 0.
     ran INTEGER NOT NULL DEFAULT 1 CHECK (ran IN (0, 1)),
+    -- The handle of the terminal that opened it as that terminal had it then: a display
+    -- snapshot, for the source of opener_title ("named by the agent in @moth"), which
+    -- opener_terminal, the link, cannot give once that terminal has closed. Null where there
+    -- is no opener title.
+    opener_handle TEXT,
     UNIQUE (session_id, handle),
     -- What an item's foreign key names; a save may move a terminal to another session, and
     -- its items go with it.
@@ -842,6 +852,21 @@ const migrations: Readonly<Record<number, Step>> = {
     CREATE INDEX worktrees_project ON worktrees(project_id);
     CREATE INDEX worktrees_terminal ON worktrees(terminal_id);
   `,
+  // A terminal names the terminal that opened it and the one that leads it by id, as a
+  // handle can be given to a later terminal. A handle is unique within its session, so each
+  // names exactly one terminal there. A lead or opener that has closed names none: null.
+  // That an agent opened it stays as `opener_handle`, which its title's source names.
+  14: `
+    ALTER TABLE terminals ADD COLUMN opener_handle TEXT;
+    UPDATE terminals SET
+      opener_handle = opened_by,
+      opened_by = (SELECT o.id FROM terminals o
+        WHERE o.session_id = terminals.session_id AND o.handle = terminals.opened_by),
+      led_by = (SELECT o.id FROM terminals o
+        WHERE o.session_id = terminals.session_id AND o.handle = terminals.led_by);
+    ALTER TABLE terminals RENAME COLUMN opened_by TO opener_terminal;
+    ALTER TABLE terminals RENAME COLUMN led_by TO lead_terminal;
+  `,
 }
 // SQLite's primary result codes that say a step doesn't fit the database it met, or that
 // it is damaged, as against a full disk, an I/O error or a lock, after which a later start
@@ -1136,11 +1161,12 @@ type TerminalRow = {
   handle: string
   person_title: string | null
   opener_title: string | null
+  opener_handle: string | null
   murmur_title: string | null
   own_title: string | null
   summary: string | null
-  opened_by: string | null
-  led_by: string | null
+  opener_terminal: string | null
+  lead_terminal: string | null
   command: string | null
   last_program: string | null
   work: string | null
@@ -1159,11 +1185,14 @@ const workOf = (text: string | null): Work | null => {
 type NamingRow = Pick<
   TerminalRow,
   "person_title" | "opener_title" | "murmur_title" | "own_title" | "summary"
->
+> & { readonly opener_handle?: string | null }
 
 const namingOf = (row: NamingRow): Naming => ({
   person: row.person_title,
-  opener: row.opener_title !== null ? { title: row.opener_title } : null,
+  opener:
+    row.opener_title !== null
+      ? { title: row.opener_title, ...(row.opener_handle ? { by: row.opener_handle } : {}) }
+      : null,
   murmur: row.murmur_title !== null ? { title: row.murmur_title } : null,
   own: row.own_title !== null ? { title: row.own_title } : null,
   summary: row.summary,
@@ -1194,8 +1223,8 @@ const listed = (row: Omit<TerminalRow, "transcript" | "interruptions">): ListedT
   handle: row.handle,
   naming: namingOf(row),
   work: workOf(row.work),
-  openedBy: row.opened_by,
-  ledBy: row.led_by,
+  openedBy: row.opener_terminal,
+  ledBy: row.lead_terminal,
   command: row.command === null ? null : commandOf(row.command),
   lastProgram: row.last_program,
   cwd: row.cwd,
@@ -1704,8 +1733,8 @@ export class WorkspaceStore
   terminal(terminalId: string): SavedTerminal | undefined {
     const row = this.queries.get`
       SELECT id, session_id, cwd, agent_reports, prompted_at, transcript, saved_at, handle,
-        person_title, opener_title, murmur_title, own_title, summary, opened_by,
-        led_by, command, last_program, work, interruptions
+        person_title, opener_title, opener_handle, murmur_title, own_title, summary,
+        opener_terminal, lead_terminal, command, last_program, work, interruptions
       FROM terminals WHERE id = ${terminalId}
     ` as TerminalRow | undefined
     return (
@@ -1724,14 +1753,14 @@ export class WorkspaceStore
       sessionId === undefined
         ? this.queries.all`
           SELECT t.id, t.session_id, t.cwd, t.agent_reports, t.prompted_at, t.saved_at, t.handle,
-            t.person_title, t.opener_title, t.murmur_title, t.own_title, t.summary,
-            t.opened_by, t.led_by, t.command, t.last_program, t.work
+            t.person_title, t.opener_title, t.opener_handle, t.murmur_title, t.own_title,
+            t.summary, t.opener_terminal, t.lead_terminal, t.command, t.last_program, t.work
           FROM terminals t LEFT JOIN session_handles h USING (session_id, handle)
           ORDER BY h.rowid IS NULL, h.rowid, t.rowid`
         : this.queries.all`
           SELECT t.id, t.session_id, t.cwd, t.agent_reports, t.prompted_at, t.saved_at, t.handle,
-            t.person_title, t.opener_title, t.murmur_title, t.own_title, t.summary,
-            t.opened_by, t.led_by, t.command, t.last_program, t.work
+            t.person_title, t.opener_title, t.opener_handle, t.murmur_title, t.own_title,
+            t.summary, t.opener_terminal, t.lead_terminal, t.command, t.last_program, t.work
           FROM terminals t LEFT JOIN session_handles h USING (session_id, handle)
           WHERE t.session_id = ${sessionId}
           ORDER BY h.rowid IS NULL, h.rowid, t.rowid`
@@ -1774,16 +1803,16 @@ export class WorkspaceStore
 
   terminalIdentity(terminalId: string): TerminalIdentity | undefined {
     const row = this.queries.get`
-      SELECT handle, person_title, opener_title, murmur_title, own_title, summary, opened_by,
-        led_by
+      SELECT handle, person_title, opener_title, opener_handle, murmur_title, own_title, summary,
+        opener_terminal, lead_terminal
       FROM terminals WHERE id = ${terminalId}
-    ` as (NamingRow & Pick<TerminalRow, "handle" | "opened_by" | "led_by">) | undefined
+    ` as (NamingRow & Pick<TerminalRow, "handle" | "opener_terminal" | "lead_terminal">) | undefined
     return (
       row && {
         handle: row.handle,
         naming: namingOf(row),
-        openedBy: row.opened_by,
-        ledBy: row.led_by,
+        openedBy: row.opener_terminal,
+        ledBy: row.lead_terminal,
       }
     )
   }
@@ -1803,6 +1832,7 @@ export class WorkspaceStore
     const murmurTitle = naming.murmur?.title ?? null
     const { summary } = naming
     const openerTitle = naming.opener?.title ?? null
+    const openerHandle = naming.opener?.by ?? null
     const ownTitle = naming.own?.title ?? null
     const work = terminal.work === null ? null : JSON.stringify(terminal.work)
     const interruptions = terminal.interruptions?.length
@@ -1811,39 +1841,41 @@ export class WorkspaceStore
     if (terminal.transcript === undefined)
       void this.queries.run`
         INSERT INTO terminals (id, session_id, cwd, agent_reports, prompted_at, saved_at, handle,
-          person_title, opener_title, murmur_title, own_title, summary, opened_by,
-          led_by, command, last_program, work, interruptions, ran)
+          person_title, opener_title, opener_handle, murmur_title, own_title, summary,
+          opener_terminal, lead_terminal, command, last_program, work, interruptions, ran)
         VALUES (${terminal.id}, ${terminal.sessionId}, ${terminal.cwd}, ${agents},
-          ${terminal.promptedAt}, ${now}, ${handle}, ${person}, ${openerTitle},
+          ${terminal.promptedAt}, ${now}, ${handle}, ${person}, ${openerTitle}, ${openerHandle},
           ${murmurTitle}, ${ownTitle}, ${summary}, ${openedBy}, ${ledBy}, ${command},
           ${lastProgram}, ${work}, ${interruptions}, ${ran})
         ON CONFLICT (id) DO UPDATE SET session_id = excluded.session_id, cwd = excluded.cwd,
           agent_reports = excluded.agent_reports, prompted_at = excluded.prompted_at,
           saved_at = excluded.saved_at, handle = excluded.handle,
           person_title = excluded.person_title, opener_title = excluded.opener_title,
+          opener_handle = excluded.opener_handle,
           murmur_title = excluded.murmur_title, own_title = excluded.own_title,
-          summary = excluded.summary, opened_by = excluded.opened_by,
-          led_by = excluded.led_by, command = excluded.command,
+          summary = excluded.summary, opener_terminal = excluded.opener_terminal,
+          lead_terminal = excluded.lead_terminal, command = excluded.command,
           last_program = excluded.last_program, work = excluded.work,
           interruptions = excluded.interruptions, ran = max(ran, excluded.ran)
       `
     else
       void this.queries.run`
         INSERT INTO terminals (id, session_id, cwd, agent_reports, prompted_at, transcript, saved_at,
-          handle, person_title, opener_title, murmur_title, own_title, summary,
-          opened_by, led_by, command, last_program, work, interruptions, ran)
+          handle, person_title, opener_title, opener_handle, murmur_title, own_title, summary,
+          opener_terminal, lead_terminal, command, last_program, work, interruptions, ran)
         VALUES (${terminal.id}, ${terminal.sessionId}, ${terminal.cwd}, ${agents},
           ${terminal.promptedAt}, ${terminal.transcript}, ${now}, ${handle}, ${person},
-          ${openerTitle}, ${murmurTitle}, ${ownTitle}, ${summary}, ${openedBy}, ${ledBy},
+          ${openerTitle}, ${openerHandle}, ${murmurTitle}, ${ownTitle}, ${summary}, ${openedBy},
+          ${ledBy},
           ${command}, ${lastProgram}, ${work}, ${interruptions}, ${ran})
         ON CONFLICT (id) DO UPDATE SET session_id = excluded.session_id, cwd = excluded.cwd,
           agent_reports = excluded.agent_reports, prompted_at = excluded.prompted_at,
           transcript = excluded.transcript, saved_at = excluded.saved_at,
           handle = excluded.handle, person_title = excluded.person_title,
-          opener_title = excluded.opener_title,
+          opener_title = excluded.opener_title, opener_handle = excluded.opener_handle,
           murmur_title = excluded.murmur_title, own_title = excluded.own_title,
           summary = excluded.summary,
-          opened_by = excluded.opened_by, led_by = excluded.led_by, command = excluded.command,
+          opener_terminal = excluded.opener_terminal, lead_terminal = excluded.lead_terminal, command = excluded.command,
           last_program = excluded.last_program, work = excluded.work,
           interruptions = excluded.interruptions, ran = max(ran, excluded.ran)
       `

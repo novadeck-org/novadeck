@@ -26,7 +26,7 @@ const led = () => {
   const workspace = workspaceFixture({ terminals: 2 })
   return [
     { type: "terminal/update", target, terminalId: "01", handle: "moth" },
-    { type: "terminal/update", target, terminalId: "02", handle: "fox", ledBy: "moth" },
+    { type: "terminal/update", target, terminalId: "02", handle: "fox", ledBy: "01" },
   ].reduce(
     (state, action) => workspaceReducer(state, action as Parameters<typeof workspaceReducer>[1]),
     workspace,
@@ -55,7 +55,7 @@ describe("the leads that run", () => {
     expect(runningLeads(back)).toEqual({ "02": { handle: "moth", name: "Terminal" } })
   })
 
-  it("name the first live terminal with the lead's handle, passing over one that exited", () => {
+  it("name the lead by its id, whichever other terminal has its handle", () => {
     const shared = [
       { type: "terminal/add", target, terminal: terminalFixture(3, "~/project") },
       { type: "terminal/update", target, terminalId: "03", handle: "moth" },
@@ -71,7 +71,7 @@ describe("the leads that run", () => {
       terminalId: "01",
       status: { state: "exited", exitCode: 0, signal: null },
     })
-    expect(runningLeads(exited)).toEqual({ "02": { handle: "moth", name: "Other" } })
+    expect(runningLeads(exited)).toEqual({})
   })
 
   it("leave a terminal without one once its lead is closed", () => {
@@ -99,8 +99,8 @@ const teams = () =>
       terminal: terminalFixture(slot, "~/project"),
     })),
     { type: "terminal/update", target, terminalId: "03", handle: "wren" },
-    { type: "terminal/update", target, terminalId: "04", handle: "owl", ledBy: "moth" },
-    { type: "terminal/update", target, terminalId: "05", handle: "newt", ledBy: "owl" },
+    { type: "terminal/update", target, terminalId: "04", handle: "owl", ledBy: "01" },
+    { type: "terminal/update", target, terminalId: "05", handle: "newt", ledBy: "04" },
   ].reduce(
     (state, action) => workspaceReducer(state, action as Parameters<typeof workspaceReducer>[1]),
     led(),
@@ -134,8 +134,8 @@ describe("a terminal's team", () => {
     })
   })
 
-  context("when two live terminals share its lead's handle", () => {
-    it("is led by the first of them", () => {
+  context("when another live terminal has its lead's handle", () => {
+    it("is led by the lead it names, and the other leads no one", () => {
       const shared = [
         { type: "terminal/add", target, terminal: terminalFixture(6, "~/project") },
         { type: "terminal/update", target, terminalId: "06", handle: "moth" },
@@ -185,7 +185,7 @@ describe("a terminal's team in words", () => {
       (state, slot) =>
         [
           { type: "terminal/add", target, terminal: terminalFixture(slot, "~/project") },
-          { type: "terminal/update", target, terminalId: `0${slot}`, ledBy: "moth" },
+          { type: "terminal/update", target, terminalId: `0${slot}`, ledBy: "01" },
         ].reduce(
           (inner, action) =>
             workspaceReducer(inner, action as Parameters<typeof workspaceReducer>[1]),
@@ -206,7 +206,7 @@ describe("a terminal's team in words", () => {
             target,
             terminalId: `0${slot}`,
             handle: `w${slot}`,
-            ledBy: "moth",
+            ledBy: "01",
           },
         ].reduce(
           (inner, action) =>
@@ -272,7 +272,7 @@ describe("two teams", () => {
       type: "terminal/update",
       target,
       terminalId: "03",
-      ledBy: "moth",
+      ledBy: "01",
     })
     expect(sameTeam(teamOf(teams(), "01"), teamOf(joined, "01"))).toBe(false)
   })
@@ -337,8 +337,8 @@ describe("the roster-wide values", () => {
       { "02": { handle: "moth", name: "Lead" } },
       { "01": "@moth · Lead", "02": "@fox · Terminal" },
       {
-        moth: { name: "Lead", terminalId: "01", program: undefined, live: "gone" },
-        fox: { name: "Terminal", terminalId: "02", program: undefined, live: "gone" },
+        "01": { name: "Lead", terminalId: "01", program: undefined, live: "gone" },
+        "02": { name: "Terminal", terminalId: "02", program: undefined, live: "gone" },
       },
     ])
   })
@@ -360,13 +360,13 @@ describe("the peers messages show", () => {
       terminalId: "01",
       process: "claude",
     })
-    expect(messagePeers(busy).moth).toEqual({
+    expect(messagePeers(busy)["01"]).toEqual({
       name: "Terminal",
       terminalId: "01",
       program: "claude",
       live: "working",
     })
-    expect(messagePeers(running(false)).moth?.live).toBe("idle")
+    expect(messagePeers(running(false))["01"]?.live).toBe("idle")
   })
 
   it("say an agent busy with a command in its shell mode is working", () => {
@@ -379,11 +379,11 @@ describe("the peers messages show", () => {
         agent: { working: false, shellCommand: { command: "sleep 15", since: 1 } },
       },
     })
-    expect(messagePeers(shell).moth?.live).toBe("working")
+    expect(messagePeers(shell)["01"]?.live).toBe("working")
   })
 
   it("say an agent is gone from a terminal that only runs its shell", () => {
-    expect(messagePeers(led()).fox?.live).toBe("gone")
+    expect(messagePeers(led())["02"]?.live).toBe("gone")
   })
 
   it("say an agent program is there before its hooks have said anything", () => {
@@ -396,7 +396,7 @@ describe("the peers messages show", () => {
       }),
       { type: "terminal/process", target, terminalId: "02", process: "codex" },
     )
-    expect(messagePeers(started).fox?.live).toBe("idle")
+    expect(messagePeers(started)["02"]?.live).toBe("idle")
   })
 })
 
@@ -422,7 +422,7 @@ describe("nested teams", () => {
       type: "terminal/update",
       target,
       terminalId: "01",
-      ledBy: "newt",
+      ledBy: "05",
     } as Parameters<typeof workspaceReducer>[1])
     expect(leadChain(looped, "05")).toEqual(["04", "01"])
     expect(descendantsOf(looped, "01")).toEqual(["02", "04", "05"])

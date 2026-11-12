@@ -60,7 +60,7 @@ export const showcaseDemo = (
       id: demoTerminalId(session, 3),
       name: "Refactor auth",
       handle: "owl",
-      ledBy: "moth",
+      ledBy: demoTerminalId(session, 1),
       titleSource: { kind: "agent", by: "moth" },
       command: "claude",
       process: "claude",

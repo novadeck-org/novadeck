@@ -11,7 +11,12 @@ import { afterEach } from "vitest"
 import { describe, expect, it } from "../../../test"
 import { followMessages, useMessages, type MessagesHandle } from "./messages"
 
-const agent = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
+const agent = (handle: string): MessageParty => ({
+  kind: "agent",
+  terminalId: `id-${handle}`,
+  handle,
+  agent: null,
+})
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
 
@@ -25,6 +30,7 @@ describe("a terminal's messages on its taskbar", () => {
     ...noMessages,
     terminals: {
       [terminalKeyPath({ ...target, terminalId: "01" })]: {
+        terminalId: "01",
         handle: "moth",
         agent: true,
         threads: [
@@ -74,6 +80,7 @@ describe("a terminal's messages on its taskbar", () => {
       ...noMessages,
       terminals: {
         [terminalKeyPath({ ...target, terminalId: "01" })]: {
+          terminalId: "01",
           handle: "moth",
           agent: false,
           threads: [],

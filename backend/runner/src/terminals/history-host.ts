@@ -78,7 +78,7 @@ export const historyHost = (parts: HistoryParts): HistoryHost => ({
   terminalsIn: (sessionId) => [
     ...[...parts.records.values()]
       .filter((record) => record.summary.sessionId === sessionId)
-      .map(({ summary }) => ({ handle: summary.handle, ledBy: summary.ledBy })),
+      .map(({ summary }) => ({ handle: summary.handle })),
     ...parts.saves.terminals(sessionId),
   ],
   drawHandle: parts.drawHandle,

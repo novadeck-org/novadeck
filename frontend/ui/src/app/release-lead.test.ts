@@ -1,5 +1,6 @@
 import type { Backend } from "@novadeck/core/port"
-import { terminalFixture } from "@novadeck/core/testing"
+import { terminalFixture, workspaceFixture } from "@novadeck/core/testing"
+import type { Workspace } from "@novadeck/core/types"
 import { render } from "@novadeck/test-kit/render"
 import { createElement } from "react"
 import { vi } from "vitest"
@@ -8,14 +9,41 @@ import { describe, expect, it } from "../test"
 
 const services: { backend: Partial<Backend> } = { backend: {} }
 
+// A session of one terminal, 01, which is moth.
+const fixture = workspaceFixture({ terminals: 1 })
+const session = fixture.projects[0]!.history[0]!
+const workspace: Workspace = {
+  ...fixture,
+  projects: [
+    {
+      ...fixture.projects[0]!,
+      history: [
+        {
+          ...session,
+          state: {
+            ...session.state,
+            roster: {
+              ...session.state.roster,
+              terminals: session.state.roster.terminals.map((each) => ({
+                ...each,
+                handle: "moth",
+              })),
+            },
+          },
+        },
+      ],
+    },
+  ],
+}
+
 vi.mock("./controller/context", () => ({
   useWorkspaceServices: () => services,
-  useWorkspaceState: () => ({ projectId: "p", workspaceSessionId: "s" }),
+  useWorkspaceState: (select: (workspace: Workspace) => unknown) => select(workspace),
 }))
 
 const { useReleaseLead } = await import("./release-lead")
 
-const led = { ...terminalFixture(4, "~/p"), ledBy: "moth", state: "running" as const }
+const led = { ...terminalFixture(4, "~/p"), ledBy: "01", state: "running" as const }
 
 const offered = (tile: object, releaseLead: Backend["releaseLead"] | null = () => {}) => {
   services.backend = releaseLead ? { releaseLead } : {}
@@ -37,8 +65,8 @@ describe("releasing a terminal from its lead", () => {
     const releaseLead = vi.fn<NonNullable<Backend["releaseLead"]>>()
     offered(led, releaseLead)?.onRelease()
     expect(releaseLead).toHaveBeenCalledExactlyOnceWith({
-      projectId: "p",
-      workspaceSessionId: "s",
+      projectId: "project",
+      workspaceSessionId: "initial",
       terminalId: led.id,
     })
   })
@@ -55,6 +83,10 @@ describe("releasing a terminal from its lead", () => {
     const exited = { ...led, state: "exited", exitCode: 0, signal: null }
     expect(offered(exited)).toBeUndefined()
     expect(offered({ ...led, state: "failed", message: "x" })).toBeUndefined()
+  })
+
+  it("isn't offered from a lead the session no longer has", () => {
+    expect(offered({ ...led, ledBy: "99" })).toBeUndefined()
   })
 
   it("isn't offered without a lead or on a backend that can't release", () => {

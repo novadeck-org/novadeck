@@ -24,11 +24,17 @@ export type InboxHistory =
   | "gone"
   | "undelivered"
 
-// Who a message is from or for: a terminal's agent, by the terminal's handle such as `moth`
-// (`agent` its name, null while none had bound there), or the person. The core can't import
-// the protocol's wire contracts, so this mirrors its `MessageParty`.
+// Who a message is from or for: a terminal's agent, by the terminal's id (`terminalId`; its
+// `handle` such as `moth` only reads as the party, and may be another terminal's later;
+// `agent` is the agent's name, null while none had bound there), or the person. The core
+// can't import the protocol's wire contracts, so this mirrors its `MessageParty`.
 export type MessageParty =
-  | { readonly kind: "agent"; readonly handle: string; readonly agent: string | null }
+  | {
+      readonly kind: "agent"
+      readonly terminalId: string
+      readonly handle: string
+      readonly agent: string | null
+    }
   | { readonly kind: "person" }
 
 export type AgentMessage = {
@@ -49,7 +55,7 @@ export type AgentMessage = {
   readonly deliveredAt: number | null
 }
 
-// A terminal's thread with one other party, a terminal by its handle or the person: how many
+// A terminal's thread with one other party, a terminal or the person: how many
 // messages it has had, how many idle ones in a row (sent while neither end worked), and its
 // messages, oldest first. `held` while the thread has a hold, `heldFor` its reason: `loop`,
 // or null for a hold carried over from the old rule.
@@ -105,10 +111,11 @@ export const waitsBehind: Readonly<Record<MessageWaits, string>> = {
   away: "a terminal that isn't at its prompt",
 }
 
-// A terminal's messages: its own handle, whether an agent is there to take them, why the
+// A terminal's messages: its own id and handle, whether an agent is there to take them, why the
 // doorbell can't wake it now if its agent is idle and since when (epoch milliseconds), and
 // its threads, latest first.
 export type TerminalThreads = {
+  readonly terminalId: string
   readonly handle: string
   readonly agent: boolean
   readonly waits?: MessageWaits | null
@@ -118,7 +125,7 @@ export type TerminalThreads = {
   readonly threads: readonly MessageThread[]
 }
 
-// Another terminal of the session as a terminal's messages show it, by its handle: its
+// Another terminal of the session as a terminal's messages show it, by its id: its
 // name and id, the program running in it, and whether its agent is there, at rest or
 // working, or gone from it.
 export type MessagePeer = {
@@ -198,7 +205,7 @@ export const waitingFor = (terminalMessages: TerminalThreads): readonly AgentMes
     thread.messages.filter(
       (message) =>
         message.to.kind === "agent" &&
-        message.to.handle === terminalMessages.handle &&
+        message.to.terminalId === terminalMessages.terminalId &&
         waitingStates.has(message.state),
     ),
   )
@@ -210,7 +217,7 @@ export const doorbellOf = (terminalMessages: TerminalThreads | undefined): ChatD
     thread.messages.filter(
       (message) =>
         message.to.kind === "agent" &&
-        message.to.handle === terminalMessages.handle &&
+        message.to.terminalId === terminalMessages.terminalId &&
         message.deliveredAt !== null,
     ),
   )

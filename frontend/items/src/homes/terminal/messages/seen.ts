@@ -4,7 +4,7 @@ import { createStore, type MutableStore } from "@novadeck/core/store"
 // the UI's alone, as the runner keeps no seen-by-the-person state for agents' messages. It
 // lives in local storage, which every window shares. What the pane first sees counts as
 // read up to then (`since`): opening the app says what happened since, not a backlog. A
-// conversation is named by its terminal's key and its own (`seenKey`).
+// conversation is named by its terminal's key and the other terminal's id (`seenKey`).
 
 export const seenStorageKey = "novadeck.messages-seen"
 
@@ -50,8 +50,11 @@ const writeSeen = (seen: Seen): void => {
   }
 }
 
-// When the person last saw a conversation.
-export const seenAt = (seen: Seen, key: string): number => seen.at[key] ?? seen.since
+// When the person last saw a conversation. A conversation is named by the other terminal's id;
+// `legacy` is the key earlier builds kept it under, its handle, which counts until the id has
+// an entry of its own.
+export const seenAt = (seen: Seen, key: string, legacy?: string): number =>
+  seen.at[key] ?? (legacy === undefined ? undefined : seen.at[legacy]) ?? seen.since
 
 // The person saw a conversation up to `at`; never back.
 export const markSeen = (seen: Seen, key: string, at: number): Seen => {

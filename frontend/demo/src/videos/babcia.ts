@@ -645,13 +645,13 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
     helpers: () => {
       if (opened || !sink) return
       opened = true
-      const lead = demoHandle(babcia.lead)
+      const lead = keyOf(babcia.lead).terminalId
       sink.dispatch(
         helpers.map((job, index) => ({
           type: "terminal/add" as const,
           target: { projectId: bar, workspaceSessionId: session },
           terminal: agentTerminal(bar, jobs.length + index + 1, job.name, job.agent, working, lead),
-          anchor: keyOf(babcia.lead).terminalId,
+          anchor: lead,
           select: false,
         })),
       )

@@ -93,10 +93,8 @@ export type HistoryHost = {
   readonly connected: (agent: AgentName) => Promise<boolean>
   /** The terminal holding or claiming the agent's session, if one does. */
   readonly holder: (agent: AgentName, sessionId: string) => OpenTerminal | undefined
-  /** Each terminal of a session, running or kept, with the handle it leads under. */
-  readonly terminalsIn: (
-    sessionId: string,
-  ) => readonly { readonly handle: string; readonly ledBy: string | null }[]
+  /** Each terminal of a session, running or kept, with its handle. */
+  readonly terminalsIn: (sessionId: string) => readonly { readonly handle: string }[]
   /** A handle the session has never given. */
   readonly drawHandle: (sessionId: string) => string
   /** Gives back the sessions the terminal claimed. */
@@ -460,7 +458,6 @@ export class ClosedTerminals {
     const { title } = summaryTitle(row.naming, {
       handle: row.handle,
       command: row.command,
-      openedBy: null,
     })
     return {
       id: row.id,
@@ -697,13 +694,13 @@ export class ClosedTerminals {
 
   /**
    * The handle the restored terminal has in the session: its own, unless a terminal there has
-   * it, leads under it (a restored lead must not regain workers by name), or another
-   * terminal of that session was given it. Else one the session never gave.
+   * it, or another terminal of that session was given it. Else one the session never gave.
+   * A restored lead regains no workers: it is a new terminal, with an id of its own.
    */
   private handleFor(row: ClosedRecord, sessionId: string): string {
     const taken = this.host
       .terminalsIn(sessionId)
-      .some((terminal) => terminal.handle === row.handle || terminal.ledBy === row.handle)
+      .some((terminal) => terminal.handle === row.handle)
     // A handle the session gave this very terminal is recorded already.
     const adopted =
       !taken &&
