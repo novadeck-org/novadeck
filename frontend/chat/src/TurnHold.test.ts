@@ -197,31 +197,13 @@ describe("the prompt that holds the top of the log", () => {
   })
 })
 
-describe("the prompt's time and steps", () => {
-  it("show its time, and steps that stop at the first and the latest prompt", () => {
+describe("the prompt's time", () => {
+  it("shows when it was sent, and no steps to other prompts", () => {
     const layout = scenario(tops)
     const { container } = open(twoTurns)
     scrollTo(container, layout, 400)
     expect(container.querySelector(".chat-hold-time")?.textContent).toMatch(/\d/)
-    const before = container.querySelector<HTMLButtonElement>('[aria-label="Previous prompt"]')!
-    const after = container.querySelector<HTMLButtonElement>('[aria-label="Next prompt"]')!
-    expect(before.disabled).toBe(false)
-    expect(after.disabled).toBe(true)
-    scrollTo(container, layout, 100)
-    expect(before.disabled).toBe(true)
-    expect(after.disabled).toBe(false)
-  })
-
-  it("scroll to the prompt before or after, so that it holds the top", () => {
-    const layout = scenario(tops)
-    const { container } = open(twoTurns)
-    scrollTo(container, layout, 400)
-    layout.set.length = 0
-    press(container.querySelector('[aria-label="Previous prompt"]')!)
-    expect(layout.set.at(-1)).toBe(20)
-    scrollTo(container, layout, 100)
-    press(container.querySelector('[aria-label="Next prompt"]')!)
-    expect(layout.set.at(-1)).toBe(220)
+    expect(container.querySelector(".chat-hold-end button")).toBeNull()
   })
 })
 
@@ -254,14 +236,17 @@ describe("the prompt that holds the top of a log showing only its latest blocks"
     expect(words(container)?.textContent).toBe("prompt 13")
   })
 
-  it("shows the earlier blocks as far back as the prompt stepped to, and scrolls past it", () => {
+  it("shows the earlier blocks as far back as the prompt, to go to it", () => {
     const layout = scenario(longTops, 5000)
     const { container } = open(longLog)
-    scrollTo(container, layout, 130)
+    scrollTo(container, layout, 50)
+    expect(words(container)?.textContent).toBe("prompt 11")
     layout.set.length = 0
-    press(container.querySelector('[aria-label="Previous prompt"]')!)
+    press(container.querySelector(".chat-hold-line")!)
+    press(container.querySelector(".chat-hold-go")!)
     expect(container.querySelector('[data-turn="11"]')?.matches(".chat-message")).toBe(true)
-    expect(layout.set.at(-1)).toBe(20)
+    // Where the earlier blocks put it, the row at the top, under the room a first row has.
+    expect(layout.set).toEqual([50, 0])
   })
 })
 
@@ -339,20 +324,6 @@ describe("the peek", () => {
 describe("where focus goes as the log scrolls to a prompt", () => {
   const frame = (): Promise<void> =>
     act(async () => void (await new Promise<void>((done) => requestAnimationFrame(() => done()))))
-
-  it("stays in the chat when the step pressed is disabled by arriving", async () => {
-    const layout = scenario(tops)
-    const { container } = open(twoTurns)
-    scrollTo(container, layout, 400)
-    const before = container.querySelector<HTMLButtonElement>('[aria-label="Previous prompt"]')!
-    before.focus()
-    press(before)
-    scrollTo(container, layout, 100)
-    await frame()
-    expect(container.querySelector(".chat")?.contains(document.activeElement)).toBe(true)
-    expect(document.activeElement).not.toBe(document.body)
-    expect(document.activeElement).not.toBe(before)
-  })
 
   it("goes to the box once going to a prompt has taken the held line away", async () => {
     const layout = scenario(tops)

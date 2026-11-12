@@ -48,14 +48,7 @@ import { ShellLines, runningShells } from "./ShellLines"
 import { LiveSlice, SliceKeys } from "./Slice"
 import { ThumbsContext, useThumbs } from "./Thumbs"
 import { mentionOf, Transcript, type PeerLooks } from "./Transcript"
-import {
-  currentPrompt,
-  logPadding,
-  neighbours,
-  scrollFor,
-  startBefore,
-  startRows,
-} from "./turn-holds"
+import { currentPrompt, logPadding, scrollFor, startBefore, startRows } from "./turn-holds"
 import { useBoxReturn } from "./use-box-return"
 import { useMounted } from "./use-mounted"
 import { useTurnHold } from "./use-turn-hold"
@@ -374,24 +367,23 @@ export const ChatView = ({
     else focusBox()
   }
 
-  // Scrolls the log to a prompt: to its row, or just past it so that it holds the top. One among
-  // the earlier blocks not shown yet shows them first, as far back as it, and is scrolled to once
-  // they are there.
-  const scrollToTurn = (id: string, to: "row" | "past"): void => {
+  // Scrolls the log to a prompt's row. One among the earlier blocks not shown yet shows them
+  // first, as far back as it, and is scrolled to once they are there.
+  const scrollToTurn = (id: string): void => {
     const index = blocks.findIndex((block) => block.id === id)
     if (index !== -1 && index < shownFrom) {
       pendingTurn.current = (element) => {
         const row = startRows(element, turns.starts).find((each) => each.id === id)
         if (!row) return
         following.current = false
-        element.scrollTop = scrollFor(row, to, logPadding(compact))
+        element.scrollTop = scrollFor(row, logPadding(compact))
       }
       prepended.current = scroller.current?.scrollHeight ?? null
       setMore({ session, extra: blocks.length - index - windowSize })
     } else {
       const element = scroller.current
       const row = element && startRows(element, turns.starts).find((each) => each.id === id)
-      if (element && row) element.scrollTop = scrollFor(row, to, logPadding(compact))
+      if (element && row) element.scrollTop = scrollFor(row, logPadding(compact))
     }
     // The control pressed may be gone or disabled by the time the log has scrolled: focus stays in
     // the chat, where Esc is heard.
@@ -553,12 +545,11 @@ export const ChatView = ({
 
   // The window's phase as the current turn's prompt mark wears it.
   const phase = windowPhase && markPhase(windowPhase)
-  // The person's prompt holding the top of the log, if one does, and those either side of it.
+  // The person's prompt holding the top of the log, if one does.
   const holding = useMemo(() => {
     const block = blocks.find(({ id }) => id === heldId)
     return block?.kind === "user" ? block : null
   }, [blocks, heldId])
-  const around = neighbours(turns.starts, heldId ?? "")
   const empty = items.length === 0 && bubbles.length === 0 && shownEchoes.length === 0
   return (
     <SliceKeys.Provider value={sliceKeys ?? null}>
@@ -676,17 +667,11 @@ export const ChatView = ({
               offset={turns.held!.offset}
               phase={holding.id === currentPrompt(blocks) ? phase : undefined}
               open={peeking}
-              before={around.before !== null}
-              after={around.after !== null}
               onOpen={() => setPeek(holding.id)}
               onClose={() => setPeek(null)}
-              onStep={(to) => {
-                const target = to === "before" ? around.before : around.after
-                if (target !== null) scrollToTurn(target, "past")
-              }}
               onGo={() => {
                 setPeek(null)
-                scrollToTurn(holding.id, "row")
+                scrollToTurn(holding.id)
               }}
             />
           )}

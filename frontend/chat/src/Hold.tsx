@@ -9,19 +9,16 @@ import { oneLine, peekHeight, sentence } from "./turn-holds"
 
 // The prompt that holds the top of the log: a one-line copy of it over the log (the log's rows
 // never move for it), drawn as the log draws a prompt. Pointed at or focused, it shows when the
-// prompt was sent and steps to the prompt before and after; pressed, it unfolds in place into
-// the whole prompt (the peek), which Esc, a click elsewhere, or going to the prompt closes.
+// prompt was sent; pressed, it unfolds in place into the whole prompt (the peek), which Esc, a
+// click elsewhere, or going to the prompt closes.
 export const Hold = ({
   text,
   at,
   offset,
   phase,
   open,
-  before,
-  after,
   onOpen,
   onClose,
-  onStep,
   onGo,
   mention,
 }: {
@@ -34,12 +31,8 @@ export const Hold = ({
   // The mark's phase: set only while this is the current turn's prompt.
   readonly phase: MarkPhase | undefined
   readonly open: boolean
-  // Whether there is a prompt of the person's before and after this one.
-  readonly before: boolean
-  readonly after: boolean
   readonly onOpen: () => void
   readonly onClose: () => void
-  readonly onStep: (to: "before" | "after") => void
   readonly onGo: () => void
 }): React.JSX.Element => {
   const root = useRef<HTMLDivElement>(null)
@@ -155,24 +148,6 @@ export const Hold = ({
             </button>
             <span className="chat-hold-end">
               {at !== null && <span className="chat-hold-time">{timeOfDay(at)}</span>}
-              <button
-                type="button"
-                className="chat-key chat-hold-step nodrag nopan"
-                aria-label="Previous prompt"
-                disabled={!before}
-                onClick={() => onStep("before")}
-              >
-                ‹
-              </button>
-              <button
-                type="button"
-                className="chat-key chat-hold-step nodrag nopan"
-                aria-label="Next prompt"
-                disabled={!after}
-                onClick={() => onStep("after")}
-              >
-                ›
-              </button>
             </span>
           </>
         )}

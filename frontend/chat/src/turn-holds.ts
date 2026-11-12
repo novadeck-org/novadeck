@@ -53,16 +53,6 @@ export const heldAt = (rows: readonly StartRow[], top: number, height: number): 
   return { id: row.id, offset: next ? Math.min(0, next.top - top - height) : 0 }
 }
 
-// The person's prompts either side of `id`, for the steps: null at the first and the latest.
-export const neighbours = (
-  rows: readonly TurnStart[],
-  id: string,
-): { readonly before: string | null; readonly after: string | null } => {
-  const mine = rows.filter((row) => row.mine)
-  const at = mine.findIndex((row) => row.id === id)
-  return { before: mine[at - 1]?.id ?? null, after: mine[at + 1]?.id ?? null }
-}
-
 // A prompt as one line: its breaks are spaces. Its images already stand as their `[Image #N]`
 // placeholders.
 export const oneLine = (text: string): string => text.replace(/\s+/g, " ").trim()
@@ -98,11 +88,9 @@ export const startRows = (
 export const logPadding = (compact: boolean): number => (compact ? 14 : 22)
 
 // Where the log scrolls to for a prompt: to its row, where a first row sits (`lead` below the top,
-// clear of the fade), or just past it, so that the prompt now holds the top and its steps stay
-// under the pointer. Whole pixels, as the browser keeps them: a fraction rounded down would leave
-// the row's last pixel showing.
-export const scrollFor = (row: StartRow, to: "row" | "past", lead = 0): number =>
-  Math.max(0, to === "row" ? Math.floor(row.top - lead) : Math.ceil(row.bottom))
+// clear of the fade). Whole pixels, as the browser keeps them.
+export const scrollFor = (row: StartRow, lead = 0): number =>
+  Math.max(0, Math.floor(row.top - lead))
 
 // How tall the peek's words stand: at most two fifths of the chat, and no more than the log area
 // leaves once its other parts (`chrome`: the line's padding and the footer) have theirs, but never

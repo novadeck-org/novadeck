@@ -77,10 +77,9 @@
    `.chat-hold-words`, bold, in full ink, cut to the measure, over the chat's ground and a short
    fade. The next turn's start pushes it up and out (data-pushed). Pointed at or focused, it takes a
    hover ground and `.chat-hold-end` shows, left of the window's stats ring: the prompt's time
-   `.chat-hold-time` and the steps `.chat-hold-step` (‹ ›, :disabled at the first and the latest
-   prompt). Pressed, data-open on `.chat-hold` unfolds the line in place into the whole prompt
-   (pre-wrap, scrolling inside past two fifths of the chat, `--_peek`), a hairline and shadow under
-   it, and `.chat-hold-foot`: its time, `.chat-hold-go` and the `esc` key to close.
+   `.chat-hold-time`. Pressed, data-open on `.chat-hold` unfolds the line in place into the whole
+   prompt (pre-wrap, scrolling inside past two fifths of the chat, `--_peek`), a hairline and
+   shadow under it, and `.chat-hold-foot`: its time, `.chat-hold-go` and the `esc` key to close.
 
    The mark of the prompt that started the latest turn wears the window's phase line, upright
    (`.chat-mark[data-phase]`: "running" | "need" | "done" | "failed" | "starting" | "sleeping" |
@@ -1077,14 +1076,6 @@ button.chat-hold-line:focus-visible::before {
   .chat-hold-end {
     transition: none;
   }
-}
-.chat-hold-step {
-  color: var(--_mid);
-  font-size: 13px;
-}
-.chat-hold-step:disabled {
-  color: var(--_muted);
-  opacity: 0.5;
 }
 /* Unfolded: the whole prompt as the log has it, over the log, which stays where it was. */
 .chat-hold[data-open] {
