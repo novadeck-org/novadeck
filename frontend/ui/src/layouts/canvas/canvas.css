@@ -70,6 +70,11 @@
     pointer-events: none;
     user-select: none;
   }
+  /* An open pane covers its whole window, so an unselected window's is as inert as its
+     terminal: the wheel zooms the canvas and a click selects the node. */
+  .canvas-node:not(.selected) .pane-split-reader {
+    pointer-events: none;
+  }
   .canvas-node:not(.selected) .terminal-window,
   .canvas-node:not(.selected) .terminal-header {
     cursor: grab;

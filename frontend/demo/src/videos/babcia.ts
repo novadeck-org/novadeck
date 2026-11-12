@@ -358,7 +358,7 @@ const accent = "#b4532a"
 const sans = 'font-family="Helvetica, Arial, sans-serif"'
 const serif = 'font-family="Georgia, serif"'
 const mono = 'font-family="Menlo, Consolas, monospace"'
-// The page 800 by 584, the shape of the pane beside its window in the 1280x720 window the
+// The page 800 by 584, the shape of the pane beside the terminal, in its window, in the 1280x720 window the
 // launch video is captured in, so the pane is filled there (elsewhere it scrolls or leaves a band).
 const page = (body: string): string => svg(1600, 1168, body, 584)
 // A line of text the layout holds a place for: a grey bar.
@@ -546,9 +546,10 @@ export type BabciaCues = {
   // A helper asks the person what only its lead knows. Answered from the Inbox, it writes to
   // its lead; the idle lead, rung awake, works and answers it.
   readonly helperAsks: () => void
-  // The seasonal-specials agent shows its page in the pane beside its window. An open waits
+  // The seasonal-specials agent shows its page in the pane in its window. An open waits
   // for a terminal the person isn't on, so `goThere`, given, takes them to the agent's first,
-  // as the video shows: then it opens beside the window.
+  // as the video shows: then it opens in the window (beside the terminal, or over it in a
+  // Canvas window).
   readonly show: (goThere?: (key: TerminalKey) => void) => void
   // Every agent of both projects ends its turn, one after another, but the ones still waiting
   // on the person: an unanswered request or a helper's unanswered ask.

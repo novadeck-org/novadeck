@@ -364,7 +364,7 @@ export const TerminalCompanion = ({
     onRaise: (each) => openPicked(each.key),
   }
   return (
-    <div ref={within} className="terminal-companion">
+    <div ref={within} className="terminal-companion" data-view={view}>
       {shown.mounted ? (
         <SplitPane view={paneView} owner={terminal} terminalView={view} presence={shown}>
           {children}

@@ -154,17 +154,34 @@ describe("The pane in Canvas", () => {
       .toBe(true)
   })
 
-  it("goes on Enter in the terminal, which does not reach it", async () => {
+  it("goes on Enter in the terminal, which the key does not reach", async () => {
     await openShowcase("canvas")
     await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
     const pane = companionPane("Build Studio")
     await expect.element(pane).toBeVisible()
-    terminal("Build Studio")
+    const input = terminal("Build Studio")
       .element()
       .querySelector<HTMLElement>("[data-terminal-input]")!
-      .focus({ preventScroll: true })
+    input.focus({ preventScroll: true })
+    const reached: string[] = []
+    input.addEventListener("keydown", (event) => reached.push(event.key))
     await userEvent.keyboard("{Enter}")
     await expect.poll(() => pane.query()).toBeNull()
+    expect(reached).toEqual([])
+  })
+
+  it("lets the wheel zoom the canvas over an unselected window with its pane open, and the pane is live once selected", async () => {
+    await openShowcase("canvas")
+    await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
+    const pane = companionPane("Build Studio")
+    await expect.element(pane).toBeVisible()
+    const reader = pane.element().closest<HTMLElement>(".pane-split-reader")!
+    const node = terminal("Build Studio").element().closest(".canvas-node")!
+    expect(node.classList.contains("selected")).toBe(true)
+    expect(getComputedStyle(reader).pointerEvents).not.toBe("none")
+    await taskbarIcon("Refactor auth", "Messages").click()
+    await expect.poll(() => node.classList.contains("selected")).toBe(false)
+    expect(getComputedStyle(reader).pointerEvents).toBe("none")
   })
 })
 
@@ -180,6 +197,21 @@ describe("The pane in Grid", () => {
     // One column, wider than a Canvas window.
     await page.viewport(1260, 900)
     await expect.poll(() => terminal("Build Studio").element().clientWidth).toBeGreaterThan(864)
+    expect(covers("Build Studio")).toBe(false)
+  })
+})
+
+describe("The pane in Focus", () => {
+  afterEach(() => page.viewport(1440, 900))
+
+  it("splits the window above 640px, where Grid and Canvas would cover it", async () => {
+    await page.viewport(1000, 900)
+    await openShowcase("focus")
+    await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
+    await expect.element(companionPane("Build Studio")).toBeVisible()
+    const width = terminal("Build Studio").element().clientWidth
+    expect(width).toBeGreaterThan(640)
+    expect(width).toBeLessThanOrEqual(864)
     expect(covers("Build Studio")).toBe(false)
   })
 })

@@ -89,10 +89,13 @@
 .pane-divider:focus-visible::before {
   background-color: var(--pane-divider-hover-bg, var(--color-line-strong));
 }
-@container terminal-companion (max-width: 864px) {
-  /* Too narrow to share: the pane covers the terminal, one cell with the terminal under
-     it. The terminal keeps its size beneath, so its program isn't resized while it's
-     covered. --_pane-cover tells the keys (cover-keys.ts) that the pane is on top. */
+/* Too narrow to share: the pane covers the terminal, one cell with the terminal under
+   it. The terminal keeps its size beneath, so its program isn't resized while it's
+   covered. --_pane-cover tells the keys (cover-keys.ts) that the pane is on top. Every
+   view covers at 640px or less; Grid and Canvas, whose windows are narrower, at 864px or
+   less, so a Canvas window (864px) is covered whole. Focus keeps its 640px: the second
+   block is the same rules, for the views that are not Focus. */
+@container terminal-companion (max-width: 640px) {
   .pane-split {
     --_pane-cover: 1;
     grid-template-columns: minmax(0, 1fr);
@@ -122,6 +125,42 @@
     display: none;
   }
   .pane-split-reader > .pane-stack:empty + .pane-reader {
+    border-top: none;
+  }
+}
+@container terminal-companion (max-width: 864px) {
+  .terminal-companion:not([data-view="focus"]) .pane-split {
+    --_pane-cover: 1;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .terminal-companion:not([data-view="focus"]) .pane-split-terminal,
+  .terminal-companion:not([data-view="focus"]) .pane-split-reader {
+    grid-area: 1 / 1;
+  }
+  .terminal-companion:not([data-view="focus"]) .pane-split-terminal {
+    isolation: isolate;
+  }
+  .terminal-companion:not([data-view="focus"]) .pane-divider {
+    display: none;
+  }
+  /* The pane rises over the terminal as it opens. */
+  .terminal-companion:not([data-view="focus"]) .pane-split-reader {
+    --_pane-enter: 0 16px;
+    z-index: 1;
+  }
+  .terminal-companion:not([data-view="focus"]) .pane-split-reader > .pane-reader {
+    border-left: none;
+  }
+  /* Its top edge is already the line under the window's header: room only while
+     something's behind, and an edge for what's shown only under it. */
+  .terminal-companion:not([data-view="focus"]) .pane-split-reader > .pane-stack:empty {
+    display: none;
+  }
+  .terminal-companion:not([data-view="focus"])
+    .pane-split-reader
+    > .pane-stack:empty
+    + .pane-reader {
     border-top: none;
   }
 }
