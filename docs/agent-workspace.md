@@ -647,8 +647,8 @@ with every safety check again at that time:
   defaults to the branch made safe as a folder name, and two repositories with one folder
   name can't share a group. The `worktrees` table (schema 14) records each one's path, git
   common dir, branch, the commit it `base`d on, project, owner terminal (plain text: a live
-  terminal or one in History, null once orphaned), whether it was `adopted` and whether it has
-  `diverged`. A terminal may own several, and ownership moves only through agents.
+  terminal or one in History, null once orphaned), whether it was `adopted` and whether Novadeck made
+  its branch (`branch_made`). A terminal may own several, and ownership moves only through agents.
   - **`open_worktree({ branch, repo?, from?, group? })`** runs `git worktree add -b` from
     `from` (the checkout's `HEAD`), or checks out the branch if it exists, with 60 seconds,
     and `core.longpaths` on Windows, after `git check-ref-format --branch`. It answers the path,

@@ -781,7 +781,7 @@ or taskkill for:
 The runner keeps who owns each git worktree its agents work in in a `worktrees` table (schema 14):
 the worktree's real path (the key), its repository's git common dir, branch, the commit it started
 from, its project (which cascades), its owner terminal (plain text: a live terminal or one in History,
-null once orphaned), whether it was adopted and whether it has diverged. The agents' `open_worktree`,
+null once orphaned), whether it was adopted and whether Novadeck made its branch. The agents' `open_worktree`,
 `take_worktree`, `close_worktree` and `give_worktree` tools are the only way ownership changes; they
 reach the runner as the relay's `openWorktree`, `takeWorktree`, `closeWorktree` and `giveWorktree`
 calls, and a listing of the tools asks it `worktrees` (whether Preferences has them on). At start the

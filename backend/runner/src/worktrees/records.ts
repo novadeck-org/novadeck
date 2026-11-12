@@ -14,8 +14,6 @@ export type WorktreeRecord = {
   readonly adopted: boolean
   /** Whether Novadeck created its branch: only such a branch is ever deleted. */
   readonly branchMade: boolean
-  /** Whether it has ever differed from `base`. */
-  readonly diverged: boolean
   /** When it was recorded, in epoch milliseconds. */
   readonly createdAt: number
 }
