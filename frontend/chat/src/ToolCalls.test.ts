@@ -354,6 +354,48 @@ describe("a run of tool calls", () => {
       expect(show(run, true).querySelectorAll(".chat-tool")).toHaveLength(4)
     })
   })
+
+  context("open and long", () => {
+    const run = (count: number) =>
+      Array.from({ length: count }, (_, at) => call(`${at}`, "Ran", `step ${at}`))
+    const box = (container: Element) => container.querySelector(".chat-tools-box")!
+    const key = (container: Element) =>
+      container.querySelector<HTMLButtonElement>(".chat-tools-whole")
+
+    it("keeps to a box of a few lines, a hint above it counting the rest", () => {
+      const container = show(run(8), true)
+      expect(box(container).hasAttribute("data-capped")).toBe(true)
+      expect(container.querySelectorAll(".chat-tool")).toHaveLength(8)
+      expect(key(container)?.textContent).toBe("… 3 more calls")
+      expect(key(container)?.getAttribute("aria-expanded")).toBe("false")
+      expect(key(container)?.nextElementSibling).toBe(box(container))
+    })
+
+    it("counts the lines scrolled up out of the box as earlier", async () => {
+      const container = show(run(8), true)
+      const element = box(container) as HTMLElement
+      element.style.lineHeight = "18px"
+      Object.defineProperty(element, "scrollTop", { configurable: true, value: 36 })
+      await act(async () => element.dispatchEvent(new Event("scroll")))
+      expect(key(container)?.textContent).toBe("… 2 earlier calls")
+      expect(element.hasAttribute("data-earlier")).toBe(true)
+    })
+
+    it("shows them whole once the hint is pressed, and boxes them again", async () => {
+      const container = show(run(6), true)
+      await act(async () => key(container)!.click())
+      expect(box(container).hasAttribute("data-capped")).toBe(false)
+      expect(key(container)?.textContent).toBe("show less")
+      await act(async () => key(container)!.click())
+      expect(box(container).hasAttribute("data-capped")).toBe(true)
+    })
+
+    it("needs no box for as few lines as it holds", () => {
+      const container = show(run(5), true)
+      expect(box(container).hasAttribute("data-capped")).toBe(false)
+      expect(key(container)).toBeNull()
+    })
+  })
 })
 
 describe("a tool line's fact", () => {

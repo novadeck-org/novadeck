@@ -1,7 +1,7 @@
 import type { ToolChange } from "@novadeck/core/conversation"
 import type { ToolEntry } from "@novadeck/core/conversation/turns"
 import { counted } from "@novadeck/core/units"
-import { useId, useState } from "react"
+import { useId, useLayoutEffect, useRef, useState } from "react"
 
 import { Fact, Since, TimeFact } from "./Fact"
 import { longMs, span } from "./facts"
@@ -203,6 +203,84 @@ const ToolList = ({
   </ul>
 )
 
+// An open run of more lines than this shows that many in a box that scrolls, the latest in view.
+const boxedAt = 5
+
+// How many of a box's lines are scrolled up out of it, each a line high while closed.
+const linesAbove = (element: HTMLElement): number => {
+  const height = parseFloat(getComputedStyle(element).lineHeight)
+  return height > 0 ? Math.round(element.scrollTop / height) : 0
+}
+
+// An open run's lines. A long run keeps to a box of `boxedAt` lines that follows its latest call,
+// as the log follows the latest turn: scrolling up to an earlier one lets go, and back to the end
+// follows again. Over it, on the side of the lines it hides, a hint counts them and shows the run
+// whole, as a long message's does.
+const RunBox = ({
+  id,
+  entries,
+  live,
+}: {
+  readonly id: string
+  readonly entries: readonly ToolEntry[]
+  readonly live: boolean
+}): React.JSX.Element => {
+  const lines = toolLines(entries).length
+  const boxed = lines > boxedAt
+  const [whole, setWhole] = useState(false)
+  // How many lines sit above what the box shows, which its top edge fades into.
+  const [earlier, setEarlier] = useState(0)
+  const box = useRef<HTMLDivElement>(null)
+  const following = useRef(true)
+  const capped = boxed && !whole
+  useLayoutEffect(() => {
+    const element = box.current
+    if (!element || !capped) return
+    // A line the person opened stays where they read it.
+    if (following.current && !element.querySelector('[aria-expanded="true"]'))
+      element.scrollTop = element.scrollHeight
+    setEarlier(linesAbove(element))
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A new call is a line to follow.
+  }, [lines, capped])
+  return (
+    <>
+      {/* Above the box, where the lines it hides are. */}
+      {boxed && (
+        <button
+          type="button"
+          className="chat-key chat-more chat-tools-whole nodrag nopan"
+          aria-expanded={whole}
+          aria-controls={id}
+          onClick={() => {
+            // Boxed again, it's back at the latest call.
+            following.current = true
+            setWhole(!whole)
+          }}
+        >
+          {whole
+            ? "show less"
+            : earlier > 0
+              ? `… ${counted(earlier, "earlier call")}`
+              : `… ${counted(lines - boxedAt, "more call")}`}
+        </button>
+      )}
+      <div
+        ref={box}
+        className="chat-tools-box nodrag nopan nowheel"
+        data-capped={capped || undefined}
+        data-earlier={(capped && earlier > 0) || undefined}
+        onScroll={(event) => {
+          const { scrollTop, scrollHeight, clientHeight } = event.currentTarget
+          following.current = scrollHeight - scrollTop - clientHeight < 2
+          setEarlier(linesAbove(event.currentTarget))
+        }}
+      >
+        <ToolList id={id} entries={entries} live={live} />
+      </div>
+    </>
+  )
+}
+
 // Consecutive tool calls, a dim line each. A long run folds into a line that counts them.
 export const ToolCalls = ({
   entries,
@@ -235,7 +313,7 @@ export const ToolCalls = ({
         {summary && <span className="chat-tool-said"> · {shownControls(summary)}</span>}
         <Failed count={failedCount(entries)} />
       </button>
-      {open && <ToolList id={list} entries={entries} live={live} />}
+      {open && <RunBox id={list} entries={entries} live={live} />}
     </div>
   )
 }

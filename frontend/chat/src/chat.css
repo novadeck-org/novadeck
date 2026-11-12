@@ -29,7 +29,9 @@
    data-kind="run" | "read" | "write" | "search" | "web" | "agent" | "plan" | "other",
    data-running and data-failed on a tool line, aria-expanded on its button, `.chat-tool-failed`
    on what says a call failed; data-sign="+" |
-   "-" | " " on a line of a diff (`.chat-diff`); data-folded on a long run of calls;
+   "-" | " " on a line of a diff (`.chat-diff`); data-folded on a long run of calls, and on its
+   open lines' box (`.chat-tools-box`) data-capped while it keeps to a few, data-earlier while
+   lines sit above them;
    `.chat-ring` (data-role="doorbell") for a turn the doorbell started, data-line where it has a
    line of its own (`.chat-note`, data-hollow on its mark); `.chat-person-face` the person's face
    in the gutter at their answer through the Inbox, where the app gives one, with data-hue="you"
@@ -752,6 +754,22 @@
 }
 .chat-tool {
   min-width: 0;
+}
+/* A long open run keeps to a few lines that scroll, its latest in view, the top edge fading
+   where earlier lines sit above. A line opened in it gets room to read. */
+.chat-tools-box[data-capped] {
+  max-height: calc(5 * var(--_work-lh));
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.chat-tools-box[data-capped]:has(.chat-tool-summary[aria-expanded="true"]) {
+  max-height: calc(24 * var(--_work-lh));
+}
+.chat-more.chat-tools-whole {
+  margin: 0;
+}
+.chat-tools-box[data-earlier] {
+  mask-image: linear-gradient(to bottom, transparent, currentColor var(--_work-lh));
 }
 .chat-tool-summary,
 .chat-tools-fold {

@@ -312,6 +312,18 @@ export const groupItems = (
       })
       continue
     }
+    if (item.note?.type === "mode") {
+      // A harness says its mode again and again, Claude Code at each step of a turn: only a
+      // change is news, and the first says what it was, which is no change. What says nothing
+      // leaves a run of calls whole.
+      const { mode: said } = item.note
+      if (mode !== undefined && mode !== said) {
+        open.run = null
+        blocks.push({ kind: "note", id: item.id, text: modeWords[said] ?? said })
+      }
+      mode = said
+      continue
+    }
     open.run = null
     if (item.note) {
       const { note } = item
@@ -327,13 +339,6 @@ export const groupItems = (
         blocks.push({ kind: "gap", id: item.id, raw: item.text, truncated: item.truncated })
       else if (note.type === "plan-approved")
         blocks.push({ kind: "note", id: item.id, text: "plan approved" })
-      else {
-        // A harness says its mode again and again: only a change is news, and the first says
-        // what it was, which is no change.
-        if (mode !== undefined && mode !== note.mode)
-          blocks.push({ kind: "note", id: item.id, text: modeWords[note.mode] ?? note.mode })
-        mode = note.mode
-      }
       continue
     }
     if (item.role === "user") {
