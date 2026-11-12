@@ -1,7 +1,7 @@
 /* The pane recipe: where a terminal shows its items (a plan, what its agent showed) and its
    messages. Split (`.pane-split`), it shares the terminal's window across a divider
-   (`.pane-divider`), or, in a window too narrow for that, covers the terminal; attached (`.pane-attached`), it hangs off the canvas node; undocked,
-   it fills a window of its own (`.artifact-window`, see artifact.css). In each, the
+   (`.pane-divider`), or, in a window too narrow for that (864px, a Canvas window's width),
+   covers the terminal; undocked, it fills a window of its own (`.artifact-window`, see artifact.css). In each, the
    reader (`.pane-reader`) holds the outline (`.spine`) beside the document, under
    the header every viewer has (`.artifact-meta`, see artifact.css), with the toggle for
    the agent's changes (`.plan-changes-toggle`, toned as a warning) and its hints
@@ -9,7 +9,7 @@
    (`.plan-notice`); an item placed from another terminal
    sits under a line saying whose it is (`.placed-from`).
 
-   Hooks: on the split's pane and the attached sheet, data-state="open" | "closed" as
+   Hooks: on the split's pane, data-state="open" | "closed" as
    they come and go; on what it shows (`.pane-sheet`), data-entry="forward" |
    "arrive" as it comes to the top, and on a sheet behind, data-entry="tuck" as it goes
    there; on the reader's body, data-outline="false" without headings; on an
@@ -17,14 +17,9 @@
    toggle, aria-pressed="true" while the changes show.
 
    Tokens, each optional (its fallback in brackets):
-   --pane-bg (paper): the reader, the attached sheet and an undocked window.
+   --pane-bg (paper): the reader and an undocked window.
    --pane-border-color (line): the pane's edge beside the terminal.
    --pane-divider-hover-bg (line-strong): the divider under the pointer, or focused.
-   --pane-attached-border-color (line-strong), --pane-attached-shadow (shadow-floating),
-   --pane-attached-radius (radius-panel): the attached sheet.
-   --pane-tether-border-color (line-strong): the dashed line to its node.
-   --pane-stack-attached-border-color (line-strong): those sheets above the attached
-   sheet.
    --pane-stack-hover-border-color (line-strong): a sheet peeking out from behind what
    the pane shows, under the pointer.
    --pane-stack-shadow-color (shadow, 16% in light and 55% in dark): what each sheet in
@@ -53,7 +48,7 @@
   overflow: hidden;
 }
 /* Only beside the pane: covered, the terminal keeps the size it has without it. */
-@container terminal-companion (min-width: 641px) {
+@container terminal-companion (min-width: 865px) {
   .pane-split-terminal .terminal-content {
     padding: 20px;
   }
@@ -94,7 +89,7 @@
 .pane-divider:focus-visible::before {
   background-color: var(--pane-divider-hover-bg, var(--color-line-strong));
 }
-@container terminal-companion (max-width: 640px) {
+@container terminal-companion (max-width: 864px) {
   /* Too narrow to share: the pane covers the terminal, one cell with the terminal under
      it. The terminal keeps its size beneath, so its program isn't resized while it's
      covered. --_pane-cover tells the keys (cover-keys.ts) that the pane is on top. */
@@ -131,39 +126,11 @@
   }
 }
 
-/* Attached: a sheet hanging off the canvas node, in canvas coordinates. */
-.pane-attached {
-  position: absolute;
-  top: 0;
-  left: calc(100% + 20px);
-  display: flex;
-  flex-direction: column;
-  width: 720px;
-  height: max(100%, 560px);
-  border: var(--border-width) solid var(--pane-attached-border-color, var(--color-line-strong));
-  border-radius: var(--pane-attached-radius, var(--radius-panel));
-  background-color: var(--pane-bg, var(--color-paper));
-  box-shadow: var(--pane-attached-shadow, var(--shadow-floating));
-  cursor: default;
-}
-/* Its reader clips to its corners, not the sheet, whose tether (::before) lies outside it. */
-.pane-attached > .pane-reader {
-  overflow: hidden;
-  border-radius: calc(var(--pane-attached-radius, var(--radius-panel)) - var(--border-width));
-}
-.pane-attached::before {
-  content: "";
-  position: absolute;
-  top: 23px;
-  left: -21px;
-  width: 20px;
-  border-top: var(--border-width) dashed var(--pane-tether-border-color, var(--color-line-strong));
-}
 /* What's open behind what the pane shows peeks out above it (`.pane-stack`): a card's
    top edge for each of one or two (`.pane-stack-sheet`), each further back narrower and
-   fainter, as cards stacked behind one another are, the nearest last. In the split what's
-   shown sits under them, an edge of its own just clear of the window's header while
-   nothing's behind; the attached sheet has them hang above it. */
+   fainter, as cards stacked behind one another are, the nearest last. What's shown
+   sits under them, an edge of its own just clear of the window's header while nothing's
+   behind. */
 .pane-stack {
   display: flex;
   flex: none;
@@ -183,8 +150,7 @@
   width: calc(100% - 2 * var(--_inset));
   height: 4px;
   padding: 0;
-  /* Edged and cornered as what the pane shows is: square in the split, rounded on the
-     attached sheet. */
+  /* Edged as what the pane shows is. */
   border: var(--border-width) solid var(--pane-border-color, var(--color-line));
   border-bottom: none;
   background-color: var(--pane-bg, var(--color-paper));
@@ -195,8 +161,7 @@
     border-color var(--motion-feedback) var(--ease-interface);
 }
 /* Under the pointer it comes clear and its edge darkens, staying where it is. */
-.pane-stack-sheet:hover,
-.pane-attached .pane-stack-sheet:hover {
+.pane-stack-sheet:hover {
   opacity: 1;
   border-color: var(--pane-stack-hover-border-color, var(--color-line-strong));
 }
@@ -221,22 +186,6 @@
 }
 .pane-split-reader > .pane-reader {
   border-top: var(--border-width) solid var(--pane-border-color, var(--color-line));
-}
-.pane-attached > .pane-stack {
-  position: absolute;
-  right: 0;
-  bottom: 100%;
-  left: 0;
-}
-.pane-attached .pane-stack-sheet {
-  --_inset: 8px;
-  /* Its own, as a theme may leave the sheet itself unedged. */
-  border-color: var(--pane-stack-attached-border-color, var(--color-line-strong));
-  border-radius: var(--pane-attached-radius, var(--radius-panel))
-    var(--pane-attached-radius, var(--radius-panel)) 0 0;
-}
-.pane-attached .pane-stack-sheet:first-child:not(:last-child) {
-  --_inset: 16px;
 }
 
 /* Each sheet casts a soft shadow up onto the one behind it, deeper in dark, where a
@@ -302,17 +251,13 @@
 
 /* The pane opens and closes on opacity and translate only, which the compositor runs
    without layout: the terminal beside a split takes its new size once, not per frame.
-   It slides from where it sits: the split's from the window's right edge, or up over
-   the terminal it covers in a narrow window, and the attached sheet from its node. What
-   was open already, after a view switch or a restore, has no state and appears as it
-   was. It fades as it goes with taskbar.css's companion-out. */
+   It slides from where it sits: from the window's right edge, or up over the terminal it
+   covers in a narrow window. What was open already, after a view switch or a restore, has
+   no state and appears as it was. It fades as it goes with taskbar.css's companion-out. */
 .pane-split-reader[data-state="open"] {
   animation: pane-split-in var(--motion-state) var(--ease-interface);
 }
-.pane-attached[data-state="open"] {
-  animation: pane-attach var(--motion-layout) var(--ease-interface);
-}
-:is(.pane-split-reader, .pane-attached)[data-state="closed"] {
+.pane-split-reader[data-state="closed"] {
   animation: companion-out var(--motion-feedback) var(--ease-interface) forwards;
   pointer-events: none;
 }
@@ -320,12 +265,6 @@
   from {
     opacity: 0;
     translate: var(--_pane-enter, 16px 0);
-  }
-}
-@keyframes pane-attach {
-  from {
-    opacity: 0;
-    translate: -12px 0;
   }
 }
 

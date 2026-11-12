@@ -1,4 +1,3 @@
-import { AttachedContainer } from "@novadeck/items/TerminalCompanion"
 import type { NodeProps } from "@xyflow/react"
 import {
   createContext,
@@ -35,10 +34,6 @@ const hideMs = 6_000
 const TerminalNodeView = ({ id, data, selected }: NodeProps<TerminalNode>): React.JSX.Element => {
   const contentOf = useContext(TerminalContent)
   const content = useRef<HTMLDivElement>(null)
-  // What the terminal's companion hangs beside it: here, outside the window's clipping and
-  // the content-visibility that hides the window off screen.
-  const [container, setContainer] = useState<HTMLElement | null>(null)
-  useEffect(() => setContainer(content.current), [])
   const visibility = useContext(NodeVisibilityContext)
   const reported = useSyncExternalStore(visibility.subscribe, () => visibility.onScreen(id))
   // A node the observer has not reported on has not been seen: its screen opens once it is.
@@ -79,9 +74,7 @@ const TerminalNodeView = ({ id, data, selected }: NodeProps<TerminalNode>): Reac
         data-hiding={data.hiding}
         data-off-screen={offScreen || undefined}
       >
-        <AttachedContainer.Provider value={container}>
-          {contentOf(id, onScreen)}
-        </AttachedContainer.Provider>
+        {contentOf(id, onScreen)}
       </div>
     </div>
   )

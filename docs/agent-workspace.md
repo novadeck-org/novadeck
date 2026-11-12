@@ -254,7 +254,7 @@ authority; reconciliation is required before automatic updates or a new opening.
 
 The UI presents what an agent shows in its terminal's companion pane: a taskbar along
 the terminal's bottom with an icon for each plan and each other item, and a pane beside
-the terminal (inside its window in Focus and Grid, attached to its node in Canvas).
+the terminal (inside its window; in a window 864px wide or less, as every Canvas window is, it covers the terminal).
 Nothing opens on its own unless the user asked for it; everything else waits in the
 taskbar, marked new.
 

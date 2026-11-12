@@ -101,7 +101,6 @@ const TerminalCanvas = ({
   const removed = useTerminalVisibility(hidden)
   const {
     fitView,
-    fitBounds,
     zoomIn,
     zoomOut,
     getViewport,
@@ -248,14 +247,6 @@ const TerminalCanvas = ({
     if (ghost) lastGhost.current = ghost
   }, [ghost])
   const stacking = useRef<string[]>([])
-  // The terminal whose sheet revealed itself last, kept above the rest (the selection too)
-  // until the selection moves, so no window draws over its sheet. Not a selection.
-  const revealed = useRef<{ id: string; selected: string } | null>(null)
-  // Read when a sheet reveals itself, which holds the callback it first got.
-  const selectedNow = useRef(selected)
-  useEffect(() => {
-    selectedNow.current = selected
-  }, [selected])
   // The selected window takes its screen the moment it is in sight; the rest take turns.
   useEffect(() => {
     visibility.select(selected || undefined)
@@ -291,12 +282,6 @@ const TerminalCanvas = ({
     },
     [animateVisit, framing, getViewport, visit],
   )
-  const entrySheets = useRef<Map<string, { right: number; height: number }> | null>(new Map())
-  const takeEntrySheets = useCallback(() => {
-    const sheets = entrySheets.current ?? new Map()
-    entrySheets.current = null
-    return sheets
-  }, [])
   const initializeViewport = useCanvasNavigation({
     navigation,
     selected,
@@ -309,7 +294,6 @@ const TerminalCanvas = ({
     container,
     createdPositions,
     visit,
-    takeEntrySheets,
     flyIn,
   })
   const fitAll = useCallback((): void => {
@@ -390,47 +374,9 @@ const TerminalCanvas = ({
         onScreen,
         legible,
         onFlyTo: () => flyTo(terminal),
-        onReveal: ({ right, height }) => {
-          // On entry every open sheet reveals itself in turn: the selected window's own
-          // sheet keeps the window on top, as it was before.
-          const entering = entrySheets.current
-          if (entering && id !== selectedNow.current && entering.has(selectedNow.current)) {
-            entering.set(id, { right, height })
-            return
-          }
-          // Raised even when the camera waits: nothing may cover a sheet it frames.
-          const before = revealed.current?.id
-          revealed.current = { id, selected: selectedNow.current }
-          const top = stacking.current.length
-          setNodes((previous) =>
-            previous.map((other) =>
-              other.id === id
-                ? { ...other, zIndex: top }
-                : other.id === before
-                  ? { ...other, zIndex: Math.max(0, stacking.current.indexOf(other.id)) }
-                  : other,
-            ),
-          )
-          // A sheet already open as Canvas mounts waits for the first camera, which fits it.
-          if (entrySheets.current) {
-            entrySheets.current.set(id, { right, height })
-            return
-          }
-          const node = getNode(id)
-          if (!node) return
-          void fitBounds(
-            {
-              x: node.position.x,
-              y: node.position.y,
-              width: (node.measured?.width ?? node.width ?? 0) + right,
-              height: Math.max(node.measured?.height ?? node.height ?? 0, height),
-            },
-            { padding: 0.08, duration: 240 },
-          )
-        },
       })
     },
-    [fitBounds, flyTo, getNode, legible, render, setNodes, terminals],
+    [flyTo, legible, render, terminals],
   )
 
   // The canvas places its windows: where this stay has them, as its windows, their teams
@@ -495,10 +441,7 @@ const TerminalCanvas = ({
     ].filter((id) => id !== selected)
     if (terminalIds.has(selected)) stack.push(selected)
     stacking.current = stack
-    if (revealed.current && revealed.current.selected !== selected) revealed.current = null
-    const above = revealed.current?.id
     const levels = new Map(stack.map((id, index) => [id, index]))
-    if (above && levels.has(above)) levels.set(above, stack.length)
     // Windows the arrangement moves glide there; the team wires wait for them (canvas.css).
     const moves = terminals.some((terminal) => {
       const current = getNode(terminal.id)

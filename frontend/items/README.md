@@ -15,8 +15,7 @@ outside `homes/`: the kinds' registry and the item view at the top of `src/`, th
 drag (`src/bar/`). Today only the terminal's home has a bar; it stays outside for the project
 window, which will have one too. What only the terminal's home uses is in its folder: the terminal's
 messages (`homes/terminal/messages/`: the pane, its peek, the message hooks and `followMessages`,
-which puts messages on a terminal's bar), how the pane presents beside its terminal
-(`presentation.ts`), how it draws its bar (`drawing.tsx`) and the marks on the terminal's tab.
+which puts messages on a terminal's bar), how it draws its bar (`drawing.tsx`) and the marks on the terminal's tab.
 
 ## Contract
 
@@ -61,13 +60,10 @@ which puts messages on a terminal's bar), how the pane presents beside its termi
   by item id (24 places per mount). The editor is the exception: `mountMarkdown` stays inside
   the lazily loaded `MarkdownEditor`, with its own store (12), shared by plans and by Markdown
   files' document view.
-- **The window's controls are the app's.** `TerminalCompanion` (`homes/terminal/`) declares the one callback it
-  gets from a window (`onReveal`) as its own type, so the package never imports `WindowShell`.
 
 ## Subpaths
 
-Only what the app imports: `./TerminalCompanion` (and `AttachedContainer`, where Canvas hangs
-the attached pane), `./UndockedWindow`, `./ProjectWindow` (the pane in its terminal, an item in
+Only what the app imports: `./TerminalCompanion`, `./UndockedWindow`, `./ProjectWindow` (the pane in its terminal, an item in
 a window of its own, and a session's project window), `./store` (`createItemStore`, `ItemStore` and
 its plan actions), `./bar` (`barMembers`, `composeBar`), `./messages` (`useHasMessages`, `useMessageBadge`,
 `followMessages`, `MessageLinks`),

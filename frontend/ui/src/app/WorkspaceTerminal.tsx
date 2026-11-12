@@ -218,7 +218,7 @@ export const WorkspaceTerminal = memo(
     readonly terminal: TerminalMetadata
     readonly controls: TerminalLayoutControls
   }): React.JSX.Element => {
-    const { onReveal, onScreen = true, legible = true } = controls
+    const { onScreen = true, legible = true } = controls
     const { backend, commands, itemStore, navigation, chat } = useWorkspaceServices()
     const { setKeyboardFocus } = commands
     const dictation = useContext(DictationContext)
@@ -417,7 +417,6 @@ export const WorkspaceTerminal = memo(
               links={messageLinks}
               terminalKey={terminalKey}
               view={view}
-              onReveal={onReveal}
               bar={bar}
               items={items}
               fresh={fresh}

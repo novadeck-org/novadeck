@@ -130,27 +130,57 @@ describe("A terminal's taskbar", () => {
   })
 })
 
+// Whether a terminal's pane covers its terminal, as the window's width decides (pane.css).
+const covers = (name: string): boolean =>
+  getComputedStyle(companionPane(name).element().closest(".pane-split")!)
+    .getPropertyValue("--_pane-cover")
+    .trim() === "1"
+
 describe("The pane in Canvas", () => {
-  it("hangs beside its terminal's window, not clipped by it", async () => {
+  it("opens inside its terminal's window and covers the terminal, as in a narrow Grid window", async () => {
     await openShowcase("canvas")
     await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
     const pane = companionPane("Build Studio")
     await expect.element(pane).toBeVisible()
-    // What's drawn just inside the pane's corner is the pane, not the board under it.
+    expect(terminal("Build Studio").element().contains(pane.element())).toBe(true)
+    expect(covers("Build Studio")).toBe(true)
+    // What's drawn at the middle of the window is the pane, not the terminal beneath.
     await expect
       .poll(() => {
-        const box = pane.element().getBoundingClientRect()
-        return pane.element().contains(document.elementFromPoint(box.left + 24, box.top + 24))
+        const box = terminal("Build Studio").element().getBoundingClientRect()
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+        return pane.element().contains(hit)
       })
       .toBe(true)
   })
 
-  it("belongs to its terminal's region, for assistive technology", async () => {
+  it("goes on Enter in the terminal, which does not reach it", async () => {
     await openShowcase("canvas")
+    await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
+    const pane = companionPane("Build Studio")
+    await expect.element(pane).toBeVisible()
+    terminal("Build Studio")
+      .element()
+      .querySelector<HTMLElement>("[data-terminal-input]")!
+      .focus({ preventScroll: true })
+    await userEvent.keyboard("{Enter}")
+    await expect.poll(() => pane.query()).toBeNull()
+  })
+})
+
+describe("The pane in Grid", () => {
+  afterEach(() => page.viewport(1440, 900))
+
+  it("covers its terminal in a window of 864px or less, and shares the window above that", async () => {
+    await openShowcase("grid")
+    await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
     await expect.element(companionPane("Build Studio")).toBeVisible()
-    const pane = companionPane("Build Studio").element().closest(".pane-attached")!
-    expect(terminal("Build Studio").element().contains(pane)).toBe(false)
-    expect(terminal("Build Studio").element().getAttribute("aria-owns")).toBe(pane.id)
+    expect(terminal("Build Studio").element().clientWidth).toBeLessThanOrEqual(864)
+    expect(covers("Build Studio")).toBe(true)
+    // One column, wider than a Canvas window.
+    await page.viewport(1260, 900)
+    await expect.poll(() => terminal("Build Studio").element().clientWidth).toBeGreaterThan(864)
+    expect(covers("Build Studio")).toBe(false)
   })
 })
 
