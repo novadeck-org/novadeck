@@ -1,5 +1,14 @@
 name: E2E
 
+# The run's title says which harnesses a night or a dispatch ran, as the run records no input:
+# Promote to Stable counts only a run titled for the pinned ones (scripts/nightly/promotion),
+# as Nightly Quality dispatches it. A pull request's run and a merge group's keep the titles
+# GitHub gives them.
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch' && format('E2E on the {0} harnesses', inputs.harness)
+  || github.event_name == 'schedule' && 'E2E on the latest harnesses'
+  || github.event.pull_request.title || github.event.merge_group.head_commit.message || 'E2E' }}
+
 on:
   # Marking a draft ready runs it again: a draft runs no macOS job, and its gate fails until
   # the run of the ready pull request has (scripts/quality/plan, scripts/e2e/plan: `held`).

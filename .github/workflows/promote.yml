@@ -1,6 +1,6 @@
 name: Promote to Stable
 
-run-name: Promote ${{ inputs.version || 'the newest prerelease' }} to stable
+run-name: Promote ${{ inputs.version || 'the newest prerelease' }} to stable${{ inputs.skip-nightlies != '' && ' (nightlies skipped)' || '' }}
 
 # Every merge to main publishes a prerelease. Promoting one makes it the stable release
 # that people who install the app, and apps checking for updates, get from now on. The
@@ -11,6 +11,10 @@ on:
     inputs:
       version:
         description: The version to promote, such as 1.2.3. Empty promotes the newest published prerelease.
+        required: false
+        type: string
+      skip-nightlies:
+        description: Only for an urgent fix that can't wait for a night, why to promote without green nightlies. Empty requires them.
         required: false
         type: string
 
@@ -27,6 +31,8 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+      # To read the nightlies' runs.
+      actions: read
     outputs:
       tag: ${{ steps.choose.outputs.tag }}
     env:
@@ -114,6 +120,37 @@ jobs:
           else
             echo "There is no stable release yet."
           fi
+
+      - name: Check Out Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set Up Node
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          runtime: node@26
+
+      # A pull request may skip tests its change can't break; the nightlies run everything on
+      # main. So a release goes stable only once Nightly Quality, and the E2E run on the pinned
+      # harnesses it starts, passed at or after its commit, E2E on all three systems. E2E's own
+      # night runs the latest harnesses, to catch their drift, and counts neither way. The
+      # error says what to run.
+      # An urgent fix may go out before a night has run on it: whoever promotes says why, and
+      # the run's summary and a warning keep the reason, and who gave it, beside the release.
+      - name: Require Green Nightlies
+        env:
+          TAG: ${{ steps.choose.outputs.tag }}
+          SKIP_REASON: ${{ inputs.skip-nightlies }}
+        run: |
+          reason=$(printf '%s' "$SKIP_REASON" | tr '\r\n' '  ' | sed 's/^ *//; s/ *$//')
+          if [ -n "$reason" ]; then
+            printf '## Nightlies not required\n\n%s was promoted by %s without green nightlies, because: %s\n' \
+              "$TAG" "$GITHUB_TRIGGERING_ACTOR" "$reason" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning title=Nightlies skipped::$TAG promoted by $GITHUB_TRIGGERING_ACTOR without green nightlies: $reason"
+            exit 0
+          fi
+          node scripts/nightly/promotion/main.ts
 
   # The notes are written before the release turns stable, so no install that updates to it
   # finds them missing. They are a job of their own that may fail or run out of time without
