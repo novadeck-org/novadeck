@@ -613,6 +613,25 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
     expect((await current(works)).get(behind.root)).toMatchObject({ files: [], merged: false })
   })
 
+  it("does not call a worktree merged that was fast-forwarded past others' merged branches", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const start = main.git("rev-parse", "HEAD").trim()
+    const behind = fixture.worktree("pulling")
+    const other = fixture.worktree("others")
+    other.write("h.txt", "h\n")
+    other.git("add", "-A")
+    other.git("commit", "--quiet", "-m", "someone else's work")
+    main.git("merge", "--quiet", "--no-ff", "-m", "merge others", "others")
+    const { works } = open(() => [{ terminalId: terminal(1), root: behind.root, base: start }])
+    resources.defer(() => works.close())
+    // Pulling main brings in the other branch's commit, off main's first-parent line: not its own.
+    behind.git("merge", "--quiet", "--ff-only", "main")
+    expect((await current(works)).get(behind.root)).toMatchObject({ files: [], merged: false })
+  })
+
   it("is not merged where the commit it started from is unknown or gone", async ({
     fixture,
     resources,
