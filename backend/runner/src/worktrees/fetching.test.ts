@@ -246,6 +246,9 @@ describe("fetching for real", () => {
       branch: "feature",
     })
     if (!opened.ok) throw new Error(opened.reason)
+    // The repository as the service keys it (on Windows, git prints the path another way).
+    const common = store.worktree(opened.path)?.commonDir
+    if (common === undefined) throw new Error("row")
     writeFileSync(join(opened.path, "f.txt"), "f\n")
     sh(opened.path, "add", "-A")
     sh(opened.path, "commit", "--quiet", "-m", "feature work")
@@ -259,7 +262,6 @@ describe("fetching for real", () => {
     // Not merged as far as this clone knows.
     await worktrees.tidy()
     expect(existsSync(opened.path)).toBe(true)
-    const common = sh(f.clone, "rev-parse", "--path-format=absolute", "--git-common-dir")
     expect(worktrees.fetchedAt(common)).toBeUndefined()
     await worktrees.tidy(true)
     expect(existsSync(opened.path)).toBe(false)
