@@ -246,7 +246,7 @@ describe("runner seed", () => {
           {
             session: fresh(10),
             terminals: [
-              summary(30, 10, { openedBy: "moth", ...foreground("vite") }),
+              summary(30, 10, { openedBy: "id-moth", ...foreground("vite") }),
               summary(31, 10, { agentRan: true }),
               kept(32, 10, { agentRan: true }),
               summary(33, 10),
@@ -260,7 +260,7 @@ describe("runner seed", () => {
 
     it("keeps who opened each terminal and whether an agent ran there", () => {
       expect(terminals).toMatchObject([
-        { id: uuid(30), openedBy: "moth" },
+        { id: uuid(30), openedBy: "id-moth" },
         { id: uuid(31), agentRan: true },
         { id: uuid(32), agentRan: true },
         { id: uuid(33) },

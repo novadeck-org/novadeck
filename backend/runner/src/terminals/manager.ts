@@ -91,7 +91,14 @@ import { slicingOf } from "./slices.js"
 import { StartupWatch } from "./startup-watch.js"
 import { Streams } from "./streams.js"
 import { noAgent, summaryOf, type AgentSummary } from "./summary.js"
-import { openedWith, renamed as renamedTo, summaryTitle, unnamed, type Naming } from "./titles.js"
+import {
+  openedBy as openedByHandle,
+  openedWith,
+  renamed as renamedTo,
+  summaryTitle,
+  unnamed,
+  type Naming,
+} from "./titles.js"
 import { transcriptImage } from "./transcript-images.js"
 import { followTranscript } from "./transcripts.js"
 import { Typing, type InterruptInput, type Prompted, type PromptInput } from "./typing.js"
@@ -824,6 +831,7 @@ export class Terminals {
       let naming: Naming = kept?.naming ?? unnamed
       if (input.title !== undefined) naming = renamedTo(naming, input.title)
       if (opener?.title !== undefined) naming = openedWith(naming, opener.title, opener.handle)
+      else if (opener) naming = openedByHandle(naming, opener.handle)
       const openedBy = kept?.openedBy ?? opener?.by ?? null
       const ledBy = kept ? kept.ledBy : opener?.leads ? opener.by : null
       const work = saved?.work ?? null

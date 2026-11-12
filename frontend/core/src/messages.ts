@@ -131,6 +131,8 @@ export type TerminalThreads = {
 export type MessagePeer = {
   readonly name: string
   readonly terminalId: string
+  // The handle it reads as in the session, for the words that name an agent by it.
+  readonly handle: string
   readonly program: string | undefined
   readonly live: "idle" | "working" | "gone"
 }
@@ -152,6 +154,7 @@ export const samePeers = (
         other !== undefined &&
         one.name === other.name &&
         one.terminalId === other.terminalId &&
+        one.handle === other.handle &&
         one.program === other.program &&
         one.live === other.live
       )

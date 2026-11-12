@@ -1287,7 +1287,7 @@ describe("Inbox entries", () => {
   })
 
   it("reads a worker's done under its running lead when everything is read, as the person's", async () => {
-    const worker: TerminalMetadata = { ...agentTerminal(2, { working: false }), ledBy: "moth" }
+    const worker: TerminalMetadata = { ...agentTerminal(2, { working: false }), ledBy: "01" }
     const { entries, inbox, streams, ids } = setup(workspaceOf(agentTerminal(1), worker))
     entries.push([
       entry({
@@ -1531,7 +1531,7 @@ describe("Turn rows", () => {
   it("keeps rows hidden under a lead in turns, and out of the items", async () => {
     const worker: TerminalMetadata = {
       ...agentTerminal(2, { working: false, lastTurn: turn({ at: 200 }) }),
-      ledBy: "moth",
+      ledBy: "01",
     }
     const { inbox, ids } = setup(workspaceOf(agentTerminal(1), worker), {
       "p/s": { "02": "done" },

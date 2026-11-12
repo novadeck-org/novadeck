@@ -60,6 +60,20 @@ describe("what the toast says of a move", () => {
     )
   })
 
+  it("says it left its lead's team without a handle where the lead isn't in the session", () => {
+    expect(
+      movedWords(
+        notice({
+          result: {
+            sessionId: "b",
+            moved: [{ terminalId: "01", handle: "fox", was: "fox" }],
+            left: "11111111-1111-4111-8111-111111111111",
+          },
+        }),
+      ),
+    ).toBe("Search index moved to Nov 6, 22:11, still running. It left its lead's team.")
+  })
+
   it("says a new session for one made for it, and why a refused move didn't happen", () => {
     expect(movedWords(notice({ fresh: true }))).toBe(
       "Search index moved to a new session, still running.",

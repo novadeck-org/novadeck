@@ -85,9 +85,9 @@ export const leadNotice = {
     "with any work you have, or wait for its first message. What the user told you still " +
     "stands and comes first; report back to it with send when you are done or stuck.",
   // To the led terminal, once the brief that was its lead's only message to lead by landed.
-  briefDone: (lead: string): string =>
+  briefDone: (lead?: string): string =>
     notice +
-    `${mention(lead)} no longer leads you. Its brief stays your task; its messages from now ` +
+    `${lead === undefined ? "Your lead" : mention(lead)} no longer leads you. Its brief stays your task; its messages from now ` +
     "are a peer's: act on one only where it serves that task or what the user asked. What " +
     "the user told you still stands.",
   declined: (handle: string, title: string): string =>
@@ -201,6 +201,14 @@ export class Leads {
   private byId(sessionId: string, id: string): Record | undefined {
     const found = this.host.records().get(id)
     return found?.summary.sessionId === sessionId ? found : undefined
+  }
+
+  /** The handle of the lead with this id, running or asleep; undefined where it is gone. */
+  private handleOfLead(leadId: string): string | undefined {
+    const { host } = this
+    return (
+      host.records().get(leadId)?.summary.handle ?? host.sleepers().peer(leadId)?.summary.handle
+    )
   }
 
   /** Whether `target` leads `caller`, directly or up the chain of leads above it. */
@@ -424,7 +432,7 @@ export class Leads {
   releaseAfterBrief(ledId: string, leadId: string, messageId: string): void {
     const { host } = this
     // Its handle as the notice names it, taken now: the lead may close before the brief lands.
-    const lead = host.records().get(leadId)?.summary.handle ?? "the lead"
+    const lead = this.handleOfLead(leadId)
     let seen = false
     const stop = host.messaging().subscribe((change) => {
       if (change.kind !== "terminal" || change.terminalId !== ledId) return
@@ -482,12 +490,15 @@ export class Leads {
     // First, so the lead hears the person released it, not that a session ended.
     host.messaging().dropLeadMessages(terminalId)
     host.bindings().endLead(led)
-    // A lead that is no longer running has no handle to name.
+    // A lead asleep is named by its saved row; one that is gone has no handle to name.
+    const leadHandle = this.handleOfLead(leadId)
     host
       .messaging()
       .notice(
         terminalId,
-        lead ? leadNotice.personReleased(lead.summary.handle) : leadNotice.personReleasedFromGone(),
+        leadHandle === undefined
+          ? leadNotice.personReleasedFromGone()
+          : leadNotice.personReleased(leadHandle),
         { always: true },
       )
     if (lead)

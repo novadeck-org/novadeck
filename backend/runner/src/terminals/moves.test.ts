@@ -399,6 +399,22 @@ describe("moving a terminal to another session", () => {
     expect(world.records.get("lead")!.summary.sessionId).toBe("s1")
   })
 
+  it("names a sleeping lead from its saved row to the worker that left it, and the lead's absence where none is kept", () => {
+    const asleep = setup(
+      {
+        lead: { session: "s1", handle: "moth", saved: true },
+        worker: { session: "s1", handle: "fox", ledBy: "lead" },
+      },
+      { asleep: ["lead"] },
+    )
+    asleep.move(to("s2", "worker"))
+    expect(asleep.log.notices).toEqual([{ to: "worker", text: moveNotice.left("moth") }])
+    // A lead that closed left no row: the worker is told without its handle.
+    const closed = setup({ worker: { session: "s1", handle: "fox", ledBy: "lead" } })
+    expect(closed.move(to("s2", "worker")).left).toBe("lead")
+    expect(closed.log.notices).toEqual([{ to: "worker", text: moveNotice.leftGone() }])
+  })
+
   it("moves a terminal kept only as saved, a sleeper, and tells watchers through it", () => {
     const world = setup({ z: { session: "s1", handle: "moth", saved: true } }, { asleep: ["z"] })
     world.move(to("s2", "z"))

@@ -32,7 +32,7 @@ export type Naming = {
    * terminal is `openedBy`, by id, and the handle is only what the source shows. Absent
    * where none is kept (a closed terminal's).
    */
-  readonly opener: { readonly title: string; readonly by?: string } | null
+  readonly opener: { readonly title?: string; readonly by?: string } | null
   readonly murmur: { readonly title: string } | null
   readonly own: { readonly title: string } | null
   readonly summary: string | null
@@ -95,7 +95,7 @@ const control = /[\x00-\x1f\x7f-\x9f]/g
  * `naming.opener`, not `openedBy`: the opener's terminal may have closed.
  */
 export const titledByHand = (naming: Pick<Naming, "person" | "opener">): boolean =>
-  naming.person !== null || naming.opener?.by !== undefined
+  naming.person !== null || (naming.opener?.title !== undefined && naming.opener.by !== undefined)
 
 /**
  * The terminal's title and who it is from, by precedence: the person, then the opening
@@ -115,7 +115,7 @@ export const titleOf = (
   const person = naming.person !== null ? titleFrom(naming.person) : undefined
   if (person !== undefined) return { title: person, source: { kind: "person" } }
   // An opener's title needs the terminal that opened it to say who it is from.
-  const opener = naming.opener ? titleFrom(naming.opener.title) : undefined
+  const opener = naming.opener?.title !== undefined ? titleFrom(naming.opener.title) : undefined
   if (opener !== undefined && naming.opener?.by)
     return { title: opener, source: { kind: "agent", by: naming.opener.by } }
   const murmur = naming.murmur ? titleFrom(naming.murmur.title) : undefined
@@ -151,6 +151,15 @@ export const renamed = (naming: Naming, title: string | null): Naming => ({
 export const openedWith = (naming: Naming, title: string, by: string): Naming => ({
   ...naming,
   opener: { title, by },
+})
+
+/**
+ * An agent opened the terminal and asked for no title: only the handle its terminal had is
+ * kept, for what names it should the agent give one later.
+ */
+export const openedBy = (naming: Naming, by: string): Naming => ({
+  ...naming,
+  opener: { ...naming.opener, by },
 })
 
 /** Murmur's latest title for the terminal. */

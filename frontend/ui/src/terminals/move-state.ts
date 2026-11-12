@@ -80,7 +80,11 @@ export const movedWords = (notice: MoveNotice): string => {
   const along = team.length
     ? ` with ${team.length} ${team.length === 1 ? "teammate" : "teammates"}`
     : ""
-  const leaving = left && notice.lead ? ` It left @${notice.lead}'s team.` : ""
+  const leaving = left
+    ? notice.lead
+      ? ` It left @${notice.lead}'s team.`
+      : " It left its lead's team."
+    : ""
   const where = notice.fresh ? "a new session" : notice.session.name
   return `${notice.name} moved to ${where}${along}, still running${handle}.${leaving}`
 }

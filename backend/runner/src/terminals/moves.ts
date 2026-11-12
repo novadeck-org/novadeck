@@ -97,6 +97,13 @@ export const moveNotice = {
     "you: its messages are a peer's from now, and it can no longer see you. What the user " +
     "told you still stands." +
     (renames.length === 0 ? "" : " " + changes(renames)),
+  // To a terminal that left a lead as it moved on its own, one that is gone and has no handle.
+  leftGone: (renames: readonly Rename[] = []): string =>
+    notice +
+    "The user moved you to another session in Novadeck, so your lead no longer leads you: its " +
+    "messages are a peer's from now, and it can no longer see you. What the user told you " +
+    "still stands." +
+    (renames.length === 0 ? "" : " " + changes(renames)),
   // To the lead a terminal left as it moved.
   leftBy: (handle: string, title: string): string =>
     notice +
@@ -423,13 +430,17 @@ export class Moves {
       messaging.notice(rejoined.summary.id, moveNotice.leadsAgain(first!.handle, title), {
         always: true,
       })
+    // The handle of the lead the terminal left, running or only saved; none where it is gone.
+    const leftHandle = left === null ? undefined : (lead?.summary.handle ?? this.handleOf(left))
     // The handle the lead has in the session it is in; a lead that isn't running names none.
     const leadHandle = first!.ledBy === null ? undefined : this.handleOf(first!.ledBy)
     placed.forEach(({ member, handle, ledBy }, index) => {
       if (!member.record) return
       const text =
-        index === 0 && left !== null && ledBy === null && lead
-          ? moveNotice.left(lead.summary.handle, renames)
+        index === 0 && left !== null && ledBy === null
+          ? leftHandle !== undefined
+            ? moveNotice.left(leftHandle, renames)
+            : moveNotice.leftGone(renames)
           : index === 0 && ledBy !== null && leadHandle !== undefined
             ? leadNotice.nowLed(leadHandle) + (renames.length === 0 ? "" : " " + changes(renames))
             : renames.length > 0

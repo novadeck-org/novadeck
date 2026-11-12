@@ -56,6 +56,20 @@ const writeSeen = (seen: Seen): void => {
 export const seenAt = (seen: Seen, key: string, legacy?: string): number =>
   seen.at[key] ?? (legacy === undefined ? undefined : seen.at[legacy]) ?? seen.since
 
+// Moves what earlier builds kept under a peer's handle to the peer's id, once it is known, and
+// forgets the handle's key, so a terminal that later has that handle doesn't inherit it. Each
+// pair is [id key, handle key]; an id key that has an entry already keeps it.
+export const adoptLegacy = (seen: Seen, pairs: readonly (readonly [string, string])[]): Seen => {
+  const found = pairs.filter(([key, legacy]) => key !== legacy && legacy in seen.at)
+  if (found.length === 0) return seen
+  const at = { ...seen.at }
+  for (const [key, legacy] of found) {
+    at[key] ??= at[legacy]!
+    delete at[legacy]
+  }
+  return { since: seen.since, at }
+}
+
 // The person saw a conversation up to `at`; never back.
 export const markSeen = (seen: Seen, key: string, at: number): Seen => {
   if (at <= seenAt(seen, key)) return seen

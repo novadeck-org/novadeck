@@ -1657,7 +1657,8 @@ describe("workspace metadata", () => {
         ('led1', 's1', 'fox', '/p', '{}', 2, 'Count', 'moth', 'moth'),
         ('led2', 's2', 'fox', '/p', '{}', 2, NULL, 'moth', 'moth'),
         ('left', 's1', 'owl', '/p', '{}', 3, 'Search', 'elk', 'elk'),
-        ('plain', 's1', 'elk2', '/p', '{}', 4, NULL, NULL, NULL);`)
+        ('plain', 's1', 'elk2', '/p', '{}', 4, NULL, NULL, NULL),
+        ('untitled', 's1', 'jay', '/p', '{}', 5, NULL, 'elk', NULL);`)
     old.close()
     const migrated = new WorkspaceStore(path)
     // A handle names the terminal of its own session that has it.
@@ -1670,6 +1671,12 @@ describe("workspace metadata", () => {
     expect(left.openedBy).toBeNull()
     expect(left.naming.opener).toEqual({ title: "Search", by: "elk" })
     expect(migrated.terminal("plain")).toMatchObject({ openedBy: null, ledBy: null })
+    // The opener's handle outlives the migration for a title-less opener too, and a save.
+    const untitled = migrated.terminal("untitled")!
+    expect(untitled.openedBy).toBeNull()
+    expect(untitled.naming.opener).toEqual({ by: "elk" })
+    migrated.saveTerminal({ ...untitled, ledBy: null })
+    expect(migrated.terminal("untitled")?.naming.opener).toEqual({ by: "elk" })
     expect(migrated.terminal("lead1")?.naming.opener).toBeNull()
     // Saved again, the links stay ids.
     migrated.saveTerminal({ ...migrated.terminal("led1")!, ledBy: null })
@@ -1750,7 +1757,7 @@ describe("workspace metadata", () => {
       // is added for it. Then record the new digest here.
       expect({ version, digest }).toEqual({
         version: 15,
-        digest: "1510b0d1e450ba4137f93c3c18767f31e12b7877561f58f44162fdccabb9dece",
+        digest: "b746606fe2ade7bb784e665cb90417afb4b2acafc1a53007b6f71c26a4ee2e47",
       })
     } finally {
       database.close()

@@ -10,6 +10,7 @@ import { afterEach } from "vitest"
 
 import { describe, expect, it } from "../../../test"
 import { followMessages, useMessages, type MessagesHandle } from "./messages"
+import { seenKey, seenStore } from "./seen"
 
 const agent = (handle: string): MessageParty => ({
   kind: "agent",
@@ -171,5 +172,38 @@ describe("a terminal's messages as its pane uses them", () => {
     expect(handles).toHaveLength(2)
     expect(handles[1]!.seen).toBe(handles[0]!.seen)
     expect(handles[1]!.pause).toBe(handles[0]!.pause)
+  })
+
+  it("moves a read mark an earlier build kept under a peer's handle to the peer's id", () => {
+    const id = terminalKeyPath({ ...target, terminalId: "01" })
+    seenStore().update(() => ({ since: 1, at: { [seenKey(id, "fox")]: 500 } }))
+    const state = createStore<MessagesState>({
+      ...noMessages,
+      terminals: {
+        [id]: {
+          terminalId: "id-moth",
+          handle: "moth",
+          agent: true,
+          threads: [
+            {
+              id: "th",
+              peer: agent("fox"),
+              hops: 1,
+              idle: 0,
+              held: false,
+              heldFor: null,
+              messages: [],
+            },
+          ],
+        },
+      },
+    })
+    const Probe = () => {
+      useMessages({ state } as never, { ...target, terminalId: "01" })
+      return null
+    }
+    const { unmount } = render(createElement(Probe))
+    stops.push(unmount)
+    expect(seenStore().getSnapshot().at).toEqual({ [seenKey(id, "id-fox")]: 500 })
   })
 })

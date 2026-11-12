@@ -533,7 +533,7 @@ describe("when an agent's terminal is named", () => {
         work: work(),
         activity: idle("ok"),
         naming: { ...unnamed, opener: { title: "refactor ui", by: "sable" } },
-        openedBy: "sable",
+        openedBy: "id-sable",
       },
       new FakeDescriber({ reply: () => ({ title: "Refactor @novadeck/ui" }) }),
     )
@@ -549,7 +549,7 @@ describe("when an agent's terminal is named", () => {
         agent: null,
         program: { name: "bash", argv: null },
         naming: { ...unnamed, opener: { title: "dev server", by: "sable" } },
-        openedBy: "sable",
+        openedBy: "id-sable",
       },
       new FakeDescriber({ reply: () => ({ title: "Vite dev" }) }),
     )
@@ -1264,7 +1264,7 @@ describe("when murmur becomes usable", () => {
       summary: "Fixes the logout.",
     })
     // Titled by the agent that opened it: never described.
-    subjects.set("e", { ...subjects.get("e")!, openedBy: "sable" })
+    subjects.set("e", { ...subjects.get("e")!, openedBy: "id-sable" })
     change({ program: { name: "bash", argv: null } })
     describer.setUsable(false)
     describer.setUsable(true)

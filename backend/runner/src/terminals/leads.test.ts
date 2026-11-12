@@ -85,7 +85,12 @@ const setup = (terminals: {
     approvals: () => approvals,
     sleepers: () =>
       ({
-        peer: () => undefined,
+        peer: (id: string) => {
+          const handle = Object.keys(terminals).find((each) => `id-${each}` === id)
+          return handle && terminals[handle]?.asleep && !records.has(id)
+            ? { summary: { id, handle, title: "Terminal", sessionId: "session", ledBy: null } }
+            : undefined
+        },
         resting: (id: string) => {
           const handle = Object.keys(terminals).find((each) => `id-${each}` === id)
           return handle && terminals[handle]?.asleep && !records.has(id)
@@ -742,7 +747,15 @@ describe("the person releasing a terminal", () => {
     ])
   })
 
-  it("tells the terminal it was released, with no handle, when its lead no longer runs", () => {
+  it("names a sleeping lead from its saved row, and tells the terminal without a handle where its lead is gone", () => {
+    const asleep = setup({
+      moth: { agent: "claude", asleep: true },
+      fox: { agent: "codex", ledBy: "moth" },
+    })
+    asleep.leads.releaseByPerson("id-fox")
+    expect(asleep.notices).toEqual([
+      { to: "id-fox", always: true, text: leadNotice.personReleased("moth") },
+    ])
     const run = setup({ moth: { agent: "claude" }, fox: { agent: "codex", ledBy: "moth" } })
     run.records.delete("id-moth")
     run.leads.releaseByPerson("id-fox")

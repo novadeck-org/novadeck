@@ -337,8 +337,14 @@ describe("the roster-wide values", () => {
       { "02": { handle: "moth", name: "Lead" } },
       { "01": "@moth · Lead", "02": "@fox · Terminal" },
       {
-        "01": { name: "Lead", terminalId: "01", program: undefined, live: "gone" },
-        "02": { name: "Terminal", terminalId: "02", program: undefined, live: "gone" },
+        "01": { name: "Lead", terminalId: "01", handle: "moth", program: undefined, live: "gone" },
+        "02": {
+          name: "Terminal",
+          terminalId: "02",
+          handle: "fox",
+          program: undefined,
+          live: "gone",
+        },
       },
     ])
   })
@@ -363,6 +369,7 @@ describe("the peers messages show", () => {
     expect(messagePeers(busy)["01"]).toEqual({
       name: "Terminal",
       terminalId: "01",
+      handle: "moth",
       program: "claude",
       live: "working",
     })
@@ -402,7 +409,13 @@ describe("the peers messages show", () => {
 
 describe("the sameness of peers", () => {
   it("holds for equal peers in new records, and breaks on any change", () => {
-    const peer = { name: "Tests", terminalId: "01", program: "claude", live: "idle" } as const
+    const peer = {
+      name: "Tests",
+      terminalId: "01",
+      handle: "moth",
+      program: "claude",
+      live: "idle",
+    } as const
     expect(samePeers({ owl: peer }, { owl: { ...peer } })).toBe(true)
     expect(samePeers({ owl: peer }, { owl: { ...peer, live: "working" } })).toBe(false)
     expect(samePeers({ owl: peer }, {})).toBe(false)

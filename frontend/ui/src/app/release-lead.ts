@@ -7,8 +7,8 @@ import { currentState, currentTarget, sameTarget } from "./selectors"
 
 // What a terminal's menu offers to end its lead: only a terminal an agent leads, on a
 // backend that lets the person end that, while its shell runs: the runner has nothing
-// to release on one that is still starting or has ended, nor from a lead the session no
-// longer has (there is no handle to name). Undefined for anything else.
+// to release on one that is still starting or has ended. The lead is named by its handle where
+// the session still has it, else not at all. Undefined for anything else.
 export const useReleaseLead = (tile: Tile): ReleaseLead | undefined => {
   const { backend } = useWorkspaceServices()
   const target = useWorkspaceState(currentTarget, sameTarget)
@@ -23,14 +23,13 @@ export const useReleaseLead = (tile: Tile): ReleaseLead | undefined => {
     !releaseLead ||
     isWindow(tile) ||
     !tile.ledBy ||
-    lead === undefined ||
     tile.state === "starting" ||
     tile.state === "exited" ||
     tile.state === "failed"
   )
     return undefined
   return {
-    lead,
+    lead: lead ?? null,
     onRelease: () => releaseLead({ ...target, terminalId: tile.id }),
   }
 }

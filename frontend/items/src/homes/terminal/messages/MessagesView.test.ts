@@ -54,9 +54,9 @@ const thread = (id: string, peer: string, messages: readonly AgentMessage[]): Me
 
 const now = Date.now()
 const peers: Readonly<Record<string, MessagePeer>> = {
-  "03": { name: "Tests", terminalId: "03", program: "claude", live: "working" },
-  "02": { name: "Dev server", terminalId: "02", program: "zsh", live: "gone" },
-  "01": { name: "Checkout", terminalId: "01", program: "claude", live: "working" },
+  "03": { name: "Tests", terminalId: "03", handle: "owl", program: "claude", live: "working" },
+  "02": { name: "Dev server", terminalId: "02", handle: "fox", program: "zsh", live: "gone" },
+  "01": { name: "Checkout", terminalId: "01", handle: "moth", program: "claude", live: "working" },
 }
 
 const unmounts: (() => void)[] = []

@@ -53,7 +53,7 @@ const offered = (tile: object, releaseLead: Backend["releaseLead"] | null = () =
     return null
   }
   render(createElement(Probe))
-  return result.at(-1) as { lead: string; onRelease: () => void } | undefined
+  return result.at(-1) as { lead: string | null; onRelease: () => void } | undefined
 }
 
 describe("releasing a terminal from its lead", () => {
@@ -85,8 +85,8 @@ describe("releasing a terminal from its lead", () => {
     expect(offered({ ...led, state: "failed", message: "x" })).toBeUndefined()
   })
 
-  it("isn't offered from a lead the session no longer has", () => {
-    expect(offered({ ...led, ledBy: "99" })).toBeUndefined()
+  it("is offered without a handle from a lead the session no longer has", () => {
+    expect(offered({ ...led, ledBy: "99" })).toMatchObject({ lead: null })
   })
 
   it("isn't offered without a lead or on a backend that can't release", () => {

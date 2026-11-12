@@ -13,9 +13,10 @@ import {
 import type { WorkspaceAction } from "@novadeck/core/state"
 import type { Store, WorkspaceStore } from "@novadeck/core/store"
 import { type TerminalKey, terminalKeyPath, terminalKeyOfPath } from "@novadeck/core/types"
-import { useCallback, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useSyncExternalStore } from "react"
 
-import { markSeen, seenAt, seenKey, seenStore } from "./seen"
+import { conversationsOf, youKey } from "./conversations"
+import { adoptLegacy, markSeen, seenAt, seenKey, seenStore } from "./seen"
 
 const none: Store<MessagesState> = { getSnapshot: () => noMessages, subscribe: () => () => {} }
 
@@ -72,6 +73,14 @@ export const useMessages = (messages: Messages | undefined, key: TerminalKey): M
   const error = useMessagesPart(messages, (state) => state.error)
   const store = seenStore()
   const record = useSyncExternalStore(store.subscribe, store.getSnapshot)
+  // What an earlier build kept under a peer's handle is the peer's by its id from here on.
+  useEffect(() => {
+    if (!threads) return
+    const pairs = conversationsOf(threads)
+      .filter((each) => each.key !== youKey)
+      .map((each) => [seenKey(id, each.key), seenKey(id, each.peer)] as const)
+    store.update((current) => adoptLegacy(current, pairs))
+  }, [threads, store, id])
   // The same while the terminal is, so an effect that marks what's seen runs only as what's
   // on screen changes.
   const pause = useCallback((next: boolean) => messages?.pause(next), [messages])

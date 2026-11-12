@@ -309,7 +309,7 @@ describe("The Inbox's rows", () => {
         content: { kind: "done", subject: "Search rebuilt", body: "All 412 pages." },
         ...change,
       })
-    const worker = (): TerminalMetadata => ({ ...agentTerminal(2), ledBy: "moth" })
+    const worker = (): TerminalMetadata => ({ ...agentTerminal(2), ledBy: "01" })
 
     it("is an update of its terminal that the person reads, not stopping the agent", () => {
       const rows = inboxRows(inputs(workspaceOf(agentTerminal(1)), { entries: [report()] }))

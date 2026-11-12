@@ -60,6 +60,11 @@ describe("a terminal's title", () => {
     expect(titledByHand({ ...unnamed, person: "Mine" })).toBe(true)
     expect(titledByHand({ ...unnamed, opener })).toBe(true)
     expect(titledByHand({ ...unnamed, opener: { title: "Login fix" } })).toBe(false)
+    // An agent that asked for no title leaves murmur free to title it, as before.
+    expect(titledByHand({ ...unnamed, opener: { by: "moth" } })).toBe(false)
+    expect(titleOf({ ...unnamed, opener: { by: "moth" } }, terminal).source).toEqual({
+      kind: "default",
+    })
   })
 
   it("is its own agent's where nothing else named it, never made by a summary", () => {

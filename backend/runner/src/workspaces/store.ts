@@ -149,8 +149,8 @@ const schema = `
     ran INTEGER NOT NULL DEFAULT 1 CHECK (ran IN (0, 1)),
     -- The handle of the terminal that opened it as that terminal had it then: a display
     -- snapshot, for the source of opener_title ("named by the agent in @moth"), which
-    -- opener_terminal, the link, cannot give once that terminal has closed. Null where there
-    -- is no opener title.
+    -- opener_terminal, the link, cannot give once that terminal has closed. Null where no
+    -- agent opened it; kept whether or not that agent asked for a title.
     opener_handle TEXT,
     UNIQUE (session_id, handle),
     -- What an item's foreign key names; a save may move a terminal to another session, and
@@ -1190,8 +1190,11 @@ type NamingRow = Pick<
 const namingOf = (row: NamingRow): Naming => ({
   person: row.person_title,
   opener:
-    row.opener_title !== null
-      ? { title: row.opener_title, ...(row.opener_handle ? { by: row.opener_handle } : {}) }
+    row.opener_title !== null || row.opener_handle
+      ? {
+          ...(row.opener_title !== null ? { title: row.opener_title } : {}),
+          ...(row.opener_handle ? { by: row.opener_handle } : {}),
+        }
       : null,
   murmur: row.murmur_title !== null ? { title: row.murmur_title } : null,
   own: row.own_title !== null ? { title: row.own_title } : null,
@@ -1875,7 +1878,8 @@ export class WorkspaceStore
           opener_title = excluded.opener_title, opener_handle = excluded.opener_handle,
           murmur_title = excluded.murmur_title, own_title = excluded.own_title,
           summary = excluded.summary,
-          opener_terminal = excluded.opener_terminal, lead_terminal = excluded.lead_terminal, command = excluded.command,
+          opener_terminal = excluded.opener_terminal,
+          lead_terminal = excluded.lead_terminal, command = excluded.command,
           last_program = excluded.last_program, work = excluded.work,
           interruptions = excluded.interruptions, ran = max(ran, excluded.ran)
       `

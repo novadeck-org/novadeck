@@ -83,6 +83,7 @@ const peersOf = remembered((roster): Readonly<Record<string, MessagePeer>> =>
               {
                 name: each.name,
                 terminalId: each.id,
+                handle: each.handle,
                 program: each.state === "running" ? each.process : undefined,
                 live: critterLive(each),
               },
