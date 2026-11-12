@@ -1568,7 +1568,6 @@ describe("runner client works", () => {
       terminalId: null,
       adopted: false,
       branchMade: true,
-      diverged: false,
       createdAt: 5,
     })
     earlier.close()
