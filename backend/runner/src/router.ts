@@ -74,6 +74,7 @@ const noWorks = {
   watch: (_ownerId: string, signal?: AbortSignal) => noWorksStream(signal),
   look: () => Promise.reject(new DomainError("NOT_FOUND")),
   show: () => Promise.reject(new DomainError("NOT_FOUND")),
+  closeWork: () => Promise.reject(new DomainError("NOT_FOUND")),
 }
 
 /**
@@ -251,8 +252,11 @@ export const createRouter = (options: {
       watch: api.works.watch.handler(({ context, signal }) =>
         works.watch(context.session.id, signal),
       ),
-      look: api.works.look.handler(({ input }) => works.look(input.terminalId)),
-      show: api.works.show.handler(({ input }) => works.show(input.terminalId)),
+      look: api.works.look.handler(({ input }) => works.look(input.root)),
+      show: api.works.show.handler(({ input }) => works.show(input.root, input.terminalId)),
+      close: api.works.close.handler(({ input }) =>
+        works.closeWork(input.root, input.force === true),
+      ),
     },
     companions: {
       list: api.companions.list.handler(({ input }) => {

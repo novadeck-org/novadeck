@@ -2,7 +2,8 @@ import { planFile as file, type WorkPlan } from "./works"
 
 // The works each demo opens with, by the titles of its own terminals (see `WorkPlan`): a mix
 // of unread and read, one that conflicts with main and, where there are terminals enough, two
-// that conflict with each other.
+// that conflict with each other. The storefront's also has a worktree with no owner, one just
+// made (it differs from nothing), and one whose owner's agent is mid-turn in it.
 
 // The sample projects of the plain and agents demos, whose terminals share their titles.
 export const storefrontPlans: readonly WorkPlan[] = [
@@ -32,6 +33,7 @@ export const storefrontPlans: readonly WorkPlan[] = [
     project: "storefront",
     terminal: "Checkout review",
     minutesAgo: 140,
+    working: true,
     files: [file("src/checkout/Checkout.tsx", 6, 2, { read: true })],
   },
   {
@@ -42,6 +44,20 @@ export const storefrontPlans: readonly WorkPlan[] = [
       file("vite.config.ts", 9, 3, { read: true }),
       file("package.json", 2, 2, { read: true }),
     ],
+  },
+  {
+    project: "storefront",
+    terminal: null,
+    branch: "agent/promo-banner",
+    minutesAgo: 600,
+    files: [file("src/promo/Banner.tsx", 18, 2, { read: true })],
+  },
+  {
+    project: "storefront",
+    terminal: "Build",
+    branch: "agent/build-cache",
+    minutesAgo: 4,
+    files: [],
   },
   {
     project: "api-service",

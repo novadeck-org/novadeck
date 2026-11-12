@@ -495,6 +495,28 @@ with every safety check again at that time:
   counts a work's files as the item does (renames found, whitespace ignored, re-indented lines
   apart), so a row's `+N −N` is its pane's.
 
+  **The Changes panel** lists **works**, and a work is a tracked git worktree: a row of the
+  `worktrees` table (see "Worktrees"), keyed by its root, whatever the Preferences switch says
+  (with it off, the worktrees already tracked still show; terminals' plain checkouts are not works).
+  Each work is `{ root, terminalId | null, projectId, working, branch, base, firstSeenAt, files, … }`:
+  the owner comes from the table (null once orphaned), never inferred, and a worktree that differs
+  from nothing (just made, or merged) is a work with no files, first seen when it was recorded. It is
+  measured as before: the working tree against main by an in-memory `merge-tree`, with what is unread
+  and what conflicts with main or another work (named by root, and its owner if it has one). A row
+  shows the owner terminal's title, or "No owner", and the branch; a click looks at the work and
+  shows it as a changes item on the owner's bar (a work with no owner, on the selected terminal's:
+  `works.show({ root, terminalId })`). `working` says the owner's agent is mid-turn in this very
+  worktree (its activity is working, or a shell command runs, and its current checkout is the
+  worktree). The row's × calls `works.close({ root, force })`, which closes the worktree with the
+  person as the actor, through the worktrees service's removal (see "Worktrees": uncommitted work is
+  kept at `refs/novadeck/kept/<branch>`, the branch goes only when main holds all of it). The panel
+  asks first when files differ from main (committed work stays on the branch, uncommitted work is
+  kept on a ref, ignored files like `.env` are not kept) and forces the close once confirmed; the ×
+  waits while `working`, and the runner refuses it then too. A refusal (`CONFLICT`, with the
+  service's reason, such as git status being unreadable) shows above the list. With no works the
+  list says what appears there, and, with the switch off, to turn on Agent worktrees in Preferences →
+  Experimental. A closed worktree's memory goes with it (`works.json` and its snapshot).
+
   The files the person read are kept in the same memory file (`works.json`), each by its object
   as the change listed it (all zeros for a file deleted): `companions.changeRead` marks one,
   and the content's `read` names the files of the change whose object is still that one. A

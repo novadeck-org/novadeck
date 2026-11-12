@@ -243,19 +243,29 @@ describe("History", () => {
 describe("Works", () => {
   const terminalId = "11111111-1111-4111-8111-111111111111"
   const projectId = "22222222-2222-4222-8222-222222222222"
+  const root = "/home/me/.novadeck/worktrees/p/x/web"
 
-  it("follows works from a reset to synced, and looks at and shows one", async () => {
+  it("follows works from a reset to synced, and looks at, shows and closes one by its root", async () => {
     const looked: string[] = []
+    const shown: unknown[] = []
+    const closed: unknown[] = []
     const { runner } = await fakeRunner({
       works: {
         watch: api.works.watch.handler(async function* () {
           yield { type: "synced" as const }
-          yield { type: "removed" as const, terminalId, projectId }
+          yield { type: "removed" as const, root, projectId }
         }),
         look: api.works.look.handler(({ input }) => {
-          looked.push(input.terminalId)
+          looked.push(input.root)
         }),
-        show: api.works.show.handler(({ input }) => ({ itemId: input.terminalId })),
+        show: api.works.show.handler(({ input }) => {
+          shown.push(input)
+          return { itemId: terminalId }
+        }),
+        close: api.works.close.handler(({ input }) => {
+          closed.push(input)
+          return { kept: "refs/novadeck/kept/x", branchDeleted: false }
+        }),
       },
     })
     const watch = runner.works.watch()
@@ -267,9 +277,15 @@ describe("Works", () => {
       seen.push(value!.type)
     }
     expect(seen).toEqual(["reset", "synced", "removed"])
-    await runner.works.look(terminalId)
-    expect(looked).toEqual([terminalId])
-    expect(await runner.works.show(terminalId)).toEqual({ itemId: terminalId })
+    await runner.works.look(root)
+    expect(looked).toEqual([root])
+    expect(await runner.works.show(root, terminalId)).toEqual({ itemId: terminalId })
+    expect(shown).toEqual([{ root, terminalId }])
+    expect(await runner.works.close(root, true)).toEqual({
+      kept: "refs/novadeck/kept/x",
+      branchDeleted: false,
+    })
+    expect(closed).toEqual([{ root, force: true }])
   })
 })
 

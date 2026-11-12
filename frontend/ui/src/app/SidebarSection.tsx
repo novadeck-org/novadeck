@@ -45,6 +45,8 @@ const noSource = createStore<SourceState>({ projects: {} })
 const noHistory = createStore<HistoryState>({ rows: [] })
 // What a backend without works reads in its place; its panel isn't drawn.
 const noWorks = createStore<WorksState>({ works: [], synced: true })
+// What a backend without the agent worktrees setting reads in its place.
+const noWorktrees = createStore(false)
 const noAgents: readonly never[] = []
 const always = (): (() => void) => () => {}
 
@@ -182,20 +184,30 @@ export const SidebarSection = memo((): React.JSX.Element => {
   )
   const selectedId = useWorkspaceState((workspace) => currentState(workspace).selected)
   const { revealTerminal, openBarTab } = commands
+  // A work is shown on its owner's bar, or, with no owner, on the selected terminal's.
   const showWork = useCallback(
-    (terminalId: string) => {
+    (work: Work) => {
       if (!worksFeed) return
-      revealTerminal(terminalId, projectId)
-      worksFeed.show(terminalId).then(
-        (itemId) => {
-          if (itemId !== null) openBarTab(terminalId, itemIdOf(itemId))
-        },
-        () => {},
-      )
-      worksFeed.look(terminalId)
+      const terminalId = work.terminalId ?? selectedId
+      if (terminalId !== undefined) {
+        revealTerminal(terminalId, projectId)
+        worksFeed.show(work.root, terminalId).then(
+          (itemId) => {
+            if (itemId !== null) openBarTab(terminalId, itemIdOf(itemId))
+          },
+          () => {},
+        )
+      }
+      worksFeed.look(work.root)
     },
-    [worksFeed, revealTerminal, openBarTab, projectId],
+    [worksFeed, revealTerminal, openBarTab, projectId, selectedId],
   )
+  const worktreesOn = useStoreSelector(backend.worktrees?.enabled ?? noWorktrees, (on) => on)
+  const agentWorktrees: "on" | "off" | "absent" = backend.worktrees
+    ? worktreesOn
+      ? "on"
+      : "off"
+    : "absent"
   const changes = useMemo(
     () =>
       worksFeed
@@ -205,10 +217,12 @@ export const SidebarSection = memo((): React.JSX.Element => {
             watch: worksFeed.watch,
             titles,
             selectedId,
+            agentWorktrees,
             onSelect: showWork,
+            onCloseWork: worksFeed.close,
           }
         : undefined,
-    [worksFeed, projectWorks, worksSynced, titles, selectedId, showWork],
+    [worksFeed, projectWorks, worksSynced, titles, selectedId, agentWorktrees, showWork],
   )
   const sidebarPanel = useUiState((state) => state.location.route.panel)
   const visible = useUiState((state) => sidebarVisible(state.shell, desktop))

@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process"
+import { existsSync } from "node:fs"
 import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
@@ -1523,6 +1525,95 @@ describe("runner client over MessagePort", () => {
     dispose()
     await status.watching
     expect(client.status).toMatchObject({ state: "closed", error: { code: "CLOSED" } })
+  })
+})
+
+describe("runner client works", () => {
+  it("lists a tracked worktree with no owner even with agent worktrees off, and closes it on the person's say", async ({
+    resources,
+  }) => {
+    const directory = await realpath(await temporary(resources))
+    const git = (cwd: string, ...args: string[]) =>
+      execFileSync(
+        "git",
+        [
+          "-c",
+          "user.name=T",
+          "-c",
+          "user.email=t@example.com",
+          "-c",
+          "commit.gpgsign=false",
+          ...args,
+        ],
+        { cwd, encoding: "utf8" },
+      )
+    const repo = join(directory, "repo")
+    const worktree = join(directory, "tree")
+    git(directory, "init", "--quiet", "-b", "main", repo)
+    await writeFile(join(repo, "a.txt"), "a\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "--quiet", "-m", "first")
+    git(repo, "worktree", "add", "--quiet", "-b", "feat/x", worktree)
+    // The runner of an earlier run left the table: an orphaned worktree of this project.
+    const database = join(directory, "workspace.sqlite")
+    const earlier = new WorkspaceStore(database)
+    const projectId = crypto.randomUUID()
+    await earlier.createProject({ id: projectId, name: "P", cwd: directory })
+    earlier.insertWorktree({
+      path: worktree,
+      commonDir: join(repo, ".git"),
+      branch: "feat/x",
+      base: git(repo, "rev-parse", "HEAD").trim(),
+      projectId,
+      terminalId: null,
+      adopted: false,
+      diverged: false,
+      createdAt: 5,
+    })
+    earlier.close()
+    const runner = createRunner({ database, terminals: { ...ptyOptions } })
+    resources.defer(() => runner.close())
+    const { port1, port2 } = new MessageChannel()
+    resources.defer(servePort(runner.sessions, port1))
+    const client = await connectRunner(messagePort(port2), fast)
+    resources.defer(() => client.close())
+
+    const watch = client.works.watch()
+    resources.defer(() => void watch.return?.())
+    const found = new Map<string, unknown>()
+    for (;;) {
+      // eslint-disable-next-line no-await-in-loop -- Events arrive in order.
+      const { value } = await watch.next()
+      if (value?.type === "changed") found.set(value.work.root, value.work)
+      if (value?.type === "synced") break
+    }
+    expect(found.get(worktree)).toMatchObject({
+      root: worktree,
+      terminalId: null,
+      projectId,
+      branch: "feat/x",
+      working: false,
+    })
+
+    await writeFile(join(worktree, "new.txt"), "new\n")
+    await expect(client.works.close(worktree)).rejects.toMatchObject({
+      message: expect.stringContaining("uncommitted"),
+    })
+    expect(existsSync(worktree)).toBe(true)
+    await expect(client.works.close(join(directory, "nowhere"))).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    })
+    const closed = await client.works.close(worktree, true)
+    expect(closed.kept).toContain("refs/novadeck/kept/feat/x")
+    expect(existsSync(worktree)).toBe(false)
+    for (;;) {
+      // eslint-disable-next-line no-await-in-loop -- Events arrive in order.
+      const { value } = await watch.next()
+      if (value?.type === "removed") {
+        expect(value).toMatchObject({ root: worktree, projectId })
+        break
+      }
+    }
   })
 })
 

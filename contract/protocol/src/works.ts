@@ -2,10 +2,10 @@ import { z } from "zod"
 
 import { directory, id } from "./fields.js"
 
-// Works: each terminal's piece of work that differs from its repository's main branch, for
-// the sidebar's Changes panel. A work is the terminal's checkout (its worktree, or the
-// folder it shares) against main: everything merging it into main would change, committed
-// or not. It lives while that is anything; once merged or discarded it is removed.
+// Works: each tracked git worktree against its repository's main branch, for the sidebar's
+// Changes panel. A work is a worktree Novadeck tracks (one an agent opened or took), keyed by
+// its root: everything merging it into main would change, committed or not, which is nothing
+// for a worktree just made or already merged. It lives as long as the worktree is tracked.
 
 /** How many files a work lists at most, and how long a path or branch name runs. */
 export const workLimits = { files: 300, path: 4096, branch: 256, conflicts: 32 } as const
@@ -24,21 +24,29 @@ export const workFile = z.strictObject({
   conflict: z.boolean(),
 })
 
-// What a work conflicts with: main, or another terminal's work in the same repository.
+// What a work conflicts with: main, or another work in the same repository, by its root and
+// its owner's terminal, if it has one.
 export const workConflict = z.discriminatedUnion("with", [
   z.strictObject({ with: z.literal("main") }),
-  z.strictObject({ with: z.literal("work"), terminalId: id }),
+  z.strictObject({
+    with: z.literal("work"),
+    root: directory,
+    terminalId: id.nullable(),
+  }),
 ])
 
-// One terminal's work. `root` is its checkout; `branch` its branch, null when detached;
+// One worktree's work. `root` is its folder and the work's key; `terminalId` the terminal that
+// owns it, null when it has no owner; `working` whether that owner's agent is mid-turn in it
+// now; `branch` its branch, null when detached;
 // `base` the main branch it's measured against (as `main` or `origin/main`); `firstSeenAt`
 // when it first differed from main, which orders the panel; the totals are its files' sums,
 // the unread ones what the person hasn't read. `truncated` when more files changed than
 // `files` lists.
 export const work = z.strictObject({
-  terminalId: id,
-  projectId: id,
   root: directory,
+  terminalId: id.nullable(),
+  projectId: id,
+  working: z.boolean(),
   branch: z.string().min(1).max(workLimits.branch).nullable(),
   base: z.string().min(1).max(workLimits.branch),
   firstSeenAt: z.number(),
@@ -54,7 +62,7 @@ export const work = z.strictObject({
 // `works.watch` events: every work, `synced`, then each later change.
 export const workChange = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("changed"), work }),
-  z.strictObject({ type: z.literal("removed"), terminalId: id, projectId: id }),
+  z.strictObject({ type: z.literal("removed"), root: directory, projectId: id }),
   // Follows the initial `changed` events: works not reported by now do not exist.
   z.strictObject({ type: z.literal("synced") }),
 ])

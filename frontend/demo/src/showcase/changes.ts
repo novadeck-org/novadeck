@@ -464,7 +464,7 @@ const stepLines = (path: string, kind: "before" | "after", count: number): strin
 const frame = (path: string, middle: string[]): string =>
   text(`// ${path.split("/").at(-1)}`, "", ...middle, "", "export {}")
 
-// The change a terminal's work shows as: its files, against main, as a layer of work not
+// The change a worktree's work shows as: its files, against main, as a layer of work not
 // committed yet, each a few lines the demo invents (the counts are the work's own).
 export const workChanges = (work: Work, title: string): SampleArtifact => {
   const before: Record<string, string> = {}
@@ -474,7 +474,7 @@ export const workChanges = (work: Work, title: string): SampleArtifact => {
     after[each.path] = frame(each.path, stepLines(each.path, "after", each.added))
   }
   const count = `${work.files.length} ${work.files.length === 1 ? "file" : "files"}`
-  const made = sample(`work-${work.terminalId}`, "Changes", {
+  const made = sample(`work-${work.root.replace(/[^A-Za-z0-9]+/g, "-")}`, "Changes", {
     start: before,
     steps: [{ id: "uncommitted", subject: "", time: null, set: after }],
   })

@@ -306,16 +306,19 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     }),
   )
   const works = new Works({
-    placements: async () =>
-      (await terminals.checkouts()).flatMap(({ terminalId, sessionId, root }) => {
-        try {
-          return [{ terminalId, projectId: store.session(sessionId).projectId, root }]
-        } catch (error) {
-          // A session gone from the store while its terminal winds down.
-          if (error instanceof DomainError && error.code === "NOT_FOUND") return []
-          throw error
-        }
-      }),
+    tracked: () =>
+      worktrees.all().map(({ path, projectId, terminalId, createdAt }) => ({
+        root: path,
+        projectId,
+        terminalId,
+        createdAt,
+      })),
+    presences: async () =>
+      (await terminals.checkouts()).map(({ terminalId, root, working }) => ({
+        terminalId,
+        root,
+        working,
+      })),
     show: async (terminalId, root) => {
       const place = terminals.place(terminalId)
       if (!place) throw new DomainError("TERMINAL_NOT_FOUND")
@@ -323,6 +326,12 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       const shown = await items.show(place, { changes: { path: root }, open: true })
       if (!shown.ok) throw new DomainError("NOT_FOUND", shown.reason)
       return shown.id
+    },
+    // The person is the actor: whoever owns the worktree, it closes on their say.
+    remove: async (root, force) => {
+      const row = worktrees.at(root)
+      if (!row) return { ok: false, reason: "Novadeck no longer tracks that worktree." }
+      return worktrees.close(row, force)
     },
     snapshots,
     ...(memory !== undefined && { memory }),

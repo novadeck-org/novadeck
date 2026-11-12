@@ -15,6 +15,7 @@ import {
   visitorPlans,
 } from "./work-plans"
 import {
+  closeRefusal,
   createDemoWorks,
   isDemoWorks,
   planFile,
@@ -52,9 +53,11 @@ describe("the demo's Changes seeds", () => {
         ),
       )
 
-      it("has a work for every plan, of terminals and projects the seed holds", () => {
+      it("has a work for every plan, of terminals and projects the seed holds, keyed by root", () => {
         expect(works).toHaveLength(plans.length)
-        for (const work of works) expect(terminals.get(work.terminalId)).toBe(work.projectId)
+        for (const work of works)
+          if (work.terminalId !== null) expect(terminals.get(work.terminalId)).toBe(work.projectId)
+        expect(new Set(works.map((work) => work.root)).size).toBe(works.length)
       })
 
       it("mixes unread works with read ones", () => {
@@ -64,15 +67,15 @@ describe("the demo's Changes seeds", () => {
 
       it("has a conflict with main and one between two works of a project", () => {
         expect(works.some((work) => work.conflicts.some((each) => each.with === "main"))).toBe(true)
-        const ids = new Set(works.map((work) => work.terminalId))
+        const roots = new Set(works.map((work) => work.root))
         const between = works.filter((work) =>
-          work.conflicts.some((each) => each.with === "work" && ids.has(each.terminalId)),
+          work.conflicts.some((each) => each.with === "work" && roots.has(each.root)),
         )
         expect(between.length).toBeGreaterThanOrEqual(2)
         for (const work of between)
           for (const each of work.conflicts)
             if (each.with === "work")
-              expect(works.find((other) => other.terminalId === each.terminalId)?.projectId).toBe(
+              expect(works.find((other) => other.root === each.root)?.projectId).toBe(
                 work.projectId,
               )
       })
@@ -94,6 +97,24 @@ describe("the demo's Changes seeds", () => {
   }
 })
 
+describe("the storefront's worktrees", () => {
+  const works = stateOf(plainDemo("plain")).filter((work) => work.projectId === "storefront")
+
+  it("has one with no owner, one just made, one with changes and one its owner is working in", () => {
+    expect(works.some((work) => work.terminalId === null && work.files.length > 0)).toBe(true)
+    expect(works.some((work) => work.terminalId !== null && work.files.length === 0)).toBe(true)
+    expect(works.some((work) => work.terminalId !== null && work.files.length > 0)).toBe(true)
+    expect(works.some((work) => work.working)).toBe(true)
+  })
+
+  it("gives each a branch of its own, and a worktree of one owner is not another's", () => {
+    expect(new Set(works.map((work) => work.branch)).size).toBe(works.length)
+    const builds = works.filter((work) => work.branch?.startsWith("agent/build"))
+    expect(builds).toHaveLength(2)
+    expect(new Set(builds.map((work) => work.terminalId)).size).toBe(1)
+  })
+})
+
 describe("the demo's works", () => {
   const { seed } = plainDemo("plain")
 
@@ -102,7 +123,7 @@ describe("the demo's works", () => {
   it("reads a work when it is looked at, and only that one", () => {
     const works = createDemoWorks(worksFromPlans(seed, storefrontPlans, Date.now()))
     const [first, second] = works.state.getSnapshot().works
-    works.look(first!.terminalId)
+    works.look(first!.root)
     const after = works.state.getSnapshot().works
     expect(unread(after[0]!)).toBe(false)
     expect(unread(after[1]!)).toBe(unread(second!))
@@ -112,7 +133,7 @@ describe("the demo's works", () => {
     const works = createDemoWorks([])
     works.gain(at, 10)
     expect(works.state.getSnapshot().works).toMatchObject([
-      { terminalId: at.terminalId, unreadAdded: 10 },
+      { root: at.root, terminalId: at.terminalId, unreadAdded: 10 },
     ])
     works.gain(at, 5)
     expect(works.state.getSnapshot().works[0]).toMatchObject({ added: 15, unreadAdded: 15 })
@@ -133,33 +154,93 @@ describe("the demo's works", () => {
         Date.now(),
       ),
     )
-    const id = works.state.getSnapshot().works[0]!.terminalId
+    const { root, terminalId } = works.state.getSnapshot().works[0]!
     expect(unread(works.state.getSnapshot().works[0]!)).toBe(false)
-    works.gain({ ...at, terminalId: id }, 4)
+    works.gain({ ...at, terminalId: terminalId!, root }, 4)
     expect(unread(works.state.getSnapshot().works[0]!)).toBe(true)
   })
 
   it("conflicts with main and with another work, both ways, and settles", () => {
     const works = createDemoWorks([])
-    const other = { ...at, terminalId: "storefront-initial-03" }
+    const other = { ...at, terminalId: "storefront-initial-03", root: "~/y" }
     works.conflictWithMain(at)
     expect(works.state.getSnapshot().works[0]?.conflicts).toEqual([{ with: "main" }])
     works.conflictBetween(at, other)
     const [one, two] = works.state.getSnapshot().works
-    expect(one?.conflicts).toContainEqual({ with: "work", terminalId: other.terminalId })
-    expect(two?.conflicts).toEqual([{ with: "work", terminalId: at.terminalId }])
-    works.settle(at.terminalId)
+    expect(one?.conflicts).toContainEqual({
+      with: "work",
+      root: other.root,
+      terminalId: other.terminalId,
+    })
+    expect(two?.conflicts).toEqual([{ with: "work", root: at.root, terminalId: at.terminalId }])
+    works.settle(at.root)
     expect(works.state.getSnapshot().works[0]?.conflicts).toEqual([])
   })
 
-  it("drops a work that ends, and the conflicts with it", () => {
+  it("drops a work that is closed, and the conflicts with it", async () => {
     const works = createDemoWorks([])
-    const other = { ...at, terminalId: "storefront-initial-03" }
+    const other = { ...at, terminalId: "storefront-initial-03", root: "~/y" }
     works.conflictBetween(at, other)
-    works.end(at.terminalId)
+    await works.close(at.root, true)
     expect(works.state.getSnapshot().works).toMatchObject([
       { terminalId: other.terminalId, conflicts: [] },
     ])
+  })
+
+  it("keeps a merged work as a worktree with no files", () => {
+    const works = createDemoWorks([])
+    works.gain(at, 10)
+    works.merge(at.root)
+    expect(works.state.getSnapshot().works).toMatchObject([
+      { root: at.root, files: [], added: 0, conflicts: [] },
+    ])
+  })
+
+  it("refuses a close that would lose changes unless forced, and says what it kept", async () => {
+    const works = createDemoWorks([])
+    works.gain(at, 10)
+    await expect(works.close(at.root)).rejects.toThrow(/holds 1 changed file/)
+    expect(works.state.getSnapshot().works).toHaveLength(1)
+    expect(await works.close(at.root, true)).toMatchObject({
+      kept: expect.stringContaining("refs/novadeck/kept/"),
+      branchDeleted: false,
+    })
+    expect(works.state.getSnapshot().works).toEqual([])
+  })
+
+  it("closes a worktree that differs from nothing without a question", async () => {
+    const works = createDemoWorks([])
+    works.openClean(at)
+    expect(await works.close(at.root)).toEqual({ branchDeleted: true })
+    expect(works.state.getSnapshot().works).toEqual([])
+  })
+
+  it("refuses to close one its owner's agent is working in, and one the panel armed a refusal for", async () => {
+    const works = createDemoWorks([])
+    works.gain(at, 10)
+    works.setWorking(at.terminalId, true)
+    await expect(works.close(at.root, true)).rejects.toThrow(/working in that worktree/)
+    works.setWorking(at.terminalId, false)
+    works.refuseNextClose()
+    await expect(works.close(at.root, true)).rejects.toThrow(closeRefusal)
+    // Only the next.
+    await expect(works.close(at.root, true)).resolves.toBeDefined()
+  })
+
+  it("leaves a worktree with no owner that shows on the bar it is asked for", async () => {
+    const works = createDemoWorks([], { show: async (work, on) => `${work.root}@${on}` })
+    works.gain(at)
+    works.orphan(at.root)
+    expect(works.state.getSnapshot().works[0]).toMatchObject({ terminalId: null })
+    await expect(works.show(at.root, "t9")).resolves.toBe(`${at.root}@t9`)
+    await expect(works.show(at.root)).resolves.toBeNull()
+  })
+
+  it("empties a project's worktrees", () => {
+    const works = createDemoWorks([])
+    works.gain(at)
+    works.removeAll(at.projectId)
+    expect(works.state.getSnapshot().works).toEqual([])
   })
 
   it("is always synced, watching it is free, and spreading files marks the work truncated", () => {
@@ -176,7 +257,7 @@ describe("the demo's works", () => {
   it("resolves a show to null where the demo has no pane to show it in", async () => {
     const works = createDemoWorks([])
     works.gain(at)
-    await expect(works.show(at.terminalId)).resolves.toBeNull()
+    await expect(works.show(at.root)).resolves.toBeNull()
     expect(isDemoWorks(works)).toBe(true)
   })
 })
@@ -201,8 +282,8 @@ describe("the showcase's Changes", () => {
       } as never,
       [],
     )
-    const id = await backend.works!.show(work.terminalId)
-    expect(id).toBe(`work-${work.terminalId}`)
+    const id = await backend.works!.show(work.root)
+    expect(id).toBe(`work-${work.root.replace(/[^A-Za-z0-9]+/g, "-")}`)
     expect(reported).toContainEqual(
       expect.objectContaining({
         type: "item/upsert",
@@ -213,18 +294,37 @@ describe("the showcase's Changes", () => {
 })
 
 describe("a demo agent's turn", () => {
-  it("adds unread lines to its work as it starts, once per turn", () => {
+  const started = () => {
     const turns = demoTurns()
-    const backend = withWorks(plainDemo("plain"), { turns })
+    const backend = withWorks(plainDemo("plain"), { turns, plans: storefrontPlans })
     const [project] = backend.seed.projects
     const session = project!.sessions[0]!
-    const terminal = session.terminals.find((each) => each.name === "Dev server")!
-    const key = { projectId: project!.id, workspaceSessionId: session.id, terminalId: terminal.id }
-    expect(stateOf(backend)).toEqual([])
+    const key = (name: string) => {
+      const terminal = session.terminals.find((each) => each.name === name)!
+      return {
+        terminal,
+        key: { projectId: project!.id, workspaceSessionId: session.id, terminalId: terminal.id },
+      }
+    }
+    return { turns, backend, key }
+  }
 
-    turns.work(key, terminal)
-    turns.work(key, terminal)
+  it("adds unread lines to the first work it owns as it starts, once per turn, and holds it busy", () => {
+    const { turns, backend, key } = started()
+    const { terminal, key: at } = key("Tests")
+    const before = stateOf(backend).find((work) => work.terminalId === terminal.id)!
+    turns.work(at, terminal)
+    turns.work(at, terminal)
+    const after = stateOf(backend).find((work) => work.root === before.root)!
+    expect(after.unreadAdded - before.unreadAdded).toBe(14)
+    expect(after.working).toBe(true)
+  })
 
-    expect(stateOf(backend)).toMatchObject([{ terminalId: terminal.id, unreadAdded: 14 }])
+  it("makes no worktree for an agent that owns none", () => {
+    const { turns, backend, key } = started()
+    const { terminal, key: at } = key("Dev server")
+    const before = stateOf(backend).length
+    turns.work(at, terminal)
+    expect(stateOf(backend)).toHaveLength(before)
   })
 })

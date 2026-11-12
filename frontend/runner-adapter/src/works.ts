@@ -4,8 +4,8 @@ import { hasCode, type Runner } from "@novadeck/runner-client"
 
 import { consume } from "./streams"
 
-// The runner's Works: every terminal's work against main as `works.watch` reports them,
-// and the person's looks at and shows of them.
+// The runner's Works: every tracked worktree's work against main as `works.watch` reports
+// them, and the person's looks at, shows and closes of them.
 
 export type RunnerWorks = {
   readonly works: Works
@@ -19,7 +19,7 @@ export const createRunnerWorks = (
   track: <T>(work: Promise<T>) => Promise<T> = (work) => work,
 ): RunnerWorks => {
   const state = createStore<WorksState>({ works: [], synced: false })
-  // By terminal.
+  // By root.
   const held = new Map<string, Work>()
   // The works of a sequence the runner has yet to finish with `synced`; until then `held` stays.
   let incoming: Map<string, Work> | undefined
@@ -46,23 +46,23 @@ export const createRunnerWorks = (
           break
         }
         case "changed": {
-          if (incoming) incoming.set(change.work.terminalId, change.work)
+          if (incoming) incoming.set(change.work.root, change.work)
           else {
-            held.set(change.work.terminalId, change.work)
+            held.set(change.work.root, change.work)
             publish()
           }
           break
         }
         case "removed": {
-          incoming?.delete(change.terminalId)
-          if (held.delete(change.terminalId)) publish()
+          incoming?.delete(change.root)
+          if (held.delete(change.root)) publish()
           break
         }
         case "synced": {
           // What the runner didn't report this time no longer exists.
           if (incoming) {
             held.clear()
-            for (const [terminalId, work] of incoming) held.set(terminalId, work)
+            for (const [root, work] of incoming) held.set(root, work)
             incoming = undefined
           }
           synced = true
@@ -107,20 +107,21 @@ export const createRunnerWorks = (
         if (watchers === 0) unfollow()
       }
     },
-    look: (terminalId) => {
+    look: (root) => {
       // Read at once, as the person sees it; the runner's next report of the work confirms it.
-      const work = held.get(terminalId)
+      const work = held.get(root)
       if (work) {
-        held.set(terminalId, read(work))
+        held.set(root, read(work))
         publish()
       }
-      void track(calls.look(terminalId)).catch((error: unknown) => {
+      void track(calls.look(root)).catch((error: unknown) => {
         // A work that is gone has nothing left to read.
         if (hasCode(error, "NOT_FOUND")) return
         console.error("Novadeck could not tell the runner a work was read:", error)
       })
     },
-    show: async (terminalId) => (await track(calls.show(terminalId))).itemId,
+    show: async (root, terminalId) => (await track(calls.show(root, terminalId))).itemId,
+    close: (root, force) => track(calls.close(root, force)),
   }
   return { works, stop }
 }

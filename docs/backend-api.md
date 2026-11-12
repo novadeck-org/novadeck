@@ -778,6 +778,16 @@ or taskkill for:
 - `novadeck-relay end <pid>:<startedAt>...` ends each of those processes still running
   that started then, and no other given its pid since.
 
+`works.watch` reports a work per tracked worktree, keyed by its root (`{ root, terminalId | null,
+projectId, working, branch, base, firstSeenAt, added, removed, files, conflicts, … }`; `removed`
+carries the root, and a conflict with another work names its root and owner). `works.look({ root })`
+marks it read, `works.show({ root, terminalId? })` shows it as a changes item on its owner's bar
+(`terminalId` names the bar for a work with no owner), and `works.close({ root, force? })` closes the
+worktree as the person asks, through the worktrees service: it answers `{ kept?, branchDeleted }`,
+refuses with `CONFLICT` and the reason while the worktree holds files or commits main lacks (unless
+`force`), while its owner's agent is working in it, or when git can't be read, and `NOT_FOUND` for
+a root that is no work. These work with the Experimental switch off.
+
 The runner keeps who owns each git worktree its agents work in in a `worktrees` table (schema 14):
 the worktree's real path (the key), its repository's git common dir, branch, the commit it started
 from, its project (which cascades), its owner terminal (plain text: a live terminal or one in History,

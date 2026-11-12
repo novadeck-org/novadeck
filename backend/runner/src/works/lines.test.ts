@@ -1,7 +1,7 @@
 import { workLimits } from "@novadeck/protocol"
 
 import { describe, expect, it } from "../test.js"
-import { attribute, conflictsOf, listFiles, mayConflict, type Lines } from "./lines.js"
+import { conflictsOf, listFiles, mayConflict, type Lines } from "./lines.js"
 
 const lines = (added: number, removed: number): Lines => ({ added, removed })
 
@@ -74,47 +74,17 @@ describe("which works could conflict", () => {
   })
 })
 
-describe("whose a checkout's work is", () => {
-  const claim = (terminalId: string, root: string, since: number) => ({ terminalId, root, since })
-
-  it("is the terminal that has been in the checkout the longest", () => {
-    const owners = attribute(
-      [claim("b", "/x", 5), claim("a", "/x", 9), claim("c", "/y", 1)],
-      new Map(),
-    )
-    expect(owners).toEqual(
-      new Map([
-        ["/x", "b"],
-        ["/y", "c"],
-      ]),
-    )
-  })
-
-  it("goes by the earlier id when they came together", () => {
-    expect(attribute([claim("b", "/x", 5), claim("a", "/x", 5)], new Map())).toEqual(
-      new Map([["/x", "a"]]),
-    )
-  })
-
-  it("stays with an owner that is still there, whoever has been there longer", () => {
-    expect(attribute([claim("a", "/x", 1), claim("b", "/x", 9)], new Map([["/x", "b"]]))).toEqual(
-      new Map([["/x", "b"]]),
-    )
-  })
-
-  it("passes to the longest-standing terminal once the owner has left", () => {
-    expect(attribute([claim("a", "/x", 3), claim("c", "/x", 2)], new Map([["/x", "b"]]))).toEqual(
-      new Map([["/x", "c"]]),
-    )
-  })
-})
-
 describe("the conflicts of a work", () => {
-  it("names main first, then the other works in a stable order", () => {
-    expect(conflictsOf(true, ["z", "a"])).toEqual([
+  it("names main first, then the other works by root in a stable order, each with its owner if any", () => {
+    expect(
+      conflictsOf(true, [
+        { root: "/z", terminalId: "t1" },
+        { root: "/a", terminalId: null },
+      ]),
+    ).toEqual([
       { with: "main" },
-      { with: "work", terminalId: "a" },
-      { with: "work", terminalId: "z" },
+      { with: "work", root: "/a", terminalId: null },
+      { with: "work", root: "/z", terminalId: "t1" },
     ])
     expect(conflictsOf(false, [])).toEqual([])
   })

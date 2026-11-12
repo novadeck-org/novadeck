@@ -3,7 +3,7 @@ import type { ClosedTerminal } from "@novadeck/core/history"
 import type { AgentConnection } from "@novadeck/core/port"
 import type { SourceListing, SourceProject } from "@novadeck/core/source"
 import type { SidebarPanel as PanelId, Tile, WorkspaceSession } from "@novadeck/core/types"
-import type { Work } from "@novadeck/core/works"
+import type { Work, WorkClosed } from "@novadeck/core/works"
 import { Plus } from "lucide-react"
 import type { ComponentProps } from "react"
 
@@ -57,9 +57,9 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
         onConnect: (agent: AgentName) => void
       }
     | undefined
-  // Where the backend reports each terminal's work against main: this project's works, the
-  // terminals' titles by id, the selected terminal, and what a row's click does. Left out,
-  // there is no Changes panel.
+  // Where the backend reports each tracked worktree's work against main: this project's works,
+  // the terminals' titles by id, the selected terminal, whether agents may open worktrees,
+  // what a row's click does and what its × does. Left out, there is no Changes panel.
   changes:
     | {
         works: readonly Work[]
@@ -69,7 +69,9 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
         watch: () => () => void
         titles: ReadonlyMap<string, string>
         selectedId: string | undefined
-        onSelect: (terminalId: string) => void
+        agentWorktrees: "on" | "off" | "absent"
+        onSelect: (work: Work) => void
+        onCloseWork: (root: string, force: boolean) => Promise<WorkClosed>
       }
     | undefined
   onSessionSelect: (id: string) => void
