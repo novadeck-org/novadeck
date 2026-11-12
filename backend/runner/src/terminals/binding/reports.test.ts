@@ -2,7 +2,16 @@ import type { HarnessEvent } from "@novadeck/harness-core/events"
 import { vi } from "vitest"
 
 import { harnesses } from "../../harnesses/registry.js"
+import type { Answer } from "../../messaging/hook-answers.js"
 import { describe, expect, it } from "../../test.js"
+import {
+  fired,
+  noNudges,
+  sessionBegan,
+  worktreesEarlyNotice,
+  worktreesOffNotice,
+  worktreesOnNotice,
+} from "../nudges.js"
 import type { Record } from "../record.js"
 import { Reports, type ReportsHost } from "./reports.js"
 
@@ -119,5 +128,144 @@ describe("the bound session's transcript, named by a later hook", () => {
 
   it("is not told for another agent's hook", async () => {
     expect(await reportTo(hook("codex", "s1"))).not.toHaveBeenCalled()
+  })
+})
+
+describe("the worktrees notice at a root turn's start", () => {
+  const harnessNames = ["claude", "codex", "agy"] as const
+
+  /** A terminal with a root session of `agent`, whose turns the host answers as the setting says. */
+  const terminal = (agent: (typeof harnessNames)[number]) => {
+    const record = {
+      summary: { id: "T" },
+      root: { agent, sessionId: "s", instance: "1", source: "status-line" },
+      agents: { [agent]: { sessionId: "s", seq: 1 } },
+      naming: { summary: "work", own: { title: "Work" } },
+      nudges: noNudges,
+    } as unknown as Record
+    const setting = { on: false, since: 0 as number | null }
+    const saved = vi.fn<() => void>()
+    const reports = new Reports({
+      worktrees: () => ({ enabled: () => setting.on, since: () => setting.since }),
+      save: saved,
+      peers: () => ({ facts: () => Promise.resolve(undefined) }),
+    } as unknown as ReportsHost)
+    const events: HarnessEvent[] = [
+      {
+        type: "turn-started",
+        agent,
+        sessionId: "s",
+        instance: "1",
+        startedAt: 1,
+        cause: "doorbell",
+      },
+    ]
+    const answer: Answer = { leaseId: null, stdout: "", adding: (extra) => extra }
+    /** What the next prompt's hook prints. */
+    const turn = async (deadline = Date.now() + 60_000): Promise<string> =>
+      (await reports.nudged(record, { agent } as never, events, answer, deadline)).stdout ?? ""
+    /** The runner restarting: the record comes back from its saved row, the nudges' memory gone. */
+    const restart = () => {
+      record.nudges = { ...noNudges }
+    }
+    const compact = () => {
+      record.agents = { [agent]: { sessionId: "s", seq: 1 } } as never
+      record.nudges = fired(record.nudges, "compaction")
+    }
+    return { record, setting, reports, turn, restart, compact }
+  }
+
+  for (const agent of harnessNames) {
+    const lasting = harnesses[agent].messaging.lasting.includes("prompt")
+
+    it(`tells ${agent}'s new session while the setting is on, and nothing while it is off`, async () => {
+      const off = terminal(agent)
+      off.record.nudges = sessionBegan(off.record.nudges, 0)
+      expect(await off.turn()).not.toContain("worktree")
+      const on = terminal(agent)
+      on.setting.on = true
+      on.record.nudges = sessionBegan(on.record.nudges, 0)
+      const printed = await on.turn()
+      expect(printed).toContain(worktreesOnNotice)
+      expect(printed).not.toContain(worktreesOffNotice)
+    })
+
+    it(`tells ${agent} once when the setting flips on, then once when it flips off`, async () => {
+      const t = terminal(agent)
+      expect(await t.turn()).toBe("")
+      t.setting.on = true
+      expect(await t.turn()).toBe(worktreesOnNotice)
+      t.setting.on = false
+      expect(await t.turn()).toBe(worktreesOffNotice)
+      expect(await t.turn()).toBe("")
+      expect(await t.turn()).toBe("")
+      // And on again: told again.
+      t.setting.on = true
+      expect(await t.turn()).toBe(worktreesOnNotice)
+    })
+
+    it(
+      lasting
+        ? `does not repeat ${agent}'s notice within a session, across a runner restart either`
+        : `repeats ${agent}'s notice at each turn, as an injection lasts one model call`,
+      async () => {
+        const t = terminal(agent)
+        t.setting.on = true
+        expect(await t.turn()).toBe(worktreesOnNotice)
+        expect(await t.turn()).toBe(lasting ? "" : worktreesOnNotice)
+        t.restart()
+        expect(await t.turn()).toBe(lasting ? "" : worktreesOnNotice)
+        // A flip off while the runner was down is noticed after it.
+        t.restart()
+        t.setting.on = false
+        expect(await t.turn()).toBe(worktreesOffNotice)
+        expect(await t.turn()).toBe("")
+      },
+    )
+
+    it(`tells ${agent} again after a compaction${lasting ? "" : " (it is told at every turn)"}`, async () => {
+      const t = terminal(agent)
+      t.setting.on = true
+      await t.turn()
+      t.compact()
+      expect(await t.turn()).toContain(worktreesOnNotice)
+      expect(await t.turn()).toBe(lasting ? "" : worktreesOnNotice)
+    })
+
+    it(`tells ${agent} it can't write in worktrees when its process started before the folder, until it restarts`, async () => {
+      const t = terminal(agent)
+      t.setting.on = true
+      t.setting.since = 1_000
+      t.reports.launches.set("T", { instance: "1", at: 500 })
+      expect(await t.turn()).toBe(worktreesEarlyNotice)
+      expect(await t.turn()).toBe(lasting ? "" : worktreesEarlyNotice)
+      // A resume or a wake starts a new process, which got the folder as an added directory.
+      t.reports.launches.set("T", { instance: "2", at: 2_000 })
+      expect(await t.turn()).toBe(worktreesOnNotice)
+      expect(await t.turn()).toBe(lasting ? "" : worktreesOnNotice)
+    })
+
+    it(`tells ${agent} it can't write in worktrees while the folder could not be made`, async () => {
+      const t = terminal(agent)
+      t.setting.on = true
+      t.setting.since = null
+      expect(await t.turn()).toBe(worktreesEarlyNotice)
+    })
+
+    it(`tells ${agent}'s next session, which holds nothing of the last`, async () => {
+      const t = terminal(agent)
+      t.setting.on = true
+      await t.turn()
+      t.record.agents = {}
+      expect(await t.turn()).toBe(worktreesOnNotice)
+    })
+  }
+
+  it("is not spent by an answer too late to print it", async () => {
+    const t = terminal("claude")
+    t.setting.on = true
+    const late = await t.turn(Date.now())
+    expect(late).toBe("")
+    expect(await t.turn()).toBe(worktreesOnNotice)
   })
 })

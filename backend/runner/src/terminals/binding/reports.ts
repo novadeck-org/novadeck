@@ -31,6 +31,8 @@ import {
   sessionBegan,
   barDigest,
   sessionResumed,
+  worktreesDigests,
+  worktreesDue,
 } from "../nudges.js"
 import { peerOf, type TerminalPeers } from "../peers-host.js"
 import type { Record } from "../record.js"
@@ -66,6 +68,8 @@ export type ReportsHost = {
   readonly trees: () => ProcessTrees
   /** The platform harnesses run their hooks on. */
   readonly platform: () => NodeJS.Platform
+  /** The agent worktrees wiring, read live at each turn's start; none where there are none. */
+  readonly worktrees: () => { enabled: () => boolean; since: () => number | null } | undefined
 }
 
 /**
@@ -78,6 +82,8 @@ export class Reports {
   readonly queues = new Map<string, Promise<void>>()
   /** How many times each harness was disconnected, so a report that waited meanwhile is dropped. */
   readonly disconnections = new Map<AgentName, number>()
+  /** When each terminal's root agent process was first seen, by its instance, as it launched. */
+  readonly launches = new Map<string, { readonly instance: string | null; readonly at: number }>()
 
   constructor(readonly host: ReportsHost) {}
 
@@ -484,12 +490,29 @@ export class Reports {
         : undefined
     const current = { summary: record.naming.summary, title: record.naming.own?.title ?? null }
     const notices = (took: Parameters<typeof noticesAt>[0]) => noticesAt(took, current)
+    // Agent worktrees: told to a session that holds what a hook prints once, and to
+    // Antigravity's at each turn; a flip is told by what the session's `told` holds.
+    const lasting = messaging.lasting.includes("prompt")
+    const wiring = this.host.worktrees()
+    // An agent launched before the worktrees folder existed has no right to write there
+    // until its process restarts; one the runner has no launch of is judged by its session.
+    const since = wiring?.enabled() ? wiring.since() : null
+    const launched = this.launches.get(record.summary.id)?.at ?? record.nudges.since
+    const worktrees = record.root
+      ? worktreesDue(
+          wiring?.enabled() ?? false,
+          toldOf(record.agents, record.root).worktrees,
+          lasting,
+          since !== null && launched >= since,
+        )
+      : null
     const taken = atTurnStart(record.nudges, {
       person,
       // A nudge that may miss the hook's deadline is never spent: its trigger waits.
       inTime: inTime(leaseMargin),
       facts,
       unsummarized: current.summary === null || current.title === null,
+      worktrees,
       // What the hook may not print beside what the answer says waits for the next turn.
       fits: (took) => byteLength(adding(notices(took))) <= maxDeliveryBytes,
       fitsAlone: (took) => byteLength(messaging.prompt(notices(took))) <= maxDeliveryBytes,
@@ -498,8 +521,13 @@ export class Reports {
     if (!taken.nudge) return given
     // Where the prompt's answer stays in the session's context, it holds the bar's notice
     // from now on, across a restart too, until it compacts.
-    if (taken.companion && record.root && messaging.lasting.includes("prompt")) {
-      record.agents = retold(record.agents, record.root, (told) => ({ ...told, bar: barDigest }))
+    if (record.root && (taken.worktrees || (taken.companion && lasting))) {
+      const { worktrees: now, companion } = taken
+      record.agents = retold(record.agents, record.root, (told) => ({
+        ...told,
+        ...(companion && lasting && { bar: barDigest }),
+        ...(now && { worktrees: worktreesDigests[now] }),
+      }))
       this.host.save(record)
     }
     return { leaseId, stdout: adding(notices(taken)) }
@@ -547,6 +575,8 @@ export class Reports {
       awaited: (sessionId) => this.host.messaging().awaits(id, sessionId),
     })
     record.root = root
+    if (root && this.launches.get(id)?.instance !== root.instance)
+      this.launches.set(id, { instance: root.instance, at: Date.now() })
     // What the root session was told before and holds still, kept with its report: a
     // session resumed after a restart is the same session, while another holds nothing.
     const told = toldOf(record.agents, root)

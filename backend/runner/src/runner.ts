@@ -29,6 +29,7 @@ import {
   WorkspaceStore,
   WorkspaceTooNewError,
 } from "./workspaces/store.js"
+import { RootFolder } from "./worktrees/root-folder.js"
 import { Worktrees } from "./worktrees/worktrees.js"
 
 const log = logs.for("runner")
@@ -270,11 +271,17 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     exists: (terminalId) =>
       terminals.place(terminalId) !== undefined || store.terminalExists(terminalId),
   })
+  const rootFolder = new RootFolder({ enabled: () => store.settings.runner().worktrees })
+  rootFolder.ensure()
   const terminals = new Terminals({
     records: store,
     closed: store,
     projects: () => store.projects().map(({ id }) => id),
-    worktrees: { service: worktrees, enabled: () => store.settings.runner().worktrees },
+    worktrees: {
+      service: worktrees,
+      enabled: () => store.settings.runner().worktrees,
+      since: () => rootFolder.since(),
+    },
     sealer,
     shellFiles,
     ...relay,
@@ -342,6 +349,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     voice,
     murmur,
     sealer,
+    rootFolder,
   }
 }
 
@@ -414,6 +422,7 @@ const startRunner = (options: RunnerOptions): Runner => {
     voice,
     murmur,
     sealer,
+    rootFolder,
   } = wire(options)
   let closing: Promise<void> | undefined
   return {
@@ -433,6 +442,7 @@ const startRunner = (options: RunnerOptions): Runner => {
         murmur,
         transcriptsAvailable: () => transcriptsAvailable(sealer),
         closing: () => closing !== undefined,
+        settingsSaved: () => rootFolder.ensure(),
       }),
       error: apiError,
       failed: logFailure,

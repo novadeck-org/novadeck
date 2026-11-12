@@ -14,6 +14,11 @@ import {
   nudgeText,
   personPrompted,
   take,
+  worktreesDigests,
+  worktreesDue,
+  worktreesEarlyNotice,
+  worktreesOffNotice,
+  worktreesOnNotice,
   type Facts,
   type Nudges,
   type Trigger,
@@ -36,6 +41,7 @@ describe("nudges to describe a terminal", () => {
       nudge: false,
       companion: false,
       summarize: false,
+      worktrees: null,
       pages: [],
       nudges: noNudges,
     })
@@ -63,6 +69,7 @@ describe("nudges to describe a terminal", () => {
       nudge: false,
       companion: false,
       summarize: false,
+      worktrees: null,
       pages: [],
       nudges: pending,
     })
@@ -358,5 +365,91 @@ describe("a nudge", () => {
         "this notice be and make up no title or summary to quiet it: it comes with each " +
         "prompt until you describe.",
     )
+  })
+})
+
+describe("the worktrees notice", () => {
+  it("is worded as Novadeck's notice, one paragraph, with what an agent needs to work in a worktree", () => {
+    expect(worktreesOnNotice).toMatch(/^Novadeck: automatic notice, not from the user: /)
+    expect(worktreesOnNotice).not.toContain("\n")
+    for (const words of [
+      "open_worktree",
+      "take_worktree",
+      "one for each repository you change",
+      "Name branches as the repository's own instructions say",
+      "absolute paths into the worktree",
+      "git -C <worktree>",
+      "never cd into it and then run git",
+      "read the ones open_worktree lists",
+      "give the worktree to whoever continues the work",
+      "close_worktree is for work that's merged or abandoned",
+    ])
+      expect(worktreesOnNotice).toContain(words)
+    // Some sandboxes (Codex's workspace-write) can't commit, so it promises nothing of it.
+    expect(worktreesOnNotice).not.toMatch(/commit/i)
+    expect(worktreesOffNotice).toContain(
+      "agent worktrees are off now: work in your terminal's own checkout; worktrees you already have stay as they are.",
+    )
+    expect(worktreesDigests.on).not.toBe(worktreesDigests.off)
+  })
+
+  it("is due once for a session that holds it, when it begins or forgot, and when the setting flips", () => {
+    const { on, off } = worktreesDigests
+    expect(worktreesDue(false, undefined, true)).toBeNull()
+    expect(worktreesDue(false, off, true)).toBeNull()
+    expect(worktreesDue(true, undefined, true)).toBe("on")
+    expect(worktreesDue(true, on, true)).toBeNull()
+    expect(worktreesDue(true, off, true)).toBe("on")
+    expect(worktreesDue(true, "digest of another wording", true)).toBe("on")
+    expect(worktreesDue(false, on, true)).toBe("off")
+  })
+
+  it("is the early notice for a session that started before the folder, then the on notice", () => {
+    const { on, early, off } = worktreesDigests
+    expect(worktreesDue(true, undefined, true, false)).toBe("early")
+    expect(worktreesDue(true, early, true, false)).toBeNull()
+    expect(worktreesDue(true, early, true, true)).toBe("on")
+    expect(worktreesDue(true, on, true, false)).toBe("early")
+    expect(worktreesDue(true, early, false, false)).toBe("early")
+    expect(worktreesDue(false, early, true, false)).toBeNull()
+    expect(worktreesDue(false, off, true, false)).toBeNull()
+    expect(worktreesEarlyNotice).toContain("started before they were, so it can't write in them")
+    expect(worktreesEarlyNotice).toContain("keep working in your terminal's own checkout")
+    expect(worktreesEarlyNotice).toContain("A new or resumed session will use worktrees")
+    expect(
+      noticesAt(
+        { companion: false, summarize: false, pages: [], worktrees: "early" },
+        {
+          summary: "s",
+          title: "t",
+        },
+      ),
+    ).toBe(worktreesEarlyNotice)
+  })
+
+  it("is due at each turn while on for a session whose injections last one call", () => {
+    const { on, off } = worktreesDigests
+    expect(worktreesDue(true, undefined, false)).toBe("on")
+    expect(worktreesDue(true, on, false)).toBe("on")
+    expect(worktreesDue(false, on, false)).toBe("off")
+    expect(worktreesDue(false, off, false)).toBeNull()
+  })
+
+  it("goes in the answer after the description's request, and waits where it does not fit", () => {
+    const current = { summary: null, title: null }
+    const taken = take(raise(noNudges, "session"), true, () => true, undefined, "on")
+    expect(taken.worktrees).toBe("on")
+    expect(noticesAt(taken, current).split("\n\n")).toEqual([
+      companionNotice,
+      inboxNotice,
+      nudgeText(current),
+      worktreesOnNotice,
+    ])
+    const alone = take(noNudges, true, undefined, undefined, "off")
+    expect(alone).toMatchObject({ nudge: true, worktrees: "off" })
+    expect(noticesAt(alone, current)).toBe(worktreesOffNotice)
+    const crowded = take(noNudges, true, (took) => !took.worktrees, undefined, "on")
+    expect(crowded).toMatchObject({ nudge: false, worktrees: null })
+    expect(take(noNudges, false, undefined, undefined, "on").nudge).toBe(false)
   })
 })

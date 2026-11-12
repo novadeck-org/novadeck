@@ -2514,7 +2514,7 @@ The notices share the answer with what it already says, as the messages it deliv
 messages are leased first, as ever, and the notices go after them, each only as far as the
 whole printed answer stays within the 8 KB delivery budget (see "Hook output has limits"),
 in turn the summary's request (short, and it asks for something), the bar's and the
-Inbox's, then pages' troubles. What doesn't fit waits for the next turn the person or the
+Inbox's, the worktrees', then pages' troubles. What doesn't fit waits for the next turn the person or the
 doorbell begins (messaging hands the terminals side the answer to add to as `adding`, in
 `messaging/hook-answers.ts`; `take` in `terminals/nudges.ts` decides). Drift's facts are read only for
 an answer that delivers no messages, so a delivery never waits on them. On Antigravity the
@@ -2567,6 +2567,43 @@ again on each call.
      into as work, and tells an agent with only small talk so far to let it be and make up no
      summary to quiet it, as it comes with each prompt (an agent only chatting once named a
      placeholder subject to stop it).
+
+- **Agent worktrees.** While the runner setting `worktrees` is on (read live at each turn's
+  start, so a flip counts at the next turn), every root session of every harness is told
+  to work in Novadeck's worktrees (`worktreesOnNotice`): before changing a file, open one
+  with `open_worktree` or take one with `take_worktree`, one for each repository it
+  changes, or more; name branches as the repository's own instructions say; use absolute
+  paths into the worktree and `git -C <worktree>` for git, never `cd` and then git (Claude
+  Code refuses it, and no shell's folder stays outside the one it started in); read the
+  instruction files `open_worktree` lists, which aren't loaded from there; and, when done,
+  give the worktree to whoever continues or leave it for the person, closing only work
+  that's merged or abandoned. It says nothing of committing, as some sandboxes (Codex's
+  workspace-write) can't. It is independent of `describe`, and not a `Nudges` trigger:
+  `worktreesDue` decides it from the setting and `told.worktrees`, the digest of the
+  notice last told (`worktreesDigests`).
+  - **Claude Code and Codex** hold what the prompt's hook printed, so the notice comes once:
+    when a session begins or resumes without it, after a compaction (which clears `told`),
+    and when the setting flips on or the wording changes. A resumed session of the same
+    id after a runner restart holds it and isn't told again, nor is a flip missed across
+    one.
+  - **Antigravity**, whose injection lasts one model call, is told at every turn's start
+    while the setting is on, so the notice holds on every turn; its `told.worktrees` is
+    kept all the same, to know on a flip off that it was told.
+  - **A session that started too early.** The harness shims pass `--add-dir` for the
+    worktrees folder (`~/.novadeck/worktrees`) only if it exists when the agent launches. So
+    the runner makes it (`RootFolder`, `worktrees/root-folder.ts`) at its start while the
+    setting is on and when the setting is saved on, and keeps when it first saw it. An
+    agent process first seen (at its first report, `Reports.launches`, by instance, so a
+    `/clear` is no restart) before that can't write in worktrees, and is told
+    `worktreesEarlyNotice` instead, held as the on notice is: "agent worktrees are on, but
+    this session started before they were, so it can't write in them: keep working in your
+    terminal's own checkout. A new or resumed session will use worktrees." A resume or a
+    wake from hibernation starts a new process, which gets the normal on notice at its first
+    turn. A folder that can't be made is told the same way, and tried again at each turn.
+  - **Off.** A session last told the notice "on" hears `worktreesOffNotice` once at its next
+    turn: "agent worktrees are off now: work in your terminal's own checkout; worktrees you
+    already have stay as they are." A session never told hears nothing. A notice that
+    doesn't fit, or misses the hook's deadline, isn't spent.
 
 - **A page's troubles.** When a page an agent showed with `show` has problems in the
   user's pane (console errors, failed requests, a failed load), the pane reports them with

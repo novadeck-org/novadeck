@@ -28,6 +28,8 @@ export type WorktreeCallsHost = Pick<
 export type WorktreesWiring = {
   readonly service: Worktrees
   readonly enabled: () => boolean
+  /** When the worktrees folder first existed, for the nudge (`RootFolder.since`). */
+  readonly since: () => number | null
 }
 
 /** The worktree calls' host entries for a terminal manager's `Calls`. */

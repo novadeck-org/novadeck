@@ -146,18 +146,25 @@ export const afterSummary = (nudges: Nudges, facts: Facts): Nudges => ({
   since: nudges.since,
 })
 
-/** What a turn's answer says, if anything: of the bar and Inbox, of the description, of pages, or all. */
+/** What a turn's answer says, if anything: of the bar and Inbox, of the description, of worktrees, of pages, or all. */
 export type Taken = {
   readonly nudge: boolean
   readonly companion: boolean
   readonly summarize: boolean
+  /** The worktrees notice it carries: the setting went on, or off. Null for none. */
+  readonly worktrees: Worktrees | null
   /** The pages it tells of, each once for its show. */
   readonly pages: readonly PageEntry[]
   readonly nudges: Nudges
 }
 
+/** What a notice is, to measure it: a `Taken` without the nudges it leaves. */
+export type Noticed = Pick<Taken, "companion" | "summarize" | "pages"> & {
+  readonly worktrees?: Worktrees | null
+}
+
 /** Whether an answer with the notices of a `Taken` stays within what a hook may print. */
-export type Fits = (took: Pick<Taken, "companion" | "summarize" | "pages">) => boolean
+export type Fits = (took: Noticed) => boolean
 
 /**
  * Whether a turn's answer nudges, and with what, and the nudges after it: only when a
@@ -165,31 +172,44 @@ export type Fits = (took: Pick<Taken, "companion" | "summarize" | "pages">) => b
  * an answer that will reach the hook `inTime`. The notices share the answer with what it
  * already says, as messages: each goes only as far as `fits` accepts the answer, in turn
  * the summary's request (short, and it asks for something), the bar's and the Inbox's,
- * then pages; what doesn't fit waits for the next turn. `fitsAlone` measures a notice as
- * the only thing an answer says, so a page that could never fit is let go.
+ * then the worktrees', then pages; what doesn't fit waits for the next turn. `worktrees` is
+ * the worktrees notice due (`worktreesDue`), which isn't part of `Nudges`: the setting's
+ * state is told by the session's `told`. `fitsAlone` measures a notice as the only thing
+ * an answer says, so a page that could never fit is let go.
  */
 export const take = (
   nudges: Nudges,
   inTime: boolean,
   fits: Fits = () => true,
   fitsAlone: Fits = fits,
+  worktrees: Worktrees | null = null,
 ): Taken => {
   const owed = nudges.pending.length > 0
-  const silent = { nudge: false, companion: false, summarize: false, pages: [], nudges }
-  if (!inTime || !(owed || nudges.companion || due(nudges.troubles))) return silent
+  const silent = {
+    nudge: false,
+    companion: false,
+    summarize: false,
+    worktrees: null,
+    pages: [],
+    nudges,
+  }
+  if (!inTime || !(owed || nudges.companion || worktrees || due(nudges.troubles))) return silent
   const summarize = owed && fits({ companion: false, summarize: true, pages: [] })
   const companion = nudges.companion && fits({ companion: true, summarize, pages: [] })
+  const worded = worktrees !== null && fits({ companion, summarize, worktrees, pages: [] })
+  const kept = worded ? worktrees : null
   const { pages, troubles } = spend(
     nudges.troubles,
-    (each) => fits({ companion, summarize, pages: each }),
+    (each) => fits({ companion, summarize, worktrees: kept, pages: each }),
     (page) => fitsAlone({ companion: false, summarize: false, pages: [page] }),
   )
-  if (!summarize && !companion && pages.length === 0)
+  if (!summarize && !companion && !kept && pages.length === 0)
     return { ...silent, nudges: { ...nudges, troubles } }
   return {
     nudge: true,
     companion,
     summarize,
+    worktrees: kept,
     pages,
     nudges: {
       ...nudges,
@@ -216,6 +236,8 @@ export const atTurnStart = (
     readonly unsummarized?: boolean
     readonly fits?: Fits
     readonly fitsAlone?: Fits
+    /** The worktrees notice due at this turn, if any (`worktreesDue`). */
+    readonly worktrees?: Worktrees | null
   },
 ): Taken => {
   const counted = input.person ? personPrompted(nudges) : nudges
@@ -225,6 +247,7 @@ export const atTurnStart = (
     input.inTime,
     input.fits,
     input.fitsAlone,
+    input.worktrees ?? null,
   )
 }
 
@@ -326,17 +349,91 @@ export const inboxNotice =
   "and no such notice came, withdraw it yourself. This notice needs no reply."
 
 /**
+ * What a session is told of agent worktrees (see docs/agent-messaging.md,
+ * "Nudges") while the runner setting `worktrees` is on: to work in a worktree it opens
+ * or takes with Novadeck's tools, not in its terminal's checkout. It says nothing of
+ * committing: some sandboxes (Codex's workspace-write) can't. `cd` then git is named
+ * because Claude Code refuses it and no harness's shell stays in a folder outside the one
+ * it started in; the instruction files are named because none is loaded from there.
+ */
+export const worktreesOnNotice =
+  "Novadeck: automatic notice, not from the user: agent worktrees are on. Before you " +
+  "change any file, open a worktree with Novadeck's open_worktree tool, or take an " +
+  "existing one with take_worktree, and work there; one for each repository you change, " +
+  "or more if that helps. Name branches as the repository's own instructions say. Use " +
+  "absolute paths into the worktree and git -C <worktree> for git; never cd into it and " +
+  "then run git: Claude Code refuses that, and the shell's folder doesn't stay there. " +
+  "The worktree's instruction files (AGENTS.md, CLAUDE.md and the like) aren't loaded " +
+  "from there, so read the ones open_worktree lists. When you're done, give the worktree " +
+  "to whoever continues the work with give_worktree, or leave it for the person; " +
+  "close_worktree is for work that's merged or abandoned. This notice needs no reply."
+
+/** What a session that was told of worktrees hears when the setting goes off. */
+export const worktreesOffNotice =
+  "Novadeck: automatic notice, not from the user: agent worktrees are off now: work in " +
+  "your terminal's own checkout; worktrees you already have stay as they are. This notice " +
+  "needs no reply."
+
+/**
+ * What a session that started before the worktrees folder existed hears while the setting
+ * is on: its harness was launched without the folder as an added directory (the shims pass
+ * it only if it exists then), so it can't write there until its process restarts.
+ */
+export const worktreesEarlyNotice =
+  "Novadeck: automatic notice, not from the user: agent worktrees are on, but this " +
+  "session started before they were, so it can't write in them: keep working in your " +
+  "terminal's own checkout. A new or resumed session will use worktrees. This notice " +
+  "needs no reply."
+
+/**
+ * Which worktrees notice is due: the setting is on (`on`), or on for a session that
+ * can't use them yet (`early`), or went off after the session heard it on (`off`).
+ */
+export type Worktrees = "on" | "early" | "off"
+
+/** The digest of each worktrees notice as worded now, kept in `told.worktrees` once told. */
+export const worktreesDigests: { readonly [state in Worktrees]: string } = {
+  on: digestOf(worktreesOnNotice),
+  early: digestOf(worktreesEarlyNotice),
+  off: digestOf(worktreesOffNotice),
+}
+
+/**
+ * The worktrees notice a root turn's start owes, given the setting as it reads now and
+ * what the session was told (`told.worktrees`). On, a session that holds what a hook
+ * printed (`lasting`) is told once: when it begins, when a compaction took the notice
+ * (`told` is then empty), or when the setting flipped on or the wording changed since,
+ * across a runner restart too. One that doesn't hold it (Antigravity's) is told at each
+ * turn. Off, only a session that was told it is on hears so, once. A session whose agent
+ * process started before the folder did (`ready` false) hears the early notice in the
+ * same way instead, and the on notice once its process restarts.
+ */
+export const worktreesDue = (
+  enabled: boolean,
+  told: string | undefined,
+  lasting: boolean,
+  ready = true,
+): Worktrees | null => {
+  if (!enabled) return told === worktreesDigests.on ? "off" : null
+  const state = ready ? "on" : "early"
+  return !lasting || told !== worktreesDigests[state] ? state : null
+}
+
+/**
  * What a turn's notices say for what it `took`: the bar beside the terminal and
- * the Inbox, for a session that begins or forgot, the terminal's description, and each
- * page that had problems, each a paragraph of its own.
+ * the Inbox, for a session that begins or forgot, the terminal's description, agent
+ * worktrees, and each page that had problems, each a paragraph of its own.
  */
 export const noticesAt = (
-  took: Pick<Taken, "companion" | "summarize" | "pages">,
+  took: Noticed,
   current: { readonly summary: string | null; readonly title: string | null },
 ): string =>
   [
     ...(took.companion ? [companionNotice, inboxNotice] : []),
     ...(took.summarize ? [nudgeText(current)] : []),
+    ...(took.worktrees === "on" ? [worktreesOnNotice] : []),
+    ...(took.worktrees === "early" ? [worktreesEarlyNotice] : []),
+    ...(took.worktrees === "off" ? [worktreesOffNotice] : []),
     ...took.pages.map(pageNotice),
   ].join("\n\n")
 

@@ -98,6 +98,8 @@ export const createRouter = (options: {
   transcriptsAvailable: () => Promise<boolean>
   /** Whether the runner is shutting down. */
   closing: () => boolean
+  /** The runner settings were saved. */
+  settingsSaved?: () => void
 }) => {
   const { store, terminals, feedback, projects, items, agents, uploads, voice, murmur } = options
   const history = options.history ?? noHistory
@@ -387,6 +389,7 @@ export const createRouter = (options: {
       set: api.settings.set.handler(({ input }) => {
         if (options.closing()) throw new DomainError("CLOSING")
         store.settings.saveRunner(input)
+        options.settingsSaved?.()
         if (input.transcripts !== undefined) terminals.keepTranscripts(input.transcripts)
       }),
     },
