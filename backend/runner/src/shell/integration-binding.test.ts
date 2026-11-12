@@ -43,10 +43,21 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const connected = shell.manager({ shims: () => Promise.resolve(["codex" as const]) })
       const on = await create(connected, shell)
       connected.write({ terminalId: on.id, data: "codex resume abc\r" }, "owner")
+      // With the settings that have its commands capture what they print (shell/capture.ts),
+      // into this terminal's folder, the person's own BASH_ENV and ZDOTDIR passed on.
       await shell.until(
         connected,
         on.id,
-        "codex args: --no-daemon -c tui.terminal_title=['status','thread-id'] resume abc",
+        new RegExp(
+          [
+            String.raw`codex args: --no-daemon -c tui\.terminal_title=\['status','thread-id'\]`,
+            String.raw`-c shell_environment_policy\.set\.BASH_ENV=\S+/capture/bash-env`,
+            String.raw`-c shell_environment_policy\.set\.ZDOTDIR=\S+/capture/zsh`,
+            String.raw`-c shell_environment_policy\.set\.NOVADECK_CAPTURE=\S+/novadeck-capture/${on.id}`,
+            String.raw`-c shell_environment_policy\.set\.NOVADECK_USER_BASH_ENV=`,
+            String.raw`-c shell_environment_policy\.set\.NOVADECK_USER_ZDOTDIR=\S* resume abc`,
+          ].join(" "),
+        ),
       )
 
       const disconnected = shell.manager()

@@ -124,8 +124,11 @@ export const main = async (args: readonly string[]): Promise<void> => {
   await place(relayName, compile())
   // The cmd.exe and PowerShell pass-throughs are built by the same cargo run, on Windows alone.
   if (process.platform === "win32") {
-    for (const name of [cmdShimName, pwshShimName])
-      await place(name, readFileSync(join(root, "target", "release", name)))
+    await Promise.all(
+      [cmdShimName, pwshShimName].map((name) =>
+        place(name, readFileSync(join(root, "target", "release", name))),
+      ),
+    )
   }
 }
 

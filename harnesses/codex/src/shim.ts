@@ -1,5 +1,6 @@
+import type { Machine } from "@novadeck/harness-core/harness"
 import { header } from "@novadeck/harness-core/header"
-import { cmdAdd, posixAdd } from "@novadeck/harness-core/shim-root"
+import { cmdAdd, posixAdd, shQuote } from "@novadeck/harness-core/shim-root"
 
 import { titleSetting } from "./title.js"
 
@@ -11,7 +12,32 @@ import { titleSetting } from "./title.js"
 // title's items, so the title tells Novadeck once its prompt shows (`title.ts`). And it passes
 // --add-dir for the folder where agents' worktrees live, once that exists, which Codex adds to
 // its writable roots; the option goes ahead of any command (`resume` and `exec` take it too).
-export const posixShim = (root?: string): string => `#!/bin/sh
+// Codex writes what its commands print nowhere Novadeck can read while they run, so where the
+// terminal names a folder to capture to (NOVADECK_CAPTURE), the shim has Codex give its commands
+// Novadeck's capture (backend/runner/src/shell/capture.ts): on Linux and macOS through the
+// environment their shell starts with (BASH_ENV, ZDOTDIR, with the person's own passed on), on
+// Windows through Novadeck's PowerShell first on PATH, as Codex finds its shell there.
+
+/** The setting giving Codex's commands `name` as `value`, a word for `-c`. */
+const commandsGet = (name: string, value: string): string =>
+  `shell_environment_policy.set.${name}=${value}`
+
+/**
+ * What the POSIX shim adds ahead of Codex's own words where the terminal captures: its
+ * commands' shell loads the capture, and the person's own BASH_ENV and ZDOTDIR after it.
+ * Each value stays a plain string: Codex reads a `-c` value as TOML only where it is TOML.
+ */
+const posixCapture = (capture: NonNullable<Machine["capture"]>): string => `
+# Codex's commands capture what they print where this terminal names a folder for it.
+if [ -n "\${NOVADECK_CAPTURE:-}" ]; then
+  set -- -c ${commandsGet("BASH_ENV", shQuote(capture.bashEnv))} \\
+    -c ${commandsGet("ZDOTDIR", shQuote(capture.zdotdir))} \\
+    -c "${commandsGet("NOVADECK_CAPTURE", "$NOVADECK_CAPTURE")}" \\
+    -c "${commandsGet("NOVADECK_USER_BASH_ENV", "${BASH_ENV:-}")}" \\
+    -c "${commandsGet("NOVADECK_USER_ZDOTDIR", "${ZDOTDIR:-}")}" "$@"
+fi`
+
+export const posixShim = (root?: string, capture?: Machine["capture"]): string => `#!/bin/sh
 ${header("#", "shim for codex")}
 # Runs the real codex with --no-daemon, so its hooks can tell Novadeck which session runs
 # in this terminal, with a title that tells Novadeck once its prompt shows, and with access to
@@ -48,7 +74,7 @@ for novadeck_arg in "$@"; do
     # Already without the shared server: only the title is added.
     --no-daemon) novadeck_daemon= ;;
   esac
-done
+done${capture ? posixCapture(capture) : ""}
 exec "$novadeck_real" \${novadeck_daemon:+"$novadeck_daemon"} \${novadeck_add:+"$novadeck_add"} -c "${titleSetting}" "$@"
 `
 
@@ -58,7 +84,15 @@ exec "$novadeck_real" \${novadeck_daemon:+"$novadeck_daemon"} \${novadeck_add:+"
 // where a cloned repo's `codex.cmd` would be taken for the real one (as Antigravity's shim).
 // Its words are walked as Claude Code's are, for the reasons there (`harnesses/claude/src/shim.ts`):
 // `for %%a in (%*)` loses its closing bracket to an odd count of quotes, and ends the batch.
-export const cmdShim = (root?: string): string => `@echo off
+// Where Novadeck's PowerShell pass-through is installed, a session's Codex finds it first on
+// PATH, and its commands capture through it; `agents` and --remote run as they would.
+export const cmdShim = (root?: string, pwshShimDir?: string): string => {
+  const pwsh =
+    pwshShimDir === undefined
+      ? ""
+      : `set "PATH=${pwshShimDir};%PATH%"
+`
+  return `@echo off
 ${header("rem", "shim for codex")}
 rem Runs the real codex with --no-daemon, so its hooks can tell Novadeck which session
 rem runs in this terminal, with a title that tells Novadeck once its prompt shows, and with
@@ -86,11 +120,11 @@ if /i "%novadeck_arg%"=="--no-daemon" goto titled
 goto words
 :session
 set "novadeck_arg="
-"%novadeck_real%" --no-daemon %novadeck_add% -c "${titleSetting}" %*
+${pwsh}"%novadeck_real%" --no-daemon %novadeck_add% -c "${titleSetting}" %*
 exit /b %ERRORLEVEL%
 rem Already without the shared server: only the title is added.
 :titled
-"%novadeck_real%" %novadeck_add% -c "${titleSetting}" %*
+${pwsh}"%novadeck_real%" %novadeck_add% -c "${titleSetting}" %*
 exit /b %ERRORLEVEL%
 :plain
 "%novadeck_real%" %*
@@ -105,3 +139,4 @@ if /i "%~x1"==".cmd" set "novadeck_real=%~1"
 if /i "%~x1"==".bat" set "novadeck_real=%~1"
 exit /b
 `
+}

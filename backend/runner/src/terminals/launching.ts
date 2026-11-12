@@ -9,6 +9,7 @@ import type { RunSpec, Terminal } from "@novadeck/terminal/host"
 import { pathKey, refreshPath, startsCommands, type ShellLaunch } from "@novadeck/terminal/shell"
 
 import { DomainError } from "../errors.js"
+import { captureFolder, captureVariable } from "../shell/capture.js"
 import type { InstalledShell } from "../shell/install.js"
 import { shellLaunch } from "../shell/integration.js"
 import { listenForReports, type ReportHandlers, type Reports } from "../shell/reports.js"
@@ -227,6 +228,9 @@ export class Launcher {
       ...(integration && {
         NOVADECK_REPORT: integration.reports.endpoint,
         NOVADECK_REPORT_TOKEN: token,
+        // Where an agent that writes its commands' output nowhere readable (Codex) has
+        // Novadeck capture it, for the terminal's companion pane (see shell/capture.ts).
+        [captureVariable]: captureFolder(id),
       }),
     }
     return {

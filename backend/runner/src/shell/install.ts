@@ -3,7 +3,7 @@ import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/
 import { basename, dirname, join } from "node:path"
 import { promisify } from "node:util"
 
-import { cmdShimName, relayPath } from "@novadeck/relay"
+import { cmdShimName, pwshShimName, relayPath } from "@novadeck/relay"
 
 import { logs } from "../log.js"
 import { withoutInherited } from "./inherited.js"
@@ -28,6 +28,12 @@ export type InstalledShell = ShellPaths & {
    * first on PATH in Novadeck's terminals, so their hooks' answers are read. Absent elsewhere.
    */
   readonly cmdShimDir?: string
+  /**
+   * On Windows, where Novadeck's PowerShell pass-through is installed, byte for byte what this
+   * Novadeck ships: its folder by a path cmd reads unquoted, which Codex's shim puts first on
+   * PATH in Novadeck's terminals, so its commands' output is captured. Absent elsewhere.
+   */
+  readonly pwshShimDir?: string
 }
 
 export type InstallOptions = {
@@ -37,6 +43,10 @@ export type InstallOptions = {
    * The cmd.exe pass-through to install (Windows only); the one beside the relay by default.
    */
   readonly cmdShim?: string
+  /**
+   * The PowerShell pass-through to install (Windows only); the one beside the relay by default.
+   */
+  readonly pwshShim?: string
   /** For tests: how to tell whether cmd prints (the machine's own check by default). */
   readonly prints?: typeof cmdPrints
   /** Where agents' worktrees live, for the shims to pass on (`~/.novadeck/worktrees` by default). */
@@ -61,6 +71,7 @@ export const installShellFiles = async (
   {
     relay = relayPath,
     cmdShim = join(dirname(relay), cmdShimName),
+    pwshShim = join(dirname(relay), pwshShimName),
     prints: printing = cmdPrints,
     worktrees,
     platform = process.platform,
@@ -86,6 +97,10 @@ export const installShellFiles = async (
   // shipped one, with a path to put on PATH. Without it, as before.
   const cmdShimDir = prints !== undefined ? await installCmdShim(cmdShim, paths, short) : undefined
   const covered = cmdShimDir !== undefined
+  // On Windows Codex's commands capture through Novadeck's PowerShell, once it is installed and
+  // is the shipped one. Without it, they run as before, uncaptured.
+  const pwshShimDir =
+    platform === "win32" ? await installPwshShim(pwshShim, paths, short) : undefined
   if (prints === "prints")
     log.warn(
       "shell.cmd-prints",
@@ -108,6 +123,7 @@ export const installShellFiles = async (
     cmdPrints: prints !== undefined,
     ...(worktrees !== undefined && { worktreesRoot: worktrees }),
     ...(cmdShimDir !== undefined && { cmdShimDir }),
+    ...(pwshShimDir !== undefined && { pwshShimDir }),
   })
   // Antigravity's Windows shim a start left is gone once nothing needs it.
   if (!files.some((file) => file.path === join(paths.bin, "agy.cmd")))
@@ -136,6 +152,7 @@ export const installShellFiles = async (
     launcher: await short(paths.hook),
     mcpLauncher: platform !== "win32" && relayed ? paths.mcp : undefined,
     ...(cmdShimDir !== undefined && { cmdShimDir }),
+    ...(pwshShimDir !== undefined && { pwshShimDir }),
   }
 }
 
@@ -173,6 +190,43 @@ const installCmdShim = async (
     return /^[\w.:\\~-]+$/.test(folder) ? folder : undefined
   } catch (error) {
     log.warn("shell.cmd-shim-unavailable", "Novadeck's cmd.exe pass-through is unavailable", {
+      err: error,
+    })
+    return undefined
+  }
+}
+
+/**
+ * Installs the PowerShell pass-through as `pwsh.exe` and `powershell.exe` in a folder of its
+ * own, as the cmd.exe one is (`installCmdShim`): it stands in for the shell its file name says.
+ * Returns that folder by a path cmd reads unquoted when both copies are the shipped one byte
+ * for byte; else undefined, and Codex's commands run uncaptured. The folder holds nothing
+ * else, so putting it first on PATH shadows no other program.
+ */
+const installPwshShim = async (
+  shipped: string,
+  paths: ShellPaths,
+  short: (path: string) => Promise<string>,
+): Promise<string | undefined> => {
+  try {
+    await mkdir(paths.pwshDir, { recursive: true, mode: 0o700 })
+    const copies = ["pwsh.exe", "powershell.exe"].map((name) => join(paths.pwshDir, name))
+    for (const copy of copies) {
+      // eslint-disable-next-line no-await-in-loop -- Two copies, one after another.
+      await installRelay(shipped, copy)
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      if (!(await sameFile(shipped, copy))) {
+        log.warn(
+          "shell.pwsh-shim-differs",
+          "Novadeck's PowerShell pass-through is not the shipped one",
+        )
+        return undefined
+      }
+    }
+    const folder = await short(paths.pwshDir)
+    return /^[\w.:\\~-]+$/.test(folder) ? folder : undefined
+  } catch (error) {
+    log.warn("shell.pwsh-shim-unavailable", "Novadeck's PowerShell pass-through is unavailable", {
       err: error,
     })
     return undefined

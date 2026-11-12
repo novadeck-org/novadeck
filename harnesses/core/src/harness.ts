@@ -560,6 +560,21 @@ export type Machine = {
    */
   readonly worktreesRoot?: string
   /**
+   * Novadeck's capture of an agent's commands' output (Linux and macOS): what a command's
+   * bash loads through BASH_ENV, and the folder a command's zsh is given as ZDOTDIR. A shim
+   * sets both for its harness's commands alone, where the harness writes their output
+   * nowhere Novadeck can read while they run (Codex); see backend/runner/src/shell/capture.ts.
+   */
+  readonly capture?: { readonly bashEnv: string; readonly zdotdir: string }
+  /**
+   * The folder (a path cmd reads unquoted) holding Novadeck's PowerShell pass-through as
+   * `pwsh.exe` and `powershell.exe` (Windows), which captures a command's output as it
+   * runs it: a shim puts it first on PATH for its harness alone, where the harness finds its
+   * shell through PATH (Codex). Set only where the pass-through is installed and is the
+   * shipped one.
+   */
+  readonly pwshShimDir?: string
+  /**
    * Whether `worktreesRoot` is a directory as the shell files are written. A shim that exists
    * for nothing but the folder (Antigravity's on Windows, where a batch file in place of
    * `agy.exe` has costs of its own) is written only then.

@@ -246,6 +246,8 @@ fn main() {
     let folder = std::env::current_dir().unwrap_or_default();
     // The log and its record, where there is a folder to capture to and a pipe to capture.
     let log = capture.filter(|_| piped).and_then(|capture| {
+        // The terminal's folder, made by whichever command captures first.
+        std::fs::create_dir_all(&capture).ok()?;
         let base =
             PathBuf::from(capture).join(format!("out-{}", capture_id(std::process::id(), started)));
         // Its record first, so no log is ever left without one.
