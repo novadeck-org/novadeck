@@ -368,7 +368,7 @@ export type BackendFields = {
   // change in them, for the sidebar's Source panel (see core's `source`). Absent where the
   // backend can't read the projects' folders: the panel isn't drawn.
   readonly source?: Source
-  // Optional. The terminals closed in the last 30 days, per project, to list and restore
+  // Optional. The terminals closed in the last 7 days, per project, to list and restore
   // (see core's `history`). Absent where the backend keeps none: closing is then final.
   readonly history?: History
   // Optional. Each terminal's work that differs from its repository's main branch, for the

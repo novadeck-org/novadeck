@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs"
 import { join } from "node:path"
 
 import type { Launchers, Machine, Start } from "@novadeck/harness-core/harness"
@@ -14,6 +15,7 @@ import {
 } from "@novadeck/terminal/shell"
 
 import { agents, harnesses } from "../harnesses/registry.js"
+import { worktreesRoot } from "../worktrees/root.js"
 import { hookVariables } from "./hook.js"
 import { mcpVersions } from "./mcp.js"
 
@@ -233,8 +235,15 @@ export const shellFiles = (
   paths: ShellPaths,
   platform = process.platform,
   launchers: Launchers = { mcp: mcpStart(paths, platform) },
-  machine: Machine = {},
+  given: Machine = {},
 ): ShellFile[] => {
+  // The shims pass the folder of agents' worktrees on, where it exists.
+  const root = given.worktreesRoot ?? worktreesRoot()
+  const machine: Machine = {
+    worktreesRoot: root,
+    worktreesPresent: existsSync(root),
+    ...given,
+  }
   const common = [
     file(paths.relayConfig, `${JSON.stringify(relayConfig, null, 2)}\n`),
     ...shellScripts(paths, header),

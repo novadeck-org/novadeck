@@ -430,7 +430,7 @@ so they stay after a reload, and the project opens the session you were in last.
 
 Closing a terminal doesn't end it for good. It moves to **History**, a panel on the
 sidebar's rail after Sessions, with one list per project, newest first. A terminal comes
-back for 30 days; after that its row goes by itself. Closing a terminal no longer always
+back for 7 days; after that its row goes by itself. Closing a terminal no longer always
 asks (see "Closing asks first" below), because what it loses can be got back from here. A rail order you saved before History
 existed puts its toggle at the end. There is no button to delete one.
 Where a backend keeps no History, as in a browser demo without it, the panel isn't there
@@ -551,7 +551,7 @@ agent.
 - **Transcripts.** Each terminal's recent output is kept, and a restored terminal shows
   it read-only above a separator and its fresh prompt (on Windows, scrolled up just above
   a fresh screen); a resumed agent shows its own history instead. A closed plain terminal's
-  output is kept for the 30 days its row stays in History; an agent's row keeps none.
+  output is kept for the 7 days its row stays in History; an agent's row keeps none.
   Transcripts are on by default and can be turned off in Preferences,
   which also forgets the saved ones. A changed terminal's transcript is saved about every
   30 seconds, and when its shell exits or restarts. What looks like a secret (a known
