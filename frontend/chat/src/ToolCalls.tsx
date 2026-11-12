@@ -206,16 +206,54 @@ const ToolList = ({
 // An open run of more lines than this shows that many in a box that scrolls, the latest in view.
 const boxedAt = 5
 
-// How many of a box's lines are scrolled up out of it, each a line high while closed.
-const linesAbove = (element: HTMLElement): number => {
-  const height = parseFloat(getComputedStyle(element).lineHeight)
-  return height > 0 ? Math.round(element.scrollTop / height) : 0
+// The calls a box holds out of its view, above it and below it.
+type OutOfView = { readonly above: number; readonly below: number }
+
+const noneOut: OutOfView = { above: 0, below: 0 }
+
+// The calls of the lines wholly out of the box's view, by where each line is drawn, whatever its
+// height: `calls` holds each line's count, its own call and those it scripted. Nothing, where the
+// box isn't laid out.
+const outOfView = (element: HTMLElement, calls: readonly number[]): OutOfView => {
+  if (element.clientHeight === 0) return noneOut
+  const top = element.scrollTop
+  const bottom = top + element.clientHeight
+  const rows = Array.from(element.querySelectorAll<HTMLElement>(":scope > ul > li"))
+  return rows.reduce<OutOfView>((out, row, at) => {
+    const count = calls[at] ?? 1
+    if (row.offsetTop + row.offsetHeight <= top + 1) return { ...out, above: out.above + count }
+    if (row.offsetTop >= bottom - 1) return { ...out, below: out.below + count }
+    return out
+  }, noneOut)
 }
+
+// How much taller than a line each its lines are drawn, together: what the person opened of them.
+const openedHeight = (list: HTMLElement, rows: number): number => {
+  const line = parseFloat(getComputedStyle(list).lineHeight)
+  return line > 0 ? Math.max(0, list.offsetHeight - rows * line) : 0
+}
+
+// The counts to keep: the last where they're the same, so a scroll that changes none draws nothing
+// again.
+const sameOut =
+  (next: OutOfView) =>
+  (last: OutOfView): OutOfView =>
+    last.above === next.above && last.below === next.below ? last : next
+
+// What the hint over a long run says: the calls on the side it stands, where some are; else those
+// below, the person having scrolled up past them; else that the run opens whole.
+const hintOf = ({ above, below }: OutOfView, calls: number): string =>
+  above > 0
+    ? `… ${counted(above, "earlier call")}`
+    : below > 0
+      ? `… ${counted(below, "later call")}`
+      : `show all ${counted(calls, "call")}`
 
 // An open run's lines. A long run keeps to a box of `boxedAt` lines that follows its latest call,
 // as the log follows the latest turn: scrolling up to an earlier one lets go, and back to the end
-// follows again. Over it, on the side of the lines it hides, a hint counts them and shows the run
-// whole, as a long message's does.
+// follows again. A line opened in it makes the box that much taller, so nothing in it moves. Over
+// it, on the side of the lines it hides, a hint counts their calls and shows the run whole, as a
+// long message's does.
 const RunBox = ({
   id,
   entries,
@@ -225,26 +263,41 @@ const RunBox = ({
   readonly entries: readonly ToolEntry[]
   readonly live: boolean
 }): React.JSX.Element => {
-  const lines = toolLines(entries).length
-  const boxed = lines > boxedAt
+  const lines = toolLines(entries)
+  const calls = lines.map(({ scripted }) => 1 + scripted.length)
+  const boxed = lines.length > boxedAt
   const [whole, setWhole] = useState(false)
-  // How many lines sit above what the box shows, which its top edge fades into.
-  const [earlier, setEarlier] = useState(0)
+  const [out, setOut] = useState(noneOut)
+  // How much taller than a line each its opened lines are, which the box grows by.
+  const [opened, setOpened] = useState(0)
   const box = useRef<HTMLDivElement>(null)
   const following = useRef(true)
   const capped = boxed && !whole
+  // Each line's calls, as one value: a new call, or one scripted into a line, changes it.
+  const callsKey = calls.join(",")
+  useLayoutEffect(() => {
+    const element = box.current
+    const list = element?.firstElementChild
+    if (!element || !(list instanceof HTMLElement) || !capped) return
+    const measure = (): void => setOpened(openedHeight(list, list.children.length))
+    measure()
+    if (typeof ResizeObserver === "undefined") return
+    const watch = new ResizeObserver(measure)
+    watch.observe(list)
+    return () => watch.disconnect()
+  }, [capped])
   useLayoutEffect(() => {
     const element = box.current
     if (!element || !capped) return
     // A line the person opened stays where they read it.
     if (following.current && !element.querySelector('[aria-expanded="true"]'))
       element.scrollTop = element.scrollHeight
-    setEarlier(linesAbove(element))
-    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A new call is a line to follow.
-  }, [lines, capped])
+    setOut(sameOut(outOfView(element, callsKey.split(",").map(Number))))
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A line opened moves the rest.
+  }, [callsKey, capped, opened])
   return (
     <>
-      {/* Above the box, where the lines it hides are. */}
+      {/* Above the box, where the lines it follows past are. */}
       {boxed && (
         <button
           type="button"
@@ -257,22 +310,19 @@ const RunBox = ({
             setWhole(!whole)
           }}
         >
-          {whole
-            ? "show less"
-            : earlier > 0
-              ? `… ${counted(earlier, "earlier call")}`
-              : `… ${counted(lines - boxedAt, "more call")}`}
+          {whole ? "show less" : hintOf(out, entries.length)}
         </button>
       )}
       <div
         ref={box}
         className="chat-tools-box nodrag nopan nowheel"
         data-capped={capped || undefined}
-        data-earlier={(capped && earlier > 0) || undefined}
+        data-earlier={(capped && out.above > 0) || undefined}
+        style={capped ? ({ "--_opened": `${opened}px` } as React.CSSProperties) : undefined}
         onScroll={(event) => {
           const { scrollTop, scrollHeight, clientHeight } = event.currentTarget
           following.current = scrollHeight - scrollTop - clientHeight < 2
-          setEarlier(linesAbove(event.currentTarget))
+          setOut(sameOut(outOfView(event.currentTarget, calls)))
         }}
       >
         <ToolList id={id} entries={entries} live={live} />

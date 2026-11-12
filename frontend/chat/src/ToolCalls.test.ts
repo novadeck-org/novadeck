@@ -358,27 +358,90 @@ describe("a run of tool calls", () => {
   context("open and long", () => {
     const run = (count: number) =>
       Array.from({ length: count }, (_, at) => call(`${at}`, "Ran", `step ${at}`))
-    const box = (container: Element) => container.querySelector(".chat-tools-box")!
+    const box = (container: Element) => container.querySelector<HTMLElement>(".chat-tools-box")!
     const key = (container: Element) =>
       container.querySelector<HTMLButtonElement>(".chat-tools-whole")
+    // Lays the box out as a browser would, jsdom laying out nothing: a line 18px high each,
+    // five lines seen, scrolled to `scrollTop`, which the box itself may set.
+    const lay = (element: HTMLElement, scrollTop: number) => {
+      let top = scrollTop
+      const rows = [...element.querySelectorAll<HTMLElement>(":scope > ul > li")]
+      rows.forEach((row, at) => {
+        Object.defineProperty(row, "offsetTop", { configurable: true, value: at * 18 })
+        Object.defineProperty(row, "offsetHeight", { configurable: true, value: 18 })
+      })
+      Object.defineProperty(element, "clientHeight", { configurable: true, value: 90 })
+      Object.defineProperty(element, "scrollHeight", {
+        configurable: true,
+        get: () => element.querySelectorAll(":scope > ul > li").length * 18,
+      })
+      Object.defineProperty(element, "scrollTop", {
+        configurable: true,
+        get: () => top,
+        set: (value: number) => {
+          top = value
+        },
+      })
+    }
+    const scrolled = async (element: HTMLElement, scrollTop: number) => {
+      lay(element, scrollTop)
+      await act(async () => element.dispatchEvent(new Event("scroll")))
+    }
+    const shown = (entries: readonly ToolEntry[]) => {
+      const { container, rerender, unmount } = render(
+        createElement(ToolCalls, { entries, live: true }),
+      )
+      unmounts.push(unmount)
+      return {
+        container,
+        more: (next: readonly ToolEntry[]) =>
+          rerender(createElement(ToolCalls, { entries: next, live: true })),
+      }
+    }
 
-    it("keeps to a box of a few lines, a hint above it counting the rest", () => {
+    it("keeps to a box of a few lines, a hint above it", () => {
       const container = show(run(8), true)
       expect(box(container).hasAttribute("data-capped")).toBe(true)
       expect(container.querySelectorAll(".chat-tool")).toHaveLength(8)
-      expect(key(container)?.textContent).toBe("… 3 more calls")
       expect(key(container)?.getAttribute("aria-expanded")).toBe("false")
       expect(key(container)?.nextElementSibling).toBe(box(container))
     })
 
-    it("counts the lines scrolled up out of the box as earlier", async () => {
+    it("counts the calls above the box as earlier, its top edge fading", async () => {
       const container = show(run(8), true)
-      const element = box(container) as HTMLElement
-      element.style.lineHeight = "18px"
-      Object.defineProperty(element, "scrollTop", { configurable: true, value: 36 })
-      await act(async () => element.dispatchEvent(new Event("scroll")))
-      expect(key(container)?.textContent).toBe("… 2 earlier calls")
-      expect(element.hasAttribute("data-earlier")).toBe(true)
+      await scrolled(box(container), 54)
+      expect(key(container)?.textContent).toBe("… 3 earlier calls")
+      expect(box(container).hasAttribute("data-earlier")).toBe(true)
+    })
+
+    it("counts those below once scrolled up past them, the top edge clear", async () => {
+      const container = show(run(8), true)
+      await scrolled(box(container), 0)
+      expect(key(container)?.textContent).toBe("… 3 later calls")
+      expect(box(container).hasAttribute("data-earlier")).toBe(false)
+    })
+
+    it("counts a line's scripted calls with it", async () => {
+      const entries = [
+        ...run(3),
+        { ...call("s1", "Read", "a.json"), scripted: true },
+        { ...call("s2", "Read", "b.json"), scripted: true },
+        ...run(8).slice(3),
+      ]
+      const container = show(entries, true)
+      await scrolled(box(container), 54)
+      // The third line above holds its call and the two it scripted.
+      expect(key(container)?.textContent).toBe("… 5 earlier calls")
+    })
+
+    it("follows the latest call, and lets go once scrolled up", async () => {
+      const { container, more } = shown(run(8))
+      await scrolled(box(container), 54)
+      more(run(9))
+      expect(box(container).scrollTop).toBe(9 * 18)
+      await scrolled(box(container), 0)
+      more(run(10))
+      expect(box(container).scrollTop).toBe(0)
     })
 
     it("shows them whole once the hint is pressed, and boxes them again", async () => {

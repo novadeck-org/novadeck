@@ -155,7 +155,12 @@ const lineOf = (block: Element): { line: string; rows: number } => {
     if (fold && state !== "true" && state !== "false") throw unknownBlock(block)
     const folded = fold ? `[${state === "true" ? "open: " : ""}${textOf(fold)}] ` : ""
     if (fold && state === "false") click(fold)
-    const rows = rowsOf(block.querySelector(":scope > .chat-tools-list")!)
+    // An open fold holds its rows in a box.
+    const rows = rowsOf(
+      block.querySelector(
+        ":scope > .chat-tools-list, :scope > .chat-tools-box > .chat-tools-list",
+      )!,
+    )
     return { line: `tools: ${folded}${rows.join("; ")}`, rows: rows.length }
   }
   // A subagent's report: its name, whether it runs or failed, and the whole of what it said.

@@ -756,20 +756,26 @@
   min-width: 0;
 }
 /* A long open run keeps to a few lines that scroll, its latest in view, the top edge fading
-   where earlier lines sit above. A line opened in it gets room to read. */
-.chat-tools-box[data-capped] {
-  max-height: calc(5 * var(--_work-lh));
-  overflow-y: auto;
-  scrollbar-width: thin;
+   where earlier lines sit above; the fade and the hint over it say it scrolls, so no bar takes
+   from the lines' facts. A line opened in it makes it taller by what opened (`--_opened`), so
+   nothing in it moves. The lines are placed within it, as it counts those out of view. */
+.chat-tools-box {
+  position: relative;
 }
-.chat-tools-box[data-capped]:has(.chat-tool-summary[aria-expanded="true"]) {
-  max-height: calc(24 * var(--_work-lh));
+.chat-tools-box[data-capped] {
+  max-height: calc(5 * var(--_work-lh) + var(--_opened, 0px));
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.chat-tools-box[data-capped]::-webkit-scrollbar {
+  display: none;
 }
 .chat-more.chat-tools-whole {
   margin: 0;
 }
+/* Opaque, as the box's text is a dim one: the mask fades only its edge. */
 .chat-tools-box[data-earlier] {
-  mask-image: linear-gradient(to bottom, transparent, currentColor var(--_work-lh));
+  mask-image: linear-gradient(to bottom, transparent, black var(--_work-lh));
 }
 .chat-tool-summary,
 .chat-tools-fold {
@@ -846,7 +852,7 @@
   margin-bottom: calc(var(--_lh) / 2);
   padding-left: 2ch;
 }
-.chat-tools-fold ~ .chat-tools-list {
+.chat-tools-fold ~ :is(.chat-tools-box, .chat-tools-whole) {
   padding-left: 2ch;
 }
 .chat-tool-part pre {
@@ -1911,7 +1917,7 @@ button.chat-hold-line:focus-visible::before {
   }
 
   .chat-tool-body,
-  .chat-tools-fold ~ .chat-tools-list,
+  .chat-tools-fold ~ .chat-tools-box,
   .chat-hold[data-open] .chat-hold-words,
   .chat-hold-foot {
     animation: chat-disclose var(--motion-state) var(--ease-interface);
