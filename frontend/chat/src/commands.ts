@@ -113,8 +113,8 @@ export type ChatCommands = {
   ) => Promise<boolean>
   // Moves what the agent's own box holds into the chat's, ahead of what's written there: a
   // paragraph of its own, or, words typed `ahead` as the agent started, the start of the same
-  // run of keys as what the person typed on in the chat.
-  readonly takeBox: (key: TerminalKey, options?: { readonly ahead?: boolean }) => Promise<void>
+  // run of keys as what the person typed on in the chat. Resolves whether it moved any.
+  readonly takeBox: (key: TerminalKey, options?: { readonly ahead?: boolean }) => Promise<boolean>
   // Moves the chat's draft into the agent's own box, where it can go, as its terminal shows.
   readonly putDraft: (key: TerminalKey) => Promise<void>
   // Empties the agent's own box of `seen`, what the chat showed the person, gone for good, as
@@ -192,6 +192,10 @@ const backInBox = (
 // The receipt of a prompt, as the conversation shows it now; null where it shows none.
 const receiptOf = (conversation: Conversation, ref: string): ChatPrompt | null =>
   conversation.prompts.find((prompt) => prompt.ref === ref) ?? null
+
+// How long after the chat stops passing keys the box may still show them: the box is read at most
+// every few hundred milliseconds, once its screen holds still.
+const passedLingerMs = 1500
 
 export const createChatCommands = ({
   chat,
@@ -288,7 +292,7 @@ export const createChatCommands = ({
   }
 
   // Each terminal's latest take of what the agent's box holds.
-  const takes = new Map<string, Promise<void>>()
+  const takes = new Map<string, Promise<unknown>>()
 
   // Words a prompt took out of the agent's box are the person's again, ahead of what the box
   // holds now. Nothing goes back for a terminal that closed meanwhile.
@@ -554,8 +558,10 @@ export const createChatCommands = ({
     return true
   }
 
-  // The terminals whose box the chat passes keys to, or whose box still shows them.
+  // The terminals whose box the chat passes keys to, or whose box still shows them, and when it
+  // last stopped passing, as the box may show the keys later than that.
   const passing = new Map<string, Exclude<PassingState, "off">>()
+  const passedAt = new Map<string, number>()
 
   // Saves a pasted image on the agent's machine and marks its attachment ready, or failed with
   // why. An attachment taken off meanwhile is left alone.
@@ -695,8 +701,8 @@ export const createChatCommands = ({
         ),
       })),
     setChatPassing: (terminalId, state) => {
-      if (state === "off") passing.delete(terminalId)
-      else passing.set(terminalId, state)
+      if (state !== "off") passing.set(terminalId, state)
+      else if (passing.delete(terminalId)) passedAt.set(terminalId, Date.now())
     },
     setChatDraft: (terminalId, text, given) => {
       const context = given ?? currentContext()
@@ -737,18 +743,20 @@ export const createChatCommands = ({
       const box = shown?.box
       const held = box && `${box.mode === "shell" ? "!" : ""}${box.text}`
       const draft = chatDraftOf(chat.store.getSnapshot().drafts, contextOf(key), key.terminalId)
-      if (held && !mixes(held, draft)) return
-      // The box's text is the keys the chat passes, or they are on their way out of it.
+      if (held && !mixes(held, draft)) return false
+      // The box's text is the keys the chat passes, or they are on their way out of it: while
+      // passing ends, and a while after, as the box shows them late.
       const passed = passing.get(key.terminalId)
-      if (passed === "on" || shown?.slice?.reason === "menu") return
-      if (passed === "ending" && held && draft !== "") {
-        if (held.startsWith(draft) || draft.startsWith(held)) return
+      if (passed === "on" || shown?.slice?.reason === "menu") return false
+      const lately = Date.now() - (passedAt.get(key.terminalId) ?? -Infinity) <= passedLingerMs
+      if ((passed === "ending" || lately) && held && draft !== "") {
+        if (held.startsWith(draft) || draft.startsWith(held)) return false
       }
       const taking = (
         conversations?.takeBox?.(key) ?? Promise.resolve<BoxReturn>({ words: null })
       ).then(({ words, images: paths, at }) => {
         const images = imagesFor(key, paths)
-        if ((!words && images.length === 0) || !terminalOpen(key)) return
+        if ((!words && images.length === 0) || !terminalOpen(key)) return false
         const context = contextOf(key)
         const { terminalId } = key
         chat.update((state) => ({
@@ -762,9 +770,10 @@ export const createChatCommands = ({
             ahead && images.length === 0 ? typedOn : takenDraft,
           ),
         }))
+        return true
       })
       takes.set(key.terminalId, taking)
-      await taking
+      return await taking
     },
     putDraft: async (key) => {
       // Words on their way from the agent's box are part of what goes back.

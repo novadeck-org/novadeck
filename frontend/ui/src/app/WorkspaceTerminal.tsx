@@ -310,7 +310,7 @@ export const WorkspaceTerminal = memo(
       [conversations, terminalKey],
     )
     useBoxHandover(conversation, {
-      take: (ahead) => void commands.takeBox(terminalKey, { ahead }),
+      take: (ahead) => commands.takeBox(terminalKey, { ahead }),
       put: () => void commands.putDraft(terminalKey),
       draft,
     })

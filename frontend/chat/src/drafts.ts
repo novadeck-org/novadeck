@@ -56,5 +56,7 @@ export const takenDraft = (taken: string, draft: string): string => {
 }
 
 // Words typed ahead into the agent's box as it started, and what the person typed on in the
-// chat as it came: one run of keys, the chat's going on from the box's as typed.
-export const typedOn = (taken: string, draft: string): string => `${taken}${draft}`
+// chat as it came: one run of keys, the chat's going on from the box's as typed. Words the draft
+// holds already aren't added, as `takenDraft` leaves them.
+export const typedOn = (taken: string, draft: string): string =>
+  draft.trim() && holds(draft, taken) ? draft : `${taken}${draft}`

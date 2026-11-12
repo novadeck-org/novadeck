@@ -267,6 +267,18 @@ describe("usePassing", () => {
     expect(onPassing).toHaveBeenLastCalledWith("off")
   })
 
+  it("says keys may still show in the box when the box goes on to answer otherwise", () => {
+    const onPassing = vi.fn<(state: PassingState) => void>()
+    const write = vi.fn<(keys: string) => Promise<void>>(async () => {})
+    const { result, rerender } = renderHook(
+      (props: Props) => usePassing({ ...props, onDraft: () => {}, write, onPassing }),
+      given,
+    )
+    act(() => result.current.edit("/"))
+    rerender({ ...given, open: false, draft: "/", box: box("/") })
+    expect(onPassing).toHaveBeenLastCalledWith("ending")
+  })
+
   it("takes a character's Backspace, not a UTF-16 unit's", () => {
     expect(editKeys("/a😀", "/a")).toBe("\x7f")
   })

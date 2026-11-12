@@ -365,6 +365,31 @@ describe("the chat's send queue", () => {
     expect(draft()).toBe("aaaaaaaaa")
   })
 
+  it("adds no words typed ahead that the draft holds already", async () => {
+    const { commands, draft } = open("s1", { takeBox: async () => ({ words: "the words" }) })
+    commands.setChatDraft("01", "the words")
+    await commands.takeBox(key, { ahead: true })
+    expect(draft()).toBe("the words")
+  })
+
+  it("leaves the box to the keys passed to a menu a while after passing stopped", async () => {
+    vi.useFakeTimers()
+    try {
+      const taken = vi.fn<NonNullable<Conversations["takeBox"]>>(async () => ({ words: "/mod" }))
+      const { commands, tell } = open("s1", { takeBox: taken })
+      tell({ box: { text: "/mod", mode: "prompt", tail: false, known: false } })
+      commands.setChatDraft("01", "/mode")
+      commands.setChatPassing("01", "on")
+      commands.setChatPassing("01", "off")
+      expect(await commands.takeBox(key)).toBe(false)
+      vi.advanceTimersByTime(2000)
+      expect(await commands.takeBox(key)).toBe(true)
+      expect(taken).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("goes on from words typed ahead as the agent started with what was typed in the chat", async () => {
     const { commands, draft } = open("s1", {
       takeBox: async () => ({ words: "fix the bug in the par" }),

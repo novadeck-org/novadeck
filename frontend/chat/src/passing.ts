@@ -186,7 +186,8 @@ export const usePassing = (input: {
     latest.current = { on, onDraft, onKept, onLeft }
   }, [on, onDraft, onKept, onLeft])
 
-  const state: PassingState = on ? "on" : ended ? "ending" : "off"
+  // Keys passed while the box went on to answer otherwise (`open` false) are on their way out too.
+  const state: PassingState = on ? "on" : ended || passing ? "ending" : "off"
   useEffect(() => {
     onPassing?.(state)
   }, [state, onPassing])
