@@ -144,10 +144,10 @@ export const claude = {
   hook,
   files,
   // Novadeck's shim, through which its shells run Claude Code with its status line.
-  shims: (platform) =>
+  shims: (platform, machine = {}) =>
     platform === "win32"
-      ? [{ path: "claude.cmd", content: cmdShim }]
-      : [{ path: "claude", content: posixShim, mode: 0o700 }],
+      ? [{ path: "claude.cmd", content: cmdShim(machine.worktreesRoot) }]
+      : [{ path: "claude", content: posixShim(machine.worktreesRoot), mode: 0o700 }],
   // Its commands other than a session: all of them but `attach`, which opens a background
   // session in the terminal, and `ultrareview`, which submits a cloud review. Its print mode
   // runs it on the caller's text, so that is a session's use. The options that take a

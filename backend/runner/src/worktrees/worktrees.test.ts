@@ -22,6 +22,9 @@ const git = (cwd: string, ...args: string[]) =>
     encoding: "utf8",
   }).trim()
 
+// A path as `git worktree list` prints it: with `/` on Windows too.
+const asGit = (path: string): string => path.replaceAll("\\", "/")
+
 const temporary = (resources: { defer: (cleanup: () => void) => void }, name: string): string => {
   const folder = realpathSync.native(mkdtempSync(join(tmpdir(), `novadeck-${name}-`)))
   resources.defer(() => rmSync(folder, { recursive: true, force: true, maxRetries: 5 }))
@@ -525,8 +528,8 @@ describe("opening, crashes and pruning", () => {
     await f.worktrees.reconcile()
     const listed = git(f.repo, "worktree", "list", "--porcelain")
     expect(f.store.worktree(a.path)).toBeUndefined()
-    expect(listed).toContain(away)
-    expect(listed).not.toContain(a.path)
+    expect(listed).toContain(asGit(away))
+    expect(listed).not.toContain(asGit(a.path))
   })
 })
 
@@ -537,7 +540,7 @@ describe("reconciling at the runner's start", () => {
     rmSync(a.path, { recursive: true, force: true })
     await f.worktrees.reconcile()
     expect(f.store.worktree(a.path)).toBeUndefined()
-    expect(git(f.repo, "worktree", "list", "--porcelain")).not.toContain(a.path)
+    expect(git(f.repo, "worktree", "list", "--porcelain")).not.toContain(asGit(a.path))
   })
 
   it("orphans a worktree whose owner is gone, and leaves the rest, and again", async ({

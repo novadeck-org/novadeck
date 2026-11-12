@@ -19,6 +19,7 @@ type Fixture = {
     cwd?: string,
   ) => { result: SpawnSyncReturns<string>; received: string[] | undefined }
   readonly bin: string
+  readonly worktrees: string
   readonly real: string
 }
 
@@ -27,7 +28,8 @@ const it = base.extend<{ shim: Fixture }>({
   shim: async ({ resources }, use) => {
     const root = mkdtempSync(join(tmpdir(), "novadeck-codex-shim-"))
     resources.defer(() => rmSync(root, { recursive: true, force: true }))
-    const paths = await installShellFiles(join(root, "shell"))
+    const worktrees = join(root, "worktrees")
+    const paths = await installShellFiles(join(root, "shell"), { worktrees })
     const real = join(root, "real")
     mkdirSync(real)
     const log = join(root, "args.json")
@@ -78,7 +80,7 @@ const it = base.extend<{ shim: Fixture }>({
       if (received === undefined) throw new Error(`codex never ran: ${result.stderr}`)
       return received
     }
-    await use({ root, run, launch, bin: paths.bin, real })
+    await use({ root, run, launch, bin: paths.bin, real, worktrees })
   },
 })
 
@@ -92,6 +94,23 @@ describe("codex shim", { timeout: 60_000 }, () => {
     const ours = ["--no-daemon", "-c", "tui.terminal_title=['status','thread-id']"]
     expect(shim.run(args)).toEqual([...ours, ...args])
     expect(shim.run([])).toEqual(ours)
+  })
+
+  it("opens the folder of agents' worktrees to a session once it exists, before any command", ({
+    shim,
+  }) => {
+    const title = "tui.terminal_title=['status','thread-id']"
+    expect(shim.run(["exec", "hi"])).toEqual(["--no-daemon", "-c", title, "exec", "hi"])
+    mkdirSync(shim.worktrees)
+    const add = `--add-dir=${shim.worktrees}`
+    expect(shim.run([])).toEqual(["--no-daemon", add, "-c", title])
+    expect(shim.run(["resume", "abc"])).toEqual(["--no-daemon", add, "-c", title, "resume", "abc"])
+    expect(shim.run(["exec", "hi"])).toEqual(["--no-daemon", add, "-c", title, "exec", "hi"])
+    expect(shim.run(["--no-daemon"])).toEqual([add, "-c", title, "--no-daemon"])
+    // What needs the shared server stays as it was.
+    expect(shim.run(["agents"])).toEqual(["agents"])
+    expect(shim.run(["--remote", "ws://host"])).toEqual(["--remote", "ws://host"])
+    expect(shim.run(["exec", "hi"], { NOVADECK_TERMINAL_ID: "" })).toEqual(["exec", "hi"])
   })
 
   it("leaves alone what needs the shared server, and runs outside Novadeck's shells", ({

@@ -388,7 +388,7 @@ describe("which rows of the report log a closed terminal leaves", () => {
     // Restored in a new terminal, the session finds them.
     run.open("t2", "claude", "s1")
     expect(run.inbox.reports("t2").done?.subject).toBe("Fixed it")
-    // Thirty days on, History's row is pruned and nothing holds the session.
+    // A week on, History's row is pruned and nothing holds the session.
     history.delete("t1")
     run.inbox.sweepLog()
     expect(records.reports()).toEqual([])

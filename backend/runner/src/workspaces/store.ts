@@ -67,7 +67,7 @@ const projectOf = ({ pinned, ...project }: ProjectRow): Project => ({
 // record (`interruptions`), which only the runner's memory held until then.
 // 10: a terminal keeps the title its own agent gave (`own_title`), the lowest layer of its
 // naming above the default.
-// 11: a closed terminal is kept in History (`closed_terminals`) for 30 days, and a terminal
+// 11: a closed terminal is kept in History (`closed_terminals`), and a terminal
 // remembers whether anything was ever run in it (`ran`).
 // 12: a session keeps where the person put it among its project's (`rank`); `position`
 // stays the order it was created in.
@@ -257,8 +257,8 @@ const schema = `
   -- path is the worktree's top folder, common_dir its repository's git common dir and
   -- base the commit it started from. The owner is a terminal, live or closed but still in
   -- History, so terminal_id has no foreign key; it is null once orphaned. adopted is 1
-  -- for a worktree some other tool made, branch_made 1 when Novadeck created its branch
-  -- (only such a branch is ever deleted), and diverged 1 once it has differed from base.
+  -- for a worktree some other tool made, and branch_made 1 when Novadeck created its branch
+  -- (only such a branch is ever deleted).
   CREATE TABLE worktrees (
     path TEXT PRIMARY KEY,
     common_dir TEXT NOT NULL,
@@ -268,7 +268,6 @@ const schema = `
     terminal_id TEXT,
     adopted INTEGER NOT NULL CHECK (adopted IN (0, 1)),
     branch_made INTEGER NOT NULL DEFAULT 0 CHECK (branch_made IN (0, 1)),
-    diverged INTEGER NOT NULL DEFAULT 0 CHECK (diverged IN (0, 1)),
     created_at INTEGER NOT NULL
   ) STRICT;
   CREATE INDEX worktrees_project ON worktrees(project_id);
@@ -329,7 +328,7 @@ const schema = `
   CREATE INDEX companion_items_session ON companion_items(session_id);
   CREATE UNIQUE INDEX companion_windows_project ON companion_windows(session_id)
     WHERE home = 'project';
-  -- Every terminal closed in the last 30 days, with what restores it. A row outlives its
+  -- Every terminal closed in the last 7 days, with what restores it. A row outlives its
   -- session, so that has no foreign key; the project's removal takes its rows.
   CREATE TABLE closed_terminals (
     id TEXT PRIMARY KEY,
@@ -838,7 +837,6 @@ const migrations: Readonly<Record<number, Step>> = {
       terminal_id TEXT,
       adopted INTEGER NOT NULL CHECK (adopted IN (0, 1)),
       branch_made INTEGER NOT NULL DEFAULT 0 CHECK (branch_made IN (0, 1)),
-      diverged INTEGER NOT NULL DEFAULT 0 CHECK (diverged IN (0, 1)),
       created_at INTEGER NOT NULL
     ) STRICT;
     CREATE INDEX worktrees_project ON worktrees(project_id);
@@ -1492,7 +1490,6 @@ type WorktreeRow = {
   terminal_id: string | null
   adopted: number
   branch_made: number
-  diverged: number
   created_at: number
 }
 
@@ -1505,7 +1502,6 @@ const worktreeOf = (row: WorktreeRow): WorktreeRecord => ({
   terminalId: row.terminal_id,
   adopted: row.adopted === 1,
   branchMade: row.branch_made === 1,
-  diverged: row.diverged === 1,
   createdAt: row.created_at,
 })
 
@@ -2214,10 +2210,10 @@ export class WorkspaceStore
       () =>
         this.queries.run`
         INSERT INTO worktrees (path, common_dir, branch, base, project_id, terminal_id,
-          adopted, branch_made, diverged, created_at)
+          adopted, branch_made, created_at)
         VALUES (${record.path}, ${record.commonDir}, ${record.branch}, ${record.base},
           ${record.projectId}, ${record.terminalId}, ${record.adopted ? 1 : 0}, ${record.branchMade ? 1 : 0},
-          ${record.diverged ? 1 : 0}, ${record.createdAt})`,
+          ${record.createdAt})`,
     )
   }
 

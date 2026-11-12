@@ -2,7 +2,7 @@ import { SettleInTerminal, type ChatBox } from "@novadeck/core/conversation"
 import { refusing } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement, useState } from "react"
-import { afterEach } from "vitest"
+import { afterEach, beforeEach, vi } from "vitest"
 
 import { boxNote, Composer } from "./Composer"
 import { composerMode } from "./composer-mode"
@@ -355,5 +355,90 @@ describe("the composer's history", () => {
   it("does nothing with no history", async () => {
     const field = walking([])
     expect((await press(field, "ArrowUp")).defaultPrevented).toBe(false)
+  })
+})
+
+describe("the composer's transmit pulse", () => {
+  const original = Object.getOwnPropertyDescriptor(Element.prototype, "animate")
+  let reduced: boolean
+  let changed: (() => void) | null
+  let animated: { element: Element; cancel: ReturnType<typeof vi.fn<() => void>> }[]
+  beforeEach(() => {
+    reduced = false
+    changed = null
+    animated = []
+    vi.stubGlobal("matchMedia", () => ({
+      matches: reduced,
+      addEventListener: (_name: string, listener: () => void) => {
+        changed = listener
+      },
+      removeEventListener: () => {},
+    }))
+    Object.defineProperty(Element.prototype, "animate", {
+      configurable: true,
+      value(this: Element) {
+        const cancel = vi.fn<() => void>()
+        animated.push({ element: this, cancel })
+        return { cancel }
+      },
+    })
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    if (original) Object.defineProperty(Element.prototype, "animate", original)
+    else Reflect.deleteProperty(Element.prototype, "animate")
+  })
+  const submit = (container: HTMLElement): void => {
+    act(() => {
+      container
+        .querySelector("form")!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+    })
+  }
+
+  it("acknowledges a locally accepted submit without waiting for transport", () => {
+    const send = vi.fn<(text: string) => Promise<void>>(() => new Promise(() => {}))
+    const container = show("Send these words", [], { send })
+    submit(container)
+    expect(send).toHaveBeenCalledWith("Send these words")
+    expect(animated.map(({ element }) => element.className)).toEqual([
+      "chat-transmit-beam",
+      "chat-mark",
+    ])
+    expect(container.querySelectorAll(".chat-prompt-flight")).toHaveLength(0)
+  })
+
+  it("stays quiet when local validation refuses a submit", () => {
+    const sent: string[] = []
+    const container = show("ask @alice ", sent)
+    submit(container)
+    expect(sent).toEqual([])
+    expect(animated).toEqual([])
+  })
+
+  it("sends normally with no motion under reduced motion", () => {
+    reduced = true
+    const sent: string[] = []
+    const container = show("Send these words", sent)
+    submit(container)
+    expect(sent).toEqual(["Send these words"])
+    expect(animated).toEqual([])
+  })
+
+  it("restarts one pulse for consecutive submissions and cancels it on unmount", () => {
+    const container = show("Send these words")
+    submit(container)
+    submit(container)
+    expect(animated).toHaveLength(4)
+    expect(animated.slice(0, 2).every(({ cancel }) => cancel.mock.calls.length === 1)).toBe(true)
+    act(() => unmounts.pop()!())
+    expect(animated.every(({ cancel }) => cancel.mock.calls.length === 1)).toBe(true)
+  })
+
+  it("ends a running pulse when the motion preference changes", () => {
+    const container = show("Send these words")
+    submit(container)
+    act(() => changed?.())
+    expect(animated.every(({ cancel }) => cancel.mock.calls.length === 1)).toBe(true)
   })
 })

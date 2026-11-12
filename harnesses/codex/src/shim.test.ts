@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 
-import { cmdShim } from "./shim.js"
+import { cmdShim as makeCmd } from "./shim.js"
+
+const cmdShim = makeCmd("C:\\Users\\x\\.novadeck\\worktrees")
 
 describe("the Windows shim", () => {
   it("looks for the real codex on PATH only, never in the current folder where cmd looks first", () => {

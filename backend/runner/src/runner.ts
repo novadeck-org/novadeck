@@ -166,6 +166,16 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
           })
           return undefined
         })
+  // Writes the shell files again, changing only what differs: for whoever first creates the
+  // worktrees folder, so that Antigravity's Windows shim, written only while it exists, is
+  // there for the next shell. Resolves once they are written; fails if they can't be.
+  const rewriteShellFiles = async (): Promise<void> => {
+    if (options.shell === undefined) return
+    await installShellFiles(
+      options.shell,
+      options.relay === undefined ? {} : { relay: options.relay },
+    )
+  }
   // The runner's own calls of the relay use the build's, never the copy for agents.
   const relay = options.relay === undefined ? {} : { relay: options.relay }
   const agents = createHarnesses(() => shellFiles, { ...relay, ...options.agents })
@@ -339,6 +349,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   return {
     store,
     shellFiles,
+    rewriteShellFiles,
     agents,
     terminals,
     items,

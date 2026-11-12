@@ -594,7 +594,7 @@ not command completion.
   a runner that is shutting down too; only a stopped one refuses it, with `CLOSING`.
   A close is no longer final: unless nothing ever ran in the terminal (no line entered, no
   agent session) or its project is being removed, the runner first keeps a row of it in
-  History for 30 days, built from the terminal in memory (an agent's sessions without their
+  History for 7 days, built from the terminal in memory (an agent's sessions without their
   turns; a plain terminal's last screen, masked and sealed like any transcript, which the
   runner's shutdown waits for). Every route does: the person's, an agent's (the row names its
   handle in `closedBy`), and a terminal kept only as saved. A shell that exits on its own
@@ -781,7 +781,7 @@ or taskkill for:
 The runner keeps who owns each git worktree its agents work in in a `worktrees` table (schema 14):
 the worktree's real path (the key), its repository's git common dir, branch, the commit it started
 from, its project (which cascades), its owner terminal (plain text: a live terminal or one in History,
-null once orphaned), whether it was adopted and whether it has diverged. The agents' `open_worktree`,
+null once orphaned), whether it was adopted and whether Novadeck made its branch. The agents' `open_worktree`,
 `take_worktree`, `close_worktree` and `give_worktree` tools are the only way ownership changes; they
 reach the runner as the relay's `openWorktree`, `takeWorktree`, `closeWorktree` and `giveWorktree`
 calls, and a listing of the tools asks it `worktrees` (whether Preferences has them on). At start the
@@ -1546,7 +1546,7 @@ one from an earlier runner.
   picker; where the turn goes on, the Stop ends it as above. It resolves with nothing
   `returned`. The refusals are `agents.prompt`'s with `setAside`.
 
-- `history.*` lists the terminals closed in the last 30 days, per project, which
+- `history.*` lists the terminals closed in the last 7 days, per project, which
   `terminals.create({ closed })` restores. A row has the id its terminal had, its project,
   title, summary, handle (null if none), `agent` (the program's icon; null for a plain
   terminal, whose last `program` stands in), `cwd`, `closedAt`, `closedBy` (the handle of
@@ -1554,7 +1554,7 @@ one from an earlier runner.
   `restoring`, `gone` (`conversation` or `folder`), `disconnected` (the agent) or `open` (the
   handle of the terminal the conversation is bound in). The runner keeps rows in
   `closed_terminals`; a plain terminal's saved output is the one heavy column, which neither
-  call carries. A row is kept 30 days from `closedAt`: the runner deletes older ones as it
+  call carries. A row is kept 7 days from `closedAt`: the runner deletes older ones as it
   starts and every hour after, through the store's `forget` (so `secure_delete` and the scrub
   apply), and watchers receive `removed`. A plain terminal's row reads `restoring` until its
   saved output is written. One conversation has one row: closing a terminal replaces an

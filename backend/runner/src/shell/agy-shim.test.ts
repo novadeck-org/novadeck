@@ -25,6 +25,7 @@ const it = base.extend<{ fixture: Fixture }>({
     const paths = shellPaths(join(root, "shell"), "win32")
     const written = shellFiles(paths, "win32", undefined, {
       cmdShimDir: join(root, "agy-cmd"),
+      worktreesRoot: join(root, "worktrees"),
     }).find((file) => file.path === join(paths.bin, "agy.cmd"))
     if (written === undefined) throw new Error("No shim for agy")
     const real = join(root, "real")
