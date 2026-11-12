@@ -175,20 +175,15 @@ done
   printf '%s\\n' "\${BASH_EXECUTION_STRING:-$ZSH_EXECUTION_STRING}" | tail -n 3
 } > "./hook-$nd_id.txt" 2>&1
 if [ -n "$nd_log" ] && [ "$nd_t1" = no ]; then
-  exec > >(tee -a "$nd_log") 2> >(tee -a "$nd_log" >&2)
-  nd_rc=$?
-  {
-    echo "after exec rc=$nd_rc bash=$BASH_VERSION tee=$(command -v tee)"
-    ls -l /dev/fd/ 2>&1
-    echo probe-write >> "$nd_log" && echo "direct append ok"
-    echo "procsub alone:"; ( exec 9> >(cat > /dev/null) ) 2>&1; echo "rc=$?"
-    echo "TMPDIR=\${TMPDIR-unset}"
+  # bash 3.2 under macOS's sandbox can't open /dev/fd/N, which >(...) needs: a named pipe then.
+  if (exec 9> >(cat > /dev/null)) 2>/dev/null; then
+    exec > >(tee -a "$nd_log") 2> >(tee -a "$nd_log" >&2)
+  else
     nd_fifo=\${nd_log%.log}.fifo
-    if mkfifo "$nd_fifo" 2>&1; then echo "mkfifo ok"; rm -f "$nd_fifo"; else echo "mkfifo FAIL"; fi
-    echo "pipe:"; echo pipe-test | tee -a "$nd_log" 2>&1; echo "rc=$?"
-    echo "zsh procsub:"; /bin/zsh -fc 'exec > >(tee -a "$1"); echo zsh-procsub-test' zsh "$nd_log" 2>&1; echo "rc=$?"
-  } >> "./hook-$nd_id.txt" 2>&1
-  echo "hook-tee-test $nd_id"
+    mkfifo "$nd_fifo" && { tee -a "$nd_log" < "$nd_fifo" & } && exec > "$nd_fifo" 2>&1
+    rm -f "$nd_fifo"
+    echo "fifo" >> "./hook-$nd_id.txt"
+  fi
 fi
 `
 
