@@ -3,7 +3,6 @@ import type { z } from "zod"
 
 import {
   changeFileDiff,
-  changeRange,
   companionItem,
   itemContent,
   maxChangeSideBytes,
@@ -143,13 +142,5 @@ describe("a change as layers", () => {
     expect(changeFileDiff.safeParse({ run: { ...run, after: `${run.after}x` } }).success).toBe(
       false,
     )
-  })
-
-  it("carries a range's own files, and no more than a layer's", () => {
-    const listed = { files: [file], truncated: false }
-    expect(changeRange.parse(listed)).toEqual(listed)
-    expect(
-      changeRange.safeParse({ ...listed, files: Array.from({ length: 301 }, () => file) }).success,
-    ).toBe(false)
   })
 })

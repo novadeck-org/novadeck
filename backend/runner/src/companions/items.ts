@@ -8,7 +8,6 @@ import { companionLimits, onThisMachine, pageKey, titleFrom } from "@novadeck/pr
 import type {
   AgentName,
   ChangeFileDiff,
-  ChangeRange,
   CompanionChange,
   CompanionItem,
   CompanionWindow,
@@ -1253,16 +1252,6 @@ export class CompanionItems {
     const root = await this.changeRoot(input.itemId)
     const listed = this.layers.listedFile(root, input.path)
     if (listed) await this.options.reads?.mark(root, listed.path, listed.blob)
-  }
-
-  /** The files a selection of layers changed as one range (see `companions.changeRange`). */
-  async changeRange(input: {
-    readonly itemId: string
-    readonly layers: readonly string[]
-  }): Promise<ChangeRange> {
-    const read = await this.layers.range(await this.changeRoot(input.itemId), input.layers)
-    if (!read.ok) throw new Error(read.reason)
-    return read.range
   }
 
   private read(

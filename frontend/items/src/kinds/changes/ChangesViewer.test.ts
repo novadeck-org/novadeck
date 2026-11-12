@@ -115,11 +115,8 @@ const show = (
   content: ChangesContent,
   diffs: Record<string, ChangeFileDiff> = { "src/auth/cookies.ts": cookieDiff },
   withDiffs = true,
-  // The files of a range: the layers' own added up unless given; null: the backend has no range.
-  range?: readonly ChangedFile[] | null,
 ) => {
   const asked: { path: string; layers: readonly string[] }[] = []
-  const ranges: (readonly string[])[] = []
   // The files the pane told the backend were read.
   const marked: string[] = []
   // What a read waits for, where a test holds it.
@@ -136,15 +133,6 @@ const show = (
     changeRead: async (_target, _id, path) => {
       marked.push(path)
     },
-    ...(range !== null && {
-      changeRange: async (_target, _id, picked) => {
-        ranges.push(picked)
-        return {
-          files: range ?? filesOf(content.layers, new Set(picked)),
-          truncated: false,
-        }
-      },
-    }),
     ...(withDiffs && {
       changeFile: async (_target, _id, path, layers) => {
         await gate.wait
@@ -220,7 +208,6 @@ const show = (
     row,
     open,
     settle,
-    ranges,
     marked,
     gate,
     emit: (next: ChangesContent, stamp: string) =>
@@ -587,9 +574,9 @@ describe("a change beside a terminal", () => {
   })
 
   context("when the change carries its own files", () => {
-    it("shows those, with their counts, for every layer selected, asking for no range", async () => {
+    it("shows those, with their counts, for every layer selected", async () => {
       const net = [file("src/auth/session.ts", { status: "added", added: 20, removed: 0 })]
-      const { files, container, settle, ranges } = show(change({ files: net }))
+      const { files, container, settle } = show(change({ files: net }))
 
       await settle()
 
@@ -597,7 +584,6 @@ describe("a change beside a terminal", () => {
       expect(container.querySelector(".artifact-meta")?.textContent).toContain(
         "1 file · +20 −0 · against main",
       )
-      expect(ranges).toEqual([])
     })
 
     it("says so when the change is over the files it lists", async () => {
@@ -610,20 +596,6 @@ describe("a change beside a terminal", () => {
       const { container, settle } = show(change())
       await settle()
       expect(container.querySelector(".artifact-meta")?.textContent).toContain("4 re-indented")
-    })
-  })
-
-  context("when the backend lists a range's own files", () => {
-    it("shows a single layer's own files, which no range is asked for", async () => {
-      const net = [file("elsewhere.ts")]
-      const { files, click, layers, settle, ranges } = show(change(), undefined, true, net)
-      await settle()
-
-      await click(layers()[1])
-      await settle()
-
-      expect(files()).toEqual(["src/auth/session.test.ts", "src/auth/session.ts"])
-      expect(ranges).toEqual([])
     })
   })
 

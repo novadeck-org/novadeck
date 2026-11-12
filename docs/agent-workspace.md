@@ -301,7 +301,6 @@ port's optional `companions` capability (`frontend/core/src/items.ts`):
 | `save(target, itemId, text, basedOn)`       | The user's edit written to the plan file, unless it changed since stamp `basedOn`                            |
 | `openInProject?(target, path, windowId)`    | A file the person opened from Source, in the project window; absent where it can't be                        |
 | `changeFile?(target, itemId, path, layers)` | One file of a change for the layers selected: its diff and both sides' text; absent where it can't be        |
-| `changeRange?(target, itemId, layers)`      | The files the layers selected changed as one range, with the range's own counts; absent where it can't be    |
 | `changeRead?(target, itemId, path)`         | The person read a file of a change: the content's `read` names it until it changes; absent where it can't be |
 
 A file that may hold secrets is `secret` until the person asks to see it, and `reveal` is the path
@@ -468,7 +467,7 @@ with every safety check again at that time:
   case on Windows) and named "Changes · <folder>"
   unless a title is given; showing it again updates it. Its detail counts the files the change
   as a whole differs from main by and their lines (the net, not its layers added up), and follows each read the pane triggers. The content
-  (`companions.content`) is each layer's files with their counts, and the whole change's own list of files (the net), not their diffs; for every layer selected the pane reads that list, and for one layer that layer's own files (it selects all or one, so it never asks `changeRange`, which the API still offers): it is read
+  (`companions.content`) is each layer's files with their counts, and the whole change's own list of files (the net), not their diffs; for every layer selected the pane reads that list, and for one layer that layer's own files: it is read
   with git at the start and again about every 2 seconds while followed, and sent only
   when it changed. One file's diff for a selection of layers is `companions.changeFile`: the
   selection is one range, diffed from the oldest layer's parent to the newest (the uncommitted
@@ -476,10 +475,7 @@ with every safety check again at that time:
   work as the range's end holds it merged in (in memory) where the parent lacks it, so the range
   shows its own work only; only a range that reaches the oldest layer starts at the merge base
   (for the newest layer's commit, where that commit left main), so the whole of it is
-  `git diff main...HEAD`. `companions.changeRange` lists the files of any run of layers the same
-  way (the pane no longer asks it), git's own listing for the range (a file added and dropped inside it
-  is not there, a rename is one row, the counts are the range's) up to the file bound, with
-  `truncated` where more exist.
+  `git diff main...HEAD`.
 
   One snapshot service (`backend/runner/src/checkouts/snapshots.ts`) takes the working tree for
   both the changes item and the Changes panel (Works), so a checkout both read is taken once:

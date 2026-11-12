@@ -321,6 +321,23 @@ const diffOf = async (readers: LayerReader, root: string, path: string, layers: 
   return read.diff
 }
 
+// The files a run of layers changed, as one diff over the range: each file the repository
+// ever held, asked for its run over the layers (as the pane asks a file's diff), those that
+// have one, by path.
+const rangeOf = async (readers: LayerReader, repo: Repo, layers: string[]) => {
+  const paths = new Set(
+    repo.git("log", "--all", "--name-only", "--format=").split("\n").filter(Boolean),
+  )
+  const runs = await Promise.all([...paths].map((path) => diffOf(readers, repo.root, path, layers)))
+  // A file renamed in the range is asked by both its names: one row.
+  const files = new Map(
+    runs.flatMap(({ run }) => (run ? [[run.file.path, run.file] as const] : [])),
+  )
+  return [...files.values()].toSorted((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
+}
+const rangeFiles = async (readers: LayerReader, repo: Repo, layers: string[]) =>
+  (await rangeOf(readers, repo, layers)).map(({ path, status }) => `${status}:${path}`)
+
 describe.skipIf(!hasGit)("the layers of a change read from a git repository", () => {
   it("finds the repository from a folder inside it, and refuses a folder outside any", async ({
     repo,
@@ -367,7 +384,7 @@ describe.skipIf(!hasGit)("the layers of a change read from a git repository", ()
     ])
     expect(read.change.layers[2]?.time).toBeGreaterThan(1_500_000_000_000)
     expect(read.detail).toBe("2 files · +6 −0")
-    // The whole change's own list, as `changeRange` gives it over every layer.
+    // The whole change's own list, as git lists the range from main to the newest layer.
     expect(read.change.files.map(({ path, added }) => [path, added])).toEqual([
       ["a.txt", 5],
       ["b.txt", 1],
@@ -590,9 +607,6 @@ describe.skipIf(!hasGit)("the layers of a change read from a git repository", ()
       [".env", true, "modified", 1, 1],
       ["id_rsa", true, "added", 0, 0],
     ])
-    const range = await readers.range(repo.root, ["uncommitted"])
-    if (!range.ok) throw new Error(range.reason)
-    expect(range.range.files.map(({ path }) => path)).toEqual([".env", "id_rsa"])
     const named = await diffOf(readers, repo.root, "id_rsa", ["uncommitted"])
     expect(JSON.stringify(named)).not.toContain("SECRET")
     expect(named.run).toMatchObject({
@@ -844,9 +858,7 @@ describe.skipIf(!hasGit)("one file of a change for a selection of its layers", (
     const c4 = repo.git("rev-parse", "HEAD").trim()
     const readers = reader()
 
-    const range = await readers.range(repo.root, [c1, c2, c3, c4])
-    if (!range.ok) throw new Error(range.reason)
-    expect(range.range.files).toMatchObject([
+    expect(await rangeOf(readers, repo, [c1, c2, c3, c4])).toMatchObject([
       { path: "b.txt", oldPath: "base.txt", status: "renamed" },
       { path: "other.txt", status: "added" },
     ])
@@ -873,9 +885,9 @@ describe.skipIf(!hasGit)("one file of a change for a selection of its layers", (
     // The merge itself did nothing: what it brought in from main is main's.
     const merge = read.change.layers.find((layer) => layer.id === merged)!
     expect(merge.files).toEqual([])
-    const range = await readers.range(repo.root, [merged, own])
-    if (!range.ok) throw new Error(range.reason)
-    expect(range.range.files.map(({ path }) => path)).toEqual(["own.txt"])
+    expect((await rangeOf(readers, repo, [merged, own])).map(({ path }) => path)).toEqual([
+      "own.txt",
+    ])
     expect((await diffOf(readers, repo.root, "main.txt", [merged, own])).run).toBeNull()
   })
 
@@ -992,12 +1004,6 @@ const merging = (repo: Repo) => {
 }
 
 describe.skipIf(!hasGit)("the merges of a change", () => {
-  const rangeFiles = async (readers: LayerReader, root: string, layers: string[]) => {
-    const range = await readers.range(root, layers)
-    if (!range.ok) throw new Error(range.reason)
-    return range.range.files.map(({ path, status }) => `${status}:${path}`)
-  }
-
   it("shows a merge as what it did itself, nothing where it only brought main in", async ({
     repo,
   }) => {
@@ -1027,22 +1033,22 @@ describe.skipIf(!hasGit)("the merges of a change", () => {
       .trim()
       .split("\n")
       .map((path) => `added:${path}`)
-    expect(await rangeFiles(readers, repo.root, [f3, merge2, f2, merge1, f1])).toEqual(truth)
-    expect(
-      await rangeFiles(readers, repo.root, ["uncommitted", f3, merge2, f2, merge1, f1]),
-    ).toEqual(truth)
-    expect(await rangeFiles(readers, repo.root, [f3, merge2, f2])).toEqual([
+    expect(await rangeFiles(readers, repo, [f3, merge2, f2, merge1, f1])).toEqual(truth)
+    expect(await rangeFiles(readers, repo, ["uncommitted", f3, merge2, f2, merge1, f1])).toEqual(
+      truth,
+    )
+    expect(await rangeFiles(readers, repo, [f3, merge2, f2])).toEqual([
       "added:f2.txt",
       "added:f3.txt",
     ])
-    expect(await rangeFiles(readers, repo.root, [f2, merge1, f1])).toEqual([
+    expect(await rangeFiles(readers, repo, [f2, merge1, f1])).toEqual([
       "added:f1.txt",
       "added:f2.txt",
     ])
-    expect(await rangeFiles(readers, repo.root, [merge2, f2, merge1])).toEqual(["added:f2.txt"])
-    expect(await rangeFiles(readers, repo.root, [merge1, f1])).toEqual(["added:f1.txt"])
-    expect(await rangeFiles(readers, repo.root, [merge2])).toEqual([])
-    expect(await rangeFiles(readers, repo.root, [merge2, f2])).toEqual(["added:f2.txt"])
+    expect(await rangeFiles(readers, repo, [merge2, f2, merge1])).toEqual(["added:f2.txt"])
+    expect(await rangeFiles(readers, repo, [merge1, f1])).toEqual(["added:f1.txt"])
+    expect(await rangeFiles(readers, repo, [merge2])).toEqual([])
+    expect(await rangeFiles(readers, repo, [merge2, f2])).toEqual(["added:f2.txt"])
     // A file main brought in is no part of any range's diff.
     const all = [f3, merge2, f2, merge1, f1]
     const mains = await Promise.all(
@@ -1069,7 +1075,7 @@ describe.skipIf(!hasGit)("the merges of a change", () => {
     expect(merge.files.map(({ path }) => path)).toEqual(["c.txt"])
     const diff = await diffOf(readers, repo.root, "c.txt", [resolved])
     expect(diff.run?.after).toBe("resolved\n")
-    expect(await rangeFiles(readers, repo.root, [resolved, own])).toEqual(
+    expect(await rangeFiles(readers, repo, [resolved, own])).toEqual(
       repo
         .git("diff", "--name-status", "main...HEAD")
         .trim()
@@ -1131,7 +1137,7 @@ describe.skipIf(!hasGit)("the merges of a change", () => {
     expect(read.change.layers.some((layer) => layer.firstParent)).toBe(false)
 
     // Ranges agree with the layers: their own work, whichever way they are cut.
-    const files = (layers: string[]) => rangeFiles(readers, repo.root, layers)
+    const files = (layers: string[]) => rangeFiles(readers, repo, layers)
     const touched = ["added:f2.txt", "modified:s.txt", "added:x.txt"]
     expect(await files([octopus, o1, mergeX, f2, resolved])).toEqual([
       "added:f2.txt",
@@ -1152,9 +1158,8 @@ describe.skipIf(!hasGit)("the merges of a change", () => {
         .map((each) => each.replace(/^M\t/, "modified:").replace(/^A\t/, "added:")),
     )
     // The lines of the whole are those of git's own diff.
-    const range = await readers.range(repo.root, whole)
-    if (!range.ok) throw new Error(range.reason)
-    expect(range.range.files.map(({ path, added, removed }) => [path, added, removed])).toEqual(
+    const range = await rangeOf(readers, repo, whole)
+    expect(range.map(({ path, added, removed }) => [path, added, removed])).toEqual(
       repo
         .git("diff", "--numstat", "main...HEAD")
         .trim()
@@ -1204,7 +1209,7 @@ describe.skipIf(!hasGit)("the merges of a change", () => {
     expect(
       read.change.layers.find((layer) => layer.id === resolved)!.files.map(({ path }) => path),
     ).toEqual(["m.txt", "s.txt"])
-    expect(await rangeFiles(readers, repo.root, [octopus, o1, mergeX, f2, resolved])).toEqual([
+    expect(await rangeFiles(readers, repo, [octopus, o1, mergeX, f2, resolved])).toEqual([
       "added:f2.txt",
       "added:m.txt",
       "added:o1.txt",

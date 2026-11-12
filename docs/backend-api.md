@@ -1631,8 +1631,9 @@ one from an earlier runner.
     short, which `companions.save` can write) and `skill` (Novadeck's plugin is installed
     for its agent). A `changes` item is a checkout measured against its repository's main
     branch (`base` names it, `HEAD` where there is none): `root`, `base`, and `layers`, newest
-    first, and `files`, the whole change's own list (what `changeRange` gives over every layer: the
-    net against main, at most 300, in `truncated` too), and `read`, the paths of `files` the
+    first, and `files`, the whole change's own list (git's own listing of the range over every
+    layer, so a file added and dropped inside it is not there, a renamed one is one row and the
+    counts are the range's: the net against main, at most 300, in `truncated` too), and `read`, the paths of `files` the
     person read (`companions.changeRead`) that have not changed since. A layer is the work not committed yet (`id` `uncommitted`, `time` null: the
     working tree, untracked files included and ignored ones not) or a commit since the merge
     base with main (`id` its hash, its `subject` and `time`), with its `files` (`path`,
@@ -1656,14 +1657,10 @@ one from an earlier runner.
     the file on each side (`before`, `after`; null where it doesn't exist, is binary, may hold
     secrets or passes 512 KiB). Past 4 MiB of diff text the run is `big`: no hunks, no sides.
     A name that is no valid text is `badName`: named, not read. An unknown item, or one that is
-    no change, is `NOT_FOUND`.
-  - `companions.changeRange({ itemId, layers })` lists the files the layers selected changed as
-    one range, as git lists them from its start to its end (a file added and dropped inside it is
-    not there, a renamed one is one row, counts are the range's own): `{ files, truncated }`. A
-    range that reaches the oldest layer, or takes in a merge, starts at the merge base with main,
-    so what main brought in is no part of it. A snapshot's objects are written to a folder of the
-    runner's own, never to the person's object store, and a file that may hold secrets is never
-    hashed.
+    no change, is `NOT_FOUND`. A range that reaches the oldest layer, or takes in a merge, starts
+    at the merge base with main, so what main brought in is no part of it. A snapshot's objects
+    are written to a folder of the runner's own, never to the person's object store, and a file
+    that may hold secrets is never hashed.
   - `companions.changeRead({ itemId, path })` marks a file of a changes item read, by the path
     its content lists it under: the item's content names it in `read` until the file changes
     again, across restarts (the runner keeps it beside the Changes panel's memory). A file the

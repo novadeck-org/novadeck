@@ -60,8 +60,6 @@ export {
   type ChangedFile,
   changeFileDiff,
   type ChangeFileDiff,
-  changeRange,
-  type ChangeRange,
   type ChangeLayer,
   type CompanionChange,
   type CompanionItem,
