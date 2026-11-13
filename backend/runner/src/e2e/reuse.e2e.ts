@@ -57,17 +57,18 @@ for (const setup of setups) {
 
       // The first fox closes, and the next terminal made is given its handle.
       await run.deck.terminals.close({ terminalId: old.id })
-      // Its record is gone, and nothing holds the handle any more, a moment later.
-      await expect
-        .poll(() => {
-          try {
-            run.deck.terminals.get(old.id)
-            return false
-          } catch {
-            return true
-          }
-        })
-        .toBe(true)
+      // Its record and its saved row are gone, and nothing holds the handle any more, a
+      // moment later: the row goes after the record (it is when the handle starts to rest),
+      // later for a harness whose shell takes longer to end.
+      const gone = () => {
+        try {
+          run.deck.terminals.get(old.id)
+          return false
+        } catch {
+          return !run.deck.store.terminals().some((row) => row.id === old.id)
+        }
+      }
+      await expect.poll(gone, { timeout: 30_000 }).toBe(true)
       const fresh = await start(run, setup)
       expect(fresh.handle).toBe("fox")
       expect(fresh.id).not.toBe(old.id)
