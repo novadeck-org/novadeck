@@ -198,7 +198,7 @@ export const TerminalCompanion = ({
   terminalName?: ((terminalId: string) => string | undefined) | undefined
   commands: ItemCommands
   // The background shells of the agents of the terminals the bar's shells items are from, by
-  // terminal id, which each item's mark is the state of.
+  // terminal id. Nothing on the bar draws them now; they're kept for a mark to come.
   shells?: Readonly<Record<string, readonly AgentShell[]>> | undefined
   // Drafts words into the terminal's chat box for the person to send, where it has one.
   tell?: Tell | undefined

@@ -48,7 +48,8 @@ export const useShellsHome = (terminalId: string): ShellsHome | undefined =>
 const noShells: Readonly<Record<string, readonly AgentShell[]>> = {}
 
 // The background shells of the agents of the terminals the shells items on a terminal's bar are
-// from, by terminal id: each item's mark counts the shells of its own terminal.
+// from, by terminal id: each item's are its own terminal's. Nothing on the bar draws them now;
+// they're kept for a mark to come.
 export const useBarShells = (terminalId: string): Readonly<Record<string, readonly AgentShell[]>> =>
   useWorkspaceState((workspace) => {
     const state = currentState(workspace)
