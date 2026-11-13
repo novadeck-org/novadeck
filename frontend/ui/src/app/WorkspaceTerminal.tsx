@@ -462,6 +462,7 @@ export const WorkspaceTerminal = memo(
         onInputFocused={onInputFocused}
         onScreen={onScreen}
         selected={active}
+        covered={showChat}
         legible={legible}
         renderWindow={renderWindow}
       />

@@ -4,14 +4,15 @@ import type { ViewMode } from "@novadeck/core/types"
 import type { Hold, ShowOptions } from "@novadeck/terminal/view"
 import { vi } from "vitest"
 
-import { canvasPaceMs, createTerminalMount } from "./mount"
+import { createTerminalMount } from "./mount"
 import { context, describe, expect, it } from "./test"
 
 type Asked = {
   readonly label?: string
   readonly phase?: string
   readonly webgl?: boolean
-  readonly paceMs?: number
+  readonly selected?: boolean
+  readonly visible?: boolean
 }
 
 const opening: ViewState = { live: false, resuming: false, waits: false, lock: null, notice: null }
@@ -60,37 +61,38 @@ describe("a terminal's mount", () => {
     const mount = createTerminalMount(screens)(document.createElement("div"), key, props("grid"))
     mount.update(props("canvas"))
     expect(asked).toEqual([
-      { label: "Input for zsh", phase: "running", webgl: true, paceMs: 0 },
-      { label: "Input for zsh", phase: "running", webgl: false, paceMs: 0 },
+      { label: "Input for zsh", phase: "running", webgl: true, selected: true, visible: true },
+      { label: "Input for zsh", phase: "running", webgl: false, selected: true, visible: true },
     ])
   })
 
-  it("draws the terminals Canvas hasn't selected a few times a second, and any other at once", () => {
-    const paceIn = (view: ViewMode, selected?: boolean) => {
+  it("tells its screen whether it is selected and seen, the same in every view", () => {
+    const told = (view: ViewMode, over: Partial<TerminalMountProps>) => {
       const { asked, screens } = recorded()
-      createTerminalMount(screens)(document.createElement("div"), key, {
-        ...props(view),
-        ...(selected !== undefined && { selected }),
-      })
-      return asked[0]?.paceMs
+      createTerminalMount(screens)(document.createElement("div"), key, { ...props(view), ...over })
+      return { selected: asked[0]?.selected, visible: asked[0]?.visible }
     }
-    expect([
-      paceIn("canvas", false),
-      paceIn("canvas", true),
-      paceIn("canvas"),
-      paceIn("grid", false),
-      paceIn("focus", false),
-    ]).toEqual([canvasPaceMs, 0, 0, 0, 0])
+    for (const view of ["focus", "grid", "canvas"] as const) {
+      expect(told(view, {})).toEqual({ selected: true, visible: true })
+      expect(told(view, { selected: false, visible: false })).toEqual({
+        selected: false,
+        visible: false,
+      })
+    }
   })
 
-  it("draws at once as soon as Canvas selects it", () => {
+  it("tells its screen as soon as it is selected or seen again", () => {
     const { asked, screens } = recorded()
     const mount = createTerminalMount(screens)(document.createElement("div"), key, {
-      ...props("canvas"),
+      ...props("grid"),
       selected: false,
+      visible: false,
     })
-    mount.update({ ...props("canvas"), selected: true })
-    expect(asked.map((options) => options.paceMs)).toEqual([canvasPaceMs, 0])
+    mount.update({ ...props("grid"), selected: true, visible: true })
+    expect(asked.map(({ selected, visible }) => ({ selected, visible }))).toEqual([
+      { selected: false, visible: false },
+      { selected: true, visible: true },
+    ])
   })
 
   context("when its terminal is seen", () => {

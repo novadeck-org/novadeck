@@ -111,8 +111,9 @@ type OpenScreen = {
   readonly state: MutableStore<ViewState>
   // Applies a change to the state, and the lock it brings to the emulator's input.
   readonly refresh: (change?: ViewChange) => void
-  // Sets how often it draws its output (ShowOptions' `paceMs`).
-  readonly pace: (ms: number) => void
+  // Tells it what the person can see of it, which with its renderer sets how often it draws
+  // its output (`paceFor`).
+  readonly attend: (seen: { readonly selected?: boolean; readonly visible?: boolean }) => void
   // The input's accessible name, as last written.
   label: string
   // The shell's stage, as the mount last said.
@@ -129,10 +130,31 @@ export type ShowOptions = {
   readonly label: string
   readonly phase: ViewPhase
   readonly webgl: boolean
-  // How often the screen draws its output, in ms: it gathers what arrives meanwhile and
-  // writes it in one go. 0 or absent draws it as it comes.
-  readonly paceMs?: number
+  // Whether it is the terminal the person has selected; absent means it is.
+  readonly selected?: boolean
+  // Whether the person can see it where it is: not behind its chat, not kept out of sight by
+  // its view. Absent means they can.
+  readonly visible?: boolean
 }
+
+// How often a screen draws its output, by what the person can see and what drawing it costs,
+// the same in every view (`paceFor`). Paced, it gathers what arrives and draws it in one write.
+// One the person can't see draws now and then, so it stays near what its terminal shows, and
+// fitted, as the terminal behind a chat must be. One they can see, not selected, on the DOM
+// renderer, whose every draw costs the page style and layout, draws a few times a second: as
+// Canvas draws every window, or Grid those past the WebGL contexts. The selected one, and any
+// WebGL draws, draw as output comes.
+export const unseenPaceMs = 1000
+export const domPaceMs = 250
+export const paceFor = ({
+  selected,
+  visible,
+  webgl,
+}: {
+  readonly selected: boolean
+  readonly visible: boolean
+  readonly webgl: boolean
+}): number => (!visible ? unseenPaceMs : selected || webgl ? 0 : domPaceMs)
 
 // A mount's hold on a terminal's screen, from `acquire` to `release`.
 export type Hold = {
@@ -147,7 +169,8 @@ export type Hold = {
     readonly label?: string
     readonly phase?: ViewPhase
     readonly webgl?: boolean
-    readonly paceMs?: number
+    readonly selected?: boolean
+    readonly visible?: boolean
   }) => void
   // Focuses the input, and says whether the focus landed in the screen.
   readonly focus: () => boolean
@@ -267,6 +290,11 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
     // Paced, output waits to be drawn in one write. A write that fails is told to the next
     // one, so the stream draws the screen afresh as it would have.
     let paceMs = 0
+    let attention = { selected: true, visible: true }
+    const repace = (): void => {
+      paceMs = paceFor({ ...attention, webgl: view.renderer.drawn() })
+      if (!paceMs) flush()
+    }
     let gathered: string[] = []
     let flushing: ReturnType<typeof setTimeout> | undefined
     let failure: { readonly error: unknown } | undefined
@@ -340,6 +368,8 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
     view.onRendererChange(() => {
       // Counted when the fit sent the pty another size.
       if (followed.refit()) view.renderer.resized()
+      // Drawing costs differ by renderer.
+      repace()
     })
     const screen: OpenScreen = {
       container,
@@ -348,9 +378,9 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
       renderer: view.renderer,
       state,
       refresh,
-      pace: (ms) => {
-        paceMs = ms
-        if (!ms) flush()
+      attend: (seen) => {
+        attention = { ...attention, ...seen }
+        repace()
       },
       label,
       get phase() {
@@ -523,7 +553,10 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
   }
 
   // Takes one more hold on the terminal's screen, opening it on first use.
-  const take = (key: K, { webgl, paceMs = 0, ...options }: ShowOptions): OpenScreen => {
+  const take = (
+    key: K,
+    { webgl, selected = true, visible = true, ...options }: ShowOptions,
+  ): OpenScreen => {
     const entry = entryOf(key)
     const known = entry.screen
     // The hold counts once the screen is open: one that fails to open leaves nothing held.
@@ -555,7 +588,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
     }
     screen.followed.unpark()
     screen.renderer.take(webgl)
-    screen.pace(paceMs)
+    screen.attend({ selected, visible })
     return screen
   }
   const letGo = (key: K): void => {
@@ -609,7 +642,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
             screen.xterm.focus()
           screen.refocus = false
         },
-        update: ({ label, phase, webgl, paceMs }) => {
+        update: ({ label, phase, webgl, selected, visible }) => {
           if (released) return
           if (label !== undefined) writeLabel(screen, label)
           if (phase !== undefined && phase !== screen.phase) {
@@ -620,7 +653,11 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
             wantsWebgl = webgl
             screen.renderer.take(webgl)
           }
-          if (paceMs !== undefined) screen.pace(paceMs)
+          if (selected !== undefined || visible !== undefined)
+            screen.attend({
+              ...(selected !== undefined && { selected }),
+              ...(visible !== undefined && { visible }),
+            })
         },
         focus: () => {
           screen.xterm.focus()

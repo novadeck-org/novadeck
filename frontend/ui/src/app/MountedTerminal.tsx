@@ -85,6 +85,7 @@ export const MountedTerminal = ({
   onInputFocused,
   onScreen,
   selected = true,
+  covered = false,
   legible = true,
   renderWindow,
 }: {
@@ -101,6 +102,8 @@ export const MountedTerminal = ({
   readonly onScreen: boolean
   // Whether it is the selected terminal; the others may draw their output in batches.
   readonly selected?: boolean
+  // True while something stands over the terminal, as its chat does: it can't be seen.
+  readonly covered?: boolean
   // False in Canvas while zoomed out too far to read a node.
   readonly legible?: boolean
   readonly renderWindow: (content: ReactNode) => ReactNode
@@ -123,8 +126,16 @@ export const MountedTerminal = ({
   const inSight = useInSight(element, asleep && view !== "focus")
   const seen = asleep && pageVisible && onScreen && (view === "focus" ? shown : inSight && legible)
   const props = useMemo(
-    () => ({ name, status, view, onScreen, selected, ...(seen ? { seen } : {}) }),
-    [name, status, view, onScreen, selected, seen],
+    () => ({
+      name,
+      status,
+      view,
+      onScreen,
+      selected,
+      visible: shown && !covered,
+      ...(seen ? { seen } : {}),
+    }),
+    [name, status, view, onScreen, selected, shown, covered, seen],
   )
   const latest = useRef(props)
   const ending = terminalEnding(terminal)

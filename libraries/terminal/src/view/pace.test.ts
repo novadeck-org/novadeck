@@ -12,6 +12,7 @@ import {
   snapshot,
   streamOf,
 } from "./fakes.test-support.js"
+import { domPaceMs, paceFor, unseenPaceMs } from "./screens.js"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
 vi.hoisted(() => {
@@ -36,7 +37,8 @@ vi.hoisted(() => {
 
 afterEach(closeScreens)
 
-const paceMs = 40
+// An unselected screen jsdom draws, on the DOM renderer as it has no WebGL.
+const paceMs = domPaceMs
 const past = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
 // A terminal's screen over a stream the test feeds, recording what reaches the emulator's
@@ -63,12 +65,29 @@ const paced = (failing?: string) => {
   const screens = screensOf(
     optionsOf({ attach: () => Promise.resolve(streams[Math.min(attaches++, 1)]!.attached) }),
   )
-  const { hold } = shown(screens, "T", { paceMs })
+  const { hold } = shown(screens, "T", { selected: false })
   return { writes, hold, stream: streams[0]!, attached: () => attaches }
 }
 
 // What the stream sent, as the emulator was given it: the CAN a reset writes left out.
 const drawn = (writes: readonly string[]) => writes.filter((data) => data !== "\x18")
+
+describe("how often a screen draws", () => {
+  it("draws as output comes when selected, or drawn with WebGL, wherever it shows", () => {
+    expect(paceFor({ selected: true, visible: true, webgl: false })).toBe(0)
+    expect(paceFor({ selected: false, visible: true, webgl: true })).toBe(0)
+  })
+
+  it("draws a few times a second unselected on the DOM renderer, whose draws cost layout", () => {
+    expect(paceFor({ selected: false, visible: true, webgl: false })).toBe(domPaceMs)
+  })
+
+  it("draws now and then where it can't be seen, selected or not", () => {
+    for (const selected of [true, false])
+      for (const webgl of [true, false])
+        expect(paceFor({ selected, visible: false, webgl })).toBe(unseenPaceMs)
+  })
+})
 
 describe("a paced screen", () => {
   it("draws what arrives in one write, once its pace has passed", async () => {
@@ -89,7 +108,7 @@ describe("a paced screen", () => {
     writes.length = 0
     stream.push(output("typed", 2))
     await settled()
-    hold.update({ paceMs: 0 })
+    hold.update({ selected: true })
     expect(drawn(writes)).toEqual(["typed"])
     stream.push(output(" and more", 3))
     await settled()

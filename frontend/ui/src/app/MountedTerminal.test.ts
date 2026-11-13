@@ -69,6 +69,7 @@ type Options = {
   readonly onInputFocused?: () => void
   readonly onScreen?: boolean
   readonly selected?: boolean
+  readonly covered?: boolean
   readonly legible?: boolean
   readonly terminalKey?: TerminalKey
   readonly renderWindow?: (content: ReactNode) => ReactNode
@@ -92,6 +93,7 @@ const mountedTerminal = (mountTerminal: MountTerminal, options: Options = {}) =>
     onInputFocused: options.onInputFocused ?? onInputFocused,
     onScreen: options.onScreen ?? true,
     ...(options.selected !== undefined && { selected: options.selected }),
+    ...(options.covered !== undefined && { covered: options.covered }),
     legible: options.legible ?? true,
     renderWindow: options.renderWindow ?? bare,
   })
@@ -120,6 +122,7 @@ describe("a terminal drawn by a backend's mount", () => {
         view: "focus",
         onScreen: true,
         selected: true,
+        visible: true,
       })
       change({ view: "grid" })
       change({ renderWindow: inFirst })
@@ -130,6 +133,7 @@ describe("a terminal drawn by a backend's mount", () => {
         view: "grid",
         onScreen: true,
         selected: true,
+        visible: true,
       })
     })
 
@@ -183,7 +187,18 @@ describe("a terminal drawn by a backend's mount", () => {
         view: "focus",
         onScreen: false,
         selected: false,
+        visible: true,
       })
+    })
+
+    it("tells the mount it can't be seen while its chat covers it, and seen again after", () => {
+      const { mounts, change } = show()
+      change({ covered: true })
+      expect(mounts[0]!.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({ visible: false }),
+      )
+      change({ covered: false })
+      expect(mounts[0]!.update).toHaveBeenLastCalledWith(expect.objectContaining({ visible: true }))
     })
 
     it("disposes the mount of a terminal it no longer shows and mounts the new one", () => {
