@@ -13,6 +13,7 @@ import type { Sleepers } from "./sleepers.js"
 type Spec = {
   readonly session: string
   readonly handle: string
+  /** The id of its lead. */
   readonly ledBy?: string
   /** Kept only as saved, with no record: a sleeper unless it is in `plain`. */
   readonly saved?: true
@@ -27,10 +28,10 @@ type Spec = {
 const words = ["owl", "crow", "kite", "raven"]
 
 // Moves over a runner of fakes: terminals by id with the session they are in, the handles
-// each session has given, and a log of what was saved, announced, noticed and moved.
+// each project holds, and a log of what was saved, announced, noticed and moved.
 const setup = (
   terminals: { [id: string]: Spec },
-  options: { given?: string[]; asleep?: readonly string[]; waking?: readonly string[] } = {},
+  options: { held?: string[]; asleep?: readonly string[]; waking?: readonly string[] } = {},
 ) => {
   const records = new Map<string, Record>()
   const rows = new Map<
@@ -74,10 +75,11 @@ const setup = (
         suspended: "stopped",
       } as unknown as Record)
   }
-  // Every handle a session gave, as `session/handle`: those its terminals have, and more.
-  const given = new Set([
-    ...Object.values(terminals).map((each) => `${each.session}/${each.handle}`),
-    ...(options.given ?? []),
+  // Every handle the project holds: those its terminals have, and more (`held`), as ones
+  // in other sessions of it do.
+  const taken = new Set([
+    ...Object.values(terminals).map((each) => each.handle),
+    ...(options.held ?? []),
   ])
   const log = {
     saved: [] as { id: string; sessionId: string; handle: string; ledBy: string | null }[],
@@ -91,7 +93,11 @@ const setup = (
     sleepers: [] as string[],
     savedChanged: [] as string[],
     feedback: [] as { id: string; sessionId: string; handle: string }[],
-    shadows: [] as { summary?: Record["summary"]; openedBy?: string | null }[],
+    shadows: [] as {
+      summary?: Record["summary"]
+      openedBy?: string | null
+      naming?: object
+    }[],
   }
   let closing = new Set<string>()
   const rowOf = (record: Record) => ({
@@ -178,17 +184,20 @@ const setup = (
     items: () => ({ terminalMoved: (id: string) => log.items.push(id) }) as never,
     announce: (record) => log.announced.push(record.summary.id),
     savedChanged: (row) => log.savedChanged.push(row.id),
-    adopt: (sessionId, handle) => {
-      const key = `${sessionId}/${handle}`
-      if (given.has(key)) return false
-      given.add(key)
-      return true
-    },
-    draw: (sessionId) => {
-      const handle = words.find((each) => !given.has(`${sessionId}/${each}`))!
-      given.add(`${sessionId}/${handle}`)
-      return handle
-    },
+    names: () =>
+      ({
+        claim: (_sessionId: string, handle: string) => {
+          if (taken.has(handle)) return false
+          taken.add(handle)
+          return true
+        },
+        next: () => {
+          const handle = words.find((each) => !taken.has(each))!
+          taken.add(handle)
+          return handle
+        },
+        givenAt: () => 0,
+      }) as never,
   }
   const projects = new Map([
     ["s1", "p1"],
@@ -252,7 +261,7 @@ describe("moving a terminal to another session", () => {
   it("tells a team that moved with every handle kept that it moved, each of its agents", () => {
     const world = setup({
       lead: { session: "s1", handle: "moth" },
-      worker: { session: "s1", handle: "fox", ledBy: "moth" },
+      worker: { session: "s1", handle: "fox", ledBy: "lead" },
     })
     world.move(to("s2", "lead"))
     expect(world.log.notices).toEqual([
@@ -273,26 +282,28 @@ describe("moving a terminal to another session", () => {
     expect(world.records.get("a")!.summary.titleSource).toEqual({ kind: "agent", by: "owl" })
   })
 
-  it("draws the next handle where the session gave its own to a closed terminal", () => {
-    const world = setup({ a: { session: "s1", handle: "moth" } }, { given: ["s2/moth"] })
-    expect(world.move(to("s2", "a")).moved[0]!.handle).toBe("owl")
+  it("keeps its handle in another session of the project, as it is the project's, not a session's", () => {
+    const world = setup({ a: { session: "s1", handle: "moth" } })
+    expect(world.move(to("s2", "a")).moved).toEqual([
+      { terminalId: "a", handle: "moth", was: "moth" },
+    ])
   })
 
-  it("draws the next handle where a terminal there is led under it", () => {
+  it("keeps its handle where a terminal there is led by one that had it, as leads are ids", () => {
     const world = setup({
       a: { session: "s1", handle: "moth" },
-      b: { session: "s2", handle: "fox", ledBy: "moth" },
+      b: { session: "s2", handle: "fox", ledBy: "gone" },
     })
-    expect(world.move(to("s2", "a")).moved[0]!.handle).toBe("owl")
+    expect(world.move(to("s2", "a")).moved[0]!.handle).toBe("moth")
   })
 
-  it("takes its whole team at every depth, and the workers follow a lead's new handle", () => {
+  it("takes its whole team at every depth, and the workers stay led by their lead's id", () => {
     const world = setup(
       {
         lead: { session: "s1", handle: "moth" },
-        worker: { session: "s1", handle: "fox", ledBy: "moth" },
-        deep: { session: "s1", handle: "lynx", ledBy: "fox" },
-        sleeper: { session: "s1", handle: "wisp", ledBy: "lynx", saved: true },
+        worker: { session: "s1", handle: "fox", ledBy: "lead" },
+        deep: { session: "s1", handle: "lynx", ledBy: "worker" },
+        sleeper: { session: "s1", handle: "wisp", ledBy: "deep", saved: true },
         other: { session: "s1", handle: "dusk" },
         taken: { session: "s2", handle: "moth" },
         taken2: { session: "s2", handle: "lynx" },
@@ -307,12 +318,12 @@ describe("moving a terminal to another session", () => {
       { terminalId: "sleeper", handle: "wisp", was: "wisp" },
     ])
     expect(moved.left).toBeNull()
-    expect(world.records.get("worker")!.summary.ledBy).toBe("owl")
-    expect(world.records.get("deep")!.summary.ledBy).toBe("fox")
+    expect(world.records.get("worker")!.summary.ledBy).toBe("lead")
+    expect(world.records.get("deep")!.summary.ledBy).toBe("worker")
     expect(world.rows.get("sleeper")).toMatchObject({
       sessionId: "s2",
       handle: "wisp",
-      ledBy: "crow",
+      ledBy: "deep",
     })
     // One save for the whole team, and the terminal that is not on it stays.
     expect(world.log.saved.map(({ id }) => id)).toEqual(["lead", "worker", "deep", "sleeper"])
@@ -325,8 +336,8 @@ describe("moving a terminal to another session", () => {
     const world = setup(
       {
         lead: { session: "s1", handle: "moth" },
-        worker: { session: "s1", handle: "fox", ledBy: "moth" },
-        deep: { session: "s1", handle: "lynx", ledBy: "fox" },
+        worker: { session: "s1", handle: "fox", ledBy: "lead" },
+        deep: { session: "s1", handle: "lynx", ledBy: "worker" },
         taken: { session: "s2", handle: "lynx" },
       },
       {},
@@ -354,7 +365,7 @@ describe("moving a terminal to another session", () => {
     const world = setup(
       {
         lead: { session: "s1", handle: "moth" },
-        sleeper: { session: "s1", handle: "fox", ledBy: "moth", saved: true },
+        sleeper: { session: "s1", handle: "fox", ledBy: "lead", saved: true },
       },
       { asleep: ["sleeper"] },
     )
@@ -369,7 +380,7 @@ describe("moving a terminal to another session", () => {
       a: { session: "s1", handle: "owl" },
       lead: { session: "s2", handle: "moth" },
     })
-    world.move(to("s2", "a", { handles: { a: "owl" }, lead: "moth" }))
+    world.move(to("s2", "a", { handles: { a: "owl" }, lead: "lead" }))
     expect(world.log.notices).toEqual([
       { to: "lead", text: moveNotice.leadsAgain("owl", "Title of a") },
       { to: "a", text: leadNotice.nowLed("moth") },
@@ -379,10 +390,10 @@ describe("moving a terminal to another session", () => {
   it("leaves its lead when moved on its own, and says which it left", () => {
     const world = setup({
       lead: { session: "s1", handle: "moth" },
-      worker: { session: "s1", handle: "fox", ledBy: "moth" },
+      worker: { session: "s1", handle: "fox", ledBy: "lead" },
     })
     const moved = world.move(to("s2", "worker"))
-    expect(moved.left).toBe("moth")
+    expect(moved.left).toBe("lead")
     expect(world.records.get("worker")!.summary).toMatchObject({ sessionId: "s2", ledBy: null })
     expect(world.records.get("worker")!.suspended).toBeNull()
     expect(world.log.dropped).toEqual(["worker"])
@@ -392,6 +403,22 @@ describe("moving a terminal to another session", () => {
       { to: "worker", text: moveNotice.left("moth") },
     ])
     expect(world.records.get("lead")!.summary.sessionId).toBe("s1")
+  })
+
+  it("names a sleeping lead from its saved row to the worker that left it, and the lead's absence where none is kept", () => {
+    const asleep = setup(
+      {
+        lead: { session: "s1", handle: "moth", saved: true },
+        worker: { session: "s1", handle: "fox", ledBy: "lead" },
+      },
+      { asleep: ["lead"] },
+    )
+    asleep.move(to("s2", "worker"))
+    expect(asleep.log.notices).toEqual([{ to: "worker", text: moveNotice.left("moth") }])
+    // A lead that closed left no row: the worker is told without its handle.
+    const closed = setup({ worker: { session: "s1", handle: "fox", ledBy: "lead" } })
+    expect(closed.move(to("s2", "worker")).left).toBe("lead")
+    expect(closed.log.notices).toEqual([{ to: "worker", text: moveNotice.leftGone() }])
   })
 
   it("moves a terminal kept only as saved, a sleeper, and tells watchers through it", () => {
@@ -410,17 +437,20 @@ describe("moving a terminal to another session", () => {
   })
 
   it("takes its old handle back for an undo, though the session gave it already, and its lead", () => {
-    const world = setup(
-      {
-        a: { session: "s1", handle: "owl", ledBy: "x" },
-        lead: { session: "s2", handle: "moth" },
-      },
-      { given: ["s2/fox"] },
-    )
-    const moved = world.move(to("s2", "a", { handles: { a: "fox" }, lead: "moth" }))
+    const world = setup({
+      a: { session: "s1", handle: "owl", ledBy: "x" },
+      lead: { session: "s2", handle: "moth" },
+    })
+    const moved = world.move(to("s2", "a", { handles: { a: "fox" }, lead: "lead" }))
     expect(moved.moved[0]).toEqual({ terminalId: "a", handle: "fox", was: "owl" })
-    expect(world.records.get("a")!.summary.ledBy).toBe("moth")
-    expect(world.log.moved[0]).toMatchObject({ handle: "fox", ledBy: "moth" })
+    expect(world.records.get("a")!.summary.ledBy).toBe("lead")
+    expect(world.log.moved[0]).toMatchObject({ handle: "fox", ledBy: "lead" })
+  })
+
+  it("keeps the handle it has for an undo whose handle the project holds elsewhere", () => {
+    const world = setup({ a: { session: "s1", handle: "owl" } }, { held: ["fox"] })
+    const moved = world.move(to("s2", "a", { handles: { a: "fox" } }))
+    expect(moved.moved[0]!.handle).toBe("owl")
   })
 
   it("draws a handle for an undo whose handle a terminal there holds, and ignores a lead that is gone", () => {
@@ -460,7 +490,7 @@ describe("moving a terminal to another session", () => {
   it("is a conflict while a member has a brief that has not arrived", () => {
     const world = setup({
       lead: { session: "s1", handle: "moth" },
-      worker: { session: "s1", handle: "fox", ledBy: "moth", brief: true },
+      worker: { session: "s1", handle: "fox", ledBy: "lead", brief: true },
     })
     expect(failure(() => world.move(to("s2", "lead")))).toBe("CONFLICT")
     expect(failure(() => world.move(to("s2", "worker")))).toBe("CONFLICT")
@@ -470,7 +500,7 @@ describe("moving a terminal to another session", () => {
   it("is a conflict while an approval names a member, and withdraws nothing", () => {
     const world = setup({
       lead: { session: "s1", handle: "moth" },
-      worker: { session: "s1", handle: "fox", ledBy: "moth", approval: true },
+      worker: { session: "s1", handle: "fox", ledBy: "lead", approval: true },
     })
     expect(failure(() => world.move(to("s2", "lead")))).toBe("CONFLICT")
     expect(failure(() => world.move(to("s2", "worker")))).toBe("CONFLICT")
@@ -481,19 +511,26 @@ describe("moving a terminal to another session", () => {
     const world = setup(
       {
         lead: { session: "s1", handle: "moth" },
-        worker: { session: "s1", handle: "fox", ledBy: "moth" },
+        worker: { session: "s1", handle: "fox", ledBy: "lead" },
         other: { session: "s2", handle: "moth" },
       },
       {},
     )
-    world.records.get("worker")!.openedBy = "moth"
+    // The worker's title says the handle its opener, the lead, had: the lead's new one follows.
+    const before = world.records.get("worker")!
+    before.openedBy = "lead"
+    before.naming = { ...before.naming, opener: { title: "Search", by: "moth" } }
     world.move(to("s2", "lead"))
     const saved = world.log.shadows.find((each) => each.summary?.id === "worker")!
     const worker = world.records.get("worker")!
     expect(saved.summary).toEqual(worker.summary)
     expect(saved.openedBy).toBe(worker.openedBy)
-    expect(worker.openedBy).toBe(world.records.get("lead")!.summary.handle)
-    expect(worker.openedBy).not.toBe("moth")
+    // The link is the lead's id, which a move leaves; its handle there is owl, not moth.
+    expect(worker.openedBy).toBe("lead")
+    expect(world.records.get("lead")!.summary.handle).toBe("owl")
+    expect(worker.naming.opener).toEqual({ title: "Search", by: "owl" })
+    expect(saved.naming).toEqual(worker.naming)
+    expect(worker.summary.titleSource).toEqual({ kind: "agent", by: "owl" })
     expect(world.log.feedback).toContainEqual({
       id: "worker",
       sessionId: "s2",
@@ -504,7 +541,7 @@ describe("moving a terminal to another session", () => {
   it("moves none of a team when one of its members can't move", () => {
     const world = setup({
       lead: { session: "s1", handle: "moth" },
-      worker: { session: "s1", handle: "fox", ledBy: "moth", hibernating: true },
+      worker: { session: "s1", handle: "fox", ledBy: "lead", hibernating: true },
     })
     expect(failure(() => world.move(to("s2", "lead")))).toBe("CONFLICT")
     expect(world.records.get("lead")!.summary.sessionId).toBe("s1")

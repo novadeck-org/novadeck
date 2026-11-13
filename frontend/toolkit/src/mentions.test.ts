@@ -1,4 +1,4 @@
-import { mentionInCode, mentionsIn, type Mention } from "./mentions"
+import { mentionAt, mentionInCode, mentionsIn, type Mention } from "./mentions"
 import { context, describe, expect, it } from "./test"
 
 const known: Mention = (handle) => ({ thorn: 3, fox: 5, "api-server": 2 })[handle] ?? null
@@ -78,5 +78,28 @@ describe("mentionInCode", () => {
     ["an unknown handle", "@nobody"],
   ])("leaves %s as it is", (_, text) => {
     expect(mentionInCode(text, known)).toBeNull()
+  })
+})
+
+describe("mentionAt", () => {
+  // fox was given its handle at 1000: words dated before name an earlier terminal.
+  const dated: Mention = (handle, at) =>
+    handle === "fox" && (at === undefined || at >= 1_000) ? 5 : null
+
+  it("asks of the time the words were written", () => {
+    expect(mentionsIn("Ask @fox", mentionAt(dated, 999)!)).toBeNull()
+    expect(mentionsIn("Ask @fox", mentionAt(dated, 1_000)!)?.[1]).toEqual({
+      t: "mention",
+      text: "@fox",
+      hue: 5,
+    })
+    expect(mentionInCode("@fox · x", mentionAt(dated, 999)!)).toBeNull()
+    expect(mentionInCode("@fox · x", mentionAt(dated, 2_000)!)?.hue).toBe(5)
+  })
+
+  it("is the mention itself where the words have no time, and none where there is none", () => {
+    expect(mentionAt(dated, null)).toBe(dated)
+    expect(mentionAt(dated, undefined)).toBe(dated)
+    expect(mentionAt(undefined, 5)).toBeUndefined()
   })
 })

@@ -69,7 +69,7 @@ describe("the open call", () => {
     let briefed = false
     let plain = 0
     const opened = {
-      summary: { id: "t2", handle: "fox", title: "claude", ledBy: "moth" },
+      summary: { id: "t2", handle: "fox", title: "claude", ledBy: "t1" },
       terminal: { exiting: false },
     } as {
       startedWith?: string
@@ -82,6 +82,7 @@ describe("the open call", () => {
       stopping: () => false,
       closingNow: () => false,
       approvals: () => approvals,
+      peers: () => ({ introduce: () => undefined }),
       save: () => undefined,
       install: () => Promise.resolve(undefined),
       models: () => Promise.resolve([{ id: "opus", efforts: ["low", "max"] }]),
@@ -191,7 +192,8 @@ describe("the open call", () => {
     const answer = await run.open({ agent: "claude", lead: true })
     expect(run.asked.map(({ command }) => command)).toEqual(["claude"])
     expect(run.asked[0]!.opener).toMatchObject({
-      by: "moth",
+      by: "t1",
+      handle: "moth",
       leads: true,
       command: "claude",
     })
@@ -282,7 +284,7 @@ describe("the open call", () => {
     expect(run.sent).toEqual([{ to: "fox", text: "Review a.ts." }])
     expect([run.plainSends(), run.briefed()]).toEqual([0, true])
     expect(answer).toMatchObject({ ok: true, led: false, task: { ok: true } })
-    expect(run.opened.summary.ledBy).toBe("moth")
+    expect(run.opened.summary.ledBy).toBe("t1")
     expect(run.notices).toEqual([])
     run.deliver()
     await Promise.resolve()
@@ -419,7 +421,7 @@ describe("the open call", () => {
       run.approvals.answer({ requestId: run.questions[0]!.requestId, approved: true }, "person")
       await settle()
       expect(run.asked.map(({ command }) => command)).toEqual(["npm run dev"])
-      expect(run.asked[0]!.opener).toMatchObject({ by: "moth", leads: false })
+      expect(run.asked[0]!.opener).toMatchObject({ by: "t1", handle: "moth", leads: false })
       expect(run.notices).toEqual([{ to: "t1", text: runNotice.opened("fox", "npm run dev") }])
     })
 

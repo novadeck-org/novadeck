@@ -61,6 +61,7 @@ const fixture = (cleanup: (run: () => void) => void) => {
       notice: (id: string, text: string) => void notices.push({ id, text }),
     }),
     peers: () => ({
+      introduce: () => undefined,
       target: (_caller: unknown, to: string) =>
         Promise.resolve(
           to === "fox" || to === "moth"

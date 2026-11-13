@@ -23,7 +23,7 @@ import { useCallback, useLayoutEffect, useRef, useState, type ComponentProps } f
 
 import { shortcutBindings, type ShortcutName } from "../interaction/shortcuts"
 import { BellDot } from "./BellDot"
-import { HistoryDot, recentDropMs, useRecentDrop } from "./HistoryDot"
+import { FlareDot, recentDropMs, useRecentDrop } from "./HistoryDot"
 import type { InboxBadge } from "./inbox-badge"
 import { movedPanel } from "./rail-order"
 import { stepBack, type SidebarStep } from "./shell-state"
@@ -106,6 +106,7 @@ export const SidebarRail = ({
   bellRings,
   historyDrops = 0,
   lastDrop,
+  worksMade = 0,
   sessionsAsk,
   hasSource = false,
   hasHistory = false,
@@ -127,6 +128,8 @@ export const SidebarRail = ({
   // and, in words, the one that landed last, which its tooltip names for a while.
   historyDrops?: number
   lastDrop?: string | undefined
+  // How many worktrees the backend began tracking, which the Changes toggle's dot flares for.
+  worksMade?: number
   // What the sessions other than the open one ask of the person, in words, while any does: the
   // Sessions toggle's dot, name and tooltip.
   sessionsAsk?: string | undefined
@@ -195,6 +198,7 @@ export const SidebarRail = ({
             badge={id === "inbox" ? badge : undefined}
             bellRings={bellRings}
             drops={id === "history" ? { count: historyDrops, last: lastDrop } : undefined}
+            flares={id === "changes" ? worksMade : undefined}
             sessionsAsk={id === "sessions" ? sessionsAsk : undefined}
             dragging={dragging}
             focusRequest={focusRequest}
@@ -221,6 +225,7 @@ const RailToggle = ({
   badge,
   bellRings,
   drops,
+  flares,
   sessionsAsk,
   dragging,
   focusRequest,
@@ -240,6 +245,8 @@ const RailToggle = ({
   bellRings: number
   // On the History toggle, how many closed terminals landed there and the last one, in words.
   drops: { count: number; last: string | undefined } | undefined
+  // On the Changes toggle, how many worktrees were made, which its dot flares for.
+  flares: number | undefined
   // What the other sessions ask of the person, on the Sessions toggle.
   sessionsAsk: string | undefined
   // Some toggle is being dragged, which leaves no tooltip open.
@@ -310,7 +317,8 @@ const RailToggle = ({
       <Icon size={16} />
       {badge && <BellDot rings={bellRings} />}
       {sessionsAsk && <BellDot rings={0} />}
-      {drops && !open && <HistoryDot drops={drops.count} />}
+      {drops && !open && <FlareDot drops={drops.count} />}
+      {flares !== undefined && !open && <FlareDot drops={flares} />}
     </ToggleGroupItem>
   )
 }

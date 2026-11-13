@@ -157,6 +157,21 @@ describe("the demo's works", () => {
     expect(works.state.getSnapshot().works[0]).toMatchObject({ added: 15, unreadAdded: 15 })
   })
 
+  it("counts a worktree as made when it is made, not when it changes or closes", async () => {
+    const works = createDemoWorks([])
+    const made = () => works.made.getSnapshot()
+    works.gain(at, 10)
+    expect(made()).toBe(1)
+    works.gain(at, 5)
+    works.merge(at.root)
+    expect(made()).toBe(1)
+    works.makeAnother(at)
+    works.makeAnother(at)
+    expect(made()).toBe(3)
+    await works.close(at.root, true)
+    expect(made()).toBe(3)
+  })
+
   it("brings a read work back with unread lines", () => {
     const works = createDemoWorks(
       worksFromPlans(

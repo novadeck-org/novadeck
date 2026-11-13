@@ -676,8 +676,10 @@ describe("terminals agents open", () => {
   })
   // Terminal `number`, as the agent in `from` asks for it, and its backend then names it.
   const opened = (number: number, from: string): WorkspaceAction[] => {
-    const by = handles[from]
-    const terminal = { ...terminalFixture(number, "~/project"), ...(by && { openedBy: by }) }
+    const terminal = {
+      ...terminalFixture(number, "~/project"),
+      ...(handles[from] && { openedBy: from }),
+    }
     return [
       { type: "terminal/add", target, terminal, anchor: from, select: false },
       named(terminal.id),
@@ -707,7 +709,7 @@ describe("terminals agents open", () => {
     const helper = (number: number): WorkspaceAction => ({
       type: "terminal/add",
       target,
-      terminal: { ...terminalFixture(number, "~/project"), ledBy: "moth" },
+      terminal: { ...terminalFixture(number, "~/project"), ledBy: "01" },
       anchor: "01",
       select: false,
     })
@@ -735,7 +737,7 @@ describe("terminals agents open", () => {
     )
 
     it("lists it under its lead, as one opened with a brief", () => {
-      expect(order(run(three, lead("03", "moth")))).toEqual(["01", "03", "02"])
+      expect(order(run(three, lead("03", "01")))).toEqual(["01", "03", "02"])
     })
 
     it("goes after the lead wherever the person dragged it", () => {
@@ -744,7 +746,7 @@ describe("terminals agents open", () => {
         target,
         tabOrder: ["02", "03", "01"],
       })
-      expect(order(run(dragged, lead("03", "moth")))).toEqual(["02", "01", "03"])
+      expect(order(run(dragged, lead("03", "01")))).toEqual(["02", "01", "03"])
     })
 
     it("moves nothing on a restore, which seeds the lead, nor on the same lead announced again", () => {
@@ -754,25 +756,25 @@ describe("terminals agents open", () => {
         {
           type: "terminal/add",
           target,
-          terminal: { ...terminalFixture(3, "~/project"), ledBy: "moth" },
+          terminal: { ...terminalFixture(3, "~/project"), ledBy: "01" },
           select: false,
         },
         named("03"),
         { type: "terminal/reorder", target, tabOrder: ["02", "01", "03"] },
       )
       expect(order(run(restored))).toEqual(["02", "01", "03"])
-      expect(order(run(restored, lead("03", "moth")))).toEqual(["02", "01", "03"])
+      expect(order(run(restored, lead("03", "01")))).toEqual(["02", "01", "03"])
     })
 
     it("moves nothing on a change of lead or a release", () => {
-      const led = apply(three, lead("03", "moth"))
+      const led = apply(three, lead("03", "01"))
       const dragged = apply(led, { type: "terminal/reorder", target, tabOrder: ["02", "01", "03"] })
-      expect(order(run(dragged, lead("03", "wren")))).toEqual(["02", "01", "03"])
+      expect(order(run(dragged, lead("03", "02")))).toEqual(["02", "01", "03"])
       expect(order(run(dragged, lead("03", null)))).toEqual(["02", "01", "03"])
     })
 
-    it("stays put when no terminal in the session has that handle", () => {
-      expect(order(run(three, lead("03", "nobody")))).toEqual(order(run(three)))
+    it("stays put when no terminal in the session has that id", () => {
+      expect(order(run(three, lead("03", "99")))).toEqual(order(run(three)))
     })
   })
 
@@ -828,7 +830,7 @@ describe("terminals the person makes", () => {
       {
         type: "terminal/add",
         target,
-        terminal: { ...terminalFixture(3, "~/project"), openedBy: "moth" },
+        terminal: { ...terminalFixture(3, "~/project"), openedBy: "01" },
         anchor: "01",
         select: false,
       },
@@ -1076,7 +1078,7 @@ describe("arranging a project's sessions", () => {
 
 describe("moving a terminal to another session", () => {
   const lead = { ...terminalFixture(9, "~/project"), id: "09", handle: "lynx" }
-  const helper = { ...terminalFixture(8, "~/project"), id: "08", handle: "sable", ledBy: "lynx" }
+  const helper = { ...terminalFixture(8, "~/project"), id: "08", handle: "sable", ledBy: "09" }
   const workspace = (): Workspace => {
     const base = workspaceFixture({ sessions: ["initial", "other"] })
     const other = createTerminalState([lead, helper], "grid", "grid")
@@ -1141,7 +1143,7 @@ describe("moving a terminal to another session", () => {
 
   it("is listed under its lead there, with the handle the backend gave it", () => {
     const after = session(
-      move(workspace(), { ...terminalFixture(1, "~/project"), handle: "wren", ledBy: "lynx" }),
+      move(workspace(), { ...terminalFixture(1, "~/project"), handle: "wren", ledBy: "09" }),
       "other",
     )
     expect(orderedTiles(after.roster).map((tile) => tile.id)).toEqual(["09", "08", "01"])

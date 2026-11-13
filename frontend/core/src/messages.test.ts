@@ -11,7 +11,12 @@ import {
 } from "./messages"
 import { context, describe, expect, it } from "./test"
 
-const agent = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
+const agent = (handle: string): MessageParty => ({
+  kind: "agent",
+  terminalId: `id-${handle}`,
+  handle,
+  agent: null,
+})
 
 const message = (
   id: string,
@@ -28,6 +33,7 @@ const message = (
 
 // moth's thread with fox, when it has messages.
 const terminalMessages = (messages: readonly AgentMessage[], bound = true): TerminalThreads => ({
+  terminalId: "id-moth",
   handle: "moth",
   agent: bound,
   threads: messages.length

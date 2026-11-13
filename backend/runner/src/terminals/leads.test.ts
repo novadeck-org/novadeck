@@ -12,7 +12,7 @@ import type { Sleepers } from "./sleepers.js"
 
 const token = "t".repeat(48)
 
-// A terminal as far as leading reads it: `ledBy` is what it persists.
+// A terminal as far as leading reads it: `ledBy` is what it persists, the lead's terminal id.
 const terminal = (handle: string, ledBy: string | null): Record =>
   ({
     summary: { id: `id-${handle}`, handle, title: "Terminal", sessionId: "session", ledBy },
@@ -22,7 +22,7 @@ const terminal = (handle: string, ledBy: string | null): Record =>
   }) as unknown as Record
 
 // Leads over a runner of fakes: terminals with the agent each runs and who leads them
-// (`ledBy` is the lead's handle), and a record of what was sent, noticed and saved.
+// (`ledBy` is the lead's handle, which the terminal keeps as the lead's id), and a record of what was sent, noticed and saved.
 const setup = (terminals: {
   [handle: string]: {
     agent: AgentName | null
@@ -34,7 +34,10 @@ const setup = (terminals: {
   const records = new Map(
     Object.entries(terminals)
       .filter(([, { asleep }]) => !asleep)
-      .map(([handle, { ledBy }]) => [`id-${handle}`, terminal(handle, ledBy ?? null)]),
+      .map(([handle, { ledBy }]) => [
+        `id-${handle}`,
+        terminal(handle, ledBy ? `id-${ledBy}` : null),
+      ]),
   )
   const approvals = new Approvals()
   // The agent messages reach in each terminal, by handle, with its root session: what the
@@ -69,10 +72,11 @@ const setup = (terminals: {
   // The brief each terminal's lead ends with, by terminal id.
   const briefs = new Map<string, string>()
   const listeners = new Set<(change: { kind: "terminal"; terminalId: string }) => void>()
-  // The running lead is the one `ledBy` names, in the same session.
+  // The running lead is the terminal `ledBy` names, in the same session.
   const leadOf = (id: string) => {
     const by = records.get(id)?.summary.ledBy
-    return by && [...records.values()].some((each) => each.summary.handle === by) ? by : undefined
+    const lead = by ? records.get(by) : undefined
+    return lead && { terminalId: lead.summary.id, handle: lead.summary.handle }
   }
   const host = {
     records: () => records,
@@ -81,7 +85,12 @@ const setup = (terminals: {
     approvals: () => approvals,
     sleepers: () =>
       ({
-        peer: () => undefined,
+        peer: (id: string) => {
+          const handle = Object.keys(terminals).find((each) => `id-${each}` === id)
+          return handle && terminals[handle]?.asleep && !records.has(id)
+            ? { summary: { id, handle, title: "Terminal", sessionId: "session", ledBy: null } }
+            : undefined
+        },
         resting: (id: string) => {
           const handle = Object.keys(terminals).find((each) => `id-${each}` === id)
           return handle && terminals[handle]?.asleep && !records.has(id)
@@ -137,9 +146,9 @@ const setup = (terminals: {
     }),
     bindings: () =>
       ({
-        setLead: (record: Record, handle: string) => {
-          record.summary = { ...record.summary, ledBy: handle }
-          saved.push(`${record.summary.handle} led by ${handle}`)
+        setLead: (record: Record, leadId: string) => {
+          record.summary = { ...record.summary, ledBy: leadId }
+          saved.push(`${record.summary.handle} led by ${records.get(leadId)?.summary.handle}`)
         },
         endLead: (record: Record) => {
           record.summary = { ...record.summary, ledBy: null }
@@ -415,7 +424,7 @@ describe("the person answering a request to lead", () => {
   it("links the terminals, tells both, and sends the brief as the lead", async () => {
     const { run, answer } = await asking()
     await answer(true)
-    expect(run.records.get("id-fox")!.summary.ledBy).toBe("moth")
+    expect(run.records.get("id-fox")!.summary.ledBy).toBe("id-moth")
     expect(run.saved).toEqual(["fox led by moth"])
     expect(run.sent).toEqual([{ from: "id-moth", to: "fox", text: "Review the diff." }])
     expect(run.notices).toEqual([
@@ -469,7 +478,7 @@ describe("the person answering a request to lead", () => {
     const { run, answer } = await asking()
     run.sending({ ok: false, reason: "Too long." })
     await answer(true)
-    expect(run.records.get("id-fox")!.summary.ledBy).toBe("moth")
+    expect(run.records.get("id-fox")!.summary.ledBy).toBe("id-moth")
     expect(run.notices.at(-1)!.text).toBe(
       leadNotice.led("fox", "Terminal", { ok: false, reason: "Too long." }),
     )
@@ -512,7 +521,7 @@ describe("the person answering a request to lead", () => {
     run.agents.set("moth", { agent: "claude", sessionId: "s-corrected" })
     run.agents.set("fox", { agent: "codex", sessionId: "s-corrected" })
     await answer(true)
-    expect(run.records.get("id-fox")!.summary.ledBy).toBe("moth")
+    expect(run.records.get("id-fox")!.summary.ledBy).toBe("id-moth")
   })
 
   it("links nothing when the target's agent was swapped for another in the same shell", async () => {
@@ -539,7 +548,7 @@ describe("the person answering a request to lead", () => {
     run.agents.set("fox", { agent: "codex", sessionId: "s-fox" })
     run.approvals.answer({ requestId: asked[0]!.requestId, approved: true }, "person")
     await settle()
-    expect(run.records.get("id-fox")!.summary.ledBy).toBe("moth")
+    expect(run.records.get("id-fox")!.summary.ledBy).toBe("id-moth")
   })
 
   it("links nothing when another agent came to lead it meanwhile", async () => {
@@ -547,10 +556,10 @@ describe("the person answering a request to lead", () => {
     run.records.set("id-owl", terminal("owl", null))
     run.records.get("id-fox")!.summary = {
       ...run.records.get("id-fox")!.summary,
-      ledBy: "owl",
+      ledBy: "id-owl",
     }
     await answer(true)
-    expect(run.records.get("id-fox")!.summary.ledBy).toBe("owl")
+    expect(run.records.get("id-fox")!.summary.ledBy).toBe("id-owl")
     expect(run.notices.at(-1)!.text).toMatch(/already has a lead, @owl/)
     expect(run.sent).toEqual([])
   })
@@ -559,7 +568,7 @@ describe("the person answering a request to lead", () => {
     const { run, answer } = await asking()
     run.records.get("id-moth")!.summary = {
       ...run.records.get("id-moth")!.summary,
-      ledBy: "fox",
+      ledBy: "id-fox",
     }
     await answer(true)
     expect(run.records.get("id-fox")!.summary.ledBy).toBeNull()
@@ -629,7 +638,7 @@ describe("a lead releasing the terminal it leads", () => {
       reason: expect.stringMatching(/don't lead @jinx/),
     })
     await expect(run.release("moth", "moth")).resolves.toMatchObject({ ok: false })
-    expect(run.records.get("id-fox")!.summary.ledBy).toBe("owl")
+    expect(run.records.get("id-fox")!.summary.ledBy).toBe("id-owl")
     expect(run.saved).toEqual([])
   })
 })
@@ -639,7 +648,7 @@ describe("a lead that lasts only for its brief", () => {
     const run = setup({ moth: { agent: "claude" }, fox: { agent: "codex", ledBy: "moth" } })
     const fox = run.records.get("id-fox")!
     run.briefing("id-fox", "m1")
-    run.leads.releaseAfterBrief("id-fox", "moth", "m1")
+    run.leads.releaseAfterBrief("id-fox", "id-moth", "m1")
     return { run, fox }
   }
 
@@ -650,7 +659,7 @@ describe("a lead that lasts only for its brief", () => {
     // Another terminal's messages changing says nothing about it.
     run.moved("m1", "delivered", "id-owl")
     await settle()
-    expect(run.records.get("id-fox")!.summary.ledBy).toBe("moth")
+    expect(run.records.get("id-fox")!.summary.ledBy).toBe("id-moth")
     expect(run.listening()).toBe(1)
     run.moved("m1", "delivered", "id-fox")
     await settle()
@@ -699,7 +708,7 @@ describe("a lead that lasts only for its brief", () => {
     run.unbrief("id-fox")
     run.moved("m1", "delivered", "id-fox")
     await settle()
-    expect(fox.summary.ledBy).toBe("moth")
+    expect(fox.summary.ledBy).toBe("id-moth")
     expect(run.notices).toEqual([])
     expect(run.listening()).toBe(0)
   })
@@ -719,7 +728,7 @@ describe("a lead that lasts only for its brief", () => {
     stopped.run.stop()
     stopped.run.moved("m1", "delivered", "id-fox")
     await settle()
-    expect(stopped.fox.summary.ledBy).toBe("moth")
+    expect(stopped.fox.summary.ledBy).toBe("id-moth")
     expect(stopped.run.listening()).toBe(0)
   })
 })
@@ -735,6 +744,24 @@ describe("the person releasing a terminal", () => {
     expect(run.notices).toEqual([
       { to: "id-fox", always: true, text: leadNotice.personReleased("moth") },
       { to: "id-moth", always: true, text: leadNotice.personReleasedFrom("fox", "Terminal") },
+    ])
+  })
+
+  it("names a sleeping lead from its saved row, and tells the terminal without a handle where its lead is gone", () => {
+    const asleep = setup({
+      moth: { agent: "claude", asleep: true },
+      fox: { agent: "codex", ledBy: "moth" },
+    })
+    asleep.leads.releaseByPerson("id-fox")
+    expect(asleep.notices).toEqual([
+      { to: "id-fox", always: true, text: leadNotice.personReleased("moth") },
+    ])
+    const run = setup({ moth: { agent: "claude" }, fox: { agent: "codex", ledBy: "moth" } })
+    run.records.delete("id-moth")
+    run.leads.releaseByPerson("id-fox")
+    expect(run.records.get("id-fox")!.summary.ledBy).toBeNull()
+    expect(run.notices).toEqual([
+      { to: "id-fox", always: true, text: leadNotice.personReleasedFromGone() },
     ])
   })
 
@@ -757,9 +784,9 @@ describe("a lead that lasts only for its brief, over the real messaging", () => 
     messaging.register("id-moth", scope, "moth", null)
     const records = new Map<string, Record>([
       ["id-moth", terminal("moth", null)],
-      ["id-fox", terminal("fox", "moth")],
+      ["id-fox", terminal("fox", "id-moth")],
     ])
-    messaging.register("id-fox", scope, "fox", "moth")
+    messaging.register("id-fox", scope, "fox", "id-moth")
     messaging.expect("id-fox", "codex")
     const host = {
       records: () => records,
@@ -776,7 +803,7 @@ describe("a lead that lasts only for its brief, over the real messaging", () => 
     const leads = new Leads(host)
     const brief = messaging.sendBrief("id-moth", { to: "fox", text: "Fix the build." })
     if (!brief.ok) throw new Error(brief.reason)
-    leads.releaseAfterBrief("id-fox", "moth", brief.id)
+    leads.releaseAfterBrief("id-fox", "id-moth", brief.id)
     return { messaging, records, scope, brief, leads }
   }
 

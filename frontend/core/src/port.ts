@@ -209,10 +209,12 @@ export type TerminalMoveResult = {
     readonly handle: string
     readonly was: string
   }[]
+  // The id of the lead the terminal left, if it left one.
   readonly left: string | null
 }
 
-// What takes a move back: each moved terminal's handle before, by id, and the lead it left.
+// What takes a move back: each moved terminal's handle before, by id, and the id of the lead
+// it left.
 export type TerminalMoveUndo = {
   readonly handles: Readonly<Record<string, string>>
   readonly lead?: string | undefined

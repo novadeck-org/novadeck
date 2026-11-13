@@ -5,9 +5,12 @@ import {
   agreeing,
   boxRules,
   footerRows,
+  hidesText,
   isEmpty,
   markedBox,
   ruledBox,
+  tailOf,
+  type BoxProfile,
   type Markers,
 } from "./box.js"
 
@@ -103,6 +106,47 @@ describe("ruledBox", () => {
     })
     expect(ruledBox(screen([line, "plain", line], 1, 3), markers)).toBeUndefined()
     expect(ruledBox(screen([line, line], 0, 0), markers)).toBeUndefined()
+  })
+
+  describe("pushed off the screen's bottom, its closing rule with it", () => {
+    const clipped = ["history", line, "❯ hello", "  big", "  world"]
+
+    it("reads the text from its top rule to the screen's end, as clipped", () => {
+      const box = ruledBox(screen(clipped, 4, 7), markers)
+      expect(box).toEqual({
+        text: "hello\nbig\nworld",
+        mode: "prompt",
+        first: 2,
+        last: 4,
+        clipped: true,
+      })
+      expect(box && isEmpty(box)).toBe(false)
+      expect(ruledBox(screen(clipped.slice(0, 3), 2, 7), markers)).toMatchObject({
+        text: "hello",
+        clipped: true,
+      })
+    })
+
+    it("may hide more than it shows", () => {
+      const box = ruledBox(screen(clipped, 4, 7), markers)!
+      const profile = { viewport: () => 99 } as unknown as BoxProfile
+      expect(hidesText(profile, box, clipped.length)).toBe(true)
+      // It shows its start, never only an end: nothing of it is a tail, whatever the line.
+      for (const text of ["hello big world", "big world", "hello big world and more"])
+        expect(tailOf(profile, box, clipped.length, text)).toBeUndefined()
+    })
+
+    it("reads none where a row under the marker's isn't a line of its body", () => {
+      for (const last of ["", "footer", " one space"])
+        expect(ruledBox(screen([...clipped, last], 4, 7), markers)).toBeUndefined()
+      expect(ruledBox(screen(["history", line, "plain", "  world"], 3, 7), markers)).toBeUndefined()
+      expect(ruledBox(screen(["history", `  ${line}`, "❯ hello"], 2, 7), markers)).toBeUndefined()
+    })
+
+    it("reads none where it shows no text, or the cursor stands on its rule", () => {
+      expect(ruledBox(screen(["history", line, "❯ "], 2, 2), markers)).toBeUndefined()
+      expect(ruledBox(screen(clipped, 1, 0), markers)).toBeUndefined()
+    })
   })
 
   it("takes a row of ─ in the text, indented under the marker, for text, not the top rule", () => {

@@ -159,9 +159,9 @@ export class Bindings {
    * agent: kept, shown to watchers, and told to messaging, so what the lead sends reads
    * as a lead's from then on. The inverse of `endLead`.
    */
-  setLead(record: Record, handle: string): void {
-    record.summary = { ...record.summary, ledBy: handle }
-    this.host.messaging().setLead(record.summary.id, handle)
+  setLead(record: Record, leadId: string): void {
+    record.summary = { ...record.summary, ledBy: leadId }
+    this.host.messaging().setLead(record.summary.id, leadId)
     this.host.save(record)
     this.host.announce(record)
   }

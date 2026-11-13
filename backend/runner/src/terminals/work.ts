@@ -83,9 +83,9 @@ export const keptPlaces = 8
  * session of a terminal an agent opened, when the person's own submission didn't start it
  * (or that isn't told yet), as the opener's command-line prompt; null without one.
  */
-export const firstFrom = (work: Work | null, openedBy: string | null): "user" | "opener" | null => {
+export const firstFrom = (work: Work | null, opened: boolean): "user" | "opener" | null => {
   if (!work?.first) return null
-  if (openedBy === null || work.opened !== true) return "user"
+  if (!opened || work.opened !== true) return "user"
   return work.firstByPerson === true ? "user" : "opener"
 }
 

@@ -170,7 +170,7 @@ describe("requests on their way to the client", () => {
 
   it("go nowhere without a client following them", async () => {
     await expect(
-      new OpenRequests().request(request, 1_000, { by: "moth", leads: false }),
+      new OpenRequests().request(request, 1_000, { by: "id-moth", handle: "moth", leads: false }),
     ).resolves.toEqual({
       type: "nobody",
     })
@@ -185,7 +185,8 @@ describe("requests on their way to the client", () => {
     void older.next()
     const first = newer.next()
     const asked = opens.request(request, 1_000, {
-      by: "moth",
+      by: "id-moth",
+      handle: "moth",
       title: "Server",
       leads: false,
     })
@@ -196,7 +197,8 @@ describe("requests on their way to the client", () => {
     expect(opens.opener(value!.requestId, "older", request.sessionId)).toBeUndefined()
     expect(opens.opener(value!.requestId, "newer", randomUUID())).toBeUndefined()
     expect(opens.opener(value!.requestId, "newer", request.sessionId)).toEqual({
-      by: "moth",
+      by: "id-moth",
+      handle: "moth",
       title: "Server",
       leads: false,
     })
@@ -222,12 +224,12 @@ describe("requests on their way to the client", () => {
     const opens = new OpenRequests()
     const stream = opens.follow("client")
     const first = stream.next()
-    const asked = opens.request(request, 1_000, { by: "moth", leads: false })
+    const asked = opens.request(request, 1_000, { by: "id-moth", handle: "moth", leads: false })
     const { value } = await first
-    expect(opens.asked("moth")).toBe(true)
+    expect(opens.asked("id-moth")).toBe(true)
     expect(opens.asked("wren")).toBe(false)
     opens.opener(value!.requestId, "client", request.sessionId)
-    expect(opens.asked("moth")).toBe(false)
+    expect(opens.asked("id-moth")).toBe(false)
     opens.answer({ requestId: value!.requestId, reason: "No." }, "client")
     await asked
     opens.finish()
@@ -237,15 +239,19 @@ describe("requests on their way to the client", () => {
     const opens = new OpenRequests()
     const stream = opens.follow("client")
     const first = stream.next()
-    await expect(opens.request(request, 10, { by: "moth", leads: false })).resolves.toEqual({
+    await expect(
+      opens.request(request, 10, { by: "id-moth", handle: "moth", leads: false }),
+    ).resolves.toEqual({
       type: "late",
     })
     await first
-    const asked = opens.request(request, 1_000, { by: "moth", leads: false })
+    const asked = opens.request(request, 1_000, { by: "id-moth", handle: "moth", leads: false })
     opens.release("client")
     await expect(asked).resolves.toEqual({ type: "gone" })
     await expect(stream.next()).resolves.toMatchObject({ done: true })
-    await expect(opens.request(request, 1_000, { by: "moth", leads: false })).resolves.toEqual({
+    await expect(
+      opens.request(request, 1_000, { by: "id-moth", handle: "moth", leads: false }),
+    ).resolves.toEqual({
       type: "nobody",
     })
   })

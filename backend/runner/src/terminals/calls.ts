@@ -314,7 +314,8 @@ export class Calls {
       // The title it asked for is its own, never the person's: the terminal takes it as
       // the client creates it for this request.
       {
-        by: record.summary.handle,
+        by: record.summary.id,
+        handle: record.summary.handle,
         ...(request.title !== undefined && { title: request.title }),
         ...(command !== undefined && { command }),
         // Led from the start, so a brief carries the lead mark, until it lands if the lead
@@ -328,6 +329,8 @@ export class Calls {
     let task: SendAnswer | undefined
     if (asked.type === "answered" && "terminalId" in asked.answer) {
       this.openers.set(asked.answer.terminalId, charged)
+      // The opening result names it, so its handle is the caller's to use.
+      this.host.peers().introduce(call.terminalId, asked.answer.terminalId)
       const opened = this.host.records().get(asked.answer.terminalId)
       if (opened) {
         // The task goes to the first session of the agent it starts there, from the opener,
@@ -400,15 +403,18 @@ export class Calls {
                 { from: id, sessionId, cwd, command, focus: request.focus === true },
                 this.openMs,
                 {
-                  by: handle,
+                  by: id,
+                  handle,
                   ...(request.title !== undefined && { title: request.title }),
                   command,
                   leads: false,
                 },
               )
             if (this.host.stopping() || this.host.records().get(id) !== caller) return
-            if (asked.type === "answered" && "terminalId" in asked.answer)
+            if (asked.type === "answered" && "terminalId" in asked.answer) {
               this.openers.set(asked.answer.terminalId, charged)
+              this.host.peers().introduce(id, asked.answer.terminalId)
+            }
             const answer = this.opening(asked, cwd, command)
             tell(
               answer.ok && "handle" in answer && answer.handle !== undefined
@@ -429,7 +435,7 @@ export class Calls {
   private endLeadAfter(lead: Record, led: Record, task: SendAnswer | undefined): void {
     const { id } = led.summary
     if (task?.ok && this.host.messaging().briefOf(id) === task.id)
-      this.leads.releaseAfterBrief(id, lead.summary.handle, task.id)
+      this.leads.releaseAfterBrief(id, lead.summary.id, task.id)
     else this.host.bindings().endLead(led)
   }
 
@@ -543,7 +549,8 @@ export class Calls {
     // Already on its way out, as another close ended its shell: nothing more to charge.
     if (this.host.closingNow(closing.summary.id) || ("closed" in closing && closing.closed))
       return refused(`${mention(target.handle)} is already closing.`)
-    const leadsIt = this.host.messaging().leadOf(target.terminalId) === record.summary.handle
+    const leadsIt =
+      this.host.messaging().leadOf(target.terminalId)?.terminalId === record.summary.id
     const way = closeWay({ leads: leadsIt, agent: target.agent, busy })
     if (way === "request") {
       const waiting = this.host.approvals().refusal(target.terminalId)

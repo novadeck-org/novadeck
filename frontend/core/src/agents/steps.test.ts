@@ -12,7 +12,12 @@ import {
 } from "./steps"
 import { recorded } from "./steps.test-support"
 
-const agentParty = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
+const agentParty = (handle: string): MessageParty => ({
+  kind: "agent",
+  terminalId: `id-${handle}`,
+  handle,
+  agent: null,
+})
 
 let count = 0
 const item = (fields: Partial<ChatItem>): ChatItem => ({
@@ -561,6 +566,7 @@ describe("the person's Inbox answers an agent was given", () => {
     ...fields,
   })
   const threads = (messages: readonly AgentMessage[]): TerminalThreads => ({
+    terminalId: "id-owl",
     handle: "owl",
     agent: true,
     threads: [

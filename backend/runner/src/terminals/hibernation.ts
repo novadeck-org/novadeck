@@ -549,7 +549,7 @@ export class Hibernation {
       scheduled: scheduled(record, sessionId, now),
       limited: last?.limited === true || last?.limit !== undefined,
       asks: host.inbox().hasOpenAsk(id),
-      approvals: host.approvals().involves(id) || host.opens().asked(record.summary.handle),
+      approvals: host.approvals().involves(id) || host.opens().asked(id),
       occupied: host.messaging().occupied(id),
       draft: !settled && !empty,
       attached: record.terminal.attached > 0 || host.detailWatched(id),

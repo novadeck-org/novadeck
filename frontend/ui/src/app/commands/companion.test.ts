@@ -112,8 +112,8 @@ describe("companion commands", () => {
       const workspace = withItems(workspaceFixture({ terminals: 4 }))
       const { terminals } = workspace.projects[0]!.history[0]!.state.roster
       terminals[0] = { ...terminals[0]!, handle: "moth" }
-      terminals[1] = { ...terminals[1]!, handle: "fox", ledBy: "moth" }
-      terminals[2] = { ...terminals[2]!, handle: "owl", ledBy: "moth" }
+      terminals[1] = { ...terminals[1]!, handle: "fox", ledBy: "01" }
+      terminals[2] = { ...terminals[2]!, handle: "owl", ledBy: "01" }
       const app = open({ workspace })
       app.ui.update((state) => ({ ...state, foldedTeams: { "project/initial": ["01"] } }))
 

@@ -69,6 +69,7 @@ export const agentTerminal = (
   name: string,
   agent: ChatAgent,
   status: AgentStatus,
+  // The id of the terminal that leads it.
   ledBy?: string,
   // The terminal's lead also opened it, which gave the agent its brief as a message.
   opened = false,

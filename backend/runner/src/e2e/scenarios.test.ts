@@ -162,7 +162,7 @@ const listing = (delivery: DeliveryState, state: MessageState): TerminalMessages
   threads: [
     {
       id: "thread-1",
-      peer: { kind: "agent", handle: "moth", agent: "claude" },
+      peer: { kind: "agent", terminalId: "terminal-1", handle: "moth", agent: "claude" },
       hops: 1,
       idle: 0,
       held: false,
@@ -173,8 +173,8 @@ const listing = (delivery: DeliveryState, state: MessageState): TerminalMessages
           id: "m-1",
           thread: "thread-1",
           hop: 1,
-          from: { kind: "agent", handle: "moth", agent: "claude" },
-          to: { kind: "agent", handle: "fox", agent: "codex" },
+          from: { kind: "agent", terminalId: "terminal-1", handle: "moth", agent: "claude" },
+          to: { kind: "agent", terminalId: "terminal-2", handle: "fox", agent: "codex" },
           text: "What is your colour?",
           sentAt: 0,
           state,

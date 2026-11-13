@@ -330,6 +330,17 @@ describe("what team says", () => {
     expect(read).toHaveBeenCalledTimes(5)
   })
 
+  it("does not carry a look over to another terminal given the same handle", () => {
+    const old = member("fox", "moth")
+    const first = team({ peers: [old] })
+    expect(team({ peers: [old], look: first.look }).text).toContain(
+      "nothing new since you last looked",
+    )
+    // The handle came back to a new terminal: it is told in full, not as nothing new.
+    const reused = { ...old, terminalId: "FOX2" }
+    expect(team({ peers: [reused], look: first.look }).text).not.toContain("nothing new")
+  })
+
   it("shows the latest few of a member's entries, and counts the rest", () => {
     const busy = member("fox", "moth", {
       happenings: Array.from({ length: 8 }, (_, index) => ({

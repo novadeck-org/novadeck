@@ -83,9 +83,11 @@ describe("Counter run", () => {
         expect(phase.tickTotals.mutations).toBeGreaterThan(0)
         expect(phase.tickTotals.renders).toBeGreaterThan(0)
       }
-      // Grid shows every terminal, so every one streams and all their output arrives.
-      expect(reading.grid.streamingSettled).toBe(13)
-      expect(reading.grid.bytes).toBe(reading.grid.written)
+      // Grid streams the tiles in sight and near it, not those scrolled far below
+      // (performance rule 13), so only their output arrives.
+      expect(reading.grid.streamingSettled).toBeGreaterThan(1)
+      expect(reading.grid.streamingSettled).toBeLessThan(13)
+      expect(reading.grid.bytes).toBeLessThan(reading.grid.written)
       // Focus parks what it doesn't show, so most of the output never arrives.
       expect(reading.focus.bytes).toBeLessThan(reading.focus.written)
     } finally {

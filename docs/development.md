@@ -302,7 +302,10 @@ Terminals:
   done dim and restore the × (hover it for why). Refuse the next close shows the refusal above the
   list. Close every worktree closes the selected project's, leaving other projects' rows; with Agent
   worktrees off in Preferences > Experimental (the demo starts with it off) the empty state, once
-  every project's are gone, points there. "Every state in Changes"
+  every project's are gone, points there. New worktree adds another clean worktree to the selected
+  terminal's, and the Changes toggle in the rail flares the History toggle's dot and ring for a
+  moment (close Changes first: it shows nothing while Changes is open); any first change that makes a
+  terminal's worktree flares it too. "Every state in Changes"
   gives the session's first four terminals a worktree each. In the showcase, selecting a row shows its work as a changes item on the terminal's
   bar (see Changes below); in the other demos there is no pane to show it in.
 - **Projects and sessions:** mark the selected terminal running, then start a fresh
@@ -319,7 +322,8 @@ Agents:
   the notice); or the first terminal of another project, for the switcher's marks. A second
   switch, here and on New terminals, Agent fixtures and Waiting agents, picks what a terminal
   that runs no agent becomes first: Claude Code, Codex or Antigravity. A verb leaves an agent
-  already running as it is. Work, Plan mode and Subagents start a turn that works on.
+  already running as it is. Work, Plan mode and Subagents start a turn that works on; Many tool
+  calls works through 12 calls, which the chat keeps to a box of its latest 5.
   Needs permission, Asks a question, Plan ready and 3 permissions stop it on
   requests you can answer in the chat or on the screen, which clears the tab and the
   notification. Completes, Replies (no done call), Fails, Interrupted and Ends without reply
@@ -373,6 +377,12 @@ Agents:
   has two, and an image pasted into any demo chat shows as pasted once the prompt is
   recorded), gone (boxes naming each `[Image #N]`), slow (quiet boxes for 6 s) or unreachable
   (the boxes, asked again when the row is drawn again). Click a thumbnail to see it larger.
+- **Chat: a handle given again:** a project gives a handle to a new terminal an hour after its
+  terminal closes, so chat words from before that name an earlier terminal. "Handle given again"
+  gives another terminal of the session its handle just now (its `handleGivenAt`) and adds two
+  entries to the selected agent's chat, one dated three hours before and one just after, both
+  naming that `@handle`: the old one draws it as plain text, the new one in the handle's hue.
+  "Handle back to its first terminal" undoes it (`frontend/demo-debug/src/mentions.ts`).
 - **Plan:** only in the `showcase` variant, on the selected terminal's agent (Build Studio or
   the auth agent), for what happens to a plan the person has edited. "Plan in the agent's
   messages" makes it read-only; "Plan file deleted" shows that its file is gone, with the

@@ -72,6 +72,11 @@ export const workChange = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("synced") }),
 ])
 
+// `works.made` events: one for each worktree Novadeck starts tracking from the moment of
+// subscribing (an agent's open_worktree, or take_worktree adopting one). Nothing is replayed;
+// moving an owned worktree between terminals is not making it.
+export const workMade = z.strictObject({ root: directory, projectId: id })
+
 // What `works.close` answers: the worktree closed (with where its uncommitted work, and commits
 // only a detached HEAD reached, were kept, and whether its branch went), or, without `force`,
 // not closed because it holds something the person should say yes to first.
@@ -89,4 +94,5 @@ export type WorkFile = z.infer<typeof workFile>
 export type WorkConflict = z.infer<typeof workConflict>
 export type Work = z.infer<typeof work>
 export type WorkChange = z.infer<typeof workChange>
+export type WorkMade = z.infer<typeof workMade>
 export type WorkClosing = z.infer<typeof workClosing>

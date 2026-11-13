@@ -379,7 +379,7 @@ describe("sending", () => {
       ],
     ])
     expect(threads[1]).toMatchObject({
-      peer: { kind: "agent", handle: "fox" },
+      peer: { kind: "agent", terminalId: "B", handle: "fox" },
       hops: 2,
       idle: 0,
       held: false,
@@ -481,7 +481,7 @@ describe("an addressee with no session yet", () => {
         "when its agent starts: rung once Novadeck sees it at its prompt, else at its first turn",
     })
     expect(messages(messaging, "N")[0]).toMatchObject({
-      to: { kind: "agent", handle: "owl", agent: "codex" },
+      to: { kind: "agent", terminalId: "N", handle: "owl", agent: "codex" },
       state: "queued",
     })
     const first = binding("codex", "s-first", "3")
@@ -2129,7 +2129,7 @@ describe("listing", () => {
       threads: [
         {
           id: expect.stringMatching(/^t-/),
-          peer: { kind: "agent", handle: "moth", agent: "claude" },
+          peer: { kind: "agent", terminalId: "A", handle: "moth", agent: "claude" },
           hops: 1,
           idle: 0,
           held: false,
@@ -2140,8 +2140,8 @@ describe("listing", () => {
               id: expect.stringMatching(/^m-/),
               thread: expect.stringMatching(/^t-/),
               hop: 1,
-              from: { kind: "agent", handle: "moth", agent: "claude" },
-              to: { kind: "agent", handle: "fox", agent: "codex" },
+              from: { kind: "agent", terminalId: "A", handle: "moth", agent: "claude" },
+              to: { kind: "agent", terminalId: "B", handle: "fox", agent: "codex" },
               text: "hello",
               sentAt: 1_000_000,
               state: "queued",
@@ -4193,7 +4193,7 @@ const latestFor = (records: MessageRecords, terminalId: string) =>
 const withWorker = (options: MessagingOptions = {}) => {
   const setup = create(undefined, undefined, options)
   const worker = binding("codex", "s-worker", "3")
-  setup.messaging.register("W", here, "owl", "moth")
+  setup.messaging.register("W", here, "owl", "A")
   setup.follow("W", worker)
   return { ...setup, worker }
 }
@@ -4233,7 +4233,7 @@ describe("a lead", () => {
     const { messaging, records, send, prompt, worker } = withWorker()
     const brief = sent(send("A", "owl", "Fix the build, then report back."))
     expect(latestFor(records, "W").fromLead).toBe(true)
-    expect(messaging.leadOf("W")).toBe("moth")
+    expect(messaging.leadOf("W")?.handle).toBe("moth")
     const delivered = context(prompt("W", worker).stdout)
     const [, mark] = /lead="([0-9A-Za-z]{8})"/.exec(delivered) ?? []
     expect(mark).toBeDefined()
@@ -4257,7 +4257,7 @@ describe("a lead", () => {
     messaging.send("A", { to: "owl", text: "Also this." })
     expect(latestFor(records, "W")).toMatchObject({ text: "Also this.", fromLead: false })
     // Once its lead ends, or is set again, nothing waits for the brief.
-    messaging.setLead("W", "moth")
+    messaging.setLead("W", "A")
     expect(messaging.briefOf("W")).toBeUndefined()
     messaging.sendBrief("A", { to: "owl", text: "Again." })
     expect(messaging.briefOf("W")).toBeDefined()
@@ -4318,7 +4318,7 @@ describe("a lead", () => {
   it("loses a brief still waiting for the worker's first session when its lead ends, and says so", () => {
     const { messaging, send, follow, prompt, records } = withWorker()
     // crow was opened by moth to run Codex, which has bound no session yet.
-    messaging.register("X", here, "crow", "moth")
+    messaging.register("X", here, "crow", "A")
     messaging.expect("X", "codex")
     const brief = sent(send("A", "crow", "Take the auth bug."))
     expect(brief.state).toBe("queued")
@@ -4342,7 +4342,7 @@ describe("a lead", () => {
 
   it("drops the lead's undelivered messages when the person releases the worker, and tells the lead", () => {
     const { messaging, send, records } = withWorker()
-    messaging.register("X", here, "crow", "moth")
+    messaging.register("X", here, "crow", "A")
     messaging.expect("X", "codex")
     const waiting = sent(send("A", "owl", "Keep going."))
     const unbound = sent(send("A", "crow", "Take the auth bug."))
@@ -4376,7 +4376,7 @@ describe("a lead", () => {
     const records = memoryMessages()
     const first = create(records)
     const worker = binding("codex", "s-worker", "3")
-    first.messaging.register("W", here, "owl", "moth")
+    first.messaging.register("W", here, "owl", "A")
     first.follow("W", worker)
     const message = sent(first.send("A", "owl", "Keep going."))
     first.messaging.dropLeadMessages("W")
@@ -4393,7 +4393,7 @@ describe("a lead", () => {
     const records = memoryMessages()
     const first = create(records)
     const worker = binding("codex", "s-worker", "3")
-    first.messaging.register("W", here, "owl", "moth")
+    first.messaging.register("W", here, "owl", "A")
     first.follow("W", worker)
     const message = sent(first.send("A", "owl", "Keep going."))
     expect(first.prompt("W", worker).leaseId).not.toBeNull()
@@ -4481,7 +4481,7 @@ describe("a lead", () => {
   it("is only a direct lead: the lead of a lead has no authority", () => {
     const { messaging, records, send } = withWorker()
     // crow is opened by owl, which moth opened.
-    messaging.register("X", here, "crow", "owl")
+    messaging.register("X", here, "crow", "W")
     messaging.expect("X", "codex")
     sent(send("A", "crow", "From the grand-lead."))
     expect(latestFor(records, "X").fromLead).toBe(false)
@@ -4552,7 +4552,7 @@ const withTeam = (options: MessagingOptions = {}) => {
     crow: { id: "W3", bound: binding("agy", "c-crow", "5") },
   }
   for (const [handle, { id, bound }] of Object.entries(team)) {
-    setup.messaging.register(id, here, handle, "moth")
+    setup.messaging.register(id, here, handle, "A")
     if (bound.agent === "agy") setup.observe(id, bound, agyStatus(bound, "idle"), true)
     else setup.follow(id, bound)
   }
@@ -4668,7 +4668,7 @@ describe("a lead's message to its team", () => {
     const { messaging, follow, sendAny } = withTeam()
     messaging.register("V", here, "wren", null)
     follow("V", binding("codex", "s-wren", "9"))
-    messaging.setLead("V", "moth")
+    messaging.setLead("V", "A")
     messaging.sendBrief("A", { to: "wren", text: "Your task." })
     expect(messaging.briefOf("V")).toBeDefined()
     expect(teamSent(sendAny("A", "team", "rule")).sent.map(({ to }) => to)).toEqual([
@@ -4977,7 +4977,7 @@ describe("a leased message", () => {
     sent(send("A", "owl", "Wrap up."))
     const answer = stop("W", worker)
     messaging.unregister("W")
-    messaging.register("W", here, "owl", "moth")
+    messaging.register("W", here, "owl", "A")
     messaging.acknowledge("W", answer.leaseId!)
     expect(messages(messaging, "W").map(({ state }) => state)).toEqual(["gone"])
   })
@@ -4993,7 +4993,7 @@ const text = (stdout: string | null) =>
 const agyWorker = () => {
   const setup = create()
   const root = binding("agy", "c-root", "7")
-  setup.messaging.register("G", here, "owl", "moth")
+  setup.messaging.register("G", here, "owl", "A")
   setup.messaging.expect("G", "agy")
   const call = (number: number) =>
     setup.ask("G", root, "PreInvocation", [
@@ -6092,7 +6092,7 @@ describe("the rules note of a delivery", () => {
 
   it("gives a note not held yet in full, and a lead's mark in the pointer", () => {
     const { messaging, send, prompt, stop } = create()
-    messaging.register("W", here, "owl", "moth")
+    messaging.register("W", here, "owl", "A")
     const worker = binding("claude", "s-worker", "3")
     messaging.expect("W", "claude")
     const deliver = (from: string, body: string) => {

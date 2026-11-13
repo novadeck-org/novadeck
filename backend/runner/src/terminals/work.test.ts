@@ -259,19 +259,19 @@ const first = (fields: Partial<Work> = {}): Work => ({
 
 describe("whose a root session's first prompt is", () => {
   it("is the user's in a terminal the person opened, however it came", () => {
-    expect(firstFrom(first({ firstByPerson: false }), null)).toBe("user")
-    expect(firstFrom(first(), null)).toBe("user")
-    expect(firstFrom(freshWork("claude:s1"), null)).toBeNull()
-    expect(firstFrom(null, "moth")).toBeNull()
+    expect(firstFrom(first({ firstByPerson: false }), false)).toBe("user")
+    expect(firstFrom(first(), false)).toBe("user")
+    expect(firstFrom(freshWork("claude:s1"), false)).toBeNull()
+    expect(firstFrom(null, true)).toBeNull()
   })
 
   it("is the opener's in an agent-opened terminal's first session, unless the person submitted it", () => {
-    expect(firstFrom(first({ opened: true, firstByPerson: false }), "moth")).toBe("opener")
+    expect(firstFrom(first({ opened: true, firstByPerson: false }), true)).toBe("opener")
     // Not told yet: the opener's, until told otherwise.
-    expect(firstFrom(first({ opened: true }), "moth")).toBe("opener")
-    expect(firstFrom(first({ opened: true, firstByPerson: true }), "moth")).toBe("user")
+    expect(firstFrom(first({ opened: true }), true)).toBe("opener")
+    expect(firstFrom(first({ opened: true, firstByPerson: true }), true)).toBe("user")
     // A later session there is the person's.
-    expect(firstFrom(first({ firstByPerson: false }), "moth")).toBe("user")
+    expect(firstFrom(first({ firstByPerson: false }), true)).toBe("user")
   })
 
   it("is told once, and only of a first prompt", () => {

@@ -282,6 +282,7 @@ export const scriptedRunner = ({
     },
     works: {
       watch: api.works.watch.handler(idle),
+      made: api.works.made.handler(idle),
       look: api.works.look.handler(unplayed("works.look")),
       show: api.works.show.handler(unplayed("works.show")),
       close: api.works.close.handler(unplayed("works.close")),
@@ -291,7 +292,6 @@ export const scriptedRunner = ({
       watch: api.companions.watch.handler(idle),
       content: api.companions.content.handler(unplayed("companions.content")),
       changeFile: api.companions.changeFile.handler(unplayed("companions.changeFile")),
-      changeRange: api.companions.changeRange.handler(unplayed("companions.changeRange")),
       changeRead: api.companions.changeRead.handler(unplayed("companions.changeRead")),
       save: api.companions.save.handler(unplayed("companions.save")),
       attach: api.companions.attach.handler(unplayed("companions.attach")),

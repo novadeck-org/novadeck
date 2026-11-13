@@ -198,9 +198,11 @@ minutes after its session leaves the screen, so going back to a session or proje
 its output in place; they go when that time passes or the terminal closes. Of the screens
 no view shows, `screens.ts` keeps at most the 16 parked most recently, closing the one
 parked longest first (a closed one resyncs from the runner's snapshot when shown again);
-screens a view shows, Focus's kept windows among them, don't count. A Canvas node out of
-sight keeps its mount but lets its screen go, so the screen parks after 5 s and
-counts toward the cap, and the node's content is hidden until it is back in sight. Focus keeps
+screens a view shows, Focus's kept windows among them, don't count. A Canvas node or a Grid
+tile out of sight keeps its mount but lets its screen go, so the screen parks after 5 s and
+counts toward the cap, and its content is hidden until it is back in sight. Those coming
+into sight together take their screens a couple at a time, the selected one first, so
+switching to Grid or Canvas with many terminals doesn't freeze the window. Focus keeps
 the last four terminals it displayed mounted, parked out of sight with `display:none`,
 so switching back finds a terminal's companion pane as it was: a page still loaded, a
 plan's editor, where each was scrolled. A component that docks status, opens over the
@@ -513,9 +515,12 @@ agent.
   terminal it runs in which session it is, and does nothing when the agent runs
   anywhere else. It adds nothing to the model's context but the messages other agents in
   Novadeck send it, wrapped as theirs (see [Agent messaging](agent-messaging.md)).
-  Agents address each other by terminal handle: a word its session gives each terminal,
-  never twice, such as `moth`, which Novadeck shows as `@moth` and which stays the
-  terminal's when you rename it. A sidebar tab shows it beside Close where an agent runs
+  Agents address each other by terminal handle: a word its project gives each terminal,
+  such as `moth`, which no other terminal of the project has. Novadeck shows it as `@moth`
+  and it stays the terminal's when you rename it. After a terminal closes, its handle can
+  go to a new terminal of the project an hour later; an agent that still knew the old one is
+  refused its first call to the handle, which names the new terminal, and chat words written
+  before then draw `@moth` as plain text. A sidebar tab shows it beside Close where an agent runs
   or has run, or where an agent opened or leads the terminal; a window's header shows it
   in its switcher, under the pointer.
   An agent that opens terminals with a brief leads them, and a worker's window header says

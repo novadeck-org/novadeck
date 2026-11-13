@@ -18,7 +18,7 @@ import {
 const keepLed = (shell: Fixture, ids: { lead: string; worker: string }, session?: string) => {
   for (const [id, handle, ledBy] of [
     [ids.lead, "moth", null],
-    [ids.worker, "fox", "moth"],
+    [ids.worker, "fox", ids.lead],
   ] as const)
     shell.store.saveTerminal({
       id,
@@ -105,11 +105,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       keep(lead, "moth", null, null)
       // Opened by moth with a brief for an agent, and opened by moth for a command that starts
       // one: only the first is led.
-      keep(worker, "fox", "moth", "moth")
-      keep(plain, "owl", "moth", null, "claude")
+      keep(worker, "fox", lead, lead)
+      keep(plain, "owl", lead, null, "claude")
       const manager = shell.manager()
       // What summaries carry is the stored lead, whether or not its terminal runs.
-      expect(manager.list(shell.sessionId).map(({ ledBy }) => ledBy)).toEqual([null, "moth", null])
+      expect(manager.list(shell.sessionId).map(({ ledBy }) => ledBy)).toEqual([null, lead, null])
       // Restored as a shell that resumes nothing, the worker has no agent left to lead.
       await create(manager, shell, { id: worker, restore: true })
       await create(manager, shell, { id: plain, restore: true })
@@ -173,14 +173,14 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           promptedAt: null,
         })
       keep(lead, "moth", null)
-      keep(worker, "fox", "moth")
+      keep(worker, "fox", lead)
       const manager = shell.manager()
       const next = shell.watch(manager)
       await create(manager, shell, { id: lead, restore: true })
       // Restored by a new runner, its agent resumed there: the lead stays, kept as saved.
       await create(manager, shell, { id: worker, restore: true, resume: "claude" })
       await next((summary) => summary.id === worker && summary.agent === "claude")
-      expect(manager.get(worker).ledBy).toBe("moth")
+      expect(manager.get(worker).ledBy).toBe(lead)
       // Enter ends the stand-in agent, and the lead ends with it.
       manager.write({ terminalId: worker, data: "\r" }, "owner")
       await expect.poll(() => manager.get(worker).ledBy).toBeNull()
@@ -211,8 +211,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           promptedAt: null,
         })
       keep(lead, "moth", null)
-      keep(worker, "fox", "moth")
-      keep(ran, "owl", "moth", { codex: { sessionId: "t-1", seq: 1 } })
+      keep(worker, "fox", lead)
+      keep(ran, "owl", lead, { codex: { sessionId: "t-1", seq: 1 } })
       const manager = shell.manager()
       await create(manager, shell, { id: lead, restore: true })
       await create(manager, shell, { id: worker, restore: true })
@@ -223,8 +223,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         worker,
         "codex args: [Novadeck: automatic notice, agent messages waiting, k3f9q2]",
       )
-      expect(manager.get(worker).ledBy).toBe("moth")
-      expect(shell.store.terminalIdentity(worker)?.ledBy).toBe("moth")
+      expect(manager.get(worker).ledBy).toBe(lead)
+      expect(shell.store.terminalIdentity(worker)?.ledBy).toBe(lead)
       // One whose agent ran resumes that session or comes back a shell, no longer led.
       expect(manager.get(ran).ledBy).toBeNull()
       expect(shell.store.terminalIdentity(ran)?.ledBy).toBeNull()
@@ -248,8 +248,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await shell.until(manager, ids.worker, "Stopped")
       manager.write({ terminalId: ids.worker, data: "echo back\r" }, "owner")
       await shell.until(manager, ids.worker, /\nback\r?\n/)
-      expect(manager.get(ids.worker).ledBy).toBe("moth")
-      expect(shell.store.terminalIdentity(ids.worker)?.ledBy).toBe("moth")
+      expect(manager.get(ids.worker).ledBy).toBe(ids.lead)
+      expect(shell.store.terminalIdentity(ids.worker)?.ledBy).toBe(ids.lead)
       // Killed while suspended, it never comes back: the next prompt finds it gone.
       manager.write(
         { terminalId: ids.worker, data: "kill -9 $(jobs -p); sleep 0.3; echo killed\r" },
@@ -277,7 +277,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await shell.until(manager, ids.worker, "Stopped")
       manager.write({ terminalId: ids.worker, data: "echo back\r" }, "owner")
       await shell.until(manager, ids.worker, /\nback\r?\n/)
-      expect(manager.get(ids.worker).ledBy).toBe("moth")
+      expect(manager.get(ids.worker).ledBy).toBe(ids.lead)
       // Another agent, not the suspended one back from `fg`, binds there: the lead never
       // directed it.
       manager.write({ terminalId: ids.worker, data: "claude\r" }, "owner")
@@ -302,7 +302,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await shell.until(manager, ids.worker, "Stopped")
       manager.write({ terminalId: ids.worker, data: "echo back\r" }, "owner")
       await shell.until(manager, ids.worker, /\nback\r?\n/)
-      expect(manager.get(ids.worker).ledBy).toBe("moth")
+      expect(manager.get(ids.worker).ledBy).toBe(ids.lead)
       // What the record holds each time its detail is told of a change, read as it is told.
       type Seen = {
         ledBy: string | null
@@ -361,7 +361,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         }
       ).messaging.send(ids.lead, { to: "fox", text: "Do the work." })
       expect(brief.ok).toBe(true)
-      expect(manager.get(ids.worker).ledBy).toBe("moth")
+      expect(manager.get(ids.worker).ledBy).toBe(ids.lead)
       // Enter ends the stand-in agent, which never bound a session.
       manager.write({ terminalId: ids.worker, data: "\r" }, "owner")
       await expect.poll(() => manager.get(ids.worker).ledBy).toBeNull()
@@ -385,12 +385,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // Its startup command ends the shell, as a killed agent's terminal ends.
       await create(manager, shell, { id: ids.worker, restore: true, command: "exec true" })
       await next((summary) => summary.id === ids.worker && summary.exit !== null)
-      expect(manager.get(ids.worker).ledBy).toBe("moth")
+      expect(manager.get(ids.worker).ledBy).toBe(ids.lead)
       await manager.restart(
         { terminalId: ids.worker, cols: 100, rows: 20, resume: "claude" },
         "owner",
       )
-      expect(manager.get(ids.worker).ledBy).toBe("moth")
+      expect(manager.get(ids.worker).ledBy).toBe(ids.lead)
       await shell.until(manager, ids.worker, "claude is running")
       manager.write({ terminalId: ids.worker, data: "\r" }, "owner")
       await expect.poll(() => manager.get(ids.worker).ledBy).toBeNull()
@@ -404,7 +404,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await create(manager, shell, { id: ids.lead, restore: true })
       await create(manager, shell, { id: ids.worker, restore: true, command: "exec true" })
       await next((summary) => summary.id === ids.worker && summary.exit !== null)
-      expect(manager.get(ids.worker).ledBy).toBe("moth")
+      expect(manager.get(ids.worker).ledBy).toBe(ids.lead)
       await manager.restart({ terminalId: ids.worker, cols: 100, rows: 20 }, "owner")
       expect(manager.get(ids.worker).ledBy).toBeNull()
       expect(shell.store.terminalIdentity(ids.worker)?.ledBy).toBeNull()
@@ -425,7 +425,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         restore: true,
         resume: "claude",
       })
-      expect(manager.get(ids.worker).ledBy).toBe("moth")
+      expect(manager.get(ids.worker).ledBy).toBe(ids.lead)
       const brief = (
         manager as unknown as {
           messaging: { send: (from: string, request: object) => { ok: boolean } }
@@ -445,7 +445,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const [lead, worker] = [randomUUID(), randomUUID()]
       for (const [id, handle, ledBy] of [
         [lead, "moth", null],
-        [worker, "fox", "moth"],
+        [worker, "fox", lead],
       ] as const)
         shell.store.saveTerminal({
           id,
@@ -469,8 +469,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await create(manager, shell, { id: worker, restore: true, command: "report" })
       await shell.until(manager, worker, "reports sent")
       await expect.poll(() => manager.reportedSession(worker, "claude")).toBe("cleared")
-      expect(manager.get(worker).ledBy).toBe("moth")
-      expect(shell.store.terminalIdentity(worker)?.ledBy).toBe("moth")
+      expect(manager.get(worker).ledBy).toBe(lead)
+      expect(shell.store.terminalIdentity(worker)?.ledBy).toBe(lead)
     })
 
     it("takes no lead from a terminal kept in another session, though its id is restored here", async ({
@@ -482,14 +482,15 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         name: "Other",
       })
       const id = randomUUID()
+      const otherLead = randomUUID()
       shell.store.saveTerminal({
         id,
         sessionId: other.id,
         cwd: shell.home,
         handle: "moth",
         naming: { person: null, opener: null, murmur: null, own: null, summary: null },
-        openedBy: "moth",
-        ledBy: "moth",
+        openedBy: otherLead,
+        ledBy: otherLead,
         command: "claude",
         lastProgram: null,
         work: null,

@@ -20,9 +20,7 @@ export const MessagesThumb = ({
       <b>{conversations.length ? "Conversations" : "No messages yet"}</b>
       {conversations.slice(0, 4).map(({ key, peer }) => (
         <span key={key}>
-          {key === youKey
-            ? "You"
-            : `${peers[peer]?.name ?? handleText(peer)} · ${handleText(peer)}`}
+          {key === youKey ? "You" : `${peers[key]?.name ?? handleText(peer)} · ${handleText(peer)}`}
         </span>
       ))}
     </span>

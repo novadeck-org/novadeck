@@ -146,7 +146,7 @@ export const answersOf = (threads: TerminalThreads | undefined): readonly Said[]
     thread.messages.flatMap((message): Said[] => {
       if (
         message.to.kind !== "agent" ||
-        message.to.handle !== threads!.handle ||
+        message.to.terminalId !== threads!.terminalId ||
         message.deliveredAt === null
       )
         return []

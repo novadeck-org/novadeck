@@ -15,6 +15,8 @@ export const moveQuestionOf = (workspace: Workspace, ask: MoveAsk | null): MoveQ
   )
   const top = leadChain(workspace, ask.terminalId).at(-1)
   if (!terminal?.ledBy || top === undefined) return null
+  const lead = currentState(workspace).roster.terminals.find((each) => each.id === terminal.ledBy)
+  if (!lead?.handle) return null
   const { to } = ask
   const session =
     "fresh" in to
@@ -23,7 +25,7 @@ export const moveQuestionOf = (workspace: Workspace, ask: MoveAsk | null): MoveQ
         "another session")
   return {
     terminal,
-    lead: terminal.ledBy,
+    lead: lead.handle,
     session,
     team: 1 + descendantsOf(workspace, top).length,
   }

@@ -630,6 +630,15 @@ export class Inbox {
   }
 
   /**
+   * When the agent session first reported to the runner, as its report log keeps it, or
+   * undefined when it never did (or its rows are gone): a session resumed in another
+   * terminal, or after another one in the same, began then, not when it resumed.
+   */
+  firstReported(agent: string, sessionId: string): number | undefined {
+    return this.log.of(agent, sessionId)[0]?.at
+  }
+
+  /**
    * The notice for an agent session of the asks the person dismissed since its last hook, or
    * undefined when none. Asks of a session other than `agent`'s `sessionId` are dropped
    * unspoken: a new session is never told of an old one's.
@@ -1069,7 +1078,12 @@ export class Inbox {
         id: `m-${entry.id.replaceAll("-", "")}`,
         thread,
         hop: 1,
-        from: { kind: "agent" as const, handle: entry.handle, agent: entry.agent },
+        from: {
+          kind: "agent" as const,
+          terminalId: entry.terminalId,
+          handle: entry.handle,
+          agent: entry.agent,
+        },
         to: { kind: "person" as const },
         text,
         sentAt: entry.at,

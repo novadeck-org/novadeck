@@ -2417,14 +2417,28 @@ describe("terminal naming", () => {
     }
   })
 
-  it("never gives a closed terminal's handle again in its session, without records", async ({
+  it("rests a closed terminal's handle for the cooldown in its project, without records", async ({
     terminals,
   }) => {
-    const manager = terminals.manager(quiet)
+    const manager = terminals.manager({ ...quiet, handleOrder: () => ["moth", "fox"] })
     const first = await create(manager)
     await manager.close({ terminalId: first.id })
     const second = await create(manager)
-    expect(second.handle).not.toBe(first.handle)
+    expect(first.handle).toBe("moth")
+    expect(second.handle).toBe("fox")
+  })
+
+  it("gives a closed terminal's handle to a new terminal once the cooldown has passed, without records", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager({
+      ...quiet,
+      handleOrder: () => ["moth"],
+      handleCooldown: 0,
+    })
+    const first = await create(manager)
+    await manager.close({ terminalId: first.id })
+    expect((await create(manager)).handle).toBe("moth")
   })
 })
 

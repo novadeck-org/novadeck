@@ -144,7 +144,7 @@ export const moveTerminal = (
   const left = closeTerminal(from, id)
   const added = addTerminal(to.roster, terminal)
   const lead = terminal.ledBy
-    ? to.roster.terminals.find((each) => each.handle === terminal.ledBy)
+    ? to.roster.terminals.find((each) => each.id === terminal.ledBy)
     : undefined
   const ids = new Set(carried.map((item) => item.id))
   const newOnes = carried.filter((item) => from.fresh[item.id])

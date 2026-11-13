@@ -47,7 +47,10 @@ export const LayerList = ({
               onPick(layer.id)
             }}
           >
-            <code className="changes-sha">{shortHash(layer)}</code>
+            {/* The work not committed yet has no hash yet: dots hold its place, unread. */}
+            <code className="changes-sha">
+              {layer.kind === "uncommitted" ? <span aria-hidden>·······</span> : shortHash(layer)}
+            </code>
             {/* The subject's cell, so a merge's note sits after it and the columns hold. */}
             <span className="changes-subject-cell">
               <span className="changes-subject" title={layer.subject || undefined}>

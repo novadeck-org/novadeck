@@ -82,7 +82,7 @@ describe("demo approvals", () => {
         type: "terminal/update",
         target: { projectId: "p", workspaceSessionId: "s" },
         terminalId: "a",
-        ledBy: "bee",
+        ledBy: "b",
       },
     ])
   })

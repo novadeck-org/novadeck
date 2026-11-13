@@ -18,13 +18,26 @@ import {
   type Waiting,
   type Whereabouts,
 } from "../messaging/peers.js"
-import type { AgentsAnswer, PeerAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.js"
+import {
+  namedHandles,
+  type AgentsAnswer,
+  type PeerAnswer,
+  type SendAnswer,
+  type TeamAnswer,
+} from "../messaging/sending.js"
 import { unansweredCalls, type Ack, type Call } from "../shell/reports.js"
 import { shorten } from "../text.js"
 import type { HintFacts } from "../voice/hint.js"
 import { backgroundOf } from "./background-shells.js"
 import { gitBranch, gitCheckout } from "./branch.js"
 import { GitStates } from "./git-state.js"
+import {
+  introduction,
+  Introductions,
+  unknownTo,
+  type Caller,
+  type Former,
+} from "./introductions.js"
 import type { Facts } from "./nudges.js"
 import type { Bound, Record } from "./record.js"
 import { shownCommand } from "./shown-command.js"
@@ -44,9 +57,10 @@ export type PeerTerminal = {
 }
 
 /** What peers read of a terminal's record, as the terminal manager keeps it. */
-export type PeerRecord = Pick<Record, "summary" | "naming" | "work" | "openedBy"> & {
-  readonly bound: Pick<Bound, "activity"> | null
-}
+export type PeerRecord = Pick<Record, "summary" | "naming" | "work" | "openedBy"> &
+  Caller & {
+    readonly bound: Pick<Bound, "activity"> | null
+  }
 
 /**
  * The terminal a record is, as peers read it: read through to the record, so what is read
@@ -93,6 +107,13 @@ export type PeersOptions = {
   readonly worktrees: (terminalId: string) => readonly { path: string; branch: string }[]
   /** Whether the runner is stopping. */
   readonly stopping: () => boolean
+  /** Keeps a caller's reports, which now hold what its session was shown (`Introductions`). */
+  readonly save?: (caller: Caller) => void
+  /**
+   * When and under what title the terminal that last held the handle in the caller's
+   * project closed before `before`, if History still keeps it.
+   */
+  readonly former?: (sessionId: string, handle: string, before: number) => Former | undefined
 }
 
 /**
@@ -138,12 +159,88 @@ export class TerminalPeers {
   >()
   /** Each checkout's commits ahead and uncommitted changes, read by `git status` now and then. */
   private readonly states: GitStates
+  /** What each agent session was shown of the terminals it may call by handle. */
+  private readonly introductions: Introductions
 
   constructor(
     private readonly options: PeersOptions,
     states?: GitStates,
   ) {
     this.states = states ?? new GitStates()
+    this.introductions = new Introductions((caller) => options.save?.(caller))
+  }
+
+  /**
+   * Notes that the caller's session was shown these terminals by name, as by a notice or the
+   * result of opening one; a call to their handles then goes through (`unknownTo`).
+   */
+  introduce(terminalId: string, ...ids: readonly string[]): void {
+    const caller = this.options.terminal(terminalId)
+    if (caller) this.introductions.show(caller, ids)
+  }
+
+  /**
+   * Why a call to these handles is refused this once: one resolves to a terminal given its
+   * handle after the caller's session began, which the session was never shown, and another
+   * terminal held that handle while the session ran, so the handle may name the one it knew. Undefined when none does; asking tells the
+   * session of them, so the same call goes through next.
+   */
+  private strangers(caller: Caller, handles: readonly string[]): string | undefined {
+    const knew = this.introductions.knew(caller)
+    if (!knew) return undefined
+    const now = Date.now()
+    const told: string[] = []
+    const ids: string[] = []
+    const known: string[] = []
+    for (const handle of handles) {
+      const found = this.options.messaging.peer(caller.summary.id, handle)
+      const holder = found.ok ? this.options.terminal(found.terminalId) : undefined
+      if (!found.ok || !holder) continue
+      const { title, handleGivenAt: givenAt = 0 } = holder.summary
+      const target = { id: found.terminalId, givenAt }
+      if (!unknownTo(knew, target, (since) => this.exchanged(caller, target.id, since))) continue
+      // A handle no terminal held while the session ran names only this one to it: there is
+      // nothing to mistake it for, and never will be, so the session knows it from here.
+      const former = this.options.former?.(caller.summary.sessionId, handle, givenAt)
+      if (!former || former.closedAt <= knew.since) {
+        known.push(target.id)
+        continue
+      }
+      const summary = holder.naming.summary
+      told.push(introduction(handle, { title, summary, givenAt }, former, now))
+      ids.push(target.id)
+    }
+    if (known.length > 0) this.introductions.show(caller, known)
+    if (ids.length === 0) return undefined
+    this.introductions.show(caller, ids)
+    return told.join("\n\n")
+  }
+
+  /**
+   * Whether the caller and the terminal exchanged a message since `since`: one the caller
+   * sent, or one delivered to it, which names the terminal by its handle at the time.
+   */
+  private exchanged(caller: Caller, terminalId: string, since: number): boolean {
+    const { id, handle } = caller.summary
+    const { threads } = this.options.messaging.list(id, handle)
+    return threads.some(
+      (thread) =>
+        thread.peer.kind === "agent" &&
+        thread.peer.terminalId === terminalId &&
+        thread.messages.some((message) =>
+          message.from.kind === "agent" && message.from.terminalId === id
+            ? message.sentAt >= since
+            : message.deliveredAt !== null && message.deliveredAt >= since,
+        ),
+    )
+  }
+
+  /** The caller's session is shown every other terminal of its project and session. */
+  private listed(caller: Caller): void {
+    this.introductions.show(
+      caller,
+      this.options.running(caller.summary.sessionId).map((peer) => peer.summary.id),
+    )
   }
 
   /**
@@ -155,6 +252,8 @@ export class TerminalPeers {
     const { messaging } = this.options
     const caller = this.options.caller(call.terminalId, call.token)
     if (!caller) return unansweredCalls.send
+    const stranger = this.strangers(caller, namedHandles(call.request))
+    if (stranger) return { ok: false, reason: stranger }
     // Where `to` is a handle there, nothing needs describing: no branches or plans read.
     if (!messaging.describes(call.terminalId, call.request))
       return messaging.sendAny(call.terminalId, call.request)
@@ -170,6 +269,7 @@ export class TerminalPeers {
     const caller = this.options.caller(call.terminalId, call.token)
     if (!caller) return unansweredCalls.agents
     const about = await this.whereabouts(caller.summary.sessionId)
+    this.listed(caller)
     return this.options.messaging.agents(call.terminalId, (id) => about.get(id))
   }
 
@@ -181,6 +281,7 @@ export class TerminalPeers {
     const caller = this.options.caller(call.terminalId, call.token)
     if (!caller) return unansweredCalls.team
     const about = await this.whereabouts(caller.summary.sessionId, true)
+    this.listed(caller)
     return this.options.messaging.team(call.terminalId, (id) => about.get(id), call.request)
   }
 
@@ -191,6 +292,9 @@ export class TerminalPeers {
    */
   async target(caller: PeerTerminal, to: string): Promise<PeerAnswer> {
     const { messaging } = this.options
+    const record = this.options.terminal(caller.summary.id)
+    const stranger = record && this.strangers(record, [to])
+    if (stranger) return { ok: false, reason: stranger }
     const found = messaging.peer(caller.summary.id, to)
     // Where `to` is a handle there, nothing needs describing: no branches or plans read.
     if (found.ok) return found

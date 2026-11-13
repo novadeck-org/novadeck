@@ -8,11 +8,11 @@ import type {
 // A terminal's messages as the pane reads them: a list of its conversations, each one
 // other terminal's thread with it or the person's entries, and one opened as a chat.
 
-// One conversation: every thread the terminal had with one other, keyed by its handle (the
-// runner starts a new thread for a pair after ten quiet minutes), or, keyed `you`, every
+// One conversation: every thread the terminal had with one other, keyed by that terminal's id
+// (the runner starts a new thread for a pair after ten quiet minutes), or, keyed `you`, every
 // entry its agent wrote the person with their replies, which the runner keeps as a thread
-// an entry. Its messages oldest first; for each of the person's replies, the question it
-// answers.
+// an entry. `peer` is the handle the other terminal reads as (its latest message's). Its
+// messages oldest first; for each of the person's replies, the question it answers.
 export type Conversation = {
   readonly key: string
   readonly peer: string
@@ -22,16 +22,20 @@ export type Conversation = {
 
 export const youKey = "you"
 
-// A party's key and handle as the pane shows it: an agent's terminal handle, or `you` for the
-// person.
+// A party's handle as the pane shows it: an agent's terminal handle, or `you` for the person.
 export const handleOf = (party: MessageParty): string =>
   party.kind === "agent" ? party.handle : youKey
+
+// Who a party is: an agent's terminal id, or `you` for the person. A handle names a party
+// only as it reads; two terminals may have had it.
+export const partyOf = (party: MessageParty): string =>
+  party.kind === "agent" ? party.terminalId : youKey
 
 export const conversationsOf = (terminal: TerminalThreads): readonly Conversation[] => {
   const byPeer = new Map<string, MessageThread[]>()
   for (const thread of terminal.threads)
-    byPeer.set(handleOf(thread.peer), [...(byPeer.get(handleOf(thread.peer)) ?? []), thread])
-  return [...byPeer].map(([peer, threads]): Conversation => {
+    byPeer.set(partyOf(thread.peer), [...(byPeer.get(partyOf(thread.peer)) ?? []), thread])
+  return [...byPeer].map(([key, threads]): Conversation => {
     const asked = new Map<string, AgentMessage>()
     for (const thread of threads) {
       const ask = thread.messages.find((message) => message.inbox === "ask")
@@ -43,7 +47,12 @@ export const conversationsOf = (terminal: TerminalThreads): readonly Conversatio
       threads.length === 1
         ? threads[0]!.messages
         : threads.flatMap((thread) => thread.messages).toSorted((a, b) => a.sentAt - b.sentAt)
-    return { key: peer, peer, messages, asked }
+    const latest = messages.at(-1)
+    const named = [latest?.from, latest?.to, threads[0]!.peer].find(
+      (party) => party?.kind === "agent" && party.terminalId === key,
+    )
+    const peer = named?.kind === "agent" ? named.handle : youKey
+    return { key, peer, messages, asked }
   })
 }
 
@@ -80,7 +89,7 @@ export const cornerOf = (conversation: Conversation, seenAt: number): Corner => 
   const news = you
     ? openEntries(conversation, "tell") > 0
     : conversation.messages.some(
-        (message) => handleOf(message.from) === conversation.peer && message.sentAt > seenAt,
+        (message) => partyOf(message.from) === conversation.key && message.sentAt > seenAt,
       )
   return news ? { kind: "unread" } : { kind: "time", at: last?.sentAt ?? 0 }
 }
@@ -152,8 +161,7 @@ export const burstMs = 10 * 60_000
 
 // Whether two messages say the same, numbers aside, from the same sender.
 const same = (a: AgentMessage, b: AgentMessage): boolean =>
-  handleOf(a.from) === handleOf(b.from) &&
-  a.text.replace(/\d+/g, "#") === b.text.replace(/\d+/g, "#")
+  partyOf(a.from) === partyOf(b.from) && a.text.replace(/\d+/g, "#") === b.text.replace(/\d+/g, "#")
 
 // Rounds of two messages that come again: three or more of the same round fold, all but the
 // last, which stays in full, so a loop shows as one; never over a message still on its way
@@ -200,7 +208,7 @@ const noteOf = (message: AgentMessage, last: boolean): Note | null => {
   }
 }
 
-// The chat of a conversation as `self`'s terminal reads it; `unfolded` shows its repeated
+// The chat of a conversation as the terminal with id `self` reads it; `unfolded` shows its repeated
 // rounds in full.
 export const chatOf = (
   conversation: Conversation,
@@ -209,7 +217,7 @@ export const chatOf = (
 ): readonly ChatLine[] => {
   const you = conversation.key === youKey
   const mine = you ? youKey : self
-  const lastMine = conversation.messages.findLast((message) => handleOf(message.from) === mine)
+  const lastMine = conversation.messages.findLast((message) => partyOf(message.from) === mine)
   const lines: ChatLine[] = []
   let prev: AgentMessage | null = null
   let fresh = false
@@ -229,8 +237,8 @@ export const chatOf = (
       kind: "message",
       key: message.id,
       message,
-      side: handleOf(message.from) === mine ? "out" : "in",
-      grouped: prev !== null && handleOf(prev.from) === handleOf(message.from),
+      side: partyOf(message.from) === mine ? "out" : "in",
+      grouped: prev !== null && partyOf(prev.from) === partyOf(message.from),
       note: noteOf(message, message === lastMine),
     })
     prev = message

@@ -212,8 +212,12 @@ const deliveredBy = (
   return messages.map(([handle, text], index) => ({
     id: `ring-${nonce}-${index}`,
     hop: 1,
-    from: handle === null ? { kind: "person" } : { kind: "agent", handle, agent: "claude" },
-    to: { kind: "agent", handle: "crow", agent: "codex" },
+    // The terminals are named by a stand-in id here: the pane reads only these messages' text.
+    from:
+      handle === null
+        ? { kind: "person" }
+        : { kind: "agent", terminalId: `demo-${handle}`, handle, agent: "claude" },
+    to: { kind: "agent", terminalId: "demo-crow", handle: "crow", agent: "codex" },
     ...(handle === null && { inbox: "answer" as const }),
     text,
     sentAt: at - 60_000,

@@ -1,5 +1,5 @@
 import { MentionedText } from "@novadeck/toolkit/Mentioned"
-import type { Mention } from "@novadeck/toolkit/mentions"
+import { mentionAt, type Mention } from "@novadeck/toolkit/mentions"
 import { useEffect, useId, useLayoutEffect, useRef, type CSSProperties } from "react"
 
 import { timeOfDay } from "./facts"
@@ -110,7 +110,7 @@ export const Hold = ({
                 aria-label="Your prompt, whole"
                 tabIndex={-1}
               >
-                <MentionedText text={text} mention={mention} />
+                <MentionedText text={text} mention={mentionAt(mention, at)} />
               </div>
             </div>
             <p className="chat-hold-foot">
@@ -143,7 +143,7 @@ export const Hold = ({
             >
               <Mark phase={phase} />
               <span className="chat-hold-words" aria-hidden>
-                <MentionedText text={oneLine(text)} mention={mention} />
+                <MentionedText text={oneLine(text)} mention={mentionAt(mention, at)} />
               </span>
             </button>
             <span className="chat-hold-end">

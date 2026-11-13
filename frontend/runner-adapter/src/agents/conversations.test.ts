@@ -921,7 +921,13 @@ describe("the runner's conversations", () => {
       const threads = (ringing: boolean) => ({
         ...noMessages,
         terminals: {
-          [terminalKeyPath(key)]: { handle: "moth", agent: true, ringing, threads: [] },
+          [terminalKeyPath(key)]: {
+            terminalId: key.terminalId,
+            handle: "moth",
+            agent: true,
+            ringing,
+            threads: [],
+          },
         },
       })
       messages.update(() => threads(false))

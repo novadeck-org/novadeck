@@ -87,7 +87,7 @@ describe("where a turn starts", () => {
         {
           id: "m1",
           hop: 1,
-          from: { kind: "agent", handle: "crow", agent: "codex" },
+          from: { kind: "agent", terminalId: "id-crow", handle: "crow", agent: "codex" },
           to: { kind: "person" },
           text: "FYI",
           sentAt: 1_200,
@@ -100,7 +100,7 @@ describe("where a turn starts", () => {
           inbox: "answer",
           hop: 1,
           from: { kind: "person" },
-          to: { kind: "agent", handle: "moth", agent: "claude" },
+          to: { kind: "agent", terminalId: "id-moth", handle: "moth", agent: "claude" },
           text: "Yes, go ahead",
           sentAt: 1_600,
           state: "delivered",

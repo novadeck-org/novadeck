@@ -31,17 +31,22 @@ const deliveryState = z.enum([
   "unknown",
 ])
 
-// Who a message is from or for: a terminal's agent, by the terminal's handle, or the
-// person, whose Inbox answers reach agents as messages and whose Inbox history shows the
+// Who a message is from or for: a terminal's agent, by the terminal's id (`terminalId`; its
+// `handle` is how the party reads, and may be another terminal's later), or the person, whose Inbox answers reach agents as messages and whose Inbox history shows the
 // agents' asks to them. A sender's `agent` is null where none had bound there; a
 // recipient's is always the agent it was for.
 const personParty = z.strictObject({ kind: z.literal("person") })
 const messageParty = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("agent"), handle, agent: agentName.nullable() }),
+  z.strictObject({
+    kind: z.literal("agent"),
+    terminalId: id,
+    handle,
+    agent: agentName.nullable(),
+  }),
   personParty,
 ])
 const messageRecipient = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("agent"), handle, agent: agentName }),
+  z.strictObject({ kind: z.literal("agent"), terminalId: id, handle, agent: agentName }),
   personParty,
 ])
 

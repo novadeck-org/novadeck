@@ -262,6 +262,12 @@ export type DeckOptions = {
    */
   readonly freshPath?: boolean
   /**
+   * The words the project gives handles from, in order, and how long a closed terminal's
+   * handle rests before a new terminal is given it again, in milliseconds: only for a
+   * scenario of a handle given again (`e2e.recycling`). By default every word, and an hour.
+   */
+  readonly handles?: { readonly words: readonly string[]; readonly cooldownMs: number }
+  /**
    * Ends what a closed runner left running, and names each process it had to end; a
    * restart fails on any. Without it, a restart looks for nothing.
    */
@@ -659,7 +665,8 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         baseEnv: options.env,
         freshPath: options.freshPath ?? false,
         // The list's order, not each session's shuffle, so scenarios know the handles given.
-        handleOrder: () => handleWords,
+        handleOrder: () => options.handles?.words ?? handleWords,
+        ...(options.handles && { handleCooldown: options.handles.cooldownMs }),
         // Seconds, not the setting's minutes, once a scenario turns stopping idle agents on
         // (`hibernated`); off until then, so no other scenario's agent is stopped mid-test.
         hibernation: { windowMs: 5_000, sweepMs: 1_000 },

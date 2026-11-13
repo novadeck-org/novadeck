@@ -58,6 +58,8 @@ describe("the debug panel's Messages group", () => {
     const peers = messages.state
       .getSnapshot()
       .terminals[terminalKeyPath(key)]!.threads.map((thread) => thread.peer)
-    expect(peers).toContainEqual({ kind: "agent", handle: "foxz", agent: null })
+    expect(peers).toContainEqual(
+      expect.objectContaining({ kind: "agent", handle: "foxz", agent: null }),
+    )
   })
 })

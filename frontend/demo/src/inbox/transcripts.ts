@@ -209,8 +209,14 @@ export const withInboxLead = (seed: WorkspaceSeed): WorkspaceSeed => ({
               )
                 ? {
                     ...terminal,
-                    ledBy: demoHandle(inboxLead.lead),
-                    openedBy: demoHandle(inboxLead.lead),
+                    ledBy: demoTerminalId(
+                      { projectId: project.id, workspaceSessionId: each.id },
+                      inboxLead.lead,
+                    ),
+                    openedBy: demoTerminalId(
+                      { projectId: project.id, workspaceSessionId: each.id },
+                      inboxLead.lead,
+                    ),
                   }
                 : terminal,
             ),
