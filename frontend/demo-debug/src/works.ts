@@ -103,6 +103,14 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
               },
             },
             {
+              label: "New worktree",
+              hint: "Close Changes if it is open: the Changes toggle in the rail flares a dot with a ring for a moment (again for each click), and Changes lists another clean worktree of the selected terminal",
+              run: ({ selected, workspace }) => {
+                const key = selected()
+                if (key) works.makeAnother(placed(workspace(), key))
+              },
+            },
+            {
               label: "Worktree with changes",
               hint: "Open Changes: the selected terminal's row has files; click its ×: a dialog says it holds changed files, committed work stays on the branch, uncommitted work (and commits only a detached HEAD reaches) is kept on a ref and ignored files like .env are not kept",
               run: ({ selected, workspace }) => {

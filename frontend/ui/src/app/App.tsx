@@ -1,6 +1,7 @@
 import { allTeams, leadChain, litTeams, sameLitTeams, sameTeams } from "@novadeck/core/derivations"
 import type { Backend, BackendSelection, CreateBackend, TerminalKey } from "@novadeck/core/port"
 import { activeProject } from "@novadeck/core/state"
+import { createStore } from "@novadeck/core/store"
 import {
   useCallback,
   useEffect,
@@ -32,6 +33,7 @@ import { BootReporter } from "./BootReporter"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { DictationContext, useDictationController } from "./controller/dictation"
 import { useKeyboard } from "./controller/useKeyboard"
+import { useStoreSelector } from "./controller/useStoreSelector"
 import { useWorkspaceEffects } from "./controller/useWorkspaceEffects"
 import { announceShown, EmbeddedContext, heldInput, holdInputUntilEngaged } from "./embedded"
 import { FooterSection } from "./FooterSection"
@@ -201,14 +203,19 @@ const TeamWireSection = ({
   )
 }
 
+// What a backend without worktrees made: none.
+const noneMade = createStore(0)
+const countOf = (count: number): number => count
+
 // The rail and the Zen dock read the bell's badge and rings themselves, so an unread change that
 // leaves them as they were re-renders neither them nor the app around them.
 const RailWithBadge = (
   props: Omit<
     ComponentProps<typeof SidebarRail>,
-    "badge" | "bellRings" | "historyDrops" | "lastDrop" | "sessionsAsk"
+    "badge" | "bellRings" | "historyDrops" | "lastDrop" | "sessionsAsk" | "worksMade"
   >,
 ): React.JSX.Element => {
+  const { backend } = useWorkspaceServices()
   const marks = useSessionMarks()
   const lastDrop = useUiState((state) => state.lastDrop)
   const openId = useWorkspaceState((workspace) => activeProject(workspace)!.activeSessionId)
@@ -220,6 +227,7 @@ const RailWithBadge = (
       historyDrops={useUiState((state) => state.historyDrops)}
       lastDrop={lastDrop ? dropWords(lastDrop) : undefined}
       sessionsAsk={elsewhereSessionsText(marks, openId)}
+      worksMade={useStoreSelector(backend.works?.made ?? noneMade, countOf)}
     />
   )
 }

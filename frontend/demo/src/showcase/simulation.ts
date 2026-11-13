@@ -358,12 +358,6 @@ export const createShowcase = (
         ? Promise.resolve(read(path, layers))
         : Promise.reject(new Error("There is no such change"))
     },
-    changeRange: (_target, id, layers) => {
-      const read = samples.get(id)?.changeRange
-      return read
-        ? Promise.resolve({ files: read(layers), truncated: false })
-        : Promise.reject(new Error("There is no such change"))
-    },
     changeRead: (_target, id, path) => {
       const sample = samples.get(id)
       const content = sample?.content

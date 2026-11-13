@@ -240,7 +240,6 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       content: (itemId, options) => runner.companions.content(itemId, options),
       changeFile: (input) =>
         note(`change file ${input.path}`, () => runner.companions.changeFile(input)),
-      changeRange: (input) => note("change range", () => runner.companions.changeRange(input)),
       changeRead: (input) =>
         note(`change read ${input.path}`, () => runner.companions.changeRead(input)),
       save: (input) => note(`save plan ${input.itemId}`, () => runner.companions.save(input)),
@@ -268,6 +267,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
     },
     works: {
       watch: () => runner.works.watch(),
+      made: () => runner.works.made(),
       look: (root) => note(`look ${root}`, () => runner.works.look(root)),
       show: (root, terminalId) => note(`show ${root}`, () => runner.works.show(root, terminalId)),
       close: (root, force) => note(`close work ${root}`, () => runner.works.close(root, force)),

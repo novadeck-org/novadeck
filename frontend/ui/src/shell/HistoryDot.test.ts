@@ -3,7 +3,7 @@ import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
 import { describe, expect, it } from "../test"
-import { HistoryDot, historyDotMs, HistoryDropNotice, recentDropMs } from "./HistoryDot"
+import { FlareDot, flareDotMs, HistoryDropNotice, recentDropMs } from "./HistoryDot"
 
 const unmounts: (() => void)[] = []
 afterEach(() => {
@@ -17,20 +17,20 @@ const mount = (element: React.ReactElement) => {
   return view
 }
 
-describe("History's dot", () => {
+describe("The flare dot", () => {
   it("stays away for the landings before it mounted", () => {
-    const { container } = mount(createElement(HistoryDot, { drops: 3 }))
-    expect(container.querySelector(".history-dot")).toBeNull()
+    const { container } = mount(createElement(FlareDot, { drops: 3 }))
+    expect(container.querySelector(".flare-dot")).toBeNull()
   })
 
   it("shows with its ring for a landing, and leaves once its flare has played", () => {
     vi.useFakeTimers()
-    const { container, rerender } = mount(createElement(HistoryDot, { drops: 0 }))
-    const dot = () => container.querySelector(".history-dot")
-    rerender(createElement(HistoryDot, { drops: 1 }))
+    const { container, rerender } = mount(createElement(FlareDot, { drops: 0 }))
+    const dot = () => container.querySelector(".flare-dot")
+    rerender(createElement(FlareDot, { drops: 1 }))
     expect(dot()).not.toBeNull()
     expect(dot()?.querySelector(".bell-dot-ring")).not.toBeNull()
-    act(() => vi.advanceTimersByTime(historyDotMs - 1))
+    act(() => vi.advanceTimersByTime(flareDotMs - 1))
     expect(dot()).not.toBeNull()
     act(() => vi.advanceTimersByTime(1))
     expect(dot()).toBeNull()
@@ -38,14 +38,14 @@ describe("History's dot", () => {
 
   it("flares afresh for a landing while one plays", () => {
     vi.useFakeTimers()
-    const { container, rerender } = mount(createElement(HistoryDot, { drops: 0 }))
-    const dot = () => container.querySelector(".history-dot")
-    rerender(createElement(HistoryDot, { drops: 1 }))
+    const { container, rerender } = mount(createElement(FlareDot, { drops: 0 }))
+    const dot = () => container.querySelector(".flare-dot")
+    rerender(createElement(FlareDot, { drops: 1 }))
     const first = dot()
-    act(() => vi.advanceTimersByTime(historyDotMs - 100))
-    rerender(createElement(HistoryDot, { drops: 2 }))
+    act(() => vi.advanceTimersByTime(flareDotMs - 100))
+    rerender(createElement(FlareDot, { drops: 2 }))
     expect(dot()).not.toBe(first)
-    act(() => vi.advanceTimersByTime(historyDotMs - 1))
+    act(() => vi.advanceTimersByTime(flareDotMs - 1))
     expect(dot()).not.toBeNull()
     act(() => vi.advanceTimersByTime(1))
     expect(dot()).toBeNull()

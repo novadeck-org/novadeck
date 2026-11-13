@@ -2,7 +2,7 @@ import type { ChangesContent } from "@novadeck/core/items"
 import type { Work } from "@novadeck/core/works"
 
 import { ready, type SampleArtifact } from "./artifacts"
-import { contentOf, diffOf, rangeOf, type Files, type History, type Step } from "./history"
+import { contentOf, diffOf, type Files, type History, type Step } from "./history"
 
 // What the dev server's terminal shows of an agent's whole change, in each shape the pane
 // draws: an ordinary change in layers (commits since main and the work not committed yet),
@@ -49,7 +49,6 @@ export const sample = (
     },
     content: ready(content),
     changeFile: (path, layers) => diffOf(whole, path, layers),
-    changeRange: (layers) => rangeOf(whole, layers),
   }
 }
 
