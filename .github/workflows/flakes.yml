@@ -156,7 +156,7 @@ jobs:
   retried:
     name: Retried Tests
     if: >-
-      github.event_name == 'workflow_run' && github.event.workflow_run.name != 'Package' &&
+      github.event_name == 'workflow_run' && github.event.workflow.name != 'Package' &&
       (github.event.workflow_run.pull_requests[0] != null ||
       github.event.workflow_run.event == 'merge_group')
     runs-on: ubuntu-latest
@@ -192,12 +192,17 @@ jobs:
         with:
           runtime: node@26
 
+      # The run with its workflow's name beside it: a run's own name is its title, which a
+      # workflow's `run-name` sets (E2E's names its pull request or harnesses).
       - name: Download Retry Records
         if: steps.find.outputs.found == 'true'
         shell: bash
+        env:
+          WORKFLOW_NAME: ${{ github.event.workflow.name }}
         run: |
           mkdir -p "$RUNNER_TEMP/run"
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" > "$RUNNER_TEMP/run/run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" \
+            | jq --arg name "$WORKFLOW_NAME" '. + {workflow_name: $name}' > "$RUNNER_TEMP/run/run.json"
           while read -r name; do
             gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$name" --dir "$RUNNER_TEMP/run/$name"
           done < "$RUNNER_TEMP/names.txt"
