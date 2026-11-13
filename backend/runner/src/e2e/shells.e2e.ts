@@ -53,9 +53,9 @@ const launch = (agent: string, command: string, summary: string): Reply => {
 }
 
 // Codex on Windows first runs one quick command that says which program started its
-// PowerShell, and the head of the PATH it was given: Novadeck's, where its commands capture.
+// PowerShell, the PATH it was given, and each pwsh on it: Novadeck's, where its commands capture.
 const which =
-  "echo novadeck-which; (Get-Process -Id $PID).Parent.Path; ($env:PATH -split ';')[0..2] -join '|'"
+  "echo novadeck-which; (Get-Process -Id $PID).Parent.Path; Get-ChildItem env: | ? Name -like 'path*' | % { $_.Name + '=' + $_.Value }; (Get-Command pwsh -All).Source -join '|'"
 const whichFirst = (agent: string) => agent === "codex" && process.platform === "win32"
 const whichSaid = (call: Call): string | undefined =>
   call.turns.find((turn) => turn.role === "tool" && turn.text.includes("novadeck-which"))?.text
