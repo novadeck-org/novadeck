@@ -138,7 +138,12 @@ export const createToasts = <T,>({ duration = 30_000 }: { duration?: number } = 
     pause: (id) => {
       if (id !== undefined) return store.pause(id)
       if (!engaged) {
-        if (overPill || !arrival.arrived()) return
+        if (overPill || !arrival.arrived()) {
+          // Zag 1.47 spreads the stack on the mouse event itself (its group machine goes to
+          // `stack`), not by asking the store, so the refusal puts the stack back.
+          store.collapse()
+          return
+        }
         engaged = true
         store.expand()
       }

@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
-    "@ark-ui/react": "^5.39.3",
+    "@ark-ui/react": "^5.40.0",
     "@novadeck/core": "workspace:*",
     "@novadeck/demo": "workspace:*",
     "@novadeck/demo-debug": "workspace:*",
