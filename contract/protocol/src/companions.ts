@@ -277,7 +277,8 @@ export const changeFileDiff = z.strictObject({
 // they were then. Shells are the background shells of the agent in the item's terminal, as
 // its `activity.shells` lists them, each with the end of its output (`output`): its last
 // lines, numbered from `firstLine`, of `total` read; `none` where its harness writes it nowhere
-// Novadeck can read (a Codex command run in a terminal of its own); `unreadable` where its
+// Novadeck can read (a Codex command run in a terminal of its own, or under the person's own
+// `shell_environment_policy`); `unreadable` where its
 // file is there and Novadeck can't read it now (no permission, in use, not a regular file);
 // `gone` where its file was there and no longer is, as Claude Code's goes with its session. Or why it can't be shown,
 // with the file's size where known.

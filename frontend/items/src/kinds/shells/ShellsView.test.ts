@@ -146,7 +146,7 @@ describe("the shells item", () => {
         shell("gone", { output: { state: "gone" }, exit: { at: now, code: 0 } }),
       ])
       const [none, gone] = rows(container)
-      expect(none!.note).toContain("Codex ran this in a terminal of its own")
+      expect(none!.note).toContain("Codex ran it in a terminal of its own")
       expect(gone!.note).toBe("Its output is gone.")
     })
 

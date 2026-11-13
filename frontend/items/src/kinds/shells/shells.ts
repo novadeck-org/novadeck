@@ -76,7 +76,7 @@ export const missingText = (shell: ShellEntry, agent: string, now: number): stri
     case "none":
       if (now - shell.since < youngMs) return "No output yet."
       return agent === "Codex"
-        ? `${agent} ran this in a terminal of its own, which Novadeck can't read. Its reply shows what it read.`
+        ? `Novadeck can't read what this printed: ${agent} ran it in a terminal of its own, or your ${agent} config sets its commands' environment.`
         : `Novadeck can't read this one's output; ${agent} shows what it read of it in its replies.`
     case "unreadable":
       return "Its output can't be read just now."

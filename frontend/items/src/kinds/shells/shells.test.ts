@@ -95,7 +95,7 @@ describe("output", () => {
     expect(missingText(none(0), "Claude", 60_000)).toBe(
       "Novadeck can't read this one's output; Claude shows what it read of it in its replies.",
     )
-    expect(missingText(none(0), "Codex", 60_000)).toContain("ran this in a terminal of its own")
+    expect(missingText(none(0), "Codex", 60_000)).toContain("ran it in a terminal of its own")
     expect(missingText(only("unreadable"), "Claude", 0)).toBe("Its output can't be read just now.")
     expect(missingText(only("gone"), "Claude", 0)).toBe(
       "Its output is gone. Claude cleared it with its session.",
