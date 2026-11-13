@@ -399,6 +399,21 @@ describe("the PowerShell pass-through", () => {
     expect(codexShim(off)).not.toContain('set "PATH=')
   })
 
+  it("is kept as an earlier writing left it at a start, so Codex's shim is written once", async ({
+    resources,
+  }) => {
+    const { directory, options } = setup(resources)
+    const on = await installShellFiles(directory, options())
+    const shim = codexShim(on)
+    const kept = await installShellFiles(directory, options({ pwsh: "kept" }))
+    expect(kept.pwshShimDir).toBe(on.pwshShimDir)
+    expect(codexShim(kept)).toBe(shim)
+    await installShellFiles(directory, options({ pwsh: false }))
+    const none = await installShellFiles(directory, options({ pwsh: "kept" }))
+    expect(none.pwshShimDir).toBeUndefined()
+    expect(existsSync(none.pwshDir)).toBe(false)
+  })
+
   it("is replaced by an upgrade in the same folder", async ({ resources }) => {
     const { directory, shim, options } = setup(resources)
     const first = await installShellFiles(directory, options())

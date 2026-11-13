@@ -1,4 +1,5 @@
 import { execFile, spawn } from "node:child_process"
+import { existsSync } from "node:fs"
 import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { basename, dirname, join } from "node:path"
 import { promisify } from "node:util"
@@ -51,8 +52,11 @@ export type InstallOptions = {
    * Whether to install it: on Windows only while Codex, whose commands capture through it, is
    * connected. Off, one installed before is taken away. A program named `pwsh.exe` that isn't
    * Microsoft's is one a machine's security software may question, so none sits there unused.
+   * `kept` leaves it as an earlier writing left it, for a start that can't yet tell whether
+   * Codex is connected: writing Codex's shim without it, then again with it moments later,
+   * would rename it under a terminal starting Codex just then.
    */
-  readonly pwsh?: boolean
+  readonly pwsh?: boolean | "kept"
   /** For tests: how to tell whether cmd prints (the machine's own check by default). */
   readonly prints?: typeof cmdPrints
   /** Where agents' worktrees live, for the shims to pass on (`~/.novadeck/worktrees` by default). */
@@ -106,8 +110,9 @@ export const installShellFiles = async (
   const covered = cmdShimDir !== undefined
   // On Windows Codex's commands capture through Novadeck's PowerShell, while Codex is connected,
   // once it is installed and is the shipped one. Without it, they run as before, uncaptured.
+  const pwshWanted = pwsh === "kept" ? existsSync(join(paths.pwshDir, "pwsh.exe")) : pwsh
   const pwshShimDir =
-    platform === "win32" && pwsh ? await installPwshShim(pwshShim, paths, short) : undefined
+    platform === "win32" && pwshWanted ? await installPwshShim(pwshShim, paths, short) : undefined
   if (pwshShimDir === undefined)
     await rm(paths.pwshDir, { recursive: true, force: true }).catch(() => {})
   if (prints === "prints")

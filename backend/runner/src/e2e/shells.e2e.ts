@@ -52,12 +52,21 @@ const launch = (agent: string, command: string, summary: string): Reply => {
   }
 }
 
+// Codex on Windows first runs one quick command that says which program started its
+// PowerShell, and the head of the PATH it was given: Novadeck's, where its commands capture.
+const which =
+  "echo novadeck-which; (Get-Process -Id $PID).Parent.Path; ($env:PATH -split ';')[0..2] -join '|'"
+const whichFirst = (agent: string) => agent === "codex" && process.platform === "win32"
+const whichSaid = (call: Call): string | undefined =>
+  call.turns.find((turn) => turn.role === "tool" && turn.text.includes("novadeck-which"))?.text
+
 // What the results of the shells started so far say, oldest first.
 const started = (call: Call): string[] =>
   call.turns
     .filter((turn) => turn.role === "tool")
     .map((turn) => turn.text)
     .filter((text) => /background|session ID|Process exited/.test(text))
+    .filter((text) => !text.includes("novadeck-which"))
 
 // The agent stopping the last shell it started; Codex's person stops theirs with /stop.
 const stopping = (call: Call, agent: string): Reply => {
@@ -92,6 +101,7 @@ for (const setup of setups) {
       async ({ e2e: run }) => {
         if (setup.agent === "claude") allowClaude(run)
         if (setup.agent === "codex") openCodex(run)
+        let whichOutput: string | undefined
         run.model.use(
           own((call) => {
             if (call.side) return undefined
@@ -108,6 +118,9 @@ for (const setup of setups) {
               said("Start the shells") &&
               (last?.role === "tool" || asked(call, "Start the shells"))
             ) {
+              whichOutput ??= whichSaid(call)
+              if (whichFirst(setup.agent) && whichOutput === undefined)
+                return { calls: [{ name: "exec_command", input: { cmd: which } }] }
               const done = started(call).length
               return done < 3
                 ? launch(
@@ -140,6 +153,8 @@ for (const setup of setups) {
           "the three shells told",
           90_000,
         )
+        // Codex's PowerShell on Windows is Novadeck's, which starts Microsoft's for the command.
+        if (whichFirst(setup.agent)) expect(whichOutput).toMatch(/[\\/]pwsh[\\/]pwsh\.exe/i)
         // Running: each with a harness id of its own, its command and when it started.
         const running = shellsOf(t)
         expect(running.map(({ command }) => command)).toEqual(commands(setup.agent))
