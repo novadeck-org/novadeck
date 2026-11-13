@@ -173,7 +173,12 @@ describe("the debug panel's Changes group", () => {
       const before = works.state.getSnapshot().works
       run("Worktrees not read yet", undefined)
       expect(works.state.getSnapshot()).toEqual({ works: [], synced: false, reported: false })
-      vi.advanceTimersByTime(3_000)
+      vi.advanceTimersByTime(2_000)
+      // Again meanwhile: the same works come back, 3 s on.
+      run("Worktrees not read yet", undefined)
+      vi.advanceTimersByTime(2_000)
+      expect(works.state.getSnapshot().reported).toBe(false)
+      vi.advanceTimersByTime(1_000)
       expect(works.state.getSnapshot()).toEqual({ works: before, synced: true, reported: true })
     } finally {
       vi.useRealTimers()

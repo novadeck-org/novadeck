@@ -86,10 +86,16 @@ export type WorksOptions = {
   /** How often each checkout is read, in milliseconds. */
   readonly everyMs?: number
   /**
-   * How long a watch waits for the first sight of the works before `synced` is told without
-   * it, in milliseconds (1.5 s when not given).
+   * How long a watch waits for a fresh read of the works before `synced` is told with what was
+   * read before, in milliseconds (1.5 s when not given).
    */
   readonly firstMs?: number
+  /**
+   * How long a watch waits for the very first read of the works, with nothing read before to
+   * tell instead, in milliseconds (20 s when not given). `synced` without it would say there
+   * are none.
+   */
+  readonly coldMs?: number
   readonly now?: () => number
 }
 
@@ -166,6 +172,9 @@ export class Works {
   private readonly pairs = new Map<string, readonly string[]>()
   private readonly every: number
   private readonly first: number
+  private readonly cold: number
+  /** Whether a pass has told the works once: until then `published` is empty, not the works. */
+  private passed = false
   private readonly now: () => number
   private queue: Promise<unknown> = Promise.resolve()
   private loop: AbortController | undefined
@@ -177,6 +186,7 @@ export class Works {
   constructor(private readonly options: WorksOptions) {
     this.every = options.everyMs ?? 3000
     this.first = options.firstMs ?? 1_500
+    this.cold = options.coldMs ?? 20_000
     this.now = options.now ?? Date.now
     this.saves = options.memory === undefined ? undefined : new RememberedSaves(options.memory)
     this.loaded =
@@ -197,10 +207,18 @@ export class Works {
   /** Every work, `synced`, then each later change, until `signal` aborts or the owner leaves. */
   async *watch(ownerId: string, signal?: AbortSignal): AsyncGenerator<WorkChange> {
     if (this.stopped) throw new DomainError("CLOSING")
-    // The first sight of every checkout may take a while; what is not in by then follows.
+    // A fresh read of every checkout may take a while; what is not in by then follows. The
+    // first one ever is waited for, as nothing read before stands in for it.
     // With others already watching the works are as new as the last poll; else read afresh.
     const scanning = this.scan(!this.polling())
-    await Promise.race([scanning, sleep(this.first)])
+    const waiting = new AbortController()
+    await Promise.race([
+      scanning,
+      sleep(this.passed ? this.first : this.cold, undefined, { signal: waiting.signal }).catch(
+        () => {},
+      ),
+    ])
+    waiting.abort()
     const watcher = new KeyedChanges<string, WorkChange>(
       [...this.published].map(([root, work]) => [root, { type: "changed", work }] as const),
       { type: "synced" },
@@ -450,6 +468,7 @@ export class Works {
     this.forgetAbandoned(tracking, new Set(presences.map((each) => each.root)))
     const found = await this.compose(tracked, presences)
     this.publish(found)
+    this.passed = true
     this.remember()
   }
 
