@@ -156,18 +156,20 @@ for (const setup of setups) {
       it("tree, screen and activity while a ! command runs", async ({ e2e: run }) => {
         if (part === "typed" || part === "noise") return
         const held = gate()
+        // The agent's own turns only: Codex asks for a title with the prompt in the request, with
+        // no tools offered, and a tool call answered there is refused.
         run.model.use(
           async (call) => {
-            if (!asked(call, "Hold on")) return undefined
+            if (call.side || !asked(call, "Hold on")) return undefined
             await held.opened
             return { text: "Held." }
           },
           (call) => {
-            if (!asked(call, "Tool run")) return undefined
+            if (call.side || !asked(call, "Tool run")) return undefined
             if (call.turns.some((turn) => turn.role === "tool")) return { text: "Tool done." }
             return setup.shell?.run(call, "sleep 20")
           },
-          (call) => (asked(call, "After bang") ? { text: "After." } : undefined),
+          (call) => (!call.side && asked(call, "After bang") ? { text: "After." } : undefined),
         )
         const out: Record<string, unknown> = { agent: setup.agent, hz, pid: process.pid }
         const t = await start(run, setup)
