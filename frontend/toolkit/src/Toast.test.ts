@@ -331,3 +331,46 @@ describe("focus in the stack", () => {
     view.unmount()
   })
 })
+
+describe("a page hidden and shown again", () => {
+  const setHidden = (hidden: boolean): void => {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => (hidden ? "hidden" : "visible"),
+    })
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden })
+    document.dispatchEvent(new Event("visibilitychange"))
+  }
+
+  it("holds the timers while hidden and leaves the stack at rest", async () => {
+    const { toasts, view, doc } = mount(undefined, false)
+    await act(async () => {
+      toasts.show("a", "a")
+      toasts.show("b", "b")
+    })
+    // The pointer moves somewhere on the page, not over the stack.
+    await act(async () => {
+      const move = new MouseEvent("mousemove", { bubbles: true })
+      Object.defineProperty(move, "movementX", { value: 8 })
+      doc.body.dispatchEvent(move)
+    })
+    try {
+      await act(async () => {
+        setHidden(true)
+        await sleep(30)
+      })
+      expect(doc.querySelector(".toast[data-paused]")).not.toBeNull()
+      expect(doc.querySelector(".toast[data-stack]")).toBeNull()
+      await act(async () => {
+        setHidden(false)
+        await sleep(30)
+      })
+      expect(doc.querySelector(".toast[data-paused]")).toBeNull()
+      expect(doc.querySelector(".toast[data-stack]")).toBeNull()
+    } finally {
+      delete (document as { hidden?: boolean }).hidden
+      delete (document as { visibilityState?: string }).visibilityState
+      view.unmount()
+    }
+  })
+})
