@@ -1,10 +1,10 @@
 import type { WorkspaceTarget } from "@novadeck/core/types"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { createLucideIcon, Minus, X } from "lucide-react"
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
 import { AwakeContext, useWakeful } from "../../awake"
-import { isNew, type BarMember, type BehindGroup } from "../../bar/bar"
+import { isNew, isSecret, type BarMember, type BehindGroup } from "../../bar/bar"
 import type { LookContext } from "../../registration"
 import { stackNames } from "../../registry"
 import type { ItemStore } from "../../store/item-store"
@@ -204,49 +204,89 @@ const BehindStack = ({
   </div>
 )
 
+// Where the pane's tab row was scrolled to, and which tab is to take focus: the row is
+// drawn anew under each thing's header, and again as it loads, so the pane keeps them.
+type TabRowMemory = {
+  readonly scrolled: (scroll: number) => void
+  // The person picked `key`, with focus in the row or not.
+  readonly picked: (key: string, focused: boolean) => void
+  readonly scroll: () => number
+  // Whether the tab of `key` takes focus as its row is drawn: picked with focus in the
+  // row a moment ago.
+  readonly focuses: (key: string) => boolean
+}
+
 // The tabs of the icon the pane shows, under its header: each thing of it on the bar, the
-// shown one selected. A click shows one and its × closes it; the arrow keys, Home and End
-// step along them as a tab list's do, showing each, the tab they land on keeping focus.
+// shown one selected. A click shows one; the arrow keys, Home and End step along them as a
+// tab list's do, showing each, but only move to one that may hold secrets, which Enter
+// shows; Delete closes the tab with focus, as its × does under the pointer. The row
+// scrolls sideways under the wheel too, keeping the shown tab, × and all, in view.
 const PaneTabs = ({
   tabs,
   shown,
   plans,
-  takeFocus,
+  memory,
   onPick,
   onClose,
 }: {
   tabs: readonly BarMember[]
   shown: string
   plans: LookContext["plans"]
-  // Whether a tab had focus as the person picked the one shown, which then takes it: the
-  // row is drawn anew with what it shows.
-  takeFocus: () => boolean
+  memory: TabRowMemory
   onPick: (member: BarMember) => void
   onClose: (member: BarMember) => void
 }): React.JSX.Element => {
-  const selected = useRef<HTMLButtonElement>(null)
-  useEffect(() => {
-    if (takeFocus()) selected.current?.focus({ preventScroll: true })
-    selected.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" })
-  }, [takeFocus])
-  const at = tabs.findIndex((tab) => tab.key === shown)
-  const step: Record<string, (() => number) | undefined> = {
-    ArrowLeft: () => (at - 1 + tabs.length) % tabs.length,
-    ArrowRight: () => (at + 1) % tabs.length,
-    Home: () => 0,
-    End: () => tabs.length - 1,
+  const row = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const element = row.current
+    const tab = element?.querySelector<HTMLElement>(".pane-tab[data-state='open']")
+    if (!element || !tab) return
+    // Where the tab starts along the row, however far the row is scrolled now.
+    const start =
+      tab.getBoundingClientRect().left - element.getBoundingClientRect().left + element.scrollLeft
+    const end = start + tab.offsetWidth
+    element.scrollLeft = Math.min(
+      Math.max(memory.scroll(), end - element.clientWidth),
+      Math.max(0, start),
+    )
+    if (memory.focuses(shown))
+      tab.querySelector<HTMLElement>('[role="tab"]')?.focus({ preventScroll: true })
+  }, [memory, shown])
+  const pick = (tab: BarMember): void => {
+    memory.picked(tab.key, row.current?.contains(document.activeElement) ?? false)
+    onPick(tab)
   }
   return (
     <div
+      ref={row}
       className="pane-tabs nodrag nopan"
       role="tablist"
       aria-label="Open in the pane"
+      onScroll={(event) => {
+        memory.scrolled(event.currentTarget.scrollLeft)
+      }}
+      onWheel={(event) => {
+        if (event.deltaY !== 0 && event.deltaX === 0) event.currentTarget.scrollLeft += event.deltaY
+      }}
       onKeyDown={(event) => {
-        const to = step[event.key]
-        if (!to || !(event.target as Element).matches('[role="tab"]')) return
+        const buttons = [...event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')]
+        const at = buttons.indexOf(event.target as HTMLElement)
+        if (at < 0) return
+        if (event.key === "Delete") {
+          event.preventDefault()
+          return onClose(tabs[at]!)
+        }
+        const to = {
+          ArrowLeft: (at - 1 + tabs.length) % tabs.length,
+          ArrowRight: (at + 1) % tabs.length,
+          Home: 0,
+          End: tabs.length - 1,
+        }[event.key]
+        if (to === undefined) return
         event.preventDefault()
-        const next = tabs[to()]
-        if (next && next.key !== shown) onPick(next)
+        const next = tabs[to]!
+        if (isSecret(next) || next.key === shown) buttons[to]?.focus()
+        else pick(next)
       }}
     >
       {tabs.map((tab) => {
@@ -259,29 +299,30 @@ const PaneTabs = ({
             data-state={open ? "open" : isNew(tab) ? "new" : undefined}
           >
             <button
-              ref={open ? selected : undefined}
               type="button"
               role="tab"
               className="pane-tab-open"
               aria-selected={open}
+              aria-keyshortcuts="Delete"
               tabIndex={open ? 0 : -1}
               title={name}
               onClick={() => {
-                if (!open) onPick(tab)
+                if (!open) pick(tab)
               }}
             >
               <Icon size={14} strokeWidth={1.5} aria-hidden="true" />
               <span className="pane-tab-name">{name}</span>
             </button>
-            <button
-              type="button"
+            {/* The pointer's close; the keyboard's is Delete on the tab, so the list holds
+                only tabs. */}
+            <span
               className="icon-button pane-tab-close"
-              aria-label={`Close ${name}`}
-              tabIndex={open ? 0 : -1}
+              aria-hidden="true"
+              title={`Close ${name}`}
               onClick={() => onClose(tab)}
             >
               <X size={12} strokeWidth={1.75} aria-hidden="true" />
-            </button>
+            </span>
           </span>
         )
       })}
@@ -298,6 +339,8 @@ type Entry = "forward" | "arrive" | undefined
 type Shown = {
   readonly key: string | undefined
   readonly behind: string
+  // The tabs it was one of.
+  readonly tabs: string
   readonly how: Entry
   readonly tucked: string | undefined
 }
@@ -355,21 +398,25 @@ export const CompanionPane = ({
   // A new top comes forward when it was behind, and over what was shown when it's new;
   // another tab of the same icon just shows.
   const behindKeys = behind.map((each) => each.front.key).join("\n")
+  const tabKeys = tabs.map((each) => each.key).join("\n")
   const [entry, setEntry] = useState<Shown>({
     key: member?.key,
     behind: behindKeys,
+    tabs: tabKeys,
     how: undefined,
     tucked: undefined,
   })
-  if (entry.key !== member?.key || entry.behind !== behindKeys) {
+  if (entry.key !== member?.key || entry.behind !== behindKeys || entry.tabs !== tabKeys) {
     const swapped =
       entry.key !== member?.key &&
       entry.key !== undefined &&
       member !== undefined &&
-      !tabs.some((each) => each.key === entry.key)
+      !tabs.some((each) => each.key === entry.key) &&
+      !entry.tabs.split("\n").includes(member.key)
     setEntry({
       key: member?.key,
       behind: behindKeys,
+      tabs: tabKeys,
       how: !swapped
         ? entry.key === member?.key
           ? entry.how
@@ -412,13 +459,27 @@ export const CompanionPane = ({
     if (handed && (!focused || focused === document.body))
       section.current?.focus({ preventScroll: true })
   }, [member?.key])
-  // A tab had focus as the person picked another: the new row's selected tab takes it.
-  const tabFocus = useRef(false)
-  const takeFocus = useCallback((): boolean => {
-    const had = tabFocus.current
-    tabFocus.current = false
-    return had
-  }, [])
+  // Where the tab row was, for each row drawn: the pane's own, as long as it shows.
+  const tabRow = useRef<{ scroll: number; focus: { key: string; at: number } | null }>({
+    scroll: 0,
+    focus: null,
+  })
+  const tabMemory = useMemo(
+    (): TabRowMemory => ({
+      scrolled: (scroll) => {
+        tabRow.current.scroll = scroll
+      },
+      picked: (key, focused) => {
+        tabRow.current.focus = focused ? { key, at: performance.now() } : null
+      },
+      scroll: () => tabRow.current.scroll,
+      focuses: (key) => {
+        const wanted = tabRow.current.focus
+        return wanted?.key === key && performance.now() - wanted.at < handOffMs
+      },
+    }),
+    [],
+  )
   const undock = member?.kind === "item" && !member.placed ? () => onUndock(member) : undefined
   const tab = member && (
     <UnderHeader
@@ -428,11 +489,8 @@ export const CompanionPane = ({
             tabs={tabs}
             shown={member.key}
             plans={plans}
-            takeFocus={takeFocus}
-            onPick={(each) => {
-              tabFocus.current = document.activeElement?.closest(".pane-tabs") != null
-              onRaise(each)
-            }}
+            memory={tabMemory}
+            onPick={onRaise}
             onClose={handOff(onClose)}
           />
         ) : null

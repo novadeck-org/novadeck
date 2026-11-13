@@ -139,9 +139,10 @@ describe("A terminal's taskbar", () => {
     const pane = companionPane("Build Studio")
     await expect.element(pane.getByText("src/content/projects.json", { exact: true })).toBeVisible()
 
-    // Its tab's close: the other file shows, alone now, so without tabs, and closing that
-    // one from its header takes the pane.
-    await pane.getByRole("button", { name: "Close projects.json", exact: true }).click()
+    // Its tab's close, Delete on the tab: the other file shows, alone now, so without tabs,
+    // and closing that one from its header takes the pane.
+    await pane.getByRole("tab", { name: "projects.json" }).click()
+    await userEvent.keyboard("{Delete}")
     await expect.element(pane.getByText("docs/brand-voice.md", { exact: true })).toBeVisible()
     expect(pane.getByRole("tab").query()).toBeNull()
     await pane.getByRole("button", { name: "Close brand-voice.md", exact: true }).click()

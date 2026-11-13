@@ -585,16 +585,53 @@ describe("a terminal's taskbar", () => {
       expect(document.activeElement).toBe(tab(container, "about.png"))
     })
 
-    it("closes a tab with its ×, showing the one beside it", async () => {
+    const ids = (workspace: WorkspaceStore) =>
+      activeSession(workspace.getSnapshot())!.state.items.map((item) => item.id)
+
+    it("closes a tab with its ×, showing the one beside it as it is", async () => {
       const { container, workspace } = renderTerminal(opening(notes, hero))
       await act(async () =>
-        container.querySelector<HTMLButtonElement>("[aria-label='Close hero.png']")?.click(),
+        container.querySelector<HTMLElement>(".pane-tab-close[title='Close hero.png']")?.click(),
       )
-      expect(activeSession(workspace.getSnapshot())!.state.items.map((item) => item.id)).toEqual([
-        about.id,
-        notes.id,
-      ])
+      expect(ids(workspace)).toEqual([about.id, notes.id])
       expect(icon(container, "about.png")?.getAttribute("data-state")).toBe("open")
+      expect(container.querySelector(".pane-sheet")?.hasAttribute("data-entry")).toBe(false)
+    })
+
+    it("closes the tab with focus on Delete, the list holding only tabs", async () => {
+      const { container, workspace } = renderTerminal(opening(hero))
+      expect(
+        [...container.querySelectorAll(".pane-tabs button, .pane-tabs [tabindex]")].every(
+          (each) => each.getAttribute("role") === "tab",
+        ),
+      ).toBe(true)
+      tab(container, "about.png")?.focus()
+      await act(async () =>
+        tab(container, "about.png")?.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Delete", bubbles: true }),
+        ),
+      )
+      expect(ids(workspace)).toEqual([hero.id, notes.id])
+    })
+
+    it("only moves to a tab that may hold secrets with the arrow keys, showing it on Enter", async () => {
+      const held = itemFixture("held", "01", {
+        kind: "image",
+        name: "held.png",
+        path: "/p/held.png",
+        secret: true,
+      })
+      const { container } = renderTerminal(workspaceReducer(opening(hero), shown(held)))
+      tab(container, "hero.png")?.focus()
+      await act(async () =>
+        tab(container, "hero.png")?.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "End", bubbles: true }),
+        ),
+      )
+      expect(tabs(container)).toEqual(["hero.png *", "about.png", "held.png"])
+      expect(document.activeElement).toBe(tab(container, "held.png"))
+      await act(async () => tab(container, "held.png")?.click())
+      expect(tabs(container)).toEqual(["hero.png", "about.png", "held.png *"])
     })
 
     it("labels the stack once it's behind with its kind, its count and the one in front", () => {

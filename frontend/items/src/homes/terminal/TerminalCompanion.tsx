@@ -273,6 +273,15 @@ export const TerminalCompanion = ({
     picked(key)
     commands.openBarTab(terminal, key)
   }
+  // Whether closing it asks first: a plan placed here whose edits can't reach its files,
+  // which closing loses. On its own terminal's bar a plan only hides, keeping its edits.
+  const asksFirst = (each: BarMember): boolean => {
+    if (each.kind !== "item" || each.item.kind !== "plan" || !each.item.from) return false
+    if (isOnBar(each.item, each.item.from.terminalId)) return false
+    const { plans: edits, content } = itemStore.store.getSnapshot()
+    const plan = edits[each.key]
+    return plan !== undefined && stuckEdits(plan, content[each.key])
+  }
   // Minimizing what the pane shows minimizes everything open of its icon with it.
   const minimizeShown = (key: BarKey): void =>
     commands.minimizeOnBar(terminal, openOfGroup(slots, key, bar.stack))
@@ -293,15 +302,7 @@ export const TerminalCompanion = ({
     seen: (itemIds) => commands.markSeen(itemIds),
     close: (each) => {
       if (each.kind === "messages") return commands.hideOnBar(terminal, messagesKey)
-      // On its own terminal's bar a plan only hides, keeping its edits.
-      const plan = itemStore.store.getSnapshot().plans[each.key]
-      if (
-        each.item.kind === "plan" &&
-        each.item.from &&
-        !isOnBar(each.item, each.item.from.terminalId) &&
-        plan &&
-        stuckEdits(plan, itemStore.store.getSnapshot().content[each.key])
-      )
+      if (asksFirst(each))
         return setClosing((queue) =>
           queue.some((queued) => queued.id === each.key) ? queue : [...queue, each.item],
         )
@@ -369,11 +370,11 @@ export const TerminalCompanion = ({
     onMinimize: (each) => minimizeShown(each.key),
     onHide: () => commands.closeBarPane(terminal),
     // Closing what the pane shows shows the tab beside it, as an editor's tabs do, unless
-    // that may hold secrets, which shows only once picked.
+    // that may hold secrets, which shows only once picked, or the close asks first.
     onClose: (each) => {
       const at = tabs.findIndex((other) => other.key === each.key)
       const next = tabs[at + 1] ?? tabs[at - 1]
-      if (each.key === showing && at >= 0 && next && !isSecret(next))
+      if (each.key === showing && at >= 0 && next && !isSecret(next) && !asksFirst(each))
         commands.openBarTab(terminal, next.key)
       actions.close(each)
     },

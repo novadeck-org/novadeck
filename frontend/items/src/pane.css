@@ -290,13 +290,14 @@
 }
 
 /* The tabs of a stack, under the header of what the pane shows: one row, scrolling sideways
-   when there are more than fit, the one shown joined to what's under it. */
+   under a thin bar when there are more than fit, the one shown joined to what's under it. */
 .pane-tabs {
   display: flex;
   flex: none;
   min-width: 0;
   overflow-x: auto;
-  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
   border-bottom: var(--border-width) solid var(--pane-tabs-border-color, var(--color-line));
   background-color: var(--pane-tabs-bg, var(--color-shell));
 }
@@ -365,9 +366,13 @@
   outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
   outline-offset: calc(var(--focus-ring-width) * -1);
 }
-/* Its close shows on the tab shown, and on any under the pointer or holding focus. */
+/* Its close, the pointer's, shows on the tab shown, and on any under the pointer or
+   holding focus. */
 .pane-tab-close {
+  display: grid;
+  place-items: center;
   flex: none;
+  cursor: pointer;
   width: 22px;
   height: 22px;
   margin-right: 6px;
