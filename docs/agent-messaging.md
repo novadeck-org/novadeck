@@ -315,9 +315,9 @@ Before handles came back, a `send` to it was refused as an unknown handle; now i
 reach an unrelated terminal. So a tool that takes a handle (`send` to one handle or several,
 `lead`, `release`, `close_terminal`, `give_worktree`) **refuses the first call** to a handle
 that went to a terminal its calling agent session may not know under that handle, and says
-so: the error names the new holder (handle, title, summary, when it was opened) and, where
-History still has it, the terminal the agent may have known as `@moth`, which closed, and
-that calling again with the same handle reaches the new one. The second call of the same
+so: the error names the new holder (handle, title, summary, when it was opened), the
+terminal the agent may have known as `@moth`, which closed, and that calling again with the
+same handle reaches the new one. The second call of the same
 session to the same handle goes through. A send to `team` names no handle (it means the
 terminals the caller leads, by id), so the guard never holds it back; a send to several
 named handles is refused whole, naming each one the session wasn't shown, before any of
@@ -325,10 +325,19 @@ them gets the message.
 
 The rule (`terminals/introductions.ts`, `unknownTo`): the call is refused when the target's
 `handleGivenAt` is greater than 0 _and_ the calling agent session began before it _and_
-the session has not been shown that terminal since. A session began (`knew.since`) when
-its report first came to the terminal (the start of the hook that named it); a session that
-began after the handle was given knows only the holder now, which is why a `/clear`, a new
-session, resets it. A session has been **shown** a terminal (by id, `knew.shown`) by any of:
+the session has not been shown that terminal since _and_ History keeps a terminal of the
+project that last held the handle before it was given, and that closed after the session
+began. A handle given for the first time, or whose last holder closed before the session
+began, names no terminal the agent could have known, so a terminal the person makes while an
+agent runs is not refused. One whose last holder closed longer ago than History keeps (a
+week) is not refused either: the guard can't name it, which leaves a session that ran for
+over a week able to reach the new holder unwarned. A session began (`knew.since`) when
+its report first came to the terminal (the start of the hook that named it), or when it
+first reported to the runner at all, where its report log still has that: a conversation
+resumed in another terminal, or after another session in this one (`claude --resume`,
+`/resume`, `codex resume`, Antigravity reopening a conversation), began when it first ran,
+since its context may name what it knew then. A session that began after the handle was
+given knows only the holder now, which is why a `/clear`, a new session, resets it. A session has been **shown** a terminal (by id, `knew.shown`) by any of:
 an `agents` or `team` result (which lists every other terminal of the project and session),
 the result of the `open_agent` or `open_terminal` that created it, a notice naming it (the
 `give_worktree` notice to the receiver names the giver), a message exchanged with it since

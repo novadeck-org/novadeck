@@ -17,6 +17,9 @@ export type Caller = Pick<Record, "summary"> & Partial<Pick<Record, "root" | "ag
  * and an agent's context may still name the old one: its transcript, its briefs, messages it
  * was delivered, listings and notices. A call to such a handle refuses once, naming the new
  * holder, unless the agent's session was shown that terminal since it was given the handle.
+ * A handle History knows no earlier holder of that closed after the session began (one never
+ * given before, one whose holder closed before the session began, or longer ago than History
+ * keeps) never refuses: there is no other terminal the session could mistake it for.
  *
  * A session knows a terminal under its handle when it began after the handle was given, or
  * was shown the terminal since, by an `agents` or `team` listing, a message exchanged with
@@ -42,28 +45,21 @@ export type Holder = {
   readonly givenAt: number
 }
 
-/** What the refusal tells of the terminal that held the handle before, when History knows. */
+/** What the refusal tells of the terminal that held the handle before, as History keeps it. */
 export type Former = { readonly title: string; readonly closedAt: number }
 
 /**
  * Why a call to `handle` was refused this once: the terminal it names now, the one it
  * named before, and that calling again with the same handle reaches the new one.
  */
-export const introduction = (
-  handle: string,
-  holder: Holder,
-  former: Former | undefined,
-  now: number,
-): string =>
+export const introduction = (handle: string, holder: Holder, former: Former, now: number): string =>
   [
     `Nothing was done. ${mention(handle)} is not the terminal you may know by that name: ` +
       "Novadeck gives a handle to a new terminal an hour after its last holder closes.",
     `${mention(handle)} now is "${shorten(holder.title, 80)}"` +
       `${holder.summary ? `, ${shorten(holder.summary, 160)}` : ""}, opened ${ago(holder.givenAt, now)}.`,
-    former
-      ? `The terminal you may have known as ${mention(handle)} ("${shorten(former.title, 80)}") ` +
-        `closed ${ago(former.closedAt, now)}.`
-      : `The terminal you may have known as ${mention(handle)} closed.`,
+    `The terminal you may have known as ${mention(handle)} ("${shorten(former.title, 80)}") ` +
+      `closed ${ago(former.closedAt, now)}.`,
     `If you mean the new ${mention(handle)}, call again with the same handle and it goes ` +
       "through; `agents` describes every terminal here.",
   ].join("\n")
@@ -93,15 +89,17 @@ export class Introductions {
   knew(caller: Caller): Knew | undefined {
     const { root } = caller
     if (!root) return undefined
-    const key = JSON.stringify([caller.summary.id, root.agent, root.sessionId])
+    const key = keyOf(caller)
     const known = this.known.get(key)
     if (known) return known
     const report = caller.agents?.[root.agent]
     const saved = report?.sessionId === root.sessionId ? report.knew : undefined
     // A guess may be corrected to another session, and its start is not known: it counts as
-    // having begun before everything.
-    const guess = guessed(root, harnesses[root.agent].messaging.root)
-    return this.keep(key, guess ? { since: 0, shown: saved?.shown ?? [] } : (saved ?? zero))
+    // having begun before everything, until it is confirmed (its own key).
+    return this.keep(
+      key,
+      isGuess(caller) ? { since: 0, shown: saved?.shown ?? [] } : (saved ?? zero),
+    )
   }
 
   /** The terminals are shown to the caller's root session by name. */
@@ -115,11 +113,11 @@ export class Introductions {
       since: knew.since,
       shown: [...knew.shown, ...fresh].slice(-shownKept),
     }
-    this.keep(JSON.stringify([caller.summary.id, root.agent, root.sessionId]), next)
+    this.keep(keyOf(caller), next)
     const report = caller.agents?.[root.agent]
     if (!caller.agents || report?.sessionId !== root.sessionId) return
-    // A guess is kept in memory only: its start was never known.
-    if (guessed(root, harnesses[root.agent].messaging.root)) return
+    // A guess is kept in memory only: it may be corrected to another session.
+    if (isGuess(caller)) return
     caller.agents = {
       ...caller.agents,
       [root.agent]: { ...report, knew: next },
@@ -134,6 +132,17 @@ export class Introductions {
     return knew
   }
 }
+
+/**
+ * Where a caller's root session's knowledge is kept in memory: by terminal, agent and
+ * session, and whether the root is still a guess, so a guess's unknown start doesn't stay
+ * with it once its harness confirms it.
+ */
+const keyOf = (caller: Caller): string =>
+  JSON.stringify([caller.summary.id, caller.root?.agent, caller.root?.sessionId, isGuess(caller)])
+
+const isGuess = ({ root }: Caller): boolean =>
+  !!root && guessed(root, harnesses[root.agent].messaging.root)
 
 /** A session whose start is not known, and that was shown nothing. */
 const zero: Knew = { since: 0, shown: [] }

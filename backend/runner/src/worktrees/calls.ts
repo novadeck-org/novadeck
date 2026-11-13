@@ -247,11 +247,16 @@ export class WorktreeCalls {
             return tell(call.terminalId, worktreeNotice.moved(path))
           tell(call.terminalId, worktreeNotice.taken(path, branch))
           // Its old owner's agent, if it still runs, learns on its next turn.
-          if (this.host.records().has(ownerId))
+          if (this.host.records().has(ownerId)) {
             tell(ownerId, worktreeNotice.lost(caller.summary.handle, path, branch))
+            // The notice names the taker, so its handle is the old owner's to use.
+            this.host.peers().introduce(ownerId, call.terminalId)
+          }
         })().catch(() => undefined)
       },
     )
+    // The answer names the owner, so its handle is the caller's to use.
+    if (owner) this.host.peers().introduce(call.terminalId, owner.summary.id)
     return {
       ok: true,
       path,

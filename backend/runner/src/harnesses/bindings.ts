@@ -167,6 +167,7 @@ export const observe = (
   state: Sessions,
   event: SessionObserved,
   facts: Facts,
+  firstReported?: number,
 ): Sessions | undefined => {
   if (!facts.connected) return undefined
   if (facts.shellInForeground) return undefined
@@ -186,8 +187,12 @@ export const observe = (
   const told = same ? known.told : undefined
   const endedAt = same ? known.endedAt : undefined
   // A session new to this terminal begins now, knowing none of its project's terminals but
-  // as shown it; one reporting again keeps what it was shown, or nothing known of it.
-  const knew = same ? known.knew : { since: event.startedAt, shown: [] }
+  // as shown it, unless it reported before (`firstReported`): one resumed here from another
+  // terminal, or after another session here, began then, and its context may name what it
+  // knew then. One reporting again keeps what it was shown, or nothing known of it.
+  const knew = same
+    ? known.knew
+    : { since: Math.min(event.startedAt, firstReported ?? Infinity), shown: [] }
   // Where it bound stays its folder: a harness looks a conversation up by it, so a resume
   // must run there, whatever directory a later report names.
   const cwd = (same && known.cwd) || event.cwd || state.cwd

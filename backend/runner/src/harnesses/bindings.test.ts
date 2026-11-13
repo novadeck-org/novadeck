@@ -326,6 +326,23 @@ describe("what a session was shown of its project's terminals", () => {
     expect(cleared.sessions.claude?.knew).toEqual({ since: 5_000, shown: [] })
   })
 
+  it("begins when a resumed session first reported, in this terminal or another", () => {
+    // `/resume` back to a conversation the runner logged a report of at 800.
+    const first = observe(idle, seen(), facts)!
+    const resumed = observe(
+      first,
+      seen({ sessionId: "b", startedAt: 5_000, evidence: "native-switch" }),
+      facts,
+      800,
+    )!
+    expect(resumed.sessions.claude?.knew).toEqual({ since: 800, shown: [] })
+    // A report logged after the hook that named it doesn't move its start later.
+    expect(observe(idle, seen(), facts, 9_000)!.sessions.claude?.knew).toEqual({
+      since: 2_000,
+      shown: [],
+    })
+  })
+
   it("stays with the session as it reports again, shown terminals and all", () => {
     const shown = {
       sessions: { claude: { sessionId: "a", seq: 2_000, knew: { since: 1_000, shown: ["F"] } } },

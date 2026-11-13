@@ -42,6 +42,10 @@ const world = (
     readonly agent?: AgentName
     readonly source?: Root["source"]
     readonly foxGivenAt?: number
+    /** False where History keeps no terminal that held `fox` before. */
+    readonly former?: false
+    /** When the terminal that held `fox` before closed: just before it was given, if not. */
+    readonly formerClosedAt?: number
   } = {},
 ): World => {
   const agent = options.agent ?? "claude"
@@ -113,7 +117,9 @@ const world = (
       stopping: () => false,
       save: (each) => void saved.push(each),
       former: (_session, handle, before) =>
-        handle === "fox" ? { title: "the old fox", closedAt: before - hour } : undefined,
+        handle === "fox" && options.former !== false
+          ? { title: "the old fox", closedAt: options.formerClosedAt ?? before - 1000 }
+          : undefined,
     })
   return {
     peers: build(),
@@ -170,9 +176,6 @@ describe("the rule for a handle given after an agent session began", () => {
     expect(refusal).toContain('@fox now is "api server", serves the API, opened 1 h ago.')
     expect(refusal).toContain('known as @fox ("old tests") closed 2 h ago')
     expect(refusal).toContain("call again with the same handle")
-    expect(
-      introduction("fox", { title: "t", summary: null, givenAt: given }, undefined, now),
-    ).toContain("known as @fox closed.")
   })
 })
 
@@ -185,6 +188,11 @@ describe("what an agent that called a recycled handle is told", () => {
     expect(text(first)).toContain('("the old fox") closed')
     const second = await peers.send(call({ to: "@fox", text: "hello" }))
     expect(second).toMatchObject({ ok: true, to: "fox" })
+  })
+
+  it("sends at once to a handle no terminal held before, given while the session ran", async () => {
+    const { peers } = world({ former: false })
+    expect(await peers.send(call({ to: "fox", text: "hi" }))).toMatchObject({ ok: true, to: "fox" })
   })
 
   it("sends at once to a terminal whose handle was given before the session began", async () => {
@@ -216,6 +224,29 @@ describe("what an agent that called a recycled handle is told", () => {
     expect(await peers.send(call({ to: "fox", text: "hi" }))).toMatchObject({
       ok: true,
     })
+  })
+
+  it("sends at once to a handle whose last holder closed before the session began", async () => {
+    const { peers, caller } = world({ formerClosedAt: began - 1 })
+    expect(await peers.send(call({ to: "fox", text: "hi" }))).toMatchObject({ ok: true, to: "fox" })
+    // It never will be refused it: the session knows that terminal from here.
+    expect(caller.agents?.claude?.knew).toEqual({ since: began, shown: ["F"] })
+  })
+
+  it("refuses a handle whose last holder closed while the session ran", async () => {
+    const { peers } = world({ formerClosedAt: began + 1 })
+    expect((await peers.send(call({ to: "fox", text: "hi" }))).ok).toBe(false)
+  })
+
+  it("counts a guess confirmed by its harness from the session's own start", async () => {
+    const { peers, saved, caller } = world({ agent: "agy" })
+    expect((await peers.send(call({ to: "fox", text: "hi" }))).ok).toBe(false)
+    // Its status line names the same conversation the root: no longer a guess.
+    caller.root = { ...caller.root!, source: "status-line" }
+    await peers.send(call({ to: "owl", text: "hi" }))
+    peers.introduce("A", "O")
+    expect(saved.length).toBeGreaterThan(0)
+    expect(caller.agents?.agy?.knew?.since).toBe(began)
   })
 
   it("refuses a root that is only a guess once, in memory", async () => {

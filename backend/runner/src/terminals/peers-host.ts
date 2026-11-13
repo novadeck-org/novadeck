@@ -181,8 +181,8 @@ export class TerminalPeers {
 
   /**
    * Why a call to these handles is refused this once: one resolves to a terminal given its
-   * handle after the caller's session began, which the session was never shown, so the
-   * handle may name the terminal it knew before. Undefined when none does; asking tells the
+   * handle after the caller's session began, which the session was never shown, and another
+   * terminal held that handle while the session ran, so the handle may name the one it knew. Undefined when none does; asking tells the
    * session of them, so the same call goes through next.
    */
   private strangers(caller: Caller, handles: readonly string[]): string | undefined {
@@ -191,6 +191,7 @@ export class TerminalPeers {
     const now = Date.now()
     const told: string[] = []
     const ids: string[] = []
+    const known: string[] = []
     for (const handle of handles) {
       const found = this.options.messaging.peer(caller.summary.id, handle)
       const holder = found.ok ? this.options.terminal(found.terminalId) : undefined
@@ -198,11 +199,18 @@ export class TerminalPeers {
       const { title, handleGivenAt: givenAt = 0 } = holder.summary
       const target = { id: found.terminalId, givenAt }
       if (!unknownTo(knew, target, (since) => this.exchanged(caller, target.id, since))) continue
+      // A handle no terminal held while the session ran names only this one to it: there is
+      // nothing to mistake it for, and never will be, so the session knows it from here.
       const former = this.options.former?.(caller.summary.sessionId, handle, givenAt)
+      if (!former || former.closedAt <= knew.since) {
+        known.push(target.id)
+        continue
+      }
       const summary = holder.naming.summary
       told.push(introduction(handle, { title, summary, givenAt }, former, now))
       ids.push(target.id)
     }
+    if (known.length > 0) this.introductions.show(caller, known)
     if (ids.length === 0) return undefined
     this.introductions.show(caller, ids)
     return told.join("\n\n")

@@ -288,7 +288,7 @@ every word is held or resting, they come again with a letter from the end of the
 reused handle does not change. `handleGivenAt` is when it was given that handle, in epoch
 milliseconds; absent (or 0) where that was long ago or is not known. Words written before it
 that name the handle meant an earlier terminal, so a client links and colours `@moth` in
-scrollback, messages or markdown only where the words' own time (a chat entry's or a
+chat words and markdown only where the words' own time (a chat entry's or a
 message's) is at or after the holder's `handleGivenAt`, and draws it as plain text
 otherwise; words with no time are linked as before. For an agent, a call to a handle that
 went to a terminal its session may not know (see [Agent messaging](agent-messaging.md#handles))

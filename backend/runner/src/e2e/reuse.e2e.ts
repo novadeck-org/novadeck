@@ -1,17 +1,7 @@
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, tool } from "./model/script.js"
-import {
-  delivered,
-  messages,
-  own,
-  result,
-  sameHandleAgain,
-  sends,
-  sent,
-  start,
-  through,
-} from "./scenarios.js"
+import { delivered, messages, own, result, sent, start, through } from "./scenarios.js"
 
 // A handle that went to a new terminal (docs/agent-messaging.md, "Handles come back"): the
 // agent that knew the old one is refused its first call to the handle, which names the new
@@ -20,6 +10,9 @@ import {
 // closed terminal's handle back at once, as it does in an hour.
 
 const brief = "hello again"
+
+/** What a refusal of a handle that went to a new terminal asks the agent to do. */
+const sameHandleAgain = "call again with the same handle"
 
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
@@ -39,8 +32,19 @@ for (const setup of setups) {
         own((call) =>
           /You are @moth\b/.test(result(call) ?? "") ? { text: "Listed them." } : undefined,
         ),
-        sends("Tell fox", "fox", brief),
-        // Refused, `sends` calls again with the same handle, as the refusal says.
+        own((call) => {
+          const send = tool(call, "send")
+          return send && asked(call, "Tell fox")
+            ? { calls: [{ name: send, input: { to: "fox", text: brief } }] }
+            : undefined
+        }),
+        // Refused, the agent calls again with the same handle, as the refusal says.
+        own((call) => {
+          const send = tool(call, "send")
+          return send && result(call)?.includes(sameHandleAgain) === true
+            ? { calls: [{ name: send, input: { to: "fox", text: brief } }] }
+            : undefined
+        }),
         own((call) => (sent(call, "fox") ? { text: "Told fox." } : undefined)),
         own((call) => (delivered(call, "moth") ? { text: "Heard you." } : undefined)),
       )

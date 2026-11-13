@@ -415,8 +415,8 @@ const BlockView = memo(
                 mention={mention}
                 // With no line of its own, the ring's time is its first message's.
                 at={line === null && index === 0 ? block.at : null}
-                // Its words were written when the ring came.
-                written={block.at}
+                // Its words were written when it was sent, before the ring came.
+                written={message.sentAt}
               />
             ))}
             {fromPerson(block).map((message, index) => (
@@ -434,7 +434,7 @@ const BlockView = memo(
                   <span className="chat-agent-where">from the Inbox</span>
                 </p>
                 <p className="chat-text">
-                  <MentionedText text={message.text} mention={mentionAt(mention, block.at)} />
+                  <MentionedText text={message.text} mention={mentionAt(mention, message.sentAt)} />
                 </p>
                 {line === null && index === 0 && fromAgents(block).length === 0 && (
                   <TimeFact at={block.at} hover />
