@@ -883,13 +883,13 @@ export const createDemoStates = (
         ),
         verb(
           "Shells, one failed",
-          "Turn over; two shells run on and a third failed: the Shells item's icon gets a red dot, its failed row is tinted and offers to tell the agent, and the chat's shell lines show each one's last line",
+          "Turn over; two shells run on and a third failed: the Shells item's failed row is tinted and offers to tell the agent, and the chat's shell lines show each one's last line",
           (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: failedShells }),
           verbs,
         ),
         verb(
           "Shell ended ok",
-          "Turn over; the only shell exited 0: the Shells item stays, its row muted, its icon without a dot",
+          "Turn over; the only shell exited 0: the Shells item stays, its row muted",
           (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: [doneShell] }),
           verbs,
         ),
