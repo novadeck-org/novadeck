@@ -61,7 +61,6 @@ const following = ({ livePages = false } = {}) => {
     },
   }
   const saves: { itemId: string; text: string; basedOn: string }[] = []
-  const rangeAsked: { itemId: string; layers: readonly string[] }[] = []
   const readAsked: { itemId: string; path: string }[] = []
   const changeAsked: { itemId: string; path: string; layers: readonly string[] }[] = []
   let changed: ChangeFileDiff = { run: null }
@@ -78,10 +77,6 @@ const following = ({ livePages = false } = {}) => {
       changeFile: async (input) => {
         changeAsked.push(input)
         return changed
-      },
-      changeRange: async (input) => {
-        rangeAsked.push(input)
-        return { files: [], truncated: false }
       },
       changeRead: async (input) => {
         readAsked.push(input)
@@ -106,7 +101,6 @@ const following = ({ livePages = false } = {}) => {
     companions,
     asked,
     changeAsked,
-    rangeAsked,
     readAsked,
     changeReturns: (diff: ChangeFileDiff) => {
       changed = diff
@@ -263,17 +257,6 @@ describe("the runner's companion content", () => {
       { itemId: hero, path: "a.ts", layers: ["uncommitted", "abc"] },
     ])
     expect(diff).toEqual({ run })
-  })
-
-  it("asks the runner for the files of a range of layers", async () => {
-    const app = following()
-
-    await expect(app.companions.changeRange!(target, hero, ["a", "b"])).resolves.toEqual({
-      files: [],
-      truncated: false,
-    })
-
-    expect(app.rangeAsked).toEqual([{ itemId: hero, layers: ["a", "b"] }])
   })
 
   it("tells the runner a file of a change was read", async () => {
@@ -563,7 +546,6 @@ describe("what a page shows wrong", () => {
     const companions = createRunnerCompanions({
       content: () => channel<RunnerContent>().iterator,
       changeFile: () => Promise.reject(new Error("unused")),
-      changeRange: () => Promise.reject(new Error("unused")),
       changeRead: () => Promise.reject(new Error("unused")),
       save: () => Promise.reject(new Error("unused")),
       openInProject: () => Promise.reject(new Error("unused")),

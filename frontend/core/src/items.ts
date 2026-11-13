@@ -237,10 +237,6 @@ export type ChangeFileRun = {
 }
 export type ChangeFileDiff = { readonly run: ChangeFileRun | null }
 
-// The files a selection of layers changed as one range, as git lists them from its start to its
-// end: its own counts, not its layers' added up.
-export type ChangeRange = { readonly files: readonly ChangedFile[]; readonly truncated: boolean }
-
 // An agent's whole change: a checkout measured against its main branch (`base` names it, or
 // is HEAD where there is none), as layers, newest first: the work not committed yet, then each
 // commit since the merge base. Each layer lists the files it changed, not their diffs, which
@@ -252,7 +248,8 @@ export type ChangesContent = {
   readonly root: string
   readonly base: string
   readonly layers: readonly ChangeLayer[]
-  // The files the change as a whole differs from main by, as `changeRange` lists a range.
+  // The files the change as a whole differs from main by, as git lists the range from main to
+  // the newest layer: its own counts, not its layers' added up.
   readonly files: readonly ChangedFile[]
   readonly read: readonly string[]
   readonly truncated: boolean
@@ -376,14 +373,6 @@ export type Companions = {
     path: string,
     layers: readonly string[],
   ) => Promise<ChangeFileDiff>
-  // The files a selection of a changes item's layers changed as one range, with its own counts;
-  // the pane, which selects all or one, doesn't ask. Absent where the backend can't, with
-  // `changeFile`.
-  readonly changeRange?: (
-    target: WorkspaceTarget,
-    itemId: ItemId,
-    layers: readonly string[],
-  ) => Promise<ChangeRange>
   // The person read a file of a changes item: its content names it in `read` until the file
   // changes again. Absent where the backend can't keep it: the pane then grays it for as
   // long as the content stays as it was.

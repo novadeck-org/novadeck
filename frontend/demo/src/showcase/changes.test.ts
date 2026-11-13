@@ -38,15 +38,6 @@ describe("the sample changes", () => {
     }
   })
 
-  it("carry the whole change's files, as a range over every layer lists them", () => {
-    for (const artifact of changesArtifacts) {
-      const content = contentOfSample(artifact)!
-      expect(content.files, artifact.item.id).toEqual(
-        artifact.changeRange!(content.layers.map((layer) => layer.id)),
-      )
-    }
-  })
-
   it("have hunk headers that count the lines the hunk holds", () => {
     for (const artifact of changesArtifacts)
       for (const layer of contentOfSample(artifact)!.layers)

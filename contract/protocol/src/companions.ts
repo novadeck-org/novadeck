@@ -225,14 +225,6 @@ const diffHunk = z.strictObject({
   ),
 })
 
-// `companions.changeRange`: the files a selection of layers changed as one range, as git
-// lists them from the range's start to its end: a file added and deleted inside it is not
-// there, one renamed is one row, and its counts are the range's own, not the layers' added up.
-export const changeRange = z.strictObject({
-  files: z.array(changedFile).max(maxChangedFiles),
-  truncated: z.boolean(),
-})
-
 // `companions.changeFile`: one file as a selection of layers changed it. The selection is
 // one range (from the oldest layer's parent to the newest), so one run; `null` where it did
 // not change the file. A run has its file's diff as hunks (none, with `big`, where the
@@ -297,8 +289,9 @@ export const itemContent = z.discriminatedUnion("state", [
         root: z.string().max(companionLimits.path),
         base: z.string().max(256),
         layers: z.array(changeLayer).max(maxChangeLayers),
-        // The files the change as a whole differs from main by, as `changeRange` lists a
-        // range (the layers' own files added up are not that), up to `maxChangedFiles`.
+        // The files the change as a whole differs from main by, as git lists the range from
+        // main to the newest layer (the layers' own files added up are not that), up to
+        // `maxChangedFiles`.
         files: z.array(changedFile).max(maxChangedFiles),
         read: z.array(z.string().max(companionLimits.path)).max(maxChangedFiles),
         truncated: z.boolean(),
@@ -359,5 +352,4 @@ export type ChangedFile = z.infer<typeof changedFile>
 export type ChangeLayer = z.infer<typeof changeLayer>
 export type DiffHunk = z.infer<typeof diffHunk>
 export type ChangeFileDiff = z.infer<typeof changeFileDiff>
-export type ChangeRange = z.infer<typeof changeRange>
 export type PlanSaveResult = z.infer<typeof planSaveResult>
