@@ -244,8 +244,8 @@
   white-space: nowrap;
   pointer-events: none;
 }
-/* A clock still running, a step brighter. Facts never take a status colour: a failure says so in
-   its own line. */
+/* A clock still running, a step brighter. Facts take no status colour, but a failed shell's exit,
+   which is red as its last line is. */
 .chat-fact[data-live] {
   color: var(--_mid);
 }
@@ -963,6 +963,42 @@
   max-width: var(--_measure);
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* A shell with its output to open: the command is a button, quiet until pointed at. Under the line
+   goes the last line of its output, dim, cut to the line, red once the shell failed. */
+button.chat-shell-command {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.chat-shell-last {
+  min-width: 0;
+  margin: 0 0 6px;
+  padding-right: 9ch;
+  color: var(--_muted);
+  opacity: 0.8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-shell-last[data-output] {
+  cursor: pointer;
+}
+.chat-shell-last[data-tone="bad"],
+.chat-fact[data-tone="bad"] {
+  color: var(--_red);
+  opacity: 1;
+}
+@media (hover: hover) {
+  button.chat-shell-command:hover {
+    color: var(--_ink);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
 }
 .chat-shell-count {
   flex-shrink: 0;

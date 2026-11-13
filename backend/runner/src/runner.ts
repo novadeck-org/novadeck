@@ -157,10 +157,11 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   const shellFiles =
     options.shell === undefined
       ? Promise.resolve(undefined)
-      : installShellFiles(
-          options.shell,
-          options.relay === undefined ? {} : { relay: options.relay },
-        ).catch((error: unknown) => {
+      : installShellFiles(options.shell, {
+          ...(options.relay !== undefined && { relay: options.relay }),
+          // Whether Codex is connected is known only once these are written (see below).
+          pwsh: "kept",
+        }).catch((error: unknown) => {
           log.error("shell.integration-unavailable", "Novadeck shell integration is unavailable", {
             err: error,
           })
@@ -169,17 +170,41 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   // Writes the shell files again, changing only what differs: for whoever first creates the
   // worktrees folder, so that Antigravity's Windows shim, written only while it exists, is
   // there for the next shell. Resolves once they are written; fails if they can't be.
-  const rewriteShellFiles = async (): Promise<void> => {
-    if (options.shell === undefined) return
-    await installShellFiles(
-      options.shell,
-      options.relay === undefined ? {} : { relay: options.relay },
-    )
+  // Also once Codex is connected or disconnected: on Windows its commands capture through
+  // Novadeck's PowerShell, which is installed only while it is connected.
+  // One writing at a time, as two would share their files' temporary names.
+  let rewriting = Promise.resolve()
+  const rewriteShellFiles = (): Promise<void> => {
+    const shell = options.shell
+    if (shell === undefined) return Promise.resolve()
+    const write = async () => {
+      await installShellFiles(shell, {
+        ...(options.relay !== undefined && { relay: options.relay }),
+        pwsh: process.platform === "win32" && (await agents.connected("codex")),
+      })
+    }
+    const done = rewriting.then(write, write)
+    rewriting = done.catch(() => {})
+    return done
   }
   // The runner's own calls of the relay use the build's, never the copy for agents.
   const relay = options.relay === undefined ? {} : { relay: options.relay }
   const agents = createHarnesses(() => shellFiles, { ...relay, ...options.agents })
   started.push(agents)
+  // Codex's commands on Windows capture once it is found connected, or connected later.
+  const setAgent = agents.set
+  agents.set = async (agent, connected) => {
+    const after = await setAgent(agent, connected)
+    if (agent === "codex" && process.platform === "win32") await codexShells()
+    return after
+  }
+  const codexShells = () =>
+    shellFiles
+      .then(() => rewriteShellFiles())
+      .catch((error: unknown) =>
+        log.error("shell.codex-failed", "Novadeck could not write Codex's capture", { err: error }),
+      )
+  if (process.platform === "win32") void codexShells()
   // A connected agent that keeps its own copy of the plugin gets the files just written,
   // where they differ from that copy (see `Harness.installed`).
   void shellFiles

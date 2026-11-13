@@ -52,6 +52,7 @@ import {
   type ShowRequest,
 } from "./request.js"
 import { secrets } from "./secrets.js"
+import { ShellTails, shellsDetail, type PlaceShells } from "./shell-output.js"
 
 const log = logs.for("companions")
 
@@ -66,6 +67,11 @@ export type TerminalPlace = {
   readonly project: string | undefined
   /** The transcript of the agent session it runs, where its hooks named one. */
   readonly transcript?: string | null
+  /**
+   * The background shells of the agent bound in it, with the agent's name; undefined where
+   * none is bound. What a shells item shows, and what makes and updates it.
+   */
+  readonly shells?: PlaceShells | undefined
 }
 
 /** Whose plan a plan item mirrors: an agent session's root, or one of its subagents. */
@@ -168,6 +174,9 @@ const unavailable = (reason: "missing" | "unreadable") =>
 const changesKey = (root: string): string =>
   `changes:${process.platform === "win32" ? root.toLowerCase() : root}`
 
+/** What keys the shells item of a terminal: one on its bar, never a path or an address. */
+const shellsKey = (terminalId: string): string => `shells:${terminalId}`
+
 const planKey = (slot: Pick<PlanSlot, "agentSession" | "actor">): string =>
   `plan:${slot.agentSession}:${slot.actor ?? ""}`
 
@@ -250,6 +259,10 @@ export class CompanionItems {
   private readonly bound = new Map<string, string>()
   /** Plans the person closed, by session and key: their next version comes back quietly. */
   private readonly dismissed = new Set<string>()
+  /** The shells each terminal's item has counted, so one started since is told from news of the others. */
+  private readonly shellIds = new Map<string, ReadonlySet<string>>()
+  /** The ends of shells' output files, read for their items. */
+  private readonly tails = new ShellTails()
   /**
    * The element each page's latest show brings into view, with that show's version: only
    * that show carries it out, so it stays here rather than with the item, and goes with the
@@ -281,6 +294,7 @@ export class CompanionItems {
       () => this.environment(),
       { ...(options.reads && { marks: options.reads.marks }) },
     )
+    this.dropStaleShells()
   }
 
   /** The environment files are judged by (see `CompanionOptions.environment`). */
@@ -407,6 +421,10 @@ export class CompanionItems {
     const lines = items.map((item) => {
       const own = item.from?.terminalId === terminalId
       const range = item.lines ? ` lines ${item.lines.from}–${item.lines.to}` : ""
+      if (item.kind === "shells")
+        return `- shells ${JSON.stringify(item.name)}: ${item.detail} (${
+          own ? "your" : item.from ? `${mention(item.from.handle)}'s` : "its agent's"
+        } background shells, as Novadeck lists them)`
       // A repository's folder is named by the repository: shown without invisible characters.
       const where =
         item.kind === "changes" ? displayed(item.path ?? "") : (item.url ?? item.path ?? "")
@@ -753,8 +771,9 @@ export class CompanionItems {
         if (!item) return
         const live = this.live(item)
         const lines = item.lines ? `${item.lines.from}-${item.lines.to}` : ""
-        // A change has no one file to stat: it is read afresh each time.
-        const probing = item.kind !== "changes"
+        // A change has no one file to stat, nor have shells (their files are several): both
+        // are read afresh each time.
+        const probing = item.kind !== "changes" && item.kind !== "shells"
         // eslint-disable-next-line no-await-in-loop -- Each look follows the one before.
         const stamp = probing ? await probe(item, live) : String(Date.now())
         const now = probing ? `${item.version}|${item.path}|${lines}|${stamp}` : stamp
@@ -832,6 +851,8 @@ export class CompanionItems {
   sessionBound(terminalId: string, agentSession: string): void {
     if (this.stopping) return
     this.bound.set(terminalId, agentSession)
+    // The shells listed were another session's, or this one's before it began again.
+    this.dropShells(terminalId)
     for (const item of this.records.barItems(terminalId))
       if (
         item.plan !== null &&
@@ -854,6 +875,7 @@ export class CompanionItems {
   terminalClosed(terminalId: string): void {
     if (this.stopping) return
     this.bound.delete(terminalId)
+    this.dropShells(terminalId)
     for (const item of this.records.barItems(terminalId)) this.delete(item.id)
   }
 
@@ -877,6 +899,106 @@ export class CompanionItems {
     for (const watcher of this.watchers.keys()) watcher.finish()
     for (const readers of this.readers.values()) for (const reader of readers) reader.abort()
     return closed
+  }
+
+  /**
+   * The background shells of a terminal's agent changed (or its agent went): the shells
+   * item on its bar follows them. One is made as the first shell starts, not asked to open;
+   * a shell started since shows it again, a later version the client takes as news, and
+   * another one's end only changes its detail. When the agent lists no shells, as it ended
+   * or began another session, the item goes. A failure is logged, never thrown into the
+   * fact that told of the shells.
+   */
+  shellsObserved(place: TerminalPlace): void {
+    if (this.stopping || !this.options.terminal(place.terminalId)) return
+    try {
+      this.followShells(place)
+    } catch (error) {
+      log.error(
+        "companions.shells-failed",
+        "Novadeck could not keep shells beside their terminal",
+        {
+          err: error,
+        },
+      )
+    }
+  }
+
+  private followShells(place: TerminalPlace): void {
+    const shells = place.shells?.shells ?? []
+    if (shells.length === 0) return this.dropShells(place.terminalId)
+    const ids = new Set(shells.map(({ id }) => id))
+    const known = this.shellIds.get(place.terminalId)
+    const started = known === undefined || [...ids].some((id) => !known.has(id))
+    const key = shellsKey(place.terminalId)
+    const detail = tail(shellsDetail(shells), companionLimits.detail)
+    const own = this.shown(place, key)
+    // The ids are counted once the item is saved, so a save that failed is tried again by the
+    // next fact, which still finds a shell started.
+    if (own) {
+      if (started || own.detail !== detail)
+        this.save({
+          ...own,
+          detail,
+          ...(started && {
+            version: own.version + 1,
+            openAsked: false,
+            shownAt: Date.now(),
+          }),
+        })
+      this.shellIds.set(place.terminalId, ids)
+      return
+    }
+    // The person closed it, or it is gone: only a shell started since brings it back.
+    if (!started) {
+      this.shellIds.set(place.terminalId, ids)
+      return
+    }
+    this.save({
+      pointerKey: key,
+      kind: "shells",
+      path: null,
+      url: null,
+      lines: null,
+      plan: null,
+      name: "Shells",
+      detail,
+      secret: false,
+      id: randomUUID(),
+      sessionId: place.sessionId,
+      terminalId: place.terminalId,
+      windowId: null,
+      by: "agent",
+      from: { terminalId: place.terminalId, handle: place.handle },
+      version: 1,
+      openAsked: false,
+      shownAt: Date.now(),
+      observedAt: null,
+    })
+    this.shellIds.set(place.terminalId, ids)
+  }
+
+  /** The shells item of a terminal goes, wherever the person moved it, and what it counted. */
+  private dropShells(terminalId: string): void {
+    this.shellIds.delete(terminalId)
+    const key = shellsKey(terminalId)
+    for (const item of this.records.items())
+      if (item.kind === "shells" && item.pointerKey === key) this.delete(item.id)
+  }
+
+  /**
+   * Shells items kept from an earlier run go: their agents' activity began again empty, and
+   * nothing would tell them gone until the agent starts a shell, or never.
+   */
+  private dropStaleShells(): void {
+    try {
+      for (const item of this.records.items())
+        if (item.kind === "shells") this.records.removeItem(item.id)
+    } catch (error) {
+      log.error("companions.shells-failed", "Novadeck could not clear earlier shells items", {
+        err: error,
+      })
+    }
   }
 
   private async observe(
@@ -1214,6 +1336,17 @@ export class CompanionItems {
     return content
   }
 
+  /**
+   * The background shells of the agent now bound in the terminal the item is about, each
+   * with the end of its output; unavailable once no agent is bound there.
+   */
+  private async readShells(item: ItemRecord): Promise<ItemContent> {
+    const terminalId = item.from?.terminalId ?? item.terminalId
+    const shells = terminalId === null ? undefined : this.options.terminal(terminalId)?.shells
+    if (!shells) return unavailable("missing")
+    return this.tails.content(shells)
+  }
+
   /** The changes item's repository, for a call about it; NOT_FOUND where there is none. */
   private async changeRoot(itemId: string): Promise<string> {
     if (this.stopping) throw new DomainError("CLOSING")
@@ -1260,6 +1393,7 @@ export class CompanionItems {
     live: PlanText | undefined,
   ): Promise<ItemContent> {
     if (item.kind === "changes") return this.readChange(item)
+    if (item.kind === "shells") return this.readShells(item)
     if (item.kind === "page") {
       const scroll = this.scrolls.get(item.id)
       return Promise.resolve({

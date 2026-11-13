@@ -1,5 +1,6 @@
+import { shellCounts } from "@novadeck/core/agents/shells"
 import { messageBadgeLabel } from "@novadeck/core/messages"
-import type { WorkspaceTarget } from "@novadeck/core/types"
+import type { AgentShell, WorkspaceTarget } from "@novadeck/core/types"
 import { MessagesSquare, Pause, type LucideIcon } from "lucide-react"
 import type { ReactNode } from "react"
 
@@ -54,11 +55,33 @@ const MessagesCount = ({
     </b>
   ) : null
 
+// The shells item's mark on the bar: a dot, red once a shell failed, else green while one
+// runs, and none while all that ended did so quietly.
+const shellsBadge = (
+  shells: readonly AgentShell[] | undefined,
+): ReturnType<BarDrawing["badge"]> => {
+  const { running, failed } = shellCounts(shells)
+  if (failed === 0 && running === 0) return { mark: null, label: "" }
+  const label = [running > 0 && `${running} running`, failed > 0 && `${failed} failed`]
+    .filter(Boolean)
+    .join(", ")
+  return {
+    mark: <b className="taskbar-dot" data-shells={failed > 0 ? "failed" : "running"} aria-hidden />,
+    label: `, ${label}`,
+  }
+}
+
 // The terminal's taskbar's drawing of its bar.
 export const terminalDrawing = ({
   plans,
+  shells,
   ...sources
-}: Sources & { readonly plans: LookContext["plans"] }): BarDrawing => ({
+}: Sources & {
+  readonly plans: LookContext["plans"]
+  // The background shells of the agents of the terminals the bar's shells items are from, by
+  // the terminal's id: an item the person moved here marks its own terminal's shells.
+  readonly shells?: Readonly<Record<string, readonly AgentShell[]>> | undefined
+}): BarDrawing => ({
   look: (member) => memberLook(member, { plans }),
   preview: (member) => {
     if (member.kind === "messages")
@@ -67,8 +90,10 @@ export const terminalDrawing = ({
     return <Thumb item={member.item} itemStore={sources.itemStore} target={sources.target} />
   },
   badge: (member) =>
-    member.kind !== "messages"
-      ? undefined
+    member.kind === "item"
+      ? member.item.kind === "shells"
+        ? shellsBadge(shells?.[member.item.from?.terminalId ?? ""])
+        : undefined
       : {
           mark: <MessagesCount messagesHandle={sources.messagesHandle} />,
           label: sources.messagesHandle.badge

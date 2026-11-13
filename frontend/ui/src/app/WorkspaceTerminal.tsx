@@ -23,6 +23,7 @@ import { createStore } from "@novadeck/core/store"
 import type { CompanionWindowMeta, TerminalMetadata, Tile } from "@novadeck/core/types"
 import { Avatar } from "@novadeck/items/Avatar"
 import { ProjectWindow } from "@novadeck/items/ProjectWindow"
+import { shellTailsOf } from "@novadeck/items/shells"
 import { TerminalCompanion } from "@novadeck/items/TerminalCompanion"
 import { UndockedWindow } from "@novadeck/items/UndockedWindow"
 import {
@@ -69,7 +70,7 @@ import {
   windowedDestination,
 } from "./selectors"
 import { useFoldTeam } from "./team-fold"
-import { useTerminalBar } from "./terminal-bar"
+import { useBarShells, useShellsHome, useTerminalBar } from "./terminal-bar"
 import { agentAvatarsOn, chatViewOn } from "./ui-store"
 import { useTerminalMarks } from "./useTerminalMarks"
 
@@ -319,6 +320,17 @@ export const WorkspaceTerminal = memo(
     )
     const shells = useChat(chat, (state) => chatShellsOf(state.shells, chatContext, terminalId))
     const conversation = showChat ? candidate : undefined
+    // The terminal's shells item, wherever it sits, whose pane the chat's shell lines open, and
+    // whose output gives each its last line, which the lines follow themselves.
+    const shellsHome = useShellsHome(terminalId)
+    const barShells = useBarShells(terminalId)
+    const shellTails = useMemo(
+      () =>
+        itemStore && shellsHome
+          ? shellTailsOf(itemStore, { projectId, workspaceSessionId }, shellsHome)
+          : undefined,
+      [itemStore, projectId, workspaceSessionId, shellsHome],
+    )
     // Stable while the terminal and the backend are: a new one would draw every thumbnail again.
     const onImage = useMemo(
       () =>
@@ -326,6 +338,19 @@ export const WorkspaceTerminal = memo(
           ? (image: ChatImage) => conversations.image!(terminalKey, image)
           : undefined,
       [conversations, terminalKey],
+    )
+    // A shell line of the chat opens the shells item at that shell, bringing it back to the bar
+    // that holds it if the person had hidden it; in a window of its own it is open already.
+    // Without the item or its store the lines only stand there.
+    const onOpenShell = useMemo(
+      () =>
+        itemStore && shellsHome
+          ? (shellId: string) => {
+              itemStore.unfold(shellsHome.id, shellId)
+              if (shellsHome.bar !== null) commands.openBarTab(shellsHome.bar, shellsHome.id)
+            }
+          : undefined,
+      [itemStore, shellsHome, commands],
     )
     useBoxHandover(conversation, {
       take: (ahead) => commands.takeBox(terminalKey, { ahead }),
@@ -335,6 +360,14 @@ export const WorkspaceTerminal = memo(
     // Keyboard focus waits for the node to be on screen: its input is in a subtree a
     // Canvas node out of sight hides, and a request spent there would be lost. The request
     // stays until the surface can take it.
+    // Failed shells offer to tell the agent, drafting into the chat's box: only where it shows.
+    const tell = useMemo(
+      () =>
+        conversation !== undefined
+          ? (words: string) => commands.tellChatDraft(chatContext, terminalId, words)
+          : undefined,
+      [conversation, commands, chatContext, terminalId],
+    )
     const wanted = keyboardFocus?.view === view && active && onScreen
     const chatHost = useRef<HTMLDivElement>(null)
     useChatTakesFocus(chatHost, conversation !== undefined, active && onScreen)
@@ -363,6 +396,8 @@ export const WorkspaceTerminal = memo(
                 onReplyTo={(to) => commands.setChatReply(chatContext, terminalId, to)}
                 sending={sending}
                 shells={shells}
+                shellTails={shellTails}
+                onOpenShell={onOpenShell}
                 attachments={attachments}
                 imageNote={imageNote}
                 onRestore={(words, images) =>
@@ -443,6 +478,8 @@ export const WorkspaceTerminal = memo(
               fresh={fresh}
               terminalName={(id) => terminalName[id]}
               commands={commands}
+              shells={barShells}
+              tell={tell}
             >
               {hosted(content)}
             </TerminalCompanion>

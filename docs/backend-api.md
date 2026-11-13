@@ -1608,12 +1608,18 @@ one from an earlier runner.
   live in the runner's database, so they survive restarts; an item goes when it is closed,
   with the terminal whose bar holds it, or with its session, and a window goes with its
   item. Nothing caps how many there are. An item has a runner-issued id, its `kind`
-  (`image`, `file`, `page`, `changes`, `plan`), a name and a one-line `detail`, its `path`
+  (`image`, `file`, `page`, `changes`, `plan`, `shells`), a name and a one-line `detail`, its `path`
   or `url`, the `lines` it points at, `secret` for a file that may hold secrets, `by`
   (`agent` or `person`), `from` (the terminal and handle it was shown in; null in a
   project window), `version` (counts its shows), `openAsked` (the latest show asked to open
   it), `shownAt`, and for a plan its agent, its actor's role and whether it is a file or
-  text.
+  text. A `shells` item is the runner's own: the background shells of the agent bound in a
+  terminal (`activity.shells`), one item per terminal on its bar, `by` `agent`, `path` and
+  `url` null, named "Shells", its `detail` counting them ("2 running · 1 failed", "ended").
+  It is made as the first shell starts, never asked to open, and its `version` rises when a
+  shell starts after that (not when one ends, which only changes its `detail`), so a client
+  that hid it shows it again then. It goes when the terminal's agent lists no shells (it
+  ended, or another session bound, or the runner restarted) and with the terminal.
   - `companions.list({ sessionId })` answers a session's `items` and `windows`; an unknown
     session is `NOT_FOUND`.
   - `companions.watch()` streams every item and window across sessions, `synced`, then
@@ -1660,7 +1666,20 @@ one from an earlier runner.
     content through a failed read or two), and `reveal` has no effect on it; a repository that is
     gone is `missing`, and a failing git `unreadable`. A checkout is read through a private
     index: the person's own is never written. Its snapshot is shared with the Changes panel
-    (`works.watch`): one taken in the last 1.5 seconds serves both.
+    (`works.watch`): one taken in the last 1.5 seconds serves both. A `shells` item is the
+    `agent` and the `shells` its terminal's bound agent lists now, in the order it lists them, each
+    with its `id`, `command`, `since`, `exit` and `output`: `ready` with the last 400 lines
+    of the file (`lines`, each cut to 4,096 units, a carriage-returned line as a terminal
+    leaves it), `firstLine` their number in it, and `total` its lines; `none` where the shell
+    has no file (a Codex command run in a terminal of its own); `unreadable` where its file
+    is there and cannot be read now (no permission, in use, no plain file); `gone` where its
+    file was there and is not (Claude Code's goes with its session). All the shells' lines together
+    stay within 1 MiB: the oldest lines of the largest tails go first. It is read every
+    half second while followed, from the files' ends, counting a file's lines only from where
+    it was last counted (a file that shrank, or whose bytes before that point changed, is
+    counted afresh), and its `stamp` changes with
+    any shell or file. It is `unavailable` (`missing`) once no agent is bound. The output is
+    not redacted: it is not covered by the patterns that keep secrets out of files.
   - `companions.changeFile({ itemId, path, layers })` reads one file of a changes item for
     the layer ids selected: `{ run }`, one run for the range they span (the layers between
     the newest and the oldest selected are taken in; layers no longer there are left out, and a

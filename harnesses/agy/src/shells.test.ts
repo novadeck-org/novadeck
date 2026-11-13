@@ -4,11 +4,15 @@ import { describe, expect, it } from "vitest"
 
 import { shellEvents, type Calls } from "./shells.js"
 
+// Captured on Linux, whose log URLs name no drive; on Windows Antigravity's carry one
+// (`file:///C:/…`), as these are given here.
 const lines = (
   loadProbe(import.meta.dirname, "shells.probe.json") as {
     scenarios: { "three-shells": { lines: string[] } }
   }
-).scenarios["three-shells"].lines
+).scenarios["three-shells"].lines.map((line) =>
+  process.platform === "win32" ? line.replaceAll("file:///", "file:///C:/") : line,
+)
 const session = { sessionId: "b0000000-0000-4000-8000-000000000001", instance: "7" }
 const conversation = session.sessionId
 
@@ -59,5 +63,45 @@ describe("Antigravity's background shells, as captured", () => {
       }),
     ]
     expect(replay(timer)).toEqual([])
+  })
+
+  it("tells the file a shell's output is in, as a path from the log's URL, in the step that starts it", () => {
+    const output = replay().filter(({ type }) => type === "shell-output")
+    expect(output).toMatchObject([
+      { id: `${conversation}/task-2`, path: expect.stringMatching(/task-2\.log$/) },
+      { id: `${conversation}/task-4`, path: expect.stringMatching(/task-4\.log$/) },
+      { id: `${conversation}/task-6`, path: expect.stringMatching(/task-6\.log$/) },
+    ])
+    expect(output[0]).toMatchObject({
+      path: expect.stringMatching(/[\\/]\.gemini[\\/]antigravity-cli[\\/]brain[\\/]/),
+    })
+  })
+
+  const running = (url: string) => [
+    JSON.stringify({
+      step_index: 2,
+      source: "MODEL",
+      type: "GENERIC",
+      status: "RUNNING",
+      created_at: "2026-11-10T09:00:00Z",
+      content: `Tool is running as a background task with task id: ${conversation}/task-2\nTask Description: sleep 9\nTask logs are available at: ${url}\n`,
+    }),
+  ]
+
+  it("decodes a percent-encoded URL into the path it names", () => {
+    const here =
+      process.platform === "win32"
+        ? "file:///C:/Users/a%20b/task-2.log"
+        : "file:///home/a%20b/task-2.log"
+    const [, output] = replay(running(here))
+    expect(output).toMatchObject({
+      type: "shell-output",
+      path:
+        process.platform === "win32" ? String.raw`C:\Users\a b\task-2.log` : "/home/a b/task-2.log",
+    })
+  })
+
+  it("starts the shell all the same where its log URL is unreadable", () => {
+    expect(replay(running("file://%zz"))).toMatchObject([{ type: "shell-started" }])
   })
 })

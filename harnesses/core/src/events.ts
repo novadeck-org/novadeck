@@ -269,6 +269,18 @@ export type ActivityEvent = EventBase &
         readonly code: number | null
       }
     /**
+     * The file a shell told by `shell-started` writes its output to, as an absolute path,
+     * live while it runs: Claude Code's `tasks/<id>.output`, Antigravity's `task-<step>.log`,
+     * or, for Codex, which writes none, the log Novadeck's capture keeps of it. It may come
+     * before or after its `shell-started` (a hook and the transcript race), so the activity
+     * holds one for a shell it doesn't know yet; it is told of the shell once known.
+     */
+    | {
+        readonly type: "shell-output"
+        readonly id: string
+        readonly path: string
+      }
+    /**
      * The harness listed the shells it has running at `startedAt`, as Claude Code's Stop
      * does: one started before then and not named here ended unseen, with no code. For a
      * shell that ended while a turn ran, whose notice came as no prompt.

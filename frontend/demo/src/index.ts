@@ -26,6 +26,7 @@ import { createDemoVoice, heldVoiceTiming, requestedVoice } from "./addons/voice
 import { addressParams } from "./address"
 import { createDemoChat } from "./agents/chat"
 import type { DemoAgentLink } from "./agents/link"
+import { withShellItems } from "./agents/shell-items"
 import { agentTranscripts, type DemoTranscript } from "./agents/transcripts"
 import { demoTurns, type DemoTurns } from "./agents/turns"
 import { withFeedback } from "./feedback"
@@ -796,12 +797,14 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
   const demo = params.get("demo")
   const turnMs = Number(params.get("turnMs"))
   const backend = withMoves(
-    plainDemo(
-      demo === "agents" || demo === "messages" || demo === "inbox" || demo === "welcome"
-        ? demo
-        : "plain",
-      terminals,
-      turnMs > 0 ? turnMs : undefined,
+    withShellItems(
+      plainDemo(
+        demo === "agents" || demo === "messages" || demo === "inbox" || demo === "welcome"
+          ? demo
+          : "plain",
+        terminals,
+        turnMs > 0 ? turnMs : undefined,
+      ),
     ),
   )
   if (isDemoInbox(backend.inbox)) {

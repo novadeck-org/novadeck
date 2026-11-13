@@ -16,6 +16,13 @@ import {
 
 import { agents, harnesses } from "../harnesses/registry.js"
 import { worktreesRoot } from "../worktrees/root.js"
+import {
+  bashEnvScript,
+  capturePaths,
+  captureScript,
+  zshenvScript,
+  type CapturePaths,
+} from "./capture.js"
 import { hookVariables } from "./hook.js"
 import { mcpVersions } from "./mcp.js"
 
@@ -45,6 +52,13 @@ export type ShellPaths = ShellScriptPaths & {
    */
   readonly agyCmdDir: string
   readonly agyCmd: string
+  /** What an agent's commands load to capture their output (Linux and macOS; see capture.ts). */
+  readonly capture: CapturePaths
+  /**
+   * The folder holding the PowerShell pass-through alone (Windows), as `pwsh.exe` and
+   * `powershell.exe`, which Codex's shim puts first on PATH so its commands capture.
+   */
+  readonly pwshDir: string
 }
 
 export const shellPaths = (directory: string, platform = process.platform): ShellPaths => ({
@@ -61,6 +75,8 @@ export const shellPaths = (directory: string, platform = process.platform): Shel
   relayConfig: join(directory, "relay.json"),
   agyCmdDir: join(directory, "agy-cmd"),
   agyCmd: join(directory, "agy-cmd", "cmd.exe"),
+  capture: capturePaths(directory),
+  pwshDir: join(directory, "pwsh"),
 })
 
 /** What older versions wrote beside these files and nothing reads any more. */
@@ -242,6 +258,10 @@ export const shellFiles = (
   const machine: Machine = {
     worktreesRoot: root,
     worktreesPresent: existsSync(root),
+    // Windows' commands capture through the PowerShell pass-through instead.
+    ...(platform !== "win32" && {
+      capture: { bashEnv: paths.capture.bashEnv, zdotdir: paths.capture.zdotdir },
+    }),
     ...given,
   }
   const common = [
@@ -273,6 +293,9 @@ export const shellFiles = (
       ]
     : [
         ...common,
+        file(paths.capture.script, captureScript()),
+        file(paths.capture.bashEnv, bashEnvScript(paths.capture)),
+        file(join(paths.capture.zdotdir, ".zshenv"), zshenvScript(paths.capture)),
         file(paths.hook, posixLauncher(paths, "hook", "agent hook launcher"), 0o700),
         file(paths.mcp, posixLauncher(paths, "mcp", "MCP server launcher"), 0o700),
         ...bin,

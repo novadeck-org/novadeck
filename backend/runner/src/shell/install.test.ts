@@ -317,3 +317,109 @@ describe("the cmd.exe pass-through", () => {
     expect(after.cmdShimDir).toBeDefined()
   })
 })
+
+describe("the PowerShell pass-through", () => {
+  // A Windows machine, written to a folder of this machine.
+  const setup = (resources: { defer: (undo: () => void) => void }) => {
+    const folder = mkdtempSync(join(tmpdir(), "novadeck-pwsh-shim-"))
+    resources.defer(() => rmSync(folder, { recursive: true, force: true }))
+    const relay = join(folder, "novadeck-relay.exe")
+    const shim = join(folder, "novadeck-pwsh.exe")
+    writeFileSync(relay, "relay")
+    writeFileSync(shim, "pwsh one")
+    const options = (over: object = {}) => ({
+      relay,
+      pwshShim: shim,
+      pwsh: true,
+      platform: "win32" as const,
+      worktrees: join(folder, "worktrees"),
+      prints: () => Promise.resolve(undefined),
+      short: (path: string) => Promise.resolve(path.replaceAll("/", "\\").replace(/^\\/, "C:\\")),
+      ...over,
+    })
+    return { folder, shim, directory: join(folder, "shell"), options }
+  }
+  const codexShim = (shell: { bin: string }) => readFileSync(join(shell.bin, "codex.cmd"), "utf8")
+
+  it("is installed as pwsh.exe and powershell.exe in a folder of its own, which Codex's shim puts first on PATH", async ({
+    resources,
+  }) => {
+    const { directory, options } = setup(resources)
+    const shell = await installShellFiles(directory, options())
+    expect(readdirSync(shell.pwshDir).toSorted()).toEqual(["powershell.exe", "pwsh.exe"])
+    for (const name of ["pwsh.exe", "powershell.exe"])
+      expect(readFileSync(join(shell.pwshDir, name), "utf8")).toBe("pwsh one")
+    expect(shell.pwshShimDir).toBeDefined()
+    // For a session alone, and not for what needs the shared server.
+    const shim = codexShim(shell)
+    const path = `set "PATH=${shell.pwshShimDir};%PATH%"`
+    expect(shim.split(path).length - 1).toBe(2)
+    expect(shim.slice(shim.indexOf(":plain"))).not.toContain(path)
+  })
+
+  it("is installed whether or not cmd prints", async ({ resources }) => {
+    const { directory, options } = setup(resources)
+    const shell = await installShellFiles(
+      directory,
+      options({ prints: () => Promise.resolve("prints" as const) }),
+    )
+    expect(shell.pwshShimDir).toBeDefined()
+  })
+
+  it("puts nothing on Codex's PATH where it is missing or can't be verified, nor elsewhere than Windows", async ({
+    resources,
+  }) => {
+    const { directory, folder, options } = setup(resources)
+    const logged = vi.spyOn(console, "warn").mockImplementation(() => {})
+    resources.defer(() => logged.mockRestore())
+    const without = await installShellFiles(
+      directory,
+      options({ pwshShim: join(folder, "none.exe") }),
+    )
+    expect(without.pwshShimDir).toBeUndefined()
+    expect(codexShim(without)).not.toContain('set "PATH=')
+    const spaced = await installShellFiles(
+      directory,
+      options({ short: (path: string) => Promise.resolve(`${path} with space`) }),
+    )
+    expect(spaced.pwshShimDir).toBeUndefined()
+    const linux = await installShellFiles(directory, options({ platform: "linux" }))
+    expect(linux.pwshShimDir).toBeUndefined()
+  })
+
+  it("is there only while asked for, as while Codex is connected, and goes once not", async ({
+    resources,
+  }) => {
+    const { directory, options } = setup(resources)
+    const on = await installShellFiles(directory, options())
+    expect(on.pwshShimDir).toBeDefined()
+    const off = await installShellFiles(directory, options({ pwsh: false }))
+    expect(off.pwshShimDir).toBeUndefined()
+    expect(existsSync(off.pwshDir)).toBe(false)
+    expect(codexShim(off)).not.toContain('set "PATH=')
+  })
+
+  it("is kept as an earlier writing left it at a start, so Codex's shim is written once", async ({
+    resources,
+  }) => {
+    const { directory, options } = setup(resources)
+    const on = await installShellFiles(directory, options())
+    const shim = codexShim(on)
+    const kept = await installShellFiles(directory, options({ pwsh: "kept" }))
+    expect(kept.pwshShimDir).toBe(on.pwshShimDir)
+    expect(codexShim(kept)).toBe(shim)
+    await installShellFiles(directory, options({ pwsh: false }))
+    const none = await installShellFiles(directory, options({ pwsh: "kept" }))
+    expect(none.pwshShimDir).toBeUndefined()
+    expect(existsSync(none.pwshDir)).toBe(false)
+  })
+
+  it("is replaced by an upgrade in the same folder", async ({ resources }) => {
+    const { directory, shim, options } = setup(resources)
+    const first = await installShellFiles(directory, options())
+    writeFileSync(shim, "pwsh two")
+    const after = await installShellFiles(directory, options())
+    expect(readFileSync(join(after.pwshDir, "pwsh.exe"), "utf8")).toBe("pwsh two")
+    expect(after.pwshShimDir).toBe(first.pwshShimDir)
+  })
+})

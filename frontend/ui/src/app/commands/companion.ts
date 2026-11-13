@@ -156,10 +156,14 @@ export const createCompanionCommands = (
     },
     markSeen: (itemIds) =>
       commit([{ type: "item/seen", target: currentTarget(workspace.getSnapshot()), itemIds }]),
-    openBarTab: (terminalId, key) =>
+    // What the person hid from the bar comes back to it as it opens.
+    openBarTab: (terminalId, key) => {
+      const target = currentTarget(workspace.getSnapshot())
       commit([
-        { type: "bar/open", target: currentTarget(workspace.getSnapshot()), terminalId, key },
-      ]),
+        { type: "bar/reopen", target, terminalId, key },
+        { type: "bar/open", target, terminalId, key },
+      ])
+    },
     minimizeOnBar: (terminalId, key) =>
       commit([
         { type: "bar/minimize", target: currentTarget(workspace.getSnapshot()), terminalId, key },

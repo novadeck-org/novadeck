@@ -28,6 +28,15 @@ export const joinDraft = (earlier: string, later: string): string => {
   return `${earlier}\n${later.trimStart().slice(1).trimStart()}`
 }
 
+// Words a pane drafts for the person to look over, set after the draft as a paragraph of their
+// own; null where the draft is a shell command, which they would only be more lines of and
+// which a pane has no business before. Words the draft holds already aren't added again.
+export const toldDraft = (draft: string, words: string): string | null => {
+  if (!draft.trim()) return words
+  if (draft.trimStart().startsWith("!")) return null
+  return draft.includes(words) ? draft : `${draft}\n\n${words}`
+}
+
 // Whether words taken out of the agent's box and what the chat's holds make one draft: not a
 // shell command and a message, as the message would run as more of the command, or the command
 // go out as words.

@@ -106,12 +106,14 @@ export type AgentWaiting = {
 // A background shell an agent started, the same for every harness: the id its harness names
 // it by, its command, and when it started (epoch milliseconds). `exit` is null while it runs;
 // else when it ended and its exit code, null where its harness gives none (a shell stopped).
-// It carries no output: Codex writes none while a shell runs.
+// `output` is the absolute path, on the runner's machine, of the file its output is written
+// to as it runs, where one is known.
 export type AgentShell = {
   readonly id: string
   readonly command: string
   readonly since: number
   readonly exit: { readonly at: number; readonly code: number | null } | null
+  readonly output?: string | undefined
 }
 
 // How an agent's turn ended: `completed` or `failed` on its own, `interrupted` by the

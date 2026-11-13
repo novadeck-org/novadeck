@@ -199,6 +199,9 @@ export class Companion {
       cwd: terminal.cwd,
       project: this.host.projectFolder(terminal.sessionId),
       transcript: live?.transcript ?? null,
+      ...(live?.bound && {
+        shells: { agent: live.bound.binding.agent, shells: live.bound.activity.shells },
+      }),
     }
   }
 
@@ -287,6 +290,15 @@ export class Companion {
       { source: plan, path },
       fact.startedAt,
     )
+  }
+
+  /**
+   * The background shells of the terminal's agent changed, or the agent went: its shells
+   * item follows (see `CompanionItems.shellsObserved`).
+   */
+  shelled(record: Record): void {
+    const place = this.place(record.summary.id)
+    if (place) this.items?.shellsObserved(place)
   }
 
   /** A session bound in the terminal: the plans its bar mirrored of another session go. */

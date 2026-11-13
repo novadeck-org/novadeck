@@ -105,7 +105,7 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
               id: task,
             }))
           : []),
-        ...(notified ? shellsEnded(base, prompt) : []),
+        ...(notified ? [...shellOutputs(base, prompt), ...shellsEnded(base, prompt)] : []),
         promptStart(base, prompt, notified),
       ]
     }
@@ -333,6 +333,42 @@ export const shellsEnded = (base: EventBase<"claude">, notification: string): Ac
       const code = exitCode.exec(/<summary>([^<]*)<\/summary>/.exec(each)?.[1] ?? "")?.[1]
       return [{ type: "shell-ended", ...base, id, code: code === undefined ? null : Number(code) }]
     })
+
+// How the result of a background Bash names the file its output is in (probed 2026-11-10,
+// 2.1.316): "Command running in background with ID: <id>. Output is being written to: <path>.
+// You will be notified…". The path may hold spaces, so it ends at its `.output` and the
+// sentence's stop, and is read with no assumption of its separators.
+const backgrounded =
+  /Command running in background with ID: ([^\s.]{1,256})\. Output is being written to: (.{1,4096}?\.output)\.(?:\s|$)/
+
+/**
+ * The output files of background shells a text says: the result of the Bash call that
+ * backgrounded one, and a task notification's `<output-file>` (the prompt, or the
+ * transcript's record of it), each by its task's id. The hook of that call does not carry
+ * the path, so it comes from the transcript, before or after the hook's `shell-started`.
+ */
+export const shellOutputs = (base: EventBase<"claude">, notice: string): ActivityEvent[] => {
+  const told = (id: string | undefined, path: string | undefined): ActivityEvent[] => {
+    const named = shortName(id, agentLimits.name)
+    const file = path?.trim()
+    return named === undefined || !file || file.length > agentLimits.path
+      ? []
+      : [{ type: "shell-output", ...base, id: named, path: file }]
+  }
+  const [, id, path] = backgrounded.exec(notice) ?? []
+  return [
+    ...told(id, path),
+    ...notice
+      .split("<task-notification>")
+      .slice(1)
+      .flatMap((each) =>
+        told(
+          /<task-id>([^<]*)<\/task-id>/.exec(each)?.[1],
+          /<output-file>([^<]*)<\/output-file>/.exec(each)?.[1],
+        ),
+      ),
+  ]
+}
 
 // The most a wake-up may be set out, as ScheduleWakeup clamps it: a minute to an hour.
 const wakeDelayMs = { least: 60_000, most: 3_600_000 } as const

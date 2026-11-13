@@ -62,6 +62,7 @@
 @import "@novadeck/items/pane.css" layer(components);
 @import "@novadeck/items/artifact.css" layer(components);
 @import "@novadeck/items/changes.css" layer(components);
+@import "@novadeck/items/shells.css" layer(components);
 @import "@novadeck/items/messages.css" layer(components);
 @import "./app/visitor.css" layer(components);
 @import "./shell/region.css" layer(components);

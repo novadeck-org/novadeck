@@ -2,7 +2,7 @@ import { isOnBar, type Item, type ItemId } from "@novadeck/core/items"
 import { messagesKey, type Bar, type BarKey } from "@novadeck/core/items/companion-bar"
 import type { WindowPlace } from "@novadeck/core/layout/window-place"
 import type { Messages } from "@novadeck/core/messages"
-import type { TerminalKey, ViewMode } from "@novadeck/core/types"
+import type { AgentShell, TerminalKey, ViewMode } from "@novadeck/core/types"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 import { usePresence, type Presence } from "@novadeck/toolkit/presence"
 import { SubjectBar, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
@@ -30,6 +30,7 @@ import { CompanionPane } from "./CompanionPane"
 import { coverKey } from "./cover-keys"
 import { terminalDrawing } from "./drawing"
 import { useMessages, type MessageLinks } from "./messages/messages"
+import { TellContext, type Tell } from "./tell"
 
 // What the app does with a terminal's bar and the items on it: the actions but docking, which
 // only a window's menu does.
@@ -179,6 +180,8 @@ export const TerminalCompanion = ({
   fresh,
   terminalName = unnamed,
   commands,
+  shells,
+  tell,
 }: {
   itemStore: ItemStore
   messages?: Messages | undefined
@@ -194,6 +197,11 @@ export const TerminalCompanion = ({
   // A terminal in this session by its id, as it's named.
   terminalName?: ((terminalId: string) => string | undefined) | undefined
   commands: ItemCommands
+  // The background shells of the agents of the terminals the bar's shells items are from, by
+  // terminal id, which each item's mark is the state of.
+  shells?: Readonly<Record<string, readonly AgentShell[]>> | undefined
+  // Drafts words into the terminal's chat box for the person to send, where it has one.
+  tell?: Tell | undefined
 }): React.JSX.Element => {
   const { terminalId: terminal, projectId, workspaceSessionId } = terminalKey
   const target = useMemo(() => ({ projectId, workspaceSessionId }), [projectId, workspaceSessionId])
@@ -277,7 +285,7 @@ export const TerminalCompanion = ({
   const actions: Omit<SlotActions, "grab"> = {
     showing,
     stacked: bar.stack,
-    draw: terminalDrawing({ itemStore, target, messagesHandle, links, plans }),
+    draw: terminalDrawing({ itemStore, target, messagesHandle, links, plans, shells }),
     originOf,
     // Clicking what the pane is showing minimizes it, as a taskbar does the active window;
     // anything else comes to the top.
@@ -364,105 +372,107 @@ export const TerminalCompanion = ({
     onRaise: (each) => openPicked(each.key),
   }
   return (
-    <div ref={within} className="terminal-companion" data-view={view}>
-      {shown.mounted ? (
-        <SplitPane view={paneView} owner={terminal} terminalView={view} presence={shown}>
-          {children}
-        </SplitPane>
-      ) : (
-        children
-      )}
-      {/* A terminal gains its taskbar once its agent has a plan, shows something, or can
+    <TellContext.Provider value={tell}>
+      <div ref={within} className="terminal-companion" data-view={view}>
+        {shown.mounted ? (
+          <SplitPane view={paneView} owner={terminal} terminalView={view} presence={shown}>
+            {children}
+          </SplitPane>
+        ) : (
+          children
+        )}
+        {/* A terminal gains its taskbar once its agent has a plan, shows something, or can
           message others, or once another terminal's item is placed on it. */}
-      {taskbar.mounted && (
-        <Taskbar
-          terminal={terminal}
-          agent={agent}
-          slots={slots}
-          actions={actions}
-          land={land}
-          trigger={trigger}
-          open={open}
-          onHide={() => commands.closeBarPane(terminal)}
-          presence={taskbar}
-          dropTarget={overBar}
-        />
-      )}
-      {/* Nothing to show yet, but an icon is dragged over: an empty bar to drop it on. It
+        {taskbar.mounted && (
+          <Taskbar
+            terminal={terminal}
+            agent={agent}
+            slots={slots}
+            actions={actions}
+            land={land}
+            trigger={trigger}
+            open={open}
+            onHide={() => commands.closeBarPane(terminal)}
+            presence={taskbar}
+            dropTarget={overBar}
+          />
+        )}
+        {/* Nothing to show yet, but an icon is dragged over: an empty bar to drop it on. It
           gives way to the real bar at once once something lands. */}
-      {emptyBar.mounted && !taskbar.mounted && (
-        <div
-          {...emptyBar.props}
-          className="taskbar taskbar-empty nodrag nopan"
-          data-taskbar=""
-          data-drop-target={overBar || undefined}
-        >
-          <span className="taskbar-empty-hint">Drop here to show it on this terminal</span>
-        </div>
-      )}
-      <ConfirmDialog
-        key={askingKey}
-        subject={asking}
-        bar={closeBar}
-        title={() => "Close this plan?"}
-        description={(item) =>
-          uncopied?.id === item.id
-            ? "Your edits couldn't be copied, so the plan is still open. Try again, or copy them from the plan yourself."
-            : "Your edits to this plan couldn't be saved, and closing it loses them. Copy them first to keep them."
-        }
-        confirmLabel="Copy my edits and close"
-        cancelLabel="Cancel"
-        onCancel={() => {
-          copying.current = null
-          setClosing((queue) => queue.filter((queued) => queued.id !== asking?.id))
-          setUncopied(null)
-        }}
-        onConfirm={() => {
-          const item = asking
-          if (!item || copying.current !== null) return
-          copying.current = item.id
-          // Whether this copy's answer still counts: the person didn't cancel meanwhile.
-          const answered = (): boolean => {
-            if (copying.current !== item.id) return false
+        {emptyBar.mounted && !taskbar.mounted && (
+          <div
+            {...emptyBar.props}
+            className="taskbar taskbar-empty nodrag nopan"
+            data-taskbar=""
+            data-drop-target={overBar || undefined}
+          >
+            <span className="taskbar-empty-hint">Drop here to show it on this terminal</span>
+          </div>
+        )}
+        <ConfirmDialog
+          key={askingKey}
+          subject={asking}
+          bar={closeBar}
+          title={() => "Close this plan?"}
+          description={(item) =>
+            uncopied?.id === item.id
+              ? "Your edits couldn't be copied, so the plan is still open. Try again, or copy them from the plan yourself."
+              : "Your edits to this plan couldn't be saved, and closing it loses them. Copy them first to keep them."
+          }
+          confirmLabel="Copy my edits and close"
+          cancelLabel="Cancel"
+          onCancel={() => {
             copying.current = null
-            return true
-          }
-          const copied = (): void => {
-            if (!answered()) return
-            setClosing((queue) => queue.filter((queued) => queued.id !== item.id))
+            setClosing((queue) => queue.filter((queued) => queued.id !== asking?.id))
             setUncopied(null)
-            commands.closeItem(item.id)
-            // Closed from the pane with something behind it: the pane, still out, takes
-            // focus, which the dialog would have put back on a button that's gone.
-            if (item.id === showing && behind.length > 0)
-              requestAnimationFrame(() => {
-                const focused = document.activeElement
-                if (focused && focused !== document.body) return
-                document
-                  .querySelector<HTMLElement>(
-                    `[data-companion-of="${CSS.escape(terminal)}"] .pane-reader`,
-                  )
-                  ?.focus({ preventScroll: true })
-              })
-          }
-          // Not copied, the plan stays, and the dialog says so: closing would lose the edits.
-          const failed = (): void => {
-            if (!answered()) return
-            setUncopied((last) => ({
-              id: item.id,
-              tries: last?.id === item.id ? last.tries + 1 : 1,
-            }))
-          }
-          const plan = itemStore.store.getSnapshot().plans[item.id]
-          if (!plan) return copied()
-          const written = navigator.clipboard?.writeText(
-            plan.eol === "\n" ? plan.text : plan.text.replaceAll("\n", plan.eol),
-          )
-          if (!written) return failed()
-          written.then(copied, failed)
-        }}
-        widthClassName="w-[min(360px,calc(100vw-32px))]"
-      />
-    </div>
+          }}
+          onConfirm={() => {
+            const item = asking
+            if (!item || copying.current !== null) return
+            copying.current = item.id
+            // Whether this copy's answer still counts: the person didn't cancel meanwhile.
+            const answered = (): boolean => {
+              if (copying.current !== item.id) return false
+              copying.current = null
+              return true
+            }
+            const copied = (): void => {
+              if (!answered()) return
+              setClosing((queue) => queue.filter((queued) => queued.id !== item.id))
+              setUncopied(null)
+              commands.closeItem(item.id)
+              // Closed from the pane with something behind it: the pane, still out, takes
+              // focus, which the dialog would have put back on a button that's gone.
+              if (item.id === showing && behind.length > 0)
+                requestAnimationFrame(() => {
+                  const focused = document.activeElement
+                  if (focused && focused !== document.body) return
+                  document
+                    .querySelector<HTMLElement>(
+                      `[data-companion-of="${CSS.escape(terminal)}"] .pane-reader`,
+                    )
+                    ?.focus({ preventScroll: true })
+                })
+            }
+            // Not copied, the plan stays, and the dialog says so: closing would lose the edits.
+            const failed = (): void => {
+              if (!answered()) return
+              setUncopied((last) => ({
+                id: item.id,
+                tries: last?.id === item.id ? last.tries + 1 : 1,
+              }))
+            }
+            const plan = itemStore.store.getSnapshot().plans[item.id]
+            if (!plan) return copied()
+            const written = navigator.clipboard?.writeText(
+              plan.eol === "\n" ? plan.text : plan.text.replaceAll("\n", plan.eol),
+            )
+            if (!written) return failed()
+            written.then(copied, failed)
+          }}
+          widthClassName="w-[min(360px,calc(100vw-32px))]"
+        />
+      </div>
+    </TellContext.Provider>
   )
 }

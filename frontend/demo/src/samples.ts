@@ -301,13 +301,20 @@ const projectTerminals = (project: Project, withAgents = false): TerminalMetadat
               ],
               wake: null,
             },
-            // And a shell, which the chat pins under its prompt until it exits.
+            // And a shell, which the chat pins under its prompt until it exits, and one that
+            // failed, which stays under it with the end of what it printed.
             shells: [
               {
                 id: "demo-shell-1",
                 command: "pnpm preview --port 4173",
                 since: Date.now() - 18 * 60_000,
                 exit: null,
+              },
+              {
+                id: "demo-shell-2",
+                command: "docker compose up postgres",
+                since: Date.now() - 6 * 60_000,
+                exit: { at: Date.now() - 5 * 60_000, code: 1 },
               },
             ],
           },

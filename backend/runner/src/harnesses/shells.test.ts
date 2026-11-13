@@ -102,4 +102,47 @@ describe("the background shells an agent started", () => {
     expect(parsed.success).toBe(true)
     expect(shellsOf(activity)![0]!.command).toHaveLength(agentLimits.command)
   })
+
+  const output = (id: string, path: string): ActivityEvent => ({
+    type: "shell-output",
+    ...base,
+    startedAt: 0,
+    id,
+    path,
+  })
+
+  it("gain the file their output is in, whether it is told after the shell or before", () => {
+    const after = shellsOf(run(shell("a", 100), output("a", "/t/a.output")))
+    expect(after).toMatchObject([{ id: "a", output: "/t/a.output" }])
+    const before = run(output("a", "/t/a.output"), shell("a", 100))
+    expect(shellsOf(before)).toMatchObject([{ id: "a", output: "/t/a.output" }])
+    expect(before.outputs).toEqual([])
+  })
+
+  it("keep their output once they end, and show none where none was told", () => {
+    const activity = run(shell("a", 100), shell("b", 110), output("a", "/t/a"), ended("a", 200, 0))
+    expect(shellsOf(activity)).toMatchObject([
+      { id: "a", output: "/t/a", exit: { code: 0 } },
+      { id: "b" },
+    ])
+    expect(shellsOf(activity)![1]).not.toHaveProperty("output")
+  })
+
+  it("hold an output told before its shell to a bound, the newest kept", () => {
+    const held = Array.from({ length: agentLimits.shells + 4 }, (_, index) =>
+      output(`o${index}`, `/t/o${index}`),
+    )
+    const activity = run(...held)
+    expect(activity.outputs).toHaveLength(agentLimits.shells)
+    expect(activity.outputs[0]!.id).toBe("o4")
+    expect(shellsOf(activity)).toBeUndefined()
+  })
+
+  it("take a later path for the same shell, and turn away one the protocol would refuse", () => {
+    const activity = run(shell("a", 100), output("a", "/t/a"), output("a", "/t/b"))
+    expect(shellsOf(activity)![0]!.output).toBe("/t/b")
+    const long = run(shell("a", 100), output("a", "/".repeat(agentLimits.path + 1)))
+    expect(shellsOf(long)![0]).not.toHaveProperty("output")
+    expect(agentActivity.safeParse(summary(activity)).success).toBe(true)
+  })
 })

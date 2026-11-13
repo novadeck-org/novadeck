@@ -23,7 +23,7 @@ export const maxTurnFilePath = 1024
 // How much an agent's activity and detail carry at most: its subagents running, the jobs it
 // waits on, the background shells it started, its actors (the root and its subagents) and the requests waiting on the person,
 // a request's choices; and, in UTF-16 code units, a name (an id, a kind, a tool, a choice),
-// a description (a job's, a wake's reason), a request's subject and a waited job's or shell's command;
+// a description (a job's, a wake's reason), a request's subject and a waited job's or shell's command, and a shell's output path;
 // and the prompts given through `agents.prompt` whose receipts it keeps.
 export const agentLimits = {
   subagents: 32,
@@ -37,6 +37,7 @@ export const agentLimits = {
   description: 512,
   subject: 1024,
   command: 4096,
+  path: 4096,
 } as const
 
 // Fields of an agent's last turn, shared by its summary and by a stored turn entry.
@@ -94,8 +95,9 @@ export const agentActivity = z.strictObject({
   // turns until the harness says each ended. Each has the id its harness names it by, its
   // command, when it started (epoch milliseconds), and `exit`: null while it runs, else when
   // it ended and its exit code, null where its harness gives none (a shell the agent or the
-  // person stopped). Absent while there is none. It carries no output: Codex writes a
-  // running shell's output nowhere Novadeck can read.
+  // person stopped), and `output` where known: the absolute path of the file its output is
+  // written to as it runs (Claude Code's and Antigravity's own, Codex's as Novadeck captures
+  // it), on the runner's machine. Absent while there is none.
   shells: z
     .array(
       z.strictObject({
@@ -103,6 +105,7 @@ export const agentActivity = z.strictObject({
         command: z.string().max(agentLimits.command),
         since: z.number(),
         exit: z.strictObject({ at: z.number(), code: z.number().int().nullable() }).nullable(),
+        output: z.string().min(1).max(agentLimits.path).optional(),
       }),
     )
     .max(agentLimits.shells)

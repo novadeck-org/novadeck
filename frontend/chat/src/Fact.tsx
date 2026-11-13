@@ -5,15 +5,18 @@ import { span, timeOfDay, useNow } from "./facts"
 // - live: a clock still running, a step brighter.
 // - hover: shown only while the row is pointed at or holds focus.
 // - keep: stays where the chat is narrow, being on a line of its own.
+// - tone: bad is a failure's, in the danger colour.
 export const Fact = ({
   live,
   hover,
   keep,
+  tone,
   children,
 }: {
   readonly live?: boolean
   readonly hover?: boolean
   readonly keep?: boolean
+  readonly tone?: "bad"
   readonly children: React.ReactNode
 }): React.JSX.Element => (
   <span
@@ -21,6 +24,7 @@ export const Fact = ({
     data-live={live || undefined}
     data-hover={hover || undefined}
     data-keep={keep || undefined}
+    data-tone={tone}
     aria-hidden
   >
     {children}

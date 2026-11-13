@@ -288,7 +288,7 @@ next; no agent's show lands there, and it can't be moved to a bar or undocked. T
 keeps items and windows (`companions.*`, see [Backend API](backend-api.md)), so they
 survive restarts.
 Moving an item to another bar or undocking it changes its holder; closing it deletes
-it, except that a plan or the Messages closed on their own terminal's bar only hide
+it, except that a plan, a terminal's shells or the Messages closed on their own terminal's bar only hide
 there, which the UI keeps as presentation. There is no cap and no eviction: an item
 that can't be shown stays and says why. Items and windows reach the workspace store
 through the backend's seed and actions, as terminals do; the person's moves are
