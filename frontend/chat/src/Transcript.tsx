@@ -3,7 +3,7 @@ import type { MessageParty } from "@novadeck/core/messages"
 import { counted } from "@novadeck/core/units"
 import { Markdown } from "@novadeck/toolkit/Markdown"
 import { MentionedText } from "@novadeck/toolkit/Mentioned"
-import type { Mention } from "@novadeck/toolkit/mentions"
+import { mentionAt, type Mention } from "@novadeck/toolkit/mentions"
 import { memo, useId, useMemo, useState } from "react"
 
 import { withBubbles, type SentBubble } from "./bubbles"
@@ -60,12 +60,14 @@ export type PeerLook = {
   readonly where: string | null
   readonly hue: number
 }
-export type PeerLooks = (handle: string) => PeerLook | null
+// `at` is when the words that name the handle were written, where known: an agent that was
+// given the handle only after has no look there, as the words meant an earlier one.
+export type PeerLooks = (handle: string, at?: number | null) => PeerLook | null
 
 // The hue of the agent a handle names in prose, for the Markdown to draw it in, where the app
 // knows the agent.
 export const mentionOf = (looks: PeerLooks | undefined): Mention | undefined =>
-  looks && ((handle) => looks(handle)?.hue ?? null)
+  looks && ((handle, at) => looks(handle, at)?.hue ?? null)
 
 // What stands in the gutter at the person's words that came another way than the prompt, as an
 // answer through the Inbox: their face, where the app gives one (their avatar, as Messages draws
@@ -94,17 +96,20 @@ const PeerMessage = ({
   looks,
   mention,
   at,
+  written = at,
 }: {
   // As the harness names it: "@handle" for a Novadeck agent.
   readonly from: string
   // When it was said, where the record says.
   readonly at: number | null
+  // When the words were written, where that differs from the time to show.
+  readonly written?: number | null
   readonly text: string
   readonly truncated: boolean
   readonly looks: PeerLooks | undefined
   readonly mention: Mention | undefined
 }): React.JSX.Element => {
-  const look = from.startsWith("@") ? (looks?.(from.slice(1)) ?? null) : null
+  const look = from.startsWith("@") ? (looks?.(from.slice(1), written) ?? null) : null
   const [ref, fold] = useFold<HTMLDivElement>(text)
   const { folds, open, setOpen } = fold
   return (
@@ -129,7 +134,7 @@ const PeerMessage = ({
         // the rest opens to them. A click (on a link, a code block, its copy key) leaves it shut.
         onFocus={folds && !open ? (event) => keyFocus(event.target) && setOpen(true) : undefined}
       >
-        <Markdown text={text} mention={mention} />
+        <Markdown text={text} mention={mentionAt(mention, written)} />
       </div>
       {truncated && <Shortened />}
       <MoreKey fold={fold} />
@@ -348,7 +353,7 @@ const BlockView = memo(
               <RecordedImages item={block.id} images={block.images} text={block.text} />
             )}
             <p className="chat-text">
-              <MentionedText text={block.text} mention={mention} />
+              <MentionedText text={block.text} mention={mentionAt(mention, block.at)} />
             </p>
             {block.truncated && <Shortened />}
             <TimeFact at={block.at} />
@@ -357,7 +362,7 @@ const BlockView = memo(
       case "assistant":
         return (
           <article className="chat-message" data-role="assistant" aria-label={agent}>
-            <Markdown text={block.text} mention={mention} />
+            <Markdown text={block.text} mention={mentionAt(mention, block.at)} />
             {block.truncated && <Shortened />}
             {worked !== null ? (
               <Fact>worked {span(worked)}</Fact>
@@ -410,6 +415,8 @@ const BlockView = memo(
                 mention={mention}
                 // With no line of its own, the ring's time is its first message's.
                 at={line === null && index === 0 ? block.at : null}
+                // Its words were written when the ring came.
+                written={block.at}
               />
             ))}
             {fromPerson(block).map((message, index) => (
@@ -427,7 +434,7 @@ const BlockView = memo(
                   <span className="chat-agent-where">from the Inbox</span>
                 </p>
                 <p className="chat-text">
-                  <MentionedText text={message.text} mention={mention} />
+                  <MentionedText text={message.text} mention={mentionAt(mention, block.at)} />
                 </p>
                 {line === null && index === 0 && fromAgents(block).length === 0 && (
                   <TimeFact at={block.at} hover />

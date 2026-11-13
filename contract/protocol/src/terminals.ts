@@ -104,6 +104,11 @@ export const terminalSummary = z.strictObject({
   // Its handle in its project; it changes only when the person moves the terminal to a
   // session where another terminal has it already (`terminals.move`).
   handle,
+  // When it was given that handle, in epoch milliseconds; absent (or 0) where that was long
+  // ago or is not known. A project gives a handle again an hour after its terminal closes,
+  // so `@moth` written before this time named an earlier terminal, and clients draw it as
+  // plain text rather than a link to this one.
+  handleGivenAt: z.number().nonnegative().optional(),
   // Whether the runner started a shell for it in this lifetime. A terminal it keeps only
   // as saved, as after the runner restarted, has none until a client restores it, with
   // `create` and `restore`.

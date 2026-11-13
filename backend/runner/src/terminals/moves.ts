@@ -322,6 +322,7 @@ export class Moves {
         ...record.summary,
         sessionId: target,
         handle,
+        handleGivenAt: host.names().givenAt(target, handle),
         ledBy,
         ...summaryTitle(naming, { handle, command: record.summary.command }),
       }
@@ -384,8 +385,6 @@ export class Moves {
       if (record && summary) {
         record.openedBy = openedBy
         record.naming = naming
-        if (summary.handle !== record.summary.handle)
-          record.handleGivenAt = host.names().givenAt(target, summary.handle)
         record.summary = summary
         if (member === first!.member) record.suspended = null
         host.announce(record)

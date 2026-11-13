@@ -472,6 +472,64 @@ describe("an @handle in the words", () => {
     )
   })
 
+  describe("that went to a new terminal", () => {
+    // fox was given its handle at 1000, after the earlier terminal that had it closed.
+    const given = 1_000
+    const later: PeerLooks = (handle, at) =>
+      handle === "fox" && (at === undefined || at === null || at >= given)
+        ? { face: null, where: null, hue: 5 }
+        : null
+    const dated = (kind: "user" | "assistant", at: number | null, text: string): ChatBlock => ({
+      kind,
+      id: "a",
+      text,
+      truncated: false,
+      at,
+    })
+
+    it("is drawn in no hue in words written before the terminal had the handle", () => {
+      for (const kind of ["user", "assistant"] as const)
+        expect(hues(show([dated(kind, given - 1, "Ask @fox")], undefined, later))).toEqual([])
+    })
+
+    it("is drawn in its hue in words written at or after the time it was given", () => {
+      for (const kind of ["user", "assistant"] as const) {
+        expect(hues(show([dated(kind, given, "Ask @fox")], undefined, later))).toEqual([
+          ["@fox", "5"],
+        ])
+        expect(hues(show([dated(kind, given + 5, "Ask `@fox`")], undefined, later))).toEqual([
+          ["@fox", "5"],
+        ])
+      }
+    })
+
+    it("is drawn as it was in words with no time", () => {
+      expect(hues(show([dated("assistant", null, "Ask @fox")], undefined, later))).toEqual([
+        ["@fox", "5"],
+      ])
+    })
+
+    it("gives an old message from it neither the new terminal's face nor its hue", () => {
+      const message = (at: number): ChatBlock => ({
+        kind: "agent",
+        id: "m",
+        author: "@fox",
+        text: "Done, ask @fox",
+        truncated: false,
+        at,
+      })
+      const withFace: PeerLooks = (handle, at) =>
+        later(handle, at) && { face: "face", where: "codex · Runtime", hue: 5 }
+      const before = show([message(given - 1)], undefined, withFace)
+      expect(before.querySelector(".chat-agent-face")).toBeNull()
+      expect(before.querySelector(".chat-agent-where")).toBeNull()
+      expect(hues(before)).toEqual([])
+      const after = show([message(given)], undefined, withFace)
+      expect(after.querySelector(".chat-agent-face")).not.toBeNull()
+      expect(hues(after)).toEqual([["@fox", "5"]])
+    })
+  })
+
   it("keeps the title after a handle in code, outside its colour", () => {
     const container = show([words("a", "assistant", "`@fox · api-server`")], undefined, looks)
     expect(hues(container)).toEqual([["@fox", "5"]])

@@ -25,6 +25,7 @@ describe("a terminal's status", () => {
       argv: ["bash", "build.sh"],
       restoredProcess: "claude",
       handle: "moth",
+      handleGivenAt: 1_700_000_000_000,
       ledBy: "id-fox",
       openedBy: "id-owl",
       agentRan: true,

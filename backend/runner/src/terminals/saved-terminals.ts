@@ -57,6 +57,23 @@ export type AgentReport = {
    * started it.
    */
   readonly launch?: readonly string[]
+  /**
+   * What the session may know of the project's terminals (see `terminals/introductions.ts`):
+   * when it began in this terminal, and the terminals it was shown since, by id. Kept with
+   * the session, so one resumed after a restart keeps it; rows saved without it read as not
+   * known, and a new session starts with its own.
+   */
+  readonly knew?: Knew
+}
+
+/**
+ * What an agent session has been shown of its project's terminals: `since`, when it began in
+ * its terminal (a hook's start, on the runner's clock; 0 where that is not known), and
+ * `shown`, the ids of the terminals it was told of since by name, oldest first.
+ */
+export type Knew = {
+  readonly since: number
+  readonly shown: readonly string[]
 }
 
 /**

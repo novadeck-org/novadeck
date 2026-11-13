@@ -8,6 +8,7 @@ import {
   opened,
   opens,
   own,
+  result,
   sends,
   sent,
   start,
@@ -108,7 +109,20 @@ for (const setup of setups) {
         opens("Start a worker", setup.agent, brief),
         own((call) => (opened(call, "owl") ? { text: "Started owl." } : undefined)),
         sends("Redirect owl", "owl", redirect),
-        sends("Tell owl", "owl", news),
+        // A peer lists the terminals before it writes to one it was never shown: a handle
+        // given after its session began is refused to it once.
+        own((call) => {
+          const listing = tool(call, "agents")
+          return listing && asked(call, "Tell owl")
+            ? { calls: [{ name: listing, input: {} }] }
+            : undefined
+        }),
+        own((call) => {
+          const send = tool(call, "send")
+          return send && /You are @fox\b/.test(result(call) ?? "")
+            ? { calls: [{ name: send, input: { to: "owl", text: news } }] }
+            : undefined
+        }),
         own((call) => (sent(call, "owl") ? { text: "Told owl." } : undefined)),
         // The worker: a turn of two tool calls, then its end, which the peer's message
         // continues.

@@ -516,7 +516,9 @@ agent.
   Agents address each other by terminal handle: a word its project gives each terminal,
   such as `moth`, which no other terminal of the project has. Novadeck shows it as `@moth`
   and it stays the terminal's when you rename it. After a terminal closes, its handle can
-  go to a new terminal of the project an hour later. A sidebar tab shows it beside Close where an agent runs
+  go to a new terminal of the project an hour later; an agent that still knew the old one is
+  refused its first call to the handle, which names the new terminal, and chat words written
+  before then draw `@moth` as plain text. A sidebar tab shows it beside Close where an agent runs
   or has run, or where an agent opened or leads the terminal; a window's header shows it
   in its switcher, under the pointer.
   An agent that opens terminals with a brief leads them, and a worker's window header says

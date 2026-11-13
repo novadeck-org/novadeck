@@ -373,6 +373,12 @@ Agents:
   has two, and an image pasted into any demo chat shows as pasted once the prompt is
   recorded), gone (boxes naming each `[Image #N]`), slow (quiet boxes for 6 s) or unreachable
   (the boxes, asked again when the row is drawn again). Click a thumbnail to see it larger.
+- **Chat: a handle given again:** a project gives a handle to a new terminal an hour after its
+  terminal closes, so chat words from before that name an earlier terminal. "Handle given again"
+  gives another terminal of the session its handle just now (its `handleGivenAt`) and adds two
+  entries to the selected agent's chat, one dated three hours before and one just after, both
+  naming that `@handle`: the old one draws it as plain text, the new one in the handle's hue.
+  "Handle back to its first terminal" undoes it (`frontend/demo-debug/src/mentions.ts`).
 - **Plan:** only in the `showcase` variant, on the selected terminal's agent (Build Studio or
   the auth agent), for what happens to a plan the person has edited. "Plan in the agent's
   messages" makes it read-only; "Plan file deleted" shows that its file is gone, with the

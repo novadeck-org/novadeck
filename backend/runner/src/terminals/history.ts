@@ -20,6 +20,7 @@ import { agentLabel } from "../messaging/messages.js"
 import type { ClosedRecord, ClosedRecords, ListedClosed } from "../workspaces/closed.js"
 import { savedSession } from "./binding/standing.js"
 import { mention } from "./handles.js"
+import type { Former } from "./introductions.js"
 import type { Record } from "./record.js"
 import { resumeNote } from "./resumes.js"
 import {
@@ -406,6 +407,17 @@ export class ClosedTerminals {
     const rows = this.host.records?.closed(projectId) ?? []
     const pass = newPass()
     return pooled(rows, (row) => this.wire(row, pass))
+  }
+
+  /**
+   * The terminal that last held the handle in the project and closed no later than `before`,
+   * if History still keeps it: its title and when it closed.
+   */
+  lastHolder(projectId: string, handle: string, before: number): Former | undefined {
+    const row = (this.host.records?.closed(projectId) ?? []).find(
+      (each) => each.handle === handle && each.closedAt <= before,
+    )
+    return row && { title: summaryTitle(row.naming, row).title, closedAt: row.closedAt }
   }
 
   /** Every closed terminal, `synced`, then each later change, until `signal` aborts. */

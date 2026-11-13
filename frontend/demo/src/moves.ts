@@ -57,7 +57,13 @@ export const demoMove = (
       projectId: key.projectId,
       from: key.workspaceSessionId,
       to: sessionId,
-      terminal: { ...each, handle, ledBy },
+      // A handle the session gave it in place of the one it had is new to it.
+      terminal: {
+        ...each,
+        handle,
+        ...(handle !== each.handle && { handleGivenAt: Date.now() }),
+        ledBy,
+      },
     }
   })
   return {

@@ -321,6 +321,8 @@ export class WorktreeCalls {
           always: true,
         },
       )
+    // The notice names the giver, so its handle is the receiver's to use.
+    this.host.peers().introduce(target.terminalId, call.terminalId)
     return { ok: true, path: row.path, branch: row.branch, owner: target.handle }
   }
 }

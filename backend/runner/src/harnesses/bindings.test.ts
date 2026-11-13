@@ -27,6 +27,7 @@ const seen = (fields: Partial<SessionObserved> = {}): SessionObserved => ({
   instance: null,
   ...fields,
 })
+const began = (since: number) => ({ since, shown: [] })
 const running: Sessions = {
   sessions: { claude: { sessionId: "a", seq: 2_000, cwd: "/work" } },
   binding: { agent: "claude", sessionId: "a", instance: null },
@@ -36,7 +37,7 @@ const running: Sessions = {
 describe("observing a harness session", () => {
   it("binds the session now holding the foreground, in its directory", () => {
     expect(observe(idle, seen({ cwd: "/work" }), facts)).toEqual({
-      sessions: { claude: { sessionId: "a", seq: 2_000, cwd: "/work" } },
+      sessions: { claude: { sessionId: "a", seq: 2_000, cwd: "/work", knew: began(2_000) } },
       binding: { agent: "claude", sessionId: "a", instance: null },
       cwd: "/work",
     })
@@ -44,7 +45,7 @@ describe("observing a harness session", () => {
 
   it("keeps a session from a hook started before the prompt without binding it", () => {
     expect(observe(idle, seen({ startedAt: 500, cwd: "/work" }), facts)).toEqual({
-      sessions: { claude: { sessionId: "a", seq: 500, cwd: "/work" } },
+      sessions: { claude: { sessionId: "a", seq: 500, cwd: "/work", knew: began(500) } },
       binding: null,
       cwd: "/home",
     })
@@ -208,6 +209,7 @@ describe("the launch flags a session keeps", () => {
       seq: 2_000,
       cwd: "/home",
       launch: flags,
+      knew: began(2_000),
     })
     const later = observe(first, seen({ startedAt: 3_000 }), facts)!
     expect(later.sessions.claude).toEqual({
@@ -215,6 +217,7 @@ describe("the launch flags a session keeps", () => {
       seq: 3_000,
       cwd: "/home",
       launch: flags,
+      knew: began(2_000),
     })
     // The same process reporting again says what it has.
     const changed = observe(
@@ -265,7 +268,12 @@ describe("the launch flags a session keeps", () => {
       facts,
     )!
     const bare = observe(first, seen({ startedAt: 3_000, launch: [] }), facts)!
-    expect(bare.sessions.claude).toEqual({ sessionId: "a", seq: 3_000, cwd: "/home" })
+    expect(bare.sessions.claude).toEqual({
+      sessionId: "a",
+      seq: 3_000,
+      cwd: "/home",
+      knew: began(2_000),
+    })
     // A process that doesn't tell its flags at all leaves the session's.
     const silent = observe(first, seen({ startedAt: 3_000 }), facts)!
     expect(silent.sessions.claude?.launch).toEqual(first.sessions.claude?.launch)
@@ -277,6 +285,7 @@ describe("the launch flags a session keeps", () => {
       sessionId: "a",
       seq: 2_000,
       cwd: "/home",
+      knew: began(2_000),
     })
     expect(withoutLaunch(first.sessions, "codex")).toBe(first.sessions)
   })
@@ -288,9 +297,50 @@ describe("the launch flags a session keeps", () => {
       seen({ sessionId: "b", startedAt: 3_000, evidence: "native-switch" }),
       facts,
     )!
-    expect(next.sessions.claude).toEqual({ sessionId: "b", seq: 3_000, cwd: "/home" })
+    expect(next.sessions.claude).toEqual({
+      sessionId: "b",
+      seq: 3_000,
+      cwd: "/home",
+      knew: began(3_000),
+    })
     const bare = observe(idle, seen({ launch: [] }), facts)!
-    expect(bare.sessions.claude).toEqual({ sessionId: "a", seq: 2_000, cwd: "/home" })
+    expect(bare.sessions.claude).toEqual({
+      sessionId: "a",
+      seq: 2_000,
+      cwd: "/home",
+      knew: began(2_000),
+    })
+  })
+})
+
+describe("what a session was shown of its project's terminals", () => {
+  it("begins when a session new to the terminal is first seen, and shows nothing yet", () => {
+    const first = observe(idle, seen(), facts)!
+    expect(first.sessions.claude?.knew).toEqual({ since: 2_000, shown: [] })
+    // Another session, as after a /clear, begins on its own.
+    const cleared = observe(
+      first,
+      seen({ sessionId: "b", startedAt: 5_000, evidence: "native-switch" }),
+      facts,
+    )!
+    expect(cleared.sessions.claude?.knew).toEqual({ since: 5_000, shown: [] })
+  })
+
+  it("stays with the session as it reports again, shown terminals and all", () => {
+    const shown = {
+      sessions: { claude: { sessionId: "a", seq: 2_000, knew: { since: 1_000, shown: ["F"] } } },
+      binding: null,
+      cwd: "/work",
+    }
+    const later = observe(shown, seen({ startedAt: 3_000 }), facts)!
+    expect(later.sessions.claude?.knew).toEqual({ since: 1_000, shown: ["F"] })
+  })
+
+  it("is not invented for a session saved without it, which began who knows when", () => {
+    const old = { sessions: { claude: { sessionId: "a", seq: 2_000 } }, binding: null, cwd: "/w" }
+    expect(observe(old, seen({ startedAt: 3_000 }), facts)!.sessions.claude).not.toHaveProperty(
+      "knew",
+    )
   })
 })
 

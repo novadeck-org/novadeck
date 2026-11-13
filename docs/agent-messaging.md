@@ -306,7 +306,50 @@ creation order, never by their handle: `handle_seq` is the place a handle was gi
 so a reused handle's terminal sorts after the older ones. A terminal also keeps when its
 handle was given (`handle_given_at`, 0 for one made before it was kept), so a reference
 written before then can be told from one to the terminal that has the handle now. A
-handle never changes, not when the terminal is renamed. Agents
+handle never changes, not when the terminal is renamed.
+
+**A handle given again, and what an agent knew.** An agent's context (its transcript, the
+briefs it wrote, messages delivered to it as `from="moth"`, `agents` and `team` listings,
+notices) can still name the old `@moth` after the project gave `moth` to a new terminal.
+Before handles came back, a `send` to it was refused as an unknown handle; now it would
+reach an unrelated terminal. So a tool that takes a handle (`send` to one handle or several,
+`lead`, `release`, `close_terminal`, `give_worktree`) **refuses the first call** to a handle
+that went to a terminal its calling agent session may not know under that handle, and says
+so: the error names the new holder (handle, title, summary, when it was opened) and, where
+History still has it, the terminal the agent may have known as `@moth`, which closed, and
+that calling again with the same handle reaches the new one. The second call of the same
+session to the same handle goes through. A send to `team` names no handle (it means the
+terminals the caller leads, by id), so the guard never holds it back; a send to several
+named handles is refused whole, naming each one the session wasn't shown, before any of
+them gets the message.
+
+The rule (`terminals/introductions.ts`, `unknownTo`): the call is refused when the target's
+`handleGivenAt` is greater than 0 _and_ the calling agent session began before it _and_
+the session has not been shown that terminal since. A session began (`knew.since`) when
+its report first came to the terminal (the start of the hook that named it); a session that
+began after the handle was given knows only the holder now, which is why a `/clear`, a new
+session, resets it. A session has been **shown** a terminal (by id, `knew.shown`) by any of:
+an `agents` or `team` result (which lists every other terminal of the project and session),
+the result of the `open_agent` or `open_terminal` that created it, a notice naming it (the
+`give_worktree` notice to the receiver names the giver), a message exchanged with it since
+the session began (one the session sent it, or one delivered to the session), or the
+refusal itself. A terminal whose `handleGivenAt` is 0 (made before it was kept, or whose
+handle was given long ago) never triggers it. Where the facts are not known, the guard errs
+toward refusing once: a report saved before this was kept has no `knew`, so its session
+counts as having begun before everything (since 0), and a root that is only a guess
+(Antigravity's, until its status line names the session) is kept in memory only, since it
+may be corrected to another session.
+
+The state lives with the session's report in the terminal's saved row
+(`AgentReport.knew` in `agent_reports`: `{ since, shown }`, at most 256 terminals), so a
+Claude Code or Codex session resumed after a runner restart keeps it, a new session starts
+its own, and History restores it with the row. It needs no schema change. The refusal is an
+error result of the one MCP server (`isError`); Codex and Antigravity read tool
+descriptions but not the server's instructions, so the five tools' descriptions and the
+refusal text carry the explanation themselves. (The e2e scenario `reuse.e2e.ts` runs it
+for every harness: the refusal reached the model as a plain error text for Claude Code, in
+Codex's tool output after its wall time, and inside Antigravity's JSON `error` with its
+timestamps.) Agents
 tell the person about a terminal as `@fox · api-server`: its handle and its title. Handles exist because a title is text a person, or an agent through
 `open_terminal`'s or `open_agent`'s `title`, can set, and must never reach a prompt.
 

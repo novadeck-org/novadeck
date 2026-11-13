@@ -285,7 +285,15 @@ can go to a new terminal of the project an hour after the close, the one freed l
 first, once every word has been given; words the project never gave come before those. When
 every word is held or resting, they come again with a letter from the end of the alphabet
 (`mothz`). Terminals list in creation order: the order their handles were given, which a
-reused handle does not change. `command` is what it was opened to run, and
+reused handle does not change. `handleGivenAt` is when it was given that handle, in epoch
+milliseconds; absent (or 0) where that was long ago or is not known. Words written before it
+that name the handle meant an earlier terminal, so a client links and colours `@moth` in
+scrollback, messages or markdown only where the words' own time (a chat entry's or a
+message's) is at or after the holder's `handleGivenAt`, and draws it as plain text
+otherwise; words with no time are linked as before. For an agent, a call to a handle that
+went to a terminal its session may not know (see [Agent messaging](agent-messaging.md#handles))
+is refused once, as an error result of the tool (`isError`), naming the new holder and the
+closed one; the same call again goes through. `command` is what it was opened to run, and
 `lastProgram` the program it last had in its foreground, which a fresh shell resumes
 where that is an agent. Windows doesn't tell a terminal's foreground program, so there it
 is the agent whose session last bound the terminal, until the shell has shown its prompt

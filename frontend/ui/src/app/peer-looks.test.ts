@@ -2,11 +2,11 @@ import { messagePeers } from "@novadeck/core/derivations"
 import { workspaceReducer } from "@novadeck/core/state"
 import { workspaceFixture } from "@novadeck/core/testing"
 import { hueOf } from "@novadeck/items/critters"
-import { render } from "@novadeck/test-kit/render"
+import { render, renderHook } from "@novadeck/test-kit/render"
 import { createElement, Fragment } from "react"
 
 import { describe, expect, it } from "../test"
-import { peerLooksOf } from "./peer-looks"
+import { peerLooksOf, usePeerMention } from "./peer-looks"
 
 describe("peerLooksOf", () => {
   // The peers as the app derives them from the session: keyed by terminal id, read by handle.
@@ -50,6 +50,20 @@ describe("peerLooksOf", () => {
     expect(looks("kite")?.where).toBe("Runtime")
   })
 
+  it("has no look for words written before the terminal was given the handle", () => {
+    const given = 5_000
+    const later = peerLooksOf({
+      ...peers,
+      "01": { ...peers["01"]!, handleGivenAt: given },
+    })
+    expect(later("moth", given - 1)).toBeNull()
+    expect(later("moth", given)?.hue).toBe(hueOf("moth"))
+    // Words with no time, and a terminal whose handle was given long ago, are as they were.
+    expect(later("moth")?.hue).toBe(hueOf("moth"))
+    expect(later("moth", null)?.hue).toBe(hueOf("moth"))
+    expect(later("kite", 1)?.hue).toBe(hueOf("kite"))
+  })
+
   it("has no look for a handle no terminal answers to", () => {
     expect(looks("owl")).toBeNull()
   })
@@ -58,5 +72,37 @@ describe("peerLooksOf", () => {
     for (const word of ["constructor", "toString", "valueOf", "__proto__", "hasOwnProperty"]) {
       expect(looks(word)).toBeNull()
     }
+  })
+})
+
+describe("usePeerMention", () => {
+  const peer = (handle: string, handleGivenAt?: number) => ({
+    name: handle,
+    terminalId: `id-${handle}`,
+    handle,
+    ...(handleGivenAt !== undefined && { handleGivenAt }),
+    program: undefined,
+    live: "idle" as const,
+  })
+  const links = (...peers: ReturnType<typeof peer>[]) => {
+    const snapshot = Object.fromEntries(peers.map((each) => [each.terminalId, each]))
+    return {
+      peers: { getSnapshot: () => snapshot, subscribe: () => () => {} },
+      goTo: () => {},
+      answer: () => {},
+    }
+  }
+
+  it("names an agent in words written at or after it was given the handle, not before", () => {
+    const given = links(peer("moth"), peer("fox", 5_000))
+    const { result, unmount } = renderHook(() => usePeerMention(given), null)
+    const mention = result.current
+    expect(mention("fox", 4_999)).toBeNull()
+    expect(mention("fox", 5_000)).toBe(hueOf("fox"))
+    // Words with no time, and a handle given long ago, are as they were.
+    expect(mention("fox")).toBe(hueOf("fox"))
+    expect(mention("moth", 1)).toBe(hueOf("moth"))
+    expect(mention("owl", 9_999)).toBeNull()
+    unmount()
   })
 })

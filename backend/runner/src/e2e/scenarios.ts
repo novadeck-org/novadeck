@@ -223,11 +223,33 @@ export const replies = (text: string, reply: string): Rule =>
  * `to`. The calls after the tool answered go to the next rules.
  */
 export const sends = (text: string, to: string, message: string): Rule =>
+  calling(text, "send", { to, text: message })
+
+/**
+ * Answers the agent's first look at a user turn holding `text` by calling Novadeck's tool
+ * `name` with `input`; when the call is refused because its `to` went to a terminal this
+ * session was never shown, the agent calls again with the same handle, as the refusal says
+ * (see reuse.e2e.ts). The calls after the tool answered go to the next rules.
+ */
+const calling = (
+  text: string,
+  name: string,
+  input: { readonly to: string; readonly [key: string]: string },
+): Rule =>
   own((call) => {
-    const send = tool(call, "send")
-    if (!send || !asked(call, text)) return undefined
-    return { calls: [{ name: send, input: { to, text: message } }] }
+    const offered = tool(call, name)
+    if (!offered) return undefined
+    if (asked(call, text)) return { calls: [{ name: offered, input }] }
+    const before = call.turns.at(-2)
+    const again =
+      result(call)?.includes(sameHandleAgain) === true &&
+      before?.role === "assistant" &&
+      before.calls.some((one) => one.name === offered && one.input.to === input.to)
+    return again ? { calls: [{ name: offered, input }] } : undefined
   })
+
+/** What a refusal of a handle that went to a new terminal asks the agent to do. */
+export const sameHandleAgain = "call again with the same handle"
 
 /**
  * Answers the agent's first look at a user turn holding `text` by opening a terminal that
@@ -246,12 +268,7 @@ export const opens = (text: string, agent: AgentName, message: string): Rule =>
  * whose handle is `to` (`close_terminal`). The calls after the tool answered go to the
  * next rules.
  */
-export const closes = (text: string, to: string): Rule =>
-  own((call) => {
-    const close = tool(call, "close_terminal")
-    if (!close || !asked(call, text)) return undefined
-    return { calls: [{ name: close, input: { to } }] }
-  })
+export const closes = (text: string, to: string): Rule => calling(text, "close_terminal", { to })
 
 /**
  * Answers the agent's first look at a user turn holding `text` by asking to lead the
@@ -259,22 +276,13 @@ export const closes = (text: string, to: string): Rule =>
  * tool answered go to the next rules.
  */
 export const leads = (text: string, to: string, message: string): Rule =>
-  own((call) => {
-    const lead = tool(call, "lead")
-    if (!lead || !asked(call, text)) return undefined
-    return { calls: [{ name: lead, input: { to, message } }] }
-  })
+  calling(text, "lead", { to, message })
 
 /**
  * Answers the agent's first look at a user turn holding `text` by ending its lead of the
  * terminal whose handle is `to` (`release`).
  */
-export const releases = (text: string, to: string): Rule =>
-  own((call) => {
-    const release = tool(call, "release")
-    if (!release || !asked(call, text)) return undefined
-    return { calls: [{ name: release, input: { to } }] }
-  })
+export const releases = (text: string, to: string): Rule => calling(text, "release", { to })
 
 /** Whether the call is the agent's next look after its `lead` asked the person about `handle`. */
 export const askedToLead = (call: Call, handle: string): boolean => {

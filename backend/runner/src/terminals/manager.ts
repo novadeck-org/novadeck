@@ -47,7 +47,7 @@ import { Bindings } from "./binding/facts.js"
 import { Reports } from "./binding/reports.js"
 import { Shown } from "./binding/shown.js"
 import { savedSession } from "./binding/standing.js"
-import { callerOf, sameToken } from "./callers.js"
+import { callerOf } from "./callers.js"
 import { Calls } from "./calls.js"
 import { type CloseAnswer } from "./closes.js"
 import { coalesced } from "./coalesce.js"
@@ -658,12 +658,7 @@ export class Terminals {
     })
     this.peers = new TerminalPeers({
       messaging: this.messaging,
-      caller: (terminalId, token) => {
-        const record = this.records.get(terminalId)
-        return record && !record.terminal.exiting && sameToken(record.token, token)
-          ? record
-          : undefined
-      },
+      caller: (terminalId, token) => callerOf(this.records, { terminalId, token }),
       terminal: (terminalId) => this.records.get(terminalId) ?? this.sleepers.peer(terminalId),
       running: (sessionId) => [
         ...[...this.records.values()].filter(
@@ -676,6 +671,9 @@ export class Terminals {
       bar: (id) => this.options.items?.bar(id) ?? [],
       worktrees: (id) => this.options.worktrees?.service.ownedRows(id) ?? [],
       stopping: () => this.stopping,
+      save: (record) => this.saves.save(record as Record, false),
+      former: (sessionId, handle, before) =>
+        this.history.lastHolder(this.projectOf(sessionId), handle, before),
     })
     this.murmur = options.describer
       ? new Murmur(
@@ -877,6 +875,7 @@ export class Terminals {
           sessionId: input.sessionId,
           ...titled,
           handle,
+          handleGivenAt: this.names.givenAt(input.sessionId, handle),
           ledBy,
           openedBy,
           agentRan: hasRun(saved?.agents ?? {}),
@@ -894,7 +893,6 @@ export class Terminals {
         closed: false,
         foreground: undefined,
         origin,
-        handleGivenAt: this.names.givenAt(input.sessionId, handle),
         agents,
         bound: null,
         suspended: null,
