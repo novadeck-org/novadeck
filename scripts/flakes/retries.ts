@@ -48,7 +48,12 @@ export const runOf = (data: unknown): Run => {
     throw new Error("Not a workflow run.")
   const requests = Array.isArray(data.pull_requests) ? data.pull_requests : []
   return {
-    workflow: data.name,
+    // A run's own name is its title, which a workflow's `run-name` sets: the workflow's name,
+    // where Retried Tests adds it to the run, is what the comment goes by.
+    workflow:
+      typeof data.workflow_name === "string" && data.workflow_name !== ""
+        ? data.workflow_name
+        : data.name,
     run: data.id as number,
     attempt: data.run_attempt as number,
     url: data.html_url,
