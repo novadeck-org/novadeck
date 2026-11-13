@@ -154,11 +154,12 @@ describe("finding the capture of a shell", () => {
   it("does not give two simultaneous looks the same record", async () => {
     await posix("a", "sleep 60", 10_000)
     const captures = new Captures({ temporary, ...fast })
+    // What the terminal's shells hold, as their activity does once a log is handed on.
     const found: string[] = []
     const one = captures.find(
       "t1",
       { command: "sleep 60", since: 10_000 },
-      () => new Set(),
+      () => new Set(found),
       (p) => found.push(p),
     )
     const two = captures.find(
