@@ -69,7 +69,7 @@ export type AgentAsk = {
   readonly shape: AskShape
 }
 
-// A held message: the thread's two terminals, by handle and title, the message, and why the
+// A held message: the thread's two terminals, by their handles as they read and title, the message, and why the
 // thread is held (`loop`: its two agents kept messaging while neither worked; null: only
 // that Novadeck holds it for the person).
 export type HeldMessage = {

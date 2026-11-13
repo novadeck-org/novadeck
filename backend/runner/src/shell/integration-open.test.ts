@@ -134,18 +134,18 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           handle: "fox",
           naming: {
             person: null,
-            opener: { title: "Agent" },
+            opener: { title: "Agent", by: "moth" },
             murmur: null,
             own: null,
             summary: null,
           },
-          openedBy: "moth",
+          openedBy: terminal.id,
           ledBy: null,
         })
         // Opened for a command, even one that starts an agent, it has no lead.
         expect(manager.get(opened!).ledBy).toBeNull()
         // It is still known as the opener's.
-        expect(manager.get(opened!).openedBy).toBe("moth")
+        expect(manager.get(opened!).openedBy).toBe(terminal.id)
         expect(shell.store.terminalIdentity(opened!)).toMatchObject({ ledBy: null })
         await shell.until(manager, opened!, "claude args: --version")
         // Five a minute, counting each request that was asked, opened or not: two more,
@@ -287,15 +287,15 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         expect(listed!.text).toContain(
           "- @fox · claude: expecting Claude Code, not started yet, led by you\n",
         )
-        expect(manager.get(created[0]!).ledBy).toBe("moth")
+        expect(manager.get(created[0]!).ledBy).toBe(terminal.id)
         // Who opened it is kept with the terminal, for a runner that restores it.
         expect(shell.store.terminalIdentity(created[0]!)).toMatchObject({
-          openedBy: "moth",
-          ledBy: "moth",
+          openedBy: terminal.id,
+          ledBy: terminal.id,
         })
         // The task waits for the first session of that agent there.
         expect(manager.messages(created[0]!).threads[0]?.messages[0]).toMatchObject({
-          from: { kind: "agent", handle: "moth" },
+          from: { kind: "agent", terminalId: terminal.id, handle: "moth" },
           to: { kind: "agent", handle: "fox", agent: "claude" },
           text: "Review a.ts, please.",
           state: "queued",
@@ -503,12 +503,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         // Led only where asked to; a plain agent has none, but is still known as the opener's.
         expect(created.map((id) => manager.get(id).ledBy)).toEqual([
           null,
-          "moth",
-          "moth",
-          "moth",
+          terminal.id,
+          terminal.id,
+          terminal.id,
           null,
         ])
-        expect(created.map((id) => manager.get(id).openedBy)).toEqual(Array(5).fill("moth"))
+        expect(created.map((id) => manager.get(id).openedBy)).toEqual(Array(5).fill(terminal.id))
         await shell.until(manager, created[3]!, "claude args: --model opus --resume sess-1")
       } finally {
         controller.abort()
@@ -591,6 +591,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         const { step } = driver(shell, manager)
         await run({
           manager,
+          opener: terminal.id,
           worker: worker!,
           said: answer!.text,
           command: commands[0],
@@ -636,6 +637,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     }
     type Opened = {
       manager: Terminals
+      // The terminal whose agent opened the worker.
+      opener: string
       worker: string
       said: string
       started: () => string
@@ -653,7 +656,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           shell,
           agent,
           { message: "Review a.ts, please.", lead: false },
-          async ({ manager, worker, said, command, prompt, started, sends }) => {
+          async ({ manager, opener, worker, said, command, prompt, started, sends }) => {
             // Antigravity here started plain, its task waiting for the first session.
             expect(said.includes("It started without its task")).toBe(agent === "agy")
             expect(command === agent).toBe(agent === "agy")
@@ -667,7 +670,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
             } else {
               // Led until the brief lands. While it waits, the opener's other messages go as a
               // peer's: unmarked, and not the brief's end.
-              expect(manager.get(worker).ledBy).toBe("moth")
+              expect(manager.get(worker).ledBy).toBe(opener)
               expect(await sends("Also this.")).toEqual([
                 { ok: true, text: expect.stringContaining("Message m-") },
               ])
@@ -698,7 +701,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           shell,
           agent,
           { message: "Review a.ts, please." },
-          async ({ manager, worker, prompt, sends }) => {
+          async ({ manager, opener, worker, prompt, sends }) => {
             // The brief and what follows are the lead's: Antigravity's start took the brief,
             // the others take it with their first prompt.
             if (agent !== "agy") await prompt("go")
@@ -711,7 +714,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
             expect(await prompt("more", agent === "claude")).toMatch(
               /<message [^>]*from="moth"[^>]*lead="[^"]+"[^>]*>Next, the tests.<\/message>/,
             )
-            expect(manager.get(worker).ledBy).toBe("moth")
+            expect(manager.get(worker).ledBy).toBe(opener)
           },
         )
       })
@@ -733,7 +736,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
             lead: true,
             ...(agent !== "agy" && { model: agent === "claude" ? "opus" : "gpt-a" }),
           },
-          async ({ manager, worker, said, command, prompt, started }) => {
+          async ({ manager, opener, worker, said, command, prompt, started }) => {
             expect(command).toBe(form[agent])
             expect(said).toContain("resuming session sess-r")
             // The resumed session takes the brief as any message, marked as its lead's.
@@ -747,7 +750,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
             await expect
               .poll(() => manager.messages(worker).threads[0]?.messages[0]?.state)
               .toBe("delivered")
-            expect(manager.get(worker).ledBy).toBe("moth")
+            expect(manager.get(worker).ledBy).toBe(opener)
           },
         )
       })
@@ -755,11 +758,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       it(`tells ${agent} opened without a brief that its opener leads it, and keeps the lead`, async ({
         shell,
       }) => {
-        await opened(shell, agent, { lead: true }, async ({ manager, worker, prompt }) => {
-          expect(manager.get(worker).ledBy).toBe("moth")
+        await opened(shell, agent, { lead: true }, async ({ manager, opener, worker, prompt }) => {
+          expect(manager.get(worker).ledBy).toBe(opener)
           expect(manager.messages(worker).threads).toEqual([])
           expect(await prompt("go")).toContain("@moth started you and leads you")
-          expect(manager.get(worker).ledBy).toBe("moth")
+          expect(manager.get(worker).ledBy).toBe(opener)
         })
       })
     }

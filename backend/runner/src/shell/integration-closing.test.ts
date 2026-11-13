@@ -310,7 +310,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         { requestId: (asked[0] as { requestId: string }).requestId, approved: true },
         "person",
       )
-      expect(manager.get(codex.id).ledBy).toBe(claude.handle)
+      expect(manager.get(codex.id).ledBy).toBe(claude.id)
       expect(await prompt()).toContain("you now lead @fox")
 
       // Only the lead releases; the person may too.

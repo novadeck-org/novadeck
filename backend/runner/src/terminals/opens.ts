@@ -189,11 +189,13 @@ export const prune = (budgets: Map<string, readonly number[]>, now: number, wind
 }
 
 /**
- * Who asked for a terminal: its terminal's handle, the title it asked for, if any, and the
+ * Who asked for a terminal: its terminal's id, the title it asked for, if any, and the
  * command it starts there, whose prompt is never the person's.
  */
 export type Opener = {
   readonly by: string
+  /** Its handle then, which the title it asked for names as its source. */
+  readonly handle: string
   readonly title?: string
   readonly command?: string
   /**
@@ -295,9 +297,9 @@ export class OpenRequests {
     return [...this.pending.values()].some((waiting) => waiting.from === terminalId)
   }
 
-  /** Whether a request waits for its terminal, asked by the terminal with that handle. */
-  asked(handle: string): boolean {
-    for (const { opener } of this.pending.values()) if (opener?.by === handle) return true
+  /** Whether a request waits for its terminal, asked by the terminal with that id. */
+  asked(terminalId: string): boolean {
+    for (const { opener } of this.pending.values()) if (opener?.by === terminalId) return true
     return false
   }
 

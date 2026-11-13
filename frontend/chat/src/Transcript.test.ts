@@ -151,7 +151,7 @@ describe("the scrollback", () => {
         {
           id: "m",
           text,
-          from: { kind: "agent", handle: "moth", agent: "codex" },
+          from: { kind: "agent", terminalId: "id-moth", handle: "moth", agent: "codex" },
         } as never,
       ],
     })

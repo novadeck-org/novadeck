@@ -13,8 +13,8 @@ import { sessionOf } from "./workspace"
 // A terminal moved to another session of its project, as the runner moves one: a lead with
 // its whole team, each lead before those it leads; a teammate on its own out of its lead's
 // team. Each keeps its handle unless the session it goes to holds it already, then takes the
-// first of the demo's words that's free there, and those it leads follow its new handle. An
-// undo takes the handles they had back where they're free, and rejoins the lead it left.
+// first of the demo's words that's free there; those it leads stay led, by id. An undo takes
+// the handles they had back where they're free, and rejoins the lead it left.
 // The actions move them; the result is what the backend answers. A move that can't happen
 // says why.
 export const demoMove = (
@@ -34,33 +34,24 @@ export const demoMove = (
   // Its team, each lead before the terminals it leads.
   const team: TerminalMetadata[] = [terminal]
   for (let at = 0; at < team.length; at += 1) {
-    const lead = team[at]!.handle
-    if (!lead) continue
+    const lead = team[at]!.id
     for (const each of from)
       if (each.ledBy === lead && !team.includes(each) && each.id !== terminal.id) team.push(each)
   }
-  const left = terminal.ledBy && from.some((each) => each.handle === terminal.ledBy)
-  const taken = new Set(to.flatMap((each) => [each.handle, each.ledBy].filter(Boolean)))
-  const renamed = new Map<string, string>()
+  const left = terminal.ledBy && from.some((each) => each.id === terminal.ledBy)
+  const taken = new Set(to.flatMap((each) => (each.handle ? [each.handle] : [])))
   const moved = team.map((each) => {
     const want = undo?.handles[each.id] ?? each.handle
     let handle = want && !taken.has(want) ? want : undefined
     for (let number = 1; !handle; number += 1)
       if (!taken.has(demoHandle(number))) handle = demoHandle(number)
     taken.add(handle)
-    if (each.handle) renamed.set(each.handle, handle)
     return { terminal: each, handle }
   })
-  const rejoined = undo?.lead && to.some((each) => each.handle === undo.lead) ? undo.lead : null
+  const rejoined = undo?.lead && to.some((each) => each.id === undo.lead) ? undo.lead : null
   const actions = moved.map(({ terminal: each, handle }): BackendAction => {
     const ledBy =
-      each === terminal
-        ? left
-          ? null
-          : (rejoined ?? each.ledBy ?? null)
-        : each.ledBy
-          ? (renamed.get(each.ledBy) ?? each.ledBy)
-          : null
+      each === terminal ? (left ? null : (rejoined ?? each.ledBy ?? null)) : (each.ledBy ?? null)
     return {
       type: "terminal/move",
       projectId: key.projectId,

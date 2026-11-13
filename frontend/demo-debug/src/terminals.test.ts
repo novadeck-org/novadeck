@@ -234,7 +234,7 @@ describe("leading the others", () => {
     const others = othersOf(initial, key("01"))
     expect(others.length).toBeGreaterThan(0)
     for (const other of others)
-      expect(terminalOf(led, { ...key("01"), terminalId: other.id })?.ledBy).toBe(lead.handle)
+      expect(terminalOf(led, { ...key("01"), terminalId: other.id })?.ledBy).toBe(lead.id)
   })
 
   it("does nothing for a terminal without a handle to lead by", () => {
@@ -247,14 +247,14 @@ describe("leading the next terminal", () => {
   it("makes the next live terminal after the selected one name it as its lead", () => {
     const lead = terminalOf(initial, key("01"))!
     const led = leadsNext(initial, key("01")).reduce(workspaceReducer, initial)
-    expect(terminalOf(led, key("02"))?.ledBy).toBe(lead.handle)
+    expect(terminalOf(led, key("02"))?.ledBy).toBe(lead.id)
     expect(terminalOf(led, key("03"))?.ledBy).toBe(terminalOf(initial, key("03"))?.ledBy)
   })
 
   it("passes over a terminal that has ended", () => {
     const ended = apply(exitedWithCode(key("02"), 1), initial)
     const led = leadsNext(ended, key("01")).reduce(workspaceReducer, ended)
-    expect(terminalOf(led, key("03"))?.ledBy).toBe(terminalOf(initial, key("01"))!.handle)
+    expect(terminalOf(led, key("03"))?.ledBy).toBe(terminalOf(initial, key("01"))!.id)
   })
 
   it("does nothing for the last terminal", () => {

@@ -20,14 +20,14 @@ export type CanvasStay = {
 
 type Room = { readonly width: number; readonly height: number }
 
-// The handle of the terminal that leads this one: the one its backend named, whether or
+// The id of the terminal that leads this one: the one its backend named, whether or
 // not that agent runs yet, as the sidebar lists it under that lead (core/state.ts). Until
 // the backend has described it (it has no handle yet), the one that opened it, which the
 // sidebar lists it under at once. So an agent its lead opens lands in that lead's team
 // from the first, not in the block with a slot left empty behind it; and a canvas
 // arranged while its leads still start has its teams, and a lead that ends or restarts
 // moves nothing.
-const leadHandle = (tile: TerminalMetadata): string | undefined =>
+const leadOf = (tile: TerminalMetadata): string | undefined =>
   tile.ledBy ?? (tile.handle === undefined ? (tile.openedBy ?? undefined) : undefined)
 
 // The windows the canvas arranges, in the order given but for those left out, each with
@@ -36,15 +36,12 @@ export const arrangedTiles = (
   tiles: readonly Tile[],
   omit: (tile: Tile) => boolean,
 ): readonly Arranged[] => {
-  const byHandle = new Map<string, string>()
-  for (const tile of tiles)
-    if (!isWindow(tile) && tile.handle !== undefined && !byHandle.has(tile.handle))
-      byHandle.set(tile.handle, tile.id)
+  const terminals = new Set(tiles.filter((tile) => !isWindow(tile)).map((tile) => tile.id))
   return tiles
     .filter((tile) => !omit(tile))
     .map((tile) => {
-      const lead = isWindow(tile) ? undefined : leadHandle(tile)
-      return { id: tile.id, lead: lead === undefined ? undefined : byHandle.get(lead) }
+      const lead = isWindow(tile) ? undefined : leadOf(tile)
+      return { id: tile.id, lead: lead !== undefined && terminals.has(lead) ? lead : undefined }
     })
 }
 

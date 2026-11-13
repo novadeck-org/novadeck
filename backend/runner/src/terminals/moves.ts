@@ -14,7 +14,7 @@ import type { Record } from "./record.js"
 import type { ListedTerminal } from "./saved-terminals.js"
 import type { Saves } from "./saving.js"
 import type { Sleepers } from "./sleepers.js"
-import { summaryTitle } from "./titles.js"
+import { summaryTitle, type Naming } from "./titles.js"
 
 /** What a move asks of the workspace's sessions, which the runner's projects answer. */
 export type MoveSessions = {
@@ -58,6 +58,8 @@ type Member = {
   readonly id: string
   readonly record: Record | undefined
   readonly handle: string
+  readonly naming: Naming
+  /** The id of its lead, as `ledBy` keeps it: a move changes no id, so its team stays led. */
   readonly ledBy: string | null
   readonly openedBy: string | null
 }
@@ -72,6 +74,8 @@ type Placed = {
   readonly handle: string
   readonly ledBy: string | null
   readonly openedBy: string | null
+  /** Its naming, the handle its opener's title names following the opener's rename. */
+  readonly naming: Naming
   readonly summary: Record["summary"] | undefined
 }
 
@@ -92,6 +96,13 @@ export const moveNotice = {
     `The user moved you to another session in Novadeck, so ${mention(lead)} no longer leads ` +
     "you: its messages are a peer's from now, and it can no longer see you. What the user " +
     "told you still stands." +
+    (renames.length === 0 ? "" : " " + changes(renames)),
+  // To a terminal that left a lead as it moved on its own, one that is gone and has no handle.
+  leftGone: (renames: readonly Rename[] = []): string =>
+    notice +
+    "The user moved you to another session in Novadeck, so your lead no longer leads you: its " +
+    "messages are a peer's from now, and it can no longer see you. What the user told you " +
+    "still stands." +
     (renames.length === 0 ? "" : " " + changes(renames)),
   // To the lead a terminal left as it moved.
   leftBy: (handle: string, title: string): string =>
@@ -135,6 +146,7 @@ export class Moves {
         id: terminalId,
         record,
         handle: record.summary.handle,
+        naming: record.naming,
         ledBy: record.summary.ledBy,
         openedBy: record.openedBy,
       }
@@ -144,10 +156,17 @@ export class Moves {
         id: terminalId,
         record: undefined,
         handle: row.handle,
+        naming: row.naming,
         ledBy: row.ledBy,
         openedBy: row.openedBy,
       }
     )
+  }
+
+  /** The handle the terminal has now, running or kept only as saved. */
+  private handleOf(terminalId: string): string | undefined {
+    const { host } = this
+    return host.records().get(terminalId)?.summary.handle ?? host.saves().saved(terminalId)?.handle
   }
 
   /** Every terminal of the session, running or kept only as saved. */
@@ -166,6 +185,7 @@ export class Moves {
         id: row.id,
         record: undefined,
         handle: row.handle,
+        naming: row.naming,
         ledBy: row.ledBy,
         openedBy: row.openedBy,
       })),
@@ -178,7 +198,7 @@ export class Moves {
     const seen = new Set([root.id])
     for (const lead of members)
       for (const each of all)
-        if (each.ledBy === lead.handle && !seen.has(each.id)) {
+        if (each.ledBy === lead.id && !seen.has(each.id)) {
           seen.add(each.id)
           members.push(each)
         }
@@ -232,7 +252,7 @@ export class Moves {
     }
     const placed = this.placed(members, target, input)
     const left = root.ledBy
-    // The rows of the team move together, so none is left led by a handle that went.
+    // The rows of the team move together, so the move is saved whole or not at all.
     const shadows = placed.map((each) => this.shadow(each, target))
     if (!host.saves().saveTogether(shadows)) {
       if (host.stopping()) throw new DomainError("CLOSING")
@@ -252,19 +272,19 @@ export class Moves {
 
   /**
    * The handle and lead each member has in the session, the lead before its workers: the
-   * handle it has, unless a terminal there holds it, or leads under it, or the session gave
-   * it to another (History's rule when it restores one), else the session's next. An undo's
-   * handle is taken back where no terminal there holds or leads under it. The workers'
-   * leads follow their lead's new handle; the terminal asked for leaves its own, but for the
-   * lead an undo names while a terminal of the session has that handle.
+   * handle it has, unless a terminal there holds it, or the session gave it to another
+   * (History's rule when it restores one), else the session's next. An undo's handle is
+   * taken back where no terminal there holds it. Leads and openers are ids, which a move
+   * leaves as they are: the workers keep their lead; the terminal asked for leaves its own,
+   * but for the lead an undo names while that terminal is in the session. A title that
+   * names its opener's handle follows the opener's new one.
    */
   private placed(members: readonly Member[], target: string, input: TerminalMove): Placed[] {
     const { host } = this
     const there = this.inSession(target)
     const claimed = new Set<string>()
     const holds = (handle: string) =>
-      claimed.has(handle) || there.some((each) => each.handle === handle || each.ledBy === handle)
-    const renamed = new Map<string, string>()
+      claimed.has(handle) || there.some((each) => each.handle === handle)
     const named = members.map((member, index) => {
       const back = input.handles?.[member.id]
       let handle: string | undefined
@@ -274,42 +294,45 @@ export class Moves {
       } else if (!holds(member.handle) && host.adopt(target, member.handle)) handle = member.handle
       handle ??= host.draw(target)
       claimed.add(handle)
-      renamed.set(member.handle, handle)
       const lead =
         index === 0
-          ? input.lead !== undefined && there.some((each) => each.handle === input.lead)
+          ? input.lead !== undefined && there.some((each) => each.id === input.lead)
             ? input.lead
             : null
-          : (renamed.get(member.ledBy ?? "") ?? member.ledBy)
+          : member.ledBy
       return { member, handle, ledBy: lead }
     })
-    // A member opened by one that was renamed is opened by its new handle.
+    const handles = new Map(named.map(({ member, handle }) => [member.id, handle]))
     return named.map(({ member, handle, ledBy }) => {
-      const openedBy =
-        named.find((each) => each.member.handle === member.openedBy)?.handle ?? member.openedBy
+      const { openedBy } = member
+      // The title's source may name the old handle of an opener that moved with it.
+      const now = openedBy === null ? undefined : handles.get(openedBy)
+      const naming =
+        now !== undefined && member.naming.opener
+          ? { ...member.naming, opener: { ...member.naming.opener, by: now } }
+          : member.naming
       const { record } = member
       const summary = record && {
         ...record.summary,
         sessionId: target,
         handle,
         ledBy,
-        // The title's source may name the old handle.
-        ...summaryTitle(record.naming, { handle, command: record.summary.command, openedBy }),
+        ...summaryTitle(naming, { handle, command: record.summary.command }),
       }
-      return { member, handle, ledBy, openedBy, summary }
+      return { member, handle, ledBy, openedBy, naming, summary }
     })
   }
 
   /** What is saved of a member in the session: its record as it will be, or its row. */
-  private shadow({ member, handle, ledBy, openedBy, summary }: Placed, sessionId: string) {
+  private shadow({ member, handle, ledBy, openedBy, naming, summary }: Placed, sessionId: string) {
     const { record } = member
-    if (record && summary) return { ...record, summary, openedBy }
+    if (record && summary) return { ...record, summary, openedBy, naming }
     const {
       transcript: _transcript,
       savedAt: _savedAt,
       ...row
     } = this.host.saves().saved(member.id)!
-    return { ...row, sessionId, handle, ledBy, openedBy }
+    return { ...row, sessionId, handle, ledBy, openedBy, naming }
   }
 
   /**
@@ -317,7 +340,7 @@ export class Moves {
    * save. Everything that follows a terminal is here, for whoever adds one that keeps its
    * session or handle:
    * - the record: summary (sessionId, handle, ledBy, and the title whose source names a
-   *   handle) and openedBy, as `placed` worked them out, announced to watchers;
+   *   handle), naming and openedBy, as `placed` worked them out, announced to watchers;
    * - the saved row, saved with the others in `move`, and with it the companion bar's items,
    *   which follow by the foreign key's cascade;
    * - a sleeper's session for its wake (`Sleepers.move`), with watchers told of it;
@@ -344,13 +367,9 @@ export class Moves {
     const [first] = placed
     // Before the lead ends, so the lead hears the terminal moved, not that a session ended.
     if (left !== null) host.messaging().dropLeadMessages(first!.member.id)
-    const lead =
-      left === null
-        ? undefined
-        : [...host.records().values()].find(
-            (each) => each.summary.sessionId === source && each.summary.handle === left,
-          )
-    for (const { member, handle, ledBy, openedBy, summary } of placed) {
+    const lead = left === null ? undefined : host.records().get(left)
+    const leader = lead?.summary.sessionId === source ? lead : undefined
+    for (const { member, handle, ledBy, openedBy, naming, summary } of placed) {
       const { id, record } = member
       if (member === first!.member && left !== null) host.messaging().endLead(id)
       host.messaging().move(id, { projectId, sessionId: target }, handle, ledBy)
@@ -358,6 +377,7 @@ export class Moves {
       host.feedback().moved(id, target, handle)
       if (record && summary) {
         record.openedBy = openedBy
+        record.naming = naming
         record.summary = summary
         if (member === first!.member) record.suspended = null
         host.announce(record)
@@ -370,7 +390,7 @@ export class Moves {
       }
       host.items()?.terminalMoved(id)
     }
-    this.tell(placed, target, left, lead)
+    this.tell(placed, target, left, leader)
   }
 
   /**
@@ -398,7 +418,6 @@ export class Moves {
         summaryTitle(row.naming, {
           handle: first!.member.handle,
           command: row.command,
-          openedBy: row.openedBy,
         }).title) ??
       ""
     if (lead)
@@ -406,23 +425,24 @@ export class Moves {
         always: true,
       })
     // The lead an undo rejoins leads the terminal again.
-    const rejoined =
-      first!.ledBy === null
-        ? undefined
-        : [...host.records().values()].find(
-            (each) => each.summary.sessionId === target && each.summary.handle === first!.ledBy,
-          )
+    const rejoined = first!.ledBy === null ? undefined : host.records().get(first!.ledBy)
     if (rejoined)
       messaging.notice(rejoined.summary.id, moveNotice.leadsAgain(first!.handle, title), {
         always: true,
       })
+    // The handle of the lead the terminal left, running or only saved; none where it is gone.
+    const leftHandle = left === null ? undefined : (lead?.summary.handle ?? this.handleOf(left))
+    // The handle the lead has in the session it is in; a lead that isn't running names none.
+    const leadHandle = first!.ledBy === null ? undefined : this.handleOf(first!.ledBy)
     placed.forEach(({ member, handle, ledBy }, index) => {
       if (!member.record) return
       const text =
         index === 0 && left !== null && ledBy === null
-          ? moveNotice.left(left, renames)
-          : index === 0 && ledBy !== null
-            ? leadNotice.nowLed(ledBy) + (renames.length === 0 ? "" : " " + changes(renames))
+          ? leftHandle !== undefined
+            ? moveNotice.left(leftHandle, renames)
+            : moveNotice.leftGone(renames)
+          : index === 0 && ledBy !== null && leadHandle !== undefined
+            ? leadNotice.nowLed(leadHandle) + (renames.length === 0 ? "" : " " + changes(renames))
             : renames.length > 0
               ? moveNotice.renamed(handle, renames)
               : moveNotice.alone()

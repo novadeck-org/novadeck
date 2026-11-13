@@ -136,7 +136,7 @@ const setup = (
     ),
     connected: vi.fn<() => Promise<boolean>>(() => Promise.resolve(true)),
     holder: vi.fn<() => { handle: string; terminalId: string } | undefined>(() => undefined),
-    terminalsIn: vi.fn<() => readonly { handle: string; ledBy: string | null }[]>(() => []),
+    terminalsIn: vi.fn<() => readonly { handle: string }[]>(() => []),
     drawHandle: vi.fn<() => string>(() => "fox"),
     releaseClaim: vi.fn<(id: string) => void>((id: string) => void released.push(id)),
     archive: vi.fn<(record: Record, write: (sealed: string) => void, settled: () => void) => void>(
@@ -1117,13 +1117,13 @@ describe("the handle of a restored terminal", () => {
   })
 
   it("is drawn anew where a terminal in the session has it", async () => {
-    const terminalsIn = () => [{ handle: "moth", ledBy: null }]
+    const terminalsIn = () => [{ handle: "moth" }]
     expect(await handleOf(row(), "s1", { terminalsIn })).toBe("fox")
   })
 
-  it("is drawn anew where a terminal there is led under it, so no lead is regained by name", async () => {
-    const terminalsIn = () => [{ handle: "owl", ledBy: "moth" }]
-    expect(await handleOf(row(), "s1", { terminalsIn })).toBe("fox")
+  it("is kept where a terminal there is led by a lead that had it: leads are ids, which a restore doesn't reuse", async () => {
+    const terminalsIn = () => [{ handle: "owl" }]
+    expect(await handleOf(row(), "s1", { terminalsIn })).toBe("moth")
   })
 
   it("is recorded in another session unless that session gave it already", async () => {

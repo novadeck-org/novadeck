@@ -47,9 +47,9 @@ const withTeam = () => {
   const state = workspace.projects[0]!.history[0]!.state
   const parts: Partial<TerminalMetadata>[] = [
     { handle: "lynx" },
-    { handle: "glint", ledBy: "lynx" },
-    { ledBy: "glint" },
-    { ledBy: "lynx" },
+    { handle: "glint", ledBy: "01" },
+    { ledBy: "02" },
+    { ledBy: "01" },
   ] as never
   state.roster.terminals.forEach((each, index) => {
     state.roster.terminals[index] = { ...each, state: "idle", ...parts[index] } as TerminalMetadata
@@ -835,7 +835,7 @@ describe("workspace commands", () => {
         "new-4",
         "02",
       ])
-      expect(terminal(app, "new-3").openedBy).toBe("moth")
+      expect(terminal(app, "new-3").openedBy).toBe("01")
     })
 
     it("starts a plain shell when the agent gave no command", () => {

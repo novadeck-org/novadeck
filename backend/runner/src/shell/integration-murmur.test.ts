@@ -707,8 +707,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const saved = shell.store.terminal(terminal.id)!
       shell.store.saveTerminal({
         ...saved,
-        naming: { ...saved.naming, opener: { title: "Checkout review" } },
-        openedBy: "moth",
+        naming: { ...saved.naming, opener: { title: "Checkout review", by: "moth" } },
+        openedBy: randomUUID(),
       })
 
       const manager = shell.manager({ env })
@@ -957,7 +957,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           .toBe("ready")
         // Whose a terminal's first prompt is, by the rule its work keeps (`firstFrom`).
         const whose = (terminalId: string) =>
-          firstFrom(shell.store.terminal(terminalId)?.work ?? null, "moth")
+          firstFrom(shell.store.terminal(terminalId)?.work ?? null, true)
         // An Enter the person pressed meanwhile, as at a trust screen, doesn't make it theirs.
         manager.write({ terminalId: opened, data: "\r" }, "client")
         await step(opened, { hook: "UserPromptSubmit", payload: { prompt: "fix-the-build" } })

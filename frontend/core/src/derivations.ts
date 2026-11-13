@@ -27,32 +27,30 @@ export const terminalOrigins = (workspace: Workspace): Readonly<Record<string, s
 
 type RunningLead = { readonly handle: string; readonly name: string }
 
-// The terminals that can lead, by handle: the first live terminal with each handle, a sleeping
-// agent included. One closed, exited or not yet started leads no one.
-const liveHandles = remembered((roster): ReadonlyMap<string, TerminalMetadata> => {
+// The terminals that can lead, by id, a sleeping agent included. One closed, exited or not yet
+// started leads no one.
+const liveTerminals = remembered((roster): ReadonlyMap<string, TerminalMetadata> => {
   const live = new Map<string, TerminalMetadata>()
   for (const each of roster.terminals)
     if (
       each.handle !== undefined &&
-      !live.has(each.handle) &&
       (each.state === "idle" ||
         each.state === "running" ||
         each.state === "sleeping" ||
         each.state === "finished")
     )
-      live.set(each.handle, each)
+      live.set(each.id, each)
   return live
 })
 
 // The leads of a roster's terminals that run, by terminal id: each lead's handle and
-// name. A terminal whose lead is closed, exited or not yet started has none. Where
-// several running terminals share a handle, the first one leads.
+// name. A terminal whose lead is closed, exited or not yet started has none.
 const leadsOf = remembered((roster): Readonly<Record<string, RunningLead>> => {
-  const live = liveHandles(roster)
+  const live = liveTerminals(roster)
   return Object.fromEntries(
     roster.terminals.flatMap((each) => {
       const lead = each.ledBy ? live.get(each.ledBy) : undefined
-      return each.ledBy && lead ? [[each.id, { handle: each.ledBy, name: lead.name }]] : []
+      return lead?.handle ? [[each.id, { handle: lead.handle, name: lead.name }]] : []
     }),
   )
 })
@@ -73,7 +71,7 @@ export const critterLive = (each: TerminalMetadata): MessagePeer["live"] =>
         ? "working"
         : "idle"
 
-// The current session's terminals as their messages show them, by handle, which name the
+// The current session's terminals as their messages show them, by terminal id, which name the
 // agents its messages are with and say whether each is there.
 const peersOf = remembered((roster): Readonly<Record<string, MessagePeer>> =>
   Object.fromEntries(
@@ -81,10 +79,11 @@ const peersOf = remembered((roster): Readonly<Record<string, MessagePeer>> =>
       each.handle
         ? [
             [
-              each.handle,
+              each.id,
               {
                 name: each.name,
                 terminalId: each.id,
+                handle: each.handle,
                 program: each.state === "running" ? each.process : undefined,
                 live: critterLive(each),
               },
@@ -120,7 +119,7 @@ const teamsOf = remembered(
     readonly workers: ReadonlyMap<string, readonly string[]>
     readonly leads: ReadonlyMap<string, string>
   } => {
-    const live = liveHandles(roster)
+    const live = liveTerminals(roster)
     const workers = new Map<string, string[]>()
     const leads = new Map<string, string>()
     for (const each of roster.terminals) {

@@ -30,8 +30,8 @@ describe("showsHandle", () => {
     })
 
     it("shows it on a shell an agent opened, or one an agent leads", () => {
-      expect(showsHandle({ ...idle, openedBy: "moth" })).toBe(true)
-      expect(showsHandle({ ...idle, ledBy: "moth" })).toBe(true)
+      expect(showsHandle({ ...idle, openedBy: "id-moth" })).toBe(true)
+      expect(showsHandle({ ...idle, ledBy: "id-moth" })).toBe(true)
     })
   })
 })

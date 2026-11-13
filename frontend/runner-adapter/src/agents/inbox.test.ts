@@ -19,7 +19,15 @@ import { channel } from "../testing/channel"
 import { catchReports } from "../testing/reported"
 import { createRunnerInbox, detailGraceMs, retryMs, settleMs, type InboxStreams } from "./inbox"
 
-const agentParty = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
+// The terminals these tests have, by handle: 01 is moth, 02 is fox.
+const idOf = (handle: string): string => ({ moth: "01", fox: "02", owl: "03", crow: "04" })[handle]!
+
+const agentParty = (handle: string): MessageParty => ({
+  kind: "agent",
+  terminalId: idOf(handle),
+  handle,
+  agent: null,
+})
 
 const choices: ChatDialog = {
   type: "choices",
@@ -111,7 +119,7 @@ const thread = (change: Partial<MessageThread> = {}): MessageThread => ({
 
 const messagesOf = (...threads: MessageThread[]): MessagesState => ({
   ...noMessages,
-  terminals: { "p/s/01": { handle: "moth", agent: true, threads } },
+  terminals: { "p/s/01": { terminalId: "01", handle: "moth", agent: true, threads } },
 })
 
 // The finished turns the tests state, by session context then terminal: each stands for the
@@ -346,6 +354,7 @@ describe("The runner's Inbox", () => {
         ...noMessages,
         terminals: {
           "p/s/02": {
+            terminalId: "02",
             handle: "fox",
             agent: true,
             waits: "draft",
@@ -1278,7 +1287,7 @@ describe("Inbox entries", () => {
   })
 
   it("reads a worker's done under its running lead when everything is read, as the person's", async () => {
-    const worker: TerminalMetadata = { ...agentTerminal(2, { working: false }), ledBy: "moth" }
+    const worker: TerminalMetadata = { ...agentTerminal(2, { working: false }), ledBy: "01" }
     const { entries, inbox, streams, ids } = setup(workspaceOf(agentTerminal(1), worker))
     entries.push([
       entry({
@@ -1522,7 +1531,7 @@ describe("Turn rows", () => {
   it("keeps rows hidden under a lead in turns, and out of the items", async () => {
     const worker: TerminalMetadata = {
       ...agentTerminal(2, { working: false, lastTurn: turn({ at: 200 }) }),
-      ledBy: "moth",
+      ledBy: "01",
     }
     const { inbox, ids } = setup(workspaceOf(agentTerminal(1), worker), {
       "p/s": { "02": "done" },

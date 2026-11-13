@@ -1,3 +1,6 @@
+import { messagePeers } from "@novadeck/core/derivations"
+import { workspaceReducer } from "@novadeck/core/state"
+import { workspaceFixture } from "@novadeck/core/testing"
 import { hueOf } from "@novadeck/items/critters"
 import { render } from "@novadeck/test-kit/render"
 import { createElement, Fragment } from "react"
@@ -6,9 +9,30 @@ import { describe, expect, it } from "../test"
 import { peerLooksOf } from "./peer-looks"
 
 describe("peerLooksOf", () => {
-  const looks = peerLooksOf({
-    moth: { name: "Checkout review", terminalId: "t1", program: "codex", live: "working" },
-    kite: { name: "Runtime", terminalId: "t2", program: undefined, live: "gone" },
+  // The peers as the app derives them from the session: keyed by terminal id, read by handle.
+  const target = { projectId: "project", workspaceSessionId: "initial" }
+  const session = [
+    { type: "terminal/update", terminalId: "01", handle: "moth" },
+    { type: "terminal/rename", terminalId: "01", name: "Checkout review" },
+    { type: "terminal/process", terminalId: "01", process: "codex" },
+    {
+      type: "terminal/status",
+      terminalId: "01",
+      status: { state: "running", agent: { working: true } },
+    },
+    { type: "terminal/update", terminalId: "02", handle: "kite" },
+    { type: "terminal/rename", terminalId: "02", name: "Runtime" },
+  ].reduce(
+    (state, action) =>
+      workspaceReducer(state, { ...action, target } as Parameters<typeof workspaceReducer>[1]),
+    workspaceFixture({ terminals: 2 }),
+  )
+  const peers = messagePeers(session)
+  const looks = peerLooksOf(peers)
+
+  it("is keyed by terminal id, so a handle finds its peer through the handle", () => {
+    expect(Object.keys(peers)).toEqual(["01", "02"])
+    expect(looks("01")).toBeNull()
   })
 
   it("gives a peer the Messages pane's avatar, its hue and where it runs", () => {

@@ -229,7 +229,7 @@ describe("unread turns", () => {
     it("also say the rows hidden under a running lead", () => {
       const app = setup({ rows: [row("a", 10)] })
       app.workspace.dispatch({ type: "terminal/update", target, terminalId: "01", handle: "moth" })
-      app.workspace.dispatch({ type: "terminal/update", target, terminalId: "02", ledBy: "moth" })
+      app.workspace.dispatch({ type: "terminal/update", target, terminalId: "02", ledBy: "01" })
       app.status("01", { working: true })
       const stop = app.watch()
       expect(app.unread()).toEqual(done)
@@ -239,7 +239,7 @@ describe("unread turns", () => {
     it("leave out a worker's finished rows while its lead's agent runs, and show them once it stops", () => {
       const app = setup({ rows: [row("a", 10), row("f", 20, "failed")] })
       app.workspace.dispatch({ type: "terminal/update", target, terminalId: "01", handle: "moth" })
-      app.workspace.dispatch({ type: "terminal/update", target, terminalId: "02", ledBy: "moth" })
+      app.workspace.dispatch({ type: "terminal/update", target, terminalId: "02", ledBy: "01" })
       app.workspace.dispatch({
         type: "terminal/process",
         target,
@@ -440,7 +440,7 @@ describe("unread turns", () => {
     it("are a worker's too, while its lead's agent runs", () => {
       const app = setup({ rows: [], pageFocused: false })
       app.workspace.dispatch({ type: "terminal/update", target, terminalId: "01", handle: "moth" })
-      app.workspace.dispatch({ type: "terminal/update", target, terminalId: "02", ledBy: "moth" })
+      app.workspace.dispatch({ type: "terminal/update", target, terminalId: "02", ledBy: "01" })
       app.workspace.dispatch({
         type: "terminal/process",
         target,

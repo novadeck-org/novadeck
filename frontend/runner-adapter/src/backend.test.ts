@@ -679,6 +679,7 @@ describe("runner backend", () => {
       const id = terminalKeyPath({ ...app.target(), terminalId: terminal.id })
       await vi.waitFor(() =>
         expect(messages.state.getSnapshot().terminals[id]).toEqual({
+          terminalId: terminal.id,
           handle: expect.stringMatching(/^[a-z]{2,12}[0-9]*$/),
           // A plain shell: no agent takes messages there.
           agent: false,

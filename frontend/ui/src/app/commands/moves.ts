@@ -94,6 +94,9 @@ export const createMoveCommands = (
       sessionId = fresh.id
     } else sessionId = to.sessionId
     if (sessionId === target.workspaceSessionId) return
+    const lead = currentState(snapshot).roster.terminals.find(
+      (each) => each.id === terminal.ledBy,
+    )?.handle
     const notice = {
       id: effects.newId(),
       projectId: project.id,
@@ -102,6 +105,7 @@ export const createMoveCommands = (
       session: { id: sessionId, name: sessionName(workspace.getSnapshot(), project.id, sessionId) },
       fresh: "fresh" in to,
       from: target.workspaceSessionId,
+      ...(lead !== undefined && { lead }),
     }
     move({ ...target, terminalId }, sessionId).then(
       (result) => tell({ ...notice, result }),

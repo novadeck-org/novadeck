@@ -13,9 +13,10 @@ import {
 import type { WorkspaceAction } from "@novadeck/core/state"
 import type { Store, WorkspaceStore } from "@novadeck/core/store"
 import { type TerminalKey, terminalKeyPath, terminalKeyOfPath } from "@novadeck/core/types"
-import { useCallback, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useSyncExternalStore } from "react"
 
-import { markSeen, seenAt, seenKey, seenStore } from "./seen"
+import { conversationsOf, youKey } from "./conversations"
+import { adoptLegacy, markSeen, seenAt, seenKey, seenStore } from "./seen"
 
 const none: Store<MessagesState> = { getSnapshot: () => noMessages, subscribe: () => () => {} }
 
@@ -57,8 +58,10 @@ export type MessagesHandle = {
   readonly hasMessages: boolean
   readonly badge: MessageBadge | null
   readonly pause: (paused: boolean) => void
-  // When the person last saw a conversation, by its key, and that they saw it up to `at`.
-  readonly seenAt: (conversation: string) => number
+  // When the person last saw a conversation, by its key (the other terminal's id; `handle` is
+  // the key an earlier build kept it under, which counts where the id has none), and that
+  // they saw it up to `at`.
+  readonly seenAt: (conversation: string, handle?: string) => number
   readonly seen: (conversation: string, at: number) => void
 }
 
@@ -70,6 +73,14 @@ export const useMessages = (messages: Messages | undefined, key: TerminalKey): M
   const error = useMessagesPart(messages, (state) => state.error)
   const store = seenStore()
   const record = useSyncExternalStore(store.subscribe, store.getSnapshot)
+  // What an earlier build kept under a peer's handle is the peer's by its id from here on.
+  useEffect(() => {
+    if (!threads) return
+    const pairs = conversationsOf(threads)
+      .filter((each) => each.key !== youKey)
+      .map((each) => [seenKey(id, each.key), seenKey(id, each.peer)] as const)
+    store.update((current) => adoptLegacy(current, pairs))
+  }, [threads, store, id])
   // The same while the terminal is, so an effect that marks what's seen runs only as what's
   // on screen changes.
   const pause = useCallback((next: boolean) => messages?.pause(next), [messages])
@@ -86,7 +97,8 @@ export const useMessages = (messages: Messages | undefined, key: TerminalKey): M
     hasMessages: hasMessages(threads),
     badge: messageBadge(threads, paused),
     pause,
-    seenAt: (conversation) => seenAt(record, seenKey(id, conversation)),
+    seenAt: (conversation, handle) =>
+      seenAt(record, seenKey(id, conversation), handle && seenKey(id, handle)),
     seen,
   }
 }

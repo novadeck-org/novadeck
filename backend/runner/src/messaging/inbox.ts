@@ -1069,7 +1069,12 @@ export class Inbox {
         id: `m-${entry.id.replaceAll("-", "")}`,
         thread,
         hop: 1,
-        from: { kind: "agent" as const, handle: entry.handle, agent: entry.agent },
+        from: {
+          kind: "agent" as const,
+          terminalId: entry.terminalId,
+          handle: entry.handle,
+          agent: entry.agent,
+        },
         to: { kind: "person" as const },
         text,
         sentAt: entry.at,

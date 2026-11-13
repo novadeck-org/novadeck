@@ -360,6 +360,10 @@ export const desktopWindow = {
 // needs permission) in turn, a team inside @moth's.
 const nestedRequested = (): boolean => addressParams().get("nested") === "on"
 
+// The id of the terminal with this handle, which a lead is named by.
+const idOfHandle = (terminals: readonly { id: string; handle?: string }[], handle: string) =>
+  terminals.find((each) => each.handle === handle)?.id ?? null
+
 const withNestedTeam = (
   backend: ReturnType<typeof createDemoBackend>,
 ): ReturnType<typeof createDemoBackend> => ({
@@ -372,9 +376,9 @@ const withNestedTeam = (
         ...session,
         terminals: session.terminals.map((terminal) =>
           terminal.handle === "owl" || terminal.name === "Runtime"
-            ? { ...terminal, ledBy: "moth" }
+            ? { ...terminal, ledBy: idOfHandle(session.terminals, "moth") }
             : terminal.handle === "crow"
-              ? { ...terminal, ledBy: "owl" }
+              ? { ...terminal, ledBy: idOfHandle(session.terminals, "owl") }
               : terminal,
         ),
       })),

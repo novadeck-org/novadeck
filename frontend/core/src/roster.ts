@@ -95,14 +95,14 @@ export const listUnderOpener = (
     .filter((id) => id !== terminalId)
   const byId = new Map(roster.terminals.map((each) => [each.id, each]))
   // The ones it opened or leads, and theirs in turn, as they follow it.
-  const family = new Set(opener.handle === undefined ? [] : [opener.handle])
+  const family = new Set([opener.id])
   const inFamily = (each: TerminalMetadata | undefined) =>
     (!!each?.openedBy && family.has(each.openedBy)) || (!!each?.ledBy && family.has(each.ledBy))
   let at = ids.indexOf(opener.id) + 1
   for (; at < ids.length; at += 1) {
     const next = byId.get(ids[at]!)
     if (!inFamily(next)) break
-    if (next!.handle) family.add(next!.handle)
+    family.add(next!.id)
   }
   const saved = new Set(roster.order.filter((id) => id !== terminalId && hasTile(roster, id)))
   const end = Math.max(at, saved.size)

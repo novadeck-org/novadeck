@@ -105,13 +105,14 @@ export const terminalSummary = z.strictObject({
   // as saved, as after the runner restarted, has none until a client restores it, with
   // `create` and `restore`.
   started: z.boolean(),
-  // The handle of the terminal whose agent opened this one with a brief, its lead; null
-  // when none. It changes only when the lead is set or ended, as when the agent here
-  // exits, not while the lead's terminal runs or stops.
-  ledBy: handle.nullable(),
-  // The handle of the terminal whose agent opened this one, for an agent, a command or a
-  // plain shell; null when the person opened it. It never changes.
-  openedBy: handle.nullable(),
+  // The id of the terminal whose agent opened this one with a brief, its lead; null when
+  // none. It changes only when the lead is set or ended, as when the agent here exits, not
+  // while the lead's terminal runs or stops. It is an id, not the lead's handle: look the
+  // lead's handle up in the roster, as it can change when the lead moves.
+  ledBy: id.nullable(),
+  // The id of the terminal whose agent opened this one, for an agent, a command or a plain
+  // shell, which may have closed since; null when the person opened it. It never changes.
+  openedBy: id.nullable(),
   // Whether an agent has reported a session in it since it opened, running now or since
   // exited. It stays true, so what names the terminal by its handle keeps a terminal to
   // find, until the person disconnects that agent's harness.
@@ -205,15 +206,15 @@ export const terminalRequestAnswer = z.union([
 
 // `terminals.move` input: the terminal the person moves and the session of the same project it
 // goes to. `handles` and `lead` undo an earlier move: the handles each moved terminal had
-// before, by id, taken back where no terminal of the session holds them now, nor is led
-// under them, and the lead's handle the terminal left, which it rejoins while that lead is
-// there. A terminal keeps its handle in the new session unless a terminal there holds it or
-// is led under it, or the session gave it to another; it gets that session's next then.
+// before, by id, taken back where no terminal of the session holds them now, and the id of
+// the lead the terminal left, which it rejoins while that lead is there. A terminal keeps
+// its handle in the new session unless a terminal there holds it, or the session gave it
+// to another; it gets that session's next then.
 export const terminalMove = z.strictObject({
   terminalId: id,
   to: z.strictObject({ sessionId: id }),
   handles: z.record(id, handle).optional(),
-  lead: handle.optional(),
+  lead: id.optional(),
 })
 export type TerminalMove = z.infer<typeof terminalMove>
 
@@ -223,8 +224,8 @@ export type TerminalMove = z.infer<typeof terminalMove>
 export const terminalMoved = z.strictObject({
   sessionId: id,
   moved: z.array(z.strictObject({ terminalId: id, handle, was: handle })).min(1),
-  // The lead's handle the terminal left, as it went without it; null when it had none.
-  left: handle.nullable(),
+  // The id of the lead the terminal left, as it went without it; null when it had none.
+  left: id.nullable(),
 })
 export type TerminalMoved = z.infer<typeof terminalMoved>
 

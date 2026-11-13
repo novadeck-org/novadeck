@@ -166,7 +166,7 @@ describe("the Babcia demo", () => {
     expect(terminals()).toHaveLength(15)
     const lead = terminals().find((each) => each.id === key(babcia.lead).terminalId)!
     const helpers = terminals().slice(12)
-    expect(helpers.map((each) => each.ledBy)).toEqual([lead.handle, lead.handle, lead.handle])
+    expect(helpers.map((each) => each.ledBy)).toEqual([lead.id, lead.id, lead.id])
     expect(helpers.map((each) => each.process)).toEqual(["codex", "agy", "claude"])
     // Listed under their lead, in the order it opened them.
     const listed = orderedTiles(activeSession(store.getSnapshot())!.state.roster).map(
@@ -198,6 +198,9 @@ describe("the Babcia demo", () => {
   const typed = "How should I know? Ask your sister."
   const asking = demoHandle(babcia.asking)
   const lead = demoHandle(babcia.lead)
+  // A party as the runner would list it: the terminal's id is on it besides the handle.
+  const party = (handle: string): MessageParty =>
+    expect.objectContaining(partyOf(handle)) as MessageParty
 
   it("has a helper ask what only its lead knows, as the helper's own agent", () => {
     const { cues, rows, terminal } = open()
@@ -227,8 +230,8 @@ describe("the Babcia demo", () => {
     // Delivered, the helper writes to its lead, which the doorbell then rings awake.
     await vi.advanceTimersByTimeAsync(2400)
     expect(terminalMessages(backend)[0]).toMatchObject({
-      from: partyOf(asking),
-      to: partyOf(lead),
+      from: party(asking),
+      to: party(lead),
       text: expect.stringContaining(typed),
     })
     await vi.advanceTimersByTimeAsync(rungMs + 50)
@@ -236,8 +239,8 @@ describe("the Babcia demo", () => {
     await vi.advanceTimersByTimeAsync(5000)
     expect(rows()).toEqual([])
     expect(terminalMessages(backend).map(({ from, to, state }) => ({ from, to, state }))).toEqual([
-      { from: partyOf(asking), to: partyOf(lead), state: "delivered" },
-      { from: partyOf(lead), to: partyOf(asking), state: "delivered" },
+      { from: party(asking), to: party(lead), state: "delivered" },
+      { from: party(lead), to: party(asking), state: "delivered" },
     ])
     expect(agent(babcia.asking)).toMatchObject({ working: true })
   })
@@ -323,7 +326,7 @@ describe("the Babcia demo", () => {
       )
     expect(sent).toEqual([])
     expect(terminalMessages(backend).map(({ from, state }) => ({ from, state }))).toEqual([
-      { from: partyOf(asking), state: "gone" },
+      { from: party(asking), state: "gone" },
     ])
     expect(agent(babcia.lead)).toMatchObject({ working: false })
     // Nothing holds the pair any longer, and the thread takes no more.

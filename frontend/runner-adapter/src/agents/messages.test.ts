@@ -21,7 +21,7 @@ const listing = (change: Partial<TerminalMessages> = {}): TerminalMessages => ({
   threads: [
     {
       id: "t-1",
-      peer: { kind: "agent", handle: "fox", agent: "codex" },
+      peer: { kind: "agent", terminalId: "b", handle: "fox", agent: "codex" },
       hops: 1,
       idle: 2,
       held: false,
@@ -32,8 +32,8 @@ const listing = (change: Partial<TerminalMessages> = {}): TerminalMessages => ({
           id: "m-1",
           thread: "t-1",
           hop: 1,
-          from: { kind: "agent", handle: "fox", agent: "codex" },
-          to: { kind: "agent", handle: "moth", agent: "claude" },
+          from: { kind: "agent", terminalId: "b", handle: "fox", agent: "codex" },
+          to: { kind: "agent", terminalId: "a", handle: "moth", agent: "claude" },
           text: "Review a.ts.",
           sentAt: 1,
           state: "queued",
@@ -100,6 +100,7 @@ describe("the runner's messages", () => {
     push(listing())
     await vi.waitFor(() =>
       expect(messages.state.getSnapshot().terminals[id]).toEqual({
+        terminalId: "a",
         handle: "moth",
         agent: true,
         waits: null,
@@ -108,7 +109,7 @@ describe("the runner's messages", () => {
         threads: [
           {
             id: "t-1",
-            peer: { kind: "agent", handle: "fox", agent: "codex" },
+            peer: { kind: "agent", terminalId: "b", handle: "fox", agent: "codex" },
             hops: 1,
             idle: 2,
             held: false,
@@ -117,8 +118,8 @@ describe("the runner's messages", () => {
               {
                 id: "m-1",
                 hop: 1,
-                from: { kind: "agent", handle: "fox", agent: "codex" },
-                to: { kind: "agent", handle: "moth", agent: "claude" },
+                from: { kind: "agent", terminalId: "b", handle: "fox", agent: "codex" },
+                to: { kind: "agent", terminalId: "a", handle: "moth", agent: "claude" },
                 text: "Review a.ts.",
                 sentAt: 1,
                 state: "queued",

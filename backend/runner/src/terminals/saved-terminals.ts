@@ -83,10 +83,10 @@ export type SavedTerminal = {
    * its title follows from these (see `titleOf`).
    */
   readonly naming: Naming
-  /** The handle of the terminal whose agent opened it; null otherwise. */
+  /** The id of the terminal whose agent opened it, closed since or not; null otherwise. */
   readonly openedBy: string | null
   /**
-   * The handle of its lead: the terminal whose agent opened it to lead the agent there
+   * The id of its lead: the terminal whose agent opened it to lead the agent there
    * (`open_agent`, by default with a brief), or one the person approved through `lead`;
    * null otherwise, even for a terminal an agent opened for a command or a plain shell.
    */

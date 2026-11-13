@@ -259,7 +259,7 @@ describe("workspace metadata", () => {
     expect(first.id).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(14)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(15)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       expect(() =>
         database
@@ -493,13 +493,13 @@ describe("workspace metadata", () => {
     const path = join(directory(), "workspace.sqlite")
     const future = new DatabaseSync(path)
     future.exec(
-      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 15",
+      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 16",
     )
     future.close()
     expect(() => new WorkspaceStore(path)).toThrow(/newer/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(15)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(16)
       expect(database.prepare("SELECT value FROM future_data").get()?.value).toBe("saved")
     } finally {
       database.close()
@@ -551,7 +551,7 @@ describe("workspace metadata", () => {
     new WorkspaceStore(path).close()
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(14)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(15)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       // Every old table is gone, and so are the old names.
       expect(Object.keys(rowsOf(database)).toSorted()).toEqual(
@@ -668,8 +668,9 @@ describe("workspace metadata", () => {
       expect(
         rows(
           `SELECT rowid, id, session_id, handle, cwd, agent_reports, prompted_at, transcript,
-            saved_at, person_title, opener_title, murmur_title, summary, opened_by, led_by,
-            command, last_program, work FROM terminals ORDER BY rowid`,
+            saved_at, person_title, opener_title, opener_handle, murmur_title, summary,
+            opener_terminal, lead_terminal, command, last_program, work
+            FROM terminals ORDER BY rowid`,
         ),
       ).toEqual([
         {
@@ -684,10 +685,12 @@ describe("workspace metadata", () => {
           saved_at: 3,
           person_title: "Mine",
           opener_title: "Login",
+          opener_handle: "fox",
           murmur_title: "Fixing login",
           summary: "Works on checkout",
-          opened_by: "fox",
-          led_by: "fox",
+          // The handle fox is the terminal u in its session.
+          opener_terminal: "u",
+          lead_terminal: "u",
           command: "claude",
           last_program: "claude",
           work: '{"session":"claude:cs"}',
@@ -704,10 +707,11 @@ describe("workspace metadata", () => {
           saved_at: 4,
           person_title: null,
           opener_title: null,
+          opener_handle: null,
           murmur_title: null,
           summary: null,
-          opened_by: null,
-          led_by: null,
+          opener_terminal: null,
+          lead_terminal: null,
           command: null,
           last_program: null,
           work: null,
@@ -724,10 +728,12 @@ describe("workspace metadata", () => {
           saved_at: 5,
           person_title: null,
           opener_title: null,
+          opener_handle: "fox",
           murmur_title: null,
           summary: null,
-          opened_by: "fox",
-          led_by: null,
+          // Its opener is no terminal of its session now; opener_handle says an agent opened it.
+          opener_terminal: null,
+          lead_terminal: null,
           command: null,
           last_program: null,
           work: null,
@@ -1005,7 +1011,7 @@ describe("workspace metadata", () => {
     ])
     expect(workspace.terminal("t")?.naming).toEqual({
       person: "Mine",
-      opener: { title: "Login" },
+      opener: { title: "Login", by: "fox" },
       murmur: { title: "Fixing login" },
       own: null,
       summary: "Works on checkout",
@@ -1634,6 +1640,61 @@ describe("workspace metadata", () => {
     expect(carried).toEqual(created)
   })
 
+  it("names openers and leads by terminal id in the step from 14, within each session", ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/14.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 14;
+      INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'P', '/p');
+      INSERT INTO sessions (position, id, project_id, name) VALUES (1, 's1', 'p', 'One'),
+        (2, 's2', 'p', 'Two');
+      INSERT INTO terminals (id, session_id, handle, cwd, agent_reports, saved_at, opener_title,
+        opened_by, led_by) VALUES
+        ('lead1', 's1', 'moth', '/p', '{}', 1, NULL, NULL, NULL),
+        ('lead2', 's2', 'moth', '/p', '{}', 1, NULL, NULL, NULL),
+        ('led1', 's1', 'fox', '/p', '{}', 2, 'Count', 'moth', 'moth'),
+        ('led2', 's2', 'fox', '/p', '{}', 2, NULL, 'moth', 'moth'),
+        ('left', 's1', 'owl', '/p', '{}', 3, 'Search', 'elk', 'elk'),
+        ('plain', 's1', 'elk2', '/p', '{}', 4, NULL, NULL, NULL),
+        ('untitled', 's1', 'jay', '/p', '{}', 5, NULL, 'elk', NULL);`)
+    old.close()
+    const migrated = new WorkspaceStore(path)
+    // A handle names the terminal of its own session that has it.
+    expect(migrated.terminal("led1")).toMatchObject({ openedBy: "lead1", ledBy: "lead1" })
+    expect(migrated.terminal("led2")).toMatchObject({ openedBy: "lead2", ledBy: "lead2" })
+    expect(migrated.terminal("led1")?.naming.opener).toEqual({ title: "Count", by: "moth" })
+    // A lead or opener that has closed names none; the title still names the opener's handle.
+    const left = migrated.terminal("left")!
+    expect(left.ledBy).toBeNull()
+    expect(left.openedBy).toBeNull()
+    expect(left.naming.opener).toEqual({ title: "Search", by: "elk" })
+    expect(migrated.terminal("plain")).toMatchObject({ openedBy: null, ledBy: null })
+    // The opener's handle outlives the migration for a title-less opener too, and a save.
+    const untitled = migrated.terminal("untitled")!
+    expect(untitled.openedBy).toBeNull()
+    expect(untitled.naming.opener).toEqual({ by: "elk" })
+    migrated.saveTerminal({ ...untitled, ledBy: null })
+    expect(migrated.terminal("untitled")?.naming.opener).toEqual({ by: "elk" })
+    expect(migrated.terminal("lead1")?.naming.opener).toBeNull()
+    // Saved again, the links stay ids.
+    migrated.saveTerminal({ ...migrated.terminal("led1")!, ledBy: null })
+    expect(migrated.terminal("led1")).toMatchObject({ openedBy: "lead1", ledBy: null })
+    migrated.close()
+    const fresh = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(fresh).close()
+    const [carried, created] = [path, fresh].map((file) => {
+      const database = new DatabaseSync(file)
+      try {
+        return normalisedSchemaOf(database)
+      } finally {
+        database.close()
+      }
+    })
+    expect(carried).toEqual(created)
+  })
+
   it("keeps and moves worktree rows, and drops a project's with it", async ({
     directory,
     store: open,
@@ -1695,8 +1756,8 @@ describe("workspace metadata", () => {
       // and adds a step in store.ts's migrations, from schemas/<version before>.sql, which
       // is added for it. Then record the new digest here.
       expect({ version, digest }).toEqual({
-        version: 14,
-        digest: "a7e5237c57a1b2e640c3421f293d19c780e1305268f9aad638d57f7aee2d6fc0",
+        version: 15,
+        digest: "b746606fe2ade7bb784e665cb90417afb4b2acafc1a53007b6f71c26a4ee2e47",
       })
     } finally {
       database.close()

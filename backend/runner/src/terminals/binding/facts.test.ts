@@ -271,7 +271,7 @@ describe("the lead of an agent found gone", () => {
       stopping,
       pollMs,
     } as unknown as BindingsHost
-    const worker = record({ ledBy: "moth" })
+    const worker = record({ ledBy: "id-moth" })
     Object.assign(worker, {
       closed: false,
       terminal: { pty: { pid: 1 }, exit: null, exiting: false },
@@ -294,7 +294,7 @@ describe("the lead of an agent found gone", () => {
     worker.endKeyAt = Date.now() - 1_000
     ends.endLeadGone(worker)
     vi.advanceTimersByTime(pollMs - 1)
-    expect(worker.summary.ledBy).toBe("moth")
+    expect(worker.summary.ledBy).toBe("id-moth")
     vi.advanceTimersByTime(1)
     expect(worker.summary.ledBy).toBeNull()
     expect(ended).toHaveBeenCalledWith("t1")
@@ -311,7 +311,7 @@ describe("the lead of an agent found gone", () => {
     process.worker.endKeyAt = Date.now() - exitKeysMs - 1
     process.ends.endExited(process.worker)
     vi.advanceTimersByTime(graceSamples * pollMs - 1)
-    for (const { worker } of [prompt, process]) expect(worker.summary.ledBy).toBe("moth")
+    for (const { worker } of [prompt, process]) expect(worker.summary.ledBy).toBe("id-moth")
     vi.advanceTimersByTime(1)
     for (const { worker, ended } of [prompt, process]) {
       expect(worker.summary.ledBy).toBeNull()
@@ -357,7 +357,7 @@ describe("the lead of an agent found gone", () => {
     during.worker.ending = Date.now()
     vi.advanceTimersByTime(hold - 1)
     for (const { worker, ended } of [before, during]) {
-      expect(worker.summary.ledBy).toBe("moth")
+      expect(worker.summary.ledBy).toBe("id-moth")
       expect(ended).not.toHaveBeenCalled()
     }
     // A shutdown that was cancelled: the ends that came meanwhile count once it lapses.
@@ -377,7 +377,7 @@ describe("the lead of an agent found gone", () => {
     vi.advanceTimersByTime(pollMs * graceSamples)
     stopping = true
     vi.advanceTimersByTime(endingSamples * pollMs)
-    expect(worker.summary.ledBy).toBe("moth")
+    expect(worker.summary.ledBy).toBe("id-moth")
     expect(ended).not.toHaveBeenCalled()
   })
 
@@ -390,7 +390,7 @@ describe("the lead of an agent found gone", () => {
       binding: { agent: "claude", sessionId: "s1", instance: null },
     } as Record["bound"]
     vi.advanceTimersByTime(pollMs * graceSamples)
-    expect(worker.summary.ledBy).toBe("moth")
+    expect(worker.summary.ledBy).toBe("id-moth")
     expect(ended).not.toHaveBeenCalled()
     expect(worker.goneSession).toBeUndefined()
   })
@@ -429,7 +429,7 @@ describe("the lead of an agent found gone", () => {
     ends.endLeadGone(worker)
     stopping = true
     vi.advanceTimersByTime(graceSamples * pollMs)
-    expect(worker.summary.ledBy).toBe("moth")
+    expect(worker.summary.ledBy).toBe("id-moth")
     expect(ended).not.toHaveBeenCalled()
   })
 
@@ -443,7 +443,7 @@ describe("the lead of an agent found gone", () => {
     closed!.closed = true
     vi.advanceTimersByTime(graceSamples * pollMs)
     for (const { worker, ended } of runs) {
-      expect(worker.summary.ledBy).toBe("moth")
+      expect(worker.summary.ledBy).toBe("id-moth")
       expect(ended).not.toHaveBeenCalled()
     }
   })
@@ -452,9 +452,9 @@ describe("the lead of an agent found gone", () => {
     on("win32")
     const { ends, worker, ended } = led()
     ends.endLeadGone(worker)
-    worker.summary = { ...worker.summary, ledBy: "owl" }
+    worker.summary = { ...worker.summary, ledBy: "id-owl" }
     vi.advanceTimersByTime(graceSamples * pollMs)
-    expect(worker.summary.ledBy).toBe("owl")
+    expect(worker.summary.ledBy).toBe("id-owl")
     expect(ended).not.toHaveBeenCalled()
   })
 })

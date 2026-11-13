@@ -75,7 +75,7 @@ const underNewLead = (
   const was = before.terminals.find((each) => each.id === terminalId)
   const now = after.terminals.find((each) => each.id === terminalId)
   if (!was || !now?.ledBy || was.ledBy) return after
-  const lead = after.terminals.find((each) => each.handle === now.ledBy && each.id !== terminalId)
+  const lead = after.terminals.find((each) => each.id === now.ledBy && each.id !== terminalId)
   return lead ? listUnderOpener(after, terminalId, lead.id) : after
 }
 

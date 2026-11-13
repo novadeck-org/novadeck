@@ -823,12 +823,12 @@ export class Terminals {
       // asked for, as it requested the terminal, is that agent's.
       let naming: Naming = kept?.naming ?? unnamed
       if (input.title !== undefined) naming = renamedTo(naming, input.title)
-      if (opener?.title !== undefined) naming = openedWith(naming, opener.title)
+      if (opener) naming = openedWith(naming, opener.title, opener.handle)
       const openedBy = kept?.openedBy ?? opener?.by ?? null
       const ledBy = kept ? kept.ledBy : opener?.leads ? opener.by : null
       const work = saved?.work ?? null
       const command = input.command ?? saved?.command ?? null
-      const titled = summaryTitle(naming, { handle, command, openedBy })
+      const titled = summaryTitle(naming, { handle, command })
       const judged = this.claims.judge(input, saved, connected)
       const resume = judged?.ok ? judged : undefined
       // Its agent sleeps: this create is its wake, and a plain shell it ends in keeps its lead.
