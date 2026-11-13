@@ -3,7 +3,7 @@ import type { ShellEntry, ShellsContent } from "@novadeck/core/items"
 import { useEffect, useRef, useState } from "react"
 
 import { ArtifactMeta } from "../../ArtifactViewer"
-import { useTell } from "../../homes/terminal/tell"
+import { useTell, type Tell } from "../../homes/terminal/tell"
 import type { ViewProps } from "../../registration"
 import { useContent, useUnfolded } from "../../store/use-item-store"
 import {
@@ -41,12 +41,14 @@ const Log = ({
   paused,
   onPause,
   agent,
+  now,
 }: {
   shell: ShellEntry
   mode: "open" | "folded" | "beside"
   paused: boolean
   onPause: () => void
   agent: string
+  now: number
 }): React.JSX.Element => {
   const box = useRef<HTMLDivElement>(null)
   const { output } = shell
@@ -56,7 +58,8 @@ const Log = ({
     if (follows && output.state === "ready" && box.current)
       box.current.scrollTop = box.current.scrollHeight
   }, [follows, output])
-  if (output.state !== "ready") return <p className="shells-note">{missingText(output, agent)}</p>
+  if (output.state !== "ready")
+    return <p className="shells-note">{missingText(shell, agent, now)}</p>
   if (output.lines.length === 0) return <p className="shells-note">No output yet.</p>
   const shown = shownLines(output.lines, output.firstLine, mode)
   return (
@@ -67,6 +70,9 @@ const Log = ({
       <div
         ref={box}
         className="shells-log"
+        // A log that doesn't announce itself: it fills as often as a program prints.
+        role="log"
+        aria-live="off"
         aria-label={`Output of ${shell.command}`}
         // Scrolling up from the end is asking to read, not to follow.
         onScroll={(event) => {
@@ -102,11 +108,11 @@ const Row = ({
   open: boolean
   beside: boolean
   onToggle: () => void
-  tell: ((words: string) => void) | undefined
+  tell: Tell | undefined
 }): React.JSX.Element => {
   const state: ShellState = shellStateOf(shell)
   const [paused, setPaused] = useState(false)
-  const [told, setTold] = useState(false)
+  const [told, setTold] = useState<"drafted" | "busy" | null>(null)
   const row = useRef<HTMLLIElement>(null)
   // Unfolding, as the chat's shell line does from outside, brings the row into view.
   useEffect(() => {
@@ -120,7 +126,7 @@ const Row = ({
   }
   useEffect(() => {
     if (!told) return
-    const timer = setTimeout(() => setTold(false), 1500)
+    const timer = setTimeout(() => setTold(null), 1500)
     return () => clearTimeout(timer)
   }, [told])
   const mode = open ? "open" : beside ? "beside" : "folded"
@@ -137,16 +143,22 @@ const Row = ({
           </span>
         </button>
         {state === "failed" && tell && (
-          <button
-            type="button"
-            className="artifact-open shells-tell"
-            onClick={() => {
-              tell(tellText(shell))
-              setTold(true)
-            }}
-          >
-            {told ? "Drafted" : `Tell ${agent}`}
-          </button>
+          <>
+            <button
+              type="button"
+              className="artifact-open shells-tell"
+              onClick={() => setTold(tell(tellText(shell)) ? "drafted" : "busy")}
+            >
+              {told === "drafted" ? "Drafted" : told === "busy" ? "Not drafted" : `Tell ${agent}`}
+            </button>
+            <span className="sr-only" role="status" aria-live="polite">
+              {told === "drafted"
+                ? "Drafted in the chat's box."
+                : told === "busy"
+                  ? "Not drafted: the chat's box holds a shell command."
+                  : ""}
+            </span>
+          </>
         )}
       </div>
       <Log
@@ -155,6 +167,7 @@ const Row = ({
         paused={paused}
         onPause={() => setPaused(true)}
         agent={agent}
+        now={now}
       />
       {open && state === "running" && shell.output.state === "ready" && (
         <div className="shells-foot">

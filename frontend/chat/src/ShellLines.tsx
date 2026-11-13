@@ -1,5 +1,6 @@
 import { shellStateOf } from "@novadeck/core/agents/shells"
 import type { AgentShell } from "@novadeck/core/types"
+import { useEffect, useSyncExternalStore } from "react"
 
 import { Fact, Since } from "./Fact"
 
@@ -7,6 +8,29 @@ import { Fact, Since } from "./Fact"
 // which stay until the agent forgets them. A shell that ended quietly has none.
 export const listedShells = (shells: readonly AgentShell[] | undefined): readonly AgentShell[] =>
   shells?.filter((shell) => ["running", "failed"].includes(shellStateOf(shell))) ?? []
+
+// Where the last line of each shell's output comes from, by the shell's id: followed while
+// the lines need it, read as an external store whose value stays the same until a last line
+// changes, so a log that grows under them re-renders nothing else.
+export type ShellTailsSource = {
+  readonly watch: () => () => void
+  readonly subscribe: (on: () => void) => () => void
+  readonly snapshot: () => Readonly<Record<string, string>>
+}
+
+const noTails: Readonly<Record<string, string>> = {}
+const noSubscribe = (): (() => void) => () => {}
+const noSnapshot = (): Readonly<Record<string, string>> => noTails
+
+// The last lines of the shells' output, followed only while a listed shell has an output file.
+const useTails = (
+  source: ShellTailsSource | undefined,
+  shells: readonly AgentShell[],
+): Readonly<Record<string, string>> => {
+  const watching = shells.some(({ output }) => output !== undefined)
+  useEffect(() => (source && watching ? source.watch() : undefined), [source, watching])
+  return useSyncExternalStore(source?.subscribe ?? noSubscribe, source?.snapshot ?? noSnapshot)
+}
 
 // From this many shells on, the lines fold into one.
 const foldAt = 3
@@ -41,7 +65,7 @@ const Line = ({
             type="button"
             className="chat-shell-command nodrag nopan"
             title={shell.command}
-            aria-label={`Show the output of ${shell.command}`}
+            aria-label={`Show the output of ${shell.command}${failed ? `, exited ${shell.exit!.code}` : ""}`}
             onClick={open}
           >
             {shell.command}
@@ -79,7 +103,7 @@ const Line = ({
 
 // A line for each background shell the agent has running or failed, under the working line,
 // which stay after the turn until the shell ends. Three or more fold into one line until opened.
-// `tails` holds the last line of each shell's output by its id; `onShell` opens a shell's output.
+// `tails` gives the last line of each shell's output; `onShell` opens a shell's output.
 export const ShellLines = ({
   shells,
   tails,
@@ -88,11 +112,12 @@ export const ShellLines = ({
   onOpen,
 }: {
   readonly shells: readonly AgentShell[]
-  readonly tails: Readonly<Record<string, string>>
+  readonly tails: ShellTailsSource | undefined
   readonly onShell: ((shellId: string) => void) | undefined
   readonly open: boolean
   readonly onOpen: (open: boolean) => void
 }): React.JSX.Element | null => {
+  const lasts = useTails(tails, shells)
   if (shells.length === 0) return null
   const folded = shells.length >= foldAt
   return (
@@ -120,7 +145,7 @@ export const ShellLines = ({
       )}
       {(!folded || open) &&
         shells.map((shell) => (
-          <Line key={shell.id} shell={shell} last={tails[shell.id]} onOpen={onShell} />
+          <Line key={shell.id} shell={shell} last={lasts[shell.id]} onOpen={onShell} />
         ))}
     </div>
   )

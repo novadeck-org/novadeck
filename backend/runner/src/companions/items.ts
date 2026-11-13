@@ -423,7 +423,9 @@ export class CompanionItems {
       const own = item.from?.terminalId === terminalId
       const range = item.lines ? ` lines ${item.lines.from}–${item.lines.to}` : ""
       if (item.kind === "shells")
-        return `- shells ${JSON.stringify(item.name)}: ${item.detail} (your background shells, as Novadeck lists them)`
+        return `- shells ${JSON.stringify(item.name)}: ${item.detail} (${
+          own ? "your" : item.from ? `${mention(item.from.handle)}'s` : "its agent's"
+        } background shells, as Novadeck lists them)`
       // A repository's folder is named by the repository: shown without invisible characters.
       const where =
         item.kind === "changes" ? displayed(item.path ?? "") : (item.url ?? item.path ?? "")
@@ -929,25 +931,30 @@ export class CompanionItems {
     const ids = new Set(shells.map(({ id }) => id))
     const known = this.shellIds.get(place.terminalId)
     const started = known === undefined || [...ids].some((id) => !known.has(id))
-    this.shellIds.set(place.terminalId, ids)
     const key = shellsKey(place.terminalId)
     const detail = tail(shellsDetail(shells), companionLimits.detail)
     const own = this.shown(place, key)
+    // The ids are counted once the item is saved, so a save that failed is tried again by the
+    // next fact, which still finds a shell started.
     if (own) {
-      if (!started && own.detail === detail) return
-      this.save({
-        ...own,
-        detail,
-        ...(started && {
-          version: own.version + 1,
-          openAsked: false,
-          shownAt: Date.now(),
-        }),
-      })
+      if (started || own.detail !== detail)
+        this.save({
+          ...own,
+          detail,
+          ...(started && {
+            version: own.version + 1,
+            openAsked: false,
+            shownAt: Date.now(),
+          }),
+        })
+      this.shellIds.set(place.terminalId, ids)
       return
     }
     // The person closed it, or it is gone: only a shell started since brings it back.
-    if (!started) return
+    if (!started) {
+      this.shellIds.set(place.terminalId, ids)
+      return
+    }
     this.save({
       pointerKey: key,
       kind: "shells",
@@ -969,6 +976,7 @@ export class CompanionItems {
       shownAt: Date.now(),
       observedAt: null,
     })
+    this.shellIds.set(place.terminalId, ids)
   }
 
   /** The shells item of a terminal goes, wherever the person moved it, and what it counted. */

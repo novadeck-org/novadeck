@@ -263,8 +263,9 @@ export type ChangesContent = {
 export type ShownContent = ImageContent | FileContent | PageContent | ChangesContent
 
 // How a background shell's output stands: its last `lines` (numbered from `firstLine`) of
-// `total` read; `none` where its harness writes it nowhere Novadeck can read; `gone` where its
-// file was there and no longer is.
+// `total` read; `none` where its harness writes it nowhere Novadeck can read; `unreadable`
+// where its file is there and Novadeck can't read it now; `gone` where its file was there and
+// no longer is.
 export type ShellOutput =
   | {
       readonly state: "ready"
@@ -273,6 +274,7 @@ export type ShellOutput =
       readonly total: number
     }
   | { readonly state: "none" }
+  | { readonly state: "unreadable" }
   | { readonly state: "gone" }
 
 // One background shell of a terminal's agent, as the shells item shows it: `since` and the

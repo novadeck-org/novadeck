@@ -2,7 +2,7 @@ import type { AgentShell } from "@novadeck/core/types"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 
-import { ShellLines, listedShells } from "./ShellLines"
+import { ShellLines, listedShells, type ShellTailsSource } from "./ShellLines"
 import { describe, expect, it } from "./test"
 
 const shell = (id: string, exit: AgentShell["exit"] = null): AgentShell => ({
@@ -25,13 +25,44 @@ describe("listedShells", () => {
   })
 })
 
+// Last lines that can move, and a count of how many times they are followed.
+const sourceOf = (first: Record<string, string>) => {
+  let tails: Readonly<Record<string, string>> = first
+  const listeners = new Set<() => void>()
+  const followed = { now: 0 }
+  const source: ShellTailsSource = {
+    watch: () => {
+      followed.now += 1
+      return () => {
+        followed.now -= 1
+      }
+    },
+    subscribe: (on) => {
+      listeners.add(on)
+      return () => listeners.delete(on)
+    },
+    snapshot: () => tails,
+  }
+  return {
+    source,
+    followed,
+    move: (next: Record<string, string>) => {
+      tails = next
+      listeners.forEach((on) => on())
+    },
+  }
+}
+
 describe("ShellLines", () => {
   const draw = async (onShell?: (id: string) => void) => {
-    const shells = [shell("run"), shell("bad", { at: 1, code: 1 })]
+    const shells = [
+      { ...shell("run"), output: "/tmp/run.log" },
+      { ...shell("bad", { at: 1, code: 1 }), output: "/tmp/bad.log" },
+    ]
     return render(
       createElement(ShellLines, {
         shells,
-        tails: { run: "listening on 5173", bad: "port is already allocated" },
+        tails: sourceOf({ run: "listening on 5173", bad: "port is already allocated" }).source,
         onShell,
         open: false,
         onOpen: () => {},
@@ -62,5 +93,33 @@ describe("ShellLines", () => {
   it("leaves the lines to stand alone without that", async () => {
     const { container } = await draw()
     expect(container.querySelector("button.chat-shell-command")).toBeNull()
+  })
+
+  it("names how a failed shell exited on its button, which the line's fact does not say aloud", async () => {
+    const { container } = await draw((id) => id)
+    const buttons = [...container.querySelectorAll("button.chat-shell-command")]
+    expect(buttons.map((each) => each.getAttribute("aria-label"))).toEqual([
+      "Show the output of cmd run",
+      "Show the output of cmd bad, exited 1",
+    ])
+  })
+
+  it("follows the output only while a listed shell has a file, and shows a last line as it moves", async () => {
+    const { source, followed, move } = sourceOf({})
+    const withFile = [{ ...shell("run"), output: "/tmp/run.log" }]
+    const props = (shells: AgentShell[]) => ({
+      shells,
+      tails: source,
+      onShell: undefined,
+      open: false,
+      onOpen: () => {},
+    })
+    const { container, rerender } = await render(createElement(ShellLines, props([shell("run")])))
+    expect(followed.now).toBe(0)
+    await rerender(createElement(ShellLines, props(withFile)))
+    expect(followed.now).toBe(1)
+    expect(container.querySelector(".chat-shell-last")).toBeNull()
+    await act(async () => move({ run: "ready" }))
+    expect(container.querySelector(".chat-shell-last")!.textContent).toBe("ready")
   })
 })

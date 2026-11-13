@@ -848,8 +848,8 @@ const migrations: Readonly<Record<number, Step>> = {
   // so renaming the old one points nothing at it.
   14: `
     ALTER TABLE companion_items RENAME TO companion_items_14;
-    DROP INDEX companion_items_bar;
-    DROP INDEX companion_items_session;
+    DROP INDEX IF EXISTS companion_items_bar;
+    DROP INDEX IF EXISTS companion_items_session;
     CREATE TABLE companion_items (
       id TEXT PRIMARY KEY,
       session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,

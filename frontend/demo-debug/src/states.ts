@@ -239,7 +239,8 @@ const manyShells: readonly DemoShell[] = [
 
 // The shells the item's states are reached with: one that failed (its output ends in the error),
 // one that ended without trouble, one that was stopped, one whose output Novadeck can't read
-// (run in a terminal of the agent's own), and one whose output went with its session.
+// (run in a terminal of the agent's own), one whose file can't be read just now, one that has
+// only just started, and one whose output went with its session.
 const failedShell: DemoShell = {
   command: "docker compose up postgres",
   minutes: 3,
@@ -251,7 +252,10 @@ const doneShell: DemoShell = {
   ended: { code: 0, ago: 1 },
 }
 const stoppedShell: DemoShell = { command: "sleep 600", minutes: 5, ended: { code: null, ago: 2 } }
-const unreadableShell: DemoShell = { command: "npm run seed", minutes: 2, output: "none" }
+const elsewhereShell: DemoShell = { command: "npm run seed", minutes: 2, output: "none" }
+const lockedShell: DemoShell = { command: "make watch", minutes: 2, output: "unreadable" }
+// Started this moment: with nothing to read yet, it says so for its first 5 s.
+const newShell: DemoShell = { command: "npm run seed", minutes: 0, output: "none" }
 const clearedShell: DemoShell = {
   command: "pytest -x tests/api",
   minutes: 30,
@@ -267,7 +271,8 @@ const crowdOfShells: readonly DemoShell[] = [
   { ...failedShell, command: "pnpm test --filter api", minutes: 9 },
   doneShell,
   stoppedShell,
-  unreadableShell,
+  elsewhereShell,
+  lockedShell,
   clearedShell,
   { command: "pnpm lint --watch", minutes: 1 },
 ]
@@ -877,9 +882,27 @@ export const createDemoStates = (
           verbs,
         ),
         verb(
+          "Shell output elsewhere",
+          "Turn over; a shell the agent ran where Novadeck can't read its output (Codex: in a terminal of its own): its row says so",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: [elsewhereShell] }),
+          verbs,
+        ),
+        verb(
           "Shell output unreadable",
-          "Turn over; a shell the agent ran in a terminal of its own: its row says Novadeck can't read its output",
-          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: [unreadableShell] }),
+          "Turn over; a shell whose output file is there and can't be read just now: its row says its output can't be read just now",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: [lockedShell] }),
+          verbs,
+        ),
+        verb(
+          "Shell just started",
+          "Turn over; a shell that started this moment, with nothing of its output to read: its row says No output yet, and after 5 s that Novadeck can't read it",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: [newShell] }),
+          verbs,
+        ),
+        verb(
+          "Shells, none listed",
+          "Turn over; the agent's status lists an empty set of shells, which the runner never keeps an item for: the Shells item stays, saying the agent has no background shells now",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: [] }),
           verbs,
         ),
         verb(

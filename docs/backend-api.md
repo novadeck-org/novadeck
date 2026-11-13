@@ -1657,11 +1657,13 @@ one from an earlier runner.
     with its `id`, `command`, `since`, `exit` and `output`: `ready` with the last 400 lines
     of the file (`lines`, each cut to 4,096 units, a carriage-returned line as a terminal
     leaves it), `firstLine` their number in it, and `total` its lines; `none` where the shell
-    has no file (a Codex command run in a terminal of its own); `gone` where its file was
-    there and is not (Claude Code's goes with its session). All the shells' lines together
+    has no file (a Codex command run in a terminal of its own); `unreadable` where its file
+    is there and cannot be read now (no permission, in use, no plain file); `gone` where its
+    file was there and is not (Claude Code's goes with its session). All the shells' lines together
     stay within 1 MiB: the oldest lines of the largest tails go first. It is read every
     half second while followed, from the files' ends, counting a file's lines only from where
-    it was last counted (a file that shrank is counted afresh), and its `stamp` changes with
+    it was last counted (a file that shrank, or whose bytes before that point changed, is
+    counted afresh), and its `stamp` changes with
     any shell or file. It is `unavailable` (`missing`) once no agent is bound. The output is
     not redacted: it is not covered by the patterns that keep secrets out of files.
   - `companions.changeFile({ itemId, path, layers })` reads one file of a changes item for

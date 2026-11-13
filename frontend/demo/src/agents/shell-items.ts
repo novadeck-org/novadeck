@@ -16,7 +16,9 @@ import { demoShellOutput, printEveryMs } from "./shell-output"
 // The shells item the runner makes for a terminal's agent once its first background shell
 // starts: one per terminal, on its bar and not opened by itself, whose content is each shell
 // of the agent's status with its output. The demo makes it the same way, from the statuses its
-// agents report, and keeps the content of running shells going (see `shell-output.ts`).
+// agents report, and keeps the content of running shells going (see `shell-output.ts`). As the
+// runner does, it takes the item away when the agent lists no shells; but a status that lists
+// them as an empty list (a state of the debug panel) keeps it, to see what its pane says then.
 
 const prefix = "demo-shells-"
 
@@ -49,10 +51,10 @@ const contentOf = (
   },
 })
 
-// Where a status's shells are, by terminal: the agent's own name and its shells, once it has any.
+// Where a status's shells are, by terminal: the agent's own name and its shells, once it lists any.
 const shellsOf = (workspace: Workspace) =>
   terminalsOf(workspace).flatMap(({ key, terminal }) =>
-    terminal.state === "running" && terminal.agent?.shells?.length
+    terminal.state === "running" && terminal.agent?.shells
       ? [
           {
             key,
@@ -62,6 +64,19 @@ const shellsOf = (workspace: Workspace) =>
           },
         ]
       : [],
+  )
+
+// The shells items the workspace holds that no agent's status makes now, with where they are.
+const gone = (workspace: Workspace, live: ReadonlySet<string>) =>
+  workspace.projects.flatMap((project) =>
+    project.history.flatMap((session) =>
+      session.state.items
+        .filter((item) => item.id.startsWith(prefix) && !live.has(item.id))
+        .map((item) => ({
+          itemId: item.id,
+          target: { projectId: project.id, workspaceSessionId: session.id },
+        })),
+    ),
   )
 
 export const withShellItems = (backend: Backend): Backend => {
@@ -92,7 +107,15 @@ export const withShellItems = (backend: Backend): Backend => {
     if (!latest || !sink) return
     const held = itemsOf(latest)
     const actions: BackendAction[] = []
-    for (const { key, handle, shells } of shellsOf(latest)) {
+    const made = shellsOf(latest)
+    for (const { itemId, target } of gone(
+      latest,
+      new Set(made.map(({ key }) => `${prefix}${key.terminalId}`)),
+    )) {
+      known.delete(itemId)
+      actions.push({ type: "item/remove", target, itemId })
+    }
+    for (const { key, handle, shells } of made) {
       const id = itemIdOf(`${prefix}${key.terminalId}`)
       const seen = known.get(id) ?? new Set<string>()
       const arrived = shells.some((shell) => !seen.has(shell.id))

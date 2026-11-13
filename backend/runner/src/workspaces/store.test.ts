@@ -1695,6 +1695,19 @@ describe("workspace metadata", () => {
     expect(carried).toEqual(created)
   })
 
+  it("still takes the step from 14 where the items' indexes are already gone", ({ directory }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/14.sql", import.meta.url), "utf8")}
+      DROP INDEX companion_items_bar;
+      DROP INDEX companion_items_session;
+      PRAGMA user_version = 14;`)
+    old.close()
+    const migrated = new WorkspaceStore(path)
+    expect(migrated.barItems("t")).toEqual([])
+    migrated.close()
+  })
+
   it("keeps and moves worktree rows, and drops a project's with it", async ({
     directory,
     store: open,

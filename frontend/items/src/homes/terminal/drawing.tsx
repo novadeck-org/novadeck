@@ -78,8 +78,9 @@ export const terminalDrawing = ({
   ...sources
 }: Sources & {
   readonly plans: LookContext["plans"]
-  // The terminal's agent's background shells.
-  readonly shells?: readonly AgentShell[] | undefined
+  // The background shells of the agents of the terminals the bar's shells items are from, by
+  // the terminal's id: an item the person moved here marks its own terminal's shells.
+  readonly shells?: Readonly<Record<string, readonly AgentShell[]>> | undefined
 }): BarDrawing => ({
   look: (member) => memberLook(member, { plans }),
   preview: (member) => {
@@ -91,7 +92,7 @@ export const terminalDrawing = ({
   badge: (member) =>
     member.kind === "item"
       ? member.item.kind === "shells"
-        ? shellsBadge(shells)
+        ? shellsBadge(shells?.[member.item.from?.terminalId ?? ""])
         : undefined
       : {
           mark: <MessagesCount messagesHandle={sources.messagesHandle} />,

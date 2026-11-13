@@ -1700,6 +1700,35 @@ describe("background shells beside their terminal", () => {
     expect(shellsOn(fixture, moth.terminalId)).toMatchObject([{ detail: "ended", version: 1 }])
   })
 
+  it("are tried again by the next fact when the item could not be saved", ({ fixture }) => {
+    const moth = fixture.terminal("moth")
+    const save = fixture.store.saveItem.bind(fixture.store)
+    fixture.store.saveItem = () => {
+      throw new Error("disk full")
+    }
+    try {
+      fixture.items.shellsObserved(fixture.shell(moth, [running("1")]))
+    } finally {
+      fixture.store.saveItem = save
+    }
+    expect(shellsOn(fixture, moth.terminalId)).toEqual([])
+    // The same shells again: the first save never counted them.
+    fixture.items.shellsObserved(fixture.shell(moth, [running("1")]))
+    expect(shellsOn(fixture, moth.terminalId)).toMatchObject([{ detail: "1 running" }])
+  })
+
+  it("are the agent's own to it, and another terminal's agent's by its handle", ({ fixture }) => {
+    const moth = fixture.terminal("moth")
+    const fox = fixture.terminal("fox")
+    fixture.items.shellsObserved(fixture.shell(moth, [running("1")]))
+    const [item] = shellsOn(fixture, moth.terminalId)
+    expect(fixture.items.listing(moth.terminalId)).toContain("(your background shells,")
+    fixture.items.move(item!.id, fox.terminalId)
+    const listing = fixture.items.listing(fox.terminalId)
+    expect(listing).toContain("@moth's background shells")
+    expect(listing).not.toContain("your background shells")
+  })
+
   it("show again as a later version when a new shell starts, not when one ends", ({ fixture }) => {
     const moth = fixture.terminal("moth")
     fixture.items.shellsObserved(fixture.shell(moth, [running("1")]))

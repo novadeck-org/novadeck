@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest"
 import {
   ageText,
   lastLineOf,
+  missingText,
   orderedShells,
   plain,
   shownLines,
@@ -74,6 +75,35 @@ describe("output", () => {
     expect(lastLineOf({ state: "none" })).toBeNull()
   })
 
+  it("strips character set designations, a cut-off title and other control characters", () => {
+    expect(plain("\u001b[1mbold\u001b(B\u001b[m done")).toBe("bold done")
+    expect(plain("kept\u001b]0;a title that never ends")).toBe("kept")
+    expect(plain("\u001b]0;title\u0007shown")).toBe("shown")
+    expect(plain("a\tb\u0000\u0007\u0008c\u007f\r")).toBe("a\tbc")
+  })
+
+  it("says why output is not there, as the agent and the shell's age call for", () => {
+    const none = (since: number): ShellEntry => ({
+      ...shell("a", since),
+      output: { state: "none" },
+    })
+    const only = (state: "unreadable" | "gone"): ShellEntry => ({
+      ...shell("a", 0),
+      output: { state },
+    })
+    expect(missingText(none(1000), "Claude", 3000)).toBe("No output yet.")
+    expect(missingText(none(0), "Claude", 60_000)).toBe(
+      "Novadeck can't read this one's output; Claude shows what it read of it in its replies.",
+    )
+    expect(missingText(none(0), "Codex", 60_000)).toContain("ran this in a terminal of its own")
+    expect(missingText(only("unreadable"), "Claude", 0)).toBe("Its output can't be read just now.")
+    expect(missingText(only("gone"), "Claude", 0)).toBe(
+      "Its output is gone. Claude cleared it with its session.",
+    )
+    expect(missingText(only("gone"), "Codex", 0)).toBe("Its output is gone.")
+    expect(missingText(shell("a", 0), "Claude", 0)).toBeNull()
+  })
+
   it("folds to the last lines, keeping their numbers", () => {
     expect(shownLines(["a", "b", "c", "d", "e"], 10, "folded")).toEqual({
       firstLine: 12,
@@ -81,6 +111,13 @@ describe("output", () => {
     })
     expect(shownLines(["a", "b"], 1, "beside")).toEqual({ firstLine: 2, lines: ["b"] })
     expect(shownLines(["a", "b"], 1, "open").lines).toHaveLength(2)
+  })
+
+  it("fences a command that holds backticks with a longer run", () => {
+    const bad = { ...shell("bad", 0, { at: 1, code: 2 }), command: "echo `date` ``x``" }
+    expect(tellText(bad).startsWith("``` echo `date` ``x`` ``` exited 2.")).toBe(true)
+    const edge = { ...bad, command: "`ls`" }
+    expect(tellText(edge).startsWith("`` `ls` `` exited 2.")).toBe(true)
   })
 
   it("drafts the command, its code and the end of its output", () => {

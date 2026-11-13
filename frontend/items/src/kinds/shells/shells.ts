@@ -50,10 +50,13 @@ export const stateText = (shell: ShellEntry, now: number): string => {
   }
 }
 
-// A line without the escape sequences a program prints for colours and the cursor: the runner
-// sends output as the shell wrote it.
-// eslint-disable-next-line no-control-regex -- escape sequences start with ESC.
-const escapes = /\u001b(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007\u001b]*(?:\u0007|\u001b\\)|[@-Z\\-_])/g
+// A line without the escape sequences a program prints for colours and the cursor, nor the
+// control characters left (a tab stays): the runner sends output as the shell wrote it. An
+// operating system command cut off at the line's end goes to the end, and a character set
+// designation (`tput sgr0` ends with `ESC ( B`) takes the character after it.
+const escapes =
+  // eslint-disable-next-line no-control-regex -- escape sequences start with ESC.
+  /\u001b(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007\u001b]*(?:\u0007|\u001b\\)|\][^]*$|[()*+][ -~]|[@-Z\\-_])|[\u0000-\u0008\u000a-\u001f\u007f]/g
 export const plain = (line: string): string => line.replace(escapes, "")
 
 // The last line of a shell's output that says anything, where it has output to read.
@@ -63,13 +66,26 @@ export const lastLineOf = (output: ShellOutput): string | null => {
   return last === undefined ? null : plain(last)
 }
 
-// Why a shell's output isn't there, in the app's plain voice.
-export const missingText = (output: ShellOutput, agent: string): string | null =>
-  output.state === "none"
-    ? `${agent} ran this in a terminal of its own, which Novadeck can't read. Its reply shows what it read.`
-    : output.state === "gone"
-      ? `Its output is gone: ${agent} cleared it with its session.`
-      : null
+// A shell this young has had no time to write anything.
+const youngMs = 5000
+
+// Why a shell's output isn't there, in the app's plain voice; null where it is.
+export const missingText = (shell: ShellEntry, agent: string, now: number): string | null => {
+  const { output } = shell
+  switch (output.state) {
+    case "none":
+      if (now - shell.since < youngMs) return "No output yet."
+      return agent === "Codex"
+        ? `${agent} ran this in a terminal of its own, which Novadeck can't read. Its reply shows what it read.`
+        : `Novadeck can't read this one's output; ${agent} shows what it read of it in its replies.`
+    case "unreadable":
+      return "Its output can't be read just now."
+    case "gone":
+      return `Its output is gone.${agent === "Claude" ? ` ${agent} cleared it with its session.` : ""}`
+    default:
+      return null
+  }
+}
 
 // How many of the last lines a folded row shows, and how many while another row is unfolded.
 export const foldedLines = 3
@@ -91,11 +107,20 @@ export const shownLines = (
 const quotedLines = 8
 const quotedWidth = 240
 
+// A command as inline code: in a backtick fence longer than any run of backticks inside it,
+// set off by spaces where it starts or ends with one.
+const codeSpan = (command: string): string => {
+  const longest = Math.max(0, ...(command.match(/`+/g) ?? []).map((run) => run.length))
+  const fence = "`".repeat(longest + 1)
+  const pad = command.startsWith("`") || command.endsWith("`") ? " " : ""
+  return `${fence}${pad}${command}${pad}${fence}`
+}
+
 // The message "Tell" drafts for the person to look over: the command, its exit code and the
 // end of its output. Never sent.
 export const tellText = (shell: ShellEntry): string => {
   const code = shell.exit?.code
-  const head = `\`${shell.command}\` ${code === null || code === undefined ? "stopped" : `exited ${code}`}.`
+  const head = `${codeSpan(shell.command)} ${code === null || code === undefined ? "stopped" : `exited ${code}`}.`
   if (shell.output.state !== "ready") return head
   const tail = shell.output.lines
     .map(plain)

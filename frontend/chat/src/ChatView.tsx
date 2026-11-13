@@ -44,7 +44,7 @@ import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
 import { Requests } from "./Requests"
 import { recordedImagesOf, takeSentImages, type ChatSend } from "./sends"
 import { settledSent, settleSent } from "./settled"
-import { ShellLines, listedShells } from "./ShellLines"
+import { ShellLines, listedShells, type ShellTailsSource } from "./ShellLines"
 import { LiveSlice, SliceKeys } from "./Slice"
 import { ThumbsContext, useThumbs } from "./Thumbs"
 import { mentionOf, Transcript, type PeerLooks } from "./Transcript"
@@ -55,7 +55,6 @@ import { useTranscriptMotion } from "./use-transcript-motion"
 import { useTurnHold } from "./use-turn-hold"
 
 const noShells: readonly SentShell[] = []
-const noTails: Readonly<Record<string, string>> = {}
 
 // How many blocks of a long conversation show, and how many more "Show earlier" adds.
 const windowSize = 60
@@ -89,7 +88,7 @@ export const ChatView = ({
   onImage,
   onSend,
   shells = noShells,
-  shellTails = noTails,
+  shellTails,
   onOpenShell,
   onInterrupt,
   onClearBox,
@@ -159,10 +158,10 @@ export const ChatView = ({
   ) => Promise<boolean>
   // The shell commands sent from this chat, which its history recalls.
   readonly shells?: readonly SentShell[] | undefined
-  // The last line of each of the agent's background shells' output, by the shell's id, which
-  // shows under its line; and what opens a shell's output, which makes its line a button.
+  // Where the last line of each of the agent's background shells' output comes from, which
+  // shows under its line (the lines subscribe to it); and what opens a shell's output, which makes its line a button.
   // Both come from the app where it can show the output; without them the lines stand alone.
-  readonly shellTails?: Readonly<Record<string, string>> | undefined
+  readonly shellTails?: ShellTailsSource | undefined
   readonly onOpenShell?: ((shellId: string) => void) | undefined
   readonly onInterrupt: () => Promise<void>
   // Empties the agent's own input box of the text the chat showed it holds.

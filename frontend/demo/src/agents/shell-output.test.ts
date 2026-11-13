@@ -24,6 +24,9 @@ describe("demoShellOutput", () => {
     expect(demoShellOutput({ ...running("x", 0), output: demoOutputPath("gone") }, 1)).toEqual({
       state: "gone",
     })
+    expect(
+      demoShellOutput({ ...running("x", 0), output: demoOutputPath("unreadable") }, 1),
+    ).toEqual({ state: "unreadable" })
   })
 
   it("keeps an ended shell's output as it ended", () => {

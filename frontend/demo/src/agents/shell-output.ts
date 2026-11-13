@@ -8,7 +8,7 @@ import type { AgentShell } from "@novadeck/core/types"
 
 const prefix = "demo-output:"
 
-export type DemoOutputState = "ready" | "none" | "gone"
+export type DemoOutputState = "ready" | "none" | "unreadable" | "gone"
 
 export const demoOutputPath = (state: DemoOutputState): string => `${prefix}${state}`
 
@@ -96,7 +96,7 @@ export const demoShellOutput = (
   now: number,
 ): ShellOutput => {
   const state = shell.output?.startsWith(prefix) ? shell.output.slice(prefix.length) : "ready"
-  if (state === "none" || state === "gone") return { state }
+  if (state === "none" || state === "unreadable" || state === "gone") return { state }
   const sample = samples[shell.command] ?? { lines: [`$ ${shell.command}`] }
   const printed =
     shell.exit === null && sample.goesOn

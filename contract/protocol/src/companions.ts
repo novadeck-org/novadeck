@@ -277,8 +277,9 @@ export const changeFileDiff = z.strictObject({
 // they were then. Shells are the background shells of the agent in the item's terminal, as
 // its `activity.shells` lists them, each with the end of its output (`output`): its last
 // lines, numbered from `firstLine`, of `total` read; `none` where its harness writes it nowhere
-// Novadeck can read (a Codex command run in a terminal of its own); `gone` where its file was
-// there and no longer is, as Claude Code's goes with its session. Or why it can't be shown,
+// Novadeck can read (a Codex command run in a terminal of its own); `unreadable` where its
+// file is there and Novadeck can't read it now (no permission, in use, not a regular file);
+// `gone` where its file was there and no longer is, as Claude Code's goes with its session. Or why it can't be shown,
 // with the file's size where known.
 export const itemContent = z.discriminatedUnion("state", [
   z.strictObject({
@@ -336,6 +337,7 @@ export const itemContent = z.discriminatedUnion("state", [
                   total: z.int().nonnegative(),
                 }),
                 z.strictObject({ state: z.literal("none") }),
+                z.strictObject({ state: z.literal("unreadable") }),
                 z.strictObject({ state: z.literal("gone") }),
               ]),
             }),

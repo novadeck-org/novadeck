@@ -23,7 +23,7 @@ import { createStore } from "@novadeck/core/store"
 import type { CompanionWindowMeta, TerminalMetadata, Tile } from "@novadeck/core/types"
 import { Avatar } from "@novadeck/items/Avatar"
 import { ProjectWindow } from "@novadeck/items/ProjectWindow"
-import { useShellTails } from "@novadeck/items/shells"
+import { shellTailsOf } from "@novadeck/items/shells"
 import { TerminalCompanion } from "@novadeck/items/TerminalCompanion"
 import { UndockedWindow } from "@novadeck/items/UndockedWindow"
 import {
@@ -70,7 +70,7 @@ import {
   windowedDestination,
 } from "./selectors"
 import { useFoldTeam } from "./team-fold"
-import { useTerminalBar } from "./terminal-bar"
+import { useBarShells, useShellsHome, useTerminalBar } from "./terminal-bar"
 import { agentAvatarsOn, chatViewOn } from "./ui-store"
 import { useTerminalMarks } from "./useTerminalMarks"
 
@@ -320,19 +320,16 @@ export const WorkspaceTerminal = memo(
     )
     const shells = useChat(chat, (state) => chatShellsOf(state.shells, chatContext, terminalId))
     const conversation = showChat ? candidate : undefined
-    // The terminal's shells item, whose pane the chat's shell lines open, and whose output
-    // gives each its last line.
-    const shellsItem = items.find((item) => item.kind === "shells")
-    const shellTarget = useMemo(
-      () => ({ projectId, workspaceSessionId }),
-      [projectId, workspaceSessionId],
-    )
-    const agentShells = terminal.state === "running" ? terminal.agent?.shells : undefined
-    const shellTails = useShellTails(
-      itemStore,
-      shellTarget,
-      shellsItem,
-      conversation !== undefined && (agentShells?.length ?? 0) > 0,
+    // The terminal's shells item, wherever it sits, whose pane the chat's shell lines open, and
+    // whose output gives each its last line, which the lines follow themselves.
+    const shellsHome = useShellsHome(terminalId)
+    const barShells = useBarShells(terminalId)
+    const shellTails = useMemo(
+      () =>
+        itemStore && shellsHome
+          ? shellTailsOf(itemStore, { projectId, workspaceSessionId }, shellsHome)
+          : undefined,
+      [itemStore, projectId, workspaceSessionId, shellsHome],
     )
     // Stable while the terminal and the backend are: a new one would draw every thumbnail again.
     const onImage = useMemo(
@@ -343,16 +340,17 @@ export const WorkspaceTerminal = memo(
       [conversations, terminalKey],
     )
     // A shell line of the chat opens the shells item at that shell, bringing it back to the bar
-    // if the person had hidden it. Without the item or its store the lines only stand there.
+    // that holds it if the person had hidden it; in a window of its own it is open already.
+    // Without the item or its store the lines only stand there.
     const onOpenShell = useMemo(
       () =>
-        itemStore && shellsItem
+        itemStore && shellsHome
           ? (shellId: string) => {
-              itemStore.unfold(shellsItem.id, shellId)
-              commands.openBarTab(terminalId, shellsItem.id)
+              itemStore.unfold(shellsHome.id, shellId)
+              if (shellsHome.bar !== null) commands.openBarTab(shellsHome.bar, shellsHome.id)
             }
           : undefined,
-      [itemStore, shellsItem, commands, terminalId],
+      [itemStore, shellsHome, commands],
     )
     useBoxHandover(conversation, {
       take: (ahead) => commands.takeBox(terminalKey, { ahead }),
@@ -366,7 +364,7 @@ export const WorkspaceTerminal = memo(
     const tell = useMemo(
       () =>
         conversation !== undefined
-          ? (words: string) => commands.appendChatDraft(chatContext, terminalId, words)
+          ? (words: string) => commands.tellChatDraft(chatContext, terminalId, words)
           : undefined,
       [conversation, commands, chatContext, terminalId],
     )
@@ -480,7 +478,7 @@ export const WorkspaceTerminal = memo(
               fresh={fresh}
               terminalName={(id) => terminalName[id]}
               commands={commands}
-              shells={agentShells}
+              shells={barShells}
               tell={tell}
             >
               {hosted(content)}

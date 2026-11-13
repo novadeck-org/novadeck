@@ -636,6 +636,17 @@ describe("demo states", () => {
         "finish",
         ["completed", { after: 3000, shells: expect.arrayContaining([expect.anything()]) }],
       ],
+      [
+        "Shell output unreadable",
+        "finish",
+        ["completed", { after: 3000, shells: [expect.objectContaining({ output: "unreadable" })] }],
+      ],
+      [
+        "Shell just started",
+        "finish",
+        ["completed", { after: 3000, shells: [expect.objectContaining({ minutes: 0 })] }],
+      ],
+      ["Shells, none listed", "finish", ["completed", { after: 3000, shells: [] }]],
       ["Working, 3 shells", "work", [{ shells: expect.arrayContaining([expect.anything()]) }]],
       ["Rest", "rest", []],
     ])("%s calls %s", (label, verb, args) => {

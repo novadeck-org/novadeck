@@ -334,12 +334,17 @@ Agents:
   (one per terminal, on its bar, not opened by itself) from the agent's shells, each with sample
   output (`frontend/demo/src/agents/shell-output.ts`) that a running shell goes on printing every
   3 s. The shells' states are one verb each: Shells, one failed (two run, a third exited 1: the
-  item's icon gets a red dot, its row is tinted and has "Tell <agent>", which drafts into the
-  chat's box when the chat view is on, and the chat's shell lines show each one's last line, red
+  item's icon gets a red dot, its row is tinted and has "Tell <agent>", which drafts after the
+  chat's text when the chat view is on, and says "Not drafted" if the box holds a `!` command, and the chat's shell lines show each one's last line, red
   for the failed one, and open the item at that shell), Shell ended ok, Shell stopped (no exit
-  code), Shell output unreadable (the agent ran it in a terminal of its own), Shell output gone
-  (cleared with its session) and Many shells (ten, in every state, to scroll and unfold). Rest
-  leaves it at its prompt with nothing running or asking; the Inbox rows it wrote (a done report,
+  code), Shell output elsewhere (the agent ran it where Novadeck can't read it, as Codex does
+  in a terminal of its own), Shell output unreadable (its file is there and can't be read just
+  now), Shell just started (it says "No output yet." for 5 s, then that Novadeck can't read it),
+  Shell output gone (cleared with its session), Shells, none listed (the status lists an empty
+  set, which the runner never keeps an item for, so the item stays to show "has no background
+  shells now") and Many shells (ten, in every state, to scroll and unfold). When a later verb
+  leaves the agent with no shells at all, the demo takes the Shells item away, as the runner
+  does, and an open pane says "The shells are gone." Rest leaves it at its prompt with nothing running or asking; the Inbox rows it wrote (a done report,
   a failed turn) stay. "Every state at once" has Shells, one failed and Many shells.
 - **Agent fixtures:** what no turn produces: an unheard agent (of the chosen harness, in
   place of whatever ran, whose hooks say nothing), an agent held at its startup screen (of the

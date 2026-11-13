@@ -4,6 +4,7 @@ import {
   mkdtempSync,
   rmSync,
   truncateSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
@@ -93,12 +94,56 @@ describe("the end of background shells' output", () => {
     const path = join(directory, "out.log")
     writeFileSync(path, "a\nb\n")
     await read(tails, shell("1", path))
-    // Changed in place and kept as long, then grown: the count of what was read before
-    // stands, which a recount from the start (5 lines) would not give.
-    writeFileSync(path, "\n\n\n\n")
     appendFileSync(path, "c\n")
     const [output] = outputs(await read(tails, shell("1", path)))
-    expect(output).toMatchObject({ total: 3, firstLine: 1 })
+    expect(output).toMatchObject({ lines: ["a", "b", "c"], total: 3, firstLine: 1 })
+  })
+
+  it("counts afresh a file rewritten in place to a larger size between two reads", async ({
+    directory,
+    tails,
+  }) => {
+    const path = join(directory, "out.log")
+    writeFileSync(path, "a\nb\nc\n")
+    await read(tails, shell("1", path))
+    // The same file, emptied and written again: its old bytes are not the ones counted.
+    writeFileSync(path, "\n".repeat(7))
+    expect(outputs(await read(tails, shell("1", path)))).toMatchObject([{ total: 7, firstLine: 1 }])
+  })
+
+  it("keeps the counts of many files, so a poll of them does not read them all again", async ({
+    directory,
+    tails,
+  }) => {
+    const paths = Array.from({ length: 40 }, (_, at) => join(directory, `out${at}.log`))
+    const stamp = (path: string) => utimesSync(path, 1_000_000, 1_000_000)
+    for (const path of paths) {
+      writeFileSync(path, "aaa\n")
+      stamp(path)
+    }
+    const shells = paths.map((path, at) => shell(String(at), path))
+    await read(tails, ...shells)
+    // Written again as long and as old: only a file read again shows it.
+    for (const path of paths) {
+      writeFileSync(path, "bbb\n")
+      stamp(path)
+    }
+    const lines = outputs(await read(tails, ...shells)).map((output) =>
+      output.state === "ready" ? output.lines : [],
+    )
+    expect(lines).toEqual(paths.map(() => ["aaa"]))
+  })
+
+  it("starts a line a read window begins inside of at a whole character", async ({
+    directory,
+    tails,
+  }) => {
+    const path = join(directory, "out.log")
+    // Two bytes a character, and an odd size: the window of the last 2 MiB starts between two.
+    writeFileSync(path, `${"é".repeat(1024 * 1024 + 3)}\n`)
+    const [output] = outputs(await read(tails, shell("1", path)))
+    expect(output?.state === "ready" && output.lines[0]?.startsWith("é")).toBe(true)
+    expect(output?.state === "ready" && output.lines[0]).not.toContain("\uFFFD")
   })
 
   it("counts afresh a file that shrank or was replaced", async ({ directory, tails }) => {
@@ -116,7 +161,7 @@ describe("the end of background shells' output", () => {
     ])
   })
 
-  it("is none where a shell has no file, or a path is no file, and gone where it went", async ({
+  it("is none where a shell has no file, unreadable where its path is no file, and gone where it went", async ({
     directory,
     tails,
   }) => {
@@ -131,7 +176,8 @@ describe("the end of background shells' output", () => {
           shell("3", join(directory, "missing.log")),
         ),
       ),
-    ).toEqual([{ state: "none" }, { state: "none" }, { state: "gone" }])
+    ).toEqual([{ state: "none" }, { state: "unreadable" }, { state: "gone" }])
+    expect(itemContent.safeParse(await read(tails, shell("2", folder))).success).toBe(true)
   })
 
   it("keeps all its shells within the text limit, trimming the largest tails first", async ({

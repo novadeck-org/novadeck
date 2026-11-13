@@ -75,8 +75,9 @@ const waitingOf = (waits: DemoWaiting, now: number): AgentWaiting =>
 
 // The background shells an agent reports at `now`, started their minutes ago, running unless
 // they ended. Their output is where `demoShellOutput` finds it.
+// An empty list is a status that lists none, which the shells item's pane says in words.
 const shellsOf = (list: readonly DemoShell[] | undefined, now: number) =>
-  list && list.length > 0
+  list
     ? {
         shells: list.map(({ command, minutes, ended, output }, index) => ({
           id: `demo-shell-${index + 1}`,

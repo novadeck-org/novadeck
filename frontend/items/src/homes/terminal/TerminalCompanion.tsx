@@ -197,8 +197,9 @@ export const TerminalCompanion = ({
   // A terminal in this session by its id, as it's named.
   terminalName?: ((terminalId: string) => string | undefined) | undefined
   commands: ItemCommands
-  // The terminal's agent's background shells, which the shells item's icon marks the state of.
-  shells?: readonly AgentShell[] | undefined
+  // The background shells of the agents of the terminals the bar's shells items are from, by
+  // terminal id, which each item's mark is the state of.
+  shells?: Readonly<Record<string, readonly AgentShell[]>> | undefined
   // Drafts words into the terminal's chat box for the person to send, where it has one.
   tell?: Tell | undefined
 }): React.JSX.Element => {

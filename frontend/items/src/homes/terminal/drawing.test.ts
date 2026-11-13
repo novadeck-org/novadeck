@@ -178,4 +178,39 @@ describe("a terminal's drawing of its bar", () => {
         expect(lookOf(member, unloaded), shape).toEqual(expectedLookOf(member, {}, undefined))
     })
   })
+
+  context("the shells item's mark", () => {
+    it("counts the shells of the terminal the item is from, not of the bar it sits on", () => {
+      const fromFox = itemFixture("shells", "02", {
+        kind: "shells",
+        name: "Shells",
+        path: null,
+        from: { terminalId: "fox", handle: "fox" },
+      })
+      const shell = (id: string, exitCode: number | null) => ({
+        id,
+        command: id,
+        since: 0,
+        exit: exitCode === null ? null : { at: 1, code: exitCode },
+      })
+      const draw = terminalDrawing({
+        plans: {},
+        itemStore: {} as ItemStore,
+        target: { projectId: "project", workspaceSessionId: "initial" },
+        messagesHandle: {} as MessagesHandle,
+        links: noLinks,
+        shells: { fox: [shell("a", 1)], moth: [shell("b", null)] },
+      })
+      expect(draw.badge(itemMember(fromFox))?.label).toBe(", 1 failed")
+      const none = terminalDrawing({
+        plans: {},
+        itemStore: {} as ItemStore,
+        target: { projectId: "project", workspaceSessionId: "initial" },
+        messagesHandle: {} as MessagesHandle,
+        links: noLinks,
+        shells: { moth: [shell("b", null)] },
+      })
+      expect(none.badge(itemMember(fromFox))?.label).toBe("")
+    })
+  })
 })

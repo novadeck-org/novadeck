@@ -18,8 +18,12 @@ type ShellOutput = ShellsContent["shells"][number]["output"]
 const chunkBytes = 64 * 1024
 // The most read from a file's end to find its last lines; a line longer than that is cut by it.
 const tailBytes = 2 * 1024 * 1024
-// How many files' counts are kept, least recently read first out.
-const keptFiles = 32
+// How many files' counts are kept, least recently read first out: enough for the shells of
+// many terminals, as a file counted afresh every poll costs its whole length.
+const keptFiles = 256
+// How much of a file just before the counted size is kept as a check that it was not
+// rewritten in place.
+const checkBytes = 4096
 
 const newline = 10
 
@@ -54,6 +58,20 @@ const countLineFeeds = async (handle: FileHandle, from: number, to: number): Pro
   return count
 }
 
+/** A stamp of the `checkBytes` of a file that end at byte `to`. */
+const checkOf = async (handle: FileHandle, to: number): Promise<string> => {
+  const from = Math.max(0, to - checkBytes)
+  const buffer = Buffer.alloc(to - from)
+  let read = 0
+  while (read < buffer.length) {
+    // eslint-disable-next-line no-await-in-loop -- One chunk after another.
+    const { bytesRead } = await handle.read(buffer, read, buffer.length - read, from + read)
+    if (bytesRead === 0) break
+    read += bytesRead
+  }
+  return hashOf(buffer.subarray(0, read).toString("latin1"))
+}
+
 /** One line of output as a terminal would leave it: what follows the last carriage return. */
 const displayed = (bytes: Buffer): string => {
   const text = bytes.toString("utf8").replace(/\r+$/, "")
@@ -79,7 +97,10 @@ const lastLines = async (
     if (bytesRead === 0) break
     read += bytesRead
   }
-  const bytes = buffer.subarray(0, read)
+  // A window that starts inside a multi-byte character skips its continuation bytes.
+  let skip = 0
+  if (start > 0) while (skip < 3 && skip < read && (buffer[skip]! & 0xc0) === 0x80) skip += 1
+  const bytes = buffer.subarray(skip, read)
   const ended = bytes.at(-1) === newline
   const total = Math.max(lineFeeds + (size > 0 && !ended ? 1 : 0), 0)
   const lines: string[] = []
@@ -118,12 +139,17 @@ const fit = (outputs: ShellOutput[]): void => {
   }
 }
 
+/** A file that is there and cannot be read now. */
+const unreadable = { output: { state: "unreadable" }, mark: "unreadable" } as const
+
 /** What was known of a file when it was last read. */
 type Counted = {
   readonly ino: number
   readonly size: number
   readonly mtimeMs: number
   readonly lineFeeds: number
+  /** A stamp of the last `checkBytes` before `size`, to tell a rewrite from growth. */
+  readonly check: string
   readonly output: Extract<ShellOutput, { state: "ready" }>
 }
 
@@ -184,11 +210,11 @@ export class ShellTails {
       const code = (error as NodeJS.ErrnoException).code
       return code === "ENOENT" || code === "ENOTDIR"
         ? { output: { state: "gone" }, mark: "gone" }
-        : { output: { state: "none" }, mark: "none" }
+        : unreadable
     }
     try {
       const stats = await handle.stat()
-      if (!stats.isFile()) return { output: { state: "none" }, mark: "none" }
+      if (!stats.isFile()) return unreadable
       const mark = `${stats.ino}:${stats.size}:${stats.mtimeMs}`
       const before = this.counted.get(path)
       const unchanged =
@@ -198,17 +224,25 @@ export class ShellTails {
         this.counted.set(path, before)
         return { output: before.output, mark }
       }
-      // What was counted holds for a file that only grew.
-      const grown = before?.ino === stats.ino && before.size < stats.size ? before : undefined
+      // What was counted holds for a file that only grew: its bytes before the counted size are
+      // the ones that were counted, not a rewrite that left it larger.
+      const grown =
+        before?.ino === stats.ino &&
+        before.size < stats.size &&
+        before.check === (await checkOf(handle, before.size))
+          ? before
+          : undefined
       const lineFeeds =
         (grown?.lineFeeds ?? 0) + (await countLineFeeds(handle, grown?.size ?? 0, stats.size))
       const output = await lastLines(handle, stats.size, lineFeeds)
+      const check = await checkOf(handle, stats.size)
       this.counted.delete(path)
       this.counted.set(path, {
         ino: stats.ino,
         size: stats.size,
         mtimeMs: stats.mtimeMs,
         lineFeeds,
+        check,
         output,
       })
       for (const old of this.counted.keys()) {
@@ -217,7 +251,7 @@ export class ShellTails {
       }
       return { output, mark }
     } catch {
-      return { output: { state: "none" }, mark: "none" }
+      return unreadable
     } finally {
       await handle.close().catch(() => {})
     }

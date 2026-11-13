@@ -35,7 +35,7 @@ const shell = (id: string, fields: Partial<ShellEntry> = {}): ShellEntry => ({
 
 const shown = async (
   shells: ShellEntry[],
-  tell?: (words: string) => void,
+  tell?: (words: string) => boolean,
   content: ItemContent = {
     state: "ready",
     stamp: "1",
@@ -113,11 +113,24 @@ describe("the shells item", () => {
     it("offers to tell the agent where the chat can take a draft, which is drafted and never sent", async () => {
       const drafts: string[] = []
       const bad = shell("bad", { exit: { at: now, code: 2 }, output: tail(["x", "boom"]) })
-      const { container } = await shown([bad], (words) => drafts.push(words))
+      const { container } = await shown([bad], (words) => drafts.push(words) > 0)
       const button = container.querySelector<HTMLButtonElement>(".shells-tell")!
       expect(button.textContent).toBe("Tell Codex")
       await act(async () => button.click())
       expect(drafts).toEqual(["`cmd bad` exited 2. The end of its output:\n\nx\nboom"])
+      expect(button.textContent).toBe("Drafted")
+      expect(container.querySelector("[role=status]")!.textContent).toBe(
+        "Drafted in the chat's box.",
+      )
+    })
+
+    it("says so when the box holds a shell command and nothing was drafted", async () => {
+      const bad = shell("bad", { exit: { at: now, code: 2 } })
+      const { container } = await shown([bad], () => false)
+      const button = container.querySelector<HTMLButtonElement>(".shells-tell")!
+      await act(async () => button.click())
+      expect(button.textContent).toBe("Not drafted")
+      expect(container.querySelector("[role=status]")!.textContent).toContain("shell command")
     })
 
     it("offers nothing where there is no chat to draft in", async () => {
@@ -134,7 +147,36 @@ describe("the shells item", () => {
       ])
       const [none, gone] = rows(container)
       expect(none!.note).toContain("Codex ran this in a terminal of its own")
-      expect(gone!.note).toBe("Its output is gone: Codex cleared it with its session.")
+      expect(gone!.note).toBe("Its output is gone.")
+    })
+
+    it("says what can be done about it for the agent that is shown", async () => {
+      const claude = (shells: ShellEntry[]): ItemContent => ({
+        state: "ready",
+        stamp: "1",
+        content: { kind: "shells", agent: "Claude", shells },
+      })
+      const shells = [
+        shell("gone", { output: { state: "gone" }, exit: { at: now, code: 0 } }),
+        shell("none", { output: { state: "none" } }),
+        shell("locked", { output: { state: "unreadable" } }),
+        shell("new", { since: Date.now(), output: { state: "none" } }),
+      ]
+      const { container } = await shown(shells, undefined, claude(shells))
+      const notes = Object.fromEntries(rows(container).map((row) => [row.command, row.note]))
+      expect(notes["cmd gone"]).toBe("Its output is gone. Claude cleared it with its session.")
+      expect(notes["cmd none"]).toBe(
+        "Novadeck can't read this one's output; Claude shows what it read of it in its replies.",
+      )
+      expect(notes["cmd locked"]).toBe("Its output can't be read just now.")
+      expect(notes["cmd new"]).toBe("No output yet.")
+    })
+
+    it("labels a log as one, so its name is read", async () => {
+      const { container } = await shown([shell("a")])
+      const log = container.querySelector(".shells-log")!
+      expect(log.getAttribute("role")).toBe("log")
+      expect(log.getAttribute("aria-label")).toBe("Output of cmd a")
     })
 
     it("says so for a shell that printed nothing yet", async () => {

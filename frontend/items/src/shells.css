@@ -128,6 +128,8 @@
   user-select: none;
 }
 .shells-text {
+  /* Inside the line, so a long one scrolls to a margin as a file's does. */
+  padding-right: 16px;
   color: var(--color-ink);
 }
 .shells-earlier,
