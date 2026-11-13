@@ -90,13 +90,23 @@ exec "$novadeck_real" \${novadeck_daemon:+"$novadeck_daemon"} \${novadeck_add:+"
 // Its words are walked as Claude Code's are, for the reasons there (`harnesses/claude/src/shim.ts`):
 // `for %%a in (%*)` loses its closing bracket to an odd count of quotes, and ends the batch.
 // Where Novadeck's PowerShell pass-through is installed, a session's Codex finds it first on
-// PATH, and its commands capture through it; `agents` and --remote run as they would.
+// PATH, and its commands capture through it; `agents` and --remote run as they would. A real
+// codex that is itself a batch file, as npm's codex.cmd is, is called: started without `call`
+// it would end this one, and with it the `setlocal` that holds PATH, before codex starts (seen
+// on CI: Codex ran Microsoft's pwsh). `%%*` hands its words on only at call's second reading,
+// after call has doubled the carets of the line, so they arrive as typed. A codex.exe runs as
+// before, while this file still holds PATH.
+const launchLine = (args: string, pwshShimDir: string | undefined, label: string): string =>
+  pwshShimDir === undefined
+    ? `"%novadeck_real%" ${args} %*`
+    : `set "PATH=${pwshShimDir};%PATH%"
+if /i "%novadeck_real:~-4%"==".exe" goto ${label}_exe
+call "%novadeck_real%" ${args} %%*
+exit /b %ERRORLEVEL%
+:${label}_exe
+"%novadeck_real%" ${args} %*`
+
 export const cmdShim = (root?: string, pwshShimDir?: string): string => {
-  const pwsh =
-    pwshShimDir === undefined
-      ? ""
-      : `set "PATH=${pwshShimDir};%PATH%"
-`
   return `@echo off
 ${header("rem", "shim for codex")}
 rem Runs the real codex with --no-daemon, so its hooks can tell Novadeck which session
@@ -125,11 +135,11 @@ if /i "%novadeck_arg%"=="--no-daemon" goto titled
 goto words
 :session
 set "novadeck_arg="
-${pwsh}"%novadeck_real%" --no-daemon %novadeck_add% -c "${titleSetting}" %*
+${launchLine(`--no-daemon %novadeck_add% -c "${titleSetting}"`, pwshShimDir, "session")}
 exit /b %ERRORLEVEL%
 rem Already without the shared server: only the title is added.
 :titled
-${pwsh}"%novadeck_real%" %novadeck_add% -c "${titleSetting}" %*
+${launchLine(`%novadeck_add% -c "${titleSetting}"`, pwshShimDir, "titled")}
 exit /b %ERRORLEVEL%
 :plain
 "%novadeck_real%" %*
