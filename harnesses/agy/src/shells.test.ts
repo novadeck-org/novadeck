@@ -4,11 +4,15 @@ import { describe, expect, it } from "vitest"
 
 import { shellEvents, type Calls } from "./shells.js"
 
+// Captured on Linux, whose log URLs name no drive; on Windows Antigravity's carry one
+// (`file:///C:/…`), as these are given here.
 const lines = (
   loadProbe(import.meta.dirname, "shells.probe.json") as {
     scenarios: { "three-shells": { lines: string[] } }
   }
-).scenarios["three-shells"].lines
+).scenarios["three-shells"].lines.map((line) =>
+  process.platform === "win32" ? line.replaceAll("file:///", "file:///C:/") : line,
+)
 const session = { sessionId: "b0000000-0000-4000-8000-000000000001", instance: "7" }
 const conversation = session.sessionId
 
@@ -69,7 +73,7 @@ describe("Antigravity's background shells, as captured", () => {
       { id: `${conversation}/task-6`, path: expect.stringMatching(/task-6\.log$/) },
     ])
     expect(output[0]).toMatchObject({
-      path: expect.stringContaining("/.gemini/antigravity-cli/brain/"),
+      path: expect.stringMatching(/[\\/]\.gemini[\\/]antigravity-cli[\\/]brain[\\/]/),
     })
   })
 
