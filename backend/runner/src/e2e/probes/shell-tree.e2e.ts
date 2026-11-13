@@ -17,7 +17,7 @@ import { screenRecord } from "@novadeck/harness-core/testing/probes"
 import { setups } from "../agents/index.js"
 import type { DeckTerminal } from "../deck.js"
 import { describe, e2e, supported } from "../fixture.js"
-import { asked, gate } from "../model/script.js"
+import { asked, gate, latest } from "../model/script.js"
 import { start } from "../scenarios.js"
 import { paste, sleep } from "./support.js"
 
@@ -122,6 +122,10 @@ const part = process.env.PROBE_PART
 /** The clock ticks per second, to turn start times into seconds since boot. */
 const hz = 100
 
+/** The agent's own model calls since `after` (a `mark()`), leaving out side calls such as a title. */
+const ownCalls = (model: { readonly calls: readonly { side?: boolean }[] }, after: number) =>
+  model.calls.slice(after).filter((call) => !call.side).length
+
 const snapshot = async (label: string, t: DeckTerminal) => {
   const rows = tree(process.pid)
   return {
@@ -156,18 +160,23 @@ for (const setup of setups) {
       it("tree, screen and activity while a ! command runs", async ({ e2e: run }) => {
         if (part === "typed" || part === "noise") return
         const held = gate()
+        // The agent's own turns only: Codex asks for a title with the prompt in the request, with
+        // no tools offered, and a tool call answered there is refused.
         run.model.use(
           async (call) => {
-            if (!asked(call, "Hold on")) return undefined
+            if (call.side || !asked(call, "Hold on")) return undefined
             await held.opened
             return { text: "Held." }
           },
           (call) => {
+            if (call.side) return undefined
+            // The look after the tool's result: `asked` is past it, as the call came after "Tool run".
+            if (call.turns.at(-1)?.role === "tool" && latest(call).includes("Tool run"))
+              return { text: "Tool done." }
             if (!asked(call, "Tool run")) return undefined
-            if (call.turns.some((turn) => turn.role === "tool")) return { text: "Tool done." }
             return setup.shell?.run(call, "sleep 20")
           },
-          (call) => (asked(call, "After bang") ? { text: "After." } : undefined),
+          (call) => (!call.side && asked(call, "After bang") ? { text: "After." } : undefined),
         )
         const out: Record<string, unknown> = { agent: setup.agent, hz, pid: process.pid }
         const t = await start(run, setup)
@@ -236,12 +245,12 @@ for (const setup of setups) {
         raw("\r")
         await sleep(3000)
         await snap("3-typed-during-bang-3s")
-        out["3-model-calls-while-running"] = run.model.mark() - callsBefore
+        out["3-model-calls-while-running"] = ownCalls(run.model, callsBefore)
         out["3-sleep-running-at-3s"] = running("sleep 30")
         await waitSleepEnd("sleep 30", 32_000)
         await sleep(4000)
         await snap("3-typed-after-bang-ends")
-        out["3-model-calls-total"] = run.model.mark() - callsBefore
+        out["3-model-calls-total"] = ownCalls(run.model, callsBefore)
         save()
 
         // 4. `!sleep 30` while a model turn is in progress (the turn is held).
@@ -255,17 +264,50 @@ for (const setup of setups) {
         await sleep(2000)
         await snap("4-turn-plus-bang-2s")
         held.open()
-        await t.until("Held.", 30_000).catch(() => undefined)
+        out["4-held-reply-seen"] = await t.until("Held.", 30_000).then(
+          () => true,
+          () => false,
+        )
         await waitSleepEnd("sleep 30", 32_000)
         await sleep(2000)
         await snap("4-turn-done")
         save()
 
         // 5. A model Bash tool call (`sleep 20`) for comparison, the process tree at 4 s.
+        // A harness that asks before a command no setting allows (Antigravity) is answered yes,
+        // as the person would, so the comparison has a command to show on every harness.
         await t.submit("Tool run")
+        const toolStart = await t
+          .poll(
+            async () => {
+              if (running("sleep 20")) return "running" as const
+              const [request] = (await t.detail()).requests
+              return request?.dialog?.type === "choices"
+                ? { ref: request.ref, dialog: request.dialog }
+                : undefined
+            },
+            "its tool to run or ask",
+            60_000,
+          )
+          .catch(() => undefined)
+        out["5-tool-asked"] = toolStart !== undefined && toolStart !== "running"
+        if (toolStart !== undefined && toolStart !== "running") {
+          const { ref, dialog } = toolStart
+          const yes = dialog.options.find(
+            (each) => each.label.startsWith("Yes") && each.text === null,
+          )
+          if (yes) await t.answer(ref, { dialog: dialog.id, type: "choice", option: yes.id })
+        }
+        out["5-tool-started"] = await t
+          .poll(() => (running("sleep 20") ? true : undefined), "its tool to start", 30_000)
+          .catch(() => false)
         await sleep(4000)
         await snap("5-model-tool-4s")
-        await t.until("Tool done.", 60_000).catch(() => undefined)
+        // Recorded, so a run where the tool call never ran reads as such, not as a quiet pass.
+        out["5-tool-done-seen"] = await t.until("Tool done.", 60_000).then(
+          () => true,
+          () => false,
+        )
         await sleep(1500)
         await snap("5-model-tool-done")
         save()
@@ -356,12 +398,12 @@ for (const setup of setups) {
         raw("\r")
         await sleep(3000)
         out["typed-during-3s"] = await snapshot("typed-during-3s", t)
-        out["typed-during-model-calls"] = run.model.mark() - calls
+        out["typed-during-model-calls"] = ownCalls(run.model, calls)
         out["typed-during-sleep-alive"] = sleepUp()
         out["typed-during-end-wait"] = await waitGone(32_000)
         await sleep(3000)
         out["typed-after-end"] = await snapshot("typed-after-end", t)
-        out["typed-model-calls-total"] = run.model.mark() - calls
+        out["typed-model-calls-total"] = ownCalls(run.model, calls)
         save(`${setup.agent}-typed-tree.json`)
       }
 
