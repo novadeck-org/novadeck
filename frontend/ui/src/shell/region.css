@@ -218,9 +218,10 @@
   width: 100%;
   color: var(--color-muted);
 }
+/* Against its bar: as wide as the longest name, and no wider. */
 .usage-row-name {
-  min-width: 3.5rem;
   overflow: hidden;
+  text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -228,10 +229,8 @@
   color: var(--color-ink);
   text-align: right;
 }
-/* Flush with the share above it, and the row's whole width to keep it on one line. */
 .usage-row-reset {
-  grid-column: 1 / -1;
-  text-align: right;
+  grid-column: 2 / 4;
 }
 
 /* The sandbox notice (FooterSandbox.tsx), a `.floating` surface: a plain panel above the footer's right end, not
