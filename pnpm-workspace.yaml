@@ -19,7 +19,11 @@ catalog:
   "@orpc/contract": 1.16.2
   "@orpc/server": 1.16.2
   "@orpc/standard-server-peer": 1.16.2
-  electron: ^45.2.3
+  # Exact, not a range: Electron 45.2.3 draws the WebGL terminal's glyphs shrunken and spread
+  # out across their cells, while 45.2.2 draws them right on the same Chromium (156.0.8078.80).
+  # Move it on only to a version whose WebGL terminal has been looked at; Dependabot's
+  # Electron PRs don't automerge for that reason (.github/dependabot.yml).
+  electron: 45.2.2
   node-pty: 1.2.0-beta.14
   ws: 8.22.2
   zod: 4.6.7
