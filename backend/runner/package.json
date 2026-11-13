@@ -39,7 +39,7 @@
     "@novadeck/whisper": "workspace:*",
     "@novadeck/wire": "workspace:*",
     "@orpc/server": "catalog:",
-    "hono": "^4.13.14",
+    "hono": "^4.13.16",
     "node-pty": "catalog:",
     "ws": "catalog:",
     "zod": "catalog:"
