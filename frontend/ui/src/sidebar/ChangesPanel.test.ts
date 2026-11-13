@@ -3,7 +3,7 @@ import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
-import { describe, eventually, expect, it } from "../test"
+import { context, describe, eventually, expect, it } from "../test"
 import { ChangesPanel } from "./ChangesPanel"
 
 const mounted: Rendered[] = []
@@ -54,6 +54,8 @@ const show = (
     selectedId?: string
     // The projects' names by id; the one project of the works' by default.
     projects?: ReadonlyMap<string, string>
+    // Whether the backend has reported the works yet; it has by default.
+    reported?: boolean
   } = {},
 ) => {
   const onSelect = vi.fn<(work: Work, on: string | undefined) => Promise<void>>(
@@ -65,6 +67,7 @@ const show = (
   const page = render(
     createElement(ChangesPanel, {
       works,
+      reported: options.reported ?? true,
       watch: () => () => {},
       titles: new Map(
         works.flatMap((each) =>
@@ -344,5 +347,19 @@ describe("the Changes panel with no worktrees", () => {
       page.unmount()
       mounted.pop()
     }
+  })
+
+  context("before the backend has reported them", () => {
+    it("says neither that there are none nor how many", () => {
+      const { page } = show([], { reported: false })
+      expect(page.container.querySelector(".changes-empty")).toBeNull()
+      expect(page.container.querySelector(".sidebar-panel-count")).toBeNull()
+    })
+
+    it("lists the works it already has, with their count", () => {
+      const { rows, page } = show([work("a")], { reported: false })
+      expect(rows()).toHaveLength(1)
+      expect(page.container.querySelector(".sidebar-panel-count")?.textContent).toBe("1")
+    })
   })
 })

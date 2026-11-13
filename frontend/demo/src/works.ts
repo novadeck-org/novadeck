@@ -297,6 +297,9 @@ export type DemoWorksControl = {
   readonly setWorking: (terminalId: string, working: boolean) => void
   // The next close is refused, as when git status couldn't be read.
   readonly refuseNextClose: () => void
+  // For `ms`, the works are as before a runner first reports them: none, and not reported. Then
+  // they come back as they were.
+  readonly unreported: (ms: number) => void
   // The worktree is closed, by the debug panel rather than the person.
   readonly remove: (root: string) => void
   // Every worktree of the project is closed.
@@ -337,7 +340,7 @@ export const createDemoWorks = (
   } = {},
 ): DemoWorks => {
   const { now = Date.now, show } = options
-  const state = createStore<WorksState>({ works: initial, synced: true })
+  const state = createStore<WorksState>({ works: initial, synced: true, reported: true })
   // How many worktrees were made since the demo began, which the Changes toggle flares for.
   const made = createStore(0)
   // How many extra worktrees the debug panel made, to name each one apart.
@@ -487,6 +490,11 @@ export const createDemoWorks = (
     },
     refuseNextClose: () => {
       refuse = true
+    },
+    unreported: (ms) => {
+      const { works } = state.getSnapshot()
+      state.update(() => ({ works: [], synced: false, reported: false }))
+      setTimeout(() => state.update(() => ({ works, synced: true, reported: true })), ms)
     },
     remove: (root) => {
       unmerged.delete(root)

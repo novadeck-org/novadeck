@@ -1429,7 +1429,7 @@ export const runnerBackend = (
   const murmur = createRunnerMurmur(runner.murmur, track)
   // History, followed the same way.
   const history = createRunnerHistory(runner.history, track)
-  // Works, followed while the Changes panel is watched.
+  // Works, read once at the start and followed while the Changes panel is watched.
   const works = createRunnerWorks(runner.works, track)
   let following = false
   // Follows a terminal's messages once the runner has it: it answers "not found" before
@@ -1864,6 +1864,7 @@ export const runnerBackend = (
     voice.follow()
     murmur.follow()
     history.follow()
+    works.readOnce()
     inbox.follow()
     window.addEventListener("pagehide", flush)
     // The app waits for these saves, removals and closes before a close or quit can end

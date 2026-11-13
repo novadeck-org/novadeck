@@ -63,6 +63,8 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
   changes:
     | {
         works: readonly Work[]
+        // The backend has reported every work at least once: until then no works isn't none.
+        reported: boolean
         // Follows the works until the returned release is called.
         watch: () => () => void
         titles: ReadonlyMap<string, string>

@@ -212,6 +212,7 @@ const closeBar = ({ row }: Asking): React.JSX.Element => (
 // person should confirm first, and waits while its owner's agent is working in it.
 export const ChangesPanel = ({
   works,
+  reported,
   watch,
   titles,
   projects,
@@ -224,6 +225,9 @@ export const ChangesPanel = ({
   onCloseWork,
 }: {
   works: readonly Work[]
+  // The backend has reported every work at least once. Until then the panel lists what it has
+  // and says neither how many nor that there are none: an empty list may only be unread.
+  reported: boolean
   // Follows the works until the returned release is called.
   watch: () => () => void
   // Each terminal's title, by id, in every project.
@@ -286,7 +290,7 @@ export const ChangesPanel = ({
     <SidebarPanel
       id="changes-panel"
       title="Changes"
-      count={works.length}
+      count={reported || works.length > 0 ? works.length : undefined}
       active={active}
       onClose={onClose}
     >
@@ -305,19 +309,21 @@ export const ChangesPanel = ({
         </div>
       )}
       {rows.length === 0 ? (
-        <div className="changes-empty">
-          <h3 className="text-body">No worktrees</h3>
-          <p className="text-control">
-            When an agent opens or takes a git worktree, it shows up here with its branch, and you
-            can close it.
-          </p>
-          {agentWorktrees === "off" && (
+        reported && (
+          <div className="changes-empty">
+            <h3 className="text-body">No worktrees</h3>
             <p className="text-control">
-              Agents aren't asked to use worktrees. Turn on Agent worktrees in Preferences →
-              Experimental.
+              When an agent opens or takes a git worktree, it shows up here with its branch, and you
+              can close it.
             </p>
-          )}
-        </div>
+            {agentWorktrees === "off" && (
+              <p className="text-control">
+                Agents aren't asked to use worktrees. Turn on Agent worktrees in Preferences →
+                Experimental.
+              </p>
+            )}
+          </div>
+        )
       ) : (
         <div className={`changes-list ${sidebarListClasses}`} role="list" aria-label="Changes">
           {rows.map((row) => (

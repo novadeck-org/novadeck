@@ -169,6 +169,11 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
               },
             },
             {
+              label: "Worktrees not read yet",
+              hint: "Open Changes: for 3 s it lists nothing and shows no count, not even No worktrees, as before the runner first reports the worktrees; then the rows come back",
+              run: () => works.unreported(3_000),
+            },
+            {
               label: "Refuse the next close",
               hint: "Open Changes: the next × anywhere leaves its row and shows a message above the list that git status couldn't be read",
               run: () => works.refuseNextClose(),
