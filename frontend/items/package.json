@@ -37,12 +37,12 @@
   "dependencies": {
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
-    "@dnd-kit/dom": "^0.5.1",
-    "@dnd-kit/react": "^0.5.1",
+    "@dnd-kit/dom": "^0.5.3",
+    "@dnd-kit/react": "^0.5.3",
     "@novadeck/core": "workspace:*",
     "@novadeck/toolkit": "workspace:*",
     "@novadeck/viewers": "workspace:*",
-    "lucide-react": "^1.64.0",
+    "lucide-react": "^1.71.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
@@ -54,8 +54,8 @@
     "@types/react-dom": "^19.3.0",
     "jsdom": "^31.0.0",
     "typescript": "^7.0.2",
-    "vite": "^7.3.7",
-    "vitest": "^5.0.5"
+    "vite": "^7.3.8",
+    "vitest": "^5.1.0"
   },
   "novadeck": {
     "platform": "neutral",
