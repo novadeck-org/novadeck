@@ -287,52 +287,30 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
     for (const [name, value] of Object.entries(o.markup?.input ?? {}))
       xterm.textarea?.setAttribute(name, value)
     xterm.textarea?.setAttribute("aria-label", label)
-    // Paced, output waits to be drawn in one write. A write that fails is told to the next
-    // one, so the stream draws the screen afresh as it would have.
+    // How often it draws its output now (`paceFor`); following it gathers what arrives for
+    // that long into one write, in stream order (follow.ts). A change ends a wait at once.
     let paceMs = 0
     let attention = { selected: true, visible: true }
+    const paceWaiters = new Set<() => void>()
     const repace = (): void => {
-      paceMs = paceFor({ ...attention, webgl: view.renderer.drawn() })
-      if (!paceMs) flush()
-    }
-    let gathered: string[] = []
-    let flushing: ReturnType<typeof setTimeout> | undefined
-    let failure: { readonly error: unknown } | undefined
-    const flush = (): void => {
-      clearTimeout(flushing)
-      flushing = undefined
-      if (!gathered.length) return
-      const data = gathered.join("")
-      gathered = []
-      writeTo(xterm, data).catch((error: unknown) => {
-        failure ??= { error }
-      })
+      const next = paceFor({ ...attention, webgl: view.renderer.drawn() })
+      if (next === paceMs) return
+      paceMs = next
+      for (const wake of paceWaiters) wake()
+      paceWaiters.clear()
     }
     const drawn: Screen = {
       exited: () => {},
       live: () => {},
-      write: (data) => {
-        if (failure) {
-          const { error } = failure
-          failure = undefined
-          return Promise.reject(error)
-        }
-        if (!paceMs) return writeTo(xterm, data)
-        gathered.push(data)
-        flushing ??= setTimeout(flush, paceMs)
-        return Promise.resolve()
-      },
+      write: (data) => writeTo(xterm, data),
       // xterm's reset leaves its parser as it was, which a stream cut short or a write that
       // failed may have left inside a sequence: a CAN ends any, before the screen that follows.
-      // What waited to be drawn belongs to the screen the reset clears.
       reset: () => {
-        clearTimeout(flushing)
-        flushing = undefined
-        gathered = []
-        failure = undefined
         xterm.reset()
         xterm.write("\x18")
       },
+      pace: () => paceMs,
+      paced: () => new Promise<void>((resolve) => paceWaiters.add(resolve)),
       resize: ({ cols, rows }) => {
         if (xterm.cols !== cols || xterm.rows !== rows) xterm.resize(cols, rows)
       },
