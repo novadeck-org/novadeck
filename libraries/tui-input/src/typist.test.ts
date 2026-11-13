@@ -712,19 +712,29 @@ describe("a line that pushes a ruled box's closing rule off the screen", () => {
   const rule = "─".repeat(40)
   const markers: Markers = { prompt: "❯", shell: "!" }
 
-  const deliverTo = async (box: readonly string[]) => {
+  const deliverTo = async (box: readonly string[], card = "card") => {
     const written: string[] = []
     let pasted = false
-    const rows = (lines: readonly string[]) => ["history", "", "card", rule, ...lines]
+    // The card stands as far over the box as Claude Code's did, its rows apart from the box's.
+    const rows = (lines: readonly string[], drawn = "card") => [
+      "history",
+      drawn,
+      "",
+      "notice",
+      "",
+      rule,
+      ...lines,
+    ]
+    const first = rows([]).length
     const before = screen({
       rows: rows(["❯ ", rule, "footer"]),
       columns: 40,
-      cursor: { row: 4, column: 2 },
+      cursor: { row: first, column: 2 },
     })
     const after = screen({
-      rows: rows(box),
+      rows: rows(box, card),
       columns: 40,
-      cursor: { row: 3 + box.length, column: box.at(-1)!.length },
+      cursor: { row: first + box.length - 1, column: box.at(-1)!.length },
     })
     const target = {
       type: (data: string) => {
@@ -757,7 +767,8 @@ describe("a line that pushes a ruled box's closing rule off the screen", () => {
   it("presses Enter where the box shows the whole line down to the screen's end", async () => {
     const { delivered, written } = await deliverTo([
       "❯ [Novadeck Inbox reply, n7Q2] Re your",
-      '  ask "Which one?": I picked "B". [n7Q2]',
+      '  ask "Which one?": I picked "B".',
+      "  [n7Q2]",
     ])
     expect(delivered).toMatchObject({ entered: true })
     expect(enters(written)).toBe(1)
@@ -767,8 +778,28 @@ describe("a line that pushes a ruled box's closing rule off the screen", () => {
     const { delivered, written } = await deliverTo([
       "❯ [Novadeck Inbox reply, n7Q2] Re your",
       '  ask "Which one?": I picked',
+      '  "B".',
     ])
     expect(delivered).toMatchObject({ entered: false, reason: "not-landed" })
+    expect(enters(written)).toBe(0)
+  })
+
+  it("presses no Enter where a row far from the box changed as the line landed", async () => {
+    const { delivered, written } = await deliverTo(
+      ["❯ [Novadeck Inbox reply, n7Q2] Re your", '  ask "Which one?": I picked "B".', "  [n7Q2]"],
+      "another card",
+    )
+    expect(delivered).toMatchObject({ entered: false })
+    expect(enters(written)).toBe(0)
+  })
+
+  it("presses no Enter where the box shows the line without its start", async () => {
+    const { delivered, written } = await deliverTo([
+      "❯ Re your ask",
+      '  "Which one?": I picked "B".',
+      "  [n7Q2]",
+    ])
+    expect(delivered).toMatchObject({ entered: false })
     expect(enters(written)).toBe(0)
   })
 })

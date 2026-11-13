@@ -32,6 +32,8 @@ const terminal = (
     queued?: boolean | (() => boolean)
     /** Whether the box says it is cut. */
     cut?: boolean
+    /** Whether the box runs off the screen's bottom once it holds text. */
+    clipped?: boolean
     /** How the screen says an Escape must wait yet, as it's read. */
     holds?: (screen: ScreenText, prompt?: string) => boolean
     /** Up, as its program takes what is queued: what it does to the box, by the nth Up. */
@@ -96,7 +98,8 @@ const terminal = (
       while (screen.rows[last + 1]?.startsWith("  ")) last += 1
       const lines = screen.rows.slice(first, last + 1).map((row) => row.slice(2))
       const mode = options.shellOnceTaken && box !== "" ? "shell" : (options.mode ?? "prompt")
-      return { text: lines.join("\n").trimEnd(), mode, first, last }
+      const text = lines.join("\n").trimEnd()
+      return { text, mode, first, last, ...(options.clipped && text !== "" && { clipped: true }) }
     },
     stands: (text: string) => text.includes("[Image"),
     textWidth: (columns) => columns - 3,
@@ -372,6 +375,20 @@ describe("interrupts", () => {
       cut: true,
       prompt: "Hold on",
       after: () => "↑ 10 more lines\nline eleven",
+    })
+    await expect(t.interrupt()).rejects.toBeInstanceOf(BoxNotCleared)
+    expect(t.written).toEqual([])
+  })
+
+  it.each([
+    ["queued", { queued: true }],
+    ["a draft beside the turn's own", { queued: false }],
+  ])("leaves a box run off the screen's bottom, and says so: %s", async (_what, extra) => {
+    const t = terminal({
+      ...extra,
+      clipped: true,
+      prompt: "Hold on",
+      after: () => "Queued eight\nQueued nine",
     })
     await expect(t.interrupt()).rejects.toBeInstanceOf(BoxNotCleared)
     expect(t.written).toEqual([])

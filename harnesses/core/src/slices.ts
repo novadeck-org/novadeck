@@ -148,6 +148,8 @@ export const readSlice = (input: {
     return shown(under > footer ? underBox(screen, read.last, "menu") : undefined)
   }
   if (profile.viewsUnder && read.text === "" && under > footer) return shown(drawn("view"))
+  // A box run off the screen's bottom took its footer with it: nothing to compare with.
+  if (read.clipped) return shown(undefined)
   return {
     bounds: undefined,
     resting: { rows: screen.rows, columns: screen.columns, under },

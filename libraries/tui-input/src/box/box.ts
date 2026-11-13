@@ -289,7 +289,8 @@ export const hidesText = (profile: BoxProfile, box: InputBox, rows: number): boo
 /**
  * What shows of `text` in a box that hides the rest of it, without the rows that say so; undefined
  * unless the box hides text and what it shows is the end of `text`. A line that ends in its
- * nonce can be told by that end.
+ * nonce can be told by that end. A clipped box shows its start, never only an end: what it
+ * hides is under the screen, so only the whole of `text` there is `text`, and that is no tail.
  */
 export const tailOf = (
   profile: BoxProfile,
@@ -297,7 +298,7 @@ export const tailOf = (
   rows: number,
   text: string,
 ): string | undefined => {
-  if (!hidesText(profile, box, rows)) return undefined
+  if (box.clipped || !hidesText(profile, box, rows)) return undefined
   const shown = profile.uncut?.(box.text) ?? box.text
   return endsText(shown, text) ? shown : undefined
 }

@@ -131,9 +131,9 @@ describe("ruledBox", () => {
       const box = ruledBox(screen(clipped, 4, 7), markers)!
       const profile = { viewport: () => 99 } as unknown as BoxProfile
       expect(hidesText(profile, box, clipped.length)).toBe(true)
-      // What shows of a line that ends there is its end; the start of one, not.
-      expect(tailOf(profile, box, clipped.length, "hello big world")).toBe("hello\nbig\nworld")
-      expect(tailOf(profile, box, clipped.length, "hello big world and more")).toBeUndefined()
+      // It shows its start, never only an end: nothing of it is a tail, whatever the line.
+      for (const text of ["hello big world", "big world", "hello big world and more"])
+        expect(tailOf(profile, box, clipped.length, text)).toBeUndefined()
     })
 
     it("reads none where a row under the marker's isn't a line of its body", () => {

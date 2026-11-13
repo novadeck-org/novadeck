@@ -381,6 +381,28 @@ describe.each([
     expect(rings.leftover("t", drawn(queued))).toBeUndefined()
   })
 
+  it.runIf(agent === "claude")(
+    "is the person's in a box run off the screen's bottom, which may hold their words under it",
+    () => {
+      const line = '[Novadeck Inbox reply, n7Q2] Re your ask "Which one?": I picked "B". [n7Q2]'
+      const rows = [
+        "● A reply",
+        "",
+        "✔ Update installed · /restart to apply",
+        "─".repeat(40),
+        "❯ [Novadeck Inbox reply, n7Q2] Re your",
+        '  ask "Which one?": I picked "B".',
+        "  [n7Q2]",
+      ]
+      const clipped = screen({ rows, columns: 40, cursor: { row: 6, column: 8 } })
+      expect(harnesses.claude.box.read(clipped)).toMatchObject({ clipped: true })
+      expect(rings.reading("t", clipped)).toBe("draft")
+      expect(rings.leftover("t", clipped, (nonce) => (nonce === "n7Q2" ? line : undefined))).toBe(
+        undefined,
+      )
+    },
+  )
+
   describe("in a box too short for it", () => {
     const line = `[Novadeck Inbox reply, n7Q2] ${"and say so in the changelog merge it ".repeat(7)}and say [n7Q2]`
     const typed = (nonce: string) => (nonce === "n7Q2" ? line : undefined)

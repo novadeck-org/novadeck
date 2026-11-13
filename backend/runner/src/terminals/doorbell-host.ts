@@ -225,6 +225,8 @@ export const doorbellHost = <R extends DoorbellRecord>(
       const text = box?.read(screen)
       if (!box || !text || text.mode !== "prompt" || box.overlay(screen) || box.queued(screen))
         return undefined
+      // A box pushed off the screen's bottom may hold the person's words under the line.
+      if (text.clipped) return undefined
       const rows = screen.rows.length
       const whole = leftoverNonce(text.text)
       const nonce = whole ?? closingNonce(text.text)
