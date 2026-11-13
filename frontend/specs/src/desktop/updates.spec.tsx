@@ -254,6 +254,25 @@ describe("the Experimental switch in Preferences", () => {
     await expect.element(sidebar()).toHaveAccessibleName("Terminal sessions")
   })
 
+  it("forgets a step back to the Changes panel once it is gone", async () => {
+    await openWorkspace("/?update=ready")
+    await openPreferencesOn("About")
+    await experimental().click()
+    await experimentalTab().click()
+    await preferencesDialog().getByRole("switch", { name: "Agent worktrees and Changes" }).click()
+    await closePreferences()
+    await sidebarPanel("Changes").click()
+    await sidebarPanel("Inbox").click()
+    await expect.element(sidebar()).toHaveAccessibleName("Inbox")
+    await openPreferencesOn("About")
+    await experimental().click()
+    await closePreferences()
+    await expect.element(sidebarPanel("Changes")).not.toBeInTheDocument()
+    // The Inbox's toggle, with no Changes to go back to, hides the sidebar.
+    await sidebarPanel("Inbox").click()
+    await expect.element(sidebar()).not.toBeInTheDocument()
+  })
+
   it("turns agent worktrees off when Preferences opens again and the channel reads stable", async () => {
     const worktrees = () =>
       preferencesDialog().getByRole("switch", { name: "Agent worktrees and Changes" })

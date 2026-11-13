@@ -34,6 +34,8 @@ const partners = (
 // The panel's group for the Changes panel's states, on the selected terminal's first worktree: a
 // terminal without one gets a worktree at its first change, so each action works on a
 // terminal without one too.
+// The Changes panel shows only with agent worktrees on: "On, with Changes" in the App section's
+// Agent worktrees and Changes group boots with it.
 export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[] =>
   isDemoWorks(works)
     ? [

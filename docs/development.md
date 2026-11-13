@@ -566,10 +566,12 @@ App:
 - **Sandbox:** boot as a desktop app running without Electron's sandbox, for the footer's No
   sandbox chip and its fix command; "No sandbox, no fix" as one with no command to offer;
   and "Sandboxed" back to normal.
-- **Agent worktrees and Changes:** "Not offered" boots a backend without the setting, so the rail
-  has no Changes toggle and Preferences > Experimental shows the Agent worktrees and Changes row
-  disabled, reading "Not available here."; "Offered" boots back to normal, where the demo starts
-  with the setting on and the Changes panel shown.
+- **Agent worktrees and Changes:** the page's update channel starts stable, which turns the
+  setting off, so the rail has no Changes toggle, as in a stable build. "On, with Changes" boots on
+  the experimental channel with the setting on, for the Changes panel and the Changes group's
+  actions. "Not offered" boots a backend without the setting, so Preferences > Experimental shows
+  the Agent worktrees and Changes row disabled, reading "Not available here."; "Offered" boots
+  back to normal.
 - **Guides:** "Toggle icon guides" draws a dashed box over every icon (`svg.lucide`) and a
   dashed line through its middle, 20 px past each side, both 1 px and half see-through
   (`--icon-guide-color` changes them), for checking how icons line up with their text;

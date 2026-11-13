@@ -101,8 +101,8 @@ export const demoBackend = (
   const transcripts = createStore(true)
   // Idle agents are stopped after an hour unless the person chooses otherwise, as in the app.
   const hibernateAfter = createStore<number | null>(60)
-  // Agent worktrees start on, so the demo shows the Changes panel they bring; a stable desktop
-  // stand-in turns them off as the app does.
+  // Agent worktrees start on, so the demo shows the Changes panel they bring; a stable update
+  // channel (the debug demo's page starts on one) turns them off as the app does.
   const worktrees = createStore(true)
   const agents = createStore(sampleAgents)
   const welcomeOpen = createStore(welcome)
