@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
+import { join } from "node:path"
 
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
@@ -119,6 +120,13 @@ for (const setup of setups) {
             return { text: "Noted." }
           }),
         )
+        // Codex on Windows finds its shell on PATH: Novadeck's PowerShell is there once Codex
+        // is connected, and its shim puts it first, or no command of its is captured.
+        if (setup.agent === "codex" && process.platform === "win32") {
+          const { pwshDir, bin } = run.deck.shell
+          expect(existsSync(join(pwshDir, "pwsh.exe")), "Novadeck's pwsh.exe installed").toBe(true)
+          expect(readFileSync(join(bin, "codex.cmd"), "utf8")).toMatch(/set "PATH=[^"]+;%PATH%"/)
+        }
         const t = await start(run, setup)
         const before = Date.now()
         await t.submit("Start the shells")
