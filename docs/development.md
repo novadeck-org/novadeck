@@ -299,8 +299,9 @@ Terminals:
   bar. Worktree just made and Worktree with changes show the
   two sides of the ×: closing at once, and the confirm dialog saying what is kept. No owner reads
   "No owner" (click it to show it on the selected terminal's bar). Owner working in it and Owner
-  done dim and restore the × (hover it for why). Refuse the next close shows the refusal above the
-  list. Close every worktree closes the selected project's, leaving other projects' rows; with Agent
+  done dim and restore the × (hover it for why). Worktrees not read yet empties the panel for 3 s,
+  with no count and no empty state, as before the runner first reports the worktrees. Refuse the
+  next close shows the refusal above the list. Close every worktree closes the selected project's, leaving other projects' rows; with Agent
   worktrees off in Preferences > Experimental (the demo starts with it off) the empty state, once
   every project's are gone, points there. New worktree adds another clean worktree to the selected
   terminal's, and the Changes toggle in the rail flares the History toggle's dot and ring for a

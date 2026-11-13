@@ -44,7 +44,7 @@ const noSource = createStore<SourceState>({ projects: {} })
 // What a backend without History reads in its place; its panel isn't drawn.
 const noHistory = createStore<HistoryState>({ rows: [] })
 // What a backend without works reads in its place; its panel isn't drawn.
-const noWorks = createStore<WorksState>({ works: [], synced: true })
+const noWorks = createStore<WorksState>({ works: [], synced: true, reported: true })
 // What a backend without the agent worktrees setting reads in its place.
 const noWorktrees = createStore(false)
 const noAgents: readonly never[] = []
@@ -168,6 +168,7 @@ export const SidebarSection = memo((): React.JSX.Element => {
   const worksFeed = worksShown(backend) ? backend.works : undefined
   // Every project's works: the panel lists them all, naming each row's project.
   const allWorks = useStoreSelector(worksFeed?.state ?? noWorks, (state) => state.works, sameWorks)
+  const worksReported = useStoreSelector(worksFeed?.state ?? noWorks, (state) => state.reported)
   // Titles of every project's terminals, in every session of it, for the rows to name.
   const titles = useWorkspaceState(
     (workspace) =>
@@ -211,6 +212,7 @@ export const SidebarSection = memo((): React.JSX.Element => {
       worksFeed
         ? {
             works: allWorks,
+            reported: worksReported,
             watch: worksFeed.watch,
             titles,
             projects: projectNames,
@@ -220,7 +222,16 @@ export const SidebarSection = memo((): React.JSX.Element => {
             onCloseWork: worksFeed.close,
           }
         : undefined,
-    [worksFeed, allWorks, titles, projectNames, selectedId, agentWorktrees, showWork],
+    [
+      worksFeed,
+      allWorks,
+      worksReported,
+      titles,
+      projectNames,
+      selectedId,
+      agentWorktrees,
+      showWork,
+    ],
   )
   const sidebarPanel = useUiState((state) => state.location.route.panel)
   const visible = useUiState((state) => sidebarVisible(state.shell, desktop))

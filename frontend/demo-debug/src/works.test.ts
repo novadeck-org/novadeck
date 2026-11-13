@@ -2,6 +2,7 @@ import type { Workspace } from "@novadeck/core/types"
 import { plainDemo } from "@novadeck/demo"
 import { storefrontPlans } from "@novadeck/demo/work-plans"
 import { createDemoWorks, worksFromPlans } from "@novadeck/demo/works"
+import { vi } from "vitest"
 
 import { context, describe, expect, it } from "./test"
 import type { DemoActionContext } from "./types"
@@ -163,6 +164,25 @@ describe("the debug panel's Changes group", () => {
     ).toEqual([])
     // Other projects keep theirs.
     expect(works.state.getSnapshot().works.length).toBeGreaterThan(0)
+  })
+
+  it("holds the works back as not read yet for a moment, then gives them back", () => {
+    vi.useFakeTimers()
+    try {
+      const { run, works } = setup()
+      const before = works.state.getSnapshot().works
+      run("Worktrees not read yet", undefined)
+      expect(works.state.getSnapshot()).toEqual({ works: [], synced: false, reported: false })
+      vi.advanceTimersByTime(2_000)
+      // Again meanwhile: the same works come back, 3 s on.
+      run("Worktrees not read yet", undefined)
+      vi.advanceTimersByTime(2_000)
+      expect(works.state.getSnapshot().reported).toBe(false)
+      vi.advanceTimersByTime(1_000)
+      expect(works.state.getSnapshot()).toEqual({ works: before, synced: true, reported: true })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("puts a spread of works in the session at once", () => {

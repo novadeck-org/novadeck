@@ -208,6 +208,32 @@ const current = async (works: Works): Promise<Map<string, Work>> => {
 }
 
 describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
+  it("waits for the very first read before it says synced, and later ones only so long", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    let slow = 0
+    const works = new Works({
+      tracked: () => [tracked({ terminalId: terminal(1), root: main.root })],
+      // Each pass is slower than a watch waits for a fresh read.
+      presences: async () => {
+        await new Promise((resolve) => setTimeout(resolve, slow))
+        return []
+      },
+      show: async () => "item",
+      remove: async () => ({ ok: true, branchDeleted: false }),
+      firstMs: 10,
+      coldMs: everything,
+      snapshots: snapshotsFor(),
+    })
+    resources.defer(() => works.close())
+    slow = 200
+    expect([...(await current(works)).keys()]).toEqual([main.root])
+    // Read once, a slow read stands on what was read before.
+    expect([...(await current(works)).keys()]).toEqual([main.root])
+  })
+
   it("lists a worktree identical to main as a work with no files, first seen when it was recorded", async ({
     fixture,
     resources,
