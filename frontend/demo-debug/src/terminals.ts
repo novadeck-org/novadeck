@@ -274,6 +274,20 @@ export const withUsage = (now: number): AgentUsage => ({
   effort: "medium",
 })
 
+// The same with a model's own weekly window beside the account's, as Claude Code's Fable
+// one, and two of Antigravity's quotas, each covering some of its models.
+export const withModelLimits = (now: number): AgentUsage => {
+  const usage = withUsage(now)
+  return {
+    ...usage,
+    limits: [
+      ...usage.limits,
+      { minutes: 10_080, used: 0.93, resetsAt: now + 3 * 86_400_000, scope: "Fable" },
+      { minutes: 10_080, used: 0.2, resetsAt: now + 4 * 86_400_000, scope: "Third-party" },
+    ],
+  }
+}
+
 // How much its context holds, where its harness doesn't say of how much.
 export const contextOnly: AgentUsage = {
   context: { occupied: 84_000, capacity: null },

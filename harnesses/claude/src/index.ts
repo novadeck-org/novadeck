@@ -22,6 +22,7 @@ import { conversational, shapes } from "./shapes.js"
 import { cmdShim, commands, many, posixShim, valued } from "./shim.js"
 import { followSubagent, followTranscript, transcriptPlans } from "./transcript-watch.js"
 import { transcripts } from "./transcripts.js"
+import { limitsReading } from "./usage.js"
 
 // What a hook prints to hand the model `delivery` as context.
 const context = (event: string, delivery: string): string =>
@@ -140,6 +141,7 @@ export const claude = {
   connected,
   connect,
   disconnect,
+  limitsReading,
   hookDialect,
   hook,
   files,

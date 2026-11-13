@@ -76,9 +76,14 @@ export type DemoAgentVerbs = {
       readonly shells?: readonly DemoShell[]
       // The agent calls its MCP `done` as the turn ends: this report becomes an Update.
       readonly done?: { readonly subject: string; readonly body: string }
-      // The turn failed on the agent's usage limit, which resets at `resetsAt`, as the runner
-      // reports it on the end: a state of the agent, never a stored turn.
-      readonly limit?: { readonly minutes: number; readonly resetsAt: number }
+      // The turn failed on the agent's usage limit, which resets at `resetsAt`, of the models
+      // `scope` names where not all of them, as the runner reports it on the end: a state of
+      // the agent, never a stored turn.
+      readonly limit?: {
+        readonly minutes: number
+        readonly resetsAt: number
+        readonly scope?: string
+      }
     },
   ) => void
   // Back at its prompt with no turn behind it: nothing works, waits or reads unread. A `done`

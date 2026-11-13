@@ -446,6 +446,7 @@ export class Terminals {
       messaging: () => this.messaging,
       typing: () => this.typing,
       companion: () => this.companion,
+      install: (agent) => this.options.install(agent),
       announce: (record) => this.announce(record),
       save: (record) => this.saves.save(record, false),
       detailed: (record) => this.streams.detailed(record),

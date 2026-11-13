@@ -63,6 +63,30 @@ describe("Codex's rollout, as captured", () => {
     ])
   })
 
+  it("reports the account's windows as its own, and a model limit's as that model's", () => {
+    const [account] = rolloutEvents(JSON.stringify(count), session)
+    expect(account).toMatchObject({ limitsCover: "account" })
+    const limits = count.payload.rate_limits as Record<string, unknown>
+    const model = (fields: Record<string, unknown>) =>
+      rolloutEvents(
+        JSON.stringify({
+          ...count,
+          payload: { ...count.payload, rate_limits: { ...limits, ...fields } },
+        }),
+        session,
+      )[0]
+    // As 0.167.2 writes between the account's: no window, no name.
+    expect(model({ limit_id: "premium", primary: null })).toMatchObject({
+      limits: [],
+      limitsCover: { scope: "premium" },
+    })
+    const named = model({ limit_id: "codex_spark", limit_name: "GPT-5.3-Codex-Spark" })
+    expect(named).toMatchObject({
+      limits: [expect.objectContaining({ minutes: 10_080, scope: "GPT-5.3-Codex-Spark" })],
+      limitsCover: { scope: "GPT-5.3-Codex-Spark" },
+    })
+  })
+
   it("reports a turn's model and reasoning effort", () => {
     const context = records.find(({ type }) => type === "turn_context")!
     const { model, effort } = context.payload as { model: string; effort: string }

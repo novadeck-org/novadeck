@@ -247,6 +247,7 @@ const candidates = (
           type: "limit",
           minutes: turn.limit.minutes ?? 0,
           resetsAt: turn.limit.resetsAt,
+          ...(turn.limit.scope !== undefined && { scope: turn.limit.scope }),
           autoResume: null,
           evidence: [{ text: turn.error ?? "Usage limit reached", result: null, times: 1 }],
         },

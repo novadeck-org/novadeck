@@ -19,21 +19,32 @@ const agentNames: Readonly<Record<string, string>> = Object.fromEntries(
   harnesses.map(({ id, name }) => [id, name]),
 )
 
-// One of a subscription's limit windows: its length as people say it ("5h", "7d"), how
+// One of a subscription's limit windows: its length as people say it ("5h", "7d"), the
+// models it covers where it doesn't cover them all (`scope`, "Fable"), its `label`, the two
+// together ("7d Fable"), which tells it from the account's own window of that length, how
 // much of it is used, as a fraction, and when it resets, where its agent says.
 export type UsageWindow = {
   // Which of its agent's windows it is, as two of the same length share a name.
   readonly key: string
   readonly name: string
+  readonly scope?: string
+  readonly label: string
   readonly minutes: number | null
   readonly used: number
   readonly resetsAt: number | null
 }
 
+// Shortest first; of one length, the account's own before a scoped one, then by scope.
+const windowOrder = (a: UsageWindow, b: UsageWindow): number =>
+  (a.minutes ?? Infinity) - (b.minutes ?? Infinity) ||
+  Number(a.scope !== undefined) - Number(b.scope !== undefined) ||
+  (a.scope ?? "").localeCompare(b.scope ?? "")
+
 // What one agent's subscription has left. Its kind says how it's limited: by windows of
 // time, each used up to a share and reset, as every agent that reports limits does now.
 // One paid by credits, with a balance and no windows, would be another kind. A windowed
-// one has its windows, shortest first, and the one most used, which says it at a glance.
+// one has its windows, shortest first, and the one most used of those that limit the work
+// under way, which says it at a glance.
 export type AgentAccount = {
   readonly kind: "windows"
   readonly program: string
@@ -90,8 +101,8 @@ const rank = (program: string, order: readonly string[]): number => {
 // window the one resetting later is the newer, and of two resetting together the one used
 // more. A window whose reset has passed says nothing until its agent reports again.
 // Terminals that report no limits, as an API-key account's don't, leave their agent out.
-// Two windows of the same length in one reading are two quotas, as Antigravity's weekly
-// ones are, so they stay apart, matched across terminals by order.
+// A window is matched across terminals by its length and scope; two of the same length and
+// scope in one reading are two quotas all the same, so they stay apart, matched by order.
 export const accountUsage = (
   seats: readonly AgentSeat[],
   telemetry: Telemetry,
@@ -99,15 +110,20 @@ export const accountUsage = (
   order: readonly string[] = [],
 ): readonly AgentAccount[] => {
   const byAgent = new Map<string, Map<string, UsageWindow>>()
+  // The models each agent's terminals run, as their records name them.
+  const models = new Map<string, string[]>()
   for (const { context, id, program } of seats) {
     if (!agentNames[program]) continue
+    const model = telemetry[context]?.[id]?.model
+    if (model) models.set(program, [...(models.get(program) ?? []), model.toLowerCase()])
     const seen = new Map<string, number>()
     for (const limit of telemetry[context]?.[id]?.limits ?? []) {
       const name = windowName(limit.minutes)
-      const nth = seen.get(name) ?? 0
-      seen.set(name, nth + 1)
+      const label = limit.scope === undefined ? name : `${name} ${limit.scope}`
+      const nth = seen.get(label) ?? 0
+      seen.set(label, nth + 1)
       if (limit.resetsAt !== null && limit.resetsAt <= now) continue
-      const key = `${name}#${nth}`
+      const key = `${label}#${nth}`
       const windows = byAgent.get(program) ?? new Map<string, UsageWindow>()
       byAgent.set(program, windows)
       const known = windows.get(key)
@@ -116,6 +132,8 @@ export const accountUsage = (
         windows.set(key, {
           key,
           name,
+          ...(limit.scope !== undefined && { scope: limit.scope }),
+          label,
           minutes: limit.minutes,
           used: limit.used,
           resetsAt: limit.resetsAt,
@@ -124,15 +142,21 @@ export const accountUsage = (
   }
   return [...byAgent]
     .map(([program, windows]): AgentAccount => {
-      const sorted = [...windows.values()].toSorted(
-        (a, b) => (a.minutes ?? Infinity) - (b.minutes ?? Infinity),
+      const sorted = [...windows.values()].toSorted(windowOrder)
+      // At a glance, what limits the work under way: the account's own windows and those of
+      // the models its terminals run, not a model's used up that none runs now. Where none is
+      // so, as Antigravity's quotas each cover some models, any.
+      const running = models.get(program) ?? []
+      const limiting = sorted.filter(
+        ({ scope }) =>
+          scope === undefined || running.some((model) => model.includes(scope.toLowerCase())),
       )
       return {
         kind: "windows",
         program,
         name: agentNames[program]!,
         windows: sorted,
-        busiest: sorted.toSorted((a, b) => b.used - a.used)[0]!,
+        busiest: (limiting.length > 0 ? limiting : sorted).toSorted((a, b) => b.used - a.used)[0]!,
       }
     })
     .toSorted((a, b) => rank(a.program, order) - rank(b.program, order))

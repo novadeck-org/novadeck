@@ -224,7 +224,7 @@ const TroubleThing = ({
     case "limit":
       return (
         <p className="console-body">
-          {agent} used up its {limitWindow(trouble.minutes)} window, which{" "}
+          {agent} used up its {limitWindow(trouble.minutes, trouble.scope)} window, which{" "}
           {resetLabel(trouble.resetsAt, now)}.{" "}
           {trouble.autoResume
             ? "Novadeck continues it then."

@@ -45,6 +45,7 @@ import {
   starting,
   waking,
   unheardAgent,
+  withModelLimits,
   withUsage,
 } from "./terminals"
 import type { DemoAction, DemoActionContext, DemoActionGroup, DemoStates } from "./types"
@@ -371,6 +372,15 @@ const gallery: readonly {
         after: turnMs,
         error: "Usage limit reached",
         limit: { minutes: 300, resetsAt: Date.now() + limitResetMs },
+      }),
+  },
+  {
+    name: "Paused at a model's limit",
+    agent: (verbs, key) =>
+      verbs.finish(key, undefined, "failed", {
+        after: turnMs,
+        error: "You've hit your Fable weekly limit",
+        limit: { minutes: 10_080, resetsAt: Date.now() + 2 * 86_400_000, scope: "Fable" },
       }),
   },
   { name: "Asks (MCP)", state: (key, harness) => runAgent(key, harness), asks: "text" },
@@ -975,6 +985,11 @@ export const createDemoStates = (
           "Context and limits",
           "Usage in tooltip and status; all else stays",
           (key, context) => usageOf(verbs, key, context, withUsage(Date.now())),
+        ),
+        onSelected(
+          "Context and model limits",
+          "Usage with a model's own weekly windows (7d Fable, 7d Third-party) beside the account's; all else stays",
+          (key, context) => usageOf(verbs, key, context, withModelLimits(Date.now())),
         ),
         onSelected("Context, no size", "Tokens only, no limits; all else stays", (key, context) =>
           usageOf(verbs, key, context, contextOnly),
