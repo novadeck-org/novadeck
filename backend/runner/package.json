@@ -39,7 +39,7 @@
     "@novadeck/whisper": "workspace:*",
     "@novadeck/wire": "workspace:*",
     "@orpc/server": "catalog:",
-    "hono": "^4.13.16",
+    "hono": "^4.13.17",
     "node-pty": "catalog:",
     "ws": "catalog:",
     "zod": "catalog:"
@@ -52,7 +52,7 @@
     "fast-check": "4.10.2",
     "tsx": "^4.20.6",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   },
   "novadeck": {
     "platform": "system"
