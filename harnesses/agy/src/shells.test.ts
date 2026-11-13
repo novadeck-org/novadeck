@@ -44,6 +44,21 @@ describe("Antigravity's background shells, as captured", () => {
     ])
   })
 
+  it("ends a killed shell by the call's own step whose times come twice over, as from 1.5.7", () => {
+    const times = "Created At: 2026-11-13T10:12:25+01:00\nCompleted At: 2026-11-13T10:12:25+01:00\n"
+    const step = JSON.stringify({
+      step_index: 15,
+      source: "MODEL",
+      type: "GENERIC",
+      status: "DONE",
+      created_at: "2026-11-13T09:12:25Z",
+      content: `${times}${times}Task "${conversation}/task-6" cancelled.`,
+    })
+    expect(replay([step])).toMatchObject([
+      { type: "shell-ended", id: `${conversation}/task-6`, code: null },
+    ])
+  })
+
   it("starts no shell for a background step of a tool that is no command", () => {
     const timer = [
       JSON.stringify({

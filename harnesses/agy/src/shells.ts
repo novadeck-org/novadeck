@@ -29,8 +29,8 @@ const running =
   /(?:^|\n)Tool is running as a background task with task id: (\S+)\nTask Description: ([\s\S]*?)\nTask logs are available at:(?: (file:\/\/[^\n]*))?/
 const finished =
   /Task id "([^"\n]+)" (?:finished|was canceled) with result:\n(?:Command exited with code (-?\d{1,10})\.)?/g
-const cancelled =
-  /^(?:Created At: [^\n]*\n)?(?:Completed At: [^\n]*\n)?Task "([^"\n]+)" cancelled\.$/
+// The step's times come first, once a pair up to 1.5.3 and twice over from 1.5.7.
+const cancelled = /^(?:(?:Created|Completed) At: [^\n]*\n)*Task "([^"\n]+)" cancelled\.$/
 
 // The path of a task's log from the file URL its step names, which carries the Windows
 // drive and percent-encoding as `file:///C:/Users/a%20b/…`; undefined where it is none.
