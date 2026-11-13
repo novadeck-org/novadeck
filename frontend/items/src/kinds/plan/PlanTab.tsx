@@ -13,6 +13,7 @@ import { ArtifactMeta, CopyText, MetaPath, Unavailable } from "../../ArtifactVie
 import type { MarkdownEditorHandle } from "../../document/editor/MarkdownEditor"
 import type { PlanActions, ItemStore } from "../../store/item-store"
 import { useContent, usePlan } from "../../store/use-item-store"
+import { UnderHeaderSlot } from "../../under-header"
 import { blockOf, currentMarks, unreadableNow, type PlanDoc } from "./plan-doc"
 
 // The editor loads when a plan first opens, so the workspace never pays for it: a
@@ -264,6 +265,9 @@ export const PlanTab = ({
       pane={itemStore.plan(target, item.id)}
     />
   ) : (
-    <div className="artifact-status" />
+    <>
+      <UnderHeaderSlot />
+      <div className="artifact-status" />
+    </>
   )
 }

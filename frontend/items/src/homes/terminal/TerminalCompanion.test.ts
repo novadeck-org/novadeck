@@ -1,4 +1,10 @@
-import { emptyCompanions, isOnBar, type Companions, type ItemContent } from "@novadeck/core/items"
+import {
+  emptyCompanions,
+  isOnBar,
+  type Companions,
+  type Item,
+  type ItemContent,
+} from "@novadeck/core/items"
 import { emptyBar, messagesKey } from "@novadeck/core/items/companion-bar"
 import {
   noMessages,
@@ -61,8 +67,10 @@ const commandsOf = (workspace: WorkspaceStore): ItemCommands => ({
   markSeen: () => {},
   openBarTab: (terminalId, barKey) =>
     void workspace.dispatch({ type: "bar/open", target, terminalId, key: barKey }),
-  minimizeOnBar: (terminalId, barKey) =>
-    void workspace.dispatch({ type: "bar/minimize", target, terminalId, key: barKey }),
+  minimizeOnBar: (terminalId, barKeys) => {
+    for (const barKey of barKeys)
+      void workspace.dispatch({ type: "bar/minimize", target, terminalId, key: barKey })
+  },
   closeBarPane: (terminalId) => void workspace.dispatch({ type: "bar/close", target, terminalId }),
   hideOnBar: (terminalId, barKey) =>
     void workspace.dispatch({ type: "bar/hide", target, terminalId, key: barKey }),
@@ -520,6 +528,130 @@ describe("a terminal's taskbar", () => {
       )
       expect(icon(container, "hero.png")?.getAttribute("data-state")).toBe("behind")
       expect(icon(container, "notes")?.getAttribute("data-state")).toBe("behind")
+    })
+  })
+
+  context("when the pane shows one of a stack", () => {
+    const about = itemFixture("about", "01", {
+      kind: "image",
+      name: "about.png",
+      path: "/p/about.png",
+    })
+    // `open`, in order, the last on top, with hero.png, about.png and notes on the bar.
+    const opening = (...open: readonly Item[]): Workspace =>
+      open.reduce(
+        (workspace, item) =>
+          workspaceReducer(workspace, { type: "bar/open", target, terminalId: "01", key: item.id }),
+        [hero, about, notes].reduce(
+          (workspace, item) => workspaceReducer(workspace, shown(item)),
+          workspaceFixture(),
+        ),
+      )
+    const tabs = (container: HTMLElement) =>
+      [...container.querySelectorAll<HTMLButtonElement>(".pane-tabs [role='tab']")].map(
+        (tab) => `${tab.textContent}${tab.getAttribute("aria-selected") === "true" ? " *" : ""}`,
+      )
+    const tab = (container: HTMLElement, name: string) =>
+      [...container.querySelectorAll<HTMLButtonElement>(".pane-tabs [role='tab']")].find(
+        (each) => each.textContent === name,
+      )
+
+    it("shows each of the stack as a tab, the one shown selected", () => {
+      const { container } = renderTerminal(opening(hero))
+      expect(tabs(container)).toEqual(["hero.png *", "about.png"])
+    })
+
+    it("shows no tabs for something alone on its icon", () => {
+      const { container } = renderTerminal(opening(notes))
+      expect(container.querySelector(".pane-tabs")).toBeNull()
+    })
+
+    it("shows another tab on a click, as it is, without coming forward", async () => {
+      const { container } = renderTerminal(opening(hero))
+      await act(async () => tab(container, "about.png")?.click())
+      expect(tabs(container)).toEqual(["hero.png", "about.png *"])
+      expect(container.querySelector(".pane-sheet")?.hasAttribute("data-entry")).toBe(false)
+    })
+
+    it("steps along the tabs with the arrow keys, the tab it lands on keeping focus", async () => {
+      const { container } = renderTerminal(opening(hero))
+      tab(container, "hero.png")?.focus()
+      await act(async () =>
+        tab(container, "hero.png")?.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+        ),
+      )
+      expect(tabs(container)).toEqual(["hero.png", "about.png *"])
+      expect(document.activeElement).toBe(tab(container, "about.png"))
+    })
+
+    const ids = (workspace: WorkspaceStore) =>
+      activeSession(workspace.getSnapshot())!.state.items.map((item) => item.id)
+
+    it("closes a tab with its ×, showing the one beside it as it is", async () => {
+      const { container, workspace } = renderTerminal(opening(notes, hero))
+      await act(async () =>
+        container.querySelector<HTMLElement>(".pane-tab-close[title='Close hero.png']")?.click(),
+      )
+      expect(ids(workspace)).toEqual([about.id, notes.id])
+      expect(icon(container, "about.png")?.getAttribute("data-state")).toBe("open")
+      expect(container.querySelector(".pane-sheet")?.hasAttribute("data-entry")).toBe(false)
+    })
+
+    it("closes the tab with focus on Delete, the list holding only tabs", async () => {
+      const { container, workspace } = renderTerminal(opening(hero))
+      expect(
+        [...container.querySelectorAll(".pane-tabs button, .pane-tabs [tabindex]")].every(
+          (each) => each.getAttribute("role") === "tab",
+        ),
+      ).toBe(true)
+      tab(container, "about.png")?.focus()
+      await act(async () =>
+        tab(container, "about.png")?.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Delete", bubbles: true }),
+        ),
+      )
+      expect(ids(workspace)).toEqual([hero.id, notes.id])
+    })
+
+    it("only moves to a tab that may hold secrets with the arrow keys, showing it on Enter", async () => {
+      const held = itemFixture("held", "01", {
+        kind: "image",
+        name: "held.png",
+        path: "/p/held.png",
+        secret: true,
+      })
+      const { container } = renderTerminal(workspaceReducer(opening(hero), shown(held)))
+      tab(container, "hero.png")?.focus()
+      await act(async () =>
+        tab(container, "hero.png")?.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "End", bubbles: true }),
+        ),
+      )
+      expect(tabs(container)).toEqual(["hero.png *", "about.png", "held.png"])
+      expect(document.activeElement).toBe(tab(container, "held.png"))
+      await act(async () => tab(container, "held.png")?.click())
+      expect(tabs(container)).toEqual(["hero.png", "about.png", "held.png *"])
+    })
+
+    it("labels the stack once it's behind with its kind, its count and the one in front", () => {
+      const { container } = renderTerminal(opening(about, hero, notes))
+      expect(
+        [...container.querySelectorAll(".pane-stack-sheet")].map((each) => [
+          each.getAttribute("aria-label"),
+          each.textContent,
+        ]),
+      ).toEqual([["Bring forward 2 images, hero.png in front", "Images2· hero.png"]])
+    })
+
+    it("minimizes everything open of the stack from its icon, uncovering what's behind it", async () => {
+      const { container } = renderTerminal(opening(notes, about, hero))
+      await act(async () =>
+        icon(container, "2 images")?.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+      )
+      expect(icon(container, "notes")?.getAttribute("data-state")).toBe("open")
+      expect(icon(container, "2 images")?.getAttribute("data-state")).toBe("seen")
+      expect(container.querySelectorAll(".pane-stack-sheet")).toHaveLength(0)
     })
   })
 

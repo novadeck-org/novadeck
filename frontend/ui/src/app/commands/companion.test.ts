@@ -214,9 +214,17 @@ describe("companion commands", () => {
       app.commands.openBarTab("01", plan.id)
       app.commands.openBarTab("01", hero.id)
       expect(app.bar("01")).toMatchObject({ stack: [plan.id, hero.id], open: true })
-      app.commands.minimizeOnBar("01", hero.id)
+      app.commands.minimizeOnBar("01", [hero.id])
       expect(app.bar("01")).toMatchObject({ stack: [plan.id], open: true })
-      app.commands.minimizeOnBar("01", plan.id)
+      app.commands.minimizeOnBar("01", [plan.id])
+      expect(app.bar("01")).toMatchObject({ stack: [], open: false })
+    })
+
+    it("minimizes several together, uncovering what's behind them all", () => {
+      const app = open()
+      app.commands.openBarTab("01", plan.id)
+      app.commands.openBarTab("01", hero.id)
+      app.commands.minimizeOnBar("01", [hero.id, plan.id])
       expect(app.bar("01")).toMatchObject({ stack: [], open: false })
     })
 

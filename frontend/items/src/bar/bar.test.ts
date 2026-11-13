@@ -5,11 +5,14 @@ import { itemFixture } from "@novadeck/core/testing"
 import { context, describe, expect, it } from "../test"
 import {
   barMembers,
+  behindGroups,
   behindTab,
   composeBar,
   dropOutcome,
+  openOfGroup,
   pick,
   shownTab,
+  slotOf,
   undocks,
   type BarMember,
   type BarSlot,
@@ -157,6 +160,34 @@ describe("a terminal's taskbar", () => {
     it("counts everything open as behind while the pane is hidden", () => {
       const hidden = { ...open(home.id, [root.id]), open: false }
       expect(behindTab(hidden, membersOf([root, home]), null)).toEqual([root.id, home.id])
+    })
+  })
+
+  context("when its pane shows one icon's worth", () => {
+    const hero = image("hero")
+    const about = image("about")
+    const slots = barOf([root, hero, about, home])
+
+    it("waits behind with each other icon open, once, by the one opened last", () => {
+      const groups = behindGroups(slots, home.id, [about.id, root.id, hero.id])
+      expect(groups.map((group) => [group.slot.key, group.front.key])).toEqual([
+        ["stack:image", "about"],
+        [root.id, root.id],
+      ])
+    })
+
+    it("never puts the pane's own icon behind it", () => {
+      expect(behindGroups(slots, hero.id, [about.id, root.id])).toEqual([
+        { slot: slotOf(slots, root.id), front: slotOf(slots, root.id)!.members[0] },
+      ])
+    })
+
+    it("minimizes everything open of the pane's icon together", () => {
+      expect(openOfGroup(slots, hero.id, [about.id, root.id, hero.id])).toEqual([hero.id, about.id])
+    })
+
+    it("minimizes what the pane fell back to, open in nothing, alone", () => {
+      expect(openOfGroup(slots, root.id, [])).toEqual([root.id])
     })
   })
 

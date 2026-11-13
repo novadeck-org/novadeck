@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
 import type { ArtifactBodyProps } from "../../ArtifactViewer"
 import { useAwake } from "../../awake"
+import { UnderHeaderSlot } from "../../under-header"
 import { useViewerSlot } from "../../ViewerSlot"
 
 const OpenInBrowser = ({ url }: { url: string }): React.JSX.Element => (
@@ -212,6 +213,7 @@ const ShownPage = ({
         <OpenInBrowser url={place.url} />
         {actions}
       </div>
+      <UnderHeaderSlot />
       <div className="artifact-page-frame">
         <div ref={ref} className="artifact-page-view" />
         {load === "failed" && (
@@ -255,6 +257,7 @@ export const PageViewer = ({
         <OpenInBrowser url={page.url} />
         {actions}
       </div>
+      <UnderHeaderSlot />
       <div className="artifact-status">This page opens in your browser.</div>
     </div>
   )
