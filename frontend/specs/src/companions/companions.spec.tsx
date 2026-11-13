@@ -109,17 +109,47 @@ describe("A terminal's taskbar", () => {
     })
   })
 
+  it("shows a stack's things as tabs, and what else is open as labelled sheets behind", async () => {
+    await openShowcase()
+    const pane = companionPane("Build Studio")
+    await expect.element(pane.getByText("src/content/projects.json", { exact: true })).toBeVisible()
+    await expect
+      .element(pane.getByRole("tab", { name: "projects.json", selected: true }))
+      .toBeVisible()
+
+    await taskbarIcon("Build Studio", "2 images").click()
+    const tabs = pane.getByRole("tablist", { name: "Open in the pane" })
+    await expect.element(tabs).toBeVisible()
+    const other = tabs.getByRole("tab", { selected: false })
+    const name = other.element().textContent!
+    await other.click()
+    await expect.element(pane.getByText(name, { exact: true }).first()).toBeVisible()
+    await expect.element(tabs.getByRole("tab", { name, selected: true })).toBeVisible()
+
+    // The files wait behind, named by the one in front, and come forward with it.
+    const files = page.getByRole("button", {
+      name: "Bring forward 2 files, projects.json in front",
+    })
+    await files.click()
+    await expect.element(pane.getByText("src/content/projects.json", { exact: true })).toBeVisible()
+  })
+
   it("closes what its pane shows, off the taskbar, and the pane with it", async () => {
     await openShowcase()
     const pane = companionPane("Build Studio")
     await expect.element(pane.getByText("src/content/projects.json", { exact: true })).toBeVisible()
 
+    // Its tab's close: the other file shows, alone now, so without tabs, and closing that
+    // one from its header takes the pane.
     await pane.getByRole("button", { name: "Close projects.json", exact: true }).click()
+    await expect.element(pane.getByText("docs/brand-voice.md", { exact: true })).toBeVisible()
+    expect(pane.getByRole("tab").query()).toBeNull()
+    await pane.getByRole("button", { name: "Close brand-voice.md", exact: true }).click()
 
     await expect.element(pane).not.toBeInTheDocument()
     await expect
       .poll(() => taskbarIcons("Build Studio"))
-      .toEqual(["Plan: A home for Studio, new", "2 images", "brand-voice.md", "Messages"])
+      .toEqual(["Plan: A home for Studio, new", "2 images", "Messages"])
     // Focus goes back to the taskbar, not out of the page with the pane.
     expect(taskbar("Build Studio").element().contains(document.activeElement)).toBe(true)
 
@@ -270,8 +300,9 @@ describe("An image", () => {
 
     const area = viewer.parentElement!
     expect(area.scrollHeight).toBe(area.clientHeight)
+    // Its header, over the tabs of the two images, which name it too.
     await expect
-      .element(pane.getByText(image.element().getAttribute("alt")!, { exact: true }))
+      .element(pane.getByText(image.element().getAttribute("alt")!, { exact: true }).first())
       .toBeInViewport()
 
     await zoom.click()

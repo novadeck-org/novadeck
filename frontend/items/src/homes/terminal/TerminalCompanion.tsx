@@ -11,11 +11,15 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import type { CompanionActions } from "../../actions"
 import {
   barMembers,
+  behindGroups,
   behindTab,
   composeBar,
   dropOutcome,
+  isSecret,
+  openOfGroup,
   shownTab,
   slotKeys,
+  slotOf,
   type BarMember,
 } from "../../bar/bar"
 import { useDrag, type BarDrag } from "../../bar/drag-session"
@@ -238,12 +242,12 @@ export const TerminalCompanion = ({
   const [lastShown, setLastShown] = useState<BarKey | null>(showing)
   if (showing !== null && showing !== lastShown) setLastShown(showing)
   const paneTab = open ? tab : members.some((each) => each.key === lastShown) ? lastShown : null
-  // What's open in the pane behind what it shows, nearest first, counted against what it
-  // shows even as it hides, so its sheets stay as they were while it animates out.
-  const behind = behindTab(bar, members, paneTab)
-    .toReversed()
-    .flatMap((key) => members.filter((each) => each.key === key))
+  // The icons open in the pane behind what it shows, nearest first, counted against what
+  // it shows even as it hides, so its sheets stay as they were while it animates out.
+  const behind = behindGroups(slots, paneTab, behindTab(bar, members, paneTab).toReversed())
   const member = members.find((each) => each.key === paneTab)
+  // What it shows is one of a stack: the stack's things are its tabs.
+  const tabs = slotOf(slots, paneTab)?.members ?? []
   // Who showed what's here, by its main plan's agent.
   const agent =
     items.find((item) => item.kind === "plan" && item.plan?.role === "root")?.plan?.agent ??
@@ -269,6 +273,9 @@ export const TerminalCompanion = ({
     picked(key)
     commands.openBarTab(terminal, key)
   }
+  // Minimizing what the pane shows minimizes everything open of its icon with it.
+  const minimizeShown = (key: BarKey): void =>
+    commands.minimizeOnBar(terminal, openOfGroup(slots, key, bar.stack))
   const undockMember = (each: BarMember, place?: WindowPlace): void => {
     if (each.kind !== "item" || each.placed) return
     picked(each.key)
@@ -279,9 +286,9 @@ export const TerminalCompanion = ({
     stacked: bar.stack,
     draw: terminalDrawing({ itemStore, target, messagesHandle, links, plans }),
     originOf,
-    // Clicking what the pane is showing minimizes it, as a taskbar does the active window;
-    // anything else comes to the top.
-    activate: (key) => (key === showing ? commands.minimizeOnBar(terminal, key) : openPicked(key)),
+    // Clicking what the pane is showing minimizes it, with the rest of its icon, as a
+    // taskbar does the active window; anything else comes to the top.
+    activate: (key) => (key === showing ? minimizeShown(key) : openPicked(key)),
     open: openPicked,
     seen: (itemIds) => commands.markSeen(itemIds),
     close: (each) => {
@@ -349,6 +356,7 @@ export const TerminalCompanion = ({
   const paneView: PaneView = {
     member,
     leaving: !open,
+    tabs,
     behind,
     itemStore,
     target,
@@ -358,9 +366,17 @@ export const TerminalCompanion = ({
     plans,
     originOf,
     onUndock: actions.undock,
-    onMinimize: (each) => commands.minimizeOnBar(terminal, each.key),
+    onMinimize: (each) => minimizeShown(each.key),
     onHide: () => commands.closeBarPane(terminal),
-    onClose: actions.close,
+    // Closing what the pane shows shows the tab beside it, as an editor's tabs do, unless
+    // that may hold secrets, which shows only once picked.
+    onClose: (each) => {
+      const at = tabs.findIndex((other) => other.key === each.key)
+      const next = tabs[at + 1] ?? tabs[at - 1]
+      if (each.key === showing && at >= 0 && next && !isSecret(next))
+        commands.openBarTab(terminal, next.key)
+      actions.close(each)
+    },
     onRaise: (each) => openPicked(each.key),
   }
   return (

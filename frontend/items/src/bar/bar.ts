@@ -116,6 +116,48 @@ export const behindTab = (
 ): readonly BarKey[] =>
   bar.stack.filter((key) => key !== shown && members.some((member) => member.key === key))
 
+// The pane shows one icon's worth at a time: what's open of a stack comes forward
+// together, its things as tabs, and every other icon with something open waits behind it as
+// a group.
+
+// The icon `key` is on.
+export const slotOf = (slots: readonly BarSlot[], key: BarKey | null): BarSlot | undefined =>
+  key === null ? undefined : slots.find((slot) => slot.members.some((member) => member.key === key))
+
+// An icon with something open behind what the pane shows: the one of it that comes
+// forward with it, the one opened last.
+export type BehindGroup = { readonly slot: BarSlot; readonly front: BarMember }
+
+// The groups open behind the pane's, nearest first, from what's open behind what it shows
+// (`behind`, nearest first): an icon once, by its nearest, and never the pane's own icon.
+export const behindGroups = (
+  slots: readonly BarSlot[],
+  shown: BarKey | null,
+  behind: readonly BarKey[],
+): readonly BehindGroup[] => {
+  const own = slotOf(slots, shown)
+  const groups: BehindGroup[] = []
+  for (const key of behind) {
+    const slot = slotOf(slots, key)
+    if (!slot || slot === own || groups.some((group) => group.slot === slot)) continue
+    groups.push({ slot, front: slot.members.find((member) => member.key === key)! })
+  }
+  return groups
+}
+
+// What's open of the group `shown` is in, which minimizing it puts back on the taskbar; the
+// shown alone when the pane fell back to it, open in nothing.
+export const openOfGroup = (
+  slots: readonly BarSlot[],
+  shown: BarKey,
+  open: readonly BarKey[],
+): readonly BarKey[] => {
+  const keys = (slotOf(slots, shown)?.members ?? []).flatMap((member) =>
+    open.includes(member.key) ? [member.key] : [],
+  )
+  return keys.length > 0 ? keys : [shown]
+}
+
 // Which of a stack a click opens. Of plans: the first rewritten since it was read, else
 // the one highest in the pane's stack, else the first, the root plan where it's among
 // them. Of anything else: what's new, else what's highest in the pane's stack, else the

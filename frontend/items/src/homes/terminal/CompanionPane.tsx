@@ -1,13 +1,15 @@
 import type { WorkspaceTarget } from "@novadeck/core/types"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { createLucideIcon, Minus, X } from "lucide-react"
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 
 import { AwakeContext, useWakeful } from "../../awake"
-import type { BarMember } from "../../bar/bar"
+import { isNew, type BarMember, type BehindGroup } from "../../bar/bar"
 import type { LookContext } from "../../registration"
+import { stackNames } from "../../registry"
 import type { ItemStore } from "../../store/item-store"
-import { memberLook, MemberView } from "./drawing"
+import { UnderHeader } from "../../under-header"
+import { memberLook, MemberView, slotIcon } from "./drawing"
 import type { MessagesHandle, MessageLinks } from "./messages/messages"
 
 // Windows' restore glyph, drawn as lucide draws: a window lifting off the one it was
@@ -18,10 +20,10 @@ const Restore = createLucideIcon("restore", [
 ])
 
 // What the pane does with what it shows, at the end of its header, as a window's title
-// bar does on Windows: minimizes it back to the taskbar, uncovering what's open behind
-// it; undocks it into a window of its own, where it can; and closes it, off the taskbar,
-// as the taskbar's menu does. Escape hides the whole pane, which is the same as
-// minimizing while nothing's behind.
+// bar does on Windows: minimizes its icon's worth back to the taskbar, uncovering what's
+// open behind it; undocks it into a window of its own, where it can; and closes it, off
+// the taskbar, as the taskbar's menu does. Escape hides the whole pane, which is the same
+// as minimizing while nothing's behind. Under tabs, closing is each tab's own.
 const PaneActions = ({
   name,
   behind,
@@ -35,7 +37,7 @@ const PaneActions = ({
   behind: boolean
   onUndock: (() => void) | undefined
   onMinimize: () => void
-  onClose: () => void
+  onClose: (() => void) | undefined
 }): React.JSX.Element => (
   <span className="artifact-actions">
     <Tooltip content={behind ? "Minimize · Esc hides the pane" : "Minimize to the taskbar · Esc"}>
@@ -60,11 +62,18 @@ const PaneActions = ({
         </button>
       </Tooltip>
     )}
-    <Tooltip content="Close">
-      <button type="button" className="icon-button" aria-label={`Close ${name}`} onClick={onClose}>
-        <X size={14} strokeWidth={1.75} aria-hidden />
-      </button>
-    </Tooltip>
+    {onClose && (
+      <Tooltip content="Close">
+        <button
+          type="button"
+          className="icon-button"
+          aria-label={`Close ${name}`}
+          onClick={onClose}
+        >
+          <X size={14} strokeWidth={1.75} aria-hidden />
+        </button>
+      </Tooltip>
+    )}
   </span>
 )
 
@@ -123,11 +132,11 @@ const whenCut =
 // take focus: the change follows at once, so anything later wasn't theirs.
 const handOffMs = 1000
 
-// The sheets open behind what the pane shows, peeking out above it as cards stacked
+// The icons with something open behind the pane's, peeking out above it as cards stacked
 // behind one another do: each further back narrower and fainter, the nearest last. Each
-// names itself on hover and comes forward when clicked. One that was just shown tucks in
-// behind what took its place, so the two read as swapped. Escape hides the pane from
-// here too, as from what it shows.
+// says what it holds (a thing's name, or a stack's kind, count and the one in front) and
+// comes forward when clicked. One that was just shown tucks in behind what took its place,
+// so the two read as swapped. Escape hides the pane from here too, as from what it shows.
 const BehindStack = ({
   behind,
   tucked,
@@ -137,7 +146,7 @@ const BehindStack = ({
   onHide,
 }: {
   // Nearest first.
-  behind: readonly BarMember[]
+  behind: readonly BehindGroup[]
   tucked: string | undefined
   plans: LookContext["plans"]
   onRaise: (member: BarMember) => void
@@ -158,24 +167,127 @@ const BehindStack = ({
     {behind
       .slice(0, peeking)
       .toReversed()
-      .map((each) => {
-        const { name } = memberLook(each, { plans })
+      .map(({ slot, front }) => {
+        const { name } = memberLook(front, { plans })
+        const Icon = slotIcon(slot)
+        const names = slot.stack && stackNames(slot.stack)
+        const count = slot.members.length
         return (
-          <Tooltip key={each.key} content={name}>
-            <button
-              type="button"
-              className="pane-stack-sheet"
-              data-entry={each.key === tucked ? "tuck" : undefined}
-              aria-label={`Bring forward ${name}`}
-              onClick={() => onRaise(each)}
-              onAnimationEnd={onTucked}
-              ref={whenCut(onTucked)}
-            />
-          </Tooltip>
+          <button
+            key={slot.key}
+            type="button"
+            className="pane-stack-sheet"
+            data-entry={front.key === tucked ? "tuck" : undefined}
+            data-state={slot.members.some(isNew) ? "new" : undefined}
+            aria-label={
+              names
+                ? `Bring forward ${count} ${names.one}s, ${name} in front`
+                : `Bring forward ${name}`
+            }
+            onClick={() => onRaise(front)}
+            onAnimationEnd={onTucked}
+            ref={whenCut(onTucked)}
+          >
+            <Icon size={12} strokeWidth={1.5} aria-hidden="true" />
+            {names ? (
+              <>
+                <b>{names.many}</b>
+                <span className="pane-stack-count">{count}</span>
+                <span className="pane-stack-name">· {name}</span>
+              </>
+            ) : (
+              <b className="pane-stack-name">{name}</b>
+            )}
+          </button>
         )
       })}
   </div>
 )
+
+// The tabs of the icon the pane shows, under its header: each thing of it on the bar, the
+// shown one selected. A click shows one and its × closes it; the arrow keys, Home and End
+// step along them as a tab list's do, showing each, the tab they land on keeping focus.
+const PaneTabs = ({
+  tabs,
+  shown,
+  plans,
+  takeFocus,
+  onPick,
+  onClose,
+}: {
+  tabs: readonly BarMember[]
+  shown: string
+  plans: LookContext["plans"]
+  // Whether a tab had focus as the person picked the one shown, which then takes it: the
+  // row is drawn anew with what it shows.
+  takeFocus: () => boolean
+  onPick: (member: BarMember) => void
+  onClose: (member: BarMember) => void
+}): React.JSX.Element => {
+  const selected = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (takeFocus()) selected.current?.focus({ preventScroll: true })
+    selected.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" })
+  }, [takeFocus])
+  const at = tabs.findIndex((tab) => tab.key === shown)
+  const step: Record<string, (() => number) | undefined> = {
+    ArrowLeft: () => (at - 1 + tabs.length) % tabs.length,
+    ArrowRight: () => (at + 1) % tabs.length,
+    Home: () => 0,
+    End: () => tabs.length - 1,
+  }
+  return (
+    <div
+      className="pane-tabs nodrag nopan"
+      role="tablist"
+      aria-label="Open in the pane"
+      onKeyDown={(event) => {
+        const to = step[event.key]
+        if (!to || !(event.target as Element).matches('[role="tab"]')) return
+        event.preventDefault()
+        const next = tabs[to()]
+        if (next && next.key !== shown) onPick(next)
+      }}
+    >
+      {tabs.map((tab) => {
+        const { icon: Icon, name } = memberLook(tab, { plans })
+        const open = tab.key === shown
+        return (
+          <span
+            key={tab.key}
+            className="pane-tab"
+            data-state={open ? "open" : isNew(tab) ? "new" : undefined}
+          >
+            <button
+              ref={open ? selected : undefined}
+              type="button"
+              role="tab"
+              className="pane-tab-open"
+              aria-selected={open}
+              tabIndex={open ? 0 : -1}
+              title={name}
+              onClick={() => {
+                if (!open) onPick(tab)
+              }}
+            >
+              <Icon size={14} strokeWidth={1.5} aria-hidden="true" />
+              <span className="pane-tab-name">{name}</span>
+            </button>
+            <button
+              type="button"
+              className="icon-button pane-tab-close"
+              aria-label={`Close ${name}`}
+              tabIndex={open ? 0 : -1}
+              onClick={() => onClose(tab)}
+            >
+              <X size={12} strokeWidth={1.75} aria-hidden="true" />
+            </button>
+          </span>
+        )
+      })}
+    </div>
+  )
+}
 
 // How what the pane shows came to the top: forward from behind, or new over it. Nothing
 // as the pane itself comes out, which animates on its own.
@@ -193,10 +305,12 @@ type Shown = {
 // A terminal's companion pane, wherever it is presented: what it shows of the terminal's
 // taskbar, `member`: a plan, edited where it's read, something an agent showed, its
 // messages, or another terminal's item placed here, under a line saying whose it is. It's
-// the top of what's open in the pane; the rest waits behind it.
+// the top of what's open in the pane, under its header the tabs of everything of its
+// icon; the other icons open wait behind it.
 export const CompanionPane = ({
   member,
   leaving,
+  tabs,
   behind,
   itemStore,
   target,
@@ -214,8 +328,10 @@ export const CompanionPane = ({
   member: BarMember | undefined
   // The pane is going: what it shows as it fades plays no entry of its own.
   leaving: boolean
-  // What's open behind it, nearest first.
-  behind: readonly BarMember[]
+  // Everything of its icon, as its tabs, while the icon is a stack.
+  tabs: readonly BarMember[]
+  // The icons open behind it, nearest first.
+  behind: readonly BehindGroup[]
   itemStore: ItemStore
   target: WorkspaceTarget
   // Who showed what's here, as the pane's label names them.
@@ -227,16 +343,18 @@ export const CompanionPane = ({
   originOf: (member: BarMember) => string | undefined
   // Undocks what's shown into a window of its own.
   onUndock: (member: BarMember) => void
-  // Minimizes what's shown, uncovering what's behind; hides the whole pane, as Escape does.
+  // Minimizes what's shown with the rest of its icon, uncovering what's behind; hides the
+  // whole pane, as Escape does.
   onMinimize: (member: BarMember) => void
   onHide: () => void
   // Closes what's shown, as the taskbar's menu does, uncovering what's behind.
   onClose: (member: BarMember) => void
-  // Brings what's behind to the top.
+  // Brings what's behind, or another tab, to the top.
   onRaise: (member: BarMember) => void
 }): React.JSX.Element => {
-  // A new top comes forward when it was behind, and over what was shown when it's new.
-  const behindKeys = behind.map((each) => each.key).join("\n")
+  // A new top comes forward when it was behind, and over what was shown when it's new;
+  // another tab of the same icon just shows.
+  const behindKeys = behind.map((each) => each.front.key).join("\n")
   const [entry, setEntry] = useState<Shown>({
     key: member?.key,
     behind: behindKeys,
@@ -244,7 +362,11 @@ export const CompanionPane = ({
     tucked: undefined,
   })
   if (entry.key !== member?.key || entry.behind !== behindKeys) {
-    const swapped = entry.key !== member?.key && entry.key !== undefined && member !== undefined
+    const swapped =
+      entry.key !== member?.key &&
+      entry.key !== undefined &&
+      member !== undefined &&
+      !tabs.some((each) => each.key === entry.key)
     setEntry({
       key: member?.key,
       behind: behindKeys,
@@ -257,7 +379,7 @@ export const CompanionPane = ({
           : "arrive",
       tucked: !swapped
         ? entry.tucked
-        : behind.some((each) => each.key === entry.key)
+        : behind.some((each) => each.front.key === entry.key)
           ? entry.key
           : undefined,
     })
@@ -290,25 +412,50 @@ export const CompanionPane = ({
     if (handed && (!focused || focused === document.body))
       section.current?.focus({ preventScroll: true })
   }, [member?.key])
+  // A tab had focus as the person picked another: the new row's selected tab takes it.
+  const tabFocus = useRef(false)
+  const takeFocus = useCallback((): boolean => {
+    const had = tabFocus.current
+    tabFocus.current = false
+    return had
+  }, [])
   const undock = member?.kind === "item" && !member.placed ? () => onUndock(member) : undefined
   const tab = member && (
-    <MemberView
-      key={member.key}
-      member={member}
-      itemStore={itemStore}
-      target={target}
-      messagesHandle={messagesHandle}
-      links={links}
-      actions={
-        <PaneActions
-          name={memberLook(member, { plans }).name}
-          behind={behind.length > 0}
-          onUndock={undock}
-          onMinimize={handOff(() => onMinimize(member))}
-          onClose={handOff(() => onClose(member))}
-        />
+    <UnderHeader
+      value={
+        tabs.length > 1 ? (
+          <PaneTabs
+            tabs={tabs}
+            shown={member.key}
+            plans={plans}
+            takeFocus={takeFocus}
+            onPick={(each) => {
+              tabFocus.current = document.activeElement?.closest(".pane-tabs") != null
+              onRaise(each)
+            }}
+            onClose={handOff(onClose)}
+          />
+        ) : null
       }
-    />
+    >
+      <MemberView
+        key={member.key}
+        member={member}
+        itemStore={itemStore}
+        target={target}
+        messagesHandle={messagesHandle}
+        links={links}
+        actions={
+          <PaneActions
+            name={memberLook(member, { plans }).name}
+            behind={behind.length > 0}
+            onUndock={undock}
+            onMinimize={handOff(() => onMinimize(member))}
+            onClose={tabs.length > 1 ? undefined : handOff(() => onClose(member))}
+          />
+        }
+      />
+    </UnderHeader>
   )
   return (
     <>

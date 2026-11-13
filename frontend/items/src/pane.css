@@ -7,12 +7,18 @@
    the agent's changes (`.plan-changes-toggle`, toned as a warning) and its hints
    (`.pane-meta-hint`), and under it the notice for edits that can't be saved
    (`.plan-notice`); an item placed from another terminal
-   sits under a line saying whose it is (`.placed-from`).
+   sits under a line saying whose it is (`.placed-from`). Under the header of what the
+   terminal's pane shows of a stack, the stack's tabs (`.pane-tabs`), each a `.pane-tab`
+   holding its button (`.pane-tab-open`, its name in `.pane-tab-name`) and its close
+   (`.pane-tab-close`, an `.icon-button`); above the reader, the icons open behind it
+   (`.pane-stack`), each a labelled `.pane-stack-sheet`.
 
    Hooks: on the split's pane, data-state="open" | "closed" as
    they come and go; on what it shows (`.pane-sheet`), data-entry="forward" |
    "arrive" as it comes to the top, and on a sheet behind, data-entry="tuck" as it goes
-   there; on the reader's body, data-outline="false" without headings; on an
+   there, and data-state="new" while its icon holds something new; on a tab,
+   data-state="open" for the one shown and "new" for something new, and on its button
+   aria-selected; on the reader's body, data-outline="false" without headings; on an
    outline entry, data-changed="true" where the agent's changes are; on the changes
    toggle, aria-pressed="true" while the changes show.
 
@@ -24,6 +30,13 @@
    the pane shows, under the pointer.
    --pane-stack-shadow-color (shadow, 16% in light and 55% in dark): what each sheet in
    front casts on the one behind it.
+   --pane-stack-fg (muted), --pane-stack-name-fg (ink): a sheet's label, and its kind or
+   name.
+   --pane-tabs-bg (shell), --pane-tabs-border-color (line): the tab row.
+   --pane-tab-fg (muted), --pane-tab-hover-bg (soft), --pane-tab-hover-fg (ink): a tab.
+   --pane-tab-open-bg (paper), --pane-tab-open-fg (ink), --pane-tab-open-mark-bg (ink):
+   the tab shown, and the line along its top.
+   --pane-tab-new-bg (ink): the dot of a tab with something new.
    --spine-bg (shell), --spine-border-color (line): the outline.
    --spine-label-fg (muted): its label.
    --spine-fg (muted), --spine-hover-bg (soft), --spine-hover-fg (ink): an entry.
@@ -165,11 +178,11 @@
   }
 }
 
-/* What's open behind what the pane shows peeks out above it (`.pane-stack`): a card's
+/* The icons open behind what the pane shows peek out above it (`.pane-stack`): a card's
    top edge for each of one or two (`.pane-stack-sheet`), each further back narrower and
-   fainter, as cards stacked behind one another are, the nearest last. What's shown
-   sits under them, an edge of its own just clear of the window's header while nothing's
-   behind. */
+   fainter, as cards stacked behind one another are, the nearest last, each labelled with
+   what it holds. What's shown sits under them, an edge of its own just clear of the
+   window's header while nothing's behind. */
 .pane-stack {
   display: flex;
   flex: none;
@@ -183,12 +196,20 @@
 }
 .pane-stack-sheet {
   --_inset: 6px;
-  --_fade: 0.8;
+  --_fade: 0.9;
   position: relative;
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: calc(100% - 2 * var(--_inset));
-  height: 4px;
-  padding: 0;
+  height: 22px;
+  padding: 0 10px;
+  overflow: hidden;
+  border-radius: var(--radius-control) var(--radius-control) 0 0;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  white-space: nowrap;
+  color: var(--pane-stack-fg, var(--color-muted));
   /* Edged as what the pane shows is. */
   border: var(--border-width) solid var(--pane-border-color, var(--color-line));
   border-bottom: none;
@@ -212,8 +233,30 @@
   inset: -3px 0 0;
 }
 .pane-stack-sheet:first-child:not(:last-child) {
-  --_inset: 12px;
-  --_fade: 0.5;
+  --_inset: 14px;
+  --_fade: 0.65;
+}
+.pane-stack-sheet svg {
+  flex-shrink: 0;
+}
+.pane-stack-sheet b {
+  font-weight: var(--font-weight-medium);
+  color: var(--pane-stack-name-fg, var(--color-ink));
+}
+.pane-stack-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Its icon holds something new: a dot at its end, as the taskbar marks it. */
+.pane-stack-sheet[data-state="new"]::after {
+  flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  margin-left: auto;
+  border-radius: 50%;
+  background-color: var(--pane-tab-new-bg, var(--color-ink));
+  content: "";
 }
 .pane-stack-sheet:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
@@ -244,6 +287,100 @@
 }
 .pane-split-reader > .pane-stack:not(:empty) + .pane-reader {
   box-shadow: 0 -2px 5px -2px var(--_cast);
+}
+
+/* The tabs of a stack, under the header of what the pane shows: one row, scrolling sideways
+   when there are more than fit, the one shown joined to what's under it. */
+.pane-tabs {
+  display: flex;
+  flex: none;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: var(--border-width) solid var(--pane-tabs-border-color, var(--color-line));
+  background-color: var(--pane-tabs-bg, var(--color-shell));
+}
+.pane-tab {
+  --_bg: transparent;
+  --_fg: var(--pane-tab-fg, var(--color-muted));
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  max-width: 220px;
+  margin-bottom: calc(var(--border-width) * -1);
+  border-right: var(--border-width) solid var(--pane-tabs-border-color, var(--color-line));
+  background-color: var(--_bg);
+  color: var(--_fg);
+  transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    color var(--motion-feedback) var(--ease-interface);
+}
+.pane-tab:hover {
+  --_bg: var(--pane-tab-hover-bg, var(--color-soft));
+  --_fg: var(--pane-tab-hover-fg, var(--color-ink));
+}
+.pane-tab[data-state="open"] {
+  --_bg: var(--pane-tab-open-bg, var(--pane-bg, var(--color-paper)));
+  --_fg: var(--pane-tab-open-fg, var(--color-ink));
+}
+.pane-tab[data-state="open"]::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background-color: var(--pane-tab-open-mark-bg, var(--color-ink));
+  content: "";
+}
+.pane-tab-open {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 34px;
+  padding: 0 4px 0 12px;
+  color: inherit;
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
+}
+.pane-tab-open svg {
+  flex-shrink: 0;
+}
+.pane-tab-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pane-tab[data-state="new"] .pane-tab-name::after {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background-color: var(--pane-tab-new-bg, var(--color-ink));
+  vertical-align: 2px;
+  content: "";
+}
+.pane-tab-open:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+/* Its close shows on the tab shown, and on any under the pointer or holding focus. */
+.pane-tab-close {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-right: 6px;
+  padding: 0;
+  opacity: 0;
+}
+.pane-tab:is([data-state="open"], :hover, :focus-within) .pane-tab-close {
+  opacity: 1;
+}
+@media (hover: none) {
+  .pane-tab-close {
+    opacity: 1;
+  }
 }
 
 /* A sheet just shown, tucking in behind what took its place: it slides up from under it
