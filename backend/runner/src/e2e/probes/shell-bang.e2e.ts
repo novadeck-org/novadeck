@@ -49,18 +49,19 @@ for (const setup of setups) {
     it("pasted, typed, multi-line, and mid-turn", async ({ e2e: run }) => {
       const held = gate()
       const again = gate()
+      // The agent's own turns only: Codex asks for a title with the prompt in the request.
       run.model.use(
         async (call) => {
-          if (!asked(call, "Hold on")) return undefined
+          if (call.side || !asked(call, "Hold on")) return undefined
           await held.opened
           return { text: "Held." }
         },
         async (call) => {
-          if (!asked(call, "Hold again")) return undefined
+          if (call.side || !asked(call, "Hold again")) return undefined
           await again.opened
           return { text: "Held again." }
         },
-        (call) => (asked(call, "After bang") ? { text: "After." } : undefined),
+        (call) => (!call.side && asked(call, "After bang") ? { text: "After." } : undefined),
       )
       const began = Date.now()
       const t = await start(run, setup)
