@@ -523,8 +523,10 @@ with every safety check again at that time:
   not seen. The × waits while `working`. A refusal (`CONFLICT`, with the service's reason: git
   status unreadable, submodules) shows above the list, as does a work that can't be shown; a
   worktree an agent closed meanwhile counts as closed. A work whose owner is closed (in History)
-  shows on the selected terminal's bar. With no works the list says what appears there, and, with
-  the switch off, to turn on Agent worktrees in Preferences → Experimental. A closed worktree's memory goes with it (`works.json` and its snapshot).
+  shows on the selected terminal's bar. With no works the list says what appears there. The panel
+  and its rail toggle show only while Preferences → Experimental → Agent worktrees and Changes is
+  on (`useChangesShown`), so a stable build, which turns that setting off, has no Changes panel; a
+  link naming it then opens Terminals. A closed worktree's memory goes with it (`works.json` and its snapshot).
   A work also carries `fetchedAt`, when the runner last fetched its repository's origin (absent when
   it never has), so a row's tooltip can say "main as of 12 min ago": a PR merged on the remote shows
   as merged here only after the next fetch (see "Worktrees": cleanup and fetching). Worktrees the
@@ -681,7 +683,7 @@ with every safety check again at that time:
 - **Worktrees** come from the same server's `open_worktree`, `take_worktree`, `close_worktree`
   and `give_worktree` (`backend/runner/src/worktrees/`, called from `terminals/calls.ts`). They
   are experimental: listed (the tool listing asks the runner, with the `worktrees` call) and
-  allowed only while the person has Preferences → Experimental → Agent worktrees on
+  allowed only while the person has Preferences → Experimental → Agent worktrees and Changes on
   (`runnerSettings.worktrees`); the listing doesn't refresh mid-session, so a call made while
   it is off is refused with a sentence that says how to turn it on. A worktree lives at
   `~/.novadeck/worktrees/<project id>/<group>/<repo folder>` (`worktrees/root.ts`); `group`

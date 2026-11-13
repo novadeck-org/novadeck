@@ -119,17 +119,17 @@ export const shellGroups = ({
     },
     {
       section: "App",
-      title: "Agent worktrees",
+      title: "Agent worktrees and Changes",
       actions: [
         {
           label: "Not offered",
-          hint: "Preferences > Experimental: the Agent worktrees row is disabled and reads Not available here, as on a runner without the setting",
+          hint: "The rail has no Changes toggle, and Preferences > Experimental shows the Agent worktrees and Changes row disabled, reading Not available here, as on a runner without the setting",
           reboots: true,
           run: () => launch.setWorktrees(false),
         },
         {
           label: "Offered",
-          hint: "The Agent worktrees row switches again",
+          hint: "The Changes toggle is back on the rail, and the Agent worktrees and Changes row switches again",
           reboots: true,
           run: () => launch.setWorktrees(true),
         },
