@@ -614,6 +614,9 @@ export const Grid = ({
       (navigation === scrolled.current.navigation && width === scrolled.current.width)
     )
       return
+    // Opening, the Grid is there at once: a smooth scroll would let the tiles it passes take
+    // their screens on the way (tileVisibility.ts), only to let them go.
+    const opening = scrolled.current.width === 0
     scrolled.current = { navigation, width }
     // As far as the nearest edge, the stage's padding included; a tile taller than the stage
     // is met at its top.
@@ -628,7 +631,10 @@ export const Grid = ({
           ? bottom + pad - view
           : stage.scrollTop
     if (target !== stage.scrollTop)
-      stage.scrollTo({ top: target, behavior: prefersReducedMotion() ? "instant" : "smooth" })
+      stage.scrollTo({
+        top: target,
+        behavior: opening || prefersReducedMotion() ? "instant" : "smooth",
+      })
   }, [navigation, selected, width, containerRef, boxOf])
 
   const grid = (

@@ -5,6 +5,7 @@ import { onTestFinished } from "vitest"
 import { cleanup, render } from "vitest-browser-react"
 import { page } from "vitest/browser"
 
+import { expectStaysTrue } from "../support/layouts"
 import { chooseView, terminal } from "../support/workspace"
 import { describe, expect, it } from "../test"
 
@@ -31,6 +32,9 @@ const hidden = (id: string): boolean => {
   const content = tile(id).querySelector("[data-off-screen]")
   return content !== null && getComputedStyle(content).contentVisibility === "hidden"
 }
+
+// Whether the tile holds a screen: xterm's element, which a tile gets only once it takes one.
+const opened = (id: string): boolean => tile(id).querySelector(".xterm") !== null
 
 // The tiles within the margin of the stage's view, as Grid counts them in sight.
 const inSight = (ids: readonly string[]): string[] => {
@@ -64,6 +68,13 @@ describe("Grid out of sight", () => {
     expect(near.length).toBeGreaterThan(0)
     expect(near.length).toBeLessThan(count)
     await expect.poll(() => runner.streaming()).toBe(near.length)
+    // Once the turns are done, the far tiles still hold none.
+    const far = runner.terminalIds.filter((id) => !near.includes(id))
+    await expectStaysTrue(
+      () => runner.streaming() === near.length && !far.some(opened),
+      "the open screens",
+      { ms: 1_000 },
+    )
     for (const id of runner.terminalIds) expect(hidden(id)).toBe(false)
   }, 30_000)
 
