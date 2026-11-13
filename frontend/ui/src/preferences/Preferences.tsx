@@ -284,9 +284,9 @@ export const Preferences = ({
     },
     {
       id: "agent-worktrees",
-      label: "Agent worktrees",
+      label: "Agent worktrees and Changes",
       description: worktrees
-        ? "Agents work in their own git worktrees, which Novadeck lists in the Changes panel and cleans up once they're merged or their terminal is closed."
+        ? "Agents work in their own git worktrees, and the sidebar gets a Changes panel that lists each one with what it changed since main. Novadeck cleans a worktree up once it's merged or its terminal is closed."
         : "Not available here.",
       checked: worktrees?.enabled ?? false,
       onToggle: (enabled: boolean) => worktrees?.onChange(enabled),

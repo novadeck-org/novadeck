@@ -34,6 +34,8 @@ const partners = (
 // The panel's group for the Changes panel's states, on the selected terminal's first worktree: a
 // terminal without one gets a worktree at its first change, so each action works on a
 // terminal without one too.
+// The Changes panel shows only with agent worktrees on: "On, with Changes" in the App section's
+// Agent worktrees and Changes group boots with it.
 export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[] =>
   isDemoWorks(works)
     ? [
@@ -180,7 +182,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Close every worktree",
-              hint: "Open Changes: the project's rows go, those of other projects stay; with every project's gone the list is empty, saying when an agent opens a worktree it shows up here; with Agent worktrees off in Preferences > Experimental it also points there",
+              hint: "Open Changes: the project's rows go, those of other projects stay; with every project's gone the list is empty, saying when an agent opens a worktree it shows up here",
               run: ({ selected }) => {
                 const key = selected()
                 if (key) works.removeAll(key.projectId)

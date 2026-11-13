@@ -46,7 +46,6 @@ const clean = (name: string, extra: Partial<Work> = {}) =>
 const show = (
   works: readonly Work[],
   options: {
-    agentWorktrees?: "on" | "off" | "absent"
     close?: (root: string, force: boolean) => Promise<WorkClosing>
     select?: () => Promise<void>
     // The titles of terminals still open; every owner's by default.
@@ -78,7 +77,6 @@ const show = (
       ),
       projects: options.projects ?? new Map([["p", "Storefront"]]),
       selectedId: options.selectedId,
-      agentWorktrees: options.agentWorktrees ?? "on",
       active: true,
       watching: true,
       onClose: () => {},
@@ -328,25 +326,11 @@ describe("the × on a row", () => {
 })
 
 describe("the Changes panel with no worktrees", () => {
-  it("describes tracked worktrees, and points to Preferences while the setting is off", () => {
-    const off = show([], { agentWorktrees: "off" })
-    expect(off.page.container.querySelector(".changes-empty")?.textContent).toContain(
+  it("describes tracked worktrees", () => {
+    const { page } = show([])
+    expect(page.container.querySelector(".changes-empty")?.textContent).toContain(
       "When an agent opens or takes a git worktree",
     )
-    expect(off.page.container.querySelector(".changes-empty")?.textContent).toContain(
-      "Preferences → Experimental",
-    )
-  })
-
-  it("does not point to Preferences with the setting on, or where the backend has none", () => {
-    for (const agentWorktrees of ["on", "absent"] as const) {
-      const { page } = show([], { agentWorktrees })
-      expect(page.container.querySelector(".changes-empty")?.textContent).not.toContain(
-        "Preferences",
-      )
-      page.unmount()
-      mounted.pop()
-    }
   })
 
   context("before the backend has reported them", () => {

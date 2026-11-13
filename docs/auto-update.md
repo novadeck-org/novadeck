@@ -35,7 +35,7 @@ the same validated owner and repository from that file (`releases/repository.ts`
 A build follows one channel, which the person picks with Preferences' Experimental switch
 (on is `experimental`, which also turns on the IS_EXPERIMENTAL flag) and the app keeps
 across launches in `update.json` in the data folder. Turning the switch off also turns the
-runner's `worktrees` setting off (the Experimental tab's "Agent worktrees"), as does a launch
+runner's `worktrees` setting off (the Experimental tab's "Agent worktrees and Changes", which also shows the Changes panel), as does a launch
 that finds the channel stable, so that setting never stays on without its toggle. The same file keeps what the card of what is
 new needs (see "What is new"): `lastRunVersion`, `whatsNewPending`, `whatsNewFrom`,
 `whatsNewSettled` and `whatsNewCheckedAt`. A file written by an older build may carry other keys

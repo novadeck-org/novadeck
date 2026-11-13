@@ -217,7 +217,6 @@ export const ChangesPanel = ({
   titles,
   projects,
   selectedId,
-  agentWorktrees,
   active,
   watching,
   onClose,
@@ -236,9 +235,6 @@ export const ChangesPanel = ({
   projects: ReadonlyMap<string, string>
   // The selected terminal, where a work with no owner is shown.
   selectedId: string | undefined
-  // Whether agents may open worktrees: "off" points the empty list to Preferences. Absent
-  // where the backend has no such setting.
-  agentWorktrees: "on" | "off" | "absent"
   active: boolean
   // The panel is the one shown: the works are followed only then.
   watching: boolean
@@ -316,12 +312,6 @@ export const ChangesPanel = ({
               When an agent opens or takes a git worktree, it shows up here with its branch, and you
               can close it.
             </p>
-            {agentWorktrees === "off" && (
-              <p className="text-control">
-                Agents aren't asked to use worktrees. Turn on Agent worktrees in Preferences →
-                Experimental.
-              </p>
-            )}
           </div>
         )
       ) : (

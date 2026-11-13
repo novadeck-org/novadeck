@@ -58,8 +58,8 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
       }
     | undefined
   // Where the backend reports each tracked worktree's work against main: every project's works,
-  // the terminals' titles by id and the projects' names, the selected terminal, whether agents may open worktrees,
-  // what a row's click does and what its × does. Left out, there is no Changes panel.
+  // the terminals' titles by id and the projects' names, the selected terminal, what a row's
+  // click does and what its × does. Left out, there is no Changes panel.
   changes:
     | {
         works: readonly Work[]
@@ -70,7 +70,6 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
         titles: ReadonlyMap<string, string>
         projects: ReadonlyMap<string, string>
         selectedId: string | undefined
-        agentWorktrees: "on" | "off" | "absent"
         onSelect: (work: Work, on: string | undefined) => Promise<void>
         onCloseWork: (root: string, force: boolean) => Promise<WorkClosing>
       }
