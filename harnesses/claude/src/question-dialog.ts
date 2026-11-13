@@ -84,6 +84,20 @@ const review = "Ready to submit your answers?"
 const footerAt = (rows: readonly string[]): number =>
   rows.findLastIndex((each) => questionFooter.test(each))
 
+/**
+ * Whether a tab shows `header`: whole, or cut to its share of a bar too narrow for every
+ * header, ending in `…`. Claude Code gives the open question's tab up to half the room and
+ * shares the rest evenly between the others, cutting each to fit (2.1.323 bundle, its tab bar;
+ * seen 2026-11-13 at about 50 columns, three headers shown as `Ready PRs`, `Tell +…` and
+ * `Codex …`, which no question read as its own).
+ */
+const tabShows = (name: string, header: string): boolean => {
+  if (flat(name) === flat(header)) return true
+  if (!name.endsWith("…")) return false
+  const shown = flat(name.slice(0, -1))
+  return shown !== "" && flat(header).startsWith(shown)
+}
+
 /** A question screen's parts, by row: its tab bar or lone header, first option and footer. */
 type QuestionScreen = {
   readonly first: number
@@ -134,7 +148,7 @@ const showing = (rows: readonly string[], ask: Ask, place: Place): boolean => {
   return (
     shown !== undefined &&
     flat(shown.question.join("")) === flat(ask.question) &&
-    shown.tabs.some(({ name }) => flat(name) === flat(ask.header)) &&
+    shown.tabs.some(({ name }) => tabShows(name, ask.header)) &&
     optionsOf(rows, shown, ask, false, place) !== undefined
   )
 }
@@ -232,7 +246,7 @@ export const questions = (rows: readonly string[], facts: RequestFacts): DialogR
   if (shown.bar ? asked.length < 2 && !asked[0]!.multiSelect : asked.length !== 1) return undefined
   if (shown.bar && preview) return undefined
   if (shown.tabs.length !== asked.length) return undefined
-  if (shown.tabs.some(({ open, name }, at) => !open || flat(name) !== flat(asked[at]!.header))) {
+  if (shown.tabs.some(({ open, name }, at) => !open || !tabShows(name, asked[at]!.header))) {
     return undefined
   }
   const ask = asked[0]!
