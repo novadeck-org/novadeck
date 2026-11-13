@@ -180,7 +180,7 @@ describe("a terminal's drawing of its bar", () => {
   })
 
   context("the shells item's mark", () => {
-    it("counts the shells of the terminal the item is from, not of the bar it sits on", () => {
+    it("has none, running or failed, so it reads and marks as any item does", () => {
       const fromFox = itemFixture("shells", "02", {
         kind: "shells",
         name: "Shells",
@@ -199,18 +199,9 @@ describe("a terminal's drawing of its bar", () => {
         target: { projectId: "project", workspaceSessionId: "initial" },
         messagesHandle: {} as MessagesHandle,
         links: noLinks,
-        shells: { fox: [shell("a", 1)], moth: [shell("b", null)] },
+        shells: { fox: [shell("a", 1), shell("b", null)] },
       })
-      expect(draw.badge(itemMember(fromFox))?.label).toBe(", 1 failed")
-      const none = terminalDrawing({
-        plans: {},
-        itemStore: {} as ItemStore,
-        target: { projectId: "project", workspaceSessionId: "initial" },
-        messagesHandle: {} as MessagesHandle,
-        links: noLinks,
-        shells: { moth: [shell("b", null)] },
-      })
-      expect(none.badge(itemMember(fromFox))?.label).toBe("")
+      expect(draw.badge(itemMember(fromFox))).toBeUndefined()
     })
   })
 })
