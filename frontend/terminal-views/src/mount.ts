@@ -17,6 +17,14 @@ const phaseOf = (status: TerminalMountProps["status"]): ViewPhase =>
 // above one and ragged below, so Canvas keeps the DOM renderer.
 const wantsWebgl = (view: ViewMode): boolean => view !== "canvas"
 
+// How often a terminal draws its output, in ms (ShowOptions' `paceMs`). Canvas shows every
+// terminal at once on the DOM renderer, whose rows each draw costs style and layout: the
+// selected one draws as output comes, the others a few times a second, which keeps the
+// window's main thread free to pan and zoom with many agents busy.
+export const canvasPaceMs = 250
+const paceOf = (props: TerminalMountProps): number =>
+  props.view === "canvas" && props.selected === false ? canvasPaceMs : 0
+
 // The screens a mount takes its screen from, and how its terminal starts a fresh shell,
 // whether the mount holds a screen or not: a Canvas window in sight holds none until its turn
 // to take one comes, with its ending bar's Restart already showing.
@@ -28,6 +36,7 @@ const showOptions = (props: TerminalMountProps): ShowOptions => ({
   label: `Input for ${props.name}`,
   phase: phaseOf(props.status),
   webgl: wantsWebgl(props.view),
+  paceMs: paceOf(props),
 })
 
 // What every backend's screens are drawn in: the one input the port asks for, and the

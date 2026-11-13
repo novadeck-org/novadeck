@@ -111,6 +111,8 @@ type OpenScreen = {
   readonly state: MutableStore<ViewState>
   // Applies a change to the state, and the lock it brings to the emulator's input.
   readonly refresh: (change?: ViewChange) => void
+  // Sets how often it draws its output (ShowOptions' `paceMs`).
+  readonly pace: (ms: number) => void
   // The input's accessible name, as last written.
   label: string
   // The shell's stage, as the mount last said.
@@ -127,6 +129,9 @@ export type ShowOptions = {
   readonly label: string
   readonly phase: ViewPhase
   readonly webgl: boolean
+  // How often the screen draws its output, in ms: it gathers what arrives meanwhile and
+  // writes it in one go. 0 or absent draws it as it comes.
+  readonly paceMs?: number
 }
 
 // A mount's hold on a terminal's screen, from `acquire` to `release`.
@@ -142,6 +147,7 @@ export type Hold = {
     readonly label?: string
     readonly phase?: ViewPhase
     readonly webgl?: boolean
+    readonly paceMs?: number
   }) => void
   // Focuses the input, and says whether the focus landed in the screen.
   readonly focus: () => boolean
@@ -258,13 +264,44 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
     for (const [name, value] of Object.entries(o.markup?.input ?? {}))
       xterm.textarea?.setAttribute(name, value)
     xterm.textarea?.setAttribute("aria-label", label)
+    // Paced, output waits to be drawn in one write. A write that fails is told to the next
+    // one, so the stream draws the screen afresh as it would have.
+    let paceMs = 0
+    let gathered: string[] = []
+    let flushing: ReturnType<typeof setTimeout> | undefined
+    let failure: { readonly error: unknown } | undefined
+    const flush = (): void => {
+      clearTimeout(flushing)
+      flushing = undefined
+      if (!gathered.length) return
+      const data = gathered.join("")
+      gathered = []
+      writeTo(xterm, data).catch((error: unknown) => {
+        failure ??= { error }
+      })
+    }
     const drawn: Screen = {
       exited: () => {},
       live: () => {},
-      write: (data) => writeTo(xterm, data),
+      write: (data) => {
+        if (failure) {
+          const { error } = failure
+          failure = undefined
+          return Promise.reject(error)
+        }
+        if (!paceMs) return writeTo(xterm, data)
+        gathered.push(data)
+        flushing ??= setTimeout(flush, paceMs)
+        return Promise.resolve()
+      },
       // xterm's reset leaves its parser as it was, which a stream cut short or a write that
       // failed may have left inside a sequence: a CAN ends any, before the screen that follows.
+      // What waited to be drawn belongs to the screen the reset clears.
       reset: () => {
+        clearTimeout(flushing)
+        flushing = undefined
+        gathered = []
+        failure = undefined
         xterm.reset()
         xterm.write("\x18")
       },
@@ -311,6 +348,10 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
       renderer: view.renderer,
       state,
       refresh,
+      pace: (ms) => {
+        paceMs = ms
+        if (!ms) flush()
+      },
       label,
       get phase() {
         return stage
@@ -482,7 +523,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
   }
 
   // Takes one more hold on the terminal's screen, opening it on first use.
-  const take = (key: K, { webgl, ...options }: ShowOptions): OpenScreen => {
+  const take = (key: K, { webgl, paceMs = 0, ...options }: ShowOptions): OpenScreen => {
     const entry = entryOf(key)
     const known = entry.screen
     // The hold counts once the screen is open: one that fails to open leaves nothing held.
@@ -514,6 +555,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
     }
     screen.followed.unpark()
     screen.renderer.take(webgl)
+    screen.pace(paceMs)
     return screen
   }
   const letGo = (key: K): void => {
@@ -567,7 +609,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
             screen.xterm.focus()
           screen.refocus = false
         },
-        update: ({ label, phase, webgl }) => {
+        update: ({ label, phase, webgl, paceMs }) => {
           if (released) return
           if (label !== undefined) writeLabel(screen, label)
           if (phase !== undefined && phase !== screen.phase) {
@@ -578,6 +620,7 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
             wantsWebgl = webgl
             screen.renderer.take(webgl)
           }
+          if (paceMs !== undefined) screen.pace(paceMs)
         },
         focus: () => {
           screen.xterm.focus()

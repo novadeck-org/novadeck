@@ -71,6 +71,9 @@ export type TerminalMountProps = {
   // it. A backend whose terminals can sleep wakes one it is told is seen for a moment; any
   // other ignores it. Absent means not seen.
   readonly seen?: boolean
+  // Whether it is the selected terminal. A backend may draw the others' output in batches
+  // where many show at once, as the runner's does in Canvas. Absent means selected.
+  readonly selected?: boolean
 }
 
 export type TerminalMount = {

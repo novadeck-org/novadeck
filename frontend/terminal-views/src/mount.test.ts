@@ -4,10 +4,15 @@ import type { ViewMode } from "@novadeck/core/types"
 import type { Hold, ShowOptions } from "@novadeck/terminal/view"
 import { vi } from "vitest"
 
-import { createTerminalMount } from "./mount"
+import { canvasPaceMs, createTerminalMount } from "./mount"
 import { context, describe, expect, it } from "./test"
 
-type Asked = { readonly label?: string; readonly phase?: string; readonly webgl?: boolean }
+type Asked = {
+  readonly label?: string
+  readonly phase?: string
+  readonly webgl?: boolean
+  readonly paceMs?: number
+}
 
 const opening: ViewState = { live: false, resuming: false, waits: false, lock: null, notice: null }
 
@@ -55,9 +60,37 @@ describe("a terminal's mount", () => {
     const mount = createTerminalMount(screens)(document.createElement("div"), key, props("grid"))
     mount.update(props("canvas"))
     expect(asked).toEqual([
-      { label: "Input for zsh", phase: "running", webgl: true },
-      { label: "Input for zsh", phase: "running", webgl: false },
+      { label: "Input for zsh", phase: "running", webgl: true, paceMs: 0 },
+      { label: "Input for zsh", phase: "running", webgl: false, paceMs: 0 },
     ])
+  })
+
+  it("draws the terminals Canvas hasn't selected a few times a second, and any other at once", () => {
+    const paceIn = (view: ViewMode, selected?: boolean) => {
+      const { asked, screens } = recorded()
+      createTerminalMount(screens)(document.createElement("div"), key, {
+        ...props(view),
+        ...(selected !== undefined && { selected }),
+      })
+      return asked[0]?.paceMs
+    }
+    expect([
+      paceIn("canvas", false),
+      paceIn("canvas", true),
+      paceIn("canvas"),
+      paceIn("grid", false),
+      paceIn("focus", false),
+    ]).toEqual([canvasPaceMs, 0, 0, 0, 0])
+  })
+
+  it("draws at once as soon as Canvas selects it", () => {
+    const { asked, screens } = recorded()
+    const mount = createTerminalMount(screens)(document.createElement("div"), key, {
+      ...props("canvas"),
+      selected: false,
+    })
+    mount.update({ ...props("canvas"), selected: true })
+    expect(asked.map((options) => options.paceMs)).toEqual([canvasPaceMs, 0])
   })
 
   context("when its terminal is seen", () => {
