@@ -95,7 +95,7 @@ const lists: { readonly [agent in AgentName]: Classes } = {
       "write_stdin",
     ],
   },
-  // Recorded from Antigravity 1.4.3, and checked on 1.5.2 (the pin then, 2026-11-06).
+  // Recorded from Antigravity 1.4.3, and checked on 1.5.7 (the pin, 2026-11-13).
   agy: {
     asking: ["ask_question"],
     other: [
@@ -112,6 +112,10 @@ const lists: { readonly [agent in AgentName]: Classes } = {
       "schedule",
       "search_web",
       "send_message",
+      // Manages the agents working beside it on a shared board (add, kill, status, models,
+      // title). Never asks the person: its schema (read from the request 1.5.7 sends) has no
+      // question or prompt, only roster and model actions. Added in 1.5.7.
+      "swarm",
       "write_file",
     ],
   },
