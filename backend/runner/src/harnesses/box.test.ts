@@ -592,6 +592,8 @@ describe("Claude Code's agents view with a paste in its field", () => {
   it.each([
     "  enter to create · esc to clear",
     "  enter to create · esc to clear · ctrl+f to find",
+    // 2.1.323 (2026-11-13): two Escapes clear it.
+    "  enter to create · esc×2 to clear",
     "  enter to return · ? for shortcuts",
     "  enter to open · ? for shortcuts",
   ])("is a view, for no ring to take its field for the box: %s", (footer) => {

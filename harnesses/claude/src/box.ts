@@ -34,8 +34,8 @@ export const clearPending = (rows: readonly string[]): boolean =>
  * a task for a new session" field reads as an empty box and whose Enter starts a session;
  * the prompt history search Ctrl-R opens; the detailed transcript Ctrl-O toggles (probed
  * 2.1.287 in the e2e sandbox, 2026-10-16). With text in that field its footer says Enter creates
- * a session, or on a narrow screen returns or opens (2.1.316, 2026-11-07), and the text ends as a
- * line in a box would, so only that tells them apart. Without text the field shows its
+ * a session ("esc×2 to clear" from 2.1.323, 2026-11-13), or on a narrow screen returns or opens
+ * (2.1.316, 2026-11-07), and the text ends as a line in a box would, so only that tells them apart. Without text the field shows its
  * placeholder, which reads as a draft, whatever the footer. All of it is read under the box (the
  * field), as `footerRows` holds the box too and a line or a draft in it may say these words; the
  * transcript and the history search show no box, and have `footerRows` read (from the cursor
@@ -49,7 +49,9 @@ const overlay = (screen: ScreenText): boolean => {
       /enter to return · space to reply|Esc to cancel · ctrl\+s to scope|Showing detailed transcript/.test(
         row,
       ) ||
-      /^\s*enter to (?:create · esc to clear|(?:return|open|resume) · \? for shortcuts)/.test(row),
+      /^\s*enter to (?:create · esc(?:×2)? to clear|(?:return|open|resume) · \? for shortcuts)/.test(
+        row,
+      ),
   )
 }
 
