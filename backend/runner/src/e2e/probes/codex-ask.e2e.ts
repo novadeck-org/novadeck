@@ -644,6 +644,58 @@ describe.skipIf(!supported)("Codex ask surfaces (probe)", () => {
     })
   })
 
+  // A long question and a long label in a narrow pane, as Claude Code's AskUserQuestion
+  // showed one on 2026-11-13 that Novadeck couldn't read: whether either wraps, at each size.
+  it("request_user_input: a long question and label at several widths", async ({ e2e: run }) => {
+    run.model.use(
+      ...script("Ask me about the push", () => ({
+        calls: [
+          {
+            name: "request_user_input",
+            input: {
+              questions: [
+                {
+                  id: "review",
+                  header: "Review",
+                  question:
+                    'A reviewer left four comments on the pull request. I\'ve rebased it onto main and fixed all four (checks and the end-to-end tests pass locally). Because of the rebase the push has to be a force-push (--force-with-lease). OK to commit, force-push, fix the repeated "Short copy" sentence in its description, and post the four replies below?',
+                  options: [
+                    {
+                      label: "Push and reply (Recommended)",
+                      description:
+                        "Commit as shown, force-push with lease, fix the description, post the replies",
+                    },
+                    {
+                      label: "Push, no replies",
+                      description:
+                        "Commit, force-push and fix the description; I'll reply to the threads myself",
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      })),
+    )
+    const t = await open(run, "--enable default_mode_request_user_input")
+    await t.prompt("Ask me about the push")
+    await waitScreen(t, /Push and reply/)
+    const screens: Record<string, Json> = {}
+    for (const [columns, height] of [
+      [120, 40],
+      [80, 40],
+      [60, 40],
+      [52, 40],
+      [44, 40],
+    ] as const) {
+      t.resize(columns, height)
+      // eslint-disable-next-line no-await-in-loop -- The sizes are tried in turn.
+      screens[`${columns}x${height}`] = rows(await settled(t, 1200), columns)
+    }
+    save(run, "rui-long-narrow", { screens })
+  })
+
   // "Chat about this" on every harness: the question abandoned with Esc (which interrupts
   // the turn), then the person's words sent as the next prompt; against answering with
   // "None of the above" and notes. What each leaves: the turn, the hooks, the rollout, the

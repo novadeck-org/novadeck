@@ -39,6 +39,7 @@ const ask = (...questions: unknown[]) => ({
   calls: [{ name: "AskUserQuestion", input: { questions } }],
 })
 const Down = "\x1b[B"
+const Up = "\x1b[A"
 
 surface({
   name: "ask-multi",
@@ -110,6 +111,51 @@ surface({
     await shot("down")
     t.press("1")
     await shot("pressed-1")
+  },
+})
+
+// Reported 2026-11-13 (Claude Code 2.1.323): one question whose first option alone has a
+// preview, with a long question and a label that wraps beside the preview's box in a narrow
+// pane; the chat showed "Claude's own dialog" for it.
+surface({
+  name: "ask-preview-mixed",
+  reply: ask({
+    question:
+      'A reviewer left four comments on the pull request. I\'ve rebased it onto main and fixed all four (checks and the end-to-end tests pass locally). Because of the rebase the push has to be a force-push (--force-with-lease). OK to commit, force-push, fix the repeated "Short copy" sentence in its description, and post the four replies below?',
+    header: "Review",
+    multiSelect: false,
+    options: [
+      {
+        label: "Push and reply (Recommended)",
+        description:
+          "Commit as shown, force-push with lease, fix the description, post the replies",
+        preview:
+          "Commit:\nfix(home): address the review of the card stack\n\nDerive the stacking margins from a card count on the list, point\nthe sticky top at the header, check the overlap in the short\ndesktop test, and set reduced motion in the test body.\n\nReply on the sticky top:\nAdded a comment on `top` pointing at the header.",
+      },
+      {
+        label: "Push, no replies",
+        description: "Commit, force-push and fix the description; I'll reply to the threads myself",
+      },
+      { label: "Not yet", description: "Leave everything local so I can review first" },
+    ],
+  }),
+  shows: /☐ Review/,
+  sizes: [
+    [80, 40],
+    [60, 40],
+    [52, 40],
+    [52, 30],
+  ],
+  drive: async (t, _p, shot) => {
+    t.press(Down)
+    await shot("down")
+    t.press(Down)
+    await shot("down-2")
+    t.resize(52, 40)
+    await shot("down-2-52x40", 900)
+    t.press(Up)
+    t.press(Up)
+    await shot("top-52x40")
   },
 })
 

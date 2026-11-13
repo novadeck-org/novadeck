@@ -22,6 +22,36 @@ import {
 } from "./dialogs.test-support.js"
 
 describe("Antigravity's ask_question", () => {
+  // 1.5.3: a long question and a long first option, which wrap to the row's start from 52
+  // columns down, as a Claude Code question Novadeck couldn't read did on 2026-11-13.
+  it.each(["120x40", "80x40", "52x40", "44x40"])(
+    "is read whole where the question and an option wrap, at %s",
+    (size) => {
+      const long =
+        "Push and reply (Recommended): commit as shown, force-push with lease, fix the description, post the replies"
+      const facts = questionFacts(
+        asking({
+          question:
+            'A reviewer left four comments on the pull request. I\'ve rebased it onto main and fixed all four (checks and the end-to-end tests pass locally). Because of the rebase the push has to be a force-push (--force-with-lease). OK to commit, force-push, fix the repeated "Short copy" sentence in its description, and post the four replies below?',
+          options: [long, "Push, no replies", "Not yet"],
+          is_multi_select: false,
+        }),
+      )
+      const found = read(ask.longNarrow.screens[size]!.rows, facts)
+      expect(found.dialog).toMatchObject({
+        questions: [
+          {
+            options: [
+              { id: "1", label: long },
+              { id: "2", label: "Push, no replies" },
+              { id: "3", label: "Not yet" },
+            ],
+          },
+        ],
+      })
+    },
+  )
+
   it("is read at both sizes: one single-select, its Write-in a field", () => {
     for (const screen of [ask.pending.screen120!.rows, ask.pending.screen60!.rows]) {
       const found = read(screen, questionFacts(colour))
