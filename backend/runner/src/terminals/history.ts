@@ -20,6 +20,7 @@ import { agentLabel } from "../messaging/messages.js"
 import type { ClosedRecord, ClosedRecords, ListedClosed } from "../workspaces/closed.js"
 import { savedSession } from "./binding/standing.js"
 import { mention } from "./handles.js"
+import type { Former } from "./introductions.js"
 import type { Record } from "./record.js"
 import { resumeNote } from "./resumes.js"
 import {
@@ -34,12 +35,6 @@ const log = logs.for("history")
 
 /** A closed terminal is kept this long, in milliseconds. */
 const retentionMs = 7 * 24 * 60 * 60 * 1000
-
-/** What History needs of the store: closed rows, and keeping a handle in a session. */
-export type HistoryRecords = ClosedRecords & {
-  /** Records that the session gave the handle, unless it gave it already; whether it did now. */
-  adoptHandle(sessionId: string, handle: string): boolean
-}
 
 /** A running terminal, by the handle the person sees and the id that is unique. */
 type OpenTerminal = { readonly handle: string; readonly terminalId: string }
@@ -82,7 +77,7 @@ export type Closing = Record
 
 /** What the runner lets History ask of it. */
 export type HistoryHost = {
-  readonly records: HistoryRecords | undefined
+  readonly records: ClosedRecords | undefined
   /** Every project's id. */
   readonly projects: () => readonly string[]
   readonly projectOf: (sessionId: string) => string
@@ -93,11 +88,13 @@ export type HistoryHost = {
   readonly connected: (agent: AgentName) => Promise<boolean>
   /** The terminal holding or claiming the agent's session, if one does. */
   readonly holder: (agent: AgentName, sessionId: string) => OpenTerminal | undefined
-  /** Each terminal of a session, running or kept, with the handle it leads under. */
-  readonly terminalsIn: (
-    sessionId: string,
-  ) => readonly { readonly handle: string; readonly ledBy: string | null }[]
-  /** A handle the session has never given. */
+  /**
+   * Takes the handle for the terminal in the session's project: false when anything there
+   * holds it (a terminal open, asleep, saved or still closing, a create under way), or
+   * another terminal freed it less than a cooldown ago (see `nextHandle`).
+   */
+  readonly claimHandle: (sessionId: string, handle: string, terminalId: string) => boolean
+  /** A handle nothing in the session's project holds. */
   readonly drawHandle: (sessionId: string) => string
   /** Gives back the sessions the terminal claimed. */
   readonly releaseClaim: (terminalId: string) => void
@@ -412,6 +409,17 @@ export class ClosedTerminals {
     return pooled(rows, (row) => this.wire(row, pass))
   }
 
+  /**
+   * The terminal that last held the handle in the project and closed no later than `before`,
+   * if History still keeps it: its title and when it closed.
+   */
+  lastHolder(projectId: string, handle: string, before: number): Former | undefined {
+    const row = (this.host.records?.closed(projectId) ?? []).find(
+      (each) => each.handle === handle && each.closedAt <= before,
+    )
+    return row && { title: summaryTitle(row.naming, row).title, closedAt: row.closedAt }
+  }
+
   /** Every closed terminal, `synced`, then each later change, until `signal` aborts. */
   async *watch(ownerId: string, signal?: AbortSignal): AsyncGenerator<HistoryChange> {
     if (this.host.stopping()) throw new DomainError("CLOSING")
@@ -460,7 +468,6 @@ export class ClosedTerminals {
     const { title } = summaryTitle(row.naming, {
       handle: row.handle,
       command: row.command,
-      openedBy: null,
     })
     return {
       id: row.id,
@@ -671,6 +678,7 @@ export class ClosedTerminals {
         id: row.id,
         sessionId: row.sessionId,
         handle: row.handle,
+        handleGivenAt: 0,
         naming: row.naming,
         openedBy: null,
         ledBy: null,
@@ -696,19 +704,15 @@ export class ClosedTerminals {
   }
 
   /**
-   * The handle the restored terminal has in the session: its own, unless a terminal there has
-   * it, leads under it (a restored lead must not regain workers by name), or another
-   * terminal of that session was given it. Else one the session never gave.
+   * The handle the restored terminal has in the session: its own, unless something in the
+   * project holds it, or another terminal freed it within the last hour (the terminal's own
+   * hour, which its close started, doesn't count). Else a handle nothing in the project
+   * holds. A restored lead regains no workers: it is a new terminal, with an id of its own.
    */
   private handleFor(row: ClosedRecord, sessionId: string): string {
-    const taken = this.host
-      .terminalsIn(sessionId)
-      .some((terminal) => terminal.handle === row.handle || terminal.ledBy === row.handle)
-    // A handle the session gave this very terminal is recorded already.
-    const adopted =
-      !taken &&
-      (row.sessionId === sessionId || this.host.records?.adoptHandle(sessionId, row.handle))
-    return adopted ? row.handle : this.host.drawHandle(sessionId)
+    return this.host.claimHandle(sessionId, row.handle, row.id)
+      ? row.handle
+      : this.host.drawHandle(sessionId)
   }
 
   private started(

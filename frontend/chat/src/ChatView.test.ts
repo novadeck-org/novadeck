@@ -509,7 +509,7 @@ describe("a chat sending a message", () => {
     const message = {
       id: "m-1",
       deliveredAt: 10_000,
-      from: { kind: "agent", handle: "moth", agent: "claude" },
+      from: { kind: "agent", terminalId: "id-moth", handle: "moth", agent: "claude" },
       text: "Check the export job.",
     } as unknown as AgentMessage
     const conversation = createStore<Conversation>({

@@ -1447,12 +1447,6 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     await expect(
       fixture.items.changeFile({ itemId: "nope", path: "a.txt", layers: ["uncommitted"] }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" })
-    await expect(
-      fixture.items.changeRange({ itemId, layers: ["uncommitted"] }),
-    ).resolves.toMatchObject({ files: [{ path: "a.txt", added: 1 }], truncated: false })
-    await expect(
-      fixture.items.changeRange({ itemId: "nope", layers: ["uncommitted"] }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" })
     fixture.items.close(itemId)
   })
 

@@ -43,6 +43,7 @@ describe("the demo's messages", () => {
       terminals[at("01", elsewhere)]?.threads.find((thread) => partyIs(thread.peer, "crow"))?.held,
     ).toBe(true)
     expect(demo().state.getSnapshot().terminals[at("01", elsewhere)]).toEqual({
+      terminalId: demoTerminalId(elsewhere, 1),
       handle: "moth",
       agent: true,
       waits: null,

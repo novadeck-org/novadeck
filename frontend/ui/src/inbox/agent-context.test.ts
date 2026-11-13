@@ -16,7 +16,12 @@ import { act, createElement } from "react"
 import { describe, expect, it } from "../test"
 import { AgentContextProvider, useAgentContext } from "./agent-context"
 
-const agent = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
+const agent = (handle: string): MessageParty => ({
+  kind: "agent",
+  terminalId: `id-${handle}`,
+  handle,
+  agent: null,
+})
 
 const source = {
   projectId: "p",
@@ -91,6 +96,7 @@ const backend = () => {
     ...noMessages,
     terminals: {
       [terminalKeyPath(source)]: {
+        terminalId: "id-owl",
         handle: "owl",
         agent: true,
         threads: [

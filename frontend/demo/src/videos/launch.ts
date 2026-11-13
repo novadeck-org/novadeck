@@ -1133,7 +1133,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
             job.name,
             job.agent,
             working,
-            lead,
+            keyOf(launch.lead).terminalId,
             true,
           ),
           // Placed by the Canvas itself, in their lead's team.

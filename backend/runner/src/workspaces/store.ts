@@ -28,8 +28,15 @@ import type { InboxRecords, StoredEntry } from "../messaging/inbox.js"
 import { novadeckSender, personSender, type Message, type Thread } from "../messaging/messages.js"
 import type { MessageRecords } from "../messaging/records.js"
 import { storedReport, type LoggedReport, type LogWrite } from "../messaging/report-log.js"
-import { handleOrder, nextHandle } from "../terminals/handles.js"
+import {
+  claimable,
+  handleCooldown,
+  handleOrder,
+  nextHandle,
+  type PooledHandle,
+} from "../terminals/handles.js"
 import type {
+  HandleOptions,
   ListedTerminal,
   SavedTerminal,
   TerminalIdentity,
@@ -74,8 +81,15 @@ const projectOf = ({ pinned, ...project }: ProjectRow): Project => ({
 // 13: what agents reported and how their turns ended has a log of its own (`report_log`),
 // apart from the Inbox's entries, filled from them in the step from 12.
 // 14: the worktrees agents work in have an ownership table of their own (`worktrees`).
-// 15: an item may be a terminal's background shells (`kind` takes 'shells').
-const schemaVersion = 15
+// 15: a terminal's opener and lead are named by terminal id (`opener_terminal`,
+// `lead_terminal`), not by handle, with the opener's handle kept for display
+// (`opener_handle`).
+// 16: handles are unique in a project, not a session, and come back an hour after their
+// terminal is gone: `project_handles` replaces `session_handles`, and a terminal keeps
+// where its handle comes in the order they were given (`handle_seq`) and when it was
+// given (`handle_given_at`).
+// 17: an item may be a terminal's background shells (`kind` takes 'shells').
+const schemaVersion = 17
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -105,7 +119,8 @@ const schema = `
   CREATE TABLE terminals (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    -- Its handle in its session, a word such as moth, given once (see session_handles).
+    -- Its handle, a word such as moth, which its project gave it (see project_handles). Only
+    -- terminals made before handles were unique in a project share one with another session's.
     handle TEXT NOT NULL,
     -- The shell's last reported directory.
     cwd TEXT NOT NULL,
@@ -118,17 +133,19 @@ const schema = `
     saved_at REAL NOT NULL,
     -- The title the person gave it; null when its title is automatic.
     person_title TEXT,
-    -- The title the agent that opened it asked for; its handle is opened_by.
+    -- The title the agent that opened it asked for; opener_handle is the handle that agent's
+    -- terminal had then, which the title's source names.
     opener_title TEXT,
     -- The title murmur last wrote for it.
     murmur_title TEXT,
     -- What its own agent said it works on, through describe.
     summary TEXT,
-    -- The handle of the terminal whose agent opened it; null otherwise.
-    opened_by TEXT,
-    -- The handle of its lead: the terminal whose agent opened it with a brief for the agent
+    -- The id of the terminal whose agent opened it, which may have closed since; null
+    -- otherwise.
+    opener_terminal TEXT,
+    -- The id of its lead: the terminal whose agent opened it with a brief for the agent
     -- there, until that agent exits; null otherwise.
-    led_by TEXT,
+    lead_terminal TEXT,
     -- The command it was opened to run at its first prompt.
     command TEXT,
     -- The program in its foreground when its shell was last seen.
@@ -143,16 +160,39 @@ const schema = `
     -- Whether a line was ever entered in it; closing one where none was leaves no row in
     -- History. New terminals start at 0.
     ran INTEGER NOT NULL DEFAULT 1 CHECK (ran IN (0, 1)),
+    -- The handle of the terminal that opened it as that terminal had it then: a display
+    -- snapshot, for the source of opener_title ("named by the agent in @moth"), which
+    -- opener_terminal, the link, cannot give once that terminal has closed. Null where no
+    -- agent opened it; kept whether or not that agent asked for a title.
+    opener_handle TEXT,
+    -- Where its handle comes in the order the project gave them, which is the order the
+    -- terminals were asked for and is listed in.
+    handle_seq INTEGER NOT NULL DEFAULT 0,
+    -- When it was given its handle, in epoch milliseconds; 0, long ago, where that is not
+    -- known (terminals made before it was kept).
+    handle_given_at REAL NOT NULL DEFAULT 0,
     UNIQUE (session_id, handle),
     -- What an item's foreign key names; a save may move a terminal to another session, and
     -- its items go with it.
     UNIQUE (id, session_id)
   ) STRICT;
-  -- Every handle a session ever gave its terminals, closed ones' too, so none is given twice.
-  CREATE TABLE session_handles (
-    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  -- Every handle a project has given, to terminals since closed too. A terminal (a row here
+  -- or a record in the runner) holds its handle; once none does, the handle rests a cooldown
+  -- from freed_at, then the project may give it again, the one freed longest ago first.
+  -- freed_by is the terminal that went, or took the handle, which may take it back sooner.
+  -- freed_at is null until one goes: the cooldown then runs from taken_at, when the handle was
+  -- last given or taken back, which holds the handle of a create that has not ended, or
+  -- failed. given_seq orders the gives; given_at is when the terminal now holding the handle
+  -- was given it, which a terminal taking back its own (a restore) keeps.
+  CREATE TABLE project_handles (
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     handle TEXT NOT NULL,
-    PRIMARY KEY (session_id, handle)
+    given_seq INTEGER NOT NULL,
+    given_at REAL NOT NULL,
+    taken_at REAL NOT NULL,
+    freed_at REAL,
+    freed_by TEXT,
+    PRIMARY KEY (project_id, handle)
   ) STRICT;
   CREATE TABLE settings (
     key TEXT PRIMARY KEY,
@@ -843,11 +883,81 @@ const migrations: Readonly<Record<number, Step>> = {
     CREATE INDEX worktrees_project ON worktrees(project_id);
     CREATE INDEX worktrees_terminal ON worktrees(terminal_id);
   `,
+  // A terminal names the terminal that opened it and the one that leads it by id, as a
+  // handle can be given to a later terminal. A handle is unique within its session, so each
+  // names exactly one terminal there. A lead or opener that has closed names none: null.
+  // That an agent opened it stays as `opener_handle`, which its title's source names.
+  14: `
+    ALTER TABLE terminals ADD COLUMN opener_handle TEXT;
+    UPDATE terminals SET
+      opener_handle = opened_by,
+      opened_by = (SELECT o.id FROM terminals o
+        WHERE o.session_id = terminals.session_id AND o.handle = terminals.opened_by),
+      led_by = (SELECT o.id FROM terminals o
+        WHERE o.session_id = terminals.session_id AND o.handle = terminals.led_by);
+    ALTER TABLE terminals RENAME COLUMN opened_by TO opener_terminal;
+    ALTER TABLE terminals RENAME COLUMN led_by TO lead_terminal;
+  `,
+  // A project, not a session, gives a handle, and takes it back after its terminal is gone.
+  // The terminals that exist hold their handles, even where two sessions of a project share
+  // one: they are not renamed, and keep it until they close. A handle that a session gave
+  // and no terminal of the project has is released: at the latest close of a terminal of the
+  // project that had it (History's row, whose id is who may take it back sooner), or long ago
+  // (0) where there is none, so it can be given again at once. A handle only History
+  // remembers, as its session was deleted, is pooled that way too. Terminals keep the order they were listed in (the order their
+  // sessions gave handles, then their rows), and their handle was given long ago (0), which
+  // anything written since is later than.
+  15: `
+    CREATE TABLE project_handles (
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      handle TEXT NOT NULL,
+      given_seq INTEGER NOT NULL,
+      given_at REAL NOT NULL,
+      taken_at REAL NOT NULL,
+      freed_at REAL,
+      freed_by TEXT,
+      PRIMARY KEY (project_id, handle)
+    ) STRICT;
+    ALTER TABLE terminals ADD COLUMN handle_seq INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE terminals ADD COLUMN handle_given_at REAL NOT NULL DEFAULT 0;
+    UPDATE terminals SET handle_seq = (
+      SELECT ordered.place FROM (
+        SELECT t.id, ROW_NUMBER() OVER (ORDER BY h.rowid IS NULL, h.rowid, t.rowid) AS place
+        FROM terminals t LEFT JOIN session_handles h USING (session_id, handle)
+      ) AS ordered WHERE ordered.id = terminals.id
+    );
+    INSERT INTO project_handles (project_id, handle, given_seq, given_at, taken_at, freed_at,
+      freed_by)
+    SELECT given.project_id, given.handle,
+      COALESCE(MIN(held.handle_seq), 0), 0, 0,
+      CASE WHEN COUNT(held.id) > 0 THEN NULL ELSE COALESCE((
+        SELECT MAX(c.closed_at) FROM closed_terminals c
+        WHERE c.project_id = given.project_id AND c.handle = given.handle
+      ), 0) END,
+      CASE WHEN COUNT(held.id) > 0 THEN NULL ELSE (
+        SELECT c.id FROM closed_terminals c
+        WHERE c.project_id = given.project_id AND c.handle = given.handle
+        ORDER BY c.closed_at DESC LIMIT 1
+      ) END
+    FROM (
+      SELECT s.project_id, h.handle FROM session_handles h JOIN sessions s ON s.id = h.session_id
+      UNION
+      SELECT s.project_id, t.handle FROM terminals t JOIN sessions s ON s.id = t.session_id
+      UNION
+      SELECT c.project_id, c.handle FROM closed_terminals c
+    ) AS given
+    LEFT JOIN (
+      SELECT s.project_id, t.handle, t.id, t.handle_seq
+      FROM terminals t JOIN sessions s ON s.id = t.session_id
+    ) AS held ON held.project_id = given.project_id AND held.handle = given.handle
+    GROUP BY given.project_id, given.handle;
+    DROP TABLE session_handles;
+  `,
   // A table's CHECK can't change in place, so the items are rebuilt with the new kind and
   // copied by column name, rowids kept, as they order the rows. No table references them,
   // so renaming the old one points nothing at it.
-  14: `
-    ALTER TABLE companion_items RENAME TO companion_items_14;
+  16: `
+    ALTER TABLE companion_items RENAME TO companion_items_16;
     DROP INDEX IF EXISTS companion_items_bar;
     DROP INDEX IF EXISTS companion_items_session;
     CREATE TABLE companion_items (
@@ -897,8 +1007,8 @@ const migrations: Readonly<Record<number, Step>> = {
       shown_by, from_terminal, from_handle, version, open_asked, shown_at, observed_at)
     SELECT rowid, id, session_id, terminal_id, window_id, pointer_key, kind, path, url, lines_from,
       lines_to, plan_agent, plan_agent_session, plan_actor, plan_format, name, detail, secret,
-      shown_by, from_terminal, from_handle, version, open_asked, shown_at, observed_at FROM companion_items_14;
-    DROP TABLE companion_items_14;
+      shown_by, from_terminal, from_handle, version, open_asked, shown_at, observed_at FROM companion_items_16;
+    DROP TABLE companion_items_16;
   `,
 }
 // SQLite's primary result codes that say a step doesn't fit the database it met, or that
@@ -1192,13 +1302,15 @@ type TerminalRow = {
   transcript: string | null
   saved_at: number
   handle: string
+  handle_given_at: number
   person_title: string | null
   opener_title: string | null
+  opener_handle: string | null
   murmur_title: string | null
   own_title: string | null
   summary: string | null
-  opened_by: string | null
-  led_by: string | null
+  opener_terminal: string | null
+  lead_terminal: string | null
   command: string | null
   last_program: string | null
   work: string | null
@@ -1217,11 +1329,17 @@ const workOf = (text: string | null): Work | null => {
 type NamingRow = Pick<
   TerminalRow,
   "person_title" | "opener_title" | "murmur_title" | "own_title" | "summary"
->
+> & { readonly opener_handle?: string | null }
 
 const namingOf = (row: NamingRow): Naming => ({
   person: row.person_title,
-  opener: row.opener_title !== null ? { title: row.opener_title } : null,
+  opener:
+    row.opener_title !== null || row.opener_handle
+      ? {
+          ...(row.opener_title !== null ? { title: row.opener_title } : {}),
+          ...(row.opener_handle ? { by: row.opener_handle } : {}),
+        }
+      : null,
   murmur: row.murmur_title !== null ? { title: row.murmur_title } : null,
   own: row.own_title !== null ? { title: row.own_title } : null,
   summary: row.summary,
@@ -1250,10 +1368,11 @@ const listed = (row: Omit<TerminalRow, "transcript" | "interruptions">): ListedT
   id: row.id,
   sessionId: row.session_id,
   handle: row.handle,
+  handleGivenAt: row.handle_given_at,
   naming: namingOf(row),
   work: workOf(row.work),
-  openedBy: row.opened_by,
-  ledBy: row.led_by,
+  openedBy: row.opener_terminal,
+  ledBy: row.lead_terminal,
   command: row.command === null ? null : commandOf(row.command),
   lastProgram: row.last_program,
   cwd: row.cwd,
@@ -1665,7 +1784,7 @@ export class WorkspaceStore
   }
 
   /**
-   * Deletes the project, its sessions, what they kept of their terminals and their
+   * Deletes the project, its sessions, what they kept of their terminals, its pool of
    * handles, its items and windows, and its agents' messages, threads and Inbox entries, all
    * at once, by their foreign keys; an unknown project is `NOT_FOUND`. Its terminals' shells
    * are the caller's to end first.
@@ -1710,15 +1829,26 @@ export class WorkspaceStore
   }
 
   /**
-   * Deletes the session and what it kept: its terminals' saved records, handles, items and
-   * windows, by their foreign keys. Its terminals' shells are the caller's to end first. An
+   * Deletes the session and what it kept: its terminals' saved records, items and windows,
+   * by their foreign keys; their handles rest from now (see `project_handles`). Its terminals' shells are the caller's to end first. An
    * unknown session is `NOT_FOUND`; the project's last one is a `CONFLICT`.
    */
   removeSession(sessionId: string): void {
     const { projectId } = this.session(sessionId)
     if (this.sessions(projectId).length === 1)
       throw new DomainError("CONFLICT", "A project keeps at least one session")
-    this.forget(() => this.queries.run`DELETE FROM sessions WHERE id = ${sessionId}`)
+    this.forget(() =>
+      this.transaction(() => {
+        // What its terminals still hold starts to rest.
+        const now = Date.now()
+        for (const row of this.queries.all`
+          SELECT id, handle FROM terminals WHERE session_id = ${sessionId}`) {
+          const { id, handle } = row as { id: string; handle: string }
+          this.free(projectId, handle, id, now)
+        }
+        return this.queries.run`DELETE FROM sessions WHERE id = ${sessionId}`
+      }),
+    )
   }
 
   /**
@@ -1762,8 +1892,8 @@ export class WorkspaceStore
   terminal(terminalId: string): SavedTerminal | undefined {
     const row = this.queries.get`
       SELECT id, session_id, cwd, agent_reports, prompted_at, transcript, saved_at, handle,
-        person_title, opener_title, murmur_title, own_title, summary, opened_by,
-        led_by, command, last_program, work, interruptions
+        handle_given_at, person_title, opener_title, opener_handle, murmur_title, own_title, summary,
+        opener_terminal, lead_terminal, command, last_program, work, interruptions
       FROM terminals WHERE id = ${terminalId}
     ` as TerminalRow | undefined
     return (
@@ -1775,53 +1905,151 @@ export class WorkspaceStore
     )
   }
 
-  // In the order their handles were given, which is the order they were asked for: a
-  // terminal whose create waited longer is saved later, though it was named first.
+  // In the order their handles were given, which is the order they were asked for (creation
+  // order): a terminal whose create waited longer is saved later, though it was named first.
+  // A handle a project gives again puts its new terminal after the others, not in its old
+  // place.
   terminals(sessionId?: string): ListedTerminal[] {
     const rows = (
       sessionId === undefined
         ? this.queries.all`
-          SELECT t.id, t.session_id, t.cwd, t.agent_reports, t.prompted_at, t.saved_at, t.handle,
-            t.person_title, t.opener_title, t.murmur_title, t.own_title, t.summary,
-            t.opened_by, t.led_by, t.command, t.last_program, t.work
-          FROM terminals t LEFT JOIN session_handles h USING (session_id, handle)
-          ORDER BY h.rowid IS NULL, h.rowid, t.rowid`
+          SELECT id, session_id, cwd, agent_reports, prompted_at, saved_at, handle,
+            handle_given_at, person_title, opener_title, opener_handle, murmur_title, own_title,
+            summary, opener_terminal, lead_terminal, command, last_program, work
+          FROM terminals ORDER BY handle_seq, rowid`
         : this.queries.all`
-          SELECT t.id, t.session_id, t.cwd, t.agent_reports, t.prompted_at, t.saved_at, t.handle,
-            t.person_title, t.opener_title, t.murmur_title, t.own_title, t.summary,
-            t.opened_by, t.led_by, t.command, t.last_program, t.work
-          FROM terminals t LEFT JOIN session_handles h USING (session_id, handle)
-          WHERE t.session_id = ${sessionId}
-          ORDER BY h.rowid IS NULL, h.rowid, t.rowid`
+          SELECT id, session_id, cwd, agent_reports, prompted_at, saved_at, handle,
+            handle_given_at, person_title, opener_title, opener_handle, murmur_title, own_title,
+            summary, opener_terminal, lead_terminal, command, last_program, work
+          FROM terminals WHERE session_id = ${sessionId} ORDER BY handle_seq, rowid`
     ) as Omit<TerminalRow, "transcript" | "interruptions">[]
     return rows.map(listed)
   }
 
-  giveHandle(sessionId: string, order = handleOrder(sessionId)): string {
+  private projectOfSession(sessionId: string): string | undefined {
+    return (
+      this.queries.get`SELECT project_id FROM sessions WHERE id = ${sessionId}` as
+        | { project_id: string }
+        | undefined
+    )?.project_id
+  }
+
+  /** Every handle the project has given, held or freed. */
+  private pool(projectId: string): Map<string, PooledHandle> {
+    return new Map(
+      this.queries.all`
+          SELECT handle, COALESCE(freed_at, taken_at) AS freed_at, freed_by
+          FROM project_handles WHERE project_id = ${projectId}`.map((row) => {
+        const { handle, freed_at, freed_by } = row as {
+          handle: string
+          freed_at: number
+          freed_by: string | null
+        }
+        return [handle, { freedAt: freed_at, freedBy: freed_by }] as const
+      }),
+    )
+  }
+
+  /**
+   * The handles held in a project: its terminals' (open, asleep or saved, whichever
+   * session) and those the runner holds in memory, a closing terminal's too.
+   */
+  private held(projectId: string, holding: readonly string[] = []) {
+    const rows = this.queries.all`
+      SELECT t.handle FROM terminals t JOIN sessions s ON s.id = t.session_id
+      WHERE s.project_id = ${projectId}`
+    return new Set([...column(rows), ...holding])
+  }
+
+  /** The next sequence number of a handle given, above those of every terminal and handle. */
+  private nextSeq(): number {
+    const row = this.queries.get`
+      SELECT MAX(
+        COALESCE((SELECT MAX(given_seq) FROM project_handles), 0),
+        COALESCE((SELECT MAX(handle_seq) FROM terminals), 0)
+      ) + 1 AS seq` as { seq: number }
+    return row.seq
+  }
+
+  /**
+   * Gives the handle. To `by`, a terminal taking its own handle back (a restore, an undo),
+   * it keeps when it was given: references written before it went meant this terminal. Held
+   * a cooldown from now either way (`taken_at`), as a create that has not ended is.
+   */
+  private hold(projectId: string, handle: string, now: number, by: string | null = null): void {
+    const seq = this.nextSeq()
+    const own = by !== null ? 1 : 0
+    void this.queries.run`
+      INSERT INTO project_handles (project_id, handle, given_seq, given_at, taken_at, freed_by)
+      VALUES (${projectId}, ${handle}, ${seq}, ${now}, ${now}, ${by})
+      ON CONFLICT (project_id, handle) DO UPDATE SET given_seq = excluded.given_seq,
+        given_at = CASE WHEN ${own} = 1 AND project_handles.freed_by IS excluded.freed_by
+          THEN project_handles.given_at ELSE excluded.given_at END,
+        taken_at = excluded.taken_at, freed_at = NULL, freed_by = excluded.freed_by`
+  }
+
+  giveHandle(
+    sessionId: string,
+    order = handleOrder(sessionId),
+    { holding, now = Date.now(), cooldown = handleCooldown }: HandleOptions = {},
+  ): string {
     return this.transaction(() => {
-      const given = column(
-        this.queries.all`SELECT handle FROM session_handles WHERE session_id = ${sessionId}`,
-      )
-      const open = column(
-        this.queries.all`SELECT handle FROM terminals WHERE session_id = ${sessionId}`,
-      )
+      const projectId = this.projectOfSession(sessionId)
+      if (projectId === undefined) throw new DomainError("NOT_FOUND", "Session not found")
+      const pool = this.pool(projectId)
       const handle = nextHandle({
         order,
-        given: new Set([...given, ...open]),
-        open,
+        pool,
+        held: this.held(projectId, holding),
+        open: column(
+          this.queries.all`SELECT handle FROM terminals WHERE session_id = ${sessionId}`,
+        ),
+        now,
+        cooldown,
       })
-      void this.queries
-        .run`INSERT INTO session_handles (session_id, handle) VALUES (${sessionId}, ${handle})`
+      this.hold(projectId, handle, now)
       return handle
     })
   }
 
-  adoptHandle(sessionId: string, handle: string): boolean {
+  claimHandle(
+    sessionId: string,
+    handle: string,
+    terminalId: string,
+    { holding, now = Date.now(), cooldown = handleCooldown }: HandleOptions = {},
+  ): boolean {
+    return this.transaction(() => {
+      const projectId = this.projectOfSession(sessionId)
+      if (projectId === undefined) return false
+      const pool = this.pool(projectId)
+      const held = this.held(projectId, holding)
+      if (!claimable(handle, { pool, held, now, cooldown }, terminalId)) return false
+      this.hold(projectId, handle, now, terminalId)
+      return true
+    })
+  }
+
+  releaseHandle(sessionId: string, handle: string, terminalId: string, now = Date.now()): void {
+    const projectId = this.projectOfSession(sessionId)
+    if (projectId !== undefined) this.free(projectId, handle, terminalId, now)
+  }
+
+  // A terminal freeing its handle again (its row went, then its record let go) leaves it
+  // resting from the first time: the cooldown doesn't start over.
+  private free(projectId: string, handle: string, terminalId: string, now: number): void {
+    void this.queries.run`
+      UPDATE project_handles SET freed_by = ${terminalId},
+        freed_at = CASE WHEN freed_at IS NOT NULL AND freed_by IS ${terminalId}
+          THEN freed_at ELSE ${now} END
+      WHERE project_id = ${projectId} AND handle = ${handle}`
+  }
+
+  handleGivenAt(sessionId: string, handle: string): number | undefined {
     return (
-      this.queries.run`
-        INSERT OR IGNORE INTO session_handles (session_id, handle) VALUES (${sessionId}, ${handle})`
-        .changes > 0
-    )
+      this.queries.get`
+        SELECT p.given_at FROM project_handles p JOIN sessions s ON s.project_id = p.project_id
+        WHERE s.id = ${sessionId} AND p.handle = ${handle}` as { given_at: number } | undefined
+    )?.given_at
   }
 
   renameTerminal(terminalId: string, title: string | null): boolean {
@@ -1832,16 +2060,16 @@ export class WorkspaceStore
 
   terminalIdentity(terminalId: string): TerminalIdentity | undefined {
     const row = this.queries.get`
-      SELECT handle, person_title, opener_title, murmur_title, own_title, summary, opened_by,
-        led_by
+      SELECT handle, person_title, opener_title, opener_handle, murmur_title, own_title, summary,
+        opener_terminal, lead_terminal
       FROM terminals WHERE id = ${terminalId}
-    ` as (NamingRow & Pick<TerminalRow, "handle" | "opened_by" | "led_by">) | undefined
+    ` as (NamingRow & Pick<TerminalRow, "handle" | "opener_terminal" | "lead_terminal">) | undefined
     return (
       row && {
         handle: row.handle,
         naming: namingOf(row),
-        openedBy: row.opened_by,
-        ledBy: row.led_by,
+        openedBy: row.opener_terminal,
+        ledBy: row.lead_terminal,
       }
     )
   }
@@ -1861,50 +2089,120 @@ export class WorkspaceStore
     const murmurTitle = naming.murmur?.title ?? null
     const { summary } = naming
     const openerTitle = naming.opener?.title ?? null
+    const openerHandle = naming.opener?.by ?? null
     const ownTitle = naming.own?.title ?? null
     const work = terminal.work === null ? null : JSON.stringify(terminal.work)
     const interruptions = terminal.interruptions?.length
       ? JSON.stringify(terminal.interruptions)
       : null
-    if (terminal.transcript === undefined)
-      void this.queries.run`
+    this.transaction(() => {
+      const kept = this.holdsHandle(terminal.id, terminal.sessionId, handle, now)
+      if (terminal.transcript === undefined)
+        void this.queries.run`
         INSERT INTO terminals (id, session_id, cwd, agent_reports, prompted_at, saved_at, handle,
-          person_title, opener_title, murmur_title, own_title, summary, opened_by,
-          led_by, command, last_program, work, interruptions, ran)
+          handle_seq, handle_given_at, person_title, opener_title, opener_handle, murmur_title,
+          own_title, summary, opener_terminal, lead_terminal, command, last_program, work,
+          interruptions, ran)
         VALUES (${terminal.id}, ${terminal.sessionId}, ${terminal.cwd}, ${agents},
-          ${terminal.promptedAt}, ${now}, ${handle}, ${person}, ${openerTitle},
+          ${terminal.promptedAt}, ${now}, ${handle}, ${kept.seq}, ${kept.at}, ${person},
+          ${openerTitle}, ${openerHandle},
           ${murmurTitle}, ${ownTitle}, ${summary}, ${openedBy}, ${ledBy}, ${command},
           ${lastProgram}, ${work}, ${interruptions}, ${ran})
         ON CONFLICT (id) DO UPDATE SET session_id = excluded.session_id, cwd = excluded.cwd,
           agent_reports = excluded.agent_reports, prompted_at = excluded.prompted_at,
           saved_at = excluded.saved_at, handle = excluded.handle,
+          handle_seq = CASE WHEN terminals.handle = excluded.handle AND
+            (SELECT project_id FROM sessions WHERE id = terminals.session_id) IS
+            (SELECT project_id FROM sessions WHERE id = excluded.session_id)
+            THEN terminals.handle_seq ELSE excluded.handle_seq END,
+          handle_given_at = CASE WHEN terminals.handle = excluded.handle AND
+            (SELECT project_id FROM sessions WHERE id = terminals.session_id) IS
+            (SELECT project_id FROM sessions WHERE id = excluded.session_id)
+            THEN terminals.handle_given_at ELSE excluded.handle_given_at END,
           person_title = excluded.person_title, opener_title = excluded.opener_title,
+          opener_handle = excluded.opener_handle,
           murmur_title = excluded.murmur_title, own_title = excluded.own_title,
-          summary = excluded.summary, opened_by = excluded.opened_by,
-          led_by = excluded.led_by, command = excluded.command,
+          summary = excluded.summary, opener_terminal = excluded.opener_terminal,
+          lead_terminal = excluded.lead_terminal, command = excluded.command,
           last_program = excluded.last_program, work = excluded.work,
           interruptions = excluded.interruptions, ran = max(ran, excluded.ran)
       `
-    else
-      void this.queries.run`
+      else
+        void this.queries.run`
         INSERT INTO terminals (id, session_id, cwd, agent_reports, prompted_at, transcript, saved_at,
-          handle, person_title, opener_title, murmur_title, own_title, summary,
-          opened_by, led_by, command, last_program, work, interruptions, ran)
+          handle, handle_seq, handle_given_at, person_title, opener_title, opener_handle,
+          murmur_title, own_title, summary, opener_terminal, lead_terminal, command, last_program,
+          work, interruptions, ran)
         VALUES (${terminal.id}, ${terminal.sessionId}, ${terminal.cwd}, ${agents},
-          ${terminal.promptedAt}, ${terminal.transcript}, ${now}, ${handle}, ${person},
-          ${openerTitle}, ${murmurTitle}, ${ownTitle}, ${summary}, ${openedBy}, ${ledBy},
+          ${terminal.promptedAt}, ${terminal.transcript}, ${now}, ${handle}, ${kept.seq},
+          ${kept.at}, ${person},
+          ${openerTitle}, ${openerHandle}, ${murmurTitle}, ${ownTitle}, ${summary}, ${openedBy},
+          ${ledBy},
           ${command}, ${lastProgram}, ${work}, ${interruptions}, ${ran})
         ON CONFLICT (id) DO UPDATE SET session_id = excluded.session_id, cwd = excluded.cwd,
           agent_reports = excluded.agent_reports, prompted_at = excluded.prompted_at,
           transcript = excluded.transcript, saved_at = excluded.saved_at,
-          handle = excluded.handle, person_title = excluded.person_title,
-          opener_title = excluded.opener_title,
+          handle = excluded.handle, handle_seq = CASE WHEN terminals.handle = excluded.handle AND
+            (SELECT project_id FROM sessions WHERE id = terminals.session_id) IS
+            (SELECT project_id FROM sessions WHERE id = excluded.session_id)
+            THEN terminals.handle_seq ELSE excluded.handle_seq END,
+          handle_given_at = CASE WHEN terminals.handle = excluded.handle AND
+            (SELECT project_id FROM sessions WHERE id = terminals.session_id) IS
+            (SELECT project_id FROM sessions WHERE id = excluded.session_id)
+            THEN terminals.handle_given_at ELSE excluded.handle_given_at END,
+          person_title = excluded.person_title,
+          opener_title = excluded.opener_title, opener_handle = excluded.opener_handle,
           murmur_title = excluded.murmur_title, own_title = excluded.own_title,
           summary = excluded.summary,
-          opened_by = excluded.opened_by, led_by = excluded.led_by, command = excluded.command,
+          opener_terminal = excluded.opener_terminal,
+          lead_terminal = excluded.lead_terminal, command = excluded.command,
           last_program = excluded.last_program, work = excluded.work,
           interruptions = excluded.interruptions, ran = max(ran, excluded.ran)
       `
+      if (kept.left) this.free(kept.left.projectId, kept.left.handle, terminal.id, now)
+    })
+  }
+
+  /**
+   * Makes the project of the session hold the handle for the terminal, a saved one's own
+   * unless it moved or took another: its place in the order the handles were given and
+   * when, for the row; and the handle it left, if it left one, for `saveTerminal` to free.
+   * A handle no create drew (one saved directly) is given now.
+   */
+  private holdsHandle(terminalId: string, sessionId: string, handle: string, now: number) {
+    const projectId = this.projectOfSession(sessionId)
+    const had = this.queries.get`
+      SELECT t.handle, s.project_id AS projectId
+      FROM terminals t JOIN sessions s ON s.id = t.session_id WHERE t.id = ${terminalId}` as
+      | { handle: string; projectId: string }
+      | undefined
+    const left = had && (had.handle !== handle || had.projectId !== projectId) ? had : undefined
+    if (projectId === undefined) return { seq: 0, at: 0, left }
+    const pooled = this.queries.get`
+      SELECT freed_at, freed_by FROM project_handles
+      WHERE project_id = ${projectId} AND handle = ${handle}` as
+      | { freed_at: number | null; freed_by: string | null }
+      | undefined
+    // The row already holds it, or a give or claim did: nothing to take. A handle resting for
+    // another terminal is refused within its cooldown (no path saves one: a create gives or
+    // claims first), and given afresh after it, with a new place in the order and time.
+    const holding = had !== undefined && !left
+    if (!pooled) this.hold(projectId, handle, now)
+    else if (pooled.freed_at !== null && !holding && pooled.freed_by !== terminalId) {
+      if (now - pooled.freed_at < handleCooldown)
+        throw new DomainError("CONFLICT", "That handle is resting for another terminal.")
+      this.hold(projectId, handle, now)
+    } else if (pooled.freed_at !== null)
+      void this.queries.run`
+        UPDATE project_handles SET freed_at = NULL
+        WHERE project_id = ${projectId} AND handle = ${handle}`
+    const row = this.queries.get`
+      SELECT given_seq, given_at FROM project_handles
+      WHERE project_id = ${projectId} AND handle = ${handle}` as {
+      given_seq: number
+      given_at: number
+    }
+    return { seq: row.given_seq, at: row.given_at, left }
   }
 
   saveTerminals(terminals: readonly (TerminalToSave & { readonly ran?: boolean })[]): void {
@@ -1921,8 +2219,19 @@ export class WorkspaceStore
     return row?.ran === 1
   }
 
+  // Its handle starts to rest as the row goes; a record still closing holds it till then.
   removeTerminal(terminalId: string): void {
-    this.forget(() => this.queries.run`DELETE FROM terminals WHERE id = ${terminalId}`)
+    this.forget(() =>
+      this.transaction(() => {
+        const had = this.queries.get`
+          SELECT t.handle, s.project_id AS projectId
+          FROM terminals t JOIN sessions s ON s.id = t.session_id WHERE t.id = ${terminalId}` as
+          | { handle: string; projectId: string }
+          | undefined
+        void this.queries.run`DELETE FROM terminals WHERE id = ${terminalId}`
+        if (had) this.free(had.projectId, had.handle, terminalId, Date.now())
+      }),
+    )
   }
 
   forgetAgent(agent: AgentName): void {
@@ -2509,8 +2818,10 @@ export class WorkspaceStore
     return result.changes > 0
   }
 
-  /** Runs `work` as one transaction, undone whole when it throws. */
+  /** Runs `work` as one transaction, undone whole when it throws (or as part of the one running). */
   private transaction<T>(work: () => T): T {
+    // Inside one already: it ends with the outer one.
+    if (this.database.isTransaction) return work()
     this.database.exec("BEGIN IMMEDIATE")
     try {
       const result = work()

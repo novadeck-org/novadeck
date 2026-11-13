@@ -49,7 +49,10 @@ const setup = (
     stopping: () => stopping,
     messaging: () =>
       ({
-        leadOf: (id: string) => leads[(find(id) ?? rows.get(id))?.summary.handle ?? ""],
+        leadOf: (id: string) => {
+          const lead = leads[(find(id) ?? rows.get(id))?.summary.handle ?? ""]
+          return lead === undefined ? undefined : { terminalId: `id-${lead}`, handle: lead }
+        },
         waitingFor: () => 0,
         onTheWay: (from: string, to: string) => coming.get(`${from}>${to}`) ?? [],
         goneFrom: () => [],

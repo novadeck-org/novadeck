@@ -230,6 +230,10 @@ const namings: Readonly<
 const automaticSource = (slot: string): TitleSource =>
   slot === "01" ? { kind: "agent", by: "moth" } : { kind: "default" }
 
+// The id of a session's first terminal, moth, which leads the checkout review.
+const leadOf = (terminals: readonly { readonly id: string }[]): string | null =>
+  terminals.find((each) => terminalSlot(each.id) === "01")?.id ?? null
+
 // The agents demo with messages between its agents: handles, who named each terminal,
 // threads in every state, one held for release, and the pause switch.
 export const withMessages = (backend: Backend, now: number): Backend => {
@@ -242,8 +246,8 @@ export const withMessages = (backend: Backend, now: number): Backend => {
         terminals: session.terminals.map((terminal) => ({
           ...terminal,
           handle: demoHandle(Number(terminalSlot(terminal.id))),
-          // The agent that named the checkout review opened it.
-          ...(terminalSlot(terminal.id) === "04" ? { ledBy: "moth" } : {}),
+          // The agent that named the checkout review (moth, the session's first) leads it.
+          ...(terminalSlot(terminal.id) === "04" ? { ledBy: leadOf(session.terminals) } : {}),
           ...(namings[terminalSlot(terminal.id)]
             ? { titleSource: namings[terminalSlot(terminal.id)]!.source }
             : {}),

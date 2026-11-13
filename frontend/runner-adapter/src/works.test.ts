@@ -1,4 +1,4 @@
-import type { Work, WorkClosing } from "@novadeck/protocol"
+import type { Work, WorkClosing, WorkMade } from "@novadeck/protocol"
 import type { WorkWatchItem } from "@novadeck/runner-client"
 import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
@@ -36,10 +36,12 @@ const followed = (
   } = {},
 ) => {
   const stream = channel<WorkWatchItem>()
+  const made = channel<WorkMade>()
   const shown: string[] = []
   let watches = 0
   const { works, stop } = createRunnerWorks({
     watch: () => ((watches += 1), stream.iterator),
+    made: () => made.iterator,
     look: calls.look ?? (async () => {}),
     show: async (at, terminalId) => (
       shown.push(terminalId === undefined ? at : `${at} on ${terminalId}`),
@@ -53,7 +55,7 @@ const followed = (
       .getSnapshot()
       .works.map((each) => each.root)
       .toSorted()
-  return { works, stream, stop, release, ids, shown, watches: () => watches }
+  return { works, stream, made, stop, release, ids, shown, watches: () => watches }
 }
 
 describe("Works, as the runner reports them", () => {
@@ -133,6 +135,7 @@ describe("Works, as the runner reports them", () => {
     let watches = 0
     createRunnerWorks({
       watch: () => ((watches += 1), channel<WorkWatchItem>().iterator),
+      made: () => channel<WorkMade>().iterator,
       look: async () => {},
       show: async () => ({ itemId: "x" }),
       close: async () => ({ closed: true as const, branchDeleted: false }),
@@ -237,5 +240,28 @@ describe("looking at and showing a work", () => {
       [root(1), undefined],
       [root(1), true],
     ])
+  })
+})
+
+describe("Worktrees made, as the runner reports them", () => {
+  const newOne = (n: number): WorkMade => ({ root: root(n), projectId: "p" })
+  const count = (works: { made?: { getSnapshot: () => number } | undefined }) =>
+    works.made!.getSnapshot()
+
+  it("counts each one, whether or not the works are watched", async () => {
+    const { works, made, release } = followed()
+    expect(count(works)).toBe(0)
+    release()
+    made.push(newOne(1))
+    made.push(newOne(2))
+    await vi.waitFor(() => expect(count(works)).toBe(2))
+    expect(works.state.getSnapshot().works).toEqual([])
+  })
+
+  it("lets go of the stream for good with the backend", () => {
+    const { made, stop } = followed()
+    expect(made.returned()).toBe(0)
+    stop()
+    expect(made.returned()).toBe(1)
   })
 })

@@ -79,11 +79,11 @@ export class Leading {
   /**
    * The terminal gains a lead, as the person let an agent lead it: messages that lead sends
    * after carry the lead mark. The terminal's `ledBy`, as `register` sets it for one opened
-   * with a brief.
+   * with a brief: the lead's terminal id.
    */
-  setLead(terminalId: string, handle: string): void {
+  setLead(terminalId: string, leadId: string): void {
     const live = this.host.sessions.get(terminalId)
-    if (live) live.ledBy = handle
+    if (live) live.ledBy = leadId
     this.briefs.delete(terminalId)
   }
 
@@ -136,12 +136,19 @@ export class Leading {
   }
 
   /**
-   * The handle of the running terminal that leads the terminal, if there is one: the one
-   * its `ledBy` names, still running in its project and session.
+   * The id and handle of the running terminal that leads the terminal, if there is one: the
+   * one its `ledBy` names, still running in its project and session.
    */
-  leadOf(terminalId: string): string | undefined {
+  leadPeer(
+    terminalId: string,
+  ): { readonly terminalId: string; readonly handle: string } | undefined {
     const { sessions } = this.host
     const live = sessions.get(terminalId)
-    return live && sessions.scoped(live).find((peer) => leads(live, peer))?.handle
+    return live && sessions.scoped(live).find((peer) => leads(live, peer))
+  }
+
+  /** The handle of the running lead `leadPeer` names, if there is one. */
+  leadOf(terminalId: string): string | undefined {
+    return this.leadPeer(terminalId)?.handle
   }
 }

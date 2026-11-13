@@ -114,7 +114,7 @@ const heldOf = (
 ): InboxRow | undefined => {
   const named = (party: MessageParty) =>
     party.kind === "agent"
-      ? where.find(({ terminal }) => terminal.handle === party.handle)
+      ? where.find(({ terminal }) => terminal.id === party.terminalId)
       : undefined
   const sender = named(message.from)
   const recipient = named(message.to)
@@ -170,7 +170,7 @@ const reportsToLead = ({ project, session, terminal }: Where, where: readonly Wh
     (each) =>
       each.project.id === project.id &&
       each.session.id === session.id &&
-      each.terminal.handle === terminal.ledBy &&
+      each.terminal.id === terminal.ledBy &&
       agentOf(each.terminal) !== null,
   )
 
@@ -331,8 +331,8 @@ export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
 
   // A thread held for release is listed by both its terminals: once, from its oldest
   // held message.
-  // Handles are unique only within a session, so a thread's parties are looked up in the
-  // session of the terminal that lists it.
+  // A thread's parties are terminals by id, looked up in the session of the terminal that
+  // lists it. A party's handle only reads as the party: it may be another terminal's by now.
   const threads = new Map<string, InboxRow>()
   for (const [key, messages] of Object.entries(inputs.messages.terminals)) {
     const { projectId, workspaceSessionId } = terminalKeyOfPath(key)

@@ -197,7 +197,12 @@ const holdingRunner = (close: (id: string) => Promise<void>) => {
           threads: [
             {
               id: "th",
-              peer: { kind: "agent", handle: handles[1 - index]!, agent: null },
+              peer: {
+                kind: "agent",
+                terminalId: ids[1 - index]!,
+                handle: handles[1 - index]!,
+                agent: null,
+              },
               hops: 1,
               idle: 0,
               held: false,

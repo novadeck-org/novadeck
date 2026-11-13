@@ -223,6 +223,12 @@ const handleShaped = (word: string): boolean => /^[\p{L}\p{N}_-]+$/u.test(word)
 const single = (to: Addressees): string | undefined =>
   !to.team && to.handles.length === 1 ? to.handles[0] : undefined
 
+/** The handles a send names, bare, each once; none for a request that can't be read. */
+export const namedHandles = (request: unknown): readonly string[] => {
+  const parsed = sendRequest.safeParse(request)
+  return parsed.success ? parsed.data.to.handles : []
+}
+
 const refused = (reason: string) => ({ ok: false, reason }) as const
 
 const oneOnly = refused("Name one terminal's handle to send it this message.")

@@ -21,7 +21,7 @@ import { vi } from "vitest"
 import type { ItemRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
 import { novadeckSender, personSender, type Message, type Thread } from "../messaging/messages.js"
-import { handleOrder, handleWords } from "../terminals/handles.js"
+import { handleCooldown, handleOrder, handleWords } from "../terminals/handles.js"
 import { sealedShape } from "../terminals/sealing.js"
 import { unnamed } from "../terminals/titles.js"
 import { describe, expect, it as base } from "../test.js"
@@ -259,7 +259,7 @@ describe("workspace metadata", () => {
     expect(first.id).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(15)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(17)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       expect(() =>
         database
@@ -367,7 +367,7 @@ describe("workspace metadata", () => {
     })
     workspace.saveTerminal(numbered("a", "moth"))
     workspace.saveTerminal({ ...numbered("b", "moth"), sessionId: other.id })
-    const given = workspace.giveHandle("s")
+    workspace.giveHandle("s")
     const otherGiven = workspace.giveHandle(other.id)
     const thread: Thread = {
       id: "t-1",
@@ -424,9 +424,11 @@ describe("workspace metadata", () => {
     // Its items and windows went with its sessions.
     expect(workspace.items().map(({ sessionId }) => sessionId)).toEqual([other.id])
     expect(workspace.windows()).toEqual([])
-    // A session of the same id gives its words afresh; the other goes on.
-    workspace.createSession({ id: "s", projectId: kept.id, name: "Again" })
-    expect(workspace.giveHandle("s")).toBe(given)
+    // A session of the same id in a new project gives its words afresh: the project's pool went
+    // with it. The other project's goes on.
+    const again = await workspace.createProject({ id: "r", name: "Again", cwd })
+    workspace.createSession({ id: "s", projectId: again.id, name: "Again" })
+    expect(workspace.giveHandle("s")).toBe(handleOrder("s")[0])
     expect(workspace.giveHandle(other.id)).not.toBe(otherGiven)
     expect(() => workspace.removeProject(removed.id)).toThrow(
       expect.objectContaining({ code: "NOT_FOUND" }),
@@ -493,13 +495,13 @@ describe("workspace metadata", () => {
     const path = join(directory(), "workspace.sqlite")
     const future = new DatabaseSync(path)
     future.exec(
-      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 16",
+      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 18",
     )
     future.close()
     expect(() => new WorkspaceStore(path)).toThrow(/newer/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(16)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(18)
       expect(database.prepare("SELECT value FROM future_data").get()?.value).toBe("saved")
     } finally {
       database.close()
@@ -551,7 +553,7 @@ describe("workspace metadata", () => {
     new WorkspaceStore(path).close()
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(15)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(17)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       // Every old table is gone, and so are the old names.
       expect(Object.keys(rowsOf(database)).toSorted()).toEqual(
@@ -562,9 +564,9 @@ describe("workspace metadata", () => {
           "inbox_entries",
           "message_threads",
           "messages",
+          "project_handles",
           "projects",
           "report_log",
-          "session_handles",
           "sessions",
           "settings",
           "terminals",
@@ -668,8 +670,9 @@ describe("workspace metadata", () => {
       expect(
         rows(
           `SELECT rowid, id, session_id, handle, cwd, agent_reports, prompted_at, transcript,
-            saved_at, person_title, opener_title, murmur_title, summary, opened_by, led_by,
-            command, last_program, work FROM terminals ORDER BY rowid`,
+            saved_at, person_title, opener_title, opener_handle, murmur_title, summary,
+            opener_terminal, lead_terminal, command, last_program, work
+            FROM terminals ORDER BY rowid`,
         ),
       ).toEqual([
         {
@@ -684,10 +687,12 @@ describe("workspace metadata", () => {
           saved_at: 3,
           person_title: "Mine",
           opener_title: "Login",
+          opener_handle: "fox",
           murmur_title: "Fixing login",
           summary: "Works on checkout",
-          opened_by: "fox",
-          led_by: "fox",
+          // The handle fox is the terminal u in its session.
+          opener_terminal: "u",
+          lead_terminal: "u",
           command: "claude",
           last_program: "claude",
           work: '{"session":"claude:cs"}',
@@ -704,10 +709,11 @@ describe("workspace metadata", () => {
           saved_at: 4,
           person_title: null,
           opener_title: null,
+          opener_handle: null,
           murmur_title: null,
           summary: null,
-          opened_by: null,
-          led_by: null,
+          opener_terminal: null,
+          lead_terminal: null,
           command: null,
           last_program: null,
           work: null,
@@ -724,18 +730,49 @@ describe("workspace metadata", () => {
           saved_at: 5,
           person_title: null,
           opener_title: null,
+          opener_handle: "fox",
           murmur_title: null,
           summary: null,
-          opened_by: "fox",
-          led_by: null,
+          // Its opener is no terminal of its session now; opener_handle says an agent opened it.
+          opener_terminal: null,
+          lead_terminal: null,
           command: null,
           last_program: null,
           work: null,
         },
       ])
-      expect(rows("SELECT rowid, session_id, handle FROM session_handles ORDER BY rowid")).toEqual([
-        { rowid: 3, session_id: "s", handle: "moth" },
-        { rowid: 6, session_id: "s", handle: "fox" },
+      // The handles of the project's terminals are held, in the order they were listed in; the
+      // orphan session's is left behind with its terminal.
+      expect(
+        rows(
+          `SELECT project_id, handle, given_seq, given_at, freed_at, freed_by
+          FROM project_handles ORDER BY given_seq`,
+        ),
+      ).toEqual([
+        {
+          project_id: "p",
+          handle: "moth",
+          given_seq: 1,
+          given_at: 0,
+          freed_at: null,
+          freed_by: null,
+        },
+        {
+          project_id: "p",
+          handle: "fox",
+          given_seq: 2,
+          given_at: 0,
+          freed_at: null,
+          freed_by: null,
+        },
+        {
+          project_id: "p",
+          handle: "owl",
+          given_seq: 3,
+          given_at: 0,
+          freed_at: null,
+          freed_by: null,
+        },
       ])
       expect(rows("SELECT key, value FROM settings")).toEqual([{ key: "example", value: "1" }])
       expect(
@@ -1005,7 +1042,7 @@ describe("workspace metadata", () => {
     ])
     expect(workspace.terminal("t")?.naming).toEqual({
       person: "Mine",
-      opener: { title: "Login" },
+      opener: { title: "Login", by: "fox" },
       murmur: { title: "Fixing login" },
       own: null,
       summary: "Works on checkout",
@@ -1323,7 +1360,11 @@ describe("workspace metadata", () => {
            VALUES ('c', 'nope', 'owl', '/', '{}', 1)`,
         ),
       ).toThrow(/FOREIGN KEY/)
-      expect(run("INSERT INTO session_handles VALUES ('nope', 'owl')")).toThrow(/FOREIGN KEY/)
+      expect(
+        run(
+          "INSERT INTO project_handles (project_id, handle, given_seq, given_at, taken_at) VALUES ('nope', 'owl', 1, 1, 1)",
+        ),
+      ).toThrow(/FOREIGN KEY/)
       expect(
         run("INSERT INTO message_threads VALUES ('t2', 'nope', 'a', 'b', 1, NULL, NULL, 1, NULL)"),
       ).toThrow(/FOREIGN KEY/)
@@ -1634,13 +1675,195 @@ describe("workspace metadata", () => {
     expect(carried).toEqual(created)
   })
 
-  it("lets items be shells in the step from 14, keeping the items and their order", ({
+  it("names openers and leads by terminal id in the step from 14, within each session", ({
     directory,
   }) => {
     const path = join(directory(), "workspace.sqlite")
     const old = new DatabaseSync(path)
     old.exec(`${readFileSync(new URL("schemas/14.sql", import.meta.url), "utf8")}
       PRAGMA user_version = 14;
+      INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'P', '/p');
+      INSERT INTO sessions (position, id, project_id, name) VALUES (1, 's1', 'p', 'One'),
+        (2, 's2', 'p', 'Two');
+      INSERT INTO terminals (id, session_id, handle, cwd, agent_reports, saved_at, opener_title,
+        opened_by, led_by) VALUES
+        ('lead1', 's1', 'moth', '/p', '{}', 1, NULL, NULL, NULL),
+        ('lead2', 's2', 'moth', '/p', '{}', 1, NULL, NULL, NULL),
+        ('led1', 's1', 'fox', '/p', '{}', 2, 'Count', 'moth', 'moth'),
+        ('led2', 's2', 'fox', '/p', '{}', 2, NULL, 'moth', 'moth'),
+        ('left', 's1', 'owl', '/p', '{}', 3, 'Search', 'elk', 'elk'),
+        ('plain', 's1', 'elk2', '/p', '{}', 4, NULL, NULL, NULL),
+        ('untitled', 's1', 'jay', '/p', '{}', 5, NULL, 'elk', NULL);`)
+    old.close()
+    const migrated = new WorkspaceStore(path)
+    // A handle names the terminal of its own session that has it.
+    expect(migrated.terminal("led1")).toMatchObject({ openedBy: "lead1", ledBy: "lead1" })
+    expect(migrated.terminal("led2")).toMatchObject({ openedBy: "lead2", ledBy: "lead2" })
+    expect(migrated.terminal("led1")?.naming.opener).toEqual({ title: "Count", by: "moth" })
+    // A lead or opener that has closed names none; the title still names the opener's handle.
+    const left = migrated.terminal("left")!
+    expect(left.ledBy).toBeNull()
+    expect(left.openedBy).toBeNull()
+    expect(left.naming.opener).toEqual({ title: "Search", by: "elk" })
+    expect(migrated.terminal("plain")).toMatchObject({ openedBy: null, ledBy: null })
+    // The opener's handle outlives the migration for a title-less opener too, and a save.
+    const untitled = migrated.terminal("untitled")!
+    expect(untitled.openedBy).toBeNull()
+    expect(untitled.naming.opener).toEqual({ by: "elk" })
+    migrated.saveTerminal({ ...untitled, ledBy: null })
+    expect(migrated.terminal("untitled")?.naming.opener).toEqual({ by: "elk" })
+    expect(migrated.terminal("lead1")?.naming.opener).toBeNull()
+    // Saved again, the links stay ids.
+    migrated.saveTerminal({ ...migrated.terminal("led1")!, ledBy: null })
+    expect(migrated.terminal("led1")).toMatchObject({ openedBy: "lead1", ledBy: null })
+    migrated.close()
+    const fresh = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(fresh).close()
+    const [carried, created] = [path, fresh].map((file) => {
+      const database = new DatabaseSync(file)
+      try {
+        return normalisedSchemaOf(database)
+      } finally {
+        database.close()
+      }
+    })
+    expect(carried).toEqual(created)
+  })
+
+  it("builds each project's pool of handles in the step from 15, keeping duplicates and releasing closed handles", ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/15.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 15;
+      INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'P', '/p'), (2, 'q', 'Q', '/q');
+      INSERT INTO sessions (position, id, project_id, name) VALUES (1, 's1', 'p', 'One'),
+        (2, 's2', 'p', 'Two'), (3, 's3', 'q', 'Three');
+      -- The listing order follows the sessions' handles: fox was given first, then moth in two
+      -- sessions, a terminal with no row of it last.
+      INSERT INTO session_handles (rowid, session_id, handle) VALUES (1, 's1', 'fox'),
+        (2, 's1', 'moth'), (3, 's2', 'moth'), (4, 's1', 'owl'), (5, 's1', 'elk'),
+        (6, 's2', 'crow'), (7, 's3', 'moth');
+      INSERT INTO terminals (id, session_id, handle, cwd, agent_reports, saved_at) VALUES
+        ('mine', 's1', 'moth', '/p', '{}', 1),
+        ('theirs', 's2', 'moth', '/p', '{}', 2),
+        ('fox', 's1', 'fox', '/p', '{}', 3),
+        ('unrecorded', 's2', 'lynx', '/p', '{}', 4);
+      INSERT INTO closed_terminals (id, project_id, session_id, handle, cwd, agent_reports,
+        closed_at) VALUES ('c1', 'p', 's1', 'owl', '/p', '{}', 5000),
+        ('c2', 'p', 's2', 'owl', '/p', '{}', 9000), ('c3', 'q', 's3', 'moth', '/q', '{}', 7000),
+        ('c4', 'p', 'deleted', 'wren', '/p', '{}', 3000),
+        ('c5', 'p', 's1', 'newt', '/p', '{}', ${Date.now() - 1_000});`)
+    old.close()
+    const migrated = new WorkspaceStore(path)
+    const pool = migrated["database"]
+      .prepare(
+        `SELECT project_id AS p, handle, given_seq AS seq, given_at AS at, freed_at AS freed,
+          freed_by AS by FROM project_handles ORDER BY project_id, handle`,
+      )
+      .all()
+    expect(pool).toEqual([
+      { p: "p", handle: "crow", seq: 0, at: 0, freed: 0, by: null },
+      { p: "p", handle: "elk", seq: 0, at: 0, freed: 0, by: null },
+      { p: "p", handle: "fox", seq: 1, at: 0, freed: null, by: null },
+      { p: "p", handle: "lynx", seq: 4, at: 0, freed: null, by: null },
+      // Held, though two terminals of the project share moth: none is renamed.
+      { p: "p", handle: "moth", seq: 2, at: 0, freed: null, by: null },
+      // Released at its latest close in the project, which may take it back sooner, or long
+      // ago where none is kept.
+      { p: "p", handle: "newt", seq: 0, at: 0, freed: expect.any(Number), by: "c5" },
+      { p: "p", handle: "owl", seq: 0, at: 0, freed: 9000, by: "c2" },
+      { p: "p", handle: "wren", seq: 0, at: 0, freed: 3000, by: "c4" },
+      { p: "q", handle: "moth", seq: 0, at: 0, freed: 7000, by: "c3" },
+    ])
+    // Terminals keep the order they were listed in; their handles were given long ago.
+    expect(migrated.terminals().map(({ id, handleGivenAt }) => [id, handleGivenAt])).toEqual([
+      ["fox", 0],
+      ["mine", 0],
+      ["theirs", 0],
+      ["unrecorded", 0],
+    ])
+    expect(migrated.terminal("theirs")).toMatchObject({ sessionId: "s2", handle: "moth" })
+    // A terminal closed moments before the upgrade may take its handle back; another may not.
+    expect(migrated.claimHandle("s1", "newt", "other")).toBe(false)
+    expect(migrated.claimHandle("s1", "newt", "c5")).toBe(true)
+    // A word held anywhere in the project is not given, a never given one comes first, and
+    // the released come back oldest first.
+    const order = ["moth", "fox", "owl", "elk", "crow", "kite", "lynx"]
+    const given = order.slice(0, 5).map(() => migrated.giveHandle("s1", order))
+    expect(given).toEqual(["kite", "elk", "crow", "owl", "owlz"])
+    // The other project is untouched by the first's: its moth was released, so fox, which it
+    // never gave, comes first, then moth.
+    expect(migrated.giveHandle("s3", order)).toBe("fox")
+    expect(migrated.giveHandle("s3", order)).toBe("owl")
+    migrated.close()
+    const fresh = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(fresh).close()
+    const [carried, created] = [path, fresh].map((file) => {
+      const database = new DatabaseSync(file)
+      try {
+        return normalisedSchemaOf(database)
+      } finally {
+        database.close()
+      }
+    })
+    expect(carried).toEqual(created)
+  })
+
+  it("keeps and moves worktree rows, and drops a project's with it", async ({
+    directory,
+    store: open,
+  }) => {
+    const store = open()
+    const project = await store.createProject({ id: randomUUID(), name: "P", cwd: directory() })
+    const make = (path: string, terminalId: string | null) => ({
+      path,
+      commonDir: "/p/.git",
+      branch: path,
+      base: "abc",
+      projectId: project.id,
+      terminalId,
+      adopted: true,
+      branchMade: false,
+      createdAt: path === "/a" ? 1 : 2,
+    })
+    store.insertWorktree(make("/a", "t1"))
+    store.insertWorktree(make("/b", null))
+    expect(store.worktreesOfTerminal("t1").map(({ path }) => path)).toEqual(["/a"])
+    expect(store.worktreesOfProject(project.id).map(({ path }) => path)).toEqual(["/a", "/b"])
+    expect(store.setWorktreeOwner("/b", "t2")).toBe(true)
+    expect(store.worktree("/b")?.terminalId).toBe("t2")
+    expect(store.orphanWorktree("/a")).toBe(true)
+    expect(store.worktree("/a")?.terminalId).toBeNull()
+    expect(store.setWorktreeOwner("/none", "t2")).toBe(false)
+    expect(store.removeWorktree("/a")).toBe(true)
+    expect(store.removeWorktree("/a")).toBe(false)
+    expect(() => store.insertWorktree({ ...make("/c", null), projectId: "nope" })).toThrow()
+    // A path that is tracked is never taken over by another insert.
+    expect(() => store.insertWorktree({ ...make("/b", "t9"), branch: "other" })).toThrow()
+    expect(store.worktree("/b")).toMatchObject({ terminalId: "t2" })
+    store.removeProject(project.id)
+    expect(store.worktrees()).toEqual([])
+  })
+
+  it("skips only what the table refuses in the step from 12, and fails the step on any other error", () => {
+    const sqlite = (errcode: number) => Object.assign(new Error("sqlite"), { errcode })
+    // SQLITE_CONSTRAINT and its extended codes (a unique key, a check, a foreign key).
+    for (const code of [19, 1555, 275, 787]) expect(refusedByTable(sqlite(code))).toBe(true)
+    // Not a full disk (13), an I/O error (10), no memory (7), or a plain error.
+    for (const code of [13, 10, 7, 1]) expect(refusedByTable(sqlite(code))).toBe(false)
+    expect(refusedByTable(new Error("other"))).toBe(false)
+    expect(refusedByTable("text")).toBe(false)
+  })
+
+  it("lets items be shells in the step from 16, keeping the items and their order", ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/16.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 16;
       INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'P', '/p');
       INSERT INTO sessions (position, id, project_id, name) VALUES (1, 's', 'p', 'S');
       INSERT INTO terminals (rowid, id, session_id, handle, cwd, agent_reports, prompted_at,
@@ -1695,63 +1918,17 @@ describe("workspace metadata", () => {
     expect(carried).toEqual(created)
   })
 
-  it("still takes the step from 14 where the items' indexes are already gone", ({ directory }) => {
+  it("still takes the step from 16 where the items' indexes are already gone", ({ directory }) => {
     const path = join(directory(), "workspace.sqlite")
     const old = new DatabaseSync(path)
-    old.exec(`${readFileSync(new URL("schemas/14.sql", import.meta.url), "utf8")}
+    old.exec(`${readFileSync(new URL("schemas/16.sql", import.meta.url), "utf8")}
       DROP INDEX companion_items_bar;
       DROP INDEX companion_items_session;
-      PRAGMA user_version = 14;`)
+      PRAGMA user_version = 16;`)
     old.close()
     const migrated = new WorkspaceStore(path)
     expect(migrated.barItems("t")).toEqual([])
     migrated.close()
-  })
-
-  it("keeps and moves worktree rows, and drops a project's with it", async ({
-    directory,
-    store: open,
-  }) => {
-    const store = open()
-    const project = await store.createProject({ id: randomUUID(), name: "P", cwd: directory() })
-    const make = (path: string, terminalId: string | null) => ({
-      path,
-      commonDir: "/p/.git",
-      branch: path,
-      base: "abc",
-      projectId: project.id,
-      terminalId,
-      adopted: true,
-      branchMade: false,
-      createdAt: path === "/a" ? 1 : 2,
-    })
-    store.insertWorktree(make("/a", "t1"))
-    store.insertWorktree(make("/b", null))
-    expect(store.worktreesOfTerminal("t1").map(({ path }) => path)).toEqual(["/a"])
-    expect(store.worktreesOfProject(project.id).map(({ path }) => path)).toEqual(["/a", "/b"])
-    expect(store.setWorktreeOwner("/b", "t2")).toBe(true)
-    expect(store.worktree("/b")?.terminalId).toBe("t2")
-    expect(store.orphanWorktree("/a")).toBe(true)
-    expect(store.worktree("/a")?.terminalId).toBeNull()
-    expect(store.setWorktreeOwner("/none", "t2")).toBe(false)
-    expect(store.removeWorktree("/a")).toBe(true)
-    expect(store.removeWorktree("/a")).toBe(false)
-    expect(() => store.insertWorktree({ ...make("/c", null), projectId: "nope" })).toThrow()
-    // A path that is tracked is never taken over by another insert.
-    expect(() => store.insertWorktree({ ...make("/b", "t9"), branch: "other" })).toThrow()
-    expect(store.worktree("/b")).toMatchObject({ terminalId: "t2" })
-    store.removeProject(project.id)
-    expect(store.worktrees()).toEqual([])
-  })
-
-  it("skips only what the table refuses in the step from 12, and fails the step on any other error", () => {
-    const sqlite = (errcode: number) => Object.assign(new Error("sqlite"), { errcode })
-    // SQLITE_CONSTRAINT and its extended codes (a unique key, a check, a foreign key).
-    for (const code of [19, 1555, 275, 787]) expect(refusedByTable(sqlite(code))).toBe(true)
-    // Not a full disk (13), an I/O error (10), no memory (7), or a plain error.
-    for (const code of [13, 10, 7, 1]) expect(refusedByTable(sqlite(code))).toBe(false)
-    expect(refusedByTable(new Error("other"))).toBe(false)
-    expect(refusedByTable("text")).toBe(false)
   })
 
   it("keeps its schema as recorded for its version, so a change to it comes with a step", ({
@@ -1769,8 +1946,8 @@ describe("workspace metadata", () => {
       // and adds a step in store.ts's migrations, from schemas/<version before>.sql, which
       // is added for it. Then record the new digest here.
       expect({ version, digest }).toEqual({
-        version: 15,
-        digest: "c1ee70a894d907f0f584d581b4d8bbe67116b5a482873e11444c171e1a8f56a2",
+        version: 17,
+        digest: "2b220bb0d6cbb97b62bb055a7c55d185355f61a123296db8e93a663b90bdfc27",
       })
     } finally {
       database.close()
@@ -2167,6 +2344,7 @@ describe("saved terminals", () => {
     const reopened = kept(path)
     expect(reopened.terminal(terminal.id)).toEqual({
       ...terminal,
+      handleGivenAt: expect.any(Number),
       cwd: "/work/sub",
       interruptions: [],
       transcript: "screen",
@@ -2579,7 +2757,7 @@ describe("saved terminals", () => {
     expect(reopened.terminalIdentity("a")?.naming.person).toBeNull()
   })
 
-  it("never give a session a handle twice, even after its terminal is closed or the runner restarts", ({
+  it("rest a handle for an hour after its terminal is closed, through a restart too", ({
     directory,
     kept,
   }) => {
@@ -2603,16 +2781,283 @@ describe("saved terminals", () => {
     kept,
   }) => {
     const workspace = kept()
-    const [first, second] = handleOrder("s") as [string, string]
-    // Another session having the first word open changes nothing.
+    const [first, second, third] = handleOrder("s") as [string, string, string]
+    // Another session of the project holds the first word, so it is not given at all.
     workspace.saveTerminal({ ...numbered("b", first), sessionId: "elsewhere" })
-    // A terminal open here shares the first word's letter, so the second comes first.
-    workspace.saveTerminal(numbered("a", `${first[0]}zz`))
-    expect(workspace.giveHandle("s")).toBe(second)
-    workspace.saveTerminal(numbered("c", second))
-    // Closing it frees the letter.
+    // A terminal open here shares the second word's letter, so the third comes first.
+    workspace.saveTerminal(numbered("a", `${second[0]}zz`))
+    expect(workspace.giveHandle("s")).toBe(third)
+    workspace.saveTerminal(numbered("c", third))
+    // Closing it frees the letter, but its word rests; the next word of that letter is the second.
     workspace.removeTerminal("a")
-    expect(workspace.giveHandle("s")).toBe(first)
+    expect(workspace.giveHandle("s")).toBe(second)
+  })
+
+  it("hold a handle for the whole project: no session gives what another session's terminal has", ({
+    kept,
+  }) => {
+    const workspace = kept()
+    const order = handleOrder("s")
+    workspace.saveTerminal({ ...numbered("b", order[0]!), sessionId: "elsewhere" })
+    workspace.saveTerminal({ ...numbered("c", order[1]!), sessionId: "other" })
+    expect(workspace.giveHandle("s")).toBe(order[2])
+    expect(workspace.giveHandle("session")).not.toBe(order[0])
+  })
+
+  it("hold a handle several terminals share while any does, as terminals made before the rule do", ({
+    kept,
+  }) => {
+    const workspace = kept()
+    const now = Date.now()
+    workspace.saveTerminal(numbered("a", "moth"))
+    workspace.saveTerminal({ ...numbered("b", "moth"), sessionId: "other" })
+    // Each handle given goes to a terminal, which holds it.
+    const give = (id: string, at: number) => {
+      const handle = workspace.giveHandle("elsewhere", ["moth", "fox", "owl", "crow"], {
+        now: at,
+        cooldown: 1_000,
+      })
+      workspace.saveTerminal({ ...numbered(id, handle), sessionId: "elsewhere" })
+      return handle
+    }
+    expect(give("c", now)).toBe("fox")
+    workspace.removeTerminal("a")
+    // The other still holds it, whatever the cooldown.
+    expect(give("d", now + 5_000)).toBe("owl")
+    workspace.removeTerminal("b")
+    expect(give("e", now + 5_000)).toBe("crow")
+    expect(give("f", now + 5_000)).toBe("moth")
+  })
+
+  it("give a word the project never gave before one freed, and the one freed longest ago after", ({
+    kept,
+  }) => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    try {
+      const workspace = kept()
+      const words = ["moth", "fox", "owl"]
+      const cooldown = 1_000
+      const give = (now: number) => workspace.giveHandle("s", words, { now, cooldown })
+      vi.setSystemTime(1_000_000)
+      const given = [give(1_000_000), give(1_000_000), give(1_000_000)]
+      expect(given).toEqual(words)
+      given.forEach((handle, index) => workspace.saveTerminal(numbered(`t${index}`, handle)))
+      // fox goes first, then moth; owl is still held.
+      vi.setSystemTime(1_000_100)
+      workspace.removeTerminal("t1")
+      vi.setSystemTime(1_000_200)
+      workspace.removeTerminal("t0")
+      // Both rest: the words come again with a letter.
+      expect(give(1_000_900)).toBe("mothz")
+      // After the cooldown, the freed ones come back before any suffix, oldest freed first.
+      expect(give(1_001_200)).toBe("fox")
+      expect(give(1_001_200)).toBe("moth")
+      expect(give(1_001_200)).toBe("owlz")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("let a freed word go only once the cooldown has passed, and its own terminal sooner", ({
+    kept,
+  }) => {
+    const workspace = kept()
+    const words = ["moth"]
+    workspace.giveHandle("s", words, { now: 0 })
+    workspace.saveTerminal(numbered("a", "moth"))
+    const start = Date.now()
+    workspace.removeTerminal("a")
+    const cooldown = 60_000
+    const give = (now: number) => workspace.giveHandle("s", words, { now, cooldown })
+    // Every word resting: the next round's word.
+    const resting = give(start + cooldown - 1_000)
+    expect(resting).toBe("mothz")
+    expect(
+      workspace.claimHandle("s", "moth", "b", { now: start + cooldown - 1_000, cooldown }),
+    ).toBe(false)
+    // The terminal that closed may take it back at once; once taken, nobody else may.
+    expect(workspace.claimHandle("s", "moth", "a", { now: start + 1, cooldown })).toBe(true)
+    expect(workspace.claimHandle("s", "moth", "b", { now: start + 2, cooldown })).toBe(false)
+    workspace.releaseHandle("s", "moth", "a")
+    const freed = Date.now()
+    expect(workspace.claimHandle("s", "moth", "b", { now: freed + cooldown, cooldown })).toBe(true)
+  })
+
+  it("rest a handle from when its terminal first freed it, not again when it lets go", ({
+    kept,
+  }) => {
+    const workspace = kept()
+    const words = ["moth"]
+    const cooldown = 60_000
+    workspace.saveTerminal(numbered("a", "moth"))
+    const start = Date.now()
+    workspace.removeTerminal("a")
+    // Its record lets go of the handle later: the rest does not start over.
+    workspace.releaseHandle("s", "moth", "a", start + 50_000)
+    expect(workspace.giveHandle("s", words, { now: start + cooldown + 1_000, cooldown })).toBe(
+      "moth",
+    )
+  })
+
+  it("hold a handle for a record the runner still has, though its row is gone", ({ kept }) => {
+    const workspace = kept()
+    const words = ["moth", "fox"]
+    const later = Date.now() + 10 * 3_600_000
+    workspace.saveTerminal(numbered("a", "moth"))
+    workspace.removeTerminal("a")
+    expect(workspace.giveHandle("s", words, { now: later, holding: ["moth"] })).toBe("fox")
+    expect(workspace.claimHandle("s", "moth", "a", { now: later, holding: ["moth"] })).toBe(false)
+    expect(workspace.claimHandle("s", "moth", "a", { now: later })).toBe(true)
+  })
+
+  it("start a handle's rest when a session is deleted with its terminals, and drop the pool with the project", async ({
+    kept,
+  }) => {
+    const workspace = kept()
+    workspace.saveTerminal(numbered("a", "moth"))
+    workspace.removeSession("s")
+    const pooled = (handle: string) =>
+      workspace["database"]
+        .prepare("SELECT freed_at, freed_by FROM project_handles WHERE handle = ?")
+        .get(handle)
+    expect(pooled("moth")).toEqual({ freed_at: expect.any(Number), freed_by: "a" })
+    // A session of the project gives something else while it rests.
+    expect(workspace.giveHandle("other", ["moth", "fox"])).toBe("fox")
+    workspace.removeProject("p")
+    expect(workspace["database"].prepare("SELECT 1 FROM project_handles").all()).toEqual([])
+  })
+
+  it("keep a reused handle's terminal after the others in the listing, not in its old place", ({
+    kept,
+  }) => {
+    const workspace = kept()
+    const words = ["moth", "fox", "owl"]
+    const give = (now: number) => workspace.giveHandle("s", words, { now, cooldown: 1_000 })
+    for (const [id, handle] of [
+      ["a", give(0)],
+      ["b", give(0)],
+    ] as const)
+      workspace.saveTerminal(numbered(id, handle))
+    workspace.removeTerminal("a")
+    // owl is new, then moth comes back after its cooldown, to the newest terminal.
+    workspace.saveTerminal(numbered("c", give(0)))
+    const reused = give(Date.now() + 5_000)
+    expect(reused).toBe("moth")
+    workspace.saveTerminal(numbered("d", reused))
+    expect(workspace.terminals("s").map(({ id }) => id)).toEqual(["b", "c", "d"])
+    expect(workspace.terminals().map(({ id }) => id)).toEqual(["b", "c", "d"])
+    // Saved again, with a changed title, nothing moves.
+    workspace.saveTerminal(numbered("b", "fox"))
+    expect(workspace.terminals("s").map(({ id }) => id)).toEqual(["b", "c", "d"])
+  })
+
+  it("keep when a terminal was given its handle, through saves, and give a new one for a new handle", ({
+    kept,
+  }) => {
+    const workspace = kept()
+    const before = Date.now()
+    const moth = workspace.giveHandle("s", ["moth", "fox"])
+    workspace.saveTerminal(numbered("a", moth))
+    const given = workspace.terminal("a")!.handleGivenAt
+    expect(given).toBeGreaterThanOrEqual(before)
+    expect(workspace.handleGivenAt("s", "moth")).toBe(given)
+    workspace.saveTerminal({ ...numbered("a", moth), cwd: "/elsewhere" })
+    expect(workspace.terminal("a")!.handleGivenAt).toBe(given)
+    expect(workspace.terminals("s")[0]!.handleGivenAt).toBe(given)
+    // A move to another session of the project keeps the handle, and when it was given.
+    workspace.saveTerminal({ ...numbered("a", moth), sessionId: "other" })
+    expect(workspace.terminal("a")!.handleGivenAt).toBe(given)
+    // Another handle is given at its own time, and the old one starts to rest.
+    workspace.saveTerminal({ ...numbered("a", "fox"), sessionId: "other" })
+    expect(workspace.terminal("a")!.handleGivenAt).toBeGreaterThanOrEqual(given)
+    expect(
+      workspace["database"]
+        .prepare("SELECT freed_by FROM project_handles WHERE handle = 'moth'")
+        .get(),
+    ).toEqual({ freed_by: "a" })
+  })
+
+  it("keep when a handle was given across a restore taking it back, not across another terminal's", ({
+    kept,
+  }) => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    try {
+      const workspace = kept()
+      vi.setSystemTime(1_000_000)
+      const moth = workspace.giveHandle("s", ["moth", "fox"])
+      workspace.saveTerminal(numbered("a", moth))
+      const given = workspace.terminal("a")!.handleGivenAt
+      expect(given).toBe(1_000_000)
+      vi.setSystemTime(1_010_000)
+      workspace.removeTerminal("a")
+      // Restored within the hour as another terminal, from a's History row.
+      vi.setSystemTime(1_020_000)
+      expect(workspace.claimHandle("s", moth, "a")).toBe(true)
+      workspace.saveTerminal(numbered("a2", moth))
+      expect(workspace.terminal("a2")!.handleGivenAt).toBe(given)
+      expect(workspace.handleGivenAt("s", moth)).toBe(given)
+      // A terminal that takes it after another's rest is given it afresh.
+      workspace.removeTerminal("a2")
+      vi.setSystemTime(1_020_000 + 2 * handleCooldown)
+      expect(workspace.claimHandle("s", moth, "c")).toBe(true)
+      workspace.saveTerminal(numbered("c", moth))
+      expect(workspace.terminal("c")!.handleGivenAt).toBe(1_020_000 + 2 * handleCooldown)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("refuse a direct save of a handle resting for another terminal, and give it afresh once rested", ({
+    kept,
+  }) => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    try {
+      const workspace = kept()
+      vi.setSystemTime(1_000_000)
+      workspace.saveTerminal(numbered("a", "moth"))
+      const first = workspace["database"]
+        .prepare("SELECT handle_seq AS seq FROM terminals WHERE id = 'a'")
+        .get() as { seq: number }
+      workspace.removeTerminal("a")
+      vi.setSystemTime(1_000_000 + handleCooldown - 1)
+      expect(() => workspace.saveTerminal(numbered("b", "moth"))).toThrow(/resting/)
+      expect(workspace.terminal("b")).toBeUndefined()
+      // The terminal that went may be saved again, and a terminal already holding it still is.
+      vi.setSystemTime(1_000_000 + handleCooldown)
+      workspace.saveTerminal(numbered("b", "moth"))
+      const second = workspace["database"]
+        .prepare("SELECT handle_seq AS seq FROM terminals WHERE id = 'b'")
+        .get() as { seq: number }
+      expect(second.seq).toBeGreaterThan(first.seq)
+      expect(workspace.terminal("b")!.handleGivenAt).toBe(1_000_000 + handleCooldown)
+      // A duplicate's close leaves the other's saves alone.
+      workspace.saveTerminal({ ...numbered("c", "moth"), sessionId: "other" })
+      workspace.removeTerminal("c")
+      workspace.saveTerminal(numbered("b", "moth"))
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("hold the handle of a create that never ended for a cooldown from the draw, through a restart too", ({
+    directory,
+    kept,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const first = kept(path)
+    const cooldown = 60_000
+    const drawn = Date.now()
+    expect(first.giveHandle("s", ["moth", "fox"], { now: drawn, cooldown })).toBe("moth")
+    first.close()
+    const reopened = kept(path)
+    // No terminal, no record: it was a create a crash ended, and rests from when it began.
+    expect(reopened.giveHandle("s", ["moth", "fox"], { now: drawn + cooldown - 1, cooldown })).toBe(
+      "fox",
+    )
+    expect(reopened.claimHandle("s", "moth", "b", { now: drawn + cooldown - 1, cooldown })).toBe(
+      false,
+    )
+    expect(reopened.claimHandle("s", "moth", "b", { now: drawn + cooldown, cooldown })).toBe(true)
   })
 
   it("give the words again with a letter once a session has given them all", ({ kept }) => {

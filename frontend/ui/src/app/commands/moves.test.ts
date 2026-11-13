@@ -42,7 +42,7 @@ const teamWorkspace = (): Workspace => {
                 ...here!.state.roster,
                 terminals: [
                   { ...lead!, handle: "lynx" },
-                  { ...worker!, handle: "glint", ledBy: "lynx" },
+                  { ...worker!, handle: "glint", ledBy: lead!.id },
                 ],
               },
             },

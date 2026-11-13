@@ -21,7 +21,12 @@ import { context, describe, expect, it } from "../../test"
 import { followMessages, noLinks } from "./messages/messages"
 import { TerminalCompanion, type ItemCommands } from "./TerminalCompanion"
 
-const agent = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
+const agent = (handle: string): MessageParty => ({
+  kind: "agent",
+  terminalId: `id-${handle}`,
+  handle,
+  agent: null,
+})
 
 // jsdom has no layout and no resizes; the taskbar's drag-to-reorder asks for them.
 vi.hoisted(() => {
@@ -134,6 +139,7 @@ const messagesOf = (messages: readonly AgentMessage[]): MessagesState => ({
   ...noMessages,
   terminals: {
     "project/initial/01": {
+      terminalId: "id-moth",
       handle: "moth",
       agent: true,
       threads: [

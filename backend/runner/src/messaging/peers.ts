@@ -772,7 +772,8 @@ export const renderAgents = (input: {
 
 /**
  * Why `send` refused a `to` that is no current handle of a terminal there: handles are
- * exact and never reused, so it names none of them, with every one described.
+ * exact, and a closed terminal's goes to a new terminal of the project an hour after it
+ * closed, so a `to` that names none of them is refused, with every one described.
  */
 export const unknownHandle = (
   to: string,

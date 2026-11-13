@@ -165,6 +165,19 @@ CREATE TABLE report_log (
   ) STRICT;
 CREATE INDEX report_log_session ON report_log(agent, agent_session, at);
 CREATE INDEX report_log_project ON report_log(project_id);
+CREATE TABLE worktrees (
+    path TEXT PRIMARY KEY,
+    common_dir TEXT NOT NULL,
+    branch TEXT NOT NULL,
+    base TEXT NOT NULL,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    terminal_id TEXT,
+    adopted INTEGER NOT NULL CHECK (adopted IN (0, 1)),
+    branch_made INTEGER NOT NULL DEFAULT 0 CHECK (branch_made IN (0, 1)),
+    created_at INTEGER NOT NULL
+  ) STRICT;
+CREATE INDEX worktrees_project ON worktrees(project_id);
+CREATE INDEX worktrees_terminal ON worktrees(terminal_id);
 CREATE TABLE companion_windows (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -246,16 +259,3 @@ CREATE TABLE closed_terminals (
     transcript TEXT
   ) STRICT;
 CREATE INDEX closed_terminals_project ON closed_terminals(project_id, closed_at);
-CREATE TABLE worktrees (
-      path TEXT PRIMARY KEY,
-      common_dir TEXT NOT NULL,
-      branch TEXT NOT NULL,
-      base TEXT NOT NULL,
-      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-      terminal_id TEXT,
-      adopted INTEGER NOT NULL CHECK (adopted IN (0, 1)),
-      branch_made INTEGER NOT NULL DEFAULT 0 CHECK (branch_made IN (0, 1)),
-      created_at INTEGER NOT NULL
-    ) STRICT;
-CREATE INDEX worktrees_project ON worktrees(project_id);
-CREATE INDEX worktrees_terminal ON worktrees(terminal_id);

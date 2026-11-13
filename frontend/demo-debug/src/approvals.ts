@@ -82,14 +82,13 @@ export const createDemoApprovals = (
             },
           ])
         else {
-          const handle = terminalOf(workspace(), found.from)?.handle
-          if (handle)
+          if (terminalOf(workspace(), found.from)?.handle)
             dispatch()?.([
               {
                 type: "terminal/update",
                 target: sessionTarget(found.terminal),
                 terminalId: found.terminal.terminalId,
-                ledBy: handle,
+                ledBy: found.from.terminalId,
               },
             ])
         }

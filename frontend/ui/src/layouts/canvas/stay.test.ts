@@ -74,13 +74,13 @@ describe("a stay on Canvas", () => {
 describe("the windows a canvas arranges", () => {
   const terminals: readonly Tile[] = [
     { ...terminalFixture(1, "~"), handle: "fox", state: "starting" },
-    { ...terminalFixture(2, "~"), handle: "owl", ledBy: "fox" },
+    { ...terminalFixture(2, "~"), handle: "owl", ledBy: "01" },
     { ...terminalFixture(3, "~"), ledBy: "gone" },
-    { ...terminalFixture(4, "~"), handle: "kit", ledBy: null, openedBy: "fox" },
-    { ...terminalFixture(5, "~"), openedBy: "fox" },
+    { ...terminalFixture(4, "~"), handle: "kit", ledBy: null, openedBy: "01" },
+    { ...terminalFixture(5, "~"), openedBy: "01" },
   ]
 
-  it("takes each window's lead from the handle its backend named, running or not", () => {
+  it("takes each window's lead from the terminal its backend named, running or not", () => {
     expect(arrangedTiles(terminals, () => false).slice(0, 4)).toEqual([
       { id: "01", lead: undefined },
       { id: "02", lead: "01" },

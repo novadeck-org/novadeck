@@ -24,6 +24,7 @@ import {
   latestOf,
   entryLabel,
   handleOf,
+  partyOf,
   listed,
   openAsks,
   waitsOnPerson,
@@ -222,7 +223,9 @@ const Bubble = ({
               handle={handleOf(message.from)}
               person={message.from.kind === "person"}
               size={22}
-              live={message.from.kind === "person" ? "idle" : liveOf(peers[message.from.handle])}
+              live={
+                message.from.kind === "person" ? "idle" : liveOf(peers[message.from.terminalId])
+              }
             />
           )}
         </span>
@@ -331,7 +334,7 @@ const Chat = ({
   links: MessageLinks
   onBack: () => void
 }): React.JSX.Element => {
-  const peer = peers[conversation.peer]
+  const peer = peers[conversation.key]
   const [unfolded, setUnfolded] = useState(false)
   const lines = useMemo(() => chatOf(conversation, self, unfolded), [conversation, self, unfolded])
   const you = conversation.key === youKey
@@ -350,7 +353,7 @@ const Chat = ({
     !you &&
     liveOf(peer) === "gone" &&
     conversation.messages.some(
-      (message) => handleOf(message.from) === self && message.state === "gone",
+      (message) => partyOf(message.from) === self && message.state === "gone",
     )
   return (
     <>
@@ -512,7 +515,7 @@ export const MessagesView = ({
         <Chat
           key={opened.key}
           conversation={opened}
-          self={messagesHandle.threads.handle}
+          self={messagesHandle.threads.terminalId}
           peers={peers}
           links={links}
           onBack={() => {
@@ -528,8 +531,8 @@ export const MessagesView = ({
                 <Row
                   key={conversation.key}
                   conversation={conversation}
-                  peer={peers[conversation.peer]}
-                  seenAt={messagesHandle.seenAt(conversation.key)}
+                  peer={peers[conversation.key]}
+                  seenAt={messagesHandle.seenAt(conversation.key, conversation.peer)}
                   onOpen={() => setOpen(conversation.key)}
                 />
               ))}

@@ -532,8 +532,8 @@ describe("when an agent's terminal is named", () => {
       {
         work: work(),
         activity: idle("ok"),
-        naming: { ...unnamed, opener: { title: "refactor ui" } },
-        openedBy: "sable",
+        naming: { ...unnamed, opener: { title: "refactor ui", by: "sable" } },
+        openedBy: "id-sable",
       },
       new FakeDescriber({ reply: () => ({ title: "Refactor @novadeck/ui" }) }),
     )
@@ -548,8 +548,8 @@ describe("when an agent's terminal is named", () => {
       {
         agent: null,
         program: { name: "bash", argv: null },
-        naming: { ...unnamed, opener: { title: "dev server" } },
-        openedBy: "sable",
+        naming: { ...unnamed, opener: { title: "dev server", by: "sable" } },
+        openedBy: "id-sable",
       },
       new FakeDescriber({ reply: () => ({ title: "Vite dev" }) }),
     )
@@ -1258,9 +1258,13 @@ describe("when murmur becomes usable", () => {
     agent("c", unnamed)
     // Titled: it waits for its agent's next summary.
     agent("d", { ...unnamed, murmur: { title: "Had one" }, summary: "Fixes the login." })
-    agent("e", { ...unnamed, opener: { title: "Opened" }, summary: "Fixes the logout." })
+    agent("e", {
+      ...unnamed,
+      opener: { title: "Opened", by: "sable" },
+      summary: "Fixes the logout.",
+    })
     // Titled by the agent that opened it: never described.
-    subjects.set("e", { ...subjects.get("e")!, openedBy: "sable" })
+    subjects.set("e", { ...subjects.get("e")!, openedBy: "id-sable" })
     change({ program: { name: "bash", argv: null } })
     describer.setUsable(false)
     describer.setUsable(true)

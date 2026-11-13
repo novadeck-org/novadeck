@@ -277,11 +277,23 @@ agent's request (`terminals.requests`) passes that request's `requestId` to
 `terminals.create`, and takes the title the agent asked for as the agent's.
 `terminals.resetTitle({ terminalId })` takes the person's name away, so it is automatic
 again (see [Agent messaging](agent-messaging.md#naming)). `terminals.busy()` answers `{ busy, unknown }`: the ids of the terminals, in every session, whose shell holds work a restart would end, and those it could not read, which a client must not take for idle. With no agent that is a program in the foreground, an unfinished line, a background or suspended job. With an agent, whose own process is its session and resumes, it is only work beside or under it: for a bound agent, by the rule that keeps an idle agent from resting (a process under it that it didn't come up with, such as a Codex background terminal or a tool's server, a job of the shell's beside it, the agent suspended); for one not yet bound, the shell's jobs beside it. A process re-parented away from the agent (a double fork) is seen by neither. On Linux and macOS the call reads the system's processes a fixed number of times for all terminals, not once each (Windows reads each shell's tree through the relay), and nothing samples it, so a client asks while someone looks at the answer (every few seconds while a restart's card is open) and when it is about to act on it. Calls that overlap share one read; `terminals.busy({ fresh: true })` waits for a read that starts after the call, so an answer that began before it is never taken for the present. `handle` is its
-handle for agents' messages, a word such as `moth` that its session gives it (people read
+handle for agents' messages, a word such as `moth` that its project gives it (people read
 it as `@moth`); every terminal takes one, even one created with its own title, and keeps
-it across renames. A session never gives a word twice, even once its terminal closes;
-once all are given, they come again with a letter from the end of the alphabet (`mothz`). Terminals list in the order they
-were created. `command` is what it was opened to run, and
+it across renames. No other terminal of the project has it while this one is there (a
+terminal made before that rule may share one until they close). A closed terminal's handle
+can go to a new terminal of the project an hour after the close, the one freed longest ago
+first, once every word has been given; words the project never gave come before those. When
+every word is held or resting, they come again with a letter from the end of the alphabet
+(`mothz`). Terminals list in creation order: the order their handles were given, which a
+reused handle does not change. `handleGivenAt` is when it was given that handle, in epoch
+milliseconds; absent (or 0) where that was long ago or is not known. Words written before it
+that name the handle meant an earlier terminal, so a client links and colours `@moth` in
+chat words and markdown only where the words' own time (a chat entry's or a
+message's) is at or after the holder's `handleGivenAt`, and draws it as plain text
+otherwise; words with no time are linked as before. For an agent, a call to a handle that
+went to a terminal its session may not know (see [Agent messaging](agent-messaging.md#handles))
+is refused once, as an error result of the tool (`isError`), naming the new holder and the
+closed one; the same call again goes through. `command` is what it was opened to run, and
 `lastProgram` the program it last had in its foreground, which a fresh shell resumes
 where that is an agent. Windows doesn't tell a terminal's foreground program, so there it
 is the agent whose session last bound the terminal, until the shell has shown its prompt
@@ -299,15 +311,15 @@ from that saved session. The agents listing's "reported done" follows the same r
 `runner.terminals.move({ terminalId, to, handles?, lead? })` moves a terminal to another session
 of the same project without restarting it: a running one, or one kept only as saved (a
 sleeping agent). `to` is `{ sessionId }`. A lead takes its whole team,
-at every depth, in one step, so none is ever led by a handle that went; a teammate moved on its
-own leaves its lead, and the answer's `left` is that lead's handle (null if it had none). The
+at every depth, in one step; a teammate moved on its
+own leaves its lead, and the answer's `left` is that lead's terminal id (null if it had none). The
 answer is `{ sessionId, moved, left }`, `moved` listing the terminal asked for and then its team
-as `{ terminalId, handle, was }`. Each keeps its handle unless the target session gave it
-already, as a restore from History does (a terminal there has it or is led under it, or the
-session gave it to another): it then draws that session's next, and its workers' `ledBy` follow.
-`handles` (by terminal id) and `lead` undo an earlier move: a handle is taken back where no
-terminal of the session holds it or is led under it, and the terminal rejoins the lead with
-that handle if one is there, without asking. `terminals.watch` tells each moved terminal as a
+as `{ terminalId, handle, was }`. Each keeps its handle, which is the project's, unless a
+terminal in the target session has it (only terminals made before handles were unique in a
+project can): it then draws the project's next, and the handle it left rests an hour. A terminal's `ledBy` and `openedBy` are terminal
+ids, so a move leaves its team's links as they are. `handles` (by terminal id) and `lead` (the
+id `left` gave) undo an earlier move: a handle is taken back where nothing in the project holds it
+and no other terminal freed it within the hour, and the terminal rejoins that lead if it is there, without asking. `terminals.watch` tells each moved terminal as a
 `changed` with its new `sessionId`; its Inbox rows and its companion bar's items go with it,
 and each running agent hears of it as a notice, with any new handles and the lead it left (a
 sleeping agent isn't woken for it). A terminal that is closing, stopping to rest, being woken,
@@ -394,7 +406,8 @@ for await (const listing of runner.messages.watch(terminalId)) show(listing) // 
 `messages.list(terminalId)` gives a running or exited terminal's handle, its delivery
 state (`unbound`, `fresh`, `working`, `settled`, `ringing`, `drafting` or `unknown`), whether
 messaging is paused, and its threads, newest first, each with its `peer`, the other party
-(a terminal's agent, `{ kind: "agent", handle, agent }`, or the person, `{ kind: "person" }`),
+(a terminal's agent, `{ kind: "agent", terminalId, handle, agent }`, or the person,
+`{ kind: "person" }`; the terminal is the `terminalId`, and the `handle` is how it reads there),
 its hops so far, its idle messages in a row (sent while neither end worked, see
 [Guards](agent-messaging.md#guards)), whether it is held and why (`heldFor`: `"loop"`, or
 null when not held or for a hold carried over from the twelve-hop rule), whether the person stopped it, and its messages, oldest first: id, hop, its `from` and `to`
@@ -1637,8 +1650,9 @@ one from an earlier runner.
     short, which `companions.save` can write) and `skill` (Novadeck's plugin is installed
     for its agent). A `changes` item is a checkout measured against its repository's main
     branch (`base` names it, `HEAD` where there is none): `root`, `base`, and `layers`, newest
-    first, and `files`, the whole change's own list (what `changeRange` gives over every layer: the
-    net against main, at most 300, in `truncated` too), and `read`, the paths of `files` the
+    first, and `files`, the whole change's own list (git's own listing of the range over every
+    layer, so a file added and dropped inside it is not there, a renamed one is one row and the
+    counts are the range's: the net against main, at most 300, in `truncated` too), and `read`, the paths of `files` the
     person read (`companions.changeRead`) that have not changed since. A layer is the work not committed yet (`id` `uncommitted`, `time` null: the
     working tree, untracked files included and ignored ones not) or a commit since the merge
     base with main (`id` its hash, its `subject` and `time`), with its `files` (`path`,
@@ -1675,14 +1689,11 @@ one from an earlier runner.
     the file on each side (`before`, `after`; null where it doesn't exist, is binary, may hold
     secrets or passes 512 KiB). Past 4 MiB of diff text the run is `big`: no hunks, no sides.
     A name that is no valid text is `badName`: named, not read. An unknown item, or one that is
-    no change, is `NOT_FOUND`.
-  - `companions.changeRange({ itemId, layers })` lists the files the layers selected changed as
-    one range, as git lists them from its start to its end (a file added and dropped inside it is
-    not there, a renamed one is one row, counts are the range's own): `{ files, truncated }`. A
-    range that reaches the oldest layer, or takes in a merge, starts at the merge base with main,
-    so what main brought in is no part of it. A snapshot's objects are written to a folder of the
-    runner's own, never to the person's object store, and a file that may hold secrets is never
-    hashed.
+    no change, is `NOT_FOUND`. A range that reaches the oldest layer starts at the merge base with
+    main; one that takes in a merge without reaching it starts at its oldest layer's parent with
+    main's work merged in (in memory), so what main brought in is no part of either. A snapshot's objects
+    are written to a folder of the runner's own, never to the person's object store, and a file
+    that may hold secrets is never hashed.
   - `companions.changeRead({ itemId, path })` marks a file of a changes item read, by the path
     its content lists it under: the item's content names it in `read` until the file changes
     again, across restarts (the runner keeps it beside the Changes panel's memory). A file the

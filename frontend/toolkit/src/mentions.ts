@@ -1,8 +1,18 @@
 // Where an agent's text names another agent: `@handle`, drawn in that agent's hue where the
 // app knows the handle. Pure, over the text alone; the hue comes from the caller's lookup.
 
-// A hue (1 to 8) for a handle, or null where no agent answers to it.
-export type Mention = (handle: string) => number | null
+// A hue (1 to 8) for a handle, or null where no agent answers to it. With `at`, the time the
+// words were written (epoch milliseconds), only an agent that already had the handle then
+// answers: a project gives a handle to a new terminal an hour after its terminal closes, and
+// words written before name the earlier one.
+export type Mention = (handle: string, at?: number) => number | null
+
+// The mention as of a time: handles in words written then. Without a time, as it was.
+export const mentionAt = (
+  mention: Mention | undefined,
+  at: number | null | undefined,
+): Mention | undefined =>
+  mention && at !== null && at !== undefined ? (handle) => mention(handle, at) : mention
 
 export type MentionPart =
   | { readonly t: "text"; readonly text: string }

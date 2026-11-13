@@ -63,6 +63,16 @@ describe("a window's menu", () => {
     expect(released).toEqual(["moth"])
   })
 
+  it("names no handle for a lead the session no longer has", () => {
+    const items = windowMenu({
+      terminal: terminalFixture(4, "~/p"),
+      onRename: ignore,
+      releaseLead: { lead: null, onRelease: ignore },
+      onClose: ignore,
+    })
+    expect(labels(items)).toEqual(["Rename", "Release from its lead", "Close"])
+  })
+
   context("for a window undocked from a terminal's companion", () => {
     const terminal = terminalFixture(3, "~/p")
 

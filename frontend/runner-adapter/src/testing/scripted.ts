@@ -28,6 +28,7 @@ export const noHistory = {
 // A runner whose terminals have no work against main and never change.
 export const noWorks = {
   watch: () => channel<never>().iterator,
+  made: () => channel<never>().iterator,
   look: async () => {},
   show: async () => ({ itemId: "none" }),
 }
@@ -275,7 +276,6 @@ export const scripted = ({
         return content(...input)
       },
       changeFile: note("change file", (input) => respond("change file", input)),
-      changeRange: note("change range", (input) => respond("change range", input)),
       changeRead: note("change read", (input) => respond("change read", input)),
       attach: note("attach", (input) => respond("attach", input)),
       openInProject: note("open in project", (input) => respond("open in project", input)),

@@ -163,6 +163,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         await start(worker.id, agent, `s-${agent}`)
         await expect.poll(() => manager.messages(worker.id).delivery).toMatch(/^(?:fresh|ready)$/)
         const { handle } = manager.get(worker.id)
+        // The lead lists the terminals first: a handle given after its session began is
+        // refused to it once, until it has been shown the terminal.
+        await step(lead.id, { call: "agents", request: {} })
         await step(lead.id, { call: "send", request: { to: handle, text: "Build the page." } })
         // Its first turn is the doorbell's: the message, then the bar's, the Inbox's and the
         // summary's notices, a paragraph each.

@@ -32,7 +32,7 @@ describe("A change's pane", () => {
     await expect.element(file(pane, "routes.ts")).toBeVisible()
   })
 
-  it("keeps only the row clicked first, takes the range to the next, and starts over after it", async () => {
+  it("keeps only the row clicked, moves to another clicked, and puts everything back on a second click", async () => {
     const pane = await openChange()
 
     await layer(pane, /Check session expiry/).click()
@@ -42,24 +42,22 @@ describe("A change's pane", () => {
     await expect.element(layer(pane, /^Uncommitted/)).toHaveAttribute("aria-selected", "false")
     await expect.element(pane.getByText("3 files · a1c3f9e")).toBeVisible()
     await expect.element(file(pane, "cookies.ts")).not.toBeInTheDocument()
-    await expect.element(pane.getByText(/^Click another to take everything between/)).toBeVisible()
+    await expect.element(pane.getByText(/^Click it again to see everything/)).toBeVisible()
 
-    // The next click takes every row between the anchor and it.
+    // Another row clicked is kept alone instead.
     await layer(pane, /Test verifySession/).click()
     await expect.element(layer(pane, /Test verifySession/)).toHaveAttribute("aria-selected", "true")
-    await expect.element(layer(pane, /^Uncommitted/)).toHaveAttribute("aria-selected", "false")
-    await expect.element(pane.getByText("4 files · 2 of 3")).toBeVisible()
-
-    // A click after a range starts over from that row.
-    await layer(pane, /^Uncommitted/).click()
-    await expect.element(pane.getByText("3 files · uncommitted")).toBeVisible()
     await expect
-      .element(layer(pane, /Test verifySession/))
+      .element(layer(pane, /Check session expiry/))
       .toHaveAttribute("aria-selected", "false")
+    await expect.element(layer(pane, /^Uncommitted/)).toHaveAttribute("aria-selected", "false")
+    await expect.element(pane.getByText(/· 7d02b4a$/)).toBeVisible()
 
-    // Clicking the only row selected puts everything back.
-    await layer(pane, /^Uncommitted/).click()
+    // Clicking the row kept alone puts everything back.
+    await layer(pane, /Test verifySession/).click()
     await expect.element(pane.getByText("6 files · everything")).toBeVisible()
+    await expect.element(layer(pane, /^Uncommitted/)).toHaveAttribute("aria-selected", "true")
+    await expect.element(pane.getByText(/^Click a commit to see only it/)).toBeVisible()
   })
 
   it("unfolds what a file changed, one file at a time, then opens it, steps and goes back", async () => {

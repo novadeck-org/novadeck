@@ -47,7 +47,7 @@ import { Bindings } from "./binding/facts.js"
 import { Reports } from "./binding/reports.js"
 import { Shown } from "./binding/shown.js"
 import { savedSession } from "./binding/standing.js"
-import { callerOf, sameToken } from "./callers.js"
+import { callerOf } from "./callers.js"
 import { Calls } from "./calls.js"
 import { type CloseAnswer } from "./closes.js"
 import { coalesced } from "./coalesce.js"
@@ -203,6 +203,7 @@ export class Terminals {
       | "worktrees"
       | "historyTimes"
       | "handleOrder"
+      | "handleCooldown"
       | "shims"
       | "connected"
       | "transcripts"
@@ -417,6 +418,7 @@ export class Terminals {
       stopping: () => this.stopping,
       records: () => this.records.values(),
       record: (terminalId) => this.records.get(terminalId),
+      projectOf: (sessionId) => this.projectOf(sessionId),
       announce: (record) => this.announce(record),
     })
     this.history = new ClosedTerminals(
@@ -432,7 +434,7 @@ export class Terminals {
         projectOf: (sessionId) => this.projectOf(sessionId),
         install: (agent) => this.options.install(agent),
         connected: (agent) => this.launcher.connected(agent),
-        drawHandle: (sessionId) => this.names.next(sessionId),
+        names: this.names,
         resting: (agent, sessionId) => this.sleepers.holder(agent, sessionId),
         announce: (record) => this.announce(record),
         worktrees: options.worktrees?.service,
@@ -656,12 +658,7 @@ export class Terminals {
     })
     this.peers = new TerminalPeers({
       messaging: this.messaging,
-      caller: (terminalId, token) => {
-        const record = this.records.get(terminalId)
-        return record && !record.terminal.exiting && sameToken(record.token, token)
-          ? record
-          : undefined
-      },
+      caller: (terminalId, token) => callerOf(this.records, { terminalId, token }),
       terminal: (terminalId) => this.records.get(terminalId) ?? this.sleepers.peer(terminalId),
       running: (sessionId) => [
         ...[...this.records.values()].filter(
@@ -674,6 +671,9 @@ export class Terminals {
       bar: (id) => this.options.items?.bar(id) ?? [],
       worktrees: (id) => this.options.worktrees?.service.ownedRows(id) ?? [],
       stopping: () => this.stopping,
+      save: (record) => this.saves.save(record as Record, false),
+      former: (sessionId, handle, before) =>
+        this.history.lastHolder(this.projectOf(sessionId), handle, before),
     })
     this.murmur = options.describer
       ? new Murmur(
@@ -738,11 +738,7 @@ export class Terminals {
       items: () => this.options.items,
       announce: (record) => this.announce(record),
       savedChanged: (row) => this.streams.savedChanged(row),
-      adopt: (sessionId, handle) =>
-        options.closed
-          ? options.closed.adoptHandle(sessionId, handle)
-          : this.names.adopt(sessionId, handle),
-      draw: (sessionId) => this.names.next(sessionId),
+      names: () => this.names,
     })
     this.launcher.integrate(options.shellFiles)
     this.sleepers.start()
@@ -823,12 +819,12 @@ export class Terminals {
       // asked for, as it requested the terminal, is that agent's.
       let naming: Naming = kept?.naming ?? unnamed
       if (input.title !== undefined) naming = renamedTo(naming, input.title)
-      if (opener?.title !== undefined) naming = openedWith(naming, opener.title)
+      if (opener) naming = openedWith(naming, opener.title, opener.handle)
       const openedBy = kept?.openedBy ?? opener?.by ?? null
       const ledBy = kept ? kept.ledBy : opener?.leads ? opener.by : null
       const work = saved?.work ?? null
       const command = input.command ?? saved?.command ?? null
-      const titled = summaryTitle(naming, { handle, command, openedBy })
+      const titled = summaryTitle(naming, { handle, command })
       const judged = this.claims.judge(input, saved, connected)
       const resume = judged?.ok ? judged : undefined
       // Its agent sleeps: this create is its wake, and a plain shell it ends in keeps its lead.
@@ -879,6 +875,7 @@ export class Terminals {
           sessionId: input.sessionId,
           ...titled,
           handle,
+          handleGivenAt: this.names.givenAt(input.sessionId, handle),
           ledBy,
           openedBy,
           agentRan: hasRun(saved?.agents ?? {}),
@@ -1347,6 +1344,7 @@ export class Terminals {
     this.inbox.forgetProject(projectId)
     this.feedback.forgetProject(projectId)
     this.messaging.forgetProject(projectId)
+    this.names.forgetProject(projectId)
   }
 
   /** The project or session stays after all, as its removal failed: terminals start in it again. */
@@ -1376,7 +1374,6 @@ export class Terminals {
         this.streams.removed(terminal)
         this.streams.end(terminal.id)
       }
-      this.names.forgetSession(sessionId)
     }
   }
 
@@ -1922,6 +1919,7 @@ export class Terminals {
     if (this.records.get(id) !== record) return
     record.closed = true
     this.records.delete(id)
+    this.names.release(record.summary.sessionId, record.summary.handle, id)
     this.streams.removed(record.summary)
     this.streams.end(id)
     this.host.remove(id)

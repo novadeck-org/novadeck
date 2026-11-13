@@ -502,8 +502,8 @@ export class Messaging {
     this.leading.endLead(terminalId)
   }
 
-  setLead(terminalId: string, handle: string): void {
-    this.leading.setLead(terminalId, handle)
+  setLead(terminalId: string, leadId: string): void {
+    this.leading.setLead(terminalId, leadId)
   }
 
   sendBrief(terminalId: string, request: unknown): SendAnswer {
@@ -518,8 +518,8 @@ export class Messaging {
     this.leading.dropLeadMessages(terminalId)
   }
 
-  leadOf(terminalId: string): string | undefined {
-    return this.leading.leadOf(terminalId)
+  leadOf(terminalId: string): { readonly terminalId: string; readonly handle: string } | undefined {
+    return this.leading.leadPeer(terminalId)
   }
 
   // Agents' messages and listings: see `Sending`.

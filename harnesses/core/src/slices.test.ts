@@ -202,4 +202,18 @@ describe("readSlice", () => {
     expect(read(["one", "menu", rule, "> /"], atRest).resting).toBeUndefined()
     expect(read(["view"], atRest).resting).toBeUndefined()
   })
+
+  it("shows nothing at a box run off the screen's bottom, and never rests there", () => {
+    // Its footer went with its closing rule, so what is under it says nothing of the rest.
+    const clipped = box({
+      read: ({ rows }) => {
+        const at = rows.findLastIndex((row) => row.startsWith("> "))
+        return { text: rows[at]!.slice(2), mode: "prompt", first: at, last: at, clipped: true }
+      },
+    })
+    expect(read(["one", "", "two", "", rule, "> words"], atRest, { box: clipped })).toEqual({
+      bounds: undefined,
+      resting: undefined,
+    })
+  })
 })

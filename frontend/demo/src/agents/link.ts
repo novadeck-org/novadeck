@@ -37,8 +37,9 @@ export type DemoShell = {
 }
 
 export type DemoAgentVerbs = {
-  // Starts a turn that works until another verb ends it: in plan mode, or with three
-  // subagents running. A terminal that runs no agent becomes one first (see `as`).
+  // Starts a turn that works until another verb ends it: in plan mode, with three
+  // subagents running, or running `tools` calls one after another. A terminal that runs no
+  // agent becomes one first (see `as`).
   readonly work: (
     key: TerminalKey,
     terminal: TerminalMetadata | undefined,
@@ -46,6 +47,7 @@ export type DemoAgentVerbs = {
       readonly planning?: true
       readonly subagents?: true
       readonly shells?: readonly DemoShell[]
+      readonly tools?: number
     },
   ) => void
   // Stops the agent's turn on `count` requests of `kind`, each answerable from the chat

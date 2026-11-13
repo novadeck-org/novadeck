@@ -15,10 +15,10 @@ export type DockTarget = {
   readonly onDock: (() => void) | undefined
 }
 
-// Ending the lead of a led terminal: its lead's handle, which the item names, and what
-// releases it.
+// Ending the lead of a led terminal: its lead's handle, which the item names (null where the
+// lead is no longer in the session), and what releases it.
 export type ReleaseLead = {
-  readonly lead: string
+  readonly lead: string | null
   readonly onRelease: () => void
 }
 
@@ -178,7 +178,9 @@ export const windowMenu = ({
           ? [
               {
                 value: "release-lead",
-                label: `Release from @${releaseLead.lead}`,
+                label: releaseLead.lead
+                  ? `Release from @${releaseLead.lead}`
+                  : "Release from its lead",
                 onSelect: releaseLead.onRelease,
               },
             ]

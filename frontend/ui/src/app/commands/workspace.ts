@@ -535,7 +535,9 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       const { project, session } = found
       const target = { projectId: project.id, workspaceSessionId: session.id }
       const { roster } = session.state
-      const opener = roster.terminals.find((each) => each.id === request.from)?.handle
+      const opener = roster.terminals.some((each) => each.id === request.from)
+        ? request.from
+        : undefined
       // Opened by the asking terminal, as its backend will say, so it lists under it at once,
       // after any it opened just before.
       const terminal = {

@@ -29,7 +29,9 @@
    data-kind="run" | "read" | "write" | "search" | "web" | "agent" | "plan" | "other",
    data-running and data-failed on a tool line, aria-expanded on its button, `.chat-tool-failed`
    on what says a call failed; data-sign="+" |
-   "-" | " " on a line of a diff (`.chat-diff`); data-folded on a long run of calls;
+   "-" | " " on a line of a diff (`.chat-diff`); data-folded on a long run of calls, and on its
+   open lines' box (`.chat-tools-box`) data-capped while it keeps to a few, data-earlier while
+   lines sit above them;
    `.chat-ring` (data-role="doorbell") for a turn the doorbell started, data-line where it has a
    line of its own (`.chat-note`, data-hollow on its mark); `.chat-person-face` the person's face
    in the gutter at their answer through the Inbox, where the app gives one, with data-hue="you"
@@ -753,6 +755,28 @@
 .chat-tool {
   min-width: 0;
 }
+/* A long open run keeps to a few lines that scroll, its latest in view, the top edge fading
+   where earlier lines sit above; the fade and the hint over it say it scrolls, so no bar takes
+   from the lines' facts. A line opened in it makes it taller by what opened (`--_opened`), so
+   nothing in it moves. The lines are placed within it, as it counts those out of view. */
+.chat-tools-box {
+  position: relative;
+}
+.chat-tools-box[data-capped] {
+  max-height: calc(5 * var(--_work-lh) + var(--_opened, 0px));
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.chat-tools-box[data-capped]::-webkit-scrollbar {
+  display: none;
+}
+.chat-more.chat-tools-whole {
+  margin: 0;
+}
+/* In the ink, opaque, as the box's text is a dim one: the mask fades only its edge. */
+.chat-tools-box[data-earlier] {
+  mask-image: linear-gradient(to bottom, transparent, var(--_ink) var(--_work-lh));
+}
 .chat-tool-summary,
 .chat-tools-fold {
   display: flex;
@@ -828,7 +852,7 @@
   margin-bottom: calc(var(--_lh) / 2);
   padding-left: 2ch;
 }
-.chat-tools-fold ~ .chat-tools-list {
+.chat-tools-fold ~ :is(.chat-tools-box, .chat-tools-whole) {
   padding-left: 2ch;
 }
 .chat-tool-part pre {
@@ -1929,7 +1953,7 @@ button.chat-hold-line:focus-visible::before {
   }
 
   .chat-tool-body,
-  .chat-tools-fold ~ .chat-tools-list,
+  .chat-tools-fold ~ .chat-tools-box,
   .chat-hold[data-open] .chat-hold-words,
   .chat-hold-foot {
     animation: chat-disclose var(--motion-state) var(--ease-interface);

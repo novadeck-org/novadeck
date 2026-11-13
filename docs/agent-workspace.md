@@ -301,7 +301,6 @@ port's optional `companions` capability (`frontend/core/src/items.ts`):
 | `save(target, itemId, text, basedOn)`       | The user's edit written to the plan file, unless it changed since stamp `basedOn`                            |
 | `openInProject?(target, path, windowId)`    | A file the person opened from Source, in the project window; absent where it can't be                        |
 | `changeFile?(target, itemId, path, layers)` | One file of a change for the layers selected: its diff and both sides' text; absent where it can't be        |
-| `changeRange?(target, itemId, layers)`      | The files the layers selected changed as one range, with the range's own counts; absent where it can't be    |
 | `changeRead?(target, itemId, path)`         | The person read a file of a change: the content's `read` names it until it changes; absent where it can't be |
 
 A file that may hold secrets is `secret` until the person asks to see it, and `reveal` is the path
@@ -315,10 +314,9 @@ own, of what the selected rows changed together (their counts added up, names co
 file changed, folders with guides), and a hint line saying what a click does. All rows are
 selected to start; the selection is a 2px `--color-strong` rail on a row's left edge, joined across
 selected neighbours, growing and shrinking by scale and opacity and sliding its ends over
-`--motion-state` (none under reduced motion). The first click keeps only the row clicked, the next
-click takes every row between the first one clicked (the anchor) and it, either way, a click
-after that starts over from the row clicked, and clicking the only row selected is all again: it
-works as a slicer, and a selection is always one range (`selection.ts`). A file the person opened is gray in the tree, in
+`--motion-state` (none under reduced motion). A click on a row keeps only that row, a click on
+another row keeps only that one instead, and clicking the row kept alone is all again: a selection
+is all the rows or one (`selection.ts`). A file the person opened is gray in the tree, in
 any selection, until the file changes again: the runner keeps it read (`changeRead`, in the
 content's `read`), across restarts, and the pane grays it at once until the content comes again. One click on a file unfolds what it changed under its row, one file
 at a time, as `.terminal-tab-branches` unfold a terminal tab's subagents (├ └ rows with the
@@ -469,7 +467,7 @@ with every safety check again at that time:
   case on Windows) and named "Changes · <folder>"
   unless a title is given; showing it again updates it. Its detail counts the files the change
   as a whole differs from main by and their lines (the net, not its layers added up), and follows each read the pane triggers. The content
-  (`companions.content`) is each layer's files with their counts, and the whole change's own list of files (the net), not their diffs; for every layer selected the pane reads that list, and asks `changeRange` only for a selection of two or more layers that is not all of them: it is read
+  (`companions.content`) is each layer's files with their counts, and the whole change's own list of files (the net), not their diffs; for every layer selected the pane reads that list, and for one layer that layer's own files: it is read
   with git at the start and again about every 2 seconds while followed, and sent only
   when it changed. One file's diff for a selection of layers is `companions.changeFile`: the
   selection is one range, diffed from the oldest layer's parent to the newest (the uncommitted
@@ -477,10 +475,7 @@ with every safety check again at that time:
   work as the range's end holds it merged in (in memory) where the parent lacks it, so the range
   shows its own work only; only a range that reaches the oldest layer starts at the merge base
   (for the newest layer's commit, where that commit left main), so the whole of it is
-  `git diff main...HEAD`. `companions.changeRange` lists the files of a selection of more than
-  one layer the same way, git's own listing for the range (a file added and dropped inside it
-  is not there, a rename is one row, the counts are the range's) up to the file bound, with
-  `truncated` where more exist.
+  `git diff main...HEAD`.
 
   One snapshot service (`backend/runner/src/checkouts/snapshots.ts`) takes the working tree for
   both the changes item and the Changes panel (Works), so a checkout both read is taken once:
@@ -535,6 +530,12 @@ with every safety check again at that time:
   as merged here only after the next fetch (see "Worktrees": cleanup and fetching). Worktrees the
   runner removes by itself drop out of the list like one the person closed.
 
+  The Changes toggle flares the History toggle's dot and ring once for every worktree the runner
+  starts tracking (an agent's `open_worktree`, or `take_worktree` adopting one; not a worktree
+  changing hands). The panel's feed is followed only while it shows, so a separate stream,
+  `works.made`, carries one event per new worktree for the backend's whole life, without
+  replaying any and without reading git; the adapter counts them (`Works.made`).
+
   The files the person read are kept in the same memory file (`works.json`), each by its object
   as the change listed it (all zeros for a file deleted): `companions.changeRead` marks one,
   and the content's `read` names the files of the change whose object is still that one. A
@@ -561,8 +562,8 @@ with every safety check again at that time:
   name and the old one of a rename, tracked or not) carry no hunks and no text: they are
   listed by name with their counts, and `changeFile` never reads them. v1 has no way to
   reveal either. An untracked file that may hold secrets (a stray `.env`) is never read or
-  hashed into the snapshot, but the uncommitted layer and the ranges that include it list it
-  by name, `added` and `secret`, with no counts.
+  hashed into the snapshot, but the uncommitted layer, the change's own list of files and
+  `changeFile`'s run over a range that takes it in name it, `added` and `secret`, with no counts.
 
   The runner finds `git` once on the PATH (absolute entries only) and runs it with a
   fixed argument list, no shell, in the repository, for at most 5 seconds, ending its

@@ -411,7 +411,7 @@ describe("the launch demo", () => {
     expect(terminals()).toHaveLength(11)
     const lead = terminals().find((each) => each.id === key(launch.lead).terminalId)!
     const teammates = terminals().slice(8)
-    expect(teammates.map((each) => each.ledBy)).toEqual([lead.handle, lead.handle, lead.handle])
+    expect(teammates.map((each) => each.ledBy)).toEqual([lead.id, lead.id, lead.id])
     expect(new Set(teammates.map((each) => each.process))).toEqual(
       new Set(["codex", "agy", "claude"]),
     )
@@ -487,7 +487,8 @@ describe("the launch demo", () => {
     const { backend, cues, terminals } = open()
     cues.teammates()
     const teammates = terminals().slice(8)
-    for (const each of teammates) expect(each).toMatchObject({ ledBy: lead, openedBy: lead })
+    const leadId = key(launch.lead).terminalId
+    for (const each of teammates) expect(each).toMatchObject({ ledBy: leadId, openedBy: leadId })
     await vi.advanceTimersByTimeAsync(4000)
     expect(exchange(backend).map(({ from, to, text }) => ({ from, to, text }))).toEqual([
       { from: lead, to: demoHandle(11), text: "Serve prices from the API." },

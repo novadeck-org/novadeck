@@ -246,7 +246,7 @@ describe("runner seed", () => {
           {
             session: fresh(10),
             terminals: [
-              summary(30, 10, { openedBy: "moth", ...foreground("vite") }),
+              summary(30, 10, { openedBy: "id-moth", ...foreground("vite") }),
               summary(31, 10, { agentRan: true }),
               kept(32, 10, { agentRan: true }),
               summary(33, 10),
@@ -260,13 +260,38 @@ describe("runner seed", () => {
 
     it("keeps who opened each terminal and whether an agent ran there", () => {
       expect(terminals).toMatchObject([
-        { id: uuid(30), openedBy: "moth" },
+        { id: uuid(30), openedBy: "id-moth" },
         { id: uuid(31), agentRan: true },
         { id: uuid(32), agentRan: true },
         { id: uuid(33) },
       ])
       expect(terminals[3]).not.toHaveProperty("openedBy")
       expect(terminals[3]).not.toHaveProperty("agentRan")
+    })
+
+    it("keeps when each was given its handle, where the runner says", () => {
+      const given = workspaceFromSeed(
+        runnerSeed([
+          {
+            project: project(1),
+            sessions: [
+              {
+                session: fresh(10),
+                terminals: [
+                  summary(40, 10, { handleGivenAt: 1_700_000_000_000 }),
+                  summary(41, 10, { handleGivenAt: 0 }),
+                  summary(42, 10),
+                ],
+              },
+            ],
+          },
+        ]),
+        defaults,
+      ).projects[0]!.history[0]!.state.roster.terminals
+      expect(given[0]).toMatchObject({ handleGivenAt: 1_700_000_000_000 })
+      // Long ago, or not said: nothing, as the same as before.
+      expect(given[1]).not.toHaveProperty("handleGivenAt")
+      expect(given[2]).not.toHaveProperty("handleGivenAt")
     })
 
     it("shows the handle on their tabs, not on a shell no agent touched", () => {

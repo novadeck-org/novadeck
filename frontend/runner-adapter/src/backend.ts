@@ -932,7 +932,12 @@ export const runnerBackend = (
         projectId: entry.key.projectId,
         from: entry.key.workspaceSessionId,
         to: summary.sessionId,
-        terminal: { ...current, handle: summary.handle, ledBy: summary.ledBy },
+        terminal: {
+          ...current,
+          handle: summary.handle,
+          ...(summary.handleGivenAt ? { handleGivenAt: summary.handleGivenAt } : {}),
+          ledBy: summary.ledBy,
+        },
       },
     ])
   }
@@ -958,6 +963,10 @@ export const runnerBackend = (
       unconfirmed === undefined && current.name !== summary.title ? summary.title : undefined
     const directory = current.directory !== summary.cwd ? summary.cwd : undefined
     const handle = current.handle !== summary.handle ? summary.handle : undefined
+    const handleGivenAt =
+      (current.handleGivenAt ?? 0) !== (summary.handleGivenAt ?? 0)
+        ? (summary.handleGivenAt ?? 0)
+        : undefined
     const ledBy = (current.ledBy ?? null) !== summary.ledBy ? summary.ledBy : undefined
     const openedBy = (current.openedBy ?? null) !== summary.openedBy ? summary.openedBy : undefined
     const agentRan = (current.agentRan ?? false) !== summary.agentRan ? summary.agentRan : undefined
@@ -973,9 +982,18 @@ export const runnerBackend = (
         ? summary.titleSource
         : undefined
     if (
-      [name, directory, handle, ledBy, openedBy, agentRan, restorable, busy, titleSource].every(
-        (fact) => fact === undefined,
-      )
+      [
+        name,
+        directory,
+        handle,
+        handleGivenAt,
+        ledBy,
+        openedBy,
+        agentRan,
+        restorable,
+        busy,
+        titleSource,
+      ].every((fact) => fact === undefined)
     )
       return []
     return [
@@ -986,6 +1004,7 @@ export const runnerBackend = (
         ...(name !== undefined && { name }),
         ...(directory !== undefined && { directory }),
         ...(handle !== undefined && { handle }),
+        ...(handleGivenAt !== undefined && { handleGivenAt }),
         ...(ledBy !== undefined && { ledBy }),
         ...(openedBy !== undefined && { openedBy }),
         ...(agentRan !== undefined && { agentRan }),

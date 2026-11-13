@@ -27,7 +27,7 @@ const blocks: readonly ChatBlock[] = [
       {
         id: "m",
         text: "Keep it.",
-        from: { kind: "agent", handle: "moth", agent: "codex" },
+        from: { kind: "agent", terminalId: "id-moth", handle: "moth", agent: "codex" },
       } as never,
     ],
   },

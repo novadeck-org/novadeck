@@ -685,6 +685,16 @@ const openAgent: Tool<Opened> = {
   failed: "Novadeck couldn't open the agent.",
 }
 
+// What tools that take a handle say of handles that went to a new terminal. Codex and
+// Antigravity read tool descriptions but not the server's own instructions, so it is said
+// here, in each tool, and the refusal itself says it too.
+const reused =
+  " A handle goes to a new terminal an hour after its terminal closes, so one you learned " +
+  "earlier (from your context, not from agents or team) may now name another terminal: the " +
+  "first call to such a handle is refused, naming the terminal that holds it now and the " +
+  "one that closed, and the same call again then goes through. Call agents to see who holds " +
+  "which handle."
+
 const closeTerminal: Tool<Closed> = {
   name: "close_terminal",
   description:
@@ -700,7 +710,8 @@ const closeTerminal: Tool<Closed> = {
     "you hear the outcome as a message from Novadeck. A terminal with no agent there, such " +
     "as a dev server, closes at once. Whenever you are unsure which terminal is meant, call " +
     "agents again and pick by title, folder, branch and work; if more than one could " +
-    "match, ask the user rather than guess.",
+    "match, ask the user rather than guess." +
+    reused,
   inputSchema: {
     type: "object",
     properties: {
@@ -783,7 +794,8 @@ const leadTerminal: Tool<{
     "complete as open_agent's: what to do, where, how to tell it is done, and when to report " +
     "back. Being its lead gives you none of the user's approvals of actions. It is refused " +
     "where the agent already has a lead, runs no agent, or leads you. The link ends when " +
-    "its agent exits, or when you call release or the user ends it.",
+    "its agent exits, or when you call release or the user ends it." +
+    reused,
   inputSchema: {
     type: "object",
     properties: {
@@ -825,7 +837,8 @@ const release: Tool<{ readonly handle: string; readonly title: string }> = {
     "agent is told, and its messages and yours are a peer's from then on (it may still send " +
     "you messages, as a peer; they are no longer reports to its lead). Use it when you no " +
     "longer direct that agent, such as when the work you directed it on is finished, or the " +
-    "user asked. To end its terminal too, use close_terminal.",
+    "user asked. To end its terminal too, use close_terminal." +
+    reused,
   inputSchema: {
     type: "object",
     properties: {
@@ -910,7 +923,9 @@ const send: Tool<Sent> = {
     "terminal's exact handle as agents lists it (such as @fox), or, only to terminals you lead, " +
     "several handles or team; anything else is refused, with the terminals described. It reaches that agent by itself, wrapped as from you, and " +
     "marked as from its lead when you opened that terminal with open_agent or lead it; up to 4 KB, so put longer " +
-    "content in a file and send its path. " +
+    "content in a file and send its path." +
+    reused +
+    " " +
     rules,
   inputSchema: {
     type: "object",
@@ -1463,7 +1478,8 @@ const giveWorktree: Tool<Worktree> = {
     "terminal's exact handle as agents lists it (such as @fox), so it owns and may close it: " +
     "for example a lead handing work to an agent it opened. The terminal is told. You no " +
     "longer own it, so don't change files there. Only the owner may give it. Refused while " +
-    "the user has agent worktrees off.",
+    "the user has agent worktrees off." +
+    reused,
   inputSchema: {
     type: "object",
     properties: {

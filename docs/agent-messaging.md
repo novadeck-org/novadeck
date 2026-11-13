@@ -158,8 +158,10 @@ An agent weighs what reaches it at three levels:
    An agent opened with a brief and `lead: false` (the person's decision to start it on a
    task but not run it through the opener) gets the brief marked as the lead's, so it is
    its task, and the opener's lead is released once the brief is delivered: after that the
-   two are peers. The terminal's record keeps the opener's handle (or, after the person approved an agent's `lead`, that agent's) as `ledBy` (column
-   `led_by`), beside `openedBy`, which every opened terminal keeps. It is kept through a
+   two are peers. The terminal's record keeps the opener's terminal id (or, after the person approved an agent's `lead`, that agent's) as `ledBy` (column
+   `lead_terminal`), beside `openedBy` (column `opener_terminal`), the opener's id, which every opened terminal keeps.
+   Both are terminal ids, never handles: a handle reads as a terminal, an id is one, so a link
+   outlives a handle and names no other terminal once its own has closed. It is kept through a
    restore within the same Novadeck session only; a terminal restored under another
    session takes nothing from a record saved in a different one. `ledBy` on a summary is
    the stored value: clients work out whether the lead is running from the roster (the UI
@@ -187,8 +189,8 @@ The rules that keep this safe:
   `/clear` or a new session of the same running agent, a restart of the lead's agent,
   and a runner restart or restore that resumes the worker's agent (within the same
   Novadeck session); the worker's own agent ending ends it (below). If the lead's terminal is closed, the worker has no
-  running lead: it finishes its work, and later messages from that handle (which no other terminal is
-  given; a restore gives it back only to its own terminal, which regains no workers) are peer messages. A kept, not-running terminal leads no one for new
+  running lead: it finishes its work, and later messages from it (a restore gives the lead's handle back only to its own terminal,
+  a new one with an id of its own, which regains no workers) are peer messages. A kept, not-running terminal leads no one for new
   sends; what it sent while it led keeps its `fromLead` mark.
 - **A worker keeps its lead only while it is, or resumes, the agent the lead started or
   the person let it lead.**
@@ -259,7 +261,7 @@ The rules that keep this safe:
 
 The terminal manager tells messaging each terminal's `ledBy` as it registers the
 terminal, and again (`endLead`) when it ends. `Messaging.leadOf(terminalId)` names a
-terminal's running lead (the one `ledBy` names, running in the same project and
+terminal's running lead (the terminal whose id `ledBy` is, running in the same project and
 session), for `agents()` and for fixing a message's `fromLead` and `toLead` as it is sent.
 Delivery marks the messages whose `fromLead` is set.
 
@@ -270,21 +272,93 @@ Delivery marks the messages whose `fromLead` is set.
 Each terminal has a **handle**, a word such as `moth`: part of the terminal's record,
 assigned by the terminal manager when the terminal is created and shown on its summary.
 Agents and people write it as `@moth`; tools that take a handle accept it with or
-without the `@`, and a delivered message's `from` is the bare word. The session draws it
+without the `@`, and a delivered message's `from` is the bare word. The project draws it
 from a list of short words (`terminals/handles.ts`), and every terminal draws one, even
 one created with its own title. Each session draws the words in its own order, seeded by
 its id so a restart keeps it: the best words, one per first letter, then the rest, each
 shuffled and dealt a word of each critter hue in turn, so eight handles in a row get
-eight colours, as in the list's own order. Each pick prefers a word whose first letter
-no open terminal of the session starts with, so a jump by letter lands in one key. The
-session records every handle it gives (`session_handles`), because terminal rows are deleted on close, and `(session_id, handle)` is unique on
-terminals. Terminals sort by creation order, never by their handle. A handle never
-changes, not when the terminal is renamed, and is never given to another terminal in that
-session: a closed terminal's handle stays unanswered rather than reaching another terminal.
-Only restoring it from History gives its own handle back, to the terminal it becomes, and
-only when no terminal there has it or leads under it (else it draws a new one). Once a
-session has given every word, they come again with a letter from the end of the alphabet
-(`mothz`, then `mothy`), skipping one that reads badly after the word (`fizzz`, `foxz`). Agents
+eight colours, as in the list's own order. Each pick prefers a word the project has never
+given whose first letter no open terminal of the session starts with, so a jump by letter
+lands in one key.
+
+A handle is unique in a **project**, not a session: no two terminals of a project have the
+same one, and a move to another session of it keeps it. The project's pool
+(`project_handles`) records every handle it ever gave and when. A handle is **held** while
+a terminal has it: a row (open, asleep or saved only) or a record in the manager that is
+still closing (its row went when the close began, and its shell is still ending). A held
+handle is never given. When the last terminal that held it goes (its shell ends, or its
+row goes if it never had a record, or its session or project is deleted), the handle
+**rests** for an hour (`handleCooldown`, injectable for tests) from then. After that the
+project may give it to a new terminal: a closed terminal's handle can reach another
+terminal an hour after it closes. Words the project never gave come first; then the one
+freed longest ago; the words come again with a letter from the end of the alphabet
+(`mothz`, then `mothy`) only when every word is held or resting, skipping one that reads
+badly after the word (`fizzz`, `foxz`). A handle drawn for a create that has not ended, or
+that failed, is held the same hour, from the draw, so nothing releases it by hand.
+Restoring a terminal from History takes its own handle back if nothing holds it, and
+during the rest its own close started (else it draws a new one); a terminal that takes
+its own handle back keeps when it was given it, as a reference written before it closed
+meant this same terminal, while a handle given to another terminal is dated afresh. Terminals made before this
+rule may share a handle across sessions of a project; they keep it until they close, and
+no new terminal is given a handle anything in the project holds, and `(session_id, handle)`
+stays unique on terminals. Terminals sort by
+creation order, never by their handle: `handle_seq` is the place a handle was given in,
+so a reused handle's terminal sorts after the older ones. A terminal also keeps when its
+handle was given (`handle_given_at`, 0 for one made before it was kept), so a reference
+written before then can be told from one to the terminal that has the handle now. A
+handle never changes, not when the terminal is renamed.
+
+**A handle given again, and what an agent knew.** An agent's context (its transcript, the
+briefs it wrote, messages delivered to it as `from="moth"`, `agents` and `team` listings,
+notices) can still name the old `@moth` after the project gave `moth` to a new terminal.
+Before handles came back, a `send` to it was refused as an unknown handle; now it would
+reach an unrelated terminal. So a tool that takes a handle (`send` to one handle or several,
+`lead`, `release`, `close_terminal`, `give_worktree`) **refuses the first call** to a handle
+that went to a terminal its calling agent session may not know under that handle, and says
+so: the error names the new holder (handle, title, summary, when it was opened), the
+terminal the agent may have known as `@moth`, which closed, and that calling again with the
+same handle reaches the new one. The second call of the same
+session to the same handle goes through. A send to `team` names no handle (it means the
+terminals the caller leads, by id), so the guard never holds it back; a send to several
+named handles is refused whole, naming each one the session wasn't shown, before any of
+them gets the message.
+
+The rule (`terminals/introductions.ts`, `unknownTo`): the call is refused when the target's
+`handleGivenAt` is greater than 0 _and_ the calling agent session began before it _and_
+the session has not been shown that terminal since _and_ History keeps a terminal of the
+project that last held the handle before it was given, and that closed after the session
+began. A handle given for the first time, or whose last holder closed before the session
+began, names no terminal the agent could have known, so a terminal the person makes while an
+agent runs is not refused. One whose last holder closed longer ago than History keeps (a
+week) is not refused either: the guard can't name it, which leaves a session that ran for
+over a week able to reach the new holder unwarned. A session began (`knew.since`) when
+its report first came to the terminal (the start of the hook that named it), or when it
+first reported to the runner at all, where its report log still has that: a conversation
+resumed in another terminal, or after another session in this one (`claude --resume`,
+`/resume`, `codex resume`, Antigravity reopening a conversation), began when it first ran,
+since its context may name what it knew then. A session that began after the handle was
+given knows only the holder now, which is why a `/clear`, a new session, resets it. A session has been **shown** a terminal (by id, `knew.shown`) by any of:
+an `agents` or `team` result (which lists every other terminal of the project and session),
+the result of the `open_agent` or `open_terminal` that created it, a notice naming it (the
+`give_worktree` notice to the receiver names the giver), a message exchanged with it since
+the session began (one the session sent it, or one delivered to the session), or the
+refusal itself. A terminal whose `handleGivenAt` is 0 (made before it was kept, or whose
+handle was given long ago) never triggers it. Where the facts are not known, the guard errs
+toward refusing once: a report saved before this was kept has no `knew`, so its session
+counts as having begun before everything (since 0), and a root that is only a guess
+(Antigravity's, until its status line names the session) is kept in memory only, since it
+may be corrected to another session.
+
+The state lives with the session's report in the terminal's saved row
+(`AgentReport.knew` in `agent_reports`: `{ since, shown }`, at most 256 terminals), so a
+Claude Code or Codex session resumed after a runner restart keeps it, a new session starts
+its own, and History restores it with the row. It needs no schema change. The refusal is an
+error result of the one MCP server (`isError`); Codex and Antigravity read tool
+descriptions but not the server's instructions, so the five tools' descriptions and the
+refusal text carry the explanation themselves. (The e2e scenario `reuse.e2e.ts` runs it
+for every harness: the refusal reached the model as a plain error text for Claude Code, in
+Codex's tool output after its wall time, and inside Antigravity's JSON `error` with its
+timestamps.) Agents
 tell the person about a terminal as `@fox · api-server`: its handle and its title. Handles exist because a title is text a person, or an agent through
 `open_terminal`'s or `open_agent`'s `title`, can set, and must never reach a prompt.
 
@@ -2463,7 +2537,8 @@ in `terminals/describe-request.ts` and `Calls.describe` (`terminals/calls.ts`), 
   another subject, not as it progresses; the later nudge shows the current summary and
   asks for an update only then, or when it holds what a summary leaves out.
 - **Who wins the title.** The record keeps each layer apart (`naming`: `person`; `opener`,
-  the opener's title, which says who it is from by the terminal's `openedBy`; `murmur`, its
+  the opener's title, which says who it is from by the terminal's `openedBy` (the opener's id; the title
+  keeps the opener's handle then, `opener_handle`, for its source to name); `murmur`, its
   title; `own`, the title the terminal's own agent gave; and `summary`, the agent's own),
   and the store persists only these (`person_title`, `opener_title`, `murmur_title`,
   `own_title`, `summary`). The terminal manager derives the title by precedence:
@@ -3126,7 +3201,7 @@ resume probes sent it one prompt:
 | An agent calls `lead(to, message)` on an agent already running                                 | Refused at once if it can't be (itself, no agent there, already led, another lead, a cycle, an approval waiting, nobody to ask); else the person is asked and the call answers `asked`. On a yes, everything is checked again, `ledBy` is set, the worker is noticed, and the brief goes marked as the lead's; a no, a vanished terminal or a changed agent is a notice to the caller |
 | The lead calls `release(to)`                                                                   | `ledBy` is cleared and the worker noticed; the lead's messages already queued still arrive marked, as sent. Anyone but the running lead is refused                                                                                                                                                                                                                                    |
 | The person releases a teammate (`terminals.release`)                                           | As the lead's release, and the lead's messages to it not yet delivered, queued, held or leased and lapsing, are dropped and their sender told the user released it; both are noticed                                                                                                                                                                                                  |
-| The person moves a terminal to another session (`terminals.move`)                              | A lead takes its team, whose `ledBy` follow its handle there if it changed; a teammate moved alone leaves its lead, as a release does (the lead's undelivered messages dropped, the lead noticed). Running members are told changed handles; a pending brief refuses the move. It sees the new session's agents at once                                                               |
+| The person moves a terminal to another session (`terminals.move`)                              | A lead takes its team, whose `ledBy` ids stay as they are; a teammate moved alone leaves its lead, as a release does (the lead's undelivered messages dropped, the lead noticed). Running members are told changed handles; a pending brief refuses the move. It sees the new session's agents at once                                                                                |
 | The worker's agent exits (shell prompt returns, or its process is found gone)                  | `ledBy` is cleared, saved and announced; the former lead's later messages are a peer's. A new session of the same agent, or a restart or restore that resumes it, doesn't end it; one that resumes nothing, or typing that cancels the startup, does                                                                                                                                  |
 | `send` to "codex"                                                                              | Refused: no handle; every terminal there described, to pick by title, folder and work                                                                                                                                                                                                                                                                                                 |
 | Codex's hooks aren't trusted                                                                   | No session ever binds there. While its hooks review is open, a `send` to it waits; once the review was skipped, it shows as having no agent and a `send` to it is refused. Its own agent can still send, told replies can't reach it                                                                                                                                                  |

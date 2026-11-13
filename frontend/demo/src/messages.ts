@@ -18,12 +18,30 @@ import { demoTerminalId } from "./samples"
 // A demo set of messages: threads between the sample terminals, kept the way the runner keeps
 // them, so pausing holds what waits and releasing a thread lets it go on, as there.
 
-// The demo keeps who a thread is between by handle, and the person as `you`; its messages
-// name them as the runner's do.
+// The demo keeps who a thread is between by handle, and the person as `you`; it names them
+// by terminal id as the runner's messages do when it lists them (`identified`).
 const person = "you"
 
-export const partyOf = (handle: string): MessageParty =>
+type DemoParty =
+  | { readonly kind: "person" }
+  | { readonly kind: "agent"; readonly handle: string; readonly agent: null }
+
+export const partyOf = (handle: string): DemoParty =>
   handle === person ? { kind: "person" } : { kind: "agent", handle, agent: null }
+
+type SessionTerminals = DemoSessionMessages["terminals"]
+
+// A party as the runner lists it: an agent's terminal by its id in the session, or one the
+// session no longer has (the id its handle stands for) by a stand-in.
+const identified = (party: DemoParty, terminals: SessionTerminals): MessageParty =>
+  party.kind === "person"
+    ? party
+    : {
+        ...party,
+        terminalId:
+          terminals.find((each) => each.handle === party.handle)?.terminalId ??
+          `demo-${party.handle}`,
+      }
 
 // The runner's loop hold: a thread is held at its sixth idle message in a row, and a pair
 // keeps at most ten messages waiting held for release.
@@ -31,7 +49,9 @@ const idleToHold = 6
 const heldPerPair = 10
 
 // A message as the demo keeps it: where it was before any hold.
-export type DemoMessage = Omit<AgentMessage, "state" | "held"> & {
+export type DemoMessage = Omit<AgentMessage, "state" | "held" | "from" | "to"> & {
+  readonly from: DemoParty
+  readonly to: DemoParty
   readonly state: "queued" | "leased" | "delivered" | "gone"
   // Sent while neither end worked. The demo has no tool reports, so the script says which
   // are; a message not marked resets the thread's count.
@@ -101,7 +121,12 @@ const idleRun = (thread: DemoThread): number => {
 
 // As the runner says it: a message still waiting is held while paused, or at or past its
 // thread's hold.
-const shown = (message: DemoMessage, thread: DemoThread, paused: boolean): AgentMessage => {
+const shown = (
+  message: DemoMessage,
+  thread: DemoThread,
+  paused: boolean,
+  terminals: SessionTerminals = [],
+): AgentMessage => {
   const at = holdHop(thread)
   const hold = message.inbox
     ? null
@@ -111,7 +136,8 @@ const shown = (message: DemoMessage, thread: DemoThread, paused: boolean): Agent
         ? "paused"
         : null
   // Whether it was idle is the demo's own: the runner's listing doesn't say.
-  const { idle: _idle, ...listed } = message
+  const { idle: _idle, from, to, ...rest } = message
+  const listed = { ...rest, from: identified(from, terminals), to: identified(to, terminals) }
   return message.state === "queued" && hold
     ? { ...listed, state: "held", held: hold }
     : { ...listed, held: null }
@@ -119,21 +145,28 @@ const shown = (message: DemoMessage, thread: DemoThread, paused: boolean): Agent
 
 const messagesOf = (
   box: DemoSessionMessages,
+  terminalId: string,
   handle: string,
   agent: boolean,
   paused: boolean,
   waits: MessageWaits | null,
 ): TerminalThreads => ({
+  terminalId,
   handle,
   agent,
   waits,
   threads: box.threads
     .filter((thread) => thread.between.includes(handle))
     .map((thread): MessageThread => {
-      const messages = thread.messages.map((message) => shown(message, thread, paused))
+      const messages = thread.messages.map((message) =>
+        shown(message, thread, paused, box.terminals),
+      )
       return {
         id: thread.id,
-        peer: partyOf(thread.between[0] === handle ? thread.between[1] : thread.between[0]),
+        peer: identified(
+          partyOf(thread.between[0] === handle ? thread.between[1] : thread.between[0]),
+          box.terminals,
+        ),
         hops: thread.hops,
         idle: idleRun(thread),
         held: holdHop(thread) !== undefined,
@@ -151,7 +184,7 @@ const stateOf = (boxes: readonly DemoSessionMessages[], paused: boolean): Messag
     boxes.flatMap((box) =>
       box.terminals.map(({ terminalId, handle, agent, waits }) => [
         terminalKeyPath({ ...box.target, terminalId }),
-        messagesOf(box, handle, agent, paused, waits ?? null),
+        messagesOf(box, terminalId, handle, agent, paused, waits ?? null),
       ]),
     ),
   ),

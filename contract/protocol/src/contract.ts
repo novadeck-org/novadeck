@@ -27,7 +27,6 @@ import {
 } from "./agents.js"
 import {
   changeFileDiff,
-  changeRange,
   companionChange,
   companionLimits,
   companionItem,
@@ -68,7 +67,7 @@ import {
   terminalMoved,
 } from "./terminals.js"
 import { maxTranscriptImages, transcriptChange, transcriptImageResult } from "./transcripts.js"
-import { workChange, workClosing } from "./works.js"
+import { workChange, workClosing, workMade } from "./works.js"
 
 export const errors = {
   ...wireErrors,
@@ -251,8 +250,8 @@ export const contract = {
     // The person moves a terminal to another session of its project, running or saved,
     // without restarting it. A lead takes its whole team along, at every depth; a teammate
     // moved on its own leaves its lead. Each keeps its handle unless the session it goes to
-    // has given it already, or a terminal there holds it or is led under it, then draws that
-    // session's next, and its leads' handles follow in its team's `ledBy`. Its Inbox rows and
+    // has given it already, or a terminal there holds it, then draws that session's next.
+    // Its team's `ledBy` ids stay, as a terminal keeps its id. Its Inbox rows and
     // the companion items its bar holds go with it, and `watch` tells each move as a `changed` with the new `sessionId`. A terminal
     // it keeps nothing of is TERMINAL_NOT_FOUND; a session it doesn't have NOT_FOUND; the
     // terminal's own session, one of another project, or one being removed, a CONFLICT, as
@@ -533,6 +532,9 @@ export const contract = {
     // Every project's works: each `changed`, `synced`, then later changes (new lines, a
     // look, a conflict found or gone, a worktree closed or no longer tracked).
     watch: procedure.input(z.void()).output(eventIterator(workChange)),
+    // One event each time the runner starts tracking a worktree (any project's), from the
+    // moment of subscribing: nothing replayed, no `synced`. Costs the runner no git reads.
+    made: procedure.input(z.void()).output(eventIterator(workMade)),
     // The person has read the work as it is now: what's unread starts again from here. A
     // root with no work is NOT_FOUND.
     look: procedure.input(z.strictObject({ root: directory })).output(z.void()),
@@ -589,17 +591,6 @@ export const contract = {
         }),
       )
       .output(changeFileDiff),
-    // The files a selection of a changes item's layers changed as one range (see
-    // `changeRange`), which is what a selection of more than one layer shows, instead of
-    // its layers' files added up. An unknown item, or one that is no change, is NOT_FOUND.
-    changeRange: procedure
-      .input(
-        z.strictObject({
-          itemId: id,
-          layers: z.array(z.string().min(1).max(128)).min(1).max(maxChangeLayers),
-        }),
-      )
-      .output(changeRange),
     // The person read a file of a changes item, by the name its content lists it under: the
     // item's content names it in `read` until the file changes again. Kept across restarts
     // with the Changes panel's memory. A file the change as a whole does not list is not

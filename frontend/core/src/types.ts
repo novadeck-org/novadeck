@@ -201,11 +201,14 @@ export type TerminalMetadata = {
   restoredProcess?: string
   // The handle agents message it by, such as `moth`, where its backend has one.
   handle?: string
-  // The handle of the terminal whose agent leads it, as its backend last said; null once
-  // that ended. Whether the lead runs is the roster's to say.
+  // When it was given that handle, in epoch milliseconds; absent where that was long ago or is
+  // not known. Words written before this time that name the handle meant an earlier terminal.
+  handleGivenAt?: number
+  // The id of the terminal whose agent leads it, as its backend last said; null once that
+  // ended. Whether the lead runs is the roster's to say.
   ledBy?: string | null
-  // The handle of the terminal whose agent opened it, for an agent, a command or a plain
-  // shell; null where the person opened it.
+  // The id of the terminal whose agent opened it, for an agent, a command or a plain shell
+  // (closed since, perhaps); null where the person opened it.
   openedBy?: string | null
   // Whether an agent has run in it since it opened, running now or since exited.
   agentRan?: boolean

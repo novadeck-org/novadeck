@@ -167,8 +167,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       shell,
     }) => {
       const lead = sleeper(shell, "claude", "lead-1")
-      const handle = shell.store.terminal(lead)!.handle
-      const id = sleeper(shell, "claude", "abc-1", { ledBy: handle })
+      const id = sleeper(shell, "claude", "abc-1", { ledBy: lead })
       const manager = shell.manager({ connected: () => Promise.resolve(false) })
       const created = await manager.create(
         {
@@ -183,7 +182,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         },
         "owner",
       )
-      expect(created).toMatchObject({ ledBy: handle, sleeping: false })
+      expect(created).toMatchObject({ ledBy: lead, sleeping: false })
       const shown = await shell.until(manager, id, "wasn't resumed")
       expect(shown).toContain("Novadeck isn't connected to Claude Code")
       // The row still names its agent: the next start rests it again.
@@ -304,7 +303,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // The lead is started again; its worker, kept with a resumable agent, sleeps. The lead's
       // handle is the session's to give: one picked by hand is the worker's in 1 of 32 sessions.
       const lead = { id: randomUUID(), handle: shell.store.giveHandle(shell.sessionId) }
-      const worker = sleeper(shell, "claude", "abc-1", { ledBy: lead.handle })
+      const worker = sleeper(shell, "claude", "abc-1", { ledBy: lead.id })
       shell.store.saveTerminal({
         ...shell.store.terminal(worker)!,
         id: lead.id,
@@ -351,11 +350,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // The three places that know the sleeper agree before it wakes.
       expect(manager.list(target).find((each) => each.id === worker)).toMatchObject({
         sleeping: true,
-        ledBy: first!.handle,
+        ledBy: lead.id,
       })
       expect(shell.store.terminal(worker)).toMatchObject({
         sessionId: target,
-        ledBy: first!.handle,
+        ledBy: lead.id,
       })
 
       const woken = await create(manager, shell, {
@@ -364,7 +363,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         restore: true,
         resume: "claude",
       })
-      expect(woken).toMatchObject({ sessionId: target, ledBy: first!.handle, sleeping: false })
+      expect(woken).toMatchObject({ sessionId: target, ledBy: lead.id, sleeping: false })
       await shell.until(manager, worker, "claude args: --resume abc-1")
       const sent = (
         manager as unknown as {

@@ -320,7 +320,7 @@ for (const setup of setups) {
         after: calls,
       })
       await t1.until("Leading fox.")
-      expect(run.deck.store.terminal(t2.id)?.ledBy).toBe("moth")
+      expect(run.deck.store.terminal(t2.id)?.ledBy).toBe(t1.id)
 
       await t1.submit("Release fox")
 

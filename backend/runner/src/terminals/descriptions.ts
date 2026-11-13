@@ -428,7 +428,7 @@ const untitled = ({ naming }: MurmurSubject): boolean => naming.murmur === null
 // Whether the person or the agent that opened the terminal titled it, which murmur never
 // replaces (see `titleOf`).
 const kept = (subject: MurmurSubject | undefined): boolean =>
-  subject !== undefined && titledByHand(subject.naming, subject.openedBy)
+  subject !== undefined && titledByHand(subject.naming)
 
 // Whether a title names the agent's program or harness, as a shell's title of its screen
 // does ("Claude dev server").

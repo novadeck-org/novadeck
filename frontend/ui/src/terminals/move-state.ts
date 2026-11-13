@@ -41,6 +41,9 @@ export type MoveNotice = {
   readonly session: { readonly id: string; readonly name: string }
   readonly fresh?: boolean
   readonly from: string
+  // The handle its lead had when it moved, which the toast names should it leave that
+  // team (the result says the lead by id).
+  readonly lead?: string
 } & (
   | { readonly result: TerminalMoveResult; readonly failed?: undefined }
   | { readonly failed: string; readonly result?: undefined }
@@ -77,7 +80,11 @@ export const movedWords = (notice: MoveNotice): string => {
   const along = team.length
     ? ` with ${team.length} ${team.length === 1 ? "teammate" : "teammates"}`
     : ""
-  const leaving = left ? ` It left @${left}'s team.` : ""
+  const leaving = left
+    ? notice.lead
+      ? ` It left @${notice.lead}'s team.`
+      : " It left its lead's team."
+    : ""
   const where = notice.fresh ? "a new session" : notice.session.name
   return `${notice.name} moved to ${where}${along}, still running${handle}.${leaving}`
 }

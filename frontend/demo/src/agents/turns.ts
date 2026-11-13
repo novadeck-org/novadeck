@@ -18,6 +18,9 @@ import { demoOutputPath } from "./shell-output"
 // How long a demo agent's turn works before it finishes.
 export const demoTurnMs = 1500
 
+// How far apart the calls of an agent that `work`s with `tools` come.
+const toolGapMs = 700
+
 // The longest delay setTimeout takes as asked, in milliseconds: past it, it fires at once.
 const longestTimerMs = 2 ** 31 - 1
 
@@ -288,6 +291,15 @@ export const demoTurns = (requestedMs = demoTurnMs) => {
           },
           program,
         )
+        // Its calls come one after another, as an agent's do, until another verb takes it.
+        const tools = how?.tools ?? 0
+        if (tools > 0)
+          active.set(
+            terminalKeyId(key),
+            Array.from({ length: tools }, (_, index) =>
+              setTimeout(() => emit({ type: "tool", key }), (index + 1) * toolGapMs),
+            ),
+          )
       },
       ask: (key, terminal, kind, count) => {
         const { agent, program, began } = take(key, terminal)

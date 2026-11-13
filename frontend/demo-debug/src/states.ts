@@ -15,6 +15,7 @@ import { createDemoAgents } from "./agents"
 import { createChatFailures, createChatPictures } from "./chat"
 import { createDemoUpdates, pageUpdateChannel } from "./desktop/updates"
 import { createDemoFolders } from "./folders"
+import { createStaleMentions } from "./mentions"
 import { createDemoNotices } from "./notices"
 import {
   atStartupScreen,
@@ -576,6 +577,7 @@ export const createDemoStates = (
   }
   const chat = createChatFailures()
   const pictures = createChatPictures()
+  const mentions = createStaleMentions()
   const panelAsks: PanelAsks = new Set()
   const waitingActions = createWaitingActions(verbs, inbox, panelAsks)
   const screens = createStore<ReadonlyMap<string, DemoScreenState>>(new Map())
@@ -779,6 +781,12 @@ export const createDemoStates = (
           "Subagents",
           "3 subagents while working",
           (v, k, t) => v.work(k, t, { subagents: true }),
+          verbs,
+        ),
+        verb(
+          "Many tool calls",
+          "Works through 12 calls, one every 0.7 s; the chat keeps the latest 5 in a box that follows them",
+          (v, k, t) => v.work(k, t, { tools: 12 }),
           verbs,
         ),
         verb(
@@ -991,6 +999,11 @@ export const createDemoStates = (
     },
     {
       section: "Agents",
+      title: "Chat: a handle given again",
+      actions: mentions.actions,
+    },
+    {
+      section: "Agents",
       title: "Agent connections",
       actions: [
         {
@@ -1022,7 +1035,7 @@ export const createDemoStates = (
     updateControls,
     pickDirectory,
     moveTerminal,
-    chat: (conversations) => pictures.wrap(chat.wrap(conversations)),
+    chat: (conversations) => mentions.wrap(pictures.wrap(chat.wrap(conversations))),
     screens,
     failPaste: (key) => pasteFails.delete(terminalKeyId(key)),
     holds: (key) => held.has(terminalKeyId(key)),

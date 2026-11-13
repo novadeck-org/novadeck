@@ -693,3 +693,40 @@ describe("removing a project", () => {
     expect(readFileSync(join(f.repo, "a.txt"), "utf8")).toBe("a\n")
   })
 })
+
+describe("telling that a worktree was made", () => {
+  it("tells of one opened and of one adopted, once each, and of nothing else", async ({
+    fx: f,
+  }) => {
+    const made: unknown[] = []
+    const stop = f.worktrees.onMade((one) => made.push(one))
+    const a = await open(f, "a")
+    if (!a.ok) throw new Error("open")
+    expect(made).toEqual([{ root: a.path, projectId: f.project }])
+
+    const path = join(f.other, "made-elsewhere")
+    git(f.repo, "worktree", "add", "-b", "scripted", path)
+    const take = (terminalId: string, at: string) =>
+      f.worktrees.take({ projectId: f.project, terminalId, cwd: f.repo, path: at })
+    await take("t1", path)
+    expect(made).toHaveLength(2)
+    expect(made[1]).toEqual({ root: path, projectId: f.project })
+
+    // Owning it already, taking it from another, giving and restoring are not making.
+    await take("t1", path)
+    await take("t2", a.path)
+    await f.worktrees.transfer(a.path, "t1", "t2")
+    await f.worktrees.ownerRestored("t2", "t3")
+    await f.worktrees.orphanIf(a.path, "t3")
+    f.live.delete("t1")
+    await take("t2", path)
+    expect(made).toHaveLength(2)
+
+    // A refused open is not making either, and a stopped listener hears nothing more.
+    await open(f, "a")
+    expect(made).toHaveLength(2)
+    stop()
+    await open(f, "b")
+    expect(made).toHaveLength(2)
+  })
+})

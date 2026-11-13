@@ -8,8 +8,9 @@
    The bell's `.bell-dot-ring`, which BellDot mounts afresh for each new item the bell rings
    for, rings out twice and is dropped once played; not at all with reduced motion.
 
-   The History toggle's `.history-dot` (HistoryDot) is the bell's dot and ring for a moment,
-   when a closed terminal lands there: the ring flares once and the dot fades with it. */
+   The History and Changes toggles' `.flare-dot` (FlareDot) is the bell's dot and ring for a
+   moment, when a closed terminal lands in History or a new worktree in Changes: the ring
+   flares once and the dot fades with it. */
 .attention-dot {
   position: absolute;
   width: 6px;
@@ -73,14 +74,14 @@
 
 /* The ring flares once; the dot pops in, holds while it spreads, and fades as it ends. */
 @media (prefers-reduced-motion: no-preference) {
-  .history-dot {
-    animation: history-dot 1.6s var(--ease-interface) forwards;
+  .flare-dot {
+    animation: flare-dot 1.6s var(--ease-interface) forwards;
   }
-  .history-dot > .bell-dot-ring {
+  .flare-dot > .bell-dot-ring {
     animation: bell-dot-ring 1.6s var(--ease-interface);
   }
 }
-@keyframes history-dot {
+@keyframes flare-dot {
   0% {
     opacity: 0;
     transform: scale(0.4);

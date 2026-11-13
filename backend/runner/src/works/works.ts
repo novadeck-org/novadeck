@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
-import { workLimits, type Work, type WorkChange } from "@novadeck/protocol"
+import { workLimits, type Work, type WorkChange, type WorkMade } from "@novadeck/protocol"
 import { KeyedChanges } from "@novadeck/wire/server"
 
 import { waitAfter } from "../checkouts/git.js"
@@ -74,6 +74,8 @@ export type WorksOptions = {
    * after checking there that no agent works in it now (`Worktrees.closeAt`).
    */
   readonly remove: (root: string, force: boolean) => Promise<Removal>
+  /** Calls the listener each time a worktree starts being tracked; returns what stops it. */
+  readonly onMade?: (listener: (made: WorkMade) => void) => () => void
   /** What takes the checkouts' working trees as trees, shared with the changes items. */
   readonly snapshots: Snapshots
   /**
@@ -153,6 +155,8 @@ const pairsPerPass = 24
  */
 export class Works {
   private readonly watchers = new Map<KeyedChanges<string, WorkChange>, string>()
+  /** The `made` streams' ends, by owner: calling one ends its stream. */
+  private readonly makers = new Map<() => void, string>()
   /** The works told, by root. */
   private readonly published = new Map<string, Work>()
   private readonly roots = new Map<string, RootState>()
@@ -221,8 +225,49 @@ export class Works {
     }
   }
 
-  /** Ends the watch streams of an owner, as its connection goes. */
+  /**
+   * Each worktree that starts being tracked from now on, until `signal` aborts or the owner
+   * leaves. Nothing is replayed, and nothing is read from git.
+   */
+  async *made(ownerId: string, signal?: AbortSignal): AsyncGenerator<WorkMade> {
+    if (this.stopped) throw new DomainError("CLOSING")
+    const queue: WorkMade[] = []
+    let wake: (() => void) | undefined
+    let finished = signal?.aborted === true
+    const end = () => {
+      finished = true
+      wake?.()
+    }
+    const stop = this.options.onMade?.((made) => {
+      queue.push(made)
+      wake?.()
+    })
+    this.makers.set(end, ownerId)
+    signal?.addEventListener("abort", end, { once: true })
+    try {
+      while (true) {
+        if (finished) return
+        const next = queue.shift()
+        if (next) {
+          yield next
+          continue
+        }
+        // eslint-disable-next-line no-await-in-loop -- Events are delivered in order.
+        await new Promise<void>((resolve) => {
+          wake = resolve
+        })
+        wake = undefined
+      }
+    } finally {
+      signal?.removeEventListener("abort", end)
+      this.makers.delete(end)
+      stop?.()
+    }
+  }
+
+  /** Ends the watch and made streams of an owner, as its connection goes. */
   release(ownerId: string): void {
+    for (const [end, owner] of this.makers) if (owner === ownerId) end()
     for (const [watcher, owner] of this.watchers) if (owner === ownerId) watcher.finish()
   }
 
@@ -326,6 +371,7 @@ export class Works {
     this.stopped = true
     this.loop?.abort()
     for (const watcher of this.watchers.keys()) watcher.finish()
+    for (const end of this.makers.keys()) end()
     await this.queue.catch(() => {})
     await this.saves?.settled()
   }
