@@ -6,6 +6,7 @@ import {
   type AgentName,
   type HistoryChange,
   type WorkChange,
+  type WorkMade,
   type ItemContent,
 } from "@novadeck/protocol"
 import { TerminalError } from "@novadeck/terminal"
@@ -69,9 +70,16 @@ const noWorksStream = async function* (signal?: AbortSignal): AsyncGenerator<Wor
   await new Promise<void>((resolve) => signal?.addEventListener("abort", () => resolve()))
 }
 
+const noWorksMade = async function* (signal?: AbortSignal): AsyncGenerator<WorkMade> {
+  if (signal?.aborted) return
+  await new Promise<void>((resolve) => signal?.addEventListener("abort", () => resolve()))
+  yield* [] as WorkMade[]
+}
+
 // What `works.watch` reports without Works: nothing, and the stream waits.
 const noWorks = {
   watch: (_ownerId: string, signal?: AbortSignal) => noWorksStream(signal),
+  made: (_ownerId: string, signal?: AbortSignal) => noWorksMade(signal),
   look: () => Promise.reject(new DomainError("NOT_FOUND")),
   show: () => Promise.reject(new DomainError("NOT_FOUND")),
   closeWork: () => Promise.reject(new DomainError("NOT_FOUND")),
@@ -254,6 +262,7 @@ export const createRouter = (options: {
       watch: api.works.watch.handler(({ context, signal }) =>
         works.watch(context.session.id, signal),
       ),
+      made: api.works.made.handler(({ context, signal }) => works.made(context.session.id, signal)),
       look: api.works.look.handler(({ input }) => works.look(input.root)),
       show: api.works.show.handler(({ input }) => works.show(input.root, input.terminalId)),
       close: api.works.close.handler(({ input }) =>
@@ -279,7 +288,6 @@ export const createRouter = (options: {
           yield await withSkill(content, store.item(input.itemId)?.plan?.agent)
       }),
       changeFile: api.companions.changeFile.handler(({ input }) => items.changeFile(input)),
-      changeRange: api.companions.changeRange.handler(({ input }) => items.changeRange(input)),
       changeRead: api.companions.changeRead.handler(({ input }) => items.changeRead(input)),
       save: api.companions.save.handler(async ({ input }) => {
         const item = store.item(input.itemId)

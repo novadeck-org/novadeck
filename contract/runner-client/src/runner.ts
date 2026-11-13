@@ -20,7 +20,6 @@ import {
   type InboxEntry,
   type InterruptResult,
   type ChangeFileDiff,
-  type ChangeRange,
   type ItemContent,
   type MurmurSettings,
   type MurmurState,
@@ -47,6 +46,7 @@ import {
   type VoiceTranscript,
   type WireClient,
   type WorkChange,
+  type WorkMade,
   type WorkClosing,
   type WorkspaceSession,
 } from "@novadeck/protocol"
@@ -446,6 +446,13 @@ export type Runner = {
      * only when the runner closes or on `return()`.
      */
     watch(): AsyncIterableIterator<WorkWatchItem, undefined>
+    /**
+     * Follows the worktrees the runner starts tracking, as one event each, from now on: nothing
+     * before the call is replayed, and opening the stream again after a reconnection replays
+     * nothing either (a worktree made while disconnected is not told). Iteration ends only
+     * when the runner closes or on `return()`.
+     */
+    made(): AsyncIterableIterator<WorkMade, undefined>
     /** The person has read the work as it is now; `NOT_FOUND` without a work at `root`. */
     look(root: string): Promise<void>
     /**
@@ -501,14 +508,6 @@ export type Runner = {
       readonly path: string
       readonly layers: readonly string[]
     }): Promise<ChangeFileDiff>
-    /**
-     * The files a selection of a changes item's layers changed as one range. Rejects with
-     * `NOT_FOUND` for an unknown item or one that is no change.
-     */
-    changeRange(input: {
-      readonly itemId: string
-      readonly layers: readonly string[]
-    }): Promise<ChangeRange>
     /**
      * The person read a file of a changes item: its content names the file in `read` until it
      * changes again. Rejects with `NOT_FOUND` for an unknown item or one that is no change.
@@ -852,6 +851,8 @@ export const connectRunner = async (
     works: {
       watch: () =>
         followAll(connection, (client, signal) => client.works.watch(undefined, { signal })),
+      made: () =>
+        followSession(connection, (client, signal) => client.works.made(undefined, { signal })),
       look: (root) => call((client) => client.works.look({ root })),
       show: (root, terminalId) =>
         call((client) =>
@@ -873,8 +874,6 @@ export const connectRunner = async (
         ),
       changeFile: (input) =>
         call((client) => client.companions.changeFile({ ...input, layers: [...input.layers] })),
-      changeRange: (input) =>
-        call((client) => client.companions.changeRange({ ...input, layers: [...input.layers] })),
       changeRead: (input) => call((client) => client.companions.changeRead(input)),
       save: (input) => call((client) => client.companions.save(input)),
       attach: (input) => call((client) => client.companions.attach(input)),

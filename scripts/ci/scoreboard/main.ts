@@ -85,9 +85,14 @@ const day = 24 * 60 * 60 * 1000
 const timestamp = (time: number): string => new Date(time).toISOString().replace(/\.\d+Z$/, "Z")
 
 /** The completed runs created from `since` to `until`, asked for a week at a time. */
-const runsOf = (repo: string, since: number, until: number): Run[] => {
+export const runsOf = (
+  repo: string,
+  since: number,
+  until: number,
+  call: (...args: string[]) => string = gh,
+): Run[] => {
   const known = itemsOf<{ id: number; name: string }>(
-    gh("api", "--paginate", "--slurp", `repos/${repo}/actions/workflows?per_page=100`),
+    call("api", "--paginate", "--slurp", `repos/${repo}/actions/workflows?per_page=100`),
     "workflows",
   )
   const weeks: [number, number][] = []
@@ -99,16 +104,18 @@ const runsOf = (repo: string, since: number, until: number): Run[] => {
       console.log(`No workflow named ${name}: left out.`)
       return []
     }
+    // A run's own name is its title, which a workflow's `run-name` sets (E2E's names its
+    // harnesses, or its pull request, since #881): each run goes by its workflow's name.
     return weeks.flatMap(([from, to]) =>
       itemsOf<Run>(
-        gh(
+        call(
           "api",
           "--paginate",
           "--slurp",
           `repos/${repo}/actions/workflows/${workflow.id}/runs?status=completed&event=${event}&created=${encodeURIComponent(`${timestamp(from)}..${timestamp(to)}`)}&per_page=100`,
         ),
         "workflow_runs",
-      ),
+      ).map((run) => ({ ...run, name: workflow.name })),
     )
   })
 }

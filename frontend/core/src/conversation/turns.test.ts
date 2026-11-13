@@ -598,6 +598,29 @@ describe("what a harness says between turns", () => {
     expect(blocks[1]).toMatchObject({ raw: "{}" })
   })
 
+  it("leaves a run of calls whole where it says the same mode again", () => {
+    const items = [
+      mode("default"),
+      call("Bash", "a"),
+      mode("default"),
+      call("Bash", "b"),
+      mode("default"),
+      call("Bash", "c"),
+    ]
+    expect(groupItems(items).map(({ kind }) => kind)).toEqual(["tools"])
+    expect(entriesOf(items)).toHaveLength(3)
+  })
+
+  it("ends a run of calls where the mode changed, as its line stands between them", () => {
+    const blocks = groupItems([
+      mode("default"),
+      call("Bash", "a"),
+      mode("acceptEdits"),
+      call("Bash", "b"),
+    ])
+    expect(blocks.map(({ kind }) => kind)).toEqual(["tools", "note", "tools"])
+  })
+
   it("adds no message to what's around it", () => {
     const blocks = groupItems([
       item({ role: "user", text: "mine" }),

@@ -210,7 +210,7 @@ describe("The History panel", () => {
       const toggle = page.getByRole("radio", { name: "History" })
       await tabAction("Close Dev server").click()
       await confirmClose()
-      await expect.poll(() => toggle.element().querySelector(".history-dot")).not.toBeNull()
+      await expect.poll(() => toggle.element().querySelector(".flare-dot")).not.toBeNull()
       await expect
         .element(
           page.getByRole("status").filter({ hasText: "Dev server closed. It’s in History." }),
@@ -218,7 +218,7 @@ describe("The History panel", () => {
         .toBeInTheDocument()
       // The dot leaves once its flare has played; nothing stays until History is seen.
       await expect
-        .poll(() => toggle.element().querySelector(".history-dot"), { timeout: 4_000 })
+        .poll(() => toggle.element().querySelector(".flare-dot"), { timeout: 4_000 })
         .toBeNull()
     })
 

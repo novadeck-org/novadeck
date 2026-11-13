@@ -1,5 +1,4 @@
 import type {
-  ChangedFile,
   ChangeFileDiff,
   Item,
   FileContent,
@@ -18,8 +17,6 @@ export type SampleArtifact = {
   // A change's files read one at a time, as the runner reads them: the file's diff for the
   // layers selected.
   readonly changeFile?: (path: string, layers: readonly string[]) => ChangeFileDiff
-  // The files the layers selected changed as one range.
-  readonly changeRange?: (layers: readonly string[]) => readonly ChangedFile[]
 }
 
 export type SampleArtifacts = {

@@ -36,20 +36,27 @@ const register = (): Register =>
     JSON.parse(readFileSync(new URL("../flakes/register.json", import.meta.url), "utf8")),
   )
 
-/** The run's attempt as it ended, and the jobs of it that didn't succeed. */
-export const nightOf = (runId: string, attempt: number): Night => {
+/** The run's attempt as it ended, and the jobs of it that didn't succeed; `call` runs gh. */
+export const nightOf = (runId: string, attempt: number, call: typeof gh = gh): Night => {
   const run = JSON.parse(
-    gh("api", `repos/${repo()}/actions/runs/${runId}/attempts/${attempt}`),
+    call("api", `repos/${repo()}/actions/runs/${runId}/attempts/${attempt}`),
   ) as {
-    name: string
+    workflow_id: number
     event: string
     conclusion: string | null
     html_url: string
     head_sha: string
     run_started_at: string
   }
+  // The run's own name is its title, which a workflow's `run-name` sets (E2E's names its
+  // harnesses since #881): the report goes by the workflow's name.
+  const workflow = (
+    JSON.parse(call("api", `repos/${repo()}/actions/workflows/${run.workflow_id}`)) as {
+      name: string
+    }
+  ).name
   const jobs = JSON.parse(
-    gh(
+    call(
       "api",
       "--paginate",
       "--slurp",
@@ -80,7 +87,7 @@ export const nightOf = (runId: string, attempt: number): Night => {
       url: job.html_url,
     }))
   return {
-    workflow: nameOf(run.name, run.event),
+    workflow: nameOf(workflow, run.event),
     conclusion: run.conclusion ?? "",
     url: run.html_url,
     attempt,

@@ -106,6 +106,13 @@ describe("a run's retries", () => {
     expect(() => runOf({ name: "Quality" })).toThrow(/Not a workflow run/)
   })
 
+  it("name a run by its workflow, where Retried Tests adds it, not by the run's own title", () => {
+    // Since #881 an E2E run's own `name` is its title: its pull request's, or its harnesses'.
+    const titled = apiRun(6, "2026-11-12T10:00:00Z", { name: "feat(ui): a pane of its own" })
+    expect(runOf({ ...titled, workflow_name: "E2E" }).workflow).toBe("E2E")
+    expect(runOf(titled).workflow).toBe("feat(ui): a pane of its own")
+  })
+
   context("in the job's summary", () => {
     it("names each retried test, its job, its first failure and what the register says", () => {
       const summary = recordSummary(

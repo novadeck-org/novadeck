@@ -379,6 +379,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     // The person is the actor: whoever owns the worktree, it closes on their say, in the
     // service's own queue, so it can't race an agent's take, give or close.
     remove: (root, force) => worktrees.closeAt(root, force, workingIn),
+    onMade: (listener) => worktrees.onMade(listener),
     snapshots,
     ...(memory !== undefined && { memory }),
   })

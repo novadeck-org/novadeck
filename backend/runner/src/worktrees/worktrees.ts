@@ -58,6 +58,9 @@ type Holding = Failure & {
 /** The instruction files at a worktree's top, which harnesses don't load from an added folder. */
 const instructionFiles = ["AGENTS.md", "CLAUDE.md", "GEMINI.md"] as const
 
+/** A worktree Novadeck started tracking: its folder and its project. */
+export type Made = { readonly root: string; readonly projectId: string }
+
 export type Opened = {
   readonly ok: true
   readonly path: string
@@ -106,6 +109,7 @@ export const folderName = (text: string): string =>
 export class Worktrees {
   private chain: Promise<unknown> = Promise.resolve()
   private readonly cleanup: Cleanup
+  private readonly madeListeners = new Set<(made: Made) => void>()
 
   constructor(
     private readonly records: WorktreeRecords,
@@ -117,6 +121,21 @@ export class Worktrees {
       ...(host.now && { now: host.now }),
       ...host.cleanup,
     })
+  }
+
+  /**
+   * Calls `listener` each time a worktree starts being tracked (one made by `open`, or adopted
+   * by `take`, once its row stands), not when one changes hands. Returns what stops it.
+   */
+  onMade(listener: (made: Made) => void): () => void {
+    this.madeListeners.add(listener)
+    return () => {
+      this.madeListeners.delete(listener)
+    }
+  }
+
+  private made(made: Made): void {
+    for (const listener of this.madeListeners) listener(made)
   }
 
   /** Starts removing the worktrees nobody needs, and fetching their repositories' origins. */
@@ -279,6 +298,7 @@ export class Worktrees {
         await deleteBranch(repository.home, input.branch)
       return refused(`git couldn't make the worktree: ${said(added)}.`)
     }
+    this.made({ root: real, projectId: input.projectId })
     return {
       ok: true,
       path: real,
@@ -383,6 +403,7 @@ export class Worktrees {
           : "Novadeck couldn't record the worktree: its project is gone.",
       )
     }
+    this.made({ root: real, projectId: input.projectId })
     return { ok: true, path: real, branch: entry.branch }
   }
 

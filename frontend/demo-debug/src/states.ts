@@ -732,6 +732,12 @@ export const createDemoStates = (
           verbs,
         ),
         verb(
+          "Many tool calls",
+          "Works through 12 calls, one every 0.7 s; the chat keeps the latest 5 in a box that follows them",
+          (v, k, t) => v.work(k, t, { tools: 12 }),
+          verbs,
+        ),
+        verb(
           "Needs permission",
           "1 request waiting; answering it clears it",
           (v, k, t) => v.ask(k, t, "permission", 1),

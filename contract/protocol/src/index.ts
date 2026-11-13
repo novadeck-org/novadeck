@@ -60,8 +60,6 @@ export {
   type ChangedFile,
   changeFileDiff,
   type ChangeFileDiff,
-  changeRange,
-  type ChangeRange,
   type ChangeLayer,
   type CompanionChange,
   type CompanionItem,
@@ -106,6 +104,8 @@ export {
   type WorkFile,
   workFile,
   workLimits,
+  type WorkMade,
+  workMade,
 } from "./works.js"
 export { maxWebSocketMessageBytes, protocolVersion } from "./connection.js"
 export {
