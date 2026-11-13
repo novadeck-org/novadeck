@@ -115,10 +115,10 @@ describe("the account's subscription usage", () => {
     expect(claude!.windows.map(({ label, used }) => [label, used])).toEqual([
       ["5h", 0.4],
       ["7d", 0.21],
-      ["7d Fable", 0.93],
+      ["Fable", 0.93],
     ])
     expect(claude!.windows[2]).toMatchObject({ name: "7d", scope: "Fable", key: "7d Fable#0" })
-    expect(claude!.busiest).toMatchObject({ label: "7d Fable", used: 0.93 })
+    expect(claude!.busiest).toMatchObject({ label: "Fable", used: 0.93 })
   })
 
   it("shows at a glance what limits the work under way, not a model's that none runs", () => {
@@ -128,7 +128,21 @@ describe("the account's subscription usage", () => {
       0,
     )
     expect(claude!.busiest).toMatchObject({ label: "5h", used: 0.4 })
-    expect(claude!.windows.map(({ label }) => label)).toEqual(["5h", "7d Fable"])
+    expect(claude!.windows.map(({ label }) => label)).toEqual(["5h", "Fable"])
+  })
+
+  it("names a model's windows by their length too where it has more than one", () => {
+    const spark = { used: 0.1, resetsAt: hour, scope: "Spark" }
+    const [codex] = usageOf(
+      [
+        agent("1", "codex", [
+          { ...spark, minutes: 300 },
+          { ...spark, minutes: 10_080 },
+        ]),
+      ],
+      0,
+    )
+    expect(codex!.windows.map(({ label }) => label)).toEqual(["5h Spark", "7d Spark"])
   })
 
   it("shows no model window for an account that reports none", () => {

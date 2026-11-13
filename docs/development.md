@@ -353,7 +353,7 @@ Agents:
   a failed turn) stay. "Every state at once" has Shells, one failed and Many shells.
 - **Agent fixtures:** what no turn produces: an unheard agent (of the chosen harness, in
   place of whatever ran, whose hooks say nothing), an agent held at its startup screen (of the
-  chosen harness) or Antigravity at its sign-in screen, before its first session, and context and limits, with a model's own weekly windows beside the account's ("7d Fable", "7d Third-party") or not, or tokens alone, in the tooltip, status and the footer's subscriptions; those set
+  chosen harness) or Antigravity at its sign-in screen, before its first session, and context and limits, with a model's own weekly windows beside the account's ("Fable", "Third-party") or not, or tokens alone, in the tooltip, status and the footer's subscriptions; those set
   only the usage of the selected terminal's agent, so a turn, request or queued prompt stays.
 - **Approvals:** "Ask to close selected" has another terminal of the session ask to close the
   selected one, and "Ask to lead selected" has it ask to lead the selected one, which raises the

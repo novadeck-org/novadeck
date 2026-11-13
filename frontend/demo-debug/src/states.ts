@@ -988,7 +988,7 @@ export const createDemoStates = (
         ),
         onSelected(
           "Context and model limits",
-          "Usage with a model's own weekly windows (7d Fable, 7d Third-party) beside the account's; all else stays",
+          "Usage with a model's own weekly windows (Fable, Third-party) beside the account's; all else stays",
           (key, context) => usageOf(verbs, key, context, withModelLimits(Date.now())),
         ),
         onSelected("Context, no size", "Tokens only, no limits; all else stays", (key, context) =>

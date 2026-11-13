@@ -181,7 +181,7 @@
 .usage-popover {
   width: 18rem;
 }
-/* Its rows share one grid, so every bar starts after the longest window's name, as "7d Fable"
+/* Its rows share one grid, so every bar starts after the longest window's name, as "Fable"
    beside "5h", up to a name's cap, past which it is cut short. */
 .usage-detail {
   display: grid;
@@ -228,8 +228,10 @@
   color: var(--color-ink);
   text-align: right;
 }
+/* Flush with the share above it, and the row's whole width to keep it on one line. */
 .usage-row-reset {
-  grid-column: 2 / 4;
+  grid-column: 1 / -1;
+  text-align: right;
 }
 
 /* The sandbox notice (FooterSandbox.tsx), a `.floating` surface: a plain panel above the footer's right end, not

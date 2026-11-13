@@ -305,7 +305,7 @@ Other facts:
 
 - `agent_state` (`idle`, `thinking`, `working`, `tool_use`, `initializing`),
 - `context_window` (size, used percentage, token totals),
-- `quota` per model group (`remaining_fraction`, `reset_time`, `reset_in_seconds`), named by the group and the window, as `gemini-weekly` and `3p-weekly` (third-party models, its binary's `3P`); Novadeck shows each as the group's ("7d Gemini", "7d Third-party"),
+- `quota` per model group (`remaining_fraction`, `reset_time`, `reset_in_seconds`), named by the group and the window, as `gemini-weekly` and `3p-weekly` (third-party models, its binary's `3P`); Novadeck shows each by its group ("Gemini", "Third-party"),
 - `cost`, `task_count` and `pending_input_count`.
 
 The model is not in it: every hook's `modelName` names it, as `gemini-3.8-flash-high`. Novadeck reads a trailing `minimal`, `low`, `medium`, `high` or `xhigh` as the reasoning effort, an inference from the names seen.

@@ -20,8 +20,9 @@ const agentNames: Readonly<Record<string, string>> = Object.fromEntries(
 )
 
 // One of a subscription's limit windows: its length as people say it ("5h", "7d"), the
-// models it covers where it doesn't cover them all (`scope`, "Fable"), its `label`, the two
-// together ("7d Fable"), which tells it from the account's own window of that length, how
+// models it covers where it doesn't cover them all (`scope`, "Fable"), its `label`, as it is
+// shown: its length, or for a model's the models alone ("Fable"), with its length before
+// them only where the same models have windows of more than one length ("5h Spark"), how
 // much of it is used, as a fraction, and when it resets, where its agent says.
 export type UsageWindow = {
   // Which of its agent's windows it is, as two of the same length share a name.
@@ -142,7 +143,16 @@ export const accountUsage = (
   }
   return [...byAgent]
     .map(([program, windows]): AgentAccount => {
-      const sorted = [...windows.values()].toSorted(windowOrder)
+      const scopes = new Map<string, Set<number | null>>()
+      for (const { scope, minutes } of windows.values())
+        if (scope !== undefined) scopes.set(scope, (scopes.get(scope) ?? new Set()).add(minutes))
+      const sorted = [...windows.values()]
+        .map((window) =>
+          window.scope !== undefined && scopes.get(window.scope)!.size === 1
+            ? { ...window, label: window.scope }
+            : window,
+        )
+        .toSorted(windowOrder)
       // At a glance, what limits the work under way: the account's own windows and those of
       // the models its terminals run, not a model's used up that none runs now. Where none is
       // so, as Antigravity's quotas each cover some models, any.
