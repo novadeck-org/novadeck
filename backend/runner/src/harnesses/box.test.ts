@@ -594,6 +594,9 @@ describe("Claude Code's agents view with a paste in its field", () => {
     "  enter to create · esc to clear · ctrl+f to find",
     // 2.1.323 (2026-11-13): two Escapes clear it.
     "  enter to create · esc×2 to clear",
+    // 2.1.323 in its vim mode, and on a wide screen with a hint between.
+    "  enter to create · -- INSERT --",
+    "  enter to create · paste again to expand · esc×2 to clear",
     "  enter to return · ? for shortcuts",
     "  enter to open · ? for shortcuts",
   ])("is a view, for no ring to take its field for the box: %s", (footer) => {
@@ -605,6 +608,8 @@ describe("Claude Code's agents view with a paste in its field", () => {
     expect(claude.overlay(view("  enter to open the file"))).toBe(false)
     // A person's own status line may run under the box.
     expect(claude.overlay(view("  enter to open · esc to close"))).toBe(false)
+    expect(claude.overlay(view("  enter to create · esc to close"))).toBe(false)
+    expect(claude.overlay(view("  enter to create · -- not a mode --"))).toBe(false)
   })
 
   it("leaves those words in the box to the box, however they're said", () => {
