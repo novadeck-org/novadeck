@@ -1003,7 +1003,10 @@ const merging = (repo: Repo) => {
   return { f1, merge1, f2, merge2, f3 }
 }
 
-describe.skipIf(!hasGit)("the merges of a change", () => {
+// Each of these reads many files, each a git process of its own: on Windows, where a process
+// starts some 17 times slower than on Linux, that is up to 12 s, so they get room past the
+// usual 20 s.
+describe.skipIf(!hasGit)("the merges of a change", { timeout: 60_000 }, () => {
   it("shows a merge as what it did itself, nothing where it only brought main in", async ({
     repo,
   }) => {
@@ -1139,8 +1142,7 @@ describe.skipIf(!hasGit)("the merges of a change", () => {
     repo,
   }) => {
     const { f1, resolved, f2, mergeX, o1, octopus } = featured(repo)
-    const readers = reader()
-    const read = await layersOf(readers, repo.root)
+    const read = await layersOf(reader(), repo.root)
     const names = (id: string) =>
       read.change.layers.find((layer) => layer.id === id)!.files.map(({ path }) => path)
 
@@ -1151,8 +1153,13 @@ describe.skipIf(!hasGit)("the merges of a change", () => {
     expect(names(resolved)).toEqual(["s.txt"])
     expect(names(f1)).toEqual(["s.txt"])
     expect(read.change.layers.some((layer) => layer.firstParent)).toBe(false)
+  })
 
-    // Ranges agree with the layers: their own work, whichever way they are cut.
+  it("cuts the ranges of a branch a merge brought in to their own work, whichever way", async ({
+    repo,
+  }) => {
+    const { f1, resolved, f2, mergeX, o1, octopus } = featured(repo)
+    const readers = reader()
     const files = (layers: string[]) => rangeFiles(readers, repo, layers)
     const touched = ["added:f2.txt", "modified:s.txt", "added:x.txt"]
     expect(await files([octopus, o1, mergeX, f2, resolved])).toEqual([
@@ -1165,8 +1172,14 @@ describe.skipIf(!hasGit)("the merges of a change", () => {
     expect(await files([mergeX, f2, resolved])).toEqual(touched)
     // Reaching the oldest layer is `main...HEAD` for the layers up to there.
     expect(await files([mergeX, f2, resolved, f1])).toEqual(touched)
-    const whole = [octopus, o1, mergeX, f2, resolved, f1]
-    expect(await files(whole)).toEqual(
+  })
+
+  it("reads the whole of a branch a merge brought in as git diff main...HEAD does", async ({
+    repo,
+  }) => {
+    const { f1, resolved, f2, mergeX, o1, octopus } = featured(repo)
+    const range = await rangeOf(reader(), repo, [octopus, o1, mergeX, f2, resolved, f1])
+    expect(range.map(({ path, status }) => `${status}:${path}`)).toEqual(
       repo
         .git("diff", "--name-status", "main...HEAD")
         .trim()
@@ -1174,7 +1187,6 @@ describe.skipIf(!hasGit)("the merges of a change", () => {
         .map((each) => each.replace(/^M\t/, "modified:").replace(/^A\t/, "added:")),
     )
     // The lines of the whole are those of git's own diff.
-    const range = await rangeOf(readers, repo, whole)
     expect(range.map(({ path, added, removed }) => [path, added, removed])).toEqual(
       repo
         .git("diff", "--numstat", "main...HEAD")
