@@ -28,6 +28,9 @@ const showOptions = (props: TerminalMountProps): ShowOptions => ({
   label: `Input for ${props.name}`,
   phase: phaseOf(props.status),
   webgl: wantsWebgl(props.view),
+  // What the person can see of it, which with its renderer sets how often it draws.
+  selected: props.selected !== false,
+  visible: props.visible !== false,
 })
 
 // What every backend's screens are drawn in: the one input the port asks for, and the

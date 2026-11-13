@@ -27,7 +27,7 @@ export type ViewOptions = {
 }
 
 /** The view's place in the page's pool: whoever shows it says when it is shown and when not. */
-export type ViewRenderer = Pick<ScreenRenderer, "take" | "idle" | "release" | "resized">
+export type ViewRenderer = Pick<ScreenRenderer, "take" | "idle" | "release" | "resized" | "drawn">
 
 export type View = {
   /** xterm's own API for everything the view doesn't wrap. */
@@ -184,6 +184,7 @@ export const createView = (element: HTMLElement, options: ViewOptions): View => 
       idle: renderer.idle,
       release: renderer.release,
       resized: renderer.resized,
+      drawn: renderer.drawn,
     },
     onRendererChange: (listener) => {
       listeners.add(listener)

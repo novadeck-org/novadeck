@@ -9,9 +9,9 @@
     "ticks": 39,
     "wakes": 78,
     "mutations": {
-      "budget": 118,
-      "reason": "Grid admits and hides tiles outside the switch's commit, as Canvas does: the phase reads one more commit and mutation in all, not per tick.",
-      "from": "#912"
+      "budget": 168,
+      "reason": "The Grid's unselected tiles draw on the DOM renderer here (the page's pool refuses software WebGL) and pace their output (#916): what the script writes between ticks is drawn up to 250 ms later, inside the next ticks, so its rows count toward them. The same drawing, batched, counted elsewhere; unpaced the run reads 118.",
+      "from": "#916"
     },
     "bytes": 1098,
     "streamingPeak": 6,

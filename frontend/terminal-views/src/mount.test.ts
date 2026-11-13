@@ -7,7 +7,13 @@ import { vi } from "vitest"
 import { createTerminalMount } from "./mount"
 import { context, describe, expect, it } from "./test"
 
-type Asked = { readonly label?: string; readonly phase?: string; readonly webgl?: boolean }
+type Asked = {
+  readonly label?: string
+  readonly phase?: string
+  readonly webgl?: boolean
+  readonly selected?: boolean
+  readonly visible?: boolean
+}
 
 const opening: ViewState = { live: false, resuming: false, waits: false, lock: null, notice: null }
 
@@ -55,8 +61,37 @@ describe("a terminal's mount", () => {
     const mount = createTerminalMount(screens)(document.createElement("div"), key, props("grid"))
     mount.update(props("canvas"))
     expect(asked).toEqual([
-      { label: "Input for zsh", phase: "running", webgl: true },
-      { label: "Input for zsh", phase: "running", webgl: false },
+      { label: "Input for zsh", phase: "running", webgl: true, selected: true, visible: true },
+      { label: "Input for zsh", phase: "running", webgl: false, selected: true, visible: true },
+    ])
+  })
+
+  it("tells its screen whether it is selected and seen, the same in every view", () => {
+    const told = (view: ViewMode, over: Partial<TerminalMountProps>) => {
+      const { asked, screens } = recorded()
+      createTerminalMount(screens)(document.createElement("div"), key, { ...props(view), ...over })
+      return { selected: asked[0]?.selected, visible: asked[0]?.visible }
+    }
+    for (const view of ["focus", "grid", "canvas"] as const) {
+      expect(told(view, {})).toEqual({ selected: true, visible: true })
+      expect(told(view, { selected: false, visible: false })).toEqual({
+        selected: false,
+        visible: false,
+      })
+    }
+  })
+
+  it("tells its screen as soon as it is selected or seen again", () => {
+    const { asked, screens } = recorded()
+    const mount = createTerminalMount(screens)(document.createElement("div"), key, {
+      ...props("grid"),
+      selected: false,
+      visible: false,
+    })
+    mount.update({ ...props("grid"), selected: true, visible: true })
+    expect(asked.map(({ selected, visible }) => ({ selected, visible }))).toEqual([
+      { selected: false, visible: false },
+      { selected: true, visible: true },
     ])
   })
 

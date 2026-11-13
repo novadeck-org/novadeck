@@ -202,8 +202,16 @@ screens a view shows, Focus's kept windows among them, don't count. A Canvas nod
 tile out of sight keeps its mount but lets its screen go, so the screen parks after 5 s and
 counts toward the cap, and its content is hidden until it is back in sight. Those coming
 into sight together take their screens a couple at a time, the selected one first, so
-switching to Grid or Canvas with many terminals doesn't freeze the window. Focus keeps
-the last four terminals it displayed mounted, parked out of sight with `display:none`,
+switching to Grid or Canvas with many terminals doesn't freeze the window. How often a
+shown screen draws its output depends on what the person can see and what drawing costs,
+the same in every view (`paceFor` in `libraries/terminal/src/view/screens.ts`). The
+selected terminal, and any screen WebGL draws, draws output as it comes. One the person can
+see that isn't selected, drawn by the DOM renderer (every window in Canvas, and in Grid or
+Focus a screen past the WebGL contexts), gathers what arrives and draws it every 250 ms. One
+they can't see (behind its chat, or kept hidden by Focus) draws it every second, still fitted,
+so the terminal behind a chat keeps telling its agent its size. Gathering ends at once when
+anything else arrives on the stream, so events still apply in order. Focus keeps the last
+four terminals it displayed mounted, parked out of sight with `display:none`,
 so switching back finds a terminal's companion pane as it was: a page still loaded, a
 plan's editor, where each was scrolled. A component that docks status, opens over the
 page or plays sound reads `useShown()` (`frontend/toolkit/src/shown.ts`), which Focus sets false

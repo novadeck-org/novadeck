@@ -61,7 +61,18 @@ export type Screen = {
   // once a park let go of the stream or it ended, or while it takes up again after a
   // reconnection (`resuming`). Input goes nowhere in between.
   readonly live: (live: boolean, resuming?: boolean) => void
+  // How long the screen gathers output before drawing it, in ms; 0 or absent draws each as
+  // it comes. Output that arrives meanwhile is drawn in one write, and anything else the
+  // stream sends ends the wait, so every event still applies in order after what came first.
+  readonly pace?: () => number
+  // Resolves once the pace changes, which ends a wait at once, as when the terminal is
+  // selected.
+  readonly paced?: () => Promise<void>
 }
+
+// The most output a paced screen gathers before drawing it: a flood draws in steps, and what
+// waits stays small.
+const gatherCap = 256 * 1024
 
 export type FollowedTerminal = {
   // Sends typed input; dropped while there is no attachment.
@@ -194,16 +205,71 @@ export const followTerminal = <K>(
     const release = on?.attached?.(key, attached)
     let failed = false
     try {
-      for await (const event of attached) {
-        if (stopped) break
-        try {
-          // eslint-disable-next-line no-await-in-loop -- Drawing paces acknowledgement.
-          await apply(event)
-        } catch {
-          // The screen is in doubt; the emulator threw the error again, for the page's log.
-          failed = !stopped
-          break
+      // Read by hand, so a paced screen can look ahead for output to draw with what it has.
+      const events = attached[Symbol.asyncIterator]()
+      let ahead: Promise<IteratorResult<TerminalEvent>> | undefined
+      const pull = (): Promise<IteratorResult<TerminalEvent>> => (ahead ??= events.next())
+      // The events to apply next, from `first`: on a paced screen, its output with what
+      // follows it within the pace, up to the first event of another kind, which comes after.
+      const gather = async (
+        first: TerminalEvent,
+      ): Promise<{ readonly batch: readonly TerminalEvent[]; readonly ended: boolean }> => {
+        const ms = screen.pace?.() ?? 0
+        if (first.type !== "output" || !ms) return { batch: [first], ended: false }
+        let output = first
+        const deadline = Date.now() + ms
+        const changed = screen.paced?.() ?? new Promise<void>(() => {})
+        while (output.data.length < gatherCap) {
+          let timer: ReturnType<typeof setTimeout> | undefined
+          const waited = new Promise<"waited">((resolve) => {
+            timer = setTimeout(() => resolve("waited"), Math.max(0, deadline - Date.now()))
+          })
+          try {
+            // eslint-disable-next-line no-await-in-loop -- One event after another, until the pace is up.
+            const next = await Promise.race([
+              pull(),
+              waited,
+              changed.then(() => "waited" as const),
+              halted.then(() => "waited" as const),
+            ])
+            if (next === "waited") break
+            ahead = undefined
+            if (next.done) return { batch: [output], ended: true }
+            if (next.value.type !== "output") return { batch: [output, next.value], ended: false }
+            output = { ...next.value, data: output.data + next.value.data }
+          } finally {
+            clearTimeout(timer)
+          }
         }
+        return { batch: [output], ended: false }
+      }
+      let ended = false
+      try {
+        // `stopped` changes through `stop`, out of the loop's sight.
+        const going = (): boolean => !stopped && !ended && !failed
+        while (going()) {
+          // eslint-disable-next-line no-await-in-loop -- Drawing paces acknowledgement.
+          const read = await pull()
+          ahead = undefined
+          if (read.done) break
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          const gathered = await gather(read.value)
+          ended = gathered.ended
+          for (const event of gathered.batch) {
+            if (stopped) break
+            try {
+              // eslint-disable-next-line no-await-in-loop -- Drawing paces acknowledgement.
+              await apply(event)
+            } catch {
+              // The screen is in doubt; the emulator threw the error again, for the page's log.
+              failed = !stopped
+              break
+            }
+          }
+        }
+      } finally {
+        // As a for-await loop left early does: the stream is told it is no longer read.
+        if (!ended) void events.return?.()
       }
     } catch (error) {
       if (!stopped) on?.lost?.(key, error)
