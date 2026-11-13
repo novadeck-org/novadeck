@@ -74,6 +74,24 @@ describe("what an Antigravity result step says", () => {
     })
   })
 
+  it("reads a step the same whether its times come once (1.5.3) or twice (1.5.7)", () => {
+    const twice = times + times
+    const steps = [
+      ["Showing lines 2-3 of 6\n2: b\n3: c", { size: { count: 2, unit: "line" }, opening: true }],
+      ["Command exited with code 3.\n\nNo output from the command.", { exit: 3, failed: true }],
+      [
+        "Made 1 replacement in /w/a.ts starting at line 2 (+2/-1 lines).",
+        { change: { added: 2, removed: 1, lines: [] } },
+      ],
+    ] as const
+    for (const [body, expected] of steps) {
+      expect(stepOutcome("DONE", undefined, times + body), body).toMatchObject(expected)
+      expect(stepOutcome("DONE", undefined, twice + body), body).toMatchObject(expected)
+    }
+    const launch = `${twice}Created the following subagent:\n{\n  "conversationId":  "00000000-0000-4000-8000-000000000002"\n}`
+    expect(launchedSubagent(launch)).toBe("00000000-0000-4000-8000-000000000002")
+  })
+
   it("takes an edit's counts from its own account of it, its lines from the call", () => {
     const made = `${times}Made 1 replacement in /w/a.ts starting at line 2 (+2/-1 lines).`
     expect(stepOutcome("DONE", undefined, made)?.change).toEqual({

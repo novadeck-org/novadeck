@@ -29,6 +29,7 @@ const generic: { readonly [agent in AgentName]: { readonly [tool: string]: strin
   codex: {},
   agy: {
     call_mcp_tool: "its row is the MCP tool it calls (lazyRun); with no arguments it has none",
+    swarm: "added in 1.5.7; shows as its raw name until the chat gives its actions a row",
   },
 }
 
