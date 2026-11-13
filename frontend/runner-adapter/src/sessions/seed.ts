@@ -81,6 +81,7 @@ export const runnerTerminal = (
     directory: summary.cwd,
     command: summary.command ?? "",
     handle: summary.handle,
+    ...(summary.handleGivenAt ? { handleGivenAt: summary.handleGivenAt } : {}),
     ...(summary.ledBy ? { ledBy: summary.ledBy } : {}),
     ...(summary.openedBy ? { openedBy: summary.openedBy } : {}),
     ...(summary.agentRan ? { agentRan: true } : {}),

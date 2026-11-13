@@ -9,6 +9,7 @@ import type { Approvals } from "./approvals.js"
 import { notice } from "./closes.js"
 import { mention } from "./handles.js"
 import { leadNotice } from "./leads.js"
+import type { Names } from "./names.js"
 import type { OpenRequests } from "./opens.js"
 import type { Record } from "./record.js"
 import type { ListedTerminal } from "./saved-terminals.js"
@@ -47,10 +48,11 @@ export type MovesHost = {
   readonly announce: (record: Record) => void
   /** Tells every watcher of a terminal kept only as saved. */
   readonly savedChanged: (row: ListedTerminal) => void
-  /** Records that the session gave the handle, unless it gave it already; whether it did now. */
-  readonly adopt: (sessionId: string, handle: string) => boolean
-  /** The handle the session gives its next terminal. */
-  readonly draw: (sessionId: string) => string
+  /**
+   * The project's handles: `claim` takes one back for the terminal, as an undo does; `next`
+   * gives a handle nothing in the project holds; `givenAt` says when one was given.
+   */
+  readonly names: () => Pick<Names<Record>, "claim" | "next" | "givenAt">
 }
 
 /** A terminal that moves, as it was: running, or kept only as saved. */
@@ -272,9 +274,10 @@ export class Moves {
 
   /**
    * The handle and lead each member has in the session, the lead before its workers: the
-   * handle it has, unless a terminal there holds it, or the session gave it to another
-   * (History's rule when it restores one), else the session's next. An undo's handle is
-   * taken back where no terminal there holds it. Leads and openers are ids, which a move
+   * handle it has, which is its own in the whole project, unless a terminal there holds it
+   * (only terminals made before handles were unique in a project can), else the project's
+   * next. An undo's handle is taken back where no terminal there holds it and the project
+   * gives it again (see `Names.claim`). Leads and openers are ids, which a move
    * leaves as they are: the workers keep their lead; the terminal asked for leaves its own,
    * but for the lead an undo names while that terminal is in the session. A title that
    * names its opener's handle follows the opener's new one.
@@ -288,11 +291,14 @@ export class Moves {
     const named = members.map((member, index) => {
       const back = input.handles?.[member.id]
       let handle: string | undefined
-      if (back !== undefined && !holds(back)) {
-        host.adopt(target, back)
+      if (
+        back !== undefined &&
+        !holds(back) &&
+        (back === member.handle || host.names().claim(target, back, member.id))
+      )
         handle = back
-      } else if (!holds(member.handle) && host.adopt(target, member.handle)) handle = member.handle
-      handle ??= host.draw(target)
+      else if (!holds(member.handle)) handle = member.handle
+      handle ??= host.names().next(target)
       claimed.add(handle)
       const lead =
         index === 0
@@ -316,6 +322,7 @@ export class Moves {
         ...record.summary,
         sessionId: target,
         handle,
+        handleGivenAt: host.names().givenAt(target, handle),
         ledBy,
         ...summaryTitle(naming, { handle, command: record.summary.command }),
       }

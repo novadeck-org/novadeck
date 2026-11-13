@@ -133,6 +133,9 @@ export type MessagePeer = {
   readonly terminalId: string
   // The handle it reads as in the session, for the words that name an agent by it.
   readonly handle: string
+  // When it was given that handle (epoch milliseconds); 0 where that was long ago or is not
+  // known. Words older than this that name the handle meant an earlier terminal.
+  readonly handleGivenAt?: number
   readonly program: string | undefined
   readonly live: "idle" | "working" | "gone"
 }
@@ -155,6 +158,7 @@ export const samePeers = (
         one.name === other.name &&
         one.terminalId === other.terminalId &&
         one.handle === other.handle &&
+        (one.handleGivenAt ?? 0) === (other.handleGivenAt ?? 0) &&
         one.program === other.program &&
         one.live === other.live
       )

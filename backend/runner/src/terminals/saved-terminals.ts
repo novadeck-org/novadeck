@@ -57,6 +57,23 @@ export type AgentReport = {
    * started it.
    */
   readonly launch?: readonly string[]
+  /**
+   * What the session may know of the project's terminals (see `terminals/introductions.ts`):
+   * when it began in this terminal, and the terminals it was shown since, by id. Kept with
+   * the session, so one resumed after a restart keeps it; rows saved without it read as not
+   * known, and a new session starts with its own.
+   */
+  readonly knew?: Knew
+}
+
+/**
+ * What an agent session has been shown of its project's terminals: `since`, when it began in
+ * its terminal (a hook's start, on the runner's clock; 0 where that is not known), and
+ * `shown`, the ids of the terminals it was told of since by name, oldest first.
+ */
+export type Knew = {
+  readonly since: number
+  readonly shown: readonly string[]
 }
 
 /**
@@ -76,8 +93,18 @@ export type KeptInterruption = {
 export type SavedTerminal = {
   readonly id: string
   readonly sessionId: string
-  /** Its handle in its session, a word such as `moth`; a move to another session may change it. */
+  /**
+   * Its handle in its project, a word such as `moth`; no other terminal made since handles
+   * became unique in a project has it there, and after it closes the project may give it to
+   * a new terminal (see `nextHandle`).
+   */
   readonly handle: string
+  /**
+   * When it was given the handle, in epoch milliseconds: 0 (long ago) for a terminal made
+   * before this was kept. A reference to the handle written before this time meant an
+   * earlier terminal.
+   */
+  readonly handleGivenAt: number
   /**
    * What names it: the person's title, an agent's, and its agent's summary of its work;
    * its title follows from these (see `titleOf`).
@@ -133,19 +160,52 @@ export type ListedTerminal = Omit<SavedTerminal, "transcript" | "interruptions">
 /** A terminal's handle, what names it, and who opened it and who leads it. */
 export type TerminalIdentity = Pick<SavedTerminal, "handle" | "naming" | "openedBy" | "ledBy">
 
+/** What giving or claiming a handle reads besides the records, and how time counts. */
+export type HandleOptions = {
+  /** The handles of the project's terminals the runner holds in memory, closing ones too. */
+  readonly holding?: readonly string[]
+  /** The time, in epoch milliseconds; now when omitted. */
+  readonly now?: number
+  /** How long a freed handle rests (see `handleCooldown`). */
+  readonly cooldown?: number
+}
+
 /** Where the runner saves terminals: its metadata store. */
 export type TerminalRecords = {
   terminal(terminalId: string): SavedTerminal | undefined
   /** Whether a line was ever entered in the terminal; true for one kept before it was told. */
   terminalRan?(terminalId: string): boolean
-  /** Every terminal kept, of one session or all, in the order they were created, without transcripts. */
+  /**
+   * Every terminal kept, of one session or all, in the order they were given their
+   * handles, which is the order they were asked for (creation order), without transcripts.
+   */
   terminals(sessionId?: string): readonly ListedTerminal[]
   /**
    * Gives a session's next terminal its handle, from the words in `order` (the session's
-   * own, see `handleOrder`, when omitted), never one the session gave before, even to a
-   * terminal since closed (see `nextHandle`), and records it as given.
+   * own, see `handleOrder`, when omitted), never one that anything in the session's project
+   * holds (a terminal there, `options.holding`, a create under way) or that was freed less
+   * than a cooldown ago (see `nextHandle`), and records it as held.
    */
-  giveHandle(sessionId: string, order?: readonly string[]): string
+  giveHandle(sessionId: string, order?: readonly string[], options?: HandleOptions): string
+  /**
+   * Takes the handle for a terminal of the session's project, as a restored or moved one
+   * takes back its own: false when anything there holds it, or it was freed less than a
+   * cooldown ago by another terminal. True records it as held.
+   */
+  claimHandle(
+    sessionId: string,
+    handle: string,
+    terminalId: string,
+    options?: HandleOptions,
+  ): boolean
+  /**
+   * Starts the cooldown of a handle its terminal no longer holds, in the project of the
+   * session it had it in; nothing when that project is gone. Saving a terminal with
+   * another handle, and removing one, do this themselves.
+   */
+  releaseHandle(sessionId: string, handle: string, terminalId: string, now?: number): void
+  /** When the project gave the handle to its terminal, in epoch milliseconds; undefined if it is not in its pool. */
+  handleGivenAt(sessionId: string, handle: string): number | undefined
   /**
    * Gives a kept terminal the person's title, or with null takes theirs away, so its title
    * is automatic again; false when none is kept by that id.
@@ -174,7 +234,10 @@ export type TerminalRecords = {
  * What saving a terminal takes; `transcript` is left as it is when omitted, and without
  * `interruptions` it keeps none.
  */
-export type TerminalToSave = Omit<SavedTerminal, "transcript" | "savedAt" | "interruptions"> & {
+export type TerminalToSave = Omit<
+  SavedTerminal,
+  "transcript" | "savedAt" | "interruptions" | "handleGivenAt"
+> & {
   transcript?: string | null
   interruptions?: SavedTerminal["interruptions"]
   /** Whether a line was ever entered in it; the records never lower it. */

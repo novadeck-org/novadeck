@@ -246,6 +246,7 @@ export class Reports {
         },
         event,
         facts,
+        this.host.inbox().firstReported(event.agent, event.sessionId),
       )
       if (!next) continue
       const before = record.bound

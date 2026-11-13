@@ -269,6 +269,31 @@ describe("runner seed", () => {
       expect(terminals[3]).not.toHaveProperty("agentRan")
     })
 
+    it("keeps when each was given its handle, where the runner says", () => {
+      const given = workspaceFromSeed(
+        runnerSeed([
+          {
+            project: project(1),
+            sessions: [
+              {
+                session: fresh(10),
+                terminals: [
+                  summary(40, 10, { handleGivenAt: 1_700_000_000_000 }),
+                  summary(41, 10, { handleGivenAt: 0 }),
+                  summary(42, 10),
+                ],
+              },
+            ],
+          },
+        ]),
+        defaults,
+      ).projects[0]!.history[0]!.state.roster.terminals
+      expect(given[0]).toMatchObject({ handleGivenAt: 1_700_000_000_000 })
+      // Long ago, or not said: nothing, as the same as before.
+      expect(given[1]).not.toHaveProperty("handleGivenAt")
+      expect(given[2]).not.toHaveProperty("handleGivenAt")
+    })
+
     it("shows the handle on their tabs, not on a shell no agent touched", () => {
       expect(terminals.map(showsHandle)).toEqual([true, true, true, false])
     })

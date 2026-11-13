@@ -18,6 +18,11 @@ export type Scope = { readonly projectId: string; readonly sessionId: string }
  */
 export type Live = Scope & {
   readonly terminalId: string
+  /**
+   * Its handle in its project: no other terminal of the project has it while this one is
+   * there, but after this one closes it rests an hour, then a new terminal may be given it.
+   * Anything that must name this terminal for good holds its `terminalId`.
+   */
   readonly handle: string
   /**
    * The id of the terminal whose agent leads this one: it opened this terminal with a

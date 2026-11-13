@@ -419,6 +419,22 @@ describe("the sameness of peers", () => {
     expect(samePeers({ owl: peer }, { owl: { ...peer } })).toBe(true)
     expect(samePeers({ owl: peer }, { owl: { ...peer, live: "working" } })).toBe(false)
     expect(samePeers({ owl: peer }, {})).toBe(false)
+    // A handle given again to the terminal is another look at the words that name it.
+    expect(samePeers({ owl: peer }, { owl: { ...peer, handleGivenAt: 5_000 } })).toBe(false)
+    expect(samePeers({ owl: peer }, { owl: { ...peer, handleGivenAt: 0 } })).toBe(true)
+  })
+
+  it("carry when each terminal was given its handle, where the roster knows", () => {
+    const given = [
+      { type: "terminal/update", target, terminalId: "01", handle: "moth", handleGivenAt: 5_000 },
+      { type: "terminal/update", target, terminalId: "02", handle: "fox" },
+    ].reduce(
+      (state, action) => workspaceReducer(state, action as Parameters<typeof workspaceReducer>[1]),
+      workspaceFixture({ terminals: 2 }),
+    )
+    const peers = messagePeers(given)
+    expect(peers["01"]).toMatchObject({ handle: "moth", handleGivenAt: 5_000 })
+    expect(peers["02"]).not.toHaveProperty("handleGivenAt")
   })
 })
 

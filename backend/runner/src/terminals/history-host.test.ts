@@ -39,10 +39,3 @@ describe("a sleeper holding a session for History", () => {
     expect(hostOf([], "t-moth", sleeper).holder("claude", "c1")).toEqual(sleeper)
   })
 })
-
-describe("which handles a session's terminals hold for History", () => {
-  it("counts a terminal still shutting down, whose handle is not free yet", () => {
-    const host = hostOf([terminal("moth", true), terminal("fox", false)], undefined)
-    expect(host.terminalsIn("s1").map((one) => one.handle)).toEqual(["moth", "fox"])
-  })
-})
