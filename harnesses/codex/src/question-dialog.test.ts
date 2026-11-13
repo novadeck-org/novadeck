@@ -1,3 +1,4 @@
+import type { RequestFacts } from "@novadeck/harness-core/dialogs"
 import type { RequestAnswer } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
@@ -234,6 +235,72 @@ describe("Codex's request_user_input, as an update might change it", () => {
       }),
     ).toBeUndefined()
     expect(read(rows, { ...facts, tool: "other" })).toBeUndefined()
+  })
+})
+
+// 0.167.0 in a narrow pane: "Push and reply (Recommended)" wraps inside its column from 52
+// columns down, its description in the column beside it.
+describe("Codex's request_user_input with a label too long for its column", () => {
+  // Recorded at more sizes than the pin's two.
+  const recorded = probe.scenarios["rui-long-narrow"]!.screens! as Record<
+    string,
+    { readonly rows: readonly string[] }
+  >
+  const facts: RequestFacts = {
+    ...factsOf("rui-default-on"),
+    input: {
+      questions: [
+        {
+          id: "review",
+          header: "Review",
+          question:
+            'A reviewer left four comments on the pull request. I\'ve rebased it onto main and fixed all four (checks and the end-to-end tests pass locally). Because of the rebase the push has to be a force-push (--force-with-lease). OK to commit, force-push, fix the repeated "Short copy" sentence in its description, and post the four replies below?',
+          options: [
+            {
+              label: "Push and reply (Recommended)",
+              description:
+                "Commit as shown, force-push with lease, fix the description, post the replies",
+            },
+            {
+              label: "Push, no replies",
+              description:
+                "Commit, force-push and fix the description; I'll reply to the threads myself",
+            },
+          ],
+        },
+      ],
+    },
+  }
+
+  it.each(["120x40", "80x40", "60x40", "52x40", "44x40"])("reads it whole at %s", (size) => {
+    const rows = [...recorded[size]!.rows]
+    const found = read(rows, facts)!
+    expect(found.dialog).toMatchObject({
+      questions: [
+        {
+          options: [
+            { id: "1", label: "Push and reply (Recommended)" },
+            { id: "2", label: "Push, no replies" },
+          ],
+          text: true,
+        },
+      ],
+    })
+    expect(
+      found.keys({
+        type: "questions",
+        dialog: "d",
+        answers: [{ question: "review", options: ["2"] }],
+      }),
+    ).toEqual([{ press: "2" }])
+  })
+
+  it("is no dialog where the wrapped rest isn't the label's", () => {
+    for (const size of ["52x40", "44x40"]) {
+      const rows = [...recorded[size]!.rows]
+      expect(read(replaced(rows, "(Recommended)", "(Suggested)  "), facts), size).toBeUndefined()
+      expect(read(replaced(rows, "(Recommended)", "             "), facts), size).toBeUndefined()
+    }
   })
 })
 

@@ -116,7 +116,11 @@ const questionScreen = (rows: readonly string[]): QuestionScreen | undefined => 
   if (footer < 0) return undefined
   const first = rows.slice(0, footer).findLastIndex((each) => /^(❯| ) 1\. /.test(each))
   if (first < 1) return undefined
-  for (let at = first - 1; at >= 0 && first - at <= 12; at--) {
+  // The question takes as many rows as it wraps to, no set number: fixtures/ask.probe.json
+  // `ask-preview-mixed` takes seven at 52 columns, and a longer one or a narrower screen
+  // more. The dialog's rule above it ends the search, and the rows between must read as
+  // its question.
+  for (let at = first - 1; at >= 0; at--) {
     const row = rows[at]!
     if (rule.test(row)) return undefined
     const bar = tabBar.exec(row)
@@ -163,6 +167,22 @@ type OptionRow = { n: number; marker: boolean; text: string; lines: string[] }
  * then Type something, a rule, and Chat about this (or the preview layout's rows); the
  * highlight on one row and not on the free-text field.
  */
+/**
+ * A row of the preview layout up to the preview's box: the box stands right of the options,
+ * its edges the first of these on any row that reaches it.
+ */
+const beside = (row: string): string => {
+  const edge = row.search(/[┌│└├┤┐┘]/)
+  return edge < 0 ? row : row.slice(0, edge)
+}
+
+/**
+ * The rest of a label that wraps in the preview layout, under its option's text: the label's
+ * column is narrow, so "Push and reply (Recommended)" takes two rows even at 120 columns
+ * (2.1.323, fixtures/ask.probe.json `ask-preview-mixed`). The box's notes stand further right.
+ */
+const labelGoesOn = /^ {3,8}\S/
+
 const optionsOf = (
   rows: readonly string[],
   { first, footer }: Pick<QuestionScreen, "first" | "footer">,
@@ -173,17 +193,23 @@ const optionsOf = (
   const count = ask.options.length
   const entries: OptionRow[] = []
   let ruledAt = -1
-  for (const row of rows.slice(first, footer)) {
-    if (row === "") continue
-    if (rule.test(row)) {
+  for (const whole of rows.slice(first, footer)) {
+    if (whole === "") continue
+    if (rule.test(whole)) {
       ruledAt = entries.length
       continue
     }
+    // In the preview layout the options stand left of the preview's box.
+    const row = preview ? beside(whole) : whole
     const match = questionOption.exec(row)
     if (match) {
-      entries.push({ n: Number(match[2]), marker: match[1] === "❯", text: match[3]!, lines: [] })
-    } else if (preview && /^ {3,}/.test(row)) {
-      // The preview's box, and its notes.
+      const text = preview ? match[3]!.trimEnd() : match[3]!
+      entries.push({ n: Number(match[2]), marker: match[1] === "❯", text, lines: [] })
+    } else if (preview && labelGoesOn.test(row) && entries.length > 0 && ruledAt < 0) {
+      // A label too long for its column goes on under it.
+      entries[entries.length - 1]!.lines.push(row.trim())
+    } else if (preview && /^ *$|^ {9,}/.test(row)) {
+      // The rest of the preview's box, and its notes.
     } else if (preview && row === "  Chat about this" && ruledAt === entries.length) {
       entries.push({ n: 0, marker: false, text: "Chat about this", lines: [] })
     } else if (!preview && /^ {5,}\S/.test(row) && entries.length > 0) {
@@ -196,8 +222,9 @@ const optionsOf = (
     if (entries.length !== count + 1 || entries[count]!.n !== 0) return undefined
     for (const [at, each] of ask.options.entries()) {
       const entry = entries[at]!
-      // The label ends where the preview's box begins.
-      if (entry.n !== at + 1 || entry.text.split(/\s{2,}/)[0] !== each.label) return undefined
+      if (entry.n !== at + 1 || flat([entry.text, ...entry.lines].join("")) !== flat(each.label)) {
+        return undefined
+      }
     }
     if (!rows[first]!.includes("┌")) return undefined
   } else {
@@ -234,9 +261,10 @@ export const questions = (rows: readonly string[], facts: RequestFacts): DialogR
   if (!asked) return undefined
   const preview = asked.some(({ options }) => options.some(({ preview: shown }) => shown))
   if (preview) {
-    // Only one question, singly selected, with every option previewed, is probed.
+    // Only one question, singly selected, is probed. An option without a preview shows
+    // "No preview available" in the box (2.1.323, fixtures/ask.probe.json
+    // `ask-preview-mixed`).
     if (asked.length !== 1 || asked[0]!.multiSelect) return undefined
-    if (asked[0]!.options.some(({ preview: shown }) => !shown)) return undefined
   }
 
   const shown = questionScreen(rows)
