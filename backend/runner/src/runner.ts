@@ -157,10 +157,11 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   const shellFiles =
     options.shell === undefined
       ? Promise.resolve(undefined)
-      : installShellFiles(
-          options.shell,
-          options.relay === undefined ? {} : { relay: options.relay },
-        ).catch((error: unknown) => {
+      : installShellFiles(options.shell, {
+          ...(options.relay !== undefined && { relay: options.relay }),
+          // Whether Codex is connected is known only once these are written (see below).
+          pwsh: "kept",
+        }).catch((error: unknown) => {
           log.error("shell.integration-unavailable", "Novadeck shell integration is unavailable", {
             err: error,
           })
