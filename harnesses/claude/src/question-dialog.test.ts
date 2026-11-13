@@ -314,6 +314,24 @@ describe("Claude Code's AskUserQuestion", () => {
     expect(waits(keys)[0]!.until(step("ask-preview-mixed", "down"))).toBe(false)
   })
 
+  it("reads the box's notes beside an option, where a short box leaves them", () => {
+    // The box of an option without a preview takes three rows; with more options, its notes
+    // stand beside one, as they may beside a wrapped label's rest.
+    const facts = factsOf("ask-preview-mixed")
+    const rows = step("ask-preview-mixed", "down").filter((row) => !row.includes("Notes:"))
+    const notes = "Notes: press n to add notes"
+    for (const target of ["  3. Not yet", "    (Recommended)"]) {
+      const shown = rows.map((row) =>
+        row.startsWith(target) ? `${target.padEnd(34)}${notes}` : row,
+      )
+      expect(
+        shown.some((row) => row.endsWith(notes)),
+        target,
+      ).toBe(true)
+      expect(dialogs.read(shown, facts), target).toBeDefined()
+    }
+  })
+
   it("refuses a wrapped label that isn't the option's whole label", () => {
     const facts = factsOf("ask-preview-mixed")
     for (const size of ["120x40", "52x40"]) {

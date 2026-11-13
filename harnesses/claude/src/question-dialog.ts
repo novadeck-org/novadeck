@@ -162,18 +162,16 @@ const reviewing = (rows: readonly string[]): boolean => rows.includes(review)
 type OptionRow = { n: number; marker: boolean; text: string; lines: string[] }
 
 /**
- * The option rows of a question screen, between its first option and its footer, when
- * they are `ask`'s in full and in the layout probed: its options with their descriptions,
- * then Type something, a rule, and Chat about this (or the preview layout's rows); the
- * highlight on one row and not on the free-text field.
- */
-/**
  * A row of the preview layout up to the preview's box: the box stands right of the options,
  * its edges the first of these on any row that reaches it.
  */
 const beside = (row: string): string => {
   const edge = row.search(/[┌│└├┤┐┘]/)
-  return edge < 0 ? row : row.slice(0, edge)
+  const left = edge < 0 ? row : row.slice(0, edge)
+  // Below a short box its notes stand beside the options, two spaces or more from them
+  // ("  5. Epsilon          Notes: press n to add notes").
+  const gap = / {2,}\S/.exec(left.trimStart())
+  return gap ? left.slice(0, left.length - left.trimStart().length + gap.index) : left
 }
 
 /**
@@ -183,6 +181,12 @@ const beside = (row: string): string => {
  */
 const labelGoesOn = /^ {3,8}\S/
 
+/**
+ * The option rows of a question screen, between its first option and its footer, when
+ * they are `ask`'s in full and in the layout probed: its options with their descriptions,
+ * then Type something, a rule, and Chat about this (or the preview layout's rows); the
+ * highlight on one row and not on the free-text field.
+ */
 const optionsOf = (
   rows: readonly string[],
   { first, footer }: Pick<QuestionScreen, "first" | "footer">,
