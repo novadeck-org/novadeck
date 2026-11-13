@@ -163,6 +163,18 @@ describe("An Inbox row's subject", () => {
       trouble: { type: "limit", minutes: 300, resetsAt: 0, autoResume: true, evidence: [] },
     }
     expect(subjectOf(row)).toBe("Hit Claude's 5-hour limit")
+    const fable: InboxRow = {
+      ...row,
+      trouble: {
+        type: "limit",
+        minutes: 10_080,
+        resetsAt: 0,
+        scope: "Fable",
+        autoResume: true,
+        evidence: [],
+      },
+    }
+    expect(subjectOf(fable)).toBe("Hit Claude's weekly Fable limit")
   })
 
   it("counts the messages a hold keeps from the agent, and says what holds them", () => {
@@ -435,6 +447,11 @@ describe("A limit's window", () => {
     expect(limitWindow(0)).toBe("usage")
     expect(limitWindow(10_080)).toBe("weekly")
     expect(limitWindow(1440)).toBe("daily")
+  })
+
+  it("names the models it covers after its length, where not all of them", () => {
+    expect(limitWindow(10_080, "Fable")).toBe("weekly Fable")
+    expect(limitWindow(0, "Gemini")).toBe("Gemini usage")
   })
 })
 

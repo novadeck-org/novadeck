@@ -181,15 +181,18 @@
 .usage-popover {
   width: 18rem;
 }
+/* Its rows share one grid, so every bar starts after the longest window's name, as "Fable"
+   beside "5h", up to a name's cap, past which it is cut short. */
 .usage-detail {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: fit-content(9rem) minmax(0, 1fr) 2.5rem;
+  gap: 6px 8px;
   padding: 10px 12px 12px;
   font-size: var(--text-control);
   line-height: var(--text-control--line-height);
 }
 .usage-agent-name {
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -200,8 +203,9 @@
   font-weight: 600;
 }
 .usage-row {
+  grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 3.5rem minmax(0, 1fr) 2.5rem;
+  grid-template-columns: subgrid;
   align-items: center;
   gap: 2px 8px;
   color: var(--color-muted);
@@ -213,6 +217,13 @@
 .usage-row .usage-bar {
   width: 100%;
   color: var(--color-muted);
+}
+/* Against its bar: as wide as the longest name, and no wider. */
+.usage-row-name {
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .usage-row-share {
   color: var(--color-ink);

@@ -333,10 +333,23 @@ const telemetry = (
   const usage = (info as { last_token_usage?: { total_tokens?: unknown } } | null)?.last_token_usage
   const occupied = number(usage?.total_tokens)
   const capacity = number((info as { model_context_window?: unknown } | null)?.model_context_window)
-  const windows = (limits ?? {}) as { primary?: unknown; secondary?: unknown }
-  const known = [limit(windows.primary), limit(windows.secondary)].filter(
-    (each): each is Limit => each !== undefined,
-  )
+  const windows = (limits ?? {}) as {
+    primary?: unknown
+    secondary?: unknown
+    limit_id?: unknown
+    limit_name?: unknown
+  }
+  // Each snapshot is one limit's: the account's own (`codex`, or none named, as older ones),
+  // or a model's, as `/status` names it, by its `limit_name`, else its id (rollouts of
+  // 0.167.2 hold `premium` snapshots with no windows), which replaces that one's alone.
+  const id = shortName(windows.limit_id, telemetryLimits.scope)
+  const scope =
+    id === undefined || id === "codex"
+      ? undefined
+      : (shortName(windows.limit_name, telemetryLimits.scope) ?? id)
+  const known = [limit(windows.primary), limit(windows.secondary)]
+    .filter((each): each is Limit => each !== undefined)
+    .map((each) => (scope === undefined ? each : { ...each, scope }))
   return {
     type: "telemetry-observed",
     ...base,
@@ -346,12 +359,17 @@ const telemetry = (
         capacity: capacity !== undefined && capacity >= 1 ? Math.round(capacity) : null,
       },
     }),
-    ...(limits !== undefined && limits !== null && { limits: known }),
+    ...(limits !== undefined &&
+      limits !== null && {
+        limits: known,
+        limitsCover: scope === undefined ? ("account" as const) : { scope },
+      }),
   }
 }
 
 // The kind a backlog event is kept by, one latest of each: a turn's model is a kind of its
-// own, apart from the token counts, and so is the release's version.
+// own, apart from the token counts, and so is the release's version; a model limit's
+// snapshot is apart from the account's, as each replaces its own windows alone.
 const backlogKind = (event: HarnessEvent): string =>
   event.type === "shell-started" || event.type === "shell-ended"
     ? `${event.type}:${event.id}`
@@ -363,7 +381,9 @@ const backlogKind = (event: HarnessEvent): string =>
           ? "model"
           : event.version !== undefined && event.context === undefined && event.limits === undefined
             ? "version"
-            : event.type
+            : typeof event.limitsCover === "object"
+              ? `${event.type}:${event.limitsCover.scope}`
+              : event.type
 
 /**
  * Follows a bound session's rollout. Codex writes a turn's mode before the hook that

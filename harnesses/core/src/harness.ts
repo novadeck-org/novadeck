@@ -1,5 +1,6 @@
 import type {
   AgentCoverage,
+  AgentTelemetry,
   AgentIntegration,
   AgentName,
   StartupScreen,
@@ -9,7 +10,7 @@ import type { BoxProfile } from "@novadeck/tui-input/box"
 
 import type { Conversation, ConversationScan, Known } from "./conversation.js"
 import type { DialogAdapter } from "./dialogs.js"
-import type { HarnessEvent, PlanSource, PromptShown } from "./events.js"
+import type { HarnessEvent, LimitsCover, PlanSource, PromptShown } from "./events.js"
 import type { Dialect } from "./hook-command.js"
 import type { Report } from "./report.js"
 import type { Shape } from "./shapes.js"
@@ -30,6 +31,27 @@ export type Install = {
   readonly platform: NodeJS.Platform
   /** Novadeck's directory holding this harness's plugin files. */
   readonly plugin: string
+}
+
+/**
+ * How to ask a harness itself for usage windows its sessions' own records leave out, as
+ * Claude Code's status line leaves out a model's own weekly window: its program, run from a
+ * folder of no project with `args`, is written `input` and read line by line until `read`
+ * finds the answer, whose windows replace those `cover` names. `account` says whose
+ * account a session's transcript (`transcript`, as it reported it) belongs to, so one ask
+ * serves every session of one account: by `key`, with the variables (`env`) that point the
+ * program at it, set over the person's own, where one undefined is unset.
+ */
+export type LimitsReading = {
+  readonly args: readonly string[]
+  readonly input: string
+  /** Undefined for a line that isn't the answer, null for an answer that tells nothing. */
+  readonly read: (line: string) => AgentTelemetry["limits"] | null | undefined
+  readonly cover: LimitsCover
+  readonly account: (
+    install: Install,
+    transcript: string | undefined,
+  ) => { readonly key: string; readonly env: Readonly<Record<string, string | undefined>> }
 }
 
 /** One of a harness's plugin commands; a failing one marked `optional` is skipped. */
@@ -119,6 +141,8 @@ export type Harness = {
    * Antigravity's own status line on Windows (`AgentIntegration.limited`).
    */
   readonly limited?: (install: Install) => Promise<AgentIntegration["limited"]>
+  /** Asking it for the usage windows its records leave out; none where they tell them all. */
+  readonly limitsReading?: LimitsReading
   /**
    * Changes its own settings once connected, and puts them back before disconnecting, for
    * what it offers no way to set per launch, as Antigravity's status line.

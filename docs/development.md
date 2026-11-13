@@ -275,7 +275,7 @@ Terminals:
   Canvas wire side by side (on neighbours, the teams chain through the middle one).
 - **New terminals:** "Every state at once" adds one terminal per state, named after it, so
   the tabs and the windows in Grid and Canvas show done, replied (unread), failed, working,
-  planning, subagents, asking, waiting, paused at its limit, asleep (plain, done, asking),
+  planning, subagents, asking, waiting, paused at its limit or at a model's own (weekly Fable), asleep (plain, done, asking),
   waking (plain, asking), ended and the rest side by side. Its agents are of the harness the group's switch chose (see Agent). "Asks (MCP)" and
   "Needs a sign-in" are agents with an `ask` open in the Inbox (a
   question, and an action ask), so their "?" and "!" show beside "Working, a side question",
@@ -353,7 +353,7 @@ Agents:
   a failed turn) stay. "Every state at once" has Shells, one failed and Many shells.
 - **Agent fixtures:** what no turn produces: an unheard agent (of the chosen harness, in
   place of whatever ran, whose hooks say nothing), an agent held at its startup screen (of the
-  chosen harness) or Antigravity at its sign-in screen, before its first session, and context and limits or tokens alone, in the tooltip and status; those two set
+  chosen harness) or Antigravity at its sign-in screen, before its first session, and context and limits, with a model's own weekly windows beside the account's ("Fable", "Third-party") or not, or tokens alone, in the tooltip, status and the footer's subscriptions; those set
   only the usage of the selected terminal's agent, so a turn, request or queued prompt stays.
 - **Approvals:** "Ask to close selected" has another terminal of the session ask to close the
   selected one, and "Ask to lead selected" has it ask to lead the selected one, which raises the

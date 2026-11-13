@@ -71,4 +71,9 @@ describe("Claude Code's status line, as captured", () => {
       },
     ])
   })
+
+  it("speaks for the account's windows alone, leaving a model's own as they were", () => {
+    const [event] = decode(report)
+    expect(event).toMatchObject({ type: "telemetry-observed", limitsCover: "account" })
+  })
 })

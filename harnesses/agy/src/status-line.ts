@@ -1,4 +1,4 @@
-import { absolute, sessionId, text, versionName } from "@novadeck/harness-core/decode"
+import { absolute, sessionId, shortName, text, versionName } from "@novadeck/harness-core/decode"
 import type { EventBase, HarnessEvent, PromptShown } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
 import { telemetryLimits, type StartupScreen } from "@novadeck/protocol"
@@ -29,6 +29,18 @@ const count = (value: unknown): number | undefined =>
 
 // How long each of Antigravity's quota windows lasts, by the end of its name.
 const windows = { weekly: 10_080, daily: 1440 } as const
+
+// The models each quota covers, by the start of its name, in the words a person knows them
+// by: Gemini's, and those of other makers (Claude, GPT-OSS), which Antigravity calls `3p`.
+const groups: Readonly<Record<string, string>> = { gemini: "Gemini", "3p": "Third-party" }
+
+// The models a quota named `name` covers ("gemini-weekly" is Gemini's): its name without
+// the window's, as a person knows them where Novadeck does, else as it is.
+const quotaScope = (name: string): string | undefined => {
+  const end = Object.keys(windows).find((each) => name.endsWith(`-${each}`))
+  const group = end ? name.slice(0, -end.length - 1) : name
+  return groups[group] ?? shortName(group, telemetryLimits.scope)
+}
 
 // A confirmation is the one request Antigravity shows at a time, and says nothing of.
 const confirmation = {
@@ -134,11 +146,13 @@ export const statusLine = ({
           if (fraction === undefined) return []
           const at = typeof resets === "string" ? Date.parse(resets) : Number.NaN
           const minutes = Object.entries(windows).find(([end]) => name.endsWith(end))?.[1] ?? null
+          const scope = quotaScope(name)
           return [
             {
               minutes,
               used: Math.max(0, 1 - Math.min(1, fraction)),
               resetsAt: Number.isNaN(at) ? null : at,
+              ...(scope !== undefined && { scope }),
             },
           ]
         })

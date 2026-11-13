@@ -45,6 +45,15 @@ export const turnReply = z.string().min(1).max(replyPreviewLength)
 export const turnError = z.string().min(1).max(maxTurnError)
 export const turnFiles = z.array(z.string().min(1).max(maxTurnFilePath)).max(maxTurnFiles)
 
+// How many rate-limit windows an agent's telemetry carries, and how long its model's and
+// effort's names and a window's scope run, in UTF-16 code units.
+export const telemetryLimits = { windows: 8, model: 128, effort: 32, scope: 64 } as const
+
+// The models a rate-limit window covers, in its harness's words, as Claude Code's weekly
+// "Fable" window or Antigravity's "Gemini" quota: a window without one covers all of the
+// account's models.
+export const limitScope = z.string().min(1).max(telemetryLimits.scope)
+
 // What the agent holding a terminal's foreground is doing, as its own hooks report it:
 // working on a turn, or with its turn over while subagents it started run on, which will
 // wake the agent (`background`); idle otherwise; or unknown when they have not said. `attention`
@@ -149,6 +158,8 @@ export const agentActivity = z.strictObject({
         .strictObject({
           minutes: z.number().int().positive().nullable(),
           resetsAt: z.number(),
+          // The models the window covers, as in the telemetry's `limits`.
+          scope: limitScope.optional(),
         })
         .nullable(),
       // Absolute paths its write/edit tools wrote in the turn (root and subagents), first
@@ -161,13 +172,10 @@ export const agentActivity = z.strictObject({
     .nullable(),
 })
 
-// How many rate-limit windows an agent's telemetry carries, and how long its model's and
-// effort's names run, in UTF-16 code units.
-export const telemetryLimits = { windows: 8, model: 128, effort: 32 } as const
-
 // What an agent's own records say of its tokens and quotas: how many tokens its context
 // holds, of how many where known, and how much of each rate-limit window it has used, as
-// a fraction, with the instant the window resets in epoch milliseconds where known. Every
+// a fraction, with the instant the window resets in epoch milliseconds where known, and
+// `scope`, the models it covers where it doesn't cover all of the account's. Every
 // harness reports limits this way; none reports the limit itself.
 export const agentTelemetry = z.strictObject({
   context: z
@@ -182,6 +190,7 @@ export const agentTelemetry = z.strictObject({
         minutes: z.number().int().positive().nullable(),
         used: z.number().min(0).max(1),
         resetsAt: z.number().nullable(),
+        scope: limitScope.optional(),
       }),
     )
     .max(telemetryLimits.windows),

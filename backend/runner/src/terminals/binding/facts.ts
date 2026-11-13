@@ -1,6 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ActivityEvent, HarnessEvent, SessionObserved } from "@novadeck/harness-core/events"
+import type { Install } from "@novadeck/harness-core/harness"
 import type { AgentName, TerminalSummary } from "@novadeck/protocol"
 
 import {
@@ -14,6 +15,7 @@ import {
 } from "../../harnesses/activity.js"
 import { withVersion } from "../../harnesses/bindings.js"
 import { Captures } from "../../harnesses/captures.js"
+import { LimitsReadings } from "../../harnesses/limits-reading.js"
 import { harnesses } from "../../harnesses/registry.js"
 import { lastReply } from "../../harnesses/replies.js"
 import { limitOf, observeTelemetry, telemetrySummary } from "../../harnesses/telemetry.js"
@@ -48,6 +50,8 @@ export type BindingsHost = {
   readonly messaging: () => Messaging
   readonly typing: () => Typing
   readonly companion: () => Companion
+  /** Where an agent's harness lives, with the person's login environment. */
+  readonly install: (agent: AgentName) => Promise<Install | undefined>
   /** Reports the record's current summary to every watcher. */
   readonly announce: (record: Record) => void
   /** Saves what restores the terminal, without its screen. */
@@ -85,6 +89,25 @@ export class Bindings {
   private readonly ends = new TurnEnds({
     turns: () => this.host.turns(),
     owner: (terminalId) => this.host.messaging().inboxOwner(terminalId),
+  })
+  // The windows a harness tells only when asked, as Claude Code's model windows, given to
+  // each bound session of the account; a session moved on since is left be.
+  private readonly limits = new LimitsReadings<Record>({
+    install: (agent) => this.host.install(agent),
+    apply: (record, agent, limits, cover, at) => {
+      const binding = record.bound?.binding
+      if (this.host.stopping() || binding?.agent !== agent) return
+      const fact = {
+        type: "telemetry-observed" as const,
+        agent,
+        sessionId: binding.sessionId,
+        instance: binding.instance,
+        startedAt: at,
+        limits,
+        limitsCover: cover,
+      }
+      if (this.applyFact(record, fact)) this.publishAgent(record, false)
+    },
   })
   constructor(
     readonly host: BindingsHost,
@@ -558,6 +581,11 @@ export class Bindings {
       if (versioned !== binding || next)
         record.bound = { ...bound, binding: versioned, ...(next && { telemetry: next }) }
       if (next) this.latchLimit(record)
+      // Limits of its own say the session is a subscription's: what only its harness tells
+      // when asked, its model windows, are asked of it too, every few minutes at most.
+      const own = fact.limitsCover !== harnesses[binding.agent].limitsReading?.cover
+      if (next && own && fact.limits && fact.limits.length > 0)
+        this.limits.wanted(record, binding.agent, record.transcript)
       return next !== undefined
     }
     const next = apply(bound.activity, binding, fact)
@@ -573,6 +601,10 @@ export class Bindings {
     )
       this.host.companion().shelled(record)
     if (next && fact.type === "turn-ended") this.latchLimit(record)
+    // A turn that ran into a limit may have run into a model's own: its windows are asked
+    // for sooner, so the one it hit can show.
+    if (next && fact.type === "turn-ended" && next.lastTurn?.limited)
+      this.limits.wanted(record, binding.agent, record.transcript, true)
     if (next) this.captured(record, binding.agent, fact)
     return Boolean(next)
   }
@@ -622,12 +654,13 @@ export class Bindings {
     const { bound } = record
     if (!bound?.telemetry || bound.activity.state !== "idle") return
     const { activity, telemetry } = bound
-    const limit = limitOf(activity.lastTurn, telemetry.limits, telemetry.at)
+    const limit = limitOf(activity.lastTurn, telemetry.limits, telemetry.at, telemetry.model)
     const next = limit && withLimit(activity, limit)
     if (next) record.bound = { ...bound, activity: next }
   }
 
   unwatch(record: Record): void {
+    this.limits.forget(record)
     // Ends still in their grace are stored: the session can say no more of them.
     this.ends.flush(record.summary.id)
     record.watching?.abort()

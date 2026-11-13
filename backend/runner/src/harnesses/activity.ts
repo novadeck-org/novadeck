@@ -188,7 +188,11 @@ export type LastTurn = {
   /** Its harness said the turn failed on a usage limit. */
   readonly limited?: true
   /** The usage-limit window this end ran into; see `limitOf`. Kept once set. */
-  readonly limit?: { readonly minutes: number | null; readonly resetsAt: number }
+  readonly limit?: {
+    readonly minutes: number | null
+    readonly resetsAt: number
+    readonly scope?: string
+  }
   /** `limit` was picked as the most-used window, none shown used up yet; one that is replaces it. */
   readonly guessed?: true
   /**
@@ -1112,7 +1116,12 @@ const asked = (
  */
 export const withLimit = (
   activity: Activity,
-  limit: { readonly minutes: number | null; readonly resetsAt: number; readonly spent: boolean },
+  limit: {
+    readonly minutes: number | null
+    readonly resetsAt: number
+    readonly scope?: string
+    readonly spent: boolean
+  },
 ): Activity | undefined => {
   const { lastTurn } = activity
   if (activity.state === "working" || !lastTurn || (lastTurn.limit && !lastTurn.guessed))
@@ -1122,7 +1131,11 @@ export const withLimit = (
     ...activity,
     lastTurn: {
       ...kept,
-      limit: { minutes: limit.minutes, resetsAt: limit.resetsAt },
+      limit: {
+        minutes: limit.minutes,
+        resetsAt: limit.resetsAt,
+        ...(limit.scope !== undefined && { scope: limit.scope }),
+      },
       ...(!limit.spent && { guessed: true as const }),
     },
   }

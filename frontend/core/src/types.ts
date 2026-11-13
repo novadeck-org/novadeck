@@ -120,15 +120,19 @@ export type AgentShell = {
 // person (Escape, or a request they refused), or `unknown` when it only went idle, as an
 // Escape shows in Antigravity. `reply` is the start of its last reply, one line of plain
 // text; `at` tells this end from any other. `error` is a failed turn's error as its harness said it. `limit` is the
-// usage-limit window the end ran into, with its length in minutes where known, and when it
-// resets, in epoch milliseconds.
+// usage-limit window the end ran into, with its length in minutes where known, when it
+// resets, in epoch milliseconds, and the models it covers where not all of them.
 // `limited` is set where the end ran into a usage limit, whether or not the window is known.
 // `files` are the absolute paths its edit tools wrote in the turn, first written first.
 export type AgentTurnEnd = {
   readonly outcome: "completed" | "failed" | "interrupted" | "unknown"
   readonly reply?: string
   readonly error?: string
-  readonly limit?: { readonly minutes: number | null; readonly resetsAt: number }
+  readonly limit?: {
+    readonly minutes: number | null
+    readonly resetsAt: number
+    readonly scope?: string
+  }
   readonly limited?: true
   readonly files?: readonly string[]
   readonly at: number
@@ -136,13 +140,14 @@ export type AgentTurnEnd = {
 
 // What an agent's own records say of its tokens and quotas: how many tokens its context
 // holds, of how many where known, and each rate-limit window's used fraction with when it
-// resets, in epoch milliseconds.
+// resets, in epoch milliseconds, and the models it covers where not all of them ("Fable").
 export type AgentUsage = {
   readonly context: { readonly occupied: number; readonly capacity: number | null } | null
   readonly limits: readonly {
     readonly minutes: number | null
     readonly used: number
     readonly resetsAt: number | null
+    readonly scope?: string
   }[]
   // The model it runs and the reasoning effort it was set to, where its harness says.
   readonly model: string | null

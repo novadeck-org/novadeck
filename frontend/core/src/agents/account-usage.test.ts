@@ -15,10 +15,16 @@ import {
 const hour = 3_600_000
 
 // A running agent and what it reported; without limits, it reported nothing.
-const agent = (id: string, program: string, limits?: AgentUsage["limits"]) => ({
+const agent = (
+  id: string,
+  program: string,
+  limits?: AgentUsage["limits"],
+  model: string | null = null,
+) => ({
   id,
   program,
   limits,
+  model,
 })
 
 const usageOf = (
@@ -30,8 +36,8 @@ const usageOf = (
     agents.map(({ id, program }) => ({ context: "project/initial", id, program })),
     {
       "project/initial": Object.fromEntries(
-        agents.flatMap(({ id, limits }) =>
-          limits ? [[id, { context: null, limits, model: null, effort: null }]] : [],
+        agents.flatMap(({ id, limits, model }) =>
+          limits ? [[id, { context: null, limits, model, effort: null }]] : [],
         ),
       ),
     },
@@ -67,7 +73,7 @@ describe("the account's subscription usage", () => {
       0,
     )
     expect(claude!.windows).toEqual([
-      { key: "5h#0", name: "5h", minutes: 300, used: 0.2, resetsAt: 6 * hour },
+      { key: "5h#0", name: "5h", label: "5h", minutes: 300, used: 0.2, resetsAt: 6 * hour },
     ])
   })
 
@@ -84,6 +90,67 @@ describe("the account's subscription usage", () => {
     )
     expect(agy!.windows.map(({ used }) => used)).toEqual([0, 0.95])
     expect(agy!.busiest.used).toBe(0.95)
+  })
+
+  it("tells a model's own window from the account's of the same length, after it", () => {
+    // Claude Code's weekly Fable window, read by one terminal, beside the week of another.
+    const [claude] = usageOf(
+      [
+        agent(
+          "1",
+          "claude",
+          [
+            { minutes: 10_080, used: 0.93, resetsAt: 9 * hour, scope: "Fable" },
+            { minutes: 300, used: 0.4, resetsAt: hour },
+          ],
+          "Fable 5.2",
+        ),
+        agent("2", "claude", [
+          { minutes: 10_080, used: 0.21, resetsAt: 9 * hour },
+          { minutes: 10_080, used: 0.9, resetsAt: 9 * hour, scope: "Fable" },
+        ]),
+      ],
+      0,
+    )
+    expect(claude!.windows.map(({ label, used }) => [label, used])).toEqual([
+      ["5h", 0.4],
+      ["7d", 0.21],
+      ["Fable", 0.93],
+    ])
+    expect(claude!.windows[2]).toMatchObject({ name: "7d", scope: "Fable", key: "7d Fable#0" })
+    expect(claude!.busiest).toMatchObject({ label: "Fable", used: 0.93 })
+  })
+
+  it("shows at a glance what limits the work under way, not a model's that none runs", () => {
+    const fable = { minutes: 10_080, used: 1, resetsAt: 9 * hour, scope: "Fable" }
+    const [claude] = usageOf(
+      [agent("1", "claude", [{ minutes: 300, used: 0.4, resetsAt: hour }, fable], "Opus 5.5")],
+      0,
+    )
+    expect(claude!.busiest).toMatchObject({ label: "5h", used: 0.4 })
+    expect(claude!.windows.map(({ label }) => label)).toEqual(["5h", "Fable"])
+  })
+
+  it("names a model's windows by their length too where it has more than one", () => {
+    const spark = { used: 0.1, resetsAt: hour, scope: "Spark" }
+    const [codex] = usageOf(
+      [
+        agent("1", "codex", [
+          { ...spark, minutes: 300 },
+          { ...spark, minutes: 10_080 },
+        ]),
+      ],
+      0,
+    )
+    expect(codex!.windows.map(({ label }) => label)).toEqual(["5h Spark", "7d Spark"])
+  })
+
+  it("shows no model window for an account that reports none", () => {
+    const [claude] = usageOf(
+      [agent("1", "claude", [{ minutes: 10_080, used: 0.2, resetsAt: hour }])],
+      0,
+    )
+    expect(claude!.windows.map(({ label }) => label)).toEqual(["7d"])
   })
 
   it("leaves out a window once it has reset, and terminals that run no agent or report nothing", () => {

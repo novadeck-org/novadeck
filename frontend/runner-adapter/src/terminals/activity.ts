@@ -61,13 +61,17 @@ export type TerminalActivity = {
   readonly usage?: AgentUsage
 }
 
+// A window or a turn's limit as the UI holds it: with its scope only where it has one.
+const scoped = <T extends { readonly scope?: string | undefined }>({ scope, ...rest }: T) =>
+  scope === undefined ? rest : { ...rest, scope }
+
 // The usage an agent's telemetry holds, if it holds any.
 const usageOf = (telemetry: AgentTelemetry | null): AgentUsage | undefined =>
   telemetry &&
   (telemetry.context || telemetry.limits.length > 0 || telemetry.model || telemetry.effort)
     ? {
         context: telemetry.context,
-        limits: telemetry.limits,
+        limits: telemetry.limits.map(scoped),
         model: telemetry.model,
         effort: telemetry.effort,
       }
@@ -105,7 +109,7 @@ const agentStatus = ({
           outcome: lastTurn.outcome,
           ...(lastTurn.reply === null ? {} : { reply: lastTurn.reply }),
           ...(lastTurn.error === null ? {} : { error: lastTurn.error }),
-          ...(lastTurn.limit === null ? {} : { limit: lastTurn.limit }),
+          ...(lastTurn.limit === null ? {} : { limit: scoped(lastTurn.limit) }),
           ...(lastTurn.limited ? { limited: true as const } : {}),
           ...(lastTurn.files.length > 0 ? { files: lastTurn.files } : {}),
           at: lastTurn.at,

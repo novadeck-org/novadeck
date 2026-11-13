@@ -339,6 +339,7 @@ export const demoTelemetry = (now: number): Telemetry =>
         limits: [
           { minutes: 300, used: 0.42, resetsAt: now + (2 * 60 + 14) * 60_000 },
           { minutes: 10_080, used: 0.18, resetsAt: now + 3 * 86_400_000 },
+          { minutes: 10_080, used: 0.07, resetsAt: now + 3 * 86_400_000, scope: "Fable" },
         ],
         model: "Opus 5.5",
         effort: null,
