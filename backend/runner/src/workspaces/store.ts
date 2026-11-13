@@ -1976,9 +1976,13 @@ export class WorkspaceStore
     if (projectId !== undefined) this.free(projectId, handle, terminalId, now)
   }
 
+  // A terminal freeing its handle again (its row went, then its record let go) leaves it
+  // resting from the first time: the cooldown doesn't start over.
   private free(projectId: string, handle: string, terminalId: string, now: number): void {
     void this.queries.run`
-      UPDATE project_handles SET freed_at = ${now}, freed_by = ${terminalId}
+      UPDATE project_handles SET freed_by = ${terminalId},
+        freed_at = CASE WHEN freed_at IS NOT NULL AND freed_by IS ${terminalId}
+          THEN freed_at ELSE ${now} END
       WHERE project_id = ${projectId} AND handle = ${handle}`
   }
 

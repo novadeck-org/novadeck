@@ -101,6 +101,29 @@ describe("the handles Names gives without records", () => {
     expect(names.next("s")).toBe("moth")
   })
 
+  it("rests a handle from when its terminal first freed it, though it lets go again", () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(0)
+    const names = new Names<Fake>(
+      { handleOrder: () => ["moth"] },
+      {} as Saves,
+      {} as Streams<Fake>,
+      {
+        stopping: () => false,
+        records: () => [],
+        record: () => undefined,
+        projectOf: (sessionId) => sessionId,
+        announce: () => undefined,
+      },
+    )
+    expect(names.next("s")).toBe("moth")
+    names.release("s", "moth", "a")
+    vi.setSystemTime(handleCooldown - 1)
+    names.release("s", "moth", "a")
+    vi.setSystemTime(handleCooldown)
+    expect(names.next("s")).toBe("moth")
+  })
+
   it("orders terminals by when they were given, a reused handle last", () => {
     vi.useFakeTimers({ toFake: ["Date"] })
     vi.setSystemTime(0)

@@ -2809,6 +2809,22 @@ describe("saved terminals", () => {
     expect(workspace.claimHandle("s", "moth", "b", { now: freed + cooldown, cooldown })).toBe(true)
   })
 
+  it("rest a handle from when its terminal first freed it, not again when it lets go", ({
+    kept,
+  }) => {
+    const workspace = kept()
+    const words = ["moth"]
+    const cooldown = 60_000
+    workspace.saveTerminal(numbered("a", "moth"))
+    const start = Date.now()
+    workspace.removeTerminal("a")
+    // Its record lets go of the handle later: the rest does not start over.
+    workspace.releaseHandle("s", "moth", "a", start + 50_000)
+    expect(workspace.giveHandle("s", words, { now: start + cooldown + 1_000, cooldown })).toBe(
+      "moth",
+    )
+  })
+
   it("hold a handle for a record the runner still has, though its row is gone", ({ kept }) => {
     const workspace = kept()
     const words = ["moth", "fox"]

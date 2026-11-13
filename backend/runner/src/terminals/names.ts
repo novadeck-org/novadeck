@@ -148,7 +148,8 @@ export class Names<R extends NamedRecord> {
     if (this.recorded) return this.saves.releaseHandle(sessionId, handle, terminalId)
     const pool = this.pools.get(this.host.projectOf(sessionId))
     const given = pool?.get(handle)
-    if (given)
+    // Freed by this terminal already, it rests from then: the cooldown doesn't start over.
+    if (given && (given.held || given.freedBy !== terminalId))
       pool!.set(handle, { ...given, freedAt: Date.now(), freedBy: terminalId, held: false })
   }
 
