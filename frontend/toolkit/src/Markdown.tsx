@@ -85,16 +85,18 @@ const InlineNodes = ({
 
 // What was lately read and coloured, so text shown again (a chat drawn again as its view
 // changes) is drawn whole in one go: blocks by their text, a code block's lines by its language
-// and text. Only text under a size past which keeping it costs more than reading it again.
+// and text. Bounded by the characters they were read from, and only text under a size past which
+// keeping it costs more than reading it again.
 const keptSize = 20_000
-const parsed = createKept<readonly MarkdownBlock[]>(500)
-const coloured = createKept<readonly HighlightedLine[]>(200)
+type Read<Value> = { readonly value: Value; readonly size: number }
+const parsed = createKept<Read<readonly MarkdownBlock[]>>(2_000_000, ({ size }) => size)
+const coloured = createKept<Read<readonly HighlightedLine[]>>(500_000, ({ size }) => size)
 
 const parsedOf = (text: string): readonly MarkdownBlock[] => {
   const kept = parsed.get(text)
-  if (kept) return kept
+  if (kept) return kept.value
   const blocks = parseMarkdown(text)
-  if (text.length <= keptSize) parsed.keep(text, blocks)
+  if (text.length <= keptSize) parsed.keep(text, { value: blocks, size: text.length })
   return blocks
 }
 
@@ -102,7 +104,7 @@ const parsedOf = (text: string): readonly MarkdownBlock[] => {
 type Colours = { readonly of: string | null; readonly lines: readonly HighlightedLine[] | null }
 const colouredOf = (key: string | null): Colours => ({
   of: key,
-  lines: key === null ? null : (coloured.get(key) ?? null),
+  lines: key === null ? null : (coloured.get(key)?.value ?? null),
 })
 
 // The lines of a fenced block coloured, at once where they were lately, else once the parser for
@@ -125,7 +127,7 @@ const useHighlighted = (lang: string, text: string): readonly HighlightedLine[] 
     highlightLines(language, text.split("\n"))
       .then((lines) => {
         if (!lines) return
-        if (text.length <= keptSize) coloured.keep(key, lines)
+        if (text.length <= keptSize) coloured.keep(key, { value: lines, size: text.length })
         if (live) setShown({ of: key, lines })
       })
       // Plain text is still readable.

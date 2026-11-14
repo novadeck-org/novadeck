@@ -56,6 +56,15 @@ import { useTurnHold } from "./use-turn-hold"
 
 const noShells: readonly SentShell[] = []
 
+// Where the log stood as blocks went in above (see `prepended`).
+type Standing = {
+  readonly row: HTMLElement | null
+  readonly at: number
+  readonly height: number
+  readonly top: number
+  readonly until: number | null
+}
+
 // How many blocks of a long conversation show, and how many more "Show earlier" adds.
 const windowSize = 60
 // How many of them a chat draws as it shows, and adds at a time once the page is idle: a switch
@@ -238,8 +247,21 @@ export const ChatView = ({
     extra: 0,
   })
   const extra = more.session === session ? more.extra : 0
-  // How much of the window is drawn so far (see `firstSize`).
-  const [admitted, setAdmitted] = useState(firstSize)
+  // How much of the window is drawn so far (see `firstSize`), for this session: another one
+  // draws its own in steps too.
+  const [grown, setGrown] = useState<{ readonly session: string | null; readonly count: number }>({
+    session,
+    count: firstSize,
+  })
+  const admitted = grown.session === session ? grown.count : firstSize
+  const admit = useCallback(
+    (count: (now: number) => number): void =>
+      setGrown((before) => ({
+        session,
+        count: count(before.session === session ? before.count : firstSize),
+      })),
+    [session],
+  )
   const shownFrom = Math.max(0, blocks.length - Math.min(admitted, windowSize) - extra)
   const shown = shownFrom === 0 ? blocks : blocks.slice(shownFrom)
 
@@ -291,12 +313,22 @@ export const ChatView = ({
   // scrolling up lets go.
   const following = useRef(true)
   const [atEnd, setAtEnd] = useState(true)
-  // Where the log stood as blocks went in above: its height and scroll position.
-  const prepended = useRef<{ readonly height: number; readonly top: number } | null>(null)
-  const standing = (): { readonly height: number; readonly top: number } | null => {
+  // Where the log stood as blocks go in above: the first row in view and where it stood, the
+  // log's height and its scroll position; while the window grows, until it is `until` blocks.
+  const prepended = useRef<Standing | null>(null)
+  const standing = useCallback((until: number | null = null): Standing | null => {
     const element = scroller.current
-    return element ? { height: element.scrollHeight, top: element.scrollTop } : null
-  }
+    if (!element) return null
+    const top = element.scrollTop
+    const row =
+      [...(thread.current?.children ?? [])].find(
+        (child): child is HTMLElement =>
+          child instanceof HTMLElement &&
+          !child.matches(".chat-earlier") &&
+          child.offsetTop + child.offsetHeight > top,
+      ) ?? null
+    return { row, at: row?.offsetTop ?? 0, height: element.scrollHeight, top, until }
+  }, [])
   const follow = useCallback((): void => {
     const element = scroller.current
     if (element && following.current) element.scrollTop = element.scrollHeight
@@ -305,21 +337,32 @@ export const ChatView = ({
   const pendingTurn = useRef<((element: HTMLElement) => void) | null>(null)
   useLayoutEffect(() => {
     const element = scroller.current
-    if (element && prepended.current !== null) {
+    const stood = prepended.current
+    if (element && stood !== null && !(stood.until !== null && following.current)) {
       // Earlier blocks went in above: stay on what was in view, or go to the prompt they were
-      // shown for.
-      // From where it stood, not where it is: the browser's own scroll anchoring may have moved it
-      // by as much already.
-      const { height, top } = prepended.current
-      element.scrollTop = top + element.scrollHeight - height
+      // shown for. By the row that was in view, which blocks arriving below or leaving the top
+      // move too; from where it stood, not where it is, as the browser's own scroll anchoring may
+      // have moved it already.
+      const moved = stood.row?.isConnected
+        ? stood.row.offsetTop - stood.at
+        : element.scrollHeight - stood.height
+      element.scrollTop = stood.top + moved
+      // A step of the window that hasn't drawn yet, behind blocks that came first: kept for it.
+      if (stood.until !== null && admitted < stood.until) {
+        prepended.current = standing(stood.until)
+        return
+      }
       prepended.current = null
       pendingTurn.current?.(element)
       pendingTurn.current = null
       return
     }
+    // A log following its end follows it, whatever went in above.
+    if (stood !== null && (stood.until === null || admitted >= stood.until))
+      prepended.current = null
     follow()
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Follows whenever the blocks change.
-  }, [shown, bubbles, follow])
+  }, [shown, bubbles, follow, admitted, standing])
   // Code highlighting, images and folded rows change the height after the fact. The rows that
   // start a turn move as the log does: the prompt that holds the top is measured as the observer
   // starts to watch, which is as the turns change, and at each change after.
@@ -341,17 +384,18 @@ export const ChatView = ({
     const element = scroller.current
     if (!growing || !element || element.clientHeight === 0) return
     if (element.scrollHeight > element.clientHeight) return
-    setAdmitted((count) => Math.min(windowSize, count + growBy))
+    admit((count) => Math.min(windowSize, count + growBy))
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Measures again as the blocks change.
-  }, [growing, shown])
+  }, [growing, shown, admit])
   useEffect(() => {
     if (!growing) return
     return whenIdle(() => {
-      prepended.current ??= standing()
-      setAdmitted((count) => Math.min(windowSize, count + growBy))
+      const until = Math.min(windowSize, admitted + growBy)
+      prepended.current ??= standing(until)
+      admit(() => until)
     })
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A step at a time, each after the last drew.
-  }, [growing, shown])
+  }, [growing, shown, admit, admitted, standing])
   // The person's words that were to follow an answer and didn't reach the agent, handed
   // back to the draft whether or not the card they were typed in is still on screen.
   const [lost, setLost] = useState(false)
@@ -427,8 +471,9 @@ export const ChatView = ({
         element.scrollTop = scrollFor(row, logPadding(compact))
       }
       prepended.current = standing()
-      setAdmitted(windowSize)
-      setMore({ session, extra: blocks.length - index - windowSize })
+      admit(() => windowSize)
+      // As far back as the prompt, from the whole window: one inside it needs only the rest of it.
+      setMore({ session, extra: Math.max(0, blocks.length - index - windowSize) })
     } else {
       const element = scroller.current
       const row = element && startRows(element, turns.starts).find((each) => each.id === id)
@@ -624,6 +669,10 @@ export const ChatView = ({
               const near = scrollHeight - scrollTop - clientHeight <= bottomSlack
               following.current = near
               setAtEnd(near)
+              // A step of the window still to draw keeps what is in view as it is now.
+              const pending = prepended.current
+              if (pending !== null && pending.until !== null)
+                prepended.current = standing(pending.until)
               turns.scrolled(event.currentTarget)
             }}
           >
@@ -636,7 +685,7 @@ export const ChatView = ({
                   onClick={() => {
                     prepended.current = standing()
                     // From the whole window, as though the rest of it were drawn already.
-                    setAdmitted(windowSize)
+                    admit(() => windowSize)
                     setMore({ session, extra: extra + windowSize })
                   }}
                 >

@@ -11,6 +11,7 @@ import { describe, expect, it } from "./test"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
+afterEach(() => vi.unstubAllGlobals())
 
 const item = (id: string, over: Partial<ChatItem>): ChatItem => ({
   id,
@@ -108,7 +109,7 @@ const open = (
     }),
   )
   unmounts.push(unmount)
-  return { container, interrupt }
+  return { container, interrupt, conversation }
 }
 
 // Scrolls the log, as a person does.
@@ -483,6 +484,85 @@ describe("a log longer than the chat draws at once", () => {
     expect(layout.set).toEqual([1200, 2200, 3200, 4200, 5200])
   })
 
+  it("goes to a prompt inside its window before the window is all drawn, and draws the rest", async () => {
+    // The first shown block is "71"'s, the control above it standing for "69"'s turn.
+    const layout = scenario(
+      { "69": 0, "71": 100, "73": 200, "75": 300, "77": 400, "79": 500 },
+      5000,
+    )
+    const { container } = open(many)
+    scrollTo(container, layout, 50)
+    expect(words(container)?.textContent).toBe("prompt 69")
+    press(container.querySelector(".chat-hold-line")!)
+    press(container.querySelector(".chat-hold-go")!)
+    expect(container.querySelector('[data-turn="69"]')?.matches(".chat-message")).toBe(true)
+    await grown()
+    expect(rows(container)).toBe(60)
+    expect(container.querySelector(".chat-earlier")?.textContent).toBe("Show earlier messages (20)")
+  })
+
+  it("keeps the row in view where it is as blocks arrive while the window grows", async () => {
+    const layout = scenario({}, 5000)
+    // Each block's row 100 high, one under another; the log as tall as they are.
+    const messages = (element: Element): Element[] => [
+      ...(element.closest(".chat-thread") ?? element).querySelectorAll(
+        ".chat-thread > .chat-message",
+      ),
+    ]
+    vi.spyOn(HTMLElement.prototype, "offsetTop", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.matches(".chat-thread > .chat-message") ? messages(this).indexOf(this) * 100 : 0
+    })
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.matches(".chat-thread > .chat-message") ? 100 : 0
+    })
+    vi.spyOn(Element.prototype, "scrollHeight", "get").mockImplementation(function (this: Element) {
+      return this.querySelectorAll(".chat-message").length * 100
+    })
+    vi.spyOn(Element.prototype, "scrollTop", "set").mockImplementation((value: number) => {
+      layout.set.push(value)
+      layout.scrolled = value
+    })
+    const { container, conversation } = open(many)
+    scrollTo(container, layout, 250)
+    // The row 250 down shows prompt 73's answer, "74"; its place in the log's view stays.
+    const inView = (): number => {
+      const row = [...container.querySelectorAll(".chat-thread > .chat-message")].find((each) =>
+        each.textContent?.includes("Reply 74"),
+      ) as HTMLElement
+      return row.offsetTop - layout.scrolled
+    }
+    const before = inView()
+    await act(() => new Promise<void>((done) => setTimeout(done, 0)))
+    expect(inView()).toBe(before)
+    // A block arriving below, as the latest shown leaves the top: the page's own scroll anchoring
+    // keeps the view there, which jsdom has none of. The steps after keep it where it then is.
+    act(() =>
+      conversation.update((current) => ({
+        ...current,
+        items: [...current.items, said("81", "more")],
+      })),
+    )
+    const after = inView()
+    await grown()
+    expect(rows(container)).toBe(60)
+    expect(inView()).toBe(after)
+  })
+
+  it("draws another session's latest blocks first too", async () => {
+    scenario({}, 5000)
+    const { container, conversation } = open(many)
+    await grown()
+    expect(rows(container)).toBe(60)
+    act(() => conversation.update((current) => ({ ...current, session: "t" })))
+    expect(rows(container)).toBe(10)
+    await grown()
+    expect(rows(container)).toBe(60)
+  })
+
   it("shows the earlier blocks from its whole window, however much of it is drawn yet", () => {
     scenario({}, 5000)
     const { container } = open(many)
@@ -492,6 +572,35 @@ describe("a log longer than the chat draws at once", () => {
 })
 
 describe("scrolling the log", () => {
+  it("reads the rows again as the log resizes, and places the hold from them", () => {
+    // The page's own observer, which jsdom lacks: its callbacks run as the test says.
+    const watchers: (() => void)[] = []
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private readonly callback: () => void) {}
+        observe(): void {
+          watchers.push(this.callback)
+        }
+        disconnect(): void {}
+        unobserve(): void {}
+      },
+    )
+    const moved = { ...tops }
+    const layout = scenario(moved)
+    const { container } = open(twoTurns)
+    act(() => watchers.forEach((watch) => watch()))
+    scrollTo(container, layout, 150)
+    expect(words(container)?.textContent).toContain("Why does the cart")
+    // The second prompt moves up past where the log is scrolled, as a row above it shrinks.
+    moved["3"] = 100
+    scrollTo(container, layout, 150)
+    expect(words(container)?.textContent).toContain("Why does the cart")
+    act(() => watchers.forEach((watch) => watch()))
+    scrollTo(container, layout, 150)
+    expect(words(container)?.textContent).not.toContain("Why does the cart")
+  })
+
   it("places the held prompt from the rows already read, reading none again", () => {
     const layout = scenario(tops)
     const { container } = open(twoTurns)
