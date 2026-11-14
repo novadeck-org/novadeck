@@ -644,6 +644,40 @@ describe("a terminal's taskbar", () => {
       ).toEqual([["Bring forward 2 images, hero.png in front", "Images2· hero.png"]])
     })
 
+    it("shows every icon open behind it as a sheet, the nearest last", () => {
+      const readme = itemFixture("readme", "01", {
+        kind: "file",
+        name: "README.md",
+        path: "/p/README.md",
+      })
+      const diff = itemFixture("diff", "01", { kind: "changes", name: "changes", path: "/p" })
+      const { container } = renderTerminal(
+        [readme, diff, notes, hero].reduce(
+          (workspace, item) =>
+            workspaceReducer(workspace, {
+              type: "bar/open",
+              target,
+              terminalId: "01",
+              key: item.id,
+            }),
+          [readme, diff].reduce(
+            (workspace, item) => workspaceReducer(workspace, shown(item)),
+            opening(),
+          ),
+        ),
+      )
+      expect(
+        [...container.querySelectorAll<HTMLElement>(".pane-stack-sheet")].map((each) => [
+          each.getAttribute("aria-label"),
+          each.style.getPropertyValue("--_depth"),
+        ]),
+      ).toEqual([
+        ["Bring forward README.md", "2"],
+        ["Bring forward changes", "1"],
+        ["Bring forward notes", "0"],
+      ])
+    })
+
     it("minimizes everything open of the stack from its icon, uncovering what's behind it", async () => {
       const { container } = renderTerminal(opening(notes, about, hero))
       await act(async () =>

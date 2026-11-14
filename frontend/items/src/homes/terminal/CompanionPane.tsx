@@ -77,9 +77,6 @@ const PaneActions = ({
   </span>
 )
 
-// How many of what's behind peek out above what the pane shows.
-const peeking = 2
-
 // What the pane shows, on its sheet, which plays its entry once; awake while the person is
 // at it (see ./awake), each of its own.
 const Sheet = ({
@@ -132,10 +129,10 @@ const whenCut =
 // take focus: the change follows at once, so anything later wasn't theirs.
 const handOffMs = 1000
 
-// The icons with something open behind the pane's, peeking out above it as cards stacked
-// behind one another do: each further back narrower and fainter, the nearest last. Each
-// says what it holds (a thing's name, or a stack's kind, count and the one in front) and
-// comes forward when clicked. One that was just shown tucks in behind what took its place,
+// The icons with something open behind the pane's, every one, peeking out above it as the
+// cards of a file drawer do: each further back narrower and fainter, the nearest last. Each
+// lifts under the pointer to say what it holds (a thing's name, or a stack's kind, count and
+// the one in front) and comes forward when clicked. One that was just shown tucks in behind what took its place,
 // so the two read as swapped. Escape hides the pane from here too, as from what it shows.
 const BehindStack = ({
   behind,
@@ -156,6 +153,7 @@ const BehindStack = ({
 }): React.JSX.Element => (
   <div
     className="pane-stack nodrag nopan"
+    style={{ "--_count": behind.length } as React.CSSProperties}
     data-workspace-companion
     onKeyDown={(event) => {
       if (event.key === "Escape") {
@@ -165,9 +163,7 @@ const BehindStack = ({
     }}
   >
     {behind
-      .slice(0, peeking)
-      .toReversed()
-      .map(({ slot, front }) => {
+      .map(({ slot, front }, depth) => {
         const { name } = memberLook(front, { plans })
         const Icon = slotIcon(slot)
         const names = slot.stack && stackNames(slot.stack)
@@ -177,6 +173,7 @@ const BehindStack = ({
             key={slot.key}
             type="button"
             className="pane-stack-sheet"
+            style={{ "--_depth": depth } as React.CSSProperties}
             data-entry={front.key === tucked ? "tuck" : undefined}
             data-state={slot.members.some(isNew) ? "new" : undefined}
             aria-label={
@@ -200,7 +197,8 @@ const BehindStack = ({
             )}
           </button>
         )
-      })}
+      })
+      .toReversed()}
   </div>
 )
 

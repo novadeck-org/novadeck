@@ -11,7 +11,7 @@
    terminal's pane shows of a stack, the stack's tabs (`.pane-tabs`), each a `.pane-tab`
    holding its button (`.pane-tab-open`, its name in `.pane-tab-name`) and its close
    (`.pane-tab-close`, an `.icon-button`); above the reader, the icons open behind it
-   (`.pane-stack`), each a labelled `.pane-stack-sheet`.
+   (`.pane-stack`), each a `.pane-stack-sheet`, an edge that lifts to its label.
 
    Hooks: on the split's pane, data-state="open" | "closed" as
    they come and go; on what it shows (`.pane-sheet`), data-entry="forward" |
@@ -178,31 +178,43 @@
   }
 }
 
-/* The icons open behind what the pane shows peek out above it (`.pane-stack`): a card's
-   top edge for each of one or two (`.pane-stack-sheet`), each further back narrower and
-   fainter, as cards stacked behind one another are, the nearest last, each labelled with
-   what it holds. What's shown sits under them, an edge of its own just clear of the
+/* The icons open behind what the pane shows peek out above it (`.pane-stack`, `--_count` of
+   them) as the cards of a file drawer do: a thin edge for each (`.pane-stack-sheet`,
+   `--_depth` 0 the nearest, the nearest last), each further back narrower and fainter.
+   The one under the pointer lifts out of the row to show its label, so running the pointer
+   along them leafs through them. The row keeps its height, with room above for one card
+   lifted, and a card lifts up out of it, so neither what's shown nor the card under the
+   pointer moves. What's shown sits under them, an edge of its own just clear of the
    window's header while nothing's behind. */
 .pane-stack {
+  --_rest: 6px;
+  --_lift: 16px;
   display: flex;
   flex: none;
   flex-direction: column;
   justify-content: flex-end;
   align-items: center;
 }
+.pane-stack:not(:empty) {
+  box-sizing: content-box;
+  height: calc(var(--_lift) + var(--_count, 0) * var(--_rest));
+  /* Keeps the reach of the card furthest back to the row. */
+  overflow: hidden;
+}
 .pane-split-reader > .pane-stack {
   /* Clear of the window's header, with nothing behind too. */
   padding-top: 4px;
 }
 .pane-stack-sheet {
-  --_inset: 6px;
-  --_fade: 0.9;
+  --_inset: calc(6px + var(--_depth, 0) * 8px);
+  --_fade: max(0.4, 0.9 - var(--_depth, 0) * 0.25);
   position: relative;
   display: flex;
+  flex: none;
   align-items: center;
   gap: 6px;
   width: calc(100% - 2 * var(--_inset));
-  height: 22px;
+  height: var(--_rest);
   padding: 0 10px;
   overflow: hidden;
   border-radius: var(--radius-control) var(--radius-control) 0 0;
@@ -217,24 +229,32 @@
   opacity: var(--_fade);
   cursor: pointer;
   transition:
+    height var(--motion-feedback) var(--ease-interface),
     opacity var(--motion-feedback) var(--ease-interface),
     border-color var(--motion-feedback) var(--ease-interface);
 }
-/* Under the pointer it comes clear and its edge darkens, staying where it is. */
-.pane-stack-sheet:hover {
+.pane-stack-sheet > * {
+  opacity: 0;
+  transition: opacity var(--motion-feedback) var(--ease-interface);
+}
+/* Under the pointer, or focused, it lifts to its label, comes clear and its edge darkens. */
+.pane-stack-sheet:is(:hover, :focus-visible) {
+  height: calc(var(--_rest) + var(--_lift));
   opacity: 1;
   border-color: var(--pane-stack-hover-border-color, var(--color-line-strong));
 }
-/* Thin as it is, the pointer finds the furthest back a little above it too, where nothing
-   else is. */
-.pane-stack-sheet:first-child::before {
-  content: "";
-  position: absolute;
-  inset: -3px 0 0;
+.pane-stack-sheet:is(:hover, :focus-visible) > * {
+  opacity: 1;
 }
-.pane-stack-sheet:first-child:not(:last-child) {
-  --_inset: 14px;
-  --_fade: 0.65;
+/* Without a pointer to lift them, each shows its label. */
+@media (hover: none) {
+  .pane-stack {
+    --_rest: 22px;
+    --_lift: 0px;
+  }
+  .pane-stack-sheet > * {
+    opacity: 1;
+  }
 }
 .pane-stack-sheet svg {
   flex-shrink: 0;
@@ -251,8 +271,8 @@
 /* Its icon holds something new: a dot at its end, as the taskbar marks it. */
 .pane-stack-sheet[data-state="new"]::after {
   flex-shrink: 0;
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
   margin-left: auto;
   border-radius: 50%;
   background-color: var(--pane-tab-new-bg, var(--color-ink));
@@ -260,7 +280,8 @@
 }
 .pane-stack-sheet:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
-  outline-offset: 1px;
+  /* Inside, as the row clips what's outside it. */
+  outline-offset: calc(-1 * var(--focus-ring-width));
 }
 /* What's shown covers the sheets behind it, as one tucking in slides from under it. */
 .pane-stack + .pane-reader {
