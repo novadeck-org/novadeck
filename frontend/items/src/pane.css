@@ -11,16 +11,19 @@
    terminal's pane shows of a stack, the stack's tabs (`.pane-tabs`), each a `.pane-tab`
    holding its button (`.pane-tab-open`, its name in `.pane-tab-name`) and its close
    (`.pane-tab-close`, an `.icon-button`); above the reader, the icons open behind it
-   (`.pane-stack`), each a `.pane-stack-sheet`, an edge that lifts to its label.
+   (`.pane-stack`), each a `.pane-stack-sheet`, an edge that lifts to its label. Until its
+   turn to be built and laid out (pane-turns.ts), what the pane shows stands in as its
+   icon and name (`.pane-stand-in`, its name in `.pane-stand-in-name`).
 
    Hooks: on the split's pane, data-state="open" | "closed" as
    they come and go; on what it shows (`.pane-sheet`), data-entry="forward" |
-   "arrive" as it comes to the top, and on a sheet behind, data-entry="tuck" as it goes
-   there, and data-state="new" while its icon holds something new; on a tab,
-   data-state="open" for the one shown and "new" for something new, and on its button
-   aria-selected; on the reader's body, data-outline="false" without headings; on an
-   outline entry, data-changed="true" where the agent's changes are; on the changes
-   toggle, aria-pressed="true" while the changes show.
+   "arrive" as it comes to the top and data-waiting while it waits its turn, and on a
+   sheet behind, data-entry="tuck" as it goes there, and data-state="new" while its
+   icon holds something new; on a tab, data-state="open" for the one shown and "new"
+   for something new, and on its button aria-selected; on the reader's body,
+   data-outline="false" without headings; on an outline entry, data-changed="true"
+   where the agent's changes are; on the changes toggle, aria-pressed="true" while the
+   changes show.
 
    Tokens, each optional (its fallback in brackets):
    --pane-bg (paper): the reader and an undocked window.
@@ -44,6 +47,7 @@
    --spine-changed-bg (warning-fg): the dot by a changed entry.
    --pane-meta-hint-fg (warning-fg): what keeps an item from saving, or reading whole.
    --plan-changes-action-bg (paper): the changes toggle's Show or Hide.
+   --pane-stand-in-fg (muted): what stands in for what the pane shows until its turn.
    --placed-from-bg (shell), --placed-from-fg (muted), --placed-from-border-color (line):
    whose a placed item is. */
 
@@ -455,6 +459,33 @@
 }
 .pane-sheet[data-entry="arrive"] {
   animation: pane-sheet-arrive var(--motion-state) var(--ease-interface);
+}
+/* Waiting its turn: what it shows, once built, keeps its state but isn't laid out or
+   painted, and its stand-in shows over its place. */
+.pane-sheet[data-waiting] {
+  position: relative;
+}
+.pane-sheet[data-waiting] > :not(.pane-stand-in) {
+  content-visibility: hidden;
+}
+.pane-stand-in {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  color: var(--pane-stand-in-fg, var(--color-muted));
+}
+.pane-stand-in-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 @keyframes pane-sheet-forward {
   from {

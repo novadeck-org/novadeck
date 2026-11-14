@@ -5,6 +5,7 @@ import type { Messages } from "@novadeck/core/messages"
 import type { AgentShell, TerminalKey, ViewMode } from "@novadeck/core/types"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 import { usePresence, type Presence } from "@novadeck/toolkit/presence"
+import { Shown, useShown } from "@novadeck/toolkit/shown"
 import { SubjectBar, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
@@ -50,19 +51,23 @@ const clamp = (value: number): number => Math.min(0.7, Math.max(0.22, value))
 // Terminal left, pane right, inside the terminal's own window. The divider drags. Where the
 // window is too narrow for both the pane covers the terminal, which keeps its size beneath;
 // its keys then uncover it (cover-keys.ts).
+// The pane is in sight while its window is shown and on screen, as its view tells.
 const SplitPane = ({
   view: shown,
   owner,
   terminalView,
   presence,
+  onScreen,
   children,
 }: {
   view: PaneView
   owner: string
   terminalView: ViewMode
   presence: Presence
+  onScreen: boolean
   children: ReactNode
 }): React.JSX.Element => {
+  const inSight = useShown() && onScreen
   const [ratio, setRatio] = useState(terminalView === "focus" ? 0.36 : 0.42)
   const frame = useRef<HTMLDivElement>(null)
   const { leaving, onHide } = shown
@@ -149,7 +154,9 @@ const SplitPane = ({
         className="pane-split-reader nodrag nopan nowheel"
         data-companion-of={owner}
       >
-        <CompanionPane {...shown} />
+        <Shown value={inSight}>
+          <CompanionPane {...shown} />
+        </Shown>
       </div>
     </div>
   )
@@ -178,6 +185,8 @@ export const TerminalCompanion = ({
   links,
   terminalKey,
   view,
+  onScreen = true,
+  selected = false,
   children,
   bar,
   items,
@@ -193,6 +202,10 @@ export const TerminalCompanion = ({
   links: MessageLinks
   terminalKey: TerminalKey
   view: ViewMode
+  // Whether its window is on screen in its view, as Grid and Canvas tell of a tile in sight
+  // whose turn has come, and whether its terminal is the selected one.
+  onScreen?: boolean
+  selected?: boolean
   children: ReactNode
   // The bar as the person arranged it, the items on it, and which of them are new.
   bar: Bar
@@ -387,12 +400,19 @@ export const TerminalCompanion = ({
       actions.close(each)
     },
     onRaise: (each) => openPicked(each.key),
+    first: selected,
   }
   return (
     <TellContext.Provider value={tell}>
       <div ref={within} className="terminal-companion" data-view={view}>
         {shown.mounted ? (
-          <SplitPane view={paneView} owner={terminal} terminalView={view} presence={shown}>
+          <SplitPane
+            view={paneView}
+            owner={terminal}
+            terminalView={view}
+            presence={shown}
+            onScreen={onScreen}
+          >
             {children}
           </SplitPane>
         ) : (
