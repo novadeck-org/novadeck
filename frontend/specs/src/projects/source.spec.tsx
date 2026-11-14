@@ -39,11 +39,11 @@ describe("The Source panel", () => {
   })
 
   context("when the demo has a team whose members both worked here", () => {
-    it("groups them in a squad track, and a click on the lead shows only both's work", async () => {
+    it("groups them in a squad track, and a click on the lead shows only their work", async () => {
       await openWorkspace(messages)
       await sidebarPanel("Source").click()
 
-      const strip = page.getByRole("group", { name: "Light agents" })
+      const strip = page.getByRole("group", { name: "Show agents' work" })
       const squad = strip.getByRole("group", { name: "@moth's squad" })
       await expect.element(squad.getByRole("button", { name: "@moth" })).toBeVisible()
       await expect.element(squad.getByRole("button", { name: "@crow" })).toBeVisible()
@@ -76,7 +76,7 @@ describe("The Source panel", () => {
     it("lets go of the kept agents on Escape after a mouse click, not sending it to the terminal", async () => {
       await openWorkspace(messages)
       await sidebarPanel("Source").click()
-      const strip = page.getByRole("group", { name: "Light agents" })
+      const strip = page.getByRole("group", { name: "Show agents' work" })
       const crow = strip.getByRole("button", { name: "@crow" })
 
       await crow.click()

@@ -1,7 +1,13 @@
 import { toggleAgent, toggleSquad, type StripSlot } from "./source-agents"
 
-// An agent's chip in the strip: a toggle for keeping its work lit. A squad's lead stands for
-// the whole squad, so pointing at it lights them all and a click keeps or releases them all.
+// An agent's chip in the strip: a toggle for keeping its work in the tree, alone or with the
+// others kept. A squad's lead stands for the whole squad, so pointing at it lights them all and a
+// click keeps or releases them all.
+// What keeping an agent or a squad does, `whose` naming them as an owner ("@moth's"): the
+// tree shows only their work, or theirs too.
+const showHint = (kept: ReadonlySet<string>, whose: string): string =>
+  kept.size === 0 ? `Show only ${whose} work` : `Show ${whose} work too`
+
 const AgentChip = ({
   handle,
   pressed,
@@ -63,7 +69,7 @@ export const SourceStrip = ({
 }): React.JSX.Element => (
   <div
     role="group"
-    aria-label="Light agents"
+    aria-label="Show agents' work"
     className="source-strip mt-2.5"
     // Its keys are its own (see interaction/dom.ts): a click here keeps focus here, so Escape
     // releases the kept agents rather than going to the terminal.
@@ -81,7 +87,9 @@ export const SourceStrip = ({
             kept={kept.has(slot.handle)}
             tinted
             following={kept.size === 0 && selected === slot.handle}
-            hint={kept.has(slot.handle) ? `Let @${slot.handle} go` : `Keep @${slot.handle} lit`}
+            hint={
+              kept.has(slot.handle) ? `Let @${slot.handle} go` : showHint(kept, `@${slot.handle}'s`)
+            }
             onToggle={() => onKeep(toggleAgent(kept, slot.handle))}
             onLight={(on) => onLight(on ? slot.handle : undefined)}
           />
@@ -108,10 +116,10 @@ export const SourceStrip = ({
                 index === 0
                   ? whole
                     ? `Let @${handle}'s squad go`
-                    : `Keep @${handle}'s squad lit`
+                    : showHint(kept, `@${handle}'s squad's`)
                   : kept.has(handle)
                     ? `Let @${handle} go`
-                    : `Keep @${handle} lit`
+                    : showHint(kept, `@${handle}'s`)
               }
               onToggle={() =>
                 onKeep(index === 0 ? toggleSquad(kept, slot.members) : toggleAgent(kept, handle))

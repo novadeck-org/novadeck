@@ -339,7 +339,9 @@ export const SourcePanel = ({
           aria-description={
             stillKept.size > 0
               ? `Only the work of ${namedAgents(stillKept)} is shown.${
-                  pointing ? ` The work of ${namedAgents(lit)} is lit; the rest is dimmed.` : ""
+                  pointing
+                    ? ` Of that, the work of ${namedAgents(lit)} is lit; the rest is dimmed.`
+                    : ""
                 }`
               : lit.size > 0
                 ? `The work of ${namedAgents(lit)} is lit; files and folders they did not touch are dimmed.`

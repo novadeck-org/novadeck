@@ -342,7 +342,7 @@ describe("The Source panel", () => {
     it("shows a chip for each, a squad in a labelled track with its lead first", async () => {
       const panel = await mountTeam()
 
-      const strip = panel.view.container.querySelector("[aria-label='Light agents']")!
+      const strip = panel.view.container.querySelector(`[aria-label="Show agents' work"]`)!
       expect(strip.getAttribute("role")).toBe("group")
       expect(
         Array.from(strip.querySelectorAll(".source-agent")).map((el) => el.textContent),
@@ -397,10 +397,11 @@ describe("The Source panel", () => {
       const panel = await mountTeam()
 
       // Nothing marks a lead, so its hint names the squad.
-      expect(chip(panel, "moth").getAttribute("title")).toBe("Keep @moth's squad lit")
-      expect(chip(panel, "crow").getAttribute("title")).toBe("Keep @crow lit")
+      expect(chip(panel, "moth").getAttribute("title")).toBe("Show only @moth's squad's work")
+      expect(chip(panel, "crow").getAttribute("title")).toBe("Show only @crow's work")
       press(panel, "moth")
       expect(chip(panel, "moth").getAttribute("title")).toBe("Let @moth's squad go")
+      expect(chip(panel, "wren").getAttribute("title")).toBe("Show @wren's work too")
       expect(pressed(panel)).toEqual(["@moth", "@crow"])
       expect(panel.view.container.querySelector(".source-squad")?.getAttribute("data-kept")).toBe(
         "true",
@@ -573,6 +574,29 @@ describe("The Source panel", () => {
       panel.view.unmount()
     })
 
+    it("steps the keyboard over the rows the kept agents' work leaves out", async () => {
+      const panel = await mountTeam()
+      press(panel, "crow")
+      const focused = (): string | null | undefined =>
+        document.activeElement?.querySelector(".source-name")?.textContent
+      const key = (name: string): void =>
+        act(() => {
+          document.activeElement!.dispatchEvent(
+            new KeyboardEvent("keydown", { key: name, bubbles: true }),
+          )
+        })
+      act(() => panel.row("readme.md").querySelector<HTMLElement>("[role=treeitem]")!.focus())
+
+      key("ArrowDown")
+      expect(focused()).toBe("src")
+      key("End")
+      expect(focused()).toBe("useCart.ts")
+      key("ArrowUp")
+      expect(focused()).toBe("cart")
+      await nextFrame()
+      panel.view.unmount()
+    })
+
     it("dims, among the kept agents' work, what a chip pointed at did not touch", async () => {
       const panel = await mountTeam()
       press(panel, "wren")
@@ -584,7 +608,7 @@ describe("The Source panel", () => {
       expect(
         panel.view.container.querySelector("[role=tree]")?.getAttribute("aria-description"),
       ).toBe(
-        "Only the work of @wren and @crow is shown. The work of @wren is lit; the rest is dimmed.",
+        "Only the work of @wren and @crow is shown. Of that, the work of @wren is lit; the rest is dimmed.",
       )
       hover(chip(panel, "wren"), "pointerout")
 
