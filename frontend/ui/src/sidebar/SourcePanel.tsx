@@ -44,8 +44,9 @@ const parentOf = (path: string): string => path.slice(0, Math.max(0, path.lastIn
 // The project's files, a folder read when the person opens it, and read again when the panel is
 // shown again or an agent's turn ends. Where the backend tells what its agents changed (the
 // demo), every live agent's work is in them: who owns each file, what they did and which one they
-// are writing now. That only shows what the agents do, and picks nothing: lighting an agent, by
-// selecting its terminal, keeping its chip in the strip or pointing at a chip, only dims the rest.
+// are writing now. Keeping agents' chips in the strip leaves only their work in the tree: the files
+// they touched or are writing and the folders those are in; with nothing kept every file shows.
+// Lighting an agent otherwise, by selecting its terminal or pointing at a chip, only dims the rest.
 export const SourcePanel = ({
   project,
   list,
@@ -99,17 +100,32 @@ export const SourcePanel = ({
   const rootEmpty =
     typeof rootRead === "object" && rootRead.entries.length === 0 && !rootRead.truncated
   const rootTruncated = typeof rootRead === "object" && rootRead.truncated
-  const lines = useMemo(() => visibleLines(tree, open, rootTruncated), [tree, open, rootTruncated])
+  // The agents the person keeps lit, any number; this panel remounts with the project, which
+  // forgets them. Kept agents that no longer have work here are let go, as nothing in the strip
+  // shows them. The tree holds only the work of the ones kept.
+  const [kept, setKept] = useState<ReadonlySet<string>>(noAgents)
+  const stillKept = useMemo(() => keptWorking(project, kept), [project, kept])
+  if (stillKept.size !== kept.size) setKept(stillKept)
+  const lines = useMemo(
+    () => visibleLines(tree, open, rootTruncated, stillKept),
+    [tree, open, rootTruncated, stillKept],
+  )
   const rows = useMemo(() => lines.filter((line): line is SourceRow => !isNote(line)), [lines])
 
   const { read, isReading } = useFolderReader(list, setListings)
   // The works the changes come from are followed while the panel shows.
   useEffect(() => (showing && watch ? watch() : undefined), [showing, watch])
-  // The root and the open folders on screen: what the panel keeps read while it is shown.
-  const wanted = useMemo(
-    () => ["", ...rows.filter((row) => row.node.folder && row.open).map((row) => row.node.path)],
-    [rows],
-  )
+  // The root and the open folders, those the kept agents' work leaves out too, so the tree is
+  // current when they're let go: what the panel keeps read while it is shown.
+  const wanted = useMemo(() => {
+    const all = stillKept.size > 0 ? visibleLines(tree, open) : lines
+    return [
+      "",
+      ...all.flatMap((line) =>
+        !isNote(line) && line.node.folder && line.open ? [line.node.path] : [],
+      ),
+    ]
+  }, [lines, tree, open, stillKept])
   const wantedNow = useRef(wanted)
   useLayoutEffect(() => {
     wantedNow.current = wanted
@@ -129,9 +145,7 @@ export const SourcePanel = ({
   // narrower tree, with no pointerleave to say so: the agent stays lit only while that row still
   // shows that chip.
   const [hovered, setHovered] = useState<Pointed | undefined>()
-  // The agents the person keeps lit, any number; this panel remounts with the project, which
-  // forgets them. And the strip's chip under the pointer: its agent, or a lead's whole squad.
-  const [kept, setKept] = useState<ReadonlySet<string>>(noAgents)
+  // The strip's chip under the pointer: its agent, or a lead's whole squad.
   const [stripHover, setStripHover] = useState<string | undefined>()
   const [treeNode, setTreeNode] = useState<HTMLDivElement | null>(null)
   const { width: treeWidth, fonts } = useTreeMeasure(treeNode)
@@ -180,13 +194,11 @@ export const SourcePanel = ({
   // chip is still in the strip, and is forgotten once it is not.
   const stripPointed = stripHoverOf(slots, stripHover)
   if (stripHover !== undefined && stripPointed === undefined) setStripHover(undefined)
+  const pointing = pointed !== undefined || (showing && stripPointed !== undefined)
   const lit = useMemo(() => {
     const pointedAt = pointed ? [pointed] : showing ? stripPointed : undefined
     return pointedAt ? new Set(pointedAt) : ranked
   }, [pointed, showing, stripPointed, ranked])
-  // Kept agents that no longer have work here are let go, as nothing in the strip shows them.
-  const stillKept = useMemo(() => keptWorking(project, kept), [project, kept])
-  if (stillKept.size !== kept.size) setKept(stillKept)
   const following = kept.size === 0 && ranked.size > 0 ? [...ranked][0] : undefined
   // The row that holds the tree's one Tab stop: the last one focused, or the first.
   const [stop, setStop] = useState<string | null>(null)
@@ -325,9 +337,13 @@ export const SourcePanel = ({
           role="tree"
           aria-label="Project files"
           aria-description={
-            lit.size > 0
-              ? `The work of ${namedAgents(lit)} is lit; files and folders they did not touch are dimmed.`
-              : "No agent is lit."
+            stillKept.size > 0
+              ? `Only the work of ${namedAgents(stillKept)} is shown.${
+                  pointing ? ` The work of ${namedAgents(lit)} is lit; the rest is dimmed.` : ""
+                }`
+              : lit.size > 0
+                ? `The work of ${namedAgents(lit)} is lit; files and folders they did not touch are dimmed.`
+                : "No agent is lit."
           }
           className="source-tree mt-2.5 flex min-h-0 flex-1 flex-col overflow-y-auto pb-3"
           data-lit={lit.size > 0 ? [...lit].join(" ") : undefined}

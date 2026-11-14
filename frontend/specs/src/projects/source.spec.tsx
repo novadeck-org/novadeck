@@ -39,7 +39,7 @@ describe("The Source panel", () => {
   })
 
   context("when the demo has a team whose members both worked here", () => {
-    it("groups them in a squad track, and a click on the lead keeps both lit", async () => {
+    it("groups them in a squad track, and a click on the lead shows only both's work", async () => {
       await openWorkspace(messages)
       await sidebarPanel("Source").click()
 
@@ -53,7 +53,10 @@ describe("The Source panel", () => {
       const rowOf = (): Element | null => crowOnly.element().closest(".source-row")
       await expect.element(crowOnly).toBeVisible()
       await expect.poll(() => rowOf()?.getAttribute("data-dim")).toBe("true")
-
+      // The squad's crow lights its file, and what neither touched is gone from the tree, which
+      // comes back whole once they're let go.
+      const untouched = page.getByRole("treeitem", { name: /^index\.html/ })
+      await expect.element(untouched).toBeVisible()
       await squad.getByRole("button", { name: "@moth" }).click()
 
       await expect
@@ -62,9 +65,12 @@ describe("The Source panel", () => {
       await expect
         .element(squad.getByRole("button", { name: "@crow" }))
         .toHaveAttribute("aria-pressed", "true")
-      // The squad's crow lights its file, and what neither touched is still dimmed.
       await expect.poll(() => rowOf()?.getAttribute("data-dim")).toBe("false")
-      await expect.poll(() => document.querySelector(".source-row[data-dim=true]")).not.toBeNull()
+      await expect.element(untouched).not.toBeInTheDocument()
+      await expect.poll(() => document.querySelector(".source-row[data-dim=true]")).toBeNull()
+
+      await squad.getByRole("button", { name: "@moth" }).click()
+      await expect.element(untouched).toBeVisible()
     })
 
     it("lets go of the kept agents on Escape after a mouse click, not sending it to the terminal", async () => {

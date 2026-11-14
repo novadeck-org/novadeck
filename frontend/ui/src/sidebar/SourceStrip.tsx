@@ -43,7 +43,8 @@ const AgentChip = ({
 
 // The agents with work here as chips above the tree, wrapping onto more lines, squads in a
 // faint track with their lead first. A chip keeps its agent lit (any number), a squad's lead the
-// whole squad; the tree dims what none of the lit agents touched.
+// whole squad; the tree then shows only what the kept agents touched, and pointing at a chip
+// dims what none of the pointed agents touched.
 export const SourceStrip = ({
   slots,
   kept,
