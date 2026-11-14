@@ -48,6 +48,7 @@ export const createSourceCommands = (
     const known = sessionState(before, target)?.roster.windows
     const had = known?.find((each) => each.home === "project")
     const asked = effects.newId()
+    let backed = false
     const { item, window } = await open(
       target,
       absolutePath(activeProject(before)!.directory, path),
@@ -55,6 +56,7 @@ export const createSourceCommands = (
     ).catch((error: unknown) => {
       // Main has no such file: an agent's copy of it stands behind the window.
       if (options?.copy === undefined) throw error
+      backed = true
       return open(target, options.copy, asked)
     })
     const snapshot = workspace.getSnapshot()
@@ -77,6 +79,7 @@ export const createSourceCommands = (
                 itemId: item.id,
                 projectId: target.projectId,
                 path,
+                backed,
                 opened: effects.newId(),
               },
             }

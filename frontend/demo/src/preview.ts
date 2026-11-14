@@ -262,29 +262,30 @@ export const createDemoPreview = (now: number): DemoPreview => {
           add(crowTerminal, path, [hunk(1, 0, orderCrow)], crowAt, { status: "added" })
         return { main: null, works: found, renames: [] }
       }
+      if (path !== renamedPath && path !== renamedTo) return empty
       const renameAt = scenarios.get("rename")
-      if (renameAt === undefined || (path !== renamedPath && path !== renamedTo)) return empty
+      // The new path exists only while Crow renames; Moth's change to the old file stays.
+      if (path === renamedTo && renameAt === undefined) return empty
       add(mothTerminal, renamedPath, [stepMoth], now - 3 * minute)
       if (path === renamedTo)
-        add(crowTerminal, renamedTo, [stepCrow], renameAt, { renamedFrom: renamedPath })
+        add(crowTerminal, renamedTo, [stepCrow], renameAt!, { renamedFrom: renamedPath })
       const renamer = works.find(
         (each) => each.projectId === projectId && each.terminalId === crowTerminal,
       )
-      return {
-        main: stepMain,
-        works: found,
-        renames:
-          path === renamedPath && renamer
-            ? [
-                {
-                  root: renamer.root,
-                  terminalId: crowTerminal,
-                  branch: renamer.branch,
-                  to: renamedTo,
-                },
-              ]
-            : [],
-      }
+      const renames =
+        path === renamedPath && renameAt !== undefined && renamer
+          ? [
+              {
+                root: renamer.root,
+                terminalId: crowTerminal,
+                branch: renamer.branch,
+                to: renamedTo,
+              },
+            ]
+          : []
+      return found.length > 0 || renames.length > 0
+        ? { main: stepMain, works: found, renames }
+        : empty
     },
     wrote: (terminalId, at) => {
       if (!changedAt.has(terminalId)) return

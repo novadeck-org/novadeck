@@ -28,6 +28,19 @@ const noHandles: ReadonlySet<string> = new Set()
 // backend for it and draws it with the agents' names, lighting and writes from the app. It
 // shows `fallback` (the file as it is in main) until it has something to preview, and where
 // the backend can't say, the file may hold secrets, or no work changes it any longer.
+// Whether the window should go back to the project's own file: it points at an agent's copy in
+// its worktree (main lacked the file) and the preview, read, lists no work for it any longer
+// (merged, or closed), so what the window holds is about to be gone.
+export const shouldRepoint = (
+  request: Pick<FilePreviewRequest, "backed">,
+  preview: Pick<WorkPreview, "unavailable" | "works" | "renames"> | undefined,
+): boolean =>
+  request.backed &&
+  preview !== undefined &&
+  !preview.unavailable &&
+  preview.works.length === 0 &&
+  preview.renames.length === 0
+
 const Reading = ({
   request,
   fallback,
@@ -139,6 +152,11 @@ const Reading = ({
       }),
     [preview, owners],
   )
+  // Where main has the file by now, the window goes back to it; where it still doesn't it stays.
+  const repoint = shouldRepoint(request, preview)
+  useEffect(() => {
+    if (repoint) commands.openSourceFile(path).catch(() => {})
+  }, [repoint, commands, path])
   const renames = useMemo(
     (): readonly Rename[] =>
       (preview?.renames ?? []).map((rename) => {

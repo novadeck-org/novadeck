@@ -125,6 +125,8 @@ export type FilePreviewRequest = {
   readonly itemId: string
   readonly projectId: string
   readonly path: string
+  // The window points at an agent's copy of the file in its worktree, as main lacks it.
+  readonly backed: boolean
   readonly opened: string
 }
 

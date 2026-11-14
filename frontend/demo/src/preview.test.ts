@@ -8,6 +8,7 @@ import {
   renamedTo,
 } from "./preview"
 import { demoTerminalId } from "./samples"
+import { createDemoSource } from "./source"
 import { context, describe, expect, it } from "./test"
 import { storefrontPlans } from "./work-plans"
 import { createDemoWorks, worksFromPlans } from "./works"
@@ -113,5 +114,36 @@ describe("the demo's file previews", () => {
     expect(renamed.renames).toEqual([])
     works.previewScenario("rename", false)
     expect((await works.preview("storefront", renamedTo)).works).toEqual([])
+    // Only Crow's parts end: Moth's change to the old file stays.
+    const after = await works.preview("storefront", renamedPath)
+    expect(after.works.map((work) => work.terminalId)).toEqual([moth])
+    expect(after.renames).toEqual([])
+  })
+
+  it("has the Source panel show Crow's add and rename as they come and go, Moth's change staying", async () => {
+    const now = 1_000_000_000
+    const source = createDemoSource(now, undefined, [])
+    const works = createDemoWorks(worksFromPlans(plainDemo("plain").seed, storefrontPlans, now), {
+      now: () => now,
+      preview: createDemoPreview(now),
+      mark: source.mark,
+    })
+    const changes = () => source.state.getSnapshot().projects["storefront"]!.changes
+    works.previewScenario("added", true)
+    expect(Object.keys(changes()[addedPath]!.touched).toSorted()).toEqual(["crow", "moth"])
+    works.previewScenario("rename", true)
+    expect(changes()[renamedTo]).toMatchObject({
+      kind: "added",
+      touched: { crow: expect.any(Number) },
+    })
+    expect(changes()[renamedPath]).toMatchObject({ kind: "deleted" })
+    works.previewScenario("added", false)
+    works.previewScenario("rename", false)
+    expect(Object.keys(changes()[addedPath]!.touched)).toEqual(["moth"])
+    expect(changes()[renamedTo]).toBeUndefined()
+    expect(changes()[renamedPath]).toMatchObject({
+      kind: "modified",
+      touched: { moth: expect.any(Number) },
+    })
   })
 })
