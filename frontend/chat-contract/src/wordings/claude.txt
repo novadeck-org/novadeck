@@ -1,0 +1,54 @@
+# permission: bash-long
+  Yes → yes
+  Yes, and allow access to /tmp and touch approved.txt commands → standing
+  No → no
+  No, and tell Claude what to do [prompt] → words
+
+# permission: h-wait-nodecision, h-wait-reply-then-tui, h-wait-timeout, h-wait-tui-first, k-bash-arrows-enter, k-bash-arrows-enter@2.1.291, k-bash-esc, k-bash-moved-highlight-digit1, k-no-then-prompt, k-no-then-prompt@2.1.291
+  Yes → yes
+  Yes, and always allow access to <sandbox>/project from this project → standing
+  No → no
+  No, and tell Claude what to do [prompt] → words
+
+# permission: k-bash-small-digits, k-mcp-args, k-mcp-args@2.1.291, mcp, mcp@2.1.291
+  Yes → yes
+  No → no
+  No, and tell Claude what to do [prompt] → words
+
+# permission: k-bash-small-digits, mcp, mcp@2.1.291
+  Yes → yes
+  Yes, and don't ask again for plugin:novadeck:novadeck — Agents commands in <sandbox>/proje… → standing, lines "Yes, and don't ask again" / "for plugin:novadeck:novadeck — Agents commands in <sandbox>/proje…"
+  No → no
+  No, and tell Claude what to do [prompt] → words
+
+# permission: k-edit-existing, k-edit-existing@2.1.291, k-edit-long-lines, k-edit-long-lines@2.1.291, k-edit-partial, k-edit-partial@2.1.291, k-edit-prose, k-edit-prose@2.1.291, k-edit-shared, k-edit-shared@2.1.291, k-edit-sub, k-edit-sub@2.1.291, k-edit-tabs, k-edit-tabs@2.1.291, k-write-blank-end, k-write-blank-end@2.1.291, k-write-over-blank-end, k-write-over-blank-end@2.1.291, k-write-overwrite, k-write-overwrite@2.1.291, k-write-tabs, k-write-tabs-over, k-write-tabs-over@2.1.291, k-write-tabs@2.1.291, write
+  Yes → yes
+  Yes, and switch to accept edits (auto-approve file edits and common file commands) for this session (shift+tab) → standing
+  No → no
+  No, and tell Claude what to do [prompt] → words
+
+# permission: k-mcp-args, k-mcp-args@2.1.291
+  Yes → yes
+  Yes, and don't ask again for plugin:novadeck:novadeck — Describe commands in <sandbox>/pro… → standing, lines "Yes, and don't ask again" / "for plugin:novadeck:novadeck — Describe commands in <sandbox>/pro…"
+  No → no
+  No, and tell Claude what to do [prompt] → words
+
+# permission: k-read-outside, k-read-outside@2.1.291
+  Yes → yes
+  Yes, allow reading from <sandbox>/outside during this session → standing
+  No → no
+  No, and tell Claude what to do [prompt] → words
+
+# permission: k-webfetch-no, k-webfetch-no@2.1.291, webfetch
+  Yes → yes
+  Yes, and don't ask again for example.com → standing, lines "Yes, and don't ask again" / "for example.com"
+  No, and tell Claude what to do differently (esc) [prompt] → words
+
+# plan: h-plan-allow, h-plan-pre-allow, h-plan-setMode, k-plan-1, k-plan-1@2.1.291, k-plan-3-feedback, k-plan-3-typed, k-plan-3-typed@2.1.291, k-plan-esc, plan-file, plan-file@2.1.291, plan-live
+  Yes, auto-accept edits → standing, effect "It edits without asking.", armed
+  Yes, manually approve edits → yes
+  Tell Claude what to change [field] → words
+
+# plan: plan, plan@2.1.291
+  Yes, and switch to default (ask each time) for this session → yes
+  No → no
