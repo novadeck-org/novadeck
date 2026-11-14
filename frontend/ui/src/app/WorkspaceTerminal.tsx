@@ -73,6 +73,7 @@ import {
 import { useFoldTeam } from "./team-fold"
 import { useBarShells, useShellsHome, useTerminalBar } from "./terminal-bar"
 import { agentAvatarsOn, chatViewOn } from "./ui-store"
+import { useChangesShown } from "./use-changes-shown"
 import { useTerminalMarks } from "./useTerminalMarks"
 
 const noChatConversation = createStore(noConversation)
@@ -182,10 +183,13 @@ const WorkspaceWindow = memo(
     const { icon: Icon } = windowProfile(item)
     // The file the person opened to preview what the agents' work merges to, while the window
     // still shows it.
-    const previewing = useUiState((state) => {
-      const request = state.filePreviews[`${target.projectId}/${target.workspaceSessionId}`]
-      return window.home === "project" && request !== undefined && request.itemId === item?.id
-    })
+    // Previews go with the works they show: turning agent worktrees off has the file as in main.
+    const changesShown = useChangesShown()
+    const previewing =
+      useUiState((state) => {
+        const request = state.filePreviews[`${target.projectId}/${target.workspaceSessionId}`]
+        return window.home === "project" && request !== undefined && request.itemId === item?.id
+      }) && changesShown
     // What it shows, where a terminal's content would be.
     return (
       <WindowShell {...frame} icon={<Icon size={14} strokeWidth={1.5} />}>

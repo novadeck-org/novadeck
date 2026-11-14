@@ -61,7 +61,7 @@ export const useWrites = (
     for (const agent of agents) {
       const seen = last.get(agent.key)
       if (agent.handle !== undefined && writing.has(agent.handle)) {
-        const line = seen?.line ?? sigs.get(agent.key)?.at(-1)
+        const line = seen?.line ?? sigs.get(agent.key)?.at(-1)?.sig
         if (line !== undefined) found.set(agent.key, { line, cursor: true })
       } else if (seen) found.set(agent.key, { line: seen.line, cursor: false, at: seen.at })
     }

@@ -178,27 +178,51 @@ describe("what a write changed", () => {
   it("is the lines an agent now has that it did not, in order", () => {
     const before = sigsOf([agent("crow", 1, [hunk(5, 1, ["a", "b"])])])
     const after = sigsOf([agent("crow", 2, [hunk(5, 1, ["a", "b2", "c"]), hunk(9, 0, ["z"])])])
-    expect(writtenSince(before, after).get("crow")).toEqual(["b2#0", "c#0", "z#0"])
+    expect(writtenSince(before, after).get("crow")).toEqual([
+      `crow\0b2#0`,
+      `crow\0c#0`,
+      `crow\0z#0`,
+    ])
   })
 
   it("is only the line added near the top of a change, not the lines that moved down", () => {
     const before = sigsOf([agent("crow", 1, [hunk(5, 3, ["a", "b", "c"])])])
     const after = sigsOf([agent("crow", 2, [hunk(5, 3, ["x", "a", "b", "c"])])])
-    expect(writtenSince(before, after).get("crow")).toEqual(["x#0"])
+    expect(writtenSince(before, after).get("crow")).toEqual([`crow\0x#0`])
   })
 
   it("tells equal lines apart by which of them they are", () => {
     const before = sigsOf([agent("crow", 1, [hunk(5, 1, ["a", "a"])])])
     const after = sigsOf([agent("crow", 2, [hunk(5, 1, ["a", "a", "a"])])])
-    expect(writtenSince(before, after).get("crow")).toEqual(["a#2"])
+    expect(writtenSince(before, after).get("crow")).toEqual([`crow\0a#2`])
   })
 
   it("names the lines the rows draw as it does", () => {
     const crow = agent("crow", 1, [hunk(5, 1, ["a", "b"])])
     const [only] = blocks(layoutPreview(main, [crow], nobody).pieces)
-    expect(only!.rows.flatMap((row) => ("t" in row ? [] : [row.sig]))).toEqual([
-      ...sigsOf([crow]).get("crow")!,
+    expect(only!.rows.flatMap((row) => ("t" in row ? [] : [row.sig]))).toEqual(
+      sigsOf([crow])
+        .get("crow")!
+        .map((line) => line.sig),
+    )
+  })
+
+  it("is not another agent's equal line", () => {
+    const before = sigsOf([
+      agent("moth", 1, [hunk(5, 1, ["a", "}"])]),
+      agent("crow", 1, [hunk(9, 1, ["x"])]),
     ])
+    const after = sigsOf([
+      agent("moth", 1, [hunk(5, 1, ["a", "}"])]),
+      agent("crow", 2, [hunk(9, 1, ["x", "}", ""])]),
+    ])
+    expect([...writtenSince(before, after)]).toEqual([["crow", [`crow\0}#0`, `crow\0#0`]]])
+  })
+
+  it("is the block added above an agent's earlier change, not the equal line below", () => {
+    const before = sigsOf([agent("crow", 1, [hunk(20, 1, ["a", "}"])])])
+    const after = sigsOf([agent("crow", 2, [hunk(5, 0, ["x", "}"]), hunk(20, 1, ["a", "}"])])])
+    expect(writtenSince(before, after).get("crow")).toEqual([`crow\0x#0`, `crow\0}#0`])
   })
 
   it("names nobody for an agent that wrote nothing new", () => {

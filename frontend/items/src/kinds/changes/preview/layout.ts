@@ -178,9 +178,9 @@ const clashBase = (members: readonly Agent[]): string =>
 const marksOf = (was: string, now: string): Marks => tokenDiff(was, now, 0.5)?.after ?? []
 
 /**
- * What names each line an agent's changes that apply hold: its text and which of its equal
- * lines it is, whatever the line's place, so a line is the same line after others are added
- * before it. By hunk.
+ * What names each line an agent's changes that apply hold, by hunk: the agent, its text and which
+ * of the agent's equal lines it is, so one agent's `}` is not another's. A name tells a row from
+ * the others; which lines a write changed is found by `writtenSince`.
  */
 const agentSigs = (agent: Agent): ReadonlyMap<PreviewHunk, readonly string[]> => {
   const seen = new Map<string, number>()
@@ -192,7 +192,7 @@ const agentSigs = (agent: Agent): ReadonlyMap<PreviewHunk, readonly string[]> =>
         hunk.lines.map((text) => {
           const count = seen.get(text) ?? 0
           seen.set(text, count + 1)
-          return `${text}#${count}`
+          return `${agent.key}\0${text}#${count}`
         }),
       ]),
   )
@@ -375,22 +375,64 @@ export const layoutPreview = (
   return { pieces, added, removed, stale }
 }
 
+/** A line an agent holds: what names its row, and its text. */
+export type Held = { readonly sig: string; readonly text: string }
+
+// The most lines two lists are compared by the longest run they share.
+const mostCompared = 4_000_000
+
+/** Which lines of `now` are not in `was`, by the longest common run of their texts; their indexes. */
+const addedIn = (was: readonly string[], now: readonly string[]): number[] => {
+  if (was.length * now.length > mostCompared) {
+    const known = new Set(was)
+    return now.flatMap((text, at) => (known.has(text) ? [] : [at]))
+  }
+  const width = now.length + 1
+  const table = new Uint32Array((was.length + 1) * width)
+  for (let i = was.length - 1; i >= 0; i -= 1)
+    for (let j = now.length - 1; j >= 0; j -= 1)
+      table[i * width + j] =
+        was[i] === now[j]
+          ? table[(i + 1) * width + j + 1]! + 1
+          : Math.max(table[(i + 1) * width + j]!, table[i * width + j + 1]!)
+  const kept = new Set<number>()
+  for (let i = 0, j = 0; i < was.length && j < now.length;)
+    if (was[i] === now[j]) {
+      kept.add(j)
+      i += 1
+      j += 1
+    } else if (table[(i + 1) * width + j]! >= table[i * width + j + 1]!) i += 1
+    else j += 1
+  return now.flatMap((_, at) => (kept.has(at) ? [] : [at]))
+}
+
 /**
  * The lines each agent has in the file that weren't there before: what its latest write
- * changed, as the lines it now holds that it did not, in the file's order.
+ * changed, as the names of the lines it now holds that are not among those it held (compared
+ * in order, so a line added above an equal one is the new line), in the file's order.
  */
 export const writtenSince = (
-  before: ReadonlyMap<string, readonly string[]>,
-  after: ReadonlyMap<string, readonly string[]>,
+  before: ReadonlyMap<string, readonly Held[]>,
+  after: ReadonlyMap<string, readonly Held[]>,
 ): ReadonlyMap<string, readonly string[]> =>
   new Map(
-    [...after].flatMap(([agent, sigs]) => {
-      const was = new Set(before.get(agent))
-      const written = sigs.filter((sig) => !was.has(sig))
+    [...after].flatMap(([agent, held]) => {
+      const added = addedIn(
+        (before.get(agent) ?? []).map((line) => line.text),
+        held.map((line) => line.text),
+      )
+      const written = added.map((at) => held[at]!.sig)
       return written.length > 0 ? [[agent, written] as const] : []
     }),
   )
 
-/** The lines each agent has in the file, by what names them (the ones that apply), in order. */
-export const sigsOf = (agents: readonly Agent[]): ReadonlyMap<string, readonly string[]> =>
-  new Map(agents.map((agent) => [agent.key, [...agentSigs(agent).values()].flat()]))
+/** The lines each agent has in the file (the ones that apply), in order. */
+export const sigsOf = (agents: readonly Agent[]): ReadonlyMap<string, readonly Held[]> =>
+  new Map(
+    agents.map((agent) => [
+      agent.key,
+      [...agentSigs(agent)].flatMap(([hunk, sigs]) =>
+        sigs.map((sig, at) => ({ sig, text: hunk.lines[at]! })),
+      ),
+    ]),
+  )
