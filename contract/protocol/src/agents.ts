@@ -137,6 +137,10 @@ export const agentActivity = z.strictObject({
       }),
     )
     .max(agentLimits.subagents),
+  // The absolute path its write/edit tools (root or a subagent) wrote last in the turn that
+  // runs now, updated by each write, one already written again included. Absent while no
+  // turn runs, and until the turn writes something.
+  wrote: z.string().min(1).max(maxTurnFilePath).optional(),
   // How its latest turn ended: `completed` as its harness said, `failed` on an error,
   // `interrupted` by the person (Escape, or a request they refused, as its hooks or records
   // tell), or `unknown` when it only went idle, as an Escape or a refusal shows in

@@ -474,6 +474,13 @@ last. `TerminalSummary.activity.lastTurn` carries both once no turn runs: the ou
 start of the reply as one line of plain text, 120 characters at most (`replyPreview`),
 never the whole reply, and `at`, which tells one end from another.
 
+While a turn runs, `TerminalSummary.activity.wrote` is the absolute path its write and edit
+tools wrote last, root or subagent, on every harness: the same `file-touched` fact that fills
+`lastTurn.files` (Claude Code's and Antigravity's hooks, Codex's patch hook and its rollout's
+`FileChange`). Each write moves it, a file written again included and past the sixteen files
+`lastTurn.files` holds. It is absent until the turn writes, and once the turn ends, and a write
+told late, after the Stop, joins `lastTurn.files` without bringing it back.
+
 | Harness     | How the turn ended                                                                                                               | Its last reply                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Claude Code | `Stop` completed, `StopFailure` failed, the transcript's interrupt marker interrupted, `stop_hook_summary` completed as recorded | `Stop`'s `last_assistant_message` (the hook keeps its first 4096 characters). A `Stop` or `StopFailure` naming none, as neither names the transcript, reads the bound session's transcript the runner follows: its last assistant text since the person's prompt, which Claude Code writes about 50 ms after its Stop hook starts (e2e, 2.1.287), so the runner looks up to four times, 100 ms apart. `stop_hook_summary` names none, and nothing is read for it |
