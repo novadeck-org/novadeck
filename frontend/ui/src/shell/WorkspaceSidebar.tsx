@@ -30,14 +30,16 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
   sidebarPanel: PanelId
   sidebarVisible: boolean
   // Where the backend has a source: what its agents changed in the project, if it says, how to
-  // read a folder, when an agent's turn last ended, how to open a file, the handle of the
-  // selected terminal, and the session's agents for the strip: every terminal's handle in roster
-  // order, and the teams as handles, each lead first. Left out, there is no Source panel.
+  // read a folder, when an agent's turn last ended, how to follow the works the changes come
+  // from while the panel shows, if they do, how to open a file, the handle of the selected
+  // terminal, and the session's agents for the strip: every terminal's handle in roster order,
+  // and the teams as handles, each lead first. Left out, there is no Source panel.
   source:
     | {
         project: SourceProject | undefined
         list: (folder: string) => Promise<SourceListing>
         turn: number
+        watch: (() => () => void) | undefined
         onOpenFile: (path: string) => Promise<void>
         selectedHandle: string | undefined
         roster: readonly string[]
@@ -127,6 +129,7 @@ export const WorkspaceSidebar = ({
         project={source.project}
         list={source.list}
         turn={source.turn}
+        watch={source.watch}
         onOpenFile={source.onOpenFile}
         selectedHandle={source.selectedHandle}
         roster={source.roster}

@@ -4,8 +4,9 @@ import type { Store } from "./store"
 // folder one folder at a time (`list`), as the person opens them. On a demo backend, the
 // files its agents change come on top (`state`): who changed each file, how, and which
 // file each agent is writing in its current turn. Each agent there works in its own
-// worktree, so every write in that worktree is that agent's. A runner has no changes to
-// tell yet: its state stays empty, and the panel shows the plain tree.
+// worktree, so every write in that worktree is that agent's. A runner tells none of its
+// own: its state stays empty, and while agent worktrees are on the app lays each tracked
+// worktree's work (`works`) over the files in its place.
 
 // How an agent changed a file, against the branch its worktree came from.
 export type SourceChange = "modified" | "added" | "deleted"
