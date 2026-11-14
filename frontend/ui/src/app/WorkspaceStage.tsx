@@ -1,7 +1,6 @@
 import { allTeams, sameTeam, sameTeams, teamOf } from "@novadeck/core/derivations"
 import { orderedTiles, tilesOf } from "@novadeck/core/roster"
 import type { GridSpan } from "@novadeck/core/types"
-import { createPaneTurns, PaneTurnsContext } from "@novadeck/items/pane-turns"
 import { memo, Suspense, useCallback, useEffect, useMemo, useState, type RefObject } from "react"
 
 import { createCanvasStays } from "../layouts/canvas/stay"
@@ -83,8 +82,6 @@ export const WorkspaceStage = memo(
     // session's view, so Canvas finds its stay again when the person comes back to it from
     // Focus by a window's own button.
     const [stays] = useState(createCanvasStays)
-    // The companion panes of every view build in turns (items' pane-turns.ts).
-    const [paneTurns] = useState(() => createPaneTurns())
     const stay = useMemo(() => stays.of(context), [stays, context])
     // A navigation that flies is for the view on screen as it was asked, here or in the
     // session it brought to the front (see `flightAfter`).
@@ -113,75 +110,73 @@ export const WorkspaceStage = memo(
         className={`main-area relative flex min-w-0 flex-1 flex-col ${view}`}
         aria-label={`${view} view`}
       >
-        <PaneTurnsContext value={paneTurns}>
-          <Suspense
-            key={view}
-            fallback={
-              <div
-                role="status"
-                aria-label="Loading workspace"
-                className="stage-note flex flex-1 items-center justify-center text-heading leading-5"
-              >
-                Loading workspace…
-              </div>
-            }
-          >
-            {view === "focus" && displayed && (
-              <Focus
-                terminals={terminals}
-                displayed={displayed}
-                onSelect={setSelected}
-                render={renderTerminal}
-              />
-            )}
-            {view === "grid" && (
-              <Grid
-                terminals={terminals}
-                listed={listedIds}
-                keepFolds={keepFolds}
-                hidden={layoutHidden}
-                spans={spans}
-                onResize={setSpan}
-                preview={preview}
-                selected={selected}
-                team={team}
-                teams={teams}
-                onSelect={setSelected}
-                navigation={shellNavigation.count}
-                onReorder={reorderTiles}
-                onCreate={() => {
-                  add()
-                }}
-                render={renderTerminal}
-              />
-            )}
-            {view === "canvas" && (
-              <Canvas
-                ref={canvas}
-                hidden={layoutHidden}
-                preview={preview}
-                layout={canvasLayout}
-                revealOnMount={revealCanvas}
-                stay={stay}
-                reordered={reordered}
-                fitOnNavigate={shellNavigation.move === "fit"}
-                flyOnNavigate={flying}
-                terminals={listed}
-                selected={selected}
-                team={team}
-                teams={teams}
-                keyboardFocusRequest={
-                  canvasKeyboardFocus?.context === context && canvasKeyboardFocus.id === selected
-                    ? canvasKeyboardFocus.request
-                    : null
-                }
-                navigation={shellNavigation.count}
-                onSelect={setSelected}
-                render={renderTerminal}
-              />
-            )}
-          </Suspense>
-        </PaneTurnsContext>
+        <Suspense
+          key={view}
+          fallback={
+            <div
+              role="status"
+              aria-label="Loading workspace"
+              className="stage-note flex flex-1 items-center justify-center text-heading leading-5"
+            >
+              Loading workspace…
+            </div>
+          }
+        >
+          {view === "focus" && displayed && (
+            <Focus
+              terminals={terminals}
+              displayed={displayed}
+              onSelect={setSelected}
+              render={renderTerminal}
+            />
+          )}
+          {view === "grid" && (
+            <Grid
+              terminals={terminals}
+              listed={listedIds}
+              keepFolds={keepFolds}
+              hidden={layoutHidden}
+              spans={spans}
+              onResize={setSpan}
+              preview={preview}
+              selected={selected}
+              team={team}
+              teams={teams}
+              onSelect={setSelected}
+              navigation={shellNavigation.count}
+              onReorder={reorderTiles}
+              onCreate={() => {
+                add()
+              }}
+              render={renderTerminal}
+            />
+          )}
+          {view === "canvas" && (
+            <Canvas
+              ref={canvas}
+              hidden={layoutHidden}
+              preview={preview}
+              layout={canvasLayout}
+              revealOnMount={revealCanvas}
+              stay={stay}
+              reordered={reordered}
+              fitOnNavigate={shellNavigation.move === "fit"}
+              flyOnNavigate={flying}
+              terminals={listed}
+              selected={selected}
+              team={team}
+              teams={teams}
+              keyboardFocusRequest={
+                canvasKeyboardFocus?.context === context && canvasKeyboardFocus.id === selected
+                  ? canvasKeyboardFocus.request
+                  : null
+              }
+              navigation={shellNavigation.count}
+              onSelect={setSelected}
+              render={renderTerminal}
+            />
+          )}
+        </Suspense>
         {view !== "focus" &&
           terminals.length > 0 &&
           terminals.every((terminal) => layoutHidden[terminal.id]) && (

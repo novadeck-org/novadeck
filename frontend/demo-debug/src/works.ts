@@ -224,6 +224,24 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
               run: () => works.previewOwl("stale"),
             },
             {
+              label: "Crow adds OrderSummary.tsx too",
+              hint: "Open Source and double-click src/checkout/OrderSummary.tsx (storefront, agents demo; main lacks it): the preview draws the whole file as added lines under moth's head, then, as crow joins, a whole-file Clash head with crow's version shown (the last writer) and a picker",
+              run: () => works.previewScenario("added", true),
+            },
+            {
+              label: "Crow renames PaymentStep.tsx, moth edits it",
+              hint: "Open the file preview of src/checkout/PaymentStep.tsx: a note at the top says crow renames this file to src/checkout/PaymentForm.tsx, with Open, above moth's change; Open shows PaymentForm.tsx as main's PaymentStep with crow's head reading renamed from PaymentStep.tsx and moth's change carried onto it",
+              run: () => works.previewScenario("rename", true),
+            },
+            {
+              label: "Crow's add and rename end",
+              hint: "Open the previews of OrderSummary.tsx and PaymentStep.tsx: crow's version, its Clash head and its rename note are gone",
+              run: () => {
+                works.previewScenario("added", false)
+                works.previewScenario("rename", false)
+              },
+            },
+            {
               label: "Third agent leaves the file preview",
               hint: "Open the file preview of src/checkout/Checkout.tsx: owl's change, clash or box, is gone, and its toggle with it",
               run: () => works.previewOwl(undefined),

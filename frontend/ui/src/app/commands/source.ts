@@ -11,7 +11,12 @@ export type SourceCommands = {
   // files there. Rejects when the backend can't open the file. With `preview` the window shows
   // the file as it would be once the agents' work merges onto main, which starts over (everyone
   // merged) each time; without, as it is in main.
-  readonly openSourceFile: (path: string, options?: { readonly preview?: boolean }) => Promise<void>
+  // A file main lacks (an agent added it) opens at `copy` instead, an absolute path of an agent's
+  // own copy, which `openInProject` takes wherever it is.
+  readonly openSourceFile: (
+    path: string,
+    options?: { readonly preview?: boolean; readonly copy?: string | undefined },
+  ) => Promise<void>
 }
 
 type SourceDependencies = {
@@ -47,7 +52,11 @@ export const createSourceCommands = (
       target,
       absolutePath(activeProject(before)!.directory, path),
       asked,
-    )
+    ).catch((error: unknown) => {
+      // Main has no such file: an agent's copy of it stands behind the window.
+      if (options?.copy === undefined) throw error
+      return open(target, options.copy, asked)
+    })
     const snapshot = workspace.getSnapshot()
     const state = sessionState(snapshot, target)
     // The person closed the window meanwhile, and the backend's close, queued behind this

@@ -52,7 +52,7 @@ describe("the debug panel's Changes group", () => {
         look: () => {},
         show: async () => null,
         close: async () => ({ closed: true, branchDeleted: false }),
-        preview: async () => ({ main: null, works: [] }),
+        preview: async () => ({ main: null, works: [], renames: [] }),
       }),
     ).toEqual([])
   })

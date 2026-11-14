@@ -5,7 +5,6 @@ import type { DemoLaunch, DemoShell } from "./debug-demo"
 import { sampleFix } from "./desktop/sandbox"
 import { pageUpdateChannel } from "./desktop/updates"
 import { iconGuidesGroup } from "./icon-guides"
-import { paneTurnsGroup } from "./pane-turns"
 import type { DemoActionGroup, DemoStates } from "./types"
 
 // How each boot failure reads in the panel: a label, and what happens after it.
@@ -147,6 +146,5 @@ export const shellGroups = ({
       ],
     },
     iconGuidesGroup,
-    paneTurnsGroup,
   ]
 }

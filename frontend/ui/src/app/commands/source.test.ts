@@ -62,6 +62,20 @@ describe("source commands", () => {
       expect(app.ui.getSnapshot().filePreviews).toEqual({})
     })
 
+    it("opens an agent's copy instead where main lacks the file", async () => {
+      let refuse = true
+      const app = open((_target, path) => {
+        if (refuse && path === "~/project/new.ts") return Promise.reject(new Error("no such file"))
+        return reply()
+      })
+      await app.commands.openSourceFile("new.ts", { preview: true, copy: "/w/new.ts" })
+      expect(app.asked.map((each) => each.path)).toEqual(["~/project/new.ts", "/w/new.ts"])
+      expect(Object.values(app.ui.getSnapshot().filePreviews)[0]).toMatchObject({ path: "new.ts" })
+      // Without a copy the rejection stands.
+      refuse = true
+      await expect(app.commands.openSourceFile("new.ts")).rejects.toThrow("no such file")
+    })
+
     it("needs no terminal open", async () => {
       const app = open(reply)
       for (const { id } of app.state().roster.terminals) app.commands.close(id)

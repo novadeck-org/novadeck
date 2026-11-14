@@ -96,6 +96,8 @@ export {
 export {
   type PreviewHunk,
   previewHunk,
+  type PreviewRename,
+  previewRename,
   previewLimits,
   type Work,
   work,

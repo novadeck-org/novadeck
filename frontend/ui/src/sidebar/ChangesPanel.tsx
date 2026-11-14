@@ -28,12 +28,8 @@ const FileName = ({ file, title }: { file: FileView; title?: boolean }): React.J
   </span>
 )
 
-// Whether a file opens as a preview: the project window shows main's checkout, which can only
-// point at a file main has.
-const hasMain = (file: FileView): boolean => file.status === "modified" || file.status === "deleted"
-
 // The files under the row, a branch each, as a tab's subagents unfold under it (tabs.css). A file
-// that main has opens in the project window, as a preview of what the works merge to.
+// opens in the project window, as a preview of what the works merge to.
 const Branches = ({
   row,
   canOpen,
@@ -73,7 +69,7 @@ const Branches = ({
               </span>
             </>
           )
-          return hasMain(file) && canOpen(row.work, file.path) ? (
+          return canOpen(row.work, file.path) ? (
             <button
               key={file.path}
               type="button"

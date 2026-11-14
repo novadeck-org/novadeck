@@ -114,11 +114,11 @@ const answer = (name: string) =>
   [...(dialog()?.querySelectorAll("button") ?? [])].find((item) => item.textContent === name)!
 
 describe("the Changes panel's rows", () => {
-  it("opens a file main has as a preview, without selecting the row, and not one it lacks", () => {
+  it("opens a file, added ones too, as a preview, without selecting the row", () => {
     const added: WorkFile = { ...file(0, 0), path: "new.ts", status: "added" }
     const { row, onOpenFile, onSelect } = show([work("a", { files: [file(0, 0), added] })])
     const open = row("a").querySelectorAll<HTMLButtonElement>(".changes-file-open")
-    expect(open).toHaveLength(1)
+    expect(open).toHaveLength(2)
     // Beside the row's select button, not inside it.
     expect(open[0]!.closest("button:not(.changes-file-open)")).toBeNull()
     open[0]!.click()

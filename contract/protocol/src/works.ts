@@ -124,24 +124,40 @@ export const previewHunk = z.strictObject({
 })
 
 // What one work does to a file: how it changed it, when the runner first saw it so (the
-// file's `changedAt`, 0 where the work lists no such file yet), and its hunks, in order.
+// file's `changedAt`, 0 where the work lists no such file yet), and its hunks, in order. A work
+// that renamed the file to this path (which main lacks) says `renamedFrom`, the path main has,
+// whose lines its hunks are against; its hunks are none where it only renamed it.
 export const workPreviewWork = z.strictObject({
   root: directory,
   terminalId: id.nullable(),
   branch: z.string().min(1).max(workLimits.branch).nullable(),
   status: z.enum(["modified", "added", "deleted"]),
   changedAt: z.number(),
+  renamedFrom: z.string().min(1).max(workLimits.path).optional(),
   hunks: z.array(previewHunk).max(previewLimits.hunks),
+})
+
+// A work that renamed the previewed file, which main has, to another path of the project (`to`,
+// from the project's folder).
+export const previewRename = z.strictObject({
+  root: directory,
+  terminalId: id.nullable(),
+  branch: z.string().min(1).max(workLimits.branch).nullable(),
+  to: z.string().min(1).max(workLimits.path),
 })
 
 // `works.preview`: a file of a project as it would be once its works merge onto main. `main`
 // is main's text, null where main has no such file; `works` the project's works that change
 // it, each read as it is on disk now. `unavailable` says why nothing is told of it: it may hold
-// secrets, is binary, or is too large; there are then no works either.
+// secrets, is binary, or is too large; there are then no works either. Where the file is one
+// main lacks because a work renamed another to it, `main` is the old file's text, which the
+// works' hunks are against, and the other works' changes to the old file are carried onto it;
+// `renames` are the works that renamed the file itself.
 export const workPreview = z.strictObject({
   main: z.string().max(previewLimits.text).nullable(),
   unavailable: z.enum(["secret", "binary", "big"]).optional(),
   works: z.array(workPreviewWork).max(workLimits.conflicts),
+  renames: z.array(previewRename).max(workLimits.conflicts),
 })
 
 export type WorkFile = z.infer<typeof workFile>
@@ -151,5 +167,6 @@ export type WorkChange = z.infer<typeof workChange>
 export type WorkMade = z.infer<typeof workMade>
 export type WorkClosing = z.infer<typeof workClosing>
 export type PreviewHunk = z.infer<typeof previewHunk>
+export type PreviewRename = z.infer<typeof previewRename>
 export type WorkPreviewWork = z.infer<typeof workPreviewWork>
 export type WorkPreview = z.infer<typeof workPreview>

@@ -8,7 +8,7 @@ import { tokenDiff, type Marks } from "@novadeck/viewers/facts"
 // their lines since). Pure: what the person left out, picked and unfolded comes in as `view`.
 
 /** One agent's work on the file: what the runner told, and who it is. */
-export type Agent = Pick<WorkPreviewWork, "status" | "changedAt" | "hunks"> & {
+export type Agent = Pick<WorkPreviewWork, "status" | "changedAt" | "hunks" | "renamedFrom"> & {
   /** The work's root: what names it. */
   readonly key: string
   /** The terminal's handle; undefined for a worktree with no open terminal. */
@@ -60,6 +60,8 @@ export type Block = {
   /** The change's place among the agent's changes that apply, for its facts. */
   readonly index: number
   readonly clash: Clash | undefined
+  /** Set on the head of an agent's rename to this file: where it was renamed from. */
+  readonly renamed?: string
   readonly rows: readonly (Row | Cut)[]
 }
 
@@ -332,6 +334,23 @@ export const layoutPreview = (
         block(change, `change:${shown.key}:${change.hunk.at}`, at === 0 ? clash : undefined).event,
       )
   }
+
+  // A rename to this file heads the file, whether or not the agent changed lines too.
+  for (const agent of merged)
+    if (agent.renamedFrom !== undefined)
+      events.push({
+        at: 1,
+        to: 0,
+        piece: {
+          t: "block",
+          id: `renamed:${agent.key}`,
+          agent,
+          index: -1,
+          clash: undefined,
+          renamed: agent.renamedFrom,
+          rows: [],
+        },
+      })
 
   let stale = 0
   for (const change of located(false)) {

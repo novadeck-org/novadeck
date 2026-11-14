@@ -124,6 +124,7 @@ describe("a file's preview", () => {
   it("is main's text and each work's hunks of it, in main's lines", () => {
     const preview = {
       main: "a\nb\nc\n",
+      renames: [{ root: base.root, terminalId: null, branch: "x", to: "src/b.ts" }],
       works: [
         {
           root: base.root,
@@ -136,9 +137,9 @@ describe("a file's preview", () => {
       ],
     }
     expect(workPreview.parse(preview)).toEqual(preview)
-    expect(workPreview.parse({ main: null, unavailable: "secret", works: [] }).unavailable).toBe(
-      "secret",
-    )
+    expect(
+      workPreview.parse({ main: null, unavailable: "secret", works: [], renames: [] }).unavailable,
+    ).toBe("secret")
   })
 
   it("starts a hunk at a line of main, from 1, and says whether it applies", () => {

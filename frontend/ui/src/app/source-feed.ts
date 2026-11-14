@@ -3,7 +3,8 @@ import { createStore } from "@novadeck/core/store"
 import type { WorkspaceSession } from "@novadeck/core/types"
 import type { Work, WorksState } from "@novadeck/core/works"
 
-import type { Owner } from "../sidebar/source-works"
+import { projectPath, type Owner } from "../sidebar/source-works"
+import { absolutePath } from "./commands/source"
 
 // What the Source panel and the file preview share of the backend's source and works.
 
@@ -43,3 +44,50 @@ export const noWorks = createStore<WorksState>({ works: [], synced: true, report
 
 export const sameWorks = (a: readonly Work[], b: readonly Work[]): boolean =>
   a.length === b.length && a.every((work, index) => Object.is(work, b[index]))
+
+const at = (work: Work, file: string): string | undefined => projectPath(work.folder!, file)
+
+// The files of the project's works that a preview of `path` (from the project's folder) is made
+// of: those at the path itself, those renamed to it or away from it, and, where a work renamed
+// another file to it, the changes of other works to that old file.
+export const previewFiles = (
+  works: readonly Work[],
+  projectId: string,
+  path: string,
+): readonly { readonly work: Work; readonly file: Work["files"][number] }[] => {
+  const mine = works.filter((work) => work.projectId === projectId && work.folder !== undefined)
+  const names = new Set([path])
+  for (const work of mine)
+    for (const file of work.files)
+      if (file.status === "renamed" && file.from !== undefined && at(work, file.path) === path) {
+        const old = at(work, file.from)
+        if (old !== undefined) names.add(old)
+      }
+  return mine.flatMap((work) =>
+    work.files.flatMap((file) => {
+      const named = at(work, file.path)
+      const from =
+        file.status === "renamed" && file.from !== undefined ? at(work, file.from) : undefined
+      return (named !== undefined && names.has(named)) || from === path ? [{ work, file }] : []
+    }),
+  )
+}
+
+// Where to open a file of the project main lacks (an agent added it or renamed another to it):
+// its copy in the worktree of the work that wrote it last, as an absolute path.
+export const copyOf = (
+  works: readonly Work[],
+  projectId: string,
+  path: string,
+): string | undefined => {
+  const copies = works.flatMap((work) =>
+    work.projectId === projectId && work.folder !== undefined
+      ? work.files.flatMap((file) =>
+          file.status !== "deleted" && projectPath(work.folder!, file.path) === path
+            ? [{ at: file.changedAt, path: absolutePath(work.root, file.path) }]
+            : [],
+        )
+      : [],
+  )
+  return copies.toSorted((a, b) => b.at - a.at)[0]?.path
+}

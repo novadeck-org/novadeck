@@ -83,7 +83,7 @@ const noWorks = {
   look: () => Promise.reject(new DomainError("NOT_FOUND")),
   show: () => Promise.reject(new DomainError("NOT_FOUND")),
   closeWork: () => Promise.reject(new DomainError("NOT_FOUND")),
-  preview: () => Promise.resolve({ main: null, works: [] }),
+  preview: () => Promise.resolve({ main: null, works: [], renames: [] }),
 }
 
 /**

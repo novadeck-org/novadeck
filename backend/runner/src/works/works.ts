@@ -30,7 +30,7 @@ import type { Held } from "../checkouts/repository.js"
 import type { Snapshot, Snapshots } from "../checkouts/snapshots.js"
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
-import { folderOf, repoPath } from "./folder.js"
+import { folderOf, projectPathOf, repoPath } from "./folder.js"
 import { conflictsOf, listFiles, mayConflict, type Detail, type Lines } from "./lines.js"
 import { loadRemembered, RememberedSaves, type Remembered } from "./memory.js"
 import { mergedWork } from "./merged.js"
@@ -43,6 +43,7 @@ const unreadable = (unavailable: "secret" | "binary" | "big"): WorkPreview => ({
   main: null,
   unavailable,
   works: [],
+  renames: [],
 })
 
 /** A git worktree Novadeck tracks, which is a work: its folder, its project, its owner if any. */
@@ -367,53 +368,92 @@ export class Works {
    */
   async preview(projectId: string, path: string): Promise<WorkPreview> {
     if (!this.polling()) await this.scan(true)
-    const listing = [...this.published.values()].flatMap((work) => {
+    const nothing: WorkPreview = { main: null, works: [], renames: [] }
+    const mine = [...this.published.values()].flatMap((work) => {
       const name = work.folder === undefined ? undefined : repoPath(work.folder, path)
-      const file = name === undefined ? undefined : work.files.find((each) => each.path === name)
-      return work.projectId === projectId && name !== undefined && file && file.status !== "renamed"
-        ? [{ work, name, file }]
+      return work.projectId === projectId && work.folder !== undefined && name !== undefined
+        ? [{ work, folder: work.folder, name }]
         : []
     })
-    const first = listing[0]
-    if (!first) return { main: null, works: [] }
+    // A file main lacks because a work renamed another to it is read as the old file, which
+    // that work's changes are against, and what other works did to the old file goes with it.
+    const renamer = mine.flatMap(({ work, name }) => {
+      const file = work.files.find((each) => each.path === name && each.status === "renamed")
+      return file?.from === undefined ? [] : [{ work, file, from: file.from }]
+    })[0]
+    const source = renamer?.from ?? mine[0]?.name
+    if (source === undefined) return nothing
+    const listing = mine.flatMap(({ work, folder, name }) => {
+      const own = work.files.find((each) => each.path === name)
+      const old = source === name ? undefined : work.files.find((each) => each.path === source)
+      const file = own ?? (old?.status === "renamed" ? undefined : old)
+      if (!file) return []
+      // The path the work's copy has, and the path main's merge base has it at.
+      const there = file.path
+      const was = file.status === "renamed" ? (file.from ?? file.path) : file.path
+      return [{ work, folder, file, there, was }]
+    })
+    // The works that renamed the file itself, which main has, to another path.
+    const renames = mine.flatMap(({ work, folder, name }) => {
+      const file = work.files.find((each) => each.from === name && each.status === "renamed")
+      const to = file === undefined ? undefined : projectPathOf(folder, file.path)
+      return to === undefined
+        ? []
+        : [{ root: work.root, terminalId: work.terminalId, branch: work.branch, to }]
+    })
+    const first =
+      listing[0]?.work ??
+      mine.find(({ work }) => renames.some((each) => each.root === work.root))?.work
+    if (!first) return nothing
     const held = this.options.held?.()
-    if (held && listing.some(({ work, name }) => held(join(work.root, name))))
+    if (
+      held &&
+      [...listing.map(({ work, there }) => join(work.root, there)), join(first.root, source)].some(
+        held,
+      )
+    )
       return unreadable("secret")
-    const main = await mainBranch(first.work.root)
-    if (!main) return { main: null, works: [] }
-    const mainText = await textAt(first.work.root, `${main.commit}:${first.name}`)
+    const main = await mainBranch(first.root)
+    if (!main) return nothing
+    const mainText = await textAt(first.root, `${main.commit}:${source}`)
     if (mainText === undefined) throw new DomainError("NOT_FOUND", "Main's copy can't be read.")
     const results = await Promise.all(
-      listing.map(({ work, name, file }) =>
+      listing.map(({ work, folder, file, there, was }) =>
         this.options.snapshots
           .use(work.root, async (checkout) => {
             const snapshot = await checkout.take(true)
             if (!snapshot || snapshot.head === "") return undefined
             const base = await mergeBase(work.root, main.commit, snapshot.head, snapshot.env)
-            const [theirs, was] = await Promise.all([
-              textAt(work.root, `${snapshot.tree}:${name}`, snapshot.env),
-              base === undefined ? null : textAt(work.root, `${base}:${name}`, snapshot.env),
+            const [theirs, before] = await Promise.all([
+              textAt(work.root, `${snapshot.tree}:${there}`, snapshot.env),
+              base === undefined ? null : textAt(work.root, `${base}:${was}`, snapshot.env),
             ])
-            if (theirs === undefined || was === undefined) return undefined
-            const texts = [mainText, theirs, was]
+            if (theirs === undefined || before === undefined) return undefined
+            const texts = [mainText, theirs, before]
             if (texts.some((text) => text !== null && text.includes("\0"))) return "binary" as const
             if (texts.some((text) => text !== null && text.length > previewLimits.text))
               return "big" as const
             const hunks = await carry(work.root, {
               main: mainText ?? "",
-              base: was ?? "",
+              base: before ?? "",
               theirs: theirs ?? "",
             })
             if (!hunks) return undefined
             if (oversized(hunks)) return "big" as const
-            return {
+            const from =
+              file.status === "renamed" && file.from !== undefined
+                ? projectPathOf(folder, file.from)
+                : undefined
+            const found: WorkPreviewWork = {
               root: work.root,
               terminalId: work.terminalId,
               branch: work.branch,
-              status: theirs === null ? "deleted" : was === null ? "added" : "modified",
+              status: theirs === null ? "deleted" : before === null ? "added" : "modified",
               changedAt: file.changedAt,
+              ...(from !== undefined && { renamedFrom: from }),
               hunks,
-            } satisfies WorkPreviewWork
+            }
+            return found
           })
           .catch(() => undefined),
       ),
@@ -424,8 +464,9 @@ export class Works {
       main: mainText,
       works: results
         .filter((each): each is WorkPreviewWork => typeof each === "object")
-        .filter((each) => each.hunks.length > 0)
+        .filter((each) => each.hunks.length > 0 || each.renamedFrom !== undefined)
         .slice(0, workLimits.conflicts),
+      renames: renames.slice(0, workLimits.conflicts),
     }
   }
 

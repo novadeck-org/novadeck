@@ -34,6 +34,9 @@ const mostHighlighted = 6_000
 
 export type { Agent } from "./layout"
 
+// A work that renamed the file to `to` (from the project's folder), by what names it.
+export type Rename = { readonly label: string; readonly to: string }
+
 const fresh: View = { left: new Set(), picks: {} }
 
 /** How long ago, as a head says it. */
@@ -256,7 +259,14 @@ const BlockView = ({
   onPick: (clash: Clash, who: string) => void
 }): React.JSX.Element => {
   const { agent, clash } = block
-  const place = agent ? placeOf(block, facts) : []
+  const place = block.renamed
+    ? ([
+        { text: "renamed from ", kind: "word" },
+        { text: block.renamed, kind: "code" },
+      ] as const)
+    : agent
+      ? placeOf(block, facts)
+      : []
   const hidden = clash?.members.filter((member) => member !== clash.shown) ?? []
   return (
     <section
@@ -360,6 +370,8 @@ export const FilePreview = ({
   agents,
   lit,
   writing,
+  renames,
+  onOpen,
 }: {
   // The file's path from the project's folder.
   path: string
@@ -370,6 +382,9 @@ export const FilePreview = ({
   lit: ReadonlySet<string>
   // The handles of the agents writing this file now.
   writing: ReadonlySet<string>
+  // The works that renamed this file to another path, and what opens that path's preview.
+  renames: readonly Rename[]
+  onOpen: (path: string) => void
 }): React.JSX.Element => {
   const [view, setView] = useState<View>(fresh)
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set())
@@ -504,6 +519,21 @@ export const FilePreview = ({
         </div>
         <div className="changes-body">
           <div className="changes-run">
+            {renames.map((rename) => (
+              <div key={`${rename.label}\0${rename.to}`} className="changes-clip preview-note">
+                <span className="handle-chip">{rename.label}</span>
+                <span>
+                  renames this file to <code>{rename.to}</code>
+                </span>
+                <button
+                  type="button"
+                  className="changes-clip-show"
+                  onClick={() => onOpen(rename.to)}
+                >
+                  Open
+                </button>
+              </div>
+            ))}
             {layout.pieces.map((piece) => {
               switch (piece.t) {
                 case "row":

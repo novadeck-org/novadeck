@@ -131,7 +131,18 @@ export type WorkPreviewWork = {
   readonly branch: string | null
   readonly status: "modified" | "added" | "deleted"
   readonly changedAt: number
+  // Where the work renamed the file to this path, the path main has, whose lines its hunks are
+  // against.
+  readonly renamedFrom?: string | undefined
   readonly hunks: readonly PreviewHunk[]
+}
+
+// A work that renamed the previewed file, which main has, to another path of the project.
+export type PreviewRename = {
+  readonly root: string
+  readonly terminalId: string | null
+  readonly branch: string | null
+  readonly to: string
 }
 
 // A file as it would be once its works merge: main's text (null where main has no such file)
@@ -141,6 +152,7 @@ export type WorkPreview = {
   readonly main: string | null
   readonly unavailable?: "secret" | "binary" | "big" | undefined
   readonly works: readonly WorkPreviewWork[]
+  readonly renames: readonly PreviewRename[]
 }
 
 // What closing a worktree comes to: it closed, with the ref its uncommitted work (and commits

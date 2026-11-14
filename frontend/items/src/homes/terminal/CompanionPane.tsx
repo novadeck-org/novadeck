@@ -1,12 +1,10 @@
 import type { WorkspaceTarget } from "@novadeck/core/types"
-import { Shown, useShown } from "@novadeck/toolkit/shown"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { createLucideIcon, Minus, X } from "lucide-react"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
 import { AwakeContext, useWakeful } from "../../awake"
 import { isNew, isSecret, type BarMember, type BehindGroup } from "../../bar/bar"
-import { usePaneTurn } from "../../pane-turns"
 import type { LookContext } from "../../registration"
 import { stackNames } from "../../registry"
 import type { ItemStore } from "../../store/item-store"
@@ -80,16 +78,13 @@ const PaneActions = ({
 )
 
 // What the pane shows, on its sheet, which plays its entry once; awake while the person is
-// at it (see ./awake), each of its own. While it waits its turn (see ../../pane-turns), what
-// it shows isn't laid out, and its stand-in shows instead.
+// at it (see ./awake), each of its own.
 const Sheet = ({
   entry,
-  waiting,
   onPlayed,
   children,
 }: {
   entry: Entry | undefined
-  waiting: boolean
   onPlayed: () => void
   children: ReactNode
 }): React.JSX.Element => {
@@ -98,7 +93,6 @@ const Sheet = ({
     <div
       className="pane-sheet"
       data-entry={entry}
-      data-waiting={waiting || undefined}
       {...on}
       onAnimationEnd={(event) => {
         if (event.target === event.currentTarget) onPlayed()
@@ -114,25 +108,6 @@ const Sheet = ({
       }}
     >
       <AwakeContext value={awake}>{children}</AwakeContext>
-    </div>
-  )
-}
-
-// What stands in for what the pane shows until its turn: its icon and name, as its tab has.
-const StandIn = ({
-  member,
-  plans,
-}: {
-  member: BarMember
-  plans: LookContext["plans"]
-}): React.JSX.Element => {
-  const { icon: Icon, name } = memberLook(member, { plans })
-  return (
-    // A progress bar of no value, as something loading: no live region, which would speak
-    // up for each pane a pan brings back.
-    <div className="pane-stand-in" role="progressbar" aria-label={`Opening ${name}`}>
-      <Icon size={20} strokeWidth={1.5} aria-hidden="true" />
-      <span className="pane-stand-in-name">{name}</span>
     </div>
   )
 }
@@ -378,7 +353,7 @@ type Entry = "forward" | "arrive" | undefined
 
 // What the pane last showed, and what was behind it, to tell how what it shows now came:
 // `how` it came to the top, and what it `tucked` behind it, as what it showed before.
-type LastShown = {
+type Shown = {
   readonly key: string | undefined
   readonly behind: string
   // The tabs it was one of.
@@ -409,7 +384,6 @@ export const CompanionPane = ({
   onHide,
   onClose,
   onRaise,
-  first = false,
 }: {
   member: BarMember | undefined
   // The pane is going: what it shows as it fades plays no entry of its own.
@@ -437,20 +411,12 @@ export const CompanionPane = ({
   onClose: (member: BarMember) => void
   // Brings what's behind, or another tab, to the top.
   onRaise: (member: BarMember) => void
-  // Its terminal is the selected one: its pane takes its turn ahead of the others.
-  first?: boolean
 }): React.JSX.Element => {
-  // Its turn, each time it comes into sight; picking another tab while it's in sight
-  // waits for none.
-  const turn = usePaneTurn(first, member !== undefined && !leaving)
-  // What it shows is shown once laid out: not while it stands in, as messages aren't
-  // seen and a page doesn't wake behind the stand-in.
-  const inSight = useShown()
   // A new top comes forward when it was behind, and over what was shown when it's new;
   // another tab of the same icon just shows.
   const behindKeys = behind.map((each) => each.front.key).join("\n")
   const tabKeys = tabs.map((each) => each.key).join("\n")
-  const [entry, setEntry] = useState<LastShown>({
+  const [entry, setEntry] = useState<Shown>({
     key: member?.key,
     behind: behindKeys,
     tabs: tabKeys,
@@ -620,25 +586,15 @@ export const CompanionPane = ({
           )
         ) : (
           // Played once: a hidden terminal shown again doesn't play it again.
-          <Sheet
-            key={member.key}
-            entry={leaving ? undefined : entry.how}
-            waiting={turn.waiting}
-            onPlayed={played}
-          >
-            {turn.built && (
-              <Shown value={inSight && !turn.waiting}>
-                {member.kind === "item" && member.placed ? (
-                  <div className="placed-tab">
-                    <p className="placed-from">From {originOf(member) ?? "another terminal"}</p>
-                    {tab}
-                  </div>
-                ) : (
-                  tab
-                )}
-              </Shown>
+          <Sheet key={member.key} entry={leaving ? undefined : entry.how} onPlayed={played}>
+            {member.kind === "item" && member.placed ? (
+              <div className="placed-tab">
+                <p className="placed-from">From {originOf(member) ?? "another terminal"}</p>
+                {tab}
+              </div>
+            ) : (
+              tab
             )}
-            {turn.waiting && <StandIn member={member} plans={plans} />}
           </Sheet>
         )}
       </section>

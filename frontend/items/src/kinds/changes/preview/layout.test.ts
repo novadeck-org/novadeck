@@ -239,3 +239,33 @@ describe("changes at the same line", () => {
     expect(order).toEqual(["crow", "moth"])
   })
 })
+
+describe("a file an agent renamed to this path", () => {
+  it("is headed by the rename, before the agent's own changes, even with none", () => {
+    const moth = { ...agent("moth", 1, [hunk(3, 1, ["three"])]), renamedFrom: "src/old.ts" }
+    const crow = { ...agent("crow", 2, []), renamedFrom: "src/old.ts" }
+    const found = blocks(layoutPreview(main, [moth, crow], nobody).pieces)
+    expect(
+      found.map((block) => [block.agent?.key, block.renamed ?? null, block.rows.length]),
+    ).toEqual([
+      ["moth", "src/old.ts", 0],
+      ["crow", "src/old.ts", 0],
+      ["moth", null, 1],
+    ])
+  })
+})
+
+describe("a file added by two agents", () => {
+  it("is a whole-file clash, the last writer's lines shown, whatever main lacks", () => {
+    const moth = agent("moth", 1, [hunk(1, 0, ["moth 1", "moth 2"])])
+    const crow = agent("crow", 2, [hunk(1, 0, ["crow 1"])])
+    const layout = layoutPreview(null, [moth, crow], nobody)
+    const [only] = blocks(layout.pieces)
+    expect(only!.clash?.members.map((each) => each.key)).toEqual(["moth", "crow"])
+    expect(only!.agent?.key).toBe("crow")
+    expect(only!.rows.map((row) => ("t" in row ? row.t : [row.kind, row.n, row.text]))).toEqual([
+      ["add", null, "crow 1"],
+    ])
+    expect(layout.added).toBe(1)
+  })
+})

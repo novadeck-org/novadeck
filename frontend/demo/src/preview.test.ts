@@ -1,5 +1,12 @@
 import { plainDemo } from "./index"
-import { createDemoPreview, previewMain, previewPath } from "./preview"
+import {
+  addedPath,
+  createDemoPreview,
+  previewMain,
+  previewPath,
+  renamedPath,
+  renamedTo,
+} from "./preview"
 import { demoTerminalId } from "./samples"
 import { context, describe, expect, it } from "./test"
 import { storefrontPlans } from "./work-plans"
@@ -36,8 +43,16 @@ describe("the demo's file previews", () => {
 
   it("previews nothing of any other file or project", async () => {
     const { works } = demo()
-    expect(await works.preview("storefront", "src/App.tsx")).toEqual({ main: null, works: [] })
-    expect(await works.preview("api-service", previewPath)).toEqual({ main: null, works: [] })
+    expect(await works.preview("storefront", "src/App.tsx")).toEqual({
+      main: null,
+      works: [],
+      renames: [],
+    })
+    expect(await works.preview("api-service", previewPath)).toEqual({
+      main: null,
+      works: [],
+      renames: [],
+    })
   })
 
   it("grows an agent's live change by a line with each write, and moves its time on", async () => {
@@ -62,5 +77,41 @@ describe("the demo's file previews", () => {
       works.previewOwl(undefined)
       expect((await read()).works.some((work) => work.terminalId === owl)).toBe(false)
     })
+  })
+
+  it("has moth add OrderSummary.tsx, which main lacks, and crow add it too on request", async () => {
+    const { works } = demo()
+    let found = await works.preview("storefront", addedPath)
+    expect(found.main).toBeNull()
+    expect(found.works.map((work) => [work.terminalId, work.status, work.hunks[0]!.at])).toEqual([
+      [moth, "added", 1],
+    ])
+    works.previewScenario("added", true)
+    found = await works.preview("storefront", addedPath)
+    expect(found.works.map((work) => work.terminalId)).toEqual([moth, crow])
+    works.previewScenario("added", false)
+    expect((await works.preview("storefront", addedPath)).works).toHaveLength(1)
+  })
+
+  it("has crow rename PaymentStep.tsx while moth edits it, as the runner tells it", async () => {
+    const { works } = demo()
+    expect(await works.preview("storefront", renamedPath)).toEqual({
+      main: null,
+      works: [],
+      renames: [],
+    })
+    works.previewScenario("rename", true)
+    const old = await works.preview("storefront", renamedPath)
+    expect(old.works.map((work) => work.terminalId)).toEqual([moth])
+    expect(old.renames).toMatchObject([{ terminalId: crow, to: renamedTo }])
+    const renamed = await works.preview("storefront", renamedTo)
+    expect(renamed.main).toBe(old.main)
+    expect(renamed.works.map((work) => [work.terminalId, work.renamedFrom])).toEqual([
+      [moth, undefined],
+      [crow, renamedPath],
+    ])
+    expect(renamed.renames).toEqual([])
+    works.previewScenario("rename", false)
+    expect((await works.preview("storefront", renamedTo)).works).toEqual([])
   })
 })

@@ -49,7 +49,7 @@ const followed = (
       { itemId: `item-${at}` }
     ),
     close: calls.close ?? (async () => ({ closed: true as const, branchDeleted: false })),
-    preview: calls.preview ?? (async () => ({ main: null, works: [] })),
+    preview: calls.preview ?? (async () => ({ main: null, works: [], renames: [] })),
   })
   const release = works.watch()
   const ids = () =>
@@ -141,7 +141,7 @@ describe("Works, as the runner reports them", () => {
       look: async () => {},
       show: async () => ({ itemId: "x" }),
       close: async () => ({ closed: true as const, branchDeleted: false }),
-      preview: async () => ({ main: null, works: [] }),
+      preview: async () => ({ main: null, works: [], renames: [] }),
     })
     expect(watches).toBe(0)
   })
@@ -174,7 +174,7 @@ describe("reading the works once, as the backend starts", () => {
       look: async () => {},
       show: async () => ({ itemId: "x" }),
       close: async () => ({ closed: true as const, branchDeleted: false }),
-      preview: async () => ({ main: null, works: [] }),
+      preview: async () => ({ main: null, works: [], renames: [] }),
     })
     const state = () => runner.works.state.getSnapshot()
     return { ...runner, stream, state, watches: () => watches }
@@ -291,7 +291,7 @@ describe("looking at and showing a work", () => {
 
   it("asks the runner what a project's file would be once its works merge", async () => {
     const asked: [string, string][] = []
-    const preview = { main: "a\n", works: [] }
+    const preview = { main: "a\n", works: [], renames: [] }
     const { works } = followed({
       preview: async (project, path) => (asked.push([project, path]), preview),
     })

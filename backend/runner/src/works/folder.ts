@@ -55,3 +55,10 @@ export const repoPath = (folder: Folder, file: string): string | undefined => {
   const inside = folder.project === "" ? file : file.slice(folder.project.length + 1)
   return folder.repo === "" ? inside : `${folder.repo}/${inside}`
 }
+
+/** A path from the repository's top as a path from the project's folder, or undefined where it is outside it. */
+export const projectPathOf = (folder: Folder, file: string): string | undefined => {
+  if (folder.repo !== "" && !file.startsWith(`${folder.repo}/`)) return undefined
+  const inside = folder.repo === "" ? file : file.slice(folder.repo.length + 1)
+  return folder.project === "" ? inside : `${folder.project}/${inside}`
+}

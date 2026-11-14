@@ -129,6 +129,59 @@ export const owlSlot = 3
 
 export type OwlChange = "clash" | "stale"
 
+// Two more files of the storefront the previews cover: one Moth adds (and Crow too, when the debug
+// panel has it add the same path), and one Crow renames to another path (when the debug panel has
+// it) while Moth modifies it.
+export const addedPath = "src/checkout/OrderSummary.tsx"
+export const renamedPath = "src/checkout/PaymentStep.tsx"
+export const renamedTo = "src/checkout/PaymentForm.tsx"
+
+const orderMoth = [
+  `import type { CartItem } from "../cart/useCart"`,
+  `import { Price } from "../components/Price"`,
+  ``,
+  `type Props = { items: CartItem[]; total: number }`,
+  ``,
+  `export const OrderSummary = ({ items, total }: Props) => (`,
+  `  <aside className="checkout-summary">`,
+  `    {items.map((item) => (`,
+  `      <div key={item.id}>{item.name} × {item.qty}</div>`,
+  `    ))}`,
+  `    <Price value={total} />`,
+  `  </aside>`,
+  `)`,
+]
+const orderCrow = [
+  `import { Price } from "../components/Price"`,
+  ``,
+  `export const OrderSummary = ({ total }: { total: number }) => (`,
+  `  <p className="checkout-total">Total: <Price value={total} /></p>`,
+  `)`,
+]
+
+const stepMain =
+  [
+    `import type { PaymentDetails } from "../api/payments"`,
+    `import { Button } from "../components/Button"`,
+    ``,
+    `type Props = { onSubmit: (payment: PaymentDetails) => void; error: string | null }`,
+    ``,
+    `export const PaymentStep = ({ onSubmit, error }: Props) => {`,
+    `  const submit = () => onSubmit({ method: "card" })`,
+    `  return (`,
+    `    <div className="payment-step">`,
+    `      {error && <p role="alert">{error}</p>}`,
+    `      <Button onClick={submit}>Pay</Button>`,
+    `    </div>`,
+    `  )`,
+    `}`,
+  ].join("\n") + "\n"
+// Moth edits the old file; Crow's own edit, in the file it renamed it to, is on another line.
+const stepMoth = hunk(10, 1, [`      {error && <p role="alert" className="error">{error}</p>}`])
+const stepCrow = hunk(11, 1, [`      <Button onClick={submit}>Pay now</Button>`])
+
+export type PreviewScenario = "added" | "rename"
+
 export type DemoPreview = {
   // The file as it would be once the works merge: the storefront's, for the works that change it.
   readonly read: (works: readonly Work[], project: string, path: string) => WorkPreview
@@ -136,8 +189,12 @@ export type DemoPreview = {
   readonly wrote: (terminalId: string, at: number) => void
   // The third agent changes the file as given, or no longer.
   readonly owl: (change: OwlChange | undefined, at: number) => void
-  // The terminal the third agent works in.
+  // Crow adds the file Moth adds too, or renames the file Moth modifies, or no longer, at `at`.
+  readonly scenario: (which: PreviewScenario, on: boolean, at: number) => void
+  // The terminals the third agent, Moth and Crow work in.
   readonly owlTerminal: string
+  readonly mothTerminal: string
+  readonly crowTerminal: string
 }
 
 export const createDemoPreview = (now: number): DemoPreview => {
@@ -146,7 +203,10 @@ export const createDemoPreview = (now: number): DemoPreview => {
   const grown = new Map<string, number>()
   const changedAt = new Map(scripts.map((script) => [terminalOf(script), now - script.agoMs]))
   let owl: { change: OwlChange; at: number } | undefined
+  const scenarios = new Map<PreviewScenario, number>()
   const owlTerminal = demoTerminalId(session, owlSlot)
+  const mothTerminal = terminalOf(moth)
+  const crowTerminal = terminalOf(crow)
   const hunksOf = (script: Script): readonly PreviewHunk[] => {
     const extra = script.pool.slice(
       0,
@@ -157,15 +217,25 @@ export const createDemoPreview = (now: number): DemoPreview => {
   }
   return {
     owlTerminal,
+    mothTerminal,
+    crowTerminal,
     read: (works, project, path) => {
-      if (project !== projectId || path !== previewPath) return { main: null, works: [] }
+      const empty: WorkPreview = { main: null, works: [], renames: [] }
+      if (project !== projectId) return empty
       const found: WorkPreviewWork[] = []
-      const add = (terminalId: string, hunks: readonly PreviewHunk[], at: number): void => {
+      // A work of the terminal that lists `listed`, changing `path` as given.
+      const add = (
+        terminalId: string,
+        listed: string,
+        hunks: readonly PreviewHunk[],
+        at: number,
+        extra: Partial<WorkPreviewWork> = {},
+      ): { root: string; branch: string | null } | undefined => {
         const work = works.find(
           (each) =>
             each.projectId === projectId &&
             each.terminalId === terminalId &&
-            each.files.some((file) => file.path === path),
+            each.files.some((file) => file.path === listed),
         )
         if (work)
           found.push({
@@ -175,12 +245,46 @@ export const createDemoPreview = (now: number): DemoPreview => {
             status: "modified",
             changedAt: at,
             hunks,
+            ...extra,
           })
+        return work
       }
-      for (const script of scripts)
-        add(terminalOf(script), hunksOf(script), changedAt.get(terminalOf(script))!)
-      if (owl) add(owlTerminal, [owl.change === "clash" ? owlClash : owlStale], owl.at)
-      return { main: previewMain, works: found }
+      if (path === previewPath) {
+        for (const script of scripts)
+          add(terminalOf(script), path, hunksOf(script), changedAt.get(terminalOf(script))!)
+        if (owl) add(owlTerminal, path, [owl.change === "clash" ? owlClash : owlStale], owl.at)
+        return { main: previewMain, works: found, renames: [] }
+      }
+      if (path === addedPath) {
+        add(mothTerminal, path, [hunk(1, 0, orderMoth)], now - 3 * minute, { status: "added" })
+        const crowAt = scenarios.get("added")
+        if (crowAt !== undefined)
+          add(crowTerminal, path, [hunk(1, 0, orderCrow)], crowAt, { status: "added" })
+        return { main: null, works: found, renames: [] }
+      }
+      const renameAt = scenarios.get("rename")
+      if (renameAt === undefined || (path !== renamedPath && path !== renamedTo)) return empty
+      add(mothTerminal, renamedPath, [stepMoth], now - 3 * minute)
+      if (path === renamedTo)
+        add(crowTerminal, renamedTo, [stepCrow], renameAt, { renamedFrom: renamedPath })
+      const renamer = works.find(
+        (each) => each.projectId === projectId && each.terminalId === crowTerminal,
+      )
+      return {
+        main: stepMain,
+        works: found,
+        renames:
+          path === renamedPath && renamer
+            ? [
+                {
+                  root: renamer.root,
+                  terminalId: crowTerminal,
+                  branch: renamer.branch,
+                  to: renamedTo,
+                },
+              ]
+            : [],
+      }
     },
     wrote: (terminalId, at) => {
       if (!changedAt.has(terminalId)) return
@@ -189,6 +293,10 @@ export const createDemoPreview = (now: number): DemoPreview => {
     },
     owl: (change, at) => {
       owl = change === undefined ? undefined : { change, at }
+    },
+    scenario: (which, on, at) => {
+      if (on) scenarios.set(which, at)
+      else scenarios.delete(which)
     },
   }
 }

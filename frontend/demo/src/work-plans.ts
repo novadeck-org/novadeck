@@ -21,6 +21,7 @@ export const storefrontPlans: readonly WorkPlan[] = [
         status: "added",
         conflict: true,
       }),
+      file("src/checkout/OrderSummary.tsx", 14, 0, { status: "added" }),
     ],
   },
   {

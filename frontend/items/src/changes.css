@@ -646,3 +646,22 @@ button.changes-fold:hover {
   margin: 0 2px 0 4px;
   align-self: center;
 }
+/* A neutral note at the top of a file an agent renamed away: the pane's clip, in the quiet
+   colours, its Open a button of its own. */
+.changes-clip.preview-note {
+  height: auto;
+  min-height: 28px;
+  border-style: solid;
+  color: var(--color-ink);
+  text-align: left;
+}
+.changes-clip.preview-note code {
+  font-family: var(--font-mono);
+}
+.changes-clip.preview-note .changes-clip-show {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+}

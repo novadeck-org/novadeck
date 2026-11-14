@@ -3,7 +3,7 @@ import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../../../test"
-import { FilePreview } from "./FilePreview"
+import { FilePreview, type Rename } from "./FilePreview"
 import type { Agent } from "./layout"
 
 const unmounts: (() => void)[] = []
@@ -26,14 +26,21 @@ const shown = async (
   agents: readonly Agent[],
   lit: readonly string[] = [],
   writing: readonly string[] = [],
+  extra: {
+    renames?: readonly Rename[]
+    onOpen?: (path: string) => void
+    main?: string | null
+  } = {},
 ) => {
   const page = render(
     createElement(FilePreview, {
       path: "src/a.ts",
-      main,
+      main: extra.main === undefined ? main : extra.main,
       agents,
       lit: new Set(lit),
       writing: new Set(writing),
+      renames: extra.renames ?? [],
+      onOpen: extra.onOpen ?? (() => {}),
     }),
   )
   unmounts.push(page.unmount)
@@ -128,5 +135,40 @@ describe("a file's preview", () => {
     expect(other.querySelector("[data-dim]")).not.toBeNull()
     expect(texts(other)).toContain("crow's three")
     expect(root.querySelector(".diff-row .source-cursor")).not.toBeNull()
+  })
+
+  context("with a file renamed away or added", () => {
+    it("says who renames this file and where to, and opens that path from its Open", async () => {
+      const opened: string[] = []
+      const root = await shown([moth], [], [], {
+        renames: [{ label: "@crow", to: "src/b.ts" }],
+        onOpen: (path) => opened.push(path),
+      })
+      const note = root.querySelector(".preview-note")!
+      expect(note.textContent).toBe("@crowrenames this file to src/b.tsOpen")
+      act(() => note.querySelector("button")!.click())
+      expect(opened).toEqual(["src/b.ts"])
+    })
+
+    it("heads a file renamed to this path by where it was renamed from", async () => {
+      const renamer = { ...agent("crow", 2, []), renamedFrom: "src/a-old.ts" }
+      const root = await shown([renamer])
+      expect(root.querySelector(".changes-hunk-head")?.textContent).toContain(
+        "@crow · renamed from src/a-old.ts",
+      )
+    })
+
+    it("draws a file main lacks, added by an agent, as added lines under its head", async () => {
+      const root = await shown(
+        [agent("moth", 1, [{ at: 1, removed: 0, lines: ["one", "two"], applies: true }])],
+        [],
+        [],
+        {
+          main: null,
+        },
+      )
+      expect(texts(root)).toEqual(["one", "two"])
+      expect(root.querySelectorAll('.diff-row[data-kind="add"]')).toHaveLength(2)
+    })
   })
 })

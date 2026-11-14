@@ -12,7 +12,16 @@ import type {
 } from "@novadeck/core/works"
 
 import type { DemoTurns } from "./agents/turns"
-import { createDemoPreview, previewPath, type DemoPreview, type OwlChange } from "./preview"
+import {
+  addedPath,
+  createDemoPreview,
+  previewPath,
+  renamedPath,
+  renamedTo,
+  type DemoPreview,
+  type OwlChange,
+  type PreviewScenario,
+} from "./preview"
 import { terminalOfHandle } from "./source"
 
 // The demo's Changes: each tracked worktree's work against main, from fixtures planned per demo
@@ -310,10 +319,19 @@ export type DemoWorksControl = {
   readonly ownerClosed: (root: string) => void
   // The work of the terminal changes `path` (as it did when `at`): added to its files where
   // it had none, else its time moved on, as a runner's does at each new write.
-  readonly touchFile: (terminalId: string, path: string, at: number) => void
+  readonly touchFile: (
+    terminalId: string,
+    path: string,
+    at: number,
+    extra?: Partial<WorkFile>,
+  ) => void
   // The storefront's third agent changes src/checkout/Checkout.tsx, as the file preview shows
   // it, in a clash with the others or in lines main has rewritten since; or no longer.
   readonly previewOwl: (change: OwlChange | undefined) => void
+  // Crow adds src/checkout/OrderSummary.tsx too (which Moth adds), or renames
+  // src/checkout/PaymentStep.tsx to src/checkout/PaymentForm.tsx (which Moth modifies), or no
+  // longer.
+  readonly previewScenario: (which: PreviewScenario, on: boolean) => void
   // The terminal's worktree differs from nothing but has `count` commits main lacks, as one
   // squash-merged does.
   readonly commitsMainLacks: (at: Placed, count: number) => void
@@ -410,7 +428,12 @@ export const createDemoWorks = (
     made.update((count) => count + 1)
     return fresh
   }
-  const touchFile = (terminalId: string, path: string, at: number): void => {
+  const touchFile = (
+    terminalId: string,
+    path: string,
+    at: number,
+    extra: Partial<WorkFile> = {},
+  ): void => {
     const own = ownedBy(terminalId)
     if (!own) return
     const file: WorkFile = {
@@ -422,6 +445,7 @@ export const createDemoWorks = (
       unreadAdded: 1,
       unreadRemoved: 1,
       conflict: false,
+      ...extra,
     }
     change(own.root, (work) =>
       summed(
@@ -449,8 +473,33 @@ export const createDemoWorks = (
     preview: async (projectId, path): Promise<WorkPreview> =>
       preview
         ? preview.read(state.getSnapshot().works, projectId, path)
-        : { main: null, works: [] },
+        : { main: null, works: [], renames: [] },
     touchFile,
+    previewScenario: (which, on) => {
+      if (!preview) return
+      const at = now()
+      preview.scenario(which, on, at)
+      const files: [string, string, Partial<WorkFile>][] =
+        which === "added"
+          ? [[preview.crowTerminal, addedPath, { status: "added" }]]
+          : [
+              [preview.mothTerminal, renamedPath, {}],
+              [preview.crowTerminal, renamedTo, { status: "renamed", from: renamedPath }],
+            ]
+      for (const [terminalId, path, extra] of files) {
+        if (on) touchFile(terminalId, path, at, extra)
+        else {
+          const own = ownedBy(terminalId)
+          if (own)
+            change(own.root, (work) =>
+              summed(
+                work,
+                work.files.filter((file) => file.path !== path),
+              ),
+            )
+        }
+      }
+    },
     previewOwl: (kind) => {
       if (!preview) return
       const at = now()

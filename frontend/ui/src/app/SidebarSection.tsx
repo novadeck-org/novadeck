@@ -18,7 +18,15 @@ import { useStoreSelector } from "./controller/useStoreSelector"
 import { useMoving, useTabsAway } from "./move-to"
 import { historyShown, sourceShown } from "./routing"
 import { currentState, currentTarget, sameItems, sameTarget } from "./selectors"
-import { noSource, noWorks, ownersOf, sameOwners, sameWorks } from "./source-feed"
+import {
+  copyOf,
+  noSource,
+  noWorks,
+  ownersOf,
+  previewFiles,
+  sameOwners,
+  sameWorks,
+} from "./source-feed"
 import { useReorderTiles } from "./team-fold"
 import { useChangesShown } from "./use-changes-shown"
 import { useSessionMarks } from "./useSessionMarks"
@@ -47,15 +55,6 @@ const always = (): (() => void) => () => {}
 
 const sameRows = (a: readonly ClosedTerminal[], b: readonly ClosedTerminal[]): boolean =>
   a.length === b.length && a.every((row, index) => Object.is(row, b[index]))
-
-// Whether a work of the project changes the file at `path`, from the project's folder.
-const touchedBy = (works: readonly Work[], projectId: string, path: string): boolean =>
-  works.some(
-    ({ projectId: own, folder, files }) =>
-      own === projectId &&
-      folder !== undefined &&
-      files.some((file) => projectPath(folder, file.path) === path),
-  )
 
 // The sidebar wired to the workspace: terminal tabs and workspace sessions.
 export const SidebarSection = memo((): React.JSX.Element => {
@@ -138,7 +137,8 @@ export const SidebarSection = memo((): React.JSX.Element => {
   const onOpenFile = useCallback(
     (path: string) =>
       commands.openSourceFile(path, {
-        preview: worksFeed !== undefined && touchedBy(allWorks, projectId, path),
+        preview: worksFeed !== undefined && previewFiles(allWorks, projectId, path).length > 0,
+        copy: copyOf(allWorks, projectId, path),
       }),
     [commands, worksFeed, allWorks, projectId],
   )
@@ -260,9 +260,14 @@ export const SidebarSection = memo((): React.JSX.Element => {
     (work: Work, path: string): void => {
       const inProject = inOpenProject(work, path)
       if (inProject !== undefined)
-        commands.openSourceFile(inProject, { preview: true }).catch(() => {})
+        commands
+          .openSourceFile(inProject, {
+            preview: true,
+            copy: copyOf(allWorks, projectId, inProject),
+          })
+          .catch(() => {})
     },
-    [commands, inOpenProject],
+    [commands, inOpenProject, allWorks, projectId],
   )
   const changes = useMemo(
     () =>

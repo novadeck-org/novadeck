@@ -54,7 +54,7 @@ describe("The Changes panel", () => {
         "Checkout review, agent/checkout-review, in storefront, 1 file changed, 6 lines added, 2 removed",
         "Tests, agent/tests, in docs-site, 1 file changed, 22 lines added, 9 removed",
         "Checkout implementation, agent/checkout-implementation, in api-service, 2 files changed, 92 lines added, 11 removed",
-        "Checkout implementation, agent/checkout-implementation, in storefront, 4 files changed, 310 lines added, 56 removed, conflicts with main, Tests",
+        "Checkout implementation, agent/checkout-implementation, in storefront, 5 files changed, 324 lines added, 56 removed, conflicts with main, Tests",
         "Tests, agent/tests, in storefront, 2 files changed, 85 lines added, 18 removed, conflicts with Checkout implementation",
         "Tests, agent/tests, in api-service, 1 file changed, 47 lines added, 5 removed",
         "Build, agent/build-cache, in storefront, 0 files changed",

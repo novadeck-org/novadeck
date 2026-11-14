@@ -251,11 +251,15 @@ describe("Works", () => {
       works: {
         preview: api.works.preview.handler(({ input }) => {
           asked.push(input)
-          return { main: "a\n", works: [] }
+          return { main: "a\n", works: [], renames: [] }
         }),
       },
     })
-    expect(await runner.works.preview(projectId, "src/a.ts")).toEqual({ main: "a\n", works: [] })
+    expect(await runner.works.preview(projectId, "src/a.ts")).toEqual({
+      main: "a\n",
+      works: [],
+      renames: [],
+    })
     expect(asked).toEqual([{ projectId, path: "src/a.ts" }])
   })
 

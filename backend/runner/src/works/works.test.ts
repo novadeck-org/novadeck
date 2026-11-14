@@ -1495,7 +1495,91 @@ describe.skipIf(!hasGit)("a file's preview", { timeout: 60_000 }, () => {
       main: null,
       unavailable: "big",
       works: [],
+      renames: [],
     })
+  })
+
+  it("tells a file two works add as two whole-file insertions at its first line", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const first = fixture.worktree("first")
+    const second = fixture.worktree("second")
+    first.write("new.txt", lines(1, 2))
+    second.write("new.txt", lines(1, 3))
+    const { works } = open(
+      () => [
+        { terminalId: terminal(1), root: first.root },
+        { terminalId: terminal(2), root: second.root },
+      ],
+      { projectFolder: () => main.root },
+    )
+    resources.defer(() => works.close())
+    const preview = await works.preview(project, "new.txt")
+    expect(preview.main).toBeNull()
+    expect(preview.works.map((each) => each.hunks)).toEqual([
+      [{ at: 1, removed: 0, lines: ["line 1", "line 2"], applies: true }],
+      [{ at: 1, removed: 0, lines: ["line 1", "line 3"], applies: true }],
+    ])
+  })
+
+  it("follows a rename: the new path is main's old file with the renamer's edits and others' changes to the old one", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const renamer = fixture.worktree("renamer")
+    const editor = fixture.worktree("editor")
+    const mover = fixture.worktree("mover")
+    renamer.git("mv", "a.txt", "c.txt")
+    renamer.write("c.txt", ten.replace("line 9\n", "nine\n"))
+    editor.write("a.txt", ten.replace("line 3\n", "three\n"))
+    mover.git("mv", "a.txt", "d.txt")
+    const { works } = open(
+      () => [
+        { terminalId: terminal(1), root: renamer.root },
+        { terminalId: terminal(2), root: editor.root },
+        { terminalId: terminal(3), root: mover.root },
+      ],
+      { projectFolder: () => main.root },
+    )
+    resources.defer(() => works.close())
+    // The new path: main lacks it, so main's old file stands for it.
+    const moved = await works.preview(project, "c.txt")
+    expect(moved.main).toBe(ten)
+    const by = new Map(moved.works.map((each) => [each.terminalId, each]))
+    expect(by.get(terminal(1))).toMatchObject({
+      renamedFrom: "a.txt",
+      hunks: [{ at: 9, removed: 1, lines: ["nine"], applies: true }],
+    })
+    expect(by.get(terminal(2))).toMatchObject({
+      hunks: [{ at: 3, removed: 1, lines: ["three"], applies: true }],
+    })
+    expect(by.has(terminal(3))).toBe(false)
+    expect(moved.renames).toEqual([])
+    // The old path: main has it; the works that renamed it are told, one each, with no hunks.
+    const old = await works.preview(project, "a.txt")
+    expect(old.main).toBe(ten)
+    expect(old.works.map((each) => each.terminalId)).toEqual([terminal(2)])
+    expect(old.renames.map((each) => [each.terminalId, each.to]).toSorted()).toEqual(
+      [
+        [terminal(1), "c.txt"],
+        [terminal(3), "d.txt"],
+      ].toSorted(),
+    )
+  })
+
+  it("shows a pure rename as a work with no hunks", async ({ fixture, resources }) => {
+    const { main } = fixture
+    const renamer = fixture.worktree("renamer")
+    renamer.git("mv", "a.txt", "c.txt")
+    const { works } = open(() => [{ terminalId: terminal(1), root: renamer.root }], {
+      projectFolder: () => main.root,
+    })
+    resources.defer(() => works.close())
+    const preview = await works.preview(project, "c.txt")
+    expect(preview.works).toMatchObject([{ renamedFrom: "a.txt", hunks: [] }])
   })
 
   it("reads nothing of a file that may hold secrets or is binary, nor of one no work changes", async ({
@@ -1516,9 +1600,10 @@ describe.skipIf(!hasGit)("a file's preview", { timeout: 60_000 }, () => {
       main: null,
       unavailable: "secret",
       works: [],
+      renames: [],
     })
     expect(await works.preview(project, "blob.bin")).toMatchObject({ unavailable: "binary" })
-    expect(await works.preview(project, "b.txt")).toEqual({ main: null, works: [] })
+    expect(await works.preview(project, "b.txt")).toEqual({ main: null, works: [], renames: [] })
   })
 })
 
