@@ -1,0 +1,38 @@
+# permission: exec-approve, exec-approve-prefix, exec-approve-prefix@0.160.1, exec-approve-session-key-not-offered, exec-approve-session-key-not-offered@0.160.1, exec-approve@0.160.1, exec-cancel, exec-cancel@0.160.1, exec-decline-key-not-offered, exec-decline-key-not-offered@0.160.1, hook-allow-with-updatedPermissions, hook-allow-with-updatedPermissions@0.160.1, hook-no-decision, hook-no-decision@0.160.1, hook-timeout, hook-timeout@0.160.1
+  Yes, proceed → yes
+  Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` → standing, lines "Yes, and don't ask again" / "for commands that start with `echo approved > probe-out.txt`"
+  No, and tell Codex what to do differently [prompt] → words
+
+# permission: exec-long-command, exec-long-command@0.160.1
+  Yes, proceed → yes
+  No, and tell Codex what to do differently [prompt] → words
+
+# permission: exec-two-queued, exec-two-queued@0.160.1
+  Yes, proceed → yes
+  Yes, and don't ask again for commands that start with `echo first > probe-first.txt` → standing, lines "Yes, and don't ask again" / "for commands that start with `echo first > probe-first.txt`"
+  No, and tell Codex what to do differently [prompt] → words
+
+# permission: exec-two-queued, exec-two-queued@0.160.1
+  Yes, proceed → yes
+  Yes, and don't ask again for commands that start with `echo second > probe-second.txt` → standing, lines "Yes, and don't ask again" / "for commands that start with `echo second > probe-second.txt`"
+  No, and tell Codex what to do differently [prompt] → words
+
+# permission: mcp-tool-approval, mcp-tool-approval-esc, mcp-tool-approval-esc@0.160.1, mcp-tool-approval@0.160.1
+  Allow → yes
+  Cancel → no
+
+# permission: patch-approve, patch-approve-session, patch-approve-session@0.160.1, patch-approve@0.160.1, patch-cancel, patch-cancel@0.160.1
+  Yes, proceed → yes
+  Yes, and don't ask again for these files → standing, lines "Yes, and don't ask again" / "for these files"
+  No, and tell Codex what to do differently [prompt] → words
+
+# permission: request-permissions, request-permissions@0.160.1
+  Yes, grant these permissions for this turn → yes
+  Yes, grant for this turn with strict auto review → other
+  Yes, grant these permissions for this session → standing
+  No, continue without permissions → no
+
+# plan: plan-prompt, plan-prompt-digit-3, plan-prompt-digit-3@0.160.1, plan-prompt@0.160.1
+  Yes, implement this plan → yes
+  Yes, clear context and implement → other
+  No, stay in Plan mode [prompt] → words

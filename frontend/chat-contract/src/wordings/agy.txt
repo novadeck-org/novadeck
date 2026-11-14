@@ -1,0 +1,18 @@
+# permission: command, command@1.3.0, command@1.4.3
+  Yes, run command → yes
+  Yes, and always allow in this conversation for commands that start with 'echo' → standing
+  Yes, and always allow for commands that start with 'echo' (Persist to settings.json) → standing
+  No, cancel [prompt] → words
+
+# permission: edit@1.4.3, replace_file_content
+  Yes, accept this change → yes
+  No, reject this change [prompt] → words
+
+# permission: write@1.3.0, write@1.4.3, write_to_file
+  Yes, allow creation → yes
+  No, deny creation [prompt] → words
+
+# plan: planWritten@1.3.0, plan_feedback
+  Approve → yes
+  Reject → no
+  Tell it what to change [field] → words
