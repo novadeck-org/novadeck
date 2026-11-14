@@ -86,6 +86,7 @@ const agentStatus = ({
   background,
   waiting,
   shells,
+  wrote,
   lastTurn,
 }: AgentActivity): AgentStatus => ({
   working: state !== "idle",
@@ -103,6 +104,7 @@ const agentStatus = ({
   ...(subagents.length > 0 ? { subagents } : {}),
   ...(waiting ? { waiting } : {}),
   ...(shells ? { shells } : {}),
+  ...(wrote ? { wrote } : {}),
   ...(lastTurn
     ? {
         lastTurn: {
