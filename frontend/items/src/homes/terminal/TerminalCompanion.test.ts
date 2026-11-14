@@ -660,6 +660,19 @@ describe("a terminal's taskbar", () => {
       expect(tabs(container)).toEqual(["hero.png", "about.png *", "held.png"])
     })
 
+    it("steps through the tabs on Ctrl+PageDown from a card behind the pane too", async () => {
+      const { container } = renderTerminal(opening(notes, hero))
+      const card = container.querySelector<HTMLElement>(".pane-stack-sheet")
+      card?.focus()
+      await act(async () =>
+        card?.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "PageDown", ctrlKey: true, bubbles: true }),
+        ),
+      )
+      expect(tabs(container)).toEqual(["hero.png", "about.png *"])
+      expect(document.activeElement).toBe(tab(container, "about.png"))
+    })
+
     it("labels the stack once it's behind with its kind, its count and the one in front", () => {
       const { container } = renderTerminal(opening(about, hero, notes))
       expect(

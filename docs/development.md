@@ -116,10 +116,14 @@ which; on macOS, passkeys saved in iCloud Keychain don't show yet. Each gets an 
 several of a kind (images, files, pages, or plans) stacked under one; only Messages
 never stack. A markdown file the agent shows reads as a document, formatted like a plan
 with its outline, but read-only: it's the agent's file, not a plan to edit or note (the
-demo's Codex has shown `docs/brand-voice.md`). The pane stacks what's open as a desktop
-stacks windows: it shows the last thing opened, by you or by the agent when you asked
-for it, and the rest wait behind it, the nearest two peeking out above it: click one to bring it
-forward. The mark under
+demo's Codex has shown `docs/brand-voice.md`). The pane shows one icon's worth at a time:
+the last thing opened, by you or by the agent when you asked for it, and for a stack the
+rest of that icon's things as tabs under its header, each with its ×, Delete closing the
+tab with focus. The arrow keys, Home and End move along the tabs, and Ctrl+PageDown and
+Ctrl+PageUp step through them from anywhere in the pane; neither opens something that may
+hold secrets until you pick it. Every other icon with something open waits behind it as a
+thin card edge above the pane, as in a file drawer: the one under the pointer lifts to its
+label, and a click brings its icon forward. The mark under
 an icon says whether it's new, showing, open behind, or seen: something new gets a dot,
 quietly, and nothing opens on its own unless you asked for it. Something the agent opens
 for you opens at once only on the terminal you're on, so the view never moves under you:
@@ -131,9 +135,10 @@ opens in its window at once and the toast still tells you. Opening, peeking at, 
 closing or moving it yourself first ends the wait, as does putting it away in Grid, which nothing keeps across a restart. Hover an icon to peek: a
 card per thing behind it, each a preview, its name and the same mark, with no copy. Once
 you've peeked, what was new is seen, without opening it. Click an icon or a card to open
-it on top. Click the showing icon again, or the pane's minimize button, to minimize it,
-uncovering what's behind; press Escape to hide the whole pane, which keeps what's open in
-it for when the pane comes back. Close from the pane's header, a card's corner button or the icon's
+it on top; a stack's icon brings all of it forward, as tabs. Click the showing icon again,
+or the pane's minimize button, to minimize it with the rest of its icon, uncovering what's
+behind; press Escape to hide the whole pane, which keeps what's open in
+it for when the pane comes back. Close from the pane's header, a tab's ×, a card's corner button or the icon's
 right-click, which uncovers what's behind too. Closing a plan or Messages on its own terminal's bar hides it: the
 plan comes back with the agent's next version of it, Messages with the next message,
 last on the bar each time. Closing anything else deletes it, with the window it's in;

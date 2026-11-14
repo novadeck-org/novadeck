@@ -649,6 +649,10 @@ leave Zen to show the requested panel. Zen is temporary and resets on reload.
 | Open preferences                                  | `Cmd+,`            | `Ctrl+,`                         |
 | Navigate the workspace                            | `Shift+Esc`        | `Shift+Esc`                      |
 
+In a terminal's companion pane, `Ctrl+PageDown` and `Ctrl+PageUp` show the next and
+previous of its tabs, and on a tab with focus the arrow keys, `Home` and `End` move along
+them and `Delete` closes it.
+
 The keyboard's home is the selected terminal. A mouse click on the sidebar, a header or
 the view switch leaves typing there, and the shortcuts above work from terminal input.
 `Shift+Esc` leaves the terminal to navigate the workspace, in normal and Zen mode: a

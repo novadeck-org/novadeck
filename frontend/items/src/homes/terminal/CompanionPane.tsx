@@ -132,8 +132,9 @@ const handOffMs = 1000
 // The icons with something open behind the pane's, every one, peeking out above it as the
 // cards of a file drawer do: each further back narrower and fainter, the nearest last. Each
 // lifts under the pointer to say what it holds (a thing's name, or a stack's kind, count and
-// the one in front) and comes forward when clicked. One that was just shown tucks in behind what took its place,
-// so the two read as swapped. Escape hides the pane from here too, as from what it shows.
+// the one in front) and comes forward when clicked. One that was just shown tucks in
+// behind what took its place, so the two read as swapped. Escape hides the pane from here
+// too, as from what it shows, and Ctrl+PageDown and Ctrl+PageUp step through its tabs.
 const BehindStack = ({
   behind,
   tucked,
@@ -141,6 +142,7 @@ const BehindStack = ({
   onRaise,
   onTucked,
   onHide,
+  onStepKey,
 }: {
   // Nearest first.
   behind: readonly BehindGroup[]
@@ -150,6 +152,8 @@ const BehindStack = ({
   // The tuck played: it isn't played again, as when a hidden terminal shows again.
   onTucked: () => void
   onHide: () => void
+  // Steps through the tabs of what the pane shows, as from anywhere in it.
+  onStepKey: (event: React.KeyboardEvent) => void
 }): React.JSX.Element => (
   <div
     className="pane-stack nodrag nopan"
@@ -160,6 +164,7 @@ const BehindStack = ({
         event.stopPropagation()
         onHide()
       }
+      onStepKey(event)
     }}
   >
     {behind
@@ -217,8 +222,9 @@ type TabRowMemory = {
 // The tabs of the icon the pane shows, under its header: each thing of it on the bar, the
 // shown one selected. A click shows one; the arrow keys, Home and End step along them as a
 // tab list's do, showing each, but only move to one that may hold secrets, which Enter
-// shows; Ctrl+PageDown and Ctrl+PageUp step from anywhere in the pane (see `stepTab`); Delete closes the tab with focus, as its × does under the pointer. The row
-// scrolls sideways under the wheel too, keeping the shown tab, × and all, in view.
+// shows; Ctrl+PageDown and Ctrl+PageUp step from anywhere in the pane (see `stepTab`).
+// Delete closes the tab with focus, as its × does under the pointer. The row scrolls
+// sideways under the wheel too, keeping the shown tab, × and all, in view.
 const PaneTabs = ({
   tabs,
   shown,
@@ -491,6 +497,18 @@ export const CompanionPane = ({
     }),
     [],
   )
+  // Ctrl+PageDown and Ctrl+PageUp, from anywhere in the pane, show the next or previous tab,
+  // focus following to it for the next step.
+  const stepKey = (event: React.KeyboardEvent): void => {
+    const by = { PageDown: 1, PageUp: -1 }[event.key] as 1 | -1 | undefined
+    if (!by || !event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return
+    const next = member && stepTab(tabs, member.key, by)
+    if (!next) return
+    event.preventDefault()
+    event.stopPropagation()
+    tabMemory.picked(next.key, true)
+    onRaise(next)
+  }
   const undock = member?.kind === "item" && !member.placed ? () => onUndock(member) : undefined
   const tab = member && (
     <UnderHeader
@@ -539,6 +557,7 @@ export const CompanionPane = ({
           setEntry((current) => (current.tucked ? { ...current, tucked: undefined } : current))
         }
         onHide={onHide}
+        onStepKey={stepKey}
       />
       <section
         ref={section}
@@ -551,16 +570,7 @@ export const CompanionPane = ({
             event.stopPropagation()
             onHide()
           }
-          const by = { PageDown: 1, PageUp: -1 }[event.key] as 1 | -1 | undefined
-          if (by && event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey) {
-            const next = member && stepTab(tabs, member.key, by)
-            if (!next) return
-            event.preventDefault()
-            event.stopPropagation()
-            // Focus follows to its tab, for the next step.
-            tabMemory.picked(next.key, true)
-            onRaise(next)
-          }
+          stepKey(event)
         }}
         // Leaving the plan saves it at once, so an agent told to re-read it finds the edits.
         onBlur={(event) => {

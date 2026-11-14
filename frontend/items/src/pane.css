@@ -210,7 +210,8 @@
   padding-top: 4px;
 }
 .pane-stack-sheet {
-  --_inset: calc(6px + var(--_depth, 0) * 8px);
+  /* Narrower to the fourth back, so a long row keeps each card wide enough to read. */
+  --_inset: calc(6px + min(var(--_depth, 0), 4) * 8px);
   --_fade: max(0.4, 0.9 - var(--_depth, 0) * 0.25);
   position: relative;
   display: flex;
