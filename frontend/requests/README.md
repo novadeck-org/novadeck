@@ -59,7 +59,7 @@ goldens.
 The package's TSX uses Tailwind utilities (`sr-only`, which other folders write too, so it has no
 build guard), and the UI's `styles.css` scans `src` with `@source` (and leaves the tests out).
 `requests.css` is imported by `styles.css` into `layer(components)` right after the chat's
-`chat.css`, the place of the rules it held before. Its classes keep their `chat-` names, and it
+`chat.css`, the place of the rules it held before. Its classes are `request-*`, and it
 reads the chat's private tokens (`--_ink`, `--_pad` and the rest, which `.chat` sets) and draws the
 head's key, the spinner and the error line with the chat's `.chat-key`, `.chat-spin` and
 `.chat-error`: a host that isn't the chat sets those tokens and classes, until the Inbox's adoption

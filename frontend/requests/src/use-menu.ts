@@ -57,7 +57,7 @@ export const useMenu = (count: number): Menu => {
     },
     onPointerMove: (event) => {
       if (event.pointerType !== "mouse" || !(event.target instanceof Element)) return
-      const option = event.target.closest(".chat-option")
+      const option = event.target.closest(".request-option")
       if (!option || !event.currentTarget.contains(option)) return
       const rows = [...event.currentTarget.querySelectorAll<HTMLElement>(`[${rowMark}]`)]
       const index = rows.findIndex((row) => row === option || option.contains(row))
@@ -66,7 +66,7 @@ export const useMenu = (count: number): Menu => {
       const active = document.activeElement
       // Focus goes along from anything in the dialog but a field the person writes in, empty
       // or not: their words would land on a row instead.
-      if (active && option.closest(".chat-dialog")?.contains(active) && !isTyping(active))
+      if (active && option.closest(".request-dialog")?.contains(active) && !isTyping(active))
         row.focus({ preventScroll: true })
       else setCursor(index)
     },

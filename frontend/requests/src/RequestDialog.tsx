@@ -72,7 +72,7 @@ type Controls = {
 
 const Sending = ({ sending }: { readonly sending: boolean }): React.JSX.Element | null =>
   sending ? (
-    <span className="chat-sending" aria-hidden>
+    <span className="request-sending" aria-hidden>
       {" "}
       …
     </span>
@@ -100,13 +100,13 @@ const Row = ({
       type="button"
       {...button}
       {...menu.row(index)}
-      className="chat-option nodrag nopan"
+      className="request-option nodrag nopan"
       data-on={menu.at === index || undefined}
     >
-      <span className="chat-option-number" aria-hidden>
+      <span className="request-option-number" aria-hidden>
         {index + 1}
       </span>
-      <span className="chat-option-words">{children}</span>
+      <span className="request-option-words">{children}</span>
     </button>
   )
 }
@@ -149,19 +149,19 @@ const Choices = ({
     send(choiceAnswer(dialog.id, writing.id, words))
   }
   return (
-    <div className="chat-dialog">
+    <div className="request-dialog">
       {dialog.title && (
-        <p className="chat-dialog-title" id={label}>
+        <p className="request-dialog-title" id={label}>
           {shownControls(dialog.title)}
         </p>
       )}
       {dialog.detail && (
-        <pre className="chat-detail nodrag nopan nowheel" tabIndex={0} aria-label="What it asks">
+        <pre className="request-detail nodrag nopan nowheel" tabIndex={0} aria-label="What it asks">
           {shownControls(dialog.detail)}
         </pre>
       )}
       <div
-        className="chat-options"
+        className="request-options"
         role="group"
         aria-labelledby={dialog.title ? label : undefined}
         aria-label={dialog.title ? undefined : "Answers"}
@@ -189,10 +189,10 @@ const Choices = ({
         ))}
       </div>
       {writing?.text && (
-        <div className="chat-writing">
+        <div className="request-writing">
           <textarea
             ref={field}
-            className="chat-field nodrag nopan"
+            className="request-field nodrag nopan"
             aria-label={writing.label}
             aria-describedby={
               writing.text === "field" ? `${label}-hint ${label}-line` : `${label}-hint`
@@ -225,7 +225,7 @@ const Choices = ({
           )}
           <Hint
             id={`${label}-hint`}
-            className="chat-field-hint"
+            className="request-field-hint"
             text={refusedWords ? promptHint : controlWords ? controlHint : ""}
           />
         </div>
@@ -258,20 +258,20 @@ const QuestionRows = ({
   const menu = useMenu(question.options.length + (question.text ? 1 : 0))
   return (
     <fieldset
-      className="chat-question"
+      className="request-question"
       role={question.multiSelect ? "group" : "radiogroup"}
       aria-labelledby={`${id}-q`}
       onKeyDown={menu.onKeyDown}
       onPointerMove={menu.onPointerMove}
     >
-      <legend id={`${id}-q`} className="chat-question-text">
+      <legend id={`${id}-q`} className="request-question-text">
         {shownControls(question.question)}
       </legend>
       {question.options.map((option, at) => {
         const checked = pick?.options.includes(option.id) ?? false
         const row = menu.row(at)
         return (
-          <label key={option.id} className="chat-option" data-on={menu.at === at || undefined}>
+          <label key={option.id} className="request-option" data-on={menu.at === at || undefined}>
             {/* No `name`: the group is the person's marks, which React keeps, and a named group
                 would answer Tab and the arrows its own way, picking as it goes. */}
             <input
@@ -294,19 +294,19 @@ const QuestionRows = ({
                 else onPick(option.id)
               }}
             />
-            <span className="chat-option-number" aria-hidden>
+            <span className="request-option-number" aria-hidden>
               {at + 1}
             </span>
-            <span className="chat-option-words">
+            <span className="request-option-words">
               {question.multiSelect && (
-                <span className="chat-check" aria-hidden>
-                  [<span className="chat-check-mark">{checked ? "✓" : ""}</span>]{" "}
+                <span className="request-check" aria-hidden>
+                  [<span className="request-check-mark">{checked ? "✓" : ""}</span>]{" "}
                 </span>
               )}
               <span id={`${id}-${at}-l`}>{shownControls(option.label)}</span>
             </span>
             {option.description && (
-              <span className="chat-option-more" id={`${id}-${at}-d`}>
+              <span className="request-option-more" id={`${id}-${at}-d`}>
                 {shownControls(option.description)}
               </span>
             )}
@@ -352,8 +352,8 @@ const OwnWords = ({
   readonly onDone: () => void
 }): React.JSX.Element => (
   <>
-    <label className="chat-option" data-on={on || undefined}>
-      <span className="chat-option-number" aria-hidden>
+    <label className="request-option" data-on={on || undefined}>
+      <span className="request-option-number" aria-hidden>
         {number}
       </span>
       <input
@@ -361,7 +361,7 @@ const OwnWords = ({
         type="text"
         tabIndex={shown ? row.tabIndex : -1}
         maxLength={wordsMax}
-        className="chat-field nodrag nopan"
+        className="request-field nodrag nopan"
         aria-label={`Other: ${question.question}`}
         aria-describedby={`${id}-other-hint`}
         placeholder="Something else…"
@@ -374,7 +374,7 @@ const OwnWords = ({
     </label>
     <Hint
       id={`${id}-other-hint`}
-      className="chat-field-hint"
+      className="request-field-hint"
       text={hasControlCharacters(text) ? controlHint : ""}
     />
   </>
@@ -444,8 +444,8 @@ const Review = ({
   }
   return (
     <>
-      <p className="chat-question-text">Send these answers?</p>
-      <dl className="chat-review">
+      <p className="request-question-text">Send these answers?</p>
+      <dl className="request-review">
         {questions.map((question, index) => {
           const words = answerWords(question, picks[question.id])
           return (
@@ -461,11 +461,11 @@ const Review = ({
       {/* The hint by the words themselves is on a page out of sight. */}
       <Hint
         id={hintId}
-        className="chat-field-hint chat-review-hint"
+        className="request-field-hint request-review-hint"
         text={held ? controlHint : ""}
       />
       <div
-        className="chat-options"
+        className="request-options"
         role="group"
         aria-label="Send the answers"
         onKeyDown={menu.onKeyDown}
@@ -474,23 +474,28 @@ const Review = ({
         <button
           {...row(0)}
           type="submit"
-          className="chat-option nodrag nopan"
+          className="request-option nodrag nopan"
           aria-disabled={!ready || undefined}
           aria-describedby={held ? hintId : undefined}
         >
-          <span className="chat-option-number" aria-hidden>
+          <span className="request-option-number" aria-hidden>
             1
           </span>
-          <span className="chat-option-words">
+          <span className="request-option-words">
             Submit answers
             <Sending sending={sending} />
           </span>
         </button>
-        <button {...row(1)} type="button" className="chat-option nodrag nopan" onClick={onRestart}>
-          <span className="chat-option-number" aria-hidden>
+        <button
+          {...row(1)}
+          type="button"
+          className="request-option nodrag nopan"
+          onClick={onRestart}
+        >
+          <span className="request-option-number" aria-hidden>
             2
           </span>
-          <span className="chat-option-words">Start over</span>
+          <span className="request-option-words">Start over</span>
         </button>
       </div>
     </>
@@ -584,7 +589,7 @@ const Questions = ({
   }
   return (
     <form
-      className="chat-dialog chat-questions"
+      className="request-dialog request-questions"
       aria-label="Answer the questions"
       onKeyDown={turnKeys}
       onKeyDownCapture={(event) => {
@@ -599,13 +604,13 @@ const Questions = ({
         else submit()
       }}
     >
-      <div className="chat-tabs-line">
+      <div className="request-tabs-line">
         {replying ? (
-          <p className="chat-dialog-title">
+          <p className="request-dialog-title">
             The questions are set aside. Your reply in the box below goes to the agent instead.
           </p>
         ) : (
-          <div className="chat-tabs" role="tablist" aria-label="The questions">
+          <div className="request-tabs" role="tablist" aria-label="The questions">
             {[
               ...questions.map((question, index) => ({
                 key: `question:${question.id}`,
@@ -618,7 +623,7 @@ const Questions = ({
                 id={tabId(at)}
                 type="button"
                 role="tab"
-                className="chat-tab nodrag nopan"
+                className="request-tab nodrag nopan"
                 aria-selected={at === page}
                 aria-controls={panelId(at)}
                 tabIndex={at === page ? 0 : -1}
@@ -626,7 +631,7 @@ const Questions = ({
                 onClick={() => setTurned(at)}
               >
                 {at < questions.length && answered(picks, questions[at]!) && (
-                  <span className="chat-tab-done" aria-hidden>
+                  <span className="request-tab-done" aria-hidden>
                     ✓
                   </span>
                 )}
@@ -648,7 +653,7 @@ const Questions = ({
       )}
       {!replying && (
         // Every page in one cell, so the tallest sets the height and turning one moves nothing.
-        <fieldset ref={pages} className="chat-pages" disabled={sending}>
+        <fieldset ref={pages} className="request-pages" disabled={sending}>
           {questions.map((question, index) => {
             const id = `${base}-${index}`
             return (
@@ -656,7 +661,7 @@ const Questions = ({
                 key={question.id}
                 id={panelId(index)}
                 role="tabpanel"
-                className="chat-page"
+                className="request-page"
                 aria-labelledby={tabId(index)}
                 data-page={index}
                 data-shown={index === page || undefined}
@@ -683,7 +688,7 @@ const Questions = ({
           <div
             id={panelId(questions.length)}
             role="tabpanel"
-            className="chat-page"
+            className="request-page"
             aria-labelledby={tabId(questions.length)}
             data-page={questions.length}
             data-shown={page === questions.length || undefined}
@@ -729,7 +734,7 @@ const Picked = ({
   readonly onChange: (value: string) => void
 }): React.JSX.Element => (
   <div
-    className="chat-picks"
+    className="request-picks"
     role="radiogroup"
     aria-labelledby={labelId}
     aria-required={field.required || undefined}
@@ -737,7 +742,7 @@ const Picked = ({
     aria-describedby={described}
   >
     {(field.kind === "boolean" ? ["yes", "no"] : field.choices).map((choice) => (
-      <label key={choice} className="chat-pick" data-on={value === choice || undefined}>
+      <label key={choice} className="request-pick" data-on={value === choice || undefined}>
         <input
           type="radio"
           name={name}
@@ -789,7 +794,7 @@ const Form = ({
   }
   return (
     <form
-      className="chat-dialog chat-form"
+      className="request-dialog request-form"
       aria-label="Fill in the form"
       noValidate
       onSubmit={(event) => {
@@ -797,8 +802,8 @@ const Form = ({
         answer("accept")
       }}
     >
-      {dialog.message && <p className="chat-dialog-title">{dialog.message}</p>}
-      <fieldset className="chat-form-fields" disabled={sending}>
+      {dialog.message && <p className="request-dialog-title">{dialog.message}</p>}
+      <fieldset className="request-form-fields" disabled={sending}>
         {fields.map((field, index) => {
           const id = `${base}-${index}`
           const entry = entryOf(entries, field)
@@ -809,23 +814,23 @@ const Form = ({
               .join(" ") || undefined
           const invalid = !entryValid(entries, field)
           const mark = field.required && (
-            <span aria-hidden className="chat-required">
+            <span aria-hidden className="request-required">
               {" *"}
             </span>
           )
           return (
             <div
               key={field.id}
-              className="chat-form-field"
+              className="request-form-field"
               data-missing={(invalid && (tried || entry.value !== "")) || undefined}
             >
               {field.kind === "choice" || field.kind === "boolean" ? (
-                <span className="chat-form-label" id={`${id}-l`}>
+                <span className="request-form-label" id={`${id}-l`}>
                   {field.label}
                   {mark}
                 </span>
               ) : (
-                <label className="chat-form-label" htmlFor={id}>
+                <label className="request-form-label" htmlFor={id}>
                   {field.label}
                   {mark}
                 </label>
@@ -846,7 +851,7 @@ const Form = ({
                   type={field.kind === "number" ? "number" : "text"}
                   maxLength={field.kind === "text" ? formTextMax : undefined}
                   step={field.kind === "number" ? "any" : undefined}
-                  className="chat-field nodrag nopan"
+                  className="request-field nodrag nopan"
                   placeholder={field.required ? "required" : "optional"}
                   value={entry.value}
                   aria-required={field.required || undefined}
@@ -860,12 +865,12 @@ const Form = ({
               {field.kind === "text" && (
                 <Hint
                   id={hintId}
-                  className="chat-field-hint"
+                  className="request-field-hint"
                   text={hasControlCharacters(entry.value) ? controlHint : ""}
                 />
               )}
               {field.description && (
-                <p className="chat-form-description" id={`${id}-d`}>
+                <p className="request-form-description" id={`${id}-d`}>
                   {field.description}
                 </p>
               )}
@@ -874,7 +879,7 @@ const Form = ({
         })}
       </fieldset>
       <div
-        className="chat-options"
+        className="request-options"
         role="group"
         aria-label="Answer the form"
         onKeyDown={menu.onKeyDown}
@@ -883,14 +888,14 @@ const Form = ({
         <button
           {...menu.row(0)}
           type="submit"
-          className="chat-option nodrag nopan"
+          className="request-option nodrag nopan"
           data-on={menu.at === 0 || undefined}
           aria-disabled={!ready || sending || undefined}
         >
-          <span className="chat-option-number" aria-hidden>
+          <span className="request-option-number" aria-hidden>
             1
           </span>
-          <span className="chat-option-words">
+          <span className="request-option-words">
             Submit
             <Sending sending={sending} />
           </span>
@@ -916,12 +921,12 @@ const Raw = ({
   readonly dialog: Extract<ChatDialog, { type: "raw" }>
   readonly live: Live | undefined
 }): React.JSX.Element => (
-  <div className="chat-dialog">
+  <div className="request-dialog">
     {/* That an answer didn't take is news; why the chat can't read a dialog isn't, with the
         dialog's own rows right there. */}
     <p
       className={
-        dialog.reason === "failed" || !live ? "chat-raw-reason" : "chat-raw-reason sr-only"
+        dialog.reason === "failed" || !live ? "request-raw-reason" : "request-raw-reason sr-only"
       }
       data-failed={dialog.reason === "failed" || undefined}
     >
@@ -930,7 +935,7 @@ const Raw = ({
     {live ? (
       live.rows
     ) : (
-      <pre className="chat-raw nodrag nopan nowheel" tabIndex={0} aria-label="The dialog's text">
+      <pre className="request-raw nodrag nopan nowheel" tabIndex={0} aria-label="The dialog's text">
         {shownControls(dialog.text)}
       </pre>
     )}

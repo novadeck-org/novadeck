@@ -37,7 +37,7 @@
    in the gutter at their answer through the Inbox, where the app gives one, with data-hue="you"
    on its row (what they type at the prompt keeps the mark);
    `.chat-record` with data-kind="compaction" | "gap" for a line of the record no one said;
-   a request's card (`.chat-request`) and its hooks are @novadeck/requests' (requests.css);
+   a request's card (`.request-card`) and its hooks are @novadeck/requests' (requests.css);
    data-working or data-ended on the status; data-terminal on an error settled in the terminal; aria-disabled
    on Stop, :disabled on Send; data-mode on the prompt, `.chat-reply` above it while it replies
    to the agent's question or holds words whose question went, `.chat-box` with data-refused
@@ -195,7 +195,7 @@
   :is(
     .chat-thread,
     .chat-hold-column,
-    .chat-request,
+    .request-card,
     .chat-lost,
     .chat-requests,
     .chat-composer,
@@ -211,7 +211,7 @@
 .chat-ring > .chat-message > :not(.chat-fact, .chat-agent-face, .chat-person-face) {
   max-width: var(--_measure);
 }
-.chat-request > :not(.chat-request-head) {
+.request-card > :not(.request-head) {
   max-width: calc(var(--_inset) + var(--_measure) + var(--_pad));
 }
 /* Lines of work keep the words' width too, and stop short of their fact at the row's right edge
@@ -1204,10 +1204,10 @@ button.chat-hold-line:focus-visible::before {
 }
 /* The chat's own sizing of its requests (their rules are @novadeck/requests' requests.css), in a
    small window, and the place a line over the prompt keeps while it says nothing. */
-.chat[data-compact] .chat-detail {
+.chat[data-compact] .request-detail {
   max-height: calc(4 * var(--_lh));
 }
-.chat[data-compact] .chat-form-field {
+.chat[data-compact] .request-form-field {
   grid-template-columns: 13ch minmax(0, 1fr);
 }
 .chat-error:empty {

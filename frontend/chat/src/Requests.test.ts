@@ -132,7 +132,7 @@ describe("a request's card", () => {
     click(button(container, "Yes"))
     expect(onAnswer).toHaveBeenCalledWith("r1", { type: "choice", dialog: "d1", option: "1" })
     expect(button(container, "Yes").disabled).toBe(true)
-    expect(container.querySelector(".chat-sending")).not.toBeNull()
+    expect(container.querySelector(".request-sending")).not.toBeNull()
     expect(container.querySelector("article")?.getAttribute("aria-busy")).toBe("true")
     finishers.forEach((finish) => finish())
     await settle()
@@ -181,7 +181,7 @@ describe("a request's card", () => {
   it("swaps its controls for the dialog's text when the dialog turns raw", () => {
     const { container, rerender } = show(choices, async () => {})
     rerender({ type: "raw", text: "Allow this?\n1. Yes", reason: "failed" })
-    expect(container.querySelector(".chat-options")).toBeNull()
+    expect(container.querySelector(".request-options")).toBeNull()
     expect(container.querySelector("pre")?.textContent).toBe("Allow this?\n1. Yes")
     expect(container.textContent).toContain("That answer didn't take.")
     expect(terminalKey(container)).not.toBeNull()
@@ -199,10 +199,10 @@ describe("a request's card", () => {
       },
       async () => {},
     )
-    expect(container.querySelector(".chat-option-words")?.textContent).toBe(
+    expect(container.querySelector(".request-option-words")?.textContent).toBe(
       "Yes, and allow ⟨U+202E⟩echo",
     )
-    expect(container.querySelector(".chat-dialog-title")?.textContent).toBe(
+    expect(container.querySelector(".request-dialog-title")?.textContent).toBe(
       "Run ⟨U+2067⟩this⟨U+2069⟩?",
     )
     expect(container.querySelector("pre")?.textContent).toBe("echo hi ⟨U+202E⟩~ fr- mr⟨U+202C⟩; ls")
@@ -212,8 +212,8 @@ describe("a request's card", () => {
 
   it("shows an answered request without its controls", () => {
     const { container } = show(choices, async () => {}, true)
-    expect(container.querySelector(".chat-options")).toBeNull()
-    expect(container.querySelector(".chat-request-answered")?.textContent).toContain("Claude")
+    expect(container.querySelector(".request-options")).toBeNull()
+    expect(container.querySelector(".request-answered")?.textContent).toContain("Claude")
     expect(terminalKey(container)).not.toBeNull()
   })
 
@@ -317,7 +317,7 @@ describe("a request's card", () => {
       const { container } = show(choices, async () => {})
       click(button(container, "Yes"))
       await settle()
-      expect(container.querySelector(".chat-request-again")).toBeNull()
+      expect(container.querySelector(".request-again")).toBeNull()
       await act(async () => void vi.advanceTimersByTime(againMs))
       expect(container.querySelector('[role="status"]')?.textContent).toContain(
         "Another identical request",
@@ -330,8 +330,8 @@ describe("a request's card", () => {
       await settle()
       rerender(choices, true)
       await act(async () => void vi.advanceTimersByTime(againMs))
-      expect(container.querySelector(".chat-request-again")).toBeNull()
-      expect(container.querySelector(".chat-request-answered")?.textContent).toBe(
+      expect(container.querySelector(".request-again")).toBeNull()
+      expect(container.querySelector(".request-answered")?.textContent).toBe(
         "Answered. Waiting for Claude…",
       )
     })
@@ -349,7 +349,7 @@ describe("a request's card", () => {
       calls.push(() => {})
       click(button(container, "Yes"))
       await act(async () => void vi.advanceTimersByTime(againMs))
-      expect(container.querySelector(".chat-request-again")).toBeNull()
+      expect(container.querySelector(".request-again")).toBeNull()
     })
 
     it("shows the notice only while the dialog is the one it is about", async () => {
@@ -357,11 +357,11 @@ describe("a request's card", () => {
       click(button(container, "Yes"))
       await settle()
       await act(async () => void vi.advanceTimersByTime(againMs))
-      expect(container.querySelector(".chat-request-again")).not.toBeNull()
+      expect(container.querySelector(".request-again")).not.toBeNull()
       rerender({ ...choices, id: "d2" } as ChatDialog)
-      expect(container.querySelector(".chat-request-again")).toBeNull()
+      expect(container.querySelector(".request-again")).toBeNull()
       rerender(choices)
-      expect(container.querySelector(".chat-request-again")).not.toBeNull()
+      expect(container.querySelector(".request-again")).not.toBeNull()
     })
 
     it("stays quiet when the dialog went or changed", async () => {
@@ -370,7 +370,7 @@ describe("a request's card", () => {
       await settle()
       rerender({ ...choices, id: "d2" } as ChatDialog)
       await act(async () => void vi.advanceTimersByTime(againMs))
-      expect(container.querySelector(".chat-request-again")).toBeNull()
+      expect(container.querySelector(".request-again")).toBeNull()
     })
   })
 
@@ -480,17 +480,17 @@ const pointerMove = (element: Element, kind = "mouse"): void => {
 }
 
 describe("a dialog's menu", () => {
-  const rows = (container: HTMLElement) => [...container.querySelectorAll(".chat-option")]
+  const rows = (container: HTMLElement) => [...container.querySelectorAll(".request-option")]
   const on = (container: HTMLElement) =>
     rows(container).filter((row) => row.hasAttribute("data-on"))
 
   it("numbers its rows, out of their names, with the bar on the first", () => {
     const { container } = show(choices, async () => {})
     expect(
-      rows(container).map((row) => row.querySelector(".chat-option-number")?.textContent),
+      rows(container).map((row) => row.querySelector(".request-option-number")?.textContent),
     ).toEqual(["1", "2"])
     expect(
-      rows(container)[0]?.querySelector(".chat-option-number")?.getAttribute("aria-hidden"),
+      rows(container)[0]?.querySelector(".request-option-number")?.getAttribute("aria-hidden"),
     ).toBe("true")
     expect(on(container)).toEqual([rows(container)[0]])
   })
@@ -513,7 +513,7 @@ describe("a dialog's menu", () => {
     box.focus()
     const { container } = show(choices, async () => {})
     const [first, second] = rows(container) as HTMLElement[]
-    pointerMove(second!.querySelector(".chat-option-words")!)
+    pointerMove(second!.querySelector(".request-option-words")!)
     expect(on(container)).toEqual([second])
     expect(second!.getAttribute("tabindex")).toBe("0")
     expect(document.activeElement).toBe(box)
@@ -611,7 +611,7 @@ describe("a dialog's menu", () => {
     expect(container.querySelector(".chat-live-title")?.textContent).toContain(
       "Claude's own dialog",
     )
-    expect(container.querySelector(".chat-raw-reason")?.className).toContain("sr-only")
+    expect(container.querySelector(".request-raw-reason")?.className).toContain("sr-only")
   })
 
   it("says that an answer didn't take, over the live rows too", () => {
@@ -624,13 +624,13 @@ describe("a dialog's menu", () => {
       secret: false,
     }
     const { container } = show(raw, async () => {}, false, null, false, slice)
-    expect(container.querySelector(".chat-raw-reason")?.className).not.toContain("sr-only")
+    expect(container.querySelector(".request-raw-reason")?.className).not.toContain("sr-only")
   })
 
   it("says why it can't read a dialog it has no live rows of", () => {
     const raw = { type: "raw", text: "x", reason: "unrecognized" } as const
     const { container } = show(raw, async () => {})
-    expect(container.querySelector(".chat-raw-reason")?.className).not.toContain("sr-only")
+    expect(container.querySelector(".request-raw-reason")?.className).not.toContain("sr-only")
   })
 
   describe("the wait on the card's head", () => {
@@ -654,7 +654,7 @@ describe("a dialog's menu", () => {
         }),
       )
     const head = (container: HTMLElement) =>
-      container.querySelector(".chat-request-head .chat-fact")?.textContent
+      container.querySelector(".request-head .chat-fact")?.textContent
 
     it("counts from when the agent asked, not from when the chat showed it", () => {
       const { container, unmount } = waiting(Date.now() - 65_000)
@@ -687,9 +687,7 @@ describe("a dialog's menu", () => {
     expect(container.querySelector("article")?.getAttribute("aria-label")).toBe(
       "Needs your permission: Bash",
     )
-    expect(container.querySelector(".chat-request-head h3")?.textContent).toBe(
-      "Needs your permission",
-    )
+    expect(container.querySelector(".request-head h3")?.textContent).toBe("Needs your permission")
   })
 
   it("says a subagent asks", () => {
@@ -708,7 +706,7 @@ describe("a dialog's menu", () => {
         onSubmitted,
       }),
     )
-    expect(container.querySelector(".chat-request-head")?.textContent).toContain("subagent")
+    expect(container.querySelector(".request-head")?.textContent).toContain("subagent")
   })
 })
 
@@ -744,7 +742,7 @@ describe("a dialog of questions", () => {
   }
   const tabs = (container: HTMLElement) => [...container.querySelectorAll('[role="tab"]')]
   const shownPage = (container: HTMLElement) => [
-    ...container.querySelectorAll(".chat-page[data-shown]"),
+    ...container.querySelectorAll(".request-page[data-shown]"),
   ]
   const input = (container: HTMLElement, name: string) =>
     [
@@ -785,18 +783,18 @@ describe("a dialog of questions", () => {
 
   it("asks each question once, on its page, and not again as the request's subject", () => {
     const container = asked(false)
-    expect(container.querySelector(".chat-request-subject")).toBeNull()
+    expect(container.querySelector(".request-subject")).toBeNull()
     expect(container.textContent?.split("Keep the grace?")).toHaveLength(2)
   })
 
   it("names what was asked once it's answered and the pages have gone", () => {
     const container = asked(true)
-    expect(container.querySelector(".chat-request-subject")?.textContent).toBe("Keep the grace?")
+    expect(container.querySelector(".request-subject")?.textContent).toBe("Keep the grace?")
   })
 
   it("keeps every page in its cell, one of them shown, so turning one moves nothing", () => {
     const { container } = show(dialog, async () => {})
-    expect(container.querySelectorAll(".chat-pages > .chat-page")).toHaveLength(3)
+    expect(container.querySelectorAll(".request-pages > .request-page")).toHaveLength(3)
     expect(shownPage(container)).toHaveLength(1)
     expect(shownPage(container)[0]?.textContent).toContain("Keep the grace?")
   })
@@ -824,7 +822,7 @@ describe("a dialog of questions", () => {
     click(tabs(container)[1]!)
     pick(container, "Session")
     expect(shownPage(container)[0]?.textContent).toContain("Which tests?")
-    const marks = [...shownPage(container)[0]!.querySelectorAll(".chat-check")]
+    const marks = [...shownPage(container)[0]!.querySelectorAll(".request-check")]
     expect(marks.map((mark) => mark.textContent)).toEqual(["[✓] ", "[] "])
   })
 
@@ -916,7 +914,7 @@ describe("a dialog of questions", () => {
   it("moves the bar and focus with the mouse over a question's rows", () => {
     const { container } = show(dialog, async () => {})
     const drop = input(container, "Drop it")
-    pointerMove(drop.closest("label")!.querySelector(".chat-option-words")!)
+    pointerMove(drop.closest("label")!.querySelector(".request-option-words")!)
     expect(document.activeElement).toBe(drop)
     expect(drop.closest("label")!.hasAttribute("data-on")).toBe(true)
   })
@@ -1009,7 +1007,9 @@ describe("a dialog of questions", () => {
     answerAll(container)
     click(tabs(container)[2]!)
     await act(async () => void button(container, "Submit answers").click())
-    expect(container.querySelector<HTMLFieldSetElement>("fieldset.chat-pages")?.disabled).toBe(true)
+    expect(container.querySelector<HTMLFieldSetElement>("fieldset.request-pages")?.disabled).toBe(
+      true,
+    )
     expect(tabs(container).every((tab) => (tab as HTMLButtonElement).disabled)).toBe(true)
     finishers.forEach((finish) => finish())
     await settle()
@@ -1021,7 +1021,7 @@ describe("a dialog of questions", () => {
     pick(container, "Session")
     change(container.querySelector<HTMLInputElement>('input[aria-label^="Other"]')!, "a\u001bb")
     click(tabs(container)[2]!)
-    expect(shownPage(container)[0]?.querySelector(".chat-review-hint")?.textContent).toContain(
+    expect(shownPage(container)[0]?.querySelector(".request-review-hint")?.textContent).toContain(
       "control characters",
     )
     const submit = button(container, "Submit answers")
@@ -1120,7 +1120,7 @@ describe("a form", () => {
     ],
   }
   const field = (container: HTMLElement, label: string) =>
-    [...container.querySelectorAll(".chat-form-field")].find((each) =>
+    [...container.querySelectorAll(".request-form-field")].find((each) =>
       each.textContent?.includes(label),
     )!
   const radio = (container: HTMLElement, label: string, name: string) =>
@@ -1130,7 +1130,7 @@ describe("a form", () => {
 
   it("draws a line per field, saying which are required", () => {
     const { container } = show(dialog, async () => {})
-    expect(container.querySelectorAll(".chat-form-field")).toHaveLength(4)
+    expect(container.querySelectorAll(".request-form-field")).toHaveLength(4)
     expect(field(container, "Name").querySelector("input")?.placeholder).toBe("required")
     expect(field(container, "Count").querySelector("input")?.placeholder).toBe("optional")
     expect(field(container, "Name").textContent).toContain("What to call it")
@@ -1183,8 +1183,8 @@ describe("a form", () => {
 
   it("marks what is required, a picked set's label naming it to a screen reader", () => {
     const { container } = show(dialog, async () => {})
-    expect(field(container, "Name").querySelector(".chat-required")?.textContent).toBe(" *")
-    expect(field(container, "Where").querySelector("label.chat-form-label")).toBeNull()
+    expect(field(container, "Name").querySelector(".request-required")?.textContent).toBe(" *")
+    expect(field(container, "Where").querySelector("label.request-form-label")).toBeNull()
   })
 
   it("marks a number that isn't one as it is typed", () => {
