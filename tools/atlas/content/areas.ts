@@ -378,8 +378,11 @@ export const notes: Record<string, Note> = {
   },
   "frontend/requests": {
     purpose:
-      "An agent's request drawn and answered: the card, its dialog's menu, question pages, form and raw text, and their stylesheet, which the chat (and in time the Inbox) draws.",
-    entries: [{ file: "frontend/requests/src/RequestCard.tsx", text: "export const RequestCard" }],
+      "An agent's request drawn and answered: the card, one numbered menu, question pages, form, what it asks in full and raw text, and their stylesheet, which the chat and the Inbox's sheets draw.",
+    entries: [
+      { file: "frontend/requests/src/RequestCard.tsx", text: "export const RequestCard" },
+      { file: "frontend/requests/src/Menu.tsx", text: "export const Menu" },
+    ],
   },
   "frontend/demo-debug": {
     purpose: "The demo's debug panel and rehearsals, for the content preview and the specs.",

@@ -2,7 +2,7 @@
   "name": "@novadeck/requests",
   "version": "0.0.0",
   "private": true,
-  "description": "An agent's request drawn and answered: the card, its dialog's menu, questions, form and raw text, and their stylesheet, for the chat and the Inbox alike.",
+  "description": "An agent's request drawn and answered: the card, one numbered menu, questions, form, what it asks in full and raw text, and their stylesheet, for the chat and the Inbox alike.",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {
