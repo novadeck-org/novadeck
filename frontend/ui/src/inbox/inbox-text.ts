@@ -69,8 +69,13 @@ export const actionOf = (request: ChatRequest): Action => {
   return "other"
 }
 
+// What a dialog of questions asks first, or what a form an MCP server asks for says it is for.
 const firstQuestion = (dialog: ChatDialog | null): string | null =>
-  dialog?.type === "questions" ? (dialog.questions[0]?.question ?? null) : null
+  dialog?.type === "questions"
+    ? (dialog.questions[0]?.question ?? null)
+    : dialog?.type === "form" && dialog.message.trim() !== ""
+      ? dialog.message
+      : null
 
 // A call that asks several questions names the first, and how many more wait behind it.
 const moreQuestions = (dialog: ChatDialog | null): string =>

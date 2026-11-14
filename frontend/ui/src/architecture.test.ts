@@ -41,12 +41,20 @@ const features = [
   "sidebar/",
   "voice/",
 ]
+// The chat's parts a feature draws as the chat does, each named: the Inbox's sheet draws an
+// agent's context with your prompt and a run of tool lines, and its card's clock, which need no
+// chat store or provider. Nothing else of the chat.
+const chatParts: Readonly<Record<string, readonly string[]>> = {
+  "inbox/": ["chat/PersonWords.ts", "chat/ToolCalls.ts", "chat/Fact.ts"],
+}
 const rules: Record<string, readonly string[]> = {
   "theme/": ["theme/", "core/types.ts", "core/sounds.ts"],
   // The notice sounds: their files, and the registry that reads them and the theme.
   "sounds/": ["sounds/", "core/", "theme/"],
   "interaction/": ["interaction/", "core/"],
-  ...Object.fromEntries(features.map((layer) => [layer, [...base, layer]])),
+  ...Object.fromEntries(
+    features.map((layer) => [layer, [...base, layer, ...(chatParts[layer] ?? [])]]),
+  ),
   "terminals/": [...base, ...frame],
   "layouts/": [...base, "layouts/", ...frame],
   "shell/": [...base, "shell/", "sidebar/", ...frame, "layouts/", "projects/", "inbox/"],
@@ -288,8 +296,15 @@ describe("UI architecture", () => {
 
   it("keeps each feature to the base and itself", () => {
     // No feature imports another: what two share is the base's. The chat and the items
-    // package are packages, which no feature's allow-list names.
-    for (const feature of features) expect(rules[feature], feature).toEqual([...base, feature])
+    // package are packages, which no feature's allow-list names, but for the chat's parts it
+    // names one by one.
+    for (const feature of features)
+      expect(rules[feature], feature).toEqual([...base, feature, ...(chatParts[feature] ?? [])])
+    expect(
+      Object.values(chatParts)
+        .flat()
+        .every((part) => part.startsWith("chat/")),
+    ).toBe(true)
     // No nested key gives a feature's file more than the feature has.
     expect(
       Object.keys(rules).filter(

@@ -127,6 +127,26 @@ describe("An Inbox row's subject", () => {
     expect(subjectOf(asking("Which library?", 2))).toBe("Which library? (+1 more)")
   })
 
+  it("names a form an MCP server asks for by what it says it is for", () => {
+    const form = (message: string): InboxRow => ({
+      ...base,
+      kind: "request",
+      request: {
+        id: "r",
+        kind: "question",
+        tool: "mcp_deploy_configure_target",
+        subject: null,
+        choices: [],
+        subagent: false,
+        dialog: { type: "form", id: "f", message, fields: [] },
+        answered: false,
+        askedAt: 0,
+      },
+    })
+    expect(subjectOf(form("Configure the deploy target"))).toBe("Configure the deploy target")
+    expect(subjectOf(form(" "))).toBe("A question for you")
+  })
+
   it("names where a held message goes", () => {
     const row: InboxRow = {
       ...base,
