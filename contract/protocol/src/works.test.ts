@@ -27,6 +27,30 @@ describe("a work", () => {
     expect(work.parse({ ...base, terminalId: null }).terminalId).toBeNull()
   })
 
+  it("lists how each file changed and when, and where the project's folder lies in the repository", () => {
+    const file = {
+      path: "b.ts",
+      status: "renamed",
+      from: "a.ts",
+      changedAt: 5,
+      added: 1,
+      removed: 1,
+      unreadAdded: 1,
+      unreadRemoved: 1,
+      conflict: false,
+    }
+    const folder = { repo: "app", project: "" }
+    expect(work.parse({ ...base, files: [file], folder }).folder).toEqual(folder)
+    expect(work.parse({ ...base, files: [{ ...file, from: undefined }] }).folder).toBeUndefined()
+    expect(() => work.parse({ ...base, files: [{ ...file, status: "copied" }] })).toThrow(
+      /invalid|expected|required/i,
+    )
+    expect(() => work.parse({ ...base, files: [{ ...file, changedAt: undefined }] })).toThrow(
+      /invalid|expected|required/i,
+    )
+    expect(() => work.parse({ ...base, folder: "app" })).toThrow(/invalid|expected|required/i)
+  })
+
   it("needs to say whether its owner's agent is working in it", () => {
     const { working: _working, ...without } = base
     expect(work.safeParse(without).success).toBe(false)

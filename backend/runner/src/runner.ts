@@ -405,6 +405,13 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     // service's own queue, so it can't race an agent's take, give or close.
     remove: (root, force) => worktrees.closeAt(root, force, workingIn),
     onMade: (listener) => worktrees.onMade(listener),
+    projectFolder: (projectId) => {
+      try {
+        return store.project(projectId).cwd
+      } catch {
+        return undefined
+      }
+    },
     snapshots,
     ...(memory !== undefined && { memory }),
   })

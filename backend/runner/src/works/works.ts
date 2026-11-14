@@ -19,7 +19,8 @@ import {
 import type { Snapshot, Snapshots } from "../checkouts/snapshots.js"
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
-import { conflictsOf, listFiles, mayConflict, type Lines } from "./lines.js"
+import { folderOf } from "./folder.js"
+import { conflictsOf, listFiles, mayConflict, type Detail, type Lines } from "./lines.js"
 import { loadRemembered, RememberedSaves, type Remembered } from "./memory.js"
 import { mergedWork } from "./merged.js"
 
@@ -83,6 +84,11 @@ export type WorksOptions = {
    * not kept.
    */
   readonly memory?: string
+  /**
+   * A project's folder, for the work's `folder`; undefined where the project is unknown (its
+   * works then name no folder).
+   */
+  readonly projectFolder?: (projectId: string) => string | undefined
   /** How often each checkout is read, in milliseconds. */
   readonly everyMs?: number
   /**
@@ -112,6 +118,8 @@ type Read = {
   /** Nothing differs and it has commits of its own that main holds: its work was merged. */
   readonly merged: boolean
   readonly changed: ReadonlyMap<string, Lines>
+  /** How each changed file changed, and the object it is on the later side (see `Stamp`). */
+  readonly kinds: ReadonlyMap<string, Kind>
   /** The paths it touches: each file's, and a renamed one's old path too. */
   readonly touched: ReadonlySet<string>
   readonly unread: ReadonlyMap<string, Lines> | undefined
@@ -123,6 +131,32 @@ type Read = {
   /** Where the snapshot's objects are, which later git runs on it need. */
   readonly env: NodeJS.ProcessEnv | undefined
 }
+
+/** How a changed file changed, and its object on the later side of the listing. */
+type Kind = {
+  readonly status: Detail["status"]
+  readonly from?: string
+  readonly blob: string
+}
+
+/** When a file was first seen as the object it is now. */
+type Stamp = { readonly blob: string; readonly at: number }
+
+/**
+ * The stamps after a read: a file keeps its stamp while its object stays, gets `now` when it is
+ * new to the work or its object changed, and loses it when the work no longer changes it.
+ */
+const restamped = (
+  stamps: ReadonlyMap<string, Stamp>,
+  kinds: ReadonlyMap<string, Kind>,
+  now: number,
+): Map<string, Stamp> =>
+  new Map(
+    [...kinds].map(([path, { blob }]) => {
+      const before = stamps.get(path)
+      return [path, before?.blob === blob ? before : { blob, at: now }]
+    }),
+  )
 
 /** What is remembered, without the marks of files the work no longer changes. */
 const withoutUnchanged = (
@@ -136,6 +170,19 @@ const withoutUnchanged = (
   return kept.length === 0 ? rest : { ...rest, read: Object.fromEntries(kept) }
 }
 
+/** How each file of a listing changed. */
+const kindsOf = (listed: readonly Listed[]): Map<string, Kind> =>
+  new Map(
+    listed.map(({ path, status, oldPath, blob }) => [
+      path,
+      {
+        status,
+        ...(status === "renamed" && oldPath ? { from: oldPath } : {}),
+        blob,
+      },
+    ]),
+  )
+
 /** The lines of each file a listing has. */
 const linesOf = (listed: readonly Listed[]): Map<string, Lines> =>
   new Map(listed.map(({ path, added, removed }) => [path, { added, removed }]))
@@ -143,6 +190,8 @@ const linesOf = (listed: readonly Listed[]): Map<string, Lines> =>
 type RootState = {
   remembered: Remembered | undefined
   read: Read | undefined
+  /** When each changed file was first seen as it is; kept in memory only. */
+  stamps: ReadonlyMap<string, Stamp>
   /** Not read again before this time. */
   nextAt: number
 }
@@ -194,7 +243,7 @@ export class Works {
         ? Promise.resolve()
         : loadRemembered(options.memory).then((roots) => {
             for (const [root, remembered] of roots)
-              this.roots.set(root, { remembered, read: undefined, nextAt: 0 })
+              this.roots.set(root, { remembered, read: undefined, stamps: new Map(), nextAt: 0 })
             this.saved = this.serialized()
           })
     // A rebuilt object folder keeps the trees the works were last read as.
@@ -371,7 +420,7 @@ export class Works {
     // what it remembers from what is there when it ends, this mark too.
     let state = this.roots.get(root)
     if (!state) {
-      state = { remembered: undefined, read: undefined, nextAt: 0 }
+      state = { remembered: undefined, read: undefined, stamps: new Map(), nextAt: 0 }
       this.roots.set(root, state)
     }
     const remembered = state.remembered ?? { firstSeenAt: this.now(), watermark: null }
@@ -476,7 +525,7 @@ export class Works {
   private async readRoot(root: string, start: string | undefined): Promise<void> {
     let state = this.roots.get(root)
     if (!state) {
-      state = { remembered: undefined, read: undefined, nextAt: 0 }
+      state = { remembered: undefined, read: undefined, stamps: new Map(), nextAt: 0 }
       this.roots.set(root, state)
     }
     const started = this.now()
@@ -486,6 +535,7 @@ export class Works {
         // Not told by this read (git was slow, or failed): what was told stands.
       } else {
         state.read = outcome ?? undefined
+        state.stamps = restamped(state.stamps, outcome?.kinds ?? new Map(), started)
         // Nothing differs: merged, squashed in or just made. What was remembered starts over.
         if (outcome && outcome.changed.size === 0) state.remembered = undefined
         else if (outcome) {
@@ -566,6 +616,7 @@ export class Works {
         base: main.name,
         merged,
         changed: new Map(),
+        kinds: new Map(),
         touched: new Set(),
         unread: undefined,
         conflicts: [],
@@ -602,6 +653,7 @@ export class Works {
       base: main.name,
       merged: false,
       changed,
+      kinds: kindsOf(listed),
       touched: new Set(listed.flatMap(({ path, oldPath }) => (oldPath ? [path, oldPath] : [path]))),
       unread,
       conflicts:
@@ -621,19 +673,48 @@ export class Works {
       .map((row) => ({
         ...row,
         read: this.roots.get(row.root)?.read,
+        stamps: this.roots.get(row.root)?.stamps,
         remembered: this.roots.get(row.root)?.remembered,
       }))
       .filter((each): each is typeof each & { read: Read } => each.read !== undefined)
     const between = await this.between(reads)
     const owners = new Map(reads.map(({ root, terminalId }) => [root, terminalId]))
+    const folders = new Map(
+      await Promise.all(
+        reads.map(
+          async ({ root, projectId, read }) =>
+            [root, await folderOf(this.options.projectFolder?.(projectId), read.common)] as const,
+        ),
+      ),
+    )
     const found = new Map<string, Work>()
-    for (const { root, terminalId, projectId, createdAt, fetchedAt, read, remembered } of reads) {
+    for (const {
+      root,
+      terminalId,
+      projectId,
+      createdAt,
+      fetchedAt,
+      read,
+      remembered,
+      stamps,
+    } of reads) {
       const mine = between.get(root) ?? new Map<string, Set<string>>()
       const conflicting = new Set([
         ...(read.conflicts ?? []),
         ...[...mine.values()].flatMap((f) => [...f]),
       ])
-      const listed = listFiles(read.changed, read.unread, conflicting)
+      const details = new Map<string, Detail>(
+        [...read.kinds].map(([path, { status, from }]) => [
+          path,
+          {
+            status,
+            ...(from !== undefined && { from }),
+            changedAt: stamps?.get(path)?.at ?? 0,
+          },
+        ]),
+      )
+      const listed = listFiles(read.changed, read.unread, conflicting, details)
+      const folder = folders.get(root)
       found.set(root, {
         root,
         terminalId,
@@ -655,6 +736,7 @@ export class Works {
         unreadRemoved: listed.totalUnread.removed,
         files: listed.files,
         truncated: listed.truncated || read.skipped,
+        ...(folder !== undefined && { folder }),
         conflicts: conflictsOf(
           (read.conflicts?.length ?? 0) > 0,
           [...mine.keys()].map((other) => ({ root: other, terminalId: owners.get(other) ?? null })),

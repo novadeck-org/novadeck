@@ -20,6 +20,8 @@ export type FilePlan = {
   readonly path: string
   readonly added: number
   readonly removed: number
+  // How it changed; modified when left out.
+  readonly status?: WorkFile["status"]
   // Read: none of its lines are unread. Otherwise `unread` is the share of them that is
   // (all of them by default).
   readonly read?: true
@@ -55,10 +57,12 @@ export type WorkPlan = {
   readonly working?: true
 }
 
-const fileOf = (plan: FilePlan): WorkFile => {
+const fileOf = (plan: FilePlan, changedAt: number): WorkFile => {
   const share = plan.read ? 0 : (plan.unread ?? 1)
   return {
     path: plan.path,
+    status: plan.status ?? "modified",
+    changedAt,
     added: plan.added,
     removed: plan.removed,
     unreadAdded: Math.round(plan.added * share),
@@ -162,9 +166,10 @@ export const worksFromPlans = (
         unreadRemoved: 0,
         files: [],
         truncated: false,
+        folder: { repo: "", project: "" },
         conflicts,
       },
-      plan.files.map(fileOf),
+      plan.files.map((file) => fileOf(file, now - plan.minutesAgo * minute)),
     )
   })
 }
@@ -182,6 +187,8 @@ export const gained = (work: Work, lines: number): Work => {
       }
     : {
         path: "NOTES.md",
+        status: "added",
+        changedAt: work.firstSeenAt,
         added: lines,
         removed: 0,
         unreadAdded: lines,
@@ -199,6 +206,8 @@ export const spread = (work: Work, count: number): Work => ({
       const lines = 6 + ((index * 7) % 23)
       return {
         path: `src/generated/part-${work.files.length + index + 1}.ts`,
+        status: "added",
+        changedAt: work.firstSeenAt,
         added: lines,
         removed: index % 3,
         unreadAdded: lines,
@@ -377,6 +386,7 @@ export const createDemoWorks = (
       unreadRemoved: 0,
       files: [],
       truncated: false,
+      folder: { repo: "", project: "" },
       conflicts: [],
     }
     state.update((current) => ({ ...current, works: [...current.works, fresh] }))

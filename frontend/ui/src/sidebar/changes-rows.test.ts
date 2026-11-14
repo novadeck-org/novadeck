@@ -19,6 +19,8 @@ const file = (
   extra: Partial<WorkFile> = {},
 ): WorkFile => ({
   path,
+  status: "modified",
+  changedAt: 1,
   added,
   removed,
   unreadAdded: added,

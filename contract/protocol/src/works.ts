@@ -12,11 +12,16 @@ export const workLimits = { files: 300, path: 4096, branch: 256, conflicts: 32 }
 
 const count = z.number().int().min(0)
 
-// A file the work changes: its lines added and removed against main, the part of them the
-// person hasn't read (what changed since they last looked; all of it before a first look),
-// and whether merging it is where a conflict is.
+// A file the work changes: how it changed (a renamed one with its old path as `from`), when the
+// runner first saw it as it is now (`changedAt`, epoch milliseconds, which a later change to it
+// moves and a restart of the runner resets), its lines added and removed against main, the part
+// of them the person hasn't read (what changed since they last looked; all of it before a first
+// look), and whether merging it is where a conflict is.
 export const workFile = z.strictObject({
   path: z.string().min(1).max(workLimits.path),
+  status: z.enum(["modified", "added", "deleted", "renamed"]),
+  from: z.string().min(1).max(workLimits.path).optional(),
+  changedAt: z.number(),
   added: count,
   removed: count,
   unreadAdded: count,
@@ -44,7 +49,12 @@ export const workConflict = z.discriminatedUnion("with", [
 // worktree has commits of its own that main holds, so its work was merged (a worktree just made
 // differs from nothing too, and is not). `fetchedAt` is when its repository's origin was
 // last fetched, so main is as old as that; absent when it never was. `truncated` when more files changed than
-// `files` lists.
+// `files` lists. `folder` is where the project's folder and the repository's top share a place,
+// `/`-separated with no leading or trailing slash, at most one of the two non-empty (both empty
+// where they are the same folder): `repo` is the project's folder as a path from the repository's
+// top (a file path outside it is not in the project; the rest is stripped of it), `project` the
+// repository's top as a path from the project's folder (a file path is prefixed with it).
+// Absent where the repository's top is neither inside nor above the project's folder.
 export const work = z.strictObject({
   root: directory,
   terminalId: id.nullable(),
@@ -61,6 +71,12 @@ export const work = z.strictObject({
   unreadRemoved: count,
   files: z.array(workFile).max(workLimits.files),
   truncated: z.boolean(),
+  folder: z
+    .strictObject({
+      repo: z.string().max(workLimits.path),
+      project: z.string().max(workLimits.path),
+    })
+    .optional(),
   conflicts: z.array(workConflict).max(workLimits.conflicts),
 })
 
