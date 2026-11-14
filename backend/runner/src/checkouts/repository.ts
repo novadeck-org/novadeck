@@ -434,8 +434,8 @@ export const landingTries = 32
  * The commit on main's first-parent line where `ref`'s work landed: the first since the two
  * parted that merging `ref` into leaves as it was (`merge-tree` clean, giving that commit's own
  * tree). It finds work that merging into main today no longer does: squash- and rebase-merged
- * work whose files main has changed again since, so the old branch conflicts with them or
- * would undo them. Only commits that touch one of `ref`'s files, once every one of them has
+ * work whose lines main has changed again since, so the old branch conflicts with them. Callers
+ * ask only where it conflicts: work main reverted landed too, but merges cleanly. Only commits that touch one of `ref`'s files, once every one of them has
  * been touched, are merged into, oldest first, at most `landingTries` of them. Undefined where
  * it landed nowhere, `ref` changes nothing since they parted, or git failed: callers read that
  * as not merged, as they did before this was asked, so a failure never holds a read back.

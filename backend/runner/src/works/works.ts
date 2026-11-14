@@ -637,9 +637,14 @@ export class Works {
     const changed = linesOf(listed)
     // Nothing differs from where it left main (or this git can't merge, and nothing differs).
     if (changed.size === 0) return nothing()
-    // Its work, uncommitted files and all, landed in main, which has changed its files again
-    // since (a squash merge, then more of main's own): merged, whatever merging it today does.
-    if ((await landedIn(root, main, commit, snapshot.env)) !== undefined) return quiet(true)
+    // It conflicts with main, but its work, uncommitted files and all, landed in main, which has
+    // changed the same lines again since (a squash merge, then more of main's own): merged. Work
+    // that merges cleanly but would change main is not: main reverted it, or it never landed.
+    if (
+      merge.state === "conflict" &&
+      (await landedIn(root, main, commit, snapshot.env)) !== undefined
+    )
+      return quiet(true)
     let unread: ReadonlyMap<string, Lines> | undefined
     if (watermark !== null) {
       const since = await listChanges(root, watermark, snapshot.tree, snapshot.env)

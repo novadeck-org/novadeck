@@ -185,15 +185,16 @@ export const standingOf = async (path: string): Promise<Standing> => {
 }
 
 /**
- * Whether merging `ref` into the main branch would change nothing, now or at the commit where
- * its work landed: the same test the Changes panel's Works uses (`merge-tree` is clean and gives
- * main's own tree, else `landedIn`). That is so for a branch merged by any means, squash and
- * rebase merges included, also once main has changed its files again.
+ * Whether merging `ref` into the main branch would change nothing, or, where it conflicts, would
+ * have at the commit its work landed in: the same test the Changes panel's Works uses
+ * (`merge-tree` is clean and gives main's own tree, else a conflict and `landedIn`). That is so
+ * for a branch merged by any means, squash and rebase merges included, also once main has
+ * changed the same lines again; not for work main reverted, which merges cleanly.
  */
 const mergedInto = async (folder: string, ref: string, main: Main): Promise<boolean> => {
   const merge = await mergeTrees(folder, main.commit, ref)
-  if (merge.state === "clean" && merge.tree === main.tree) return true
-  return (await landedIn(folder, main, ref)) !== undefined
+  if (merge.state === "clean") return merge.tree === main.tree
+  return merge.state === "conflict" && (await landedIn(folder, main, ref)) !== undefined
 }
 
 /** Whether the worktree has submodules checked out, whose commits a removal would lose. */

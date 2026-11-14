@@ -784,6 +784,27 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
     expect(more.get(landed.root)?.files.map((file) => file.path)).toContain("d.txt")
   })
 
+  it("does not call a work merged that main took in and then reverted", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const start = main.git("rev-parse", "HEAD").trim()
+    const reverted = fixture.worktree("reverted")
+    reverted.write("c.txt", "one\n")
+    reverted.git("add", "-A")
+    reverted.git("commit", "--quiet", "-m", "reverted")
+    const { works } = open(() => [{ terminalId: terminal(1), root: reverted.root, base: start }])
+    resources.defer(() => works.close())
+    main.git("merge", "--quiet", "--squash", "reverted")
+    main.git("commit", "--quiet", "-m", "squash")
+    main.git("revert", "--no-edit", "HEAD")
+    // It landed once, but merging it now would bring it back: it is work main lacks.
+    const after = (await current(works)).get(reverted.root)
+    expect(after).toMatchObject({ merged: false })
+    expect(after?.files.map((file) => file.path)).toEqual(["c.txt"])
+  })
+
   it("does not call a worktree merged that is behind its start, or took main in with no work of its own", async ({
     fixture,
     resources,

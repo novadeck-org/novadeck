@@ -47,8 +47,9 @@ export const workConflict = z.discriminatedUnion("with", [
 // when it first differed from main, which orders the panel; the totals are its files' sums,
 // the unread ones what the person hasn't read. `merged` when its work is in main: nothing differs
 // from main and the worktree has commits of its own that main holds (a worktree just made
-// differs from nothing too, and is not), or main's first-parent line has a commit merging it into
-// changes nothing, where main has changed its files again since. A merged work lists no files. `fetchedAt` is when its repository's origin was
+// differs from nothing too, and is not), or it conflicts with main and main's first-parent line
+// has a commit merging it into changes nothing (main changed the same lines again since). A
+// merged work lists no files. `fetchedAt` is when its repository's origin was
 // last fetched, so main is as old as that; absent when it never was. `truncated` when more files changed than
 // `files` lists. `folder` is where the project's folder and the repository's top share a place,
 // `/`-separated with no leading or trailing slash, at most one of the two non-empty (both empty

@@ -498,11 +498,12 @@ with every safety check again at that time:
   from nothing (just made, or merged) is a work with no files, first seen when it was recorded; `merged`
   tells the two apart: it is true when nothing differs and the worktree has commits of its own since
   it started that main holds (by content, as squash and rebase merges, or by history, off main's
-  first-parent line). It is true too for a worktree that still differs because main changed its
-  files again after its work landed: a commit on main's first-parent line since the two parted,
-  which merging the worktree into changes nothing (`landedIn`, which tries the commits that touch
+  first-parent line). It is true too for a worktree that conflicts with main because main changed
+  the same lines again after its work landed: a commit on main's first-parent line since the two
+  parted, which merging the worktree into changes nothing (`landedIn`, which tries the commits that touch
   its files once all of them have been touched, oldest first, at most 32). Such a work lists no
-  files and conflicts with nothing, and the panel lets merged win over a conflict.
+  files and conflicts with nothing, and the panel lets merged win over a conflict. Work that merges
+  cleanly but would change main (main reverted it) is not merged.
   It is not the close side's "merged" below (HEAD is in main, which a fresh
   worktree is too). It is
   measured as before: the working tree against main by an in-memory `merge-tree`, with what is unread
@@ -518,8 +519,8 @@ with every safety check again at that time:
   it). The panel
   always asks the runner to close unforced; the runner's own standing decides, not the files the row
   lists. A worktree is merged when HEAD is an ancestor of main, or merging it changes nothing, into
-  main or into the commit its work landed in (the test Works uses, so squash and rebase merges count,
-  also once main has changed their files again) and holds no uncommitted file, and then it
+  main or, where that conflicts, into the commit its work landed in (the test Works uses, so squash
+  and rebase merges count, also once main has changed the same lines again) and holds no uncommitted file, and then it
   closes with no question. Otherwise the runner answers `closed: false` with what it holds, and the
   panel asks (committed work stays on the branch, uncommitted work and commits only a detached HEAD
   reaches are kept on refs, ignored files like `.env` are not kept), forcing the close only once
@@ -728,7 +729,8 @@ with every safety check again at that time:
     another way.
   - **Cleanup** (`worktrees/cleanup.ts`) removes worktrees nobody needs, in the service's queue
     and whatever the switch says. _Merged_ is the Changes panel's test (HEAD in main, or merging it
-    changes nothing, into main or the commit its work landed in, so squash and rebase merges count) with no uncommitted or untracked file.
+    changes nothing, into main or, where that conflicts, the commit its work landed in, so squash
+    and rebase merges count) with no uncommitted or untracked file.
     A merged worktree stays while its owner is open (running, or asleep or hibernated). Once the
     owner has closed into History, or is gone from both live terminals and History, or the
     worktree has no owner, it is removed with the same checks as a close without `force`: it
