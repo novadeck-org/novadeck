@@ -71,6 +71,26 @@ describe("pane turns", () => {
     expect(pending()).toBe(0)
   })
 
+  it("lets a pace it stopped go by, once its frame has passed, without a second run of turns", () => {
+    // Paces whose turns the test runs itself, stopped or not, as a frame passed does.
+    const paces: { next: () => void; stopped: boolean }[] = []
+    const turns = createPaneTurns((next) => {
+      const each = { next, stopped: false }
+      paces.push(each)
+      return () => void (each.stopped = true)
+    })
+    const granted: string[] = []
+    turns.want(false, () => granted.push("gone"))()
+    turns.want(false, () => granted.push("a"))
+    turns.want(false, () => granted.push("b"))
+    // The first pace's frame had passed as it was stopped: its turn comes anyway, and is let go.
+    act(() => paces[0]!.next())
+    expect(granted).toEqual([])
+    act(() => paces[1]!.next())
+    expect(granted).toEqual(["a"])
+    expect(paces).toHaveLength(3)
+  })
+
   it("holds every turn while the debug panel holds them", () => {
     const { pace, step } = stepped()
     const turns = createPaneTurns(pace)
@@ -88,14 +108,14 @@ describe("pane turns", () => {
 
 describe("a pane's turn", () => {
   // A pane that writes its turn out, in sight or not, under `turns` when given.
-  const pane = (turns?: PaneTurns, first = false) => {
+  const pane = (turns?: PaneTurns, first = false, wanted = true) => {
     let seen: PaneTurn | undefined
-    const Probe = (): null => {
-      seen = usePaneTurn(first)
+    const Probe = ({ selected }: { selected: boolean }): null => {
+      seen = usePaneTurn(selected, wanted)
       return null
     }
-    const tree = (shown: boolean) => {
-      const inner = createElement(Shown, { value: shown }, createElement(Probe))
+    const tree = (shown: boolean, selected = first) => {
+      const inner = createElement(Shown, { value: shown }, createElement(Probe, { selected }))
       return turns ? createElement(PaneTurnsContext, { value: turns }, inner) : inner
     }
     return { tree, turn: () => seen }
@@ -105,7 +125,7 @@ describe("a pane's turn", () => {
     it("is built and laid out at once", () => {
       const { tree, turn } = pane()
       render(tree(true))
-      expect(turn()).toEqual({ built: true, ready: true })
+      expect(turn()).toEqual({ built: true, waiting: false })
     })
   })
 
@@ -114,9 +134,9 @@ describe("a pane's turn", () => {
       const { pace, step } = stepped()
       const { tree, turn } = pane(createPaneTurns(pace))
       render(tree(true))
-      expect(turn()).toEqual({ built: false, ready: false })
+      expect(turn()).toEqual({ built: false, waiting: true })
       step()
-      expect(turn()).toEqual({ built: true, ready: true })
+      expect(turn()).toEqual({ built: true, waiting: false })
     })
 
     it("asks no turn while it's out of sight", () => {
@@ -124,21 +144,41 @@ describe("a pane's turn", () => {
       const { tree, turn } = pane(createPaneTurns(pace))
       render(tree(false))
       expect(pending()).toBe(0)
-      expect(turn()).toEqual({ built: false, ready: false })
+      expect(turn()).toEqual({ built: false, waiting: true })
     })
 
-    it("keeps what it built out of sight, and is laid out again in a new turn", () => {
+    it("leaves sight as it was, and is laid out again in a new turn as it comes back", () => {
       const { pace, step, pending } = stepped()
       const { tree, turn } = pane(createPaneTurns(pace))
       const rendered = render(tree(true))
       step()
       rendered.rerender(tree(false))
-      expect(turn()).toEqual({ built: true, ready: false })
+      expect(turn()).toEqual({ built: true, waiting: false })
       expect(pending()).toBe(0)
       rendered.rerender(tree(true))
-      expect(turn()).toEqual({ built: true, ready: false })
+      expect(turn()).toEqual({ built: true, waiting: true })
       step()
-      expect(turn()).toEqual({ built: true, ready: true })
+      expect(turn()).toEqual({ built: true, waiting: false })
+    })
+
+    it("asks no turn while it has nothing to show", () => {
+      const { pace, pending } = stepped()
+      const { tree } = pane(createPaneTurns(pace), false, false)
+      render(tree(true))
+      expect(pending()).toBe(0)
+    })
+
+    it("moves ahead once its terminal is selected while it waits", () => {
+      const { pace, step } = stepped()
+      const turns = createPaneTurns(pace)
+      const granted: string[] = []
+      turns.want(false, () => granted.push("other"))
+      const { tree, turn } = pane(turns)
+      const rendered = render(tree(true))
+      rendered.rerender(tree(true, true))
+      step()
+      expect(granted).toEqual([])
+      expect(turn()?.waiting).toBe(false)
     })
 
     it("lets go of its turn when it goes before the turn comes", () => {

@@ -10,7 +10,8 @@ const held = "data-pane-turns-held"
 const hold = (): void => document.documentElement.setAttribute(held, "")
 const letGo = (): void => document.documentElement.removeAttribute(held)
 
-const standIn = (name: string) => companionPane(name).getByRole("status", { name: /^Opening / })
+const standIn = (name: string) =>
+  companionPane(name).getByRole("progressbar", { name: /^Opening / })
 
 describe("A pane coming into sight", () => {
   afterEach(letGo)

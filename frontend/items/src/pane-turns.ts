@@ -1,5 +1,5 @@
 import { useShown } from "@novadeck/toolkit/shown"
-import { createContext, useContext, useEffect, useRef, useState } from "react"
+import { createContext, useContext, useEffect, useState } from "react"
 
 // Companion panes build in turns. What a pane shows can cost a lot to build (a diff, a plan's
 // editor, a page's view), and a view that brings many into sight at once (Grid or Canvas
@@ -65,12 +65,21 @@ export const createPaneTurns = (pace: Pace = afterFrame): PaneTurns => {
   // Waiting, in the order they asked: the first of the selected ones goes next, else the
   // first of them all.
   const waiting: { readonly first: boolean; readonly granted: () => void }[] = []
-  let stop: (() => void) | undefined
+  // The pace under way, if any: a turn of one stopped meanwhile, whose frame or timer had
+  // already passed, does nothing.
+  let pacing: { readonly stop: () => void } | undefined
   const schedule = (): void => {
-    if (stop === undefined && waiting.length) stop = pace(turn)
+    if (pacing !== undefined || !waiting.length) return
+    const current = { stop: (): void => {} }
+    pacing = current
+    const stop = pace(() => {
+      if (pacing !== current) return
+      pacing = undefined
+      turn()
+    })
+    current.stop = stop
   }
   const turn = (): void => {
-    stop = undefined
     if (!held()) {
       const selected = waiting.findIndex((each) => each.first)
       waiting.splice(Math.max(selected, 0), 1)[0]?.granted()
@@ -85,10 +94,9 @@ export const createPaneTurns = (pace: Pace = afterFrame): PaneTurns => {
       return () => {
         const at = waiting.indexOf(entry)
         if (at >= 0) waiting.splice(at, 1)
-        if (!waiting.length) {
-          stop?.()
-          stop = undefined
-        }
+        if (waiting.length || !pacing) return
+        pacing.stop()
+        pacing = undefined
       }
     },
   }
@@ -97,34 +105,34 @@ export const createPaneTurns = (pace: Pace = afterFrame): PaneTurns => {
 export type PaneTurn = {
   // What the pane shows has been built: once its first turn came, for as long as it's there.
   readonly built: boolean
-  // It may be laid out and drawn: its turn came since it last came into sight.
-  readonly ready: boolean
+  // It stands in for what it shows: not built yet, or come back into sight and waiting its
+  // turn to be laid out again. Going out of sight doesn't hide what it shows, which leaves
+  // as it was, as Focus fades a terminal out.
+  readonly waiting: boolean
 }
 
-// The turn of the pane this is called in, while it's in sight (see `Shown`); `first` for the
-// selected terminal's.
-export const usePaneTurn = (first: boolean): PaneTurn => {
+// The turn of the pane this is called in, while it's in sight (see `Shown`) and `wanted`,
+// showing something; `first` for the selected terminal's.
+export const usePaneTurn = (first: boolean, wanted = true): PaneTurn => {
   const turns = useContext(PaneTurnsContext)
   const shown = useShown()
-  const [state, setState] = useState<PaneTurn>({ built: false, ready: false })
-  // Out of sight, it waits for a turn again before it's laid out.
+  // Whether it was built, and whether its turn came since it last came into sight.
+  const [state, setState] = useState({ built: false, ready: false })
   if (!shown && state.ready) setState({ built: true, ready: false })
-  const priority = useRef(first)
-  useEffect(() => {
-    priority.current = first
-  })
-  const waits = turns !== now && shown && !state.ready
+  const waits = turns !== now && wanted && shown && !state.ready
+  // Asked again as its terminal is selected or no longer is, taking its new place.
   useEffect(() => {
     if (!waits) return
     let live = true
-    const cancel = turns.want(priority.current, () => {
+    const cancel = turns.want(first, () => {
       if (live) setState({ built: true, ready: true })
     })
     return () => {
       live = false
       cancel()
     }
-  }, [turns, waits])
+  }, [turns, waits, first])
   // Nothing to wait for: built and laid out at once.
-  return turns === now ? { built: true, ready: true } : state
+  if (turns === now) return { built: true, waiting: false }
+  return { built: state.built, waiting: !state.built || (shown && !state.ready) }
 }

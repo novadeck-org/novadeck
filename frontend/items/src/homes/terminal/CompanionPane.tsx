@@ -1,4 +1,5 @@
 import type { WorkspaceTarget } from "@novadeck/core/types"
+import { Shown, useShown } from "@novadeck/toolkit/shown"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { createLucideIcon, Minus, X } from "lucide-react"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
@@ -127,7 +128,9 @@ const StandIn = ({
 }): React.JSX.Element => {
   const { icon: Icon, name } = memberLook(member, { plans })
   return (
-    <div className="pane-stand-in" role="status" aria-label={`Opening ${name}`}>
+    // A progress bar of no value, as something loading: no live region, which would speak
+    // up for each pane a pan brings back.
+    <div className="pane-stand-in" role="progressbar" aria-label={`Opening ${name}`}>
       <Icon size={20} strokeWidth={1.5} aria-hidden="true" />
       <span className="pane-stand-in-name">{name}</span>
     </div>
@@ -375,7 +378,7 @@ type Entry = "forward" | "arrive" | undefined
 
 // What the pane last showed, and what was behind it, to tell how what it shows now came:
 // `how` it came to the top, and what it `tucked` behind it, as what it showed before.
-type Shown = {
+type LastShown = {
   readonly key: string | undefined
   readonly behind: string
   // The tabs it was one of.
@@ -439,12 +442,15 @@ export const CompanionPane = ({
 }): React.JSX.Element => {
   // Its turn, each time it comes into sight; picking another tab while it's in sight
   // waits for none.
-  const turn = usePaneTurn(first)
+  const turn = usePaneTurn(first, member !== undefined && !leaving)
+  // What it shows is shown once laid out: not while it stands in, as messages aren't
+  // seen and a page doesn't wake behind the stand-in.
+  const inSight = useShown()
   // A new top comes forward when it was behind, and over what was shown when it's new;
   // another tab of the same icon just shows.
   const behindKeys = behind.map((each) => each.front.key).join("\n")
   const tabKeys = tabs.map((each) => each.key).join("\n")
-  const [entry, setEntry] = useState<Shown>({
+  const [entry, setEntry] = useState<LastShown>({
     key: member?.key,
     behind: behindKeys,
     tabs: tabKeys,
@@ -617,18 +623,22 @@ export const CompanionPane = ({
           <Sheet
             key={member.key}
             entry={leaving ? undefined : entry.how}
-            waiting={!turn.ready}
+            waiting={turn.waiting}
             onPlayed={played}
           >
-            {!turn.built ? null : member.kind === "item" && member.placed ? (
-              <div className="placed-tab">
-                <p className="placed-from">From {originOf(member) ?? "another terminal"}</p>
-                {tab}
-              </div>
-            ) : (
-              tab
+            {turn.built && (
+              <Shown value={inSight && !turn.waiting}>
+                {member.kind === "item" && member.placed ? (
+                  <div className="placed-tab">
+                    <p className="placed-from">From {originOf(member) ?? "another terminal"}</p>
+                    {tab}
+                  </div>
+                ) : (
+                  tab
+                )}
+              </Shown>
             )}
-            {!turn.ready && <StandIn member={member} plans={plans} />}
+            {turn.waiting && <StandIn member={member} plans={plans} />}
           </Sheet>
         )}
       </section>
