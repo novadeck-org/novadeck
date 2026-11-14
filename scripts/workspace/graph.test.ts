@@ -104,6 +104,7 @@ describe("the package graph", () => {
       "frontend/toolkit",
       "frontend/items",
       "frontend/chat",
+      "frontend/requests",
       "frontend/demo",
       "frontend/demo-debug",
       "frontend/runner-adapter",
@@ -210,13 +211,42 @@ describe("the package graph", () => {
     ).toEqual([])
   })
 
-  it("keeps shipped code of the toolkit, the items package and the chat off the test kit, which only their tests may import", () => {
-    for (const folder of ["frontend/toolkit", "frontend/items", "frontend/chat"]) {
+  it("keeps the requests package off the chat, the app's chrome, the items package, every backend and every harness", () => {
+    // An agent's request, drawn and answered, is a part the chat and the UI compose: it reaches
+    // the core (and the toolkit, where it needs it), and nothing that composes it, nor the items
+    // package, nor a backend, nor a harness.
+    const reached = reaches("frontend/requests")
+    const harnesses = [...packages.keys()].filter((folder) => folder.startsWith("harnesses/"))
+    expect(harnesses.length).toBeGreaterThan(0)
+    expect(
+      ["frontend/ui", "frontend/chat", "frontend/items", ...backends, ...harnesses]
+        .filter((folder) => reached.has(folder))
+        .map((f) => `frontend/requests -> ${f}`),
+    ).toEqual([])
+    // Of the frontend, what it ships with names the core and the toolkit alone.
+    expect(
+      named("frontend/requests", "shipped").filter(
+        (folder) =>
+          folder.startsWith("frontend/") &&
+          folder !== "frontend/core" &&
+          folder !== "frontend/toolkit",
+      ),
+    ).toEqual([])
+  })
+
+  it("keeps shipped code of the toolkit, the items package, the chat and the requests package off the test kit, which only their tests may import", () => {
+    // How many shipped files each holds at the least, so a folder read wrong fails.
+    for (const [folder, least] of [
+      ["frontend/toolkit", 10],
+      ["frontend/items", 10],
+      ["frontend/chat", 10],
+      ["frontend/requests", 5],
+    ] as const) {
       const src = join(root, folder, "src")
       const shipped = (readdirSync(src, { recursive: true }) as string[])
         .map((file) => file.split("\\").join("/"))
         .filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))
-      expect(shipped.length, folder).toBeGreaterThan(10)
+      expect(shipped.length, folder).toBeGreaterThan(least)
       expect(
         shipped.filter((file) =>
           readFileSync(join(src, file), "utf8").includes("@novadeck/test-kit"),

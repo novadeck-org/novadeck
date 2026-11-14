@@ -1178,13 +1178,11 @@ describe("The Console sheet", () => {
     })
   })
 
-  context("for a dialog whose options it can't tell apart", () => {
+  context("for a dialog with nothing it can send", () => {
     it("says to answer it in the terminal, and offers only the way there", async () => {
       const inbox = mount([
-        permission([
-          { id: "run", label: "Run it", text: null },
-          { id: "c", label: "Cancel", text: null },
-        ]),
+        // A way back that needs words it can't carry.
+        permission([{ id: "1", label: "Tell Claude what to change", text: null }]),
       ])
 
       expect(text(".console-note")).toBe(

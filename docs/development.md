@@ -741,6 +741,7 @@ atlas.
 | `frontend/toolkit`        | The controls every feature draws with: Ark UI wrappers, shared recipes, the sidebar item.  |
 | `frontend/items`          | The items package: kinds, store, taskbar, peek, plan editor, messages, bar drag and homes. |
 | `frontend/chat`           | The chat view: transcript, requests and composer, with the chat's own store and commands.  |
+| `frontend/requests`       | An agent's request drawn and answered: the card, its dialog's menu, pages and form.        |
 | `frontend/runner-adapter` | The UI's backend for a runner, over a WebSocket or the desktop app.                        |
 | `frontend/terminal-views` | The xterm mount both backends draw terminals with.                                         |
 | `frontend/demo`           | The demo backend: a scripted workspace and simulated terminals.                            |
@@ -854,7 +855,7 @@ backend-only tests.
 ### Working on the UI
 
 The UI is split into packages: `frontend/core`, `frontend/ui`, `frontend/toolkit`,
-`frontend/items`, `frontend/chat`, `frontend/runner-adapter`, `frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit`,
+`frontend/items`, `frontend/chat`, `frontend/requests`, `frontend/runner-adapter`, `frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit`,
 `frontend/specs` and `frontend/chat-contract`, and the apps `apps/desktop`, `apps/try` and `apps/previews`. `frontend/ui`
 holds the page's layers, each a folder of its `src/`; the rest are packages of their own. In
 the table a path that starts with `frontend/` or `apps/` is a package, and any other is a
@@ -893,6 +894,7 @@ folder of `frontend/ui/src/`:
 | `frontend/items/src/`                                           | Items: `store/`, `bar/` (taskbar, peek, drag), `registry.ts`, `kinds/<kind>/` (one folder per kind), `document/` and `homes/`. |
 | `frontend/items/src/bar/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.                                               |
 | `frontend/chat/src/`                                            | The agent's chat: its blocks, tool rows, requests and the composer, and the chat's own store (`state.ts`) and commands.        |
+| `frontend/requests/src/`                                        | An agent's request drawn and answered (`RequestCard`, `RequestDialog`, the menu's keys, forms), and `requests.css`.            |
 | `layouts/canvas/`, `grid/`, `focus/`                            | View adapters and colocated library styles.                                                                                    |
 | `layouts/` (top level)                                          | Helpers shared by views: view transitions, background gestures, visibility.                                                    |
 | `inbox/`                                                        | The Inbox: what agents ask of the person, its sidebar rows and the sheet that answers.                                         |
@@ -927,7 +929,7 @@ of its own, `frontend/demo-debug`, the one with React and Lucide. `interaction/`
 the core and imports no packages;
 features add `frontend/toolkit`; `layouts/` may use
 `terminals/`; the items package, which holds the companion pane, is a package of its own, `frontend/items`, built on the
-core, the toolkit and the viewers and never on the UI, which composes it, as it does the chat, another package, `frontend/chat`, built on the core and the toolkit and never on the UI or the items package; no feature
+core, the toolkit and the viewers and never on the UI, which composes it, as it does the chat, another package, `frontend/chat`, built on the core and the toolkit and never on the UI or the items package, which draws its requests with `frontend/requests`, a package built on the core and never on the chat, the UI or the items package; no feature
 (`inbox/`, `preferences/`, `projects/`,
 `search/`, `sidebar/` or `voice/`) imports another, only the base and itself, and none reaches the
 chat or the items package; `shell/` may use `layouts/`, `projects/`,

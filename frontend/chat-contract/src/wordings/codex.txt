@@ -1,0 +1,90 @@
+# permission
+  on exec-approve: screens.narrow, screens.wide
+  on exec-approve-prefix: screens.narrow, screens.wide
+  on exec-approve-prefix@0.160.1: screens.narrow, screens.wide
+  on exec-approve-session-key-not-offered: pressed.0.screen, screens.narrow, screens.wide
+  on exec-approve-session-key-not-offered@0.160.1: pressed.0.screen, screens.narrow, screens.wide
+  on exec-approve@0.160.1: screens.narrow, screens.wide
+  on exec-cancel: screens.narrow, screens.wide
+  on exec-cancel@0.160.1: screens.narrow, screens.wide
+  on exec-decline-key-not-offered: pressed.0.screen, screens.narrow, screens.wide
+  on exec-decline-key-not-offered@0.160.1: pressed.0.screen, screens.narrow, screens.wide
+  on hook-allow-with-updatedPermissions: screenAfter
+  on hook-allow-with-updatedPermissions@0.160.1: screenAfter
+  on hook-no-decision: screenAfter
+  on hook-no-decision@0.160.1: screenAfter
+  on hook-timeout: during.screen, screenAfter
+  on hook-timeout@0.160.1: during.screen, screenAfter
+  Yes, proceed → yes
+  Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` → standing, lines "Yes, and don't ask again" / "for commands that start with `echo approved > probe-out.txt`"
+  No, and tell Codex what to do differently [prompt] → words
+
+# permission
+  on exec-long-command: screens.narrow, screens.wide
+  on exec-long-command@0.160.1: screens.narrow, screens.wide
+  on tall/tall: screens.120x40, screens.60x20
+  on tall/twins: screens.120x40, screens.60x20
+  Yes, proceed → yes
+  No, and tell Codex what to do differently [prompt] → words
+
+# permission
+  on exec-two-queued: pressed.0.screen
+  on exec-two-queued@0.160.1: screens.narrow, screens.wide
+  Yes, proceed → yes
+  Yes, and don't ask again for commands that start with `echo first > probe-first.txt` → standing, lines "Yes, and don't ask again" / "for commands that start with `echo first > probe-first.txt`"
+  No, and tell Codex what to do differently [prompt] → words
+
+# permission
+  on exec-two-queued: screens.narrow, screens.wide
+  on exec-two-queued@0.160.1: pressed.0.screen
+  Yes, proceed → yes
+  Yes, and don't ask again for commands that start with `echo second > probe-second.txt` → standing, lines "Yes, and don't ask again" / "for commands that start with `echo second > probe-second.txt`"
+  No, and tell Codex what to do differently [prompt] → words
+
+# permission
+  on mcp-tool-approval: screens.narrow, screens.wide
+  on mcp-tool-approval-esc: screens.narrow, screens.wide
+  on mcp-tool-approval-esc@0.160.1: screens.narrow, screens.wide
+  on mcp-tool-approval@0.160.1: screens.narrow, screens.wide
+  Allow → yes
+  Cancel → no
+
+# permission
+  on patch-approve: screens.narrow, screens.wide
+  on patch-approve-session: screens.narrow, screens.wide
+  on patch-approve-session@0.160.1: screens.narrow, screens.wide
+  on patch-approve@0.160.1: screens.narrow, screens.wide
+  on patch-cancel: screens.narrow, screens.wide
+  on patch-cancel@0.160.1: screens.narrow, screens.wide
+  Yes, proceed → yes
+  Yes, and don't ask again for these files → standing, lines "Yes, and don't ask again" / "for these files"
+  No, and tell Codex what to do differently [prompt] → words
+
+# permission
+  on request-permissions: screens.narrow, screens.wide
+  on request-permissions@0.160.1: screens.narrow, screens.wide
+  Yes, grant these permissions for this turn → yes
+  Yes, grant for this turn with strict auto review → other
+  Yes, grant these permissions for this session → standing
+  No, continue without permissions → no
+
+# permission
+  on tall/wide: screens.120x40
+  Yes, proceed → yes
+  Yes, and don't ask again for commands that start with `touch row-0` → standing, lines "Yes, and don't ask again" / "for commands that start with `touch row-0`"
+  No, and tell Codex what to do differently [prompt] → words
+
+# permission
+  on tall/wide: screens.60x20
+  Yes, proceed → yes
+  Yes, and don't ask again for commands that start with `touch row-0` → standing, lines "Yes, and don't ask again" / "for commands that start with `touch row-0`"
+  No, and tell Codex what to do differently [prompt] → words
+
+# plan
+  on plan-prompt: screens.narrow, screens.wide
+  on plan-prompt-digit-3: screens.narrow, screens.wide
+  on plan-prompt-digit-3@0.160.1: screens.narrow, screens.wide
+  on plan-prompt@0.160.1: screens.narrow, screens.wide
+  Yes, implement this plan → yes
+  Yes, clear context and implement → other
+  No, stay in Plan mode [prompt] → words
