@@ -10,10 +10,11 @@ changed dialog lands here once.
 ## Contract
 
 - **It depends on `core` (and the toolkit where it needs it), and on no other frontend
-  package.** Not `frontend/chat`, `frontend/ui` or `frontend/items`, no backend and no
-  harness. `scripts/workspace/graph.test.ts` holds it, as it does the chat's. It knows nothing
-  of the chat's store, its composer, the Inbox's state or a layout: its hosts pass in what it
-  needs.
+  package.** Not `frontend/chat`, `frontend/ui` or `frontend/items`, no backend and no harness.
+  `scripts/workspace/graph.test.ts` holds it: of the frontend, the package's manifest names only
+  the core and the toolkit, and nothing it reaches is the chat, the UI, the items package, a
+  backend or a harness. It knows nothing of the chat's store, its composer, the Inbox's state or
+  a layout: its hosts pass in what it needs.
 - **It is a renderer over core's request.** The request and its dialog are core's
   (`conversation`), and what an answer is, is core's `conversation/picks`. The package draws
   them and builds the answer the person gives.
@@ -41,11 +42,11 @@ changed dialog lands here once.
 
 ## Subpaths
 
-Only what its hosts import: `./RequestCard` (the card, with the `RequestPlace` and `Live`
-types), `./Hint`, `./shown-controls`, `./submit-on-enter` and `./use-mounted` (which the chat's
-composer and transcript use too), and the stylesheet `./requests.css`. `src/test.ts` is
-Vitest's re-export for the package's own tests and is not exported. A module is exported when
-something outside imports it; the rest of `src` is internal.
+Only what its hosts import: `./RequestCard` (the card, with the `RequestPlace` and `Live` types),
+`./Hint`, `./shown-controls`, `./submit-on-enter` and `./use-mounted` (which the chat uses beyond
+its requests too: its composer, transcript, tool rows and view), and the stylesheet
+`./requests.css`. `src/test.ts` is Vitest's re-export for the package's own tests and is not
+exported. A module is exported when something outside imports it; the rest of `src` is internal.
 
 ## Tests
 
@@ -55,11 +56,11 @@ goldens.
 
 ## Tailwind and the cascade
 
-The package's TSX uses Tailwind utilities (`sr-only`, which other folders write too, so it has
-no build guard), and the UI's `styles.css` scans `src` with `@source` (and leaves the tests out).
+The package's TSX uses Tailwind utilities (`sr-only`, which other folders write too, so it has no
+build guard), and the UI's `styles.css` scans `src` with `@source` (and leaves the tests out).
 `requests.css` is imported by `styles.css` into `layer(components)` right after the chat's
-`chat.css`, the rules it held before. Its classes keep their `chat-` names, and it reads the
-chat's private tokens (`--_ink`, `--_pad` and the rest, which `.chat` sets) and draws the head's
-key, the spinner and the error line with the chat's `.chat-key`, `.chat-spin` and `.chat-error`:
-a host that isn't the chat sets those tokens and classes, until the Inbox's adoption gives the
-package its own.
+`chat.css`, the place of the rules it held before. Its classes keep their `chat-` names, and it
+reads the chat's private tokens (`--_ink`, `--_pad` and the rest, which `.chat` sets) and draws the
+head's key, the spinner and the error line with the chat's `.chat-key`, `.chat-spin` and
+`.chat-error`: a host that isn't the chat sets those tokens and classes, until the Inbox's adoption
+gives the package its own.
