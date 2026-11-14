@@ -23,6 +23,8 @@ const party = (handle: string): MessageParty =>
     : { kind: "agent", terminalId: ids[handle]!, handle, agent: null }
 
 let sequence = 0
+// Each handle's terminal, counted.
+let terminals = 0
 const message = (
   from: string,
   to: string,
@@ -68,10 +70,14 @@ const mount = (
     paused = false,
     seenAt = 0,
     shown = true,
-  }: { paused?: boolean; seenAt?: number; shown?: boolean } = {},
+    terminal = `project/initial/${++terminals}`,
+  }: { paused?: boolean; seenAt?: number; shown?: boolean; terminal?: string } = {},
 ) => {
   const did = { goTo: [] as string[], answer: [] as string[], seen: [] as [string, number][] }
   const handle: MessagesHandle = {
+    // A terminal of its own each time unless given, so no conversation one test opened
+    // stays open.
+    terminal,
     threads: { terminalId: "01", handle: "moth", agent: true, threads },
     paused,
     pending: false,
@@ -182,6 +188,17 @@ describe("an open conversation", () => {
       const { open, did } = mount(threads, { shown: false })
       open("03")
       expect(did.seen).toEqual([])
+    })
+
+    it("opens where it was left once built again, as after its pane let it go", () => {
+      const first = mount(threads, { terminal: "project/initial/kept" })
+      first.open("03")
+      first.view.unmount()
+      const again = mount(threads, { terminal: "project/initial/kept" })
+      expect(again.$(".message-chat-name")?.textContent).toBe("Tests@owl")
+      act(() => again.$(".message-back")!.click())
+      again.view.unmount()
+      expect(mount(threads, { terminal: "project/initial/kept" }).rows()).toHaveLength(1)
     })
 
     it("goes to the other agent's terminal, and back to the list onto its row", () => {

@@ -1,12 +1,13 @@
 import { render } from "@novadeck/test-kit/render"
 import { Shown } from "@novadeck/toolkit/shown"
 import { act, createElement } from "react"
-import { afterEach } from "vitest"
+import { afterEach, beforeEach, vi } from "vitest"
 
 import {
   createPaneTurns,
   heldAttribute,
   PaneTurnsContext,
+  restMs,
   usePaneTurn,
   type Pace,
   type PaneTurn,
@@ -108,10 +109,10 @@ describe("pane turns", () => {
 
 describe("a pane's turn", () => {
   // A pane that writes its turn out, in sight or not, under `turns` when given.
-  const pane = (turns?: PaneTurns, first = false, wanted = true) => {
+  const pane = (turns?: PaneTurns, first = false, wanted = true, rests = true) => {
     let seen: PaneTurn | undefined
     const Probe = ({ selected }: { selected: boolean }): null => {
-      seen = usePaneTurn(selected, wanted)
+      seen = usePaneTurn(selected, wanted, rests)
       return null
     }
     const tree = (shown: boolean, selected = first) => {
@@ -159,6 +160,49 @@ describe("a pane's turn", () => {
       expect(turn()).toEqual({ built: true, waiting: true })
       step()
       expect(turn()).toEqual({ built: true, waiting: false })
+    })
+
+    context("out of sight a while", () => {
+      beforeEach(() => vi.useFakeTimers())
+      afterEach(() => vi.useRealTimers())
+
+      it("lets what it built go, and builds it again in a turn once back", () => {
+        const { pace, step } = stepped()
+        const { tree, turn } = pane(createPaneTurns(pace))
+        const rendered = render(tree(true))
+        step()
+        rendered.rerender(tree(false))
+        act(() => vi.advanceTimersByTime(restMs - 1))
+        expect(turn()).toEqual({ built: true, waiting: false })
+        act(() => vi.advanceTimersByTime(1))
+        expect(turn()).toEqual({ built: false, waiting: true })
+        rendered.rerender(tree(true))
+        step()
+        expect(turn()).toEqual({ built: true, waiting: false })
+      })
+
+      it("keeps it, back in sight before then", () => {
+        const { pace, step } = stepped()
+        const { tree, turn } = pane(createPaneTurns(pace))
+        const rendered = render(tree(true))
+        step()
+        rendered.rerender(tree(false))
+        act(() => vi.advanceTimersByTime(restMs / 2))
+        rendered.rerender(tree(true))
+        rendered.rerender(tree(false))
+        act(() => vi.advanceTimersByTime(restMs / 2))
+        expect(turn()?.built).toBe(true)
+      })
+
+      it("keeps what rests on its own, as a page", () => {
+        const { pace, step } = stepped()
+        const { tree, turn } = pane(createPaneTurns(pace), false, true, false)
+        const rendered = render(tree(true))
+        step()
+        rendered.rerender(tree(false))
+        act(() => vi.advanceTimersByTime(restMs * 2))
+        expect(turn()?.built).toBe(true)
+      })
     })
 
     it("asks no turn while it has nothing to show", () => {

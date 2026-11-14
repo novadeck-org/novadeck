@@ -48,6 +48,8 @@ export const useHasMessages = (messages: Messages | undefined, key: TerminalKey)
 
 // A terminal's messages as its companion pane uses them.
 export type MessagesHandle = {
+  // The terminal's, by its key's path.
+  readonly terminal: string
   readonly threads: TerminalThreads | undefined
   readonly paused: boolean
   // A pause or resume is on its way to the backend.
@@ -90,6 +92,7 @@ export const useMessages = (messages: Messages | undefined, key: TerminalKey): M
     [store, id],
   )
   return {
+    terminal: id,
     threads,
     paused,
     pending,

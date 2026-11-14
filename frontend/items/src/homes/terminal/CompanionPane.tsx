@@ -8,7 +8,7 @@ import { AwakeContext, useWakeful } from "../../awake"
 import { isNew, isSecret, type BarMember, type BehindGroup } from "../../bar/bar"
 import { usePaneTurn } from "../../pane-turns"
 import type { LookContext } from "../../registration"
-import { stackNames } from "../../registry"
+import { registrationOf, stackNames } from "../../registry"
 import type { ItemStore } from "../../store/item-store"
 import { UnderHeader } from "../../under-header"
 import { memberLook, MemberView, slotIcon } from "./drawing"
@@ -441,8 +441,13 @@ export const CompanionPane = ({
   first?: boolean
 }): React.JSX.Element => {
   // Its turn, each time it comes into sight; picking another tab while it's in sight
-  // waits for none.
-  const turn = usePaneTurn(first, member !== undefined && !leaving)
+  // waits for none. Out of sight a while, what it shows goes, except a page, which rests
+  // as its picture on its own and may hold a sign-in open.
+  const turn = usePaneTurn(
+    first,
+    member !== undefined && !leaving,
+    !(member?.kind === "item" && registrationOf(member.item).restsItself),
+  )
   // What it shows is shown once laid out: not while it stands in, as messages aren't
   // seen and a page doesn't wake behind the stand-in.
   const inSight = useShown()

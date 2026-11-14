@@ -2,8 +2,10 @@ import { waitsText, type MessageParty, type MessagePeer } from "@novadeck/core/m
 import { handleText } from "@novadeck/core/terminals/handle"
 import { useShown } from "@novadeck/toolkit/shown"
 import { Switch } from "@novadeck/toolkit/Switch"
+import { createKept } from "@novadeck/viewers"
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react"
 import {
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -431,6 +433,25 @@ const Chat = ({
   )
 }
 
+// The conversation open in a terminal's messages, kept by terminal for as long as the app
+// runs, so messages built again (another tab shown meanwhile, or the pane let go out of
+// sight) open where the person left them.
+const openConversations = createKept<string | null>(64)
+
+const useOpenConversation = (
+  terminal: string,
+): readonly [string | null, (conversation: string | null) => void] => {
+  const [open, setOpen] = useState(() => openConversations.get(terminal) ?? null)
+  const choose = useCallback(
+    (conversation: string | null) => {
+      openConversations.keep(terminal, conversation)
+      setOpen(conversation)
+    },
+    [terminal],
+  )
+  return [open, choose]
+}
+
 // A terminal's messages: one list of its conversations, the person's entries first while
 // they wait on them, then latest first; one opened reads as a chat. The header holds the
 // pause for messages between agents; the person's replies go through. Holds stay with the
@@ -447,7 +468,7 @@ export const MessagesView = ({
 }): React.JSX.Element => {
   const label = useId()
   const hint = useId()
-  const [open, setOpen] = useState<string | null>(null)
+  const [open, setOpen] = useOpenConversation(messagesHandle.terminal)
   const list = useRef<HTMLUListElement>(null)
   const returnTo = useRef<string | null>(null)
   const conversations = useMemo(

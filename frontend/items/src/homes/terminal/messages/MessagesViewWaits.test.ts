@@ -26,6 +26,8 @@ const message = {
   deliveredAt: null,
 } as const
 
+// Each handle's terminal, counted.
+let terminals = 0
 const messagesOf = (waits: MessageWaits | null, paused = false): MessagesHandle => {
   const threads: TerminalThreads = {
     terminalId: "id-moth",
@@ -45,6 +47,7 @@ const messagesOf = (waits: MessageWaits | null, paused = false): MessagesHandle 
     ],
   }
   return {
+    terminal: `project/initial/${++terminals}`,
     threads,
     paused,
     pending: false,

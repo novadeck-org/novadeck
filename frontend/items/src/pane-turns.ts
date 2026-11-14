@@ -9,7 +9,10 @@ import { createContext, useContext, useEffect, useState } from "react"
 // window draws first, and each pane after it.
 //
 // A pane built once keeps what it shows while out of sight; coming back into sight, it is
-// laid out again in its turn, not in the frame that shows it.
+// laid out again in its turn, not in the frame that shows it. Out of sight for `restMs`, it
+// lets what it shows go, which each kind keeps the place of by item, and builds it again in
+// its turn once back: a terminal Focus keeps, or a tile scrolled or panned far off, holds
+// nothing built meanwhile.
 export type PaneTurns = {
   // Asks a turn for a pane, the selected terminal's ahead of the rest; `granted` runs once
   // it comes. Returns the cancel.
@@ -102,8 +105,11 @@ export const createPaneTurns = (pace: Pace = afterFrame): PaneTurns => {
   }
 }
 
+/** How long a pane stays out of sight before what it shows is let go. */
+export const restMs = 60_000
+
 export type PaneTurn = {
-  // What the pane shows has been built: once its first turn came, for as long as it's there.
+  // What the pane shows has been built: once its first turn came, until it rests.
   readonly built: boolean
   // It stands in for what it shows: not built yet, or come back into sight and waiting its
   // turn to be laid out again. Going out of sight doesn't hide what it shows, which leaves
@@ -112,14 +118,22 @@ export type PaneTurn = {
 }
 
 // The turn of the pane this is called in, while it's in sight (see `Shown`) and `wanted`,
-// showing something; `first` for the selected terminal's.
-export const usePaneTurn = (first: boolean, wanted = true): PaneTurn => {
+// showing something; `first` for the selected terminal's. Unless it `rests` (what it shows
+// rests on its own, as a page does), it lets what it built go once out of sight a while.
+export const usePaneTurn = (first: boolean, wanted = true, rests = true): PaneTurn => {
   const turns = useContext(PaneTurnsContext)
   const shown = useShown()
   // Whether it was built, and whether its turn came since it last came into sight.
   const [state, setState] = useState({ built: false, ready: false })
   if (!shown && state.ready) setState({ built: true, ready: false })
   const waits = turns !== now && wanted && shown && !state.ready
+  // Out of sight a while, what it built goes, to be built again in a turn once back.
+  const resting = turns !== now && rests && !shown && state.built
+  useEffect(() => {
+    if (!resting) return
+    const timer = setTimeout(() => setState({ built: false, ready: false }), restMs)
+    return () => clearTimeout(timer)
+  }, [resting])
   // Asked again as its terminal is selected or no longer is, taking its new place.
   useEffect(() => {
     if (!waits) return

@@ -14,15 +14,26 @@ import {
   type Messages,
 } from "@novadeck/core/messages"
 import { activeSession, workspaceReducer, type WorkspaceAction } from "@novadeck/core/state"
-import { createStore, createWorkspaceStore, type WorkspaceStore } from "@novadeck/core/store"
+import {
+  createStore,
+  createWorkspaceStore,
+  type Store,
+  type WorkspaceStore,
+} from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 import type { Workspace } from "@novadeck/core/types"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement, useSyncExternalStore, type ComponentProps } from "react"
-import { afterEach, vi } from "vitest"
+import { afterEach, beforeEach, vi } from "vitest"
 
 import { createDragSession, DragSessionContext } from "../../bar/drag-session"
-import { createPaneTurns, PaneTurnsContext, type Pace, type PaneTurns } from "../../pane-turns"
+import {
+  createPaneTurns,
+  PaneTurnsContext,
+  restMs,
+  type Pace,
+  type PaneTurns,
+} from "../../pane-turns"
 import { createItemStore, type ItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
 import { followMessages, noLinks } from "./messages/messages"
@@ -83,13 +94,15 @@ const Terminal = ({
   workspace,
   itemStore,
   messages,
-  onScreen,
+  screen,
 }: {
   workspace: WorkspaceStore
   itemStore: ItemStore
   messages: Messages | undefined
-  onScreen: boolean
+  // Whether its window is on screen, as its view tells.
+  screen: Store<boolean>
 }) => {
+  const onScreen = useSyncExternalStore(screen.subscribe, screen.getSnapshot)
   const state = useSyncExternalStore(
     workspace.subscribe,
     () => activeSession(workspace.getSnapshot())!.state,
@@ -118,10 +131,17 @@ const renderTerminal = (
   companions: Companions = emptyCompanions(),
   // The panes' turns, as the workspace paces them, and whether its window is on screen.
   { turns, onScreen = true }: { turns?: PaneTurns; onScreen?: boolean } = {},
-): { container: HTMLElement; workspace: WorkspaceStore; itemStore: ItemStore } => {
+): {
+  container: HTMLElement
+  workspace: WorkspaceStore
+  itemStore: ItemStore
+  // Its window goes off screen or comes back, as its view tells.
+  onScreen: (next: boolean) => void
+} => {
   const workspace = createWorkspaceStore(initial)
   const itemStore = createItemStore({ companions, workspace })
-  const terminal = createElement(Terminal, { workspace, itemStore, messages, onScreen })
+  const screen = createStore(onScreen)
+  const terminal = createElement(Terminal, { workspace, itemStore, messages, screen })
   const { container, unmount } = render(
     createElement(
       DragSessionContext,
@@ -135,7 +155,12 @@ const renderTerminal = (
     unmounts.push(itemStore.connect())
     if (messages) unmounts.push(followMessages(workspace, messages))
   })
-  return { container, workspace, itemStore }
+  return {
+    container,
+    workspace,
+    itemStore,
+    onScreen: (next) => act(() => void screen.update(() => next)),
+  }
 }
 
 // A message for the terminal from its peer, and the terminal's messages holding them.
@@ -265,6 +290,42 @@ describe("a pane in the workspace", () => {
     })
     expect(pending()).toBe(0)
     expect(standIn(container)).not.toBeNull()
+  })
+
+  context("out of sight a while", () => {
+    beforeEach(() => vi.useFakeTimers())
+    afterEach(() => vi.useRealTimers())
+
+    it("lets what it shows go, and stands in for it until its turn once back", () => {
+      const { turns, step } = stepped()
+      const { container, onScreen } = renderTerminal(opened(hero.id, hero), undefined, undefined, {
+        turns,
+      })
+      step()
+      onScreen(false)
+      act(() => vi.advanceTimersByTime(restMs))
+      expect(built(container)).toBeNull()
+      onScreen(true)
+      expect(standIn(container)).not.toBeNull()
+      step()
+      expect(built(container)).not.toBeNull()
+    })
+
+    it("keeps a page, which rests as its picture on its own", () => {
+      const { turns, step } = stepped()
+      const { container, onScreen } = renderTerminal(
+        opened(notes.id, notes),
+        undefined,
+        undefined,
+        {
+          turns,
+        },
+      )
+      step()
+      onScreen(false)
+      act(() => vi.advanceTimersByTime(restMs * 2))
+      expect(built(container)).not.toBeNull()
+    })
   })
 
   it("shows something else at once once it has had its turn", () => {
