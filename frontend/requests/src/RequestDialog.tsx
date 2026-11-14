@@ -27,9 +27,18 @@ import {
   promptHint,
   type Refused,
 } from "@novadeck/core/conversation/prompt-refusal"
-import { useEffect, useId, useRef, useState } from "react"
+import {
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from "react"
 
 import { Detail } from "./Detail"
+import { useDraft, type Drafted } from "./drafts"
 import {
   enter,
   entryOf,
@@ -40,10 +49,19 @@ import {
   type Entries,
 } from "./forms"
 import { Hint } from "./Hint"
-import { answerWordsLimit, Menu as OptionMenu, type MenuItem } from "./Menu"
+import { answerWordsLimit, Menu as OptionMenu, type MenuHandle, type MenuItem } from "./Menu"
 import { shownControls } from "./shown-controls"
 import { submitOnEnter } from "./submit-on-enter"
-import { holdsWords, isTyping, useMenu, type Menu } from "./use-menu"
+import {
+  answersKey,
+  forwardKey,
+  goToRow,
+  holdsWords,
+  isTyping,
+  useArrivalGuard,
+  useMenu,
+  type Menu,
+} from "./use-menu"
 
 // What a request's dialog offers, as the next lines of the terminal: numbered rows, a thin bar on
 // the one the person is on. Each takes `send`, which gives the answer to the backend and says
@@ -71,6 +89,22 @@ type Controls = {
   readonly send: (answer: ChatAnswer) => void
   // The person edited something: an error shown for the last answer no longer applies.
   readonly edited: () => void
+  // Where the host keeps what the person put in and hasn't sent; absent, the dialog keeps it.
+  readonly draft: Drafted | undefined
+  // The host moved on to this dialog from an answer: for a moment no key or click answers it.
+  readonly arrived: boolean
+  // A handle on the menu the person is on, for keys the host takes on its own row or title.
+  readonly handle: Ref<MenuHandle> | undefined
+  readonly place: RequestPlace
+}
+
+// The host's own sides of a dialog, each optional.
+export type DialogSlots = {
+  // In place of what a choices dialog asks in full: the host's own box of it, as the Inbox's plan.
+  readonly detail?: ReactNode
+  // Why words typed into a field of the agent's won't go, where its harness says (a field that
+  // takes no command's first character); null where they will.
+  readonly fieldRefused?: ((text: string) => string | null) | undefined
 }
 
 const Sending = ({ sending }: { readonly sending: boolean }): React.JSX.Element | null =>
@@ -123,12 +157,20 @@ const Choices = ({
   sending,
   send,
   edited,
-}: Controls & {
-  readonly dialog: Extract<ChatDialog, { type: "choices" }>
-  readonly kind: ChatRequest["kind"]
-}): React.JSX.Element => {
+  draft,
+  arrived,
+  handle,
+  place,
+  detail,
+  fieldRefused,
+}: Controls &
+  DialogSlots & {
+    readonly dialog: Extract<ChatDialog, { type: "choices" }>
+    readonly kind: ChatRequest["kind"]
+  }): React.JSX.Element => {
   // The words typed into each option that takes them, by its id: a dialog read again keeps them.
-  const [typed, setTyped] = useState<Readonly<Record<string, string>>>({})
+  const kept = useDraft(draft)
+  const typed = kept.get("typed") ?? {}
   const [pressed, setPressed] = useState<number | null>(null)
   const label = useId()
   const extras = optionExtras(kind, dialog.options)
@@ -141,7 +183,9 @@ const Choices = ({
         ? promptHint
         : option.text === "field" && hasControlCharacters(words)
           ? controlHint
-          : null
+          : option.text === "field" && words !== ""
+            ? (fieldRefused?.(words) ?? null)
+            : null
     return {
       // A row that means something else, read again, is another row.
       key: `${option.id}\n${option.label}\n${option.text ?? ""}`,
@@ -154,7 +198,7 @@ const Choices = ({
           value: words,
           onChange: (text) => {
             const value = option.text === "field" ? oneLine(text) : text
-            setTyped((all) => ({ ...all, [option.id]: value }))
+            kept.update("typed", (all) => ({ ...all, [option.id]: value }))
             edited()
           },
           // The row is the field: the harness's words say what to write, and name it.
@@ -176,12 +220,15 @@ const Choices = ({
           {shownControls(dialog.title)}
         </p>
       )}
-      {dialog.detail && <Detail text={dialog.detail} label="What it asks" />}
+      {detail ?? (dialog.detail && <Detail text={dialog.detail} label="What it asks" />)}
       <OptionMenu
         label={dialog.title ? shownControls(dialog.title) : "Answers"}
         items={items}
         busy={sending}
         pressed={pressed}
+        handle={handle}
+        arrived={arrived}
+        area={place.area}
         onPress={(index) => {
           const option = dialog.options[index]
           if (!option) return
@@ -475,20 +522,33 @@ const Questions = ({
   sending,
   send,
   edited,
+  draft,
+  arrived,
+  handle,
   replying,
   onReply,
 }: Controls & {
   readonly dialog: Extract<ChatDialog, { type: "questions" }>
-  readonly place: RequestPlace
   // The host's box answers this dialog: its words are said to the agent in place of answers.
   readonly replying: boolean
   readonly onReply: ((dialog: string | null) => void) | undefined
 }): React.JSX.Element => {
-  const [chosen, setPicks] = useState<Picks>({})
+  const kept = useDraft(draft)
+  const chosen: Picks = kept.get("picks") ?? {}
+  const setPicks = (next: Picks): void => kept.set("picks", next)
   // The page on screen: a question's, or past them the one that sends the answers.
-  const [turned, setTurned] = useState(0)
+  const turned = kept.get("page") ?? 0
+  const setTurned = (to: number): void => kept.set("page", to)
   const base = useId()
   const pages = useRef<HTMLFieldSetElement>(null)
+  const guarded = useArrivalGuard(arrived)
+  // The page on screen's rows take the keys the host passes on.
+  const shownPage = (): Element | null | undefined =>
+    pages.current?.querySelector("[data-page][data-shown]")
+  useImperativeHandle(handle, () => ({
+    key: (key) => (guarded() && answersKey(key) ? true : forwardKey(shownPage(), key)),
+    go: (at) => goToRow(shownPage(), at),
+  }))
   const { questions } = dialog
   const page = Math.min(turned, questions.length)
   // A re-read dialog may have lost options the person had picked; their words stay.
@@ -512,6 +572,7 @@ const Questions = ({
     focusPage(pages.current, page)
     // The pages share a cell as tall as the tallest: this one starts at its top.
     const scroller = pages.current && now.current.place.scroller(pages.current)
+    // oxlint-disable-next-line react/immutability -- The host's scroller, not React's state.
     if (scroller) scroller.scrollTop = 0
   }, [page])
   useEffect(() => {
@@ -560,8 +621,16 @@ const Questions = ({
       aria-label="Answer the questions"
       onKeyDown={turnKeys}
       onKeyDownCapture={(event) => {
-        // Enter goes on a page at a time: held, it would answer the rest and send them.
-        if (event.key !== "Enter" || !event.repeat) return
+        // Enter goes on a page at a time: held, it would answer the rest and send them. As the
+        // host moves on to it, no key answers for a moment.
+        const held = event.key === "Enter" && event.repeat
+        if (!held && !(guarded() && answersKey(event.key))) return
+        event.preventDefault()
+        event.stopPropagation()
+      }}
+      onClickCapture={(event) => {
+        // A double-click's second click, landing as the host moves on, isn't for this.
+        if (!guarded()) return
         event.preventDefault()
         event.stopPropagation()
       }}
@@ -742,12 +811,38 @@ const Form = ({
   sending,
   send,
   edited,
+  draft,
+  arrived,
+  handle,
+  place,
 }: Controls & { readonly dialog: Extract<ChatDialog, { type: "form" }> }): React.JSX.Element => {
-  const [typed, setEntries] = useState<Entries>({})
+  const kept = useDraft(draft)
+  const typed: Entries = kept.get("entries") ?? {}
+  const setEntries = (next: Entries): void => kept.set("entries", next)
   // The person tried to submit: what is missing says so.
   const [tried, setTried] = useState(false)
   const base = useId()
   const menu = useMenu(2)
+  const root = useRef<HTMLFormElement>(null)
+  const guarded = useArrivalGuard(arrived)
+  const options = (): Element | null | undefined => root.current?.querySelector(".request-options")
+  useImperativeHandle(handle, () => ({
+    key: (key) => (guarded() && answersKey(key) ? true : forwardKey(options(), key)),
+    go: (at) => goToRow(options(), at),
+  }))
+  // Moved on to from an answer, the keyboard comes to its first field, as a menu's first row.
+  const placeNow = useRef(place)
+  useEffect(() => {
+    placeNow.current = place
+  })
+  useEffect(() => {
+    const form = root.current
+    if (!arrived || !form) return
+    const active = document.activeElement
+    const before = placeNow.current.area(form)
+    if (!active || active === document.body || (before?.contains(active) && !holdsWords(active)))
+      form.querySelector<HTMLElement>("input:not([tabindex='-1'])")?.focus({ preventScroll: true })
+  }, [arrived])
   const { fields } = dialog
   // A form read again keeps what was entered in the fields that are still there.
   const entries = keptEntries(typed, fields)
@@ -766,11 +861,23 @@ const Form = ({
   }
   return (
     <form
+      ref={root}
       className="request-dialog request-form"
       aria-label="Fill in the form"
       noValidate
+      onKeyDownCapture={(event) => {
+        if (!(guarded() && answersKey(event.key))) return
+        event.preventDefault()
+        event.stopPropagation()
+      }}
+      onClickCapture={(event) => {
+        if (!guarded()) return
+        event.preventDefault()
+        event.stopPropagation()
+      }}
       onSubmit={(event) => {
         event.preventDefault()
+        if (guarded()) return
         answer("accept")
       }}
     >
@@ -882,7 +989,7 @@ const Form = ({
 
 const reasons = {
   unrecognized: "Novadeck can't read this dialog. It may have changed in an update.",
-  unsupported: "This dialog can't be answered from the chat.",
+  unsupported: "Novadeck can't answer this dialog. Answer it in the terminal.",
   failed: "That answer didn't take.",
 } as const
 
@@ -920,23 +1027,30 @@ export const RequestDialog = ({
   dialog,
   kind,
   live,
-  place,
   replying,
   onReply,
+  detail,
+  fieldRefused,
   ...controls
-}: Controls & {
-  readonly dialog: ChatDialog
-  readonly kind: ChatRequest["kind"]
-  // The terminal's own rows, shown for a dialog no adapter read in place of its text.
-  readonly live: Live | undefined
-  readonly place: RequestPlace
-  readonly replying: boolean
-  readonly onReply: ((dialog: string | null) => void) | undefined
-}): React.JSX.Element =>
+}: Controls &
+  DialogSlots & {
+    readonly dialog: ChatDialog
+    readonly kind: ChatRequest["kind"]
+    // The terminal's own rows, shown for a dialog no adapter read in place of its text.
+    readonly live: Live | undefined
+    readonly replying: boolean
+    readonly onReply: ((dialog: string | null) => void) | undefined
+  }): React.JSX.Element =>
   dialog.type === "choices" ? (
-    <Choices dialog={dialog} kind={kind} {...controls} />
+    <Choices
+      dialog={dialog}
+      kind={kind}
+      detail={detail}
+      fieldRefused={fieldRefused}
+      {...controls}
+    />
   ) : dialog.type === "questions" ? (
-    <Questions dialog={dialog} place={place} replying={replying} onReply={onReply} {...controls} />
+    <Questions dialog={dialog} replying={replying} onReply={onReply} {...controls} />
   ) : dialog.type === "form" ? (
     <Form dialog={dialog} {...controls} />
   ) : (

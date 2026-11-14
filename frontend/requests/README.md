@@ -3,10 +3,11 @@
 An agent's request, drawn and answered: what it asks (`ChatRequest`), and the controls of its
 dialog (`ChatDialog`). The card, one numbered menu, tabbed pages and a Review for several
 questions, a line per field for a form, what a request asks in full, and the dialog's text or
-the terminal's own rows for one it can't read. The chat draws its requests with it, and the
-Inbox's sheets draw their menus and commands with it (its request rows adopt the card next:
-`architecture/request-surface.md` in the workspace), so a style change or a fix for a harness's
-changed dialog lands here once.
+the terminal's own rows for one it can't read. The chat draws its requests with it, and so does
+the Inbox: a request's sheet is the same `RequestCard`, and the Inbox's own kinds (an agent's
+ask, a held message, trouble, an update) are drawn in its frame (`RequestFrame`) with its menu
+and detail box (`architecture/request-surface.md` in the workspace), so a style change or a fix
+for a harness's changed dialog lands here once, for both.
 
 ## Contract
 
@@ -38,11 +39,24 @@ changed dialog lands here once.
     talk it over.
   - `onSubmitted`, `onSettled`, `onEdited`: the person submitted from the card, the card went
     after an answer took, the person edited the dialog.
-- **Drafts are the dialog's own state for now**: a dialog read again keeps what still means
-  the same (`forms.ts`' `keptEntries`, core's `reconcile`).
-- **One menu, `Menu`**, for a request's options: the chat's choices, and every Inbox sheet's. The
-  chat's question pages, their Review and a form keep rows of their own (`use-menu.ts`'s `useMenu`),
-  in the same look and with the same keys, until the Inbox draws those pages too. A host gives it
+  - `draft`: where the host keeps what the person put in and hasn't sent (`drafts.ts`'
+    `DialogDraft`: the words typed into a choices dialog's options, a dialog of questions' picks
+    and page, a form's entries), with the way to change it. The Inbox keeps it with its row, so
+    it lasts the sheet closing; without it (the chat) the dialog keeps its own while drawn.
+  - `menu`: a `MenuHandle` on the menu the person is on (the choices', or the question page on
+    screen's, or a form's), for keys the host takes on its own row or title (the Inbox's).
+  - `arrived`: the host moved on to the card from an answer (the Inbox): focus comes to its
+    dialog, and for a moment no key or click answers it, on any dialog.
+  - `detail`: the host's own box in place of what a choices dialog asks in full (the Inbox's
+    plan, read from the transcript and drawn as Markdown, `.request-plan`).
+  - `fieldRefused`: why words typed into a field of the agent's won't go, where its harness says
+    (the Inbox: Antigravity's field, which takes no `/`, `?`, `!` first, nor an `@`).
+- **A dialog read again keeps what still means the same** (`forms.ts`' `keptEntries`, core's
+  `reconcile`), the host's draft or its own.
+- **One menu, `Menu`**, for a request's options: the chat's choices, and every Inbox card's. The
+  question pages, their Review and a form keep rows of their own (`use-menu.ts`'s `useMenu`), in
+  the same look and with the same keys; `forwardKey` and `goToRow` take a host's keys for them as
+  the `Menu`'s handle does. A host gives it
   rows (`MenuItem`: its words as the host draws them, a scope and an effect line under them, ticked
   or chosen, armed first, a field for the person's own words in the row's place, a way out that
   answers nothing, more to show under the menu) and is told which was pressed. Its keys are
@@ -61,16 +75,17 @@ changed dialog lands here once.
 
 ## Subpaths
 
-Only what its hosts import: `./RequestCard` (the card, with the `RequestPlace` and `Live` types),
-`./Menu` and `./Detail` (the Inbox's sheets), `./Hint`, `./shown-controls`, `./submit-on-enter`
+Only what its hosts import: `./RequestCard` (the card and its frame, with the `RequestPlace` and
+`Live` types), `./Menu`, `./Detail` and `./drafts` (the Inbox's sheets), `./Hint`, `./shown-controls`, `./submit-on-enter`
 and `./use-mounted` (which the chat uses beyond its requests too: its composer, transcript, tool
 rows and view), and the stylesheet `./requests.css`. `src/test.ts` is Vitest's re-export for the package's own tests and is not
 exported. A module is exported when something outside imports it; the rest of `src` is internal.
 
 ## Tests
 
-`forms.test.ts` holds the form's entries, `menu-keys.test.ts` the menu's keys and
-`command-view.test.ts` the marks. The card and its dialogs are tested through the views that
+`forms.test.ts` holds the form's entries, `menu-keys.test.ts` the menu's keys, `use-menu.test.ts`
+the keys a host passes on, `drafts.test.ts` what a draft holds and `command-view.test.ts` the
+marks. The card and its dialogs are tested through the views that
 draw them: the chat's (`frontend/chat`'s `Requests.test.ts`, pinned by `frontend/chat-contract`'s
 goldens) and the Inbox's (`frontend/ui`'s `ConsoleSheet.test.ts`).
 
@@ -82,7 +97,7 @@ Copy is the toolkit's `Tooltip` over the app's `icon-button`.
 `requests.css` is imported by `styles.css` into `layer(components)` right after the chat's
 `chat.css`, the place of the rules it held before. Its classes are `request-*`, and it reads its
 host's private tokens (`--_ink`, `--_mid`, `--_muted`, `--_accent`, `--_red`, `--_line`, `--_pad`,
-`--_lh`, and `--_inset` where no card sets it): `.chat` sets them for the chat, the Inbox's
-`.console-page` for its sheets. The card draws its answered line's spinner and its error line
-with the chat's `.chat-spin` and `.chat-error`, until the Inbox's adoption gives the package its
-own.
+`--_lh`, and `--_inset` where no card sets it): `.chat` sets them for the chat, and chat.css's
+`.chat-inline` (the chat's tokens and type, none of its layout) for the Inbox's sheets, whose
+`.console-page` sets only `--_pad`, the sheet's edge. The card draws its answered line's spinner
+and its error line with the chat's `.chat-spin` and `.chat-error`, which both hosts load.

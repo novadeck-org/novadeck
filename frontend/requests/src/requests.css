@@ -17,6 +17,10 @@
    or a dialog it can't read (`.request-raw-reason`, `.request-raw`). A line under it says it
    waits (`.request-waiting`, `.request-choices`), was answered (`.request-answered`), came again
    (`.request-again`) or failed (`.request-error`); `.request-field-hint` warns beside a field.
+   A plan's detail can be the host's prose (`.request-plan`, data-loading while it comes). A
+   host's own card in the same frame (`RequestFrame`) says what it says as `.request-prose`, a
+   quiet line as `.request-note`, a warning as `.request-hard`, and more behind a key as
+   `.request-disclosure` (its key `.request-disclose`).
 
    Hooks: data-kind="permission" | "question" | "plan" and data-dialog="choices" | "questions" |
    "form" | "raw" | "none" on a request; data-on on the row of a menu the person is on, data-open
@@ -63,7 +67,10 @@
 .request-error,
 .request-dialog-title,
 .request-raw-reason,
-.request-question-text {
+.request-question-text,
+.request-prose,
+.request-note,
+.request-hard {
   margin: 0;
   padding: 0 var(--_pad) 0 var(--_inset);
   overflow-wrap: anywhere;
@@ -75,8 +82,43 @@
 }
 .request-choices,
 .request-waiting,
-.request-answered {
+.request-answered,
+.request-note {
   color: var(--_muted);
+}
+/* A host's card of its own (the Inbox's ask, held message, trouble or update): what it says, in
+   full ink, as the agent's text reads in the chat; a line that warns, in the armed colour. */
+.request-prose {
+  color: var(--_ink);
+}
+.request-prose,
+.request-note,
+.request-hard {
+  margin-top: calc(var(--_lh) / 2);
+}
+.request-hard {
+  color: var(--_red);
+}
+.request-disclosure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.request-disclose {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5ch;
+}
+.request-disclose svg {
+  transition: transform var(--motion-feedback) var(--ease-interface);
+}
+.request-disclose[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .request-disclose svg {
+    transition: none;
+  }
 }
 .request-answered {
   position: relative;
@@ -121,6 +163,14 @@
 }
 .request-detail-text {
   margin: 0;
+}
+/* A detail that is prose, as a plan: its Markdown wraps as text does, in a taller box. */
+.request-plan .request-detail-text {
+  max-height: calc(16 * var(--_lh));
+  white-space: normal;
+}
+.request-plan[data-loading] .request-detail-text {
+  color: var(--_muted);
 }
 .request-raw {
   white-space: pre;
@@ -334,6 +384,10 @@
 .request-more-of {
   display: block;
   color: var(--_muted);
+}
+/* A detail box among the details stands where they do. */
+.request-more .request-detail {
+  margin: calc(var(--_lh) / 2) 0 0;
 }
 .request-field-hint {
   grid-column: 1 / -1;

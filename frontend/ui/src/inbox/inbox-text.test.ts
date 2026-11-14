@@ -1,16 +1,13 @@
-import type { ChatDialogOption } from "@novadeck/core/conversation"
-import { needsWords } from "@novadeck/core/conversation/extras"
 import type { InboxRow } from "@novadeck/core/inbox"
 
-import { context, describe, expect, it } from "../test"
+import { describe, expect, it } from "../test"
 import {
-  choicesOf,
   clock,
   codeParts,
   labelOf,
   limitWindow,
   readLabel,
-  refusedWords,
+  fieldRefusal,
   recommended,
   resumesLabel,
   subjectOf,
@@ -71,16 +68,6 @@ const asking = (subject: string | null, questions: number): InboxRow => ({
     answered: false,
     askedAt: 0,
   },
-})
-
-const option = (
-  id: string,
-  label: string,
-  text: "field" | "prompt" | null = null,
-): ChatDialogOption => ({
-  id,
-  label,
-  text,
 })
 
 describe("How long ago", () => {
@@ -241,209 +228,6 @@ describe("A limit that resumes", () => {
   })
 })
 
-describe("A permission's options", () => {
-  context("with Codex's four", () => {
-    const choices = choicesOf([
-      option("yes", "Yes, proceed"),
-      option("always", "Yes, and don't ask again for commands that start with `pnpm add`"),
-      option("no", "No, continue without running it"),
-      option("differently", "No, and tell Codex what to do differently", "prompt"),
-    ])
-
-    it("allows with the plain yes and keeps the standing one as a link", () => {
-      expect(choices?.allow?.id).toBe("yes")
-      expect(choices?.standing.map(({ id }) => id)).toEqual(["always"])
-    })
-
-    it("denies with the plain no, or the one that takes words", () => {
-      expect(choices?.plain?.id).toBe("no")
-      expect(choices?.note?.id).toBe("differently")
-    })
-  })
-
-  context("with Claude's plan", () => {
-    it("approves with the yes that sets nothing standing", () => {
-      const choices = choicesOf([
-        option("1", "Yes, and auto-accept edits"),
-        option("2", "Yes, and manually approve edits"),
-        option("3", "No, keep planning"),
-      ])
-
-      expect(choices?.allow?.id).toBe("2")
-      expect(choices?.standing.map(({ id }) => id)).toEqual(["1"])
-      expect(choices?.plain?.id).toBe("3")
-    })
-
-    // As the runner reads Claude Code 2.1.287's (harnesses/claude's plan-file probe).
-    it("sends it back with the field that tells Claude what to change", () => {
-      const choices = choicesOf([
-        option("1", "Yes, auto-accept edits"),
-        option("2", "Yes, manually approve edits"),
-        option("3", "Tell Claude what to change", "field"),
-      ])
-
-      expect(choices?.allow?.id).toBe("2")
-      expect(choices?.standing.map(({ id }) => id)).toEqual(["1"])
-      expect(choices?.note?.id).toBe("3")
-      expect(choices?.plain).toBeNull()
-      expect(needsWords(choices!.note!)).toBe(true)
-    })
-  })
-
-  context("with Antigravity's review", () => {
-    const choices = choicesOf([
-      option("approve", "Approve"),
-      option("reject", "Reject"),
-      option("feedback", "Tell it what to change", "field"),
-    ])
-
-    it("approves, rejects plainly, and sends words back with the field", () => {
-      expect(choices?.allow?.id).toBe("approve")
-      expect(choices?.plain?.id).toBe("reject")
-      expect(choices?.note?.id).toBe("feedback")
-    })
-  })
-
-  it("takes no words back from an option that can't carry them", () => {
-    const choices = choicesOf([option("1", "Yes"), option("2", "Tell Claude what to change")])
-
-    expect(choices?.note).toBeNull()
-    expect(choices?.plain).toBeNull()
-  })
-
-  it("takes an agent's name of more than one word", () => {
-    expect(needsWords(option("3", "Tell Claude Code what to change", "field"))).toBe(true)
-  })
-
-  it("needs no words for a no that says so itself", () => {
-    expect(needsWords(option("3", "No, and tell Claude what to do differently", "prompt"))).toBe(
-      false,
-    )
-  })
-
-  context("with Claude's own words", () => {
-    const choices = choicesOf([
-      option("1", "Yes"),
-      option("2", "Yes, and don't ask again for this command in /repo"),
-      option("3", "No, and tell Claude what to do differently", "prompt"),
-    ])
-
-    it("allows with the plain yes, links the standing one, and denies only with words", () => {
-      expect(choices?.allow?.id).toBe("1")
-      expect(choices?.standing.map(({ id }) => id)).toEqual(["2"])
-      expect(choices?.note?.id).toBe("3")
-      expect(choices?.plain).toBeNull()
-    })
-  })
-
-  context("with Allow and Deny", () => {
-    const choices = choicesOf([
-      option("a", "Allow once"),
-      option("b", "Allow for this session"),
-      option("c", "Deny"),
-    ])
-
-    it("allows once, and denies with Deny", () => {
-      expect(choices?.allow?.id).toBe("a")
-      expect(choices?.standing.map(({ id }) => id)).toEqual(["b"])
-      expect(choices?.plain?.id).toBe("c")
-    })
-  })
-
-  context("with Claude's plan, bypass first", () => {
-    const choices = choicesOf([
-      option("1", "Yes, and bypass permissions"),
-      option("2", "Yes, clear context and auto-accept edits"),
-      option("3", "Yes, and manually approve edits"),
-      option("4", "No, keep planning", "prompt"),
-    ])
-
-    it("leads with the manual yes alone, leaving the rest as quiet links", () => {
-      expect(choices?.allow?.id).toBe("3")
-      // With a yes leading, bypass is no button beside it: a quiet link, as auto-accept is.
-      expect(choices?.standing.map(({ id }) => id)).toEqual(["1", "2"])
-      expect(choices?.unsure).toEqual([])
-    })
-  })
-
-  it("leads with no yes where none is plain, offering each as it words itself", () => {
-    const choices = choicesOf([
-      option("1", "Yes, and bypass permissions"),
-      option("2", "Yes, clear context and implement"),
-      option("3", "Yes, and don't ask again"),
-    ])
-
-    expect(choices?.allow).toBeNull()
-    expect(choices?.standing.map(({ id }) => id)).toEqual(["1", "3"])
-    expect(choices?.unsure.map(({ id }) => id)).toEqual(["2"])
-  })
-
-  it.each([
-    "Yes, auto mode",
-    "Yes, permanently",
-    "Yes, for the whole project",
-    "Yes, allow this tool from now on",
-    "Yes, but skip the sandbox",
-    "Yes, bypass permissions",
-    "Yes, clear context and manually approve edits",
-  ])("never leads with %s", (label) => {
-    const choices = choicesOf([option("a", label), option("n", "No")])
-
-    expect(choices?.allow).toBeNull()
-    expect([...(choices?.standing ?? []), ...(choices?.unsure ?? [])].map(({ id }) => id)).toEqual([
-      "a",
-    ])
-  })
-
-  it.each([
-    "Yes",
-    "Allow",
-    "Approve",
-    "Allow once",
-    "Yes.",
-    "Yes, proceed",
-    "Yes, manually approve edits",
-  ])("leads with %s", (label) => {
-    expect(choicesOf([option("a", label)])?.allow?.id).toBe("a")
-  })
-
-  it("prefers a bare yes over a known one", () => {
-    const choices = choicesOf([option("1", "Yes, proceed"), option("2", "Yes")])
-
-    expect(choices?.allow?.id).toBe("2")
-    expect(choices?.standing.map(({ id }) => id)).toEqual(["1"])
-  })
-
-  it("keeps a bracket that may qualify the yes, so it doesn't lead", () => {
-    expect(choicesOf([option("1", "Yes (all)"), option("2", "No")])?.allow).toBeNull()
-    const both = choicesOf([option("1", "Yes (a)"), option("2", "Yes (y)"), option("3", "No")])
-    expect(both?.allow?.id).toBe("2")
-    expect(both?.standing.map(({ id }) => id)).toEqual(["1"])
-  })
-
-  it("reads a yes past the key hint its harness prints after it", () => {
-    const choices = choicesOf([option("1", "Yes, proceed (y)"), option("2", "No (esc)")])
-
-    expect(choices?.allow?.id).toBe("1")
-    expect(choices?.plain?.id).toBe("2")
-  })
-
-  it("offers no Deny where nothing says no, and never a yes in its place", () => {
-    const choices = choicesOf([option("a", "Yes"), option("b", "Yes, always")])
-
-    expect(choices?.note).toBeNull()
-    expect(choices?.plain).toBeNull()
-  })
-
-  it("offers what no rule reads as it words itself, and has none only with nothing to send", () => {
-    expect(
-      choicesOf([option("a", "Continue"), option("b", "Stop")])?.rest.map(({ id }) => id),
-    ).toEqual(["a", "b"])
-    expect(choicesOf([option("a", "Tell Claude what to change")])).toBeNull()
-    expect(choicesOf([])).toBeNull()
-  })
-})
-
 describe("A limit's window", () => {
   it("is named by its length, or plainly where the length is unknown", () => {
     expect(limitWindow(300)).toBe("5-hour")
@@ -460,17 +244,15 @@ describe("A limit's window", () => {
 })
 
 describe("Words a field won't take", () => {
-  const feedback = option("feedback", "Tell it what to change", "field")
-
   it.each(["/compact", "  ?", "!ls", "see @notes.md"])("are said for Antigravity: %s", (words) => {
-    expect(refusedWords("agy", feedback, words)).toBe(
+    expect(fieldRefusal("agy", words)).toBe(
       "Antigravity can't take words that start with /, ? or !, or that have an @.",
     )
   })
 
   it("are none for plain words, nor for other agents", () => {
-    expect(refusedWords("agy", feedback, "Split the second step, then ask?")).toBeNull()
-    expect(refusedWords("claude", feedback, "/compact")).toBeNull()
-    expect(refusedWords("agy", option("n", "No", "prompt"), "/compact")).toBeNull()
+    expect(fieldRefusal("agy", "Split the second step, then ask?")).toBeNull()
+    expect(fieldRefusal("claude", "/compact")).toBeNull()
+    expect(fieldRefusal("codex", "!ls")).toBeNull()
   })
 })

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 const rowMark = "data-menu-row"
 
@@ -72,3 +72,46 @@ export const useMenu = (count: number): Menu => {
     },
   }
 }
+
+// How long a dialog the host moved on to takes no answer from the keyboard or a click: a key
+// pressed twice, or held, for the one before never answers the next.
+export const arrivalGuardMs = 400
+
+// Whether the dialog is within its moment of arrival (`arrived`, from its host).
+export const useArrivalGuard = (arrived: boolean): (() => boolean) => {
+  const until = useRef(0)
+  useEffect(() => {
+    if (arrived) until.current = Date.now() + arrivalGuardMs
+  }, [arrived])
+  return () => Date.now() < until.current
+}
+
+// Whether a key answers, rather than moves: what the guard holds back.
+export const answersKey = (key: string): boolean =>
+  /^[1-9]$/.test(key) || key === "Enter" || key === " "
+
+// A key pressed outside a menu's rows (on the host's own row or title), taken by the rows under
+// `root` as their own keys would: a digit goes to its row and presses it, an arrow moves on from
+// the row the person is on, stopping at either end. True where the key was the rows'.
+export const forwardKey = (root: Element | null | undefined, key: string): boolean => {
+  const rows = root ? [...root.querySelectorAll<HTMLElement>(`[${rowMark}]`)] : []
+  if (rows.length === 0) return false
+  if (/^[1-9]$/.test(key)) {
+    const row = rows[Number(key) - 1]
+    if (!row) return false
+    row.focus()
+    row.click()
+    return true
+  }
+  if (key !== "ArrowDown" && key !== "ArrowUp") return false
+  const at = Math.max(
+    0,
+    rows.findIndex((row) => row.tabIndex === 0),
+  )
+  rows[Math.min(rows.length - 1, Math.max(0, at + (key === "ArrowDown" ? 1 : -1)))]?.focus()
+  return true
+}
+
+// Focus to a row of the menu under `root`, pressing nothing.
+export const goToRow = (root: Element | null | undefined, at: number): void =>
+  root?.querySelectorAll<HTMLElement>(`[${rowMark}]`)[at]?.focus()

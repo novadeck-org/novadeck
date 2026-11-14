@@ -10,6 +10,7 @@
     "./chat.css": "./src/chat.css",
     "./ChatView": "./src/ChatView.tsx",
     "./commands": "./src/commands.ts",
+    "./Fact": "./src/Fact.tsx",
     "./mark-phase": "./src/mark-phase.ts",
     "./PersonWords": "./src/PersonWords.tsx",
     "./sends": "./src/sends.ts",

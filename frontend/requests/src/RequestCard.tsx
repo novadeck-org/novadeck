@@ -1,11 +1,55 @@
 import type { ChatAnswer, ChatRequest } from "@novadeck/core/conversation"
 import type { Refused } from "@novadeck/core/conversation/prompt-refusal"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ReactNode, type Ref } from "react"
 
-import { RequestDialog, type Live, type RequestPlace } from "./RequestDialog"
+import type { Drafted } from "./drafts"
+import type { MenuHandle } from "./Menu"
+import { RequestDialog, type DialogSlots, type Live, type RequestPlace } from "./RequestDialog"
 import { useMounted } from "./use-mounted"
 
 export type { Live, RequestPlace } from "./RequestDialog"
+
+// A card's frame: its head (the title line, and what the host puts beside it) over what it holds.
+// A request's card is one; the Inbox's own kinds (an agent's ask, a held message, trouble, an
+// update) are drawn in it too, so every card reads alike.
+export const RequestFrame = ({
+  ref,
+  kind,
+  dialog,
+  label,
+  title,
+  head,
+  busy,
+  children,
+}: {
+  readonly ref?: Ref<HTMLElement>
+  // What the card is, for its hooks: a request's kind, or the host's own.
+  readonly kind: string
+  // The type of the dialog it holds, where it holds one.
+  readonly dialog?: string
+  // Its name, for a screen reader.
+  readonly label: string
+  readonly title: ReactNode
+  // Beside the title, at the head's far end: a clock, a key.
+  readonly head?: ReactNode
+  readonly busy?: boolean
+  readonly children?: ReactNode
+}): React.JSX.Element => (
+  <article
+    ref={ref}
+    className="request-card"
+    data-kind={kind}
+    data-dialog={dialog}
+    aria-label={label}
+    aria-busy={busy}
+  >
+    <header className="request-head">
+      <h3>{title}</h3>
+      {head}
+    </header>
+    {children}
+  </article>
+)
 
 const titles: Readonly<Record<ChatRequest["kind"], string>> = {
   permission: "Needs your permission",
@@ -43,7 +87,12 @@ export const RequestCard = ({
   replying = false,
   replySending = false,
   onReply,
-}: {
+  menu,
+  arrived = false,
+  draft,
+  detail,
+  fieldRefused,
+}: DialogSlots & {
   readonly request: ChatRequest
   // The agent's name, for what waits on it.
   readonly agent: string
@@ -75,6 +124,15 @@ export const RequestCard = ({
   readonly replying?: boolean
   readonly replySending?: boolean
   readonly onReply?: ((dialog: string | null) => void) | undefined
+  // A handle on the dialog's menu the person is on, for the keys the host takes on its own row
+  // or title (the Inbox's): a number presses its row, an arrow moves the cursor.
+  readonly menu?: Ref<MenuHandle> | undefined
+  // The host moved on to this card from an answer (the Inbox, to the next row): focus comes to
+  // its dialog, and for a moment no key or click answers it.
+  readonly arrived?: boolean
+  // Where the host keeps what the person put in the dialog and hasn't sent: absent, the dialog
+  // keeps it while it is drawn.
+  readonly draft?: Drafted | undefined
 }): React.JSX.Element => {
   const title = titles[request.kind]
   const [sending, setSending] = useState(false)
@@ -139,31 +197,34 @@ export const RequestCard = ({
   const onlyTheTerminal =
     request.answered || dialog === null || (dialog.type === "raw" && !live?.keys)
   return (
-    <article
+    <RequestFrame
       ref={card}
-      className="request-card"
-      data-kind={request.kind}
-      data-dialog={dialog?.type ?? "none"}
-      aria-label={`${title}: ${request.tool}`}
-      aria-busy={sending}
-    >
-      <header className="request-head">
-        <h3>
+      kind={request.kind}
+      dialog={dialog?.type ?? "none"}
+      label={`${title}: ${request.tool}`}
+      busy={sending}
+      title={
+        <>
           {title}
           {request.subagent && " · subagent"}
-        </h3>
-        {!request.answered && clock?.(request.askedAt)}
-        {onlyTheTerminal && (
-          <button
-            type="button"
-            className="request-key nodrag nopan"
-            aria-label="Answer in terminal"
-            onClick={onAnswerInTerminal}
-          >
-            terminal
-          </button>
-        )}
-      </header>
+        </>
+      }
+      head={
+        <>
+          {!request.answered && clock?.(request.askedAt)}
+          {onlyTheTerminal && (
+            <button
+              type="button"
+              className="request-key nodrag nopan"
+              aria-label="Answer in terminal"
+              onClick={onAnswerInTerminal}
+            >
+              terminal
+            </button>
+          )}
+        </>
+      }
+    >
       {request.subject && !saysSubject(request) && (
         <p className="request-subject">{request.subject}</p>
       )}
@@ -198,6 +259,11 @@ export const RequestCard = ({
             if (error !== null) setError(null)
             onEdited?.()
           }}
+          draft={draft}
+          arrived={arrived}
+          handle={menu}
+          detail={detail}
+          fieldRefused={fieldRefused}
         />
       )}
       {notice && !request.answered && (
@@ -210,6 +276,6 @@ export const RequestCard = ({
           {error}
         </p>
       )}
-    </article>
+    </RequestFrame>
   )
 }

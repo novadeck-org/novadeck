@@ -33,13 +33,12 @@
    the project and the `.inbox-sheet-title`; the handle chip; Show terminal and close), the
    `.console-receipt` of the answer it moved on from (data-failed where that didn't arrive),
    and a scrolling `.inbox-sheet-scroll.console-page`. On a phone it is an `.inbox-fullscreen`
-   of its own. The page is made of: `.console-tail` (`.console-you`, `.console-step`s with
-   data-kind="edit" | "run" | "fail" and their `.console-res`); `.console-ask` with its `.console-q`
-   glyph, `.console-body`, `.console-note`, `.console-hard`, `.console-detail`, `.console-route`,
-   `.console-quote`; `.console-box` (data-tone) and `.console-path`; `.console-planbox`
-   (`.console-planbar`, `.console-planscroll`); a `.console-question` each; `.console-settled`;
-   `.inbox-failure`. What it asks in full and its numbered menu are @novadeck/requests'
-   (`.request-detail`, `.request-menu`, in requests.css), drawn with the tokens the page sets.
+   of its own. The page is the chat's (`.chat-inline`, chat.css, sets its tokens and type; the
+   page sets only `--_pad`, the sheet's edge): an `.inbox-context` of your last words and the
+   agent's latest steps, the chat's `.chat-thread` with its prompt row and its tool lines, then
+   the card, @novadeck/requests' (requests.css): a request's is the chat's own card, and the
+   Inbox's own kinds are drawn in the same frame, with its menu, and the error of an answer
+   that didn't take under it (`.request-error`).
 
    Tokens, each optional (its fallback in brackets):
    --inbox-urgent-fg (danger-fg), --inbox-waiting-fg (warning-fg), --inbox-quiet-fg (muted),
@@ -57,10 +56,7 @@
    --inbox-snoozed-icon-fg (muted): a snoozed row's wash, its dashed bar and its icons.
    --inbox-held-fg (strong), --inbox-held-bg (the strong colour at 10%),
    --inbox-held-border-color (the strong colour at 30%): the pill of waiting rows.
-   --inbox-card-bg (the ink at 3.5% on paper): the box that holds commands, errors and the
-   prompt as the terminal shows it.
    --inbox-workspace-opacity (0.55): the workspace behind an open sheet.
-   --inbox-focus-border-color (strong): the box for the person's own words.
    Cards take the button, badge, field, toggle and tone recipes' tokens. */
 
 /* ---- The panel and its rows ---- */
@@ -377,7 +373,6 @@
 
 .inbox-sheet {
   --_tone: var(--inbox-waiting-fg, var(--color-warning-fg));
-  --_box-bg: var(--inbox-card-bg, color-mix(in srgb, var(--color-ink) 3.5%, var(--color-paper)));
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
@@ -519,262 +514,22 @@
   }
 }
 
-/* The page: mono, as a terminal's prompt, with its gutter for the glyphs. */
+/* The page: the chat's own rows and card (chat.css's `.chat-inline` sets their tokens and type),
+   at the sheet's edge: your last words and the agent's steps as the log draws them, then the
+   card. */
 .console-page {
-  /* A request's detail and menu (@novadeck/requests' requests.css), in the page's own terms:
-     no edge of their own, their words after the page's gutter for the glyphs. */
-  --_pad: 0px;
-  --_inset: 16px;
-  --_lh: 19px;
-  --_ink: var(--color-ink);
-  --_muted: var(--color-muted);
-  --_mid: color-mix(in srgb, var(--_ink) 68%, var(--_muted));
-  --_accent: var(--color-strong);
-  --_red: var(--color-danger-fg);
-  --_line: var(--color-line);
+  --_pad: 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 12px 18px 14px;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  line-height: 19px;
-  font-variant-ligatures: none;
+  gap: var(--_lh);
+  padding: 14px 0 16px;
 }
-.console-page code {
-  font-family: var(--font-mono);
-  font-size: 0.95em;
+/* What the sheet says of the answer, under the card, at the card's words. */
+.console-page > .request-error {
+  --_inset: calc(var(--_pad) + 2ch);
 }
 
-/* Your last words and the agent's steps since, over a dashed rule. */
-.console-tail {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding-bottom: 11px;
-  border-bottom: var(--border-width) dashed var(--color-line);
-  color: var(--color-muted);
-}
-/* Until its steps have come, the tail holds the room of its longest self (the words, clamped
-   to two lines, and three steps), so the menu under it never moves as it fills in. */
-.console-tail[data-reserved] {
-  box-sizing: content-box;
-  min-height: calc(5 * 19px + 4px);
-}
-.console-you,
-.console-step,
-.console-ask {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
-}
-.console-you {
-  color: var(--color-ink);
-}
-/* Long words to the agent are clamped to two lines; the full text is its title. */
-.console-you .console-line {
-  display: -webkit-box;
-  overflow: hidden;
-  white-space: normal;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-.console-you q {
-  quotes: "“" "”";
-}
-.console-line {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.console-line b {
-  color: var(--color-ink);
-  font-weight: 500;
-}
-.console-res {
-  color: var(--color-muted);
-}
-.console-step .console-res::before {
-  content: " · ";
-  opacity: 0.6;
-}
-.console-add {
-  color: var(--color-success-fg);
-}
-.console-del {
-  color: var(--color-danger-fg);
-}
-.console-step[data-kind="fail"],
-.console-step[data-kind="fail"] .console-res {
-  color: var(--color-danger-fg);
-}
-
-/* The thing: a question or statement in the sheet's sans, and what it's about. */
-.console-ask {
-  margin: 0;
-  color: var(--color-ink);
-  font-family: var(--font-sans);
-  font-size: var(--text-lead);
-  font-weight: 600;
-  line-height: var(--text-lead--line-height);
-}
-.console-q {
-  color: var(--_tone);
-  font-family: var(--font-mono);
-}
-.console-header {
-  color: var(--color-muted);
-  font-weight: 400;
-}
-.console-body,
-.console-note,
-.console-hard,
-.console-settled,
-.console-detail,
-.console-route,
-.console-quote {
-  margin: 0 0 0 16px;
-  font-family: var(--font-sans);
-  font-size: var(--text-body);
-  line-height: 20px;
-}
-.console-ask + .console-body {
-  margin-top: -4px;
-}
-.console-note {
-  color: var(--color-muted);
-}
-.console-hard {
-  padding: 6px 10px;
-  border-radius: var(--radius-control);
-  background-color: color-mix(in srgb, var(--color-danger-fg) 12%, var(--color-paper));
-  color: var(--color-danger-fg);
-  font-size: var(--text-control);
-  font-weight: 500;
-}
-.console-settled {
-  padding: 7px 10px;
-  border-left: 2px solid var(--color-line-strong);
-  color: var(--color-muted);
-  font-size: var(--text-control);
-}
-.console-detail {
-  color: var(--color-muted);
-}
-.console-quote {
-  padding: 6px 12px;
-  border-left: 2px solid var(--color-line-strong);
-  white-space: pre-wrap;
-}
-
-/* Commands, errors and what a prompt shows: word for word in the mono box. */
-.console-box {
-  margin: 0 0 0 16px;
-  padding: 8px 12px 9px;
-  border-left: 2px solid var(--color-line-strong);
-  background-color: var(--_box-bg);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 19px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-pre.console-box {
-  max-height: 228px;
-  overflow-y: auto;
-}
-.console-box[data-tone="urgent"] {
-  border-left-color: var(--color-danger-fg);
-  color: var(--color-danger-fg);
-}
-.console-path {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: var(--color-muted);
-  font-size: var(--text-caption);
-}
-.console-box:focus-visible,
-.console-planbox[data-loading] .console-planscroll {
-  color: var(--color-muted);
-}
-.console-planscroll:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-strong);
-  outline-offset: -2px;
-}
-.console-evidence {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-}
-.console-times {
-  flex: none;
-  color: var(--color-danger-fg);
-}
-
-/* The plan in a box of its own, the chat's Markdown, scrolling alone. */
-.console-planbox {
-  display: flex;
-  flex-direction: column;
-  margin-left: 16px;
-  overflow: hidden;
-  border: var(--border-width) solid var(--color-line);
-  border-radius: var(--radius-control);
-  background-color: color-mix(in srgb, var(--color-ink) 2.5%, var(--color-paper));
-}
-.console-planbar {
-  display: flex;
-  justify-content: space-between;
-  padding: 5px 12px;
-  border-bottom: var(--border-width) solid var(--color-line);
-  color: var(--color-muted);
-  font-size: var(--text-caption);
-}
-.console-planscroll {
-  max-height: 340px;
-  padding: 12px 16px 14px;
-  overflow-y: auto;
-  font-family: var(--font-sans);
-  font-size: var(--text-body);
-  line-height: 1.55;
-  scrollbar-gutter: stable;
-}
-
-/* A dialog of questions: a menu each, under its question. */
-.console-question {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.console-page .inbox-failure {
-  margin-left: 16px;
-}
-
-/* Disclosures, links and failures, as the sheets share them. */
-.inbox-disclose {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0;
-  color: var(--color-muted);
-}
-.inbox-disclose:hover {
-  color: var(--color-ink);
-}
-.inbox-disclose svg {
-  transition: transform var(--motion-feedback) var(--ease-interface);
-}
-.inbox-disclose[aria-expanded="true"] svg {
-  transform: rotate(180deg);
-}
-.inbox-disclosure {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-}
+/* Links, as the sheets share them. */
 .inbox-link {
   padding: 0;
   text-align: left;
@@ -785,13 +540,6 @@ pre.console-box {
 .inbox-link:hover:not(:disabled) {
   text-decoration-color: currentColor;
 }
-.inbox-failure {
-  margin: 0;
-  color: var(--color-danger-fg);
-  font-family: var(--font-sans);
-  font-size: var(--text-control);
-}
-
 @media (max-width: 700px) {
   .console-project,
   .console-sep {

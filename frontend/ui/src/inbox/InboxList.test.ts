@@ -487,7 +487,7 @@ describe("The Inbox's list", () => {
       await nextFrame()
 
       expect(document.querySelector(".console-tag")?.textContent).toBe("Dismissed")
-      expect(document.querySelector(".console-settled")?.textContent).toBe(
+      expect(document.querySelector(".inbox-sheet .request-note")?.textContent).toBe(
         "You dismissed this ask; @moth was told.",
       )
       expect(document.querySelector(".inbox-sheet .request-options")).toBeNull()

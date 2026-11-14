@@ -15,8 +15,9 @@
    prompt (`.chat-composer`), one line under a hairline. What the harness shows at its input
    stands over the prompt too (`.chat-live`, a title over its own rows `.chat-slice`).
 
-   Outside a chat, `.chat-inline` holds its rows (the Inbox's sheet draws your last words and the
-   agent's steps with `PersonWords` and `ToolCalls`): the tokens and type, a gutter, no layout.
+   Outside a chat, `.chat-inline` carries its tokens and type (and data-compact its smaller ones),
+   with none of its layout: the Inbox's sheet, which draws your last words and the agent's steps
+   with `PersonWords` and `ToolCalls` in a `.chat-thread`, and a request's card, as the chat does.
 
    Hooks: data-compact on `.chat` in a Grid or Canvas window; data-role="user" |
    "assistant" | "agent" on a message, data-sent="queued" | "sending" | "unrecorded" |
@@ -136,20 +137,7 @@
   min-height: 0;
   background-color: var(--chat-bg, var(--window-bg, var(--color-paper)));
 }
-/* The chat's rows outside a chat (the Inbox's sheet draws your last words and the agent's steps
-   with them): its tokens, its type and a gutter for the mark, with none of its layout, so they
-   sit in what holds them as they would in the log. */
-.chat-inline {
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--_lh) / 2);
-}
-.chat-inline > * {
-  position: relative;
-  min-width: 0;
-  margin-left: 2ch;
-}
-.chat[data-compact] {
+:is(.chat, .chat-inline)[data-compact] {
   --_pad: 14px;
   --_lh: 18px;
   --_work-size: 11px;
@@ -583,76 +571,78 @@
 
 /* The agent's formatted text: the terminal's, flat. The rest of it is the toolkit's
    `markdown.css`. */
-.chat .markdown {
+:is(.chat, .chat-inline) .markdown {
   --markdown-inline-code-bg: transparent;
   --markdown-code-bg: transparent;
   --markdown-code-border-color: transparent;
 }
 /* :where, so a list's own rule below can take these margins back. */
-.chat .markdown :where(p, ul, ol, blockquote, .markdown-code, .markdown-table, hr, h3, h4, h5, h6) {
+:is(.chat, .chat-inline)
+  .markdown
+  :where(p, ul, ol, blockquote, .markdown-code, .markdown-table, hr, h3, h4, h5, h6) {
   margin: 0 0 var(--_lh);
 }
-.chat .markdown > :last-child {
+:is(.chat, .chat-inline) .markdown > :last-child {
   margin-bottom: 0;
 }
-.chat .markdown :is(h3, h4, h5, h6) {
+:is(.chat, .chat-inline) .markdown :is(h3, h4, h5, h6) {
   font-size: inherit;
   font-weight: 600;
   letter-spacing: normal;
   line-height: inherit;
 }
-.chat .markdown ul {
+:is(.chat, .chat-inline) .markdown ul {
   padding-left: 2ch;
   list-style-type: "- ";
 }
-.chat .markdown ol {
+:is(.chat, .chat-inline) .markdown ol {
   padding-left: 3ch;
 }
-.chat .markdown li {
+:is(.chat, .chat-inline) .markdown li {
   margin: 0;
 }
-.chat .markdown li :is(p, ul, ol) {
+:is(.chat, .chat-inline) .markdown li :is(p, ul, ol) {
   margin: 0;
 }
-.chat .markdown blockquote {
+:is(.chat, .chat-inline) .markdown blockquote {
   padding-left: 2ch;
   border-left: 0;
 }
-.chat .markdown :not(pre) > code {
+:is(.chat, .chat-inline) .markdown :not(pre) > code {
   padding: 0;
   border-radius: 0;
   font-size: inherit;
 }
-.chat .markdown-code {
+:is(.chat, .chat-inline) .markdown-code {
   border-radius: 0;
 }
-.chat .markdown-code-bar {
+:is(.chat, .chat-inline) .markdown-code-bar {
   min-height: var(--_lh);
   padding: 0;
   border-bottom: 0;
   font-size: inherit;
 }
-.chat .markdown-code pre {
+:is(.chat, .chat-inline) .markdown-code pre {
   padding: 0 0 0 2ch;
   font-size: inherit;
   line-height: inherit;
 }
-.chat .markdown-table table {
+:is(.chat, .chat-inline) .markdown-table table {
   font-size: inherit;
 }
-.chat .markdown-table :is(th, td) {
+:is(.chat, .chat-inline) .markdown-table :is(th, td) {
   padding: 0 3ch 0 0;
   border: 0;
 }
-.chat .markdown-table th {
+:is(.chat, .chat-inline) .markdown-table th {
   border-bottom: var(--border-width) solid var(--_line);
   background: none;
 }
 /* Rows of several lines each read apart: a little air, and a rule under each. */
-.chat .markdown-table td {
+:is(.chat, .chat-inline) .markdown-table td {
   padding-block: calc(var(--_lh) / 4);
 }
-.chat .markdown-table tr:not(:last-child) td {
+:is(.chat, .chat-inline) .markdown-table tr:not(:last-child) td {
   border-bottom: var(--border-width) solid var(--_line);
 }
 

@@ -11,7 +11,7 @@ import {
 
 import { Hint } from "./Hint"
 import { answering, menuKey, pressRow, startCursor, type Cursor } from "./menu-keys"
-import { isTyping } from "./use-menu"
+import { arrivalGuardMs, isTyping } from "./use-menu"
 
 // A request's numbered menu, as the next lines of the terminal: a number and the words of each
 // row, a dim line under them where the row says more, and a thin bar on the row the person is on.
@@ -76,10 +76,6 @@ export type MenuHandle = {
 // The most characters of the person's words a request's answer takes (`requestAnswer`'s text).
 export const answerWordsLimit = 16_384
 
-// How long a menu the host moved on to takes no answer from the keyboard: a key pressed twice,
-// or held, for the one before never answers the next.
-const arrivalGuardMs = 400
-
 // Whether a field's words may go as they are.
 const ready = (given: Words): boolean =>
   !given.refused &&
@@ -123,7 +119,7 @@ export const Menu = ({
   readonly onSend?: () => void
   // The person came into a words row's field.
   readonly onOpen?: (at: number) => void
-  readonly handle?: Ref<MenuHandle>
+  readonly handle?: Ref<MenuHandle> | undefined
   // The host moved on to this menu from an answer: focus comes to its first row (a words row's
   // field, where that is the first), and for a moment no key answers.
   readonly arrived?: boolean

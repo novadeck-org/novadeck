@@ -1,22 +1,15 @@
 import { askToFixNudge } from "@novadeck/core/agents/steps"
-import type { ChatAnswer, ChatDialogOption, ChatRequest } from "@novadeck/core/conversation"
-import { needsWords, optionExtras } from "@novadeck/core/conversation/extras"
+import type { ChatAnswer, ChatRequest } from "@novadeck/core/conversation"
+import { optionExtras } from "@novadeck/core/conversation/extras"
 import type { AskOption, InboxAnswer, InboxRow, Trouble } from "@novadeck/core/inbox"
 
-import {
-  actionOf,
-  agentName,
-  choicesOf,
-  clock,
-  recommended,
-  refusedWords,
-  waitLabel,
-} from "./inbox-text"
+import { actionOf, agentName, clock, recommended, waitLabel } from "./inbox-text"
 
-// The numbered menu a sheet answers with, by kind: each menu row's words, the line under it
-// where that says what the row's words don't, and what it sends with the receipt the next sheet
-// shows for it. Pure, so the rules read apart from the markup. An agent's own questions
-// take their picks as they go and are made in `QuestionsMenu`.
+// The numbered menu a sheet answers its own kinds with (an agent's ask, a held message, trouble,
+// an update): each menu row's words, the line under it where that says what the row's words
+// don't, and what it sends with the receipt the next sheet shows for it. A request is answered
+// by its card (@novadeck/requests), as in the chat, and `requestReceipt` says what its answer
+// did. Pure, so the rules read apart from the markup.
 
 // A menu row's own text: its label as the harness or agent wrote it (`code` between backticks).
 export type MenuRow =
@@ -64,37 +57,14 @@ export type Menu = {
   readonly hard: boolean
 }
 
-const none: Menu = { rows: [], hard: false }
-
 // The way to the row's terminal.
 const goToTerminal: MenuRow = { type: "reveal", label: "Go to terminal", effect: null }
-
-// A prompt that can't be answered from here: the way to its terminal.
-const inTerminal: Menu = { rows: [goToTerminal], hard: false }
 
 // Every menu ends on the way to the row's terminal, where it has none of its own.
 const withTerminal = (menu: Menu): Menu =>
   menu.rows.some((row) => row.type === "reveal")
     ? menu
     : { ...menu, rows: [...menu.rows, goToTerminal] }
-
-// Whether the sheet can answer a request: its dialog read, with an option it can send.
-// Every other row it can.
-export const answerable = (row: InboxRow): boolean => {
-  if (row.kind !== "request") return true
-  const { dialog } = row.request
-  if (dialog?.type === "questions") return true
-  return dialog?.type === "choices" && choicesOf(dialog.options) !== null
-}
-
-// A field takes one line, so the words' line breaks (and other control characters) go as
-// spaces.
-const choiceAnswer = (dialog: string, option: ChatDialogOption, text?: string): ChatAnswer => {
-  // eslint-disable-next-line no-control-regex -- These are the characters a field refuses.
-  const typed = option.text === "field" ? text?.replace(/[\x00-\x1f\x7f]+/g, " ") : text
-  const words = typed?.trim()
-  return { type: "choice", dialog, option: option.id, ...(words ? { text: words } : {}) }
-}
 
 // What a permission is for, as a receipt names it: "@crow's command".
 const thing = (request: ChatRequest): string => {
@@ -105,107 +75,40 @@ const thing = (request: ChatRequest): string => {
   return request.tool
 }
 
-const permissionMenu = (row: InboxRow, request: ChatRequest): Menu => {
-  const dialog = request.dialog
-  if (dialog?.type !== "choices") return none
-  const choices = choicesOf(dialog.options)
-  if (!choices) return inTerminal
-  const extras = optionExtras(request.kind, dialog.options)
-  const extrasOf = (option: ChatDialogOption) => extras[dialog.options.indexOf(option)]!
-  const { agent, handle } = row.source
+// The receipt the next sheet shows for an answer to a request, as its card sent it: what the
+// option the person took did, by the role core reads into it (`conversation/extras`), with the
+// harness's own label left as it is on the card.
+export const requestReceipt = (
+  request: ChatRequest,
+  handle: string,
+  answer: ChatAnswer,
+): string => {
   const who = `@${handle}'s ${thing(request)}`
   const plan = actionOf(request) === "plan"
-  const answer = (option: ChatDialogOption, text?: string): InboxAnswer => ({
-    kind: "request",
-    answer: choiceAnswer(dialog.id, option, text),
-  })
-  const rows: MenuRow[] = []
-  if (choices.allow)
-    rows.push({
-      type: "answer",
-      label: plan ? "Approve" : "Allow",
-      effect: null,
-      pick: false,
-      details: null,
-      answer: answer(choices.allow),
-      receipt: `${plan ? "Approved" : "Allowed"} ${who}.`,
-    })
-  for (const option of choices.unsure)
-    rows.push({
-      type: "answer",
-      label: option.label,
-      effect: null,
-      pick: false,
-      details: null,
-      answer: answer(option),
-      receipt: `Answered ${who}.`,
-    })
-  // What no rule reads, or a second no, as it words itself.
-  for (const option of choices.rest)
-    rows.push({
-      type: "answer",
-      label: option.label,
-      effect: null,
-      pick: false,
-      details: null,
-      answer: answer(option),
-      // A plan's option no rule reads may let the agent act without asking: armed.
-      ...(plan && extrasOf(option).role === "other" && { hard: true as const }),
-      receipt:
-        extrasOf(option).role === "no"
-          ? `${plan ? "Sent back" : "Denied"} ${who}.`
-          : `Answered ${who}.`,
-    })
-  for (const option of choices.standing) {
-    const { role, lines, effect, hard } = extrasOf(option)
-    rows.push({
-      type: "answer",
-      label: lines?.head ?? option.label,
-      effect: lines?.scope ?? effect,
-      pick: false,
-      details: null,
-      answer: answer(option),
-      // A plan's standing yes lets the agent act without asking from then on.
-      ...(hard && { hard: true as const }),
-      receipt:
-        role === "standing"
-          ? `${plan ? "Approved" : "Allowed"} ${who}; it won't ask again.`
-          : `Answered ${who}.`,
-    })
+  const { dialog } = request
+  switch (answer.type) {
+    case "questions": {
+      const several = dialog?.type === "questions" && dialog.questions.length > 1
+      return `Answered @${handle}'s ${several ? "questions" : "question"}.`
+    }
+    case "chat":
+      return `Set @${handle}'s questions aside to talk them over in its terminal.`
+    case "form":
+      return answer.action === "accept"
+        ? `Filled in @${handle}'s form.`
+        : `Declined @${handle}'s form.`
+    case "choice": {
+      const options = dialog?.type === "choices" ? dialog.options : []
+      const at = options.findIndex((option) => option.id === answer.option)
+      const role = at === -1 ? "other" : optionExtras(request.kind, options)[at]!.role
+      const words = answer.text?.trim() ? ", with your words" : ""
+      if (role === "yes") return `${plan ? "Approved" : "Allowed"} ${who}${words}.`
+      if (role === "standing") return `${plan ? "Approved" : "Allowed"} ${who}; it won't ask again.`
+      if (role === "no" || role === "words")
+        return `${plan ? "Sent back" : "Denied"} ${who}${words}.`
+      return `Answered ${who}${words}.`
+    }
   }
-  if (choices.plain)
-    rows.push({
-      type: "answer",
-      label: plan ? "Send it back" : "Deny",
-      effect: null,
-      pick: false,
-      details: null,
-      answer: answer(choices.plain),
-      receipt: `${plan ? "Sent back" : "Denied"} ${who}.`,
-    })
-  const note = choices.note
-  if (note) {
-    // Where the only way back is the person's words (Claude's plan's "Tell Claude what to
-    // change"), it needs them; else an empty box is the plain no. It says no in Novadeck's
-    // words, as the plain no does, whatever the harness calls it.
-    const required = choices.plain === null && needsWords(note)
-    const name = agentName(agent)
-    rows.push({
-      type: "words",
-      label: plan ? "Send it back, with your words" : "Deny, with your words",
-      placeholder: required ? `Tell ${name} what to change` : `Tell ${name} what to do instead`,
-      field: required ? `What ${name} should change` : `What ${name} should do instead`,
-      required,
-      answer: (text) =>
-        answer(text.trim() === "" && choices.plain ? choices.plain : note, text || undefined),
-      receipt: (text) =>
-        text.trim() === ""
-          ? `${plan ? "Sent back" : "Denied"} ${who}.`
-          : `${plan ? "Sent back" : "Denied"} ${who}, with your words.`,
-      refused: (text) => refusedWords(agent, note, text),
-    })
-  }
-  return { rows, hard: false }
 }
 
 // What the person may write in place of an agent's options, or as its answer.
@@ -357,16 +260,14 @@ const troubleMenu = (row: InboxRow, trouble: Trouble, now: number): Menu => {
   }
 }
 
-// The menu of every row but a dialog of questions, at `now`: a limit's reset is read
-// against it.
-export const menuOf = (row: InboxRow, now: number): Menu => withTerminal(answersOf(row, now))
+// The rows a sheet draws as its own, every kind but a request, which its card answers.
+export type OwnRow = Exclude<InboxRow, { readonly kind: "request" }>
 
-const answersOf = (row: InboxRow, now: number): Menu => {
+// The menu of a row of the Inbox's own, at `now`: a limit's reset is read against it.
+export const menuOf = (row: OwnRow, now: number): Menu => withTerminal(answersOf(row, now))
+
+const answersOf = (row: OwnRow, now: number): Menu => {
   switch (row.kind) {
-    case "request": {
-      if (row.request.dialog?.type !== "choices") return inTerminal
-      return permissionMenu(row, row.request)
-    }
     case "held": {
       const { from, to } = row.held
       return {

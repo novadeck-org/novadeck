@@ -1,10 +1,4 @@
-import type { ChatDialog, ChatDialogOption, ChatRequest } from "@novadeck/core/conversation"
-import {
-  needsWords,
-  optionExtras,
-  saysYes,
-  type OptionRole,
-} from "@novadeck/core/conversation/extras"
+import type { ChatDialog, ChatRequest } from "@novadeck/core/conversation"
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import { inboxType, type InboxRow, type InboxSource, type Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsBehind } from "@novadeck/core/messages"
@@ -190,56 +184,13 @@ export const toneOf = (row: InboxRow): Tone => {
   return inboxType(row) === "trouble" && !waits ? "urgent" : "waiting"
 }
 
-// A permission's or plan's options, as the buttons the sheet offers, by the roles core's
-// extras read them in: Allow is the plain yes; the other yeses are quiet links in their own
-// words, or plain buttons where no yes is plain; the rest say no, or send the person's words
-// back, one of which may take words. An option no rule knows is offered as it words itself.
-export type Choices = {
-  // The plain yes that leads; null where no yes is plain.
-  readonly allow: ChatDialogOption | null
-  readonly standing: readonly ChatDialogOption[]
-  // Where no yes leads, the ones that set nothing standing, offered as they word themselves.
-  readonly unsure: readonly ChatDialogOption[]
-  // The no that takes the person's words, and the plain one.
-  readonly note: ChatDialogOption | null
-  readonly plain: ChatDialogOption | null
-  // Every other option, as it words itself: one no rule knows, or a second no.
-  readonly rest: readonly ChatDialogOption[]
-}
-
-// Why an agent won't take these words in a field, said before they're sent; null where it
-// will. Antigravity's feedback is typed into its empty prompt box, where words that start
-// with /, ? or ! would run a command, open help or a shell, and an @ opens a file picker.
-export const refusedWords = (
-  agent: AgentName,
-  option: ChatDialogOption,
-  text: string,
-): string | null =>
-  agent === "agy" && option.text === "field" && /^\s*[/?!]|@/.test(text)
+// Why an agent won't take these words in a field of its dialog, said before they're sent; null
+// where it will. Antigravity's feedback is typed into its empty prompt box, where words that
+// start with /, ? or ! would run a command, open help or a shell, and an @ opens a file picker.
+export const fieldRefusal = (agent: AgentName, text: string): string | null =>
+  agent === "agy" && /^\s*[/?!]|@/.test(text)
     ? `${agentName(agent)} can't take words that start with /, ? or !, or that have an @.`
     : null
-
-// Null where it has nothing to send. With a yes leading, every other yes is a quiet link in
-// its own words, so nothing that may change more than this answer ("bypass permissions")
-// sits beside it as a button; with none leading, the yeses are plain buttons in their own
-// words (`unsure`), none of them primary. A yes is never offered as a no; where nothing says
-// no, nor sends words back, there is no Deny. Only the first option that takes words gets
-// a box; an option that must carry words and has none is left to the terminal.
-export const choicesOf = (options: readonly ChatDialogOption[]): Choices | null => {
-  // Grouping reads no plan's effects, so any kind does.
-  const extras = optionExtras("permission", options)
-  const role = (option: ChatDialogOption): OptionRole => extras[options.indexOf(option)]!.role
-  const allow = options.find((each) => role(each) === "yes") ?? null
-  const others = options.filter((each) => each !== allow && saysYes(each))
-  const standing = allow ? others : others.filter((each) => role(each) === "standing")
-  const unsure = allow ? [] : others.filter((each) => role(each) !== "standing")
-  const note = options.find((each) => role(each) === "words") ?? null
-  const plain = options.find((each) => role(each) === "no") ?? null
-  const placed = new Set([allow, ...standing, ...unsure, note, plain])
-  const rest = options.filter((each) => !placed.has(each) && !needsWords(each))
-  if (placed.size === 1 && placed.has(null) && rest.length === 0) return null
-  return { allow, standing, unsure, note, plain, rest }
-}
 
 // The agent's words for a limit's window: "usage" where its length is unknown (0), and
 // "weekly" and "daily" for the windows of those lengths; with the models it covers, where

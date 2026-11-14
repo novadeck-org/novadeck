@@ -1,5 +1,6 @@
 import { agentContext, answersOf, type AgentContext } from "@novadeck/core/agents/steps"
 import type { Conversation, Conversations } from "@novadeck/core/conversation"
+import type { Refused } from "@novadeck/core/conversation/prompt-refusal"
 import type { InboxRow } from "@novadeck/core/inbox"
 import type { Messages, TerminalThreads } from "@novadeck/core/messages"
 import { terminalKeyPath } from "@novadeck/core/types"
@@ -19,7 +20,9 @@ import {
 // Where the Inbox reads agents' context from: the backend's conversations and messages.
 // Absent outside the app, as in a sheet's tests: there is no context then.
 type Sources = {
-  readonly conversations?: Pick<Conversations, "conversation"> | undefined
+  readonly conversations?:
+    | (Pick<Conversations, "conversation"> & Partial<Pick<Conversations, "refused">>)
+    | undefined
   readonly messages?: Pick<Messages, "state"> | undefined
 }
 
@@ -61,3 +64,10 @@ export const useAgentContext = (row: InboxRow): AgentContext | undefined => {
     return agentContext(conversation.agent, conversation.items, answersOf(threads))
   }, [conversation, threads])
 }
+
+const refusesNothing: Refused = () => false
+
+// Whether words that go on as an agent's next prompt would be refused for their shape, as the
+// backend says, the chat's own check; outside the app nothing is.
+export const useRefused = (): Refused =>
+  useContext(AgentSources).conversations?.refused ?? refusesNothing

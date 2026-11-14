@@ -473,11 +473,12 @@ App:
   command permission, an unreadable dialog, a held message, a decision with options, a
   detected question, an ask while its agent keeps working, a login request, the 5-hour limit, a usage limit Novadeck can't resume (no switch), a request whose dialog never read, a
   failed turn with no error, a held message whose sender is gone, a plan approval
-  (its bypass-permissions yes a quiet link; in the agents and Inbox demos it brings its long
+  (its options in Claude's own words, as the chat's card shows them, the bypass-permissions yes
+  armed before it sends; in the agents and Inbox demos it brings its long
   checkout plan, shown again on storefront's terminal 6 as a harness shows the plan it asks
   about; "Plan still loading" keeps that plan's box on Loading, and "Plan not found" shows no
   plan, so the box waits five seconds and the dialog's own words stand in), a failed turn, a free-text ask, a permission
-  whose Deny is a plain no, messages held long behind what keeps the doorbell from an idle
+  whose no is a plain no, messages held long behind what keeps the doorbell from an idle
   agent, a heads-up and an agent's done report. "Several asks at once" adds four asks from four
   projects together, so three toasts stack with a "+1 more" pill behind (the page needs focus
   and the Inbox panel closed, and a row from the selected terminal never lands until you look away: with
@@ -496,9 +497,13 @@ App:
   buries a line under blank lines and spaces; its box counts the lines and marks what draws
   as nothing. "Long command" adds a permission for a 12-line script, every line in a box that
   scrolls. "Pick several, with your own words" adds Claude's question that takes several picks
-  and words: numbers and Space tick, the last row opens a box, and Enter sends the picks with
-  the words. "Plan with a change field" adds Claude Code 2.1.287's plan, whose only way
-  back is "Tell Claude what to change": that row opens a box that must say what. Answering any
+  and words, on the chat's pages: numbers tick, "Something else…" takes words in place, and the
+  Review page sends them. "Plan with a change field" adds Claude Code 2.1.287's plan, whose only
+  way back is "Tell Claude what to change": that row is a field that must say what. "Form from
+  an MCP server" adds the form an MCP server asks Antigravity to fill in, answered in the card as
+  the chat's is (a text, a choice, a number and a yes/no; Submit or Decline). A request's sheet
+  is the chat's own card, and its draft (the words in its options, its picks and page, a form's
+  entries) stays with its row. Answering any
   row moves the sheet on to the next that needs you (updates skipped) with a one-line receipt,
   and closes it once nothing is left; "Decision with options" is hard to undo, so its first
   press only arms the answer. "A new row
@@ -934,7 +939,7 @@ of its own, `frontend/demo-debug`, the one with React and Lucide. `interaction/`
 the core and imports no packages;
 features add `frontend/toolkit`; `layouts/` may use
 `terminals/`; the items package, which holds the companion pane, is a package of its own, `frontend/items`, built on the
-core, the toolkit and the viewers and never on the UI, which composes it, as it does the chat, another package, `frontend/chat`, built on the core and the toolkit and never on the UI or the items package, which draws its requests with `frontend/requests`, a package built on the core and the toolkit and never on the chat, the UI or the items package, whose menu and detail the Inbox's sheets draw too; no feature
+core, the toolkit and the viewers and never on the UI, which composes it, as it does the chat, another package, `frontend/chat`, built on the core and the toolkit and never on the UI or the items package, which draws its requests with `frontend/requests`, a package built on the core and the toolkit and never on the chat, the UI or the items package, whose card the Inbox's sheets draw too; no feature
 (`inbox/`, `preferences/`, `projects/`,
 `search/`, `sidebar/` or `voice/`) imports another, only the base and itself, and none reaches the
 chat or the items package; `shell/` may use `layouts/`, `projects/`,

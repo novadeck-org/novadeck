@@ -32,10 +32,10 @@ export const Disclosure = ({
   const [open, setOpen] = useState(false)
   const id = useId()
   return (
-    <div className="inbox-disclosure">
+    <div className="request-disclosure">
       <button
         type="button"
-        className="inbox-disclose text-caption"
+        className="request-key request-disclose nodrag nopan"
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen(!open)}
@@ -48,14 +48,14 @@ export const Disclosure = ({
   )
 }
 
-// Why an answer didn't take.
+// Why an answer didn't take, as a request's card says it.
 export const Failure = ({
   message,
 }: {
   readonly message: string | undefined
 }): React.JSX.Element | null =>
   message ? (
-    <p className="inbox-failure" role="alert">
+    <p className="chat-error request-error" role="alert">
       {message}
     </p>
   ) : null
