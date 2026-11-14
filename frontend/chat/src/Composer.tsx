@@ -7,6 +7,9 @@ import {
   shellCommand,
   type Refused,
 } from "@novadeck/core/conversation/prompt-refusal"
+import { Hint } from "@novadeck/requests/Hint"
+import { submitOnEnter } from "@novadeck/requests/submit-on-enter"
+import { useMounted } from "@novadeck/requests/use-mounted"
 import { clipboardImages, pastedFiles, pastedText } from "@novadeck/terminal/view"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { CornerDownLeft } from "lucide-react"
@@ -15,12 +18,9 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 import type { Attachment } from "./attachments"
 import { replyImagesNote, shellImagesNote } from "./commands"
 import type { ComposerMode } from "./composer-mode"
-import { Hint } from "./Hint"
 import { recall, walksAt, type Walk } from "./history"
 import { Mark } from "./Mark"
 import { cleaned, splitDraft, unitEdit } from "./placeholders"
-import { submitOnEnter } from "./submit-on-enter"
-import { useMounted } from "./use-mounted"
 import { useTransmitPulse } from "./use-transmit-pulse"
 
 // The most a reply to the agent's question carries.

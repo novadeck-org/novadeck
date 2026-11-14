@@ -51,6 +51,7 @@ export const roots: Root[] = [
   { token: "frontend/toolkit", dir: "frontend/toolkit", node: "renderer" },
   { token: "frontend/items", dir: "frontend/items", node: "renderer" },
   { token: "frontend/chat", dir: "frontend/chat", node: "renderer" },
+  { token: "frontend/requests", dir: "frontend/requests", node: "renderer" },
   { token: "frontend/runner-adapter", dir: "frontend/runner-adapter", node: "renderer" },
   { token: "frontend/terminal-views", dir: "frontend/terminal-views", node: "renderer" },
   { token: "frontend/demo", dir: "frontend/demo", node: "renderer" },
@@ -374,6 +375,11 @@ export const notes: Record<string, Note> = {
     purpose:
       "The chat view: a conversation's blocks as a transcript, the requests an agent waits on, the composer, and the chat's own store and commands.",
     entries: [{ file: "frontend/chat/src/ChatView.tsx", text: "export const ChatView" }],
+  },
+  "frontend/requests": {
+    purpose:
+      "An agent's request drawn and answered: the card, its dialog's menu, question pages, form and raw text, and their stylesheet, which the chat (and in time the Inbox) draws.",
+    entries: [{ file: "frontend/requests/src/RequestCard.tsx", text: "export const RequestCard" }],
   },
   "frontend/demo-debug": {
     purpose: "The demo's debug panel and rehearsals, for the content preview and the specs.",

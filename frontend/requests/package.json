@@ -1,0 +1,38 @@
+{
+  "name": "@novadeck/requests",
+  "version": "0.0.0",
+  "private": true,
+  "description": "An agent's request drawn and answered: the card, its dialog's menu, questions, form and raw text, and their stylesheet, for the chat and the Inbox alike.",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "exports": {
+    "./Hint": "./src/Hint.tsx",
+    "./RequestCard": "./src/RequestCard.tsx",
+    "./requests.css": "./src/requests.css",
+    "./shown-controls": "./src/shown-controls.ts",
+    "./submit-on-enter": "./src/submit-on-enter.ts",
+    "./use-mounted": "./src/use-mounted.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@novadeck/core": "workspace:*",
+    "react": "^19.3.1"
+  },
+  "devDependencies": {
+    "@novadeck/build-kit": "workspace:*",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "jsdom": "^31.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.8",
+    "vitest": "^5.1.0"
+  },
+  "novadeck": {
+    "platform": "neutral"
+  }
+}

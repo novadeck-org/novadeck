@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@novadeck/core": "workspace:*",
+    "@novadeck/requests": "workspace:*",
     "@novadeck/terminal": "workspace:*",
     "@novadeck/toolkit": "workspace:*",
     "@novadeck/viewers": "workspace:*",
