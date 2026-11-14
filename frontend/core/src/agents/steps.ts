@@ -25,9 +25,15 @@ export type AgentContext = {
   readonly said: Said | null
   // At most `maxSteps`, oldest first.
   readonly steps: readonly AgentStep[]
+  // The calls the latest steps came from, as the chat draws them (its tool lines): each step's
+  // call with the calls made in its script, and for a Codex poll the command it polled. Oldest
+  // first, and no more than `maxLines` lines, the latest step always among them, so they never
+  // fold as a long run of calls does.
+  readonly entries: readonly ToolEntry[]
 }
 
 const maxSteps = 3
+const maxLines = 3
 
 // Words shorter than this ("ok", "go on") say nothing of the task: the words before them do.
 const fillerWords = 3
@@ -119,20 +125,42 @@ export const agentContext = (
     return text === null ? [] : [{ text, at: times[index]!, index }]
   })
   const chosen = latest([...turns, ...answers.map((each) => ({ ...each, index: null }))])
-  const entries = groupItems(items.slice(startOf(chosen, times))).flatMap((block) =>
-    block.kind === "tools" ? block.entries.filter((entry) => !entry.scripted) : [],
+  // Each call, with the calls made in its script, which the chat draws on its line.
+  const lines = groupItems(items.slice(startOf(chosen, times))).flatMap((block) =>
+    block.kind === "tools" ? scriptLines(block.entries) : [],
   )
+  const entries = lines.map((line) => line[0]!)
   // From the end, and no further than the steps that are wanted: a step costs its input's
   // parse and diff, which a long transcript's older calls need not pay.
   const steps: AgentStep[] = []
+  // The lines drawn, by call, from the latest step back while they fit.
+  const drawn = new Set<number>()
+  let fits = true
   for (let index = entries.length - 1; index >= 0 && steps.length < maxSteps; index -= 1) {
     const step = stepOf(agent, entries, index)
-    if (step) steps.unshift(step)
+    if (!step) continue
+    steps.unshift(step)
+    const own = [pollStart(entries, index), index].filter((at) => at !== -1 && !drawn.has(at))
+    fits &&= drawn.size === 0 || drawn.size + own.length <= maxLines
+    if (fits) for (const at of own) drawn.add(at)
   }
   return {
     said: chosen ? { text: chosen.text, at: chosen.at } : null,
     steps,
+    entries: [...drawn].toSorted((a, b) => a - b).flatMap((at) => lines[at]!),
   }
+}
+
+// A block's calls by line, as the chat groups them: a call made inside a script follows its
+// script's call. One with no script before it stands alone, as the chat draws it.
+const scriptLines = (entries: readonly ToolEntry[]): ToolEntry[][] => {
+  const lines: ToolEntry[][] = []
+  for (const entry of entries) {
+    const last = lines.at(-1)
+    if (entry.scripted && last && !last[0]!.scripted) last.push(entry)
+    else lines.push([entry])
+  }
+  return lines.filter((line) => !line[0]!.scripted)
 }
 
 // The person's replies from the Inbox delivered to a terminal's agent, when it got them:
@@ -220,6 +248,22 @@ const ended = (entry: ToolEntry, session: string): boolean =>
   entry.result !== null &&
   runningSession(clean(entry.result.text)) === undefined
 
+// Where the command a poll at `index` polls was started, or -1 where that isn't a poll or the
+// command started out of view.
+const pollStart = (entries: readonly ToolEntry[], index: number): number => {
+  const session = polled(entries[index]!)
+  if (session === undefined) return -1
+  return entries
+    .slice(0, index)
+    .findLastIndex(
+      (each) =>
+        each.tool !== "write_stdin" &&
+        each.run !== null &&
+        each.result !== null &&
+        runningSession(clean(each.result.text)) === session,
+    )
+}
+
 // The step a poll gives: none where the command still runs, else the command's own, as it
 // ended. Input typed into a command (`chars`) is a step of its own, as any other run.
 const pollStep = (
@@ -237,15 +281,7 @@ const pollStep = (
     return { kind: "run", tool: "write_stdin", arg, result: lastLine(output) }
   }
   if (runningSession(output) !== undefined) return null
-  const started = entries
-    .slice(0, index)
-    .findLast(
-      (each) =>
-        each.tool !== "write_stdin" &&
-        each.run &&
-        each.result &&
-        runningSession(clean(each.result.text)) === session,
-    )
+  const started = entries[pollStart(entries, index)]
   const tool = started?.tool ?? "write_stdin"
   const arg = started
     ? tool === "exec"

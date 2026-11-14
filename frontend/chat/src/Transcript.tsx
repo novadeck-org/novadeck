@@ -14,14 +14,10 @@ import { longMs, span } from "./facts"
 import { MoreKey, useFold } from "./fold"
 import { Mark } from "./Mark"
 import type { MarkPhase } from "./mark-phase"
+import { PersonWords, Shortened } from "./PersonWords"
 import { Slice } from "./Slice"
-import { RecordedImages } from "./Thumbs"
 import { ToolCalls } from "./ToolCalls"
 import { currentPrompt } from "./turn-holds"
-
-const Shortened = (): React.JSX.Element => (
-  <p className="chat-shortened">Shortened here; the rest isn't carried over.</p>
-)
 
 // What a turn the doorbell started brought: other agents' messages, and the person's own answers
 // through the Inbox, which are theirs and read as such.
@@ -347,17 +343,16 @@ const BlockView = memo(
     switch (block.kind) {
       case "user":
         return (
-          <article className="chat-message" data-role="user" data-turn={block.id} aria-label="You">
-            <Mark phase={phase} />
-            {block.images && block.images.length > 0 && (
-              <RecordedImages item={block.id} images={block.images} text={block.text} />
-            )}
-            <p className="chat-text">
-              <MentionedText text={block.text} mention={mentionAt(mention, block.at)} />
-            </p>
-            {block.truncated && <Shortened />}
-            <TimeFact at={block.at} />
-          </article>
+          <PersonWords
+            id={block.id}
+            text={block.text}
+            at={block.at}
+            images={block.images}
+            truncated={block.truncated}
+            turn={block.id}
+            phase={phase}
+            mention={mention}
+          />
         )
       case "assistant":
         return (

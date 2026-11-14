@@ -39,8 +39,11 @@ and the chat's own store and commands.
 ## Subpaths
 
 Only what the app and the contract test import: `./ChatView`, `./Transcript` (the contract
-test renders it), `./state` (store, selectors and types), `./use-chat`, `./commands`, and the
-stylesheet `./chat.css`. `src/test.ts` is Vitest's re-export for the package's own tests and
+test renders it), `./state` (store, selectors and types), `./use-chat`, `./commands`, the
+stylesheet `./chat.css`, and the two rows the Inbox's sheet draws its context with,
+`./PersonWords` (your prompt) and `./ToolCalls` (a run of tool lines). Those two need no chat
+store or provider: outside a chat they sit in `.chat-inline`, which carries the chat's tokens and
+type without its layout. `src/test.ts` is Vitest's re-export for the package's own tests and
 is not exported. A module is exported when something outside imports it; the rest of `src` is
 internal.
 

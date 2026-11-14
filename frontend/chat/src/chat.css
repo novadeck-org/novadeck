@@ -15,6 +15,9 @@
    prompt (`.chat-composer`), one line under a hairline. What the harness shows at its input
    stands over the prompt too (`.chat-live`, a title over its own rows `.chat-slice`).
 
+   Outside a chat, `.chat-inline` holds its rows (the Inbox's sheet draws your last words and the
+   agent's steps with `PersonWords` and `ToolCalls`): the tokens and type, a gutter, no layout.
+
    Hooks: data-compact on `.chat` in a Grid or Canvas window; data-role="user" |
    "assistant" | "agent" on a message, data-sent="queued" | "sending" | "unrecorded" |
    "in-box" on the person's prompt the agent's record doesn't hold yet, its tag `.chat-sent-tag`,
@@ -89,7 +92,8 @@
    window's fallback), in the window's timings. Reduced motion holds it still.
    */
 
-.chat {
+.chat,
+.chat-inline {
   --_font: var(--chat-font, var(--font-mono));
   --_ink: var(--chat-fg, var(--terminal-fg, var(--color-ink)));
   --_muted: var(--chat-muted-fg, var(--color-muted));
@@ -118,6 +122,12 @@
   --_hold-pad: 8px;
   --markdown-muted-fg: var(--_muted);
   --markdown-link-fg: var(--_ink);
+  color: var(--_ink);
+  font: 13px / var(--_lh) var(--_font);
+  font-variant-ligatures: none;
+  container: chat / inline-size;
+}
+.chat {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -125,10 +135,19 @@
   min-width: 0;
   min-height: 0;
   background-color: var(--chat-bg, var(--window-bg, var(--color-paper)));
-  color: var(--_ink);
-  font: 13px / var(--_lh) var(--_font);
-  font-variant-ligatures: none;
-  container: chat / inline-size;
+}
+/* The chat's rows outside a chat (the Inbox's sheet draws your last words and the agent's steps
+   with them): its tokens, its type and a gutter for the mark, with none of its layout, so they
+   sit in what holds them as they would in the log. */
+.chat-inline {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--_lh) / 2);
+}
+.chat-inline > * {
+  position: relative;
+  min-width: 0;
+  margin-left: 2ch;
 }
 .chat[data-compact] {
   --_pad: 14px;
@@ -460,7 +479,7 @@
   color: var(--_muted);
 }
 /* A handle in the words, in the hue of the agent it names (the hue the author line takes). */
-.chat .markdown-mention {
+:is(.chat, .chat-inline) .markdown-mention {
   color: var(--_h);
 }
 /* Two in a row read as one exchange, each still its own. */
