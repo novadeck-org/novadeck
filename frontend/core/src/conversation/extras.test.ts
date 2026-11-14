@@ -107,6 +107,21 @@ describe("A harness's permission and plan options", () => {
       })
     })
 
+    it("arms accept edits in its newer words, as it does auto-accept", () => {
+      const [extras] = optionExtras("plan", [
+        option(
+          "1",
+          "Yes, and switch to accept edits (auto-approve file edits and common file commands) for this session",
+        ),
+      ])
+      expect(extras).toEqual({
+        role: "standing",
+        lines: null,
+        effect: "It edits without asking.",
+        hard: true,
+      })
+    })
+
     it("arms bypass permissions and auto mode, saying what each lets Claude do", () => {
       const options = [
         option("1", "Yes, and bypass permissions"),

@@ -475,6 +475,57 @@ describe("A sheet's menu", () => {
       ],
     ]
 
+    it("arms a plan's bypass and auto mode, saying what each lets it do", () => {
+      const { rows } = menuOf(
+        permission(
+          [
+            { id: "1", label: "Yes, and bypass permissions", text: null },
+            { id: "2", label: "Yes, and use auto mode", text: null },
+          ],
+          "plan",
+          "claude",
+        ),
+        0,
+      )
+      expect(rows.slice(0, 2)).toMatchObject([
+        { effect: "It edits and runs commands without asking.", hard: true },
+        { effect: "It acts without asking.", hard: true },
+      ])
+    })
+
+    it.each([
+      ["Codex", "codex", "No, stay in Plan mode"],
+      ["Antigravity", "agy", "No, cancel"],
+    ] as const)("sends %s's no with words from its words row", (_, agent, label) => {
+      const options: ChatDialogOption[] = [
+        { id: "1", label: "Yes, implement this plan", text: null },
+        { id: "2", label, text: "prompt" },
+      ]
+      const back = words(menuOf(permission(options, "plan", agent), 0).rows[1])
+      expect(back.answer("Split it.")).toMatchObject({ answer: { option: "2", text: "Split it." } })
+    })
+
+    it("arms a plan's option no rule reads, offered as it words itself", () => {
+      const { rows } = menuOf(
+        permission(
+          [
+            { id: "1", label: "Bypass permissions and proceed", text: null },
+            { id: "2", label: "No", text: null },
+          ],
+          "plan",
+          "claude",
+        ),
+        0,
+      )
+      expect(labels(rows)).toEqual([
+        "Bypass permissions and proceed",
+        "Send it back",
+        "Go to terminal",
+      ])
+      expect(rows[0]).toMatchObject({ hard: true, receipt: "Answered @crow's plan." })
+      expect(rows[1]).not.toHaveProperty("hard")
+    })
+
     it.each(cases)("reads %s", (_, kind, agent, options, expected) => {
       const { rows } = menuOf(permission(options, kind, agent), 0)
       for (const [id, label, receipt] of expected) {

@@ -11,7 +11,8 @@ import type { ChatDialogOption, ChatRequest } from "../conversation"
 // - `standing`: a yes that sets something for later answers ("don't ask again", a mode).
 // - `no`: a plain no, with no words.
 // - `words`: a no that carries the person's words.
-// - `other`: anything else, as another yes ("Yes, clear context and implement").
+// - `other`: anything else: another yes ("Yes, clear context and implement"), or wording no
+//   rule here knows ("Continue").
 export type OptionRole = "yes" | "standing" | "no" | "words" | "other"
 
 export type OptionExtras = {
@@ -29,7 +30,7 @@ export type OptionExtras = {
 export const noExtras: OptionExtras = { role: "other", lines: null, effect: null, hard: false }
 
 // A label as the rules read it: trimmed, and without a key hint the harness prints after
-// it, as Codex's "(y)" or Claude Code's "(esc)". Only these keys: any other bracket ("(all)",
+// it, as Claude Code's "(esc)" (Codex's adapter strips its own "(y)" before core sees it). Only these keys: any other bracket ("(all)",
 // "(a)" for always) may qualify the answer, so it stays.
 const keyHint = /\s*\((y|n|esc|enter|tab|shift\+tab)\)$/i
 const bare = (label: string): string => label.trim().replace(keyHint, "")
@@ -74,7 +75,9 @@ const change = /^tell .+? what to change\b/i
 // words alone don't say what follows, and each is armed before it is sent.
 const planEffects: readonly [RegExp, string][] = [
   [/bypass permissions/i, "It edits and runs commands without asking."],
-  [/auto-accept/i, "It edits without asking."],
+  // Claude Code's "auto-accept edits", and its newer "switch to accept edits (auto-approve
+  // file edits and common file commands)".
+  [/auto-accept|auto-approve/i, "It edits without asking."],
   [/auto mode/i, "It acts without asking."],
 ]
 

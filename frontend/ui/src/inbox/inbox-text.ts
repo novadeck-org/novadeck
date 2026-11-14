@@ -193,8 +193,7 @@ export const toneOf = (row: InboxRow): Tone => {
 // A permission's or plan's options, as the buttons the sheet offers, by the roles core's
 // extras read them in: Allow is the plain yes; the other yeses are quiet links in their own
 // words, or plain buttons where no yes is plain; the rest say no, or send the person's words
-// back, one of which may take words. Every option it can send goes somewhere: one no rule
-// knows is offered as it words itself.
+// back, one of which may take words. An option no rule knows is offered as it words itself.
 export type Choices = {
   // The plain yes that leads; null where no yes is plain.
   readonly allow: ChatDialogOption | null
@@ -224,8 +223,8 @@ export const refusedWords = (
 // its own words, so nothing that may change more than this answer ("bypass permissions")
 // sits beside it as a button; with none leading, the yeses are plain buttons in their own
 // words (`unsure`), none of them primary. A yes is never offered as a no; where nothing says
-// no, nor sends words back, there is no Deny. An option that must carry words and can't
-// take them is left to the terminal.
+// no, nor sends words back, there is no Deny. Only the first option that takes words gets
+// a box; an option that must carry words and has none is left to the terminal.
 export const choicesOf = (options: readonly ChatDialogOption[]): Choices | null => {
   // Grouping reads no plan's effects, so any kind does.
   const extras = optionExtras("permission", options)

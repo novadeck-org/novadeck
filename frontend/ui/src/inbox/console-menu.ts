@@ -149,6 +149,8 @@ const permissionMenu = (row: InboxRow, request: ChatRequest): Menu => {
       pick: false,
       details: null,
       answer: answer(option),
+      // A plan's option no rule reads may let the agent act without asking: armed.
+      ...(plan && extrasOf(option).role === "other" && { hard: true as const }),
       receipt:
         extrasOf(option).role === "no"
           ? `${plan ? "Sent back" : "Denied"} ${who}.`
