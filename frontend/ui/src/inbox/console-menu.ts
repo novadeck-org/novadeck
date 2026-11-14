@@ -1,5 +1,6 @@
 import { askToFixNudge } from "@novadeck/core/agents/steps"
 import type { ChatAnswer, ChatDialogOption, ChatRequest } from "@novadeck/core/conversation"
+import { needsWords, optionExtras } from "@novadeck/core/conversation/extras"
 import type { AskOption, InboxAnswer, InboxRow, Trouble } from "@novadeck/core/inbox"
 
 import {
@@ -7,10 +8,8 @@ import {
   agentName,
   choicesOf,
   clock,
-  needsWords,
   recommended,
   refusedWords,
-  setsStanding,
   waitLabel,
 } from "./inbox-text"
 
@@ -79,8 +78,8 @@ const withTerminal = (menu: Menu): Menu =>
     ? menu
     : { ...menu, rows: [...menu.rows, goToTerminal] }
 
-// Whether the sheet can answer a request: its dialog read, and its options ones the menu
-// can tell apart (a yes among them). Every other row it can.
+// Whether the sheet can answer a request: its dialog read, with an option it can send.
+// Every other row it can.
 export const answerable = (row: InboxRow): boolean => {
   if (row.kind !== "request") return true
   const { dialog } = row.request
@@ -97,24 +96,6 @@ const choiceAnswer = (dialog: string, option: ChatDialogOption, text?: string): 
   return { type: "choice", dialog, option: option.id, ...(words ? { text: words } : {}) }
 }
 
-// A standing yes in two lines, in its own words: what it is, and its scope under it
-// ("Yes, and don't ask again" / "for commands that start with `pnpm add`").
-export const standingParts = (
-  label: string,
-): { readonly label: string; readonly effect: string | null } => {
-  const match = /^(.*?\bdon't ask again)[,:]?\s+(\S.*)$/i.exec(label.trim())
-  return match ? { label: match[1]!, effect: match[2]! } : { label, effect: null }
-}
-
-// What a plan's standing yes lets the agent do: only these are said, as their words alone
-// don't say what follows.
-const planEffect = (label: string): string | null => {
-  if (/bypass permissions/i.test(label)) return "It edits and runs commands without asking."
-  if (/auto-accept/i.test(label)) return "It edits without asking."
-  if (/auto mode/i.test(label)) return "It acts without asking."
-  return null
-}
-
 // What a permission is for, as a receipt names it: "@crow's command".
 const thing = (request: ChatRequest): string => {
   const action = actionOf(request)
@@ -129,6 +110,8 @@ const permissionMenu = (row: InboxRow, request: ChatRequest): Menu => {
   if (dialog?.type !== "choices") return none
   const choices = choicesOf(dialog.options)
   if (!choices) return inTerminal
+  const extras = optionExtras(request.kind, dialog.options)
+  const extrasOf = (option: ChatDialogOption) => extras[dialog.options.indexOf(option)]!
   const { agent, handle } = row.source
   const who = `@${handle}'s ${thing(request)}`
   const plan = actionOf(request) === "plan"
@@ -157,20 +140,35 @@ const permissionMenu = (row: InboxRow, request: ChatRequest): Menu => {
       answer: answer(option),
       receipt: `Answered ${who}.`,
     })
-  for (const option of choices.standing) {
-    const parts = standingParts(option.label)
+  // What no rule reads, or a second no, as it words itself.
+  for (const option of choices.rest)
     rows.push({
       type: "answer",
-      label: parts.label,
-      effect: parts.effect ?? (plan ? planEffect(option.label) : null),
+      label: option.label,
+      effect: null,
+      pick: false,
+      details: null,
+      answer: answer(option),
+      receipt:
+        extrasOf(option).role === "no"
+          ? `${plan ? "Sent back" : "Denied"} ${who}.`
+          : `Answered ${who}.`,
+    })
+  for (const option of choices.standing) {
+    const { role, lines, effect, hard } = extrasOf(option)
+    rows.push({
+      type: "answer",
+      label: lines?.head ?? option.label,
+      effect: lines?.scope ?? effect,
       pick: false,
       details: null,
       answer: answer(option),
       // A plan's standing yes lets the agent act without asking from then on.
-      ...(plan && planEffect(option.label) !== null && { hard: true as const }),
-      receipt: setsStanding(option)
-        ? `${plan ? "Approved" : "Allowed"} ${who}; it won't ask again.`
-        : `Answered ${who}.`,
+      ...(hard && { hard: true as const }),
+      receipt:
+        role === "standing"
+          ? `${plan ? "Approved" : "Allowed"} ${who}; it won't ask again.`
+          : `Answered ${who}.`,
     })
   }
   if (choices.plain)

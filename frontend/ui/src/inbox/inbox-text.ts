@@ -1,4 +1,10 @@
 import type { ChatDialog, ChatDialogOption, ChatRequest } from "@novadeck/core/conversation"
+import {
+  needsWords,
+  optionExtras,
+  saysYes,
+  type OptionRole,
+} from "@novadeck/core/conversation/extras"
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import { inboxType, type InboxRow, type InboxSource, type Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsBehind } from "@novadeck/core/messages"
@@ -184,9 +190,11 @@ export const toneOf = (row: InboxRow): Tone => {
   return inboxType(row) === "trouble" && !waits ? "urgent" : "waiting"
 }
 
-// A permission's or plan's options, as the buttons the sheet offers. Allow is a plain yes;
-// the other yeses are quiet links in their own words, or plain buttons where none is plain;
-// the rest say no, or send the person's words back, one of which may take words.
+// A permission's or plan's options, as the buttons the sheet offers, by the roles core's
+// extras read them in: Allow is the plain yes; the other yeses are quiet links in their own
+// words, or plain buttons where no yes is plain; the rest say no, or send the person's words
+// back, one of which may take words. Every option it can send goes somewhere: one no rule
+// knows is offered as it words itself.
 export type Choices = {
   // The plain yes that leads; null where no yes is plain.
   readonly allow: ChatDialogOption | null
@@ -196,36 +204,9 @@ export type Choices = {
   // The no that takes the person's words, and the plain one.
   readonly note: ChatDialogOption | null
   readonly plain: ChatDialogOption | null
+  // Every other option, as it words itself: one no rule knows, or a second no.
+  readonly rest: readonly ChatDialogOption[]
 }
-
-const yes = /^(yes|allow|approve)\b/i
-const no = /^(no|deny|reject)\b/i
-// The way back that is only the person's words, as Claude Code's plan field "Tell Claude
-// what to change" (from 2.1.287; before, "No, keep planning") and "Tell it what to
-// change", the label Novadeck's Antigravity adapter gives a review's feedback (Antigravity's
-// screen has no such option): it says no only with words. The agent's name may be more
-// than one word.
-const change = /^tell .+? what to change\b/i
-const standing =
-  /don't ask again|do not ask again|always|allow all|all edits|this session|for session|auto-accept/i
-
-// Only these lead as the primary Allow or Approve: a bare yes, Codex's "Yes, proceed" and
-// Claude's plan "manually approve edits". Everything else is a yes that may change more than
-// this answer, whatever it says, so it never leads.
-const bareYes = /^(yes|allow|approve)( once)?[.!]?$/i
-const knownYes = /^yes,( and)? (proceed|manually approve edits)[.!]?$/i
-
-// A label as the rule reads it: trimmed, and without a key hint the harness prints after
-// it, as Codex's "(y)". Only these keys: any other bracket ("(all)", "(a)" for always) may
-// qualify the answer, so it stays and the label is no bare yes.
-const keyHint = /\s*\((y|n|esc|enter|tab|shift\+tab)\)$/i
-const bare = (label: string): string => label.trim().replace(keyHint, "")
-
-// Whether a yes sets something standing, by its own words: what its quiet link confirms.
-export const setsStanding = (option: ChatDialogOption): boolean => standing.test(option.label)
-
-// Whether a way back must carry the person's words: it says no only with them.
-export const needsWords = (option: ChatDialogOption): boolean => change.test(bare(option.label))
 
 // Why an agent won't take these words in a field, said before they're sent; null where it
 // will. Antigravity's feedback is typed into its empty prompt box, where words that start
@@ -239,31 +220,26 @@ export const refusedWords = (
     ? `${agentName(agent)} can't take words that start with /, ? or !, or that have an @.`
     : null
 
-// Null where nothing says yes: the person answers in the terminal. A bare yes leads, else
-// a known one. With one leading, every other yes is a quiet link in its own words, so
-// nothing that may change more than this answer ("bypass permissions") sits beside it as a
-// button; with none leading, the yeses are plain buttons in their own words (`unsure`),
-// none of them primary. Nothing is guessed at. A yes is never offered as a no; where
-// nothing says no, nor sends words back, there is no Deny.
+// Null where it has nothing to send. With a yes leading, every other yes is a quiet link in
+// its own words, so nothing that may change more than this answer ("bypass permissions")
+// sits beside it as a button; with none leading, the yeses are plain buttons in their own
+// words (`unsure`), none of them primary. A yes is never offered as a no; where nothing says
+// no, nor sends words back, there is no Deny. An option that must carry words and can't
+// take them is left to the terminal.
 export const choicesOf = (options: readonly ChatDialogOption[]): Choices | null => {
-  const yeses = options.filter((each) => yes.test(bare(each.label)))
-  if (yeses.length === 0) return null
-  const allow =
-    yeses.find((each) => bareYes.test(bare(each.label))) ??
-    yeses.find((each) => knownYes.test(bare(each.label))) ??
-    null
-  const others = yeses.filter((each) => each !== allow)
-  // A way back that is only words counts where it takes them.
-  const nos = options.filter(
-    (each) => no.test(bare(each.label)) || (each.text !== null && needsWords(each)),
-  )
-  return {
-    allow,
-    standing: allow ? others : others.filter((each) => standing.test(each.label)),
-    unsure: allow ? [] : others.filter((each) => !standing.test(each.label)),
-    note: nos.find((each) => each.text !== null) ?? null,
-    plain: nos.find((each) => each.text === null) ?? null,
-  }
+  // Grouping reads no plan's effects, so any kind does.
+  const extras = optionExtras("permission", options)
+  const role = (option: ChatDialogOption): OptionRole => extras[options.indexOf(option)]!.role
+  const allow = options.find((each) => role(each) === "yes") ?? null
+  const others = options.filter((each) => each !== allow && saysYes(each))
+  const standing = allow ? others : others.filter((each) => role(each) === "standing")
+  const unsure = allow ? [] : others.filter((each) => role(each) !== "standing")
+  const note = options.find((each) => role(each) === "words") ?? null
+  const plain = options.find((each) => role(each) === "no") ?? null
+  const placed = new Set([allow, ...standing, ...unsure, note, plain])
+  const rest = options.filter((each) => !placed.has(each) && !needsWords(each))
+  if (placed.size === 1 && placed.has(null) && rest.length === 0) return null
+  return { allow, standing, unsure, note, plain, rest }
 }
 
 // The agent's words for a limit's window: "usage" where its length is unknown (0), and
