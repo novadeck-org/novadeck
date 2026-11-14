@@ -102,11 +102,11 @@ describe("The Inbox's toasts", () => {
 
       await userEvent.click(page.elementLocator(document.querySelector('.toast[data-rank="0"]')!))
       const sheet = page.getByRole("dialog", { name: /\S/ })
-      await sheet.getByRole("menuitem", { name: "Deny, with your words" }).click()
+      // The row that takes the person's words is a field in its place, named by the row.
+      const field = sheet.getByRole("textbox", { name: "Deny, with your words", exact: true })
+      await field.click()
 
-      await expect
-        .element(sheet.getByRole("textbox", { name: /what Antigravity should do instead/i }))
-        .toBeVisible()
+      await expect.element(field).toHaveFocus()
     })
 
     it("opens its entry alone: once answered, the sidebar goes back to what it showed", async () => {
@@ -121,7 +121,7 @@ describe("The Inbox's toasts", () => {
       await expect.element(sidebarPanel("Inbox")).toBeChecked()
       // Another ask comes in while it is open, which a sheet opened from the list goes on to.
       desktopWindow.arrive(demoInboxIds.webhook)
-      await sheet.getByRole("menuitem", { name: "Allow" }).click()
+      await sheet.getByRole("button", { name: "Allow", exact: true }).click()
 
       await expect.element(sidebarPanel("Terminals")).toBeChecked()
       await expect.element(sheet).not.toBeInTheDocument()

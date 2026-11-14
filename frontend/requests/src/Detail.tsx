@@ -1,7 +1,7 @@
 /* oxlint-disable react/no-array-index-key -- Parts are read from text that has no ids; they never reorder. */
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { Check, Copy } from "lucide-react"
-import { Fragment, useEffect, useRef, useState } from "react"
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react"
 
 import { commandView, markText } from "./command-view"
 
@@ -9,7 +9,8 @@ import { commandView, markText } from "./command-view"
 // Whatever in it draws as nothing shows as a mark (`command-view.ts`), so what the person reads
 // is all that runs, or all that Copy copies; more than one line says how many, with the folder
 // it runs in where the host has one, and a long one scrolls in its box. A one-line command (the
-// host says it is one) reads as a shell's, after `$`.
+// host says it is one) reads as a shell's, after `$`. It takes focus to scroll only where it
+// scrolls.
 export const Detail = ({
   text,
   label,
@@ -27,6 +28,23 @@ export const Detail = ({
 }): React.JSX.Element => {
   const view = commandView(text)
   const bar = folder !== null || view.lines > 1 || copy
+  // Only a detail that scrolls in its box is a stop for Tab, to scroll it by keys: one that
+  // shows whole would only stand between the person and the answers.
+  const box = useRef<HTMLPreElement>(null)
+  const [scrolls, setScrolls] = useState(false)
+  const measure = useRef(() => {
+    const element = box.current
+    if (element) setScrolls(element.scrollHeight > element.clientHeight + 1)
+  })
+  // As it draws (its text may have changed), and as its box changes size.
+  useLayoutEffect(() => measure.current())
+  useEffect(() => {
+    const element = box.current
+    if (!element || typeof ResizeObserver === "undefined") return
+    const watch = new ResizeObserver(() => measure.current())
+    watch.observe(element)
+    return () => watch.disconnect()
+  }, [])
   return (
     <div className="request-detail nodrag nopan">
       {bar && (
@@ -39,7 +57,12 @@ export const Detail = ({
           {copy && <CopyButton text={text} label={`Copy ${command ? "command" : "text"}`} />}
         </span>
       )}
-      <pre className="request-detail-text nowheel" tabIndex={0} aria-label={label}>
+      <pre
+        ref={box}
+        className="request-detail-text nowheel"
+        tabIndex={scrolls ? 0 : undefined}
+        aria-label={label}
+      >
         {command && view.lines === 1 && (
           <span className="request-detail-dollar" aria-hidden>
             ${" "}

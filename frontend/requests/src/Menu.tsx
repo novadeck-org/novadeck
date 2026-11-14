@@ -232,7 +232,9 @@ export const Menu = ({
     <div ref={menu} className="request-menu">
       <div
         className="request-options"
-        role="menu"
+        // A group of buttons, as the chat's rows always were, not an ARIA menu: the workspace
+        // takes a menu on the page for an open overlay, which keeps the keys from its terminals.
+        role="group"
         aria-label={label}
         aria-busy={busy || undefined}
         onKeyDown={(event) => {
@@ -260,13 +262,8 @@ export const Menu = ({
         {items.map((item, index) => {
           const on = index === at
           const armed = cursor.armed === index
-          const role = item.away
-            ? "menuitem"
-            : multi || item.check !== undefined
-              ? "menuitemcheckbox"
-              : item.chosen !== undefined
-                ? "menuitemradio"
-                : "menuitem"
+          // A row that ticks is a checkbox; one that may be the pick says whether it is.
+          const ticks = !item.away && (multi || item.check !== undefined)
           const common = {
             "data-row": index,
             "data-on": on || undefined,
@@ -454,14 +451,9 @@ export const Menu = ({
               }}
               type="button"
               className="request-option nodrag nopan"
-              role={role}
-              aria-checked={
-                role === "menuitemcheckbox"
-                  ? Boolean(item.check)
-                  : role === "menuitemradio"
-                    ? Boolean(item.chosen)
-                    : undefined
-              }
+              role={ticks ? "checkbox" : undefined}
+              aria-checked={ticks ? Boolean(item.check) : undefined}
+              aria-pressed={!ticks && item.chosen !== undefined ? item.chosen : undefined}
               aria-disabled={busy || undefined}
               tabIndex={on ? 0 : -1}
               data-chosen={item.chosen || undefined}

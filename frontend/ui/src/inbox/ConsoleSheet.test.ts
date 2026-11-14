@@ -281,7 +281,9 @@ describe("The Console sheet", () => {
       expect(inbox.row("ask again").querySelector(".request-option-effect")?.textContent).toBe(
         "for commands that start with pnpm add",
       )
-      expect(document.querySelector("[role=menu]")?.getAttribute("aria-label")).toBe("Answers")
+      // A group of buttons, as the chat's: no ARIA menu, which the workspace takes for an overlay.
+      expect(document.querySelector(".request-options")?.getAttribute("role")).toBe("group")
+      expect(document.querySelector(".request-options")?.getAttribute("aria-label")).toBe("Answers")
       await inbox.done()
     })
 
@@ -783,7 +785,7 @@ describe("The Console sheet", () => {
 
       act(() => optionIn(1, "A2").click())
       const away = optionIn(1, "Go to terminal")
-      expect(away.getAttribute("role")).toBe("menuitem")
+      expect(away.getAttribute("role")).toBeNull()
       expect(away.textContent).not.toContain("[ ]")
       inbox.key("End", optionIn(1, "A2"))
       expect(document.activeElement).toBe(away)
@@ -822,11 +824,8 @@ describe("The Console sheet", () => {
       act(() => optionIn(0, "B1").click())
 
       const rows = Array.from(menus()[0]!.querySelectorAll(".request-option"))
-      expect(rows.map((row) => row.getAttribute("role"))).toEqual([
-        ...Array(3).fill("menuitemradio"),
-        "menuitem",
-      ])
-      expect(rows.map((row) => row.getAttribute("aria-checked"))).toEqual([
+      expect(rows.map((row) => row.getAttribute("role"))).toEqual(Array(4).fill(null))
+      expect(rows.map((row) => row.getAttribute("aria-pressed"))).toEqual([
         "false",
         "true",
         "false",
@@ -1309,7 +1308,7 @@ describe("The Console sheet", () => {
 
       expect(text(".inbox-sheet-head .handle-chip")).toBe("@yy")
       expect(text(".console-settled")).toBe("Allowed @yy's command.")
-      expect(document.querySelector(".inbox-sheet [role=menu]")).toBeNull()
+      expect(document.querySelector(".inbox-sheet .request-options")).toBeNull()
       inbox.key("j", document.body)
       await nextFrame()
       expect(text(".inbox-sheet-head .handle-chip")).toBe("@zz")
@@ -1428,7 +1427,7 @@ describe("The Console sheet", () => {
       act(() =>
         document.querySelector<HTMLElement>("[data-inbox-row='a'] .inbox-row-select")!.click(),
       )
-      expect(document.querySelector(".inbox-sheet [role=menu]")).not.toBeNull()
+      expect(document.querySelector(".inbox-sheet .request-options")).not.toBeNull()
       inbox.press("Allow")
       inbox.confirm("a")
       await nextFrame()
