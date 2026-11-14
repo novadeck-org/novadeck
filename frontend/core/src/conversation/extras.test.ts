@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import type { ChatDialogOption, ChatRequest } from "../conversation"
 import {
+  fieldRefusal,
   needsWords,
   noExtras,
   optionExtras,
@@ -341,6 +342,18 @@ describe("An option's extras", () => {
     })
   })
 
+  it("arm a plan's option no rule reads, which may let the agent act without asking", () => {
+    const unread = option("4", "Yes, and let it run freely")
+    expect(optionExtras("plan", [option("1", "Yes"), unread])[1]).toEqual({
+      role: "other",
+      lines: null,
+      effect: null,
+      hard: true,
+    })
+    // A permission's arms nothing it doesn't know.
+    expect(optionExtras("permission", [option("1", "Yes"), unread])[1]).toEqual(noExtras)
+  })
+
   it("take no words back from an option that can't carry them", () => {
     const back = option("2", "Tell Claude what to change")
     expect(optionExtras("plan", [option("1", "Yes"), back])[1]).toEqual(noExtras)
@@ -370,5 +383,20 @@ describe("An option's extras", () => {
     expect(setsStanding(option("1", "No, and don't ask again"))).toBe(false)
     expect(saysYes(option("1", "Always allow"))).toBe(true)
     expect(saysYes(option("1", "Cancel"))).toBe(false)
+  })
+})
+
+describe("Words a field won't take", () => {
+  it.each(["/compact", "  ?", "!ls", "see @notes.md"])("are said for Antigravity: %s", (words) => {
+    expect(fieldRefusal("agy", words)).toBe(
+      "Antigravity can't take words that start with /, ? or !, or that have an @.",
+    )
+  })
+
+  it("are none for plain words, nor for other harnesses, nor where none is known", () => {
+    expect(fieldRefusal("agy", "Split the second step, then ask?")).toBeNull()
+    expect(fieldRefusal("claude", "/compact")).toBeNull()
+    expect(fieldRefusal("codex", "!ls")).toBeNull()
+    expect(fieldRefusal(null, "/compact")).toBeNull()
   })
 })

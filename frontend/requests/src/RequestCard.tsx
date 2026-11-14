@@ -91,7 +91,7 @@ export const RequestCard = ({
   arrived = false,
   draft,
   detail,
-  fieldRefused,
+  harness,
 }: DialogSlots & {
   readonly request: ChatRequest
   // The agent's name, for what waits on it.
@@ -263,7 +263,7 @@ export const RequestCard = ({
           arrived={arrived}
           handle={menu}
           detail={detail}
-          fieldRefused={fieldRefused}
+          harness={harness}
         />
       )}
       {notice && !request.answered && (

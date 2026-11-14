@@ -718,6 +718,7 @@ export const ChatView = ({
           requests={asked}
           slice={slice}
           agent={name}
+          harness={harness}
           onAnswer={answer}
           onAnswerInTerminal={onAnswerInTerminal}
           onSettled={() => {

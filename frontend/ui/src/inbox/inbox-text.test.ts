@@ -7,7 +7,6 @@ import {
   labelOf,
   limitWindow,
   readLabel,
-  fieldRefusal,
   recommended,
   resumesLabel,
   subjectOf,
@@ -260,19 +259,5 @@ describe("A limit's window", () => {
   it("names the models it covers after its length, where not all of them", () => {
     expect(limitWindow(10_080, "Fable")).toBe("weekly Fable")
     expect(limitWindow(0, "Gemini")).toBe("Gemini usage")
-  })
-})
-
-describe("Words a field won't take", () => {
-  it.each(["/compact", "  ?", "!ls", "see @notes.md"])("are said for Antigravity: %s", (words) => {
-    expect(fieldRefusal("agy", words)).toBe(
-      "Antigravity can't take words that start with /, ? or !, or that have an @.",
-    )
-  })
-
-  it("are none for plain words, nor for other agents", () => {
-    expect(fieldRefusal("agy", "Split the second step, then ask?")).toBeNull()
-    expect(fieldRefusal("claude", "/compact")).toBeNull()
-    expect(fieldRefusal("codex", "!ls")).toBeNull()
   })
 })

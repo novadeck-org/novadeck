@@ -30,6 +30,17 @@ export const drafted = (draft: DialogDraft | undefined): boolean =>
     ) ||
     Object.values(draft.entries ?? {}).some((entry) => entry.value !== ""))
 
+// Whether a draft holds nothing at all to keep: no words, not even a space, no pick, no entry,
+// and the first page.
+export const untouched = (draft: DialogDraft | null | undefined): boolean =>
+  !draft ||
+  ((draft.page ?? 0) === 0 &&
+    Object.values(draft.typed ?? {}).every((text) => text === "") &&
+    Object.values(draft.picks ?? {}).every(
+      (pick) => pick.options.length === 0 && pick.text === "",
+    ) &&
+    Object.values(draft.entries ?? {}).every((entry) => entry.value === ""))
+
 // A dialog's draft, the host's where it keeps one, else the dialog's own. Changes made one after
 // another in one event each build on the last, as the host's value is a render behind them.
 export const useDraft = (

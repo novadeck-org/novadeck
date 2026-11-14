@@ -5,7 +5,7 @@ import type {
   ChatQuestion,
   ChatRequest,
 } from "@novadeck/core/conversation"
-import { noExtras, optionExtras } from "@novadeck/core/conversation/extras"
+import { fieldRefusal, noExtras, optionExtras } from "@novadeck/core/conversation/extras"
 import {
   answered,
   answeredCount,
@@ -102,9 +102,8 @@ type Controls = {
 export type DialogSlots = {
   // In place of what a choices dialog asks in full: the host's own box of it, as the Inbox's plan.
   readonly detail?: ReactNode
-  // Why words typed into a field of the agent's won't go, where its harness says (a field that
-  // takes no command's first character); null where they will.
-  readonly fieldRefused?: ((text: string) => string | null) | undefined
+  // The agent's harness, by its own name (`Conversation.agent`), for what its fields refuse.
+  readonly harness?: string | null | undefined
 }
 
 const Sending = ({ sending }: { readonly sending: boolean }): React.JSX.Element | null =>
@@ -162,7 +161,7 @@ const Choices = ({
   handle,
   place,
   detail,
-  fieldRefused,
+  harness,
 }: Controls &
   DialogSlots & {
     readonly dialog: Extract<ChatDialog, { type: "choices" }>
@@ -184,7 +183,7 @@ const Choices = ({
         : option.text === "field" && hasControlCharacters(words)
           ? controlHint
           : option.text === "field" && words !== ""
-            ? (fieldRefused?.(words) ?? null)
+            ? fieldRefusal(harness ?? null, words)
             : null
     return {
       // A row that means something else, read again, is another row.
@@ -622,9 +621,10 @@ const Questions = ({
       onKeyDown={turnKeys}
       onKeyDownCapture={(event) => {
         // Enter goes on a page at a time: held, it would answer the rest and send them. As the
-        // host moves on to it, no key answers for a moment.
+        // host moves on to it, no key answers for a moment, but words typed in a field go in.
         const held = event.key === "Enter" && event.repeat
-        if (!held && !(guarded() && answersKey(event.key))) return
+        const arriving = guarded() && answersKey(event.key) && !isTyping(event.target)
+        if (!held && !arriving) return
         event.preventDefault()
         event.stopPropagation()
       }}
@@ -866,7 +866,9 @@ const Form = ({
       aria-label="Fill in the form"
       noValidate
       onKeyDownCapture={(event) => {
-        if (!(guarded() && answersKey(event.key))) return
+        // As the host moves on to it, no key answers for a moment, but words typed go in; Enter
+        // in a field submits nothing meanwhile (`onSubmit`).
+        if (!guarded() || !answersKey(event.key) || isTyping(event.target)) return
         event.preventDefault()
         event.stopPropagation()
       }}
@@ -1030,7 +1032,7 @@ export const RequestDialog = ({
   replying,
   onReply,
   detail,
-  fieldRefused,
+  harness,
   ...controls
 }: Controls &
   DialogSlots & {
@@ -1042,13 +1044,7 @@ export const RequestDialog = ({
     readonly onReply: ((dialog: string | null) => void) | undefined
   }): React.JSX.Element =>
   dialog.type === "choices" ? (
-    <Choices
-      dialog={dialog}
-      kind={kind}
-      detail={detail}
-      fieldRefused={fieldRefused}
-      {...controls}
-    />
+    <Choices dialog={dialog} kind={kind} detail={detail} harness={harness} {...controls} />
   ) : dialog.type === "questions" ? (
     <Questions dialog={dialog} replying={replying} onReply={onReply} {...controls} />
   ) : dialog.type === "form" ? (

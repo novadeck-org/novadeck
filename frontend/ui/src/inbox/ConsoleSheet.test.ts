@@ -1734,7 +1734,21 @@ describe("The Console sheet", () => {
       await inbox.done()
     })
 
+    // jsdom lays nothing out: the card stands a line lower for each row the context over it
+    // draws, as the sheet's page would place it.
+    const laidOut = (): void => {
+      const original = HTMLElement.prototype.getBoundingClientRect
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+        this: HTMLElement,
+      ) {
+        if (!this.classList.contains("request-card")) return original.call(this)
+        const rows = document.querySelectorAll(".inbox-context :is(.chat-message, .chat-tool)")
+        return new DOMRect(0, 40 + 21 * rows.length, 600, 200)
+      })
+    }
+
     it("holds back a click on the card for a moment after the context moved it", async () => {
+      laidOut()
       const transcript = createStore<Conversation>(noConversation)
       const inbox = mount([permission(codex)], {
         conversations: { conversation: () => transcript },
@@ -1758,6 +1772,7 @@ describe("The Console sheet", () => {
     })
 
     it("holds a click again as the agent's steps come in, and not keys", async () => {
+      laidOut()
       const transcript = createStore<Conversation>(noConversation)
       const inbox = mount([permission(codex)], {
         conversations: { conversation: () => transcript },
@@ -1770,6 +1785,33 @@ describe("The Console sheet", () => {
       expect(inbox.sent).toEqual([])
       // The guard is the card's clicks': a key answers as ever.
       inbox.key("1", inbox.listed())
+      expect(inbox.sent).toHaveLength(1)
+      await inbox.done()
+    })
+
+    it("holds back no click where the context changed in the room it had", async () => {
+      laidOut()
+      const transcript = createStore<Conversation>(noConversation)
+      const inbox = mount([permission(codex)], {
+        conversations: { conversation: () => transcript },
+      })
+      act(() => transcript.update(() => loaded([said, ...ran])))
+      later(2000)
+      // Another step in the place of the one before: the card stays where it was.
+      const next = ran.map((item) =>
+        item.kind === "tool-call"
+          ? {
+              ...item,
+              id: "other-call",
+              call: "c2",
+              text: JSON.stringify({ command: "pnpm lint" }),
+            }
+          : { ...item, id: "other-result", call: "c2" },
+      )
+      act(() => transcript.update(() => loaded([said, ...next])))
+      expect(document.querySelector(".inbox-context .chat-tool")?.textContent).toContain("pnpm")
+      act(() => inbox.row("Yes, proceed").click())
+
       expect(inbox.sent).toHaveLength(1)
       await inbox.done()
     })

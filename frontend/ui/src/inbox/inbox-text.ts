@@ -189,14 +189,6 @@ export const toneOf = (row: InboxRow): Tone => {
   return inboxType(row) === "trouble" && !waits ? "urgent" : "waiting"
 }
 
-// Why an agent won't take these words in a field of its dialog, said before they're sent; null
-// where it will. Antigravity's feedback is typed into its empty prompt box, where words that
-// start with /, ? or ! would run a command, open help or a shell, and an @ opens a file picker.
-export const fieldRefusal = (agent: AgentName, text: string): string | null =>
-  agent === "agy" && /^\s*[/?!]|@/.test(text)
-    ? `${agentName(agent)} can't take words that start with /, ? or !, or that have an @.`
-    : null
-
 // The agent's words for a limit's window: "usage" where its length is unknown (0), and
 // "weekly" and "daily" for the windows of those lengths; with the models it covers, where
 // not all of them, after its length ("weekly Fable") or before "usage" ("Gemini usage").

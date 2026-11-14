@@ -5,7 +5,7 @@ import {
   type InboxRow,
   type InboxState,
 } from "@novadeck/core/inbox"
-import { drafted, type DialogDraft } from "@novadeck/requests/drafts"
+import { drafted, untouched, type DialogDraft } from "@novadeck/requests/drafts"
 import {
   createContext,
   useCallback,
@@ -349,8 +349,9 @@ export const InboxProvider = ({
     setDrafts((record) => {
       const merged = { ...(record[key] ?? noDraft), ...patch }
       const { [key]: _gone, ...rest } = record
-      // The page a dialog of questions is on is kept too, though it is no Draft of itself.
-      return started(merged) || (merged.request?.page ?? 0) > 0 ? { ...rest, [key]: merged } : rest
+      // A dialog's draft is kept while it holds anything at all (a space typed first, the page
+      // a dialog of questions is on), though only words, picks and entries make it a Draft.
+      return started(merged) || !untouched(merged.request) ? { ...rest, [key]: merged } : rest
     })
   }, [])
 

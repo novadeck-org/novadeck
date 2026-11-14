@@ -120,7 +120,8 @@ const roleOf = (option: ChatDialogOption, plain: ChatDialogOption | undefined): 
 }
 
 // The extras of a request's options, in the order the dialog lists them. A plan's standing
-// yes says what it lets the agent do, and is armed.
+// yes says what it lets the agent do, and is armed; so is a plan's option no rule reads, which
+// may let the agent act without asking, as a harness's new wording for bypass would.
 export const optionExtras = (
   kind: ChatRequest["kind"],
   options: readonly ChatDialogOption[],
@@ -130,7 +131,18 @@ export const optionExtras = (
     const role = roleOf(option, plain)
     const effect = kind === "plan" && role === "standing" ? planEffect(option.label) : null
     const lines = linesOf(option.label)
-    if (role === "other" && !lines) return noExtras
-    return { role, lines, effect, hard: effect !== null }
+    // A way back that wants the person's words isn't one that acts.
+    const unread = kind === "plan" && role === "other" && !needsWords(option)
+    if (role === "other" && !lines && !unread) return noExtras
+    return { role, lines, effect, hard: effect !== null || unread }
   })
 }
+
+// Why a harness won't take these words in a field of its dialog, said before they're sent; null
+// where it will. Antigravity's feedback is typed into its empty prompt box, where words that
+// start with /, ? or ! would run a command, open help or a shell, and an @ opens a file picker.
+// `harness` is the harness's name for itself (`Conversation.agent`), null where none is known.
+export const fieldRefusal = (harness: string | null, text: string): string | null =>
+  harness === "agy" && /^\s*[/?!]|@/.test(text)
+    ? "Antigravity can't take words that start with /, ? or !, or that have an @."
+    : null

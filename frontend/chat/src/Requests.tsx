@@ -38,6 +38,7 @@ const Card = ({
   request,
   slice,
   agent,
+  harness,
   onAnswer,
   onAnswerInTerminal,
   onSettled,
@@ -51,6 +52,8 @@ const Card = ({
   readonly slice: ChatSlice | null
   // The agent's name, for what waits on it.
   readonly agent: string
+  // Its harness, by its own name, for what the dialog's fields refuse.
+  readonly harness: string | null
   readonly onAnswer: (request: string, answer: ChatAnswer) => Promise<void>
   readonly onAnswerInTerminal: () => void
   // The card went after an answer took, with focus nowhere.
@@ -102,6 +105,7 @@ const Card = ({
     <RequestCard
       request={request}
       agent={agent}
+      harness={harness}
       send={send}
       onAnswerInTerminal={onAnswerInTerminal}
       onSettled={onSettled}
@@ -136,6 +140,7 @@ export const Requests = ({
   requests,
   slice,
   agent,
+  harness = null,
   onAnswer,
   onAnswerInTerminal,
   onSettled,
@@ -149,6 +154,8 @@ export const Requests = ({
   // The terminal's own rows, for a dialog no adapter read.
   readonly slice: ChatSlice | null
   readonly agent: string
+  // The agent's harness, by its own name (`Conversation.agent`), where known.
+  readonly harness?: string | null
   readonly onAnswer: (request: string, answer: ChatAnswer) => Promise<void>
   readonly onAnswerInTerminal: () => void
   readonly onSettled: () => void
@@ -168,6 +175,7 @@ export const Requests = ({
           request={request}
           slice={slice}
           agent={agent}
+          harness={harness}
           onAnswer={onAnswer}
           onAnswerInTerminal={onAnswerInTerminal}
           onSettled={onSettled}

@@ -500,7 +500,7 @@ App:
   and words, on the chat's pages: numbers tick, "Something else…" takes words in place, and the
   Review page sends them. "Plan with a change field" adds Claude Code 2.1.287's plan, whose only
   way back is "Tell Claude what to change": that row is a field that must say what. "Form from
-  an MCP server" adds the form an MCP server asks Antigravity to fill in, answered in the card as
+  an MCP server" adds the form an MCP server asks Claude Code to fill in, answered in the card as
   the chat's is (a text, a choice, a number and a yes/no; Submit or Decline). A request's sheet
   is the chat's own card, and its draft (the words in its options, its picks and page, a form's
   entries) stays with its row. Answering any

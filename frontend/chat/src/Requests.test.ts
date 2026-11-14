@@ -87,12 +87,14 @@ const show = (
   replying: string | null = null,
   replySending = false,
   slice: ChatSlice | null = null,
+  harness: string | null = "claude",
 ) => {
   const element = (next: ChatDialog | null, flag = answered) =>
     createElement(Requests, {
       requests: [request(next, flag)],
       slice,
       agent: "Claude",
+      harness,
       onAnswer,
       onAnswerInTerminal: () => {},
       onSettled,
@@ -425,6 +427,21 @@ describe("a request's card", () => {
       await act(async () => void vi.advanceTimersByTime(againMs))
       expect(container.querySelector(".request-again")).toBeNull()
     })
+  })
+
+  it("says before sending what Antigravity's field won't take, and sends nothing", () => {
+    const onAnswer = vi.fn<(request: string, answer: ChatAnswer) => Promise<void>>(async () => {})
+    const { container } = show(fieldChoices, onAnswer, false, null, false, null, "agy")
+    click(ownRow(container, "No, and tell"))
+    const field = container.querySelector("textarea")!
+    type(field, "/compact")
+    expect(container.textContent).toContain(
+      "Antigravity can't take words that start with /, ? or !, or that have an @.",
+    )
+    act(
+      () => void field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })),
+    )
+    expect(onAnswer).not.toHaveBeenCalled()
   })
 
   it("keeps words for the agent's own field to one line, with a hint", () => {

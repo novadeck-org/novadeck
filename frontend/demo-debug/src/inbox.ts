@@ -239,22 +239,23 @@ export const inboxGroups = (
         },
         {
           label: "Form from an MCP server",
-          hint: "Unblock row with the form an MCP server asks Antigravity to fill in, answered in its card as the chat's: a text, a choice, a number and a yes/no, Submit or Decline",
+          hint: "Unblock row with the form an MCP server asks Claude Code to fill in, answered in its card as the chat's: a text, a choice, a number and a yes/no, Submit or Decline",
           run: () => {
             const row = fresh(demoInboxIds.rawDialog)
             if (row?.kind !== "request") return
             inbox.add({
               ...row,
-              source: { ...row.source, agent: "agy" },
+              // Claude Code is the harness whose adapter reads an MCP server's form.
+              source: { ...row.source, agent: "claude" },
               request: {
                 ...row.request,
-                id: "demo-agy-form",
+                id: "demo-claude-form",
                 kind: "question",
                 tool: "mcp_deploy_configure_target",
                 subject: null,
                 dialog: {
                   type: "form",
-                  id: "demo-agy-form:f",
+                  id: "demo-claude-form:f",
                   message: "Configure the deploy target",
                   fields: [
                     {

@@ -86,5 +86,5 @@
   on plan-prompt-digit-3@0.160.1: screens.narrow, screens.wide
   on plan-prompt@0.160.1: screens.narrow, screens.wide
   Yes, implement this plan → yes
-  Yes, clear context and implement → other
+  Yes, clear context and implement → other, armed
   No, stay in Plan mode [prompt] → words

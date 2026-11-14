@@ -28,7 +28,7 @@ import {
   type OwnRow,
 } from "./console-menu"
 import { rowOf } from "./inbox-dom"
-import { agentName, fieldRefusal, limitWindow } from "./inbox-text"
+import { agentName, limitWindow } from "./inbox-text"
 import { noDraft, useInboxContext, type Sent } from "./InboxProvider"
 import { usePlanAnswered, usePlanText } from "./plan-text"
 import { Disclosure, Failure, Text } from "./sheet-parts"
@@ -189,7 +189,7 @@ const RequestSheet = ({
         onChange: (next: DialogDraft) => setDraft(key, { request: next }),
       }}
       detail={plan ? <PlanBox row={row} fallback={dialog.detail ?? request.subject ?? ""} /> : null}
-      fieldRefused={(text) => fieldRefusal(row.source.agent, text)}
+      harness={row.source.agent}
     />
   )
 }
@@ -518,6 +518,10 @@ const AnsweredRequest = ({
   </RequestFrame>
 )
 
+// Where the card stands on the page, where it is drawn.
+const cardTopIn = (page: HTMLElement | null): number | undefined =>
+  page?.querySelector(".request-card")?.getBoundingClientRect().top
+
 // One row's page under the head: its context, then its card.
 export const ConsoleSheet = (props: SheetContentProps): React.JSX.Element => {
   const { row, failed, sent } = props
@@ -528,9 +532,20 @@ export const ConsoleSheet = (props: SheetContentProps): React.JSX.Element => {
   const arrived = receipt !== null && receipt.from !== row.id
   const handle = useRef<MenuHandle | null>(null)
 
-  // Until when a click on the card is held back: it moved as the context over it came in.
+  // Until when a click on the card is held back: it moved as the context over it came in. The
+  // context changes as its agent works on, often in the room it had: only a card that moved,
+  // from where it stood after the last render, holds its clicks back.
   const movedUntil = useRef(0)
+  const pageRef = useRef<HTMLDivElement>(null)
+  const lastTop = useRef<number | undefined>(undefined)
+  useLayoutEffect(() => {
+    lastTop.current = cardTopIn(pageRef.current)
+  })
   const moved = useCallback(() => {
+    const before = lastTop.current
+    const now = cardTopIn(pageRef.current)
+    lastTop.current = now
+    if (before !== undefined && now !== undefined && Math.abs(now - before) < 1) return
     movedUntil.current = Date.now() + movedGuardMs
   }, [])
 
@@ -558,6 +573,7 @@ export const ConsoleSheet = (props: SheetContentProps): React.JSX.Element => {
 
   return (
     <div
+      ref={pageRef}
       className="inbox-sheet-scroll console-page chat-inline"
       onClickCapture={(event) => {
         if (Date.now() >= movedUntil.current) return

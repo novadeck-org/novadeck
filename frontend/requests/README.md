@@ -98,6 +98,6 @@ Copy is the toolkit's `Tooltip` over the app's `icon-button`.
 `chat.css`, the place of the rules it held before. Its classes are `request-*`, and it reads its
 host's private tokens (`--_ink`, `--_mid`, `--_muted`, `--_accent`, `--_red`, `--_line`, `--_pad`,
 `--_lh`, and `--_inset` where no card sets it): `.chat` sets them for the chat, and chat.css's
-`.chat-inline` (the chat's tokens and type, none of its layout) for the Inbox's sheets, whose
-`.console-page` sets only `--_pad`, the sheet's edge. The card draws its answered line's spinner
+`.chat-inline` (the chat's tokens and type, none of its layout) for the Inbox's sheets. The card
+draws its answered line's spinner
 and its error line with the chat's `.chat-spin` and `.chat-error`, which both hosts load.
