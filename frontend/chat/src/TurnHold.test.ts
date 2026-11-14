@@ -117,6 +117,13 @@ const scrollTo = (container: HTMLElement, state: { scrolled: number }, to: numbe
   act(() => void container.querySelector(".chat-scroll")!.dispatchEvent(new Event("scroll")))
 }
 
+// The rest of the log's window, which the chat adds a few blocks at a time once the page is idle.
+const grown = async (): Promise<void> => {
+  for (let step = 0; step < 6; step++)
+    // eslint-disable-next-line no-await-in-loop -- Each step waits for the one before.
+    await act(() => new Promise<void>((done) => setTimeout(done, 0)))
+}
+
 const hold = (container: HTMLElement) => container.querySelector<HTMLElement>(".chat-hold")
 const words = (container: HTMLElement) => hold(container)?.querySelector(".chat-hold-words")
 const press = (element: Element): void =>
@@ -208,8 +215,8 @@ describe("the prompt's time", () => {
 })
 
 describe("the prompt that holds the top of a log showing only its latest blocks", () => {
-  // More turns than the log shows at first (its latest 60 blocks): the first shown block is the
-  // answer of turn "11", whose prompt is among those not shown.
+  // More turns than the log shows (its latest 60 blocks, once they are all drawn): the first shown
+  // block is the answer of turn "11", whose prompt is among those not shown.
   const longLog = [
     ...Array.from({ length: 35 }, (_, turn) => [
       said(String(2 * turn + 1), `prompt ${2 * turn + 1}`),
@@ -223,9 +230,10 @@ describe("the prompt that holds the top of a log showing only its latest blocks"
     Array.from({ length: 31 }, (_, at) => [String(11 + 2 * at), at * 100]),
   )
 
-  it("is the turn's prompt the log begins inside, once the control for the earlier ones passed", () => {
+  it("is the turn's prompt the log begins inside, once the control for the earlier ones passed", async () => {
     const layout = scenario(longTops, 5000)
     const { container } = open(longLog)
+    await grown()
     const earlier = container.querySelector<HTMLElement>(".chat-earlier")
     expect(earlier?.dataset.turn).toBe("11")
     scrollTo(container, layout, 10)
@@ -236,9 +244,10 @@ describe("the prompt that holds the top of a log showing only its latest blocks"
     expect(words(container)?.textContent).toBe("prompt 13")
   })
 
-  it("shows the earlier blocks as far back as the prompt, to go to it", () => {
+  it("shows the earlier blocks as far back as the prompt, to go to it", async () => {
     const layout = scenario(longTops, 5000)
     const { container } = open(longLog)
+    await grown()
     scrollTo(container, layout, 50)
     expect(words(container)?.textContent).toBe("prompt 11")
     layout.set.length = 0
@@ -399,5 +408,98 @@ describe("the jump to the latest", () => {
     expect(jump.textContent).toBe("latest ↓")
     expect(jump.hasAttribute("data-pinned")).toBe(false)
     expect(jump.getAttribute("style")).toBeNull()
+  })
+})
+
+describe("a log longer than the chat draws at once", () => {
+  // 80 blocks, a prompt and its answer at a time: more than the log's window of 60.
+  const many = Array.from({ length: 80 }, (_, at) =>
+    at % 2 === 0 ? said(String(at + 1), `prompt ${at + 1}`) : answer(String(at + 1)),
+  )
+  const rows = (container: HTMLElement): number =>
+    container.querySelectorAll(".chat-thread > .chat-message").length
+
+  it("draws its latest blocks first, and the rest of its window once the page is idle", async () => {
+    scenario({}, 5000)
+    const { container } = open(many)
+    expect(rows(container)).toBe(10)
+    await grown()
+    expect(rows(container)).toBe(60)
+    expect(container.querySelector(".chat-earlier")?.textContent).toBe("Show earlier messages (20)")
+  })
+
+  it("draws as many as fill the log before it is painted", () => {
+    // Never taller than the log: every block of the window goes in at once.
+    scenario({}, 500)
+    const { container } = open(many)
+    expect(rows(container)).toBe(60)
+  })
+
+  it("keeps what is in view where it is as the rest go in above", async () => {
+    const layout = scenario({}, 5000)
+    // The log as tall as the blocks it draws, 100 each.
+    vi.spyOn(Element.prototype, "scrollHeight", "get").mockImplementation(function (this: Element) {
+      return this.querySelectorAll(".chat-message").length * 100
+    })
+    vi.spyOn(Element.prototype, "scrollTop", "set").mockImplementation((value: number) => {
+      layout.set.push(value)
+      layout.scrolled = value
+    })
+    const { container } = open(many)
+    // Scrolled up, away from the end, which the log stops following.
+    scrollTo(container, layout, 200)
+    layout.set.length = 0
+    await grown()
+    // Each step went in above by its 10 blocks: the scroll position moves down by as much.
+    expect(layout.set).toEqual([1200, 2200, 3200, 4200, 5200])
+  })
+
+  it("moves it no further where the browser's own scroll anchoring moved it already", async () => {
+    const layout = scenario({}, 5000)
+    // As Chromium anchors a log scrolled away from its top: content that goes in above moves the
+    // scroll position down by as much, as the log is laid out again, whichever is read first.
+    let laidOut = 0
+    const lay = (scroller: Element): number => {
+      const height = scroller.querySelectorAll(".chat-message").length * 100
+      if (laidOut !== 0 && layout.scrolled > 0) layout.scrolled += height - laidOut
+      laidOut = height
+      return height
+    }
+    vi.spyOn(Element.prototype, "scrollHeight", "get").mockImplementation(function (this: Element) {
+      return lay(this)
+    })
+    vi.spyOn(Element.prototype, "scrollTop", "get").mockImplementation(function (this: Element) {
+      lay(this)
+      return layout.scrolled
+    })
+    vi.spyOn(Element.prototype, "scrollTop", "set").mockImplementation((value: number) => {
+      layout.set.push(value)
+      layout.scrolled = value
+    })
+    const { container } = open(many)
+    scrollTo(container, layout, 200)
+    layout.set.length = 0
+    await grown()
+    expect(layout.set).toEqual([1200, 2200, 3200, 4200, 5200])
+  })
+
+  it("shows the earlier blocks from its whole window, however much of it is drawn yet", () => {
+    scenario({}, 5000)
+    const { container } = open(many)
+    act(() => void container.querySelector<HTMLElement>(".chat-earlier")!.click())
+    expect(rows(container)).toBe(80)
+  })
+})
+
+describe("scrolling the log", () => {
+  it("places the held prompt from the rows already read, reading none again", () => {
+    const layout = scenario(tops)
+    const { container } = open(twoTurns)
+    scrollTo(container, layout, 60)
+    const reads = vi.mocked(Element.prototype.getBoundingClientRect).mock.calls.length
+    scrollTo(container, layout, 70)
+    scrollTo(container, layout, 400)
+    expect(vi.mocked(Element.prototype.getBoundingClientRect).mock.calls.length).toBe(reads)
+    expect(hold(container)).not.toBeNull()
   })
 })

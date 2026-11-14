@@ -31,6 +31,14 @@ describe("a fenced code block", () => {
     await expect.poll(() => coloured(view.container), loaded).toBeGreaterThan(0)
   })
 
+  it("shows coloured at once when drawn again, as a chat is when its view changes", async () => {
+    const text = "```ts\nconst again = 7\n```"
+    const first = mount(text)
+    await expect.poll(() => coloured(first.container), loaded).toBeGreaterThan(0)
+    first.unmount()
+    expect(coloured(mount(text).container)).toBeGreaterThan(0)
+  })
+
   context("whose language changes over the same text", () => {
     it("drops the old colours at once", async () => {
       const view = mount(fenced("ts"))
