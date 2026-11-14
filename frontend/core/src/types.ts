@@ -9,11 +9,11 @@ export type ViewMode = "focus" | "grid" | "canvas"
 // The sidebar's panels, each with a toggle on the rail.
 export const sidebarPanels = [
   "terminals",
-  "source",
-  "sessions",
-  "history",
   "inbox",
+  "sessions",
   "changes",
+  "source",
+  "history",
 ] as const
 export type SidebarPanel = (typeof sidebarPanels)[number]
 export type WindowedView = Exclude<ViewMode, "focus">

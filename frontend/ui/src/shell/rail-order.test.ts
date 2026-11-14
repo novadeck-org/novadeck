@@ -5,11 +5,11 @@ describe("the rail's order", () => {
   it("is the rail's own until the person moves a panel", () => {
     expect(railOrder([])).toEqual([
       "terminals",
-      "source",
-      "sessions",
-      "history",
       "inbox",
+      "sessions",
       "changes",
+      "source",
+      "history",
     ])
   })
 
@@ -17,10 +17,10 @@ describe("the rail's order", () => {
     expect(railOrder(["inbox", "terminals"])).toEqual([
       "inbox",
       "terminals",
-      "source",
       "sessions",
-      "history",
       "changes",
+      "source",
+      "history",
     ])
   })
 
@@ -29,40 +29,40 @@ describe("the rail's order", () => {
       "inbox",
       "sessions",
       "terminals",
+      "changes",
       "source",
       "history",
-      "changes",
     ])
   })
 
-  it("puts History and Changes after the panels a person saved before they existed", () => {
+  it("puts Changes and History after the panels a person saved before they existed", () => {
     expect(railOrder(["inbox", "sessions", "source", "terminals"])).toEqual([
       "inbox",
       "sessions",
       "source",
       "terminals",
-      "history",
       "changes",
+      "history",
     ])
   })
 
   it("moves a panel among those shown", () => {
     const order = railOrder([])
     expect(movedPanel(order, order, 4, 0)).toEqual([
-      "inbox",
-      "terminals",
       "source",
+      "terminals",
+      "inbox",
       "sessions",
-      "history",
       "changes",
+      "history",
     ])
     expect(movedPanel(order, order, 0, 2)).toEqual([
-      "source",
+      "inbox",
       "sessions",
       "terminals",
-      "history",
-      "inbox",
       "changes",
+      "source",
+      "history",
     ])
   })
 
@@ -72,12 +72,12 @@ describe("the rail's order", () => {
       (panel) => panel !== "source" && panel !== "history" && panel !== "changes",
     )
     expect(movedPanel(order, shown, 2, 0)).toEqual([
-      "inbox",
-      "source",
-      "terminals",
-      "history",
       "sessions",
+      "terminals",
+      "inbox",
       "changes",
+      "source",
+      "history",
     ])
   })
 })
