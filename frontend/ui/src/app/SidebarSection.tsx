@@ -13,6 +13,7 @@ import { useDesktop } from "../shell/desktop"
 import { sidebarVisible } from "../shell/shell-state"
 import { WorkspaceSidebar } from "../shell/WorkspaceSidebar"
 import { latestTurnEnd } from "../sidebar/source-turns"
+import { sourceOfWorks, type Owner } from "../sidebar/source-works"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useStoreSelector } from "./controller/useStoreSelector"
 import { useMoving, useTabsAway } from "./move-to"
@@ -38,6 +39,34 @@ const sameSessions = (a: readonly WorkspaceSession[], b: readonly WorkspaceSessi
 
 const sameHandles = (a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean =>
   a.size === b.size && [...a].every(([id, handle]) => b.get(id) === handle)
+
+// Every terminal in the sessions that has a handle, by id: its handle, and the file its
+// running agent's turn wrote last.
+const ownersOf = (sessions: readonly WorkspaceSession[]): ReadonlyMap<string, Owner> =>
+  new Map(
+    sessions.flatMap((session) =>
+      session.state.roster.terminals.flatMap((terminal) =>
+        terminal.handle
+          ? [
+              [
+                terminal.id,
+                {
+                  handle: terminal.handle,
+                  wrote: terminal.state === "running" ? terminal.agent?.wrote : undefined,
+                },
+              ] as const,
+            ]
+          : [],
+      ),
+    ),
+  )
+
+const sameOwners = (a: ReadonlyMap<string, Owner>, b: ReadonlyMap<string, Owner>): boolean =>
+  a.size === b.size &&
+  [...a].every(([id, owner]) => {
+    const other = b.get(id)
+    return other?.handle === owner.handle && other.wrote === owner.wrote
+  })
 
 // What a backend without a source reads in its place; its panel isn't drawn.
 const noSource = createStore<SourceState>({ projects: {} })
@@ -114,20 +143,49 @@ export const SidebarSection = memo((): React.JSX.Element => {
       ),
     [teams, handles],
   )
+  // The Changes panel shows where the backend reports the terminals' work, while agent
+  // worktrees are on; see `useChangesShown`.
+  const worksFeed = useChangesShown() ? backend.works : undefined
+  // Every project's works: the panel lists them all, naming each row's project.
+  const allWorks = useStoreSelector(worksFeed?.state ?? noWorks, (state) => state.works, sameWorks)
+  // The terminals of every session of the project that may own its worktrees, by id.
+  const owners = useWorkspaceState(
+    (workspace) => ownersOf(activeProject(workspace)!.history),
+    sameOwners,
+  )
+  // Where the backend tells no changes of its own, the Source panel lays the project's works
+  // over its files while the Changes panel shows, and follows them while it shows.
+  const worksOverlay = useMemo(
+    () => (worksFeed && !sourceProject ? sourceOfWorks(allWorks, projectId, owners) : undefined),
+    [worksFeed, sourceProject, allWorks, projectId, owners],
+  )
+  const watchWorks = sourceProject ? undefined : worksFeed?.watch
   const source = useMemo(
     () =>
       sourceFeed
         ? {
-            project: sourceProject,
+            project: sourceProject ?? worksOverlay,
             list,
             turn,
+            watch: watchWorks,
             onOpenFile: commands.openSourceFile,
             selectedHandle,
             roster,
             squads,
           }
         : undefined,
-    [sourceFeed, sourceProject, list, turn, commands, selectedHandle, roster, squads],
+    [
+      sourceFeed,
+      sourceProject,
+      worksOverlay,
+      list,
+      turn,
+      watchWorks,
+      commands,
+      selectedHandle,
+      roster,
+      squads,
+    ],
   )
   // The History panel shows where the backend keeps closed terminals; see `historyShown`.
   const historyFeed = historyShown(backend) ? backend.history : undefined
@@ -163,11 +221,6 @@ export const SidebarSection = memo((): React.JSX.Element => {
   )
   const moving = useMoving()
   const away = useTabsAway()
-  // The Changes panel shows where the backend reports the terminals' work, while agent
-  // worktrees are on; see `useChangesShown`.
-  const worksFeed = useChangesShown() ? backend.works : undefined
-  // Every project's works: the panel lists them all, naming each row's project.
-  const allWorks = useStoreSelector(worksFeed?.state ?? noWorks, (state) => state.works, sameWorks)
   const worksReported = useStoreSelector(worksFeed?.state ?? noWorks, (state) => state.reported)
   // Titles of every project's terminals, in every session of it, for the rows to name.
   const titles = useWorkspaceState(

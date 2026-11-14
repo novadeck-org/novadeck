@@ -102,6 +102,7 @@ const mount = async (
   agents: { roster: string[]; squads: string[][] } = { roster: [], squads: [] },
   reads: Reads = backend(),
   onOpenFile: (path: string) => Promise<void> = () => Promise.resolve(),
+  watch?: () => () => void,
 ) => {
   let visible = true
   let turn = 0
@@ -109,6 +110,7 @@ const mount = async (
     project: next,
     list: reads.list,
     turn,
+    watch,
     onOpenFile,
     selectedHandle: handle,
     roster: agents.roster,
@@ -159,6 +161,22 @@ const mount = async (
 }
 
 describe("The Source panel", () => {
+  context("when its changes come from the works", () => {
+    it("follows them while it shows, and lets go while it is hidden", async () => {
+      const released = vi.fn<() => void>()
+      const watch = vi.fn<() => () => void>(() => released)
+      const panel = await mount(undefined, undefined, undefined, undefined, undefined, watch)
+      expect(watch).toHaveBeenCalledTimes(1)
+      expect(released).not.toHaveBeenCalled()
+
+      await panel.show(false)
+      expect(released).toHaveBeenCalledTimes(1)
+
+      await panel.show(true)
+      expect(watch).toHaveBeenCalledTimes(2)
+    })
+  })
+
   context("when it first shows a project", () => {
     it("opens the folders with a changed file and leaves the rest shut", async () => {
       const panel = await mount(work())

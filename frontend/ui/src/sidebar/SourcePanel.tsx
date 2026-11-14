@@ -50,6 +50,7 @@ export const SourcePanel = ({
   project,
   list,
   turn,
+  watch,
   onOpenFile,
   selectedHandle,
   roster,
@@ -64,6 +65,9 @@ export const SourcePanel = ({
   list: (folder: string) => Promise<SourceListing>
   // When an agent's turn last ended in the project, which has the folders read again.
   turn: number
+  // Follows the works `project` comes from until the returned release is called, where it
+  // comes from them.
+  watch?: (() => () => void) | undefined
   // Opens a file of the project, by its path from the root; rejects if it can't be opened.
   onOpenFile: (path: string) => Promise<void>
   // The handle of the workspace's selected terminal.
@@ -99,6 +103,8 @@ export const SourcePanel = ({
   const rows = useMemo(() => lines.filter((line): line is SourceRow => !isNote(line)), [lines])
 
   const { read, isReading } = useFolderReader(list, setListings)
+  // The works the changes come from are followed while the panel shows.
+  useEffect(() => (showing && watch ? watch() : undefined), [showing, watch])
   // The root and the open folders on screen: what the panel keeps read while it is shown.
   const wanted = useMemo(
     () => ["", ...rows.filter((row) => row.node.folder && row.open).map((row) => row.node.path)],
