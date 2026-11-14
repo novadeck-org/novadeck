@@ -2,23 +2,23 @@ import { allTeams, sameTeams } from "@novadeck/core/derivations"
 import type { ClosedTerminal, HistoryState } from "@novadeck/core/history"
 import { itemIdOf } from "@novadeck/core/items"
 import { orderedTiles } from "@novadeck/core/roster"
-import type { SourceState } from "@novadeck/core/source"
 import { activeProject } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
 import type { WorkspaceSession } from "@novadeck/core/types"
-import type { Work, WorksState } from "@novadeck/core/works"
+import type { Work } from "@novadeck/core/works"
 import { memo, useCallback, useMemo, useSyncExternalStore } from "react"
 
 import { useDesktop } from "../shell/desktop"
 import { sidebarVisible } from "../shell/shell-state"
 import { WorkspaceSidebar } from "../shell/WorkspaceSidebar"
 import { latestTurnEnd } from "../sidebar/source-turns"
-import { sourceOfWorks, type Owner } from "../sidebar/source-works"
+import { projectPath, sourceOfWorks } from "../sidebar/source-works"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useStoreSelector } from "./controller/useStoreSelector"
 import { useMoving, useTabsAway } from "./move-to"
 import { historyShown, sourceShown } from "./routing"
 import { currentState, currentTarget, sameItems, sameTarget } from "./selectors"
+import { noSource, noWorks, ownersOf, sameOwners, sameWorks } from "./source-feed"
 import { useReorderTiles } from "./team-fold"
 import { useChangesShown } from "./use-changes-shown"
 import { useSessionMarks } from "./useSessionMarks"
@@ -40,53 +40,26 @@ const sameSessions = (a: readonly WorkspaceSession[], b: readonly WorkspaceSessi
 const sameHandles = (a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean =>
   a.size === b.size && [...a].every(([id, handle]) => b.get(id) === handle)
 
-// Every terminal in the sessions that has a handle, by id: its handle, and the file its
-// running agent's turn wrote last.
-const ownersOf = (sessions: readonly WorkspaceSession[]): ReadonlyMap<string, Owner> =>
-  new Map(
-    sessions.flatMap((session) =>
-      session.state.roster.terminals.flatMap((terminal) =>
-        terminal.handle
-          ? [
-              [
-                terminal.id,
-                {
-                  handle: terminal.handle,
-                  wrote: terminal.state === "running" ? terminal.agent?.wrote : undefined,
-                },
-              ] as const,
-            ]
-          : [],
-      ),
-    ),
-  )
-
-const sameOwners = (a: ReadonlyMap<string, Owner>, b: ReadonlyMap<string, Owner>): boolean =>
-  a.size === b.size &&
-  [...a].every(([id, owner]) => {
-    const other = b.get(id)
-    return other?.handle === owner.handle && other.wrote === owner.wrote
-  })
-
-// What a backend without a source reads in its place; its panel isn't drawn.
-const noSource = createStore<SourceState>({ projects: {} })
-
 // What a backend without History reads in its place; its panel isn't drawn.
 const noHistory = createStore<HistoryState>({ rows: [] })
-// What a backend without works reads in its place; its panel isn't drawn.
-const noWorks = createStore<WorksState>({ works: [], synced: true, reported: true })
 const noAgents: readonly never[] = []
 const always = (): (() => void) => () => {}
 
 const sameRows = (a: readonly ClosedTerminal[], b: readonly ClosedTerminal[]): boolean =>
   a.length === b.length && a.every((row, index) => Object.is(row, b[index]))
 
-const sameWorks = (a: readonly Work[], b: readonly Work[]): boolean =>
-  a.length === b.length && a.every((work, index) => Object.is(work, b[index]))
+// Whether a work of the project changes the file at `path`, from the project's folder.
+const touchedBy = (works: readonly Work[], projectId: string, path: string): boolean =>
+  works.some(
+    ({ projectId: own, folder, files }) =>
+      own === projectId &&
+      folder !== undefined &&
+      files.some((file) => projectPath(folder, file.path) === path),
+  )
 
 // The sidebar wired to the workspace: terminal tabs and workspace sessions.
 export const SidebarSection = memo((): React.JSX.Element => {
-  const { commands, backend } = useWorkspaceServices()
+  const { commands, backend, ui } = useWorkspaceServices()
   const { switchSession, startFresh, hideSidebar, add } = commands
   const reorderTiles = useReorderTiles()
   const { renameSession, moveSession, removeSession } = commands
@@ -160,6 +133,20 @@ export const SidebarSection = memo((): React.JSX.Element => {
     [worksFeed, sourceProject, allWorks, projectId, owners],
   )
   const watchWorks = sourceProject ? undefined : worksFeed?.watch
+  // A file some work of the project changes opens as a preview of what the works merge to, while
+  // the works are shown; any other as it is in main.
+  const onOpenFile = useCallback(
+    (path: string) =>
+      commands.openSourceFile(path, {
+        preview: worksFeed !== undefined && touchedBy(allWorks, projectId, path),
+      }),
+    [commands, worksFeed, allWorks, projectId],
+  )
+  const onLit = useCallback(
+    (lit: ReadonlySet<string>) =>
+      ui.update((state) => (state.sourceLit === lit ? state : { ...state, sourceLit: lit })),
+    [ui],
+  )
   const source = useMemo(
     () =>
       sourceFeed
@@ -168,7 +155,8 @@ export const SidebarSection = memo((): React.JSX.Element => {
             list,
             turn,
             watch: watchWorks,
-            onOpenFile: commands.openSourceFile,
+            onOpenFile,
+            onLit,
             selectedHandle,
             roster,
             squads,
@@ -181,7 +169,8 @@ export const SidebarSection = memo((): React.JSX.Element => {
       list,
       turn,
       watchWorks,
-      commands,
+      onOpenFile,
+      onLit,
       selectedHandle,
       roster,
       squads,
@@ -254,6 +243,16 @@ export const SidebarSection = memo((): React.JSX.Element => {
     },
     [worksFeed, revealTerminal, openBarTab, projectId],
   )
+  // A file of a work, opened in the project window as a preview: only a file of the open project
+  // that main has (the window shows main's checkout, which it can only point at).
+  const openWorkFile = useCallback(
+    (work: Work, path: string): void => {
+      const inProject = work.folder === undefined ? undefined : projectPath(work.folder, path)
+      if (inProject === undefined || work.projectId !== projectId) return
+      commands.openSourceFile(inProject, { preview: true }).catch(() => {})
+    },
+    [commands, projectId],
+  )
   const changes = useMemo(
     () =>
       worksFeed
@@ -265,10 +264,11 @@ export const SidebarSection = memo((): React.JSX.Element => {
             projects: projectNames,
             selectedId,
             onSelect: showWork,
+            onOpenFile: openWorkFile,
             onCloseWork: worksFeed.close,
           }
         : undefined,
-    [worksFeed, allWorks, worksReported, titles, projectNames, selectedId, showWork],
+    [worksFeed, allWorks, worksReported, titles, projectNames, selectedId, showWork, openWorkFile],
   )
   const sidebarPanel = useUiState((state) => state.location.route.panel)
   const visible = useUiState((state) => sidebarVisible(state.shell, desktop))

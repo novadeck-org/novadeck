@@ -106,9 +106,48 @@ export const workClosing = z.discriminatedUnion("closed", [
   z.strictObject({ closed: z.literal(false), holds: z.string().min(1).max(512) }),
 ])
 
+// One work's change to a file as it carries onto main's copy, in main's line numbers: where
+// it starts (`at`, from 1; for a change that only adds lines, the line they go before, one
+// past main's last for the end), how many of main's lines it replaces or removes, and the
+// lines it puts there. `applies` is false where main has rewritten those lines since the
+// worktree branched, which merging the work onto main would conflict on: `lines` is then
+// the worktree's version, which main's own lines stand in for.
+export const previewLimits = { text: 512 * 1024, hunks: 500, lines: 4096 } as const
+
+export const previewHunk = z.strictObject({
+  at: z.int().min(1),
+  removed: count,
+  lines: z.array(z.string().max(4096)).max(previewLimits.lines),
+  applies: z.boolean(),
+})
+
+// What one work does to a file: how it changed it, when the runner first saw it so (the
+// file's `changedAt`, 0 where the work lists no such file yet), and its hunks, in order.
+export const workPreviewWork = z.strictObject({
+  root: directory,
+  terminalId: id.nullable(),
+  branch: z.string().min(1).max(workLimits.branch).nullable(),
+  status: z.enum(["modified", "added", "deleted"]),
+  changedAt: z.number(),
+  hunks: z.array(previewHunk).max(previewLimits.hunks),
+})
+
+// `works.preview`: a file of a project as it would be once its works merge onto main. `main`
+// is main's text, null where main has no such file; `works` the project's works that change
+// it, each read as it is on disk now. `unavailable` says why nothing is told of it: it may hold
+// secrets, is binary, or is too large; there are then no works either.
+export const workPreview = z.strictObject({
+  main: z.string().max(previewLimits.text).nullable(),
+  unavailable: z.enum(["secret", "binary", "big"]).optional(),
+  works: z.array(workPreviewWork).max(workLimits.conflicts),
+})
+
 export type WorkFile = z.infer<typeof workFile>
 export type WorkConflict = z.infer<typeof workConflict>
 export type Work = z.infer<typeof work>
 export type WorkChange = z.infer<typeof workChange>
 export type WorkMade = z.infer<typeof workMade>
 export type WorkClosing = z.infer<typeof workClosing>
+export type PreviewHunk = z.infer<typeof previewHunk>
+export type WorkPreviewWork = z.infer<typeof workPreviewWork>
+export type WorkPreview = z.infer<typeof workPreview>

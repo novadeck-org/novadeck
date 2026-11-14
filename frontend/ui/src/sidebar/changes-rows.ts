@@ -12,6 +12,7 @@ export type FileView = {
   readonly path: string
   readonly name: string
   readonly conflict: boolean
+  readonly status: WorkFile["status"]
   readonly added: number
   readonly removed: number
 }
@@ -53,6 +54,7 @@ const view = (file: WorkFile): FileView => ({
   path: file.path,
   name: baseName(file.path),
   conflict: file.conflict,
+  status: file.status,
   added: file.added,
   removed: file.removed,
 })

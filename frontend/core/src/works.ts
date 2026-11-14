@@ -105,6 +105,42 @@ export type Works = {
   // refuses (git couldn't be read, the owner's agent is working in it); a worktree already
   // closed rejects with code NOT_FOUND.
   readonly close: (root: string, force?: boolean) => Promise<WorkClosing>
+  // A file of the project, by its path from the project's folder, as it would be once the
+  // project's works merge onto main, read now: main's copy and what each work carries onto it.
+  // Rejects when the backend cannot say.
+  readonly preview: (projectId: string, path: string) => Promise<WorkPreview>
+}
+
+// One work's change to a file as it carries onto main's copy, in main's line numbers: where it
+// starts (from 1; for a change that only adds lines, the line they go before), how many of
+// main's lines it replaces or removes, and the lines it puts there. `applies` is false where
+// main has rewritten those lines since the worktree branched: `lines` are then the worktree's
+// version, which main's own lines stand in for.
+export type PreviewHunk = {
+  readonly at: number
+  readonly removed: number
+  readonly lines: readonly string[]
+  readonly applies: boolean
+}
+
+// What one work does to a file: how, when the backend first saw it so (0 where unknown), and
+// its hunks in order.
+export type WorkPreviewWork = {
+  readonly root: string
+  readonly terminalId: string | null
+  readonly branch: string | null
+  readonly status: "modified" | "added" | "deleted"
+  readonly changedAt: number
+  readonly hunks: readonly PreviewHunk[]
+}
+
+// A file as it would be once its works merge: main's text (null where main has no such file)
+// and each work that changes it. `unavailable` says why the file is not told of (it may hold
+// secrets, is binary, or is too large).
+export type WorkPreview = {
+  readonly main: string | null
+  readonly unavailable?: "secret" | "binary" | "big" | undefined
+  readonly works: readonly WorkPreviewWork[]
 }
 
 // What closing a worktree comes to: it closed, with the ref its uncommitted work (and commits

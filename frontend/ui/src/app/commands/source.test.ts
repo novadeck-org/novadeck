@@ -50,6 +50,18 @@ describe("source commands", () => {
       expect(app.state().roster.windows.map((each) => each.name)).toEqual(["README.md"])
     })
 
+    it("has the window preview what the agents' work merges to when asked, and show main's copy otherwise", async () => {
+      const app = open(reply)
+      await app.commands.openSourceFile("README.md", { preview: true })
+      const [first] = Object.values(app.ui.getSnapshot().filePreviews)
+      expect(first).toMatchObject({ itemId: readme.id, projectId: "project", path: "README.md" })
+      await app.commands.openSourceFile("README.md", { preview: true })
+      // Each open starts the preview over.
+      expect(Object.values(app.ui.getSnapshot().filePreviews)[0]!.opened).not.toBe(first!.opened)
+      await app.commands.openSourceFile("README.md")
+      expect(app.ui.getSnapshot().filePreviews).toEqual({})
+    })
+
     it("needs no terminal open", async () => {
       const app = open(reply)
       for (const { id } of app.state().roster.terminals) app.commands.close(id)

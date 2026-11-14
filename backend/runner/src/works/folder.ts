@@ -44,3 +44,14 @@ export const folderOf = async (
   const top = await realpath(homeOf(common)).catch(() => homeOf(common))
   return folderBetween(real, top)
 }
+
+/**
+ * A path from the project's folder as a path from the repository's top (a work's files are named
+ * so), or undefined where it is outside the repository: the inverse of how the Source panel
+ * lays a work's file over the project's tree.
+ */
+export const repoPath = (folder: Folder, file: string): string | undefined => {
+  if (folder.project !== "" && !file.startsWith(`${folder.project}/`)) return undefined
+  const inside = folder.project === "" ? file : file.slice(folder.project.length + 1)
+  return folder.repo === "" ? inside : `${folder.repo}/${inside}`
+}

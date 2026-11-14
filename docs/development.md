@@ -445,7 +445,8 @@ Agents:
   terminal (Crow otherwise): the row pulses and its cursor moves, or goes; the second only
   clears the cursor, and the agent's turn is ended with the Agent group's states. "Third agent
   edits Checkout.tsx" adds the storefront's third terminal's agent (`owl`) to a row that
-  already shows Moth and Crow, folding the chips into "+1". "Agent creates a file in a folder"
+  already shows Moth and Crow, folding the chips into "+1". "Agent writes Checkout.tsx" has the
+  selected storefront agent write that file at once (see "File preview" below). "Agent creates a file in a folder"
   adds `src/api/payments.ts`, so a folded `src/api` pulses and shows Crow's chip. "A folder can't
   be read", "A folder lists only part" and "The project's files can't be read" make the next
   reads of `src/cart`, of `src/components` and of the root fail, list two files, and fail (the
@@ -462,6 +463,23 @@ Agents:
   stands only while its lead has work too (else its workers are solo chips), and an agent in
   two teams sits in the first squad that names it. The `agents`, `inbox` and try demos have no
   team, so their strips are solo chips.
+- **File preview:** in the `agents`, `messages` and `inbox` variants, double-click
+  `src/checkout/Checkout.tsx` in the Source panel (or click it under a selected row of the Changes
+  panel) to open the project window as the file would be once the agents' work merges onto main:
+  Moth's and Crow's changes carried onto main's copy (`frontend/demo/src/preview.ts`), each under a
+  head naming the agent, a clash at the line that submits the order (the last writer shown, a
+  picker on its right), the merge set in the summary line (each agent a toggle, everyone merged
+  each time it is opened), and the lines Moth removed folded into "5 lines of main removed". It
+  needs agent worktrees on (the App section's "Agent worktrees and Changes" group: "On, with
+  Changes"). The Source group's "Agent writes Checkout.tsx" (and the agents' own writes) grow the
+  selected agent's change by a line, pulse it and put the agent's cursor after it, which becomes a
+  trail once "Agent stops writing (Source only)" runs; a clash follows the agent that wrote last.
+  The File preview group's "Third agent clashes with the others" adds `owl` over the same line (a
+  third version in the clash), "A change doesn't apply" a change of `owl`'s to a line main has
+  rewritten since (a red box saying so, with Show, and "1 change doesn't apply" in the summary),
+  and "Third agent leaves the file preview" takes it away. Lighting an agent in the Source strip
+  dims the others' changes in the preview. Other files and projects have no preview, so they open
+  as main's copy.
 - **Agent connections:** make the next connect in Preferences fail, refresh the agents, or
   connect Antigravity with the note Preferences shows where its own status line keeps
   Novadeck's out, as on Windows.

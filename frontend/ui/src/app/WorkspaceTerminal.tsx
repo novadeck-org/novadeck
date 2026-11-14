@@ -53,6 +53,7 @@ import { useChatTakesFocus } from "./chat-focus"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { DictationContext, useMicButton } from "./controller/dictation"
 import { useDockTarget } from "./dock-target"
+import { FilePreviewHost } from "./FilePreviewHost"
 import { closeTip } from "./history-drops"
 import { useMessageLinks } from "./message-links"
 import { MountedTerminal } from "./MountedTerminal"
@@ -179,12 +180,23 @@ const WorkspaceWindow = memo(
       currentState(workspace).items.find((each) => each.id === window.itemId),
     )
     const { icon: Icon } = windowProfile(item)
+    // The file the person opened to preview what the agents' work merges to, while the window
+    // still shows it.
+    const previewing = useUiState((state) => {
+      const request = state.filePreviews[`${target.projectId}/${target.workspaceSessionId}`]
+      return window.home === "project" && request !== undefined && request.itemId === item?.id
+    })
     // What it shows, where a terminal's content would be.
     return (
       <WindowShell {...frame} icon={<Icon size={14} strokeWidth={1.5} />}>
         {itemStore &&
           (window.home === "project" ? (
-            <ProjectWindow itemStore={itemStore} target={target} item={item} />
+            <ProjectWindow
+              itemStore={itemStore}
+              target={target}
+              item={item}
+              Preview={previewing ? FilePreviewHost : undefined}
+            />
           ) : (
             <UndockedWindow itemStore={itemStore} target={target} item={item} />
           ))}

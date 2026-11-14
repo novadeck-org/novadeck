@@ -1,6 +1,15 @@
+import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
-import { workLimits, type Work, type WorkChange, type WorkMade } from "@novadeck/protocol"
+import {
+  previewLimits,
+  workLimits,
+  type Work,
+  type WorkChange,
+  type WorkMade,
+  type WorkPreview,
+  type WorkPreviewWork,
+} from "@novadeck/protocol"
 import { KeyedChanges } from "@novadeck/wire/server"
 
 import { waitAfter } from "../checkouts/git.js"
@@ -16,15 +25,24 @@ import {
   type Main,
   type Merge,
 } from "../checkouts/repository.js"
+import type { Held } from "../checkouts/repository.js"
 import type { Snapshot, Snapshots } from "../checkouts/snapshots.js"
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
-import { folderOf } from "./folder.js"
+import { folderOf, repoPath } from "./folder.js"
 import { conflictsOf, listFiles, mayConflict, type Detail, type Lines } from "./lines.js"
 import { loadRemembered, RememberedSaves, type Remembered } from "./memory.js"
 import { mergedWork } from "./merged.js"
+import { carry, textAt } from "./preview.js"
 
 const log = logs.for("works")
+
+/** What a preview answers of a file it does not read. */
+const unreadable = (unavailable: "secret" | "binary" | "big"): WorkPreview => ({
+  main: null,
+  unavailable,
+  works: [],
+})
 
 /** A git worktree Novadeck tracks, which is a work: its folder, its project, its owner if any. */
 export type Tracked = {
@@ -89,6 +107,8 @@ export type WorksOptions = {
    * works then name no folder).
    */
   readonly projectFolder?: (projectId: string) => string | undefined
+  /** Which files (by full path) may hold secrets: a preview never reads them. */
+  readonly held?: () => Held
   /** How often each checkout is read, in milliseconds. */
   readonly everyMs?: number
   /**
@@ -336,6 +356,75 @@ export class Works {
   release(ownerId: string): void {
     for (const [end, owner] of this.makers) if (owner === ownerId) end()
     for (const [watcher, owner] of this.watchers) if (owner === ownerId) watcher.finish()
+  }
+
+  /**
+   * A file of a project (`path`, from its folder) as it would be once the project's works merge
+   * onto main: main's copy and, for each work that changes the file, its hunks carried onto it,
+   * read from the worktree as it is on disk now. Nothing of a file that may hold secrets, is
+   * binary or is too large (`unavailable`), and `main: null` and no works where no work lists it.
+   */
+  async preview(projectId: string, path: string): Promise<WorkPreview> {
+    if (!this.polling()) await this.scan(true)
+    const listing = [...this.published.values()].flatMap((work) => {
+      const name = work.folder === undefined ? undefined : repoPath(work.folder, path)
+      const file = name === undefined ? undefined : work.files.find((each) => each.path === name)
+      return work.projectId === projectId && name !== undefined && file && file.status !== "renamed"
+        ? [{ work, name, file }]
+        : []
+    })
+    const first = listing[0]
+    if (!first) return { main: null, works: [] }
+    const held = this.options.held?.()
+    if (held && listing.some(({ work, name }) => held(join(work.root, name))))
+      return unreadable("secret")
+    const main = await mainBranch(first.work.root)
+    if (!main) return { main: null, works: [] }
+    const mainText = await textAt(first.work.root, `${main.commit}:${first.name}`)
+    if (mainText === undefined) throw new DomainError("NOT_FOUND", "Main's copy can't be read.")
+    const results = await Promise.all(
+      listing.map(({ work, name, file }) =>
+        this.options.snapshots
+          .use(work.root, async (checkout) => {
+            const snapshot = await checkout.take(true)
+            if (!snapshot || snapshot.head === "") return undefined
+            const base = await mergeBase(work.root, main.commit, snapshot.head, snapshot.env)
+            const [theirs, was] = await Promise.all([
+              textAt(work.root, `${snapshot.tree}:${name}`, snapshot.env),
+              base === undefined ? null : textAt(work.root, `${base}:${name}`, snapshot.env),
+            ])
+            if (theirs === undefined || was === undefined) return undefined
+            const texts = [mainText, theirs, was]
+            if (texts.some((text) => text !== null && text.includes(" "))) return "binary" as const
+            if (texts.some((text) => text !== null && text.length > previewLimits.text))
+              return "big" as const
+            const hunks = await carry(work.root, {
+              main: mainText ?? "",
+              base: was ?? "",
+              theirs: theirs ?? "",
+            })
+            if (!hunks) return undefined
+            return {
+              root: work.root,
+              terminalId: work.terminalId,
+              branch: work.branch,
+              status: theirs === null ? "deleted" : was === null ? "added" : "modified",
+              changedAt: file.changedAt,
+              hunks,
+            } satisfies WorkPreviewWork
+          })
+          .catch(() => undefined),
+      ),
+    )
+    const refused = results.find((each) => each === "binary" || each === "big")
+    if (typeof refused === "string") return unreadable(refused)
+    return {
+      main: mainText,
+      works: results
+        .filter((each): each is WorkPreviewWork => typeof each === "object")
+        .filter((each) => each.hunks.length > 0)
+        .slice(0, workLimits.conflicts),
+    }
   }
 
   /** The person has read the work at `root` as it is now; NOT_FOUND without one. */

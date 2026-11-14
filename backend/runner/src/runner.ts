@@ -413,6 +413,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       }
     },
     snapshots,
+    held: () => secrets(agents.environment()),
     ...(memory !== undefined && { memory }),
   })
   const uploads = new Uploads(options.uploads)

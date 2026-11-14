@@ -94,6 +94,9 @@ export {
   historyLimits,
 } from "./history.js"
 export {
+  type PreviewHunk,
+  previewHunk,
+  previewLimits,
   type Work,
   work,
   type WorkChange,
@@ -106,6 +109,10 @@ export {
   workLimits,
   type WorkMade,
   workMade,
+  type WorkPreview,
+  workPreview,
+  type WorkPreviewWork,
+  workPreviewWork,
 } from "./works.js"
 export { maxWebSocketMessageBytes, protocolVersion } from "./connection.js"
 export {

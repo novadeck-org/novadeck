@@ -48,6 +48,7 @@ import {
   type WorkChange,
   type WorkMade,
   type WorkClosing,
+  type WorkPreview,
   type WorkspaceSession,
 } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
@@ -467,6 +468,12 @@ export type Runner = {
      * or it has submodules.
      */
     close(root: string, force?: boolean): Promise<WorkClosing>
+    /**
+     * A file of a project (its path from the project's folder) as it would be once the project's
+     * works merge onto main: main's copy and each work's hunks of it, read as the worktrees
+     * are on disk now.
+     */
+    preview(projectId: string, path: string): Promise<WorkPreview>
   }
   /**
    * What agents show and the person attaches beside terminals: items, each held by a
@@ -860,6 +867,7 @@ export const connectRunner = async (
         ),
       close: (root, force) =>
         call((client) => client.works.close({ root, ...(force && { force }) })),
+      preview: (projectId, path) => call((client) => client.works.preview({ projectId, path })),
     },
     companions: {
       list: (input) => call((client) => client.companions.list(input)),

@@ -60,6 +60,21 @@
   padding-right: 2px;
 }
 
+/* A file main has opens in the project window, as a preview of what the works merge to. */
+.changes-file-open {
+  padding: 0 2px 0 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.changes-file-open:hover .changes-file {
+  text-decoration: underline;
+}
+
 /* The detail line holds the project and branch, which stay while the files unfold under it. */
 .changes-project,
 .changes-sep,

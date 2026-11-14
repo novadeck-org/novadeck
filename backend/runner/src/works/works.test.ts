@@ -161,6 +161,7 @@ const open = (
     show?: (terminalId: string, root: string) => Promise<string>
     onMade?: (listener: (made: WorkMade) => void) => () => void
     projectFolder?: (projectId: string) => string | undefined
+    held?: () => (path: string) => boolean
   } = {},
 ) => {
   const shown: [string, string][] = []
@@ -187,6 +188,7 @@ const open = (
       }),
     ...(options.onMade && { onMade: options.onMade }),
     ...(options.projectFolder && { projectFolder: options.projectFolder }),
+    ...(options.held && { held: options.held }),
     everyMs: 20,
     firstMs: everything,
     snapshots: snapshotsFor(options.memory, options.repackAfter),
@@ -1329,6 +1331,114 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
       })
       expect(removed).toEqual([])
     })
+  })
+})
+
+describe.skipIf(!hasGit)("a file's preview", { timeout: 60_000 }, () => {
+  const lines = (...numbers: number[]) => numbers.map((n) => `line ${n}\n`).join("")
+
+  it("carries each work's changes onto main's copy in main's own lines, uncommitted ones too", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const feature = fixture.worktree("feature")
+    const other = fixture.worktree("other")
+    feature.write("a.txt", ten.replace("line 8\n", "eight\nand more\n"))
+    feature.git("commit", "--quiet", "-am", "feature")
+    // Not committed.
+    other.write("a.txt", ten.replace("line 2\n", ""))
+    // Main moved on after they branched: three lines on top.
+    main.write("a.txt", `new 1\nnew 2\nnew 3\n${ten}`)
+    main.git("commit", "--quiet", "-am", "main moved")
+    const { works } = open(
+      () => [
+        { terminalId: terminal(1), root: feature.root },
+        { terminalId: terminal(2), root: other.root },
+      ],
+      { projectFolder: () => main.root },
+    )
+    resources.defer(() => works.close())
+    const preview = await works.preview(project, "a.txt")
+    expect(preview.main).toBe(`new 1\nnew 2\nnew 3\n${ten}`)
+    const by = new Map(preview.works.map((each) => [each.terminalId, each]))
+    expect(by.get(terminal(1))).toMatchObject({
+      root: feature.root,
+      branch: "feature",
+      status: "modified",
+      hunks: [{ at: 11, removed: 1, lines: ["eight", "and more"], applies: true }],
+    })
+    expect(by.get(terminal(2))?.hunks).toEqual([{ at: 5, removed: 1, lines: [], applies: true }])
+  })
+
+  it("tells a change main has rewritten since as not applying, and what still does", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const feature = fixture.worktree("feature")
+    feature.write("a.txt", ten.replace("line 5\n", "feature five\n").replace("line 9\n", "nine\n"))
+    feature.git("commit", "--quiet", "-am", "feature")
+    main.write("a.txt", ten.replace("line 5\n", "main five\n"))
+    main.git("commit", "--quiet", "-am", "main moved")
+    const { works } = open(() => [{ terminalId: terminal(1), root: feature.root }], {
+      projectFolder: () => main.root,
+    })
+    resources.defer(() => works.close())
+    const [only] = (await works.preview(project, "a.txt")).works
+    expect(only!.hunks).toEqual([
+      { at: 5, removed: 1, lines: ["feature five"], applies: false },
+      { at: 9, removed: 1, lines: ["nine"], applies: true },
+    ])
+  })
+
+  it("tells a file the work added and one it deleted, with main's copy where it has one", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const feature = fixture.worktree("feature")
+    feature.write("new.txt", lines(1, 2))
+    feature.git("rm", "--quiet", "-f", "b.txt")
+    const { works } = open(() => [{ terminalId: terminal(1), root: feature.root }], {
+      projectFolder: () => main.root,
+    })
+    resources.defer(() => works.close())
+    const added = await works.preview(project, "new.txt")
+    expect(added.main).toBeNull()
+    expect(added.works[0]).toMatchObject({
+      status: "added",
+      hunks: [{ at: 1, removed: 0, lines: ["line 1", "line 2"], applies: true }],
+    })
+    const deleted = await works.preview(project, "b.txt")
+    expect(deleted.main).toBe("b\n")
+    expect(deleted.works[0]).toMatchObject({
+      status: "deleted",
+      hunks: [{ at: 1, removed: 1, lines: [], applies: true }],
+    })
+  })
+
+  it("reads nothing of a file that may hold secrets or is binary, nor of one no work changes", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const feature = fixture.worktree("feature")
+    feature.write("key.txt", "secret\n")
+    feature.write("blob.bin", "a\0b\n")
+    feature.write("a.txt", ten.replace("line 3\n", "three\n"))
+    const { works } = open(() => [{ terminalId: terminal(1), root: feature.root }], {
+      projectFolder: () => main.root,
+      held: () => (path) => path.endsWith("key.txt"),
+    })
+    resources.defer(() => works.close())
+    expect(await works.preview(project, "key.txt")).toEqual({
+      main: null,
+      unavailable: "secret",
+      works: [],
+    })
+    expect(await works.preview(project, "blob.bin")).toMatchObject({ unavailable: "binary" })
+    expect(await works.preview(project, "b.txt")).toEqual({ main: null, works: [] })
   })
 })
 

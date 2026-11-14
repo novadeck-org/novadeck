@@ -57,15 +57,18 @@ const useHighlights = (path: string, run: ChangeFileRun | undefined): Sides => {
   return sides ? sides.sides : { before: undefined, after: undefined }
 }
 
-const signs = { add: "+", remove: "−", context: "" } as const
+export const signs = { add: "+", remove: "−", context: "" } as const
 
-// A piece is keyed by where its text starts in the line.
-const Code = ({
+// A piece is keyed by where its text starts in the line. `children` follow the text, as the file
+// preview's cursor does.
+export const Code = ({
   line,
   runs,
+  children,
 }: {
-  line: Line
+  line: Pick<Line, "text" | "marks">
   runs: HighlightedLine | undefined
+  children?: React.ReactNode
 }): React.JSX.Element => {
   const pieces = segmentsOf(line.text, runs, line.marks)
   const starts = startsOf(pieces.map((piece) => piece.text))
@@ -87,6 +90,7 @@ const Code = ({
           piece.text
         )
       })}
+      {children}
     </span>
   )
 }

@@ -41,6 +41,7 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
         turn: number
         watch: (() => () => void) | undefined
         onOpenFile: (path: string) => Promise<void>
+        onLit?: ((lit: ReadonlySet<string>) => void) | undefined
         selectedHandle: string | undefined
         roster: readonly string[]
         squads: readonly (readonly string[])[]
@@ -73,6 +74,8 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
         projects: ReadonlyMap<string, string>
         selectedId: string | undefined
         onSelect: (work: Work, on: string | undefined) => Promise<void>
+        // Opens a file of a work in the project window as a preview of what the works merge to.
+        onOpenFile: (work: Work, path: string) => void
         onCloseWork: (root: string, force: boolean) => Promise<WorkClosing>
       }
     | undefined
@@ -131,6 +134,7 @@ export const WorkspaceSidebar = ({
         turn={source.turn}
         watch={source.watch}
         onOpenFile={source.onOpenFile}
+        onLit={source.onLit}
         selectedHandle={source.selectedHandle}
         roster={source.roster}
         squads={source.squads}

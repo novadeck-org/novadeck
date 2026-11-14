@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest"
 
-import { work, workChange, workClosing, workConflict, workMade } from "./works.js"
+import {
+  previewHunk,
+  work,
+  workChange,
+  workClosing,
+  workConflict,
+  workMade,
+  workPreview,
+} from "./works.js"
 
 const id = "11111111-1111-4111-8111-111111111111"
 const base = {
@@ -107,5 +115,35 @@ describe("a made worktree", () => {
     expect(workMade.safeParse({ root: base.root, projectId: id, terminalId: id }).success).toBe(
       false,
     )
+  })
+})
+
+describe("a file's preview", () => {
+  const hunk = { at: 3, removed: 1, lines: ["three"], applies: true }
+
+  it("is main's text and each work's hunks of it, in main's lines", () => {
+    const preview = {
+      main: "a\nb\nc\n",
+      works: [
+        {
+          root: base.root,
+          terminalId: null,
+          branch: null,
+          status: "added",
+          changedAt: 5,
+          hunks: [hunk],
+        },
+      ],
+    }
+    expect(workPreview.parse(preview)).toEqual(preview)
+    expect(workPreview.parse({ main: null, unavailable: "secret", works: [] }).unavailable).toBe(
+      "secret",
+    )
+  })
+
+  it("starts a hunk at a line of main, from 1, and says whether it applies", () => {
+    expect(previewHunk.parse(hunk)).toEqual(hunk)
+    expect(previewHunk.safeParse({ ...hunk, at: 0 }).success).toBe(false)
+    expect(previewHunk.safeParse({ at: 1, removed: 0, lines: [] }).success).toBe(false)
   })
 })

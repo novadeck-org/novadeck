@@ -56,3 +56,14 @@ export type Source = {
   // of the project's directory.
   readonly list: (projectId: string, folder: string) => Promise<SourceListing>
 }
+
+// How an agent's trail fades once it stops writing a file: from this opacity, by this much every
+// `trailTimeMs`, gone below `trailGone`. The panel's CSS keyframes (source.css) follow the same
+// curve, in the Source tree and the file preview alike.
+const trailStart = 0.7
+const trailTimeMs = 150_000
+export const trailGone = 0.04
+export const trailLifeMs = trailTimeMs * Math.log(trailStart / trailGone)
+
+export const trailOpacity = (ageMs: number): number =>
+  trailStart * Math.exp(-Math.max(0, ageMs) / trailTimeMs)

@@ -28,31 +28,70 @@ const FileName = ({ file, title }: { file: FileView; title?: boolean }): React.J
   </span>
 )
 
-// The files under the row, a branch each, as a tab's subagents unfold under it (tabs.css).
-const Branches = ({ row }: { row: ChangeRow }): React.JSX.Element => (
-  <span aria-hidden className="terminal-tab-branches changes-branches -mt-1 grid min-w-0">
+// Whether a file opens as a preview: the project window shows main's checkout, which can only
+// point at a file main has.
+const openable = (file: FileView): boolean =>
+  file.status === "modified" || file.status === "deleted"
+
+// The files under the row, a branch each, as a tab's subagents unfold under it (tabs.css). A file
+// that main has opens in the project window, as a preview of what the works merge to.
+const Branches = ({
+  row,
+  onOpenFile,
+}: {
+  row: ChangeRow
+  onOpenFile: (work: Work, path: string) => void
+}): React.JSX.Element => (
+  <span className="terminal-tab-branches changes-branches -mt-1 grid min-w-0">
     <span className="terminal-tab-branches-fold min-h-0 overflow-hidden">
       <span className="flex min-w-0 flex-col pt-1 text-caption leading-[18px]">
-        {row.branches.map((branch, index) => (
-          <span
-            key={branch.kind === "file" ? branch.file.path : "more"}
-            className="flex min-w-0 items-center gap-1.5 whitespace-nowrap"
-          >
-            <span className="terminal-tab-branch shrink-0">
+        {row.branches.map((branch, index) => {
+          const glyph = (
+            <span aria-hidden className="terminal-tab-branch shrink-0">
               {index === row.branches.length - 1 ? "└" : "├"}
             </span>
-            {branch.kind === "file" ? (
-              <>
-                <FileName file={branch.file} title />
-                <span className="terminal-tab-wait-trail changes-trail">
-                  <Lines added={branch.file.added} removed={branch.file.removed} />
-                </span>
-              </>
-            ) : (
-              <span className="truncate">{branch.text}</span>
-            )}
-          </span>
-        ))}
+          )
+          if (branch.kind === "more")
+            return (
+              <span
+                key="more"
+                aria-hidden
+                className="flex min-w-0 items-center gap-1.5 whitespace-nowrap"
+              >
+                {glyph}
+                <span className="truncate">{branch.text}</span>
+              </span>
+            )
+          const { file } = branch
+          const body = (
+            <>
+              {glyph}
+              <FileName file={file} title />
+              <span className="terminal-tab-wait-trail changes-trail">
+                <Lines added={file.added} removed={file.removed} />
+              </span>
+            </>
+          )
+          return openable(file) ? (
+            <button
+              key={file.path}
+              type="button"
+              className="changes-file-open flex min-w-0 items-center gap-1.5 whitespace-nowrap"
+              aria-label={`Preview ${file.path} with every agent's work merged`}
+              onClick={() => onOpenFile(row.work, file.path)}
+            >
+              {body}
+            </button>
+          ) : (
+            <span
+              key={file.path}
+              aria-hidden
+              className="flex min-w-0 items-center gap-1.5 whitespace-nowrap"
+            >
+              {body}
+            </span>
+          )
+        })}
       </span>
     </span>
   </span>
@@ -96,11 +135,13 @@ const ChangeItem = ({
   row,
   selected,
   onSelect,
+  onOpenFile,
   onClose,
 }: {
   row: ChangeRow
   selected: boolean
   onSelect: (work: Work) => void
+  onOpenFile: (work: Work, path: string) => void
   onClose: (row: ChangeRow) => void
 }): React.JSX.Element => {
   const { work } = row
@@ -133,7 +174,7 @@ const ChangeItem = ({
         )
       }
       detail={<BranchLine row={row} />}
-      below={<Branches row={row} />}
+      below={<Branches row={row} onOpenFile={onOpenFile} />}
       badge={
         work.added + work.removed > 0 ? (
           <span className="terminal-tab-kinds changes-size">
@@ -221,6 +262,7 @@ export const ChangesPanel = ({
   watching,
   onClose,
   onSelect,
+  onOpenFile,
   onCloseWork,
 }: {
   works: readonly Work[]
@@ -242,6 +284,8 @@ export const ChangesPanel = ({
   // Shows a work on the bar of the terminal named (its owner, or where it has none, or its
   // owner is closed, the selected one); rejects with why it can't.
   onSelect: (work: Work, on: string | undefined) => Promise<void>
+  // Opens a file of a work in the project window, as a preview of what the works merge to.
+  onOpenFile: (work: Work, path: string) => void
   // Closes a work's worktree; rejects with the backend's reason when it refuses, and with code
   // NOT_FOUND once it is closed already.
   onCloseWork: (root: string, force: boolean) => Promise<WorkClosing>
@@ -322,6 +366,7 @@ export const ChangesPanel = ({
               row={row}
               selected={row.work.root === selected}
               onSelect={(work) => show(work, row)}
+              onOpenFile={onOpenFile}
               onClose={(each) => close(each, false)}
             />
           ))}

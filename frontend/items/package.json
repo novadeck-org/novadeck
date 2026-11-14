@@ -12,6 +12,7 @@
     "./changes.css": "./src/changes.css",
     "./bar": "./src/bar/bar.ts",
     "./critters": "./src/homes/terminal/messages/avatars/critters.ts",
+    "./FilePreview": "./src/kinds/changes/preview/FilePreview.tsx",
     "./drag-session": "./src/bar/drag-session.ts",
     "./messages": "./src/homes/terminal/messages/messages.ts",
     "./messages.css": "./src/messages.css",

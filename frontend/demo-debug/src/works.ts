@@ -209,5 +209,26 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
           ],
         },
+        {
+          section: "Agents",
+          title: "File preview",
+          actions: [
+            {
+              label: "Third agent clashes with the others",
+              hint: "Open Source and double-click src/checkout/Checkout.tsx (storefront, agents demo): the preview's Clash head at submit() shows owl's version, the last writer, with moth and crow hidden, and a picker of each agent and main; owl joins the merge toggles",
+              run: () => works.previewOwl("clash"),
+            },
+            {
+              label: "A change doesn't apply",
+              hint: "Open the file preview of src/checkout/Checkout.tsx: a red box says owl changed line 25 before main rewrote it, so it doesn't apply, with Show for its version above main's line 25; the summary counts 1 change that doesn't apply",
+              run: () => works.previewOwl("stale"),
+            },
+            {
+              label: "Third agent leaves the file preview",
+              hint: "Open the file preview of src/checkout/Checkout.tsx: owl's change, clash or box, is gone, and its toggle with it",
+              run: () => works.previewOwl(undefined),
+            },
+          ],
+        },
       ]
     : []

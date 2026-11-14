@@ -67,7 +67,7 @@ import {
   terminalMoved,
 } from "./terminals.js"
 import { maxTranscriptImages, transcriptChange, transcriptImageResult } from "./transcripts.js"
-import { workChange, workClosing, workMade } from "./works.js"
+import { workChange, workClosing, workMade, workPreview } from "./works.js"
 
 export const errors = {
   ...wireErrors,
@@ -544,6 +544,15 @@ export const contract = {
     show: procedure
       .input(z.strictObject({ root: directory, terminalId: id.optional() }))
       .output(z.strictObject({ itemId: id })),
+    // A file of a project, by its path from the project's folder, as it would be once the
+    // project's works merge onto main: main's copy and what each work that changes the file
+    // carries onto it (its hunks in main's line numbers, whether main still has the lines
+    // they changed), each read as the worktree is on disk now. A file that may hold secrets,
+    // is binary or is too large is `unavailable`. A project with no such work answers main's
+    // copy and no works; a file of no repository, `main: null`.
+    preview: procedure
+      .input(z.strictObject({ projectId: id, path: z.string().min(1).max(companionLimits.path) }))
+      .output(workPreview),
     // Closes the worktree on the person's say: its uncommitted work (and commits only a
     // detached HEAD reaches) is kept on a ref, its folder removed, and its branch deleted only
     // when Novadeck made it and the main branch holds all of it (squash merges count). Without

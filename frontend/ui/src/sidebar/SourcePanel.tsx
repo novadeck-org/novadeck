@@ -53,6 +53,7 @@ export const SourcePanel = ({
   turn,
   watch,
   onOpenFile,
+  onLit,
   selectedHandle,
   roster,
   squads,
@@ -71,6 +72,9 @@ export const SourcePanel = ({
   watch?: (() => () => void) | undefined
   // Opens a file of the project, by its path from the root; rejects if it can't be opened.
   onOpenFile: (path: string) => Promise<void>
+  // Told the agents the panel lights while it shows (the kept ones, else the selected terminal's),
+  // and none when it does not: what an open file preview emphasizes.
+  onLit?: ((lit: ReadonlySet<string>) => void) | undefined
   // The handle of the workspace's selected terminal.
   selectedHandle: string | undefined
   // The handles of the session's terminals in roster order, and its teams as handles, each lead
@@ -199,6 +203,10 @@ export const SourcePanel = ({
     const pointedAt = pointed ? [pointed] : showing ? stripPointed : undefined
     return pointedAt ? new Set(pointedAt) : ranked
   }, [pointed, showing, stripPointed, ranked])
+  useEffect(() => {
+    onLit?.(showing ? ranked : noAgents)
+    return () => onLit?.(noAgents)
+  }, [onLit, showing, ranked])
   const following = kept.size === 0 && ranked.size > 0 ? [...ranked][0] : undefined
   // The row that holds the tree's one Tab stop: the last one focused, or the first.
   const [stop, setStop] = useState<string | null>(null)

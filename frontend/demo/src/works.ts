@@ -2,9 +2,18 @@ import type { Backend, TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import { createStore, type Store } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
-import type { Work, WorkConflict, WorkFile, Works, WorksState } from "@novadeck/core/works"
+import type {
+  Work,
+  WorkConflict,
+  WorkFile,
+  Works,
+  WorkPreview,
+  WorksState,
+} from "@novadeck/core/works"
 
 import type { DemoTurns } from "./agents/turns"
+import { createDemoPreview, previewPath, type DemoPreview, type OwlChange } from "./preview"
+import { terminalOfHandle } from "./source"
 
 // The demo's Changes: each tracked worktree's work against main, from fixtures planned per demo
 // (`WorkPlan`) and kept by the demo's own store, standing in for the runner, which reads the
@@ -299,6 +308,12 @@ export type DemoWorksControl = {
   readonly orphan: (root: string) => void
   // Its owner is closed, in History: the row still names an owner, no terminal of the project.
   readonly ownerClosed: (root: string) => void
+  // The work of the terminal changes `path` (as it did when `at`): added to its files where
+  // it had none, else its time moved on, as a runner's does at each new write.
+  readonly touchFile: (terminalId: string, path: string, at: number) => void
+  // The storefront's third agent changes src/checkout/Checkout.tsx, as the file preview shows
+  // it, in a clash with the others or in lines main has rewritten since; or no longer.
+  readonly previewOwl: (change: OwlChange | undefined) => void
   // The terminal's worktree differs from nothing but has `count` commits main lacks, as one
   // squash-merged does.
   readonly commitsMainLacks: (at: Placed, count: number) => void
@@ -346,9 +361,11 @@ export const createDemoWorks = (
     // The item a work shows as, on the terminal's bar; null where the demo has no companion
     // pane that can.
     readonly show?: (work: Work, terminalId: string) => Promise<string | null>
+    // What a file previews as; a backend with none previews nothing.
+    readonly preview?: DemoPreview
   } = {},
 ): DemoWorks => {
-  const { now = Date.now, show } = options
+  const { now = Date.now, show, preview } = options
   const state = createStore<WorksState>({ works: initial, synced: true, reported: true })
   // How many worktrees were made since the demo began, which the Changes toggle flares for.
   const made = createStore(0)
@@ -393,6 +410,28 @@ export const createDemoWorks = (
     made.update((count) => count + 1)
     return fresh
   }
+  const touchFile = (terminalId: string, path: string, at: number): void => {
+    const own = ownedBy(terminalId)
+    if (!own) return
+    const file: WorkFile = {
+      path,
+      status: "modified",
+      changedAt: at,
+      added: 1,
+      removed: 1,
+      unreadAdded: 1,
+      unreadRemoved: 1,
+      conflict: false,
+    }
+    change(own.root, (work) =>
+      summed(
+        work,
+        work.files.some((each) => each.path === path)
+          ? work.files.map((each) => (each.path === path ? { ...each, changedAt: at } : each))
+          : [...work.files, file],
+      ),
+    )
+  }
   // The work of a terminal, made at its first change.
   const ensure = (at: Placed): Work => ownedBy(at.terminalId) ?? make(at)
   return {
@@ -406,6 +445,28 @@ export const createDemoWorks = (
       // The terminal the panel names: the owner's, or the selected one's where the owner is closed.
       const on = terminalId ?? work?.terminalId ?? undefined
       return work && show && on !== undefined ? show(work, on) : Promise.resolve(null)
+    },
+    preview: async (projectId, path): Promise<WorkPreview> =>
+      preview
+        ? preview.read(state.getSnapshot().works, projectId, path)
+        : { main: null, works: [] },
+    touchFile,
+    previewOwl: (kind) => {
+      if (!preview) return
+      const at = now()
+      preview.owl(kind, at)
+      if (kind) touchFile(preview.owlTerminal, previewPath, at)
+      else {
+        // Back as it was: the work no longer lists the file.
+        const own = ownedBy(preview.owlTerminal)
+        if (own)
+          change(own.root, (work) =>
+            summed(
+              work,
+              work.files.filter((file) => file.path !== previewPath),
+            ),
+          )
+      }
     },
     close: async (root, force = false) => {
       const work = find(root)
@@ -545,11 +606,30 @@ export const withWorks = (
 ): Backend => {
   const { plans = [], turns, show } = options
   let latest: Workspace | undefined
+  const preview = createDemoPreview(Date.now())
   const works = createDemoWorks(worksFromPlans(backend.seed, plans, Date.now()), {
+    preview,
     ...(show && {
       show: (work: Work, terminalId: string) => show(work, terminalId, latest),
     }),
   })
+  // A write by an agent to the previewed file grows its change there and moves its time on, as a
+  // runner's works do at each new blob; the Source's `touched` says who wrote.
+  if (backend.source) {
+    const { state } = backend.source
+    let before = state.getSnapshot().projects["storefront"]?.changes[previewPath]?.touched ?? {}
+    state.subscribe(() => {
+      const touched =
+        state.getSnapshot().projects["storefront"]?.changes[previewPath]?.touched ?? {}
+      for (const [handle, at] of Object.entries(touched)) {
+        const terminalId = terminalOfHandle(handle)
+        if (terminalId === undefined || at <= (before[handle] ?? Number.NEGATIVE_INFINITY)) continue
+        preview.wrote(terminalId, at)
+        works.touchFile(terminalId, previewPath, at)
+      }
+      before = touched
+    })
+  }
   // The agents that work now, so a turn adds its lines once as it starts.
   const working = new Set<string>()
   turns?.watchStatus((key: TerminalKey, agent) => {

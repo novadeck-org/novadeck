@@ -1,4 +1,11 @@
-import type { SourceChange, SourceListing, SourceProject } from "@novadeck/core/source"
+import {
+  trailGone,
+  trailLifeMs,
+  trailOpacity,
+  type SourceChange,
+  type SourceListing,
+  type SourceProject,
+} from "@novadeck/core/source"
 import { handleText } from "@novadeck/core/terminals/handle"
 
 import { dimmedBy } from "./source-agents"
@@ -391,15 +398,8 @@ export const rowShowing = (path: string, open: ReadonlySet<string>): string => {
   return path
 }
 
-// How a file's trail fades: from this opacity, by this much every `trailTimeMs`, gone below
-// `trailGone`. The panel's CSS keyframes (source.css) follow the same curve.
-const trailStart = 0.7
-const trailTimeMs = 150_000
-export const trailGone = 0.04
-export const trailLifeMs = trailTimeMs * Math.log(trailStart / trailGone)
-
-export const trailOpacity = (ageMs: number): number =>
-  trailStart * Math.exp(-Math.max(0, ageMs) / trailTimeMs)
+// How a file's trail fades lives in core (`trailOpacity`), as the file preview's trails follow it.
+export { trailGone, trailLifeMs, trailOpacity }
 
 // The time of a node's latest write, or 0 for none.
 export const latestWrite = (node: SourceNode): number => Math.max(0, ...Object.values(node.touched))

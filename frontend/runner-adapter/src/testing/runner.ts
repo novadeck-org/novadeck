@@ -271,6 +271,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       look: (root) => note(`look ${root}`, () => runner.works.look(root)),
       show: (root, terminalId) => note(`show ${root}`, () => runner.works.show(root, terminalId)),
       close: (root, force) => note(`close work ${root}`, () => runner.works.close(root, force)),
+      preview: (projectId, path) => runner.works.preview(projectId, path),
     },
     settings: {
       get: () => runner.settings.get(),

@@ -36,6 +36,11 @@ const slots = [
   { handle: crow, terminalId: demoTerminalId(session, 4) },
 ]
 
+// The storefront terminal of the agent with the handle, if it is one that changes files.
+export const terminalOfHandle = (handle: string): string | undefined =>
+  slots.find((slot) => slot.handle === handle)?.terminalId ??
+  (handle === sourceThird ? demoTerminalId(session, 3) : undefined)
+
 // The handles of the storefront agents that work, asking nothing of the person, as the seed
 // opens them: the ones that write by themselves (Moth and Crow).
 export const workingInSeed = (seed: WorkspaceSeed): readonly string[] =>
