@@ -46,6 +46,11 @@ describe("the rail's order", () => {
     ])
   })
 
+  it("keeps an order saved under the rail's former default as it was", () => {
+    const former = ["terminals", "source", "sessions", "history", "inbox", "changes"]
+    expect(railOrder(former)).toEqual(former)
+  })
+
   it("moves a panel among those shown", () => {
     const order = railOrder([])
     expect(movedPanel(order, order, 4, 0)).toEqual([

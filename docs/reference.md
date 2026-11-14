@@ -439,7 +439,7 @@ so they stay after a reload, and the project opens the session you were in last.
 ## History
 
 Closing a terminal doesn't end it for good. It moves to **History**, a panel on the
-sidebar's rail after the others, with one list per project, newest first. A terminal comes
+sidebar's rail, last by default, with one list per project, newest first. A terminal comes
 back for 7 days; after that its row goes by itself. Closing a terminal no longer always
 asks (see "Closing asks first" below), because what it loses can be got back from here. A rail order you saved before History
 existed puts its toggle at the end. There is no button to delete one.
