@@ -2,7 +2,7 @@ import type { ChatDialogOption } from "@novadeck/core/conversation"
 import type { InboxRow, Trouble } from "@novadeck/core/inbox"
 
 import { context, describe, expect, it } from "../test"
-import { answerable, menuOf, standingParts, type MenuRow } from "./console-menu"
+import { answerable, menuOf, type MenuRow } from "./console-menu"
 
 const source: InboxRow["source"] = {
   projectId: "p",
@@ -89,16 +89,31 @@ describe("A sheet's menu", () => {
       ])
     })
 
-    it("offers only the way to the terminal where no option is a yes it can tell", () => {
+    it("offers an option no rule reads as it words itself, never only the terminal", () => {
       const odd = permission([
         { id: "run", label: "Run it", text: null },
         { id: "c", label: "Cancel", text: null },
       ])
-      expect(menuOf(odd, 0).rows).toEqual([
+      expect(menuOf(odd, 0).rows).toMatchObject([
+        {
+          label: "Run it",
+          receipt: "Answered @crow's command.",
+          answer: { answer: { option: "run" } },
+        },
+        { label: "Deny", receipt: "Denied @crow's command.", answer: { answer: { option: "c" } } },
+        { type: "reveal", label: "Go to terminal" },
+      ])
+      expect(answerable(odd)).toBe(true)
+      expect(answerable(permission(codex))).toBe(true)
+    })
+
+    it("leaves to the terminal only a dialog with nothing it can send", () => {
+      // A way back that needs words it can't carry.
+      const stuck = permission([{ id: "1", label: "Tell Claude what to change", text: null }])
+      expect(menuOf(stuck, 0).rows).toEqual([
         { type: "reveal", label: "Go to terminal", effect: null },
       ])
-      expect(answerable(odd)).toBe(false)
-      expect(answerable(permission(codex))).toBe(true)
+      expect(answerable(stuck)).toBe(false)
     })
 
     it("is never hard to undo: a permission carries no such flag", () => {
@@ -322,14 +337,207 @@ describe("A sheet's menu", () => {
         "Deny, with your words",
         "Go to terminal",
       ])
-      // No yes is plain here, so the run-once yes keeps its words too.
+      // Its run-once yes is the plain one.
       expect(labels(menuOf(permission(agy, "permission", "agy"), 0).rows)).toEqual([
-        "Yes, run command",
+        "Allow",
         "Yes, and always allow in this conversation for commands that start with 'echo'",
         "Yes, and always allow for commands that start with 'echo' (Persist to settings.json)",
         "Deny, with your words",
         "Go to terminal",
       ])
+    })
+  })
+
+  context("for the options it once misread", () => {
+    type Case = readonly [
+      name: string,
+      kind: "permission" | "plan",
+      agent: InboxRow["source"]["agent"],
+      options: readonly ChatDialogOption[],
+      // The option's id, the row's label and its receipt.
+      expected: readonly (readonly [string, string, string])[],
+    ]
+    const o = (id: string, label: string, text: ChatDialogOption["text"] = null) => ({
+      id,
+      label,
+      text,
+    })
+    const cases: readonly Case[] = [
+      [
+        "Codex's MCP tool, its Always allow a standing link and its Cancel a Deny",
+        "permission",
+        "codex",
+        [
+          o("1", "Allow"),
+          o("2", "Allow for this session"),
+          o("3", "Always allow"),
+          o("4", "Cancel"),
+        ],
+        [
+          ["1", "Allow", "Allowed @crow's command."],
+          ["2", "Allow for this session", "Allowed @crow's command; it won't ask again."],
+          ["3", "Always allow", "Allowed @crow's command; it won't ask again."],
+          ["4", "Deny", "Denied @crow's command."],
+        ],
+      ],
+      [
+        "Codex's request for permissions, which allows for this turn",
+        "permission",
+        "codex",
+        [
+          o("1", "Yes, grant these permissions for this turn"),
+          o("2", "Yes, grant for this turn with strict auto review"),
+          o("3", "Yes, grant these permissions for this session"),
+          o("4", "No, continue without permissions"),
+        ],
+        [
+          ["1", "Allow", "Allowed @crow's command."],
+          ["2", "Yes, grant for this turn with strict auto review", "Answered @crow's command."],
+          [
+            "3",
+            "Yes, grant these permissions for this session",
+            "Allowed @crow's command; it won't ask again.",
+          ],
+          ["4", "Deny", "Denied @crow's command."],
+        ],
+      ],
+      [
+        "Codex's plan, which approves by implementing it",
+        "plan",
+        "codex",
+        [
+          o("1", "Yes, implement this plan"),
+          o("2", "Yes, clear context and implement"),
+          o("3", "No, stay in Plan mode", "prompt"),
+        ],
+        [
+          ["1", "Approve", "Approved @crow's plan."],
+          ["2", "Yes, clear context and implement", "Answered @crow's plan."],
+        ],
+      ],
+      [
+        "Antigravity's command, which allows by running it",
+        "permission",
+        "agy",
+        [o("1", "Yes, run command"), o("2", "No, cancel", "prompt")],
+        [["1", "Allow", "Allowed @crow's command."]],
+      ],
+      [
+        "Antigravity's change to a file",
+        "permission",
+        "agy",
+        [o("1", "Yes, accept this change"), o("2", "No, reject this change", "prompt")],
+        [["1", "Allow", "Allowed @crow's command."]],
+      ],
+      [
+        "Antigravity's new file",
+        "permission",
+        "agy",
+        [o("1", "Yes, allow creation"), o("2", "No, deny creation", "prompt")],
+        [["1", "Allow", "Allowed @crow's command."]],
+      ],
+      [
+        "Claude Code's access to more commands, which won't ask again",
+        "permission",
+        "claude",
+        [
+          o("1", "Yes"),
+          o("2", "Yes, and allow access to /tmp and touch approved.txt commands"),
+          o("3", "No"),
+        ],
+        [
+          [
+            "2",
+            "Yes, and allow access to /tmp and touch approved.txt commands",
+            "Allowed @crow's command; it won't ask again.",
+          ],
+        ],
+      ],
+      [
+        "Claude Code's Exit plan mode?, whose yes grants nothing standing",
+        "plan",
+        "claude",
+        [o("1", "Yes, and switch to default (ask each time) for this session"), o("2", "No")],
+        [
+          ["1", "Approve", "Approved @crow's plan."],
+          ["2", "Send it back", "Sent back @crow's plan."],
+        ],
+      ],
+      [
+        "Claude Code's plan, whose bypass won't ask again",
+        "plan",
+        "claude",
+        [o("1", "Yes, and bypass permissions"), o("2", "Yes, and use auto mode")],
+        [
+          ["1", "Yes, and bypass permissions", "Approved @crow's plan; it won't ask again."],
+          ["2", "Yes, and use auto mode", "Approved @crow's plan; it won't ask again."],
+        ],
+      ],
+    ]
+
+    it("arms a plan's bypass and auto mode, saying what each lets it do", () => {
+      const { rows } = menuOf(
+        permission(
+          [
+            { id: "1", label: "Yes, and bypass permissions", text: null },
+            { id: "2", label: "Yes, and use auto mode", text: null },
+          ],
+          "plan",
+          "claude",
+        ),
+        0,
+      )
+      expect(rows.slice(0, 2)).toMatchObject([
+        { effect: "It edits and runs commands without asking.", hard: true },
+        { effect: "It acts without asking.", hard: true },
+      ])
+    })
+
+    it.each([
+      ["Codex", "codex", "No, stay in Plan mode"],
+      ["Antigravity", "agy", "No, cancel"],
+    ] as const)("sends %s's no with words from its words row", (_, agent, label) => {
+      const options: ChatDialogOption[] = [
+        { id: "1", label: "Yes, implement this plan", text: null },
+        { id: "2", label, text: "prompt" },
+      ]
+      const back = words(menuOf(permission(options, "plan", agent), 0).rows[1])
+      expect(back.answer("Split it.")).toMatchObject({ answer: { option: "2", text: "Split it." } })
+    })
+
+    it("arms a plan's option no rule reads, offered as it words itself", () => {
+      const { rows } = menuOf(
+        permission(
+          [
+            { id: "1", label: "Bypass permissions and proceed", text: null },
+            { id: "2", label: "No", text: null },
+          ],
+          "plan",
+          "claude",
+        ),
+        0,
+      )
+      expect(labels(rows)).toEqual([
+        "Bypass permissions and proceed",
+        "Send it back",
+        "Go to terminal",
+      ])
+      expect(rows[0]).toMatchObject({ hard: true, receipt: "Answered @crow's plan." })
+      expect(rows[1]).not.toHaveProperty("hard")
+    })
+
+    it.each(cases)("reads %s", (_, kind, agent, options, expected) => {
+      const { rows } = menuOf(permission(options, kind, agent), 0)
+      for (const [id, label, receipt] of expected) {
+        const row = rows.find(
+          (each) =>
+            each.type === "answer" &&
+            each.answer.kind === "request" &&
+            each.answer.answer.type === "choice" &&
+            each.answer.answer.option === id,
+        )
+        expect(row, id).toMatchObject({ label, receipt })
+      }
     })
   })
 
@@ -453,22 +661,6 @@ describe("A sheet's menu", () => {
         expect(menuRows.at(-1)).toEqual({ type: "reveal", label: "Go to terminal", effect: null })
         expect(menuRows.filter((menuRow) => menuRow.type === "reveal")).toHaveLength(1)
       }
-    })
-  })
-})
-
-describe("A standing yes's two lines", () => {
-  it("puts its scope under what it is", () => {
-    expect(standingParts("Yes, and don't ask again for these files")).toEqual({
-      label: "Yes, and don't ask again",
-      effect: "for these files",
-    })
-  })
-
-  it("stays one line where there is no scope", () => {
-    expect(standingParts("Yes, allow all edits during this session")).toEqual({
-      label: "Yes, allow all edits during this session",
-      effect: null,
     })
   })
 })
