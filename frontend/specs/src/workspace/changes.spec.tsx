@@ -13,7 +13,7 @@ const storefront = "/projects/storefront/sessions/initial/focus?panel=changes"
 const showcase = "/projects/studio/sessions/initial/focus?demo=showcase&panel=changes"
 
 const list = () => page.getByRole("list", { name: "Changes" })
-const rows = () => list().getByRole("button", { name: /^(?!Close the )/ })
+const rows = () => list().getByRole("button", { name: /^(?!Close the |Preview )/ })
 // A row's accessible label starts as `Title, branch, in project,`; the project is the storefront
 // unless said otherwise.
 const named = (title: string, branch = "", project = "storefront") =>
@@ -137,7 +137,8 @@ describe("The Changes panel", () => {
     it("opens the work as a changes item on the terminal's bar where the backend can show it", async () => {
       await openWorkspace(showcase)
 
-      await row("Build Studio", "", "studio").click()
+      // At the row's name: its files, unfolded under it, open a preview of their own.
+      await row("Build Studio", "", "studio").click({ position: { x: 40, y: 12 } })
 
       await expect
         .poll(() => taskbarIcons("Build Studio").some((label) => label.startsWith("Changes")))
