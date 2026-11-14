@@ -217,7 +217,7 @@ type TabRowMemory = {
 // The tabs of the icon the pane shows, under its header: each thing of it on the bar, the
 // shown one selected. A click shows one; the arrow keys, Home and End step along them as a
 // tab list's do, showing each, but only move to one that may hold secrets, which Enter
-// shows; Delete closes the tab with focus, as its × does under the pointer. The row
+// shows; Ctrl+PageDown and Ctrl+PageUp step from anywhere in the pane (see `stepTab`); Delete closes the tab with focus, as its × does under the pointer. The row
 // scrolls sideways under the wheel too, keeping the shown tab, × and all, in view.
 const PaneTabs = ({
   tabs,
@@ -260,6 +260,7 @@ const PaneTabs = ({
       className="pane-tabs nodrag nopan"
       role="tablist"
       aria-label="Open in the pane"
+      aria-keyshortcuts="Control+PageDown Control+PageUp"
       onScroll={(event) => {
         memory.scrolled(event.currentTarget.scrollLeft)
       }}
@@ -326,6 +327,18 @@ const PaneTabs = ({
       })}
     </div>
   )
+}
+
+// The tab `by` along from the one shown, round the row's ends, as Ctrl+PageDown (1) and
+// Ctrl+PageUp (-1) step from anywhere in the pane: never one that may hold secrets, which
+// opens only when picked. Nothing, when there's no other tab to step to.
+const stepTab = (tabs: readonly BarMember[], shown: string, by: 1 | -1): BarMember | undefined => {
+  const at = tabs.findIndex((tab) => tab.key === shown)
+  for (let step = 1; step < tabs.length; step++) {
+    const tab = tabs[(at + by * step + tabs.length) % tabs.length]!
+    if (!isSecret(tab)) return tab
+  }
+  return undefined
 }
 
 // How what the pane shows came to the top: forward from behind, or new over it. Nothing
@@ -537,6 +550,16 @@ export const CompanionPane = ({
           if (event.key === "Escape") {
             event.stopPropagation()
             onHide()
+          }
+          const by = { PageDown: 1, PageUp: -1 }[event.key] as 1 | -1 | undefined
+          if (by && event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey) {
+            const next = member && stepTab(tabs, member.key, by)
+            if (!next) return
+            event.preventDefault()
+            event.stopPropagation()
+            // Focus follows to its tab, for the next step.
+            tabMemory.picked(next.key, true)
+            onRaise(next)
           }
         }}
         // Leaving the plan saves it at once, so an agent told to re-read it finds the edits.

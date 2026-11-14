@@ -634,6 +634,32 @@ describe("a terminal's taskbar", () => {
       expect(tabs(container)).toEqual(["hero.png", "about.png", "held.png *"])
     })
 
+    it("steps through the tabs from anywhere in the pane on Ctrl+PageDown and Ctrl+PageUp, past one that may hold secrets", async () => {
+      const held = itemFixture("held", "01", {
+        kind: "image",
+        name: "held.png",
+        path: "/p/held.png",
+        secret: true,
+      })
+      const { container } = renderTerminal(workspaceReducer(opening(hero), shown(held)))
+      const press = (name: string, init: KeyboardEventInit = { ctrlKey: true }) =>
+        act(async () =>
+          (document.activeElement ?? document.body).dispatchEvent(
+            new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true, ...init }),
+          ),
+        )
+      container.querySelector<HTMLElement>(".pane-reader")?.focus()
+      await press("PageDown")
+      expect(tabs(container)).toEqual(["hero.png", "about.png *", "held.png"])
+      expect(document.activeElement).toBe(tab(container, "about.png"))
+      await press("PageDown")
+      expect(tabs(container)).toEqual(["hero.png *", "about.png", "held.png"])
+      await press("PageUp")
+      expect(tabs(container)).toEqual(["hero.png", "about.png *", "held.png"])
+      await press("PageUp", {})
+      expect(tabs(container)).toEqual(["hero.png", "about.png *", "held.png"])
+    })
+
     it("labels the stack once it's behind with its kind, its count and the one in front", () => {
       const { container } = renderTerminal(opening(about, hero, notes))
       expect(
