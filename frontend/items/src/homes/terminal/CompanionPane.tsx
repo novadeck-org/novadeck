@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 
 import { AwakeContext, useWakeful } from "../../awake"
 import { isNew, isSecret, type BarMember, type BehindGroup } from "../../bar/bar"
+import { usePaneTurn } from "../../pane-turns"
 import type { LookContext } from "../../registration"
 import { stackNames } from "../../registry"
 import type { ItemStore } from "../../store/item-store"
@@ -78,13 +79,16 @@ const PaneActions = ({
 )
 
 // What the pane shows, on its sheet, which plays its entry once; awake while the person is
-// at it (see ./awake), each of its own.
+// at it (see ./awake), each of its own. While it waits its turn (see ../../pane-turns), what
+// it shows isn't laid out, and its stand-in shows instead.
 const Sheet = ({
   entry,
+  waiting,
   onPlayed,
   children,
 }: {
   entry: Entry | undefined
+  waiting: boolean
   onPlayed: () => void
   children: ReactNode
 }): React.JSX.Element => {
@@ -93,6 +97,7 @@ const Sheet = ({
     <div
       className="pane-sheet"
       data-entry={entry}
+      data-waiting={waiting || undefined}
       {...on}
       onAnimationEnd={(event) => {
         if (event.target === event.currentTarget) onPlayed()
@@ -108,6 +113,23 @@ const Sheet = ({
       }}
     >
       <AwakeContext value={awake}>{children}</AwakeContext>
+    </div>
+  )
+}
+
+// What stands in for what the pane shows until its turn: its icon and name, as its tab has.
+const StandIn = ({
+  member,
+  plans,
+}: {
+  member: BarMember
+  plans: LookContext["plans"]
+}): React.JSX.Element => {
+  const { icon: Icon, name } = memberLook(member, { plans })
+  return (
+    <div className="pane-stand-in" role="status" aria-label={`Opening ${name}`}>
+      <Icon size={20} strokeWidth={1.5} aria-hidden="true" />
+      <span className="pane-stand-in-name">{name}</span>
     </div>
   )
 }
@@ -384,6 +406,7 @@ export const CompanionPane = ({
   onHide,
   onClose,
   onRaise,
+  first = false,
 }: {
   member: BarMember | undefined
   // The pane is going: what it shows as it fades plays no entry of its own.
@@ -411,7 +434,12 @@ export const CompanionPane = ({
   onClose: (member: BarMember) => void
   // Brings what's behind, or another tab, to the top.
   onRaise: (member: BarMember) => void
+  // Its terminal is the selected one: its pane takes its turn ahead of the others.
+  first?: boolean
 }): React.JSX.Element => {
+  // Its turn, each time it comes into sight; picking another tab while it's in sight
+  // waits for none.
+  const turn = usePaneTurn(first)
   // A new top comes forward when it was behind, and over what was shown when it's new;
   // another tab of the same icon just shows.
   const behindKeys = behind.map((each) => each.front.key).join("\n")
@@ -586,8 +614,13 @@ export const CompanionPane = ({
           )
         ) : (
           // Played once: a hidden terminal shown again doesn't play it again.
-          <Sheet key={member.key} entry={leaving ? undefined : entry.how} onPlayed={played}>
-            {member.kind === "item" && member.placed ? (
+          <Sheet
+            key={member.key}
+            entry={leaving ? undefined : entry.how}
+            waiting={!turn.ready}
+            onPlayed={played}
+          >
+            {!turn.built ? null : member.kind === "item" && member.placed ? (
               <div className="placed-tab">
                 <p className="placed-from">From {originOf(member) ?? "another terminal"}</p>
                 {tab}
@@ -595,6 +628,7 @@ export const CompanionPane = ({
             ) : (
               tab
             )}
+            {!turn.ready && <StandIn member={member} plans={plans} />}
           </Sheet>
         )}
       </section>

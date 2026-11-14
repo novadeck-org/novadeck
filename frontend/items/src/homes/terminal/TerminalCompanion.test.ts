@@ -5,7 +5,7 @@ import {
   type Item,
   type ItemContent,
 } from "@novadeck/core/items"
-import { emptyBar, messagesKey } from "@novadeck/core/items/companion-bar"
+import { emptyBar, messagesKey, type BarKey } from "@novadeck/core/items/companion-bar"
 import {
   noMessages,
   type AgentMessage,
@@ -22,6 +22,7 @@ import { act, createElement, useSyncExternalStore, type ComponentProps } from "r
 import { afterEach, vi } from "vitest"
 
 import { createDragSession, DragSessionContext } from "../../bar/drag-session"
+import { createPaneTurns, PaneTurnsContext, type Pace, type PaneTurns } from "../../pane-turns"
 import { createItemStore, type ItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
 import { followMessages, noLinks } from "./messages/messages"
@@ -82,10 +83,12 @@ const Terminal = ({
   workspace,
   itemStore,
   messages,
+  onScreen,
 }: {
   workspace: WorkspaceStore
   itemStore: ItemStore
   messages: Messages | undefined
+  onScreen: boolean
 }) => {
   const state = useSyncExternalStore(
     workspace.subscribe,
@@ -97,6 +100,7 @@ const Terminal = ({
     links: noLinks,
     terminalKey: key,
     view: "focus",
+    onScreen,
     bar: state.bars["01"] ?? emptyBar,
     items: state.items.filter((item) => isOnBar(item, "01")),
     fresh: state.fresh,
@@ -112,14 +116,17 @@ const renderTerminal = (
   initial: Workspace,
   messages?: Messages,
   companions: Companions = emptyCompanions(),
+  // The panes' turns, as the workspace paces them, and whether its window is on screen.
+  { turns, onScreen = true }: { turns?: PaneTurns; onScreen?: boolean } = {},
 ): { container: HTMLElement; workspace: WorkspaceStore; itemStore: ItemStore } => {
   const workspace = createWorkspaceStore(initial)
   const itemStore = createItemStore({ companions, workspace })
+  const terminal = createElement(Terminal, { workspace, itemStore, messages, onScreen })
   const { container, unmount } = render(
     createElement(
       DragSessionContext,
       { value: createDragSession() },
-      createElement(Terminal, { workspace, itemStore, messages }),
+      turns ? createElement(PaneTurnsContext, { value: turns }, terminal) : terminal,
     ),
   )
   unmounts.push(unmount)
@@ -202,6 +209,78 @@ describe("a pane beside its terminal", () => {
       pointer("pointermove", 600)
       expect(ratio()).toBe("40")
     })
+  })
+})
+
+describe("a pane in the workspace", () => {
+  // Turns that come as the test steps.
+  const stepped = () => {
+    const queue: (() => void)[] = []
+    const pace: Pace = (next) => {
+      queue.push(next)
+      return () => {
+        const at = queue.indexOf(next)
+        if (at >= 0) queue.splice(at, 1)
+      }
+    }
+    return {
+      turns: createPaneTurns(pace),
+      step: () => act(() => queue.shift()?.()),
+      pending: () => queue.length,
+    }
+  }
+  const poster = itemFixture("poster", "01", {
+    kind: "image",
+    name: "poster.png",
+    path: "/p/poster.png",
+  })
+  const opened = (barKey: BarKey, ...items: Item[]) =>
+    workspaceReducer(
+      items.reduce((each, item) => workspaceReducer(each, shown(item)), workspaceFixture()),
+      { type: "bar/open", target, terminalId: "01", key: barKey },
+    )
+  const sheet = (container: HTMLElement) => container.querySelector<HTMLElement>(".pane-sheet")!
+  // What the pane shows, built: anything on its sheet but the stand-in.
+  const built = (container: HTMLElement) =>
+    sheet(container).querySelector(":scope > :not(.pane-stand-in)")
+  const standIn = (container: HTMLElement) => sheet(container).querySelector(".pane-stand-in")
+
+  it("stands in as its icon and name until its turn, then shows what it holds", () => {
+    const { turns, step } = stepped()
+    const { container } = renderTerminal(opened(hero.id, hero), undefined, undefined, { turns })
+    expect(sheet(container).dataset.waiting).toBe("true")
+    expect(standIn(container)?.getAttribute("aria-label")).toBe("Opening hero.png")
+    expect(built(container)).toBeNull()
+    step()
+    expect(sheet(container).dataset.waiting).toBeUndefined()
+    expect(standIn(container)).toBeNull()
+    expect(built(container)).not.toBeNull()
+  })
+
+  it("asks no turn while its window is off screen", () => {
+    const { turns, pending } = stepped()
+    const { container } = renderTerminal(opened(hero.id, hero), undefined, undefined, {
+      turns,
+      onScreen: false,
+    })
+    expect(pending()).toBe(0)
+    expect(standIn(container)).not.toBeNull()
+  })
+
+  it("shows something else at once once it has had its turn", () => {
+    const { turns, step } = stepped()
+    const { container, workspace } = renderTerminal(
+      opened(hero.id, hero, poster),
+      undefined,
+      undefined,
+      { turns },
+    )
+    step()
+    act(() => {
+      workspace.dispatch({ type: "bar/open", target, terminalId: "01", key: poster.id })
+    })
+    expect(standIn(container)).toBeNull()
+    expect(built(container)).not.toBeNull()
   })
 })
 
