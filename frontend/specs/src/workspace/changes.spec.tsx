@@ -137,8 +137,7 @@ describe("The Changes panel", () => {
     it("opens the work as a changes item on the terminal's bar where the backend can show it", async () => {
       await openWorkspace(showcase)
 
-      // At the row's name: its files, unfolded under it, open a preview of their own.
-      await row("Build Studio", "", "studio").click({ position: { x: 40, y: 12 } })
+      await row("Build Studio", "", "studio").click()
 
       await expect
         .poll(() => taskbarIcons("Build Studio").some((label) => label.startsWith("Changes")))

@@ -5,7 +5,7 @@ import type { FileFacts } from "@novadeck/viewers/facts"
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
 
 import { Code, signs } from "../FileView"
-import { headParts, placeParts, type Part } from "../labels"
+import { placeParts, type Part } from "../labels"
 import { Counts, Parts } from "../Parts"
 import { factsOfAgents } from "./facts"
 import {
@@ -185,15 +185,23 @@ const CutView = ({ cut, drawing }: { cut: Cut; drawing: Drawing }): React.JSX.El
   )
 }
 
-// What a change is, in the pane's words: where it sits, else the lines it spans, else that it
-// adds lines.
+// What a change is, in the pane's words: where it sits, else what it does to which lines.
 const placeOf = (block: Block, facts: FileFacts | null | undefined): readonly Part[] => {
   const fact = facts?.changes[block.index]
   if (fact && fact.places.length > 0) return placeParts(fact.places, fact.edit)
-  const numbered = block.rows.flatMap((row) => ("t" in row || row.n === null ? [] : [row.n]))
-  if (numbered.length === 0) return [{ text: "adds lines", kind: "plain" }]
-  const range = { from: numbered[0]!, to: numbered.at(-1)! }
-  return [{ text: headParts(0, 1, undefined, range).where, kind: "plain" }]
+  const added = block.rows.filter((row) => !("t" in row)).length
+  // The lines of main it changes or removes.
+  const touched = block.rows
+    .flatMap((row) => ("t" in row ? row.rows : [row]))
+    .flatMap((row) => (row.n === null || row.kind === "context" ? [] : [row.n]))
+  const span = touched.length === 1 ? `line ${touched[0]}` : `lines ${touched[0]}–${touched.at(-1)}`
+  const text =
+    touched.length === 0
+      ? `adds ${lines(added)}`
+      : added === 0
+        ? `removes ${span}`
+        : `changes ${span}`
+  return [{ text, kind: "plain" }]
 }
 
 const Picker = ({

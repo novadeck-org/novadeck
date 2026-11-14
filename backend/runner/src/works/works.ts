@@ -33,7 +33,7 @@ import { folderOf, repoPath } from "./folder.js"
 import { conflictsOf, listFiles, mayConflict, type Detail, type Lines } from "./lines.js"
 import { loadRemembered, RememberedSaves, type Remembered } from "./memory.js"
 import { mergedWork } from "./merged.js"
-import { carry, textAt } from "./preview.js"
+import { carry, oversized, textAt } from "./preview.js"
 
 const log = logs.for("works")
 
@@ -395,7 +395,7 @@ export class Works {
             ])
             if (theirs === undefined || was === undefined) return undefined
             const texts = [mainText, theirs, was]
-            if (texts.some((text) => text !== null && text.includes(" "))) return "binary" as const
+            if (texts.some((text) => text !== null && text.includes("\0"))) return "binary" as const
             if (texts.some((text) => text !== null && text.length > previewLimits.text))
               return "big" as const
             const hunks = await carry(work.root, {
@@ -404,6 +404,7 @@ export class Works {
               theirs: theirs ?? "",
             })
             if (!hunks) return undefined
+            if (oversized(hunks)) return "big" as const
             return {
               root: work.root,
               terminalId: work.terminalId,

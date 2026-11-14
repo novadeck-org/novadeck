@@ -64,6 +64,8 @@ const show = (
     selectedId?: string
     // The projects' names by id; the one project of the works' by default.
     projects?: ReadonlyMap<string, string>
+    // The open project, whose files open as previews; the one project of the works' by default.
+    openProject?: string
     // Whether the backend has reported the works yet; it has by default.
     reported?: boolean
   } = {},
@@ -93,6 +95,7 @@ const show = (
       watching: true,
       onClose: () => {},
       onSelect,
+      canOpenFile: (each: Work) => each.projectId === (options.openProject ?? "p"),
       onOpenFile,
       onCloseWork,
     }),
@@ -111,13 +114,21 @@ const answer = (name: string) =>
   [...(dialog()?.querySelectorAll("button") ?? [])].find((item) => item.textContent === name)!
 
 describe("the Changes panel's rows", () => {
-  it("opens a file main has as a preview of what the works merge to, and not one it lacks", () => {
+  it("opens a file main has as a preview, without selecting the row, and not one it lacks", () => {
     const added: WorkFile = { ...file(0, 0), path: "new.ts", status: "added" }
-    const { row, onOpenFile } = show([work("a", { files: [file(0, 0), added] })])
+    const { row, onOpenFile, onSelect } = show([work("a", { files: [file(0, 0), added] })])
     const open = row("a").querySelectorAll<HTMLButtonElement>(".changes-file-open")
     expect(open).toHaveLength(1)
+    // Beside the row's select button, not inside it.
+    expect(open[0]!.closest("button:not(.changes-file-open)")).toBeNull()
     open[0]!.click()
     expect(onOpenFile).toHaveBeenCalledWith(expect.objectContaining({ root: "/w/a" }), "a.ts")
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it("offers no preview of the files of another project's work", () => {
+    const { row } = show([work("a")], { openProject: "elsewhere" })
+    expect(row("a").querySelector(".changes-file-open")).toBeNull()
   })
 
   it("names a row by its owner's title, with its branch on the detail line", () => {

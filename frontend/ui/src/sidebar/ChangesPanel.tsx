@@ -30,21 +30,22 @@ const FileName = ({ file, title }: { file: FileView; title?: boolean }): React.J
 
 // Whether a file opens as a preview: the project window shows main's checkout, which can only
 // point at a file main has.
-const openable = (file: FileView): boolean =>
-  file.status === "modified" || file.status === "deleted"
+const hasMain = (file: FileView): boolean => file.status === "modified" || file.status === "deleted"
 
 // The files under the row, a branch each, as a tab's subagents unfold under it (tabs.css). A file
 // that main has opens in the project window, as a preview of what the works merge to.
 const Branches = ({
   row,
+  canOpen,
   onOpenFile,
 }: {
   row: ChangeRow
+  canOpen: (work: Work, path: string) => boolean
   onOpenFile: (work: Work, path: string) => void
 }): React.JSX.Element => (
-  <span className="terminal-tab-branches changes-branches -mt-1 grid min-w-0">
+  <span className="terminal-tab-branches changes-branches grid min-w-0">
     <span className="terminal-tab-branches-fold min-h-0 overflow-hidden">
-      <span className="flex min-w-0 flex-col pt-1 text-caption leading-[18px]">
+      <span className="flex min-w-0 flex-col pt-1 pr-2.5 pb-2 pl-8 text-caption leading-[18px]">
         {row.branches.map((branch, index) => {
           const glyph = (
             <span aria-hidden className="terminal-tab-branch shrink-0">
@@ -72,7 +73,7 @@ const Branches = ({
               </span>
             </>
           )
-          return openable(file) ? (
+          return hasMain(file) && canOpen(row.work, file.path) ? (
             <button
               key={file.path}
               type="button"
@@ -135,12 +136,14 @@ const ChangeItem = ({
   row,
   selected,
   onSelect,
+  canOpen,
   onOpenFile,
   onClose,
 }: {
   row: ChangeRow
   selected: boolean
   onSelect: (work: Work) => void
+  canOpen: (work: Work, path: string) => boolean
   onOpenFile: (work: Work, path: string) => void
   onClose: (row: ChangeRow) => void
 }): React.JSX.Element => {
@@ -174,7 +177,7 @@ const ChangeItem = ({
         )
       }
       detail={<BranchLine row={row} />}
-      below={<Branches row={row} onOpenFile={onOpenFile} />}
+      after={<Branches row={row} canOpen={canOpen} onOpenFile={onOpenFile} />}
       badge={
         work.added + work.removed > 0 ? (
           <span className="terminal-tab-kinds changes-size">
@@ -262,6 +265,7 @@ export const ChangesPanel = ({
   watching,
   onClose,
   onSelect,
+  canOpenFile,
   onOpenFile,
   onCloseWork,
 }: {
@@ -284,6 +288,8 @@ export const ChangesPanel = ({
   // Shows a work on the bar of the terminal named (its owner, or where it has none, or its
   // owner is closed, the selected one); rejects with why it can't.
   onSelect: (work: Work, on: string | undefined) => Promise<void>
+  // Whether a file of a work can be opened so: it is in the open project.
+  canOpenFile: (work: Work, path: string) => boolean
   // Opens a file of a work in the project window, as a preview of what the works merge to.
   onOpenFile: (work: Work, path: string) => void
   // Closes a work's worktree; rejects with the backend's reason when it refuses, and with code
@@ -366,6 +372,7 @@ export const ChangesPanel = ({
               row={row}
               selected={row.work.root === selected}
               onSelect={(work) => show(work, row)}
+              canOpen={canOpenFile}
               onOpenFile={onOpenFile}
               onClose={(each) => close(each, false)}
             />

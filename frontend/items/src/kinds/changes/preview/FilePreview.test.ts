@@ -57,6 +57,24 @@ describe("a file's preview", () => {
     )
   })
 
+  it("says what a change does where the file's language says nothing: adds, removes or changes lines", async () => {
+    const root = await shown([
+      agent("moth", 1, [
+        { at: 2, removed: 0, lines: ["new"], applies: true },
+        { at: 5, removed: 2, lines: [], applies: true },
+        { at: 9, removed: 1, lines: ["nine"], applies: true },
+      ]),
+    ])
+    const heads = [...root.querySelectorAll(".changes-hunk-head .changes-scope")].map(
+      (head) => head.textContent,
+    )
+    expect(heads).toEqual([
+      "@moth · adds 1 line",
+      "@moth · removes lines 5–6",
+      "@moth · changes line 9",
+    ])
+  })
+
   context("with two agents changing the same line", () => {
     it("shows the last writer's version under a clash head, and the picked one until someone writes", async () => {
       const root = await shown([moth, crow])

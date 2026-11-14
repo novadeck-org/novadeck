@@ -245,13 +245,24 @@ export const SidebarSection = memo((): React.JSX.Element => {
   )
   // A file of a work, opened in the project window as a preview: only a file of the open project
   // that main has (the window shows main's checkout, which it can only point at).
+  const inOpenProject = useCallback(
+    (work: Work, path: string): string | undefined =>
+      work.folder === undefined || work.projectId !== projectId
+        ? undefined
+        : projectPath(work.folder, path),
+    [projectId],
+  )
+  const canOpenWorkFile = useCallback(
+    (work: Work, path: string): boolean => inOpenProject(work, path) !== undefined,
+    [inOpenProject],
+  )
   const openWorkFile = useCallback(
     (work: Work, path: string): void => {
-      const inProject = work.folder === undefined ? undefined : projectPath(work.folder, path)
-      if (inProject === undefined || work.projectId !== projectId) return
-      commands.openSourceFile(inProject, { preview: true }).catch(() => {})
+      const inProject = inOpenProject(work, path)
+      if (inProject !== undefined)
+        commands.openSourceFile(inProject, { preview: true }).catch(() => {})
     },
-    [commands, projectId],
+    [commands, inOpenProject],
   )
   const changes = useMemo(
     () =>
@@ -264,11 +275,22 @@ export const SidebarSection = memo((): React.JSX.Element => {
             projects: projectNames,
             selectedId,
             onSelect: showWork,
+            canOpenFile: canOpenWorkFile,
             onOpenFile: openWorkFile,
             onCloseWork: worksFeed.close,
           }
         : undefined,
-    [worksFeed, allWorks, worksReported, titles, projectNames, selectedId, showWork, openWorkFile],
+    [
+      worksFeed,
+      allWorks,
+      worksReported,
+      titles,
+      projectNames,
+      selectedId,
+      showWork,
+      canOpenWorkFile,
+      openWorkFile,
+    ],
   )
   const sidebarPanel = useUiState((state) => state.location.route.panel)
   const visible = useUiState((state) => sidebarVisible(state.shell, desktop))

@@ -112,12 +112,12 @@ export const workClosing = z.discriminatedUnion("closed", [
 // lines it puts there. `applies` is false where main has rewritten those lines since the
 // worktree branched, which merging the work onto main would conflict on: `lines` is then
 // the worktree's version, which main's own lines stand in for.
-export const previewLimits = { text: 512 * 1024, hunks: 500, lines: 4096 } as const
+export const previewLimits = { text: 512 * 1024, hunks: 500, lines: 4096, line: 4096 } as const
 
 export const previewHunk = z.strictObject({
   at: z.int().min(1),
   removed: count,
-  lines: z.array(z.string().max(4096)).max(previewLimits.lines),
+  lines: z.array(z.string().max(previewLimits.line)).max(previewLimits.lines),
   applies: z.boolean(),
 })
 

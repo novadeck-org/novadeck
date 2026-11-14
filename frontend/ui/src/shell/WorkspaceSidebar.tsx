@@ -74,6 +74,8 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
         projects: ReadonlyMap<string, string>
         selectedId: string | undefined
         onSelect: (work: Work, on: string | undefined) => Promise<void>
+        // Whether a file of a work can be opened so: it is in the open project.
+        canOpenFile: (work: Work, path: string) => boolean
         // Opens a file of a work in the project window as a preview of what the works merge to.
         onOpenFile: (work: Work, path: string) => void
         onCloseWork: (root: string, force: boolean) => Promise<WorkClosing>

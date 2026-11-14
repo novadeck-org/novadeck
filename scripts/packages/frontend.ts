@@ -318,6 +318,7 @@ export const samples: Kept = [
   { path: "application/ui/src/backend/demo/showcase/storefront.ts", why: "code the demo shows" },
   { path: "application/ui/src/backend/demo/transcripts.ts", why: "code the demo shows" },
   { path: "frontend/demo/src/agents/transcripts.ts", why: "code the demo shows" },
+  { path: "frontend/demo/src/preview.ts", why: "code the demo shows" },
   { path: "frontend/demo/src/showcase/artifacts.ts", why: "code the demo shows" },
   { path: "frontend/demo/src/showcase/storefront.ts", why: "code the demo shows" },
   { path: "frontend/demo/src/videos/launch.ts", why: "code the demo shows" },

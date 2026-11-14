@@ -1418,6 +1418,24 @@ describe.skipIf(!hasGit)("a file's preview", { timeout: 60_000 }, () => {
     })
   })
 
+  it("says a file is too big where a change passes what the protocol carries", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const feature = fixture.worktree("feature")
+    feature.write("a.txt", ten.replace("line 3\n", `${"x".repeat(5000)}\n`))
+    const { works } = open(() => [{ terminalId: terminal(1), root: feature.root }], {
+      projectFolder: () => main.root,
+    })
+    resources.defer(() => works.close())
+    expect(await works.preview(project, "a.txt")).toEqual({
+      main: null,
+      unavailable: "big",
+      works: [],
+    })
+  })
+
   it("reads nothing of a file that may hold secrets or is binary, nor of one no work changes", async ({
     fixture,
     resources,

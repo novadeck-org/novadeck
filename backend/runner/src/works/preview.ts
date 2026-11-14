@@ -119,3 +119,12 @@ export const carry = async (
     await rm(folder, { recursive: true, force: true }).catch(() => {})
   }
 }
+
+/** Whether hunks pass what the protocol carries: how many, how many lines each and how long a line runs. */
+export const oversized = (hunks: readonly Omit<PreviewHunk, "applies">[]): boolean =>
+  hunks.length > previewLimits.hunks ||
+  hunks.some(
+    (hunk) =>
+      hunk.lines.length > previewLimits.lines ||
+      hunk.lines.some((line) => line.length > previewLimits.line),
+  )

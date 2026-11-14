@@ -177,12 +177,34 @@ const clashBase = (members: readonly Agent[]): string =>
 /** Marks of the changed words of a line that replaces main's, none where most of it changed. */
 const marksOf = (was: string, now: string): Marks => tokenDiff(was, now, 0.5)?.after ?? []
 
+/**
+ * What names each line an agent's changes that apply hold: its text and which of its equal
+ * lines it is, whatever the line's place, so a line is the same line after others are added
+ * before it. By hunk.
+ */
+const agentSigs = (agent: Agent): ReadonlyMap<PreviewHunk, readonly string[]> => {
+  const seen = new Map<string, number>()
+  return new Map(
+    agent.hunks
+      .filter((hunk) => hunk.applies)
+      .map((hunk) => [
+        hunk,
+        hunk.lines.map((text) => {
+          const count = seen.get(text) ?? 0
+          seen.set(text, count + 1)
+          return `${text}#${count}`
+        }),
+      ]),
+  )
+}
+
 /** An agent's lines of a change, as its rows: those over main's lines keep their numbers. */
 const changeRows = (
   main: readonly string[],
   agent: Agent,
   hunk: PreviewHunk,
   start: number,
+  sigs: readonly string[],
 ): { readonly rows: (Row | Cut)[]; readonly removed: number } => {
   const paired = Math.min(hunk.removed, hunk.lines.length)
   const rows: (Row | Cut)[] = hunk.lines.map((text, at) => {
@@ -193,7 +215,7 @@ const changeRows = (
       text,
       marks: number === null ? [] : marksOf(main[number - 1] ?? "", text),
       src: start + at,
-      sig: `${hunk.at}:${at}:${text}`,
+      sig: sigs[at]!,
     }
   })
   const gone = hunk.removed - paired
@@ -244,6 +266,7 @@ export const layoutPreview = (
       agent.hunks.flatMap((hunk, at) => (hunk.applies === applies ? [{ agent, hunk, at }] : [])),
     )
   const applying = located(true)
+  const sigs = new Map(merged.map((agent) => [agent.key, agentSigs(agent)]))
   const indexOf = (agent: Agent, hunk: PreviewHunk): number =>
     agent.hunks.filter((each) => each.applies).indexOf(hunk)
 
@@ -258,7 +281,7 @@ export const layoutPreview = (
   ): { event: Event; piece: Block } => {
     const { agent, hunk } = change
     const start = sources.offsets.get(agent.key)?.[change.at] ?? 0
-    const made = changeRows(lines, agent, hunk, start)
+    const made = changeRows(lines, agent, hunk, start, sigs.get(agent.key)?.get(hunk) ?? [])
     added += hunk.lines.length
     removed += made.removed
     const piece: Block = {
@@ -339,7 +362,7 @@ export const layoutPreview = (
 
   const pieces: Piece[] = []
   let next = 1
-  for (const event of events.toSorted((a, b) => a.at - b.at)) {
+  for (const event of events.toSorted((a, b) => a.at - b.at || a.to - b.to)) {
     pieces.push(...stretch(lines, next, event.at - 1))
     if (event.piece.t === "stale") {
       // Main's lines it stood for, but those already drawn.
@@ -370,11 +393,4 @@ export const writtenSince = (
 
 /** The lines each agent has in the file, by what names them (the ones that apply), in order. */
 export const sigsOf = (agents: readonly Agent[]): ReadonlyMap<string, readonly string[]> =>
-  new Map(
-    agents.map((agent) => [
-      agent.key,
-      agent.hunks.flatMap((hunk) =>
-        hunk.applies ? hunk.lines.map((text, at) => `${hunk.at}:${at}:${text}`) : [],
-      ),
-    ]),
-  )
+  new Map(agents.map((agent) => [agent.key, [...agentSigs(agent).values()].flat()]))
