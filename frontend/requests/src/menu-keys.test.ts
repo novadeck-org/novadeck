@@ -1,4 +1,4 @@
-import { answering, menuKey, startCursor, type MenuShape } from "./menu-keys"
+import { answering, menuKey, pressRow, startCursor, type MenuShape } from "./menu-keys"
 import { context, describe, expect, it } from "./test"
 
 const one: MenuShape = { count: 3, multi: false, arms: () => false, leaves: () => false }
@@ -23,6 +23,9 @@ describe("A request menu's keys", () => {
       expect(menuKey(one, startCursor, "ArrowUp")!.cursor.at).toBe(2)
       expect(menuKey(one, { at: 2, armed: null }, "Home")!.cursor.at).toBe(0)
       expect(menuKey(one, startCursor, "End")!.cursor.at).toBe(2)
+      // From outside the menu, as from the Inbox's row, up from the first row stays on it.
+      expect(menuKey(one, startCursor, "ArrowUp", false)!.cursor.at).toBe(0)
+      expect(menuKey(one, { at: 2, armed: null }, "ArrowDown", false)!.cursor.at).toBe(2)
       expect(menuKey(one, down.cursor, "Enter")!.press).toBe(1)
       expect(menuKey(one, down.cursor, " ")!.press).toBe(1)
     })
@@ -46,6 +49,13 @@ describe("A request menu's keys", () => {
       expect(first).toEqual({ cursor: { at: 0, armed: 0 }, press: null })
       expect(menuKey(hard, first.cursor, "1")!.press).toBe(0)
       expect(menuKey(hard, first.cursor, "Enter")!.press).toBe(0)
+    })
+
+    it("arms a row past the ninth, which no number presses, all the same", () => {
+      const long: MenuShape = { ...hard, count: 12 }
+      const first = pressRow(long, startCursor, 10)
+      expect(first).toEqual({ cursor: { at: 10, armed: 10 }, press: null })
+      expect(pressRow(long, first.cursor, 10).press).toBe(10)
     })
 
     it("disarms when the cursor moves, or another row is pressed", () => {

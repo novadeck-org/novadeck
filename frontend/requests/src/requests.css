@@ -1,27 +1,36 @@
 /* A request an agent waits on, drawn and answered: a card (`.request-card`) under its head
    (`.request-head`, the title, the host's clock and the key to the terminal), what it asks
-   (`.request-subject`), and its dialog (`.request-dialog`): a menu (`.request-options`) of numbered
-   rows (`.request-option`, `.request-option-number`, `.request-option-words`, a dim line under them
-   `.request-option-more`), a row's words (`.request-writing` and its `.request-field`), the dialog's own
-   words (`.request-dialog-title`) and what it asks in full (`.request-detail`); questions as tabbed
-   pages (`.request-tabs`, `.request-tab`, `.request-pages`, `.request-page`, a `.request-question` each, then
-   `.request-review`); a form (`.request-form-fields`, a `.request-form-field` each, its set to pick from
-   `.request-picks`); or a dialog it can't read (`.request-raw-reason`, `.request-raw`). A line under it
-   says it waits (`.request-waiting`, `.request-choices`), was answered
-   (`.request-answered`), came again (`.request-again`) or failed
-   (`.request-error`); `.request-field-hint` warns beside a field.
+   (`.request-subject`), and its dialog (`.request-dialog`): a menu (`.request-menu`) of numbered
+   rows (`.request-options`, a `.request-option` each with its `.request-option-number` and
+   `.request-option-words`, dim lines under them `.request-option-more`, one of them the
+   `.request-option-effect`; `.request-option-pick`, `.request-option-chosen`,
+   `.request-option-confirm` and `.request-check` beside the words), the box a row's words are
+   written in (`.request-writing`: its `.request-field`, the `.request-key` that sends and the
+   `.request-writing-hint`), and the cursor's row's details under them (`.request-more`,
+   `.request-more-of`); the dialog's own words (`.request-dialog-title`) and what it asks in full
+   (`.request-detail`: its `.request-detail-bar`, the `.request-detail-text`, a `.request-mark`
+   for each thing that draws as nothing, `.request-detail-dollar` before a one-line command and
+   a `.request-copy`); questions as tabbed pages (`.request-tabs`, `.request-tab`,
+   `.request-pages`, `.request-page`, a `.request-question` each, then `.request-review`); a form
+   (`.request-form-fields`, a `.request-form-field` each, its set to pick from `.request-picks`);
+   or a dialog it can't read (`.request-raw-reason`, `.request-raw`). A line under it says it
+   waits (`.request-waiting`, `.request-choices`), was answered (`.request-answered`), came again
+   (`.request-again`) or failed (`.request-error`); `.request-field-hint` warns beside a field.
 
    Hooks: data-kind="permission" | "question" | "plan" and data-dialog="choices" | "questions" |
    "form" | "raw" | "none" on a request; data-on on the row of a menu the person is on, data-open
-   on one that takes words; aria-selected on a question's tab, data-shown on its page,
-   data-missing on a form's field, data-on on its `.request-pick`; data-failed on the reason of an
-   answer that didn't take.
+   on one whose box is open, data-armed on one that a press more sends, data-pressed on the one
+   whose answer goes, data-chosen on the one picked; data-armed on the box whose words are armed;
+   data-mark="blank-lines" | "spaces" | "invisible" on a mark; aria-selected on a question's tab,
+   data-shown on its page, data-missing on a form's field, data-on on its `.request-pick`;
+   data-failed on the reason of an answer that didn't take.
 
-   Tokens: the host's private ones, which `.chat` sets (chat.css): --_pad, the edge's padding;
-   --_lh, a line's height; --_ink, --_mid and --_muted, the text's three tones; --_red, what
-   failed; --_accent, the bar on the row the person is on; --_line, the hairlines. The card
-   sets --_inset, where its words start. The head's key, the answered line's spinner and the
-   error's line are the chat's own `.chat-key`, `.chat-spin` and `.chat-error`. */
+   Tokens: the host's private ones, which `.chat` sets (chat.css) and the Inbox's `.console-page`
+   (inbox.css): --_pad, the edge's padding; --_lh, a line's height; --_ink, --_mid and --_muted,
+   the text's three tones; --_red, what failed or is armed; --_accent, the bar on the row the
+   person is on; --_line, the hairlines. The card sets --_inset, where its words start; a host
+   that draws a menu without a card sets it too. The answered line's spinner and the error's line
+   are the chat's own `.chat-spin` and `.chat-error`. */
 .request-card {
   --_inset: calc(var(--_pad) + 2ch);
   min-width: 0;
@@ -456,4 +465,12 @@
 }
 .request-pick:has(:focus-visible) {
   color: var(--_ink);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .request-key {
+    transition:
+      color var(--motion-feedback) var(--ease-interface),
+      background-color var(--motion-feedback) var(--ease-interface);
+  }
 }

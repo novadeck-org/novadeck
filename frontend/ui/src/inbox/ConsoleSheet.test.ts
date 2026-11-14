@@ -1114,6 +1114,29 @@ describe("The Console sheet", () => {
       await inbox.done()
     })
 
+    it("puts focus in the box of a next sheet that is only a box for words", async () => {
+      const inbox = mount([
+        permission(codex, { id: "first", handle: "crow" }),
+        asked({ type: "text" }, { id: "second", at: 5 }),
+      ])
+      await nextFrame()
+      inbox.key("1", document.querySelector(".inbox-row-select")!)
+      inbox.confirm("first")
+      await nextFrame()
+
+      expect(text(".inbox-sheet-head .handle-chip")).toBe("@owl")
+      expect(document.activeElement).toBe(inbox.field())
+      await inbox.done()
+    })
+
+    it("goes into the menu on an arrow up from its row, not round to its last row", async () => {
+      const inbox = mount([permission(codex)])
+      inbox.key("ArrowUp", document.querySelector(".inbox-row-select")!)
+
+      expect(document.activeElement).toBe(inbox.row("Allow"))
+      await inbox.done()
+    })
+
     it("takes no click as it arrives either: a double-click's second lands on nothing", async () => {
       const inbox = mount([
         permission(codex, { id: "first", handle: "crow" }),

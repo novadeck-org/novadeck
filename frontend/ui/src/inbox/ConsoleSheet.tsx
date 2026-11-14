@@ -475,6 +475,7 @@ const ChoicesMenu = ({
       handle={handle}
       arrived={arrived}
       area={sheetArea}
+      opensBox
     />
   )
 }
@@ -595,6 +596,7 @@ const QuestionsMenu = ({
               busy={answering}
               arrived={arrived && index === 0}
               area={sheetArea}
+              opensBox
               pressed={answering && pressed?.question === index ? pressed.at : null}
               handle={(handle) => {
                 handles.current[index] = handle

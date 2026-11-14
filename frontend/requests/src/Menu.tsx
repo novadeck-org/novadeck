@@ -10,7 +10,7 @@ import {
 } from "react"
 
 import { Hint } from "./Hint"
-import { answering, menuKey, startCursor, type Cursor } from "./menu-keys"
+import { answering, menuKey, pressRow, startCursor, type Cursor } from "./menu-keys"
 import { isTyping } from "./use-menu"
 
 // A request's numbered menu, as the next lines of the terminal: a number and the words of each
@@ -99,6 +99,7 @@ export const Menu = ({
   handle,
   arrived = false,
   area,
+  opensBox = false,
 }: {
   // The menu's name, for a screen reader.
   readonly label: string
@@ -124,12 +125,15 @@ export const Menu = ({
   readonly arrived?: boolean
   // The part of the page the menu before had, whose focus it may take as it arrives.
   readonly area?: (menu: Element) => Element | null
+  // A menu that is only a words row, and ways out, opens on its box (the Inbox's reply to an
+  // ask that takes only words).
+  readonly opensBox?: boolean
 }): React.JSX.Element => {
   const [cursor, setCursor] = useState<Cursor>(startCursor)
   // The words row whose box is open, by its key: a menu read again keeps it open only while the
-  // row is still there. A menu that is only a words row, and ways out, opens on its box.
+  // row is still there.
   const [typing, setTyping] = useState<string | null>(() =>
-    items[0]?.words && items.slice(1).every((item) => item.away) ? items[0].key : null,
+    opensBox && items[0]?.words && items.slice(1).every((item) => item.away) ? items[0].key : null,
   )
   const menu = useRef<HTMLDivElement>(null)
   const rows = useRef<(HTMLElement | null)[]>([])
@@ -166,8 +170,9 @@ export const Menu = ({
     // What had focus went with the menu before: it comes here, so the keyboard keeps its place.
     const active = document.activeElement
     const before = menu.current && areaNow.current?.(menu.current)
+    // A menu that opened on its box takes the person's words there.
     if (!active || active === document.body || before?.contains(active))
-      (rows.current[0] ?? box.current)?.focus()
+      (box.current ?? rows.current[0])?.focus()
   }, [arrived])
   // Whether a key is to be held back: no repeat answers, nor anything as the menu arrives.
   const held = (key: string, repeat: boolean): boolean =>
@@ -187,9 +192,13 @@ export const Menu = ({
     const item = items[index]
     if (!item) return
     if (item.words) {
-      // Ticking it opens its box; unticking leaves the words out, and the box shut.
+      // Ticking it opens its box; unticking leaves the words out, and the box shut. In a menu of
+      // one choice, pressing it again shuts its box, keeping the words.
       if (multi) onPress(index)
-      if (!multi || !item.check) {
+      if (!multi && typing === item.key) {
+        setTyping(null)
+        focusTo.current = index
+      } else if (!multi || !item.check) {
         setTyping(item.key)
         focusTo.current = "box"
         onOpen?.(index)
@@ -199,8 +208,8 @@ export const Menu = ({
     onPress(index)
   }
 
-  const apply = (key: string): boolean => {
-    const result = menuKey(shape, { ...cursor, at }, key)
+  const apply = (key: string, wrap = true): boolean => {
+    const result = menuKey(shape, { ...cursor, at }, key, wrap)
     if (!result) return false
     setCursor(result.cursor)
     focusTo.current = result.cursor.at
@@ -210,10 +219,12 @@ export const Menu = ({
   }
 
   useImperativeHandle(handle, () => ({
-    key: (key) => (held(key, false) ? true : apply(key)),
+    key: (key) => (held(key, false) ? true : apply(key, false)),
     go: (index) => {
       setCursor({ at: index, armed: null })
-      focusTo.current = index
+      // To a words row whose box is open: into its words.
+      const item = items[index]
+      focusTo.current = item?.words && item.key === typing ? "box" : index
     },
   }))
 
@@ -263,7 +274,8 @@ export const Menu = ({
           if (event.pointerType !== "mouse" || !(event.target instanceof Element)) return
           const row = event.target.closest<HTMLElement>(".request-option")
           const index = row ? rows.current.indexOf(row) : -1
-          if (index < 0 || index === at) return
+          // An armed row keeps the cursor: the mouse passing over another never disarms it.
+          if (index < 0 || index === at || cursor.armed !== null) return
           setCursor({ at: index, armed: null })
           // Focus goes along from anything in the menu but the person's words, which would
           // land on a row instead.
@@ -300,6 +312,7 @@ export const Menu = ({
                     : undefined
               }
               aria-expanded={item.words ? typing === item.key : undefined}
+              aria-controls={item.words && typing === item.key ? `${ids}-box` : undefined}
               aria-disabled={busy || undefined}
               tabIndex={on ? 0 : -1}
               data-on={on || undefined}
@@ -313,8 +326,7 @@ export const Menu = ({
               onClick={() => {
                 // A double-click's second click, landing as the host moves on, isn't for this.
                 if (Date.now() < guard.current) return
-                const result = menuKey(shape, { ...cursor, at: index }, String(index + 1))
-                if (!result) return press(index)
+                const result = pressRow(shape, { ...cursor, at: index }, index)
                 setCursor(result.cursor)
                 if (result.press !== null && result.press !== "send") press(result.press)
               }}
@@ -328,8 +340,8 @@ export const Menu = ({
                     [<span className="request-check-mark">{item.check ? "✓" : ""}</span>]{" "}
                   </span>
                 )}
-                {said ? <q className="request-option-said">{said}</q> : item.label}
-                {item.words && !said && "…"}
+                {item.label}
+                {item.words && "…"}
                 {item.pick && <span className="request-option-pick"> its pick</span>}
                 {item.chosen && (
                   <span className="request-option-chosen" aria-hidden>
@@ -345,6 +357,11 @@ export const Menu = ({
                   </span>
                 )}
               </span>
+              {said && (
+                <span className="request-option-more request-option-said">
+                  <q>{said}</q>
+                </span>
+              )}
               {item.scope && <span className="request-option-more">{item.scope}</span>}
               {item.effect && (
                 <span className="request-option-more request-option-effect">{item.effect}</span>
@@ -357,6 +374,7 @@ export const Menu = ({
         <div className="request-writing" data-armed={armedWords || undefined}>
           <textarea
             ref={box}
+            id={`${ids}-box`}
             className="request-field nodrag nopan"
             rows={1}
             value={words.value}

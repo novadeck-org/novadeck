@@ -168,6 +168,19 @@ describe("a request's card", () => {
     expect(container.querySelector('[role="alert"]')).toBeNull()
   })
 
+  it("shuts an option's box when it is pressed again, keeping the words", () => {
+    const { container } = show(choices, async () => {})
+    click(button(container, "No, and tell"))
+    type(container.querySelector("textarea")!, "use pnpm")
+    click(button(container, "No, and tell"))
+    expect(container.querySelector("textarea")).toBeNull()
+    // The row says what was written, under the harness's own words.
+    expect(button(container, "No, and tell").textContent).toContain("No, and tell it what to do")
+    expect(button(container, "No, and tell").querySelector("q")?.textContent).toBe("use pnpm")
+    click(button(container, "No, and tell"))
+    expect(container.querySelector("textarea")?.value).toBe("use pnpm")
+  })
+
   it("asks for words before an option that takes them is sent", () => {
     const onAnswer = vi.fn<() => Promise<void>>(async () => {})
     const { container } = show(choices, onAnswer)

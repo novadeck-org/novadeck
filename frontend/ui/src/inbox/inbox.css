@@ -745,6 +745,7 @@ pre.console-box {
 .console-question {
   display: flex;
   flex-direction: column;
+  gap: 8px;
 }
 
 .console-page .inbox-failure {
