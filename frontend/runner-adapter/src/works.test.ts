@@ -237,6 +237,8 @@ describe("looking at and showing a work", () => {
     const { works, stream } = followed({ look: () => new Promise(() => {}) })
     const file = {
       path: "src/a.ts",
+      status: "modified" as const,
+      changedAt: 1,
       added: 3,
       removed: 1,
       unreadAdded: 3,

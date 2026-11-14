@@ -1,4 +1,4 @@
-import type { Work, WorkClosing } from "@novadeck/core/works"
+import type { Work, WorkClosing, WorkFile } from "@novadeck/core/works"
 import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
@@ -23,7 +23,16 @@ const work = (name: string, extra: Partial<Work> = {}): Work => ({
   unreadAdded: 4,
   unreadRemoved: 1,
   files: [
-    { path: "a.ts", added: 4, removed: 1, unreadAdded: 4, unreadRemoved: 1, conflict: false },
+    {
+      path: "a.ts",
+      status: "modified",
+      changedAt: 1,
+      added: 4,
+      removed: 1,
+      unreadAdded: 4,
+      unreadRemoved: 1,
+      conflict: false,
+    },
   ],
   truncated: false,
   conflicts: [],
@@ -31,8 +40,10 @@ const work = (name: string, extra: Partial<Work> = {}): Work => ({
 })
 
 // A file of 4 lines added and 1 removed, with `unreadAdded` and `unreadRemoved` as given.
-const file = (unreadAdded: number, unreadRemoved: number) => ({
+const file = (unreadAdded: number, unreadRemoved: number): WorkFile => ({
   path: "a.ts",
+  status: "modified",
+  changedAt: 1,
   added: 4,
   removed: 1,
   unreadAdded,

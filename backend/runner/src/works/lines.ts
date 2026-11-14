@@ -16,18 +16,27 @@ export const sum = (files: Iterable<Lines>): Lines => {
   return { added, removed }
 }
 
+/** How a file changed, and when the runner first saw it so. */
+export type Detail = {
+  readonly status: WorkFile["status"]
+  readonly from?: string
+  readonly changedAt: number
+}
+
 const byPath = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 
 /**
  * The files a work lists: the changed ones in path order, at most `workLimits.files` (past
  * which the conflicting ones stay, then the biggest), each
- * with what of it is unread (all of it where `unread` is undefined, before a first look)
- * and whether it conflicts. The totals are of every file changed, whatever is cut.
+ * with what of it is unread (all of it where `unread` is undefined, before a first look),
+ * whether it conflicts, and how it changed (`details`, by path). The totals are of every file
+ * changed, whatever is cut.
  */
 export const listFiles = (
   changed: ReadonlyMap<string, Lines>,
   unread: ReadonlyMap<string, Lines> | undefined,
   conflicting: ReadonlySet<string>,
+  details: ReadonlyMap<string, Detail>,
 ): {
   readonly files: WorkFile[]
   readonly truncated: boolean
@@ -53,14 +62,20 @@ export const listFiles = (
           .slice(0, workLimits.files)
           .toSorted((a, b) => byPath(a.path, b.path))
   return {
-    files: kept.map(({ path, lines, unread: read }) => ({
-      path,
-      added: lines.added,
-      removed: lines.removed,
-      unreadAdded: read.added,
-      unreadRemoved: read.removed,
-      conflict: conflicting.has(path),
-    })),
+    files: kept.map(({ path, lines, unread: read }) => {
+      const detail = details.get(path)
+      return {
+        path,
+        status: detail?.status ?? "modified",
+        ...(detail?.from !== undefined && { from: detail.from }),
+        changedAt: detail?.changedAt ?? 0,
+        added: lines.added,
+        removed: lines.removed,
+        unreadAdded: read.added,
+        unreadRemoved: read.removed,
+        conflict: conflicting.has(path),
+      }
+    }),
     truncated: all.length > workLimits.files,
     total: sum(all.map(({ lines }) => lines)),
     totalUnread: sum(all.map(({ unread: read }) => read)),

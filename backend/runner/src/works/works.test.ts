@@ -6,6 +6,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
@@ -159,6 +160,7 @@ const open = (
     plain?: readonly { terminalId: string; root: string }[]
     show?: (terminalId: string, root: string) => Promise<string>
     onMade?: (listener: (made: WorkMade) => void) => () => void
+    projectFolder?: (projectId: string) => string | undefined
   } = {},
 ) => {
   const shown: [string, string][] = []
@@ -184,6 +186,7 @@ const open = (
         return { ok: true, branchDeleted: false }
       }),
     ...(options.onMade && { onMade: options.onMade }),
+    ...(options.projectFolder && { projectFolder: options.projectFolder }),
     everyMs: 20,
     firstMs: everything,
     snapshots: snapshotsFor(options.memory, options.repackAfter),
@@ -515,6 +518,123 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
     const after = (await current(works)).get(main.root)!
     expect(after).toMatchObject({ added: 3, removed: 2, unreadAdded: 2, unreadRemoved: 1 })
     expect(after.files[0]).toMatchObject({ unreadAdded: 2, unreadRemoved: 1 })
+  })
+
+  it("tells how each file changed: modified, added, deleted, renamed with its old path", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    main.write("a.txt", ten.replace("line 1\n", "one\n"))
+    main.write("new.txt", "new\n")
+    main.git("rm", "--quiet", "b.txt")
+    main.git("mv", "a.txt", "moved.txt")
+    const { works } = open(() => [{ terminalId: terminal(1), root: main.root }])
+    resources.defer(() => works.close())
+    const work = (await current(works)).get(main.root)!
+    expect(work.files.map(({ path, status, from }) => [path, status, from])).toEqual([
+      ["b.txt", "deleted", undefined],
+      ["moved.txt", "renamed", "a.txt"],
+      ["new.txt", "added", undefined],
+    ])
+    expect(work.files.find((file) => file.status !== "renamed")).not.toHaveProperty("from")
+  })
+
+  it("keeps when a file was first seen as it is across reads, and moves it when its content changes", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    let now = 1_000
+    main.write("a.txt", ten.replace("line 1\n", "one\n"))
+    main.write("b.txt", "x\n")
+    const works = new Works({
+      tracked: () => [tracked({ terminalId: terminal(1), root: main.root })],
+      presences: async () => [],
+      show: async () => "item",
+      remove: async () => ({ ok: true, branchDeleted: false }),
+      now: () => now,
+      firstMs: everything,
+      snapshots: snapshotsFor(),
+    })
+    resources.defer(() => works.close())
+    const times = async () =>
+      Object.fromEntries(
+        [...(await current(works)).get(main.root)!.files].map((file) => [
+          file.path,
+          file.changedAt,
+        ]),
+      )
+    expect(await times()).toEqual({ "a.txt": 1_000, "b.txt": 1_000 })
+    now = 5_000
+    main.write("b.txt", "y\n")
+    expect(await times()).toEqual({ "a.txt": 1_000, "b.txt": 5_000 })
+    // The file leaves the work and comes back: it is new to it again.
+    now = 7_000
+    main.git("checkout", "--", "b.txt")
+    expect(await times()).toEqual({ "a.txt": 1_000 })
+    now = 9_000
+    main.write("b.txt", "y\n")
+    expect(await times()).toEqual({ "a.txt": 1_000, "b.txt": 9_000 })
+  })
+
+  it("tells a change of a file's status or time as a change of the work", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    main.write("b.txt", "x\n")
+    const { works } = open(() => [{ terminalId: terminal(1), root: main.root }])
+    resources.defer(() => works.close())
+    const stop = new AbortController()
+    resources.defer(() => stop.abort())
+    const seen: string[] = []
+    void (async () => {
+      for await (const change of works.watch("owner", stop.signal))
+        if (change.type === "changed") seen.push(change.work.files.map((f) => f.status).join())
+    })()
+    await vi.waitFor(() => expect(seen.at(-1)).toBe("modified"))
+    main.git("rm", "--quiet", "-f", "b.txt")
+    await vi.waitFor(() => expect(seen.at(-1)).toBe("deleted"))
+  })
+
+  it("places the project's folder in the repository: the same folder, above it, inside it, or neither", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main, holder } = fixture
+    main.write("app/x.txt", "x\n")
+    let place: string | undefined = main.root
+    const { works } = open(() => [{ terminalId: terminal(1), root: main.root }], {
+      projectFolder: () => place,
+    })
+    resources.defer(() => works.close())
+    const folder = async () => (await current(works)).get(main.root)!.folder
+    expect(await folder()).toEqual({ repo: "", project: "" })
+    place = join(main.root, "app")
+    expect(await folder()).toEqual({ repo: "app", project: "" })
+    place = holder
+    expect(await folder()).toEqual({ repo: "", project: "repo" })
+    place = join(holder, "elsewhere")
+    mkdirSync(place)
+    expect(await folder()).toBeUndefined()
+    place = undefined
+    expect(await folder()).toBeUndefined()
+  })
+
+  it("places a linked worktree by its main checkout, through a symlinked project folder", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main, holder } = fixture
+    const linked = fixture.worktree("linked")
+    const link = join(holder, "link")
+    symlinkSync(main.root, link, "dir")
+    const { works } = open(() => [{ terminalId: terminal(1), root: linked.root }], {
+      projectFolder: () => link,
+    })
+    resources.defer(() => works.close())
+    expect((await current(works)).get(linked.root)!.folder).toEqual({ repo: "", project: "" })
   })
 
   it("keeps when it first saw the work until nothing differs from main", async ({

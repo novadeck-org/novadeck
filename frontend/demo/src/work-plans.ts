@@ -17,7 +17,10 @@ export const storefrontPlans: readonly WorkPlan[] = [
       file("src/checkout/Checkout.tsx", 120, 34, { conflict: true }),
       file("src/checkout/useCart.ts", 42, 8),
       file("src/api/payments.ts", 60, 14),
-      file("src/checkout/Checkout.test.tsx", 88, 0, { conflict: true }),
+      file("src/checkout/Checkout.test.tsx", 88, 0, {
+        status: "added",
+        conflict: true,
+      }),
     ],
   },
   {
@@ -75,7 +78,10 @@ export const storefrontPlans: readonly WorkPlan[] = [
     minutesAgo: 75,
     files: [
       file("src/routes/orders.ts", 64, 11, { unread: 0.4 }),
-      file("db/migrations/0042_orders.sql", 28, 0, { read: true }),
+      file("db/migrations/0042_orders.sql", 28, 0, {
+        status: "added",
+        read: true,
+      }),
     ],
   },
   {

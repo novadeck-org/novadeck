@@ -7,11 +7,17 @@ import type { Store } from "./store"
 // Nothing here repeats what Terminals (the agent's state) or the Inbox (what asks for
 // attention) say: only what the code says.
 
-// A file the work changes: lines added and removed against main, the part of them the person
-// hasn't read (what changed since they last looked; all of it before a first look), and
-// whether it is where a conflict is.
+// A file the work changes: how it changed, lines added and removed against main, the part of
+// them the person hasn't read (what changed since they last looked; all of it before a first
+// look), and whether it is where a conflict is.
 export type WorkFile = {
   readonly path: string
+  readonly status: "modified" | "added" | "deleted" | "renamed"
+  // Where a renamed file was; absent otherwise.
+  readonly from?: string | undefined
+  // When the backend first saw the file as it is now, in milliseconds since the epoch: a later
+  // change to it moves it, and a backend that restarts stamps what it finds anew.
+  readonly changedAt: number
   readonly added: number
   readonly removed: number
   readonly unreadAdded: number
@@ -53,6 +59,13 @@ export type Work = {
   readonly files: readonly WorkFile[]
   // More files changed than `files` lists.
   readonly truncated: boolean
+  // Where the project's folder and the repository's top share a place, `/`-separated with no
+  // leading or trailing slash, at most one of the two non-empty (both empty where they are the
+  // same folder). `repo` is the project's folder as a path from the repository's top: a file
+  // path outside it is not in the project, and the rest is stripped of it. `project` is the
+  // repository's top as a path from the project's folder: a file path is prefixed with it.
+  // Absent where the repository's top is neither inside nor above the project's folder.
+  readonly folder?: { readonly repo: string; readonly project: string } | undefined
   readonly conflicts: readonly WorkConflict[]
 }
 
