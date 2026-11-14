@@ -183,7 +183,13 @@ const mount = (
   mounted = view
   act(() => view.container.querySelectorAll<HTMLElement>(".inbox-row-select")[open]!.click())
   const rows = () => Array.from(document.querySelectorAll<HTMLElement>(".request-option"))
-  const row = (text: string) => rows().find((each) => each.textContent?.includes(text))!
+  // A row by its words: a row that takes the person's own is a field, its words the placeholder.
+  const row = (text: string) =>
+    rows().find(
+      (each) =>
+        each.textContent?.includes(text) ||
+        each.querySelector("textarea")?.placeholder.includes(text),
+    )!
   const press = (text: string): void => act(() => row(text).click())
   const key = (
     name: string,
@@ -229,8 +235,10 @@ const sheet = () => document.querySelector<HTMLElement>(".inbox-sheet")
 const menus = () => Array.from(document.querySelectorAll<HTMLElement>(".request-menu"))
 // A row of the nth question's menu.
 const optionIn = (menu: number, label: string) =>
-  Array.from(menus()[menu]!.querySelectorAll<HTMLElement>(".request-option")).find((each) =>
-    each.textContent?.includes(label),
+  Array.from(menus()[menu]!.querySelectorAll<HTMLElement>(".request-option")).find(
+    (each) =>
+      each.textContent?.includes(label) ||
+      each.querySelector("textarea")?.placeholder.includes(label),
   )!
 const status = () => text(".console-page > .console-note")
 const text = (selector: string) => document.querySelector(selector)?.textContent ?? null
@@ -253,14 +261,21 @@ describe("The Console sheet", () => {
     it("shows the command verbatim and numbers the answers, the standing one's scope under it", async () => {
       const inbox = mount([permission(codex)])
 
-      expect(text(".request-detail")).toBe("$ pnpm add x")
+      // As the chat shows it: no `$` before a request's command.
+      expect(text(".request-detail")).toBe("pnpm add x")
       expect(
-        inbox.rows().map((row) => row.querySelector(".request-option-words")?.textContent),
+        inbox
+          .rows()
+          .map(
+            (row) =>
+              row.querySelector(".request-option-words")?.textContent ??
+              row.querySelector("textarea")?.placeholder,
+          ),
       ).toEqual([
         "Allow",
         "Yes, and don't ask again",
         "Deny",
-        "Deny, with your words…",
+        "Deny, with your words",
         "Go to terminal",
       ])
       expect(inbox.row("ask again").querySelector(".request-option-effect")?.textContent).toBe(
@@ -358,10 +373,11 @@ describe("The Console sheet", () => {
       inbox.key("Escape", inbox.field())
 
       expect(sheet()).not.toBeNull()
-      expect(document.querySelector(".inbox-sheet textarea")).toBeNull()
-      expect(document.activeElement).toBe(inbox.row("Use npm."))
-      inbox.key("Enter")
+      // Out of the field, to the row before it; the words stay in the field.
+      expect(document.activeElement).toBe(inbox.row("Deny"))
       expect(inbox.field().value).toBe("Use npm.")
+      inbox.key("ArrowDown")
+      expect(document.activeElement).toBe(inbox.field())
       await inbox.done()
     })
   })
@@ -379,11 +395,17 @@ describe("The Console sheet", () => {
         ),
       ])
       expect(
-        inbox.rows().map((row) => row.querySelector(".request-option-words")?.textContent),
+        inbox
+          .rows()
+          .map(
+            (row) =>
+              row.querySelector(".request-option-words")?.textContent ??
+              row.querySelector("textarea")?.placeholder,
+          ),
       ).toEqual([
         "Approve",
         "Yes, and bypass permissions",
-        "Send it back, with your words…",
+        "Send it back, with your words",
         "Go to terminal",
       ])
       inbox.key("2", document.querySelector(".inbox-row-select")!)
@@ -408,8 +430,14 @@ describe("The Console sheet", () => {
       expect(text(".console-tag")).toBe("Plan")
       expect(text(".console-planbar")).toContain("plan")
       expect(
-        inbox.rows().map((row) => row.querySelector(".request-option-words")?.textContent),
-      ).toEqual(["Approve", "Send it back", "Send it back, with your words…", "Go to terminal"])
+        inbox
+          .rows()
+          .map(
+            (row) =>
+              row.querySelector(".request-option-words")?.textContent ??
+              row.querySelector("textarea")?.placeholder,
+          ),
+      ).toEqual(["Approve", "Send it back", "Send it back, with your words", "Go to terminal"])
       inbox.press("Send it back, with your words")
       inbox.type("/compact")
       expect(text(".request-field-hint")).toBe(
@@ -535,6 +563,39 @@ describe("The Console sheet", () => {
 
       expect(inbox.sent).toEqual([
         { kind: "ask", answer: { type: "reply", option: null, text: "Neither." } },
+      ])
+      await inbox.done()
+    })
+
+    it("takes the person's own words in place: the row is its field, reached like any row", async () => {
+      const inbox = mount([asked(options)])
+      const own = inbox.row("Reply in your own words")
+      const field = own.querySelector("textarea")!
+
+      // The row's number, then the field in its place, named by the row's words.
+      expect(own.querySelector(".request-option-number")?.textContent).toBe("3")
+      expect(field.placeholder).toBe("Reply in your own words")
+      expect(field.getAttribute("aria-label")).toBe("Reply in your own words")
+      expect(own.querySelector(".request-own-foot")?.textContent).toBe("")
+      // Its number, from the sheet's row, puts the person in it at once.
+      inbox.key("3", document.querySelector(".inbox-row-select")!)
+      expect(document.activeElement).toBe(field)
+      expect(inbox.sent).toEqual([])
+      inbox.type("Both, please.")
+      expect(own.dataset.chosen).toBe("true")
+      expect(own.querySelector(".request-writing-hint")?.textContent).toBe(
+        "↵ send your words instead · Esc back to the options",
+      )
+      // Up from its start goes back to the rows; down comes into it again.
+      act(() => field.setSelectionRange(0, 0))
+      inbox.key("ArrowUp", field)
+      expect(document.activeElement).toBe(inbox.row("Test catalog"))
+      inbox.key("ArrowDown")
+      expect(document.activeElement).toBe(field)
+      inbox.key("Enter", field)
+
+      expect(inbox.sent).toEqual([
+        { kind: "ask", answer: { type: "reply", option: null, text: "Both, please." } },
       ])
       await inbox.done()
     })
@@ -816,16 +877,18 @@ describe("The Console sheet", () => {
         act(() => inbox.row("Reply in your own words").click())
         inbox.type("my careful words")
         inbox.key("Escape", inbox.field())
-        expect(inbox.row("my careful words").getAttribute("aria-checked")).toBe("true")
+        const own = inbox.row("Reply in your own words")
+        const mark = () => own.querySelector(".request-check")!
+        expect(own.dataset.check).toBe("true")
 
-        act(() => inbox.row("my careful words").click())
-        expect(inbox.row("my careful words").getAttribute("aria-checked")).toBe("false")
-        expect(document.querySelector(".inbox-sheet textarea")).toBeNull()
-        act(() => inbox.row("my careful words").click())
+        act(() => mark().dispatchEvent(new MouseEvent("click", { bubbles: true })))
+        expect(own.dataset.check).toBe("false")
+        expect(inbox.field().value).toBe("my careful words")
+        act(() => mark().dispatchEvent(new MouseEvent("click", { bubbles: true })))
         expect(inbox.field().value).toBe("my careful words")
         inbox.key("Escape", inbox.field())
-        expect(inbox.row("my careful words").getAttribute("aria-checked")).toBe("true")
-        act(() => inbox.row("my careful words").click())
+        expect(own.dataset.check).toBe("true")
+        act(() => mark().dispatchEvent(new MouseEvent("click", { bubbles: true })))
         inbox.key("Enter", inbox.row("A"))
         expect(inbox.sent).toEqual([
           {
@@ -937,7 +1000,13 @@ describe("The Console sheet", () => {
       expect(text(".console-settled")).toBeNull()
       expect(sheet()?.getAttribute("data-state")).toBe("asking")
       expect(
-        inbox.rows().map((row) => row.querySelector(".request-option-words")?.textContent),
+        inbox
+          .rows()
+          .map(
+            (row) =>
+              row.querySelector(".request-option-words")?.textContent ??
+              row.querySelector("textarea")?.placeholder,
+          ),
       ).toContain("Allow")
       await inbox.done()
     })
@@ -1078,7 +1147,13 @@ describe("The Console sheet", () => {
       const before = mount([limit(Date.now() + 3_600_000)])
       expect(text(".console-tag")).toBe("Limit")
       expect(
-        before.rows().map((row) => row.querySelector(".request-option-words")?.textContent),
+        before
+          .rows()
+          .map(
+            (row) =>
+              row.querySelector(".request-option-words")?.textContent ??
+              row.querySelector("textarea")?.placeholder,
+          ),
       ).toEqual(["Go to terminal"])
       expect(text(".console-body")).toContain("from here once it resets")
       await before.done()
@@ -1285,6 +1360,9 @@ describe("The Console sheet", () => {
   context("with an empty box for words", () => {
     it("asks for an answer rather than offering to send nothing", async () => {
       const inbox = mount([asked({ type: "text" })])
+      // The hints come as the person is in the field.
+      expect(text(".request-writing-hint")).toBe("")
+      act(() => inbox.field().focus())
 
       expect(text(".request-writing-hint")).toBe("type your answer · Esc back to the options")
       inbox.type("Samples.")

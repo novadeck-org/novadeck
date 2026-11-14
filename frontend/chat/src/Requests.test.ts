@@ -114,6 +114,15 @@ const show = (
 const button = (container: HTMLElement, name: string): HTMLButtonElement =>
   [...container.querySelectorAll("button")].find((each) => each.textContent?.includes(name))!
 
+// What takes focus for a row: its button, or the field of a row that takes words.
+const focusOf = (row: HTMLElement): HTMLElement => row.querySelector("textarea") ?? row
+
+// A row that takes the person's words: the field in its place, named by the row's label.
+const ownRow = (container: HTMLElement, name: string): HTMLElement =>
+  [...container.querySelectorAll<HTMLElement>(".request-own")].find((each) =>
+    each.querySelector("textarea")?.placeholder.includes(name),
+  )!
+
 const terminalKey = (container: HTMLElement) =>
   container.querySelector('button[aria-label="Answer in terminal"]')
 
@@ -150,7 +159,7 @@ describe("a request's card", () => {
 
   it("leaves focus be for a pick that asks for words first", () => {
     const { container } = show(choices, async () => {})
-    click(button(container, "No, and tell"))
+    click(ownRow(container, "No, and tell"))
     expect(onSubmitted).not.toHaveBeenCalled()
   })
 
@@ -164,27 +173,52 @@ describe("a request's card", () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toBe(
       "That answer didn't take. Answer it in the terminal.",
     )
-    click(button(container, "No, and tell"))
+    click(ownRow(container, "No, and tell"))
     expect(container.querySelector('[role="alert"]')).toBeNull()
   })
 
-  it("shuts an option's box when it is pressed again, keeping the words", () => {
-    const { container } = show(choices, async () => {})
-    click(button(container, "No, and tell"))
-    type(container.querySelector("textarea")!, "use pnpm")
-    click(button(container, "No, and tell"))
-    expect(container.querySelector("textarea")).toBeNull()
-    // The row says what was written, under the harness's own words.
-    expect(button(container, "No, and tell").textContent).toContain("No, and tell it what to do")
-    expect(button(container, "No, and tell").querySelector("q")?.textContent).toBe("use pnpm")
-    click(button(container, "No, and tell"))
-    expect(container.querySelector("textarea")?.value).toBe("use pnpm")
+  it("takes the words in place: the option's row is its field, named by its label", () => {
+    const onAnswer = vi.fn<(request: string, answer: ChatAnswer) => Promise<void>>(async () => {})
+    const { container } = show(choices, onAnswer)
+    const row = ownRow(container, "No, and tell")
+    const field = row.querySelector("textarea")!
+    // No box opens under the rows: the field is there, in the row's place, with its number.
+    expect(row.querySelector(".request-option-number")?.textContent).toBe("2")
+    expect(field.placeholder).toBe("No, and tell it what to do")
+    expect(field.getAttribute("aria-label")).toBe("No, and tell it what to do")
+    expect(container.querySelectorAll("textarea")).toHaveLength(1)
+    // Its number puts the person in it, to type at once; the hints come only then.
+    expect(row.querySelector(".request-own-foot")?.textContent).toBe("")
+    keyDown(button(container, "Yes"), "2")
+    expect(document.activeElement).toBe(field)
+    expect(row.querySelector(".request-writing-hint")?.textContent).toBe(
+      "type your answer · Esc back to the options",
+    )
+    type(field, "use pnpm")
+    // Typed words keep the row chosen.
+    expect(row.dataset.chosen).toBe("true")
+    expect(row.querySelector(".request-writing-hint")?.textContent).toBe(
+      "↵ send · Esc back to the options",
+    )
+    // Esc goes back to the rows, keeping the words.
+    keyDown(field, "Escape")
+    expect(document.activeElement).toBe(button(container, "Yes"))
+    expect(field.value).toBe("use pnpm")
+    keyDown(button(container, "Yes"), "ArrowDown")
+    expect(document.activeElement).toBe(field)
+    keyDown(field, "Enter")
+    expect(onAnswer).toHaveBeenCalledWith("r1", {
+      type: "choice",
+      dialog: "d1",
+      option: "2",
+      text: "use pnpm",
+    })
   })
 
   it("asks for words before an option that takes them is sent", () => {
     const onAnswer = vi.fn<() => Promise<void>>(async () => {})
     const { container } = show(choices, onAnswer)
-    click(button(container, "No, and tell"))
+    click(ownRow(container, "No, and tell"))
     expect(onAnswer).not.toHaveBeenCalled()
     expect(container.querySelector("textarea")?.getAttribute("aria-label")).toBe(
       "No, and tell it what to do",
@@ -289,7 +323,7 @@ describe("a request's card", () => {
   it("keeps the words typed when the dialog is read again, and answers the new one", async () => {
     const onAnswer = vi.fn<(request: string, answer: ChatAnswer) => Promise<void>>(async () => {})
     const { container, rerender } = show(choices, onAnswer)
-    click(button(container, "No, and tell"))
+    click(ownRow(container, "No, and tell"))
     const field = container.querySelector("textarea")!
     act(() => {
       const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!
@@ -310,9 +344,9 @@ describe("a request's card", () => {
     })
   })
 
-  it("closes the words field when a re-read dialog's option no longer means the same", () => {
+  it("draws a re-read dialog's option that no longer means the same as its own row", () => {
     const { container, rerender } = show(choices, async () => {})
-    click(button(container, "No, and tell"))
+    click(ownRow(container, "No, and tell"))
     expect(container.querySelector("textarea")).not.toBeNull()
     rerender({
       type: "choices",
@@ -324,7 +358,8 @@ describe("a request's card", () => {
         { id: "2", label: "No, cancel everything", text: "prompt" },
       ],
     })
-    expect(container.querySelector("textarea")).toBeNull()
+    // Another row now, with the harness's new words in its place.
+    expect(container.querySelector("textarea")?.placeholder).toBe("No, cancel everything")
   })
 
   describe("after an answer took", () => {
@@ -337,7 +372,7 @@ describe("a request's card", () => {
       await settle()
       expect(container.querySelector(".request-again")).toBeNull()
       await act(async () => void vi.advanceTimersByTime(againMs))
-      expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      expect(container.querySelector(".request-again")?.textContent).toContain(
         "Another identical request",
       )
     })
@@ -394,7 +429,7 @@ describe("a request's card", () => {
 
   it("keeps words for the agent's own field to one line, with a hint", () => {
     const { container } = show(fieldChoices, async () => {})
-    click(button(container, "No, and tell"))
+    click(ownRow(container, "No, and tell"))
     const field = container.querySelector("textarea")!
     type(field, "use pnpm\ninstead\tplease")
     expect(field.value).toBe("use pnpm instead please")
@@ -411,7 +446,7 @@ describe("a request's card", () => {
 
   it("lets words that become a prompt run to several lines", () => {
     const { container } = show(choices, async () => {})
-    click(button(container, "No, and tell"))
+    click(ownRow(container, "No, and tell"))
     const field = container.querySelector("textarea")!
     type(field, "a\nb")
     expect(field.value).toBe("a\nb")
@@ -423,7 +458,7 @@ describe("a request's card", () => {
       throw new WordsLost()
     })
     const { container } = show(choices, onAnswer)
-    click(button(container, "No, and tell"))
+    click(ownRow(container, "No, and tell"))
     type(container.querySelector("textarea")!, "use pnpm")
     click(button(container, "Send answer"))
     await settle()
@@ -431,7 +466,7 @@ describe("a request's card", () => {
       "Answered, but your words didn't reach the agent.",
     )
     // They are in the box now: the card's field no longer holds them.
-    expect(container.querySelector("textarea")).toBeNull()
+    expect(container.querySelector("textarea")?.value).toBe("")
   })
 
   it("moves focus to the box once an answered card has gone", async () => {
@@ -445,7 +480,7 @@ describe("a request's card", () => {
 
   it("warns of words the agent would read as a command, and holds them back", () => {
     const { container } = show(choices, async () => {})
-    click(button(container, "No, and tell"))
+    click(ownRow(container, "No, and tell"))
     type(container.querySelector("textarea")!, "/tmp is full")
     expect(container.textContent).toContain("Can't start with / or !")
     expect(button(container, "Send answer").getAttribute("aria-disabled")).toBe("true")
@@ -456,19 +491,19 @@ describe("a request's card", () => {
 
   it("holds back the words the backend refuses, and not those typed into the agent's field", () => {
     const { container } = show(choices, async () => {})
-    click(button(container, "No, and tell"))
+    click(ownRow(container, "No, and tell"))
     type(container.querySelector("textarea")!, "x @a ")
     expect(button(container, "Send answer").getAttribute("aria-disabled")).toBe("true")
     expect(container.querySelector('[role="status"]')?.textContent).toContain("Can't start")
     const field = show(fieldChoices, async () => {}).container
-    click(button(field, "No, and tell"))
+    click(ownRow(field, "No, and tell"))
     type(field.querySelector("textarea")!, "/tmp is full")
     expect(button(field, "Send answer").hasAttribute("aria-disabled")).toBe(false)
   })
 
   it("holds back words with control characters for the agent's own field, saying why", () => {
     const { container } = show(fieldChoices, async () => {})
-    click(button(container, "No, and tell"))
+    click(ownRow(container, "No, and tell"))
     type(container.querySelector("textarea")!, "log \u001b[31mred")
     expect(button(container, "Send answer").getAttribute("aria-disabled")).toBe("true")
     const [hint] = container.querySelector("textarea")!.getAttribute("aria-describedby")!.split(" ")
@@ -622,7 +657,9 @@ describe("a dialog's options, with what core reads into them", () => {
 })
 
 describe("a dialog's menu", () => {
-  const rows = (container: HTMLElement) => [...container.querySelectorAll(".request-option")]
+  const rows = (container: HTMLElement) => [
+    ...container.querySelectorAll<HTMLElement>(".request-option"),
+  ]
   const on = (container: HTMLElement) =>
     rows(container).filter((row) => row.hasAttribute("data-on"))
 
@@ -640,14 +677,16 @@ describe("a dialog's menu", () => {
   it("moves the bar with the arrows, round and round, and focus with it", () => {
     const { container } = show(choices, async () => {})
     const [first, second] = rows(container) as HTMLElement[]
+    // A row that takes words takes focus in its field.
+    const field = focusOf(second!)
     first!.focus()
     keyDown(first!, "ArrowDown")
-    expect(document.activeElement).toBe(second)
+    expect(document.activeElement).toBe(field)
     expect(on(container)).toEqual([second])
-    keyDown(second!, "ArrowDown")
+    keyDown(field, "ArrowDown")
     expect(document.activeElement).toBe(first)
     keyDown(first!, "ArrowUp")
-    expect(document.activeElement).toBe(second)
+    expect(document.activeElement).toBe(field)
   })
 
   it("moves the bar with the mouse, focus staying in the person's box", () => {
@@ -655,9 +694,9 @@ describe("a dialog's menu", () => {
     box.focus()
     const { container } = show(choices, async () => {})
     const [first, second] = rows(container) as HTMLElement[]
-    pointerMove(second!.querySelector(".request-option-words")!)
+    pointerMove(second!.querySelector(".request-option-number")!)
     expect(on(container)).toEqual([second])
-    expect(second!.getAttribute("tabindex")).toBe("0")
+    expect(focusOf(second!).getAttribute("tabindex")).toBe("0")
     expect(document.activeElement).toBe(box)
     pointerMove(first!)
     expect(on(container)).toEqual([first])
@@ -669,13 +708,13 @@ describe("a dialog's menu", () => {
     const [first, second] = rows(container) as HTMLElement[]
     first!.focus()
     pointerMove(second!)
-    expect(document.activeElement).toBe(second)
+    expect(document.activeElement).toBe(focusOf(second!))
     expect(on(container)).toEqual([second])
   })
 
   it("leaves focus in a field the person opened to write in, the bar moving alone", async () => {
     const { container } = show(choices, async () => {})
-    click(button(container, "No, and tell it"))
+    click(ownRow(container, "No, and tell it"))
     await settle()
     const field = container.querySelector("textarea")!
     expect(document.activeElement).toBe(field)
@@ -694,7 +733,7 @@ describe("a dialog's menu", () => {
 
   it("keeps one row in the tab order", () => {
     const { container } = show(choices, async () => {})
-    expect(rows(container).map((row) => row.getAttribute("tabindex"))).toEqual(["0", "-1"])
+    expect(rows(container).map((row) => focusOf(row).getAttribute("tabindex"))).toEqual(["0", "-1"])
   })
 
   it("presses a row by its number", () => {

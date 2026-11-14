@@ -4,9 +4,10 @@
    rows (`.request-options`, a `.request-option` each with its `.request-option-number` and
    `.request-option-words`, dim lines under them `.request-option-more`, one of them the
    `.request-option-effect`; `.request-option-pick`, `.request-option-chosen`,
-   `.request-option-confirm` and `.request-check` beside the words), the box a row's words are
-   written in (`.request-writing`: its `.request-field`, the `.request-key` that sends and the
-   `.request-writing-hint`), and the cursor's row's details under them (`.request-more`,
+   `.request-option-confirm` and `.request-check` beside the words), a row that is a field for
+   the person's own words (`.request-own`: its `.request-own-line` with the `.request-field`, and
+   under it the `.request-own-foot` with the `.request-writing-hint` and the `.request-key` that
+   sends), and the cursor's row's details under them (`.request-more`,
    `.request-more-of`); the dialog's own words (`.request-dialog-title`) and what it asks in full
    (`.request-detail`: its `.request-detail-bar`, the `.request-detail-text`, a `.request-mark`
    for each thing that draws as nothing, `.request-detail-dollar` before a one-line command and
@@ -19,8 +20,9 @@
 
    Hooks: data-kind="permission" | "question" | "plan" and data-dialog="choices" | "questions" |
    "form" | "raw" | "none" on a request; data-on on the row of a menu the person is on, data-open
-   on one whose box is open, data-armed on one that a press more sends, data-pressed on the one
-   whose answer goes, data-chosen on the one picked; data-armed on the box whose words are armed;
+   data-typing on a field the person is in, data-armed on a row that a press more sends,
+   data-pressed on the one whose answer goes, data-chosen on the one picked or written in,
+   data-shown on a field's foot while it says something;
    data-mark="blank-lines" | "spaces" | "invisible" on a mark; aria-selected on a question's tab,
    data-shown on its page, data-missing on a form's field, data-on on its `.request-pick`;
    data-failed on the reason of an answer that didn't take.
@@ -256,29 +258,53 @@
 .request-field:disabled {
   color: var(--_muted);
 }
-/* Words on their way to the agent grow with them, up to a few lines. */
-.request-writing .request-field {
+/* A row that takes the person's own words is a field in its place: the row's words its
+   placeholder, the field growing a line at a time, up to a few. Under it, small and only while
+   the person is in it or has words, what Enter does, why the words can't go and the key that
+   sends them; it grows downward, so the row itself never moves. */
+.request-own {
+  cursor: text;
+}
+.request-own-line {
+  display: flex;
+  gap: 1ch;
+  min-width: 0;
+}
+.request-own .request-field {
+  flex: 1;
   max-height: calc(8 * var(--_lh));
+  color: var(--_ink);
   field-sizing: content;
 }
-.request-writing {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0 2ch;
-  margin-top: calc(var(--_lh) / 2);
-  padding: 0 var(--_pad) 0 calc(var(--_inset) + 3ch);
-  color: var(--_muted);
+.request-own .request-field::placeholder {
+  color: var(--_mid);
 }
-.request-writing-hint {
-  grid-column: 1 / -1;
-  margin: 0;
+.request-own[data-on] .request-field::placeholder {
+  color: var(--_ink);
+}
+.request-own[data-chosen] .request-option-number {
+  color: var(--_ink);
+}
+.request-own-foot {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 2;
+  gap: 0 2ch;
   color: var(--_muted);
+  font-size: var(--_work-size, 0.9em);
+  line-height: var(--_work-lh, var(--_lh));
+}
+.request-own-foot .request-field-hint {
+  flex-basis: 100%;
 }
 .request-writing-hint:empty {
   display: none;
 }
-.request-writing[data-armed] .request-writing-hint {
+.request-own[data-armed] .request-writing-hint {
   color: var(--_red);
+}
+.request-own-foot .request-key {
+  margin-left: auto;
 }
 .request-key {
   padding: 0;

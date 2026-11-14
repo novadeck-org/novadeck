@@ -256,7 +256,7 @@ describe("a chat whose answer's words didn't reach the agent", () => {
       answer: () => new Promise<void>((_resolve, reject) => failures.push(reject)),
     })
     const { container } = chat
-    press(container, "No, and tell")
+    // The option that takes words is a field in its row.
     set(container.querySelector("textarea.request-field")!, "use pnpm")
     press(container, "Send answer")
     // The runner marks the request done: the card goes, then the failure arrives.
@@ -281,7 +281,7 @@ describe("a chat whose answer's words didn't reach the agent", () => {
       answer: () => new Promise<void>((_resolve, reject) => failures.push(reject)),
     })
     const answerWith = (words: string): void => {
-      press(container, "No, and tell")
+      // The option that takes words is a field in its row.
       set(container.querySelector("textarea.request-field")!, words)
       press(container, "Send answer")
     }

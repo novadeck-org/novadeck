@@ -16,21 +16,25 @@ import { isTyping } from "./use-menu"
 // A request's numbered menu, as the next lines of the terminal: a number and the words of each
 // row, a dim line under them where the row says more, and a thin bar on the row the person is on.
 // Keys are `menu-keys.ts`'s, and the bar follows the mouse as it does the arrows, so what is lit
-// is what Enter takes. A row that takes the person's own words opens a box under the rows: Enter
-// sends from it, Shift+Enter starts a line and Esc goes back to the rows, keeping the words.
+// is what Enter takes. A row that takes the person's own words is a field in the row's place,
+// named by the row: reaching it, by the arrows or its number, puts the person in it to type.
+// It grows a line at a time; Enter sends from it, Shift+Enter starts a line where the words may
+// hold several, and Esc goes back to the rows, keeping the words. While it has focus or words,
+// what Enter does, why the words can't go, and a key that sends them sit small under it.
 // Focus stays where it is as a menu appears, unless the host says the person arrived here from
 // an answer (`arrived`): a menu that took it would take what they were typing for an answer.
 
 export type Words = {
   readonly value: string
   readonly onChange: (text: string) => void
+  // The row's words, said in the field while it is empty: the row's label.
   readonly placeholder: string
-  // The box's name, for a screen reader.
+  // The field's name, for a screen reader: the row's label, as words.
   readonly field: string
   readonly required: boolean
   // Why the words won't go, as a hint says it; null where they will.
   readonly refused: string | null
-  // What Enter does with them, as the hint under the box says it.
+  // What Enter does with them, as the hint under the field says it.
   readonly hint: string
   // The most characters the way the words go takes (UTF-16 code units, as the protocol counts).
   readonly limit: number
@@ -76,7 +80,7 @@ export const answerWordsLimit = 16_384
 // or held, for the one before never answers the next.
 const arrivalGuardMs = 400
 
-// Whether a box's words may go as they are.
+// Whether a field's words may go as they are.
 const ready = (given: Words): boolean =>
   !given.refused &&
   !(given.required && given.value.trim() === "") &&
@@ -99,7 +103,6 @@ export const Menu = ({
   handle,
   arrived = false,
   area,
-  opensBox = false,
 }: {
   // The menu's name, for a screen reader.
   readonly label: string
@@ -111,40 +114,31 @@ export const Menu = ({
   readonly busy: boolean
   // The row whose answer went.
   readonly pressed?: number | null
-  // A row pressed: answered at once, or ticked; a words row opens its box first.
+  // A row pressed: answered at once, or ticked. A words row's press, in a menu of several
+  // picks, ticks it; in a menu of one, it only puts the person in its field.
   readonly onPress: (at: number) => void
-  // Enter in a words row's box, in a menu of one choice.
+  // Enter in a words row's field, in a menu of one choice.
   readonly onWords?: (at: number) => void
   // Enter, in a menu of several picks.
   readonly onSend?: () => void
-  // A words row's box opened.
+  // The person came into a words row's field.
   readonly onOpen?: (at: number) => void
   readonly handle?: Ref<MenuHandle>
-  // The host moved on to this menu from an answer: focus comes to its first row, and for a
-  // moment no key answers.
+  // The host moved on to this menu from an answer: focus comes to its first row (a words row's
+  // field, where that is the first), and for a moment no key answers.
   readonly arrived?: boolean
   // The part of the page the menu before had, whose focus it may take as it arrives.
   readonly area?: (menu: Element) => Element | null
-  // A menu that is only a words row, and ways out, opens on its box (the Inbox's reply to an
-  // ask that takes only words).
-  readonly opensBox?: boolean
 }): React.JSX.Element => {
   const [cursor, setCursor] = useState<Cursor>(startCursor)
-  // The words row whose box is open, by its key: a menu read again keeps it open only while the
-  // row is still there.
-  const [typing, setTyping] = useState<string | null>(() =>
-    opensBox && items[0]?.words && items.slice(1).every((item) => item.away) ? items[0].key : null,
-  )
+  // The words row whose field has focus, by its key.
+  const [typing, setTyping] = useState<string | null>(null)
   const menu = useRef<HTMLDivElement>(null)
+  // What takes focus for each row: its button, or a words row's field.
   const rows = useRef<(HTMLElement | null)[]>([])
-  const box = useRef<HTMLTextAreaElement>(null)
-  // Where focus goes once the cursor has moved: a row, or the open box.
-  const focusTo = useRef<number | "box" | null>(null)
+  const focusTo = useRef<number | null>(null)
   const at = Math.min(cursor.at, Math.max(0, items.length - 1))
-  const open = items.findIndex((item) => item.words !== undefined && item.key === typing)
-  const writing = open >= 0 ? items[open] : undefined
-  const words = writing?.words
-  // Opening a box for words sends nothing, so only an answer arms; the words arm as they go.
+  // Opening a field for words sends nothing, so only an answer arms; the words arm as they go.
   const arms = (index: number): boolean => {
     const item = items[index]
     return Boolean(item && !item.words && !item.away && (hard || item.arms))
@@ -170,9 +164,7 @@ export const Menu = ({
     // What had focus went with the menu before: it comes here, so the keyboard keeps its place.
     const active = document.activeElement
     const before = menu.current && areaNow.current?.(menu.current)
-    // A menu that opened on its box takes the person's words there.
-    if (!active || active === document.body || before?.contains(active))
-      (box.current ?? rows.current[0])?.focus()
+    if (!active || active === document.body || before?.contains(active)) rows.current[0]?.focus()
   }, [arrived])
   // Whether a key is to be held back: no repeat answers, nor anything as the menu arrives.
   const held = (key: string, repeat: boolean): boolean =>
@@ -183,26 +175,18 @@ export const Menu = ({
     const to = focusTo.current
     if (to === null) return
     focusTo.current = null
-    if (to === "box") box.current?.focus()
-    else rows.current[to]?.focus()
+    rows.current[to]?.focus()
   })
 
   const press = (index: number): void => {
     if (busy) return
     const item = items[index]
     if (!item) return
+    // A words row's press puts the person in its field; in a menu of several picks it ticks
+    // the row too, or unticks it, leaving the words out.
     if (item.words) {
-      // Ticking it opens its box; unticking leaves the words out, and the box shut. In a menu of
-      // one choice, pressing it again shuts its box, keeping the words.
       if (multi) onPress(index)
-      if (!multi && typing === item.key) {
-        setTyping(null)
-        focusTo.current = index
-      } else if (!multi || !item.check) {
-        setTyping(item.key)
-        focusTo.current = "box"
-        onOpen?.(index)
-      } else if (typing === item.key) setTyping(null)
+      focusTo.current = index
       return
     }
     onPress(index)
@@ -222,39 +206,27 @@ export const Menu = ({
     key: (key) => (held(key, false) ? true : apply(key, false)),
     go: (index) => {
       setCursor({ at: index, armed: null })
-      // To a words row whose box is open: into its words.
-      const item = items[index]
-      focusTo.current = item?.words && item.key === typing ? "box" : index
+      focusTo.current = index
     },
   }))
 
-  const sendWords = (): void => {
+  const sendWords = (index: number): void => {
+    const item = items[index]
+    const words = item?.words
     if (busy || !words || !ready(words)) return
     if (multi) return onSend?.()
     // Hard to undo: the first Enter arms, the second sends.
-    if ((hard || writing?.arms) && cursor.armed !== open)
-      return setCursor({ at: open, armed: open })
-    setCursor({ at: open, armed: null })
-    onWords?.(open)
+    if ((hard || item.arms) && cursor.armed !== index) return setCursor({ at: index, armed: index })
+    setCursor({ at: index, armed: null })
+    onWords?.(index)
   }
-  const back = (): void => {
-    setTyping(null)
-    setCursor({ at: open, armed: null })
-    focusTo.current = open
+  // Esc: out of the field to the row before it, or after it, keeping the words.
+  const leave = (index: number, field: HTMLTextAreaElement): void => {
+    const to = index > 0 ? index - 1 : index + 1 < items.length ? index + 1 : null
+    if (to === null) return field.blur()
+    setCursor({ at: to, armed: null })
+    focusTo.current = to
   }
-
-  const armedWords = writing !== undefined && cursor.armed === open
-  // Why the words won't go, said as it comes; else what the keys do with them.
-  const warning =
-    words && (words.refused ?? (words.value.length > words.limit ? overLimit(words) : ""))
-  const keys =
-    words && !warning
-      ? armedWords
-        ? "↵ again to send it"
-        : words.required && words.value.trim() === ""
-          ? "type your answer · Esc back to the options"
-          : `↵ ${words.hint} · Esc back to the options`
-      : ""
 
   return (
     <div ref={menu} className="request-menu">
@@ -272,21 +244,22 @@ export const Menu = ({
         }}
         onPointerMove={(event) => {
           if (event.pointerType !== "mouse" || !(event.target instanceof Element)) return
-          const row = event.target.closest<HTMLElement>(".request-option")
-          const index = row ? rows.current.indexOf(row) : -1
+          const row = event.target.closest<HTMLElement>("[data-row]")
+          const index = row ? Number(row.dataset.row) : -1
           // An armed row keeps the cursor: the mouse passing over another never disarms it.
           if (index < 0 || index === at || cursor.armed !== null) return
           setCursor({ at: index, armed: null })
-          // Focus goes along from anything in the menu but the person's words, which would
-          // land on a row instead.
+          // Focus goes along from anything in the menu but the person's words, which would land
+          // on a row instead.
           const active = document.activeElement
+          const target = rows.current[index]
           if (active && menu.current?.contains(active) && !isTyping(active))
-            row?.focus({ preventScroll: true })
+            target?.focus({ preventScroll: true })
         }}
       >
         {items.map((item, index) => {
           const on = index === at
-          const armed = cursor.armed === index && !item.words
+          const armed = cursor.armed === index
           const role = item.away
             ? "menuitem"
             : multi || item.check !== undefined
@@ -294,7 +267,185 @@ export const Menu = ({
               : item.chosen !== undefined
                 ? "menuitemradio"
                 : "menuitem"
-          const said = item.words && typing !== item.key ? item.words.value.trim() : ""
+          const common = {
+            "data-row": index,
+            "data-on": on || undefined,
+            "data-armed": armed || undefined,
+            "data-pressed": (busy && pressed === index) || undefined,
+          }
+          const number = (
+            <span className="request-option-number" aria-hidden>
+              {index + 1}
+            </span>
+          )
+          const check = item.check !== undefined && (
+            <span className="request-check" aria-hidden>
+              [<span className="request-check-mark">{item.check ? "✓" : ""}</span>]
+            </span>
+          )
+          const sending = busy && pressed === index && (
+            <span className="request-sending" aria-hidden>
+              {" "}
+              …
+            </span>
+          )
+          const { words } = item
+          if (words) {
+            // Typed words keep the row chosen, as a pick would.
+            const chosen = item.chosen ?? (item.check === undefined && words.value.trim() !== "")
+            const shown = typing === item.key || words.value !== ""
+            const warning =
+              words.refused ?? (words.value.length > words.limit ? overLimit(words) : "")
+            const keys = warning
+              ? ""
+              : armed
+                ? "↵ again to send it"
+                : words.required && words.value.trim() === ""
+                  ? "type your answer · Esc back to the options"
+                  : `↵ ${words.hint} · Esc back to the options`
+            const id = `${ids}-${index}`
+            return (
+              <div
+                key={item.key}
+                className="request-option request-own nodrag nopan"
+                role="group"
+                aria-label={words.field}
+                data-chosen={chosen || undefined}
+                data-typing={typing === item.key || undefined}
+                {...common}
+                data-check={item.check === undefined ? undefined : item.check}
+                onClick={(event) => {
+                  if (!(event.target instanceof Element) || Date.now() < guard.current) return
+                  // Its number or its mark presses it, ticking or unticking it in a menu of
+                  // several picks; anywhere else but its field or its key puts the person in it.
+                  if (event.target.closest(".request-option-number, .request-check"))
+                    return press(index)
+                  if (!event.target.closest("textarea, button")) rows.current[index]?.focus()
+                }}
+              >
+                {number}
+                <span className="request-own-line">
+                  {check}
+                  <textarea
+                    ref={(element) => {
+                      rows.current[index] = element
+                    }}
+                    className="request-field"
+                    rows={1}
+                    value={words.value}
+                    placeholder={words.placeholder}
+                    aria-label={words.field}
+                    aria-required={words.required || undefined}
+                    aria-invalid={words.value.length > words.limit || undefined}
+                    aria-describedby={[
+                      `${id}-warning`,
+                      `${id}-keys`,
+                      words.oneLine && `${id}-line`,
+                      item.check !== undefined && `${id}-check`,
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    // Read-only, not disabled, while an answer is on its way or didn't take: the
+                    // words stay there to select and copy.
+                    readOnly={busy}
+                    tabIndex={on ? 0 : -1}
+                    spellCheck
+                    data-cancels=""
+                    onFocus={() => {
+                      if (typing !== item.key) {
+                        setTyping(item.key)
+                        onOpen?.(index)
+                      }
+                      if (!on) setCursor({ at: index, armed: null })
+                    }}
+                    onBlur={(event) => {
+                      // To its own key, it stays: the hints stay put under it.
+                      if (event.currentTarget.closest("[data-row]")?.contains(event.relatedTarget))
+                        return
+                      setTyping((now) => (now === item.key ? null : now))
+                    }}
+                    onChange={(event) => {
+                      if (armed) setCursor({ at: index, armed: null })
+                      words.onChange(event.target.value)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.nativeEvent.isComposing) return
+                      const field = event.currentTarget
+                      if (event.key === "Escape") {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        return leave(index, field)
+                      }
+                      // Up from its start, or down from its end, goes on to the next row.
+                      const start = field.selectionStart === 0 && field.selectionEnd === 0
+                      const end =
+                        field.selectionStart === field.value.length &&
+                        field.selectionEnd === field.value.length
+                      const plain =
+                        !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
+                      if (
+                        plain &&
+                        ((event.key === "ArrowUp" && start) || (event.key === "ArrowDown" && end))
+                      ) {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        apply(event.key)
+                        return
+                      }
+                      if (event.key !== "Enter") return
+                      if (event.shiftKey) {
+                        if (words.oneLine) event.preventDefault()
+                        return
+                      }
+                      if (event.ctrlKey || event.metaKey || event.altKey) return
+                      event.preventDefault()
+                      event.stopPropagation()
+                      if (held(event.key, event.repeat)) return
+                      sendWords(index)
+                    }}
+                  />
+                </span>
+                {/* Under the row, small: always in the page, so a screen reader hears a warning
+                    as it comes; the rest only while the person is in the field or has words. */}
+                <div className="request-own-foot" data-shown={shown || undefined}>
+                  <Hint
+                    id={`${id}-warning`}
+                    className="request-field-hint"
+                    text={shown ? warning : ""}
+                  />
+                  {item.check !== undefined && (
+                    <span className="sr-only" id={`${id}-check`}>
+                      {item.check ? "Ticked." : "Not ticked."}
+                    </span>
+                  )}
+                  {words.oneLine && (
+                    <span className="sr-only" id={`${id}-line`}>
+                      The agent's field takes one line.
+                    </span>
+                  )}
+                  <span id={`${id}-keys`} className="request-writing-hint">
+                    {shown ? keys : ""}
+                  </span>
+                  {shown && (
+                    <button
+                      type="button"
+                      className="request-key"
+                      tabIndex={-1}
+                      aria-disabled={busy || !ready(words) || undefined}
+                      onClick={() => sendWords(index)}
+                    >
+                      {armed ? "Send it" : "Send answer"}
+                      {sending}
+                    </button>
+                  )}
+                </div>
+                {item.scope && <span className="request-option-more">{item.scope}</span>}
+                {item.effect && (
+                  <span className="request-option-more request-option-effect">{item.effect}</span>
+                )}
+              </div>
+            )
+          }
           return (
             <button
               key={item.key}
@@ -311,15 +462,10 @@ export const Menu = ({
                     ? Boolean(item.chosen)
                     : undefined
               }
-              aria-expanded={item.words ? typing === item.key : undefined}
-              aria-controls={item.words && typing === item.key ? `${ids}-box` : undefined}
               aria-disabled={busy || undefined}
               tabIndex={on ? 0 : -1}
-              data-on={on || undefined}
-              data-open={(item.words && typing === item.key) || undefined}
-              data-armed={armed || undefined}
-              data-pressed={(busy && pressed === index) || undefined}
               data-chosen={item.chosen || undefined}
+              {...common}
               onFocus={() => {
                 if (!on) setCursor({ at: index, armed: null })
               }}
@@ -331,17 +477,10 @@ export const Menu = ({
                 if (result.press !== null && result.press !== "send") press(result.press)
               }}
             >
-              <span className="request-option-number" aria-hidden>
-                {index + 1}
-              </span>
+              {number}
               <span className="request-option-words">
-                {item.check !== undefined && (
-                  <span className="request-check" aria-hidden>
-                    [<span className="request-check-mark">{item.check ? "✓" : ""}</span>]{" "}
-                  </span>
-                )}
+                {check && <>{check} </>}
                 {item.label}
-                {item.words && "…"}
                 {item.pick && <span className="request-option-pick"> its pick</span>}
                 {item.chosen && (
                   <span className="request-option-chosen" aria-hidden>
@@ -350,18 +489,8 @@ export const Menu = ({
                   </span>
                 )}
                 {armed && <span className="request-option-confirm"> ↵ again to send it</span>}
-                {busy && pressed === index && (
-                  <span className="request-sending" aria-hidden>
-                    {" "}
-                    …
-                  </span>
-                )}
+                {sending}
               </span>
-              {said && (
-                <span className="request-option-more request-option-said">
-                  <q>{said}</q>
-                </span>
-              )}
               {item.scope && <span className="request-option-more">{item.scope}</span>}
               {item.effect && (
                 <span className="request-option-more request-option-effect">{item.effect}</span>
@@ -370,77 +499,6 @@ export const Menu = ({
           )
         })}
       </div>
-      {writing && words && (
-        <div className="request-writing" data-armed={armedWords || undefined}>
-          <textarea
-            ref={box}
-            id={`${ids}-box`}
-            className="request-field nodrag nopan"
-            rows={1}
-            value={words.value}
-            placeholder={words.placeholder}
-            aria-label={words.field}
-            aria-required={words.required || undefined}
-            aria-invalid={words.value.length > words.limit || undefined}
-            aria-describedby={[`${ids}-warning`, `${ids}-keys`, words.oneLine && `${ids}-line`]
-              .filter(Boolean)
-              .join(" ")}
-            // Read-only, not disabled, while an answer is on its way or didn't take: the words
-            // stay there to select and copy.
-            readOnly={busy}
-            spellCheck
-            data-cancels=""
-            onFocus={() => {
-              if (cursor.at !== open) setCursor({ at: open, armed: null })
-            }}
-            onChange={(event) => {
-              if (armedWords) setCursor({ at: open, armed: null })
-              words.onChange(event.target.value)
-            }}
-            onKeyDown={(event) => {
-              if (event.nativeEvent.isComposing) return
-              if (event.key === "Escape") {
-                // Back to the rows, keeping the words.
-                event.preventDefault()
-                event.stopPropagation()
-                return back()
-              }
-              if (event.key !== "Enter") return
-              if (event.shiftKey) {
-                if (words.oneLine) event.preventDefault()
-                return
-              }
-              if (event.ctrlKey || event.metaKey || event.altKey) return
-              event.preventDefault()
-              if (held(event.key, event.repeat)) return
-              sendWords()
-            }}
-          />
-          <button
-            type="button"
-            className="request-key nodrag nopan"
-            aria-disabled={busy || !ready(words) || undefined}
-            onClick={sendWords}
-          >
-            {armedWords ? "Send it" : "Send answer"}
-            {busy && pressed === open && (
-              <span className="request-sending" aria-hidden>
-                {" "}
-                …
-              </span>
-            )}
-          </button>
-          {words.oneLine && (
-            <p className="sr-only" id={`${ids}-line`}>
-              The agent's field takes one line.
-            </p>
-          )}
-          <Hint id={`${ids}-warning`} className="request-field-hint" text={warning ?? ""} />
-          <p id={`${ids}-keys`} className="request-writing-hint">
-            {keys}
-          </p>
-        </div>
-      )}
       {/* The cursor's row's details, under the rows, so that no row moves as the cursor does. */}
       {items[at]?.more && (
         <div className="request-more" role="note" aria-label={`More about ${at + 1}`}>

@@ -44,12 +44,14 @@ changed dialog lands here once.
   chat's question pages, their Review and a form keep rows of their own (`use-menu.ts`'s `useMenu`),
   in the same look and with the same keys, until the Inbox draws those pages too. A host gives it
   rows (`MenuItem`: its words as the host draws them, a scope and an effect line under them, ticked
-  or chosen, armed first, a box for the person's own words, a way out that answers nothing, more to
-  show under the menu) and is told which was pressed. Its keys are `menu-keys.ts`'s, pure. Where the
-  host moves on to it from an answer (`arrived`, the Inbox), it takes focus from the host's `area`
-  and, for a moment, no key; the host's own row and title forward their keys through its `key`/`go`
-  handle. A box takes as many characters as the way its words go: `answerWordsLimit` (16,384, a
-  request's answer and an agent's prompt), or the host's own (the Inbox's 4,096 for an ask's reply).
+  or chosen, armed first, a field for the person's own words in the row's place, a way out that
+  answers nothing, more to show under the menu) and is told which was pressed. Its keys are
+  `menu-keys.ts`'s, pure. Where the host moves on to it from an answer (`arrived`, the Inbox), it
+  takes focus from the host's `area` and, for a moment, no key; the host's own row and title forward
+  their keys through its `key`/`go` handle. A row that takes the person's own words is a field in
+  the row's place, typed into as it is reached, the row's label its placeholder and its name; it
+  takes as many characters as the way its words go: `answerWordsLimit` (16,384, a request's answer
+  and an agent's prompt), or the host's own (the Inbox's 4,096 for an ask's reply).
 - **The harness's words as written**: the chat's choices show an option's label verbatim, with
   what core reads into it (`conversation/extras`) beside it, never in its place: a standing
   yes's scope on a line under its head, what a plan's standing yes lets the agent do, and that

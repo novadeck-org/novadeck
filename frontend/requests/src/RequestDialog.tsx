@@ -85,8 +85,6 @@ const Sending = ({ sending }: { readonly sending: boolean }): React.JSX.Element 
 const wordsMax = answerWordsLimit
 const formTextMax = 4096
 
-const textHint = { field: "Type your answer…", prompt: "Tell it what to do instead…" } as const
-
 // A row of a menu, as a button.
 const Row = ({
   menu,
@@ -116,7 +114,8 @@ const Row = ({
 
 // A dialog's options, in the harness's own words, with what core reads into them: a standing
 // yes's scope on a line under it, what a plan's standing yes lets the agent do, and an option
-// that is hard to take back armed before it sends. An option that takes words opens a box.
+// that is hard to take back armed before it sends. An option that takes words is a field the
+// person types into in its place.
 const Choices = ({
   dialog,
   kind,
@@ -128,12 +127,14 @@ const Choices = ({
   readonly dialog: Extract<ChatDialog, { type: "choices" }>
   readonly kind: ChatRequest["kind"]
 }): React.JSX.Element => {
-  const [words, setWords] = useState("")
+  // The words typed into each option that takes them, by its id: a dialog read again keeps them.
+  const [typed, setTyped] = useState<Readonly<Record<string, string>>>({})
   const [pressed, setPressed] = useState<number | null>(null)
   const label = useId()
   const extras = optionExtras(kind, dialog.options)
   const items = dialog.options.map((option, index): MenuItem => {
     const extra = extras[index] ?? noExtras
+    const words = typed[option.id] ?? ""
     // Words that go on as the agent's next prompt are checked, not those typed in its field.
     const blocked =
       option.text === "prompt" && refused(words)
@@ -142,8 +143,7 @@ const Choices = ({
           ? controlHint
           : null
     return {
-      // A dialog read again keeps an option's box open only while it means the same: the same
-      // label and kind of words. The words typed stay either way.
+      // A row that means something else, read again, is another row.
       key: `${option.id}\n${option.label}\n${option.text ?? ""}`,
       label: shownControls(extra.lines?.head ?? option.label),
       scope: extra.lines && shownControls(extra.lines.scope),
@@ -153,10 +153,12 @@ const Choices = ({
         words: {
           value: words,
           onChange: (text) => {
-            setWords(option.text === "field" ? oneLine(text) : text)
+            const value = option.text === "field" ? oneLine(text) : text
+            setTyped((all) => ({ ...all, [option.id]: value }))
             edited()
           },
-          placeholder: textHint[option.text],
+          // The row is the field: the harness's words say what to write, and name it.
+          placeholder: shownControls(option.label),
           field: option.label,
           required: true,
           refused: blocked,
@@ -192,7 +194,7 @@ const Choices = ({
           const option = dialog.options[index]
           if (!option) return
           setPressed(index)
-          send(choiceAnswer(dialog.id, option.id, words))
+          send(choiceAnswer(dialog.id, option.id, typed[option.id] ?? ""))
         }}
       />
     </div>

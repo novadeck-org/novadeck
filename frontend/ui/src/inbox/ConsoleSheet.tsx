@@ -286,9 +286,7 @@ const Thing = ({ row, now }: { readonly row: InboxRow; readonly now: number }) =
                 <Text text={subjectOf(row)} />
               </Heading>
             )}
-            {detail && (
-              <Detail text={detail} label="What it asks" command={actionOf(request) === "run"} />
-            )}
+            {detail && <Detail text={detail} label="What it asks" />}
           </>
         )
       }
@@ -300,11 +298,7 @@ const Thing = ({ row, now }: { readonly row: InboxRow; readonly now: number }) =
             <Text text={subjectOf(row)} />
           </Heading>
           {dialog?.type === "choices" && dialog.detail && (
-            <Detail
-              text={dialog.detail}
-              label="What it asks"
-              command={actionOf(request) === "run"}
-            />
+            <Detail text={dialog.detail} label="What it asks" />
           )}
           {dialog?.type === "raw" && (
             <pre
@@ -428,8 +422,9 @@ const ChoicesMenu = ({
           words: {
             value,
             onChange: (text) => setWords(at, text),
-            placeholder: menuRow.placeholder,
-            field: menuRow.field,
+            // The row is the field: its label says what to write, and names it.
+            placeholder: menuRow.label,
+            field: menuRow.label,
             required: menuRow.required,
             refused: value.trim() === "" ? null : menuRow.refused(value),
             hint: row.kind === "ask" && answers > 1 ? "send your words instead" : "send",
@@ -475,7 +470,6 @@ const ChoicesMenu = ({
       handle={handle}
       arrived={arrived}
       area={sheetArea}
-      opensBox
     />
   )
 }
@@ -563,8 +557,8 @@ const QuestionsMenu = ({
                   write(picks, question, text),
                   leftOut.filter((id) => id !== question.id),
                 ),
-              placeholder: `Reply to ${agentName(row.source.agent)}`,
-              field: `Your answer to ${question.question}`,
+              placeholder: "Reply in your own words",
+              field: `Reply in your own words: ${question.question}`,
               required: !question.multiSelect || count === 0,
               refused: null,
               limit: answerWordsLimit,
@@ -596,7 +590,6 @@ const QuestionsMenu = ({
               busy={answering}
               arrived={arrived && index === 0}
               area={sheetArea}
-              opensBox
               pressed={answering && pressed?.question === index ? pressed.at : null}
               handle={(handle) => {
                 handles.current[index] = handle
