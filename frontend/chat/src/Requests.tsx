@@ -5,36 +5,35 @@ import {
   type ChatSlice,
 } from "@novadeck/core/conversation"
 import type { Refused } from "@novadeck/core/conversation/prompt-refusal"
+import { RequestCard, type RequestPlace } from "@novadeck/requests/RequestCard"
+import { useMounted } from "@novadeck/requests/use-mounted"
 import { useContext, useEffect, useRef, useState } from "react"
 
 import { Fact, Since } from "./Fact"
-import { RequestDialog } from "./RequestDialog"
-import { SliceKeys } from "./Slice"
-import { useMounted } from "./use-mounted"
-
-const titles: Readonly<Record<ChatRequest["kind"], string>> = {
-  permission: "Needs your permission",
-  question: "Has a question",
-  plan: "Plan to review",
-}
+import { LiveSlice, SliceKeys } from "./Slice"
 
 // How long after an answer took the same dialog may stay before it counts as another one,
 // in milliseconds.
 export const againMs = 1000
 
-// Whether the card already shows the request's subject, in its dialog. A question tool's subject
-// is its first question, which the dialog's own page shows, and over the other pages it would
-// name the wrong one. Once answered the dialog goes, and the subject says what was asked.
-const saysSubject = ({ dialog, answered, subject }: ChatRequest): boolean =>
-  !answered &&
-  (dialog?.type === "questions" || (dialog?.type === "choices" && dialog.detail === subject))
+// A dialog takes focus from anywhere in the chat that holds none of the person's words, and its
+// pages scroll with the requests.
+const place: RequestPlace = {
+  area: (dialog) => dialog.closest(".chat"),
+  scroller: (dialog) => dialog.closest(".chat-requests"),
+}
 
-const reason = (failure: unknown): string =>
-  failure instanceof Error && failure.message ? failure.message : "That answer didn't go through."
+const clock = (askedAt: number): React.ReactNode => (
+  <Fact keep>
+    <Since since={askedAt} before="asked " after=" ago" />
+  </Fact>
+)
 
-// A request that waits on the person: what it asks, and the controls of its dialog where the
-// backend read it. The way to the agent's terminal shows only where the chat has no other: an
-// answer it waits on, a dialog not on screen yet, one it can't read and has no live rows of.
+const handedBack = (failure: unknown): boolean => failure instanceof WordsLost
+
+// A request's card in the chat: the terminal's live rows where the chat has them, the words of
+// an answer that took without them handed back to the box, and a note when the same dialog is
+// still there a moment after an answer took.
 const Card = ({
   request,
   slice,
@@ -64,10 +63,7 @@ const Card = ({
   readonly onSubmitted: () => void
   readonly refused: Refused
 }): React.JSX.Element => {
-  const title = titles[request.kind]
   const keys = useContext(SliceKeys)
-  const [sending, setSending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const mounted = useMounted()
   // The request as it is now, for what happens a moment after an answer took.
   const latest = useRef(request)
@@ -76,161 +72,61 @@ const Card = ({
   })
   const settling = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => () => clearTimeout(settling.current), [])
-  // Counts the times the words were handed back to the box, which empties the card's field.
-  const [handedBack, setHandedBack] = useState(0)
   // The dialog the notice of an identical request is about.
   const [again, setAgain] = useState<string | null>(null)
-  // Focus goes to the box as the person submits an answer here. An answer that took otherwise, as
-  // in the terminal, puts it on the answered line where it was in the card, and on the box once
-  // the card goes.
-  const took = useRef(false)
-  const card = useRef<HTMLElement>(null)
-  const status = useRef<HTMLParagraphElement>(null)
-  useEffect(() => {
-    if (!request.answered) return
-    took.current = true
-    const { activeElement } = document
-    if (
-      activeElement === document.body ||
-      status.current?.closest("article")?.contains(activeElement)
-    )
-      status.current?.focus({ preventScroll: true })
-  }, [request.answered])
-  const settled = useRef(onSettled)
-  useEffect(() => {
-    settled.current = onSettled
-  })
-  useEffect(
-    () => () => {
-      if (took.current) settled.current()
-    },
-    [],
-  )
-  const send = (answer: ChatAnswer): void => {
-    if (sending) return
-    setSending(true)
-    setError(null)
+  const send = (answer: ChatAnswer): Promise<void> => {
     setAgain(null)
     clearTimeout(settling.current)
     const asked = request.dialog && "id" in request.dialog ? request.dialog.id : null
-    // The person's next words go in the box, unless they have moved focus out of the card.
-    const active = document.activeElement
-    if (!active || active === document.body || card.current?.contains(active)) onSubmitted()
-    // Once it took, the request goes and so does this card.
-    onAnswer(request.id, answer).then(
-      () => {
-        if (!mounted.current) return
-        took.current = true
-        setSending(false)
-        // Identical calls the agent queued fold into one request: if the same dialog is
-        // still here after a moment, say so, or the card looks as if nothing happened.
-        clearTimeout(settling.current)
-        settling.current = setTimeout(() => {
-          const now = latest.current.dialog
-          if (
-            mounted.current &&
-            asked !== null &&
-            !latest.current.answered &&
-            now &&
-            "id" in now &&
-            now.id === asked
-          )
-            setAgain(asked)
-        }, againMs)
-      },
-      (failure: unknown) => {
-        if (!mounted.current) return
-        setSending(false)
-        if (failure instanceof WordsLost) {
-          // Answered, though what followed didn't land: the words go to the box to send.
-          took.current = true
-          setHandedBack((count) => count + 1)
-          setError(failure.message)
-          return
-        }
-        setError(reason(failure))
-      },
-    )
+    return onAnswer(request.id, answer).then(() => {
+      if (!mounted.current) return
+      // Identical calls the agent queued fold into one request: if the same dialog is
+      // still here after a moment, say so, or the card looks as if nothing happened.
+      clearTimeout(settling.current)
+      settling.current = setTimeout(() => {
+        const now = latest.current.dialog
+        if (
+          mounted.current &&
+          asked !== null &&
+          !latest.current.answered &&
+          now &&
+          "id" in now &&
+          now.id === asked
+        )
+          setAgain(asked)
+      }, againMs)
+    })
   }
   const { dialog } = request
-  const live = slice?.reason === "dialog" && keys !== null
-  const onlyTheTerminal = request.answered || dialog === null || (dialog.type === "raw" && !live)
   return (
-    <article
-      ref={card}
-      className="chat-request"
-      data-kind={request.kind}
-      data-dialog={dialog?.type ?? "none"}
-      aria-label={`${title}: ${request.tool}`}
-      aria-busy={sending}
-    >
-      <header className="chat-request-head">
-        <h3>
-          {title}
-          {request.subagent && " · subagent"}
-        </h3>
-        {!request.answered && (
-          <Fact keep>
-            <Since since={request.askedAt} before="asked " after=" ago" />
-          </Fact>
-        )}
-        {onlyTheTerminal && (
-          <button
-            type="button"
-            className="chat-key nodrag nopan"
-            aria-label="Answer in terminal"
-            onClick={onAnswerInTerminal}
-          >
-            terminal
-          </button>
-        )}
-      </header>
-      {request.subject && !saysSubject(request) && (
-        <p className="chat-request-subject">{request.subject}</p>
-      )}
-      {request.answered ? (
-        <p ref={status} tabIndex={-1} className="chat-request-answered" role="status">
-          <span className="chat-spin" aria-hidden />
-          Answered. Waiting for {agent}…
-        </p>
-      ) : dialog === null ? (
-        <>
-          {request.choices.length > 0 && (
-            <p className="chat-request-choices">
-              <span>Options:</span> {request.choices.join(" · ")}
-            </p>
-          )}
-          <p className="chat-request-waiting">Waiting for the dialog…</p>
-        </>
-      ) : (
-        <RequestDialog
-          key={handedBack}
-          dialog={dialog}
-          slice={slice}
-          agent={agent}
-          replying={replying}
-          onReply={onReply}
-          // While the box's answer goes, the card answers nothing else.
-          refused={refused}
-          sending={sending || (replying && replySending)}
-          send={send}
-          edited={() => {
-            if (error !== null) setError(null)
-            if (again !== null) setAgain(null)
-          }}
-        />
-      )}
-      {again !== null && !request.answered && dialog && "id" in dialog && dialog.id === again && (
-        <p className="chat-request-again" role="status">
-          Another identical request. Answer it too.
-        </p>
-      )}
-      {error && (
-        <p className="chat-error chat-request-error" role="alert">
-          {error}
-        </p>
-      )}
-    </article>
+    <RequestCard
+      request={request}
+      agent={agent}
+      send={send}
+      onAnswerInTerminal={onAnswerInTerminal}
+      onSettled={onSettled}
+      onSubmitted={onSubmitted}
+      onEdited={() => {
+        if (again !== null) setAgain(null)
+      }}
+      refused={refused}
+      place={place}
+      live={
+        slice?.reason === "dialog"
+          ? { rows: <LiveSlice slice={slice} agent={agent} />, keys: keys !== null }
+          : undefined
+      }
+      clock={clock}
+      notice={
+        again !== null && dialog && "id" in dialog && dialog.id === again
+          ? "Another identical request. Answer it too."
+          : null
+      }
+      handedBack={handedBack}
+      replying={replying}
+      replySending={replySending}
+      onReply={onReply}
+    />
   )
 }
 

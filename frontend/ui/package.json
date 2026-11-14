@@ -44,6 +44,7 @@
     "@novadeck/chat": "workspace:*",
     "@novadeck/core": "workspace:*",
     "@novadeck/items": "workspace:*",
+    "@novadeck/requests": "workspace:*",
     "@novadeck/toolkit": "workspace:*",
     "@novadeck/viewers": "workspace:*",
     "@xyflow/react": "^12.12.1",

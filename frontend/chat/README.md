@@ -7,13 +7,13 @@ and the chat's own store and commands.
 
 ## Contract
 
-- **It depends on `core` and `toolkit`, and on no other frontend package.** Not `frontend/ui`,
-  `frontend/items` or `frontend/runner-adapter`, no backend and no harness. Two checks in
-  `scripts/workspace/graph.test.ts` hold this: the manifest edges (what it declares, and what
-  those reach), and a source check that no relative import in a frontend package's `src` leaves
-  that package's folder, so a path into the UI can't bypass the manifest. The app
-  (`frontend/ui`) composes it and passes in what it needs; the chat knows nothing of a
-  project, a layout or the companion pane.
+- **It depends on `core`, `toolkit` and `requests`, and on no other frontend package.** Not
+  `frontend/ui`, `frontend/items` or `frontend/runner-adapter`, no backend and no harness. Two
+  checks in `scripts/workspace/graph.test.ts` hold this: the manifest edges (what it declares, and
+  what those reach), and a source check that no relative import in a frontend package's `src` leaves
+  that package's folder, so a path into the UI can't bypass the manifest. The app (`frontend/ui`)
+  composes it and passes in what it needs; the chat knows nothing of a project, a layout or the
+  companion pane.
 - **It is a renderer over a conversation's items.** The items and their grouping into blocks
   are core's (`conversation`, `conversation/turns`), and the rules for what an answer is are
   core's `conversation/picks`. The package draws them, and `Markdown` is the toolkit's.
@@ -24,6 +24,10 @@ and the chat's own store and commands.
   and `watchChat`, which keeps them all in step with the workspace. The box's mode is
   `composer-mode.ts`. All of it is React-free; `use-chat.ts` holds `useChat`, the one hook
   that reads the store.
+- **Its requests are drawn by `@novadeck/requests`.** `Requests.tsx` lays out the cards and gives
+  each `RequestCard` what only the chat has: where it sits, the terminal's live rows
+  (`LiveSlice`), the clock, the words handed back to the box (`WordsLost`), the note of an
+  identical request again, and the box that answers a question in the dialog's place.
 - **Writes go through `createChatCommands`** (`commands.ts`), which the app builds with the
   store, the conversations, how a terminal is opened and the current context. What navigates
   (showing a terminal) stays the app's, and it calls the chat's `answerInTerminal`.
@@ -45,5 +49,6 @@ internal.
 The package's TSX uses Tailwind utilities (none that only it writes, so it has no build guard),
 and the UI's `styles.css` scans `src` with `@source` (and leaves the tests out). `chat.css` is
 imported by `styles.css` into `layer(components)` at the place it always had, right after the
-toolkit's `markdown.css`, so the chat's rules for the Markdown it holds come after the Markdown's own.
+toolkit's `markdown.css`, so the chat's rules for the Markdown it holds come after the Markdown's own,
+and `@novadeck/requests`' `requests.css` comes right after it.
 A moved or new stylesheet that goes elsewhere changes the cascade.

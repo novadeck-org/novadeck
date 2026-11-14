@@ -12,6 +12,7 @@
 @source "../../toolkit/src";
 @source "../../items/src";
 @source "../../chat/src";
+@source "../../requests/src";
 @source not "../../terminal-views/src/**/*.test.ts";
 @source not "../../terminal-views/src/**/*.test.tsx";
 @source not "../../demo/src/**/*.test.ts";
@@ -24,6 +25,8 @@
 @source not "../../items/src/**/*.test.tsx";
 @source not "../../chat/src/**/*.test.ts";
 @source not "../../chat/src/**/*.test.tsx";
+@source not "../../requests/src/**/*.test.ts";
+@source not "../../requests/src/**/*.test.tsx";
 @import "./theme/contract.css";
 @import "allotment/dist/style.css" layer(base);
 @import "./theme/base.css" layer(base);
@@ -84,6 +87,7 @@
 @import "./terminals/window.css" layer(components);
 @import "@novadeck/toolkit/markdown.css" layer(components);
 @import "@novadeck/chat/chat.css" layer(components);
+@import "@novadeck/requests/requests.css" layer(components);
 @import "./terminals/tabs.css" layer(components);
 @import "./terminals/team-wire.css" layer(components);
 @import "./terminals/close-team.css" layer(components);

@@ -17,6 +17,7 @@ import {
 import { isAgentName, opensMenu } from "@novadeck/core/harnesses"
 import type { Store } from "@novadeck/core/store"
 import type { AgentStatus } from "@novadeck/core/types"
+import { useMounted } from "@novadeck/requests/use-mounted"
 import type { Mention } from "@novadeck/toolkit/mentions"
 import {
   useCallback,
@@ -50,7 +51,6 @@ import { ThumbsContext, useThumbs } from "./Thumbs"
 import { mentionOf, Transcript, type PeerLooks } from "./Transcript"
 import { currentPrompt, logPadding, scrollFor, startBefore, startRows } from "./turn-holds"
 import { useBoxReturn } from "./use-box-return"
-import { useMounted } from "./use-mounted"
 import { useTranscriptMotion } from "./use-transcript-motion"
 import { useTurnHold } from "./use-turn-hold"
 

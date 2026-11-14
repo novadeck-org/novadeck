@@ -246,6 +246,10 @@ export const unguardedFolders: readonly { readonly folder: string; readonly why:
     folder: "frontend/chat/",
     why: "its TSX uses utilities such as `sr-only` that other folders write too, and its other classes are recipes",
   },
+  {
+    folder: "frontend/requests/",
+    why: "its TSX uses utilities such as `sr-only` that other folders write too, and its other classes are recipes",
+  },
 ]
 
 export type BundleChecks = {
