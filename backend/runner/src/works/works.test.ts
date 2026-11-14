@@ -743,6 +743,47 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
     expect(after.get(stays.root)?.files).toHaveLength(1)
   })
 
+  it("calls a work merged that was squash-merged before main changed its files again", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    const start = main.git("rev-parse", "HEAD").trim()
+    const commit = (name: string, file: string, text: string) => {
+      const each = fixture.worktree(name)
+      each.write(file, text)
+      each.git("add", "-A")
+      each.git("commit", "--quiet", "-m", name)
+      return each
+    }
+    const landed = commit("landed", "c.txt", "one\n")
+    // The same file, never merged: it conflicts with main, and stays so.
+    const rival = commit("rival", "c.txt", "other\n")
+    const { works } = open(() =>
+      [landed, rival].map((each, at) => ({
+        terminalId: terminal(at + 1),
+        root: each.root,
+        base: start,
+      })),
+    )
+    resources.defer(() => works.close())
+    main.git("merge", "--quiet", "--squash", "landed")
+    main.git("commit", "--quiet", "-m", "squash")
+    main.write("c.txt", "two\n")
+    main.git("add", "-A")
+    main.git("commit", "--quiet", "-m", "main changes it again")
+    const after = await current(works)
+    // Merging the old branch into today's main conflicts, but at the squash it changed nothing.
+    expect(after.get(landed.root)).toMatchObject({ files: [], merged: true, conflicts: [] })
+    expect(after.get(rival.root)).toMatchObject({ merged: false })
+    expect(after.get(rival.root)?.conflicts).toContainEqual({ with: "main" })
+    // Work added after the squash is not in main: it is not merged any more.
+    landed.write("d.txt", "more\n")
+    const more = await current(works)
+    expect(more.get(landed.root)).toMatchObject({ merged: false })
+    expect(more.get(landed.root)?.files.map((file) => file.path)).toContain("d.txt")
+  })
+
   it("does not call a worktree merged that is behind its start, or took main in with no work of its own", async ({
     fixture,
     resources,

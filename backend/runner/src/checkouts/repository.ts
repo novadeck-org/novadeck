@@ -427,6 +427,88 @@ export const mergeTrees = async (
   return { state: "unknown" }
 }
 
+/** How many of main's commits `landedIn` merges into before it gives up. */
+export const landingTries = 32
+
+/**
+ * The commit on main's first-parent line where `ref`'s work landed: the first since the two
+ * parted that merging `ref` into leaves as it was (`merge-tree` clean, giving that commit's own
+ * tree). It finds work that merging into main today no longer does: squash- and rebase-merged
+ * work whose files main has changed again since, so the old branch conflicts with them or
+ * would undo them. Only commits that touch one of `ref`'s files, once every one of them has
+ * been touched, are merged into, oldest first, at most `landingTries` of them. Undefined where
+ * it landed nowhere, `ref` changes nothing since they parted, or git failed: callers read that
+ * as not merged, as they did before this was asked, so a failure never holds a read back.
+ */
+export const landedIn = async (
+  root: string,
+  main: Main,
+  ref: string,
+  env?: NodeJS.ProcessEnv,
+): Promise<string | undefined> => {
+  const base = await mergeBase(root, main.commit, ref, env)
+  if (base === undefined) return undefined
+  const options = env ? { ...listing, env } : listing
+  const diff = await git(root, ["diff", "--name-only", "--no-renames", "-z", base, ref], options)
+  if (!diff.ok) return undefined
+  const paths = new Set(diff.out.split("\0").filter((path) => path !== ""))
+  if (paths.size === 0) return undefined
+  const log = await git(
+    root,
+    [
+      "log",
+      "--first-parent",
+      "--diff-merges=first-parent",
+      "--no-renames",
+      "--name-only",
+      "-z",
+      "--reverse",
+      "--format=%x01%H %T",
+      `${base}..${main.commit}`,
+    ],
+    options,
+  )
+  if (!log.ok) return undefined
+  const candidates = landingCandidates(log.out, paths).slice(0, landingTries)
+  for (const { commit, tree } of candidates) {
+    // eslint-disable-next-line no-await-in-loop -- Oldest first, one at a time: the first is most often the one.
+    const merge = await mergeTrees(root, commit, ref, env)
+    if (merge.state === "unknown") return undefined
+    if (merge.state === "clean" && merge.tree === tree) return commit
+  }
+  return undefined
+}
+
+/**
+ * The commits of `log` (`git log --name-only -z --format=%x01%H %T`, oldest first) that `ref`'s
+ * work may have landed in: each touches one of `paths`, and by it every one has been touched.
+ */
+export const landingCandidates = (
+  log: string,
+  paths: ReadonlySet<string>,
+): { readonly commit: string; readonly tree: string }[] => {
+  const touched = new Set<string>()
+  const found: { commit: string; tree: string }[] = []
+  let current: { commit: string; tree: string; mine: boolean } | undefined
+  const close = (): void => {
+    if (current?.mine && touched.size === paths.size)
+      found.push({ commit: current.commit, tree: current.tree })
+  }
+  for (const raw of log.split("\0")) {
+    const token = raw.replace(/^\n/, "")
+    if (token.startsWith("\x01")) {
+      close()
+      const [commit = "", tree = ""] = token.slice(1).split(" ")
+      current = { commit, tree, mine: false }
+    } else if (token !== "" && current && paths.has(token)) {
+      current.mine = true
+      touched.add(token)
+    }
+  }
+  close()
+  return found
+}
+
 /** The best common ancestor of two commits; undefined if they have none. */
 export const mergeBase = async (
   root: string,

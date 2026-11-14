@@ -798,7 +798,7 @@ marks it read, `works.show({ root, terminalId? })` shows it as a changes item on
 (`terminalId` names the bar for a work with no owner), and `works.close({ root, force? })` closes the
 worktree as the person asks, through the worktrees service: it answers `{ closed: true, kept?, keptHead?, branchDeleted }`, or, without `force`
 and with the worktree holding uncommitted files or commits main lacks (squash- and rebase-merged
-work does not count), `{ closed: false, holds }` for the person to confirm before `force`. It
+work does not count, also once main has changed its files again), `{ closed: false, holds }` for the person to confirm before `force`. It
 refuses with `CONFLICT` and the reason while its owner's agent is working in it (checked afresh in
 the service's queue), when git status can't be read or the worktree has submodules (even with
 `force`), and answers `NOT_FOUND` for a root that is no work. These work with the Experimental switch off.

@@ -209,12 +209,12 @@ describe("a merged work's row", () => {
     expect(label(page)).not.toContain("merged")
   })
 
-  it("lets a conflict win over merged", () => {
+  it("lets merged win over a conflict", () => {
     const { row, page } = show([work("c", { merged: true, conflicts: [{ with: "main" }] })])
-    expect(row("c").dataset.merged).toBeUndefined()
-    expect(row("c").dataset.conflict).toBe("true")
-    expect(label(page)).toContain("conflicts with main")
-    expect(label(page)).not.toContain("merged")
+    expect(row("c").dataset.merged).toBe("true")
+    expect(row("c").dataset.conflict).toBeUndefined()
+    expect(label(page)).toContain("merged")
+    expect(label(page)).not.toContain("conflicts with main")
   })
 })
 

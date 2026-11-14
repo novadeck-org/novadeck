@@ -207,7 +207,8 @@ const closeBar = ({ row }: Asking): React.JSX.Element => (
 // The sidebar's Changes panel: every project's works, each a git worktree Novadeck tracks,
 // against main, drawn as the Terminals panel's tabs and named by the terminal that owns it (or
 // "No owner"), with its project where there are several. First come, first served. A merged
-// work (its changes already in main) has a merge icon, a conflicting one a red icon. A click
+// work (its changes already in main) has a green merge icon, which wins over a conflict; a
+// conflicting one a red icon. A click
 // shows the work on its owner's bar. The × asks the runner to close the worktree, which says what it holds when the
 // person should confirm first, and waits while its owner's agent is working in it.
 export const ChangesPanel = ({

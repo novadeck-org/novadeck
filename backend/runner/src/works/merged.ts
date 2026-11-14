@@ -27,6 +27,8 @@ const ancestor = async (root: string, a: string, b: string): Promise<boolean | u
  * not merged, as does a worktree that synced to main after its merge (a fast-forward pull, or a
  * rebase that drops the squashed commits); a commit and its revert, or an empty commit, read as
  * merged. False where `base` is unknown; undefined where git failed, so the read is tried again.
+ * Work that landed in main whose files main has changed again since (so it still differs) is
+ * `landedIn`'s to find, in checkouts/repository.ts.
  */
 export const mergedWork = async (
   root: string,

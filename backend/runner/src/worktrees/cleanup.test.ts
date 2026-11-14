@@ -118,6 +118,19 @@ describe("cleaning up merged worktrees", () => {
     expect(git(f.repo, "branch", "--list", "squashed")).toBe("")
   })
 
+  it("removes a squash-merged worktree whose files main has changed again since", async ({
+    fx: f,
+  }) => {
+    const path = await f.work("landed")
+    squashIntoMain(f, "landed")
+    writeFileSync(join(f.repo, "landed.txt"), "main's own\n")
+    git(f.repo, "commit", "--quiet", "-am", "main changes it again")
+    f.owners.set("t1", "history")
+    await f.worktrees.tidy()
+    expect(existsSync(path)).toBe(false)
+    expect(git(f.repo, "branch", "--list", "landed")).toBe("")
+  })
+
   it("removes a merged worktree with no owner, or whose owner is gone from both places", async ({
     fx: f,
   }) => {

@@ -8,6 +8,7 @@ import { listChanges, type Listed } from "../checkouts/listing.js"
 import {
   branchOf,
   commonDir,
+  landedIn,
   mainBranch,
   mergeBase,
   mergeTrees,
@@ -604,26 +605,28 @@ export class Works {
   ): Promise<Read | "keep"> {
     const commit = await snapshotCommit(root, snapshot.tree, snapshot.head, snapshot.env)
     if (!commit) return "keep"
+    // Differs from nothing: merged, squashed in or just made.
+    const quiet = async (merged: boolean): Promise<Read> => ({
+      key,
+      commit,
+      tree: snapshot.tree,
+      branch,
+      base: main.name,
+      merged,
+      changed: new Map(),
+      kinds: new Map(),
+      touched: new Set(),
+      unread: undefined,
+      conflicts: [],
+      skipped: snapshot.skipped,
+      common: await commonDir(root),
+      env: snapshot.env,
+    })
     const nothing = async (): Promise<Read | "keep"> => {
       const merged = await mergedWork(root, main, snapshot.head, start)
       // Git failing is not an answer: what was told stands, and the next pass reads it again.
       if (merged === undefined) return "keep"
-      return {
-        key,
-        commit,
-        tree: snapshot.tree,
-        branch,
-        base: main.name,
-        merged,
-        changed: new Map(),
-        kinds: new Map(),
-        touched: new Set(),
-        unread: undefined,
-        conflicts: [],
-        skipped: snapshot.skipped,
-        common: await commonDir(root),
-        env: snapshot.env,
-      }
+      return quiet(merged)
     }
     const merge = await mergeTrees(root, main.commit, commit, snapshot.env)
     if (merge.state === "clean" && merge.tree === main.tree) return nothing()
@@ -634,6 +637,9 @@ export class Works {
     const changed = linesOf(listed)
     // Nothing differs from where it left main (or this git can't merge, and nothing differs).
     if (changed.size === 0) return nothing()
+    // Its work, uncommitted files and all, landed in main, which has changed its files again
+    // since (a squash merge, then more of main's own): merged, whatever merging it today does.
+    if ((await landedIn(root, main, commit, snapshot.env)) !== undefined) return quiet(true)
     let unread: ReadonlyMap<string, Lines> | undefined
     if (watermark !== null) {
       const since = await listChanges(root, watermark, snapshot.tree, snapshot.env)
