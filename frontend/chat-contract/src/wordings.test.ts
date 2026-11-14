@@ -18,7 +18,8 @@ import { describe, expect, it } from "./test"
 // scope, effect, armed), for every such dialog a harness's probe recorded, read by the
 // harness's own dialog adapter from the screen with the request its hooks told. A harness
 // that rewords a dialog changes the lines here, or drops the dialog from them, when its
-// adapter no longer reads it. The fixtures are the probes' (`ask.probe*.json`).
+// adapter no longer reads it, at any of the sizes it was recorded at. The fixtures are the
+// probes' (`ask.probe*.json`, and `tall.probe.json`'s commands taller than the screen).
 
 type Scenario = Record<string, unknown>
 // The requests a scenario's hooks told, as the runner holds them for its dialog.
@@ -33,31 +34,62 @@ const objects = (value: unknown): Record<string, unknown>[] => {
   ]
 }
 
-// Every screen a scenario recorded, anywhere in it.
-const screens = (scenario: Scenario): readonly (readonly string[])[] =>
-  objects(scenario).flatMap((each) =>
-    Array.isArray(each.rows) && each.rows.every((row) => typeof row === "string")
-      ? [each.rows as string[]]
-      : [],
-  )
+// Every screen a scenario recorded, anywhere in it, by where: "screens.120x40".
+type Screen = { readonly at: string; readonly rows: readonly string[] }
+const screens = (value: unknown, at: readonly string[] = []): readonly Screen[] => {
+  if (typeof value !== "object" || value === null) return []
+  const { rows } = value as { rows?: unknown }
+  if (Array.isArray(rows) && rows.every((row) => typeof row === "string"))
+    return [{ at: at.length > 0 ? at.join(".") : "its screen", rows }]
+  return Object.entries(value).flatMap(([key, each]) => screens(each, [...at, key]))
+}
+
+// A probe of commands taller than the screen names the commands it ran, not its hooks.
+const commandsOf = (scenario: Scenario): readonly string[] =>
+  Array.isArray(scenario.commands)
+    ? scenario.commands.filter((each): each is string => typeof each === "string")
+    : []
 
 const asked = (kind: unknown): kind is RequestFacts["kind"] =>
   kind === "permission" || kind === "plan" || kind === "question"
 
-// Claude Code's PermissionRequest hook names the tool and its input.
-const claudeRequests: Requests = (scenario) =>
-  objects(scenario).flatMap((each) => {
+// Claude Code's PermissionRequest hook names the tool and its input; the runner adds the
+// folder it asks from. The probe ran in `<sandbox>/project` and redacted its paths so, on
+// screen and in its hooks: each request reads as recorded (a screen that shows the redacted
+// path), and with its paths absolute again under that folder (a subtitle relative to it, as
+// `../outside/OUT.txt`).
+const claudeFolder = "/sandbox/project"
+const unredacted = (input: unknown): unknown =>
+  JSON.parse(JSON.stringify(input ?? null).replaceAll("<sandbox>", "/sandbox"))
+const claudeRequests: Requests = (scenario) => [
+  ...objects(scenario).flatMap((each): RequestFacts[] => {
     const payload = each.payload as { tool_name?: unknown; tool_input?: unknown } | undefined
     if (each.event !== "PermissionRequest" || typeof payload?.tool_name !== "string") return []
     const tool = payload.tool_name
-    const kind =
+    const kind: RequestFacts["kind"] =
       tool === "ExitPlanMode" ? "plan" : tool === "AskUserQuestion" ? "question" : "permission"
-    return [{ kind, tool, input: payload.tool_input, cwd: null }]
-  })
+    return [
+      { kind, tool, input: payload.tool_input, cwd: null },
+      { kind, tool, input: unredacted(payload.tool_input), cwd: claudeFolder },
+    ]
+  }),
+  ...commandsOf(scenario).map((command) => ({
+    kind: "permission" as const,
+    tool: "Bash",
+    input: { command, description: "Make a file" },
+    cwd: claudeFolder,
+  })),
+]
 
 // Codex's hooks, decoded as the runner decodes them.
-const codexRequests: Requests = (scenario) =>
-  objects(scenario).flatMap((each) => {
+const codexRequests: Requests = (scenario) => [
+  ...commandsOf(scenario).map((command) => ({
+    kind: "permission" as const,
+    tool: "Bash",
+    input: { command },
+    cwd: null,
+  })),
+  ...objects(scenario).flatMap((each) => {
     if (each.kind !== "start" || typeof each.event !== "string") return []
     const payload = {
       ...(each.payload as object),
@@ -70,27 +102,38 @@ const codexRequests: Requests = (scenario) =>
           ? [{ kind: event.kind, tool: event.toolName, input: event.input, cwd: null }]
           : [],
       )
-  })
+  }),
+]
 
 // Antigravity says nothing of a confirmation but on its status line: the request is the
 // call its PreToolUse named last, as the runner remembers it.
-const agyRequests: Requests = (scenario) =>
-  objects(scenario).flatMap((each) => {
+const confirming = (call: unknown): RequestFacts => ({
+  kind: "permission",
+  tool: "confirmation",
+  input: call,
+  cwd: null,
+})
+const agyRun = (command: string) => ({
+  name: "run_command",
+  args: { CommandLine: command, Cwd: "/tmp/sandbox/project" },
+})
+const agyRequests: Requests = (scenario) => [
+  ...commandsOf(scenario).map((command) => confirming(agyRun(command))),
+  ...objects(scenario).flatMap((each) => {
     const call = (each.in as { toolCall?: unknown } | undefined)?.toolCall
-    return each.event === "PreToolUse" && call !== undefined
-      ? [{ kind: "permission" as const, tool: "confirmation", input: call, cwd: null }]
-      : []
-  })
+    return each.event === "PreToolUse" && call !== undefined ? [confirming(call)] : []
+  }),
+]
 
 // Calls a probe ran without recording their hooks, as the harness's own dialog tests give
-// them: Antigravity's replace_file_content probe (1.2.14) kept only its screen.
+// them: Antigravity's replace_file_content probe and its twin commands (1.2.14) kept only
+// their screens.
 const agyUnrecorded: readonly RequestFacts[] = [
-  {
-    kind: "permission",
-    tool: "confirmation",
-    input: { name: "replace_file_content", args: { TargetFile: "/tmp/sandbox/project/probe.txt" } },
-    cwd: null,
-  },
+  confirming({
+    name: "replace_file_content",
+    args: { TargetFile: "/tmp/sandbox/project/probe.txt" },
+  }),
+  confirming(agyRun("echo same")),
 ]
 
 const profiles: Record<
@@ -117,14 +160,18 @@ const scenariosOf = (probe: Record<string, unknown>): Record<string, Scenario> =
   (probe.scenarios ?? probe.screens ?? {}) as Record<string, Scenario>
 
 // Each permission or plan dialog the adapter reads on a recorded screen, by the scenarios
-// (and probed versions) that show it. A screen whose scenario recorded no request of its own
-// (Antigravity's later probes keep screens alone) is read with the requests the harness's
-// other scenarios recorded: an adapter reads a dialog only for the request it asks about.
-const reads = (agent: AgentName): Map<string, { read: Read; seen: Set<string> }> => {
+// (and probed versions) and screens that show it. A screen whose scenario recorded no
+// request of its own (Antigravity's later probes keep screens alone) is read with the
+// requests the harness's other scenarios recorded, which only holds where its adapter reads
+// the same dialog for them: Antigravity's 1.4.3 names its file tools `write_file` and
+// `edit_file`, and its adapter takes either family by the dialog's header. An adapter reads a
+// dialog only for the request it asks about, so no other request reads it.
+type Seen = Map<string, Set<string>>
+const reads = (agent: AgentName): Map<string, { read: Read; seen: Seen }> => {
   const { dialogs, requests, unrecorded, folder } = profiles[agent]
   const sources = harnessSources(folder)
   const files = readdirSync(join(sources, "fixtures"))
-    .filter((file) => /^ask\.probe(\..+)?\.json$/.test(file))
+    .filter((file) => /^(ask|tall)\.probe(\..+)?\.json$/.test(file))
     .toSorted()
   const recorded = files.flatMap((file) =>
     Object.entries(scenariosOf(loadProbe(sources, file))).map(([name, scenario]) => ({
@@ -135,10 +182,11 @@ const reads = (agent: AgentName): Map<string, { read: Read; seen: Set<string> }>
     })),
   )
   const pool = [...recorded.flatMap(({ facts }) => facts), ...unrecorded]
-  const found = new Map<string, { read: Read; seen: Set<string> }>()
+  const found = new Map<string, { read: Read; seen: Seen }>()
   for (const { file, name, scenario, facts } of recorded) {
-    const version = /^ask\.probe\.(.+)\.json$/.exec(file)?.[1]
-    for (const rows of screens(scenario)) {
+    const [, probe, version] = /^(ask|tall)\.probe(?:\.(.+))?\.json$/.exec(file)!
+    const scenarioName = `${probe === "tall" ? "tall/" : ""}${name}${version ? `@${version}` : ""}`
+    for (const { at, rows } of screens(scenario)) {
       const shown = dialogs.screenRequest?.(rows)
       const candidates = [
         ...(facts.length > 0 ? facts : pool),
@@ -150,8 +198,8 @@ const reads = (agent: AgentName): Map<string, { read: Read; seen: Set<string> }>
         if (dialog?.type !== "choices") continue
         const read: Read = { kind: request.kind, options: dialog.options }
         const key = JSON.stringify(read)
-        const entry = found.get(key) ?? { read, seen: new Set<string>() }
-        entry.seen.add(version ? `${name}@${version}` : name)
+        const entry = found.get(key) ?? { read, seen: new Map() }
+        entry.seen.set(scenarioName, (entry.seen.get(scenarioName) ?? new Set()).add(at))
         found.set(key, entry)
       }
     }
@@ -172,7 +220,10 @@ const golden = (agent: AgentName): string => {
     .map(({ read, seen }) => {
       const extras = optionExtras(read.kind, read.options)
       return [
-        `# ${read.kind}: ${[...seen].toSorted().join(", ")}`,
+        `# ${read.kind}`,
+        ...[...seen]
+          .toSorted(([a], [b]) => a.localeCompare(b))
+          .map(([name, at]) => `  on ${name}: ${[...at].toSorted().join(", ")}`),
         ...read.options.map(
           (option, at) =>
             `  ${option.label}${option.text ? ` [${option.text}]` : ""} → ${extrasLine(extras[at]!)}`,

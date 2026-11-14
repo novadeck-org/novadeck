@@ -1,54 +1,136 @@
-# permission: bash-long
+# permission
+  on bash-long: screens.120x40, screens.60x20
   Yes → yes
   Yes, and allow access to /tmp and touch approved.txt commands → standing
   No → no
   No, and tell Claude what to do [prompt] → words
 
-# permission: h-wait-nodecision, h-wait-reply-then-tui, h-wait-timeout, h-wait-tui-first, k-bash-arrows-enter, k-bash-arrows-enter@2.1.291, k-bash-esc, k-bash-moved-highlight-digit1, k-no-then-prompt, k-no-then-prompt@2.1.291
+# permission
+  on h-wait-nodecision: screens.120x40, steps.after-hook-ended, steps.during-wait-1s, steps.during-wait-5s
+  on h-wait-reply-then-tui: screens.120x40, steps.during-wait
+  on h-wait-timeout: screens.120x40, steps.after-timeout-window, steps.during-wait
+  on h-wait-tui-first: screens.120x40, steps.during-wait
+  on k-bash-arrows-enter: screens.120x40
+  on k-bash-arrows-enter@2.1.291: screens.120x40
+  on k-bash-esc: screens.120x40
+  on k-bash-moved-highlight-digit1: screens.120x40, steps.moved-to-3
+  on k-no-then-prompt: screens.120x40, screens.60x20
+  on k-no-then-prompt@2.1.291: screens.120x40, screens.60x20
   Yes → yes
   Yes, and always allow access to <sandbox>/project from this project → standing
   No → no
   No, and tell Claude what to do [prompt] → words
 
-# permission: k-bash-small-digits, k-mcp-args, k-mcp-args@2.1.291, mcp, mcp@2.1.291
-  Yes → yes
-  No → no
-  No, and tell Claude what to do [prompt] → words
-
-# permission: k-bash-small-digits, mcp, mcp@2.1.291
+# permission
+  on k-bash-small-digits: screens.120x40, steps.wide
+  on mcp: screens.120x40
+  on mcp@2.1.291: screens.120x40
   Yes → yes
   Yes, and don't ask again for plugin:novadeck:novadeck — Agents commands in <sandbox>/proje… → standing, lines "Yes, and don't ask again" / "for plugin:novadeck:novadeck — Agents commands in <sandbox>/proje…"
   No → no
   No, and tell Claude what to do [prompt] → words
 
-# permission: k-edit-existing, k-edit-existing@2.1.291, k-edit-long-lines, k-edit-long-lines@2.1.291, k-edit-partial, k-edit-partial@2.1.291, k-edit-prose, k-edit-prose@2.1.291, k-edit-shared, k-edit-shared@2.1.291, k-edit-sub, k-edit-sub@2.1.291, k-edit-tabs, k-edit-tabs@2.1.291, k-write-blank-end, k-write-blank-end@2.1.291, k-write-over-blank-end, k-write-over-blank-end@2.1.291, k-write-overwrite, k-write-overwrite@2.1.291, k-write-tabs, k-write-tabs-over, k-write-tabs-over@2.1.291, k-write-tabs@2.1.291, write
+# permission
+  on k-bash-small-digits: steps.narrow-60x20, steps.narrow-after-3
+  on k-mcp-args: screens.60x20
+  on k-mcp-args@2.1.291: screens.60x20
+  on mcp: screens.60x20
+  on mcp@2.1.291: screens.60x20
+  on tall/tall: screens.120x40, screens.60x20
+  on tall/twins: screens.120x40, screens.60x20
+  Yes → yes
+  No → no
+  No, and tell Claude what to do [prompt] → words
+
+# permission
+  on k-edit-existing: screens.120x40, screens.60x20
+  on k-edit-existing@2.1.291: screens.120x40, screens.60x20
+  on k-edit-long-lines: screens.120x40
+  on k-edit-long-lines@2.1.291: screens.120x40
+  on k-edit-partial: screens.120x40, screens.60x20
+  on k-edit-partial@2.1.291: screens.120x40, screens.60x20
+  on k-edit-prose: screens.120x40
+  on k-edit-prose@2.1.291: screens.120x40
+  on k-edit-shared: screens.120x40, screens.60x20
+  on k-edit-shared@2.1.291: screens.120x40, screens.60x20
+  on k-edit-sub: screens.120x40, screens.60x20
+  on k-edit-sub@2.1.291: screens.120x40, screens.60x20
+  on k-edit-tabs: screens.120x40, screens.60x20
+  on k-edit-tabs@2.1.291: screens.120x40, screens.60x20
+  on k-write-blank-end: screens.120x40, screens.60x20
+  on k-write-blank-end@2.1.291: screens.120x40, screens.60x20
+  on k-write-over-blank-end: screens.120x40, screens.60x20
+  on k-write-over-blank-end@2.1.291: screens.120x40, screens.60x20
+  on k-write-overwrite: screens.120x40, screens.60x20, steps.after
+  on k-write-overwrite@2.1.291: screens.120x40, screens.60x20, steps.after
+  on k-write-tabs: screens.120x40, screens.60x20
+  on k-write-tabs-over: screens.120x40, screens.60x20
+  on k-write-tabs-over@2.1.291: screens.120x40, screens.60x20
+  on k-write-tabs@2.1.291: screens.120x40, screens.60x20
+  on write: screens.120x40, screens.60x20
   Yes → yes
   Yes, and switch to accept edits (auto-approve file edits and common file commands) for this session (shift+tab) → standing
   No → no
   No, and tell Claude what to do [prompt] → words
 
-# permission: k-mcp-args, k-mcp-args@2.1.291
+# permission
+  on k-mcp-args: screens.120x40, steps.after
+  on k-mcp-args@2.1.291: screens.120x40, steps.after
   Yes → yes
   Yes, and don't ask again for plugin:novadeck:novadeck — Describe commands in <sandbox>/pro… → standing, lines "Yes, and don't ask again" / "for plugin:novadeck:novadeck — Describe commands in <sandbox>/pro…"
   No → no
   No, and tell Claude what to do [prompt] → words
 
-# permission: k-read-outside, k-read-outside@2.1.291
+# permission
+  on k-read-outside: screens.120x40, screens.60x20, steps.after
+  on k-read-outside@2.1.291: screens.120x40, screens.60x20, steps.after
   Yes → yes
   Yes, allow reading from <sandbox>/outside during this session → standing
   No → no
   No, and tell Claude what to do [prompt] → words
 
-# permission: k-webfetch-no, k-webfetch-no@2.1.291, webfetch
+# permission
+  on k-webfetch-no: screens.120x40, screens.60x20
+  on k-webfetch-no@2.1.291: screens.120x40, screens.60x20
+  on webfetch: screens.120x40, screens.60x20
   Yes → yes
   Yes, and don't ask again for example.com → standing, lines "Yes, and don't ask again" / "for example.com"
   No, and tell Claude what to do differently (esc) [prompt] → words
 
-# plan: h-plan-allow, h-plan-pre-allow, h-plan-setMode, k-plan-1, k-plan-1@2.1.291, k-plan-3-feedback, k-plan-3-typed, k-plan-3-typed@2.1.291, k-plan-esc, plan-file, plan-file@2.1.291, plan-live
+# permission
+  on k-write-outside: screens.120x40, screens.60x20
+  on k-write-outside@2.1.291: screens.120x40, screens.60x20
+  Yes → yes
+  Yes, and switch to accept edits (auto-approve file edits and common file commands) for this session; Yes, and always allow access to <sandbox>/outside for this session (shift+tab) → standing
+  No → no
+  No, and tell Claude what to do [prompt] → words
+
+# permission
+  on tall/wide: screens.120x40, screens.60x20
+  Yes → yes
+  Yes, and don't ask again for touch row-0, touch row-1, touch row-2, touch row-3, and touch row-4 commands in /sandbox/project → standing, lines "Yes, and don't ask again" / "for touch row-0, touch row-1, touch row-2, touch row-3, and touch row-4 commands in /sandbox/project"
+  No → no
+  No, and tell Claude what to do [prompt] → words
+
+# plan
+  on h-plan-allow: screens.120x40, steps.after
+  on h-plan-pre-allow: screens.120x40, steps.after
+  on h-plan-setMode: screens.120x40, steps.after
+  on k-plan-1: screens.120x40
+  on k-plan-1@2.1.291: screens.120x40
+  on k-plan-3-feedback: screens.120x40
+  on k-plan-3-typed: screens.120x40, screens.60x20
+  on k-plan-3-typed@2.1.291: screens.120x40, screens.60x20
+  on k-plan-esc: screens.120x40
+  on plan-file: screens.120x40, screens.60x20
+  on plan-file@2.1.291: screens.120x40, screens.60x20
+  on plan-live: screens.120x40
   Yes, auto-accept edits → standing, effect "It edits without asking.", armed
   Yes, manually approve edits → yes
   Tell Claude what to change [field] → words
 
-# plan: plan, plan@2.1.291
+# plan
+  on plan: screens.120x40, screens.60x20, steps.pressed-4
+  on plan@2.1.291: screens.120x40, screens.60x20, steps.after, steps.pressed-4
   Yes, and switch to default (ask each time) for this session → yes
   No → no
