@@ -84,6 +84,20 @@ const review = "Ready to submit your answers?"
 const footerAt = (rows: readonly string[]): number =>
   rows.findLastIndex((each) => questionFooter.test(each))
 
+/**
+ * Whether a tab shows `header`: whole, or cut to its share of a bar too narrow for every
+ * header, ending in `…`. Claude Code gives the open question's tab up to half the room and
+ * shares the rest evenly between the others, cutting each to fit (2.1.323 bundle, its tab bar;
+ * seen 2026-11-13 at about 50 columns, three headers shown as `Ready PRs`, `Tell +…` and
+ * `Codex …`, which no question read as its own).
+ */
+const tabShows = (name: string, header: string): boolean => {
+  if (flat(name) === flat(header)) return true
+  if (!name.endsWith("…")) return false
+  const shown = flat(name.slice(0, -1))
+  return shown !== "" && flat(header).startsWith(shown)
+}
+
 /** A question screen's parts, by row: its tab bar or lone header, first option and footer. */
 type QuestionScreen = {
   readonly first: number
@@ -102,7 +116,11 @@ const questionScreen = (rows: readonly string[]): QuestionScreen | undefined => 
   if (footer < 0) return undefined
   const first = rows.slice(0, footer).findLastIndex((each) => /^(❯| ) 1\. /.test(each))
   if (first < 1) return undefined
-  for (let at = first - 1; at >= 0 && first - at <= 12; at--) {
+  // The question takes as many rows as it wraps to, no set number: fixtures/ask.probe.json
+  // `ask-preview-mixed` takes seven at 52 columns, and a longer one or a narrower screen
+  // more. The dialog's rule above it ends the search, and the rows between must read as
+  // its question.
+  for (let at = first - 1; at >= 0; at--) {
     const row = rows[at]!
     if (rule.test(row)) return undefined
     const bar = tabBar.exec(row)
@@ -134,7 +152,7 @@ const showing = (rows: readonly string[], ask: Ask, place: Place): boolean => {
   return (
     shown !== undefined &&
     flat(shown.question.join("")) === flat(ask.question) &&
-    shown.tabs.some(({ name }) => flat(name) === flat(ask.header)) &&
+    shown.tabs.some(({ name }) => tabShows(name, ask.header)) &&
     optionsOf(rows, shown, ask, false, place) !== undefined
   )
 }
@@ -142,6 +160,26 @@ const showing = (rows: readonly string[], ask: Ask, place: Place): boolean => {
 const reviewing = (rows: readonly string[]): boolean => rows.includes(review)
 
 type OptionRow = { n: number; marker: boolean; text: string; lines: string[] }
+
+/**
+ * A row of the preview layout up to the preview's box: the box stands right of the options,
+ * its edges the first of these on any row that reaches it.
+ */
+const beside = (row: string): string => {
+  const edge = row.search(/[┌│└├┤┐┘]/)
+  const left = edge < 0 ? row : row.slice(0, edge)
+  // Below a short box its notes stand beside the options, two spaces or more from them
+  // ("  5. Epsilon          Notes: press n to add notes").
+  const gap = / {2,}\S/.exec(left.trimStart())
+  return gap ? left.slice(0, left.length - left.trimStart().length + gap.index) : left
+}
+
+/**
+ * The rest of a label that wraps in the preview layout, under its option's text: the label's
+ * column is narrow, so "Push and reply (Recommended)" takes two rows even at 120 columns
+ * (2.1.323, fixtures/ask.probe.json `ask-preview-mixed`). The box's notes stand further right.
+ */
+const labelGoesOn = /^ {3,8}\S/
 
 /**
  * The option rows of a question screen, between its first option and its footer, when
@@ -159,17 +197,23 @@ const optionsOf = (
   const count = ask.options.length
   const entries: OptionRow[] = []
   let ruledAt = -1
-  for (const row of rows.slice(first, footer)) {
-    if (row === "") continue
-    if (rule.test(row)) {
+  for (const whole of rows.slice(first, footer)) {
+    if (whole === "") continue
+    if (rule.test(whole)) {
       ruledAt = entries.length
       continue
     }
+    // In the preview layout the options stand left of the preview's box.
+    const row = preview ? beside(whole) : whole
     const match = questionOption.exec(row)
     if (match) {
-      entries.push({ n: Number(match[2]), marker: match[1] === "❯", text: match[3]!, lines: [] })
-    } else if (preview && /^ {3,}/.test(row)) {
-      // The preview's box, and its notes.
+      const text = preview ? match[3]!.trimEnd() : match[3]!
+      entries.push({ n: Number(match[2]), marker: match[1] === "❯", text, lines: [] })
+    } else if (preview && labelGoesOn.test(row) && entries.length > 0 && ruledAt < 0) {
+      // A label too long for its column goes on under it.
+      entries[entries.length - 1]!.lines.push(row.trim())
+    } else if (preview && /^ *$|^ {9,}/.test(row)) {
+      // The rest of the preview's box, and its notes.
     } else if (preview && row === "  Chat about this" && ruledAt === entries.length) {
       entries.push({ n: 0, marker: false, text: "Chat about this", lines: [] })
     } else if (!preview && /^ {5,}\S/.test(row) && entries.length > 0) {
@@ -182,8 +226,9 @@ const optionsOf = (
     if (entries.length !== count + 1 || entries[count]!.n !== 0) return undefined
     for (const [at, each] of ask.options.entries()) {
       const entry = entries[at]!
-      // The label ends where the preview's box begins.
-      if (entry.n !== at + 1 || entry.text.split(/\s{2,}/)[0] !== each.label) return undefined
+      if (entry.n !== at + 1 || flat([entry.text, ...entry.lines].join("")) !== flat(each.label)) {
+        return undefined
+      }
     }
     if (!rows[first]!.includes("┌")) return undefined
   } else {
@@ -220,9 +265,10 @@ export const questions = (rows: readonly string[], facts: RequestFacts): DialogR
   if (!asked) return undefined
   const preview = asked.some(({ options }) => options.some(({ preview: shown }) => shown))
   if (preview) {
-    // Only one question, singly selected, with every option previewed, is probed.
+    // Only one question, singly selected, is probed. An option without a preview shows
+    // "No preview available" in the box (2.1.323, fixtures/ask.probe.json
+    // `ask-preview-mixed`).
     if (asked.length !== 1 || asked[0]!.multiSelect) return undefined
-    if (asked[0]!.options.some(({ preview: shown }) => !shown)) return undefined
   }
 
   const shown = questionScreen(rows)
@@ -232,7 +278,7 @@ export const questions = (rows: readonly string[], facts: RequestFacts): DialogR
   if (shown.bar ? asked.length < 2 && !asked[0]!.multiSelect : asked.length !== 1) return undefined
   if (shown.bar && preview) return undefined
   if (shown.tabs.length !== asked.length) return undefined
-  if (shown.tabs.some(({ open, name }, at) => !open || flat(name) !== flat(asked[at]!.header))) {
+  if (shown.tabs.some(({ open, name }, at) => !open || !tabShows(name, asked[at]!.header))) {
     return undefined
   }
   const ask = asked[0]!

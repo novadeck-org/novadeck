@@ -1,0 +1,376 @@
+/* A request an agent waits on, drawn and answered: a card (`.chat-request`) under its head
+   (`.chat-request-head`, the title, the host's clock and the key to the terminal), what it asks
+   (`.chat-request-subject`), and its dialog (`.chat-dialog`): a menu (`.chat-options`) of numbered
+   rows (`.chat-option`, `.chat-option-number`, `.chat-option-words`, a dim line under them
+   `.chat-option-more`), a row's words (`.chat-writing` and its `.chat-field`), the dialog's own
+   words (`.chat-dialog-title`) and what it asks in full (`.chat-detail`); questions as tabbed
+   pages (`.chat-tabs`, `.chat-tab`, `.chat-pages`, `.chat-page`, a `.chat-question` each, then
+   `.chat-review`); a form (`.chat-form-fields`, a `.chat-form-field` each, its set to pick from
+   `.chat-picks`); or a dialog it can't read (`.chat-raw-reason`, `.chat-raw`). A line under it
+   says it waits (`.chat-request-waiting`, `.chat-request-choices`), was answered
+   (`.chat-request-answered`), came again (`.chat-request-again`) or failed
+   (`.chat-request-error`); `.chat-field-hint` warns beside a field.
+
+   Hooks: data-kind="permission" | "question" | "plan" and data-dialog="choices" | "questions" |
+   "form" | "raw" | "none" on a request; data-on on the row of a menu the person is on, data-open
+   on one that takes words; aria-selected on a question's tab, data-shown on its page,
+   data-missing on a form's field, data-on on its `.chat-pick`; data-failed on the reason of an
+   answer that didn't take.
+
+   Tokens: the host's private ones, which `.chat` sets (chat.css): --_pad, the edge's padding;
+   --_lh, a line's height; --_ink, --_mid and --_muted, the text's three tones; --_red, what
+   failed; --_accent, the bar on the row the person is on; --_line, the hairlines. The card
+   sets --_inset, where its words start. The head's key, the answered line's spinner and the
+   error's line are the chat's own `.chat-key`, `.chat-spin` and `.chat-error`. */
+.chat-request {
+  --_inset: calc(var(--_pad) + 2ch);
+  min-width: 0;
+}
+.chat-request + .chat-request {
+  margin-top: var(--_lh);
+}
+.chat-request-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 2ch;
+  padding: 0 var(--_pad) 0 var(--_inset);
+  color: var(--_muted);
+}
+.chat-request-head > .chat-fact {
+  position: static;
+  margin-left: auto;
+}
+.chat-request-head h3 {
+  margin: 0;
+  font: inherit;
+}
+.chat-request-subject,
+.chat-request-choices,
+.chat-request-waiting,
+.chat-request-answered,
+.chat-request-again,
+.chat-request-error,
+.chat-dialog-title,
+.chat-raw-reason,
+.chat-question-text {
+  margin: 0;
+  padding: 0 var(--_pad) 0 var(--_inset);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.chat-request-subject {
+  color: var(--_mid);
+  white-space: pre-wrap;
+}
+.chat-request-choices,
+.chat-request-waiting,
+.chat-request-answered {
+  color: var(--_muted);
+}
+.chat-request-answered {
+  position: relative;
+}
+.chat-request-answered .chat-spin {
+  left: var(--_pad);
+}
+.chat-request-answered:focus {
+  outline: 0;
+}
+.chat-raw-reason {
+  color: var(--_muted);
+}
+.chat-request .chat-request-error {
+  margin: 0;
+  padding: 0 var(--_pad) 0 var(--_inset);
+}
+.chat-request-error,
+.chat-raw-reason[data-failed] {
+  color: var(--_red);
+}
+
+/* A request's dialog, answered here. */
+.chat-dialog {
+  min-width: 0;
+}
+.chat-detail,
+.chat-raw {
+  max-height: calc(8 * var(--_lh));
+  margin: calc(var(--_lh) / 2) var(--_pad) 0 calc(var(--_inset) + 2ch);
+  overflow: auto;
+  color: var(--_mid);
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+  scrollbar-color: var(--_line) transparent;
+  user-select: text;
+}
+.chat-raw {
+  white-space: pre;
+}
+/* The rows: a number, the words, what they mean on a dim line under them. */
+.chat-options,
+.chat-question {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: calc(var(--_lh) / 2) 0 0;
+  padding: 0;
+  border: 0;
+}
+.chat-option {
+  position: relative;
+  display: grid;
+  grid-template-columns: 3ch minmax(0, 1fr);
+  width: 100%;
+  padding: 0 var(--_pad) 0 var(--_inset);
+  border: 0;
+  background: none;
+  color: var(--_mid);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .chat-option:hover:not(:disabled, [aria-disabled="true"]) {
+    color: var(--_ink);
+  }
+}
+/* The row the person is on: its words in ink, and a thin bar in the gutter. */
+.chat-option[data-on],
+.chat-form-field:focus-within {
+  background: linear-gradient(var(--_accent), var(--_accent)) var(--_pad) 50% / 2px calc(100% - 6px)
+    no-repeat;
+}
+.chat-option[data-on] {
+  color: var(--_ink);
+}
+.chat-option:focus-visible,
+.chat-option:has(:focus-visible) {
+  outline: 0;
+}
+.chat-option:disabled,
+.chat-page .chat-option[aria-disabled="true"] {
+  cursor: default;
+}
+.chat-page .chat-option[aria-disabled="true"] {
+  color: var(--_muted);
+}
+.chat-option-number,
+.chat-option-more,
+.chat-check {
+  color: var(--_muted);
+}
+.chat-option-more {
+  grid-column: 2;
+}
+.chat-check {
+  white-space: pre;
+}
+/* One cell wide whatever it holds, and no say in the line's height. */
+.chat-check-mark {
+  display: inline-block;
+  width: 1ch;
+  color: var(--_ink);
+  line-height: 0;
+  text-align: center;
+}
+.chat-sending {
+  color: var(--_muted);
+}
+.chat-field {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  resize: none;
+  appearance: textfield;
+  background: transparent;
+  color: var(--_ink);
+  font: inherit;
+  caret-color: var(--chat-caret, var(--terminal-cursor, var(--_accent)));
+  user-select: text;
+}
+.chat-field::-webkit-inner-spin-button,
+.chat-field::-webkit-outer-spin-button {
+  appearance: none;
+}
+.chat-field::placeholder {
+  color: var(--_muted);
+}
+.chat-field:disabled {
+  color: var(--_muted);
+}
+/* Words on their way to the agent grow with them, up to a few lines. */
+.chat-writing .chat-field {
+  max-height: calc(8 * var(--_lh));
+  field-sizing: content;
+}
+.chat-writing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 2ch;
+  margin-top: calc(var(--_lh) / 2);
+  padding: 0 var(--_pad) 0 calc(var(--_inset) + 3ch);
+  color: var(--_muted);
+}
+.chat-field-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--_red);
+}
+.chat-question > .chat-field-hint {
+  padding-left: calc(var(--_inset) + 3ch);
+}
+.chat-review-hint {
+  padding: 0 var(--_pad) calc(var(--_lh) / 2) var(--_inset);
+}
+.chat-field-hint:empty {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+}
+
+/* Questions: tabs as plain words, and every page in one cell, so turning one moves nothing. */
+.chat-tabs-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 3ch;
+  padding: 0 var(--_pad) 0 var(--_inset);
+  color: var(--_muted);
+}
+.chat-tabs-line .chat-dialog-title {
+  padding: 0;
+}
+.chat-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 3ch;
+  min-width: 0;
+}
+.chat-tab {
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .chat-tab:hover:not(:disabled) {
+    color: var(--_ink);
+  }
+}
+.chat-tab:disabled {
+  cursor: default;
+}
+.chat-tab[aria-selected="true"] {
+  color: var(--_ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+}
+/* An answered question's mark sits in the gap before its tab, which is always there. */
+.chat-tab-done {
+  position: absolute;
+  right: 100%;
+  width: 2ch;
+  text-decoration: none;
+}
+.chat-pages {
+  display: grid;
+  min-width: 0;
+  margin: calc(var(--_lh) / 2) 0 0;
+  padding: 0;
+  border: 0;
+}
+.chat-page {
+  grid-area: 1 / 1;
+  min-width: 0;
+  visibility: hidden;
+}
+.chat-page[data-shown] {
+  visibility: visible;
+}
+.chat-question {
+  margin: 0;
+}
+.chat-question-text {
+  float: none;
+  width: 100%;
+  margin-bottom: calc(var(--_lh) / 2);
+}
+.chat-review {
+  margin: 0 0 calc(var(--_lh) / 2);
+  padding: 0 var(--_pad) 0 var(--_inset);
+}
+.chat-review > div {
+  display: grid;
+  grid-template-columns: 14ch minmax(0, 1fr);
+}
+.chat-review dt,
+.chat-review dd[data-empty] {
+  color: var(--_muted);
+}
+.chat-review dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A form: a line per field, the one the person is in marked as a menu's row is. */
+.chat-form-fields {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: calc(var(--_lh) / 2) 0 0;
+  padding: 0;
+  border: 0;
+}
+.chat-form-field {
+  display: grid;
+  grid-template-columns: 16ch minmax(0, 1fr);
+  padding: 0 var(--_pad) 0 var(--_inset);
+}
+.chat-form-label {
+  color: var(--_muted);
+}
+.chat-form-field:focus-within .chat-form-label {
+  color: var(--_ink);
+}
+.chat-form-field[data-missing] .chat-form-label {
+  color: var(--_red);
+}
+.chat-form-description {
+  grid-column: 2;
+  margin: 0;
+  color: var(--_muted);
+}
+.chat-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 3ch;
+  min-width: 0;
+}
+.chat-pick {
+  position: relative;
+  color: var(--_muted);
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .chat-pick:hover {
+    color: var(--_ink);
+  }
+}
+.chat-pick[data-on] {
+  color: var(--_ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+}
+.chat-pick:has(:focus-visible) {
+  color: var(--_ink);
+}

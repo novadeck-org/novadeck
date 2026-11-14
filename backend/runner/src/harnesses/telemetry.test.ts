@@ -88,6 +88,68 @@ describe("observing telemetry", () => {
     })
   })
 
+  it("replaces only the windows a record speaks for", () => {
+    const week = { minutes: 10_080, used: 0.2, resetsAt: 9_000 }
+    const fable = { ...week, used: 0.07, scope: "Fable" }
+    const sonnet = { ...week, used: 0.5, scope: "Sonnet" }
+    const first = observeTelemetry(null, binding, seen({ limits: [limit, week, fable, sonnet] }))!
+    // A status line that tells the account's windows alone keeps the models'.
+    const account = observeTelemetry(
+      first,
+      binding,
+      seen({ startedAt: 11, limits: [{ ...limit, used: 0.3 }], limitsCover: "account" }),
+    )!
+    expect(account.limits).toEqual([{ ...limit, used: 0.3 }, fable, sonnet])
+    // One model's snapshot, as Codex writes, replaces that model's alone, none left for one
+    // whose snapshot has no window.
+    const one = observeTelemetry(
+      account,
+      binding,
+      seen({ startedAt: 12, context, limits: [], limitsCover: { scope: "Fable" } }),
+    )!
+    expect(one.limits).toEqual([{ ...limit, used: 0.3 }, sonnet])
+    // A record with no cover named speaks for them all.
+    const all = observeTelemetry(one, binding, seen({ startedAt: 13, limits: [week] }))!
+    expect(all.limits).toEqual([week])
+  })
+
+  it("takes a reading of the models' windows alone on its own clock", () => {
+    const fable = { minutes: 10_080, used: 0.07, resetsAt: 9_000, scope: "Fable" }
+    const line = observeTelemetry(
+      null,
+      binding,
+      seen({ startedAt: 20, context, limits: [limit], limitsCover: "account" }),
+    )!
+    // Asked before the status line came, answered after: still taken, and the status line's
+    // clock stays, so a status line made while it was asked counts too.
+    const read = observeTelemetry(
+      line,
+      binding,
+      seen({ startedAt: 15, limits: [fable], limitsCover: "scoped" }),
+    )!
+    expect(read).toMatchObject({ context, limits: [limit, fable], at: 20, scopedAt: 15 })
+    const later = observeTelemetry(
+      read,
+      binding,
+      seen({ startedAt: 18, limits: [{ ...limit, used: 0.5 }], limitsCover: "account" }),
+    )
+    expect(later).toBeUndefined()
+    const next = observeTelemetry(
+      read,
+      binding,
+      seen({ startedAt: 21, limits: [{ ...limit, used: 0.5 }], limitsCover: "account" }),
+    )!
+    expect(next).toMatchObject({ limits: [{ ...limit, used: 0.5 }, fable], scopedAt: 15 })
+    // An older reading of them is turned away; an empty one leaves the account no model window.
+    expect(
+      observeTelemetry(next, binding, seen({ startedAt: 14, limits: [], limitsCover: "scoped" })),
+    ).toBeUndefined()
+    expect(
+      observeTelemetry(next, binding, seen({ startedAt: 30, limits: [], limitsCover: "scoped" }))
+        ?.limits,
+    ).toEqual([{ ...limit, used: 0.5 }])
+  })
+
   it("ignores an older record, and another session's", () => {
     const first = observeTelemetry(null, binding, seen({ context }))!
     expect(
@@ -123,6 +185,9 @@ describe("the limit a turn ran into", () => {
     resetsAt,
   })
 
+  // A model's own weekly window, used up.
+  const fable = { ...window(10_080, 1, 90_000), scope: "Fable" }
+
   // A turn its harness did not say hit a limit.
   const plain = (fields: Partial<LastTurn> = {}) => {
     const { limited: _, ...rest } = turn(fields)
@@ -133,6 +198,46 @@ describe("the limit a turn ran into", () => {
     expect(limitOf(turn(), [window(300, 0.4, 5_000), window(10_080, 1, 9_000)])).toMatchObject({
       minutes: 10_080,
       resetsAt: 9_000,
+    })
+  })
+
+  it("takes it where the session runs that model, keeping which models it covers", () => {
+    expect(limitIn(turn(), [window(300, 0.4, 5_000), fable], 1_000, "Fable 5.2")).toEqual({
+      minutes: 10_080,
+      resetsAt: 90_000,
+      scope: "Fable",
+      spent: true,
+    })
+  })
+
+  it("takes it where the turn's error names it", () => {
+    const named = turn({ error: "You've hit your Fable weekly limit" })
+    expect(limitIn(named, [window(300, 0.4, 5_000), fable], 1_000, "Opus 5.5")).toMatchObject({
+      scope: "Fable",
+    })
+  })
+
+  it("passes it by on another model, for the account's window the turn ran into", () => {
+    // Fable used up days ago; the turn, on Opus, ran out of its five hours.
+    expect(limitIn(turn(), [window(300, 1, 5_000), fable], 1_000, "Opus 5.5")).toEqual({
+      minutes: 300,
+      resetsAt: 5_000,
+      spent: true,
+    })
+    // Nor is it the most used, where none shows used up.
+    expect(
+      limitIn(turn(), [window(300, 0.4, 5_000), { ...fable, used: 0.93 }], 1_000, "Opus 5.5"),
+    ).toMatchObject({ minutes: 300, spent: false })
+  })
+
+  it("takes any where none counts, as each of Antigravity's quotas covers some models", () => {
+    const quotas = [
+      { ...window(10_080, 0.2, 9_000), scope: "Gemini" },
+      { ...window(10_080, 1, 8_000), scope: "Third-party" },
+    ]
+    expect(limitIn(turn(), quotas, 1_000, "claude-sonnet-4-5")).toMatchObject({
+      scope: "Third-party",
+      spent: true,
     })
   })
 

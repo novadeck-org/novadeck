@@ -16,3 +16,9 @@ export const cmdShimName = "novadeck-cmd.exe"
 
 /** The pass-through this package built, by `pnpm build`, on Windows. */
 export const cmdShimPath = join(dirname(fileURLToPath(import.meta.url)), "dist", cmdShimName)
+
+/** The PowerShell pass-through's file name, built on Windows alone (see novadeck-pwsh.rs). */
+export const pwshShimName = "novadeck-pwsh.exe"
+
+/** The PowerShell pass-through this package built, by `pnpm build`, on Windows. */
+export const pwshShimPath = join(dirname(fileURLToPath(import.meta.url)), "dist", pwshShimName)

@@ -14,7 +14,7 @@ export type ListingHost = {
   readonly draining: (terminalId: string) => boolean
   /** A terminal kept only as saved, as clients see it (asleep or not). */
   readonly saved: (terminal: ListedTerminal) => TerminalSummary
-  /** Where a handle comes in the order its session gave them, for those the records don't keep. */
+  /** Where a handle comes in the order its project gave them (creation order), for those the records don't keep. */
   readonly order: (sessionId: string, handle: string) => number
 }
 

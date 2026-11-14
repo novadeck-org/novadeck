@@ -13,7 +13,7 @@ import { it as base } from "../test.js"
 import type { AgentSetup, Seed } from "./agents/agent.js"
 import { setups as every } from "./agents/index.js"
 import { harnessLogins, loginStore } from "./credentials.js"
-import { createDeck, type Deck } from "./deck.js"
+import { createDeck, type Deck, type DeckOptions } from "./deck.js"
 import { installHarness } from "./install.js"
 import { createE2ESandbox, keychainAsks, type Sandbox, unsuffixedClaudeItem } from "./keychain.js"
 import { startFakeModel, type FakeModel } from "./model/server.js"
@@ -75,7 +75,7 @@ export type E2E = {
 }
 
 /** The test `e2e` gives, its setups seeded as `seed` says. */
-const fixture = (seed: Seed, setups: readonly AgentSetup[]) => {
+const fixture = (seed: Seed, setups: readonly AgentSetup[], handles?: DeckOptions["handles"]) => {
   const runs = setups.every(selected)
   beforeAll(async () => {
     if (supported && runs) await Promise.all(setups.map((setup) => installHarness(setup.agent)))
@@ -132,6 +132,7 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[]) => {
         project: sandbox.project,
         env,
         model,
+        ...(handles && { handles }),
         // A restart fails on any process the closed runner left in the sandbox.
         leftovers: () => reap(sandbox),
       })
@@ -253,6 +254,13 @@ export const e2e = Object.assign((...setups: AgentSetup[]) => fixture({}, setups
    * and a setup whose harness has no such step ignores it.
    */
   seeded: (seed: Seed, ...setups: AgentSetup[]) => fixture(seed, setups),
+  /**
+   * The same, for a project that has only `moth` and `fox` to give and takes a closed
+   * terminal's handle back after a millisecond, not an hour: the next terminal made after
+   * one closes is given the closed one's handle, as it is in an hour.
+   */
+  recycling: (...setups: AgentSetup[]) =>
+    fixture({}, setups, { words: ["moth", "fox"], cooldownMs: 1 }),
 })
 
 /**

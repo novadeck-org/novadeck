@@ -23,6 +23,7 @@ const row = (id: string, program: string | null, agents: ListedTerminal["agents"
     id,
     sessionId: "s",
     handle: id,
+    handleGivenAt: 0,
     naming: { person: null, opener: null, murmur: null, own: null, summary: null },
     openedBy: null,
     ledBy: null,

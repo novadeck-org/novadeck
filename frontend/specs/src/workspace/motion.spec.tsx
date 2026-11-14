@@ -1,8 +1,14 @@
-import { afterEach, onTestFailed } from "vitest"
-import { userEvent } from "vitest/browser"
+import { scriptedRunner } from "@novadeck/runner-adapter/scripted-server"
+import { App } from "@novadeck/ui/app/App"
+import { pageTheme } from "@novadeck/ui/theme/source"
+import { afterEach, onTestFailed, onTestFinished } from "vitest"
+import { cleanup, render } from "vitest-browser-react"
+import { page, userEvent } from "vitest/browser"
 
 import { pageScheme, saveFromAnotherWindow, systemScheme } from "../support/appearance"
+import { expectStaysTrue } from "../support/layouts"
 import {
+  chooseView,
   clickInto,
   draftOf,
   expectSelected,
@@ -268,5 +274,33 @@ describe("A team's wire", () => {
     tabOf("Dev server").querySelector<HTMLElement>(".sidebar-item-select")!.click()
     await expect.poll(() => wire.hasAttribute("data-holding")).toBe(true)
     await expect.poll(() => wire.hasAttribute("data-holding")).toBe(false)
+  })
+})
+
+// Grid opens tiles' screens as they come into sight (grid-offscreen.spec.tsx). A smooth scroll
+// as it opens would bring the tiles it passes into sight on the way, so it opens in place.
+describe("Grid opening", () => {
+  it("opens on a tile far down without opening the tiles above it on the way", async () => {
+    await page.viewport(1440, 900)
+    // Ten agents in two columns: five rows, the last far below the first's margin.
+    const runner = scriptedRunner({ terminals: 10 })
+    const connection = await runner.connect(new AbortController().signal, pageTheme)
+    onTestFinished(async () => {
+      await cleanup()
+      connection.close()
+      await expect.poll(() => runner.connected()).toBe(false)
+    })
+    await render(<App createBackend={connection.createBackend} />)
+    await chooseView("Focus")
+    await terminalTab("Agent 10").click()
+    await expect.element(terminal("Agent 10")).toBeVisible()
+    await chooseView("Grid")
+    // A tile holds xterm's element only once it takes its screen.
+    const opened = (id: string): boolean =>
+      document.querySelector(`[data-grid-terminal="${id}"] .xterm`) !== null
+    await expect.poll(() => opened(runner.terminalIds.at(-1)!)).toBe(true)
+    await expectStaysTrue(() => !opened(runner.terminalIds[0]!), "the first tile's screen", {
+      ms: 1_000,
+    })
   })
 })

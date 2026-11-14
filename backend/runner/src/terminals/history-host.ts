@@ -2,6 +2,7 @@ import type { Install } from "@novadeck/harness-core/harness"
 import type { AgentName } from "@novadeck/protocol"
 
 import type { HistoryHost } from "./history.js"
+import type { Names } from "./names.js"
 import type { Record } from "./record.js"
 import { showNote } from "./restored.js"
 import type { Claims } from "./resumes.js"
@@ -22,7 +23,7 @@ export type HistoryParts = {
   readonly projectOf: (sessionId: string) => string
   readonly install: (agent: AgentName) => Promise<Install | undefined>
   readonly connected: (agent: AgentName) => Promise<boolean>
-  readonly drawHandle: (sessionId: string) => string
+  readonly names: Pick<Names<Record>, "claim" | "next">
   readonly announce: (record: Record) => void
   /** The worktrees service, told when terminals are pruned or restored. */
   readonly worktrees?:
@@ -74,14 +75,8 @@ export const historyHost = (parts: HistoryParts): HistoryHost => ({
   install: parts.install,
   connected: parts.connected,
   holder: (agent, sessionId) => holder(parts, agent, sessionId),
-  // A terminal closing still holds its handle until its shell ends, so it counts here.
-  terminalsIn: (sessionId) => [
-    ...[...parts.records.values()]
-      .filter((record) => record.summary.sessionId === sessionId)
-      .map(({ summary }) => ({ handle: summary.handle })),
-    ...parts.saves.terminals(sessionId),
-  ],
-  drawHandle: parts.drawHandle,
+  claimHandle: (sessionId, handle, terminalId) => parts.names.claim(sessionId, handle, terminalId),
+  drawHandle: (sessionId) => parts.names.next(sessionId),
   releaseClaim: (terminalId) => parts.claims.release(terminalId),
   archive: (record, write, settled) => parts.saves.archive(record, write, settled),
   saved: (record, done) => parts.saves.afterSaved(record, done),

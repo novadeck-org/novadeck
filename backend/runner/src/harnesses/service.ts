@@ -44,7 +44,7 @@ export type HarnessesOptions = {
 }
 
 // Windows' cmd reads an argument in double quotes as it is; a path cannot hold one.
-const cmdLine = (argv: readonly string[]): string =>
+export const cmdLine = (argv: readonly string[]): string =>
   argv.map((arg) => (/^[\w@.:\\/-]+$/.test(arg) ? arg : `"${arg}"`)).join(" ")
 
 // Variables the person's terminal has that decide where agents are and live.
@@ -127,7 +127,7 @@ const loginEnvironment = (
  * puts it otherwise. Never one in the runner's working folder, which Windows would search
  * first (see `findProgram`); undefined where there is none.
  */
-const locate = async (
+export const locate = async (
   program: string,
   harness: Harness,
   install: Install,

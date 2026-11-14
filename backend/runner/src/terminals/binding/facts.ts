@@ -1,6 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ActivityEvent, HarnessEvent, SessionObserved } from "@novadeck/harness-core/events"
+import type { Install } from "@novadeck/harness-core/harness"
 import type { AgentName, TerminalSummary } from "@novadeck/protocol"
 
 import {
@@ -13,6 +14,8 @@ import {
   withLimit,
 } from "../../harnesses/activity.js"
 import { withVersion } from "../../harnesses/bindings.js"
+import { Captures } from "../../harnesses/captures.js"
+import { LimitsReadings } from "../../harnesses/limits-reading.js"
 import { harnesses } from "../../harnesses/registry.js"
 import { lastReply } from "../../harnesses/replies.js"
 import { limitOf, observeTelemetry, telemetrySummary } from "../../harnesses/telemetry.js"
@@ -47,6 +50,8 @@ export type BindingsHost = {
   readonly messaging: () => Messaging
   readonly typing: () => Typing
   readonly companion: () => Companion
+  /** Where an agent's harness lives, with the person's login environment. */
+  readonly install: (agent: AgentName) => Promise<Install | undefined>
   /** Reports the record's current summary to every watcher. */
   readonly announce: (record: Record) => void
   /** Saves what restores the terminal, without its screen. */
@@ -85,7 +90,30 @@ export class Bindings {
     turns: () => this.host.turns(),
     owner: (terminalId) => this.host.messaging().inboxOwner(terminalId),
   })
-  constructor(readonly host: BindingsHost) {}
+  // The windows a harness tells only when asked, as Claude Code's model windows, given to
+  // each bound session of the account; a session moved on since is left be.
+  private readonly limits = new LimitsReadings<Record>({
+    install: (agent) => this.host.install(agent),
+    apply: (record, agent, limits, cover, at) => {
+      const binding = record.bound?.binding
+      if (this.host.stopping() || binding?.agent !== agent) return
+      const fact = {
+        type: "telemetry-observed" as const,
+        agent,
+        sessionId: binding.sessionId,
+        instance: binding.instance,
+        startedAt: at,
+        limits,
+        limitsCover: cover,
+      }
+      if (this.applyFact(record, fact)) this.publishAgent(record, false)
+    },
+  })
+  constructor(
+    readonly host: BindingsHost,
+    /** The capture of Codex's commands, which gives its background shells an output. */
+    readonly captures = new Captures(),
+  ) {}
 
   /**
    * Ends the binding of an agent process known to have exited without the shell showing
@@ -171,6 +199,7 @@ export class Bindings {
     record.bound = null
     record.resumeEnded = true
     this.unwatch(record)
+    this.host.companion().shelled(record)
     // A banner drawn by an agent that has ended is not the next one's; a session switch
     // inside the same process (`follow`) ends nothing, and keeps it.
     bannerForgotten(record)
@@ -552,14 +581,69 @@ export class Bindings {
       if (versioned !== binding || next)
         record.bound = { ...bound, binding: versioned, ...(next && { telemetry: next }) }
       if (next) this.latchLimit(record)
+      // Limits of its own say the session is a subscription's: what only its harness tells
+      // when asked, its model windows, are asked of it too, every few minutes at most.
+      const own = fact.limitsCover !== harnesses[binding.agent].limitsReading?.cover
+      if (next && own && fact.limits && fact.limits.length > 0)
+        this.limits.wanted(record, binding.agent, record.transcript)
       return next !== undefined
     }
     const next = apply(bound.activity, binding, fact)
     if (next) record.bound = { ...bound, activity: next }
     if (next && fact.type === "plan-observed")
       void this.host.companion().planned(record, binding, fact)
+    // Their output is read when the item is, so only a shell starting or ending moves it.
+    if (
+      next &&
+      (fact.type === "shell-started" ||
+        fact.type === "shell-ended" ||
+        fact.type === "shells-listed")
+    )
+      this.host.companion().shelled(record)
     if (next && fact.type === "turn-ended") this.latchLimit(record)
+    // A turn that ran into a limit may have run into a model's own: its windows are asked
+    // for sooner, so the one it hit can show.
+    if (next && fact.type === "turn-ended" && next.lastTurn?.limited)
+      this.limits.wanted(record, binding.agent, record.transcript, true)
+    if (next) this.captured(record, binding.agent, fact)
     return Boolean(next)
+  }
+
+  /**
+   * Codex writes a background shell's output nowhere readable, so Novadeck's capture of its
+   * commands holds it: a Codex shell just started finds its log there (`Captures`), and the
+   * logs no shell claims are cleared as any agent there works.
+   */
+  private captured(
+    record: Record,
+    bound: AgentName,
+    fact: Exclude<HarnessEvent, SessionObserved>,
+  ): void {
+    const id = record.summary.id
+    const claimed = (): ReadonlySet<string> =>
+      new Set(record.bound?.activity.shells.flatMap(({ output }) => (output ? [output] : [])))
+    // Any agent's terminal may hold captures: a Codex another agent started captures there.
+    void this.captures.tend(id, claimed())
+    if (bound !== "codex" || fact.type !== "shell-started") return
+    const { agent, sessionId, instance, id: shell, command, startedAt } = fact
+    void this.captures.find(id, { command, since: startedAt }, claimed, (path) => {
+      const binding = record.bound?.binding
+      if (record.closed || binding?.sessionId !== sessionId) return
+      this.sourceFact(record, {
+        type: "shell-output",
+        agent,
+        sessionId,
+        instance,
+        startedAt: Date.now(),
+        id: shell,
+        path,
+      })
+    })
+  }
+
+  /** Removes the capture folder of a terminal that closed for good. */
+  forgetCaptures(terminalId: string): void {
+    void this.captures.closed(terminalId)
   }
 
   /**
@@ -570,12 +654,13 @@ export class Bindings {
     const { bound } = record
     if (!bound?.telemetry || bound.activity.state !== "idle") return
     const { activity, telemetry } = bound
-    const limit = limitOf(activity.lastTurn, telemetry.limits, telemetry.at)
+    const limit = limitOf(activity.lastTurn, telemetry.limits, telemetry.at, telemetry.model)
     const next = limit && withLimit(activity, limit)
     if (next) record.bound = { ...bound, activity: next }
   }
 
   unwatch(record: Record): void {
+    this.limits.forget(record)
     // Ends still in their grace are stored: the session can say no more of them.
     this.ends.flush(record.summary.id)
     record.watching?.abort()

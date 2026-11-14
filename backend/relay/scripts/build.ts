@@ -4,12 +4,12 @@ import { chmod, mkdir, rename, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { cmdShimName, relayName } from "../index.js"
+import { cmdShimName, pwshShimName, relayName } from "../index.js"
 
 // The relay's build, with Rust as rust-toolchain.toml names it:
 //
 //   node scripts/build.ts                 builds dist/novadeck-relay[.exe], and on Windows
-//                                         dist/novadeck-cmd.exe beside it
+//                                         dist/novadeck-cmd.exe and novadeck-pwsh.exe beside it
 //   node scripts/build.ts --test          runs its tests
 //   node scripts/build.ts --lint          runs clippy, in CI for every platform it ships for
 //   node scripts/build.ts --format        formats its Rust; --format-check checks it
@@ -122,9 +122,13 @@ export const main = async (args: readonly string[]): Promise<void> => {
   if (mode === "--format") return run("cargo", ["fmt"])
   if (mode === "--format-check") return run("cargo", ["fmt", "--check"])
   await place(relayName, compile())
-  // The cmd.exe pass-through is built by the same cargo run, on Windows alone.
+  // The cmd.exe and PowerShell pass-throughs are built by the same cargo run, on Windows alone.
   if (process.platform === "win32") {
-    await place(cmdShimName, readFileSync(join(root, "target", "release", cmdShimName)))
+    await Promise.all(
+      [cmdShimName, pwshShimName].map((name) =>
+        place(name, readFileSync(join(root, "target", "release", name))),
+      ),
+    )
   }
 }
 

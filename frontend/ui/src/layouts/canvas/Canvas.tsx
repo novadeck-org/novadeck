@@ -32,6 +32,7 @@ import {
 import { prefersReducedMotion } from "../../interaction/reduced-motion"
 import { workspaceOverlayOpen, workspaceShortcutTarget } from "../../interaction/shortcuts"
 import { backgroundPointerHandlers } from "../background"
+import { createTileVisibility } from "../tileVisibility"
 import { legibleZoom } from "../useSeen"
 import { useTerminalVisibility } from "../useTerminalVisibility"
 import { CanvasTeamWire } from "./CanvasTeamWire"
@@ -43,7 +44,6 @@ import {
   terminalHeaderHeight,
   windowSize,
 } from "./geometry"
-import { createNodeVisibility } from "./nodeVisibility"
 import {
   arrangedTiles,
   beginStay,
@@ -65,6 +65,10 @@ import { useCanvasNavigation } from "./useCanvasNavigation"
 import { useCanvasVisit } from "./useCanvasVisit"
 export type { CanvasHandle } from "./types"
 
+// How far past the viewport's edges a node still counts as on screen: about one node's size
+// at the default zoom (550 by 400), so a node panned in from an edge has been in sight, and
+// has its screen, a little before it crosses the edge.
+const nodeMargin = "400px 550px"
 // The chrome that reads `--_canvas-chrome-scale` (canvas.css, terminal-status.css).
 const chromeReaders = ".terminal-heading, .terminal-ending"
 
@@ -128,7 +132,17 @@ const TerminalCanvas = ({
   const initialViewport = kept?.camera
   const maxZoom = Math.max(1.5, initialViewport?.zoom ?? 1, fitZoom)
   const container = useRef<HTMLDivElement>(null)
-  const [visibility] = useState(createNodeVisibility)
+  const [visibility] = useState(() =>
+    createTileVisibility({
+      // The clipping element, not `.canvas-viewport` above it: React Flow's `.react-flow`
+      // wrapper sits between them with `overflow: hidden`, and an intermediate clip is
+      // applied to a target before the root's margin grows the root, so a margin on the
+      // outer root would never reach past it. As the root, it is the clip the margin
+      // extends, with no newer observer option (`scrollMargin`) to depend on.
+      root: (element) => element.closest(".react-flow"),
+      margin: nodeMargin,
+    }),
+  )
   const { visit, animateVisit } = useCanvasVisit(handleRef)
   // The camera as the move under way began, or last left it: a move the person makes ends
   // a visit's return point; one the canvas makes does not.

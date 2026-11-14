@@ -3,7 +3,7 @@ import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
-import { describe, eventually, expect, it } from "../test"
+import { context, describe, eventually, expect, it } from "../test"
 import { ChangesPanel } from "./ChangesPanel"
 
 const mounted: Rendered[] = []
@@ -46,7 +46,6 @@ const clean = (name: string, extra: Partial<Work> = {}) =>
 const show = (
   works: readonly Work[],
   options: {
-    agentWorktrees?: "on" | "off" | "absent"
     close?: (root: string, force: boolean) => Promise<WorkClosing>
     select?: () => Promise<void>
     // The titles of terminals still open; every owner's by default.
@@ -54,6 +53,8 @@ const show = (
     selectedId?: string
     // The projects' names by id; the one project of the works' by default.
     projects?: ReadonlyMap<string, string>
+    // Whether the backend has reported the works yet; it has by default.
+    reported?: boolean
   } = {},
 ) => {
   const onSelect = vi.fn<(work: Work, on: string | undefined) => Promise<void>>(
@@ -65,6 +66,7 @@ const show = (
   const page = render(
     createElement(ChangesPanel, {
       works,
+      reported: options.reported ?? true,
       watch: () => () => {},
       titles: new Map(
         works.flatMap((each) =>
@@ -75,7 +77,6 @@ const show = (
       ),
       projects: options.projects ?? new Map([["p", "Storefront"]]),
       selectedId: options.selectedId,
-      agentWorktrees: options.agentWorktrees ?? "on",
       active: true,
       watching: true,
       onClose: () => {},
@@ -325,24 +326,24 @@ describe("the × on a row", () => {
 })
 
 describe("the Changes panel with no worktrees", () => {
-  it("describes tracked worktrees, and points to Preferences while the setting is off", () => {
-    const off = show([], { agentWorktrees: "off" })
-    expect(off.page.container.querySelector(".changes-empty")?.textContent).toContain(
+  it("describes tracked worktrees", () => {
+    const { page } = show([])
+    expect(page.container.querySelector(".changes-empty")?.textContent).toContain(
       "When an agent opens or takes a git worktree",
-    )
-    expect(off.page.container.querySelector(".changes-empty")?.textContent).toContain(
-      "Preferences → Experimental",
     )
   })
 
-  it("does not point to Preferences with the setting on, or where the backend has none", () => {
-    for (const agentWorktrees of ["on", "absent"] as const) {
-      const { page } = show([], { agentWorktrees })
-      expect(page.container.querySelector(".changes-empty")?.textContent).not.toContain(
-        "Preferences",
-      )
-      page.unmount()
-      mounted.pop()
-    }
+  context("before the backend has reported them", () => {
+    it("says neither that there are none nor how many", () => {
+      const { page } = show([], { reported: false })
+      expect(page.container.querySelector(".changes-empty")).toBeNull()
+      expect(page.container.querySelector(".sidebar-panel-count")).toBeNull()
+    })
+
+    it("lists the works it already has, with their count", () => {
+      const { rows, page } = show([work("a")], { reported: false })
+      expect(rows()).toHaveLength(1)
+      expect(page.container.querySelector(".sidebar-panel-count")?.textContent).toBe("1")
+    })
   })
 })

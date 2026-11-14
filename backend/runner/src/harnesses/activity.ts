@@ -11,7 +11,15 @@ import {
 
 import { cut } from "../text.js"
 import type { Binding } from "./bindings.js"
-import { shellEnded, shellStarted, shellsListed, shellsOf, type Shell } from "./shells.js"
+import {
+  type Output,
+  shellEnded,
+  shellOutput,
+  shellStarted,
+  shellsListed,
+  shellsOf,
+  type Shell,
+} from "./shells.js"
 import { endless } from "./waits.js"
 
 /** The reference clients know a subagent by. */
@@ -130,6 +138,8 @@ export type Activity = {
    * `AgentActivity.shells`); a turn's start or end changes none, only their own events do.
    */
   readonly shells: readonly Shell[]
+  /** Output files told of shells not started yet, until each shell is (see `shell-output`). */
+  readonly outputs: readonly Output[]
   /**
    * How many subagents the running turn's latest working status line counts running; zero
    * once the turn ends, whose `background` tells what runs on then.
@@ -158,6 +168,12 @@ export type Activity = {
    * (a continuation, or a call that resumes it).
    */
   readonly files: readonly string[]
+  /**
+   * The path the running turn wrote last, root and subagents, even once `files` is full
+   * or the path is one it already holds; same lifetime as `files`. Only a turn that runs
+   * reports it: after its end it is no cursor, and a report of a late write leaves it.
+   */
+  readonly wrote: string | null
   readonly lastTurn: LastTurn | null
 }
 
@@ -178,7 +194,11 @@ export type LastTurn = {
   /** Its harness said the turn failed on a usage limit. */
   readonly limited?: true
   /** The usage-limit window this end ran into; see `limitOf`. Kept once set. */
-  readonly limit?: { readonly minutes: number | null; readonly resetsAt: number }
+  readonly limit?: {
+    readonly minutes: number | null
+    readonly resetsAt: number
+    readonly scope?: string
+  }
   /** `limit` was picked as the most-used window, none shown used up yet; one that is replaces it. */
   readonly guessed?: true
   /**
@@ -266,6 +286,7 @@ export const started = (at: number, wakes = true, records = true): Activity => (
   wakeId: null,
   waits: null,
   shells: [],
+  outputs: [],
   running: 0,
   wakes,
   records,
@@ -274,6 +295,7 @@ export const started = (at: number, wakes = true, records = true): Activity => (
   skips: 0,
   listed: false,
   files: [],
+  wrote: null,
   lastTurn: null,
 })
 
@@ -710,9 +732,15 @@ export const apply = (
         : -1
       const pending = asked < 0 ? activity.pending : activity.pending.toSpliced(asked, 1)
       const files = withFile(activity.files, event.path)
-      return files || asked >= 0
-        ? { ...activity, pending, files: files ?? activity.files }
-        : undefined
+      const wrote =
+        event.path.length > 0 && event.path.length <= maxTurnFilePath ? event.path : null
+      if (!files && asked < 0 && (!wrote || wrote === activity.wrote)) return undefined
+      return {
+        ...activity,
+        pending,
+        files: files ?? activity.files,
+        wrote: wrote ?? activity.wrote,
+      }
     }
     case "tool-called":
       // Counted by the messaging loop guard alone: it changes nothing here.
@@ -753,8 +781,26 @@ export const apply = (
       }
     }
     case "shell-started": {
-      const shells = shellStarted(activity.shells, event.id, event.command, event.startedAt)
-      return shells === activity.shells ? undefined : { ...activity, shells }
+      const held = activity.outputs.find(({ id }) => id === event.id)
+      const shells = shellStarted(
+        activity.shells,
+        event.id,
+        event.command,
+        event.startedAt,
+        held?.path,
+      )
+      if (shells === activity.shells) return undefined
+      return {
+        ...activity,
+        shells,
+        ...(held && { outputs: activity.outputs.filter((each) => each !== held) }),
+      }
+    }
+    case "shell-output": {
+      const { shells, held } = shellOutput(activity.shells, activity.outputs, event.id, event.path)
+      return shells === activity.shells && held === activity.outputs
+        ? undefined
+        : { ...activity, shells, outputs: held }
     }
     case "shell-ended": {
       const shells = shellEnded(activity.shells, event.id, event.code, event.startedAt)
@@ -894,6 +940,7 @@ export const apply = (
             : event.cause === "call"
               ? (activity.lastTurn?.files ?? activity.files)
               : [],
+        wrote: activity.state === "working" || event.cause === "call" ? activity.wrote : null,
         lastTurn: null,
       }
     case "turn-continued":
@@ -1083,7 +1130,12 @@ const asked = (
  */
 export const withLimit = (
   activity: Activity,
-  limit: { readonly minutes: number | null; readonly resetsAt: number; readonly spent: boolean },
+  limit: {
+    readonly minutes: number | null
+    readonly resetsAt: number
+    readonly scope?: string
+    readonly spent: boolean
+  },
 ): Activity | undefined => {
   const { lastTurn } = activity
   if (activity.state === "working" || !lastTurn || (lastTurn.limit && !lastTurn.guessed))
@@ -1093,7 +1145,11 @@ export const withLimit = (
     ...activity,
     lastTurn: {
       ...kept,
-      limit: { minutes: limit.minutes, resetsAt: limit.resetsAt },
+      limit: {
+        minutes: limit.minutes,
+        resetsAt: limit.resetsAt,
+        ...(limit.scope !== undefined && { scope: limit.scope }),
+      },
       ...(!limit.spent && { guessed: true as const }),
     },
   }
@@ -1118,6 +1174,7 @@ export const summary = ({
   shells,
   running,
   listed,
+  wrote,
   lastTurn,
 }: Activity): AgentActivity => {
   const detached = pending.length - blocking(pending).length
@@ -1146,6 +1203,8 @@ export const summary = ({
     },
     ...shellsOf(shells),
     subagents: subagents.map(({ id, type }) => ({ id: subagentRef(id), type })),
+    // Only while its turn itself runs, not while subagents it left do.
+    ...(state === "working" && wrote !== null && { wrote }),
     lastTurn:
       state === "working" || !lastTurn
         ? null

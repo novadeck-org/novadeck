@@ -146,6 +146,7 @@ export type WorkspaceAction =
       name?: string
       directory?: string
       handle?: string
+      handleGivenAt?: number
       // Null once it has no lead.
       ledBy?: string | null
       openedBy?: string | null
@@ -590,6 +591,7 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
           ...(action.name !== undefined && { name: action.name }),
           ...(action.directory !== undefined && { directory: action.directory }),
           ...(action.handle !== undefined && { handle: action.handle }),
+          ...(action.handleGivenAt !== undefined && { handleGivenAt: action.handleGivenAt }),
           ...(action.ledBy !== undefined && { ledBy: action.ledBy }),
           ...(action.openedBy !== undefined && { openedBy: action.openedBy }),
           ...(action.agentRan !== undefined && { agentRan: action.agentRan }),

@@ -6,12 +6,13 @@ import { file } from "./kinds/file"
 import { image } from "./kinds/image"
 import { page } from "./kinds/page"
 import { plan } from "./kinds/plan"
+import { shells } from "./kinds/shells"
 import type { ItemRegistration, LookContext, Registry } from "./registration"
 
 // Every kind of item, by its registration. A new artifact type is one folder in `kinds/`
 // and one line here, with its data parts in core; a kind that core adds without one fails
 // to compile, since `Registry` maps every `ItemKind`.
-export const registry = { image, file, page, changes, plan } satisfies Registry
+export const registry = { image, file, page, changes, plan, shells } satisfies Registry
 
 // The registration that draws `item`.
 export const registrationOf = (item: Pick<Item, "kind">): ItemRegistration => registry[item.kind]

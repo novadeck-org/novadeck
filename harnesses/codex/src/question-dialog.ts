@@ -4,7 +4,7 @@ import { fieldsOf } from "@novadeck/harness-core/fields"
 import {
   clean,
   firstOption,
-  labelled,
+  named,
   optionsAt,
   type Parsed,
   type Row,
@@ -82,10 +82,10 @@ const questionRows = (
   const { rows, next } = optionsAt(lines, first)
   const count = question.options.length
   if (rows.length !== count && rows.length !== count + 1) return undefined
-  if (!question.options.every((option, i) => labelled(rows[i]!.head, option.label))) {
+  if (!question.options.every((option, i) => named(rows[i]!, option.label))) {
     return undefined
   }
-  if (rows.length > count && !labelled(rows[count]!.head, otherLabel)) return undefined
+  if (rows.length > count && !named(rows[count]!, otherLabel)) return undefined
   // Words already typed in its notes, or anything else after the options, is not a screen
   // whose digits answer.
   if (lines.slice(next).some((line) => /^\s*›/.test(line) || /clear notes/.test(line))) {

@@ -19,6 +19,7 @@ export const { scenarios } = loadProbe(import.meta.dirname, "ask.probe.json") as
       multiSelect: Screens
       twoQuestions: Screens
       writeIn: ScreenText
+      longNarrow: { screens: Screens }
     }
     plan_feedback: { afterWrite: Screens; review: Screens }
     answered: { [name: string]: ScreenText }

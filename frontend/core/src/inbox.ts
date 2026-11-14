@@ -105,9 +105,10 @@ export type Trouble =
   | {
       readonly type: "limit"
       // The window's length in minutes, 0 where unknown, and when it resets, in epoch
-      // milliseconds.
+      // milliseconds; and the models it covers, where not all of them ("Fable").
       readonly minutes: number
       readonly resetsAt: number
+      readonly scope?: string
       // Whether Novadeck continues the agent at the reset; null where it can't, and the
       // sheet offers no switch.
       readonly autoResume: boolean | null

@@ -3,7 +3,7 @@ import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import type { AgentName } from "@novadeck/protocol/harnesses"
 
 import { harnessSources } from "./harnesses.test-support"
-import { agyAskSkipped, claudeAskSkipped, codexAskSkipped } from "./skipped"
+import { agyAskSkipped, claudeAskSkipped, codexAskSkipped, codexPinnedAskSkipped } from "./skipped"
 import { agyVocabulary } from "./vocabulary/agy"
 import { claudeVocabulary } from "./vocabulary/claude"
 import { codexVocabulary } from "./vocabulary/codex"
@@ -249,7 +249,7 @@ export const fixtures: readonly Fixture[] = [
     harness: "codex",
     tools: true,
     count: 42,
-    skipped: codexAskSkipped,
+    skipped: codexPinnedAskSkipped,
     extract: () => codexAsk("ask.probe.json"),
   },
   {

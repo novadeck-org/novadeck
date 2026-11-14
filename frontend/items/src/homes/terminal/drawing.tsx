@@ -1,5 +1,5 @@
 import { messageBadgeLabel } from "@novadeck/core/messages"
-import type { WorkspaceTarget } from "@novadeck/core/types"
+import type { AgentShell, WorkspaceTarget } from "@novadeck/core/types"
 import { MessagesSquare, Pause, type LucideIcon } from "lucide-react"
 import type { ReactNode } from "react"
 
@@ -58,7 +58,14 @@ const MessagesCount = ({
 export const terminalDrawing = ({
   plans,
   ...sources
-}: Sources & { readonly plans: LookContext["plans"] }): BarDrawing => ({
+}: Sources & {
+  readonly plans: LookContext["plans"]
+  // The background shells of the agents of the terminals the bar's shells items are from, by
+  // the terminal's id: an item the person moved here is its own terminal's. Nothing draws them
+  // now (the shells item lost its running and failed dot); they still arrive, for a mark to
+  // come.
+  readonly shells?: Readonly<Record<string, readonly AgentShell[]>> | undefined
+}): BarDrawing => ({
   look: (member) => memberLook(member, { plans }),
   preview: (member) => {
     if (member.kind === "messages")
@@ -67,7 +74,7 @@ export const terminalDrawing = ({
     return <Thumb item={member.item} itemStore={sources.itemStore} target={sources.target} />
   },
   badge: (member) =>
-    member.kind !== "messages"
+    member.kind === "item"
       ? undefined
       : {
           mark: <MessagesCount messagesHandle={sources.messagesHandle} />,

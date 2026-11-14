@@ -329,6 +329,8 @@ export class Calls {
     let task: SendAnswer | undefined
     if (asked.type === "answered" && "terminalId" in asked.answer) {
       this.openers.set(asked.answer.terminalId, charged)
+      // The opening result names it, so its handle is the caller's to use.
+      this.host.peers().introduce(call.terminalId, asked.answer.terminalId)
       const opened = this.host.records().get(asked.answer.terminalId)
       if (opened) {
         // The task goes to the first session of the agent it starts there, from the opener,
@@ -409,8 +411,10 @@ export class Calls {
                 },
               )
             if (this.host.stopping() || this.host.records().get(id) !== caller) return
-            if (asked.type === "answered" && "terminalId" in asked.answer)
+            if (asked.type === "answered" && "terminalId" in asked.answer) {
               this.openers.set(asked.answer.terminalId, charged)
+              this.host.peers().introduce(id, asked.answer.terminalId)
+            }
             const answer = this.opening(asked, cwd, command)
             tell(
               answer.ok && "handle" in answer && answer.handle !== undefined

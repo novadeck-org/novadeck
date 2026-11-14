@@ -28,10 +28,10 @@ type Spec = {
 const words = ["owl", "crow", "kite", "raven"]
 
 // Moves over a runner of fakes: terminals by id with the session they are in, the handles
-// each session has given, and a log of what was saved, announced, noticed and moved.
+// each project holds, and a log of what was saved, announced, noticed and moved.
 const setup = (
   terminals: { [id: string]: Spec },
-  options: { given?: string[]; asleep?: readonly string[]; waking?: readonly string[] } = {},
+  options: { held?: string[]; asleep?: readonly string[]; waking?: readonly string[] } = {},
 ) => {
   const records = new Map<string, Record>()
   const rows = new Map<
@@ -75,10 +75,11 @@ const setup = (
         suspended: "stopped",
       } as unknown as Record)
   }
-  // Every handle a session gave, as `session/handle`: those its terminals have, and more.
-  const given = new Set([
-    ...Object.values(terminals).map((each) => `${each.session}/${each.handle}`),
-    ...(options.given ?? []),
+  // Every handle the project holds: those its terminals have, and more (`held`), as ones
+  // in other sessions of it do.
+  const taken = new Set([
+    ...Object.values(terminals).map((each) => each.handle),
+    ...(options.held ?? []),
   ])
   const log = {
     saved: [] as { id: string; sessionId: string; handle: string; ledBy: string | null }[],
@@ -183,17 +184,20 @@ const setup = (
     items: () => ({ terminalMoved: (id: string) => log.items.push(id) }) as never,
     announce: (record) => log.announced.push(record.summary.id),
     savedChanged: (row) => log.savedChanged.push(row.id),
-    adopt: (sessionId, handle) => {
-      const key = `${sessionId}/${handle}`
-      if (given.has(key)) return false
-      given.add(key)
-      return true
-    },
-    draw: (sessionId) => {
-      const handle = words.find((each) => !given.has(`${sessionId}/${each}`))!
-      given.add(`${sessionId}/${handle}`)
-      return handle
-    },
+    names: () =>
+      ({
+        claim: (_sessionId: string, handle: string) => {
+          if (taken.has(handle)) return false
+          taken.add(handle)
+          return true
+        },
+        next: () => {
+          const handle = words.find((each) => !taken.has(each))!
+          taken.add(handle)
+          return handle
+        },
+        givenAt: () => 0,
+      }) as never,
   }
   const projects = new Map([
     ["s1", "p1"],
@@ -278,9 +282,11 @@ describe("moving a terminal to another session", () => {
     expect(world.records.get("a")!.summary.titleSource).toEqual({ kind: "agent", by: "owl" })
   })
 
-  it("draws the next handle where the session gave its own to a closed terminal", () => {
-    const world = setup({ a: { session: "s1", handle: "moth" } }, { given: ["s2/moth"] })
-    expect(world.move(to("s2", "a")).moved[0]!.handle).toBe("owl")
+  it("keeps its handle in another session of the project, as it is the project's, not a session's", () => {
+    const world = setup({ a: { session: "s1", handle: "moth" } })
+    expect(world.move(to("s2", "a")).moved).toEqual([
+      { terminalId: "a", handle: "moth", was: "moth" },
+    ])
   })
 
   it("keeps its handle where a terminal there is led by one that had it, as leads are ids", () => {
@@ -431,17 +437,20 @@ describe("moving a terminal to another session", () => {
   })
 
   it("takes its old handle back for an undo, though the session gave it already, and its lead", () => {
-    const world = setup(
-      {
-        a: { session: "s1", handle: "owl", ledBy: "x" },
-        lead: { session: "s2", handle: "moth" },
-      },
-      { given: ["s2/fox"] },
-    )
+    const world = setup({
+      a: { session: "s1", handle: "owl", ledBy: "x" },
+      lead: { session: "s2", handle: "moth" },
+    })
     const moved = world.move(to("s2", "a", { handles: { a: "fox" }, lead: "lead" }))
     expect(moved.moved[0]).toEqual({ terminalId: "a", handle: "fox", was: "owl" })
     expect(world.records.get("a")!.summary.ledBy).toBe("lead")
     expect(world.log.moved[0]).toMatchObject({ handle: "fox", ledBy: "lead" })
+  })
+
+  it("keeps the handle it has for an undo whose handle the project holds elsewhere", () => {
+    const world = setup({ a: { session: "s1", handle: "owl" } }, { held: ["fox"] })
+    const moved = world.move(to("s2", "a", { handles: { a: "fox" } }))
+    expect(moved.moved[0]!.handle).toBe("owl")
   })
 
   it("draws a handle for an undo whose handle a terminal there holds, and ignores a lead that is gone", () => {

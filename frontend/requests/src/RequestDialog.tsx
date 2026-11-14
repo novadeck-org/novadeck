@@ -4,7 +4,6 @@ import type {
   ChatDialogOption,
   ChatFormField,
   ChatQuestion,
-  ChatSlice,
 } from "@novadeck/core/conversation"
 import {
   answered,
@@ -40,7 +39,6 @@ import {
 } from "./forms"
 import { Hint } from "./Hint"
 import { shownControls } from "./shown-controls"
-import { LiveSlice } from "./Slice"
 import { submitOnEnter } from "./submit-on-enter"
 import { holdsWords, isTyping, useMenu, type Menu } from "./use-menu"
 
@@ -48,6 +46,20 @@ import { holdsWords, isTyping, useMenu, type Menu } from "./use-menu"
 // the one the person is on. Each takes `send`, which gives the answer to the backend and says
 // nothing until the card shows the outcome, and `sending`, which holds the controls while one
 // goes.
+
+// The terminal's own rows of a dialog no adapter read, live, as the host draws them, and whether
+// the person's keys reach the terminal from them.
+export type Live = {
+  readonly rows: React.ReactNode
+  readonly keys: boolean
+}
+
+// Where a request sits in its host: the part of the page whose focus a dialog may take as it
+// appears, where that focus holds no words of the person's, and what scrolls the request.
+export type RequestPlace = {
+  readonly area: (dialog: Element) => Element | null
+  readonly scroller: (dialog: Element) => Element | null
+}
 
 type Controls = {
   // Whether words that go on as the agent's next prompt would be refused for their shape.
@@ -388,12 +400,12 @@ const focusPage = (pages: HTMLElement | null, page: number): void =>
     )
     ?.focus({ preventScroll: true })
 
-// Whether focus is free for a dialog that appears in `within`: on nothing, or in its chat on
-// what holds no words of the person's.
-const askedFree = (within: Element | null): boolean => {
+// Whether focus is free for a dialog that appears in `within`: on nothing, or in its host's area
+// on what holds no words of the person's.
+const askedFree = (within: Element | null, place: RequestPlace): boolean => {
   const active = document.activeElement
   if (!active || active === document.body) return true
-  if (!within?.closest(".chat")?.contains(active)) return false
+  if (!within || !place.area(within)?.contains(active)) return false
   return !holdsWords(active)
 }
 
@@ -487,6 +499,7 @@ const Review = ({
 
 const Questions = ({
   dialog,
+  place,
   sending,
   send,
   edited,
@@ -494,9 +507,10 @@ const Questions = ({
   onReply,
 }: Controls & {
   readonly dialog: Extract<ChatDialog, { type: "questions" }>
-  // The chat's box answers this dialog: its words are said to the agent in place of answers.
+  readonly place: RequestPlace
+  // The host's box answers this dialog: its words are said to the agent in place of answers.
   readonly replying: boolean
-  readonly onReply: (dialog: string | null) => void
+  readonly onReply: ((dialog: string | null) => void) | undefined
 }): React.JSX.Element => {
   const [chosen, setPicks] = useState<Picks>({})
   // The page on screen: a question's, or past them the one that sends the answers.
@@ -511,6 +525,13 @@ const Questions = ({
   const submit = (): void => {
     if (ready && !sending && !replying) send(questionsAnswer(dialog.id, picks, questions))
   }
+  // The questions take the keys as they appear, as a harness's own do, unless the person is
+  // writing something or is elsewhere: then what they type stays where they type it. Where the
+  // card sits is the host's at the time.
+  const now = useRef({ page, held: replying || sending, place })
+  useEffect(() => {
+    now.current = { page, held: replying || sending, place }
+  })
   // The keys go on with the page.
   const moved = useRef(false)
   useEffect(() => {
@@ -518,20 +539,14 @@ const Questions = ({
     moved.current = false
     focusPage(pages.current, page)
     // The pages share a cell as tall as the tallest: this one starts at its top.
-    const scroller = pages.current?.closest(".chat-requests")
+    const scroller = pages.current && now.current.place.scroller(pages.current)
     if (scroller) scroller.scrollTop = 0
   }, [page])
-  // The questions take the keys as they appear, as a harness's own do, unless the person is
-  // writing something or is elsewhere: then what they type stays where they type it.
-  const now = useRef({ page, held: replying || sending })
-  useEffect(() => {
-    now.current = { page, held: replying || sending }
-  })
   useEffect(() => {
     // A dialog read again leaves the person where they are in it.
     const form = pages.current?.closest("form")
     if (now.current.held || form?.contains(document.activeElement)) return
-    if (askedFree(pages.current)) focusPage(pages.current, now.current.page)
+    if (askedFree(pages.current, now.current.place)) focusPage(pages.current, now.current.page)
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Only as the dialog comes.
   }, [dialog.id])
   const turnTo = (to: number): void => {
@@ -539,11 +554,12 @@ const Questions = ({
     setTurned(to)
   }
   // Talking it over: where the words go on as a prompt, the dialog goes at once and the
-  // chat's box takes them; where the agent's field takes them, the box answers with them.
+  // host's box takes them; where the agent's field takes them, the box answers with them.
+  const talks = dialog.chat === "prompt" || (dialog.chat !== null && onReply !== undefined)
   const chat = (): void => {
     edited()
     if (dialog.chat === "prompt") send(chatAnswer(dialog.id, ""))
-    else onReply(replying ? null : dialog.id)
+    else onReply?.(replying ? null : dialog.id)
   }
   const tabId = (at: number): string => `${base}-tab-${at}`
   const panelId = (at: number): string => `${base}-page-${at}`
@@ -619,7 +635,7 @@ const Questions = ({
             ))}
           </div>
         )}
-        {dialog.chat !== null && (
+        {talks && (
           <button type="button" className="chat-key nodrag nopan" disabled={sending} onClick={chat}>
             {replying ? "Back to the questions" : "Chat about this"}
           </button>
@@ -895,28 +911,24 @@ const reasons = {
 
 const Raw = ({
   dialog,
-  slice,
-  agent,
+  live,
 }: {
   readonly dialog: Extract<ChatDialog, { type: "raw" }>
-  readonly slice: ChatSlice | null
-  readonly agent: string
+  readonly live: Live | undefined
 }): React.JSX.Element => (
   <div className="chat-dialog">
     {/* That an answer didn't take is news; why the chat can't read a dialog isn't, with the
         dialog's own rows right there. */}
     <p
       className={
-        dialog.reason === "failed" || slice?.reason !== "dialog"
-          ? "chat-raw-reason"
-          : "chat-raw-reason sr-only"
+        dialog.reason === "failed" || !live ? "chat-raw-reason" : "chat-raw-reason sr-only"
       }
       data-failed={dialog.reason === "failed" || undefined}
     >
       {reasons[dialog.reason]}
     </p>
-    {slice?.reason === "dialog" ? (
-      <LiveSlice slice={slice} agent={agent} />
+    {live ? (
+      live.rows
     ) : (
       <pre className="chat-raw nodrag nopan nowheel" tabIndex={0} aria-label="The dialog's text">
         {shownControls(dialog.text)}
@@ -929,25 +941,25 @@ const Raw = ({
 // form, the terminal's own rows or the dialog's text for one the chat can't answer.
 export const RequestDialog = ({
   dialog,
-  slice,
-  agent,
+  live,
+  place,
   replying,
   onReply,
   ...controls
 }: Controls & {
   readonly dialog: ChatDialog
   // The terminal's own rows, shown for a dialog no adapter read in place of its text.
-  readonly slice: ChatSlice | null
-  readonly agent: string
+  readonly live: Live | undefined
+  readonly place: RequestPlace
   readonly replying: boolean
-  readonly onReply: (dialog: string | null) => void
+  readonly onReply: ((dialog: string | null) => void) | undefined
 }): React.JSX.Element =>
   dialog.type === "choices" ? (
     <Choices dialog={dialog} {...controls} />
   ) : dialog.type === "questions" ? (
-    <Questions dialog={dialog} replying={replying} onReply={onReply} {...controls} />
+    <Questions dialog={dialog} place={place} replying={replying} onReply={onReply} {...controls} />
   ) : dialog.type === "form" ? (
     <Form dialog={dialog} {...controls} />
   ) : (
-    <Raw dialog={dialog} slice={slice} agent={agent} />
+    <Raw dialog={dialog} live={live} />
   )

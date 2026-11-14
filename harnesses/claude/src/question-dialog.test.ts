@@ -24,6 +24,8 @@ import {
   waits,
 } from "./dialogs.test-support.js"
 
+const Up = "\x1b[A"
+
 describe("Claude Code's AskUserQuestion", () => {
   it.each(sizes)("reads a single question with its descriptions at %s", (size) => {
     const dialog = need(readOf("ask-single", size))
@@ -148,6 +150,57 @@ describe("Claude Code's AskUserQuestion", () => {
     })
   })
 
+  // A bar too narrow for every header cuts the others' to an even share, here 7 columns, and
+  // leaves the open question's whole where it fits half the room; a header within its share
+  // stays whole too (2.1.323 bundle; seen at about 50 columns, 2026-11-13). The recorded headers
+  // all fit, so the cut is drawn here.
+  const cut = (rows: string[]) =>
+    rows.map((row) => (row.startsWith("←  ") ? row.replace("☐ Features", "☐ Featur…") : row))
+
+  it.each(sizes)("reads several questions whose headers a narrow tab bar cuts, at %s", (size) => {
+    const whole = need(readOf("ask-multi", size)).dialog
+    const shown = need(dialogs.read(cut(screen("ask-multi", size)), factsOf("ask-multi")))
+    expect(shown.dialog).toEqual(whole)
+    // Still up, so not answered.
+    expect(shown.answered(cut(screen("ask-multi", size)))).toBe(false)
+  })
+
+  it("reads a header cut where a space ends its share", () => {
+    const facts = factsOf("ask-multi")
+    const input = structuredClone(facts.input) as { questions: { header: string }[] }
+    input.questions[1]!.header = "Feat list"
+    const rows = screen("ask-multi", "120x40").map((row) =>
+      row.startsWith("←  ") ? row.replace("☐ Features", "☐ Feat …") : row,
+    )
+    expect(need(dialogs.read(rows, { ...facts, input })).dialog).toMatchObject({
+      questions: [{ header: "Database" }, { header: "Feat list" }, { header: "Region" }],
+    })
+  })
+
+  it("follows the questions on through a cut tab bar", () => {
+    const dialog = need(dialogs.read(cut(screen("ask-multi", "120x40")), factsOf("ask-multi")))
+    const keys = dialog.keys({
+      type: "questions",
+      dialog: "d",
+      answers: [
+        { question: "q1", options: ["2"] },
+        { question: "q2", options: ["1", "3"] },
+        { question: "q3", options: ["1"] },
+      ],
+    })
+    const [next] = waits(keys)
+    expect(next!.until(cut(step("ask-multi", "after-q1")))).toBe(true)
+  })
+
+  it("reads no question where a tab is cut from another header, or cut with no `…`", () => {
+    for (const tab of ["☐ Bill…", "☐ Feat", "☐ …"]) {
+      const rows = screen("ask-multi", "120x40").map((row) =>
+        row.startsWith("←  ") ? row.replace("☐ Features", tab) : row,
+      )
+      expect(dialogs.read(rows, factsOf("ask-multi"))).toBeUndefined()
+    }
+  })
+
   it("answers several questions: digits, Right after a multi-select, then submit", () => {
     const dialog = need(readOf("ask-multi", "120x40"))
     const keys = dialog.keys({
@@ -217,6 +270,102 @@ describe("Claude Code's AskUserQuestion", () => {
 
   it("reads the preview layout at 60x20 when its box is cut", () => {
     expect(readOf("ask-preview", "60x20")).toBeDefined()
+  })
+
+  // 2.1.323: only the first option has a preview, the others show "No preview available",
+  // and "Push and reply (Recommended)" wraps under itself beside the box at every size.
+  it.each(["120x40", "80x40", "60x40", "52x40", "52x30"])(
+    "reads the preview layout with an option's label wrapped and options without a preview at %s",
+    (size) => {
+      const dialog = need(readOf("ask-preview-mixed", size))
+      expect(dialog.dialog).toMatchObject({
+        questions: [
+          {
+            header: "Review",
+            options: [
+              { id: "1", label: "Push and reply (Recommended)" },
+              { id: "2", label: "Push, no replies" },
+              { id: "3", label: "Not yet" },
+            ],
+            multiSelect: false,
+            text: false,
+          },
+        ],
+      })
+      expect(pressed(dialog.keys(answer(["1"])))).toEqual(["\r"])
+      expect(pressed(dialog.keys(answer(["3"])))).toEqual([Down, Down, "\r"])
+      expect(pressed(dialog.keys(chat()))).toEqual([Down, Down, Down, "\r"])
+    },
+  )
+
+  it("reads the preview layout with the highlight on an option without a preview", () => {
+    for (const shot of ["down", "down-2", "down-2-52x40"]) {
+      const dialog = need(
+        dialogs.read(step("ask-preview-mixed", shot), factsOf("ask-preview-mixed")),
+      )
+      expect(pressed(dialog.keys(answer(["1"]))), shot).toContain(Up)
+    }
+    const dialog = need(
+      dialogs.read(step("ask-preview-mixed", "down"), factsOf("ask-preview-mixed")),
+    )
+    const keys = dialog.keys(answer(["3"]))
+    expect(pressed(keys)).toEqual([Down, "\r"])
+    expect(waits(keys)[0]!.until(step("ask-preview-mixed", "down-2"))).toBe(true)
+    expect(waits(keys)[0]!.until(step("ask-preview-mixed", "down"))).toBe(false)
+  })
+
+  it("reads the box's notes beside an option, where a short box leaves them", () => {
+    // The box of an option without a preview takes three rows; with more options, its notes
+    // stand beside one, as they may beside a wrapped label's rest.
+    const facts = factsOf("ask-preview-mixed")
+    const rows = step("ask-preview-mixed", "down").filter((row) => !row.includes("Notes:"))
+    const notes = "Notes: press n to add notes"
+    for (const target of ["  3. Not yet", "    (Recommended)"]) {
+      const shown = rows.map((row) =>
+        row.startsWith(target) ? `${target.padEnd(34)}${notes}` : row,
+      )
+      expect(
+        shown.some((row) => row.endsWith(notes)),
+        target,
+      ).toBe(true)
+      expect(dialogs.read(shown, facts), target).toBeDefined()
+    }
+  })
+
+  it("refuses a wrapped label that isn't the option's whole label", () => {
+    const facts = factsOf("ask-preview-mixed")
+    for (const size of ["120x40", "52x40"]) {
+      const rows = screen("ask-preview-mixed", size)
+      const short = rows.map((row) => row.replace("    (Recommended)", "    (Recommend)  "))
+      expect(dialogs.read(short, facts), `${size}: short`).toBeUndefined()
+      const gone = rows.map((row) => row.replace("    (Recommended)", "                 "))
+      expect(dialogs.read(gone, facts), `${size}: half`).toBeUndefined()
+      // The rest of a label stands under its option, not under another's.
+      const moved = rows.map((row) =>
+        row
+          .replace("    (Recommended)", "  2. Push, no replies")
+          .replace(/^ {2}2\. Push, no replies/, "    (Recommended)   "),
+      )
+      expect(dialogs.read(moved, facts), `${size}: moved`).toBeUndefined()
+    }
+  })
+
+  it("reads a question that wraps to more rows than a narrow screen once fit", () => {
+    // The question one word a row, as a narrow enough pane would wrap it.
+    const rows = screen("ask-preview-mixed", "52x40")
+    const top = rows.findIndex((row) => row.startsWith("│ "))
+    const end = rows.findLastIndex((row) => row.startsWith("│ "))
+    const words = rows
+      .slice(top, end + 1)
+      .flatMap((row) => row.slice(2).split(" "))
+      .filter((word) => word !== "")
+    const tall = [
+      ...rows.slice(0, top),
+      ...words.map((word) => `│ ${word}`),
+      ...rows.slice(end + 1),
+    ]
+    expect(words.length).toBeGreaterThan(40)
+    expect(dialogs.read(tall, factsOf("ask-preview-mixed"))).toBeDefined()
   })
 
   it("reads the long question at 120x40 and refuses it where its top scrolled off", () => {

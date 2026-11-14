@@ -14,7 +14,8 @@ import {
 } from "./peers.js"
 
 /**
- * What a caller saw at its last `team`: each member's state then (see `stateKey`) and the
+ * What a caller saw at its last `team`, by member terminal id (a handle may be given to a
+ * later terminal): each member's state then (see `stateKey`) and the
  * entries it had then (see `entryKey`), so a member with nothing new since collapses to one
  * line. Entries are told apart by what they say, not by when they happened: a turn's end is
  * stored a moment after it ends, and a message changes as it goes, so an entry dated before
@@ -167,14 +168,14 @@ export const renderTeam = (input: {
     .map(({ peer }) => peer)
   const timelines = new Map(
     members.map((peer) => [
-      peer.handle,
+      peer.terminalId,
       [...happened(peer.happenings), ...input.exchanges(peer)].toSorted((a, b) => a.at - b.at),
     ]),
   )
   const look: Look = {
-    states: new Map(members.map((peer) => [peer.handle, stateKey(peer)])),
+    states: new Map(members.map((peer) => [peer.terminalId, stateKey(peer)])),
     seen: new Map(
-      [...timelines].map(([handle, entries]) => [handle, new Set(entries.map(entryKey))]),
+      [...timelines].map(([terminalId, entries]) => [terminalId, new Set(entries.map(entryKey))]),
     ),
   }
   if (members.length === 0)
@@ -186,12 +187,12 @@ export const renderTeam = (input: {
     }
   const before = input.all ? undefined : input.look
   const blocks = members.flatMap((peer) => {
-    const seen = before?.seen.get(peer.handle)
-    const entries = (timelines.get(peer.handle) ?? []).filter(
+    const seen = before?.seen.get(peer.terminalId)
+    const entries = (timelines.get(peer.terminalId) ?? []).filter(
       (entry) => before === undefined || !seen?.has(entryKey(entry)),
     )
     const head = headLine(peer, input.now, viewer, true)
-    if (before && entries.length === 0 && before.states.get(peer.handle) === stateKey(peer))
+    if (before && entries.length === 0 && before.states.get(peer.terminalId) === stateKey(peer))
       return [`${head} · nothing new since you last looked`]
     const shown = entries.slice(-shownEntries)
     const earlier = entries.length - shown.length

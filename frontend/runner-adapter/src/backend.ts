@@ -932,7 +932,12 @@ export const runnerBackend = (
         projectId: entry.key.projectId,
         from: entry.key.workspaceSessionId,
         to: summary.sessionId,
-        terminal: { ...current, handle: summary.handle, ledBy: summary.ledBy },
+        terminal: {
+          ...current,
+          handle: summary.handle,
+          ...(summary.handleGivenAt ? { handleGivenAt: summary.handleGivenAt } : {}),
+          ledBy: summary.ledBy,
+        },
       },
     ])
   }
@@ -958,6 +963,10 @@ export const runnerBackend = (
       unconfirmed === undefined && current.name !== summary.title ? summary.title : undefined
     const directory = current.directory !== summary.cwd ? summary.cwd : undefined
     const handle = current.handle !== summary.handle ? summary.handle : undefined
+    const handleGivenAt =
+      (current.handleGivenAt ?? 0) !== (summary.handleGivenAt ?? 0)
+        ? (summary.handleGivenAt ?? 0)
+        : undefined
     const ledBy = (current.ledBy ?? null) !== summary.ledBy ? summary.ledBy : undefined
     const openedBy = (current.openedBy ?? null) !== summary.openedBy ? summary.openedBy : undefined
     const agentRan = (current.agentRan ?? false) !== summary.agentRan ? summary.agentRan : undefined
@@ -973,9 +982,18 @@ export const runnerBackend = (
         ? summary.titleSource
         : undefined
     if (
-      [name, directory, handle, ledBy, openedBy, agentRan, restorable, busy, titleSource].every(
-        (fact) => fact === undefined,
-      )
+      [
+        name,
+        directory,
+        handle,
+        handleGivenAt,
+        ledBy,
+        openedBy,
+        agentRan,
+        restorable,
+        busy,
+        titleSource,
+      ].every((fact) => fact === undefined)
     )
       return []
     return [
@@ -986,6 +1004,7 @@ export const runnerBackend = (
         ...(name !== undefined && { name }),
         ...(directory !== undefined && { directory }),
         ...(handle !== undefined && { handle }),
+        ...(handleGivenAt !== undefined && { handleGivenAt }),
         ...(ledBy !== undefined && { ledBy }),
         ...(openedBy !== undefined && { openedBy }),
         ...(agentRan !== undefined && { agentRan }),
@@ -1410,7 +1429,7 @@ export const runnerBackend = (
   const murmur = createRunnerMurmur(runner.murmur, track)
   // History, followed the same way.
   const history = createRunnerHistory(runner.history, track)
-  // Works, followed while the Changes panel is watched.
+  // Works, read once at the start and followed while the Changes panel is watched.
   const works = createRunnerWorks(runner.works, track)
   let following = false
   // Follows a terminal's messages once the runner has it: it answers "not found" before
@@ -1845,6 +1864,7 @@ export const runnerBackend = (
     voice.follow()
     murmur.follow()
     history.follow()
+    works.readOnce()
     inbox.follow()
     window.addEventListener("pagehide", flush)
     // The app waits for these saves, removals and closes before a close or quit can end

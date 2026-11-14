@@ -15,6 +15,7 @@ import { createDemoAgents } from "./agents"
 import { createChatFailures, createChatPictures } from "./chat"
 import { createDemoUpdates, pageUpdateChannel } from "./desktop/updates"
 import { createDemoFolders } from "./folders"
+import { createStaleMentions } from "./mentions"
 import { createDemoNotices } from "./notices"
 import {
   atStartupScreen,
@@ -44,6 +45,7 @@ import {
   starting,
   waking,
   unheardAgent,
+  withModelLimits,
   withUsage,
 } from "./terminals"
 import type { DemoAction, DemoActionContext, DemoActionGroup, DemoStates } from "./types"
@@ -237,6 +239,46 @@ const manyShells: readonly DemoShell[] = [
   { command: "docker compose up postgres", minutes: 3 },
 ]
 
+// The shells the item's states are reached with: one that failed (its output ends in the error),
+// one that ended without trouble, one that was stopped, one whose output Novadeck can't read
+// (run in a terminal of the agent's own), one whose file can't be read just now, one that has
+// only just started, and one whose output went with its session.
+const failedShell: DemoShell = {
+  command: "docker compose up postgres",
+  minutes: 3,
+  ended: { code: 1, ago: 1 },
+}
+const doneShell: DemoShell = {
+  command: "pnpm build --filter storefront",
+  minutes: 2,
+  ended: { code: 0, ago: 1 },
+}
+const stoppedShell: DemoShell = { command: "sleep 600", minutes: 5, ended: { code: null, ago: 2 } }
+const elsewhereShell: DemoShell = { command: "npm run seed", minutes: 2, output: "none" }
+const lockedShell: DemoShell = { command: "make watch", minutes: 2, output: "unreadable" }
+// Started this moment: with nothing to read yet, it says so for its first 5 s.
+const newShell: DemoShell = { command: "npm run seed", minutes: 0, output: "none" }
+const clearedShell: DemoShell = {
+  command: "pytest -x tests/api",
+  minutes: 30,
+  ended: { code: 0, ago: 20 },
+  output: "gone",
+}
+const failedShells: readonly DemoShell[] = [manyShells[0]!, manyShells[1]!, failedShell]
+// Past what one screen holds: every state of a shell, some of them twice, and a running one with
+// output of its own to unfold.
+const crowdOfShells: readonly DemoShell[] = [
+  ...manyShells,
+  failedShell,
+  { ...failedShell, command: "pnpm test --filter api", minutes: 9 },
+  doneShell,
+  stoppedShell,
+  elsewhereShell,
+  lockedShell,
+  clearedShell,
+  { command: "pnpm lint --watch", minutes: 1 },
+]
+
 // How long from now the gallery's paused agent's usage limit resets.
 const limitResetMs = 80 * 60_000
 
@@ -287,6 +329,16 @@ const gallery: readonly {
       verbs.finish(key, undefined, "completed", { after: turnMs, shells: manyShells }),
   },
   {
+    name: "Shells, one failed",
+    agent: (verbs, key) =>
+      verbs.finish(key, undefined, "completed", { after: turnMs, shells: failedShells }),
+  },
+  {
+    name: "Many shells",
+    agent: (verbs, key) =>
+      verbs.finish(key, undefined, "completed", { after: turnMs, shells: crowdOfShells }),
+  },
+  {
     name: "Asks a question",
     agent: (verbs, key) => verbs.ask(key, undefined, "question", 1),
   },
@@ -320,6 +372,15 @@ const gallery: readonly {
         after: turnMs,
         error: "Usage limit reached",
         limit: { minutes: 300, resetsAt: Date.now() + limitResetMs },
+      }),
+  },
+  {
+    name: "Paused at a model's limit",
+    agent: (verbs, key) =>
+      verbs.finish(key, undefined, "failed", {
+        after: turnMs,
+        error: "You've hit your Fable weekly limit",
+        limit: { minutes: 10_080, resetsAt: Date.now() + 2 * 86_400_000, scope: "Fable" },
       }),
   },
   { name: "Asks (MCP)", state: (key, harness) => runAgent(key, harness), asks: "text" },
@@ -526,6 +587,7 @@ export const createDemoStates = (
   }
   const chat = createChatFailures()
   const pictures = createChatPictures()
+  const mentions = createStaleMentions()
   const panelAsks: PanelAsks = new Set()
   const waitingActions = createWaitingActions(verbs, inbox, panelAsks)
   const screens = createStore<ReadonlyMap<string, DemoScreenState>>(new Map())
@@ -820,6 +882,60 @@ export const createDemoStates = (
           verbs,
         ),
         verb(
+          "Shells, one failed",
+          "Turn over; two shells run on and a third failed: the Shells item's failed row is tinted and offers to tell the agent, and the chat's shell lines show each one's last line",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: failedShells }),
+          verbs,
+        ),
+        verb(
+          "Shell ended ok",
+          "Turn over; the only shell exited 0: the Shells item stays, its row muted",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: [doneShell] }),
+          verbs,
+        ),
+        verb(
+          "Shell stopped",
+          "Turn over; the only shell was stopped, with no exit code: the row says stopped, its output empty",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: [stoppedShell] }),
+          verbs,
+        ),
+        verb(
+          "Shell output elsewhere",
+          "Turn over; a shell the agent ran where Novadeck can't read its output (Codex: in a terminal of its own): its row says so",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: [elsewhereShell] }),
+          verbs,
+        ),
+        verb(
+          "Shell output unreadable",
+          "Turn over; a shell whose output file is there and can't be read just now: its row says its output can't be read just now",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: [lockedShell] }),
+          verbs,
+        ),
+        verb(
+          "Shell just started",
+          "Turn over; a shell that started this moment, with nothing of its output to read: its row says No output yet, and after 5 s that Novadeck can't read it",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: [newShell] }),
+          verbs,
+        ),
+        verb(
+          "Shells, none listed",
+          "Turn over; the agent's status lists an empty set of shells, which the runner never keeps an item for: the Shells item stays, saying the agent has no background shells now",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: [] }),
+          verbs,
+        ),
+        verb(
+          "Shell output gone",
+          "Turn over; a shell whose output went with the agent's session: its row says it is gone",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: [clearedShell] }),
+          verbs,
+        ),
+        verb(
+          "Many shells",
+          "Turn over; ten shells in every state: the Shells item lists failed first, then running, then ended",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, shells: crowdOfShells }),
+          verbs,
+        ),
+        verb(
           "Working, 3 shells",
           "Works with three background shells under the working line",
           (v, k, t) => v.work(k, t, { shells: manyShells }),
@@ -870,6 +986,11 @@ export const createDemoStates = (
           "Usage in tooltip and status; all else stays",
           (key, context) => usageOf(verbs, key, context, withUsage(Date.now())),
         ),
+        onSelected(
+          "Context and model limits",
+          "Usage with a model's own weekly windows (Fable, Third-party) beside the account's; all else stays",
+          (key, context) => usageOf(verbs, key, context, withModelLimits(Date.now())),
+        ),
         onSelected("Context, no size", "Tokens only, no limits; all else stays", (key, context) =>
           usageOf(verbs, key, context, contextOnly),
         ),
@@ -890,6 +1011,11 @@ export const createDemoStates = (
       section: "Agents",
       title: "Chat: pictures of recorded prompts",
       actions: pictures.actions,
+    },
+    {
+      section: "Agents",
+      title: "Chat: a handle given again",
+      actions: mentions.actions,
     },
     {
       section: "Agents",
@@ -924,7 +1050,7 @@ export const createDemoStates = (
     updateControls,
     pickDirectory,
     moveTerminal,
-    chat: (conversations) => pictures.wrap(chat.wrap(conversations)),
+    chat: (conversations) => mentions.wrap(pictures.wrap(chat.wrap(conversations))),
     screens,
     failPaste: (key) => pasteFails.delete(terminalKeyId(key)),
     holds: (key) => held.has(terminalKeyId(key)),

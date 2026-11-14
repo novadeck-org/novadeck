@@ -269,6 +269,18 @@ export type ActivityEvent = EventBase &
         readonly code: number | null
       }
     /**
+     * The file a shell told by `shell-started` writes its output to, as an absolute path,
+     * live while it runs: Claude Code's `tasks/<id>.output`, Antigravity's `task-<step>.log`,
+     * or, for Codex, which writes none, the log Novadeck's capture keeps of it. It may come
+     * before or after its `shell-started` (a hook and the transcript race), so the activity
+     * holds one for a shell it doesn't know yet; it is told of the shell once known.
+     */
+    | {
+        readonly type: "shell-output"
+        readonly id: string
+        readonly path: string
+      }
+    /**
      * The harness listed the shells it has running at `startedAt`, as Claude Code's Stop
      * does: one started before then and not named here ended unseen, with no code. For a
      * shell that ended while a turn ran, whose notice came as no prompt.
@@ -389,6 +401,9 @@ export type ActivityEvent = EventBase &
     | { readonly type: "plan-observed"; readonly actor: string | null; readonly plan: PlanSource }
   )
 
+/** Which windows a record's limits replace: see `TelemetryObserved.limitsCover`. */
+export type LimitsCover = "all" | "account" | "scoped" | { readonly scope: string }
+
 /**
  * What a session's own records said of its tokens, quotas and model, each part only when
  * they named it: how full its context is, its rate-limit windows, the model's name and its
@@ -401,6 +416,15 @@ export type TelemetryObserved = EventBase & {
   readonly type: "telemetry-observed"
   readonly context?: AgentTelemetry["context"]
   readonly limits?: AgentTelemetry["limits"]
+  /**
+   * Which of the session's windows `limits` replaces, as a record may speak for only some:
+   * `all` of them, as Antigravity's status line lists every quota, and so where it's left
+   * out; the `account`'s, those with no scope, as Claude Code's status line tells only its
+   * five-hour and weekly windows; every `scoped` one, as Claude Code's usage answer lists
+   * all its model windows; or those of one `scope`, as each of Codex's rate-limit snapshots
+   * is one limit's.
+   */
+  readonly limitsCover?: LimitsCover
   readonly model?: AgentTelemetry["model"]
   readonly effort?: AgentTelemetry["effort"]
   readonly version?: string

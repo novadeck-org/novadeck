@@ -161,6 +161,70 @@ describe("Works, as the runner reports them", () => {
   })
 })
 
+describe("reading the works once, as the backend starts", () => {
+  const unwatched = () => {
+    const stream = channel<WorkWatchItem>()
+    let watches = 0
+    const runner = createRunnerWorks({
+      watch: () => ((watches += 1), stream.iterator),
+      made: () => channel<WorkMade>().iterator,
+      look: async () => {},
+      show: async () => ({ itemId: "x" }),
+      close: async () => ({ closed: true as const, branchDeleted: false }),
+    })
+    const state = () => runner.works.state.getSnapshot()
+    return { ...runner, stream, state, watches: () => watches }
+  }
+
+  it("keeps the works the runner reported, and stops following once it has reported them all", async () => {
+    const { readOnce, stream, state } = unwatched()
+    expect(state().reported).toBe(false)
+    readOnce()
+    stream.push({ type: "reset" })
+    stream.push({ type: "changed", work: work(1) })
+    stream.push({ type: "synced" })
+    await vi.waitFor(() => expect(stream.returned()).toBe(1))
+    expect(state()).toEqual({ works: [work(1)], synced: false, reported: true })
+  })
+
+  it("leaves the following to a watcher that came meanwhile", async () => {
+    const { works, readOnce, stream, state, watches } = unwatched()
+    readOnce()
+    const release = works.watch()
+    expect(watches()).toBe(1)
+    stream.push({ type: "reset" })
+    stream.push({ type: "synced" })
+    await vi.waitFor(() => expect(state().synced).toBe(true))
+    expect(stream.returned()).toBe(0)
+    release()
+    await vi.waitFor(() => expect(stream.returned()).toBe(1))
+  })
+
+  it("reads them no more once they were reported, or the backend has stopped", async () => {
+    const { readOnce, stream, state, watches, stop } = unwatched()
+    readOnce()
+    readOnce()
+    expect(watches()).toBe(1)
+    stream.push({ type: "reset" })
+    stream.push({ type: "synced" })
+    await vi.waitFor(() => expect(state().reported).toBe(true))
+    readOnce()
+    stop()
+    readOnce()
+    expect(watches()).toBe(1)
+  })
+
+  it("stays reported after a watcher lets go, though no longer synced", async () => {
+    const { works, stream, state } = unwatched()
+    const release = works.watch()
+    stream.push({ type: "reset" })
+    stream.push({ type: "synced" })
+    await vi.waitFor(() => expect(state().synced).toBe(true))
+    release()
+    expect(state()).toEqual({ works: [], synced: false, reported: true })
+  })
+})
+
 describe("looking at and showing a work", () => {
   it("tells the runner the terminal's work was read, without waiting", async () => {
     const looked: string[] = []

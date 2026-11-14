@@ -454,7 +454,7 @@ const rows = (path: string) => {
       projects: all("SELECT id AS value FROM projects"),
       sessions: all("SELECT id AS value FROM sessions"),
       terminals: all("SELECT id AS value FROM terminals"),
-      handles: all("SELECT DISTINCT session_id AS value FROM session_handles"),
+      handles: all("SELECT DISTINCT project_id AS value FROM project_handles"),
       messages: all("SELECT project_id AS value FROM messages"),
       threads: all("SELECT project_id AS value FROM message_threads"),
     }
@@ -603,7 +603,7 @@ describe("runner client project removal", () => {
       projects: [ids.kept],
       sessions: [sessions.kept],
       terminals: [elsewhere.id],
-      handles: [sessions.kept],
+      handles: [ids.kept],
       messages: [ids.kept],
       threads: [ids.kept],
     })
@@ -772,7 +772,7 @@ describe("runner client session management", () => {
     expect(rows(database)).toMatchObject({
       sessions: [staying],
       terminals: [elsewhere.id],
-      handles: [staying],
+      handles: [ids.project],
     })
     // Both stay in History, to restore into the session that remains.
     const history = await client.history.list({ projectId: ids.project })

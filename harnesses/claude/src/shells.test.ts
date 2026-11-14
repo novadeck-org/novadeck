@@ -46,7 +46,9 @@ describe("Claude Code's background shells, as captured", () => {
   })
 
   it("ends a shell the moment its notice is queued, which may be mid-turn", () => {
-    const lines = queued.flatMap((line) => transcriptEvents(line, session))
+    const lines = queued
+      .flatMap((line) => transcriptEvents(line, session))
+      .filter(({ type }) => type === "shell-ended")
     expect(lines).toMatchObject([
       { type: "shell-ended", id: c, code: 0 },
       { type: "shell-ended", id: a, code: 3 },
@@ -81,5 +83,57 @@ describe("Claude Code's background shells, as captured", () => {
 
   it("lists no shells where its Stop lists no tasks, as an older release", () => {
     expect(shellEvents(hook("Stop", {}))).toEqual([])
+  })
+})
+
+describe("Claude Code's background shells' output files", () => {
+  const result = (content: unknown) =>
+    JSON.stringify({
+      type: "user",
+      timestamp: "2026-11-06T13:29:05.542Z",
+      message: { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content }] },
+    })
+  const said = (path: string) =>
+    `Command running in background with ID: bc4x20s7r. Output is being written to: ${path}. You will be notified when it completes — do not poll that file or sleep while waiting.`
+  const outputs = (line: string) =>
+    transcriptEvents(line, session).filter(({ type }) => type === "shell-output")
+
+  it("tells the file from the result of the call that backgrounded the command", () => {
+    const path = "/tmp/probe/tasks/bc4x20s7r.output"
+    expect(outputs(result(said(path)))).toMatchObject([{ id: "bc4x20s7r", path }])
+  })
+
+  it("reads a result held as blocks of text, and a path of a Windows shape with spaces", () => {
+    const path = String.raw`C:\Users\Ada Lovelace\AppData\Local\Temp\claude\tasks\bc4x20s7r.output`
+    expect(outputs(result([{ type: "text", text: said(path) }]))).toMatchObject([
+      { id: "bc4x20s7r", path },
+    ])
+  })
+
+  it("tells the file of a task notification in the transcript, whether queued or a prompt", () => {
+    const notice = `<task-notification>\n<task-id>b9</task-id>\n<output-file>/t/tasks/b9.output</output-file>\n<summary>done (exit code 0)</summary>\n</task-notification>`
+    const queuedLine = JSON.stringify({
+      type: "queue-operation",
+      operation: "enqueue",
+      timestamp: "2026-11-06T13:29:05.542Z",
+      content: notice,
+    })
+    const promptLine = JSON.stringify({
+      type: "user",
+      timestamp: "2026-11-06T13:29:05.542Z",
+      message: { role: "user", content: notice },
+    })
+    for (const line of [queuedLine, promptLine])
+      expect(outputs(line)).toMatchObject([{ id: "b9", path: "/t/tasks/b9.output" }])
+    expect(
+      hook("UserPromptSubmit", { prompt: notice }).filter(({ type }) => type === "shell-output"),
+    ).toMatchObject([{ id: "b9", path: "/t/tasks/b9.output" }])
+  })
+
+  it("tells nothing of a result that names no output file", () => {
+    expect(outputs(result("hi\n"))).toEqual([])
+    expect(
+      outputs(result("Command running in background with ID: x. Output is being written")),
+    ).toEqual([])
   })
 })

@@ -1,7 +1,9 @@
 /**
- * Terminal handles: the word a session gives each of its terminals, such as `moth`, by
- * which agents address it and people find it on screen as `@moth`. A session never gives
- * a word twice, so a handle names one terminal for as long as the session lasts.
+ * Terminal handles: the word a project gives each of its terminals, such as `moth`, by
+ * which agents address it and people find it on screen as `@moth`. No two terminals of a
+ * project share a handle for as long as both are there (terminals made before that rule
+ * may, until they close), and a closed terminal's handle goes to a new terminal of the
+ * project an hour after it closed, the one freed longest ago first (see `nextHandle`).
  *
  * The words are the Night Flock: night-sky and neon-street glow, a street alias or two,
  * and night birds. Each is short, said as it is spelled, and rare in agent output and in
@@ -184,14 +186,59 @@ export const handleOrder = (sessionId: string): readonly string[] =>
     randomFrom(seedOf(sessionId)),
   )
 
-/** The handles a session has given, and those of its terminals open now. */
-type HandleSession = {
+/** How long a handle rests after its terminal is gone before another may take it: an hour. */
+export const handleCooldown = 60 * 60 * 1000
+
+/** What a project's pool keeps of a handle it has given at least once. */
+export type PooledHandle = {
+  /**
+   * When its last terminal went, in epoch milliseconds, and the cooldown runs from then.
+   * Until one is known to go it is when the handle was given: a create that drew it and
+   * has not ended, or that failed, holds it that long, and no terminal that closes
+   * without being told of keeps it longer.
+   */
+  readonly freedAt: number
+  /** The terminal that went then, or took the handle, which may take it back within the cooldown. */
+  readonly freedBy: string | null
+}
+
+/** A project's handles, as the next terminal of one of its sessions draws from them. */
+type HandleProject = {
   /** The order the session gives words in (see `handleOrder`). */
   readonly order: readonly string[]
-  /** Every handle the session has given, its closed terminals' too. */
-  readonly given: ReadonlySet<string>
-  /** The handles of its terminals open now. */
+  /** Every handle the project has given, held or freed. */
+  readonly pool: ReadonlyMap<string, PooledHandle>
+  /**
+   * The handles something in the project holds now: a terminal, open, asleep or saved, or a
+   * record still closing. Terminals made before handles were unique in a project may share
+   * one; the handle is held while any does. (A create under way holds its handle by the
+   * cooldown, from `freedAt`.)
+   */
+  readonly held: ReadonlySet<string>
+  /** The handles of the session's terminals open now. */
   readonly open: readonly string[]
+  /** The time, in epoch milliseconds. */
+  readonly now: number
+  /** How long a freed handle rests; an hour when omitted. */
+  readonly cooldown?: number
+}
+
+/**
+ * Whether the project may give the handle again: nothing holds it, and it was never given
+ * or was freed a cooldown ago, or by this very terminal, which may take it back sooner.
+ */
+export const claimable = (
+  handle: string,
+  project: Pick<HandleProject, "pool" | "held" | "now" | "cooldown">,
+  terminalId?: string,
+): boolean => {
+  if (project.held.has(handle)) return false
+  const pooled = project.pool.get(handle)
+  if (pooled === undefined) return true
+  return (
+    project.now - pooled.freedAt >= (project.cooldown ?? handleCooldown) ||
+    (terminalId !== undefined && pooled.freedBy === terminalId)
+  )
 }
 
 /** The letters later rounds add, the alphabet backwards, so the first reads `mothz`. */
@@ -229,22 +276,30 @@ const suffixOf = (round: number): string => {
 }
 
 /**
- * The handle a session gives its next terminal: the first word in its order it has never
- * given, preferring one whose first letter no terminal open there starts with, so a jump
- * by letter lands in one key. Once every word is given, the words come again with a
- * letter from the end of the alphabet (see `suffixOf`): `mothz`, then `mothy`.
+ * The handle a project gives the next terminal of a session: the first word in the
+ * session's order that the project has never given, preferring one whose first letter no
+ * terminal open in the session starts with, so a jump by letter lands in one key. When
+ * every word has been given, the one freed longest ago, once it has rested a cooldown
+ * (`handleCooldown`). Only when every word is held or resting do the words come again with
+ * a letter from the end of the alphabet (see `suffixOf`): `mothz`, then `mothy`, each
+ * round drawn the same way. A handle anything in the project holds is never given.
  */
-export const nextHandle = (session: HandleSession): string => {
-  if (session.order.length === 0) throw new Error("A session's order has no words to give.")
-  const letters = new Set(session.open.map((handle) => handle[0]))
+export const nextHandle = (project: HandleProject): string => {
+  const { order, pool, open } = project
+  if (order.length === 0) throw new Error("A session's order has no words to give.")
+  const letters = new Set(open.map((handle) => handle[0]))
   for (let round = 1; ; round++) {
     const suffix = suffixOf(round)
-    const fresh = session.order
+    const handles = order
       .filter((word) => follows(word, suffix))
       .map((word) => `${word}${suffix}`)
-      .filter((handle) => !session.given.has(handle))
-    if (fresh.length === 0) continue
-    return fresh.find((handle) => !letters.has(handle[0])) ?? fresh[0]!
+      .filter((handle) => !project.held.has(handle))
+    const fresh = handles.filter((handle) => !pool.has(handle))
+    if (fresh.length > 0) return fresh.find((handle) => !letters.has(handle[0])) ?? fresh[0]!
+    const freed = handles
+      .filter((handle) => claimable(handle, project))
+      .toSorted((a, b) => pool.get(a)!.freedAt - pool.get(b)!.freedAt)
+    if (freed.length > 0) return freed[0]!
   }
 }
 

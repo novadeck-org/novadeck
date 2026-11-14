@@ -4,8 +4,9 @@ import { unquote } from "@novadeck/harness-core/tools"
 import type { ToolOutcome } from "@novadeck/protocol"
 
 // The times each result step opens with, then what Antigravity itself says of the call, before
-// anything a tool printed (probed 1.2 to 1.5.2).
-const opening = String.raw`^Created At: [^\n]*\n(?:Completed At: [^\n]*\n)?`
+// anything a tool printed (probed 1.2 to 1.5.7). From 1.5.7 the pair of times comes twice
+// over, so any number of them is read, each with its Completed At or without.
+const opening = String.raw`^(?:Created At: [^\n]*\n(?:Completed At: [^\n]*\n)?)+`
 const exitLine = new RegExp(String.raw`${opening}Command exited with code (-?\d{1,10})\.`)
 const readLine = new RegExp(String.raw`${opening}Showing lines (\d{1,10})-(\d{1,10}) of \d+`)
 const editLine = new RegExp(

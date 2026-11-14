@@ -108,10 +108,14 @@ export const claudeAskSkipped: readonly string[] = [
   "k-write-blank-end@2.1.291",
   "k-write-over-nonl@2.1.291",
   "k-write-over-blank-end@2.1.291",
+  "ask-preview-mixed",
 ]
 
 // Codex's ask scenarios with no rollout, in the 0.163.0 and 0.160.1 recordings.
 export const codexAskSkipped: readonly string[] = ["rui-default-off", "y-with-no-dialog"]
+
+// The pin's recording adds one, its screens alone (0.167.0, a label that wraps).
+export const codexPinnedAskSkipped: readonly string[] = [...codexAskSkipped, "rui-long-narrow"]
 
 // Antigravity's ask scenarios that keep no list of steps.
 export const agyAskSkipped: readonly string[] = [

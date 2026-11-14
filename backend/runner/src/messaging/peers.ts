@@ -570,7 +570,7 @@ const plain = (text: string): string => text.replace(/[\p{Cc}\p{Cf}]/gu, " ")
 /**
  * What names a bar item in a listing, and nothing that could be a secret or a home folder:
  * a page by its scheme, host, port and path (no login, query or fragment); a file or image
- * by its path inside `folder`, else by its file name; a plan or changes by its kind alone.
+ * by its path inside `folder`, else by its file name; a plan, changes or shells by its kind alone.
  * Redacted before it is cut, so a cut never leaves half a secret.
  */
 export const shownLabel = (
@@ -578,7 +578,7 @@ export const shownLabel = (
   folder: string | undefined,
 ): string => {
   const named = (): string => {
-    if (item.kind === "plan" || item.kind === "changes") return item.kind
+    if (item.kind === "plan" || item.kind === "changes" || item.kind === "shells") return item.kind
     if (item.kind === "page") {
       // Only http and https pages are ever shown (`pageAt`).
       try {
@@ -772,7 +772,8 @@ export const renderAgents = (input: {
 
 /**
  * Why `send` refused a `to` that is no current handle of a terminal there: handles are
- * exact and never reused, so it names none of them, with every one described.
+ * exact, and a closed terminal's goes to a new terminal of the project an hour after it
+ * closed, so a `to` that names none of them is refused, with every one described.
  */
 export const unknownHandle = (
   to: string,

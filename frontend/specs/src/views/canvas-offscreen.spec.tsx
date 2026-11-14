@@ -43,7 +43,7 @@ const openCanvas = async () => {
   return runner
 }
 
-// How far past the view's edges Canvas still counts a node in sight (nodeVisibility.ts).
+// How far past the view's edges Canvas still counts a node in sight (Canvas.tsx).
 const margin = 400
 
 /** Drags the camera up or down by `by` (at most a screen), from the bare gutter beside the windows. */

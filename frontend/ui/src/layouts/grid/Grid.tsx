@@ -23,6 +23,7 @@ import {
 import { prefersReducedMotion } from "../../interaction/reduced-motion"
 import type { TerminalLayoutControls } from "../../terminals/WindowShell"
 import { backgroundPointerHandlers } from "../background"
+import { createTileVisibility, useTileOnScreen, type TileVisibility } from "../tileVisibility"
 import { useTerminalVisibility } from "../useTerminalVisibility"
 import { GridTeamWire } from "./GridTeamWire"
 import { arrangeGrid, gridGap, orderAfterDrag, slotAt, spanAt } from "./layout"
@@ -94,7 +95,15 @@ const plugins: React.ComponentProps<typeof DragDropProvider>["plugins"] = (defau
   Feedback.configure({ feedback: "none" }),
 ]
 
-const noControls: TerminalLayoutControls = {}
+// A tile in sight whose turn has come draws its screen; one out of sight, or still waiting
+// its turn, holds none.
+const onScreenControls: TerminalLayoutControls = { onScreen: true }
+const offScreenControls: TerminalLayoutControls = { onScreen: false }
+
+// How far past the stage's top and bottom a tile still counts as on screen: about a row of
+// tiles, so one scrolled in from an edge has its screen a little before it crosses it. The
+// stage scrolls only up and down.
+const tileMargin = "400px 0px"
 const oneCell: GridSpan = { columns: 1, rows: 1 }
 // How near the Grid's top or bottom a held corner scrolls it.
 const scrollEdge = 48
@@ -116,6 +125,7 @@ type TileProps = {
   readonly span: GridSpan
   readonly onResize: Resize
   readonly render: (terminal: Tile, controls: TerminalLayoutControls) => ReactNode
+  readonly visibility: TileVisibility
 }
 
 // A tile's corner held at a point of the page, while it is held
@@ -217,8 +227,11 @@ const ResizeCorner = ({
   )
 }
 
-// One window in the grid, placed by its box. Its content is made once for a terminal, so a
-// tile that moves (every one does as another is dragged past) draws nothing again.
+// One window in the grid, placed by its box. Its content is made once for a terminal and each
+// time it comes on screen or leaves it, so a tile that moves (every one does as another is
+// dragged past) draws nothing again. A tile takes its screen once it is in sight and its turn
+// comes (tileVisibility.ts): switching to Grid with many terminals opens them a few at a
+// time, the selected one first, and those scrolled far out of sight not at all.
 const GridTile = memo(
   ({
     terminal,
@@ -232,9 +245,15 @@ const GridTile = memo(
     span,
     onResize,
     render,
+    visibility,
   }: TileProps): React.JSX.Element => {
     const { ref } = useDraggable({ id: terminal.id })
-    const content = useMemo(() => render(terminal, noControls), [render, terminal])
+    const body = useRef<HTMLDivElement>(null)
+    const { onScreen, offScreen } = useTileOnScreen(visibility, terminal.id, body)
+    const content = useMemo(
+      () => render(terminal, onScreen ? onScreenControls : offScreenControls),
+      [render, terminal, onScreen],
+    )
     const x = held?.x ?? box.left
     const y = held?.y ?? box.top
     return (
@@ -254,7 +273,12 @@ const GridTile = memo(
         aria-hidden={hidden}
         onContextMenu={(event) => event.stopPropagation()}
       >
-        <div className="grid-terminal-body terminal-visibility min-h-0 flex-1" data-hiding={hiding}>
+        <div
+          ref={body}
+          className="grid-terminal-body terminal-visibility min-h-0 flex-1"
+          data-hiding={hiding}
+          data-off-screen={offScreen || undefined}
+        >
           {content}
         </div>
         <ResizeCorner
@@ -328,6 +352,16 @@ export const Grid = ({
   const { ref: containerRef, width } = useWidth()
   const removed = useTerminalVisibility(hidden)
   const stageRef = useRef<HTMLDivElement>(null)
+  const [visibility] = useState(() =>
+    createTileVisibility({
+      root: (element) => element.closest(".grid-stage"),
+      margin: tileMargin,
+    }),
+  )
+  // The selected tile takes its screen the moment it is in sight; the rest take turns.
+  useEffect(() => {
+    visibility.select(selected || undefined)
+  }, [visibility, selected])
   useEffect(() => {
     const stage = stageRef.current
     if (!stage) return
@@ -580,6 +614,9 @@ export const Grid = ({
       (navigation === scrolled.current.navigation && width === scrolled.current.width)
     )
       return
+    // Opening, the Grid is there at once: a smooth scroll would let the tiles it passes take
+    // their screens on the way (tileVisibility.ts), only to let them go.
+    const opening = scrolled.current.width === 0
     scrolled.current = { navigation, width }
     // As far as the nearest edge, the stage's padding included; a tile taller than the stage
     // is met at its top.
@@ -594,7 +631,10 @@ export const Grid = ({
           ? bottom + pad - view
           : stage.scrollTop
     if (target !== stage.scrollTop)
-      stage.scrollTo({ top: target, behavior: prefersReducedMotion() ? "instant" : "smooth" })
+      stage.scrollTo({
+        top: target,
+        behavior: opening || prefersReducedMotion() ? "instant" : "smooth",
+      })
   }, [navigation, selected, width, containerRef, boxOf])
 
   const grid = (
@@ -679,6 +719,7 @@ export const Grid = ({
                     span={shownSpan(sized[terminal.id] ?? oneCell, rest.columns)}
                     onResize={resize}
                     render={render}
+                    visibility={visibility}
                   />
                 ) : null
               })}

@@ -56,6 +56,13 @@ export type Row = {
   readonly head: string
   /** All its lines, wrapped or not, joined by a space. */
   readonly text: string
+  /**
+   * Its label whole: the label's column of each of its lines, left of the description's,
+   * joined by a space. A label too long for its column wraps inside it, as
+   * `Push and reply (Recommended)` does at 52 columns (0.167.0, fixtures/ask.probe.json
+   * `rui-long-narrow`).
+   */
+  readonly label: string
 }
 
 /** The options numbered from 1 that start at `from`, and the line after them. */
@@ -71,9 +78,14 @@ export const optionsAt = (
     if (!found || Number(found[3]) !== rows.length + 1) break
     const column = found[0].length - found[4]!.length
     const parts = [found[4]!]
+    // Where the description's column starts, the first gap of two spaces or more on.
+    const gap = / {2,}\S/.exec(found[4]!)
+    const described = gap ? column + gap.index + gap[0].length - 1 : undefined
+    const label = [gap ? found[4]!.slice(0, gap.index) : found[4]!]
     at += 1
     while (at < lines.length && !optionLine.test(lines[at]!) && indent(lines[at]!) >= column) {
       parts.push(lines[at]!.trim())
+      label.push(lines[at]!.slice(column, described).trim())
       at += 1
     }
     rows.push({
@@ -81,6 +93,7 @@ export const optionsAt = (
       marked: found[2] !== undefined,
       head: parts[0]!,
       text: parts.join(" "),
+      label: label.filter((each) => each !== "").join(" "),
     })
   }
   return { rows, next: at }
@@ -106,6 +119,10 @@ export const lastOptions = (lines: readonly string[], from: number): number =>
 /** Whether `head` is `label`, alone or followed by its description's column. */
 export const labelled = (head: string, label: string): boolean =>
   head === label || head.startsWith(`${label}  `)
+
+/** Whether an option's row shows `label`, on its first line or wrapped in its column. */
+export const named = (row: Row, label: string): boolean =>
+  labelled(row.head, label) || squash(row.label) === squash(label)
 
 /**
  * What a dialog offers by its own wording: each label Codex has for it, and whether the

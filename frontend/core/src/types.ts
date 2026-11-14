@@ -73,6 +73,9 @@ export type AgentStatus = {
   // The background shells it started that run on, and the last few that ended (see
   // `AgentShell`), oldest first; absent while it has none.
   readonly shells?: readonly AgentShell[]
+  // The absolute path its running turn's edit tools wrote last, root or a subagent, as it is
+  // written; absent once the turn ends and until it writes something.
+  readonly wrote?: string
   // How its latest turn ended, once none runs, with the start of its last reply where its
   // harness tells it (see `AgentTurnEnd`).
   readonly lastTurn?: AgentTurnEnd
@@ -106,27 +109,33 @@ export type AgentWaiting = {
 // A background shell an agent started, the same for every harness: the id its harness names
 // it by, its command, and when it started (epoch milliseconds). `exit` is null while it runs;
 // else when it ended and its exit code, null where its harness gives none (a shell stopped).
-// It carries no output: Codex writes none while a shell runs.
+// `output` is the absolute path, on the runner's machine, of the file its output is written
+// to as it runs, where one is known.
 export type AgentShell = {
   readonly id: string
   readonly command: string
   readonly since: number
   readonly exit: { readonly at: number; readonly code: number | null } | null
+  readonly output?: string | undefined
 }
 
 // How an agent's turn ended: `completed` or `failed` on its own, `interrupted` by the
 // person (Escape, or a request they refused), or `unknown` when it only went idle, as an
 // Escape shows in Antigravity. `reply` is the start of its last reply, one line of plain
 // text; `at` tells this end from any other. `error` is a failed turn's error as its harness said it. `limit` is the
-// usage-limit window the end ran into, with its length in minutes where known, and when it
-// resets, in epoch milliseconds.
+// usage-limit window the end ran into, with its length in minutes where known, when it
+// resets, in epoch milliseconds, and the models it covers where not all of them.
 // `limited` is set where the end ran into a usage limit, whether or not the window is known.
 // `files` are the absolute paths its edit tools wrote in the turn, first written first.
 export type AgentTurnEnd = {
   readonly outcome: "completed" | "failed" | "interrupted" | "unknown"
   readonly reply?: string
   readonly error?: string
-  readonly limit?: { readonly minutes: number | null; readonly resetsAt: number }
+  readonly limit?: {
+    readonly minutes: number | null
+    readonly resetsAt: number
+    readonly scope?: string
+  }
   readonly limited?: true
   readonly files?: readonly string[]
   readonly at: number
@@ -134,13 +143,14 @@ export type AgentTurnEnd = {
 
 // What an agent's own records say of its tokens and quotas: how many tokens its context
 // holds, of how many where known, and each rate-limit window's used fraction with when it
-// resets, in epoch milliseconds.
+// resets, in epoch milliseconds, and the models it covers where not all of them ("Fable").
 export type AgentUsage = {
   readonly context: { readonly occupied: number; readonly capacity: number | null } | null
   readonly limits: readonly {
     readonly minutes: number | null
     readonly used: number
     readonly resetsAt: number | null
+    readonly scope?: string
   }[]
   // The model it runs and the reasoning effort it was set to, where its harness says.
   readonly model: string | null
@@ -199,6 +209,9 @@ export type TerminalMetadata = {
   restoredProcess?: string
   // The handle agents message it by, such as `moth`, where its backend has one.
   handle?: string
+  // When it was given that handle, in epoch milliseconds; absent where that was long ago or is
+  // not known. Words written before this time that name the handle meant an earlier terminal.
+  handleGivenAt?: number
   // The id of the terminal whose agent leads it, as its backend last said; null once that
   // ended. Whether the lead runs is the roster's to say.
   ledBy?: string | null

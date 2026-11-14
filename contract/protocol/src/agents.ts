@@ -23,7 +23,7 @@ export const maxTurnFilePath = 1024
 // How much an agent's activity and detail carry at most: its subagents running, the jobs it
 // waits on, the background shells it started, its actors (the root and its subagents) and the requests waiting on the person,
 // a request's choices; and, in UTF-16 code units, a name (an id, a kind, a tool, a choice),
-// a description (a job's, a wake's reason), a request's subject and a waited job's or shell's command;
+// a description (a job's, a wake's reason), a request's subject and a waited job's or shell's command, and a shell's output path;
 // and the prompts given through `agents.prompt` whose receipts it keeps.
 export const agentLimits = {
   subagents: 32,
@@ -37,12 +37,22 @@ export const agentLimits = {
   description: 512,
   subject: 1024,
   command: 4096,
+  path: 4096,
 } as const
 
 // Fields of an agent's last turn, shared by its summary and by a stored turn entry.
 export const turnReply = z.string().min(1).max(replyPreviewLength)
 export const turnError = z.string().min(1).max(maxTurnError)
 export const turnFiles = z.array(z.string().min(1).max(maxTurnFilePath)).max(maxTurnFiles)
+
+// How many rate-limit windows an agent's telemetry carries, and how long its model's and
+// effort's names and a window's scope run, in UTF-16 code units.
+export const telemetryLimits = { windows: 8, model: 128, effort: 32, scope: 64 } as const
+
+// The models a rate-limit window covers, in its harness's words, as Claude Code's weekly
+// "Fable" window or Antigravity's "Gemini" quota: a window without one covers all of the
+// account's models.
+export const limitScope = z.string().min(1).max(telemetryLimits.scope)
 
 // What the agent holding a terminal's foreground is doing, as its own hooks report it:
 // working on a turn, or with its turn over while subagents it started run on, which will
@@ -94,8 +104,9 @@ export const agentActivity = z.strictObject({
   // turns until the harness says each ended. Each has the id its harness names it by, its
   // command, when it started (epoch milliseconds), and `exit`: null while it runs, else when
   // it ended and its exit code, null where its harness gives none (a shell the agent or the
-  // person stopped). Absent while there is none. It carries no output: Codex writes a
-  // running shell's output nowhere Novadeck can read.
+  // person stopped), and `output` where known: the absolute path of the file its output is
+  // written to as it runs (Claude Code's and Antigravity's own, Codex's as Novadeck captures
+  // it), on the runner's machine. Absent while there is none.
   shells: z
     .array(
       z.strictObject({
@@ -103,6 +114,7 @@ export const agentActivity = z.strictObject({
         command: z.string().max(agentLimits.command),
         since: z.number(),
         exit: z.strictObject({ at: z.number(), code: z.number().int().nullable() }).nullable(),
+        output: z.string().min(1).max(agentLimits.path).optional(),
       }),
     )
     .max(agentLimits.shells)
@@ -125,6 +137,10 @@ export const agentActivity = z.strictObject({
       }),
     )
     .max(agentLimits.subagents),
+  // The absolute path its write/edit tools (root or a subagent) wrote last in the turn that
+  // runs now, updated by each write, one already written again included. Absent while no
+  // turn runs, and until the turn writes something.
+  wrote: z.string().min(1).max(maxTurnFilePath).optional(),
   // How its latest turn ended: `completed` as its harness said, `failed` on an error,
   // `interrupted` by the person (Escape, or a request they refused, as its hooks or records
   // tell), or `unknown` when it only went idle, as an Escape or a refusal shows in
@@ -146,6 +162,8 @@ export const agentActivity = z.strictObject({
         .strictObject({
           minutes: z.number().int().positive().nullable(),
           resetsAt: z.number(),
+          // The models the window covers, as in the telemetry's `limits`.
+          scope: limitScope.optional(),
         })
         .nullable(),
       // Absolute paths its write/edit tools wrote in the turn (root and subagents), first
@@ -158,13 +176,10 @@ export const agentActivity = z.strictObject({
     .nullable(),
 })
 
-// How many rate-limit windows an agent's telemetry carries, and how long its model's and
-// effort's names run, in UTF-16 code units.
-export const telemetryLimits = { windows: 8, model: 128, effort: 32 } as const
-
 // What an agent's own records say of its tokens and quotas: how many tokens its context
 // holds, of how many where known, and how much of each rate-limit window it has used, as
-// a fraction, with the instant the window resets in epoch milliseconds where known. Every
+// a fraction, with the instant the window resets in epoch milliseconds where known, and
+// `scope`, the models it covers where it doesn't cover all of the account's. Every
 // harness reports limits this way; none reports the limit itself.
 export const agentTelemetry = z.strictObject({
   context: z
@@ -179,6 +194,7 @@ export const agentTelemetry = z.strictObject({
         minutes: z.number().int().positive().nullable(),
         used: z.number().min(0).max(1),
         resetsAt: z.number().nullable(),
+        scope: limitScope.optional(),
       }),
     )
     .max(telemetryLimits.windows),

@@ -1,13 +1,13 @@
 import type { ToolChange } from "@novadeck/core/conversation"
 import type { ToolEntry } from "@novadeck/core/conversation/turns"
 import { counted } from "@novadeck/core/units"
+import { shownControls } from "@novadeck/requests/shown-controls"
 import { useId, useLayoutEffect, useRef, useState } from "react"
 
 import { Fact, Since, TimeFact } from "./Fact"
 import { longMs, span } from "./facts"
 import { MoreKey, useFold } from "./fold"
 import { inputBeyondLine } from "./input-text"
-import { shownControls } from "./shown-controls"
 import {
   callRun,
   failedCount,

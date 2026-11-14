@@ -238,7 +238,9 @@ describe("Sending a prompt from the chat", () => {
     await expect.element(composer(chat)).toHaveFocus()
     await userEvent.type(composer(chat), "Run the linter")
     await userEvent.keyboard("{Enter}")
-    await expect.element(conversation(chat).getByText("Run the linter")).toBeVisible()
+    await expect
+      .element(conversation(chat).getByText("Run the linter", { exact: true }))
+      .toBeVisible()
     await expect.element(composer(chat)).toHaveValue("")
     await expect
       .element(conversation(chat).getByText("Done: Run the linter. Nothing else changed."), {
@@ -300,7 +302,9 @@ describe("Sending a prompt from the chat", () => {
     await userEvent.keyboard("{Enter}")
     await expect.element(card).not.toBeInTheDocument()
     await expect.element(composer(chat)).toHaveValue("")
-    await expect.element(conversation(chat).getByText("Do this instead")).toBeVisible()
+    await expect
+      .element(conversation(chat).getByText("Do this instead", { exact: true }))
+      .toBeVisible()
     await expect.element(chat.getByRole("alert")).not.toBeInTheDocument()
     await expect
       .element(conversation(chat).getByText("Done: Do this instead.", { exact: false }), {
@@ -366,7 +370,7 @@ describe("Pasting an image into the chat", () => {
     await expect.element(attachments(chat)).not.toBeInTheDocument()
     // The demo's agent records each image where it stood in the prompt, as the harnesses do.
     await expect
-      .element(conversation(chat).getByText(/\[Image #1\]\s+What is this\?/))
+      .element(conversation(chat).getByText(/^\[Image #1\]\s+What is this\?$/))
       .toBeVisible()
   })
 
@@ -689,7 +693,9 @@ describe("A request that waits on the person", () => {
       await userEvent.type(field, "Run only the unit tests")
       await userEvent.keyboard("{Enter}")
       await expect.element(card).not.toBeInTheDocument()
-      await expect.element(conversation(chat).getByText("Run only the unit tests")).toBeVisible()
+      await expect
+        .element(conversation(chat).getByText("Run only the unit tests", { exact: true }))
+        .toBeVisible()
     })
   })
 
@@ -793,7 +799,9 @@ describe("A request that waits on the person", () => {
       await expect.element(card).not.toBeInTheDocument()
       await expect.element(composer(chat)).toHaveFocus()
       await userEvent.keyboard("What does each check cost{Enter}")
-      await expect.element(conversation(chat).getByText("What does each check cost")).toBeVisible()
+      await expect
+        .element(conversation(chat).getByText("What does each check cost", { exact: true }))
+        .toBeVisible()
     })
 
     it("takes the person's own words instead of an option with Enter", async () => {

@@ -129,7 +129,7 @@ describe("Antigravity's status line, as captured", () => {
     ])
   })
 
-  it("gives the context window's share in use, and each quota window left", () => {
+  it("gives the context window's share in use, and each quota window left, by the models it covers", () => {
     const idle = payloads.at(-1)!
     const window = idle.context_window as { context_window_size: number; used_percentage: number }
     expect(telemetry(idle)).toMatchObject({
@@ -138,11 +138,17 @@ describe("Antigravity's status line, as captured", () => {
         capacity: window.context_window_size,
       },
       limits: [
-        { minutes: 10_080, used: 0, resetsAt: Date.parse("2026-10-07T00:35:50Z") },
+        {
+          minutes: 10_080,
+          used: 0,
+          resetsAt: Date.parse("2026-10-07T00:35:50Z"),
+          scope: "Third-party",
+        },
         {
           minutes: 10_080,
           used: expect.closeTo(1 - 0.8638056, 6),
           resetsAt: Date.parse("2026-10-06T21:00:32Z"),
+          scope: "Gemini",
         },
       ],
     })
@@ -174,7 +180,7 @@ describe("Antigravity's status line, as captured", () => {
     })
     const quota = { soon: { remaining_fraction: 0.5, reset_time: "never" } }
     expect(telemetry({ ...sparse, quota })).toMatchObject({
-      limits: [{ minutes: null, used: 0.5, resetsAt: null }],
+      limits: [{ minutes: null, used: 0.5, resetsAt: null, scope: "soon" }],
     })
     expect(JSON.stringify(decode(report(sparse)))).not.toContain("person@example.com")
   })

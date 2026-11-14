@@ -41,10 +41,11 @@ import { HeaderSection } from "./HeaderSection"
 import { dropWords } from "./history-drops"
 import { InboxHost } from "./InboxHost"
 import { MoveSessionsProvider } from "./move-to"
-import { historyShown, sourceShown, worksShown } from "./routing"
+import { historyShown, sourceShown } from "./routing"
 import { currentContext, currentState, currentTarget, sameItems, shallowEqual } from "./selectors"
 import { SidebarSection } from "./SidebarSection"
 import { previewTeamFold, toggleTeamFold, useFoldedLeads } from "./team-fold"
+import { useChangesShown, useLeaveHiddenChanges } from "./use-changes-shown"
 import { useInboxBadge } from "./useInboxBadge"
 import { useSessionMarks } from "./useSessionMarks"
 import { VisitorBar, VisitorCover } from "./Visitor"
@@ -271,6 +272,8 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
   const voice = useDictationController(services)
   useKeyboard(voice?.dictation)
   const { backend } = services
+  const changesShown = useChangesShown()
+  useLeaveHiddenChanges(changesShown)
   // The terminals' font follows Preferences.
   useEffect(() => {
     backend.setFont({ size: fontSize })
@@ -287,7 +290,7 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
       zen={zen}
       hasSource={sourceShown(services.backend)}
       hasHistory={historyShown(services.backend)}
-      hasChanges={worksShown(services.backend)}
+      hasChanges={changesShown}
       order={railOrder}
       onOrder={(order) => {
         setRailOrder(order)

@@ -16,9 +16,10 @@ import { latestTurnEnd } from "../sidebar/source-turns"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useStoreSelector } from "./controller/useStoreSelector"
 import { useMoving, useTabsAway } from "./move-to"
-import { historyShown, sourceShown, worksShown } from "./routing"
+import { historyShown, sourceShown } from "./routing"
 import { currentState, currentTarget, sameItems, sameTarget } from "./selectors"
 import { useReorderTiles } from "./team-fold"
+import { useChangesShown } from "./use-changes-shown"
 import { useSessionMarks } from "./useSessionMarks"
 import { renderTab } from "./WorkspaceTab"
 
@@ -44,9 +45,7 @@ const noSource = createStore<SourceState>({ projects: {} })
 // What a backend without History reads in its place; its panel isn't drawn.
 const noHistory = createStore<HistoryState>({ rows: [] })
 // What a backend without works reads in its place; its panel isn't drawn.
-const noWorks = createStore<WorksState>({ works: [], synced: true })
-// What a backend without the agent worktrees setting reads in its place.
-const noWorktrees = createStore(false)
+const noWorks = createStore<WorksState>({ works: [], synced: true, reported: true })
 const noAgents: readonly never[] = []
 const always = (): (() => void) => () => {}
 
@@ -164,10 +163,12 @@ export const SidebarSection = memo((): React.JSX.Element => {
   )
   const moving = useMoving()
   const away = useTabsAway()
-  // The Changes panel shows where the backend reports the terminals' work; see `worksShown`.
-  const worksFeed = worksShown(backend) ? backend.works : undefined
+  // The Changes panel shows where the backend reports the terminals' work, while agent
+  // worktrees are on; see `useChangesShown`.
+  const worksFeed = useChangesShown() ? backend.works : undefined
   // Every project's works: the panel lists them all, naming each row's project.
   const allWorks = useStoreSelector(worksFeed?.state ?? noWorks, (state) => state.works, sameWorks)
+  const worksReported = useStoreSelector(worksFeed?.state ?? noWorks, (state) => state.reported)
   // Titles of every project's terminals, in every session of it, for the rows to name.
   const titles = useWorkspaceState(
     (workspace) =>
@@ -200,27 +201,21 @@ export const SidebarSection = memo((): React.JSX.Element => {
     },
     [worksFeed, revealTerminal, openBarTab, projectId],
   )
-  const worktreesOn = useStoreSelector(backend.worktrees?.enabled ?? noWorktrees, (on) => on)
-  const agentWorktrees: "on" | "off" | "absent" = backend.worktrees
-    ? worktreesOn
-      ? "on"
-      : "off"
-    : "absent"
   const changes = useMemo(
     () =>
       worksFeed
         ? {
             works: allWorks,
+            reported: worksReported,
             watch: worksFeed.watch,
             titles,
             projects: projectNames,
             selectedId,
-            agentWorktrees,
             onSelect: showWork,
             onCloseWork: worksFeed.close,
           }
         : undefined,
-    [worksFeed, allWorks, titles, projectNames, selectedId, agentWorktrees, showWork],
+    [worksFeed, allWorks, worksReported, titles, projectNames, selectedId, showWork],
   )
   const sidebarPanel = useUiState((state) => state.location.route.panel)
   const visible = useUiState((state) => sidebarVisible(state.shell, desktop))

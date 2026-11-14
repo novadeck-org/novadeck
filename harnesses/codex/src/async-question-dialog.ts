@@ -8,7 +8,7 @@ import {
   clean,
   composerShown,
   firstOption,
-  labelled,
+  named,
   optionsAt,
   type Parsed,
   type Row,
@@ -104,7 +104,7 @@ const optionsOn = (picker: Picker | undefined, question: AsyncQuestion): picker 
   const { rows } = picker
   return (
     rows.length === question.options.length + 1 &&
-    question.options.every((option, i) => labelled(rows[i]!.head, option))
+    question.options.every((option, i) => named(rows[i]!, option))
   )
 }
 
@@ -115,7 +115,7 @@ const optionsOn = (picker: Picker | undefined, question: AsyncQuestion): picker 
 const pickerOn = (picker: Picker | undefined, question: AsyncQuestion): boolean =>
   question.options.length === 0
     ? picker?.title === squash(question.title) && picker.words
-    : optionsOn(picker, question) && labelled(picker.rows.at(-1)!.head, asyncOther)
+    : optionsOn(picker, question) && named(picker.rows.at(-1)!, asyncOther)
 
 /** Whether the picker is on `question` with its Other row, not any other, highlighted. */
 const otherMarked = (picker: Picker | undefined, question: AsyncQuestion): boolean =>

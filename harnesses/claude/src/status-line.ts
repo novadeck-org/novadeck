@@ -66,7 +66,9 @@ export const statusLine = (
           capacity: capacity !== undefined && capacity >= 1 ? Math.round(capacity) : null,
         },
       }),
-      ...(payload.rate_limits !== undefined && { limits: known }),
+      // Its windows are the account's alone: a model's own, as Fable's weekly one, it leaves
+      // out, so they stay as Claude Code's usage answer told them (see usage.ts).
+      ...(payload.rate_limits !== undefined && { limits: known, limitsCover: "account" as const }),
       // A model with no effort parameter has no level, so a named model clears the last.
       ...(model !== undefined && { model, effort: effort ?? null }),
       ...(model === undefined && effort !== undefined && { effort }),

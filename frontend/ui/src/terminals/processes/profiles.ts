@@ -4,7 +4,7 @@ import { iconOf } from "@novadeck/items/registry"
 import { AntigravityIcon } from "@novadeck/toolkit/icons/AntigravityIcon"
 import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
-import { FileText, Terminal, type LucideIcon } from "lucide-react"
+import { FileText, SquareTerminal, Terminal, type LucideIcon } from "lucide-react"
 
 // How the UI presents a program: its icon in the tab and window header. The window itself
 // never changes, so a program starting or ending keeps the header, a rename in progress, and
@@ -39,9 +39,14 @@ export const presentedProgram = (terminal: TerminalMetadata): string | undefined
 }
 
 // A window undocked from a terminal's companion presents as what it shows: a plan, or an
-// image, file or page.
+// image, file or page, or the shells of its agent.
 export const windowProfile = (item: Pick<Item, "kind" | "name"> | undefined): ProcessProfile => ({
-  icon: !item || item.kind === "plan" ? FileText : iconOf({ kind: item.kind, name: item.name }),
+  icon:
+    !item || item.kind === "plan"
+      ? FileText
+      : item.kind === "shells"
+        ? SquareTerminal
+        : iconOf({ kind: item.kind, name: item.name }),
 })
 
 // The icon a program presents with, by its name: a plain terminal's for one without a

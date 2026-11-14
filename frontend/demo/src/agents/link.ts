@@ -23,8 +23,18 @@ export type DemoWaiting =
     }
   | { readonly wake: { readonly reason: string }; readonly inMinutes: number }
 
-// A background shell the agent left running: its command, and how long it has run.
-export type DemoShell = { readonly command: string; readonly minutes: number }
+// A background shell the agent left: its command, and how long ago it started. It runs on
+// unless `ended` says how it ended (`code` null for a shell that was stopped, `ago` minutes
+// ago, 1 where not said). Its output reads from what the demo has for the command, unless
+// `output` says the harness keeps none Novadeck can read (`none`: a command run in a terminal
+// of its own), that its file is there and can't be read now (`unreadable`) or that the agent
+// cleared it with its session (`gone`).
+export type DemoShell = {
+  readonly command: string
+  readonly minutes: number
+  readonly ended?: { readonly code: number | null; readonly ago?: number }
+  readonly output?: "none" | "unreadable" | "gone"
+}
 
 export type DemoAgentVerbs = {
   // Starts a turn that works until another verb ends it: in plan mode, with three
@@ -66,9 +76,14 @@ export type DemoAgentVerbs = {
       readonly shells?: readonly DemoShell[]
       // The agent calls its MCP `done` as the turn ends: this report becomes an Update.
       readonly done?: { readonly subject: string; readonly body: string }
-      // The turn failed on the agent's usage limit, which resets at `resetsAt`, as the runner
-      // reports it on the end: a state of the agent, never a stored turn.
-      readonly limit?: { readonly minutes: number; readonly resetsAt: number }
+      // The turn failed on the agent's usage limit, which resets at `resetsAt`, of the models
+      // `scope` names where not all of them, as the runner reports it on the end: a state of
+      // the agent, never a stored turn.
+      readonly limit?: {
+        readonly minutes: number
+        readonly resetsAt: number
+        readonly scope?: string
+      }
     },
   ) => void
   // Back at its prompt with no turn behind it: nothing works, waits or reads unread. A `done`

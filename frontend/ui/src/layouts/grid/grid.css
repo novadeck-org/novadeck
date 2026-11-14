@@ -75,4 +75,9 @@
       height var(--motion-layout) ease;
     pointer-events: none;
   }
+  /* A tile scrolled out of sight whose screen has parked: its content is not laid out or
+     painted, and keeps the size its box gives it, as Canvas's nodes do (canvas.css). */
+  .terminal-grid .grid-terminal-body[data-off-screen] {
+    content-visibility: hidden;
+  }
 }

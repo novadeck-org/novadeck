@@ -1,6 +1,7 @@
 //! A Windows job object a program is started in, which Windows has instead of a process
-//! group: the relay's status line runs in one, and so does the real `cmd.exe` that
-//! `novadeck-cmd` passes a command on to. Both binaries build this file.
+//! group: the relay's status line runs in one, and so do the real `cmd.exe` that
+//! `novadeck-cmd` passes a command on to and the real PowerShell `novadeck-pwsh` does. All
+//! three binaries build this file.
 //!
 //! The program is created inside its job (`PROC_THREAD_ATTRIBUTE_JOB_LIST`, Windows 10 and
 //! later), so there is no instant it runs, or waits to, outside it. Keep it so. Started
@@ -234,10 +235,20 @@ pub enum Streams {
     /// `stdout`), its errors dropped.
     #[allow(dead_code)]
     Piped,
+    /// Its input its starter's own, its output and its errors piped to its starter
+    /// (`Process::stdout` and `stderr`), for a starter that passes them on as it reads them.
+    #[allow(dead_code)]
+    Captured,
 }
 
-/// The starter's ends of a program's streams, then the program's own three, inherited.
-type Opened = (Option<File>, Option<File>, [Option<OwnedHandle>; 3]);
+/// The starter's ends of a program's streams (its input, output and errors), then the
+/// program's own three, inherited.
+type Opened = (
+    Option<File>,
+    Option<File>,
+    Option<File>,
+    [Option<OwnedHandle>; 3],
+);
 
 impl Streams {
     fn open(&self) -> Result<Opened, String> {
@@ -245,6 +256,7 @@ impl Streams {
             // One the starter has none of, or that can't be duplicated, the program has
             // none of either.
             Streams::Shared => Ok((
+                None,
                 None,
                 None,
                 STREAMS.map(|stream| inherited(unsafe { GetStdHandle(stream) })),
@@ -277,7 +289,30 @@ impl Streams {
                     Some(its(&output)?),
                     Some(its(&nowhere)?),
                 ];
-                Ok((Some(File::from(stdin)), Some(File::from(stdout)), theirs))
+                Ok((
+                    Some(File::from(stdin)),
+                    Some(File::from(stdout)),
+                    None,
+                    theirs,
+                ))
+            }
+            Streams::Captured => {
+                let (stdout, output) = pipe()?;
+                let (stderr, errors) = pipe()?;
+                let its = |handle: &OwnedHandle| {
+                    inherited(handle.as_raw_handle()).ok_or_else(|| failed("DuplicateHandle"))
+                };
+                let theirs = [
+                    inherited(unsafe { GetStdHandle(STREAMS[0]) }),
+                    Some(its(&output)?),
+                    Some(its(&errors)?),
+                ];
+                Ok((
+                    None,
+                    Some(File::from(stdout)),
+                    Some(File::from(stderr)),
+                    theirs,
+                ))
             }
         }
     }
@@ -319,8 +354,11 @@ pub fn argument(text: &str) -> Vec<u16> {
 pub struct Process {
     /// What it reads, where its streams are `Piped`.
     pub stdin: Option<File>,
-    /// What it prints, where its streams are `Piped`.
+    /// What it prints, where its streams are `Piped` or `Captured`.
     pub stdout: Option<File>,
+    /// Its errors, where its streams are `Captured`.
+    #[allow(dead_code)]
+    pub stderr: Option<File>,
     handle: OwnedHandle,
 }
 
@@ -385,7 +423,7 @@ impl Job {
         let _starting = STARTING
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let (stdin, stdout, theirs) = streams.open()?;
+        let (stdin, stdout, stderr, theirs) = streams.open()?;
 
         // The program's name in quotes, as it is its own first argument, then the rest.
         let quote = u16::from(b'"');
@@ -477,6 +515,7 @@ impl Job {
         let process = Process {
             stdin,
             stdout,
+            stderr,
             handle: owned(created.process),
         };
         Ok((process, job))
@@ -605,6 +644,37 @@ mod tests {
             .unwrap();
         assert_eq!(printed.trim(), "one x");
         assert_eq!(program.wait().unwrap(), 0);
+    }
+
+    #[test]
+    fn a_captured_programs_output_and_errors_are_read_apart() {
+        use std::io::Read;
+
+        let (mut program, _job) = Job::start(
+            &cmd(),
+            &wide("/d /c echo out& echo err 1>&2& exit 3"),
+            Streams::Captured,
+            KILL_ON_CLOSE,
+        )
+        .unwrap();
+        assert!(program.stdin.is_none());
+        let mut printed = String::new();
+        let mut errors = String::new();
+        program
+            .stdout
+            .take()
+            .unwrap()
+            .read_to_string(&mut printed)
+            .unwrap();
+        program
+            .stderr
+            .take()
+            .unwrap()
+            .read_to_string(&mut errors)
+            .unwrap();
+        assert_eq!(printed.trim(), "out");
+        assert_eq!(errors.trim(), "err");
+        assert_eq!(program.wait().unwrap(), 3);
     }
 
     #[test]

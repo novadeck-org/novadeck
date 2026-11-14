@@ -5,7 +5,7 @@ import { followLines } from "@novadeck/harness-core/follow"
 import type { Harness, Run, WrittenPlan } from "@novadeck/harness-core/harness"
 import { at } from "@novadeck/harness-core/items"
 
-import { presentedPlan, shellsEnded } from "./decode.js"
+import { presentedPlan, shellOutputs, shellsEnded } from "./decode.js"
 import { interruptions, mentionsInterruption } from "./interruption.js"
 import { transcripts } from "./transcripts.js"
 
@@ -63,7 +63,16 @@ export const transcriptEvents = (
   const called = line.includes('"tool_use"')
   const result = calls.size > 0 && line.includes('"tool_result"')
   const queued = line.includes('"queue-operation"') && line.includes("<task-notification>")
-  if (!interrupting && !stopped && !called && !result && !queued && !line.includes('"usage"'))
+  const output = line.includes("Output is being written to") || line.includes("<output-file>")
+  if (
+    !interrupting &&
+    !stopped &&
+    !called &&
+    !result &&
+    !queued &&
+    !output &&
+    !line.includes('"usage"')
+  )
     return []
   const fields = parseFields(line)
   if (!fields) return []
@@ -76,13 +85,21 @@ export const transcriptEvents = (
   // may be later: a shell that ended mid-turn, whose prompt hook comes only after (probed
   // 2026-11-10, 2.1.316).
   if (type === "queue-operation" && fields.operation === "enqueue")
-    return typeof fields.content === "string" ? shellsEnded(base, fields.content) : []
+    return typeof fields.content === "string"
+      ? [...shellOutputs(base, fields.content), ...shellsEnded(base, fields.content)]
+      : []
   if (type === "system" && subtype === "stop_hook_summary")
     return [{ type: "turn-ended", ...base, outcome: "completed", recorded: true }]
   const { content, usage } = (message ?? {}) as { content?: unknown; usage?: unknown }
   const blocks = (Array.isArray(content) ? content : []) as Record<string, unknown>[]
   if (type === "assistant") remember(calls, blocks, null)
-  const settled = type === "user" ? results(calls, blocks, base, null) : []
+  const settled =
+    type === "user"
+      ? [
+          ...results(calls, blocks, base, null),
+          ...(output ? textsOf(content).flatMap((text) => shellOutputs(base, text)) : []),
+        ]
+      : []
   if (type === "assistant" && typeof usage === "object" && usage !== null) {
     const {
       input_tokens: input,
@@ -100,6 +117,20 @@ export const transcriptEvents = (
     : [content]
   if (!texts.some((text) => typeof text === "string" && interruptions.has(text))) return settled
   return [...settled, { type: "turn-ended", ...base, outcome: "interrupted" }]
+}
+
+// The text a record's content holds: a prompt's string, and the text blocks of a message,
+// including those a tool result holds as a string or as blocks of its own.
+const textsOf = (content: unknown): string[] => {
+  if (typeof content === "string") return [content]
+  if (!Array.isArray(content)) return []
+  return content.flatMap((block: { type?: unknown; text?: unknown; content?: unknown }) =>
+    block?.type === "text" && typeof block.text === "string"
+      ? [block.text]
+      : block?.type === "tool_result"
+        ? textsOf(block.content)
+        : [],
+  )
 }
 
 // The calls an actor's assistant record makes, each by the id its hooks' request goes by.

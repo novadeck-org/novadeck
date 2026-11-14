@@ -82,6 +82,7 @@ describe("the open call", () => {
       stopping: () => false,
       closingNow: () => false,
       approvals: () => approvals,
+      peers: () => ({ introduce: () => undefined }),
       save: () => undefined,
       install: () => Promise.resolve(undefined),
       models: () => Promise.resolve([{ id: "opus", efforts: ["low", "max"] }]),

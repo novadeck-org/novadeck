@@ -24,7 +24,7 @@
   "devDependencies": {
     "@orpc/server": "catalog:",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   },
   "novadeck": {
     "platform": "neutral"

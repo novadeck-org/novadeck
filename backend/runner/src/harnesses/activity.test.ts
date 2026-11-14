@@ -1708,13 +1708,14 @@ describe("what a turn wrote and how it failed", () => {
     let activity = turn(started(0), 1)
     activity = wrote(activity, "/w/a.ts", 2)
     activity = wrote(activity, "/w/b.ts", 3)
-    expect(
-      apply(
-        activity,
-        binding,
-        fact({ type: "file-touched", actor: null, path: "/w/a.ts", startedAt: 4 } as Fields),
-      ),
-    ).toBeUndefined()
+    // Written again, it is still named once, but it is the latest now.
+    const again = apply(
+      activity,
+      binding,
+      fact({ type: "file-touched", actor: null, path: "/w/a.ts", startedAt: 4 } as Fields),
+    )!
+    expect(again.files).toEqual(["/w/a.ts", "/w/b.ts"])
+    expect(again.wrote).toBe("/w/a.ts")
     expect(summary(activity).lastTurn).toBeNull()
     expect(summary(stop(activity, 5)).lastTurn?.files).toEqual(["/w/a.ts", "/w/b.ts"])
   })

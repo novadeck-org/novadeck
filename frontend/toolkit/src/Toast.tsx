@@ -92,6 +92,9 @@ export const createToasts = <T,>({ duration = 30_000 }: { duration?: number } = 
     gap: 8,
     removeDelay: 250,
     duration,
+    // The page's visibility is the stack's own `hold`: Zag's would pause through the gate, which
+    // spreads the stack for a pointer that moved anywhere, and its resume never collapses it.
+    pauseOnPageIdle: false,
     // Alt+T is the terminal's (readline transposes words), and Ark's hotkey focuses the
     // stack; four modifiers are not typed by chance.
     hotkey: ["altKey", "ctrlKey", "metaKey", "shiftKey", "KeyT"],
@@ -138,7 +141,12 @@ export const createToasts = <T,>({ duration = 30_000 }: { duration?: number } = 
     pause: (id) => {
       if (id !== undefined) return store.pause(id)
       if (!engaged) {
-        if (overPill || !arrival.arrived()) return
+        if (overPill || !arrival.arrived()) {
+          // Zag 1.47 spreads the stack on the mouse event itself (its group machine goes to
+          // `stack`), not by asking the store, so the refusal puts the stack back.
+          store.collapse()
+          return
+        }
         engaged = true
         store.expand()
       }
@@ -467,7 +475,7 @@ export const ToastRegion = <T,>({
       arrival.moved({ x: event.movementX, y: event.movementY })
     // Before Zag's own handlers, which are React's, at the root.
     document.addEventListener("mousemove", travel, { capture: true })
-    // A hidden page holds the timers (Ark means to, but has no handler for it).
+    // A hidden page holds the timers, without spreading the stack.
     const visibility = (): void => hold(document.hidden)
     document.addEventListener("visibilitychange", visibility)
     return () => {

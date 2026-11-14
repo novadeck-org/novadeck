@@ -207,6 +207,7 @@ describe("keeping the turn in a terminal's sessions", () => {
       sessionId: "s2",
       seq: 2,
       cwd: "/",
+      knew: { since: 2, shown: [] },
     })
   })
 

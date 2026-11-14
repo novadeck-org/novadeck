@@ -1,4 +1,12 @@
-import { chatDraftOf, joinDraft, mixes, noChatDrafts, setChatDraft, takenDraft } from "./drafts"
+import {
+  chatDraftOf,
+  joinDraft,
+  mixes,
+  noChatDrafts,
+  setChatDraft,
+  takenDraft,
+  toldDraft,
+} from "./drafts"
 import { describe, expect, it } from "./test"
 
 describe("chat drafts", () => {
@@ -24,6 +32,21 @@ describe("words joined to a draft", () => {
 
   it("make one command of two shell commands, the second without its !", () => {
     expect(joinDraft("!npm test", " ! ls")).toBe("!npm test\nls")
+  })
+})
+
+describe("words a pane tells", () => {
+  it("are the draft when there is none, and a paragraph after one that is there", () => {
+    expect(toldDraft("", "`ls` exited 1.")).toBe("`ls` exited 1.")
+    expect(toldDraft("why did", "`ls` exited 1.")).toBe("why did\n\n`ls` exited 1.")
+  })
+
+  it("are not added twice", () => {
+    expect(toldDraft("why\n\n`ls` exited 1.", "`ls` exited 1.")).toBe("why\n\n`ls` exited 1.")
+  })
+
+  it("are not drafted into a shell command, which they would only be more lines of", () => {
+    expect(toldDraft("!npm test", "`ls` exited 1.")).toBeNull()
   })
 })
 

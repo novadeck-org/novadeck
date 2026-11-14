@@ -26,6 +26,7 @@ import { createDemoVoice, heldVoiceTiming, requestedVoice } from "./addons/voice
 import { addressParams } from "./address"
 import { createDemoChat } from "./agents/chat"
 import type { DemoAgentLink } from "./agents/link"
+import { withShellItems } from "./agents/shell-items"
 import { agentTranscripts, type DemoTranscript } from "./agents/transcripts"
 import { demoTurns, type DemoTurns } from "./agents/turns"
 import { withFeedback } from "./feedback"
@@ -100,7 +101,9 @@ export const demoBackend = (
   const transcripts = createStore(true)
   // Idle agents are stopped after an hour unless the person chooses otherwise, as in the app.
   const hibernateAfter = createStore<number | null>(60)
-  const worktrees = createStore(false)
+  // Agent worktrees start on, so the demo shows the Changes panel they bring; a stable update
+  // channel (the debug demo's page starts on one) turns them off as the app does.
+  const worktrees = createStore(true)
   const agents = createStore(sampleAgents)
   const welcomeOpen = createStore(welcome)
   // Installed unless the address asks otherwise (`&voice=uninstalled`), as the try demo shows it,
@@ -796,12 +799,14 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
   const demo = params.get("demo")
   const turnMs = Number(params.get("turnMs"))
   const backend = withMoves(
-    plainDemo(
-      demo === "agents" || demo === "messages" || demo === "inbox" || demo === "welcome"
-        ? demo
-        : "plain",
-      terminals,
-      turnMs > 0 ? turnMs : undefined,
+    withShellItems(
+      plainDemo(
+        demo === "agents" || demo === "messages" || demo === "inbox" || demo === "welcome"
+          ? demo
+          : "plain",
+        terminals,
+        turnMs > 0 ? turnMs : undefined,
+      ),
     ),
   )
   if (isDemoInbox(backend.inbox)) {

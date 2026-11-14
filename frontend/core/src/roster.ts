@@ -114,6 +114,7 @@ type TerminalFacts = Pick<
   | "name"
   | "directory"
   | "handle"
+  | "handleGivenAt"
   | "titleSource"
   | "ledBy"
   | "openedBy"
@@ -132,12 +133,14 @@ export const updateTerminal = (
 ): TerminalRoster => {
   const current = roster.terminals.find((terminal) => terminal.id === terminalId)
   if (!current) return roster
-  const { name, directory, handle, titleSource, ledBy, openedBy, agentRan, restorable, busy } =
-    change
+  const { name, directory, handle, handleGivenAt, titleSource, ledBy, openedBy } = change
+  const { agentRan, restorable, busy } = change
   const facts: Partial<TerminalFacts> = {
     ...(name !== undefined && name !== current.name && { name }),
     ...(directory !== undefined && directory !== current.directory && { directory }),
     ...(handle !== undefined && handle !== current.handle && { handle }),
+    ...(handleGivenAt !== undefined &&
+      handleGivenAt !== (current.handleGivenAt ?? 0) && { handleGivenAt }),
     ...(titleSource !== undefined &&
       !sameTitleSource(titleSource, current.titleSource) && { titleSource }),
     ...(ledBy !== undefined && ledBy !== (current.ledBy ?? null) && { ledBy }),
@@ -338,6 +341,7 @@ const withStatus = (terminal: TerminalMetadata, status: TerminalStatus): Termina
     ...(restoredProcess ? { restoredProcess } : {}),
     // Who it is and who named it outlive any status.
     ...(terminal.handle !== undefined ? { handle: terminal.handle } : {}),
+    ...(terminal.handleGivenAt ? { handleGivenAt: terminal.handleGivenAt } : {}),
     ...(terminal.ledBy ? { ledBy: terminal.ledBy } : {}),
     ...(terminal.openedBy ? { openedBy: terminal.openedBy } : {}),
     ...(terminal.agentRan ? { agentRan: terminal.agentRan } : {}),

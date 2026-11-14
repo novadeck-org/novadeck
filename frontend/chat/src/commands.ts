@@ -23,7 +23,15 @@ import {
   type Attachment,
 } from "./attachments"
 import { withValue } from "./by-terminal"
-import { chatDraftOf, joinDraft, mixes, setChatDraft, takenDraft, typedOn } from "./drafts"
+import {
+  chatDraftOf,
+  joinDraft,
+  mixes,
+  setChatDraft,
+  takenDraft,
+  toldDraft,
+  typedOn,
+} from "./drafts"
 import type { PassingState } from "./passing"
 import {
   comeBack,
@@ -93,6 +101,9 @@ export type ChatCommands = {
   // the draft as it is when it changes: whatever the person typed meanwhile stays. They go
   // after it, or before a shell command, so they never become more of its lines.
   readonly appendChatDraft: (context: string, terminalId: string, words: string) => void
+  // Drafts words a pane offers, after what the draft holds and never before it: once, and not
+  // at all into a shell command. Says whether they are in the draft.
+  readonly tellChatDraft: (context: string, terminalId: string, words: string) => boolean
   // Sends the draft's words, and its images where it is a plain message, to the terminal's
   // agent: as the answer to the question `to`
   // names, in its own field, at once, or else as a prompt, in its turn. They leave the draft
@@ -737,6 +748,21 @@ export const createChatCommands = ({
           drafts: setChatDraft(state.drafts, context, terminalId, joinDraft(draft, words)),
         }
       }),
+    tellChatDraft: (context, terminalId, words) => {
+      const told = toldDraft(
+        chatDraftOf(chat.store.getSnapshot().drafts, context, terminalId),
+        words,
+      )
+      if (told === null) return false
+      void chat.update((state) => {
+        // The draft may have changed since: it is read again, and a shell command stops it.
+        const next = toldDraft(chatDraftOf(state.drafts, context, terminalId), words)
+        return next === null
+          ? state
+          : { ...state, drafts: setChatDraft(state.drafts, context, terminalId, next) }
+      })
+      return true
+    },
     takeBox: async (key, { ahead = false } = {}) => {
       // A shell command and a message don't make one draft: the box stays, and shows.
       const shown = conversations?.conversation(key).getSnapshot()

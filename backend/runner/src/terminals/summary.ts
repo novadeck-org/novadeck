@@ -51,6 +51,7 @@ export const savedSummaryOf = (terminal: ListedTerminal, resting?: Resting): Ter
   sessionId: terminal.sessionId,
   ...summaryTitle(terminal.naming, terminal),
   handle: terminal.handle,
+  handleGivenAt: terminal.handleGivenAt,
   ledBy: terminal.ledBy,
   openedBy: terminal.openedBy,
   agentRan: hasRun(terminal.agents),

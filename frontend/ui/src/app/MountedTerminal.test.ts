@@ -68,6 +68,8 @@ type Options = {
   readonly focusInput?: boolean
   readonly onInputFocused?: () => void
   readonly onScreen?: boolean
+  readonly selected?: boolean
+  readonly covered?: boolean
   readonly legible?: boolean
   readonly terminalKey?: TerminalKey
   readonly renderWindow?: (content: ReactNode) => ReactNode
@@ -90,6 +92,8 @@ const mountedTerminal = (mountTerminal: MountTerminal, options: Options = {}) =>
     focusInput: options.focusInput ?? false,
     onInputFocused: options.onInputFocused ?? onInputFocused,
     onScreen: options.onScreen ?? true,
+    ...(options.selected !== undefined && { selected: options.selected }),
+    ...(options.covered !== undefined && { covered: options.covered }),
     legible: options.legible ?? true,
     renderWindow: options.renderWindow ?? bare,
   })
@@ -112,7 +116,14 @@ describe("a terminal drawn by a backend's mount", () => {
       expect(created).toHaveLength(1)
       const { element, props } = created[0]!
       expect(container.contains(element)).toBe(true)
-      expect(props).toEqual({ name: "Terminal", status: "running", view: "focus", onScreen: true })
+      expect(props).toEqual({
+        name: "Terminal",
+        status: "running",
+        view: "focus",
+        onScreen: true,
+        selected: true,
+        visible: true,
+      })
       change({ view: "grid" })
       change({ renderWindow: inFirst })
       expect(created).toHaveLength(1)
@@ -121,6 +132,8 @@ describe("a terminal drawn by a backend's mount", () => {
         status: "running",
         view: "grid",
         onScreen: true,
+        selected: true,
+        visible: true,
       })
     })
 
@@ -163,16 +176,29 @@ describe("a terminal drawn by a backend's mount", () => {
       expect(element.classList.contains("mb-7")).toBe(false)
     })
 
-    it("sends the mount the props that changed, and whether it is on screen", () => {
+    it("sends the mount the props that changed, whether it is on screen and selected", () => {
       const { mounts, change } = show()
       change({ terminal: { ...running(), name: "Build" } })
       change({ onScreen: false })
+      change({ selected: false })
       expect(mounts[0]!.update).toHaveBeenLastCalledWith({
         name: "Build",
         status: "running",
         view: "focus",
         onScreen: false,
+        selected: false,
+        visible: true,
       })
+    })
+
+    it("tells the mount it can't be seen while its chat covers it, and seen again after", () => {
+      const { mounts, change } = show()
+      change({ covered: true })
+      expect(mounts[0]!.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({ visible: false }),
+      )
+      change({ covered: false })
+      expect(mounts[0]!.update).toHaveBeenLastCalledWith(expect.objectContaining({ visible: true }))
     })
 
     it("disposes the mount of a terminal it no longer shows and mounts the new one", () => {

@@ -315,6 +315,32 @@ describe("the runner's companion content", () => {
     ])
   })
 
+  it("gives a terminal's shells with their agent as a chat names it", async () => {
+    const app = following()
+    app.follow()
+    const shells = [
+      {
+        id: "s1",
+        command: "pnpm dev",
+        since: 10,
+        exit: null,
+        output: { state: "ready" as const, firstLine: 4, lines: ["ready"], total: 4 },
+      },
+      {
+        id: "s2",
+        command: "ls",
+        since: 11,
+        exit: { at: 12, code: 1 },
+        output: { state: "none" as const },
+      },
+    ]
+    app.push({ state: "ready", stamp: "h1", content: { kind: "shells", agent: "codex", shells } })
+    await settle()
+    expect(app.seen).toEqual([
+      { state: "ready", stamp: "h1", content: { kind: "shells", agent: "Codex", shells } },
+    ])
+  })
+
   it("saves an edit through the runner, or hands back the plan as it now stands", async () => {
     const app = following()
     await expect(app.companions.save(target, hero, "# New\n", "a1")).resolves.toEqual({

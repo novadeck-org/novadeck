@@ -28285,6 +28285,439 @@
           }
         }
       }
+    },
+    "ask-preview-mixed": {
+      "what": "One question whose first option alone has a preview, with a long question and a label that wraps beside the preview's box, at several sizes; Down moves the highlight onto the options without one",
+      "version": "2.1.323",
+      "events": [
+        {
+          "event": "PreToolUse",
+          "phase": "start",
+          "ms": 668,
+          "payload": {
+            "permission_mode": "default",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:CronCreate,CronDelete,CronList,EnterPlanMode,EnterWorktree,ExitPlanMode,ExitWorktree,Monitor,NotebookEdit,SendMessage,TaskStop,WebFetch,WebSearch,mcp__plugin_novadeck_novadeck__agents,mcp__plugin_novadeck_novadeck__ask,mcp__plugin_novadeck_novadeck__close,mcp__plugin_novadeck_novadeck__close_terminal,mcp__plugin_novadeck_novadeck__describe,mcp__plugin_novadeck_novadeck__done,mcp__plugin_novadeck_novadeck__feedback,mcp__plugin_novadeck_novadeck__lead,mcp__plugin_novadeck_novadeck__look,mcp__plugin_novadeck_novadeck__open_agent,mcp__plugin_novadeck_novadeck__open_terminal,mcp__plugin_novadeck_novadeck__release,mcp__plugin_novadeck_novadeck__send,mcp__plugin_novadeck_novadeck__show,mcp__plugin_novadeck_novadeck__showing,mcp__plugin_novadeck_novadeck__team,mcp__plugin_novadeck_novadeck__tell",
+              "max_results": 30
+            }
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "phase": "end",
+          "ms": 668,
+          "why": "immediate"
+        },
+        {
+          "event": "PreToolUse",
+          "phase": "start",
+          "ms": 888,
+          "payload": {
+            "permission_mode": "default",
+            "tool_name": "AskUserQuestion",
+            "tool_input": {
+              "questions": [
+                {
+                  "question": "A reviewer left four comments on the pull request. I've rebased it onto main and fixed all four (checks and the end-to-end tests pass locally). Because of the rebase the push has to be a force-push (--force-with-lease). OK to commit, force-push, fix the repeated \"Short copy\" sentence in its description, and post the four replies below?",
+                  "header": "Review",
+                  "options": [
+                    {
+                      "label": "Push and reply (Recommended)",
+                      "description": "Commit as shown, force-push with lease, fix the description, post the replies",
+                      "preview": "Commit:\nfix(home): address the review of the card stack\n\nDerive the stacking margins from a card count on the list, point\nthe sticky top at the header, check the overlap in the short\ndesktop test, and set reduced motion in the test body.\n\nReply on the sticky top:\nAdded a comment on `top` pointing at the header."
+                    },
+                    {
+                      "label": "Push, no replies",
+                      "description": "Commit, force-push and fix the description; I'll reply to the threads myself"
+                    },
+                    {
+                      "label": "Not yet",
+                      "description": "Leave everything local so I can review first"
+                    }
+                  ],
+                  "multiSelect": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "phase": "end",
+          "ms": 889,
+          "why": "immediate"
+        },
+        {
+          "event": "PermissionRequest",
+          "phase": "start",
+          "ms": 957,
+          "payload": {
+            "permission_mode": "default",
+            "tool_name": "AskUserQuestion",
+            "tool_input": {
+              "questions": [
+                {
+                  "question": "A reviewer left four comments on the pull request. I've rebased it onto main and fixed all four (checks and the end-to-end tests pass locally). Because of the rebase the push has to be a force-push (--force-with-lease). OK to commit, force-push, fix the repeated \"Short copy\" sentence in its description, and post the four replies below?",
+                  "header": "Review",
+                  "options": [
+                    {
+                      "label": "Push and reply (Recommended)",
+                      "description": "Commit as shown, force-push with lease, fix the description, post the replies",
+                      "preview": "Commit:\nfix(home): address the review of the card stack\n\nDerive the stacking margins from a card count on the list, point\nthe sticky top at the header, check the overlap in the short\ndesktop test, and set reduced motion in the test body.\n\nReply on the sticky top:\nAdded a comment on `top` pointing at the header."
+                    },
+                    {
+                      "label": "Push, no replies",
+                      "description": "Commit, force-push and fix the description; I'll reply to the threads myself"
+                    },
+                    {
+                      "label": "Not yet",
+                      "description": "Leave everything local so I can review first"
+                    }
+                  ],
+                  "multiSelect": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "event": "PermissionRequest",
+          "phase": "end",
+          "ms": 957,
+          "why": "immediate"
+        }
+      ],
+      "screens": {
+        "120x40": {
+          "height": 33,
+          "columns": 120,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.323",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "8": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "9": " ☐ Review",
+            "11": "│ A reviewer left four comments on the pull request. I've rebased it onto main and fixed all four (checks and the",
+            "12": "│ end-to-end tests pass locally). Because of the rebase the push has to be a force-push (--force-with-lease). OK to",
+            "13": "│ commit, force-push, fix the repeated \"Short copy\" sentence in its description, and post the four replies below?",
+            "15": "❯ 1. Push and reply               ┌──────────────────────────────────────────────────────────────────┐",
+            "16": "    (Recommended)                 │ Commit:                                                          │",
+            "17": "  2. Push, no replies             │ fix(home): address the review of the card stack                  │",
+            "18": "  3. Not yet                      │                                                                  │",
+            "19": "                                  │ Derive the stacking margins from a card count on the list, point │",
+            "20": "                                  │ the sticky top at the header, check the overlap in the short     │",
+            "21": "                                  │ desktop test, and set reduced motion in the test body.           │",
+            "22": "                                  │                                                                  │",
+            "23": "                                  │ Reply on the sticky top:                                         │",
+            "24": "                                  │ Added a comment on top pointing at the header.                   │",
+            "25": "                                  └──────────────────────────────────────────────────────────────────┘",
+            "27": "                                  Notes: press n to add notes",
+            "29": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "30": "  Chat about this",
+            "32": "Enter to select · ↑/↓ to navigate · n to add notes · Esc to cancel"
+          }
+        },
+        "80x40": {
+          "height": 40,
+          "columns": 80,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.323",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "8": "────────────────────────────────────────────────────────────────────────────────",
+            "9": " ☐ Review",
+            "11": "│ A reviewer left four comments on the pull request. I've rebased it onto main",
+            "12": "│ and fixed all four (checks and the end-to-end tests pass locally). Because of",
+            "13": "│ the rebase the push has to be a force-push (--force-with-lease). OK to commit,",
+            "14": "│ force-push, fix the repeated \"Short copy\" sentence in its description, and",
+            "15": "│ post the four replies below?",
+            "17": "❯ 1. Push and reply               ┌────────────────────────────────────────────┐",
+            "18": "    (Recommended)                 │ Commit:                                    │",
+            "19": "  2. Push, no replies             │ fix(home): address the review of the card  │",
+            "20": "  3. Not yet                      │ stack                                      │",
+            "21": "                                  │                                            │",
+            "22": "                                  │ Derive the stacking margins from a card    │",
+            "23": "                                  │ count on the list, point                   │",
+            "24": "                                  │ the sticky top at the header, check the    │",
+            "25": "                                  │ overlap in the short                       │",
+            "26": "                                  │ desktop test, and set reduced motion in    │",
+            "27": "                                  │ the test body.                             │",
+            "28": "                                  │                                            │",
+            "29": "                                  │ Reply on the sticky top:                   │",
+            "30": "                                  │ Added a comment on top pointing at the     │",
+            "31": "                                  │ header.                                    │",
+            "32": "                                  └────────────────────────────────────────────┘",
+            "34": "                                  Notes: press n to add notes",
+            "36": "────────────────────────────────────────────────────────────────────────────────",
+            "37": "  Chat about this",
+            "39": "Enter to select · ↑/↓ to navigate · n to add notes · Esc to cancel"
+          }
+        },
+        "60x40": {
+          "height": 40,
+          "columns": 60,
+          "rows": {
+            "0": " ▝▝   ▝▝   <sandbox>/project",
+            "3": "❯ Ask now",
+            "5": "────────────────────────────────────────────────────────────",
+            "6": " ☐ Review",
+            "8": "│ A reviewer left four comments on the pull request. I've",
+            "9": "│ rebased it onto main and fixed all four (checks and the",
+            "10": "│ end-to-end tests pass locally). Because of the rebase the",
+            "11": "│ push has to be a force-push (--force-with-lease). OK to",
+            "12": "│ commit, force-push, fix the repeated \"Short copy\" sentence",
+            "13": "│ in its description, and post the four replies below?",
+            "15": "❯ 1. Push and reply              ┌────────────────────────┐",
+            "16": "    (Recommended)                │ Commit:                │",
+            "17": "  2. Push, no replies            │ fix(home): address the │",
+            "18": "  3. Not yet                     │  review of the card    │",
+            "19": "                                 │ stack                  │",
+            "20": "                                 │                        │",
+            "21": "                                 │ Derive the stacking    │",
+            "22": "                                 │ margins from a card    │",
+            "23": "                                 │ count on the list,     │",
+            "24": "                                 │ point                  │",
+            "25": "                                 │ the sticky top at the  │",
+            "26": "                                 │ header, check the      │",
+            "27": "                                 │ overlap in the short   │",
+            "28": "                                 │ desktop test, and set  │",
+            "29": "                                 │ reduced motion in the  │",
+            "30": "                                 ├─── ✂ ─── 7 lines hidden ┤",
+            "31": "                                 └────────────────────────┘",
+            "33": "                                 Notes: press n to add notes",
+            "35": "────────────────────────────────────────────────────────────",
+            "36": "  Chat about this",
+            "38": "Enter to select · ↑/↓ to navigate · n to add notes · Esc to",
+            "39": "cancel"
+          }
+        },
+        "52x40": {
+          "height": 40,
+          "columns": 52,
+          "rows": {
+            "1": "────────────────────────────────────────────────────",
+            "2": " ☐ Review",
+            "4": "│ A reviewer left four comments on the pull request.",
+            "5": "│ I've rebased it onto main and fixed all four",
+            "6": "│ (checks and the end-to-end tests pass locally).",
+            "7": "│ Because of the rebase the push has to be a",
+            "8": "│ force-push (--force-with-lease). OK to commit,",
+            "9": "│ force-push, fix the repeated \"Short copy\" sentence",
+            "10": "│ in its description, and post the four replies",
+            "11": "│ below?",
+            "13": "❯ 1. Push and reply          ┌────────────────┐",
+            "14": "    (Recommended)            │ Commit:        │",
+            "15": "  2. Push, no replies        │ fix(home):     │",
+            "16": "  3. Not yet                 │ address the    │",
+            "17": "                             │ review of the  │",
+            "18": "                             │ card stack     │",
+            "19": "                             │                │",
+            "20": "                             │ Derive the     │",
+            "21": "                             │ stacking       │",
+            "22": "                             │ margins from a │",
+            "23": "                             │  card count on │",
+            "24": "                             │  the list,     │",
+            "25": "                             │ point          │",
+            "26": "                             │ the sticky top │",
+            "27": "                             │  at the        │",
+            "28": "                             ├─── ✂ ─── 15 lines",
+            "29": "                             hidden ┤",
+            "30": "                             └────────────────┘",
+            "32": "                             Notes: press n to add",
+            "33": "                                    notes",
+            "35": "────────────────────────────────────────────────────",
+            "36": "  Chat about this",
+            "38": "Enter to select · ↑/↓ to navigate · n to add notes ·",
+            "39": "Esc to cancel"
+          }
+        },
+        "52x30": {
+          "height": 30,
+          "columns": 52,
+          "rows": {
+            "1": "────────────────────────────────────────────────────",
+            "2": " ☐ Review",
+            "4": "│ A reviewer left four comments on the pull request.",
+            "5": "│ I've rebased it onto main and fixed all four",
+            "6": "│ (checks and the end-to-end tests pass locally).",
+            "7": "│ Because of the rebase the push has to be a",
+            "8": "│ force-push (--force-with-lease). OK to commit,",
+            "9": "│ force-push, fix the repeated \"Short copy\" sentence",
+            "10": "│ in its description, and post the four replies",
+            "11": "│ below?",
+            "13": "❯ 1. Push and reply          ┌────────────────┐",
+            "14": "    (Recommended)            │ Commit:        │",
+            "15": "  2. Push, no replies        │ fix(home):     │",
+            "16": "  3. Not yet                 │ address the    │",
+            "17": "                             │ review of the  │",
+            "18": "                             ├─── ✂ ─── 25 lines",
+            "19": "                             hidden ┤",
+            "20": "                             └────────────────┘",
+            "22": "                             Notes: press n to add",
+            "23": "                                    notes",
+            "25": "────────────────────────────────────────────────────",
+            "26": "  Chat about this",
+            "28": "Enter to select · ↑/↓ to navigate · n to add notes ·",
+            "29": "Esc to cancel"
+          }
+        }
+      },
+      "steps": {
+        "down": {
+          "height": 25,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.323",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "8": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "9": " ☐ Review",
+            "11": "│ A reviewer left four comments on the pull request. I've rebased it onto main and fixed all four (checks and the",
+            "12": "│ end-to-end tests pass locally). Because of the rebase the push has to be a force-push (--force-with-lease). OK to",
+            "13": "│ commit, force-push, fix the repeated \"Short copy\" sentence in its description, and post the four replies below?",
+            "15": "  1. Push and reply               ┌──────────────────────────────────────────────────────────────────┐",
+            "16": "    (Recommended)                 │ No preview available                                             │",
+            "17": "❯ 2. Push, no replies             └──────────────────────────────────────────────────────────────────┘",
+            "18": "  3. Not yet",
+            "19": "                                  Notes: press n to add notes",
+            "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "22": "  Chat about this",
+            "24": "Enter to select · ↑/↓ to navigate · n to add notes · Esc to cancel"
+          }
+        },
+        "down-2": {
+          "height": 25,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.323",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "8": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "9": " ☐ Review",
+            "11": "│ A reviewer left four comments on the pull request. I've rebased it onto main and fixed all four (checks and the",
+            "12": "│ end-to-end tests pass locally). Because of the rebase the push has to be a force-push (--force-with-lease). OK to",
+            "13": "│ commit, force-push, fix the repeated \"Short copy\" sentence in its description, and post the four replies below?",
+            "15": "  1. Push and reply               ┌──────────────────────────────────────────────────────────────────┐",
+            "16": "    (Recommended)                 │ No preview available                                             │",
+            "17": "  2. Push, no replies             └──────────────────────────────────────────────────────────────────┘",
+            "18": "❯ 3. Not yet",
+            "19": "                                  Notes: press n to add notes",
+            "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "22": "  Chat about this",
+            "24": "Enter to select · ↑/↓ to navigate · n to add notes · Esc to cancel"
+          }
+        },
+        "down-2-52x40": {
+          "height": 33,
+          "rows": {
+            "1": " ▐▛███▛█   Claude Code v2.1.323",
+            "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+            "3": " ▝▝   ▝▝   <sandbox>/project",
+            "6": "❯ Ask now",
+            "8": "────────────────────────────────────────────────────",
+            "9": " ☐ Review",
+            "11": "│ A reviewer left four comments on the pull request.",
+            "12": "│ I've rebased it onto main and fixed all four",
+            "13": "│ (checks and the end-to-end tests pass locally).",
+            "14": "│ Because of the rebase the push has to be a",
+            "15": "│ force-push (--force-with-lease). OK to commit,",
+            "16": "│ force-push, fix the repeated \"Short copy\" sentence",
+            "17": "│ in its description, and post the four replies",
+            "18": "│ below?",
+            "20": "  1. Push and reply          ┌────────────────┐",
+            "21": "    (Recommended)            │ No preview     │",
+            "22": "  2. Push, no replies        │ available      │",
+            "23": "❯ 3. Not yet                 └────────────────┘",
+            "25": "                             Notes: press n to add",
+            "26": "                                    notes",
+            "28": "────────────────────────────────────────────────────",
+            "29": "  Chat about this",
+            "31": "Enter to select · ↑/↓ to navigate · n to add notes ·",
+            "32": "Esc to cancel"
+          }
+        },
+        "top-52x40": {
+          "height": 40,
+          "rows": {
+            "1": "────────────────────────────────────────────────────",
+            "2": " ☐ Review",
+            "4": "│ A reviewer left four comments on the pull request.",
+            "5": "│ I've rebased it onto main and fixed all four",
+            "6": "│ (checks and the end-to-end tests pass locally).",
+            "7": "│ Because of the rebase the push has to be a",
+            "8": "│ force-push (--force-with-lease). OK to commit,",
+            "9": "│ force-push, fix the repeated \"Short copy\" sentence",
+            "10": "│ in its description, and post the four replies",
+            "11": "│ below?",
+            "13": "❯ 1. Push and reply          ┌────────────────┐",
+            "14": "    (Recommended)            │ Commit:        │",
+            "15": "  2. Push, no replies        │ fix(home):     │",
+            "16": "  3. Not yet                 │ address the    │",
+            "17": "                             │ review of the  │",
+            "18": "                             │ card stack     │",
+            "19": "                             │                │",
+            "20": "                             │ Derive the     │",
+            "21": "                             │ stacking       │",
+            "22": "                             │ margins from a │",
+            "23": "                             │  card count on │",
+            "24": "                             │  the list,     │",
+            "25": "                             │ point          │",
+            "26": "                             │ the sticky top │",
+            "27": "                             │  at the        │",
+            "28": "                             ├─── ✂ ─── 15 lines",
+            "29": "                             hidden ┤",
+            "30": "                             └────────────────┘",
+            "32": "                             Notes: press n to add",
+            "33": "                                    notes",
+            "35": "────────────────────────────────────────────────────",
+            "36": "  Chat about this",
+            "38": "Enter to select · ↑/↓ to navigate · n to add notes ·",
+            "39": "Esc to cancel"
+          }
+        },
+        "after": {
+          "height": 40,
+          "rows": {
+            "1": "────────────────────────────────────────────────────",
+            "2": " ☐ Review",
+            "4": "│ A reviewer left four comments on the pull request.",
+            "5": "│ I've rebased it onto main and fixed all four",
+            "6": "│ (checks and the end-to-end tests pass locally).",
+            "7": "│ Because of the rebase the push has to be a",
+            "8": "│ force-push (--force-with-lease). OK to commit,",
+            "9": "│ force-push, fix the repeated \"Short copy\" sentence",
+            "10": "│ in its description, and post the four replies",
+            "11": "│ below?",
+            "13": "❯ 1. Push and reply          ┌────────────────┐",
+            "14": "    (Recommended)            │ Commit:        │",
+            "15": "  2. Push, no replies        │ fix(home):     │",
+            "16": "  3. Not yet                 │ address the    │",
+            "17": "                             │ review of the  │",
+            "18": "                             │ card stack     │",
+            "19": "                             │                │",
+            "20": "                             │ Derive the     │",
+            "21": "                             │ stacking       │",
+            "22": "                             │ margins from a │",
+            "23": "                             │  card count on │",
+            "24": "                             │  the list,     │",
+            "25": "                             │ point          │",
+            "26": "                             │ the sticky top │",
+            "27": "                             │  at the        │",
+            "28": "                             ├─── ✂ ─── 15 lines",
+            "29": "                             hidden ┤",
+            "30": "                             └────────────────┘",
+            "32": "                             Notes: press n to add",
+            "33": "                                    notes",
+            "35": "────────────────────────────────────────────────────",
+            "36": "  Chat about this",
+            "38": "Enter to select · ↑/↓ to navigate · n to add notes ·",
+            "39": "Esc to cancel"
+          }
+        }
+      }
     }
   }
 }

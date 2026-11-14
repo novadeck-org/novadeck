@@ -62,6 +62,9 @@ export type WorksState = {
   // The backend has reported every work at least once since it began following; until then
   // `works` may be partial or from before. Always true where nothing is followed.
   readonly synced: boolean
+  // The backend has reported every work at least once since it began, and stays so: until then
+  // an empty `works` doesn't say there are none. Always true where nothing is followed.
+  readonly reported: boolean
 }
 
 export type Works = {

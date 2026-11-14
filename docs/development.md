@@ -280,7 +280,7 @@ Terminals:
   Canvas wire side by side (on neighbours, the teams chain through the middle one).
 - **New terminals:** "Every state at once" adds one terminal per state, named after it, so
   the tabs and the windows in Grid and Canvas show done, replied (unread), failed, working,
-  planning, subagents, asking, waiting, paused at its limit, asleep (plain, done, asking),
+  planning, subagents, asking, waiting, paused at its limit or at a model's own (weekly Fable), asleep (plain, done, asking),
   waking (plain, asking), ended and the rest side by side. Its agents are of the harness the group's switch chose (see Agent). "Asks (MCP)" and
   "Needs a sign-in" are agents with an `ask` open in the Inbox (a
   question, and an action ask), so their "?" and "!" show beside "Working, a side question",
@@ -304,8 +304,9 @@ Terminals:
   bar. Worktree just made and Worktree with changes show the
   two sides of the ×: closing at once, and the confirm dialog saying what is kept. No owner reads
   "No owner" (click it to show it on the selected terminal's bar). Owner working in it and Owner
-  done dim and restore the × (hover it for why). Refuse the next close shows the refusal above the
-  list. Close every worktree closes the selected project's, leaving other projects' rows; with Agent
+  done dim and restore the × (hover it for why). Worktrees not read yet empties the panel for 3 s,
+  with no count and no empty state, as before the runner first reports the worktrees. Refuse the
+  next close shows the refusal above the list. Close every worktree closes the selected project's, leaving other projects' rows; with Agent
   worktrees off in Preferences > Experimental (the demo starts with it off) the empty state, once
   every project's are gone, points there. New worktree adds another clean worktree to the selected
   terminal's, and the Changes toggle in the rail flares the History toggle's dot and ring for a
@@ -338,11 +339,26 @@ Agents:
   the tab failed; Interrupted ends with a short reply (no unread mark); Ends without reply
   has none. Background work (2 tasks counted) and Background, uncounted end the
   turn and leave work running; Finishing subagents keeps the agent working until its 2
-  subagents finish. Rest leaves it at its prompt with nothing running or asking; the Inbox
-  rows it wrote (a done report, a failed turn) stay.
+  subagents finish. Shell running, 3 shells running and Working, 3 shells leave background shells
+  under the chat's working line; as the runner does, the demo then makes the terminal's Shells item
+  (one per terminal, on its bar, not opened by itself) from the agent's shells, each with sample
+  output (`frontend/demo/src/agents/shell-output.ts`) that a running shell goes on printing every
+  3 s. The shells' states are one verb each: Shells, one failed (two run, a third exited 1: the
+  item's icon gets a red dot, its row is tinted and has "Tell <agent>", which drafts after the
+  chat's text when the chat view is on, and says "Not drafted" if the box holds a `!` command, and the chat's shell lines show each one's last line, red
+  for the failed one, and open the item at that shell), Shell ended ok, Shell stopped (no exit
+  code), Shell output elsewhere (the agent ran it where Novadeck can't read it, as Codex does
+  in a terminal of its own), Shell output unreadable (its file is there and can't be read just
+  now), Shell just started (it says "No output yet." for 5 s, then that Novadeck can't read it),
+  Shell output gone (cleared with its session), Shells, none listed (the status lists an empty
+  set, which the runner never keeps an item for, so the item stays to show "has no background
+  shells now") and Many shells (ten, in every state, to scroll and unfold). When a later verb
+  leaves the agent with no shells at all, the demo takes the Shells item away, as the runner
+  does, and an open pane says "The shells are gone." Rest leaves it at its prompt with nothing running or asking; the Inbox rows it wrote (a done report,
+  a failed turn) stay. "Every state at once" has Shells, one failed and Many shells.
 - **Agent fixtures:** what no turn produces: an unheard agent (of the chosen harness, in
   place of whatever ran, whose hooks say nothing), an agent held at its startup screen (of the
-  chosen harness) or Antigravity at its sign-in screen, before its first session, and context and limits or tokens alone, in the tooltip and status; those two set
+  chosen harness) or Antigravity at its sign-in screen, before its first session, and context and limits, with a model's own weekly windows beside the account's ("Fable", "Third-party") or not, or tokens alone, in the tooltip, status and the footer's subscriptions; those set
   only the usage of the selected terminal's agent, so a turn, request or queued prompt stays.
 - **Approvals:** "Ask to close selected" has another terminal of the session ask to close the
   selected one, and "Ask to lead selected" has it ask to lead the selected one, which raises the
@@ -382,6 +398,12 @@ Agents:
   has two, and an image pasted into any demo chat shows as pasted once the prompt is
   recorded), gone (boxes naming each `[Image #N]`), slow (quiet boxes for 6 s) or unreachable
   (the boxes, asked again when the row is drawn again). Click a thumbnail to see it larger.
+- **Chat: a handle given again:** a project gives a handle to a new terminal an hour after its
+  terminal closes, so chat words from before that name an earlier terminal. "Handle given again"
+  gives another terminal of the session its handle just now (its `handleGivenAt`) and adds two
+  entries to the selected agent's chat, one dated three hours before and one just after, both
+  naming that `@handle`: the old one draws it as plain text, the new one in the handle's hue.
+  "Handle back to its first terminal" undoes it (`frontend/demo-debug/src/mentions.ts`).
 - **Plan:** only in the `showcase` variant, on the selected terminal's agent (Build Studio or
   the auth agent), for what happens to a plan the person has edited. "Plan in the agent's
   messages" makes it read-only; "Plan file deleted" shows that its file is gone, with the
@@ -549,9 +571,12 @@ App:
 - **Sandbox:** boot as a desktop app running without Electron's sandbox, for the footer's No
   sandbox chip and its fix command; "No sandbox, no fix" as one with no command to offer;
   and "Sandboxed" back to normal.
-- **Agent worktrees:** "Not offered" boots a backend without the setting, so Preferences >
-  Experimental shows the Agent worktrees row disabled, reading "Not available here."; "Offered"
-  boots back to normal.
+- **Agent worktrees and Changes:** the page's update channel starts stable, which turns the
+  setting off, so the rail has no Changes toggle, as in a stable build. "On, with Changes" boots on
+  the experimental channel with the setting on, for the Changes panel and the Changes group's
+  actions. "Not offered" boots a backend without the setting, so Preferences > Experimental shows
+  the Agent worktrees and Changes row disabled, reading "Not available here."; "Offered" boots
+  back to normal.
 - **Guides:** "Toggle icon guides" draws a dashed box over every icon (`svg.lucide`) and a
   dashed line through its middle, 20 px past each side, both 1 px and half see-through
   (`--icon-guide-color` changes them), for checking how icons line up with their text;
@@ -721,6 +746,7 @@ atlas.
 | `frontend/toolkit`        | The controls every feature draws with: Ark UI wrappers, shared recipes, the sidebar item.  |
 | `frontend/items`          | The items package: kinds, store, taskbar, peek, plan editor, messages, bar drag and homes. |
 | `frontend/chat`           | The chat view: transcript, requests and composer, with the chat's own store and commands.  |
+| `frontend/requests`       | An agent's request drawn and answered: the card, its dialog's menu, pages and form.        |
 | `frontend/runner-adapter` | The UI's backend for a runner, over a WebSocket or the desktop app.                        |
 | `frontend/terminal-views` | The xterm mount both backends draw terminals with.                                         |
 | `frontend/demo`           | The demo backend: a scripted workspace and simulated terminals.                            |
@@ -834,7 +860,7 @@ backend-only tests.
 ### Working on the UI
 
 The UI is split into packages: `frontend/core`, `frontend/ui`, `frontend/toolkit`,
-`frontend/items`, `frontend/chat`, `frontend/runner-adapter`, `frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit`,
+`frontend/items`, `frontend/chat`, `frontend/requests`, `frontend/runner-adapter`, `frontend/terminal-views`, `frontend/demo`, `frontend/demo-debug`, `frontend/test-kit`,
 `frontend/specs` and `frontend/chat-contract`, and the apps `apps/desktop`, `apps/try` and `apps/previews`. `frontend/ui`
 holds the page's layers, each a folder of its `src/`; the rest are packages of their own. In
 the table a path that starts with `frontend/` or `apps/` is a package, and any other is a
@@ -873,6 +899,7 @@ folder of `frontend/ui/src/`:
 | `frontend/items/src/`                                           | Items: `store/`, `bar/` (taskbar, peek, drag), `registry.ts`, `kinds/<kind>/` (one folder per kind), `document/` and `homes/`. |
 | `frontend/items/src/bar/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.                                               |
 | `frontend/chat/src/`                                            | The agent's chat: its blocks, tool rows, requests and the composer, and the chat's own store (`state.ts`) and commands.        |
+| `frontend/requests/src/`                                        | An agent's request drawn and answered (`RequestCard`, `RequestDialog`, the menu's keys, forms), and `requests.css`.            |
 | `layouts/canvas/`, `grid/`, `focus/`                            | View adapters and colocated library styles.                                                                                    |
 | `layouts/` (top level)                                          | Helpers shared by views: view transitions, background gestures, visibility.                                                    |
 | `inbox/`                                                        | The Inbox: what agents ask of the person, its sidebar rows and the sheet that answers.                                         |
@@ -907,7 +934,7 @@ of its own, `frontend/demo-debug`, the one with React and Lucide. `interaction/`
 the core and imports no packages;
 features add `frontend/toolkit`; `layouts/` may use
 `terminals/`; the items package, which holds the companion pane, is a package of its own, `frontend/items`, built on the
-core, the toolkit and the viewers and never on the UI, which composes it, as it does the chat, another package, `frontend/chat`, built on the core and the toolkit and never on the UI or the items package; no feature
+core, the toolkit and the viewers and never on the UI, which composes it, as it does the chat, another package, `frontend/chat`, built on the core and the toolkit and never on the UI or the items package, which draws its requests with `frontend/requests`, a package built on the core and never on the chat, the UI or the items package; no feature
 (`inbox/`, `preferences/`, `projects/`,
 `search/`, `sidebar/` or `voice/`) imports another, only the base and itself, and none reaches the
 chat or the items package; `shell/` may use `layouts/`, `projects/`,
@@ -1347,7 +1374,8 @@ which releases upload so installed apps can update themselves; see
 Each package ships the relay agents start for Novadeck's MCP server and hooks, built
 from source with the rest of the app; the Windows packages also ship `novadeck-cmd.exe`, the
 `cmd.exe` pass-through Antigravity's hooks run through where cmd's AutoRun prints (see
-[agent messaging](agent-messaging.md)), beside it in `relay`.
+[agent messaging](agent-messaging.md)), and `novadeck-pwsh.exe`, the PowerShell pass-through
+Codex's commands capture their output through, beside it in `relay`.
 
 The [release workflow](../.github/workflows/release.yml) publishes immutable GitHub
 prereleases from qualifying changes on `main`, with notes, checksums, and native

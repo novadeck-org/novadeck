@@ -9,12 +9,13 @@ import type { InboxRecords } from "../messaging/inbox.js"
 import type { MessageRecords } from "../messaging/records.js"
 import type { Describer } from "../murmur/describer.js"
 import type { InstalledShell } from "../shell/install.js"
+import type { ClosedRecords } from "../workspaces/closed.js"
 import type { WorktreesWiring } from "../worktrees/calls.js"
 import type { AnswersOptions } from "./answers.js"
 import type { MurmurTimes } from "./descriptions.js"
 import type { DialogsOptions } from "./dialogs.js"
 import type { HibernationOptions } from "./hibernation.js"
-import type { HistoryRecords, HistoryTimes } from "./history.js"
+import type { HistoryTimes } from "./history.js"
 import type { TranscriptRedactor } from "./redaction.js"
 import type { TerminalRecords } from "./saved-terminals.js"
 import type { TranscriptSealer } from "./sealing.js"
@@ -52,13 +53,15 @@ export type TerminalOptions = {
   /** The git worktrees agents open and own, and whether they are on; agents get none when omitted. */
   worktrees?: WorktreesWiring
   /** Where closed terminals are kept for History; none is kept when omitted. */
-  closed?: HistoryRecords
+  closed?: ClosedRecords
   /** Every project's id, for History's list of all closed terminals. */
   projects?: () => readonly string[]
   /** How long History waits, as in some tests. */
   historyTimes?: Partial<HistoryTimes>
   /** The order each session gives handle words in: its own shuffle when omitted (see `handleOrder`). */
   handleOrder?: (sessionId: string) => readonly string[]
+  /** How long a handle rests after its terminal is gone, in milliseconds: an hour when omitted (see `handleCooldown`). */
+  handleCooldown?: number
   /** The connected harnesses whose shims new shells put first on PATH. */
   shims?: () => Promise<readonly AgentName[]>
   /**

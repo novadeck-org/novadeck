@@ -9,6 +9,10 @@ import { consume } from "./streams"
 
 export type RunnerWorks = {
   readonly works: Works
+  // Reads the works once, as the backend starts, so the Changes panel lists them as soon as it
+  // opens instead of after the runner's first read of every worktree: follows them until the
+  // runner has reported every one, then lets go. The panel's own watch brings them up to date.
+  readonly readOnce: () => void
   // Ends the following for good, as the backend closes.
   readonly stop: () => void
 }
@@ -18,7 +22,7 @@ export const createRunnerWorks = (
   // Keeps a call the backend waits for before it stops, as its other calls are.
   track: <T>(work: Promise<T>) => Promise<T> = (work) => work,
 ): RunnerWorks => {
-  const state = createStore<WorksState>({ works: [], synced: false })
+  const state = createStore<WorksState>({ works: [], synced: false, reported: false })
   // The worktrees made since the backend began, counted for as long as it lives: the stream
   // carries one small event per worktree and the runner reads no git for it.
   const made = createStore(0)
@@ -31,14 +35,17 @@ export const createRunnerWorks = (
   // The works of a sequence the runner has yet to finish with `synced`; until then `held` stays.
   let incoming: Map<string, Work> | undefined
   let stream: AsyncIterableIterator<unknown, undefined> | undefined
-  // Whether the runner has reported every work since the following began.
+  // Whether the runner has reported every work since the following began, and at least once.
   let synced = false
+  let reported = false
+  // Lets go of the watch `readOnce` holds, once the runner has reported every work.
+  let readDone: (() => void) | undefined
   // How many are watching, and whether the backend has closed.
   let watchers = 0
   let closed = false
 
   const publish = (): void => {
-    state.update(() => ({ works: [...held.values()], synced }))
+    state.update(() => ({ works: [...held.values()], synced, reported }))
   }
 
   const follow = (): void => {
@@ -73,7 +80,11 @@ export const createRunnerWorks = (
             incoming = undefined
           }
           synced = true
+          reported = true
           publish()
+          const done = readDone
+          readDone = undefined
+          done?.()
           break
         }
       }
@@ -94,6 +105,7 @@ export const createRunnerWorks = (
 
   const stop = (): void => {
     closed = true
+    readDone = undefined
     void madeStream.return?.()?.catch?.(() => {})
     watchers = 0
     unfollow()
@@ -132,5 +144,9 @@ export const createRunnerWorks = (
     show: async (root, terminalId) => (await track(calls.show(root, terminalId))).itemId,
     close: (root, force) => track(calls.close(root, force)),
   }
-  return { works, stop }
+  const readOnce = (): void => {
+    if (closed || reported || readDone) return
+    readDone = works.watch()
+  }
+  return { works, readOnce, stop }
 }

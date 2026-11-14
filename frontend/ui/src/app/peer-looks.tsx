@@ -14,16 +14,21 @@ import { useWindowPhase } from "../terminals/window-phase"
 // terminal" where it runs. An agent no terminal of the session answers to has no look.
 //
 // The session's peers are keyed by terminal id; words name an agent by its handle, which is
-// text in the session, so they are looked up by it here.
+// text in the session, so they are looked up by it here. A project gives a handle to a new
+// terminal an hour after its terminal closes, so words written before the terminal was given
+// the handle (`at`, where the words are dated) meant an earlier one: they name no peer.
 const byHandle = (peers: Readonly<Record<string, MessagePeer>>): ReadonlyMap<string, MessagePeer> =>
   new Map(Object.values(peers).map((peer) => [peer.handle, peer]))
 
+const writtenBefore = (peer: MessagePeer, at: number | null | undefined): boolean =>
+  at !== null && at !== undefined && at < (peer.handleGivenAt ?? 0)
+
 export const peerLooksOf = (peers: Readonly<Record<string, MessagePeer>>): PeerLooks => {
   const named = byHandle(peers)
-  return (handle) => {
+  return (handle, at) => {
     // A map, so `constructor` and `toString` are no handles.
     const peer = named.get(handle)
-    if (!peer) return null
+    if (!peer || writtenBefore(peer, at)) return null
     return {
       face: <Avatar handle={handle} size={24} live={peer.live} program={peer.program} />,
       where: [peer.program, peer.name].filter(Boolean).join(" · ") || null,
@@ -32,15 +37,27 @@ export const peerLooksOf = (peers: Readonly<Record<string, MessagePeer>>): PeerL
   }
 }
 
-// The hue of the agent a handle names in the words, where a terminal answers to it. Its identity
-// changes only with the set of handles, not as agents start or stop work, so words that only
-// name agents aren't drawn again for that.
+// The hue of the agent a handle names in the words, where a terminal answers to it and, for
+// words dated `at`, had the handle by then. Its identity changes only with the set of handles
+// and when they were given, not as agents start or stop work, so words that only name agents
+// aren't drawn again for that.
 export const usePeerMention = (links: MessageLinks): Mention => {
   const peers = usePeers(links)
-  const key = [...byHandle(peers).keys()].toSorted().join("\n")
+  const key = [...byHandle(peers).values()]
+    .map((peer) => `${peer.handle}\t${peer.handleGivenAt ?? 0}`)
+    .toSorted()
+    .join("\n")
   return useMemo(() => {
-    const known = new Set(key.split("\n"))
-    return (handle) => (known.has(handle) ? hueOf(handle) : null)
+    const known = new Map(
+      key.split("\n").map((line) => {
+        const [handle = "", given = "0"] = line.split("\t")
+        return [handle, Number(given)] as const
+      }),
+    )
+    return (handle, at) => {
+      const given = known.get(handle)
+      return given === undefined || (at !== undefined && at < given) ? null : hueOf(handle)
+    }
   }, [key])
 }
 

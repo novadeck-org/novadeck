@@ -297,6 +297,9 @@ export type DemoWorksControl = {
   readonly setWorking: (terminalId: string, working: boolean) => void
   // The next close is refused, as when git status couldn't be read.
   readonly refuseNextClose: () => void
+  // For `ms`, the works are as before a runner first reports them: none, and not reported. Then
+  // they come back as they were; called again meanwhile, from then on.
+  readonly unreported: (ms: number) => void
   // The worktree is closed, by the debug panel rather than the person.
   readonly remove: (root: string) => void
   // Every worktree of the project is closed.
@@ -337,12 +340,14 @@ export const createDemoWorks = (
   } = {},
 ): DemoWorks => {
   const { now = Date.now, show } = options
-  const state = createStore<WorksState>({ works: initial, synced: true })
+  const state = createStore<WorksState>({ works: initial, synced: true, reported: true })
   // How many worktrees were made since the demo began, which the Changes toggle flares for.
   const made = createStore(0)
   // How many extra worktrees the debug panel made, to name each one apart.
   let extras = 0
   let refuse = false
+  // The works `unreported` holds back, and when they come back.
+  let held: { works: readonly Work[]; timer: ReturnType<typeof setTimeout> } | undefined
   // The commits main lacks of worktrees that differ from it in no file, by root.
   const unmerged = new Map<string, number>()
   const change = (root: string, step: (work: Work) => Work): void => {
@@ -487,6 +492,16 @@ export const createDemoWorks = (
     },
     refuseNextClose: () => {
       refuse = true
+    },
+    unreported: (ms) => {
+      const works = held?.works ?? state.getSnapshot().works
+      clearTimeout(held?.timer)
+      state.update(() => ({ works: [], synced: false, reported: false }))
+      const timer = setTimeout(() => {
+        held = undefined
+        state.update(() => ({ works, synced: true, reported: true }))
+      }, ms)
+      held = { works, timer }
     },
     remove: (root) => {
       unmerged.delete(root)

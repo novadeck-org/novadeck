@@ -35,6 +35,11 @@ const displayNames = Object.fromEntries(harnesses.map(({ id, name }) => [id, nam
 >
 
 // An item as the workspace holds it; its session is where the workspace keeps it.
+// Agents by the short names a chat calls them by: "Codex", "Claude".
+const shortNames = Object.fromEntries(
+  harnesses.map(({ id, shortName }) => [id, shortName]),
+) as Record<AgentName, string>
+
 export const itemOf = ({ sessionId: _session, plan, id, ...item }: RunnerItem): Item => ({
   ...item,
   id: itemIdOf(id),
@@ -69,6 +74,8 @@ const contentOf = (content: RunnerContent, livePages: boolean): ItemContent => {
       content: { ...page, ...(scroll !== undefined && { scroll }), live: livePages },
     }
   }
+  if (shown.kind === "shells")
+    return { state: "ready", stamp, content: { ...shown, agent: shortNames[shown.agent] } }
   if (shown.kind === "plan") {
     const { changedAt: _changed, ...plan } = shown
     return { state: "ready", stamp, content: plan }

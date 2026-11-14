@@ -16,6 +16,12 @@ path = "src/main.rs"
 name = "novadeck-cmd"
 path = "src/bin/novadeck-cmd.rs"
 
+# Windows only (elsewhere it is empty): a pass-through for PowerShell, installed as pwsh.exe
+# and powershell.exe, that captures a Codex command's output; see its source.
+[[bin]]
+name = "novadeck-pwsh"
+path = "src/bin/novadeck-pwsh.rs"
+
 [dependencies]
 serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", default-features = false, features = [

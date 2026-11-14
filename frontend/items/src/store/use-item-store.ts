@@ -54,3 +54,10 @@ export const useContent = (
     () => itemStore.store.getSnapshot().content[id],
   )
 }
+
+// The shell a shells item has unfolded, by its id, if any.
+export const useUnfolded = (itemStore: ItemStore, itemId: ItemId): string | undefined =>
+  useSyncExternalStore(
+    itemStore.store.subscribe,
+    () => itemStore.store.getSnapshot().unfolded[itemId],
+  )

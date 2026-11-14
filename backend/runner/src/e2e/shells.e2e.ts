@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from "node:fs"
+import { join } from "node:path"
+
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
@@ -9,15 +12,28 @@ import { own, start } from "./scenarios.js"
 // messaging.e2e.ts for the rule on parity): the agent starts three in turn and ends its turn
 // with all running; one exits 3, one exits 0, and one runs until it is stopped. The runner
 // tells each with its id, command and start, and its exit while it lasts after the turn
-// (`activity.shells`). Probed 2026-11-10 on Claude Code 2.1.316, Codex 0.167.0, Antigravity 1.5.3.
+// (`activity.shells`), and the file its output is in (`output`): Claude Code's and Antigravity's
+// own, Codex's Novadeck's capture of its commands (shell/capture.ts), which holds what each
+// printed while it runs. Probed 2026-11-10 on Claude Code 2.1.316, Codex 0.167.0, Antigravity 1.5.3.
 // Long enough that a slow runner still sees all three running, and that Codex on Windows, which
 // waits for a command longer than its yield, hands them to the background.
+// Each prints its own word first, which reads the same in sh, PowerShell and Git Bash.
+const words = ["shell-a", "shell-c", "shell-b"]
 const commands = (agent: string) => [
-  "sleep 40; exit 3",
-  "sleep 30; exit 0",
+  "echo shell-a; sleep 40; exit 3",
+  "echo shell-c; sleep 30; exit 0",
   // Claude Code on Windows stops the loop but leaves the sleep it was in running: short ones.
-  agent === "claude" ? "while true; do sleep 1; done" : "sleep 600",
+  agent === "claude" ? "echo shell-b; while true; do sleep 1; done" : "echo shell-b; sleep 600",
 ]
+
+// What a shell's output file holds now; nothing while it is not there yet.
+const printed = (path: string | undefined): string => {
+  try {
+    return path === undefined ? "" : readFileSync(path, "utf8")
+  } catch {
+    return ""
+  }
+}
 
 const launch = (agent: string, command: string, summary: string): Reply => {
   if (agent === "claude")
@@ -36,12 +52,21 @@ const launch = (agent: string, command: string, summary: string): Reply => {
   }
 }
 
+// Codex on Windows first runs one quick command that says which program started its
+// PowerShell, the PATH it was given, and each pwsh on it: Novadeck's, where its commands capture.
+const which =
+  "echo novadeck-which; (Get-Process -Id $PID).Parent.Path; Get-ChildItem env: | ? Name -like 'path*' | % { $_.Name + '=' + $_.Value }; (Get-Command pwsh -All).Source -join '|'"
+const whichFirst = (agent: string) => agent === "codex" && process.platform === "win32"
+const whichSaid = (call: Call): string | undefined =>
+  call.turns.find((turn) => turn.role === "tool" && turn.text.includes("novadeck-which"))?.text
+
 // What the results of the shells started so far say, oldest first.
 const started = (call: Call): string[] =>
   call.turns
     .filter((turn) => turn.role === "tool")
     .map((turn) => turn.text)
     .filter((text) => /background|session ID|Process exited/.test(text))
+    .filter((text) => !text.includes("novadeck-which"))
 
 // The agent stopping the last shell it started; Codex's person stops theirs with /stop.
 const stopping = (call: Call, agent: string): Reply => {
@@ -76,6 +101,7 @@ for (const setup of setups) {
       async ({ e2e: run }) => {
         if (setup.agent === "claude") allowClaude(run)
         if (setup.agent === "codex") openCodex(run)
+        let whichOutput: string | undefined
         run.model.use(
           own((call) => {
             if (call.side) return undefined
@@ -92,6 +118,9 @@ for (const setup of setups) {
               said("Start the shells") &&
               (last?.role === "tool" || asked(call, "Start the shells"))
             ) {
+              whichOutput ??= whichSaid(call)
+              if (whichFirst(setup.agent) && whichOutput === undefined)
+                return { calls: [{ name: "exec_command", input: { cmd: which } }] }
               const done = started(call).length
               return done < 3
                 ? launch(
@@ -104,6 +133,13 @@ for (const setup of setups) {
             return { text: "Noted." }
           }),
         )
+        // Codex on Windows finds its shell on PATH: Novadeck's PowerShell is there once Codex
+        // is connected, and its shim puts it first, or no command of its is captured.
+        if (setup.agent === "codex" && process.platform === "win32") {
+          const { pwshDir, bin } = run.deck.shell
+          expect(existsSync(join(pwshDir, "pwsh.exe")), "Novadeck's pwsh.exe installed").toBe(true)
+          expect(readFileSync(join(bin, "codex.cmd"), "utf8")).toMatch(/set "PATH=[^"]+;%PATH%"/)
+        }
         const t = await start(run, setup)
         const before = Date.now()
         await t.submit("Start the shells")
@@ -117,6 +153,8 @@ for (const setup of setups) {
           "the three shells told",
           90_000,
         )
+        // Codex's PowerShell on Windows is Novadeck's, which starts Microsoft's for the command.
+        if (whichFirst(setup.agent)) expect(whichOutput).toMatch(/[\\/]pwsh[\\/]pwsh\.exe/i)
         // Running: each with a harness id of its own, its command and when it started.
         const running = shellsOf(t)
         expect(running.map(({ command }) => command)).toEqual(commands(setup.agent))
@@ -127,6 +165,41 @@ for (const setup of setups) {
           expect(shell.since).toBeLessThanOrEqual(Date.now())
         }
         const [a, c, b] = running.map(({ id }) => id) as [string, string, string]
+
+        // Each tells the file its output is in, which holds what it printed while it runs.
+        const told = await t.poll(
+          () => {
+            const now = shellsOf(t)
+            return now.length === 3 &&
+              now.every(({ output }, index) => printed(output).includes(words[index]!))
+              ? now
+              : undefined
+          },
+          "each shell's output",
+          30_000,
+        )
+        expect(new Set(told.map(({ output }) => output)).size).toBe(3)
+
+        // The terminal's bar has their shells item, whose content holds what each printed.
+        await t.poll(
+          async () => {
+            const item = run.deck.items.bar(t.id).find((each) => each.kind === "shells")
+            const content = item && (await run.deck.items.load(item.id, false))
+            if (content?.state !== "ready" || content.content.kind !== "shells") return undefined
+            const { shells } = content.content
+            return shells.length === 3 &&
+              words.every((word) =>
+                shells.some(
+                  ({ output }) =>
+                    output.state === "ready" && output.lines.some((line) => line.includes(word)),
+                ),
+              )
+              ? true
+              : undefined
+          },
+          "their shells item, with what each printed",
+          30_000,
+        )
 
         // Whatever the outcome, the shell that runs on is stopped, so none outlives the test.
         const stop = async () => {

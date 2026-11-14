@@ -65,9 +65,12 @@ jobs:
         with:
           github-token: ${{ github.token }}
 
+      # Electron's group waits for a person, who looks at the WebGL terminal first: a patch
+      # release once shrank its glyphs and no test caught it (.github/dependabot.yml).
       - name: Enable Automerge
         if: >-
           steps.readiness.outputs.ready == 'true' &&
+          steps.metadata.outputs.dependency-group != 'electron' &&
           (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
           steps.metadata.outputs.update-type == 'version-update:semver-minor')
         env:
@@ -82,6 +85,7 @@ jobs:
           (steps.readiness.outcome != 'success' ||
           steps.readiness.outputs.ready != 'true' ||
           steps.metadata.outcome != 'success' ||
+          steps.metadata.outputs.dependency-group == 'electron' ||
           (steps.metadata.outputs.update-type != 'version-update:semver-patch' &&
           steps.metadata.outputs.update-type != 'version-update:semver-minor'))
         env:

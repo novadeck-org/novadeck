@@ -18,7 +18,7 @@ export const isPk = (c: { constraints: string }) => /PRIMARY KEY/i.test(c.constr
 const COLUMNS: string[][] = [
   ["message_threads", "messages"],
   ["projects", "settings"],
-  ["sessions", "session_handles"],
+  ["sessions", "project_handles"],
   ["terminals", "companion_windows"],
   ["companion_items"],
 ]

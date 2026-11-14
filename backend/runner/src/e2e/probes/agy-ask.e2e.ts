@@ -421,6 +421,46 @@ describe.skipIf(!supported)("Antigravity ask surfaces (probe)", () => {
     await capture(name, "pending", t1, probe)
   })
 
+  // A long question and a long option in a narrow pane, as Claude Code's AskUserQuestion
+  // showed one on 2026-11-13 that Novadeck couldn't read: how each wraps, at each size.
+  probeIt("2-ask-long-narrow", async (r) => {
+    const name = "2-ask-long-narrow"
+    r.model.use(
+      calls("Ask me", "ask_question", {
+        questions: [
+          {
+            question:
+              'A reviewer left four comments on the pull request. I\'ve rebased it onto main and fixed all four (checks and the end-to-end tests pass locally). Because of the rebase the push has to be a force-push (--force-with-lease). OK to commit, force-push, fix the repeated "Short copy" sentence in its description, and post the four replies below?',
+            options: [
+              "Push and reply (Recommended): commit as shown, force-push with lease, fix the description, post the replies",
+              "Push, no replies",
+              "Not yet",
+            ],
+            is_multi_select: false,
+          },
+        ],
+      }),
+      after("Noted."),
+    )
+    prepare(r)
+    const t1 = await start(r, agy)
+    await t1.submit("Ask me")
+    await t1.until(/> 1\. Push and reply/)
+    for (const [columns, rows] of [
+      [120, 40],
+      [80, 40],
+      [52, 40],
+      [44, 40],
+    ] as const) {
+      t1.resize(columns, rows)
+      // eslint-disable-next-line no-await-in-loop -- The sizes are tried in turn.
+      await sleep(500)
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      const seen = await calm(t1)
+      save(`${name}.screen-${columns}x${rows}.json`, screenRecord(seen, { columns }))
+    }
+  })
+
   for (const [label, keys] of [
     ["1", "1"],
     ["2", "2"],

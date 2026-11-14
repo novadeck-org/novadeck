@@ -27,11 +27,13 @@ const UsageBar = ({ used }: { used: number }): React.JSX.Element => (
   </span>
 )
 
-// One window of a subscription in its detail: its name, its bar and share, and when it
-// resets, where its agent says.
+// One window of a subscription in its detail: its name with the models it covers, its bar
+// and share, and when it resets, where its agent says.
 const WindowRow = ({ window, now }: { window: UsageWindow; now: number }): React.JSX.Element => (
   <div className="usage-row">
-    <span className="usage-row-name">{window.name}</span>
+    <span className="usage-row-name" title={window.label}>
+      {window.label}
+    </span>
     <UsageBar used={window.used} />
     <span className="usage-row-share">{percent(window.used)}</span>
     {window.resetsAt !== null && (
@@ -83,7 +85,7 @@ const SubscriptionPill = ({
         <button
           type="button"
           className="footer-usage-pill"
-          aria-label={`${account.name} subscription: ${busiest.name} ${percent(busiest.used)} used`}
+          aria-label={`${account.name} subscription: ${busiest.label} ${percent(busiest.used)} used`}
           aria-description={
             movable ? "Drag to reorder, or use Move left and Move right in its menu." : undefined
           }
@@ -91,7 +93,7 @@ const SubscriptionPill = ({
           {agentIcon(account.program, 12)}
           <UsageBar used={busiest.used} />
           <span aria-hidden>
-            {busiest.name} {percent(busiest.used)}
+            {busiest.label} {percent(busiest.used)}
           </span>
         </button>
       }

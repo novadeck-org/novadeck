@@ -187,6 +187,27 @@ describe("chat commands", () => {
     })
   })
 
+  context("when a pane tells the agent something", () => {
+    it("drafts it after what is there, once, and says so", () => {
+      const app = open({ working: false })
+      app.commands.setChatDraft("01", "meanwhile")
+      expect(app.commands.tellChatDraft("project/initial", "01", "`ls` exited 1.")).toBe(true)
+      expect(app.commands.tellChatDraft("project/initial", "01", "`ls` exited 1.")).toBe(true)
+      expect(app.chat.store.getSnapshot().drafts).toEqual({
+        "project/initial": { "01": "meanwhile\n\n`ls` exited 1." },
+      })
+    })
+
+    it("leaves a shell command as it is, and says it did not draft", () => {
+      const app = open({ working: false })
+      app.commands.setChatDraft("01", "!npm test")
+      expect(app.commands.tellChatDraft("project/initial", "01", "`ls` exited 1.")).toBe(false)
+      expect(app.chat.store.getSnapshot().drafts).toEqual({
+        "project/initial": { "01": "!npm test" },
+      })
+    })
+  })
+
   context("when words come back to a draft holding a shell command", () => {
     it("puts them before it, so they never run as more of its lines", () => {
       const app = open({ working: false })

@@ -1581,3 +1581,14 @@ describe("runner backend", () => {
     })
   })
 })
+
+describe("the works, as the backend starts", () => {
+  it("are read once with no one watching, and then no longer followed", async () => {
+    const app = open()
+    const { state } = app.backend.works!
+    await vi.waitFor(() => expect(state.getSnapshot().reported).toBe(true), eventually)
+    // Let go at once: no longer synced, though reported.
+    expect(state.getSnapshot().synced).toBe(false)
+    app.stop()
+  })
+})

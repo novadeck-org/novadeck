@@ -422,7 +422,13 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const records: TerminalRecords = {
         terminal: (terminalId) => shell.store.terminal(terminalId),
         terminals: (sessionId) => shell.store.terminals(sessionId),
-        giveHandle: (sessionId) => shell.store.giveHandle(sessionId),
+        giveHandle: (sessionId, order, options) =>
+          shell.store.giveHandle(sessionId, order, options),
+        claimHandle: (sessionId, handle, terminalId, options) =>
+          shell.store.claimHandle(sessionId, handle, terminalId, options),
+        releaseHandle: (sessionId, handle, terminalId) =>
+          shell.store.releaseHandle(sessionId, handle, terminalId),
+        handleGivenAt: (sessionId, handle) => shell.store.handleGivenAt(sessionId, handle),
         renameTerminal: (terminalId, title) => shell.store.renameTerminal(terminalId, title),
         terminalIdentity: (terminalId) => shell.store.terminalIdentity(terminalId),
         saveTerminal: (terminal) => {
@@ -462,10 +468,15 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const records: TerminalRecords = {
         terminal: (terminalId) => shell.store.terminal(terminalId),
         terminals: (sessionId) => shell.store.terminals(sessionId),
-        giveHandle: (sessionId, order) => {
+        giveHandle: (sessionId, order, options) => {
           if (refuse) throw new Error("disk full")
-          return shell.store.giveHandle(sessionId, order)
+          return shell.store.giveHandle(sessionId, order, options)
         },
+        claimHandle: (sessionId, handle, terminalId, options) =>
+          shell.store.claimHandle(sessionId, handle, terminalId, options),
+        releaseHandle: (sessionId, handle, terminalId) =>
+          shell.store.releaseHandle(sessionId, handle, terminalId),
+        handleGivenAt: (sessionId, handle) => shell.store.handleGivenAt(sessionId, handle),
         renameTerminal: (terminalId, title) => shell.store.renameTerminal(terminalId, title),
         terminalIdentity: (terminalId) => shell.store.terminalIdentity(terminalId),
         saveTerminal: (terminal) => shell.store.saveTerminal(terminal),

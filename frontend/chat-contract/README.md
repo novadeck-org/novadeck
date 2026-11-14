@@ -49,6 +49,16 @@ the runner reads screens, the screen at rest kept from state to state, against
 `src/slices/<harness>.txt`: for each state its keys, `menu`, `view` or `none`, the screen rows it
 spans, `secret` if so, and those rows. A harness that moves what it draws changes the rows.
 
+`wordings.test.ts` reads every permission and plan dialog each harness's `fixtures/ask.probe*.json`
+and `tall.probe.json` recorded, with its own dialog adapter and the request its hooks told (the
+commands a tall probe names; the adapter's `screenRequest` where only the screen tells it; for
+a probe that kept screens alone, the requests its other scenarios recorded, and the few calls
+the harness's own dialog tests give for unrecorded ones). The options go through core's
+`optionExtras`, against `src/wordings/<harness>.txt`: for each distinct dialog, each scenario
+(`name@version`) and the screens (sizes, steps) that show it, then each option as
+`label [text] → role, lines "…" / "…", effect "…", armed`. A harness that rewords a dialog
+changes a line; an adapter that stops reading one, at any size, drops its scenario or screen.
+
 `outcomes.test.ts` reads each case of a tool's outcome from `tool-outcomes.probe.json`, every
 harness's, through the same stages to `groupItems`' entry, against `src/outcomes/<harness>.txt`:
 `title · detail → failed …, exit …, running, N lines, +A -R [its first lines]`, or `nothing
