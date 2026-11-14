@@ -1,4 +1,5 @@
 import type { ChatDialogOption } from "@novadeck/core/conversation"
+import { needsWords } from "@novadeck/core/conversation/extras"
 import type { InboxRow } from "@novadeck/core/inbox"
 
 import { context, describe, expect, it } from "../test"
@@ -8,7 +9,6 @@ import {
   codeParts,
   labelOf,
   limitWindow,
-  needsWords,
   readLabel,
   refusedWords,
   recommended,
@@ -366,15 +366,16 @@ describe("A permission's options", () => {
     })
   })
 
-  it("leads with no yes where none is bare or known, offering each as it words itself", () => {
+  it("leads with no yes where none is plain, offering each as it words itself", () => {
     const choices = choicesOf([
       option("1", "Yes, and bypass permissions"),
-      option("2", "Yes, and don't ask again"),
+      option("2", "Yes, clear context and implement"),
+      option("3", "Yes, and don't ask again"),
     ])
 
     expect(choices?.allow).toBeNull()
-    expect(choices?.standing.map(({ id }) => id)).toEqual(["2"])
-    expect(choices?.unsure.map(({ id }) => id)).toEqual(["1"])
+    expect(choices?.standing.map(({ id }) => id)).toEqual(["1", "3"])
+    expect(choices?.unsure.map(({ id }) => id)).toEqual(["2"])
   })
 
   it.each([
@@ -434,8 +435,11 @@ describe("A permission's options", () => {
     expect(choices?.plain).toBeNull()
   })
 
-  it("has none where nothing says yes, or there are no options", () => {
-    expect(choicesOf([option("a", "Continue"), option("b", "Stop")])).toBeNull()
+  it("offers what no rule reads as it words itself, and has none only with nothing to send", () => {
+    expect(
+      choicesOf([option("a", "Continue"), option("b", "Stop")])?.rest.map(({ id }) => id),
+    ).toEqual(["a", "b"])
+    expect(choicesOf([option("a", "Tell Claude what to change")])).toBeNull()
     expect(choicesOf([])).toBeNull()
   })
 })
