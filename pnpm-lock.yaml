@@ -747,6 +747,12 @@ importers:
       '@novadeck/core':
         specifier: workspace:*
         version: link:../core
+      '@novadeck/toolkit':
+        specifier: workspace:*
+        version: link:../toolkit
+      lucide-react:
+        specifier: ^1.71.0
+        version: 1.71.0(@types/react@19.3.0)(react@19.3.1)
       react:
         specifier: ^19.3.1
         version: 19.3.1

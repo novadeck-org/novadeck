@@ -131,12 +131,13 @@ describe("a request's card", () => {
     const { container } = show(choices, onAnswer)
     click(button(container, "Yes"))
     expect(onAnswer).toHaveBeenCalledWith("r1", { type: "choice", dialog: "d1", option: "1" })
-    expect(button(container, "Yes").disabled).toBe(true)
+    // Held, not disabled: focus stays on the row.
+    expect(button(container, "Yes").getAttribute("aria-disabled")).toBe("true")
     expect(container.querySelector(".request-sending")).not.toBeNull()
     expect(container.querySelector("article")?.getAttribute("aria-busy")).toBe("true")
     finishers.forEach((finish) => finish())
     await settle()
-    expect(button(container, "Yes").disabled).toBe(false)
+    expect(button(container, "Yes").hasAttribute("aria-disabled")).toBe(false)
   })
 
   it("takes focus to the box as the person submits a pick, before the answer has gone", () => {
@@ -175,7 +176,7 @@ describe("a request's card", () => {
     expect(container.querySelector("textarea")?.getAttribute("aria-label")).toBe(
       "No, and tell it what to do",
     )
-    expect(button(container, "Send answer").disabled).toBe(true)
+    expect(button(container, "Send answer").getAttribute("aria-disabled")).toBe("true")
   })
 
   it("swaps its controls for the dialog's text when the dialog turns raw", () => {
@@ -205,7 +206,11 @@ describe("a request's card", () => {
     expect(container.querySelector(".request-dialog-title")?.textContent).toBe(
       "Run ⟨U+2067⟩this⟨U+2069⟩?",
     )
-    expect(container.querySelector("pre")?.textContent).toBe("echo hi ⟨U+202E⟩~ fr- mr⟨U+202C⟩; ls")
+    // In what it asks, each is a mark of its own, as everything that draws as nothing.
+    expect(container.querySelector("pre")?.textContent).toBe("echo hi U+202E~ fr- mrU+202C; ls")
+    expect(
+      [...container.querySelectorAll("pre .request-mark")].map((mark) => mark.textContent),
+    ).toEqual(["U+202E", "U+202C"])
     rerender({ type: "raw", text: hidden, reason: "failed" })
     expect(container.querySelector("pre")?.textContent).toBe("echo hi ⟨U+202E⟩~ fr- mr⟨U+202C⟩; ls")
   })
@@ -430,29 +435,29 @@ describe("a request's card", () => {
     click(button(container, "No, and tell"))
     type(container.querySelector("textarea")!, "/tmp is full")
     expect(container.textContent).toContain("Can't start with / or !")
-    expect(button(container, "Send answer").disabled).toBe(true)
+    expect(button(container, "Send answer").getAttribute("aria-disabled")).toBe("true")
     type(container.querySelector("textarea")!, "the /tmp is full")
     expect(container.textContent).not.toContain("Can't start with / or !")
-    expect(button(container, "Send answer").disabled).toBe(false)
+    expect(button(container, "Send answer").hasAttribute("aria-disabled")).toBe(false)
   })
 
   it("holds back the words the backend refuses, and not those typed into the agent's field", () => {
     const { container } = show(choices, async () => {})
     click(button(container, "No, and tell"))
     type(container.querySelector("textarea")!, "x @a ")
-    expect(button(container, "Send answer").disabled).toBe(true)
+    expect(button(container, "Send answer").getAttribute("aria-disabled")).toBe("true")
     expect(container.querySelector('[role="status"]')?.textContent).toContain("Can't start")
     const field = show(fieldChoices, async () => {}).container
     click(button(field, "No, and tell"))
     type(field.querySelector("textarea")!, "/tmp is full")
-    expect(button(field, "Send answer").disabled).toBe(false)
+    expect(button(field, "Send answer").hasAttribute("aria-disabled")).toBe(false)
   })
 
   it("holds back words with control characters for the agent's own field, saying why", () => {
     const { container } = show(fieldChoices, async () => {})
     click(button(container, "No, and tell"))
     type(container.querySelector("textarea")!, "log \u001b[31mred")
-    expect(button(container, "Send answer").disabled).toBe(true)
+    expect(button(container, "Send answer").getAttribute("aria-disabled")).toBe("true")
     const [hint] = container.querySelector("textarea")!.getAttribute("aria-describedby")!.split(" ")
     expect(container.querySelector(`[id="${hint}"]`)?.textContent).toContain("control characters")
   })
@@ -478,6 +483,130 @@ const pointerMove = (element: Element, kind = "mouse"): void => {
   Object.defineProperty(event, "pointerType", { value: kind })
   act(() => void element.dispatchEvent(event))
 }
+
+describe("a dialog's options, with what core reads into them", () => {
+  // A request of `kind`, with nothing else the card waits on.
+  const showKind = (
+    kind: ChatRequest["kind"],
+    dialog: ChatDialog,
+    onAnswer: (request: string, answer: ChatAnswer) => Promise<void>,
+  ) => {
+    const view = render(
+      createElement(Requests, {
+        requests: [{ ...request(dialog), kind }],
+        slice: null,
+        agent: "Claude",
+        onAnswer,
+        onAnswerInTerminal: () => {},
+        onSettled,
+        replying: null,
+        replySending: false,
+        onReply,
+        refused: refusing(),
+        onSubmitted,
+      }),
+    )
+    unmounts.push(view.unmount)
+    return view
+  }
+  const rows = (container: HTMLElement) => [
+    ...container.querySelectorAll<HTMLElement>(".request-option"),
+  ]
+
+  it("keeps the harness's words, a standing yes's scope on a line under its head", () => {
+    const { container } = showKind(
+      "permission",
+      {
+        ...choices,
+        options: [
+          { id: "1", label: "Yes", text: null },
+          {
+            id: "2",
+            label: "Yes, and don't ask again for commands that start with `pnpm add`",
+            text: null,
+          },
+        ],
+      },
+      async () => {},
+    )
+    const standing = rows(container)[1]!
+    expect(standing.querySelector(".request-option-words")?.textContent).toBe(
+      "Yes, and don't ask again",
+    )
+    expect(standing.querySelector(".request-option-more")?.textContent).toBe(
+      "for commands that start with `pnpm add`",
+    )
+    // Nothing is said of the plain yes, nor is anything armed.
+    expect(rows(container)[0]!.querySelector(".request-option-more")).toBeNull()
+  })
+
+  it("says what a plan's standing yes lets the agent do, and arms it before it sends", async () => {
+    const onAnswer = vi.fn<(request: string, answer: ChatAnswer) => Promise<void>>(async () => {})
+    const { container } = showKind(
+      "plan",
+      {
+        ...choices,
+        options: [
+          { id: "bypass", label: "Yes, and bypass permissions", text: null },
+          { id: "manual", label: "Yes, and manually approve edits", text: null },
+        ],
+      },
+      onAnswer,
+    )
+    const [bypass, manual] = rows(container)
+    expect(bypass!.querySelector(".request-option-effect")?.textContent).toBe(
+      "It edits and runs commands without asking.",
+    )
+    expect(manual!.querySelector(".request-option-effect")).toBeNull()
+    click(bypass!)
+    expect(onAnswer).not.toHaveBeenCalled()
+    expect(bypass!.dataset.armed).toBe("true")
+    expect(bypass!.textContent).toContain("again to send it")
+    // Moving away disarms it.
+    keyDown(bypass!, "ArrowDown")
+    expect(bypass!.dataset.armed).toBeUndefined()
+    keyDown(manual!, "1")
+    keyDown(bypass!, "1")
+    expect(onAnswer).toHaveBeenCalledWith("r1", {
+      type: "choice",
+      dialog: "d1",
+      option: "bypass",
+    })
+    await settle()
+  })
+
+  it("presses the plain yes of a plan at once", () => {
+    const onAnswer = vi.fn<(request: string, answer: ChatAnswer) => Promise<void>>(async () => {})
+    const { container } = showKind(
+      "plan",
+      {
+        ...choices,
+        options: [
+          { id: "bypass", label: "Yes, and bypass permissions", text: null },
+          { id: "manual", label: "Yes, and manually approve edits", text: null },
+        ],
+      },
+      onAnswer,
+    )
+    click(rows(container)[1]!)
+    expect(onAnswer).toHaveBeenCalledWith("r1", { type: "choice", dialog: "d1", option: "manual" })
+  })
+
+  it("never lets a held key send what its first press armed", () => {
+    const onAnswer = vi.fn<(request: string, answer: ChatAnswer) => Promise<void>>(async () => {})
+    const { container } = showKind(
+      "plan",
+      { ...choices, options: [{ id: "bypass", label: "Yes, and bypass permissions", text: null }] },
+      onAnswer,
+    )
+    const [bypass] = rows(container)
+    bypass!.focus()
+    keyDown(bypass!, "Enter")
+    keyDown(bypass!, "Enter", { repeat: true })
+    expect(onAnswer).not.toHaveBeenCalled()
+    expect(bypass!.dataset.armed).toBe("true")
+  })
+})
 
 describe("a dialog's menu", () => {
   const rows = (container: HTMLElement) => [...container.querySelectorAll(".request-option")]

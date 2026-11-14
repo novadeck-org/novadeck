@@ -1,11 +1,11 @@
-import { context, describe, expect, it } from "../test"
 import { answering, menuKey, startCursor, type MenuShape } from "./menu-keys"
+import { context, describe, expect, it } from "./test"
 
 const one: MenuShape = { count: 3, multi: false, arms: () => false, leaves: () => false }
 const several: MenuShape = { count: 3, multi: true, arms: () => false, leaves: (at) => at === 2 }
 const hard: MenuShape = { count: 2, multi: false, arms: () => true, leaves: () => false }
 
-describe("A sheet's menu keys", () => {
+describe("A request menu's keys", () => {
   context("in a menu of one choice", () => {
     it("presses a row at once by its number", () => {
       expect(menuKey(one, startCursor, "2")).toEqual({ cursor: { at: 1, armed: null }, press: 1 })
@@ -16,11 +16,12 @@ describe("A sheet's menu keys", () => {
       expect(menuKey(one, startCursor, "a")).toBeNull()
     })
 
-    it("moves with the arrows within its ends, and presses the cursor's row on Enter", () => {
+    it("moves with the arrows round and round, and presses the cursor's row on Enter", () => {
       const down = menuKey(one, startCursor, "ArrowDown")!
       expect(down).toEqual({ cursor: { at: 1, armed: null }, press: null })
-      expect(menuKey(one, { at: 2, armed: null }, "ArrowDown")!.cursor.at).toBe(2)
-      expect(menuKey(one, startCursor, "ArrowUp")!.cursor.at).toBe(0)
+      expect(menuKey(one, { at: 2, armed: null }, "ArrowDown")!.cursor.at).toBe(0)
+      expect(menuKey(one, startCursor, "ArrowUp")!.cursor.at).toBe(2)
+      expect(menuKey(one, { at: 2, armed: null }, "Home")!.cursor.at).toBe(0)
       expect(menuKey(one, startCursor, "End")!.cursor.at).toBe(2)
       expect(menuKey(one, down.cursor, "Enter")!.press).toBe(1)
       expect(menuKey(one, down.cursor, " ")!.press).toBe(1)

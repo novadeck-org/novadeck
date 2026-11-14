@@ -1,4 +1,3 @@
-import { context, describe, expect, it } from "../test"
 import {
   commandView,
   longestIndent,
@@ -6,6 +5,7 @@ import {
   markText,
   type CommandPart,
 } from "./command-view"
+import { context, describe, expect, it } from "./test"
 
 // The command as the card draws it: text as is, each mark in brackets.
 const drawn = (command: string): string =>

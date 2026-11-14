@@ -21,9 +21,11 @@ import { describe, expect, it } from "./test"
 // The packages that were folders of src are named as layers of their own (see `modules`):
 // toolkit/ is `@novadeck/toolkit`, the controls and the sidebar item, whose own rules are its
 // package.json's; items/ is `@novadeck/items`, the companion pane, the undocked window and the
-// bar drag; chat/ is `@novadeck/chat`, the chat view, its store and its commands. Test helpers
-// from other packages are testing/ (`@novadeck/core/testing` and `@novadeck/test-kit`).
-const base = ["core/", "interaction/", "toolkit/", "theme/", "sounds/"]
+// bar drag; chat/ is `@novadeck/chat`, the chat view, its store and its commands; requests/ is
+// `@novadeck/requests`, an agent's request drawn and answered, which the chat and the Inbox
+// share, so it is the base's. Test helpers from other packages are testing/
+// (`@novadeck/core/testing` and `@novadeck/test-kit`).
+const base = ["core/", "interaction/", "toolkit/", "requests/", "theme/", "sounds/"]
 // The workspace's frame: terminals/, and the items and the chat that live in its terminals.
 const frame = ["terminals/", "items/", "chat/"]
 // The features are the leaves that the shell and the app compose. A feature imports the base
@@ -139,6 +141,7 @@ const modules: Record<string, string> = {
   "@novadeck/toolkit/": "toolkit/",
   "@novadeck/items/": "items/",
   "@novadeck/chat/": "chat/",
+  "@novadeck/requests/": "requests/",
   "@novadeck/core/testing": "testing/core.ts",
   "@novadeck/test-kit/": "testing/test-kit/",
 }

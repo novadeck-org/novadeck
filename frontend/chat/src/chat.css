@@ -1204,7 +1204,7 @@ button.chat-hold-line:focus-visible::before {
 }
 /* The chat's own sizing of its requests (their rules are @novadeck/requests' requests.css), in a
    small window, and the place a line over the prompt keeps while it says nothing. */
-.chat[data-compact] .request-detail {
+.chat[data-compact] .request-detail-text {
   max-height: calc(4 * var(--_lh));
 }
 .chat[data-compact] .request-form-field {

@@ -156,7 +156,7 @@ export const RequestCard = ({
         {onlyTheTerminal && (
           <button
             type="button"
-            className="chat-key nodrag nopan"
+            className="request-key nodrag nopan"
             aria-label="Answer in terminal"
             onClick={onAnswerInTerminal}
           >
@@ -185,6 +185,7 @@ export const RequestCard = ({
         <RequestDialog
           key={handedBackCount}
           dialog={dialog}
+          kind={request.kind}
           live={live}
           place={place}
           replying={replying}

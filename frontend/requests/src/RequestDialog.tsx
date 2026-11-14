@@ -1,10 +1,11 @@
 import type {
   ChatAnswer,
   ChatDialog,
-  ChatDialogOption,
   ChatFormField,
   ChatQuestion,
+  ChatRequest,
 } from "@novadeck/core/conversation"
+import { noExtras, optionExtras } from "@novadeck/core/conversation/extras"
 import {
   answered,
   answeredCount,
@@ -28,6 +29,7 @@ import {
 } from "@novadeck/core/conversation/prompt-refusal"
 import { useEffect, useId, useRef, useState } from "react"
 
+import { Detail } from "./Detail"
 import {
   enter,
   entryOf,
@@ -38,6 +40,7 @@ import {
   type Entries,
 } from "./forms"
 import { Hint } from "./Hint"
+import { answerWordsLimit, Menu as OptionMenu, type MenuItem } from "./Menu"
 import { shownControls } from "./shown-controls"
 import { submitOnEnter } from "./submit-on-enter"
 import { holdsWords, isTyping, useMenu, type Menu } from "./use-menu"
@@ -79,7 +82,7 @@ const Sending = ({ sending }: { readonly sending: boolean }): React.JSX.Element 
   ) : null
 
 // What the protocol takes: the person's words, and a form's text value.
-const wordsMax = 16_384
+const wordsMax = answerWordsLimit
 const formTextMax = 4096
 
 const textHint = { field: "Type your answer…", prompt: "Tell it what to do instead…" } as const
@@ -111,43 +114,59 @@ const Row = ({
   )
 }
 
+// A dialog's options, in the harness's own words, with what core reads into them: a standing
+// yes's scope on a line under it, what a plan's standing yes lets the agent do, and an option
+// that is hard to take back armed before it sends. An option that takes words opens a box.
 const Choices = ({
   dialog,
+  kind,
   refused,
   sending,
   send,
   edited,
-}: Controls & { readonly dialog: Extract<ChatDialog, { type: "choices" }> }): React.JSX.Element => {
-  // The option whose words are being written, and the words.
-  const [opened, setOpened] = useState<{
-    readonly dialog: string
-    readonly option: ChatDialogOption
-  } | null>(null)
+}: Controls & {
+  readonly dialog: Extract<ChatDialog, { type: "choices" }>
+  readonly kind: ChatRequest["kind"]
+}): React.JSX.Element => {
   const [words, setWords] = useState("")
-  const field = useRef<HTMLTextAreaElement>(null)
+  const [pressed, setPressed] = useState<number | null>(null)
   const label = useId()
-  const menu = useMenu(dialog.options.length)
-  // A dialog read again keeps the option open only if it still means the same: the same
-  // label and kind of words. The words typed stay either way.
-  const current = dialog.options.find((option) => option.id === opened?.option.id)
-  const stays =
-    opened !== null &&
-    current !== undefined &&
-    (opened.dialog === dialog.id ||
-      (current.label === opened.option.label && current.text === opened.option.text))
-  const open = stays ? current.id : null
-  const writing = stays ? current : undefined
-  // Words that go on as the agent's next prompt are checked, not those typed in its field.
-  const refusedWords = writing?.text === "prompt" && refused(words)
-  const controlWords = writing?.text === "field" && hasControlCharacters(words)
-  const blockedWords = refusedWords || controlWords
-  useEffect(() => {
-    if (open !== null) field.current?.focus()
-  }, [open])
-  const submit = (): void => {
-    if (!writing || sending || words.trim() === "" || blockedWords) return
-    send(choiceAnswer(dialog.id, writing.id, words))
-  }
+  const extras = optionExtras(kind, dialog.options)
+  const items = dialog.options.map((option, index): MenuItem => {
+    const extra = extras[index] ?? noExtras
+    // Words that go on as the agent's next prompt are checked, not those typed in its field.
+    const blocked =
+      option.text === "prompt" && refused(words)
+        ? promptHint
+        : option.text === "field" && hasControlCharacters(words)
+          ? controlHint
+          : null
+    return {
+      // A dialog read again keeps an option's box open only while it means the same: the same
+      // label and kind of words. The words typed stay either way.
+      key: `${option.id}\n${option.label}\n${option.text ?? ""}`,
+      label: shownControls(extra.lines?.head ?? option.label),
+      scope: extra.lines && shownControls(extra.lines.scope),
+      effect: extra.effect,
+      arms: extra.hard,
+      ...(option.text && {
+        words: {
+          value: words,
+          onChange: (text) => {
+            setWords(option.text === "field" ? oneLine(text) : text)
+            edited()
+          },
+          placeholder: textHint[option.text],
+          field: option.label,
+          required: true,
+          refused: blocked,
+          hint: "send",
+          limit: answerWordsLimit,
+          oneLine: option.text === "field",
+        },
+      }),
+    }
+  })
   return (
     <div className="request-dialog">
       {dialog.title && (
@@ -155,81 +174,27 @@ const Choices = ({
           {shownControls(dialog.title)}
         </p>
       )}
-      {dialog.detail && (
-        <pre className="request-detail nodrag nopan nowheel" tabIndex={0} aria-label="What it asks">
-          {shownControls(dialog.detail)}
-        </pre>
-      )}
-      <div
-        className="request-options"
-        role="group"
-        aria-labelledby={dialog.title ? label : undefined}
-        aria-label={dialog.title ? undefined : "Answers"}
-        onKeyDown={menu.onKeyDown}
-        onPointerMove={menu.onPointerMove}
-      >
-        {dialog.options.map((option, index) => (
-          <Row
-            key={option.id}
-            menu={menu}
-            index={index}
-            disabled={sending}
-            aria-expanded={option.text ? open === option.id : undefined}
-            data-open={open === option.id || undefined}
-            onClick={() => {
-              edited()
-              if (option.text) setOpened(open === option.id ? null : { dialog: dialog.id, option })
-              else send(choiceAnswer(dialog.id, option.id))
-            }}
-          >
-            {shownControls(option.label)}
-            {option.text && "…"}
-            <Sending sending={sending && menu.at === index} />
-          </Row>
-        ))}
-      </div>
-      {writing?.text && (
-        <div className="request-writing">
-          <textarea
-            ref={field}
-            className="request-field nodrag nopan"
-            aria-label={writing.label}
-            aria-describedby={
-              writing.text === "field" ? `${label}-hint ${label}-line` : `${label}-hint`
-            }
-            placeholder={textHint[writing.text]}
-            rows={1}
-            maxLength={wordsMax}
-            value={words}
-            disabled={sending}
-            spellCheck
-            onChange={(event) => {
-              setWords(writing.text === "field" ? oneLine(event.target.value) : event.target.value)
-              edited()
-            }}
-            onKeyDown={submitOnEnter(submit, writing.text === "field")}
-          />
-          <button
-            type="button"
-            className="chat-key nodrag nopan"
-            disabled={sending || words.trim() === "" || blockedWords}
-            onClick={submit}
-          >
-            Send answer
-            <Sending sending={sending} />
-          </button>
-          {writing.text === "field" && (
-            <p className="sr-only" id={`${label}-line`}>
-              The agent's field takes one line.
-            </p>
-          )}
-          <Hint
-            id={`${label}-hint`}
-            className="request-field-hint"
-            text={refusedWords ? promptHint : controlWords ? controlHint : ""}
-          />
-        </div>
-      )}
+      {dialog.detail && <Detail text={dialog.detail} label="What it asks" />}
+      <OptionMenu
+        label={dialog.title ? shownControls(dialog.title) : "Answers"}
+        items={items}
+        busy={sending}
+        pressed={pressed}
+        onPress={(index) => {
+          const option = dialog.options[index]
+          if (!option) return
+          edited()
+          setPressed(index)
+          send(choiceAnswer(dialog.id, option.id))
+        }}
+        onOpen={edited}
+        onWords={(index) => {
+          const option = dialog.options[index]
+          if (!option) return
+          setPressed(index)
+          send(choiceAnswer(dialog.id, option.id, words))
+        }}
+      />
     </div>
   )
 }
@@ -641,7 +606,12 @@ const Questions = ({
           </div>
         )}
         {talks && (
-          <button type="button" className="chat-key nodrag nopan" disabled={sending} onClick={chat}>
+          <button
+            type="button"
+            className="request-key nodrag nopan"
+            disabled={sending}
+            onClick={chat}
+          >
             {replying ? "Back to the questions" : "Chat about this"}
           </button>
         )}
@@ -946,6 +916,7 @@ const Raw = ({
 // form, the terminal's own rows or the dialog's text for one the chat can't answer.
 export const RequestDialog = ({
   dialog,
+  kind,
   live,
   place,
   replying,
@@ -953,6 +924,7 @@ export const RequestDialog = ({
   ...controls
 }: Controls & {
   readonly dialog: ChatDialog
+  readonly kind: ChatRequest["kind"]
   // The terminal's own rows, shown for a dialog no adapter read in place of its text.
   readonly live: Live | undefined
   readonly place: RequestPlace
@@ -960,7 +932,7 @@ export const RequestDialog = ({
   readonly onReply: ((dialog: string | null) => void) | undefined
 }): React.JSX.Element =>
   dialog.type === "choices" ? (
-    <Choices dialog={dialog} {...controls} />
+    <Choices dialog={dialog} kind={kind} {...controls} />
   ) : dialog.type === "questions" ? (
     <Questions dialog={dialog} place={place} replying={replying} onReply={onReply} {...controls} />
   ) : dialog.type === "form" ? (

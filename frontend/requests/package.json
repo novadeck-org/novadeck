@@ -6,7 +6,9 @@
   "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {
+    "./Detail": "./src/Detail.tsx",
     "./Hint": "./src/Hint.tsx",
+    "./Menu": "./src/Menu.tsx",
     "./RequestCard": "./src/RequestCard.tsx",
     "./requests.css": "./src/requests.css",
     "./shown-controls": "./src/shown-controls.ts",
@@ -20,6 +22,8 @@
   },
   "dependencies": {
     "@novadeck/core": "workspace:*",
+    "@novadeck/toolkit": "workspace:*",
+    "lucide-react": "^1.71.0",
     "react": "^19.3.1"
   },
   "devDependencies": {

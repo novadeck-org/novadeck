@@ -36,12 +36,10 @@
    of its own. The page is made of: `.console-tail` (`.console-you`, `.console-step`s with
    data-kind="edit" | "run" | "fail" and their `.console-res`); `.console-ask` with its `.console-q`
    glyph, `.console-body`, `.console-note`, `.console-hard`, `.console-detail`, `.console-route`,
-   `.console-quote`; `.console-box` (data-tone) and `.console-command` (data-long) with
-   `.console-path`, `.console-code` and `.console-mark`s; `.console-planbox` (`.console-planbar`,
-   `.console-planscroll`); the `.console-menu` of `.console-option`s (data-on for the cursor's
-   row, data-armed, data-pressed; `.console-cur`, `.console-n`, `.console-t`, `.console-s`,
-   `.console-pick`, `.console-confirm`, `.console-more`), a `.console-own` row with its
-   `.console-own-box` and `.console-own-hint`; `.console-settled`; `.inbox-failure`.
+   `.console-quote`; `.console-box` (data-tone) and `.console-path`; `.console-planbox`
+   (`.console-planbar`, `.console-planscroll`); a `.console-question` each; `.console-settled`;
+   `.inbox-failure`. What it asks in full and its numbered menu are @novadeck/requests'
+   (`.request-detail`, `.request-menu`, in requests.css), drawn with the tokens the page sets.
 
    Tokens, each optional (its fallback in brackets):
    --inbox-urgent-fg (danger-fg), --inbox-waiting-fg (warning-fg), --inbox-quiet-fg (muted),
@@ -523,6 +521,17 @@
 
 /* The page: mono, as a terminal's prompt, with its gutter for the glyphs. */
 .console-page {
+  /* A request's detail and menu (@novadeck/requests' requests.css), in the page's own terms:
+     no edge of their own, their words after the page's gutter for the glyphs. */
+  --_pad: 0px;
+  --_inset: 16px;
+  --_lh: 19px;
+  --_ink: var(--color-ink);
+  --_muted: var(--color-muted);
+  --_mid: color-mix(in srgb, var(--_ink) 68%, var(--_muted));
+  --_accent: var(--color-strong);
+  --_red: var(--color-danger-fg);
+  --_line: var(--color-line);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -686,12 +695,6 @@ pre.console-box {
   color: var(--color-muted);
   font-size: var(--text-caption);
 }
-/* Every line shows, as Allow runs all of it; a long command scrolls in its box, as a plan does. */
-.console-command[data-long] .console-code {
-  max-height: 152px;
-  overflow-y: auto;
-}
-.console-code:focus-visible,
 .console-box:focus-visible,
 .console-planbox[data-loading] .console-planscroll {
   color: var(--color-muted);
@@ -699,21 +702,6 @@ pre.console-box {
 .console-planscroll:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-strong);
   outline-offset: -2px;
-}
-.console-dollar {
-  color: var(--color-muted);
-}
-/* What draws as nothing in a command, said in its place. */
-.console-mark {
-  padding: 0 4px;
-  border-radius: 3px;
-  background-color: var(--color-warning);
-  color: var(--color-warning-fg);
-  font-size: var(--text-caption);
-}
-.console-mark[data-mark="blank-lines"] {
-  display: inline-block;
-  margin: 2px 0;
 }
 .console-evidence {
   display: flex;
@@ -723,9 +711,6 @@ pre.console-box {
 .console-times {
   flex: none;
   color: var(--color-danger-fg);
-}
-.inbox-copy {
-  flex: none;
 }
 
 /* The plan in a box of its own, the chat's Markdown, scrolling alone. */
@@ -756,141 +741,10 @@ pre.console-box {
   scrollbar-gutter: stable;
 }
 
-/* The numbered menu: `❯` on the cursor's row, the number, its words and what it does. */
-.console-menu,
+/* A dialog of questions: a menu each, under its question. */
 .console-question {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-}
-.console-question {
-  gap: 8px;
-}
-.console-option {
-  position: relative;
-  display: grid;
-  grid-template-columns: 16px 24px minmax(0, 1fr);
-  align-items: baseline;
-  column-gap: 6px;
-  width: 100%;
-  padding: 5px 28px 5px 0;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: none;
-  color: var(--color-ink);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.console-option:hover {
-  background-color: color-mix(in srgb, var(--color-strong) 6%, transparent);
-}
-.console-option[data-on="true"] {
-  background-color: color-mix(in srgb, var(--color-strong) 12%, transparent);
-}
-.console-option[data-pressed] {
-  background-color: color-mix(in srgb, var(--color-success-fg) 16%, transparent);
-}
-.console-option:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-strong);
-  outline-offset: -1px;
-}
-.console-option[aria-disabled="true"] {
-  cursor: default;
-}
-.console-cur {
-  color: var(--color-strong);
-  text-align: center;
-}
-.console-n {
-  color: var(--color-muted);
-}
-.console-option[data-on="true"] :is(.console-n, .console-t) {
-  color: var(--color-strong);
-  font-weight: 600;
-}
-.console-s {
-  grid-column: 3;
-  color: var(--color-muted);
-  font-family: var(--font-sans);
-  font-size: var(--text-caption);
-  line-height: 17px;
-}
-.console-pick {
-  margin-left: 4px;
-  color: var(--color-success-fg);
-  font-size: var(--text-caption);
-  font-weight: 400;
-}
-.console-chosen {
-  margin-left: 6px;
-  color: var(--color-success-fg);
-  font-size: var(--text-caption);
-  font-weight: 400;
-}
-.console-option[data-chosen] {
-  background-color: color-mix(in srgb, var(--color-success-fg) 8%, transparent);
-}
-.console-confirm {
-  margin-left: 6px;
-  padding: 0 6px;
-  border-radius: 3px;
-  background-color: var(--color-danger-fg);
-  color: var(--color-paper);
-  font-size: var(--text-caption);
-  font-weight: 500;
-}
-.console-option[data-armed] {
-  background-color: color-mix(in srgb, var(--color-danger-fg) 12%, transparent);
-}
-.console-more {
-  margin: 6px 0 2px 46px;
-  padding-left: 10px;
-  border-left: 2px solid var(--color-line);
-  color: var(--color-muted);
-  font-family: var(--font-sans);
-  font-size: var(--text-control);
-}
-.console-more-of {
-  display: block;
-  margin-bottom: 2px;
-  color: var(--color-muted);
-  font-family: var(--font-mono);
-  font-size: var(--text-caption);
-}
-/* The person's own words, in a box where the row was. */
-.console-own {
-  cursor: text;
-}
-.console-own-box {
-  grid-column: 3;
-  min-height: 34px;
-  max-height: 140px;
-  padding: 6px 10px;
-  border: var(--border-width) solid var(--inbox-focus-border-color, var(--color-strong));
-  border-radius: var(--radius-control);
-  background-color: var(--color-paper);
-  color: var(--color-ink);
-  font-family: var(--font-sans);
-  font-size: var(--text-body);
-  line-height: 20px;
-  resize: none;
-}
-.console-own-box:focus-visible {
-  outline: none;
-}
-.console-own-box::placeholder {
-  color: var(--color-muted);
-}
-.console-own-hint {
-  grid-column: 3;
-  padding-top: 5px;
-  color: var(--color-muted);
-  font-family: var(--font-sans);
-  font-size: var(--text-caption);
-}
-.console-own-hint[role="alert"] {
-  color: var(--color-danger-fg);
 }
 
 .console-page .inbox-failure {

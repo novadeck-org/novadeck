@@ -94,8 +94,11 @@
 }
 .request-detail,
 .request-raw {
-  max-height: calc(8 * var(--_lh));
   margin: calc(var(--_lh) / 2) var(--_pad) 0 calc(var(--_inset) + 2ch);
+}
+.request-detail-text,
+.request-raw {
+  max-height: calc(8 * var(--_lh));
   overflow: auto;
   color: var(--_mid);
   font: inherit;
@@ -105,8 +108,36 @@
   scrollbar-color: var(--_line) transparent;
   user-select: text;
 }
+.request-detail-text {
+  margin: 0;
+}
 .request-raw {
   white-space: pre;
+}
+/* Over a detail of more than one line: how many, the folder it runs in, a Copy. */
+.request-detail-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2ch;
+  color: var(--_muted);
+}
+.request-detail-dollar {
+  color: var(--_muted);
+}
+/* What draws as nothing in a detail, said in its place. */
+.request-mark {
+  padding: 0 0.5ch;
+  border-radius: 3px;
+  background-color: var(--color-warning);
+  color: var(--color-warning-fg);
+}
+.request-mark[data-mark="blank-lines"] {
+  display: inline-block;
+  margin: 2px 0;
+}
+.request-copy {
+  flex: none;
 }
 /* The rows: a number, the words, what they mean on a dim line under them. */
 .request-options,
@@ -158,8 +189,20 @@
 }
 .request-option-number,
 .request-option-more,
+.request-option-pick,
+.request-option-chosen,
 .request-check {
   color: var(--_muted);
+}
+.request-option[data-pressed] {
+  cursor: progress;
+}
+/* A row armed, hard to take back: the bar and the words say what the next press does. */
+.request-option[data-armed] {
+  --_accent: var(--_red);
+}
+.request-option-confirm {
+  color: var(--_red);
 }
 .request-option-more {
   grid-column: 2;
@@ -215,6 +258,46 @@
   gap: 0 2ch;
   margin-top: calc(var(--_lh) / 2);
   padding: 0 var(--_pad) 0 calc(var(--_inset) + 3ch);
+  color: var(--_muted);
+}
+.request-writing-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--_muted);
+}
+.request-writing-hint:empty {
+  display: none;
+}
+.request-writing[data-armed] .request-writing-hint {
+  color: var(--_red);
+}
+.request-key {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .request-key:hover:not(:disabled, [aria-disabled="true"]) {
+    color: var(--_ink);
+  }
+}
+.request-key:disabled,
+.request-key[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.5;
+}
+/* The details of the row the cursor is on, under the rows. */
+.request-more {
+  margin: calc(var(--_lh) / 2) var(--_pad) 0 calc(var(--_inset) + 3ch);
+  color: var(--_mid);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.request-more-of {
+  display: block;
   color: var(--_muted);
 }
 .request-field-hint {

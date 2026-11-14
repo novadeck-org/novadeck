@@ -1,8 +1,8 @@
-// How a sheet's numbered menu takes its keys: 1–n go to that row and press it, ↑↓ move,
-// Home and End go to its ends, Enter (and Space, in a menu of one choice) presses the row
-// the cursor is on. In a menu of several picks a press ticks the row, and Enter sends,
-// but on a row that leaves the menu, as the way to the terminal, which it presses.
-// Where an answer is hard to take back the first press only arms it; pressing it again
+// How a request's numbered menu takes its keys, as a terminal's does: 1–9 go to that row and
+// press it, ↑↓ move round and round, Home and End go to its ends, Enter (and Space, in a menu of
+// one choice) presses the row the cursor is on. In a menu of several picks a press ticks the
+// row, and Enter sends, but on a row that leaves the menu, as the way to the terminal, which it
+// presses. Where an answer is hard to take back the first press only arms it; pressing it again
 // sends, and moving away disarms it. Pure, so the menu's rules read apart from its markup.
 
 export type Cursor = { readonly at: number; readonly armed: number | null }
@@ -32,21 +32,21 @@ const press = (shape: MenuShape, cursor: Cursor, at: number): KeyResult => {
 const move = (at: number): KeyResult => ({ cursor: { at, armed: null }, press: null })
 
 export const menuKey = (shape: MenuShape, cursor: Cursor, key: string): KeyResult | null => {
-  if (shape.count === 0) return null
-  const last = shape.count - 1
+  const { count } = shape
+  if (count === 0) return null
   if (/^[1-9]$/.test(key)) {
     const at = Number(key) - 1
-    return at > last ? null : press(shape, cursor, at)
+    return at >= count ? null : press(shape, cursor, at)
   }
   switch (key) {
     case "ArrowDown":
-      return move(Math.min(last, cursor.at + 1))
+      return move((cursor.at + 1) % count)
     case "ArrowUp":
-      return move(Math.max(0, cursor.at - 1))
+      return move((cursor.at + count - 1) % count)
     case "Home":
       return move(0)
     case "End":
-      return move(last)
+      return move(count - 1)
     case "Enter":
       return shape.multi && !shape.leaves(cursor.at)
         ? { cursor: { ...cursor, armed: null }, press: "send" }

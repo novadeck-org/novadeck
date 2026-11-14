@@ -16,6 +16,8 @@ import {
   type Trouble,
 } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsText } from "@novadeck/core/messages"
+import { Detail } from "@novadeck/requests/Detail"
+import { answerWordsLimit, Menu, type MenuHandle, type MenuItem } from "@novadeck/requests/Menu"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Markdown } from "@novadeck/toolkit/Markdown"
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
@@ -31,9 +33,8 @@ import {
 import { rowOf } from "./inbox-dom"
 import { actionOf, agentName, limitWindow, recommended, subjectOf } from "./inbox-text"
 import { noDraft, useInboxContext, type Sent } from "./InboxProvider"
-import { Menu, wordsLimit, type MenuHandle, type MenuItem } from "./Menu"
 import { usePlanAnswered, usePlanText } from "./plan-text"
-import { CommandBox, Disclosure, Failure, Text } from "./sheet-parts"
+import { Disclosure, Failure, Text } from "./sheet-parts"
 
 // The Console sheet: one layout for every kind. The person's last words to the agent and the
 // few steps it took since; the thing it asks about, word for word; and a numbered menu that
@@ -54,6 +55,13 @@ export type SheetContentProps = {
   // Shows the row's terminal.
   readonly reveal: () => void
 }
+
+// The most characters of the person's words an ask's reply takes (`askAnswer`'s text); a
+// request's answer and a nudge, which goes as the agent's prompt, take `answerWordsLimit`.
+const askWordsLimit = 4096
+
+// Where a menu the Inbox moved on to may take focus from: the sheet.
+const sheetArea = (menu: Element): Element | null => menu.closest(".inbox-sheet")
 
 // How long the room for the context stays kept while the agent's transcript is read. An agent
 // with none (a plain shell) gives the room back then.
@@ -278,7 +286,9 @@ const Thing = ({ row, now }: { readonly row: InboxRow; readonly now: number }) =
                 <Text text={subjectOf(row)} />
               </Heading>
             )}
-            {detail && <CommandBox command={detail} />}
+            {detail && (
+              <Detail text={detail} label="What it asks" command={actionOf(request) === "run"} />
+            )}
           </>
         )
       }
@@ -289,7 +299,13 @@ const Thing = ({ row, now }: { readonly row: InboxRow; readonly now: number }) =
           <Heading>
             <Text text={subjectOf(row)} />
           </Heading>
-          {dialog?.type === "choices" && dialog.detail && <CommandBox command={dialog.detail} />}
+          {dialog?.type === "choices" && dialog.detail && (
+            <Detail
+              text={dialog.detail}
+              label="What it asks"
+              command={actionOf(request) === "run"}
+            />
+          )}
           {dialog?.type === "raw" && (
             <pre
               className="console-box"
@@ -324,7 +340,13 @@ const Thing = ({ row, now }: { readonly row: InboxRow; readonly now: number }) =
             </div>
           )}
           {ask.shape.type === "action" && (
-            <CommandBox command={ask.shape.command} folder={ask.shape.directory} copy />
+            <Detail
+              text={ask.shape.command}
+              label="The command"
+              folder={ask.shape.directory}
+              command
+              copy
+            />
           )}
         </>
       )
@@ -386,13 +408,14 @@ const ChoicesMenu = ({
       : setLocal((record) => ({ ...record, [at]: text }))
   // The rows that answer, the way to the terminal aside.
   const answers = model.rows.filter((menuRow) => menuRow.type !== "reveal").length
+  const limit = row.kind === "ask" ? askWordsLimit : answerWordsLimit
   const items = model.rows.map((menuRow, at): MenuItem => {
     switch (menuRow.type) {
       case "answer":
         return {
           key: `a${at}`,
-          label: menuRow.label,
-          effect: menuRow.effect,
+          label: <Text text={menuRow.label} />,
+          effect: menuRow.effect && <Text text={menuRow.effect} />,
           pick: menuRow.pick,
           ...(menuRow.hard && { arms: true }),
           more: detailsOf(menuRow.details),
@@ -401,8 +424,7 @@ const ChoicesMenu = ({
         const value = wordsOf(at)
         return {
           key: `w${at}`,
-          label: menuRow.label,
-          effect: null,
+          label: <Text text={menuRow.label} />,
           words: {
             value,
             onChange: (text) => setWords(at, text),
@@ -411,13 +433,19 @@ const ChoicesMenu = ({
             required: menuRow.required,
             refused: value.trim() === "" ? null : menuRow.refused(value),
             hint: row.kind === "ask" && answers > 1 ? "send your words instead" : "send",
+            limit,
           },
         }
       }
       case "reveal":
-        return { key: `r${at}`, label: menuRow.label, effect: menuRow.effect, away: true }
+        return {
+          key: `r${at}`,
+          label: <Text text={menuRow.label} />,
+          effect: menuRow.effect && <Text text={menuRow.effect} />,
+          away: true,
+        }
       case "toggle":
-        return { key: `t${at}`, label: menuRow.label, effect: null, check: menuRow.on }
+        return { key: `t${at}`, label: <Text text={menuRow.label} />, check: menuRow.on }
     }
   })
   const run = (at: number): void => {
@@ -432,7 +460,7 @@ const ChoicesMenu = ({
       return
     }
     const text = wordsOf(at)
-    if (text.length > wordsLimit) return
+    if (text.length > limit) return
     submit(menuRow.answer(text), menuRow.receipt(text))
   }
   return (
@@ -446,6 +474,7 @@ const ChoicesMenu = ({
       onWords={run}
       handle={handle}
       arrived={arrived}
+      area={sheetArea}
     />
   )
 }
@@ -484,7 +513,9 @@ const QuestionsMenu = ({
   const receipt = `Answered @${row.source.handle}'s ${questions.length > 1 ? "questions" : "question"}.`
   const now = counted(picks, leftOut)
   const unanswered = questions.filter((question) => !answered(now, question))
-  const over = questions.filter((question) => (now[question.id]?.text.length ?? 0) > wordsLimit)
+  const over = questions.filter(
+    (question) => (now[question.id]?.text.length ?? 0) > answerWordsLimit,
+  )
   // Sends where every question has an answer within the limit; else takes the person to the
   // first that has none, or to the words that are too long.
   const finish = (next: Picks, left: readonly string[]): void => {
@@ -492,7 +523,7 @@ const QuestionsMenu = ({
     const open = questions.findIndex((question) => !answered(ready, question))
     if (open >= 0) return void handles.current[open]?.key("Home")
     const long = questions.findIndex(
-      (question) => (ready[question.id]?.text.length ?? 0) > wordsLimit,
+      (question) => (ready[question.id]?.text.length ?? 0) > answerWordsLimit,
     )
     // Its words row comes after its options.
     if (long >= 0) return void handles.current[long]?.go(questions[long]!.options.length)
@@ -508,8 +539,8 @@ const QuestionsMenu = ({
           const { label, pick: its } = recommended(option.label)
           return {
             key: option.id,
-            label,
-            effect: option.description,
+            label: <Text text={label} />,
+            effect: option.description && <Text text={option.description} />,
             pick: its,
             ...(question.multiSelect && { check: pick?.options.includes(option.id) ?? false }),
             ...(single && { chosen: pick?.options.includes(option.id) ?? false }),
@@ -521,7 +552,6 @@ const QuestionsMenu = ({
           items.push({
             key: "own",
             label: "Reply in your own words",
-            effect: null,
             ...(question.multiSelect && { check: words !== "" && !leftOut.includes(question.id) }),
             ...(single && { chosen: words.trim() !== "" }),
             words: {
@@ -536,6 +566,7 @@ const QuestionsMenu = ({
               field: `Your answer to ${question.question}`,
               required: !question.multiSelect || count === 0,
               refused: null,
+              limit: answerWordsLimit,
               hint: !others
                 ? "next question"
                 : question.multiSelect
@@ -550,7 +581,7 @@ const QuestionsMenu = ({
         const wordsAt = items.length - 1
         // Every question's menu ends on the way to the terminal.
         const terminalAt = items.length
-        items.push({ key: "terminal", label: "Go to terminal", effect: null, away: true })
+        items.push({ key: "terminal", label: "Go to terminal", away: true })
         return (
           <div className="console-question" key={question.id}>
             <Heading>
@@ -563,6 +594,7 @@ const QuestionsMenu = ({
               multi={question.multiSelect}
               busy={answering}
               arrived={arrived && index === 0}
+              area={sheetArea}
               pressed={answering && pressed?.question === index ? pressed.at : null}
               handle={(handle) => {
                 handles.current[index] = handle
@@ -604,7 +636,13 @@ const QuestionsMenu = ({
           {unanswered.length > 0 && unanswered.length < questions.length && (
             <> · still to answer: {unanswered.map(nameOf).join("; ")}</>
           )}
-          {over.length > 0 && <> · over the 4,096 character limit: {over.map(nameOf).join("; ")}</>}
+          {over.length > 0 && (
+            <>
+              {" "}
+              · over the {answerWordsLimit.toLocaleString("en-US")} character limit:{" "}
+              {over.map(nameOf).join("; ")}
+            </>
+          )}
         </p>
       )}
     </>
