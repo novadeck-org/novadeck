@@ -372,7 +372,7 @@ describe("The account's subscriptions", () => {
 
 describe("Connecting agents", () => {
   context("in Preferences", () => {
-    it("offers each installed agent switched off, and not the ones missing", async () => {
+    it("offers each installed agent switched off, and Install for the ones missing", async () => {
       await openWorkspace()
       await openPreferences()
       const dialog = preferencesDialog()
@@ -380,10 +380,10 @@ describe("Connecting agents", () => {
         .element(agentSwitch(dialog, "Claude Code"))
         .toHaveAttribute("aria-checked", "false")
       await expect.element(agentSwitch(dialog, "Codex")).toBeEnabled()
-      await expect.element(agentSwitch(dialog, "Antigravity")).toBeDisabled()
+      expect(agentSwitch(dialog, "Antigravity").query()).toBeNull()
       await expect
-        .element(agentSwitch(dialog, "Antigravity"))
-        .toHaveAccessibleDescription("Not installed")
+        .element(dialog.getByRole("button", { name: "Install Antigravity" }))
+        .toHaveAccessibleDescription(/^Not installed\. Install runs curl /)
     })
 
     it("connects and disconnects an agent", async () => {
