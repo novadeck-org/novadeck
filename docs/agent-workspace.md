@@ -464,7 +464,8 @@ with every safety check again at that time:
   `merge-tree --write-tree`) a merge is diffed from its first parent and its layer has
   `firstParent` set, which the list says. Before the first commit it has no layers.
   It is one item per repository on a bar, keyed `changes:<repository root>` (folded to lower
-  case on Windows) and named "Changes · <folder>"
+  case on Windows) and named "Changes · <folder>", or "Changes · <folder> · <branch>" for a
+  linked worktree on a branch (worktrees of one repository share their folder's name),
   unless a title is given; showing it again updates it. Its detail counts the files the change
   as a whole differs from main by and their lines (the net, not its layers added up), and follows each read the pane triggers. The content
   (`companions.content`) is each layer's files with their counts, and the whole change's own list of files (the net), not their diffs; for every layer selected the pane reads that list, and for one layer that layer's own files: it is read
@@ -704,6 +705,20 @@ with every safety check again at that time:
     and `core.longpaths` on Windows, after `git check-ref-format --branch`. It answers the path,
     the branch and the paths of AGENTS.md, CLAUDE.md and GEMINI.md at the worktree's top, and
     tells the agent to read them, as no harness loads them from an added folder.
+  - **A worktree's changes stay on its owner's bar** (`worktrees/changes-shown.ts`). While
+    agent worktrees are on, each time `open_worktree` makes one or `take_worktree` adopts one
+    (the service's `onMade`), the runner shows it there as a changes item, as the agent's own
+    show, marked new and not opened, unless the agent showed it already, so an `open` it asked
+    for stands. Each worktree is its own repository top, so its own item: an agent in several
+    worktrees gets several, which stack under one icon on the bar like any kind's items. When it
+    changes hands (`give_worktree`, a take the person allowed, or a take of one whose owner is
+    gone; the service's `onChanged`, `moved`), the old owner's bar lets go of the item it holds
+    as its agent's show and the new owner's bar shows it the same way, as it does for a
+    terminal restored from History, whose bar came back empty. When its row goes (closed,
+    cleaned up, or its folder gone at the start: `removed`), every changes item of it closes, wherever it is held. The agent's own
+    `show { changes: { path } }` updates its item, with `open` when the work is done. An
+    unopened item's detail is the count as of its last show: only a read the pane triggers
+    brings it up to date.
   - **`take_worktree({ path })`** records a linked worktree some other tool made, as adopted;
     takes one with no owner, or whose owner terminal exists neither live nor in History, at
     once; and, for one another existing terminal owns, asks the person (a `take` approval
@@ -720,7 +735,13 @@ with every safety check again at that time:
     detached HEAD or a stopped rebase reaches at `…-head-<sha>`, then removes the folder. The
     branch goes only if Novadeck created it and the main branch holds all of it. A worktree
     whose status git couldn't read, or that has submodules, is never removed, forced or not.
-    The row goes last. Every `path` may be a folder inside the worktree. Only a worktree of
+    The row goes last. A `git worktree remove` that stops partway (on Windows, a file in the
+    folder still held for a moment) deletes git's record of the worktree even where the folder
+    wouldn't go, so where git's own listing no longer has it, Novadeck deletes what is left
+    (`finishRemoval`, retried while a file is held) and the close goes on; where git still lists
+    it, or can't list its worktrees, nothing is touched and the close is refused. The git runs a
+    close needs wait up to a minute, as a loaded Windows machine takes past 5 seconds for some.
+    Every `path` may be a folder inside the worktree. Only a worktree of
     the project's repositories, and not locked, is adopted.
   - **At the runner's start** every row is checked: a folder that is gone is pruned from its
     repository and its row deleted, an owner that exists neither live nor in History leaves

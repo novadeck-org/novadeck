@@ -11,6 +11,7 @@ import {
   commitAt,
   deleteBranch,
   entriesOf,
+  finishRemoval,
   forgetEntry,
   hasSubmodules,
   heldByMain,
@@ -61,6 +62,20 @@ const instructionFiles = ["AGENTS.md", "CLAUDE.md", "GEMINI.md"] as const
 /** A worktree Novadeck started tracking: its folder and its project. */
 export type Made = { readonly root: string; readonly projectId: string }
 
+/**
+ * A tracked worktree that changed hands (given, taken from its owner once the person allowed it,
+ * taken with no owner left, or its terminal restored from History) or stopped being tracked
+ * (closed, cleaned up, or gone from disk).
+ */
+export type WorktreeChange =
+  | {
+      readonly type: "moved"
+      readonly root: string
+      readonly from: string | null
+      readonly to: string
+    }
+  | { readonly type: "removed"; readonly root: string }
+
 export type Opened = {
   readonly ok: true
   readonly path: string
@@ -110,6 +125,7 @@ export class Worktrees {
   private chain: Promise<unknown> = Promise.resolve()
   private readonly cleanup: Cleanup
   private readonly madeListeners = new Set<(made: Made) => void>()
+  private readonly changeListeners = new Set<(change: WorktreeChange) => void>()
 
   constructor(
     private readonly records: WorktreeRecords,
@@ -136,6 +152,34 @@ export class Worktrees {
 
   private made(made: Made): void {
     for (const listener of this.madeListeners) listener(made)
+  }
+
+  /**
+   * Calls `listener` each time a tracked worktree changes hands (a restore from History too,
+   * whose terminal comes back under a new id) or stops being tracked, once its row says so.
+   * Returns what stops it.
+   */
+  onChanged(listener: (change: WorktreeChange) => void): () => void {
+    this.changeListeners.add(listener)
+    return () => {
+      this.changeListeners.delete(listener)
+    }
+  }
+
+  private changed(change: WorktreeChange): void {
+    for (const listener of this.changeListeners) listener(change)
+  }
+
+  /** Moves the row at `path` to `to`, and says so when it moved. */
+  private moveOwner(path: string, from: string | null, to: string): boolean {
+    const moved = this.records.setWorktreeOwner(path, to)
+    if (moved && from !== to) this.changed({ type: "moved", root: path, from, to })
+    return moved
+  }
+
+  /** Drops the row at `path`, and says so when there was one. */
+  private forget(path: string): void {
+    if (this.records.removeWorktree(path)) this.changed({ type: "removed", root: path })
   }
 
   /** Starts removing the worktrees nobody needs, and fetching their repositories' origins. */
@@ -174,8 +218,7 @@ export class Worktrees {
    */
   ownerRestored(from: string, to: string): Promise<void> {
     return this.serial(async () => {
-      for (const row of this.records.worktreesOfTerminal(from))
-        this.records.setWorktreeOwner(row.path, to)
+      for (const row of this.records.worktreesOfTerminal(from)) this.moveOwner(row.path, from, to)
     })
   }
 
@@ -353,7 +396,7 @@ export class Worktrees {
       if (row.terminalId === input.terminalId)
         return { ok: true, path: row.path, branch: row.branch, already: true }
       if (this.gone(row.terminalId)) {
-        this.records.setWorktreeOwner(row.path, input.terminalId)
+        this.moveOwner(row.path, row.terminalId, input.terminalId)
         return { ok: true, path: row.path, branch: row.branch }
       }
       return { ok: true, approval: row }
@@ -415,7 +458,7 @@ export class Worktrees {
     return this.serial(async () => {
       const row = this.records.worktree(path)
       if (!row || (row.terminalId !== from && !this.gone(row.terminalId))) return false
-      return this.records.setWorktreeOwner(path, to)
+      return this.moveOwner(path, row.terminalId, to)
     })
   }
 
@@ -450,7 +493,7 @@ export class Worktrees {
       const owned = await this.ownedBy(input.terminalId, input.cwd, input.path)
       if (!owned.ok) return owned
       if (!this.host.exists(input.to)) return refused("That terminal is gone.")
-      this.records.setWorktreeOwner(owned.row.path, input.to)
+      this.moveOwner(owned.row.path, input.terminalId, input.to)
       return owned
     })
   }
@@ -506,7 +549,7 @@ export class Worktrees {
   private async removal(row: WorktreeRecord, force: boolean): Promise<Closed> {
     const home = homeOf(row.commonDir)
     const finish = (extra: { kept?: string; keptHead?: string; branchDeleted?: boolean } = {}) => {
-      this.records.removeWorktree(row.path)
+      this.forget(row.path)
       return {
         ok: true,
         path: row.path,
@@ -570,7 +613,7 @@ export class Worktrees {
         return refused("Novadeck couldn't keep the uncommitted files, so the worktree stays.")
     }
     const removed = await removeFolder(home, row.path, force)
-    if (!removed.ok && existsSync(row.path))
+    if (!removed.ok && existsSync(row.path) && !(await finishRemoval(home, row.path)))
       return refused(`git couldn't remove the worktree: ${said(removed)}.`)
     let branchDeleted = false
     const { main } = standing
@@ -622,7 +665,7 @@ export class Worktrees {
         if (!existsSync(row.path)) {
           // eslint-disable-next-line no-await-in-loop -- One at a time.
           await forgetEntry(row.commonDir, row.path)
-          this.records.removeWorktree(row.path)
+          this.forget(row.path)
         } else if (row.terminalId !== null && !this.host.exists(row.terminalId)) {
           this.records.orphanWorktree(row.path)
         }
