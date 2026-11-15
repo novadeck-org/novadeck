@@ -104,16 +104,26 @@ describe("launch marks", { timeout: 60_000 }, () => {
     })
 
   it("says nothing for a harness's other commands", async ({ shim }) => {
-    for (const [program, command] of [
+    for (const [program, ...command] of [
       ["claude", "mcp"],
+      ["claude", "--model", "opus", "mcp"],
       ["codex", "agents"],
       ["codex", "--remote"],
       ["agy", "plugin"],
+      ["agy", "--model", "flash", "plugin"],
     ] as const) {
       // eslint-disable-next-line no-await-in-loop -- One pty at a time.
-      const { launches, output } = await shim.run(program, [command])
-      expect(launches, command).toEqual([])
+      const { launches, output } = await shim.run(program, command)
+      expect(launches, command.join(" ")).toEqual([])
       expect(output).toContain(`ran ${program}`)
+    }
+  })
+
+  it("says it for a session whose option's value is named as a command", async ({ shim }) => {
+    for (const program of ["claude", "agy"] as const) {
+      // eslint-disable-next-line no-await-in-loop -- One pty at a time.
+      const { launches } = await shim.run(program, ["--model", "plugin", "hello"])
+      expect(launches, program).toEqual([{ terminal: terminalId, program }])
     }
   })
 
