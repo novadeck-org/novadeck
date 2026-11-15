@@ -694,6 +694,54 @@ describe("removing a project", () => {
   })
 })
 
+describe("telling that a worktree changed hands or went", () => {
+  it("tells of each give, transfer, take of one with no owner and restore, and of each removal", async ({
+    fx: f,
+  }) => {
+    const changes: unknown[] = []
+    const stop = f.worktrees.onChanged((one) => changes.push(one))
+    const a = await open(f, "a")
+    const b = await open(f, "b")
+    if (!a.ok || !b.ok) throw new Error("open")
+    // Opening is making, not changing hands.
+    expect(changes).toEqual([])
+
+    await f.worktrees.give({ terminalId: "t1", cwd: f.repo, path: a.path, to: "t2" })
+    expect(await f.worktrees.transfer(a.path, "t2", "t1")).toBe(true)
+    f.live.delete("t1")
+    await f.worktrees.take({ projectId: f.project, terminalId: "t2", cwd: f.repo, path: b.path })
+    expect(changes).toEqual([
+      { type: "moved", root: a.path, from: "t1", to: "t2" },
+      { type: "moved", root: a.path, from: "t2", to: "t1" },
+      { type: "moved", root: b.path, from: "t1", to: "t2" },
+    ])
+
+    // A restore from History moves what its terminal owned; a refused give and an orphaning don't.
+    await f.worktrees.ownerRestored("t2", "t3")
+    expect(changes).toHaveLength(4)
+    expect(changes[3]).toEqual({ type: "moved", root: b.path, from: "t2", to: "t3" })
+    const refused = await f.worktrees.give({
+      terminalId: "t2",
+      cwd: f.repo,
+      path: a.path,
+      to: "t2",
+    })
+    expect(refused.ok).toBe(false)
+    await f.worktrees.orphanIf(b.path, "t3")
+    expect(changes).toHaveLength(4)
+
+    changes.length = 0
+    await f.worktrees.closeOwned({ terminalId: "t1", cwd: f.repo, path: a.path, force: false })
+    rmSync(b.path, { recursive: true, force: true })
+    await f.worktrees.reconcile()
+    expect(changes).toEqual([
+      { type: "removed", root: a.path },
+      { type: "removed", root: b.path },
+    ])
+    stop()
+  })
+})
+
 describe("telling that a worktree was made", () => {
   it("tells of one opened and of one adopted, once each, and of nothing else", async ({
     fx: f,

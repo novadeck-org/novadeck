@@ -705,13 +705,20 @@ with every safety check again at that time:
     and `core.longpaths` on Windows, after `git check-ref-format --branch`. It answers the path,
     the branch and the paths of AGENTS.md, CLAUDE.md and GEMINI.md at the worktree's top, and
     tells the agent to read them, as no harness loads them from an added folder.
-  - **A worktree's changes wait on its owner's bar** from the moment it is tracked: each time
-    `open_worktree` makes one or `take_worktree` adopts one (the service's `onMade`, not a
-    worktree changing hands), the runner shows it as a changes item there, as the agent's own
-    show, marked new and not opened (`worktrees/changes-shown.ts`), while agent worktrees are on.
-    Each worktree is its own repository top, so its own item: an agent in several worktrees
-    gets several, which stack under one icon on the bar like any kind's items. The agent's own
-    `show { changes: { path } }` later updates that item, with `open` when it is done.
+  - **A worktree's changes stay on its owner's bar** (`worktrees/changes-shown.ts`). While
+    agent worktrees are on, each time `open_worktree` makes one or `take_worktree` adopts one
+    (the service's `onMade`), the runner shows it there as a changes item, as the agent's own
+    show, marked new and not opened, unless the agent showed it already, so an `open` it asked
+    for stands. Each worktree is its own repository top, so its own item: an agent in several
+    worktrees gets several, which stack under one icon on the bar like any kind's items. When it
+    changes hands (`give_worktree`, a take the person allowed, or a take of one whose owner is
+    gone; the service's `onChanged`, `moved`), the old owner's bar lets go of the item it holds
+    as its agent's show and the new owner's bar shows it the same way, as it does for a
+    terminal restored from History, whose bar came back empty. When its row goes (closed,
+    cleaned up, or its folder gone at the start: `removed`), every changes item of it closes, wherever it is held. The agent's own
+    `show { changes: { path } }` updates its item, with `open` when the work is done. An
+    unopened item's detail is the count as of its last show: only a read the pane triggers
+    brings it up to date.
   - **`take_worktree({ path })`** records a linked worktree some other tool made, as adopted;
     takes one with no owner, or whose owner terminal exists neither live nor in History, at
     once; and, for one another existing terminal owns, asks the person (a `take` approval

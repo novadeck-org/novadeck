@@ -1,73 +1,112 @@
 import { vi } from "vitest"
 
 import type { TerminalPlace } from "../companions/items.js"
-import type { ShowAnswer } from "../companions/request.js"
+import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
-import { showWorktreeChanges, type ChangesShownHost } from "./changes-shown.js"
-import type { Made } from "./worktrees.js"
+import { keepWorktreeChanges, type ChangesShownHost } from "./changes-shown.js"
+import type { Made, WorktreeChange } from "./worktrees.js"
 
 const place = (terminalId: string) => ({ terminalId }) as unknown as TerminalPlace
 
 const host = (overrides: Partial<ChangesShownHost> = {}) => {
-  let listener: ((made: Made) => void) | undefined
-  const show = vi.fn<ChangesShownHost["show"]>(
-    async (): Promise<ShowAnswer> =>
-      ({
-        ok: true,
-        id: "i",
-        kind: "changes",
-        name: "Changes",
-        opened: false,
-        again: false,
-      }) as ShowAnswer,
-  )
-  const stop = showWorktreeChanges({
-    onMade: (each) => {
-      listener = each
+  let made: ((made: Made) => void) | undefined
+  let changed: ((change: WorktreeChange) => void) | undefined
+  const show = vi.fn<ChangesShownHost["show"]>(async () => undefined)
+  const closeOn = vi.fn<ChangesShownHost["closeOn"]>()
+  const closeAll = vi.fn<ChangesShownHost["closeAll"]>()
+  const stop = keepWorktreeChanges({
+    onMade: (listener) => {
+      made = listener
       return () => {
-        listener = undefined
+        made = undefined
+      }
+    },
+    onChanged: (listener) => {
+      changed = listener
+      return () => {
+        changed = undefined
       }
     },
     enabled: () => true,
     owner: (root) => (root === "/w/orphan" ? null : "owner"),
-    place: (terminalId) => place(terminalId),
+    place: (terminalId) => (terminalId === "closed" ? undefined : place(terminalId)),
     show,
+    closeOn,
+    closeAll,
     ...overrides,
   })
-  const made = (root: string) => listener?.({ root, projectId: "p" })
-  return { show, made, stop, listening: () => listener !== undefined }
+  return {
+    show,
+    closeOn,
+    closeAll,
+    stop,
+    make: (root: string) => made?.({ root, projectId: "p" }),
+    change: (change: WorktreeChange) => changed?.(change),
+    listening: () => made !== undefined || changed !== undefined,
+  }
 }
 
-describe("a worktree an agent opens or adopts", () => {
-  it("shows its changes on its owner's bar, not opened, one item per worktree", () => {
-    const { show, made } = host()
-    made("/w/one")
-    made("/w/two")
+describe("a worktree's changes on its owner's bar", () => {
+  it("are shown once it is opened or adopted, one item per worktree", () => {
+    const { show, make } = host()
+    make("/w/one")
+    make("/w/two")
     expect(show.mock.calls).toEqual([
-      [place("owner"), { changes: { path: "/w/one" } }],
-      [place("owner"), { changes: { path: "/w/two" } }],
+      [place("owner"), "/w/one"],
+      [place("owner"), "/w/two"],
     ])
   })
 
-  it("shows nothing while agent worktrees are off, or with no owner's bar to show it on", () => {
-    const off = host({ enabled: () => false })
-    off.made("/w/one")
-    expect(off.show).not.toHaveBeenCalled()
-    const orphaned = host()
-    orphaned.made("/w/orphan")
-    expect(orphaned.show).not.toHaveBeenCalled()
-    const closed = host({ place: () => undefined })
-    closed.made("/w/one")
-    expect(closed.show).not.toHaveBeenCalled()
+  it("move to the new owner's bar when it changes hands", () => {
+    const { show, closeOn, change } = host()
+    change({ type: "moved", root: "/w/one", from: "lead", to: "worker" })
+    expect(closeOn.mock.calls).toEqual([["lead", "/w/one"]])
+    expect(show.mock.calls).toEqual([[place("worker"), "/w/one"]])
+    // One with no owner before has no bar to leave.
+    change({ type: "moved", root: "/w/two", from: null, to: "worker" })
+    expect(closeOn).toHaveBeenCalledOnce()
+    expect(show).toHaveBeenCalledTimes(2)
   })
 
-  it("lets a show that fails go, and stops listening when told", async () => {
-    const { made, stop, listening } = host({
-      show: () => Promise.reject(new Error("gone")),
+  it("close everywhere once it is gone, whether agent worktrees are on or not", () => {
+    const on = host()
+    on.change({ type: "removed", root: "/w/one" })
+    expect(on.closeAll.mock.calls).toEqual([["/w/one"]])
+    const off = host({ enabled: () => false })
+    off.change({ type: "removed", root: "/w/one" })
+    expect(off.closeAll).toHaveBeenCalledOnce()
+  })
+
+  it("aren't shown while agent worktrees are off, or with no owner's bar to show them on", () => {
+    const off = host({ enabled: () => false })
+    off.make("/w/one")
+    off.change({ type: "moved", root: "/w/one", from: "lead", to: "worker" })
+    expect(off.show).not.toHaveBeenCalled()
+    const lacking = host()
+    lacking.make("/w/orphan")
+    lacking.change({ type: "moved", root: "/w/one", from: "lead", to: "closed" })
+    expect(lacking.show).not.toHaveBeenCalled()
+  })
+
+  it("log a show that fails, and stop when told", async ({ resources }) => {
+    const lines: string[] = []
+    const before = logs.current()
+    const note = (evt: string) => {
+      lines.push(evt)
+    }
+    useLogger({
+      for: () => ({ debug: note, info: note, warn: note, error: note, fatal: note }),
+      flush: () => {},
+      close: () => {},
     })
-    made("/w/one")
-    await Promise.resolve()
-    stop()
-    expect(listening()).toBe(false)
+    resources.defer(() => useLogger(before))
+    host({ show: () => Promise.resolve({ ok: false, reason: "no git" }) }).make("/w/one")
+    const throwing = host({ show: () => Promise.reject(new Error("gone")) })
+    throwing.make("/w/one")
+    await vi.waitFor(() =>
+      expect(lines).toEqual(["worktrees.changes-unshown", "worktrees.changes-unshown"]),
+    )
+    throwing.stop()
+    expect(throwing.listening()).toBe(false)
   })
 })

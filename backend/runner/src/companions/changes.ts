@@ -257,13 +257,15 @@ export const repositoryOf = async (
 export const worktreeBranch = async (root: string): Promise<string | undefined> => {
   const read = await git(
     root,
-    ["rev-parse", "--absolute-git-dir", "--git-common-dir", "--abbrev-ref", "HEAD"],
+    // The full name, as a short one is `heads/<branch>` where a tag shares its name.
+    ["rev-parse", "--absolute-git-dir", "--git-common-dir", "--symbolic-full-name", "HEAD"],
     { cap: 64 * 1024 },
   )
   if (!read.ok) return undefined
-  const [own, common, branch] = read.out.split("\n").map((line) => line.trim())
-  if (!own || !common || !branch || branch === "HEAD") return undefined
-  return samePlace(own, resolve(root, common)) ? undefined : branch
+  const [own, common, ref] = read.out.split("\n").map((line) => line.trim())
+  // A detached HEAD prints itself.
+  if (!own || !common || !ref?.startsWith("refs/heads/")) return undefined
+  return samePlace(own, resolve(root, common)) ? undefined : ref.slice("refs/heads/".length)
 }
 
 /** Whether two paths name one folder; Windows folds case. */

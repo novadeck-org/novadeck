@@ -309,10 +309,61 @@ export class CompanionItems {
    * moved it to. It opens when the agent says the person asked, unless it may hold secrets.
    */
   async show(place: TerminalPlace, request: ShowRequest): Promise<ShowAnswer> {
+    return this.showing(place, request, false)
+  }
+
+  /**
+   * Shows the changes of the repository whose top is `root` on a terminal's bar for Novadeck
+   * itself (a worktree's, for its owner), unopened, as its agent's own show would: undefined, and
+   * nothing changed, where the agent already showed them, so an `open` it asked for meanwhile stands.
+   */
+  showChangesUnlessShown(place: TerminalPlace, root: string): Promise<ShowAnswer | undefined> {
+    return this.showing(place, { changes: { path: root } }, true)
+  }
+
+  /**
+   * Closes every changes item of the repository whose top is `root`, wherever it is held: its
+   * worktree is gone, so there is nothing left for it to show.
+   */
+  closeChangesAt(root: string): void {
+    const key = changesKey(root)
+    for (const item of this.records.items())
+      if (item.kind === "changes" && item.pointerKey === key) this.delete(item.id)
+  }
+
+  /**
+   * Closes the changes of the repository whose top is `root` that a terminal's bar holds as its
+   * own agent's show (not one the person attached or moved there): the worktree went to
+   * another terminal, whose bar shows it now.
+   */
+  closeChangesOn(terminalId: string, root: string): void {
+    const key = changesKey(root)
+    for (const item of this.records.barItems(terminalId))
+      if (item.pointerKey === key && item.by === "agent" && item.from?.terminalId === terminalId)
+        this.delete(item.id)
+  }
+
+  private showing(
+    place: TerminalPlace,
+    request: ShowRequest,
+    unlessShown: false,
+  ): Promise<ShowAnswer>
+  private showing(
+    place: TerminalPlace,
+    request: ShowRequest,
+    unlessShown: boolean,
+  ): Promise<ShowAnswer | undefined>
+  private async showing(
+    place: TerminalPlace,
+    request: ShowRequest,
+    unlessShown: boolean,
+  ): Promise<ShowAnswer | undefined> {
     if (this.stopping) return failure("Novadeck is closing.")
     const pointed = await this.pointer(place, request)
     if (!pointed.ok) return pointed
     const { pointer, tooLarge } = pointed
+    // Looked at last, after the reads, so a show the agent made meanwhile is seen.
+    if (unlessShown && this.shown(place, pointer.pointerKey)) return undefined
     const openAsked = request.open === true && !pointer.secret
     let kept: ReturnType<CompanionItems["keep"]>
     try {
