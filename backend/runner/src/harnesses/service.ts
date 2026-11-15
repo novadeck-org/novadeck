@@ -290,10 +290,23 @@ export const createHarnesses = (
         looking = undefined
       }))
   void lookUp()
-  // Where each harness lives, once the shell files say where its plugin is.
-  const installs = async (fresh = false) => {
+  // A lookup begun after it is asked for, as a look after an install needs: one under way
+  // may have started before the install changed the startup files, so it waits that one
+  // out and asks the shell again. Fresh looks asked for together share that one shell.
+  let renewing: Promise<NodeJS.ProcessEnv> | undefined
+  const lookAfresh = (): Promise<NodeJS.ProcessEnv> =>
+    (renewing ??= (looking ?? Promise.resolve())
+      .catch(() => {})
+      .then(lookUp)
+      .finally(() => {
+        renewing = undefined
+      }))
+  // Where each harness lives, once the shell files say where its plugin is. `shared` waits
+  // for the lookup under way, or starts one; `fresh` for one begun after it is asked for.
+  const installs = async (look: "latest" | "shared" | "fresh" = "latest") => {
     const shell = await paths()
-    const env = fresh ? await lookUp() : (latest ?? base)
+    const env =
+      look === "fresh" ? await lookAfresh() : look === "shared" ? await lookUp() : (latest ?? base)
     return (
       shell &&
       ((agent: AgentName): Install => ({ env, home, platform, plugin: shell.plugins[agent] }))
@@ -313,7 +326,7 @@ export const createHarnesses = (
   }
   // Installs or removes the plugin in the agent, as `set` does, in its turn.
   const apply = async (agent: AgentName, connected: boolean): Promise<AgentIntegration> => {
-    const install = await installs(true)
+    const install = await installs("shared")
     const env = latest ?? base
     const settings = { cwd: home, env, platform, timeoutMs }
     if (!install) throw new DomainError("AGENT_SETUP_FAILED", "Shell integration is unavailable.")
@@ -423,7 +436,9 @@ export const createHarnesses = (
      * asks for it.
      */
     list: async (look?: { readonly fresh?: boolean | undefined }): Promise<AgentIntegration[]> => {
-      const install = await installs(look?.fresh === true && !closing.signal.aborted)
+      const install = await installs(
+        look?.fresh === true && !closing.signal.aborted ? "fresh" : "latest",
+      )
       if (!install) return agents.map((agent) => ({ agent, available: false, connected: false }))
       return Promise.all(agents.map((agent) => state(harnesses[agent], install(agent))))
     },

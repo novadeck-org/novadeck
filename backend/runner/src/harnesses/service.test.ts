@@ -273,14 +273,14 @@ describe("agents Novadeck can connect", () => {
         home: fixture.home,
         env: fixture.environment({ ...withoutAgents, SHELL: shell }),
       })
-      // The one lookup made at start.
+      // The one lookup made at start, which may still be under way below.
       await vi.waitFor(() => expect(logins()).toBe(1))
-      await new Promise((resolve) => setTimeout(resolve, 500))
       expect((await agents.list())[2]).toMatchObject({ available: false })
       await agents.list()
       await agents.list({ fresh: false })
       expect(logins()).toBe(1)
-      // A fresh look reads it again, and looks asked for together share one shell.
+      // A fresh look reads it again in a shell of its own, never the start's, which may have
+      // begun before an install; looks asked for together share that one shell.
       await Promise.all([agents.list({ fresh: true }), agents.list({ fresh: true })])
       expect(logins()).toBe(2)
     },
