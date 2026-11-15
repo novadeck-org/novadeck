@@ -14,6 +14,11 @@ export type InboxView = {
   // The list's order, as it was when the sheet opened: while one is open nothing moves,
   // whatever happens to a row. Empty while none is open.
   readonly order: readonly string[]
+  // The rows as they were when the order was taken, by id: while a sheet is open, a row of the
+  // order that the Inbox no longer lists (a resolved one past the ten it lists, or one a newer row
+  // under its id took the place of) stays, as it was, until the sheet closes. Empty while none is
+  // open.
+  readonly kept: Readonly<Record<string, InboxRow>>
   // The ids that just joined the list, to be marked for a moment.
   readonly arrived: readonly string[]
   // While the Inbox's panel is on screen: each row that asks, as it last was before it
@@ -22,9 +27,19 @@ export type InboxView = {
   readonly base: Readonly<Record<string, InboxRow>>
 }
 
-export const initialView: InboxView = { open: null, known: null, order: [], arrived: [], base: {} }
+export const initialView: InboxView = {
+  open: null,
+  known: null,
+  order: [],
+  kept: {},
+  arrived: [],
+  base: {},
+}
 
 const idsOf = (rows: readonly InboxRow[]): string[] => rows.map(({ id }) => id)
+
+const rowsById = (rows: readonly InboxRow[]): Record<string, InboxRow> =>
+  Object.fromEntries(rows.map((row) => [row.id, row]))
 
 const same = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((id, index) => id === b[index])
@@ -75,7 +90,10 @@ export const visible = (
   view.open === null || view.known === null
     ? listed(view, rows, arranged)
     : view.order.flatMap((id) => {
-        const found = rows.find((row) => row.id === id) ?? ghosts[id]
+        const was = view.kept[id]
+        const now = rows.find((row) => row.id === id)
+        // Not the row a newer one has taken the id of.
+        const found = now && (!was || now.at === was.at) ? now : (ghosts[id] ?? was)
         return found ? [found] : []
       })
 
@@ -133,6 +151,7 @@ export const openRow = (
     open: id,
     known: fresh ? idsOf(rows) : view.known,
     order: fresh ? idsOf(listed(view, rows, arranged)) : view.order,
+    kept: fresh ? rowsById(rows) : view.kept,
     arrived: [],
     base: view.base,
   }
@@ -143,6 +162,7 @@ export const closeSheet = (view: InboxView, rows: readonly InboxRow[]): InboxVie
   open: null,
   known: idsOf(rows),
   order: [],
+  kept: {},
   arrived: held(view, rows).map(({ id }) => id),
   base: view.base,
 })
@@ -156,6 +176,7 @@ export const release = (
   ...view,
   known: idsOf(rows),
   order: idsOf(listed(view, rows, arranged)),
+  kept: rowsById(rows),
   arrived: held(view, rows).map(({ id }) => id),
 })
 

@@ -43,6 +43,7 @@ const settledWords = {
   read: "Read",
   gone: "Ended",
   ended: "Ended",
+  away: "Ended",
 } as const satisfies Record<SettledHow, TagWord>
 
 const wordOf = (row: InboxRow): TagWord => {

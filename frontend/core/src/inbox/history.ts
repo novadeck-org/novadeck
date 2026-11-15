@@ -30,6 +30,21 @@ export const noteMs = 60 * second
 // is one row, not an ended one and a new one.
 export const reopenMs = 5 * second
 
+// How long after the backend's streams are steady, first or again, a row kept open from before
+// that is not there is taken to have ended while the app was away: its streams need a moment to
+// list what is there.
+export const awayMs = 3 * second
+
+// How long a saved row's text may run, and how many of its list items, before it is cut; and how
+// many bytes the saved rows may weigh together, so what the runner is sent stays well within
+// what its connection takes in one message.
+const textCap = 2000
+const listCap = 20
+export const savedBytes = 64_000
+
+// How many open rows are kept beside the resolved ones, for the app to find after it was away.
+export const maxKeptOpen = 50
+
 // What the backend knows beyond the rows themselves, to tell how one ended.
 export type HistoryFacts = {
   readonly workspace: Workspace
@@ -37,6 +52,9 @@ export type HistoryFacts = {
 }
 
 export type HistoryView = {
+  // When to look again, in milliseconds from now, for what waits on a moment; undefined where
+  // nothing does.
+  readonly wake?: number
   // The rows, the resolved ones among them, newest first (`ordered`).
   readonly rows: readonly InboxRow[]
   // The failed turns of agents that have moved on, resolved now: the backend reads their
@@ -56,7 +74,8 @@ export type InboxHistory = {
 }
 
 export type InboxHistoryOptions = {
-  // The rows as `save` kept them last (see `parseHistory`).
+  // The rows as `save` kept them last (see `parseHistory`): the resolved ones, and the open
+  // ones the app had when it stopped.
   readonly saved?: readonly InboxRow[]
   readonly save: (rows: readonly InboxRow[]) => void
   readonly now?: () => number
@@ -77,18 +96,30 @@ const terminalOf = (workspace: Workspace, source: InboxSource): TerminalMetadata
     ?.history.find((session) => session.id === source.workspaceSessionId)
     ?.state.roster.terminals.find((terminal) => terminal.id === source.terminalId)
 
-// Whether the agent that made the row is still in its terminal.
+// Whether the agent that made the row is still in its terminal, awake.
 const present = (terminal: TerminalMetadata | undefined, agent: string): boolean =>
   terminal !== undefined &&
-  (terminal.state === "sleeping"
-    ? terminal.agent === agent
-    : terminal.state === "running" &&
-      isAgentProgram(terminal.process) &&
-      terminal.process === agent)
+  terminal.state === "running" &&
+  isAgentProgram(terminal.process) &&
+  terminal.process === agent
 
-// How a row ended when the person did nothing the backend noted: with its agent or terminal
-// gone, `ended`; a dialog by whether the agent went on working (answered in its terminal) or
-// rested (its turn interrupted); a held message by what the messages say of its thread.
+// Whether the messages for the row's terminal were delivered since the row began.
+const delivered = ({ terminals }: MessagesState, row: InboxRow): boolean =>
+  Object.values(terminals)
+    .flatMap((listing) => listing.threads)
+    .flatMap((thread) => thread.messages)
+    .some(
+      (message) =>
+        message.to.kind === "agent" &&
+        message.to.terminalId === row.source.terminalId &&
+        message.state === "delivered" &&
+        (message.deliveredAt ?? 0) >= row.at,
+    )
+
+// How a row ended when the person did nothing the backend noted: with its agent asleep or gone,
+// or its terminal closed, `ended`; a dialog by whether the agent went on working (answered in
+// its terminal) or rested (closed there, by a No or Escape, which looks alike); a held message
+// by what the messages say of its thread; waiting messages by whether any were delivered.
 const endedHow = (row: InboxRow, { workspace, messages }: HistoryFacts): SettledHow => {
   const terminal = terminalOf(workspace, row.source)
   if (!present(terminal, row.source.agent)) return "ended"
@@ -107,7 +138,8 @@ const endedHow = (row: InboxRow, { workspace, messages }: HistoryFacts): Settled
       return thread.messages.some((message) => message.state === "gone") ? "stopped" : "released"
     }
     case "trouble":
-      return row.trouble.type === "waits" ? "delivered" : "worked"
+      if (row.trouble.type !== "waits") return "worked"
+      return delivered(messages, row) ? "delivered" : "gone"
     default:
       return "ended"
   }
@@ -160,9 +192,10 @@ const readable = (value: unknown): value is InboxRow => {
     typeof source === "object" &&
     source !== null &&
     typeof (source as Partial<InboxSource>).terminalId === "string" &&
-    typeof settled === "object" &&
-    settled !== null &&
-    typeof (settled as { at?: unknown }).at === "number"
+    (settled === undefined ||
+      (typeof settled === "object" &&
+        settled !== null &&
+        typeof (settled as { at?: unknown }).at === "number"))
   )
 }
 
@@ -183,14 +216,50 @@ export const keptRow = (row: InboxRow): string => {
   return JSON.stringify(rest)
 }
 
+// A text or list cut to what a kept row may hold, a cut text saying so.
+const cut = (value: unknown): unknown => {
+  if (typeof value === "string")
+    return value.length > textCap ? `${value.slice(0, textCap)}… (cut)` : value
+  if (Array.isArray(value)) return value.slice(0, listCap).map(cut)
+  if (typeof value === "object" && value !== null)
+    return Object.fromEntries(Object.entries(value).map(([key, each]) => [key, cut(each)]))
+  return value
+}
+
+// A row as it is kept: its long texts and lists cut, so a dialog's whole detail or an agent's
+// whole report is not what the runner is sent. The card of a kept row shows what is left.
+export const trimmedRow = (row: InboxRow): InboxRow => cut(row) as InboxRow
+
+// The rows that fit the bytes a save may weigh, the oldest dropped first.
+export const fitted = (rows: readonly InboxRow[]): InboxRow[] => {
+  let weight = rows.reduce((sum, row) => sum + keptRow(row).length, 0)
+  const kept = [...rows]
+  while (weight > savedBytes && kept.length > 0) weight -= keptRow(kept.shift()!).length
+  return kept
+}
+
+// The rows the app derives itself, which the runner can't tell the end of (its own entries,
+// asks, tells and done reports, it lists resolved itself).
+const derived = (row: InboxRow): boolean =>
+  row.kind === "request" || row.kind === "held" || row.kind === "trouble"
+
 export const createInboxHistory = ({
   saved = [],
   save,
   now = Date.now,
 }: InboxHistoryOptions): InboxHistory => {
-  // The resolved rows it keeps, the latest last, and the open rows the last view saw.
-  let history: readonly InboxRow[] = saved.slice(-maxResolved)
+  // The resolved rows it keeps, the latest last; the open rows the last view saw; the open rows
+  // the app had when it stopped, until it is steady and can tell which of them ended meanwhile;
+  // and what was last saved.
+  let history: readonly InboxRow[] = saved
+    .filter((row) => row.settled)
+    .toSorted((a, b) => a.settled!.at - b.settled!.at)
+    .slice(-maxResolved)
+    .map(trimmedRow)
   let before = new Map<string, InboxRow>()
+  let away: readonly InboxRow[] = saved.filter((row) => !row.settled && derived(row))
+  let steadySince: number | undefined
+  let lastSaved = ""
   const notes = new Map<string, { how: SettledHow; answer: string | undefined; at: number }>()
   // A copy listed under another id while its own is taken by a newer row, kept the same.
   const renamed = new WeakMap<InboxRow, InboxRow>()
@@ -203,26 +272,34 @@ export const createInboxHistory = ({
     const how = noted?.how ?? fallback ?? endedHow(row, facts)
     const { snoozed: _snoozed, ...rest } = row
     const answer = noted?.answer
-    return {
+    return trimmedRow({
       ...rest,
       stopped: false,
       settled: { how, at, ...(answer !== undefined && answer !== "" && { answer }) },
-    } as InboxRow
+    } as InboxRow)
+  }
+
+  // Saves the resolved rows and the open ones, as many as fit, when they changed.
+  const persist = (open: readonly InboxRow[]): void => {
+    const rows = fitted([...history, ...open.filter(derived).slice(-maxKeptOpen).map(trimmedRow)])
+    const text = JSON.stringify(rows.map(keptRow))
+    if (text === lastSaved) return
+    lastSaved = text
+    save(rows)
   }
 
   const view = (found: readonly InboxRow[], facts: HistoryFacts, steady = true): HistoryView => {
-    // A row kept resolved that stands open again, as an ask whose session came back, is open;
-    // so is one whose id stands again within a moment.
+    // A request that goes and comes again in a moment, whatever its time then, is one row;
+    // any other row kept resolved that stands open again, as an ask whose session came back,
+    // is open, if it is the same row.
     const standing = new Map(found.filter((row) => !row.settled).map((row) => [row.id, row]))
     const reopened = history.filter((row) => {
       const again = standing.get(row.id)
       if (again === undefined || moved(again)) return false
-      return rowKey(again) === rowKey(row) || now() - row.settled!.at < reopenMs
+      if (rowKey(again) === rowKey(row)) return true
+      return row.kind === "request" && now() - row.settled!.at < reopenMs
     })
-    if (reopened.length > 0) {
-      history = history.filter((row) => !reopened.includes(row))
-      save(history)
-    }
+    if (reopened.length > 0) history = history.filter((row) => !reopened.includes(row))
     const resolvedKeys = new Set(history.map(rowKey))
     // The rows still open: a failed turn that moved on, or one already kept resolved, whose
     // stored row the backend is yet to read, is not.
@@ -234,18 +311,31 @@ export const createInboxHistory = ({
     const listed = new Set(found.filter((row) => row.settled).map(({ id }) => id))
     const openKeys = new Set(open.map(rowKey))
     const made: InboxRow[] = []
+    let wake: number | undefined
     if (steady) {
       for (const [key, row] of before)
-        if (!openKeys.has(key) && !listed.has(row.id)) made.push(resolve(row, facts))
-      before = new Map(open.map((row) => [rowKey(row), row]))
+        if (!openKeys.has(key) && !listed.has(row.id) && derived(row))
+          made.push(resolve(row, facts))
+      before = new Map(open.filter(derived).map((row) => [rowKey(row), row]))
+      steadySince ??= now()
+      // What was open when the app stopped and is not there once its streams had their moment
+      // ended while it was away.
+      if (away.length > 0) {
+        const left = steadySince + awayMs - now()
+        if (left > 0) wake = left
+        else {
+          const here = new Set(found.map(rowKey))
+          for (const row of away) if (!here.has(rowKey(row))) made.push(resolve(row, facts, "away"))
+          away = []
+        }
+      }
     }
     for (const row of retiring) made.push(resolve(row, facts, "worked"))
     for (const row of made)
       history = [...history.filter((each) => rowKey(each) !== rowKey(row)), row]
-    if (made.length > 0) {
+    if (made.length > 0)
       history = history.toSorted((a, b) => a.settled!.at - b.settled!.at).slice(-maxResolved)
-      save(history)
-    }
+    if (steady && away.length === 0) persist(open)
     // The ids the rows listed now hold: a copy under one of them is listed under its own.
     const taken = new Set([...open, ...found.filter((row) => row.settled)].map(({ id }) => id))
     const copies = history
@@ -259,6 +349,7 @@ export const createInboxHistory = ({
     return {
       rows: ordered([...open, ...found.filter((row) => row.settled), ...copies]),
       read,
+      ...(wake !== undefined && { wake }),
     }
   }
 

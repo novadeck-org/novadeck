@@ -6,7 +6,14 @@ import { noMessages, type AgentMessage, type MessageThread, type MessagesState }
 import { createTerminalState } from "../state"
 import { describe, expect, it } from "../test"
 import type { AgentStatus, TerminalMetadata, Workspace } from "../types"
-import { answerLine, createInboxHistory, keptRow, parseHistory, type HistoryFacts } from "./history"
+import {
+  answerLine,
+  createInboxHistory,
+  fitted,
+  keptRow,
+  parseHistory,
+  type HistoryFacts,
+} from "./history"
 
 const terminal = (
   agent: AgentStatus = { working: false },
@@ -165,14 +172,16 @@ const settledOf = (rows: readonly InboxRow[], id: string) =>
   rows.find((row) => row.id === id)?.settled
 
 describe("the Inbox's history", () => {
-  it("lists rows that are open as they are, and keeps nothing yet", () => {
+  it("lists rows that are open as they are, and keeps them open, not resolved", () => {
     const { history, save } = setup()
     const found = [request("r1"), held()]
     expect(history.view(found, facts()).rows.map(({ id }) => id)).toEqual([
       "held:th1",
       "request:r1",
     ])
-    expect(save).not.toHaveBeenCalled()
+    const saved = save.mock.calls.at(-1)![0]
+    expect(saved.map(({ id }) => id).toSorted()).toEqual(["held:th1", "request:r1"])
+    expect(saved.every((row) => row.settled === undefined)).toBe(true)
   })
 
   describe("a dialog that is gone", () => {
@@ -184,7 +193,7 @@ describe("the Inbox's history", () => {
       expect(rows).toHaveLength(1)
       expect(settledOf(rows, "request:r1")).toMatchObject({ how: "terminal" })
       expect(rows[0]).toMatchObject({ stopped: false, kind: "request" })
-      expect(save).toHaveBeenCalledOnce()
+      expect(save.mock.calls.at(-1)![0].map(({ settled }) => settled?.how)).toEqual(["terminal"])
     })
 
     it("went unanswered where its agent rests, as when its turn was interrupted", () => {
@@ -268,7 +277,14 @@ describe("the Inbox's history", () => {
   it("delivers messages that waited, and ends a limit once the agent works again", () => {
     const { history } = setup()
     history.view([waits, limit], facts())
-    const { rows } = history.view([], facts())
+    const arrived = messagesWith(
+      message({
+        state: "delivered",
+        deliveredAt: 500,
+        to: { kind: "agent", terminalId: "01", handle: "moth", agent: null },
+      }),
+    )
+    const { rows } = history.view([], facts(workspaceOf(terminal()), arrived))
     expect(settledOf(rows, waits.id)?.how).toBe("delivered")
     expect(settledOf(rows, limit.id)?.how).toBe("worked")
   })
@@ -360,6 +376,130 @@ describe("the Inbox's history", () => {
       save,
     })
     expect(restored.view([], facts()).rows.map(({ id }) => id)).toEqual(["request:r1"])
+  })
+})
+
+describe("what the history leaves to the runner and keeps for the app", () => {
+  const ask: InboxRow = {
+    id: "ask-1",
+    source,
+    at: 90,
+    stopped: false,
+    seen: false,
+    kind: "ask",
+    ask: { subject: "Which?", body: "", details: null, hardToUndo: null, shape: { type: "text" } },
+  }
+
+  it("makes no copy of an ask or an update that stops being listed, as its agent withdrew it", () => {
+    const { history, save } = setup()
+    const tell: InboxRow = {
+      ...ask,
+      id: "tell-1",
+      kind: "update",
+      update: { type: "told", subject: "x", body: "" },
+    }
+    history.view([ask, tell], facts())
+    const { rows } = history.view([], facts())
+    expect(rows).toEqual([])
+    expect(save.mock.calls.every(([kept]) => kept.length === 0)).toBe(true)
+  })
+
+  it("keeps a held message's resolved copy when the thread is held again, over several views", () => {
+    const { history } = setup()
+    history.view([held("th1", 100)], facts())
+    history.note("held:th1", "released")
+    history.view([held("th1", 500)], facts())
+    for (let again = 0; again < 3; again += 1) {
+      const { rows } = history.view([held("th1", 500)], facts())
+      expect(rows.map(({ id, settled }) => [id, settled?.how])).toEqual([
+        ["held:th1", undefined],
+        ["held:th1~100", "released"],
+      ])
+    }
+  })
+
+  it("calls a dialog closed with no word, not interrupted, where its agent rests", () => {
+    const { history } = setup()
+    history.view([request("r1")], facts())
+    expect(settledOf(history.view([], facts()).rows, "request:r1")?.how).toBe("gone")
+  })
+
+  it("ends a row as session ended where its terminal is asleep", () => {
+    const { history } = setup()
+    history.view([limit, waits], facts())
+    const asleep: TerminalMetadata = {
+      id: "01",
+      name: "T",
+      directory: "/w",
+      command: "claude",
+      process: "claude",
+      handle: "moth",
+      state: "sleeping",
+      agent: "claude",
+    } as never
+    const { rows } = history.view([], facts(workspaceOf(asleep)))
+    expect(rows.map((row) => row.settled?.how)).toEqual(["ended", "ended"])
+  })
+
+  it("says waiting messages that nothing delivered were stopped or withdrawn", () => {
+    const { history } = setup()
+    history.view([waits], facts())
+    expect(settledOf(history.view([], facts()).rows, waits.id)?.how).toBe("gone")
+  })
+
+  it("cuts long texts and lists of what it keeps, and keeps what it saves within its bytes", () => {
+    const { history, save } = setup()
+    const long = request("r1")
+    if (long.kind !== "request" || long.request.dialog?.type !== "choices")
+      throw new Error("a choices dialog")
+    const big: InboxRow = {
+      ...long,
+      request: { ...long.request, dialog: { ...long.request.dialog, detail: "x".repeat(300_000) } },
+    }
+    history.view([big], facts())
+    const { rows } = history.view([], facts())
+    const kept = rows[0]
+    expect(
+      kept?.kind === "request" &&
+        kept.request.dialog?.type === "choices" &&
+        kept.request.dialog.detail?.length,
+    ).toBeLessThan(2100)
+    expect(JSON.stringify(save.mock.calls.at(-1)![0]).length).toBeLessThan(64_000)
+    const heavy = Array.from({ length: 300 }, () => kept!)
+    const fits = fitted(heavy)
+    expect(fits.length).toBeLessThan(300)
+    expect(fits.reduce((sum, row) => sum + keptRow(row).length, 0)).toBeLessThanOrEqual(64_000)
+  })
+
+  it("resolves a row it kept open when the app stopped, as ended while away, once steady and a moment on", () => {
+    const first = setup()
+    first.history.view([request("r1"), held("th1")], facts())
+    const kept = first.save.mock.calls.at(-1)![0]
+    const next = setup()
+    const restored = createInboxHistory({
+      saved: parseHistory(kept.map(keptRow)),
+      save: next.save,
+      now: () => clock.now,
+    })
+    // Before the streams had their moment, nothing has ended.
+    const early = restored.view([request("r1")], facts())
+    expect(early.rows.map((row) => row.settled?.how)).toEqual([undefined])
+    expect(early.wake).toBeGreaterThan(0)
+    clock.now += 4000
+    const later = restored.view([request("r1")], facts())
+    expect(later.rows.map(({ id, settled }) => [id, settled?.how])).toEqual([
+      ["held:th1", "away"],
+      ["request:r1", undefined],
+    ])
+    expect(later.wake).toBeUndefined()
+    // Not while it is unsteady.
+    const lone = createInboxHistory({
+      saved: parseHistory(kept.map(keptRow)),
+      save: next.save,
+      now: () => clock.now,
+    })
+    clock.now += 4000
+    expect(lone.view([], facts(), false).rows).toEqual([])
   })
 })
 

@@ -276,7 +276,9 @@ export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
         (terminal.handle ?? "") === entry.handle &&
         (entry.content.kind !== "ask" || entry.settled || agentOf(terminal) === entry.agent),
     )
-    if (!here) continue
+    // A resolved entry outlives its terminal: it keeps its project, and says whose it was.
+    const project = inputs.workspace.projects.find(({ id }) => id === entry.projectId)
+    if (!here && !(entry.settled && project)) continue
     const { content: entryContent } = entry
     const content: InboxContent =
       entryContent.kind === "ask"
@@ -291,9 +293,20 @@ export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
           }
     all.push({
       id: entry.id,
-      source: sourceOf(here, entry.agent),
+      source: here
+        ? sourceOf(here, entry.agent)
+        : {
+            projectId: entry.projectId,
+            workspaceSessionId: entry.workspaceSessionId,
+            terminalId: entry.terminalId,
+            handle: entry.handle,
+            agent: entry.agent,
+            title: "Closed terminal",
+            projectName: project!.name,
+          },
       at: entry.at,
-      stopped: entry.content.kind === "ask" && !entry.settled && !agentWorking(here.terminal),
+      stopped:
+        entry.content.kind === "ask" && !entry.settled && !!here && !agentWorking(here.terminal),
       seen: false,
       ...content,
       ...(entry.settled ? { settled: entry.settled } : {}),

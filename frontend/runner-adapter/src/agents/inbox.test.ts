@@ -483,8 +483,8 @@ describe("The runner's Inbox", () => {
         { id: "request:r1", stopped: false, settled: { how: "answered", answer: "Yes: go on" } },
       ])
       expect(inbox.state.getSnapshot().answering).toEqual({})
-      expect(saveHistory).toHaveBeenCalledOnce()
-      expect(JSON.parse(saveHistory.mock.calls[0]![0][0]!)).toMatchObject({ id: "request:r1" })
+      const saved = saveHistory.mock.calls.at(-1)![0].map((text) => JSON.parse(text))
+      expect(saved).toMatchObject([{ id: "request:r1", settled: { how: "answered" } }])
     })
 
     it("keeps a dialog the person answered in the terminal, and one that ended unanswered", async () => {
@@ -503,7 +503,7 @@ describe("The runner's Inbox", () => {
       const first = await withRequest({ saveHistory })
       first.workspaceStore.update(() => workspaceOf(agentTerminal(1)))
       await settle()
-      const kept = saveHistory.mock.calls[0]![0]
+      const kept = saveHistory.mock.calls.at(-1)![0]
       const next = setup(workspaceOf(agentTerminal(1)), {}, noMessages, {
         history: [...kept, "not json"],
       })
@@ -512,6 +512,48 @@ describe("The runner's Inbox", () => {
       expect(next.inbox.state.getSnapshot().items).toMatchObject([
         { id: "request:r1", settled: { how: "gone" } },
       ])
+    })
+
+    it("makes no row of an ask its agent withdrew, and saves none", async () => {
+      const saveHistory = vi.fn<(rows: readonly string[]) => void>()
+      const { entries, inbox } = setup(workspaceOf(agentTerminal(1)), {}, noMessages, {
+        saveHistory,
+      })
+      entries.push([entry()])
+      await settle()
+      expect(inbox.state.getSnapshot().items).toHaveLength(1)
+      entries.push([])
+      await settle()
+      expect(inbox.state.getSnapshot().items).toEqual([])
+      expect(saveHistory.mock.calls.every(([rows]) => rows.length === 0)).toBe(true)
+    })
+
+    it("takes no row to have ended while the connection is down, nor until the streams list again", async () => {
+      const status = channel<{ state: string }>()
+      const { entries, inbox, details, workspaceStore } = setup(
+        workspaceOf(agentTerminal(1, attention)),
+        {},
+        noMessages,
+        { status: () => status.iterator },
+      )
+      entries.push([])
+      details[0]!.push(detailOf(asked("r1", 9000)))
+      status.push({ state: "connected" })
+      await settle()
+      expect(inbox.state.getSnapshot().items).toHaveLength(1)
+      status.push({ state: "reconnecting" })
+      await settle()
+      // The dialog is gone from what the app sees while the streams reset: nothing has ended.
+      workspaceStore.update(() => workspaceOf(agentTerminal(1)))
+      await settle()
+      expect(inbox.state.getSnapshot().items).toEqual([])
+      workspaceStore.update(() => workspaceOf(agentTerminal(1, attention)))
+      status.push({ state: "connected" })
+      entries.push([])
+      await settle()
+      details[0]!.push(detailOf(asked("r1", 9000)))
+      await settle()
+      expect(inbox.state.getSnapshot().items.map((row) => row.settled)).toEqual([undefined])
     })
 
     it("does not take a row to have ended while the runner's entries are out", async () => {

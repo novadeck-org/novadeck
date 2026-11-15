@@ -27,7 +27,7 @@ import {
   busyShells,
   maxInboxHistoryLength,
   maxInboxOrder,
-  maxInboxResolved,
+  maxInboxHistoryRows,
   maxInboxRowIdLength,
   type AgentName,
   type AgentIntegration,
@@ -1427,11 +1427,12 @@ export const runnerBackend = (
     {
       track,
       history: options.inboxHistory ?? [],
+      status: () => runner.watch(),
       saveHistory: (rows) => {
         // A row too long for the runner to keep is not kept, whatever the rest are.
         const kept = rows.filter((row) => row.length <= maxInboxHistoryLength)
-        void track(runner.settings.set({ inboxHistory: kept.slice(-maxInboxResolved) })).catch(
-          () => {},
+        void track(runner.settings.set({ inboxHistory: kept.slice(-maxInboxHistoryRows) })).catch(
+          reportCaught,
         )
       },
     },

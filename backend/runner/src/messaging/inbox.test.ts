@@ -568,7 +568,9 @@ describe("unread tell lifetimes", () => {
     inbox.read([sent.id])
     expect(openOf(inbox).map((each) => each.id)).toEqual([second.id])
     forget()
-    expect(inbox.list()).toEqual([])
+    // The tell it read and the one its terminal's close ended stay listed, resolved.
+    expect(openOf(inbox)).toEqual([])
+    expect(inbox.list().map(({ settled }) => settled?.how)).toEqual(["read", "ended"])
     expect(records.entries().find((each) => each.id === second.id)?.state).toBe("gone")
     messaging.close()
   })
@@ -1695,7 +1697,7 @@ describe("Inbox asks over a record failure", () => {
     full = true
     expect(run.inbox.list()).toHaveLength(2)
     expect(() => run.forget()).not.toThrow()
-    expect(run.inbox.list()).toEqual([])
+    expect(openOf(run.inbox)).toEqual([])
     const history = run.inbox.history(
       identity.terminalId,
       run.messaging.list(identity.terminalId, identity.handle),
@@ -2068,7 +2070,7 @@ describe("asks the person dismisses", () => {
     expect(() => inbox.dismiss(answered)).toThrow(expect.objectContaining({ code: "NOT_FOUND" }))
   })
 
-  it("lists resolved asks, an answered one with its answer, only while their terminal exists", () => {
+  it("lists resolved asks, an answered one with its answer, after their terminal closed too, but none cleared before", () => {
     const { inbox, create, forget, time } = clocked()
     const dismissed = create()
     const answered = create()
@@ -2081,7 +2083,24 @@ describe("asks the person dismisses", () => {
     ])
     expect(inbox.list().find(({ id }) => id === answered)?.settled?.answer).toMatch(/: Blue$/)
     forget()
-    expect(inbox.list()).toEqual([])
+    expect(inbox.list().map(({ id }) => id)).toEqual([answered, dismissed])
+    const cleared = inbox.list()[1]!
+    inbox.close()
+    // An ask the person cleared in a build that had Clear stays unlisted.
+    const old = setup(
+      Object.assign(memoryInbox(), {
+        entries: () => [
+          {
+            ...cleared,
+            state: "withdrawn" as const,
+            cause: "dismissed" as const,
+            cleared: true as const,
+          },
+        ],
+      }),
+    )
+    expect(old.inbox.list()).toEqual([])
+    old.messaging.close()
   })
 
   it("keeps a settled ask listed after its session changes", () => {

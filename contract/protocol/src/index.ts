@@ -167,6 +167,7 @@ export {
   defaultHibernateMinutes,
   maxHibernateMinutes,
   maxInboxHistoryLength,
+  maxInboxHistoryRows,
   maxInboxOrder,
   maxInboxResolved,
   maxInboxRowIdLength,

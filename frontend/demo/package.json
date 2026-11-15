@@ -18,6 +18,7 @@
     "./history": "./src/history.ts",
     "./inbox": "./src/inbox.ts",
     "./inbox/fixtures": "./src/inbox/fixtures.ts",
+    "./inbox/resolved": "./src/inbox/resolved.ts",
     "./messages": "./src/messages.ts",
     "./samples": "./src/samples.ts",
     "./showcase/agents": "./src/showcase/agents.ts",

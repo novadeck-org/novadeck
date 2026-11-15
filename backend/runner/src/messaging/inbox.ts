@@ -59,6 +59,8 @@ export type StoredEntry = InboxEntry & {
   readonly cause?: "dismissed" | "withdrawn" | "replied"
   /** Ended for want of its session after a restart, not by a different one: it reopens if it binds. */
   readonly lapsed?: true
+  /** A settled ask the person cleared from the Inbox in a build that had Clear: not listed. */
+  readonly cleared?: true
   /** What the person answered an ask with: the option they chose, and the words they wrote. */
   readonly answer?: string
 }
@@ -559,12 +561,13 @@ export class Inbox {
             : exists(each.terminalId)),
       )
       .map(({ state: _state, ...entry }) => entry)
-    // The latest resolved asks and tells, as the Inbox lists them as its history: all but an
-    // ask its agent withdrew, whose row is gone.
+    // The latest resolved asks and tells, as the Inbox lists them as its history, whether or not
+    // their terminal is still there: all but an ask its agent withdrew, whose row is gone, and
+    // one the person cleared in an older build.
     const resolved = [...this.entries.values()]
       .flatMap((each) => {
         const how = this.resolution(each)
-        return how && exists(each.terminalId) ? [{ entry: each, how }] : []
+        return how ? [{ entry: each, how }] : []
       })
       .toSorted((a, b) => (b.entry.settledAt ?? b.entry.at) - (a.entry.settledAt ?? a.entry.at))
       .slice(0, maxInboxResolved)
@@ -580,7 +583,7 @@ export class Inbox {
 
   /** How a resolved ask, tell or done ended as the Inbox says it; none for what it doesn't list. */
   private resolution(entry: StoredEntry): NonNullable<InboxEntry["settled"]>["how"] | undefined {
-    if (entry.content.kind === "turn") return undefined
+    if (entry.content.kind === "turn" || entry.cleared) return undefined
     if (entry.state === "answered") return "answered"
     if (entry.state === "read") return "read"
     if (entry.state === "gone") return "ended"

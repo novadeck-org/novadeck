@@ -137,10 +137,10 @@ export type InboxContent =
 // How a row ended, and when. An agent's ask was `answered` (here, with its `answer`),
 // `dismissed` by the person, or `replied` to by them writing in the terminal; a request the
 // harness shows was `answered` (here or in the chat, with its `answer` where it is known), or
-// `terminal` (answered in the terminal), or went `gone` unanswered, as when its turn was
-// interrupted; a held message was `released` or `stopped`; trouble ended as the agent
+// `terminal` (answered in the terminal), or went `gone` closed in the terminal (a No or Escape, which look alike); a held message was `released` or `stopped`; trouble ended as the agent
 // `worked` again, or messages waiting were `delivered`; a tell, a done report or a failed turn
-// was `read`; and any row `ended` with its agent session or its terminal.
+// was `read`; and any row `ended` with its agent session or its terminal, or `away` while the
+// app was closed. `gone` is a dialog or waiting messages that closed with nothing to say how.
 export type SettledHow =
   | "answered"
   | "terminal"
@@ -153,6 +153,7 @@ export type SettledHow =
   | "read"
   | "gone"
   | "ended"
+  | "away"
 export type Settled = {
   readonly how: SettledHow
   readonly at: number

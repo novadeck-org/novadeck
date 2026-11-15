@@ -1,4 +1,4 @@
-import type { InboxRow } from "@novadeck/core/inbox"
+import { ordered, type InboxRow } from "@novadeck/core/inbox"
 
 import { context, describe, expect, it } from "../test"
 import {
@@ -124,7 +124,28 @@ describe("An Inbox row that arrives while a sheet is open", () => {
   })
 
   it("keeps showing a row the person answered, until the backend drops it", () => {
-    expect(ids(visible(open, [before[1]!, arrival]))).toEqual(["b"])
+    expect(ids(visible(open, [before[1]!, arrival]))).toEqual(["a", "b"])
+  })
+
+  it("keeps a row the Inbox no longer lists, as it was, and one a newer row took the id of", () => {
+    const retaken = { ...before[0]!, at: 99 }
+    expect(ids(visible(open, [before[1]!]))).toEqual(["a", "b"])
+    const shown = visible(open, [retaken, before[1]!])
+    expect(shown.map(({ at }) => at)).toEqual([3, 2])
+  })
+
+  it("keeps resolved rows past the ten, and the earlier copy of a held row, until the sheet closes", () => {
+    const resolved = Array.from({ length: 10 }, (_, index) => ({
+      ...approve(`r${index}`, 100 + index),
+      settled: { how: "answered" as const, at: 200 + index },
+    }))
+    const rows = [approve("a", 300), ...resolved]
+    const frozen = openRow(settle(initialView, rows), "a", rows)
+    const newer = { ...resolved[0]!, id: "z", at: 400, settled: { how: "read" as const, at: 999 } }
+    // Ten resolved rows are listed at most: the oldest goes, but not from the open list.
+    const capped = ordered([rows[0]!, ...resolved.slice(1), newer])
+    expect(ids(visible(frozen, capped)).toSorted()).toEqual(ids(rows).toSorted())
+    expect(ids(visible({ ...frozen, open: null }, capped))).not.toContain("r0")
   })
 })
 

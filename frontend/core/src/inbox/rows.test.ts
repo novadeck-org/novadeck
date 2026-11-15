@@ -898,7 +898,12 @@ describe("The Inbox's rows", () => {
       // outlives its terminal.
       const other = workspaceOf(agentTerminal(1, { working: false }, "codex"))
       expect(inboxRows(inputs(other, { entries: [entry()] }))).toEqual([])
-      expect(inboxRows(inputs(workspaceOf(), { entries: [settled] }))).toEqual([])
+      // A resolved one outlives its terminal, under its project, whose it was named.
+      expect(inboxRows(inputs(workspaceOf(), { entries: [settled] }))).toMatchObject([
+        { id: "entry-1", source: { handle: "moth", title: "Closed terminal", projectName: "App" } },
+      ])
+      const nowhere = { ...settled, projectId: "other" }
+      expect(inboxRows(inputs(workspaceOf(), { entries: [nowhere] }))).toEqual([])
     })
 
     it("lists resolved entries with the rest, the newest first by when each was added", () => {

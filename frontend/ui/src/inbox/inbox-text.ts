@@ -188,8 +188,9 @@ export const endedWords: Readonly<Record<SettledHow, string>> = {
   worked: "Worked on",
   delivered: "Delivered",
   read: "Read",
-  gone: "Ended unanswered",
+  gone: "Closed",
   ended: "Session ended",
+  away: "Ended while Novadeck was closed",
 }
 
 // A resolved row's one line, in the sheet where its menu was: what the person did, or why it
@@ -219,9 +220,13 @@ export const endedLine = (row: InboxRow): string | null => {
     case "read":
       return "Read."
     case "gone":
-      return `${who} no longer waits on this, and nothing answered it: its turn was interrupted.`
+      return row.kind === "trouble"
+        ? "The messages no longer wait: they were stopped or withdrawn."
+        : `Closed in the terminal, by an answer Novadeck didn't see.`
     case "ended":
       return `${who}'s agent session ended, or its terminal closed.`
+    case "away":
+      return "It ended while Novadeck was closed."
   }
 }
 

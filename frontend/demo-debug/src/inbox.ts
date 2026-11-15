@@ -7,9 +7,8 @@ import {
   demoInboxRowsAll,
   demoLongCommand,
   demoPlanStates,
-  demoResolved,
-  demoResolvedRows,
 } from "@novadeck/demo/inbox/fixtures"
+import { demoResolved, demoResolvedRows } from "@novadeck/demo/inbox/resolved"
 
 import type { DemoActionGroup } from "./types"
 

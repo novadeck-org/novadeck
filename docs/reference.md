@@ -364,10 +364,12 @@ Every row is open, resolved or withdrawn, and only a withdrawn one disappears: a
 agent withdrew. Everything else that ends stays, as history, in gray, saying how it ended: an
 ask answered here (with your answer), dismissed, or replied to by you writing in its terminal; a
 tell or `done` report once you opened it or looked at its terminal; a dialog answered here, in
-the chat (with your answer) or in the terminal, or gone unanswered, as when its turn was
-interrupted; a held message once you released it or stopped its thread; a failed turn or a usage
+the chat (with your answer) or in the terminal, or closed in the terminal with no word of
+how (a No or Escape); a held message once you released it or stopped its thread; a failed turn or a usage
 limit once the agent works again, a failed turn too once you read it; messages held long once they
-are delivered; and any of them once its agent session ends or its terminal closes. A resolved
+are delivered; and any of them once its agent session ends or its terminal closes, or, for a
+row Novadeck had open when it was closed, once it finds it gone on the next start. A resolved
+row outlives its terminal. A resolved
 row opens as a read-only card, with no controls that change anything. The list is one list, the
 row added last first, open and resolved rows together, with no lines between them; of the resolved
 rows only the ten that resolved last are listed, whatever their kind. Messages keeps its own,

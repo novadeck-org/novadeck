@@ -47,6 +47,9 @@ const batchesOf = (ids: readonly string[]): string[][] =>
 // How long an answer to trouble may leave its item standing before it can be answered again.
 // Antigravity marks a turn's start at its first model call, which can take a while.
 export const settleMs = 15_000
+// How long after the connection came back the runner's streams are given to list what is there
+// again, before a row that is missing is taken to have ended.
+export const relistMs = 3000
 
 // The streams and calls the Inbox needs of the runner.
 export type InboxStreams = {
@@ -136,11 +139,15 @@ export const createRunnerInbox = (
     // The resolved rows it made, as the runner kept them (`JSON` each), and how it keeps them.
     history: savedRows = [],
     saveHistory = () => {},
+    status,
   }: {
     now?: () => number
     track?: <T>(work: Promise<T>) => Promise<T>
     history?: readonly string[]
     saveHistory?: (rows: readonly string[]) => void
+    // The connection's status, where the backend has one: while it is down, and until the
+    // streams have listed again once it is back, no row that is missing has ended.
+    status?: () => AsyncIterableIterator<{ readonly state: string }>
   } = {},
 ): RunnerInbox => {
   const state = createStore<InboxState>(emptyInbox)
@@ -154,6 +161,12 @@ export const createRunnerInbox = (
   // Whether the runner's entries are listed now: until they are again, a row of theirs that
   // is missing has not ended.
   let streaming = false
+  // Whether the connection is up, whether the entries were listed since it last came back, and
+  // until when its other streams are given to list again.
+  let linked = true
+  let relisted = true
+  let relistedBy = 0
+  let statuses: AsyncIterableIterator<{ readonly state: string }> | undefined
   // Asks and tells, as the runner last listed them, and its finished turns (undefined until
   // the first listing, and after the listing ended for good).
   let entries: readonly NotATurn[] = []
@@ -369,7 +382,7 @@ export const createRunnerInbox = (
     const resolved = endings.view(
       found,
       { workspace, messages: messages.getSnapshot() },
-      streaming && listed !== undefined,
+      streaming && listed !== undefined && linked && relisted && at >= relistedBy,
     )
     // The failed turns whose agent moved on are resolved: their stored rows are read.
     if (resolved.read.length > 0) hide(resolved.read)
@@ -418,6 +431,8 @@ export const createRunnerInbox = (
     // A request whose dialog is unread shows anyway once it has waited long enough, and a
     // hold once it has held long enough.
     tracker.wake([
+      ...(resolved.wake === undefined ? [] : [resolved.wake]),
+      ...(relistedBy > at ? [relistedBy - at] : []),
       ...Object.values(requests)
         .flat()
         .filter(({ request }) => request.dialog === null)
@@ -441,6 +456,7 @@ export const createRunnerInbox = (
           if (entriesStream !== stream || binding !== next || ended) return
           try {
             streaming = true
+            relisted = true
             entries = snapshot.filter(notATurn)
             listed = snapshot.flatMap((entry) => turnOf(entry) ?? [])
             const held = new Set(listed.map(({ id }) => id))
@@ -561,9 +577,35 @@ export const createRunnerInbox = (
       binding = next
       unsubscribe = [next.workspace.subscribe(recompute), messages.subscribe(recompute)]
       watchEntries(next)
+      if (status) {
+        const stream = status()
+        statuses = stream
+        void (async () => {
+          try {
+            for await (const each of stream) {
+              if (statuses !== stream) return
+              if (each.state === "connected") {
+                if (!linked) {
+                  linked = true
+                  relistedBy = now() + relistMs
+                }
+              } else {
+                linked = false
+                relisted = false
+              }
+              recompute()
+            }
+          } catch {
+            // The status ends with the connection; the next binding watches it again.
+          }
+        })()
+      }
       recompute()
       return () => {
         if (binding !== next) return
+        const watching = statuses
+        statuses = undefined
+        void watching?.return?.()?.catch?.(() => {})
         stopEntries()
         binding = null
         for (const stop of unsubscribe) stop()

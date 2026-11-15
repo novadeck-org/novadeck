@@ -39,10 +39,11 @@ export default defineConfig({
       // and raised to 1.3 MB in #439, when main sat about 100 bytes under it. The demo's was
       // raised to 195 kB for History's rows, which the demo keeps (190,171 bytes then), and
       // to 205 kB for the changes pane's layers and the small git its samples come from
-      // (198,875 bytes then).
+      // (198,875 bytes then), and to 210 kB for the Inbox's history of resolved rows, which the
+      // demo's Inbox keeps (206,351 bytes then).
       budgets: {
         first: 1_300_000,
-        demo: 205_000,
+        demo: 210_000,
         demoModule: "/frontend/demo/src/visitor/connect.ts",
       },
     }),

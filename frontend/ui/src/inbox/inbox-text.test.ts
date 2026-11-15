@@ -225,6 +225,7 @@ describe("How a resolved row ended", () => {
   it("has a short phrase for every way a row ends", () => {
     expect(Object.keys(endedWords).toSorted()).toEqual([
       "answered",
+      "away",
       "delivered",
       "dismissed",
       "ended",

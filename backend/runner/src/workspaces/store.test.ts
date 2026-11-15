@@ -3149,10 +3149,10 @@ describe("saved terminals", () => {
     const rows = ['{"id":"request:r1"}', '{"id":"held:t1"}']
     workspace.settings.saveRunner({ inboxHistory: rows })
     expect(workspace.settings.runner().inboxHistory).toEqual(rows)
-    // More than the Inbox lists is more than a client may have saved.
+    // More than the Inbox keeps is more than a client may have saved.
     const database = workspace["database"]
     database.exec(
-      `UPDATE settings SET value = '${JSON.stringify(Array.from({ length: 11 }, () => "{}"))}' WHERE key = 'inboxHistory'`,
+      `UPDATE settings SET value = '${JSON.stringify(Array.from({ length: 61 }, () => "{}"))}' WHERE key = 'inboxHistory'`,
     )
     expect(workspace.settings.runner().inboxHistory).toEqual([])
   })

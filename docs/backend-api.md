@@ -366,7 +366,8 @@ await runner.inbox.read(updateIds)
 ```
 
 Listed entries are the open ones, and the ten that resolved last (an ask answered, dismissed or
-replied to, a tell or done read, either ended with its session): those carry `settled`, with
+replied to, a tell or done read, either ended with its session or terminal, whether or not the
+terminal is still there): those carry `settled`, with
 `how`, `at` and, on an answered ask, the person's `answer` as a line. An ask its agent
 withdrew isn't listed.
 
@@ -1789,8 +1790,10 @@ one from an earlier runner.
   Inbox rows that ask in the order the person dragged them into, and the rows they snoozed
   (each `<row id>@<when it began>`, at most 200 of each, and 200 characters), the Inbox's rows
   that ended and the runner can't tell of itself (a dialog answered, a held message released, a
-  usage limit over) as the app made them resolved, each a JSON string, the latest ten, so they
-  come back after a restart, and after how
+  usage limit over) as the app made them resolved, and those it still had open, each a JSON
+  string with its long texts cut, the latest ten resolved and at most fifty open, about 64 KB
+  in all, so they come back after a restart (a client that is closed while a row ends finds it
+  gone at its next start), and after how
   many idle minutes an agent is stopped to rest as a sleeper (30 by default, at most a week,
   `null` for never; see "Idle agents rest" in agent-messaging.md), and whether agents may
   open git worktrees through Novadeck's tools (off until the person turns it on, in
