@@ -1,4 +1,5 @@
 import type { OfferedUninstall } from "@novadeck/core/desktop/uninstall"
+import type { ForgeConnection, ForgeName } from "@novadeck/core/forges"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { Backend } from "@novadeck/core/port"
 import { orderedTiles } from "@novadeck/core/roster"
@@ -53,7 +54,8 @@ import {
   sameItems,
   shallowEqual,
 } from "./selectors"
-import { switchOffWorktrees } from "./ui-store"
+import { switchOffExperimental, type ExperimentalFeatures } from "./ui-store"
+import { useForgeRuns } from "./useForgeRuns"
 import { useInstalls } from "./useInstalls"
 
 // Rendered beside a deferred dialog, so it mounts only once the dialog's view has loaded.
@@ -141,6 +143,14 @@ const useAgents = (agents: Backend["agents"]) => {
   return { list, welcome }
 }
 
+// The backend's forges and what each reads of its tool, for Preferences.
+const useForges = (forges: Backend["forges"]): readonly ForgeConnection[] =>
+  useSyncExternalStore(
+    forges?.state.subscribe ?? always,
+    () => forges?.state.getSnapshot() ?? noForges,
+  )
+const noForges: readonly never[] = []
+
 // The backend's voice input addon for Preferences; undefined where it has none.
 const useVoice = (voice: Backend["voice"]): VoiceAddon | undefined => {
   const state = useSyncExternalStore(voice?.state.subscribe ?? always, () =>
@@ -165,10 +175,10 @@ type ExperimentalSetting = {
 // Preferences' Experimental switch: whether the desktop app follows experimental builds, which is
 // the IS_EXPERIMENTAL flag, asked of it each time Preferences opens; undefined where the app
 // offers no choice. The switch and the flag change at once, as the app remembers the choice.
-// Turning it off turns agent worktrees off with it.
+// Turning it off turns agent worktrees and forge integrations off with it.
 const useExperimental = (
   channel: NonNullable<Backend["updates"]>["channel"],
-  worktrees: Backend["worktrees"],
+  features: ExperimentalFeatures,
   open: boolean,
 ): ExperimentalSetting | undefined => {
   const { setFeatureFlag } = useWorkspaceServices().commands
@@ -185,18 +195,18 @@ const useExperimental = (
       (value) => {
         if (!current || flips.current !== asked) return
         setFeatureFlag("IS_EXPERIMENTAL", value === "experimental")
-        if (value !== "experimental") switchOffWorktrees(worktrees)
+        if (value !== "experimental") switchOffExperimental(features)
         setKnown(true)
       },
       // A channel that can't be read counts as not experimental for worktrees.
       () => {
-        if (current && flips.current === asked) switchOffWorktrees(worktrees)
+        if (current && flips.current === asked) switchOffExperimental(features)
       },
     )
     return () => {
       current = false
     }
-  }, [open, channel, worktrees, setFeatureFlag])
+  }, [open, channel, features, setFeatureFlag])
   return (
     channel && {
       on: known ? flag : undefined,
@@ -205,7 +215,7 @@ const useExperimental = (
         setFeatureFlag("IS_EXPERIMENTAL", next)
         setKnown(true)
         channel.set(next ? "experimental" : "stable")
-        if (!next) switchOffWorktrees(worktrees)
+        if (!next) switchOffExperimental(features)
       },
     }
   )
@@ -283,6 +293,8 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const worktrees = useWorktrees(backend.worktrees)
   const agents = useAgents(backend.agents)
   const installs = useInstalls(backend.agents)
+  const forgeList = useForges(backend.forges)
+  const forgeRuns = useForgeRuns(backend.forges)
   const approval = useApproval(backend.approvals)
   const voice = useVoice(backend.voice)
   const murmur = useMurmur(backend.murmur)
@@ -328,7 +340,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   )
   const searchLabel = view === "canvas" ? "Canvas" : view === "grid" ? "Grid" : "Focus"
   const { searching, settings, onExitComplete, onLoaded } = useRouteDialog(dialog, context)
-  const experimental = useExperimental(backend.updates?.channel, backend.worktrees, settings)
+  const experimental = useExperimental(backend.updates?.channel, backend, settings)
   const version = useVersion(backend.version, settings)
   const connectedAgents = useMemo(
     () => agents.list.filter((agent) => agent.connected).map((agent) => agent.agent),
@@ -340,6 +352,25 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   useEffect(() => {
     if (settings) refreshAgents?.()
   }, [settings, refreshAgents])
+  // As do the forges, whose tools and sign-ins may have changed while Preferences was shut.
+  const refreshForges = backend.forges?.refresh
+  useEffect(() => {
+    if (settings) void refreshForges?.()
+  }, [settings, refreshForges])
+  // A forge's install or sign-in asked for in Preferences waits for it to close, as an agent's
+  // install does.
+  const queuedForgeRun = useRef<() => void>(undefined)
+  useEffect(() => {
+    const queued = queuedForgeRun.current
+    if (!queued || settings) return
+    queuedForgeRun.current = undefined
+    queued()
+  }, [settings])
+  const afterClose = (run: () => void): void => {
+    if (!settings) return run()
+    queuedForgeRun.current = run
+    closeDialog()
+  }
   // An install asked for in Preferences, which starts once Preferences has closed: closing it
   // goes back in the history, which would undo the terminal's own step there were it taken first.
   const queuedInstall = useRef<{ agent: AgentName; command: string }>(undefined)
@@ -441,6 +472,22 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           {...(version ? { version } : {})}
           {...(backend.openLogs ? { logs: backend.openLogs } : {})}
           {...(uninstall ? { uninstall } : {})}
+          {...(backend.forges
+            ? {
+                forges: {
+                  list: forgeList,
+                  onChange: backend.forges.set,
+                  onInstall: (forge: ForgeName, command: string) => {
+                    afterClose(() => forgeRuns.install(forge, command))
+                  },
+                  installing: forgeRuns.installing,
+                  onSignIn: (forge: ForgeName, host: string, command: string) => {
+                    afterClose(() => forgeRuns.signIn(forge, host, command))
+                  },
+                  signingIn: forgeRuns.signingIn,
+                },
+              }
+            : {})}
           {...(backend.agents
             ? {
                 agents: {

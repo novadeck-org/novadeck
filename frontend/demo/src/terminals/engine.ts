@@ -3,7 +3,8 @@ import type { WorkspaceAction } from "@novadeck/core/state"
 import { createTerminalRegistry, terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
-import { installedBy, installOutcome, installReply } from "../agents/installs"
+import { forgePlayOf, installedBy, installOutcome, installReply } from "../agents/installs"
+import { forgeReply } from "../forges"
 import { demoAgent, mockReply, type DemoAgent } from "../samples"
 import { emptyLine, type Line } from "../screen/line-editor"
 import { terminalsOf } from "../workspace"
@@ -78,6 +79,15 @@ const empty: DemoTerminalSnapshot = {
 const installEntries = (key: TerminalKey, terminal: TerminalMetadata): readonly Entry[] => {
   const agent = installedBy(terminal.command)
   const outcome = installOutcome(key)
+  const play = forgePlayOf(key)
+  if (play && outcome)
+    return [
+      {
+        id: crypto.randomUUID(),
+        command: terminal.command,
+        reply: forgeReply(play, outcome === "installed" ? "done" : "failed"),
+      },
+    ]
   return agent && outcome
     ? [
         {

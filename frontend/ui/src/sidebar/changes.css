@@ -5,7 +5,8 @@
    `.changes-project`, `.changes-sep` and `.changes-branch` (the row's project, where there are
    several, the dot after it, and branch), `.changes-refusal`, `.changes-kept`,
    `.changes-branches` and `.changes-trail` (a file's lines, right-aligned in its row),
-   `.changes-empty`. The row's × is
+   `.changes-empty`, `.changes-pr` (the work's pull request: a link to its page, data-state its
+   state, under the row's detail line). The row's × is
    `.terminal-tab-revealed`, shown under the pointer as a tab's Rename.
 
    Hooks: on a row, data-merged once its work is merged, data-conflict while it conflicts with
@@ -46,6 +47,43 @@
 .changes-size .diff-removed,
 .changes-trail .diff-removed {
   color: var(--color-danger-fg);
+}
+
+/* The pull request's mark: a small outlined chip by state, in the palette's tones (draft muted,
+   open ink, merged success, closed danger), on a line of its own under the row's detail, in the
+   text's column, so the branch above keeps its room. */
+.changes-pr {
+  align-self: flex-start;
+  margin: -2px 0 8px 32px;
+  --_pr-tone: var(--color-muted);
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border: var(--border-width) solid color-mix(in srgb, var(--_pr-tone) 55%, transparent);
+  border-radius: var(--radius-control, 4px);
+  color: var(--_pr-tone);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.changes-pr[data-state="open"] {
+  --_pr-tone: var(--color-ink);
+}
+.changes-pr[data-state="merged"] {
+  --_pr-tone: var(--color-success-fg);
+}
+.changes-pr[data-state="closed"] {
+  --_pr-tone: var(--color-danger-fg);
+}
+a.changes-pr:hover {
+  background: color-mix(in srgb, var(--_pr-tone) 12%, transparent);
+}
+a.changes-pr:focus-visible {
+  outline: 2px solid var(--_pr-tone);
+  outline-offset: 1px;
 }
 
 /* Files: bright, red where the conflict is. */

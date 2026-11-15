@@ -118,6 +118,17 @@ export {
 } from "./works.js"
 export { maxWebSocketMessageBytes, protocolVersion } from "./connection.js"
 export {
+  type ForgeHost,
+  forgeHost,
+  type ForgeIntegration,
+  forgeIntegration,
+  forgeLimits,
+  type ForgeName,
+  forgeName,
+  type PullRequest,
+  pullRequest,
+} from "./forges.js"
+export {
   dialogTextLimits,
   maxRawDialogText,
   requestAnswer,

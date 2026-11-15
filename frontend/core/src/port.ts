@@ -7,6 +7,7 @@ import type { SandboxState } from "./desktop/sandbox"
 import type { UninstallPlan, UninstallResult } from "./desktop/uninstall"
 import type { UpdateChannel, UpdateOffer, WhatsNew } from "./desktop/update"
 import type { Feedback } from "./feedback"
+import type { Forges } from "./forges"
 import type { AgentName } from "./harnesses"
 import type { History } from "./history"
 import type { Inbox } from "./inbox"
@@ -307,6 +308,9 @@ export type BackendFields = {
     readonly enabled: Store<boolean>
     readonly set: (enabled: boolean) => void
   }
+  // Optional. The forges whose pull requests the Changes panel shows on works, an
+  // Experimental feature kept by the runner. Absent where the backend has none.
+  readonly forges?: Forges
   // Optional. The agents whose sessions resume after a restart once connected: each
   // connection installs a small plugin into the agent, and disconnecting removes it.
   // Absent where the backend cannot connect agents.

@@ -40,6 +40,19 @@ const setups: readonly (readonly [string, () => Backend, readonly WorkPlan[]])[]
   ["visitor", () => visitorDemo({ ambient: false }), visitorPlans],
 ]
 
+describe("the demo works' pull requests", () => {
+  it("are in each state across the storefront's plans, and settable", () => {
+    const works = createDemoWorks(worksFromPlans(plainDemo("plain").seed, storefrontPlans, 0))
+    const states = works.state.getSnapshot().works.flatMap((work) => work.pullRequest?.state ?? [])
+    expect(new Set(states)).toEqual(new Set(["draft", "open", "merged", "closed"]))
+    const [first] = works.state.getSnapshot().works
+    works.setPullRequest(first!.root, "closed")
+    expect(works.ownedBy(first!.terminalId!)?.pullRequest).toMatchObject({ state: "closed" })
+    works.setPullRequest(first!.root, undefined)
+    expect(works.ownedBy(first!.terminalId!)?.pullRequest).toBeUndefined()
+  })
+})
+
 describe("the demo's Changes seeds", () => {
   for (const [name, make, plans] of setups) {
     context(`in the ${name} demo`, () => {

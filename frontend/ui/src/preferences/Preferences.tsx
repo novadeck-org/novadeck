@@ -1,4 +1,5 @@
 import { MURMUR_NAME } from "@novadeck/core/addons/murmur"
+import type { ForgeName } from "@novadeck/core/forges"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { NoticeSound } from "@novadeck/core/sounds"
 import { viewModes } from "@novadeck/core/state"
@@ -20,6 +21,8 @@ import { themes, type ThemeEntry, type ThemeId } from "../theme/themes"
 import { AddonRow } from "./addon-parts"
 import { agentsExplanation, type AgentSwitch } from "./agent-switches"
 import { AgentSwitches } from "./AgentSwitches"
+import { forgesExplanation, type ForgeSwitch } from "./forge-switches"
+import { ForgeSwitches } from "./ForgeSwitches"
 import { murmurDescription } from "./murmur-addon"
 import { MurmurAddon, type MurmurAddonValue } from "./MurmurAddon"
 import {
@@ -131,6 +134,7 @@ export const Preferences = ({
   transcripts,
   hibernation,
   worktrees,
+  forges,
   agents,
   voice,
   murmur,
@@ -173,6 +177,20 @@ export const Preferences = ({
   worktrees?: {
     readonly enabled: boolean
     readonly onChange: (enabled: boolean) => void
+  }
+  // The forges whose pull requests Changes shows, an Experimental feature the backend keeps;
+  // absent where the backend has none.
+  forges?: {
+    readonly list: readonly ForgeSwitch[]
+    readonly onChange: (forge: ForgeName, enabled: boolean) => void
+    // Runs the installer of a forge's tool that isn't here; absent where none can run.
+    readonly onInstall?: ((forge: ForgeName, command: string) => void) | undefined
+    // The forges whose installer runs now.
+    readonly installing?: ReadonlySet<ForgeName> | undefined
+    // Runs a signed-out host's sign-in command in a terminal.
+    readonly onSignIn?: ((forge: ForgeName, host: string, command: string) => void) | undefined
+    // The hosts whose sign-in runs now, as `${forge}/${host}`.
+    readonly signingIn?: ReadonlySet<string> | undefined
   }
   // Whether the page can show desktop notifications, as the desktop app can.
   notices?: boolean
@@ -784,6 +802,18 @@ export const Preferences = ({
                   ),
                 )}
               </div>
+              {forges && (
+                <Section title="Forge integrations" description={forgesExplanation}>
+                  <ForgeSwitches
+                    forges={forges.list}
+                    onChange={forges.onChange}
+                    onInstall={forges.onInstall}
+                    installing={forges.installing}
+                    onSignIn={forges.onSignIn}
+                    signingIn={forges.signingIn}
+                  />
+                </Section>
+              )}
             </TabPanel>
           )}
         </div>

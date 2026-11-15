@@ -4,6 +4,7 @@
 /** Each library, and the libraries its design lets it import. */
 export const order: Readonly<Record<string, readonly string[]>> = {
   emulator: [],
+  forges: [],
   log: ["secrets"],
   sandbox: [],
   secrets: [],

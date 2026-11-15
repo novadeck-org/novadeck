@@ -6,7 +6,14 @@ import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { GitCompare, GitMerge, X } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 
-import { changeRows, ownerOpen, selectedRoot, type ChangeRow, type FileView } from "./changes-rows"
+import {
+  changeRows,
+  ownerOpen,
+  selectedRoot,
+  type ChangeRow,
+  type FileView,
+  type PullMark,
+} from "./changes-rows"
 import { SidebarPanel } from "./SidebarPanel"
 
 // A count of lines, as a diff says it: what was added, what was removed; a side with none
@@ -128,6 +135,29 @@ const BranchLine = ({ row }: { row: ChangeRow }): React.JSX.Element => (
   </>
 )
 
+// The work's pull request, a link to its page on a line under the row's detail, outside its select
+// button (a link inside it would be a control in a control), so it is reached by Tab and a click
+// does not select the row.
+const PullMarkLink = ({ mark }: { mark: PullMark }): React.JSX.Element => {
+  const body = <span className="changes-pr-text">{mark.text}</span>
+  return mark.url ? (
+    <a
+      className="changes-pr"
+      href={mark.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={mark.label}
+      data-state={mark.state}
+    >
+      {body}
+    </a>
+  ) : (
+    <span className="changes-pr" role="img" aria-label={mark.label} data-state={mark.state}>
+      {body}
+    </span>
+  )
+}
+
 const ChangeItem = ({
   row,
   selected,
@@ -173,7 +203,12 @@ const ChangeItem = ({
         )
       }
       detail={<BranchLine row={row} />}
-      after={<Branches row={row} canOpen={canOpen} onOpenFile={onOpenFile} />}
+      after={
+        <>
+          {row.pullRequest && <PullMarkLink mark={row.pullRequest} />}
+          <Branches row={row} canOpen={canOpen} onOpenFile={onOpenFile} />
+        </>
+      }
       badge={
         work.added + work.removed > 0 ? (
           <span className="terminal-tab-kinds changes-size">
@@ -206,6 +241,7 @@ const ChangeItem = ({
       data-changes-row={work.root}
       data-conflict={row.conflict || undefined}
       data-merged={row.merged || undefined}
+      data-pull-request={row.pullRequest?.state}
     />
   )
 }

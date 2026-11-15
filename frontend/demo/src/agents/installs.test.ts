@@ -3,6 +3,7 @@ import { workspaceFromSeed } from "@novadeck/core/seed"
 import { activeProject, activeSession } from "@novadeck/core/state"
 import { afterEach, beforeEach, vi } from "vitest"
 
+import { demoForgeInstallers, demoSignIn } from "../forges"
 import { demoBackend } from "../index"
 import { createDemoEngine } from "../terminals/engine"
 import { context, describe, expect, it } from "../test"
@@ -91,6 +92,33 @@ describe("the demo's agent installs", () => {
       expect(install("claude")).toMatchObject({ state: "idle" })
       vi.advanceTimersByTime(installMs)
       expect(dispatched).toEqual([])
+    })
+  })
+
+  context("when a forge's command is run in a terminal", () => {
+    const forge = (backend: ReturnType<typeof started>["backend"], name: string) =>
+      backend.forges!.state.getSnapshot().find((each) => each.forge === name)!
+
+    it("plays a sign-in, then shows the host signed in", () => {
+      const { install, dispatched, backend } = started()
+      const terminal = install(demoSignIn.gitlab)
+      expect(terminal).toMatchObject({ state: "running" })
+      vi.advanceTimersByTime(installMs - 1)
+      expect(forge(backend, "gitlab").hosts[0]!.state).toBe("signed-out")
+      vi.advanceTimersByTime(1)
+      expect(dispatched).toHaveLength(1)
+      expect(forge(backend, "gitlab").hosts[0]!.state).toBe("signed-in")
+    })
+
+    it("plays an installer, then shows the forge available, or not where it fails", () => {
+      const { installs, install, backend } = started()
+      installs.failNext()
+      install(demoForgeInstallers.azure!)
+      vi.advanceTimersByTime(installMs)
+      expect(forge(backend, "azure").available).toBe(false)
+      install(demoForgeInstallers.azure!)
+      vi.advanceTimersByTime(installMs)
+      expect(forge(backend, "azure").available).toBe(true)
     })
   })
 

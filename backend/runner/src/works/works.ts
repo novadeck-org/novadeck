@@ -2,8 +2,11 @@ import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import {
+  forgeLimits,
   previewLimits,
+  pullRequest as pullRequestSchema,
   workLimits,
+  type PullRequest,
   type Work,
   type WorkChange,
   type WorkMade,
@@ -57,6 +60,8 @@ export type Tracked = {
   readonly base?: string | undefined
   /** When its repository's origin was last fetched; undefined if never. */
   readonly fetchedAt?: number | undefined
+  /** Its repository's git common dir, which `pullRequest` is asked by. */
+  readonly commonDir?: string | undefined
 }
 
 /** A running terminal, the git checkout it works in now (its top folder) and whether its agent is mid-turn. */
@@ -111,6 +116,11 @@ export type WorksOptions = {
   readonly projectFolder?: (projectId: string) => string | undefined
   /** Which files (by full path) may hold secrets: a preview never reads them. */
   readonly held?: () => Held
+  /**
+   * The pull request of a branch in the repository at `commonDir`, where one is known; the
+   * works carry it and know nothing else of where it comes from.
+   */
+  readonly pullRequest?: (commonDir: string, branch: string) => PullRequest | undefined
   /** How often each checkout is read, in milliseconds. */
   readonly everyMs?: number
   /**
@@ -236,6 +246,8 @@ export class Works {
   private readonly makers = new Map<() => void, string>()
   /** The works told, by root. */
   private readonly published = new Map<string, Work>()
+  /** Each work's repository and the branch its checkout is on, as of the last pass. */
+  private onBranches: readonly { readonly commonDir: string; readonly branch: string }[] = []
   private readonly roots = new Map<string, RootState>()
   /** The roots tracked as of the last pass: one that leaves was closed, by whoever. */
   private lastTracked = new Set<string>()
@@ -352,6 +364,34 @@ export class Works {
       this.makers.delete(end)
       stop?.()
     }
+  }
+
+  /**
+   * The branches the works' checkouts are on, with their repositories, as the last pass read
+   * them: what `pullRequest` is asked about.
+   */
+  branches(): readonly { readonly commonDir: string; readonly branch: string }[] {
+    return this.onBranches
+  }
+
+  /**
+   * A pull request as the wire takes it (a long title cut), or undefined where it still isn't
+   * one: a forge's odd answer must not fail every work's stream.
+   */
+  private validPullRequest(found: PullRequest | undefined): PullRequest | undefined {
+    if (found === undefined) return undefined
+    const parsed = pullRequestSchema.safeParse({
+      ...found,
+      title: found.title.slice(0, forgeLimits.title),
+    })
+    if (parsed.success) return parsed.data
+    log.warn("works.pull-request-invalid", "A forge's pull request does not fit the contract")
+    return undefined
+  }
+
+  /** Whether a client watches the works, so they are being kept current. */
+  watched(): boolean {
+    return this.polling()
   }
 
   /** Ends the watch and made streams of an owner, as its connection goes. */
@@ -829,6 +869,11 @@ export class Works {
         ),
       ),
     )
+    this.onBranches = reads.flatMap((each) =>
+      each.commonDir !== undefined && each.read.branch !== null
+        ? [{ commonDir: each.commonDir, branch: each.read.branch }]
+        : [],
+    )
     const found = new Map<string, Work>()
     for (const {
       root,
@@ -836,6 +881,7 @@ export class Works {
       projectId,
       createdAt,
       fetchedAt,
+      commonDir: repository,
       read,
       remembered,
       stamps,
@@ -857,6 +903,10 @@ export class Works {
       )
       const listed = listFiles(read.changed, read.unread, conflicting, details)
       const folder = folders.get(root)
+      const request =
+        repository !== undefined && read.branch !== null
+          ? this.validPullRequest(this.options.pullRequest?.(repository, read.branch))
+          : undefined
       found.set(root, {
         root,
         terminalId,
@@ -879,6 +929,7 @@ export class Works {
         files: listed.files,
         truncated: listed.truncated || read.skipped,
         ...(folder !== undefined && { folder }),
+        ...(request !== undefined && { pullRequest: request }),
         conflicts: conflictsOf(
           (read.conflicts?.length ?? 0) > 0,
           [...mine.keys()].map((other) => ({ root: other, terminalId: owners.get(other) ?? null })),

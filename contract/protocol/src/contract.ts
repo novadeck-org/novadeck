@@ -43,6 +43,7 @@ import {
 import { requestAnswer } from "./dialogs.js"
 import { feedbackDraft, maxFeedbackText } from "./feedback.js"
 import { directory, id, name } from "./fields.js"
+import { forgeIntegration, forgeName } from "./forges.js"
 import { closedTerminal, historyChange } from "./history.js"
 import { askAnswer, inboxEntry } from "./inbox.js"
 import { terminalMessages, threadId } from "./messages.js"
@@ -519,6 +520,25 @@ export const contract = {
     set: procedure
       .input(z.strictObject({ agent: agentName, connected: z.boolean() }))
       .output(agentIntegration),
+  },
+  // Forges whose pull requests the Changes panel shows, through each one's own signed-in
+  // command-line tool (forges.ts): an Experimental feature.
+  forges: {
+    // Where each forge stands. With `fresh` the runner reads the person's login environment
+    // and each repository's remote again first, and asks each tool afresh whether it is signed
+    // in, as the look after an install or a sign-in needs. With `cached` it asks no tool and
+    // reads no remote, answering with the hosts already known, as the app's start needs.
+    list: procedure
+      .input(
+        z
+          .strictObject({ fresh: z.boolean().optional(), cached: z.boolean().optional() })
+          .optional(),
+      )
+      .output(z.array(forgeIntegration)),
+    // Switches a forge on or off; the switch is stored, so it survives restarts.
+    set: procedure
+      .input(z.strictObject({ forge: forgeName, enabled: z.boolean() }))
+      .output(forgeIntegration),
   },
   // Terminals closed in the last 7 days, per project, to restore (`terminals.create`
   // with `closed`).

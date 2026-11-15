@@ -159,7 +159,14 @@ export const connectRunnerBackend = async (
         worktrees,
       },
       agents,
-    ] = await Promise.all([runner.settings.get(), runner.agents.list()])
+      forges,
+    ] = await Promise.all([
+      runner.settings.get(),
+      runner.agents.list(),
+      // A runner from before forges has none, and the person is offered none. Cached: the
+      // start waits on no forge's tool; Preferences looks again as it opens.
+      runner.forges.list({ cached: true }).catch(() => undefined),
+    ])
     const appOptions = desktopOptions(app)
     reportPoolTo(app)
     // StrictMode creates a backend twice and keeps the first, so the last one created is
@@ -174,6 +181,7 @@ export const connectRunnerBackend = async (
           transcripts,
           transcriptsAvailable,
           agents,
+          ...(forges !== undefined && { forges }),
           welcomed,
           inboxOrder,
           inboxSnoozed,

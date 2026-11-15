@@ -12,6 +12,7 @@ export const storefrontPlans: readonly WorkPlan[] = [
     terminal: "Checkout implementation",
     minutesAgo: 52,
     fetchedMinutesAgo: 3,
+    pullRequest: { number: 812, state: "draft" },
     conflicts: ["main", "Tests"],
     files: [
       file("src/checkout/Checkout.tsx", 120, 34, { conflict: true }),
@@ -28,6 +29,7 @@ export const storefrontPlans: readonly WorkPlan[] = [
     project: "storefront",
     terminal: "Tests",
     minutesAgo: 38,
+    pullRequest: { number: 814, state: "open" },
     conflicts: ["Checkout implementation"],
     files: [
       file("src/checkout/Checkout.test.tsx", 31, 12, { conflict: true }),
@@ -56,6 +58,7 @@ export const storefrontPlans: readonly WorkPlan[] = [
     terminal: null,
     branch: "agent/promo-banner",
     minutesAgo: 600,
+    pullRequest: { number: 801, state: "closed" },
     files: [file("src/promo/Banner.tsx", 18, 2, { read: true })],
   },
   {
@@ -71,6 +74,7 @@ export const storefrontPlans: readonly WorkPlan[] = [
     branch: "agent/build-lint",
     minutesAgo: 800,
     merged: true,
+    pullRequest: { number: 809, state: "merged" },
     files: [],
   },
   {

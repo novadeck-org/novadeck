@@ -3,6 +3,8 @@ import type { AgentConnection, Backend, BackendSink, TerminalKey } from "@novade
 import { createStore, type Store } from "@novadeck/core/store"
 import { terminalKeyId } from "@novadeck/core/terminals/registry"
 
+import { isDemoForges, type ForgePlay } from "../forges"
+
 // What the runner says installs each agent on macOS and Linux, which the demo shows as it
 // would be run; nothing here installs anything.
 export const demoInstallers: Readonly<Record<AgentName, string>> = {
@@ -57,6 +59,12 @@ const outcomes = new Map<string, "installed" | "failed">()
 
 export const installOutcome = (key: TerminalKey): "installed" | "failed" | undefined =>
   outcomes.get(terminalKeyId(key))
+
+// The forge command each of those terminals plays (an installer or a sign-in), for its screen.
+const forgePlays = new Map<string, ForgePlay>()
+
+export const forgePlayOf = (key: TerminalKey): ForgePlay | undefined =>
+  forgePlays.get(terminalKeyId(key))
 
 // How long a played install runs before it ends.
 export const installMs = 2_500
@@ -135,12 +143,21 @@ export const createDemoInstalls = (): DemoInstalls => {
           const missing = agents?.state
             .getSnapshot()
             .some((each) => each.agent === agent && !each.available)
-          if (!agent || !missing) return terminal
+          // A forge's installer or sign-in plays the same way, changing its forge's state.
+          const forge = isDemoForges(backend.forges)
+            ? backend.forges.played(input.launch?.command)
+            : undefined
+          if ((!agent || !missing) && !forge) return terminal
           const outcome = failing ? "failed" : "installed"
           const hold = holding
           failing = false
           holding = false
-          outcomes.set(terminalKeyId({ ...input.target, terminalId: terminal.id }), outcome)
+          const keyId = terminalKeyId({ ...input.target, terminalId: terminal.id })
+          if (agent && missing) outcomes.set(keyId, outcome)
+          else if (forge) {
+            outcomes.set(keyId, outcome)
+            forgePlays.set(keyId, forge)
+          }
           const end = (): void => {
             if (timer !== undefined) timers.delete(timer)
             clearTimeout(timer)
@@ -153,7 +170,10 @@ export const createDemoInstalls = (): DemoInstalls => {
                 status: { state: "idle" },
               },
             ])
-            if (outcome === "installed") installed.update((set) => new Set(set).add(agent))
+            if (outcome === "installed") {
+              if (agent && missing) installed.update((set) => new Set(set).add(agent))
+              else forge?.end("done")
+            } else forge?.end("failed")
           }
           const timer = hold ? undefined : setTimeout(end, installMs)
           if (timer !== undefined) timers.add(timer)

@@ -18,7 +18,7 @@ import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
 
 // What each of the terminals asked for looks like in the workspace, by id; absent for one
 // closed, or in no session.
-const terminalsOf = (
+export const terminalsOf = (
   workspace: Workspace,
   ids: readonly string[],
 ): ReadonlyMap<string, InstallTerminal> => {
@@ -32,7 +32,7 @@ const terminalsOf = (
   return found
 }
 
-const sameTerminals = (
+export const sameTerminals = (
   a: ReadonlyMap<string, InstallTerminal>,
   b: ReadonlyMap<string, InstallTerminal>,
 ): boolean =>

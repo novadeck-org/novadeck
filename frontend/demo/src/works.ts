@@ -1,3 +1,4 @@
+import type { PullRequest } from "@novadeck/core/forges"
 import type { Backend, TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import { createStore, type Store } from "@novadeck/core/store"
@@ -74,7 +75,21 @@ export type WorkPlan = {
   readonly conflicts?: readonly string[]
   // The owner's agent is mid-turn in it, so its × waits.
   readonly working?: true
+  // Its pull request on the forge, as the row's mark shows it.
+  readonly pullRequest?: { readonly number: number; readonly state: PullRequest["state"] }
 }
+
+// A pull request of the demo's: its page is on the forge's host, which no one opens.
+export const demoPullRequest = (
+  number: number,
+  state: PullRequest["state"],
+  title = `Change ${number}`,
+): PullRequest => ({
+  number,
+  state,
+  title,
+  url: `https://github.com/novadeck-demo/storefront/pull/${number}`,
+})
 
 const fileOf = (plan: FilePlan, changedAt: number): WorkFile => {
   const share = plan.read ? 0 : (plan.unread ?? 1)
@@ -187,6 +202,9 @@ export const worksFromPlans = (
         truncated: false,
         folder: { repo: "", project: "" },
         conflicts,
+        ...(plan.pullRequest && {
+          pullRequest: demoPullRequest(plan.pullRequest.number, plan.pullRequest.state),
+        }),
       },
       plan.files.map((file) => fileOf(file, now - plan.minutesAgo * minute)),
     )
@@ -314,6 +332,9 @@ export type DemoWorksControl = {
   readonly openClean: (at: Placed) => void
   // Another worktree of the terminal's, just made beside the ones it has: a new one each call.
   readonly makeAnother: (at: Placed) => void
+  // The work's pull request, found on the forge in this state (numbered 812 where it had none),
+  // or none found.
+  readonly setPullRequest: (root: string, state: PullRequest["state"] | undefined) => void
   // The worktree has no owner.
   readonly orphan: (root: string) => void
   // Its owner is closed, in History: the row still names an owner, no terminal of the project.
@@ -624,6 +645,13 @@ export const createDemoWorks = (
       change(root, merged)
       unmerged.set(root, count)
     },
+    setPullRequest: (root, pullState) =>
+      change(root, ({ pullRequest, ...work }) => ({
+        ...work,
+        ...(pullState && {
+          pullRequest: demoPullRequest(pullRequest?.number ?? 812, pullState, pullRequest?.title),
+        }),
+      })),
     orphan: (root) => change(root, (work) => ({ ...work, terminalId: null, working: false })),
     setWorking: (terminalId, working) => {
       const own = ownedBy(terminalId)

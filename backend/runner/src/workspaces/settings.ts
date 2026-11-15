@@ -2,11 +2,13 @@ import type { SQLTagStore } from "node:sqlite"
 
 import {
   defaultHibernateMinutes,
+  forgeName,
   murmurCheck,
   runnerSettings,
   voiceCheck,
   voiceLanguage,
   voiceModel,
+  type ForgeName,
   type MurmurCheck,
   type MurmurSettings,
   type RunnerSettings,
@@ -137,6 +139,21 @@ export class Settings {
   saveRunner(settings: RunnerSettingsChange): void {
     for (const [key, value] of Object.entries(settings))
       if (value !== undefined) this.saveSetting(key, JSON.stringify(value))
+  }
+
+  /** The forges switched on, in the order of the contract; none until the person switches one. */
+  forges(): ForgeName[] {
+    // Leniently: a name a newer build saved (another forge) leaves the known ones.
+    const saved = this.settingJson("forges", (value) => (Array.isArray(value) ? value : null))
+    return forgeName.options.filter((name) => saved?.includes(name) === true)
+  }
+
+  /** Saves the forges switched on. Not part of the runner's settings: Experimental, per forge. */
+  saveForges(forges: readonly ForgeName[]): void {
+    this.saveSettingJson(
+      "forges",
+      forgeName.options.filter((name) => forges.includes(name)),
+    )
   }
 
   /** Voice input's settings: off, on the lighter model, and detecting the language, until chosen. */

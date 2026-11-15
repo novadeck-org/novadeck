@@ -17,6 +17,7 @@ import { savePlan } from "./companions/content.js"
 import type { CompanionItems } from "./companions/items.js"
 import { planSaveFolders } from "./companions/plan-folders.js"
 import { DomainError } from "./errors.js"
+import type { Forges } from "./forges/service.js"
 import type { Harnesses } from "./harnesses/service.js"
 import type { History } from "./history.js"
 import { logs } from "./log.js"
@@ -76,6 +77,12 @@ const noWorksMade = async function* (signal?: AbortSignal): AsyncGenerator<WorkM
   yield* [] as WorkMade[]
 }
 
+// What the forges report without them: none is offered, and none can be switched on.
+const noForges = {
+  list: () => Promise.resolve([]),
+  set: () => Promise.reject(new DomainError("NOT_FOUND", "No forge is offered.")),
+}
+
 // What `works.watch` reports without Works: nothing, and the stream waits.
 const noWorks = {
   watch: (_ownerId: string, signal?: AbortSignal) => noWorksStream(signal),
@@ -101,6 +108,8 @@ export const createRouter = (options: {
   /** Each terminal's work against main; without it the Changes panel is empty. */
   works?: Works
   agents: Harnesses
+  /** The forges pull requests come from; without it none is offered. */
+  forges?: Forges
   uploads: Uploads
   voice: Voice
   murmur: Murmur
@@ -114,6 +123,7 @@ export const createRouter = (options: {
   const { store, terminals, feedback, projects, items, agents, uploads, voice, murmur } = options
   const history = options.history ?? noHistory
   const works = options.works ?? noWorks
+  const forges = options.forges ?? noForges
   // A plan's content says whether Novadeck's plugin is installed into its agent, which the
   // companions can't know: it is looked up as the content leaves.
   const withSkill = async (content: ItemContent, agent: AgentName | undefined) =>
@@ -252,6 +262,10 @@ export const createRouter = (options: {
         if (!result.connected) terminals.forgetAgent(input.agent)
         return result
       }),
+    },
+    forges: {
+      list: api.forges.list.handler(({ input }) => forges.list(input)),
+      set: api.forges.set.handler(({ input }) => forges.set(input.forge, input.enabled)),
     },
     history: {
       list: api.history.list.handler(({ input }) => history.list(input.projectId)),

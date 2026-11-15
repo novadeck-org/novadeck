@@ -33,6 +33,7 @@ import { createDemoUninstall, type DemoUninstall } from "./desktop/uninstall"
 import { updatesGroup, type DemoUpdates } from "./desktop/updates"
 import { doorbellGroups } from "./doorbell"
 import { feedbackGroups } from "./feedback"
+import { forgesGroups } from "./forges"
 import { historyGroups } from "./history"
 import { inboxGroups } from "./inbox"
 import { installGroups } from "./installs"
@@ -81,6 +82,10 @@ export type DemoLaunch = {
   readonly worktrees: boolean
   // Boots again with the backend offering agent worktrees or not.
   readonly setWorktrees: (offered: boolean) => void
+  // Whether the backend offers forge integrations; false for a runner without them.
+  readonly forges: boolean
+  // Boots again with the backend offering forge integrations or not.
+  readonly setForges: (offered: boolean) => void
 }
 
 // What the panel's groups read and change of the shell around the demo.
@@ -203,11 +208,12 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     failed = []
   }
 
-  const { worktrees: offered, ...withoutWorktrees } = inner
+  const { worktrees: offered, forges: forgesOffered, ...withoutWorktrees } = inner
   const installs = createDemoInstalls()
   const backend: Backend = installs.wrap({
     ...withoutWorktrees,
     ...(launch.worktrees && offered ? { worktrees: offered } : {}),
+    ...(launch.forges && forgesOffered ? { forges: forgesOffered } : {}),
     commit: (workspace, actions) => {
       latest = workspace
       inner.commit(workspace, actions)
@@ -285,6 +291,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           ...historyGroups(inner.history),
           ...sourceGroups(isDemoSource(inner.source) ? inner.source : undefined),
           ...worksGroups(inner.works),
+          ...forgesGroups(launch, inner),
         ],
       },
       dispatch: () => sink?.dispatch,

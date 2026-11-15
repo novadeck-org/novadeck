@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { directory, id } from "./fields.js"
+import { pullRequest } from "./forges.js"
 
 // Works: each tracked git worktree against its repository's main branch, for the sidebar's
 // Changes panel. A work is a worktree Novadeck tracks (one an agent opened or took), keyed by
@@ -57,6 +58,8 @@ export const workConflict = z.discriminatedUnion("with", [
 // top (a file path outside it is not in the project; the rest is stripped of it), `project` the
 // repository's top as a path from the project's folder (a file path is prefixed with it).
 // Absent where the repository's top is neither inside nor above the project's folder.
+// `pullRequest` is its branch's pull request on its repository's forge, where a forge the person
+// switched on found one (forges.ts); absent where none did, or none could be asked.
 export const work = z.strictObject({
   root: directory,
   terminalId: id.nullable(),
@@ -80,6 +83,7 @@ export const work = z.strictObject({
     })
     .optional(),
   conflicts: z.array(workConflict).max(workLimits.conflicts),
+  pullRequest: pullRequest.optional(),
 })
 
 // `works.watch` events: every work, `synced`, then each later change.

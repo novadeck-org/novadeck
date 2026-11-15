@@ -4,6 +4,7 @@ import { createTerminalState, workspaceReducer, type WorkspaceAction } from "@no
 import type { CanvasLayout, Workspace } from "@novadeck/core/types"
 import type {
   FeedbackDraft,
+  ForgeIntegration,
   InboxEntry,
   TerminalRequest,
   TerminalSummary,
@@ -131,12 +132,20 @@ export const scripted = ({
   saveSettings = async () => {},
   connect = async (agent: string, connected: boolean) => ({ agent, available: true, connected }),
   listAgents = async () => [],
+  listForges = async () => [],
+  switchForge = async (forge: string, enabled: boolean) => ({
+    forge,
+    available: true,
+    enabled,
+    hosts: [],
+  }),
   companions = { items: [], windows: [] },
   respond = async () => undefined,
   content = () => channel<never>().iterator,
   createSession = unused,
   apply = false,
   transcriptsAvailable = true,
+  forges,
   inboxOrder,
   inboxSnoozed,
   feedback,
@@ -157,6 +166,11 @@ export const scripted = ({
   connect?: (agent: string, connected: boolean) => Promise<unknown>
   // What the runner says of its agents when asked again (`agents.list`).
   listAgents?: (options?: { fresh?: boolean }) => Promise<readonly unknown[]>
+  // The forges the runner offers at startup, if it has any; what it says of them when asked
+  // again (`forges.list`), and how it answers switching one (`forges.set`).
+  forges?: readonly ForgeIntegration[]
+  listForges?: (options?: { fresh?: boolean }) => Promise<readonly unknown[]>
+  switchForge?: (forge: string, enabled: boolean) => Promise<unknown>
   // What the shown session's terminals hold as the runner lists it.
   companions?: ListedCompanions
   // How the runner answers each change to an item or window, by the call's name.
@@ -237,6 +251,13 @@ export const scripted = ({
         const [agent, connected] = input as [string, boolean]
         return connect(agent, connected)
       }),
+    },
+    forges: {
+      list: listForges as never,
+      set: note("forges", (input) => {
+        const [forge, enabled] = input as [string, boolean]
+        return switchForge(forge, enabled)
+      }) as never,
     },
     terminals: {
       list: unused,
@@ -327,6 +348,7 @@ export const scripted = ({
     transcriptsAvailable,
     hibernateAfterMinutes: 60,
     worktrees: false,
+    ...(forges ? { forges } : {}),
     agents: [
       { agent: "claude", available: true, connected: false },
       { agent: "agy", available: false, connected: false },

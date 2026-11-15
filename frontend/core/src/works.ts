@@ -1,3 +1,4 @@
+import type { PullRequest } from "./forges"
 import type { Store } from "./store"
 
 // Works: each git worktree Novadeck tracks (one an agent opened or took) against its
@@ -67,6 +68,9 @@ export type Work = {
   // Absent where the repository's top is neither inside nor above the project's folder.
   readonly folder?: { readonly repo: string; readonly project: string } | undefined
   readonly conflicts: readonly WorkConflict[]
+  // Its branch's pull request on its repository's forge, where a forge the person switched on
+  // found one (forges.ts); absent where none did, or none could be asked.
+  readonly pullRequest?: PullRequest | undefined
 }
 
 export type WorksState = {

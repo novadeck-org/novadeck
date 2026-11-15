@@ -1,6 +1,7 @@
 import type { PortableState } from "@novadeck/core/desktop/portable"
 import { clearPortableCardRaised } from "@novadeck/core/desktop/portable-card-raised"
 import type { UpdateChannel, UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
+import { forgeNames, type ForgeConnection } from "@novadeck/core/forges"
 import { createStore, createWorkspaceStore } from "@novadeck/core/store"
 import { appearance, workspaceFixture } from "@novadeck/core/testing"
 import { beforeEach, vi } from "vitest"
@@ -19,6 +20,7 @@ import {
   persist,
   setFeatureFlag,
   trackRecent,
+  switchOffForges,
   switchOffWorktrees,
   watchExperimental,
   watchPortable,
@@ -384,11 +386,11 @@ describe("the IS_EXPERIMENTAL flag", () => {
       return { enabled, set: (on: boolean) => enabled.update(() => on) }
     }
     const stable = worktrees()
-    watchExperimental(updates(Promise.resolve("stable")), () => {}, stable)
+    watchExperimental(updates(Promise.resolve("stable")), () => {}, { worktrees: stable })
     await vi.waitFor(() => expect(stable.enabled.getSnapshot()).toBe(false))
     const experimental = worktrees()
     const read = Promise.resolve<UpdateChannel>("experimental")
-    watchExperimental(updates(read), () => {}, experimental)
+    watchExperimental(updates(read), () => {}, { worktrees: experimental })
     await read
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(experimental.enabled.getSnapshot()).toBe(true)
@@ -398,7 +400,7 @@ describe("the IS_EXPERIMENTAL flag", () => {
     const enabled = createStore(true)
     const worktrees = { enabled, set: (on: boolean) => enabled.update(() => on) }
     const ui = createUiStore(initial())
-    watchExperimental(updates(Promise.reject(new Error("no"))), into(ui), worktrees)
+    watchExperimental(updates(Promise.reject(new Error("no"))), into(ui), { worktrees })
     await vi.waitFor(() => expect(enabled.getSnapshot()).toBe(false))
     expect(flag(ui)).toBe(false)
   })
@@ -407,7 +409,7 @@ describe("the IS_EXPERIMENTAL flag", () => {
     const enabled = createStore(true)
     const worktrees = { enabled, set: (on: boolean) => enabled.update(() => on) }
     const failed = Promise.reject(new Error("no"))
-    watchExperimental(updates(failed), () => {}, worktrees)()
+    watchExperimental(updates(failed), () => {}, { worktrees })()
     await failed.catch(() => {})
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(enabled.getSnapshot()).toBe(true)
@@ -424,6 +426,54 @@ describe("the IS_EXPERIMENTAL flag", () => {
     expect(asked).toEqual([])
     switchOffWorktrees(of(true))
     expect(asked).toEqual([false])
+  })
+
+  const forges = (enabled: boolean) => {
+    const state = createStore<readonly ForgeConnection[]>(
+      forgeNames.map((forge) => ({
+        forge,
+        available: true,
+        enabled: enabled && forge !== "azure",
+        busy: false,
+        hosts: [],
+      })),
+    )
+    const asked: [string, boolean][] = []
+    return { state, asked, set: (forge: string, on: boolean) => asked.push([forge, on]) }
+  }
+
+  it("asks to turn off the forges that are on, and only those", () => {
+    const on = forges(true)
+    switchOffForges(on as never)
+    expect(on.asked).toEqual([
+      ["github", false],
+      ["gitlab", false],
+    ])
+    const off = forges(false)
+    switchOffForges(off as never)
+    switchOffForges(undefined)
+    expect(off.asked).toEqual([])
+  })
+
+  it("turns off a forge whose switching on is still under way", () => {
+    const off = forges(false)
+    off.state.update((list) =>
+      list.map((each) => (each.forge === "azure" ? { ...each, busy: true } : each)),
+    )
+    switchOffForges(off as never)
+    expect(off.asked).toEqual([["azure", false]])
+  })
+
+  it("turns the forges off where the channel is stable, and leaves them where it is not", async () => {
+    const stable = forges(true)
+    watchExperimental(updates(Promise.resolve("stable")), () => {}, { forges: stable as never })
+    await vi.waitFor(() => expect(stable.asked).toHaveLength(2))
+    const experimental = forges(true)
+    const read = Promise.resolve<UpdateChannel>("experimental")
+    watchExperimental(updates(read), () => {}, { forges: experimental as never })
+    await read
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(experimental.asked).toEqual([])
   })
 
   it("is not set once the watch is stopped", async () => {

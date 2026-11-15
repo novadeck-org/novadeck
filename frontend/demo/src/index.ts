@@ -31,6 +31,7 @@ import { withShellItems } from "./agents/shell-items"
 import { agentTranscripts, type DemoTranscript } from "./agents/transcripts"
 import { demoTurns, type DemoTurns } from "./agents/turns"
 import { withFeedback } from "./feedback"
+import { createDemoForges } from "./forges"
 import { demoHandle } from "./handles"
 import { withHistory } from "./history"
 import { createDemoInbox, isDemoInbox } from "./inbox"
@@ -172,6 +173,8 @@ export const demoBackend = (
     },
     hibernation: { after: hibernateAfter, set: (minutes) => hibernateAfter.update(() => minutes) },
     worktrees: { enabled: worktrees, set: (enabled) => worktrees.update(() => enabled) },
+    // Offered wherever the worktrees are, as one Experimental feature beside the other.
+    forges: createDemoForges(),
     agents: {
       state: agents,
       set: (agent, connected) =>

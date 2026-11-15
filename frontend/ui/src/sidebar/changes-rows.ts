@@ -1,3 +1,4 @@
+import type { PullRequest } from "@novadeck/core/forges"
 import type { Work, WorkFile } from "@novadeck/core/works"
 
 // The Changes panel's rows, from every project's works (one per tracked worktree, keyed by its
@@ -27,6 +28,33 @@ export type BranchView =
 // mid-turn in it. Whether to ask is the runner's to say, not the row's files.
 export type CloseMode = "close" | "busy"
 
+// A work's pull request as its row's mark shows it: "Draft #812", the words a screen reader gets
+// ("Pull request #812, draft, opens in browser") and the page it opens; none for an address that
+// is not a web page.
+export type PullMark = {
+  readonly state: PullRequest["state"]
+  readonly text: string
+  readonly label: string
+  readonly url: string | undefined
+}
+
+const stateWords: Readonly<Record<PullRequest["state"], string>> = {
+  draft: "Draft",
+  open: "Open",
+  merged: "Merged",
+  closed: "Closed",
+}
+
+export const pullMark = ({ number, state, url }: PullRequest): PullMark => {
+  const web = /^https?:\/\//i.test(url)
+  return {
+    state,
+    text: `${stateWords[state]} #${number}`,
+    label: `Pull request #${number}, ${state}${web ? ", opens in browser" : ""}`,
+    url: web ? url : undefined,
+  }
+}
+
 export type ChangeRow = {
   readonly work: Work
   // The owner terminal's title, or "No owner".
@@ -46,6 +74,8 @@ export type ChangeRow = {
   // How old the main branch it is measured against is ("main as of 12 min ago"), or none where
   // its repository's origin was never fetched.
   readonly mainWords: string | undefined
+  // Its pull request on the forge, where one was found; the git-based `merged` stays as it is.
+  readonly pullRequest: PullMark | undefined
   readonly files: readonly FileView[]
   readonly branches: readonly BranchView[]
 }
@@ -176,6 +206,7 @@ export const changeRows = (
       conflictWords: words,
       merged: work.merged,
       mainWords: mainWords(work.fetchedAt, now),
+      pullRequest: work.pullRequest ? pullMark(work.pullRequest) : undefined,
       files,
       branches: branchViews(files, work.truncated),
     }

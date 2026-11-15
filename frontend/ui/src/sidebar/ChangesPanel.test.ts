@@ -126,6 +126,46 @@ describe("the Changes panel's rows", () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
+  it("marks a work's pull request with a link to its page, beside the row's select button", () => {
+    const pullRequest = {
+      number: 812,
+      url: "https://github.com/acme/shop/pull/812",
+      title: "Checkout",
+      state: "draft" as const,
+    }
+    const { row, onSelect } = show([work("a", { pullRequest }), work("b")])
+    const link = row("a").querySelector<HTMLAnchorElement>("a.changes-pr")!
+    expect(link.textContent).toBe("Draft #812")
+    expect(link.getAttribute("aria-label")).toBe("Pull request #812, draft, opens in browser")
+    expect(link.href).toBe(pullRequest.url)
+    expect(link.target).toBe("_blank")
+    expect(link.rel).toBe("noopener noreferrer")
+    // Not inside the select button, so it is a control of its own, reached by Tab.
+    expect(link.closest("button")).toBeNull()
+    expect(row("a").dataset.pullRequest).toBe("draft")
+    link.addEventListener("click", (event) => event.preventDefault())
+    link.click()
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(row("b").querySelector(".changes-pr")).toBeNull()
+  })
+
+  it("marks each state in words, and keeps a merged work's own merged state", () => {
+    const state = (name: "open" | "merged" | "closed") => ({
+      number: 7,
+      url: "https://example.dev/7",
+      title: "t",
+      state: name,
+    })
+    const { row } = show([
+      work("a", { pullRequest: state("open") }),
+      work("b", { merged: true, pullRequest: state("merged") }),
+      work("c", { pullRequest: state("closed") }),
+    ])
+    const mark = (name: string) => row(name).querySelector(".changes-pr")?.textContent
+    expect([mark("a"), mark("b"), mark("c")]).toEqual(["Open #7", "Merged #7", "Closed #7"])
+    expect(row("b").dataset.merged).toBe("true")
+  })
+
   it("offers no preview of the files of another project's work", () => {
     const { row } = show([work("a")], { openProject: "elsewhere" })
     expect(row("a").querySelector(".changes-file-open")).toBeNull()

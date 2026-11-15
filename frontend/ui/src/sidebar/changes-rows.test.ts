@@ -8,6 +8,7 @@ import {
   conflictWords,
   orderedFiles,
   mainWords,
+  pullMark,
   ownerOpen,
   selectedRoot,
 } from "./changes-rows"
@@ -263,5 +264,42 @@ describe("how old main is", () => {
     )
     expect(rows.find((row) => row.work.root === "/r/a")?.mainWords).toBe("main as of 3 min ago")
     expect(rows.find((row) => row.work.root === "/r/b")?.mainWords).toBeUndefined()
+  })
+})
+
+describe("a row's pull request mark", () => {
+  const request = (state: "draft" | "open" | "merged" | "closed") => ({
+    number: 812,
+    url: "https://github.com/acme/shop/pull/812",
+    title: "Checkout",
+    state,
+  })
+
+  it("reads state and number, and says in words what it opens", () => {
+    expect(pullMark(request("draft"))).toEqual({
+      state: "draft",
+      text: "Draft #812",
+      label: "Pull request #812, draft, opens in browser",
+      url: "https://github.com/acme/shop/pull/812",
+    })
+    expect(
+      (["open", "merged", "closed"] as const).map((state) => pullMark(request(state)).text),
+    ).toEqual(["Open #812", "Merged #812", "Closed #812"])
+  })
+
+  it("opens only a web page", () => {
+    const mark = pullMark({ ...request("open"), url: "javascript:alert(1)" })
+    expect(mark.url).toBeUndefined()
+    expect(mark.label).toBe("Pull request #812, open")
+  })
+
+  it("is on the row of a work that has one, beside its git-based merged state", () => {
+    const [with_, without] = changeRows(
+      [work("a", 1, { merged: true, pullRequest: request("open") }), work("b", 2)],
+      new Map(),
+    )
+    expect(with_?.pullRequest?.text).toBe("Open #812")
+    expect(with_?.merged).toBe(true)
+    expect(without?.pullRequest).toBeUndefined()
   })
 })

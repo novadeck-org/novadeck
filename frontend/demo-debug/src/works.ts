@@ -8,7 +8,7 @@ import type { DemoActionGroup } from "./types"
 
 // Where a terminal's worktree is made if it has none: its project, its id, and a worktree of
 // the project named after the terminal.
-const placed = (workspace: Workspace | undefined, key: TerminalKey): Placed => ({
+export const placed = (workspace: Workspace | undefined, key: TerminalKey): Placed => ({
   projectId: key.projectId,
   terminalId: key.terminalId,
   root: worktreeRoot(key.projectId, terminalOf(workspace, key)?.name ?? key.terminalId),

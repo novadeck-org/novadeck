@@ -15,16 +15,17 @@ export type InstallTerminal = { readonly busy: boolean; readonly directory: stri
 
 // Where a pending install stands: still under way (`install` as it is now), ended with its
 // program done (`finished`), or ended because its terminal closed first (`gone`).
-export type InstallStep =
-  | { readonly step: "running"; readonly install: PendingInstall }
+export type InstallStep<T extends { readonly ran: boolean } = PendingInstall> =
+  | { readonly step: "running"; readonly install: T }
   | { readonly step: "finished" | "gone" }
 
 // The installer ends when its terminal stops being busy after having been; one closed
 // meanwhile ends it unfinished, with nothing to look for.
-export const stepInstall = (
-  install: PendingInstall,
+// (Forge installs and sign-ins follow their terminals the same way.)
+export const stepInstall = <T extends { readonly ran: boolean }>(
+  install: T,
   terminal: InstallTerminal | undefined,
-): InstallStep => {
+): InstallStep<T> => {
   if (!terminal) return { step: "gone" }
   if (terminal.busy)
     return { step: "running", install: install.ran ? install : { ...install, ran: true } }

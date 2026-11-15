@@ -1,5 +1,6 @@
 import { maxSnoozes } from "@novadeck/core/inbox"
 import { maxInboxOrder } from "@novadeck/protocol"
+import type { ForgeIntegration } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
 
 import { describe, expect, it } from "./test"
@@ -231,6 +232,83 @@ describe("the Inbox's order and snoozes", () => {
     const app = scripted({ shown: [] })
     expect(app.backend.inbox?.arrange).toBeUndefined()
     expect(app.backend.inbox?.snooze).toBeUndefined()
+    app.stop()
+  })
+})
+
+describe("the forge switches", () => {
+  const github: ForgeIntegration = {
+    forge: "github",
+    available: true,
+    enabled: false,
+    hosts: [],
+  }
+
+  it("are not offered by a runner that said nothing of forges", () => {
+    const app = scripted({ shown: [] })
+    expect(app.backend.forges).toBeUndefined()
+    app.stop()
+  })
+
+  it("switch a forge through the runner, busy until it answers", async () => {
+    const app = scripted({
+      shown: [],
+      forges: [github],
+      switchForge: async (forge, enabled) => ({
+        ...github,
+        forge,
+        enabled,
+        hosts: [{ host: "github.com", state: "signed-in" }],
+      }),
+    })
+    const forges = app.backend.forges!
+    expect(forges.state.getSnapshot()).toEqual([{ ...github, busy: false }])
+    forges.set("github", true)
+    expect(forges.state.getSnapshot()[0]).toMatchObject({
+      busy: true,
+      enabled: false,
+    })
+    await app.idle()
+    expect(app.of("forges")).toEqual([["github", true]])
+    expect(forges.state.getSnapshot()[0]).toEqual({
+      ...github,
+      enabled: true,
+      hosts: [{ host: "github.com", state: "signed-in" }],
+      busy: false,
+    })
+    app.stop()
+  })
+
+  it("say why a forge could not be switched, and leave it as it was", async () => {
+    const app = scripted({
+      shown: [],
+      forges: [github],
+      switchForge: () => Promise.reject(new WireError("DISCONNECTED")),
+    })
+    const forges = app.backend.forges!
+    forges.set("github", true)
+    await app.idle()
+    const [shown] = forges.state.getSnapshot()
+    expect(shown).toMatchObject({ enabled: false, busy: false })
+    expect(shown?.error).toBeTypeOf("string")
+    app.stop()
+  })
+
+  it("look again at the forges, asking afresh when told to", async () => {
+    const asked: (boolean | undefined)[] = []
+    const installer = "brew install gh"
+    const app = scripted({
+      shown: [],
+      forges: [{ ...github, available: false, installer }],
+      listForges: async (options) => {
+        asked.push(options?.fresh)
+        return [github]
+      },
+    })
+    const forges = app.backend.forges!
+    await forges.refresh({ fresh: true })
+    expect(asked).toEqual([true])
+    expect(forges.state.getSnapshot()).toEqual([{ ...github, busy: false }])
     app.stop()
   })
 })

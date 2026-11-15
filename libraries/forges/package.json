@@ -1,0 +1,30 @@
+{
+  "name": "@novadeck/forges",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Finds the pull request of a git branch on GitHub, GitLab and Azure DevOps, with the token of the forge's own signed-in command-line tool.",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "msw": "^3.0.4",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "novadeck": {
+    "platform": "neutral"
+  }
+}

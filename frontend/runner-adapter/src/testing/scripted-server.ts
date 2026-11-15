@@ -276,6 +276,10 @@ export const scriptedRunner = ({
       clearBox: api.agents.clearBox.handler(unplayed("agents.clearBox")),
       set: api.agents.set.handler(unplayed("agents.set")),
     },
+    forges: {
+      list: api.forges.list.handler(() => []),
+      set: api.forges.set.handler(unplayed("forges.set")),
+    },
     history: {
       list: api.history.list.handler(() => []),
       watch: api.history.watch.handler(idle),

@@ -65,6 +65,8 @@ const launch = (): DemoLaunch => ({
   setUninstall: () => {},
   worktrees: true,
   setWorktrees: () => {},
+  forges: true,
+  setForges: () => {},
 })
 
 describe("the debug layer's demo", () => {
@@ -80,6 +82,11 @@ describe("the debug layer's demo", () => {
   it("offers agent worktrees unless the launch says the backend has none", () => {
     expect(createDebugDemo(launch()).worktrees).toBeDefined()
     expect(createDebugDemo({ ...launch(), worktrees: false }).worktrees).toBeUndefined()
+  })
+
+  it("offers forge integrations unless the launch says the backend has none", () => {
+    expect(createDebugDemo(launch()).forges).toBeDefined()
+    expect(createDebugDemo({ ...launch(), forges: false }).forges).toBeUndefined()
   })
 
   it("restarts the terminals of every session a crash loop failed, not only the last's", () => {

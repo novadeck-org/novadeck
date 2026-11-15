@@ -615,6 +615,19 @@ App:
   actions. "Not offered" boots a backend without the setting, so Preferences > Experimental shows
   the Agent worktrees and Changes row disabled, reading "Not available here."; "Offered" boots
   back to normal.
+- **Forges:** the App section's group for the forge integrations (Preferences > Experimental >
+  Forge integrations, which needs the experimental channel, and the pull request marks in
+  Changes). The demo starts with GitHub signed in on github.com, GitLab installed but signed out on
+  gitlab.com, and Azure DevOps not installed, offering an install; the storefront's worktrees carry
+  a draft, an open, a merged and a closed pull request. "Offered, experimental channel" boots on
+  the experimental channel with the forges offered; "Not offered" boots a backend without them, so
+  the section is gone. The state actions (GitHub signed in with GitLab signed out, All signed in, All
+  signed out, CLI missing, Token refused, Switch under way, Switch failed) move the rows without a
+  reboot. In the demo, Sign in and Install close Preferences and run in a terminal that plays the
+  command, then flips the host to Signed in, or the forge to installed (Install lists the command
+  first). The "Pull request" actions (No pull request, draft, open, merged, closed) set the mark on
+  the selected terminal's worktree, or the project's first (one is made if it has none): the row shows
+  "Draft #812" and so on beside its ×, a link to the pull request's page.
 - **Guides:** "Toggle icon guides" draws a dashed box over every icon (`svg.lucide`) and a
   dashed line through its middle, 20 px past each side, both 1 px and half see-through
   (`--icon-guide-color` changes them), for checking how icons line up with their text;
@@ -822,6 +835,7 @@ atlas.
 | `libraries/sandbox`       | An isolated environment for tests and benchmarks that run real shells and programs.        |
 | `libraries/log`           | Structured, privacy-first log files: the line, the rotating file, the redactor.            |
 | `libraries/secrets`       | Finding secrets in terminal text by their shape, and masking them.                         |
+| `libraries/forges`        | A branch's pull request on GitHub, GitLab or Azure DevOps, with the forge CLI's token.     |
 | `tools/build-kit`         | The apps' Vite helpers: CSP sources, hosting headers, noindex, fonts, bundle checks.       |
 | `tools/atlas`             | Dev-only code map: `pnpm atlas`; agent briefs: `pnpm -s atlas:brief`.                      |
 | `scripts`                 | Repository checks and automation.                                                          |

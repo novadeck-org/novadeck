@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
-import type { Work, WorkMade } from "@novadeck/protocol"
+import type { PullRequest, Work, WorkMade } from "@novadeck/protocol"
 import { afterEach, vi } from "vitest"
 
 import { Snapshots } from "../checkouts/snapshots.js"
@@ -1678,5 +1678,109 @@ describe("the worktrees made", () => {
     await works.close()
     await stays.done
     expect(from.listeners.size).toBe(0)
+  })
+})
+
+describe.skipIf(!hasGit)("the pull request of a work", () => {
+  const request: PullRequest = {
+    number: 12,
+    url: "https://github.com/a/b/pull/12",
+    title: "Add",
+    state: "open",
+  } as const
+
+  // A Works over the main checkout whose pull request lookup is `lookup`.
+  const withLookup = (
+    root: string,
+    lookup: (commonDir: string, branch: string) => PullRequest | undefined,
+  ) =>
+    new Works({
+      tracked: () => [
+        {
+          ...tracked({ terminalId: terminal(1), root }),
+          commonDir: join(root, ".git"),
+        },
+      ],
+      presences: async () => [],
+      show: async () => "item",
+      remove: async () => ({ ok: true, branchDeleted: false }),
+      pullRequest: lookup,
+      everyMs: 20,
+      firstMs: everything,
+      snapshots: snapshotsFor(),
+    })
+
+  it("is asked of the repository's common dir and the checkout's branch, and carried by the work", async ({
+    fixture,
+    resources,
+  }) => {
+    const asked: [string, string][] = []
+    const works = withLookup(fixture.main.root, (commonDir, branch) => {
+      asked.push([commonDir, branch])
+      return request
+    })
+    resources.defer(() => works.close())
+    const found = await current(works)
+    expect(found.get(fixture.main.root)?.pullRequest).toEqual(request)
+    expect(asked[0]).toEqual([join(fixture.main.root, ".git"), "main"])
+  })
+
+  it("is asked about the branch the checkout is on now, which the works report", async ({
+    fixture,
+    resources,
+  }) => {
+    execFileSync("git", ["switch", "--quiet", "-c", "renamed"], { cwd: fixture.main.root })
+    const asked: string[] = []
+    const works = withLookup(fixture.main.root, (_commonDir, branch) => {
+      asked.push(branch)
+      return undefined
+    })
+    resources.defer(() => works.close())
+    await current(works)
+    expect(asked).toContain("renamed")
+    expect(works.branches()).toEqual([
+      { commonDir: join(fixture.main.root, ".git"), branch: "renamed" },
+    ])
+  })
+
+  it("is left out of a work the lookup knows none for", async ({ fixture, resources }) => {
+    const works = withLookup(fixture.main.root, () => undefined)
+    resources.defer(() => works.close())
+    const found = await current(works)
+    expect(found.get(fixture.main.root)).not.toHaveProperty("pullRequest")
+  })
+
+  it("cuts a title too long for the wire, and drops a pull request that is still invalid", async ({
+    fixture,
+    resources,
+  }) => {
+    const long = withLookup(fixture.main.root, () => ({ ...request, title: "t".repeat(5000) }))
+    resources.defer(() => long.close())
+    const found = await current(long)
+    expect(found.get(fixture.main.root)?.pullRequest?.title).toHaveLength(512)
+    const bad = withLookup(fixture.main.root, () => ({ ...request, url: "not an address" }))
+    resources.defer(() => bad.close())
+    const without = await current(bad)
+    expect([...without.keys()]).toEqual([fixture.main.root])
+    expect(without.get(fixture.main.root)).not.toHaveProperty("pullRequest")
+  })
+
+  it("reaches a watcher with the work's next change once the lookup knows it", async ({
+    fixture,
+    resources,
+  }) => {
+    let known: PullRequest | undefined
+    const works = withLookup(fixture.main.root, () => known)
+    resources.defer(() => works.close())
+    const stop = new AbortController()
+    resources.defer(() => stop.abort())
+    const seen: (PullRequest | undefined)[] = []
+    for await (const change of works.watch("owner", stop.signal)) {
+      if (change.type === "synced") known = request
+      if (change.type === "changed") seen.push(change.work.pullRequest)
+      if (seen.length === 2) break
+    }
+    expect(seen).toEqual([undefined, request])
+    expect(works.watched()).toBe(false)
   })
 })

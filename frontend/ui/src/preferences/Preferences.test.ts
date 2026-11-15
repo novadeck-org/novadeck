@@ -308,3 +308,29 @@ describe("an agent that is not installed, in Preferences", () => {
     expect(document.activeElement).toBe(install())
   })
 })
+
+describe("the forge integrations, in Preferences", () => {
+  const forges = (on = true) => ({
+    list: [{ forge: "github" as const, available: true, enabled: on, busy: false, hosts: [] }],
+    onChange: () => {},
+  })
+  const panel = () => document.querySelector('[role="tabpanel"][aria-labelledby$="experimental"]')
+
+  it("has a section under the Experimental switches where the backend has forges", async () => {
+    await show({
+      tab: "experimental",
+      experimental: { on: true, onChange: () => {} },
+      forges: forges(),
+    })
+    const section = panel()?.querySelector(
+      'section[aria-labelledby="preferences-forge-integrations"]',
+    )
+    expect(section?.querySelector("h3")?.textContent).toBe("Forge integrations")
+    expect(section?.querySelector('ul[aria-label="Forges"] [role=switch]')).not.toBeNull()
+  })
+
+  it("has none where the backend has none", async () => {
+    await show({ tab: "experimental", experimental: { on: true, onChange: () => {} } })
+    expect(panel()?.textContent).not.toContain("Forge integrations")
+  })
+})

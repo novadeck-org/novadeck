@@ -12,6 +12,8 @@ import { Snapshots } from "./checkouts/snapshots.js"
 import { CompanionItems } from "./companions/items.js"
 import { secrets } from "./companions/secrets.js"
 import { DomainError } from "./errors.js"
+import { repositoriesOf } from "./forges/repositories.js"
+import { Forges } from "./forges/service.js"
 import { createHarnesses, type HarnessesOptions } from "./harnesses/service.js"
 import { logs } from "./log.js"
 import { Murmur } from "./murmur/service.js"
@@ -377,9 +379,28 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     )
     // After it: the owners it found gone leave their merged worktrees to cleanup.
     .finally(() => worktrees.start())
+  // Pull requests of the works' branches, from the forges the person switched on, while the
+  // works are watched.
+  const forges = new Forges({
+    enabled: () => store.settings.forges(),
+    save: (names) => store.settings.saveForges(names),
+    // The branches the works' checkouts are on now, not those they were opened on.
+    repositories: () =>
+      repositoriesOf(works.branches(), (commonDir) => worktrees.fetchedAt(commonDir)),
+    watching: () => works.watched(),
+    environment: () => agents.environment(),
+    // Listing the agents afresh reads the person's login environment again.
+    refreshEnvironment: async () => {
+      await agents.list({ fresh: true })
+    },
+  })
+  forges.start()
+  started.push(forges)
   const works = new Works({
+    pullRequest: (commonDir, branch) => forges.pullRequest(commonDir, branch),
     tracked: () =>
       worktrees.all().map(({ path, projectId, terminalId, createdAt, commonDir, base }) => ({
+        commonDir,
         root: path,
         projectId,
         terminalId,
@@ -427,6 +448,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
     items,
     projects,
     works,
+    forges,
     worktrees,
     snapshots,
     uploads,
@@ -501,6 +523,7 @@ const startRunner = (options: RunnerOptions): Runner => {
     agents,
     projects,
     works,
+    forges,
     worktrees,
     snapshots,
     uploads,
@@ -519,6 +542,7 @@ const startRunner = (options: RunnerOptions): Runner => {
         feedback: terminals.feedback,
         history: terminals.history,
         works,
+        forges,
         projects,
         items,
         agents,
@@ -553,6 +577,7 @@ const startRunner = (options: RunnerOptions): Runner => {
         try {
           await terminals.shutdown()
         } finally {
+          await forges.close()
           await works.close()
           await tidying
           // After both that take snapshots: the items ended with the terminals.

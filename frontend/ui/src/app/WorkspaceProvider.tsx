@@ -171,7 +171,7 @@ export const WorkspaceProvider = ({
       watchExperimental(
         services.backend.updates,
         (on) => services.commands.setFeatureFlag("IS_EXPERIMENTAL", on),
-        services.backend.worktrees,
+        services.backend,
       ),
     [services],
   )

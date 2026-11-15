@@ -16,6 +16,8 @@ import {
   type CompanionWindow,
   type FeedbackDraft,
   type FolderListing,
+  type ForgeIntegration,
+  type ForgeName,
   type HistoryChange,
   type InboxEntry,
   type InterruptResult,
@@ -427,6 +429,20 @@ export type Runner = {
      * rejects with `AGENT_SETUP_FAILED` saying why when that did not work.
      */
     set(agent: AgentName, connected: boolean): Promise<AgentIntegration>
+  }
+  /** The forges whose pull requests the Changes panel shows (Experimental). */
+  readonly forges: {
+    /**
+     * Where each forge stands. With `fresh` the runner reads the person's login environment
+     * and each tool's sign-ins again first, for the look after an install or a sign-in; with
+     * `cached` it asks no tool, answering with the hosts already known, for the app's start.
+     */
+    list(options?: {
+      readonly fresh?: boolean
+      readonly cached?: boolean
+    }): Promise<ForgeIntegration[]>
+    /** Switches a forge on or off; the switch is kept. */
+    set(forge: ForgeName, enabled: boolean): Promise<ForgeIntegration>
   }
   /** Terminals closed in the last 7 days, per project, to restore. */
   readonly history: {
@@ -853,6 +869,10 @@ export const connectRunner = async (
       clearBox: (terminalId, seen) =>
         call((client) => client.agents.clearBox({ terminalId, seen })),
       set: (agent, connected) => call((client) => client.agents.set({ agent, connected })),
+    },
+    forges: {
+      list: (look) => call((client) => client.forges.list(look)),
+      set: (forge, enabled) => call((client) => client.forges.set({ forge, enabled })),
     },
     history: {
       list: (input) => call((client) => client.history.list(input)),

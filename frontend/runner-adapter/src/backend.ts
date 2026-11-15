@@ -29,6 +29,7 @@ import {
   maxInboxRowIdLength,
   type AgentName,
   type AgentIntegration,
+  type ForgeIntegration,
   type Approval as RunnerApproval,
   type TerminalExit,
   type PageLook,
@@ -106,7 +107,9 @@ export type RunnerApi = Pick<
   | "companions"
   | "history"
   | "works"
->
+> &
+  // Not every runner has them (an older one doesn't): none are offered without.
+  Partial<Pick<Runner, "forges">>
 
 export type RunnerBackendOptions = {
   readonly newId?: () => string
@@ -162,6 +165,9 @@ export type RunnerBackendOptions = {
   // The agents the runner can connect, and whether the person has seen the first-run
   // choice, as it said at startup; agents are not offered when absent.
   readonly agents?: readonly AgentIntegration[]
+  // Where each forge stands, as the runner said at startup; forges are not offered when absent
+  // (an older runner has none).
+  readonly forges?: readonly ForgeIntegration[]
   readonly welcomed?: boolean
   // The order the person dragged the Inbox's rows into, as the runner said at startup; the
   // rows keep the Inbox's own order, and can't be dragged, when absent.

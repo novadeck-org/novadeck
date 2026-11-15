@@ -12,7 +12,7 @@ the build rules and the test sandbox. The app keeps the product.
   A library's README reads the same with "Novadeck" taken out.
 - **Other libraries in order only.** A library imports another one by its package name, and only
   the ones its design depends on: `terminal` and `tui-input` import `emulator`, `log` imports
-  `secrets`, and `emulator`, `secrets`, `wire`, `viewers` and `sandbox` import none.
+  `secrets`, and `emulator`, `forges`, `secrets`, `wire`, `viewers` and `sandbox` import none.
 - **Node and browser halves are subpaths of one package.** A subpath only Node may import names
   nothing but the `node` condition in `exports`, so a browser bundle can't resolve it:
 

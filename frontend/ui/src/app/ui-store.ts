@@ -377,24 +377,41 @@ export const switchOffWorktrees = (worktrees: Backend["worktrees"]): void => {
   if (worktrees?.enabled.getSnapshot()) worktrees.set(false)
 }
 
+// Switches every forge integration off where it is on, as the Experimental switch going off does,
+// for the same reason.
+// A forge being switched (on, as far as anyone knows) goes off too: its switch lands after.
+export const switchOffForges = (forges: Backend["forges"]): void => {
+  for (const connection of forges?.state.getSnapshot() ?? [])
+    if (connection.enabled || connection.busy) forges?.set(connection.forge, false)
+}
+
+// The Experimental features a backend keeps as settings, which all go off with the switch.
+export type ExperimentalFeatures = Pick<Backend, "worktrees" | "forges">
+
+export const switchOffExperimental = ({ worktrees, forges }: ExperimentalFeatures): void => {
+  switchOffWorktrees(worktrees)
+  switchOffForges(forges)
+}
+
 // Asks the backend once, as the workspace comes up, whether the desktop app follows experimental
 // builds, which is what turns IS_EXPERIMENTAL on, through `set`. A desktop app that fails to say
-// leaves it off. A channel found stable, or unreadable, also turns agent worktrees off.
+// leaves it off. A channel found stable, or unreadable, also turns agent worktrees and forge
+// integrations off.
 export const watchExperimental = (
   updates: Backend["updates"],
   set: (on: boolean) => void,
-  worktrees?: Backend["worktrees"],
+  features: ExperimentalFeatures = {},
 ): (() => void) => {
   let live = true
   void updates?.channel?.get().then(
     (channel) => {
       if (!live) return
       set(channel === "experimental")
-      if (channel !== "experimental") switchOffWorktrees(worktrees)
+      if (channel !== "experimental") switchOffExperimental(features)
     },
-    // A desktop app that fails to say counts as not experimental for worktrees.
+    // A desktop app that fails to say counts as not experimental for these features.
     () => {
-      if (live) switchOffWorktrees(worktrees)
+      if (live) switchOffExperimental(features)
     },
   )
   return () => {

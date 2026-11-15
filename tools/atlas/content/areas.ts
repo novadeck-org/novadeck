@@ -108,6 +108,11 @@ export const notes: Record<string, Note> = {
     entries: [{ file: `${runner}/companions/items.ts`, text: "export class CompanionItems" }],
     docs: ["docs/agent-workspace.md"],
   },
+  "backend/runner/forges": {
+    purpose:
+      "The forges the person switched on (Experimental): each tracked repository's branches asked of GitHub, GitLab or Azure DevOps for their pull requests, with a token from the forge's own signed-in command-line tool, kept in memory for the works; and where each forge's tool and hosts stand, for Preferences.",
+    entries: [{ file: `${runner}/forges/service.ts`, text: "export class Forges" }],
+  },
   "backend/runner/works": {
     purpose:
       "Each open terminal's work against its repository's main branch for the Changes panel: a snapshot of its checkout merged in memory into main, the lines changed per file and the part unread since the person's last look, conflicts with main and with other terminals' works, kept current while a client watches; and the files of a change the person read, kept across restarts.",
