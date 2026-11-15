@@ -22,6 +22,7 @@ import { limitOf, observeTelemetry, telemetrySummary } from "../../harnesses/tel
 import type { Messaging } from "../../messaging/messaging.js"
 import { standingDone } from "../../messaging/peers.js"
 import type { Companion } from "../companion.js"
+import { conversationOf } from "../conversation.js"
 import { afterTyped } from "../exits.js"
 import { failed } from "../failures.js"
 import { markEnd, markTurn } from "../interrupted.js"
@@ -280,7 +281,7 @@ export class Bindings {
    */
   private shellEnded(): Pick<
     Record,
-    "suspended" | "root" | "seenEntry" | "goneSession" | "startupScreen"
+    "suspended" | "root" | "seenEntry" | "goneSession" | "startupScreen" | "conversationPrompt"
   > {
     return {
       suspended: null,
@@ -288,6 +289,7 @@ export class Bindings {
       seenEntry: undefined,
       goneSession: undefined,
       startupScreen: undefined,
+      conversationPrompt: undefined,
     }
   }
 
@@ -720,8 +722,13 @@ export class Bindings {
   /** Forgets every session `agent` reported in the terminals, as once it is disconnected. */
   forgetAgent(records: Iterable<Record>, agent: AgentName): void {
     for (const record of records) {
+      const resuming = !record.bound && conversationOf(record)?.binding.agent === agent
       const { [agent]: _forgotten, ...rest } = record.agents
       record.agents = rest
+      if (resuming) {
+        this.unwatch(record)
+        this.host.detailed(record)
+      }
       const agentRan = hasRun(rest)
       // Its binding ends too: a disconnected harness holds no terminal's foreground.
       if (record.bound?.binding.agent === agent) this.forgotten(record)

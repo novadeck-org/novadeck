@@ -32,7 +32,6 @@ import type { CompanionItems, TerminalPlace } from "../companions/items.js"
 import type { ItemRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
 import { blocking } from "../harnesses/activity.js"
-import { agentDetail } from "../harnesses/detail.js"
 import { deliveredKeys, harnesses } from "../harnesses/registry.js"
 import { Feedback } from "../messaging/feedback.js"
 import { Inbox } from "../messaging/inbox.js"
@@ -53,6 +52,7 @@ import { type CloseAnswer } from "./closes.js"
 import { coalesced } from "./coalesce.js"
 import { expectedAgent } from "./commands.js"
 import { Companion, type Checkout } from "./companion.js"
+import { conversationDetail } from "./conversation.js"
 import { Murmur } from "./descriptions.js"
 import { agentWorking } from "./doorbell-host.js"
 import { agentProcess, shutdownTreeGraceMs, shutdownTreesMs, treeGraceMs } from "./ending.js"
@@ -394,11 +394,8 @@ export class Terminals {
       stopping: () => this.stopping,
       holds: (terminalId) => this.records.has(terminalId) || !!this.sleepers.resting(terminalId),
       detail: (record) =>
-        agentDetail(
-          record.summary.id,
-          record.bound?.binding ?? null,
-          record.bound?.activity ?? null,
-          record.bound?.telemetry ?? null,
+        conversationDetail(
+          record,
           this.typing.dialogs.view(record.summary.id),
           this.typing.dialogs.answered(record.summary.id),
           this.typing.receipts.view(record.summary.id),
@@ -1116,6 +1113,8 @@ export class Terminals {
       record.startupRuns = false
       record.woken = undefined
       endExpecting(record, this.messaging, this.murmur)
+      this.bindings.unwatch(record)
+      this.streams.detailed(record)
       // The person took the terminal over before its agent ever ran: nothing to lead.
       this.bindings.endLead(record)
       this.claims.cancel(claim, record.summary.id)

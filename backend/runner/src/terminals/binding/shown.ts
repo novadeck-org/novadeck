@@ -10,6 +10,7 @@ import { foregroundProcess, openFiles, processSetting, type Pty } from "@novadec
 
 import { agents, harnesses } from "../../harnesses/registry.js"
 import type { Messaging } from "../../messaging/messaging.js"
+import { conversationOf } from "../conversation.js"
 import { failed } from "../failures.js"
 import { tellInterrupted } from "../interrupted.js"
 import type { Record } from "../record.js"
@@ -266,6 +267,10 @@ export class Shown {
     const binding = record.bound?.binding
     const id = record.summary.id
     if (!binding) {
+      const previous = conversationOf(record)
+      record.conversationPrompt = { agent, prefix: sessionPrefix ?? null }
+      if (previous && !conversationOf(record))
+        for (const reader of record.sourceReaders) reader.abort()
       // A woken agent's own prompt showed: the wake worked (see `Record.woken`).
       record.woken = undefined
       this.host.messaging().shown(id, agent, sessionPrefix ?? null)
