@@ -27,6 +27,7 @@ import { act, createElement, useSyncExternalStore, type ComponentProps } from "r
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { createDragSession, DragSessionContext } from "../../bar/drag-session"
+import { firstMs, PanePicturesContext, type PanePictures } from "../../pane-pictures"
 import {
   createPaneTurns,
   PaneTurnsContext,
@@ -130,7 +131,12 @@ const renderTerminal = (
   messages?: Messages,
   companions: Companions = emptyCompanions(),
   // The panes' turns, as the workspace paces them, and whether its window is on screen.
-  { turns, onScreen = true }: { turns?: PaneTurns; onScreen?: boolean } = {},
+  // And the pictures they stand in as.
+  {
+    turns,
+    onScreen = true,
+    pictures,
+  }: { turns?: PaneTurns; onScreen?: boolean; pictures?: PanePictures } = {},
 ): {
   container: HTMLElement
   workspace: WorkspaceStore
@@ -146,7 +152,11 @@ const renderTerminal = (
     createElement(
       DragSessionContext,
       { value: createDragSession() },
-      turns ? createElement(PaneTurnsContext, { value: turns }, terminal) : terminal,
+      createElement(
+        PanePicturesContext,
+        { value: pictures },
+        turns ? createElement(PaneTurnsContext, { value: turns }, terminal) : terminal,
+      ),
     ),
   )
   unmounts.push(unmount)
@@ -343,6 +353,93 @@ describe("a pane in the workspace", () => {
       onScreen(false)
       act(() => vi.advanceTimersByTime(restMs * 2))
       expect(built(container)).not.toBeNull()
+    })
+  })
+
+  context("pictured", () => {
+    beforeEach(() => vi.useFakeTimers())
+    afterEach(() => vi.useRealTimers())
+
+    // Pictures taken as the pane asks, each of `size` (a test's document lays everything out
+    // at 0 by 0).
+    const picturing = (size = { width: 0, height: 0 }) => {
+      const taken: HTMLElement[] = []
+      const pictures: PanePictures = {
+        can: () => true,
+        take: async (element) => {
+          taken.push(element)
+          const image = document.createElement("img")
+          image.src = "data:image/jpeg;base64,AAAA"
+          return { image, ...size }
+        },
+      }
+      return { pictures, taken }
+    }
+    const picture = (container: HTMLElement) =>
+      standIn(container)?.querySelector<HTMLImageElement>(".pane-stand-in-picture")
+
+    it("stands in as its picture once back, taken a moment after it was laid out", async () => {
+      const { turns, step } = stepped()
+      const { pictures, taken } = picturing()
+      const { container, onScreen } = renderTerminal(opened(hero.id, hero), undefined, undefined, {
+        turns,
+        pictures,
+      })
+      step()
+      await act(async () => void vi.advanceTimersByTime(firstMs))
+      expect(taken).toEqual([sheet(container)])
+      onScreen(false)
+      onScreen(true)
+      expect(picture(container)?.getAttribute("src")).toBe("data:image/jpeg;base64,AAAA")
+      expect(standIn(container)?.getAttribute("data-pictured")).toBe("true")
+      expect(standIn(container)?.getAttribute("aria-label")).toBe("Opening hero.png")
+      step()
+      expect(standIn(container)).toBeNull()
+    })
+
+    it("stands in as its icon and name where it is another size than its picture", async () => {
+      const { turns, step } = stepped()
+      const { pictures } = picturing({ width: 640, height: 480 })
+      const { container, onScreen } = renderTerminal(opened(hero.id, hero), undefined, undefined, {
+        turns,
+        pictures,
+      })
+      step()
+      await act(async () => void vi.advanceTimersByTime(firstMs))
+      onScreen(false)
+      onScreen(true)
+      expect(standIn(container)).not.toBeNull()
+      expect(picture(container)).toBeNull()
+      expect(standIn(container)?.hasAttribute("data-pictured")).toBe(false)
+    })
+
+    it("doesn't stand in as a picture of something else it showed", async () => {
+      const { turns, step } = stepped()
+      const { pictures } = picturing()
+      const { container, onScreen, workspace } = renderTerminal(
+        opened(hero.id, hero, poster),
+        undefined,
+        undefined,
+        { turns, pictures },
+      )
+      step()
+      await act(async () => void vi.advanceTimersByTime(firstMs))
+      onScreen(false)
+      act(() => {
+        workspace.dispatch({ type: "bar/open", target, terminalId: "01", key: poster.id })
+      })
+      onScreen(true)
+      expect(standIn(container)).not.toBeNull()
+      expect(picture(container)).toBeNull()
+    })
+
+    it("takes no picture of a page, whose live view the app draws outside the page", async () => {
+      const { turns, step } = stepped()
+      const { pictures, taken } = picturing()
+      renderTerminal(opened(notes.id, notes), undefined, undefined, { turns, pictures })
+      step()
+      await act(async () => void vi.advanceTimersByTime(firstMs * 10))
+      expect(taken).toEqual([])
     })
   })
 

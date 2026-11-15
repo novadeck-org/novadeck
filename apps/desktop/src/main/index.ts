@@ -106,6 +106,7 @@ import {
 import { keepAppearance, registerAppearanceIpc } from "./window/appearance.js"
 import { registerWindowFocusIpc } from "./window/focus.js"
 import { linuxMenu, macMenu } from "./window/menu.js"
+import { registerPanePictureIpc } from "./window/pane-pictures.js"
 import { limitPermissions } from "./window/permissions.js"
 import { keepSpellcheckOffline } from "./window/spellcheck.js"
 
@@ -658,6 +659,8 @@ const launch = async (): Promise<void> => {
   // The app's page asks for pictures of its page views, agents' looks at pages, and phone
   // views.
   pages.registerIpc((event) => appWindow(event) !== undefined)
+  // And pictures of its own companion panes, to stand in while each builds again.
+  registerPanePictureIpc(ipcMain, (event) => appWindow(event) !== undefined)
   // Only the app's own pages learn the version it runs.
   ipcMain.handle(versionChannel, (event) => (appWindow(event) ? app.getVersion() : ""))
   ipcMain.handle(directoryPickerChannel, async (event) => {

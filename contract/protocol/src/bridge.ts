@@ -240,6 +240,18 @@ export type DesktopBridge = {
    */
   pagePicture?(page: number, width?: number, forLook?: boolean): Promise<string | undefined>
   /**
+   * A picture of a part of the page as it's drawn now, `rect` in CSS pixels of its viewport,
+   * as a JPEG `data:` address one pixel to each CSS pixel: a companion pane, for a picture of
+   * it to stand in where it builds again. Undefined for a part outside the page and where the
+   * window draws nothing. Absent from apps that came before it.
+   */
+  panePicture?(rect: {
+    readonly x: number
+    readonly y: number
+    readonly width: number
+    readonly height: number
+  }): Promise<string | undefined>
+  /**
    * Loads a page afresh, out of sight, in the pages' session, laid out as a `desktop`'s
    * window (1280 wide) or a `phone`'s screen, and takes a JPEG picture of it, for an agent's
    * look at a page no pane shows live. Answers the picture with where the page ended up, its

@@ -13,7 +13,8 @@
    (`.pane-tab-close`, an `.icon-button`); above the reader, the icons open behind it
    (`.pane-stack`), each a `.pane-stack-sheet`, an edge that lifts to its label. Until its
    turn to be built and laid out (pane-turns.ts), what the pane shows stands in as its
-   icon and name (`.pane-stand-in`, its name in `.pane-stand-in-name`).
+   icon and name (`.pane-stand-in`, its name in `.pane-stand-in-name`), or a picture of the
+   pane as it was last drawn (`.pane-stand-in-picture`, the stand-in data-pictured).
 
    Hooks: on the split's pane, data-state="open" | "closed" as
    they come and go; on what it shows (`.pane-sheet`), data-entry="forward" |
@@ -486,6 +487,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* A picture of the pane as it was last drawn, where there is one at its size, over its icon
+   and name, which hold its place for whoever reads it. */
+.pane-stand-in-picture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.pane-stand-in[data-pictured] > :not(.pane-stand-in-picture) {
+  visibility: hidden;
 }
 @keyframes pane-sheet-forward {
   from {

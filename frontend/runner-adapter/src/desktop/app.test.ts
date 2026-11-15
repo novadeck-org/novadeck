@@ -883,6 +883,7 @@ describe("what the desktop app gives the backend", () => {
       pagePicture: note("picture"),
       lookAtPage: note("look"),
       pagePhone: note("phone"),
+      panePicture: note("pane picture"),
     } as unknown as DesktopApp)
     expect(options.livePages).toBe(true)
     expect(await options.pickDirectory!()).toBe("/work")
@@ -893,6 +894,7 @@ describe("what the desktop app gives the backend", () => {
     options.pagePicture!("page" as never, 640, true)
     options.pageLook!({ url: "https://example.com", layout: "phone", before: 1 })
     options.pagePhone!("page" as never, true as never)
+    void options.panePicture!({ x: 1, y: 2, width: 300, height: 200 })
     expect(calls).toEqual([
       ["pick"],
       ["before quit", save],
@@ -901,6 +903,7 @@ describe("what the desktop app gives the backend", () => {
       ["picture", "page", 640, true],
       ["look", { url: "https://example.com", layout: "phone", before: 1 }],
       ["phone", "page", true],
+      ["pane picture", { x: 1, y: 2, width: 300, height: 200 }],
     ])
     // The parts the app lacks are left off, not set to undefined.
     expect(Object.keys(options)).not.toContain("notices")

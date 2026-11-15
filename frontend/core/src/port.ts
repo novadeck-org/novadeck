@@ -447,6 +447,11 @@ export type BackendFields = {
   // own document, it stays focused while focus is inside a frame of the page, as a page
   // in the companion pane. Absent where nothing surrounds the page, as in a browser.
   readonly windowFocus?: (listener: (focused: boolean) => void) => () => void
+  // Optional. A picture of a part of the page as it's drawn now, `rect` in CSS pixels of
+  // its viewport, as a JPEG `data:` address one pixel to each CSS pixel, or undefined where
+  // the window draws nothing: a companion pane, whose picture stands in where it builds
+  // again. Absent where nothing surrounds the page, as in a browser.
+  readonly panePicture?: (rect: PaneRect) => Promise<string | undefined>
   // Optional. The desktop app's self-updates: `onOffer` hears each update the app learns
   // of, at once when one already waits and again for each newer one, and returns the
   // stop. A `ready` offer is downloaded and installs when the app next quits. An
@@ -531,6 +536,14 @@ export type BackendFields = {
 }
 
 export type Backend = BackendFields & TerminalPort
+
+// A part of the page in CSS pixels of its viewport; see `Backend.panePicture`.
+export type PaneRect = {
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+}
 
 // How the page looks, for the window around it: the scheme its native parts use
 // (`system` while the page follows the system, so the page keeps seeing the system's

@@ -7,6 +7,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 
 import { AwakeContext, useWakeful } from "../../awake"
 import { isNew, isSecret, type BarMember, type BehindGroup } from "../../bar/bar"
+import { usePanePicture, type PanePicture } from "../../pane-pictures"
 import { usePaneTurn } from "../../pane-turns"
 import type { LookContext } from "../../registration"
 import { registrationOf, stackNames } from "../../registry"
@@ -82,19 +83,27 @@ const PaneActions = ({
 
 // What the pane shows, on its sheet, which plays its entry once; awake while the person is
 // at it (see ./awake), each of its own. While it waits its turn (see ../../pane-turns), what
-// it shows isn't laid out, and its stand-in shows instead.
+// it shows isn't laid out, and its stand-in shows instead. `onElement` hears of the sheet,
+// which its pictures are of (see ../../pane-pictures).
 const Sheet = ({
   entry,
   waiting,
   onPlayed,
+  onElement,
   children,
 }: {
   entry: Entry | undefined
   waiting: boolean
   onPlayed: () => void
+  onElement: (element: HTMLElement | null) => void
   children: ReactNode
 }): React.JSX.Element => {
   const { awake, ref, on } = useWakeful()
+  const own = useRef<HTMLDivElement | null>(null)
+  useLayoutEffect(() => {
+    onElement(own.current)
+    return () => onElement(null)
+  }, [onElement])
   return (
     <div
       className="pane-sheet"
@@ -107,9 +116,11 @@ const Sheet = ({
       // Cut short, as when its terminal is hidden mid-way: done all the same.
       ref={(element) => {
         ref(element)
+        own.current = element
         const undo = whenCut(onPlayed)(element)
         return () => {
           ref(null)
+          own.current = null
           undo?.()
         }
       }}
@@ -119,19 +130,48 @@ const Sheet = ({
   )
 }
 
-// What stands in for what the pane shows until its turn: its icon and name, as its tab has.
+// How far, in CSS pixels, the pane may be from the size its picture was taken at for the
+// picture to stand in: a rounding's worth.
+const pictureFitPx = 1
+
+// What stands in for what the pane shows until its turn: a picture of it as it was last
+// drawn, where there is one taken at the size the pane is now (see ../../pane-pictures),
+// else its icon and name, as its tab has.
 const StandIn = ({
   member,
   plans,
+  picture,
 }: {
   member: BarMember
   plans: LookContext["plans"]
+  picture: () => PanePicture | undefined
 }): React.JSX.Element => {
   const { icon: Icon, name } = memberLook(member, { plans })
+  const element = useRef<HTMLDivElement>(null)
+  // Put in before the frame draws, decoded already, so the frame shows it.
+  useLayoutEffect(() => {
+    const standIn = element.current
+    const sheet = standIn?.parentElement
+    const shown = picture()
+    if (!standIn || !sheet || !shown) return
+    const fits =
+      Math.abs(sheet.offsetWidth - shown.width) <= pictureFitPx &&
+      Math.abs(sheet.offsetHeight - shown.height) <= pictureFitPx
+    if (!fits) return
+    const { image } = shown
+    image.className = "pane-stand-in-picture"
+    image.setAttribute("aria-hidden", "true")
+    standIn.append(image)
+    standIn.dataset.pictured = "true"
+    return () => {
+      image.remove()
+      delete standIn.dataset.pictured
+    }
+  }, [picture])
   return (
     // A progress bar of no value, as something loading: no live region, which would speak
     // up for each pane a pan brings back.
-    <div className="pane-stand-in" role="progressbar" aria-label={`Opening ${name}`}>
+    <div ref={element} className="pane-stand-in" role="progressbar" aria-label={`Opening ${name}`}>
       <Icon size={20} strokeWidth={1.5} aria-hidden="true" />
       <span className="pane-stand-in-name">{name}</span>
     </div>
@@ -463,6 +503,18 @@ export const CompanionPane = ({
   // What it shows is shown once laid out: not while it stands in, as messages aren't
   // seen and a page doesn't wake behind the stand-in.
   const inSight = useShown()
+  // A picture of what it shows, kept while it's laid out in sight, to stand in for it
+  // while it waits its turn again; never of a kind drawn outside the page.
+  const [sheet, setSheet] = useState<HTMLElement | null>(null)
+  const picture = usePanePicture(
+    sheet,
+    inSight &&
+      turn.built &&
+      !turn.waiting &&
+      !leaving &&
+      !(item && registrationOf(item).drawnElsewhere),
+    member?.key,
+  )
   // A new top comes forward when it was behind, and over what was shown when it's new;
   // another tab of the same icon just shows.
   const behindKeys = behind.map((each) => each.front.key).join("\n")
@@ -642,6 +694,7 @@ export const CompanionPane = ({
             entry={leaving ? undefined : entry.how}
             waiting={turn.waiting}
             onPlayed={played}
+            onElement={setSheet}
           >
             {turn.built && (
               <Shown value={inSight && !turn.waiting}>
@@ -655,7 +708,7 @@ export const CompanionPane = ({
                 )}
               </Shown>
             )}
-            {turn.waiting && <StandIn member={member} plans={plans} />}
+            {turn.waiting && <StandIn member={member} plans={plans} picture={picture} />}
           </Sheet>
         )}
       </section>

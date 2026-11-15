@@ -17,6 +17,7 @@
     "./messages": "./src/homes/terminal/messages/messages.ts",
     "./messages.css": "./src/messages.css",
     "./pane.css": "./src/pane.css",
+    "./pane-pictures": "./src/pane-pictures.ts",
     "./pane-turns": "./src/pane-turns.ts",
     "./peek.css": "./src/peek.css",
     "./ProjectWindow": "./src/homes/project/ProjectWindow.tsx",

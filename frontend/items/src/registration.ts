@@ -56,6 +56,10 @@ export type ItemRegistration<K extends ItemKind = ItemKind> = {
   // go: a page rests as its picture on its own and may hold a sign-in window open; a plan's
   // editor, closing, tidies the file (empty notes go), which only the person should cause.
   readonly staysBuilt?: boolean
+  // Set when a picture of the pane stands in for none of the kind while it waits its turn
+  // (see ../pane-pictures): a page's live view is drawn by the app outside its page, where a
+  // picture of the pane misses it, and the page keeps a picture of its own.
+  readonly drawnElsewhere?: boolean
 }
 
 // Every kind has its registration, so a kind core adds without one fails to compile here.

@@ -621,6 +621,9 @@ App:
 - **Pane turns:** "Hold panes' turns" keeps every companion pane coming into sight (a view
   switch, a pan, a terminal picked in Focus) on its stand-in, its icon and name, in place of what
   it holds, until pressed again; panes otherwise build one a frame (`frontend/items/src/pane-turns.ts`).
+  "Sketch panes' pictures" has each pane in sight a second pictured as a sketch of its layout,
+  where the desktop app takes a picture of it (`frontend/items/src/pane-pictures.ts`): with turns
+  held too, a pane coming back at the size it was pictured shows that in place of its icon and name.
 - **Portable:** boot again as a portable copy, which never updates itself and is the way to
   install the app that does. Its corner card, the update bar's size and place, comes up by
   itself once per boot and then only from the footer chip, which Escape or × folds it back
