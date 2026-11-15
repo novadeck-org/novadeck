@@ -489,8 +489,13 @@ describe("demo states", () => {
       })
       run("At its sign-in screen")
       expect(terminalNote(terminal("04")!, { need: undefined }, undefined).text).toBe(
-        "Waiting at its sign-in screen",
+        "Waiting for you to sign in, in its terminal",
       )
+      run("Hooks not trusted")
+      expect(terminalNote(terminal("04")!, { need: undefined }, undefined)).toMatchObject({
+        need: "unblock",
+        text: "Novadeck's hooks aren't trusted · Trust them in its hooks review or /hooks",
+      })
       expect(calls).toEqual([])
     })
 

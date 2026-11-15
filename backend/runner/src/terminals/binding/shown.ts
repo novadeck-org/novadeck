@@ -206,6 +206,30 @@ export class Shown {
   }
 
   /**
+   * The expected agent's own box has stood a while with no session bound, as the startup
+   * watch sees it. Where no title or report tells its prompt shows (Claude Code with its
+   * hooks off says nothing at all), its harness is asked whether Novadeck's hooks run there,
+   * and one whose hooks don't is marked untrusted, as at a prompt shown. A late answer marks
+   * no terminal the agent has left, nor one a session bound in meanwhile.
+   */
+  async boxStood(record: Record, agent: AgentName): Promise<void> {
+    const child = record.terminal.pty
+    const found = await this.harnessIn(record, child, agent)
+    if (!found || record.bound) return
+    if ((await this.promptTrust(record, agent, found.where)) !== "untrusted") return
+    await this.host.queue(
+      record.summary.id,
+      async () => {
+        if (record.terminal.pty !== child || record.bound) return
+        const now = await foregroundProcess(child.pid, agent)
+        if (now !== null && now?.pid === found.pid && !record.bound)
+          this.host.messaging().untrusted(record.summary.id, agent)
+      },
+      undefined,
+    )
+  }
+
+  /**
    * Whether one of the processes holds the file open; undefined where the platform
    * doesn't tell, or none of them could be read.
    */
@@ -238,8 +262,12 @@ export class Shown {
     return trusted === true ? "counts" : trusted === false ? "untrusted" : "unknown"
   }
 
-  /** Whether Novadeck's hooks run for the agent in the terminal's folder; undefined unknown. */
-  hooksTrustedIn(
+  /**
+   * Whether Novadeck's hooks run for the agent in the terminal's folder; undefined unknown.
+   * Asked of the harness where `where` says, else where it is installed, in the environment
+   * shells start from, as a report that tells its prompt shows names no process.
+   */
+  async hooksTrustedIn(
     record: Record,
     agent: AgentName,
     where?: Install & { readonly program?: string },
@@ -248,8 +276,17 @@ export class Shown {
     const options = this.host.options()
     if (options.hooksTrusted) return options.hooksTrusted(agent, cwd)
     const trusted = harnesses[agent].hooksTrusted
-    if (!trusted) return Promise.resolve(true)
-    return where ? trusted(where, cwd) : Promise.resolve(undefined)
+    if (!trusted) return true
+    const at = where ?? (await this.installed(agent))
+    return at ? trusted(at, cwd) : undefined
+  }
+
+  // Where the harness is installed, as the shells' environment and its install say.
+  private async installed(agent: AgentName): Promise<Install | undefined> {
+    const install = await this.host.install(agent)
+    if (!install) return undefined
+    const env = { ...this.host.env(), ...install.env }
+    return { ...install, env, home: env.HOME ?? install.home }
   }
 
   /**

@@ -11,9 +11,15 @@
 // kill) leaves the `sleep` of the slow server behind. With an update to offer, Codex also
 // starts a managed app server and its updater, which stay after it exits: the update case
 // ends them by their pid files.
-// Claude Code without
-// a key stops at its connectivity check before its sign-in screen, and nothing here raises an
-// update screen of its, so neither is probed. With PROBE_RESUME_TURNS set too, each harness
+// Claude Code without a key shows its sign-in screen only at a first run, past a
+// connectivity check the sandbox refuses (it then says so and exits), so that case answers
+// the check through a stand-in (`stand-in.ts`); with onboarding done it starts to its prompt,
+// which says it isn't signed in. Its update notices and Antigravity's updater, on, raise no
+// screen: Antigravity's is told an update through a stand-in for its manifest, from a copy
+// of its program, so nothing lands on the install. Claude Code's one update gate, a minimum
+// version its feature flags name, prints and exits (read in its 2.1.316 program; a flag
+// cached in its state didn't trigger it). The hooks-off cases turn Novadeck's hooks or
+// plugin off in the person's settings, as they may. With PROBE_RESUME_TURNS set too, each harness
 // plays that many turns of PROBE_RESUME_KB kB against the fake model, so each writes its own
 // format, and is restored by a restarted runner, as an app restart does; $PROBE_OUT then has
 // <harness>-resume-<turns>x<kB>k.json, its `size` the largest files of the session.
@@ -43,6 +49,7 @@ import { describe, e2e, selected, supported, type E2E } from "../fixture.js"
 import { installHarness } from "../install.js"
 import { asked } from "../model/script.js"
 import { own, replies, start } from "../scenarios.js"
+import { claudeHello, standIn } from "../stand-in.js"
 import { sleep } from "./support.js"
 
 const out = process.env.PROBE_OUT
@@ -58,6 +65,7 @@ type Inside = {
         process: { name: string } | null
         ready: string | null
         startup: unknown
+        activity: unknown
       }
       expecting: string | null
       startupScreen?: unknown
@@ -93,6 +101,7 @@ const watch = async (
           process: record?.summary.process?.name ?? null,
           ready: record?.summary.ready ?? null,
           startup: record?.summary.startup ?? null,
+          activity: record?.summary.activity ?? null,
           startupScreen: record?.startupScreen ?? null,
           bound: Boolean(record?.bound),
           expecting: record?.expecting ?? null,
@@ -187,6 +196,87 @@ describe.skipIf(!out || !supported)("probe: startup screens", () => {
       writeFileSync(file, JSON.stringify(state))
       await watch(run, claude, await run.deck.open("claude"), "claude-onboarding")
     })
+    // Without a key, past its connectivity check: it asks `api.anthropic.com/api/hello` and
+    // `platform.claude.com/v1/oauth/hello` for a 200, which a stand-in on loopback answers,
+    // through a proxy of its own whose certificate a scratch authority signs.
+    for (const fresh of [false, true])
+      e2e.seeded(trusted, claude)(`sign-in${fresh ? " (fresh)" : ""}`, async ({ e2e: run }) => {
+        const file = join(run.sandbox.home, ".claude", ".claude.json")
+        if (fresh) {
+          const state = JSON.parse(readFileSync(file, "utf8"))
+          delete state.hasCompletedOnboarding
+          delete state.lastOnboardingVersion
+          delete state.theme
+          writeFileSync(file, JSON.stringify(state))
+        }
+        const hello = await standIn(run.sandbox.root, claudeHello)
+        try {
+          // A command named claude, as Novadeck expects one there.
+          const wrapper = join(run.sandbox.root, "claude")
+          writeFileSync(
+            wrapper,
+            `#!/bin/sh\nexec env -u ANTHROPIC_API_KEY HTTPS_PROXY=${hello.url} https_proxy=${hello.url} NODE_EXTRA_CA_CERTS=${hello.ca} claude "$@"\n`,
+            { mode: 0o755 },
+          )
+          const terminal = await run.deck.open(wrapper)
+          // Its theme picker comes first, which Enter takes as it is.
+          if (fresh) await terminal.confirm(/Dark mode/, async () => {})
+          await watch(run, claude, terminal, `claude-sign-in${fresh ? "-fresh" : ""}`)
+        } finally {
+          hello.close()
+        }
+      })
+    // Without a key, onboarding done: its prompt, a session bound, and a footer that says so;
+    // then the person's first prompt there.
+    e2e.seeded(trusted, claude)("signed out, prompted", async ({ e2e: run }) => {
+      const wrapper = join(run.sandbox.root, "claude")
+      writeFileSync(wrapper, '#!/bin/sh\nexec env -u ANTHROPIC_API_KEY claude "$@"\n', {
+        mode: 0o755,
+      })
+      const terminal = await run.deck.open(wrapper)
+      await terminal.until(/Not logged in/, 30_000)
+      await sleep(2000)
+      await terminal.submit("Hello")
+      await watch(run, claude, terminal, "claude-signed-out-prompted")
+    })
+    // Without a key and with its connectivity check refused, as the sandbox refuses it.
+    e2e.seeded(trusted, claude)("sign-in (offline)", async ({ e2e: run }) => {
+      await watch(
+        run,
+        claude,
+        await run.deck.open("env -u ANTHROPIC_API_KEY claude"),
+        "claude-sign-in-offline",
+      )
+    })
+    // Its update notices, with its updaters on: the sandbox refuses what they fetch.
+    e2e.seeded(trusted, claude)("updater on", async ({ e2e: run }) => {
+      const file = join(run.sandbox.home, ".claude", ".claude.json")
+      const state = JSON.parse(readFileSync(file, "utf8"))
+      state.autoUpdates = true
+      writeFileSync(file, JSON.stringify(state))
+      await watch(
+        run,
+        claude,
+        await run.deck.open("env -u DISABLE_AUTOUPDATER -u DISABLE_UPDATES claude"),
+        "claude-updater",
+      )
+    })
+    // Novadeck's hooks installed but off: every hook, or its plugin in the project's settings.
+    e2e.seeded(trusted, claude)("hooks disabled", async ({ e2e: run }) => {
+      const file = join(run.sandbox.home, ".claude", "settings.json")
+      const settings = JSON.parse(readFileSync(file, "utf8"))
+      settings.disableAllHooks = true
+      writeFileSync(file, JSON.stringify(settings))
+      await watch(run, claude, await run.deck.open("claude"), "claude-hooks-disabled")
+    })
+    e2e.seeded(trusted, claude)("plugin disabled in the project", async ({ e2e: run }) => {
+      mkdirSync(join(run.sandbox.project, ".claude"), { recursive: true })
+      writeFileSync(
+        join(run.sandbox.project, ".claude", "settings.json"),
+        JSON.stringify({ enabledPlugins: { "novadeck@novadeck": false } }),
+      )
+      await watch(run, claude, await run.deck.open("claude"), "claude-plugin-disabled")
+    })
     e2e.seeded(trusted, claude)("mcp slow", async ({ e2e: run }) => {
       const file = join(run.sandbox.home, ".claude", ".claude.json")
       const state = JSON.parse(readFileSync(file, "utf8"))
@@ -210,6 +300,14 @@ describe.skipIf(!out || !supported)("probe: startup screens", () => {
     })
     e2e.seeded({ hooksTrusted: false }, codex)("hooks review", async ({ e2e: run }) => {
       await watch(run, codex, await run.deck.open("codex"), "codex-hooks")
+    })
+    // Its hooks review, then skipped with Esc: its prompt, with Novadeck's hooks off.
+    e2e.seeded({ hooksTrusted: false }, codex)("hooks review skipped", async ({ e2e: run }) => {
+      const terminal = await run.deck.open("codex")
+      await terminal.until(/Hooks need review/, 30_000)
+      await sleep(1000)
+      terminal.press("\x1b")
+      await watch(run, codex, terminal, "codex-hooks-skipped")
     })
     e2e.seeded(trusted, codex)("ready", async ({ e2e: run }) => {
       await watch(run, codex, await run.deck.open("codex"), "codex-ready")
@@ -294,6 +392,80 @@ describe.skipIf(!out || !supported)("probe: startup screens", () => {
     e2e.seeded(trusted, agy)("ready", async ({ e2e: run }) => {
       await watch(run, agy, await run.deck.open("agy"), "agy-ready")
     })
+    // What its updater left for the next start, in its own state file, and its updater on.
+    for (const [name, status] of [
+      ["update done", { success: true, message: "Updated to 99.0.0" }],
+      ["update failed", { success: false, message: "Update failed, please install from website" }],
+    ] as const)
+      e2e.seeded(trusted, agy)(name, async ({ e2e: run }) => {
+        const folder = join(run.sandbox.home, ".gemini", "antigravity-cli", "updater")
+        mkdirSync(folder, { recursive: true })
+        writeFileSync(join(folder, "update_status.json"), JSON.stringify(status))
+        await watch(run, agy, await run.deck.open("agy"), `agy-${name.replace(" ", "-")}`)
+      })
+    // An update its updater finds, as its manifest names one, from a copy of it, so no
+    // update lands on the installed program; the archive it names is never served.
+    e2e.seeded(trusted, agy)("update found", async ({ e2e: run }) => {
+      const { bin } = await installHarness("agy")
+      const copy = join(run.sandbox.root, "agy-copy")
+      mkdirSync(copy)
+      cpSync(join(bin, "agy"), join(copy, "agy"))
+      const hello = await standIn(
+        run.sandbox.root,
+        ["antigravity-cli-auto-updater-974169037036.us-central1.run.app", "storage.googleapis.com"],
+        (path) =>
+          path.startsWith("/manifests/")
+            ? JSON.stringify({
+                version: "99.0.0",
+                url: "https://storage.googleapis.com/antigravity-public/antigravity-cli/99.0.0/cli.tar.gz",
+                sha512: "0".repeat(128),
+              })
+            : "{}",
+      )
+      try {
+        const wrapper = join(run.sandbox.root, "agy")
+        writeFileSync(
+          wrapper,
+          `#!/bin/sh\nexec env -u AGY_CLI_DISABLE_AUTO_UPDATE HTTPS_PROXY=${hello.url} https_proxy=${hello.url} SSL_CERT_FILE=${hello.ca} ${join(copy, "agy")} "$@"\n`,
+          { mode: 0o755 },
+        )
+        await watch(run, agy, await run.deck.open(wrapper), "agy-update-found")
+        const status = join(run.sandbox.home, ".gemini", "antigravity-cli", "updater")
+        writeFileSync(
+          join(out!, "agy-update-found.hits.json"),
+          JSON.stringify({
+            hits: hello.hits,
+            status: readdirSync(status).map((file) => [
+              file,
+              readFileSync(join(status, file), "utf8"),
+            ]),
+          }),
+        )
+      } finally {
+        hello.close()
+      }
+    })
+    e2e.seeded(trusted, agy)("updater on", async ({ e2e: run }) => {
+      await watch(
+        run,
+        agy,
+        await run.deck.open("env -u AGY_CLI_DISABLE_AUTO_UPDATE agy"),
+        "agy-updater",
+      )
+    })
+    // Novadeck's plugin installed but disabled, as `agy plugin disable` records it.
+    e2e.seeded(trusted, agy)("plugin disabled", async ({ e2e: run }) => {
+      const file = join(run.sandbox.home, ".gemini", "config", "config.json")
+      let config: { plugins?: Record<string, unknown> } = {}
+      try {
+        config = JSON.parse(readFileSync(file, "utf8"))
+      } catch {
+        // None yet.
+      }
+      config.plugins = { ...config.plugins, novadeck: { enabled: false } }
+      writeFileSync(file, JSON.stringify(config))
+      await watch(run, agy, await run.deck.open("agy"), "agy-plugin-disabled")
+    })
     e2e.seeded(trusted, agy)("mcp slow", async ({ e2e: run }) => {
       writeFileSync(
         join(run.sandbox.home, ".gemini", "antigravity-cli", "mcp_config.json"),
@@ -312,7 +484,10 @@ describe.skipIf(!out || !supported)("probe: startup screens", () => {
       const file = join(run.sandbox.home, ".gemini", "antigravity-cli", "settings.json")
       const { modelProvider: _modelProvider, ...state } = JSON.parse(readFileSync(file, "utf8"))
       writeFileSync(file, JSON.stringify(state))
-      await watch(run, agy, await run.deck.open("env -u GEMINI_API_KEY agy"), "agy-sign-in")
+      // A command named agy, as Novadeck expects one there.
+      const wrapper = join(run.sandbox.root, "agy")
+      writeFileSync(wrapper, '#!/bin/sh\nexec env -u GEMINI_API_KEY agy "$@"\n', { mode: 0o755 })
+      await watch(run, agy, await run.deck.open(wrapper), "agy-sign-in")
     })
   })
 

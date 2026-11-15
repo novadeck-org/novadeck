@@ -140,7 +140,8 @@ export const terminalActivity = (
   quickExitMs = defaultQuickExitMs,
 ): TerminalActivity => {
   if (summary.exit) return { status: exitStatus(summary.exit, quickExitMs) }
-  const startup = summary.agent ? null : summary.startup
+  // A bound session's only mark is its prompt saying it isn't signed in.
+  const startup = summary.agent && summary.startup?.screen !== "sign-in" ? null : summary.startup
   // `ready` names an agent at its prompt before a session, where no process can, as on Windows.
   const named = runningProgram(
     summary.process,
@@ -155,6 +156,7 @@ export const terminalActivity = (
       ? {
           ...agentStatus(summary.activity),
           ...(summary.reported ? { reported: true as const } : {}),
+          ...(startup ? { startup: startup.screen } : {}),
         }
       : startup
         ? { working: false, startup: startup.screen }

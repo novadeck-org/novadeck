@@ -216,6 +216,32 @@ describe("an agent's terminal as agents read it", () => {
     expect(read(listing({ agent: null, untrusted: "codex" }))[0]).toMatch(
       /^- @fox: no agent Novadeck can deliver to: Codex runs there, but Novadeck's hooks aren't trusted/,
     )
+    expect(
+      read(
+        listing({ agent: null, expecting: "codex", where: whereabouts({ startup: "hooks" }) }),
+      )[0],
+    ).toBe(
+      "- @fox: expecting Codex, waiting on the user: its hooks review, as Novadeck's hooks aren't trusted yet, peer",
+    )
+  })
+
+  it("says an agent's hooks are off in the person's settings, not untrusted", () => {
+    expect(read(listing({ agent: null, untrusted: "claude" }))[0]).toBe(
+      "- @fox: no agent Novadeck can deliver to: Claude Code runs there, but Novadeck's hooks are off for it in the user's settings (disableAllHooks, or Novadeck's plugin disabled), peer",
+    )
+    expect(read(listing({ agent: null, untrusted: "agy" }))[0]).toMatch(
+      /Antigravity runs there, but Novadeck's hooks are off for it in the user's settings \(Novadeck's plugin disabled\)/,
+    )
+  })
+
+  it("says a session waits on the person to sign in, where its prompt says so", () => {
+    expect(read(listing({ where: whereabouts({ startup: "sign-in" }) }))[0]).toBe(
+      "- @fox: Claude Code, waiting on the user to sign in there: its prompt says it isn't signed in, peer",
+    )
+    // Only that mark: a held screen's left from before the session bound is none.
+    expect(read(listing({ where: whereabouts({ startup: "startup" }) }))[0]).toBe(
+      "- @fox: Claude Code, idle, peer",
+    )
   })
 })
 

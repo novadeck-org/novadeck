@@ -987,6 +987,16 @@ export const createDemoStates = (
           "Antigravity held at sign-in: the tab's need mark, no Inbox row",
           (key, { dispatch }) => dispatch(atStartupScreen(key, "agy", "sign-in")),
         ),
+        setting(
+          "Hooks not trusted",
+          "Codex at its hooks review, or its prompt with them skipped: the need mark, the words to trust them",
+          (key, { dispatch }) => dispatch(atStartupScreen(key, "codex", "hooks")),
+        ),
+        setting(
+          "Hooks off in settings",
+          "The chosen harness with Novadeck's hooks off in the person's settings: the need mark, what it means",
+          (key, { dispatch, harness }) => dispatch(atStartupScreen(key, harness, "hooks")),
+        ),
         onSelected(
           "Context and limits",
           "Usage in tooltip and status; all else stays",

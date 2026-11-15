@@ -404,7 +404,8 @@ permission question, its own popup, a picker) in `requests.e2e.ts`, a nested run
 harness inside an agent's turn in `nested.e2e.ts`, the person forking a session in a new
 terminal or in place in `forks.e2e.ts`, the person clearing the conversation
 or leaving the agent for another in `lifecycle.e2e.ts`, and the person's controls over
-a running agent and untrusted seeds in `controls.e2e.ts`, and the chat view's way to an agent
+a running agent and untrusted seeds in `controls.e2e.ts`, what holds each harness before
+Novadeck can reach it (signed out, its hooks off) in `startup.e2e.ts`, and the chat view's way to an agent
 (`agents.prompt` and `agents.interrupt`) in `chat.e2e.ts`, answering the agent's requests
 from the chat (`agents.answer`) in `answers.e2e.ts`, the tool calls each harness makes, as the
 chat's transcript shows them, in `transcripts.e2e.ts`, each written once and run for
@@ -1143,6 +1144,14 @@ transcript says.
   it reads keys, and drops a key pressed then, so the folder question's selection is
   moved away and back (Down, Up) before Enter, and the review's Esc is pressed again
   while it still shows.
+- **Stand-ins for a harness's own hosts.** Claude Code checks it can reach
+  `api.anthropic.com` and `platform.claude.com` before its sign-in screen, which the
+  sandbox refuses, and then exits; `startup.e2e.ts` answers that check through `standIn`
+  (`stand-in.ts`), a proxy on loopback that tunnels to those hosts alone and answers each
+  request with a 200, under a certificate a scratch authority made with openssl signs,
+  which only that Claude Code trusts (`NODE_EXTRA_CA_CERTS`). Where no openssl is found
+  (on Windows, Git for Windows' own), that case skips, saying so. The startup probe tells
+  Antigravity of an update the same way (`SSL_CERT_FILE`).
 - **Hook trust.** Codex runs a plugin's hooks only once trusted, and Novadeck counts
   its prompt only then. Once the plugin is connected, `connected` starts the pinned
   `codex app-server` and makes the calls its "Hooks need review" screen makes:

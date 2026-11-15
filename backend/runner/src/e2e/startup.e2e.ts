@@ -1,0 +1,249 @@
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises"
+import { join } from "node:path"
+import { setTimeout as sleep } from "node:timers/promises"
+
+import type { AgentName } from "@novadeck/protocol"
+
+import type { AgentSetup } from "./agents/agent.js"
+import { setups } from "./agents/index.js"
+import type { DeckTerminal } from "./deck.js"
+import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
+import { prompted } from "./scenarios.js"
+import { claudeHello, openssl, standIn } from "./stand-in.js"
+
+// What holds each harness for the person before Novadeck can reach it, as
+// `TerminalSummary.startup` says (docs/agent-messaging.md, "Startup screens"): its sign-in
+// screen, or its prompt saying it isn't signed in, and Novadeck's hooks not running for it,
+// untrusted (Codex) or off in the person's own settings (Claude Code, Antigravity). Each
+// harness has both; the way the person gets there differs, as each case says.
+
+/**
+ * A program named after `agent`, so Novadeck expects it, that starts the agent on PATH with
+ * its environment changed: each of `env` set, or unset where null.
+ */
+const wrapped = async (
+  root: string,
+  agent: AgentName,
+  env: Readonly<Record<string, string | null>>,
+): Promise<string> => {
+  const folder = join(root, "wrapped")
+  await mkdir(folder, { recursive: true })
+  const entries = Object.entries(env)
+  if (process.platform === "win32") {
+    const script = join(folder, `${agent}.cmd`)
+    const lines = entries.map(([name, value]) => `@set "${name}=${value ?? ""}"`)
+    await writeFile(script, [...lines, `@call ${agent} %*`, ""].join("\r\n"))
+    return script
+  }
+  const script = join(folder, agent)
+  const lines = entries.map(([name, value]) =>
+    value === null ? `unset ${name}` : `export ${name}='${value.replaceAll("'", "'\\''")}'`,
+  )
+  await writeFile(script, ["#!/bin/sh", ...lines, `exec ${agent} "$@"`, ""].join("\n"), {
+    mode: 0o755,
+  })
+  return script
+}
+
+const held = (terminal: DeckTerminal, why: string) =>
+  terminal.poll(() => terminal.summary().startup ?? undefined, why, 60_000)
+
+const readJson = async (path: string): Promise<Record<string, unknown>> => {
+  try {
+    return JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>
+  } catch {
+    return {}
+  }
+}
+
+const merge = async (path: string, change: (json: Record<string, unknown>) => void) => {
+  const json = await readJson(path)
+  change(json)
+  await mkdir(join(path, ".."), { recursive: true })
+  await writeFile(path, JSON.stringify(json))
+}
+
+/**
+ * Novadeck's hooks off for the harness, as the person may leave them: Codex's untrusted, its
+ * review skipped (the seed leaves them so); Claude Code's turned off in the person's settings;
+ * Antigravity's plugin disabled, as `agy plugin disable` records it. Read, never written,
+ * by Novadeck: here the test plays the person.
+ */
+const hooksOff: { readonly [agent in AgentName]: (run: E2E) => Promise<void> } = {
+  codex: async () => {},
+  claude: (run) =>
+    merge(join(run.sandbox.home, ".claude", "settings.json"), (settings) => {
+      settings.disableAllHooks = true
+    }),
+  agy: (run) =>
+    merge(join(run.sandbox.home, ".gemini", "config", "config.json"), (config) => {
+      config.plugins = {
+        ...(config.plugins as object | undefined),
+        novadeck: { enabled: false },
+      }
+    }),
+}
+
+for (const setup of setups) {
+  describe.skipIf(!supported)(`${setup.name}, Novadeck's hooks off`, () => {
+    e2e.seeded({ hooksTrusted: false }, setup)(
+      "reads as held by them at its prompt, and at its review where it has one",
+      async ({ e2e: run }) => {
+        await hooksOff[setup.agent](run)
+        const t = await run.deck.open(setup.agent)
+        const review = setup.trust?.hooks
+        if (review) {
+          await t.until(review.shows, 60_000)
+          await held(t, "its hooks review to count")
+          expect(t.summary().startup).toEqual({ agent: setup.agent, screen: "hooks" })
+          await skip(t, review)
+        }
+        // Its own prompt, with nothing of Novadeck's running for it.
+        await prompted(t, setup)
+        await t.poll(
+          () => (t.summary().startup?.screen === "hooks" ? true : undefined),
+          "its hooks to be found off at its prompt",
+          60_000,
+        )
+        expect(t.summary()).toMatchObject({
+          agent: null,
+          ready: null,
+          startup: { agent: setup.agent, screen: "hooks" },
+        })
+        // It stays so: nothing binds there.
+        await sleep(3000)
+        expect(t.summary().startup).toEqual({ agent: setup.agent, screen: "hooks" })
+      },
+    )
+
+    if (setup.agent === "claude")
+      e2e(setup)(
+        "reads as held where the project's settings turn the plugin off",
+        async ({ e2e: run }) => {
+          await merge(join(run.sandbox.project, ".claude", "settings.json"), (settings) => {
+            settings.enabledPlugins = { "novadeck@novadeck": false }
+          })
+          const t = await run.deck.open(setup.agent)
+          await t.poll(
+            () => (t.summary().startup?.screen === "hooks" ? true : undefined),
+            "its hooks to be found off at its prompt",
+            60_000,
+          )
+          expect(t.summary().startup).toEqual({ agent: "claude", screen: "hooks" })
+        },
+      )
+  })
+
+  describe.skipIf(!supported)(`${setup.name}, signed out`, () => {
+    signedOut[setup.agent](setup)
+  })
+}
+
+/** Leaves its hooks review without trusting them, Escape by Escape until it is gone. */
+const skip = async (
+  terminal: DeckTerminal,
+  { shows, skip: keys }: { readonly shows: RegExp; readonly skip: string },
+): Promise<void> => {
+  for (let tries = 0; tries < 10; tries += 1) {
+    // eslint-disable-next-line no-await-in-loop -- Each look waits on the key before.
+    await terminal.escape(keys)
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    await sleep(1000)
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    if (!shows.test(await terminal.screen())) return
+  }
+  throw new Error(`${terminal.handle} still shows ${String(shows)}`)
+}
+
+/**
+ * Each harness without a login: the screen it signs in at, and Claude Code's prompt, which
+ * says it isn't signed in once its onboarding is done.
+ */
+const signedOut: { readonly [agent in AgentName]: (setup: AgentSetup) => void } = {
+  claude: (setup) => {
+    e2e(setup)(
+      "reads its prompt saying it isn't signed in as waiting to sign in",
+      async ({ e2e: run }) => {
+        const t = await run.deck.open(
+          await wrapped(run.sandbox.root, "claude", { ANTHROPIC_API_KEY: null }),
+        )
+        await t.until(/Not logged in · Run \/login/, 60_000)
+        await held(t, "its prompt to read as signed out")
+        // A session bound, at a prompt whose first prompt would fail.
+        expect(t.summary()).toMatchObject({
+          agent: "claude",
+          startup: { agent: "claude", screen: "sign-in" },
+        })
+      },
+    )
+
+    // Its sign-in screen comes only at a first run, past a connectivity check the sandbox
+    // refuses: a stand-in answers it, under a scratch authority only this Claude Code trusts.
+    gated(e2e(setup), openssl() ? undefined : "no openssl here to make the stand-in's certificate")(
+      "names its sign-in screen at a first run",
+      async ({ e2e: run }) => {
+        await merge(join(run.sandbox.home, ".claude", ".claude.json"), (state) => {
+          delete state.hasCompletedOnboarding
+          delete state.lastOnboardingVersion
+          delete state.theme
+        })
+        const hello = await standIn(run.sandbox.root, claudeHello)
+        try {
+          const t = await run.deck.open(
+            await wrapped(run.sandbox.root, "claude", {
+              ANTHROPIC_API_KEY: null,
+              HTTPS_PROXY: hello.url,
+              https_proxy: hello.url,
+              NODE_EXTRA_CA_CERTS: hello.ca,
+            }),
+          )
+          // Its theme picker comes first, which Enter takes as it is.
+          await t.confirm(/Dark mode/, () => t.until(/Choose the text style/, 60_000))
+          await t.until(/Select login method/, 60_000)
+          await held(t, "its sign-in screen to count")
+          expect(t.summary().startup).toEqual({ agent: "claude", screen: "sign-in" })
+        } finally {
+          hello.close()
+        }
+      },
+    )
+  },
+  // Without an OpenAI login, in a home of its own that names the fake model as its ChatGPT
+  // backend, and keeps the sandbox's empty copy of the curated plugins: without one, Codex
+  // fetches an archive of them from chatgpt.com, which the fake model's proxy refuses.
+  codex: (setup) => {
+    e2e(setup)("names its sign-in screen", async ({ e2e: run }) => {
+      const home = join(run.sandbox.home, ".codex-bare")
+      await mkdir(home, { recursive: true })
+      await writeFile(
+        join(home, "config.toml"),
+        `chatgpt_base_url = ${JSON.stringify(`${run.model.url}/backend-api/`)}\n` +
+          'check_for_update_on_startup = false\ncli_auth_credentials_store = "file"\n',
+      )
+      await cp(join(run.sandbox.home, ".codex", ".tmp"), join(home, ".tmp"), { recursive: true })
+      const t = await run.deck.open(
+        await wrapped(run.sandbox.root, "codex", { OPENAI_API_KEY: null, CODEX_HOME: home }),
+      )
+      await t.until(/Sign in with ChatGPT/, 60_000)
+      await held(t, "its sign-in screen to count")
+      expect(t.summary().startup).toEqual({ agent: "codex", screen: "sign-in" })
+    })
+  },
+  // Its status line says `authenticating` behind its login screen, and its text says so too.
+  agy: (setup) => {
+    e2e(setup)("names its sign-in screen", async ({ e2e: run }) => {
+      await merge(
+        join(run.sandbox.home, ".gemini", "antigravity-cli", "settings.json"),
+        (settings) => {
+          delete settings.modelProvider
+        },
+      )
+      const t = await run.deck.open(
+        await wrapped(run.sandbox.root, "agy", { GEMINI_API_KEY: null }),
+      )
+      await t.until(/Select login method/, 60_000)
+      await held(t, "its sign-in screen to count")
+      expect(t.summary().startup).toEqual({ agent: "agy", screen: "sign-in" })
+    })
+  },
+}

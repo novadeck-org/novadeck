@@ -284,7 +284,14 @@ export const peerOf = (input: {
     agent,
     expecting,
     untrusted,
-    startup: agent || untrusted ? null : (where?.startup ?? null),
+    // A session's only mark is its prompt saying it isn't signed in.
+    startup: untrusted
+      ? null
+      : agent
+        ? where?.startup === "sign-in" && !input.asleep
+          ? "sign-in"
+          : null
+        : (where?.startup ?? null),
     title: where?.title ?? null,
     summary: where?.summary ?? null,
     state: agent ? (input.asleep ? "asleep" : input.busy ? "busy" : "idle") : null,
@@ -393,10 +400,16 @@ export const waitsOnNote = (
   return wake ? `a wake-up it set${wake.reason ? `: ${shorten(wake.reason, 80)}` : ""}` : null
 }
 
-/** Why nothing can deliver to an agent whose hooks Novadeck can't run where it runs. */
+/**
+ * Why nothing can deliver to an agent whose hooks Novadeck can't run where it runs: Codex's
+ * aren't trusted yet, or the person's own settings turned them, or Novadeck's plugin, off.
+ */
 export const untrustedNote = (agent: AgentName): string =>
-  `${agentLabel(agent)} runs there, but Novadeck's hooks aren't trusted for it yet ` +
-  "(the user can trust them with /hooks)"
+  agent === "codex"
+    ? `${agentLabel(agent)} runs there, but Novadeck's hooks aren't trusted for it yet ` +
+      "(the user can trust them with /hooks)"
+    : `${agentLabel(agent)} runs there, but Novadeck's hooks are off for it in the user's ` +
+      `settings (${agent === "claude" ? "disableAllHooks, or Novadeck's plugin disabled" : "Novadeck's plugin disabled"})`
 
 /** That a terminal's own session never bound, so replies can't reach it. */
 export const unboundNote =
@@ -412,18 +425,20 @@ export const unboundNote =
 const statusOf = (peer: Peer, now: number, full: boolean): string => {
   if (peer.agent) {
     const doing =
-      peer.state === "asleep"
-        ? `asleep${peer.since !== null ? ` (last turn ended ${ago(peer.since, now)})` : ""}, no process running; a message wakes it`
-        : peer.waiting
-          ? waitingNote(peer.waiting, now, full)
-          : peer.waitsOn
-            ? `waiting on ${peer.waitsOn}, will wake by itself`
-            : `${peer.state}${peer.since !== null ? ` ${lasted(peer.since, now)}` : ""}`
+      peer.startup === "sign-in"
+        ? "waiting on the user to sign in there: its prompt says it isn't signed in"
+        : peer.state === "asleep"
+          ? `asleep${peer.since !== null ? ` (last turn ended ${ago(peer.since, now)})` : ""}, no process running; a message wakes it`
+          : peer.waiting
+            ? waitingNote(peer.waiting, now, full)
+            : peer.waitsOn
+              ? `waiting on ${peer.waitsOn}, will wake by itself`
+              : `${peer.state}${peer.since !== null ? ` ${lasted(peer.since, now)}` : ""}`
     return `${agentLabel(peer.agent)}, ${doing}`
   }
   if (peer.untrusted) return `no agent Novadeck can deliver to: ${untrustedNote(peer.untrusted)}`
   if (peer.expecting)
-    return `expecting ${agentLabel(peer.expecting)}, ${peer.startup ? `waiting on the user: its ${peer.startup} screen` : "not started yet"}`
+    return `expecting ${agentLabel(peer.expecting)}, ${peer.startup ? `waiting on the user: ${peer.startup === "hooks" ? "its hooks review, as Novadeck's hooks aren't trusted yet" : `its ${peer.startup} screen`}` : "not started yet"}`
   if (peer.shell?.running)
     return peer.shell.command ? `shell, running ${peer.shell.command}` : "shell, running a program"
   return "shell, at its prompt"

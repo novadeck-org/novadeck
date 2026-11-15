@@ -37,7 +37,7 @@ const still = (count: number, text = "Trust?") =>
 describe("the startup watch", () => {
   describe("reading each harness's probed screens", () => {
     const probed: readonly (readonly [AgentName, readonly string[]])[] = [
-      ["claude", ["trust", "onboarding", "resume"]],
+      ["claude", ["trust", "onboarding", "resume", "signIn"]],
       ["codex", ["trust", "hooks", "signIn", "resume", "update"]],
       ["agy", ["trust", "onboarding", "signIn"]],
     ]
@@ -51,6 +51,43 @@ describe("the startup watch", () => {
       for (const name of names)
         expect([name, lookAt(screens[name]!, box)]).toEqual([name, "screen"])
       expect(lookAt(screens.prompt!, box)).toBe("box")
+    })
+
+    // What each probed screen's text names it; any other is only a startup screen.
+    const named: readonly (readonly [AgentName, Record<string, string>])[] = [
+      ["claude", { signIn: "sign-in" }],
+      ["codex", { hooks: "hooks", signIn: "sign-in" }],
+      ["agy", { signIn: "sign-in" }],
+    ]
+
+    it.each(named)("names %s's sign-in and hooks screens by their text", (agent, names) => {
+      const screens = loadProbe<Record<string, ScreenText>>(
+        adapterFolder(agent),
+        "startup.probe.json",
+      )
+      const read = Object.fromEntries(
+        Object.entries(screens).map(([name, one]) => [
+          name,
+          harnesses[agent].heldScreen?.(one.rows) ?? "startup",
+        ]),
+      )
+      expect(read).toEqual(
+        Object.fromEntries(Object.keys(screens).map((name) => [name, names[name] ?? "startup"])),
+      )
+    })
+
+    it("reads Claude Code's prompt saying it isn't signed in", () => {
+      const screens = loadProbe<Record<string, ScreenText>>(
+        adapterFolder("claude"),
+        "startup.probe.json",
+      )
+      const { signedOut } = harnesses.claude
+      expect(signedOut?.(screens.signedOut!.rows)).toBe(true)
+      expect(lookAt(screens.signedOut!, harnesses.claude.box)).toBe("box")
+      for (const name of ["prompt", "trust", "onboarding", "resume", "signIn"])
+        expect([name, signedOut?.(screens[name]!.rows)]).toEqual([name, false])
+      // A reply quoting it, at the start of its row, is no footer.
+      expect(signedOut?.(["⎿  Not logged in · Run /login"])).toBe(false)
     })
   })
 
@@ -141,21 +178,35 @@ describe("the startup watch", () => {
     let expected: AgentName | null
     let drawn: ScreenText | undefined
     let changed: number
+    let hooksOff: AgentName | undefined
+    let stood: AgentName[]
     const record: {
       summary: WatchedRecord["summary"]
       terminal: { run: number }
       startupScreen?: WatchedRecord["startupScreen"]
+      bound: WatchedRecord["bound"]
+      signedOut?: WatchedRecord["signedOut"]
     } = {
       summary: { id: "t", startup: null } as WatchedRecord["summary"],
       terminal: { run: 1 },
+      bound: null,
     }
     let watch: StartupWatch<WatchedRecord>
+    const claudeScreens = loadProbe<Record<string, ScreenText>>(
+      adapterFolder("claude"),
+      "startup.probe.json",
+    )
     const watching = (screenNow: () => Promise<ScreenText | undefined>, delay: number) => {
       const started = new StartupWatch<WatchedRecord>(
         {
           stopping: () => false,
           records: () => [record],
-          expected: () => expected,
+          messaging: () => ({ expected: () => expected, untrustedAgent: () => hooksOff }),
+          shown: () => ({
+            boxStood: async (_record, agent) => {
+              stood.push(agent)
+            },
+          }),
           screen: screenNow,
           changed: () => {
             changed += 1
@@ -182,9 +233,13 @@ describe("the startup watch", () => {
       changed = 0
       expected = "codex"
       drawn = shown(["Trust this folder?"])
+      hooksOff = undefined
+      stood = []
       record.summary = { ...record.summary, startup: null }
       record.terminal = { run: 1 }
       record.startupScreen = undefined
+      record.bound = null
+      record.signedOut = undefined
       watch = watching(async () => drawn, delayMs)
     })
 
@@ -284,6 +339,98 @@ describe("the startup watch", () => {
       drawn = undefined
       await pass(7000)
       expect(record.summary.startup).toBeNull()
+    })
+
+    it("names a held screen its text tells, as Codex's hooks review", async () => {
+      drawn = shown(["  Hooks need review", "  9 hooks are new or changed.", "› 1. Review hooks"])
+      await pass(7000)
+      expect(record.summary.startup).toEqual({ agent: "codex", screen: "hooks" })
+    })
+
+    it("asks once whether its hooks run, when its own box stood a delay", async () => {
+      expected = "claude"
+      drawn = claudeScreens.prompt
+      await pass(4000)
+      expect(stood).toEqual([])
+      await pass(4000)
+      expect(stood).toEqual(["claude"])
+      await pass(10_000)
+      expect(stood).toEqual(["claude"])
+      expect(record.summary.startup).toBeNull()
+    })
+
+    it("marks an agent whose hooks are off at its prompt, until they no longer are", async () => {
+      expected = "claude"
+      drawn = claudeScreens.prompt
+      await pass(6000)
+      // Found off: nothing can deliver to it, so it is no longer expected.
+      hooksOff = "claude"
+      expected = null
+      await pass(1000)
+      expect(record.summary.startup).toEqual({ agent: "claude", screen: "hooks" })
+      await pass(60_000)
+      expect(record.summary.startup).toEqual({ agent: "claude", screen: "hooks" })
+      expect(changed).toBe(1)
+      // It left, or a session bound.
+      hooksOff = undefined
+      await pass(1000)
+      expect(record.summary.startup).toBeNull()
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    describe("a bound session", () => {
+      const binding = { agent: "claude", sessionId: "s" } as NonNullable<
+        WatchedRecord["bound"]
+      >["binding"]
+      const signedOut = claudeScreens.signedOut
+      const signedIn = claudeScreens.prompt
+
+      beforeEach(() => {
+        expected = null
+        record.bound = { binding } as NonNullable<WatchedRecord["bound"]>
+      })
+
+      it("marks one whose prompt says it isn't signed in, until it is", async () => {
+        drawn = signedOut
+        await pass(2000)
+        expect(record.summary.startup).toEqual({ agent: "claude", screen: "sign-in" })
+        expect(record.signedOut).toBe(binding)
+        await pass(60_000)
+        expect(record.summary.startup).toEqual({ agent: "claude", screen: "sign-in" })
+        drawn = signedIn
+        await pass(2000)
+        expect(record.summary.startup).toBeNull()
+        expect(changed).toBe(2)
+      })
+
+      it("looks at a signed-in prompt only a while after it binds", async () => {
+        drawn = signedIn
+        let looks = 0
+        watch.stop()
+        watch = watching(async () => {
+          looks += 1
+          return drawn
+        }, delayMs)
+        await pass(60_000)
+        expect(record.summary.startup).toBeNull()
+        expect(looks).toBeLessThanOrEqual(15)
+        expect(vi.getTimerCount()).toBe(0)
+      })
+
+      it("leaves a session of a harness whose prompt never tells alone", async () => {
+        record.bound = { binding: { ...binding, agent: "codex" } } as NonNullable<
+          WatchedRecord["bound"]
+        >
+        let looks = 0
+        watch.stop()
+        watch = watching(async () => {
+          looks += 1
+          return signedOut
+        }, delayMs)
+        await pass(5000)
+        expect(looks).toBe(0)
+        expect(record.summary.startup).toBeNull()
+      })
     })
   })
 })

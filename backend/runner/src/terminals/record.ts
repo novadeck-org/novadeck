@@ -178,6 +178,8 @@ export type Record = {
   conversationPrompt?: { readonly agent: AgentName; readonly prefix: string | null } | undefined
   /** Which screen that agent last said it was at before its first session, and in which report. */
   startupScreen?: { readonly screen: StartupScreen; readonly seq: number } | undefined
+  /** The bound session whose prompt says it isn't signed in, as the startup watch read it. */
+  signedOut?: Binding | undefined
   /** Unsaved changes to what restores it: its directory, program, prompts. */
   changed: boolean
   /** Unsaved output: its transcript, saved on its own schedule. */

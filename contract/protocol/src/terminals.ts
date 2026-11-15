@@ -88,8 +88,13 @@ export const titleSource = z.discriminatedUnion("kind", [
 
 // The runner owns every terminal's identity and facts: which terminals a session has, their
 // titles, directories, what they run and ran. Clients keep only how they show them.
-// The kind of screen that holds an agent for the person before its first session.
-export const startupScreen = z.enum(["startup", "sign-in"])
+// What holds an agent for the person before Novadeck can reach it: `startup`, one of its own
+// screens (folder trust, onboarding, an update, a picker); `sign-in`, its sign-in screen, or
+// its prompt saying it isn't signed in (Claude Code's, with a session bound); `hooks`,
+// Novadeck's hooks aren't on for it there (Codex's hooks review or its hooks untrusted, or
+// the person's settings turning them or Novadeck's plugin off), so nothing Novadeck sends
+// reaches it, at its screen or at its own prompt.
+export const startupScreen = z.enum(["startup", "sign-in", "hooks"])
 export type StartupScreen = z.infer<typeof startupScreen>
 
 export const terminalSummary = z.strictObject({
@@ -158,8 +163,10 @@ export const terminalSummary = z.strictObject({
   // prompt. Null otherwise, and once a session is reported.
   ready: agentName.nullable(),
   // The agent expected there, held at one of its own screens that wait for the person, a
-  // folder-trust, update, sign-in or onboarding screen, before it reported a session. Null
-  // otherwise, and once a session is reported or its prompt shows.
+  // folder-trust, update, sign-in or onboarding screen, before it reported a session, or at
+  // its own prompt with Novadeck's hooks off (`hooks`). Null otherwise, and once its prompt
+  // shows with its hooks on or a session is reported, but for a session bound at a prompt that
+  // says it isn't signed in (`sign-in`), until the prompt no longer says so.
   startup: z.strictObject({ agent: agentName, screen: startupScreen }).nullable(),
   // What that agent is doing; null without one.
   activity: agentActivity.nullable(),

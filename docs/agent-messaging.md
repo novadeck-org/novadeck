@@ -2478,19 +2478,61 @@ all of these stand for 5 s (15 s on Windows, which starts agents far slower):
 - The screen isn't blank, and its text doesn't change. Its text, so that a console's repaints
   count for nothing.
 - The expected harness's own box doesn't read on it. `startup.probe.json` beside each harness
-  keeps the screens probed: Claude Code's trust, onboarding and resume picker; Codex's trust,
-  hooks review, sign-in, update and resume picker; Antigravity's trust, onboarding and
-  sign-in. Each harness's prompt reads as a box, and none of those as one. An MCP server slow
-  to start holds none of the three behind such a screen: each draws its box first. Claude
-  Code's sign-in and update screens and Antigravity's update screen are not probed: Claude
-  Code stops at a connectivity check without a key, and the sandbox raises neither update
-  screen. Antigravity has no resume picker. All these were read on Linux; macOS and Windows
-  run only the folder-trust case.
+  keeps the screens probed: Claude Code's trust, onboarding, sign-in and resume picker;
+  Codex's trust, hooks review, sign-in, update and resume picker; Antigravity's trust,
+  onboarding and sign-in. Each harness's prompt reads as a box, and none of those as one. An
+  MCP server slow to start holds none of the three behind such a screen: each draws its box
+  first. Antigravity has no resume picker. All these were read on Linux; macOS and Windows run
+  the folder-trust case, and the sign-in and hooks cases of `startup.e2e.ts`.
 
-Antigravity also says which it is: its status line reads `authenticating` behind its login
-screen, which the state names as "its sign-in screen", and `initializing` behind its trust
-dialog and on the way to any prompt, so that says nothing by itself. Either only names a
-screen the rules above already count. The others' screens read as "its startup screen".
+Which screen it is, the state names where the harness tells (`screen`): `sign-in` or `hooks`,
+else `startup`. Antigravity's status line reads `authenticating` behind its login screen, and
+`initializing` behind its trust dialog and on the way to any prompt, so that says nothing by
+itself. Otherwise the screen's own text names it (`Harness.heldScreen`): Claude Code's and
+Antigravity's "Select login method:", Codex's "Sign in with ChatGPT" (`sign-in`), and Codex's
+"Hooks need review" (`hooks`). Either only names a screen the rules above already count.
+
+What the probes found of each harness's first run (2026-11-15; Claude Code 2.1.316 and 2.1.325,
+Codex 0.167.0, Antigravity 1.5.7; `probes/startup-screens.e2e.ts`):
+
+| Harness     | Without a login                                                                                                                                                                                                                                                                                                                                                                           | An update                                                                                                                                                                                                                                             | Novadeck's hooks off                                                                                                                                                                                                         |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude Code | At a first run, its theme picker, then a connectivity check (a 200 from `api.anthropic.com/api/hello` and `platform.claude.com/v1/oauth/hello`), then "Select login method:"; a failed check says "Unable to connect to Anthropic services" and exits a moment later. With onboarding done, no screen: its prompt, a session bound, and a footer "Not logged in · Run /login" (see below) | No screen: its updaters only add a notice, and its one gate, a minimum version its feature flags name, prints and exits                                                                                                                               | No screen: `disableAllHooks`, or its plugin off in `enabledPlugins`, in any scope, leaves its prompt up with no SessionStart                                                                                                 |
+| Codex       | "Sign in with ChatGPT" among the ways to use it                                                                                                                                                                                                                                                                                                                                           | "Update available", its startup screen                                                                                                                                                                                                                | "Hooks need review" until trusted; skipped, its prompt with the hooks not running                                                                                                                                            |
+| Antigravity | "You are currently not signed in. Select login method:", its status line `authenticating`                                                                                                                                                                                                                                                                                                 | No screen: its updater runs in the background (told of 99.0.0 by a stand-in for its manifest, it fetched the archive and wrote "Update failed" to `updater/update_status.json` with its prompt up), and what it wrote shows nothing at the next start | No screen: its plugin disabled (`~/.gemini/config/config.json`, `plugins.novadeck.enabled`), its prompt and status line read as ready, and no hook runs. It runs a plugin's hooks with no review, once the folder is trusted |
+
+#### Signed out at its prompt
+
+Claude Code without a key, past its onboarding, shows no sign-in screen: its prompt draws, its
+SessionStart binds a session, and a footer at the right edge above its box reads "Not logged in ·
+Run /login" until the person signs in; a prompt there fails with "Not logged in · Please run
+/login" (`Harness.signedOut`). The person has to sign in before anything Novadeck sends can
+work, as at a sign-in screen, so the state is `sign-in` with the session bound: the watch looks
+at a bound session's prompt for three delays after it binds, where the harness can say so, and
+for as long as it says so; its mark ends once the footer goes. It is the only mark a bound
+session has. Codex and Antigravity always show their sign-in screen without a login.
+
+#### Novadeck's hooks off
+
+Where Novadeck's hooks don't run for the agent, nothing it sends reaches it, at a screen or at
+its own prompt, and the state is `hooks` from the moment Novadeck learns it until a session
+binds or the agent leaves. Each harness says it its own way, asked of `Harness.hooksTrusted`:
+
+- Codex: its app-server's `hooks/list`, as its Ready title shows (see Per harness). Its
+  "Hooks need review" screen reads `hooks` by its text before that, so a review raised over a
+  prompt it drew is named too.
+- Claude Code: its settings, read and never written: `disableAllHooks`, or Novadeck's plugin off
+  in `enabledPlugins`, as the scope that decides says (managed, the project's local, the
+  project's, the person's), or managed settings allowing only managed hooks. No report tells
+  its prompt shows, so the watch asks once the agent's own box has stood a delay with no
+  session bound.
+- Antigravity: its plugin disabled, as `~/.gemini/config/config.json` records it, or as the
+  plugin's own `plugin.json` declares where that has no entry; asked as its status line says
+  its prompt shows.
+
+Novadeck never changes these settings for the person: the state says what holds the agent, and
+its words say what to change ("Novadeck's hooks are off for it in your settings, so messages and
+the Inbox can't reach it"; Codex's, to trust them in its review or `/hooks`).
 
 The state ends at once at a bound session or the agent's prompt, at the next look (a second at
 most) at a box or the agent leaving, and once the screen
@@ -2500,7 +2542,8 @@ every look. One that steps slower than that keeps the mark until a box or a boun
 ends the watch of that shell: an agent that never binds may open a dialog of its own later,
 and Codex may raise a screen over a prompt it drew a few seconds before. It reaches `agents()` and, as
 `TerminalSummary.startup`, the terminal's tab: the need mark, with "Waiting at its startup
-screen" in its tooltip, and the chat view gives way to the screen. It raises no Inbox row: no
+screen" (or "Waiting for you to sign in, in its terminal", or what holds its hooks) in its
+tooltip, and the chat view gives way to the screen. It raises no Inbox row: no
 request stands behind it.
 
 Chat also leaves the terminal visible until the agent's prompt or session is known, even
@@ -3204,7 +3247,8 @@ resume probes sent it one prompt:
 | The person moves a terminal to another session (`terminals.move`)                              | A lead takes its team, whose `ledBy` ids stay as they are; a teammate moved alone leaves its lead, as a release does (the lead's undelivered messages dropped, the lead noticed). Running members are told changed handles; a pending brief refuses the move. It sees the new session's agents at once                                                                                |
 | The worker's agent exits (shell prompt returns, or its process is found gone)                  | `ledBy` is cleared, saved and announced; the former lead's later messages are a peer's. A new session of the same agent, or a restart or restore that resumes it, doesn't end it; one that resumes nothing, or typing that cancels the startup, does                                                                                                                                  |
 | `send` to "codex"                                                                              | Refused: no handle; every terminal there described, to pick by title, folder and work                                                                                                                                                                                                                                                                                                 |
-| Codex's hooks aren't trusted                                                                   | No session ever binds there. While its hooks review is open, a `send` to it waits; once the review was skipped, it shows as having no agent and a `send` to it is refused. Its own agent can still send, told replies can't reach it                                                                                                                                                  |
+| Codex's hooks aren't trusted                                                                   | No session ever binds there. While its hooks review is open, a `send` to it waits; once the review was skipped, it shows as having no agent and a `send` to it is refused. Its own agent can still send, told replies can't reach it. Its summary's `startup` is `hooks` throughout                                                                                                   |
+| Claude Code's or Antigravity's hooks are off in the person's settings                          | No session ever binds there. Once found (Claude Code's box standing a delay, Antigravity's prompt shown), it shows as having no agent, a `send` to it is refused, and its summary's `startup` is `hooks`. Claude Code's own agent can still send; Antigravity's, its plugin off, has no Novadeck tools                                                                                |
 | A background subagent finishes and starts a root turn                                          | Working, then its Stop delivers                                                                                                                                                                                                                                                                                                                                                       |
 | The person types their next prompt while Codex works                                           | Having submitted nothing, its Stop still continues the turn with what waits, then Drafting; what arrives after waits until the screen shows the box empty, when it is rung, or their prompt carries it                                                                                                                                                                                |
 | The person answers an approval with Enter during the turn                                      | Not a submission; Stop still delivers                                                                                                                                                                                                                                                                                                                                                 |

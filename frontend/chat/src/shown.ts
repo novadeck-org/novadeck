@@ -47,7 +47,9 @@ export const keepTerminalAnswers = (
 
 // Chat takes over once the agent's prompt or session is known. Its foreground program
 // alone may still be at an update, trust or sign-in screen, including a manual launch
-// that no startup watch follows. Keep the person's preference while its screen shows.
+// that no startup watch follows. Keep the person's preference while its screen shows, or
+// while its terminal holds what only the person can do there (a session not signed in,
+// Novadeck's hooks off).
 export const chatShown = (
   chatView: boolean,
   answers: TerminalAnswers,

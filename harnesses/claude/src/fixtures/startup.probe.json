@@ -116,5 +116,58 @@
     "bright": {
       "36": "❯"
     }
+  },
+  "signIn": {
+    "height": 40,
+    "columns": 120,
+    "cursor": {
+      "row": 23,
+      "column": 1
+    },
+    "rows": {
+      "0": "See \"man sudo_root\" for details.",
+      "2": "Welcome to Claude Code v2.1.316",
+      "3": "..........................................................",
+      "5": "     *                                       █████▓▓░",
+      "6": "                                 *         ███▓░     ░░",
+      "7": "            ░░░░░░                        ███▓░",
+      "8": "    ░░░   ░░░░░░░░░░                      ███▓░",
+      "9": "   ░░░░░░░░░░░░░░░░░░░    *                ██▓░░      ▓",
+      "10": "                                             ░▓▓███▓▓░",
+      "11": " *                                 ░░░░",
+      "12": "                                 ░░░░░░░░",
+      "13": "                               ░░░░░░░░░░░░░░░░",
+      "14": "       █████████                                        *",
+      "15": "      ██▄█████▄██                        *",
+      "16": "       █████████      *",
+      "17": ".......█ █   █ █..........................................",
+      "19": " Claude Code can be used with your Claude subscription or billed based on API usage through your Console account.",
+      "21": " Select login method:",
+      "23": " ❯ 1. Claude account with subscription · Pro, Max, Team, or Enterprise",
+      "24": "   2. Anthropic Console account · API usage billing",
+      "25": "   3. 3rd-party platform · Amazon Bedrock, Microsoft Foundry, Google Vertex AI"
+    },
+    "bright": {}
+  },
+  "signedOut": {
+    "height": 40,
+    "columns": 120,
+    "cursor": {
+      "row": 36,
+      "column": 2
+    },
+    "rows": {
+      "1": " ▐▛███▛█   Claude Code v2.1.316",
+      "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+      "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-eeB4ws/project",
+      "34": "                                                                                            Not logged in · Run /login",
+      "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+      "36": "❯  ",
+      "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+      "39": "  ⏸ manual mode on"
+    },
+    "bright": {
+      "36": "❯"
+    }
   }
 }

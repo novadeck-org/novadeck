@@ -396,7 +396,18 @@ describe("a terminal's note", () => {
       text: "Waiting at its startup screen",
     })
     expect(terminalNote(agent({ startup: "sign-in" }), quiet, undefined, now).text).toBe(
-      "Waiting at its sign-in screen",
+      "Waiting for you to sign in, in its terminal",
+    )
+  })
+
+  it("says Novadeck's hooks don't run for it, and what the person can do", () => {
+    expect(terminalNote(agent({ startup: "hooks" }), quiet, undefined, now)).toMatchObject({
+      need: "unblock",
+      text: "Novadeck's hooks are off for it in your settings, so messages and the Inbox can't reach it",
+    })
+    const codex = { ...agent({ startup: "hooks" }), process: "codex" }
+    expect(terminalNote(codex, quiet, undefined, now).text).toBe(
+      "Novadeck's hooks aren't trusted · Trust them in its hooks review or /hooks",
     )
   })
 

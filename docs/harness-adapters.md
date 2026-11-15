@@ -1174,7 +1174,12 @@ snapshot can carry the account's email, which no decoder reads.
 Codex's plugin hooks run only once the person trusts them in `/hooks`, and no
 hook reports that they are untrusted. A connected Codex whose hooks are
 untrusted has `unsupported` coverage with an `untrusted` reason until the
-app-server's `hooks/list` confirms trust.
+app-server's `hooks/list` confirms trust. Claude Code's and Antigravity's run
+unreviewed, but the person's own settings can turn them off (Claude Code's
+`disableAllHooks` or `enabledPlugins`, Antigravity's disabled plugin), which
+`Harness.hooksTrusted` reads for them too, never writing. Either way the
+terminal's `TerminalSummary.startup` reads `hooks` (see
+[Agent messaging](agent-messaging.md#novadecks-hooks-off)).
 
 ## Usage, quota resets and context
 

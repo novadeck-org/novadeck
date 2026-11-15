@@ -1,4 +1,4 @@
-import type { TerminalMetadata } from "../types"
+import type { AgentStatus, TerminalMetadata } from "../types"
 import { isAgentProgram } from "./process"
 import { clockTime, waitingOf, waitingText as waitingNote } from "./waiting"
 
@@ -214,11 +214,23 @@ export const unheardText = (terminal: TerminalMetadata): string | undefined =>
 const waitingText = (what: string, count: number): string =>
   count > 1 ? `${what} · ${count} waiting` : what
 
+// What holds an agent for the person, and what they do about it. Codex runs Novadeck's
+// hooks once trusted; the others' are off only as the person's own settings say, which
+// Novadeck never changes for them.
+const startupText = (startup: NonNullable<AgentStatus["startup"]>, program: string): string =>
+  startup === "sign-in"
+    ? "Waiting for you to sign in, in its terminal"
+    : startup === "hooks"
+      ? program === "codex"
+        ? "Novadeck's hooks aren't trusted · Trust them in its hooks review or /hooks"
+        : "Novadeck's hooks are off for it in your settings, so messages and the Inbox can't reach it"
+      : "Waiting at its startup screen"
+
 // What the agent in a terminal waits on the person for, in a few words; undefined when
 // nothing waits.
 export const attentionText = (terminal: TerminalMetadata): string | undefined => {
   const agent = terminal.state === "running" ? terminal.agent : undefined
-  if (agent?.startup) return `Waiting at its ${agent.startup} screen`
+  if (agent?.startup) return startupText(agent.startup, terminal.process)
   const attention = agent?.attention
   if (!attention) return undefined
   const what =

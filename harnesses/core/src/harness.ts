@@ -299,6 +299,17 @@ export type Harness = {
    */
   readonly startupScreen?: (report: Report) => StartupScreen | undefined
   /**
+   * Which of its screens a screen holding it for the person is, read off its rows, where its
+   * text tells (its sign-in screen, Codex's hooks review); undefined for any other. Only a
+   * screen the startup watch already counts as held is named.
+   */
+  readonly heldScreen?: (rows: readonly string[]) => StartupScreen | undefined
+  /**
+   * Whether its screen says it isn't signed in, with its prompt up and a session bound, where
+   * it starts so (Claude Code without a login, onboarding done): its first prompt fails.
+   */
+  readonly signedOut?: (rows: readonly string[]) => boolean
+  /**
    * Whether the terminal title it sets, as Novadeck's shells start it (Codex's shim names
    * the title's items), says its prompt shows. It counts only while the terminal's
    * foreground runs a process of the harness's name.
@@ -319,11 +330,12 @@ export type Harness = {
   /** Whether the terminal title it sets says a turn runs, as Codex's Working does. */
   readonly titleWorking?: (title: string) => boolean
   /**
-   * Whether Novadeck's hooks run for it in `cwd`, where it runs them only once the person
-   * trusts them (Codex): a prompt it shows counts only then, as nothing could deliver a
-   * message, or confirm a ring, without them. `where` holds the terminal's own program
-   * and environment where the runner can tell them. Undefined when the harness couldn't
-   * answer; trusted when omitted.
+   * Whether Novadeck's hooks run for it in `cwd`: Codex runs them only once the person
+   * trusts them, and the person's own settings may turn them, or Novadeck's plugin, off
+   * (Claude Code's `disableAllHooks` or `enabledPlugins`, Antigravity's disabled plugin). A
+   * prompt it shows counts only then, as nothing could deliver a message, or confirm a ring,
+   * without them. `where` holds the terminal's own program and environment where the runner
+   * can tell them. Undefined when the harness couldn't answer; trusted when omitted.
    */
   readonly hooksTrusted?: (
     where: Install & { readonly program?: string },

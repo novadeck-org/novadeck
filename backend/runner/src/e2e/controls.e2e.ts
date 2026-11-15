@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { mkdir, writeFile } from "node:fs/promises"
 import { basename, isAbsolute, join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
@@ -868,23 +868,6 @@ for (const setup of setups) {
         }
       },
     )
-  })
-
-  // Only Antigravity tells which screen it is at: its status line, behind its login screen.
-  describe.skipIf(!supported || setup.agent !== "agy")(`${setup.name}, signed out`, () => {
-    e2e(setup)("names its sign-in screen as the one that holds it", async ({ e2e: run }) => {
-      const file = join(run.sandbox.home, ".gemini", "antigravity-cli", "settings.json")
-      const { modelProvider: _modelProvider, ...settings } = JSON.parse(
-        await readFile(file, "utf8"),
-      ) as { modelProvider?: string }
-      await writeFile(file, JSON.stringify(settings))
-      const t = await run.deck.open(
-        await slowStart(run.sandbox.root, setup.agent, 0, "GEMINI_API_KEY"),
-      )
-      await t.until(/Select login method/, 60_000)
-      await t.poll(() => t.summary().startup ?? undefined, "its sign-in screen to count", 60_000)
-      expect(t.summary().startup).toEqual({ agent: setup.agent, screen: "sign-in" })
-    })
   })
 
   describe.skipIf(!supported)(`${setup.name}, its folder untrusted`, () => {

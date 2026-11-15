@@ -21,6 +21,7 @@ import { models } from "./models.js"
 import { connect, connected, disconnect, files, hook, hookDialect } from "./plugin.js"
 import { conversational, shapes } from "./shapes.js"
 import { cmdShim, commands, many, posixShim, valued } from "./shim.js"
+import { heldScreen, hooksTrusted, signedOut } from "./startup.js"
 import { followSubagent, followTranscript, transcriptPlans } from "./transcript-watch.js"
 import { transcripts } from "./transcripts.js"
 import { limitsReading } from "./usage.js"
@@ -185,6 +186,9 @@ export const claude = {
   transcriptOf: hookTranscript,
   dialogs,
   commandFields: ["command"],
+  heldScreen,
+  signedOut,
+  hooksTrusted,
   launch,
   messaging,
   box,

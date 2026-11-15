@@ -82,9 +82,11 @@ export type AgentStatus = {
   // Its `done` report still stands: nothing the person prompted or a message delivered to it
   // came after. Looking at the terminal does not end it, so its done mark stays until then.
   readonly reported?: true
-  // One of its own screens holds it for the person before its first session, as a
-  // folder-trust or sign-in screen. No request stands behind it, so no Inbox row does either.
-  readonly startup?: "startup" | "sign-in"
+  // What holds it for the person before Novadeck can reach it: one of its own screens, as a
+  // folder-trust screen (`startup`); its sign-in screen, or its prompt saying it isn't signed
+  // in (`sign-in`); Novadeck's hooks not on for it, untrusted or off in the person's settings
+  // (`hooks`). No request stands behind it, so no Inbox row does either.
+  readonly startup?: "startup" | "sign-in" | "hooks"
   // A command the person runs in the agent's shell mode (`!sleep 15`) that still runs: what
   // they typed and when they ran it. It busies the terminal but is no turn: `working` and
   // the turn's outcome are unchanged by it.

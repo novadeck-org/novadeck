@@ -29,6 +29,7 @@ import { markEnd, markTurn } from "../interrupted.js"
 import type { Record } from "../record.js"
 import { whenEndCounts } from "../sampling.js"
 import { hasRun } from "../saved-terminals.js"
+import { startupOf } from "../startup-watch.js"
 import { lastStep } from "../transcripts.js"
 import { TurnEnds, type TurnsHost } from "../turn-ends.js"
 import type { Typing } from "../typing.js"
@@ -686,8 +687,9 @@ export class Bindings {
     const { bound } = record
     const agent = bound?.binding.agent ?? null
     const ready = this.readyOf(record)
-    // Its prompt or a session ends a startup screen at once, not at the watch's next look.
-    const startup = bound || ready ? null : record.summary.startup
+    // Its prompt or a session ends a startup screen at once, not at the watch's next look,
+    // but for a session whose prompt says it isn't signed in.
+    const startup = bound || ready ? startupOf(record, undefined, null) : record.summary.startup
     const activity = bound ? activitySummary(bound.activity) : null
     // Before the early return below: an Escape that settles changes nothing the summary shows.
     this.ends.sight(record, activity)

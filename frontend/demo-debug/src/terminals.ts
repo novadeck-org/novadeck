@@ -250,8 +250,8 @@ export const unheardAgent = (key: TerminalKey, program: string): BackendAction[]
   setStatus(key, { state: "running" }),
 ]
 
-// An agent one of whose own screens holds it for the person before its first session, as a
-// folder-trust or sign-in screen.
+// An agent held for the person before Novadeck can reach it: at one of its own screens, as a
+// folder-trust or sign-in screen, or at its prompt with Novadeck's hooks off.
 export const atStartupScreen = (
   key: TerminalKey,
   program: string,

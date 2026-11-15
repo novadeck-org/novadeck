@@ -386,7 +386,8 @@ export class Terminals {
     this.startups = new StartupWatch<Record>({
       stopping: () => this.stopping,
       records: () => this.records.values(),
-      expected: (terminalId) => this.messaging.expected(terminalId),
+      messaging: () => this.messaging,
+      shown: () => this.shown,
       screen: (terminalId) => this.typing.screenOf(terminalId),
       changed: (record) => this.announce(record),
     })

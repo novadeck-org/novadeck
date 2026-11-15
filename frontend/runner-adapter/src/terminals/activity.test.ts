@@ -72,6 +72,38 @@ describe("terminal activity", () => {
       })
       expect(terminalActivity(bound).status).toEqual({ state: "running" })
     })
+
+    it("keeps a session's mark whose prompt says it isn't signed in", () => {
+      const signedOut = summary({
+        process: { name: "claude", argv: null },
+        agent: "claude",
+        activity: {
+          state: "idle",
+          attention: { pending: 0, kind: null },
+          subagents: [],
+          planning: false,
+          background: null,
+          waiting: null,
+          lastTurn: null,
+        } as unknown as TerminalSummary["activity"],
+        startup: { agent: "claude", screen: "sign-in" },
+      })
+      expect(terminalActivity(signedOut).status).toMatchObject({
+        state: "running",
+        agent: { working: false, startup: "sign-in" },
+      })
+    })
+
+    it("shows an agent whose hooks are off at its own prompt", () => {
+      const off = summary({
+        process: { name: "claude", argv: null },
+        startup: { agent: "claude", screen: "hooks" },
+      })
+      expect(terminalActivity(off).status).toEqual({
+        state: "running",
+        agent: { working: false, startup: "hooks" },
+      })
+    })
   })
 
   context("while a shell waits in the foreground", () => {
