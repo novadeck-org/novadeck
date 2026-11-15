@@ -3,11 +3,11 @@ import type { WorkspaceTarget } from "@novadeck/core/types"
 import { Shown, useShown } from "@novadeck/toolkit/shown"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { createLucideIcon, Minus, X } from "lucide-react"
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
 import { AwakeContext, useWakeful } from "../../awake"
 import { isNew, isSecret, type BarMember, type BehindGroup } from "../../bar/bar"
-import { pageLook, usePanePicture, type PanePicture } from "../../pane-pictures"
+import { usePanePicture, useStandInPicture, type PanePicture } from "../../pane-pictures"
 import { usePaneTurn } from "../../pane-turns"
 import type { LookContext } from "../../registration"
 import { registrationOf, stackNames } from "../../registry"
@@ -130,10 +130,6 @@ const Sheet = ({
   )
 }
 
-// How far, in CSS pixels, the pane may be from the size its picture was taken at for the
-// picture to stand in: a rounding's worth.
-const pictureFitPx = 1
-
 // What stands in for what the pane shows until its turn: a picture of it as it was last
 // drawn, where there is one taken at the size the pane is now, in the page's look now (see
 // ../../pane-pictures), else its icon and name, as its tab has.
@@ -147,35 +143,7 @@ const StandIn = ({
   picture: () => PanePicture | undefined
 }): React.JSX.Element => {
   const { icon: Icon, name } = memberLook(member, { plans })
-  const element = useRef<HTMLDivElement>(null)
-  // Put in before the frame draws, decoded already, so the frame shows it; taken out again
-  // if the pane's size changes while it waits.
-  useLayoutEffect(() => {
-    const standIn = element.current
-    const sheet = standIn?.parentElement
-    const shown = picture()
-    if (!standIn || !sheet || !shown || shown.look !== pageLook()) return
-    const { image } = shown
-    image.className = "pane-stand-in-picture"
-    image.setAttribute("aria-hidden", "true")
-    const fit = (): void => {
-      const fits =
-        Math.abs(sheet.offsetWidth - shown.width) <= pictureFitPx &&
-        Math.abs(sheet.offsetHeight - shown.height) <= pictureFitPx
-      if (fits && image.parentElement !== standIn) standIn.append(image)
-      if (!fits) image.remove()
-      if (fits) standIn.dataset.pictured = "true"
-      else delete standIn.dataset.pictured
-    }
-    fit()
-    const resized = typeof ResizeObserver === "function" ? new ResizeObserver(fit) : undefined
-    resized?.observe(sheet)
-    return () => {
-      resized?.disconnect()
-      image.remove()
-      delete standIn.dataset.pictured
-    }
-  }, [picture])
+  const element = useStandInPicture<HTMLDivElement>(picture)
   return (
     // A progress bar of no value, as something loading: no live region, which would speak
     // up for each pane a pan brings back.
@@ -514,6 +482,8 @@ export const CompanionPane = ({
   // A picture of what it shows, kept while it's laid out in sight, to stand in for it
   // while it waits its turn again; never of a kind drawn outside the page.
   const [sheet, setSheet] = useState<HTMLElement | null>(null)
+  // Kept by this pane alone: one remounting starts with none.
+  const mount = useId()
   const picture = usePanePicture(
     sheet,
     inSight &&
@@ -521,7 +491,7 @@ export const CompanionPane = ({
       !turn.waiting &&
       !leaving &&
       !(item && registrationOf(item).drawnElsewhere),
-    member?.key,
+    member && `${mount}:${member.key}`,
   )
   // A new top comes forward when it was behind, and over what was shown when it's new;
   // another tab of the same icon just shows.

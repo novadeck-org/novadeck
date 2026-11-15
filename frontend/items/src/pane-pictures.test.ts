@@ -166,6 +166,8 @@ describe("keeping a pane's picture", () => {
   const noting = () => {
     const taken: HTMLElement[] = []
     const pictures: PanePictures = {
+      // Kept as the app keeps them; taken as the test says.
+      ...createPanePictures(undefined),
       can: () => true,
       take: async (element) => {
         taken.push(element)
@@ -268,6 +270,8 @@ describe("keeping a pane's picture", () => {
   it("tries again on the next freshen where none came", async () => {
     let tries = 0
     const pictures: PanePictures = {
+      // Kept as the app keeps them; taken as the test says.
+      ...createPanePictures(undefined),
       can: () => true,
       take: async () => {
         tries += 1

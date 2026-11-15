@@ -211,6 +211,18 @@
 .terminal-host {
   container-type: inline-size;
 }
+/* The chat in its turn (`.chat-turn`, app/chat-turn.tsx) fills the chat's pane; until its first
+   turn, what stands in for it (`.chat-stand-in`, a `.pane-stand-in`) covers the screen beneath
+   as the chat would. */
+.chat-turn {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.chat-stand-in {
+  background-color: var(--chat-bg, var(--window-bg, var(--color-paper)));
+}
+
 /* Above the chat, which covers the terminal's content (`.chat-pane`, z-10), so it floats over
    either view alike. */
 .terminal-stats {

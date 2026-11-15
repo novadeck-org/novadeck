@@ -27,7 +27,13 @@ import { act, createElement, useSyncExternalStore, type ComponentProps } from "r
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { createDragSession, DragSessionContext } from "../../bar/drag-session"
-import { firstMs, pageLook, PanePicturesContext, type PanePictures } from "../../pane-pictures"
+import {
+  createPanePictures,
+  firstMs,
+  pageLook,
+  PanePicturesContext,
+  type PanePictures,
+} from "../../pane-pictures"
 import {
   createPaneTurns,
   PaneTurnsContext,
@@ -365,6 +371,8 @@ describe("a pane in the workspace", () => {
     const picturing = (size = { width: 0, height: 0 }) => {
       const taken: HTMLElement[] = []
       const pictures: PanePictures = {
+        // Kept as the app keeps them; taken as the test says.
+        ...createPanePictures(undefined),
         can: () => true,
         take: async (element) => {
           taken.push(element)

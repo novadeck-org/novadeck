@@ -51,6 +51,7 @@ import { WindowStats } from "../terminals/WindowStats"
 import { DictationStrip } from "../voice/DictationStrip"
 import { useAskFeedback } from "./ask-feedback"
 import { useChatTakesFocus } from "./chat-focus"
+import { ChatTurn } from "./chat-turn"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { DictationContext, useMicButton } from "./controller/dictation"
 import { useDockTarget } from "./dock-target"
@@ -404,53 +405,62 @@ export const WorkspaceTerminal = memo(
               data-workspace-chat=""
             >
               <Shown value={chatInSight}>
-                <ChatWithPeers
+                <ChatTurn
+                  first={active}
+                  name={terminal.name}
                   conversation={conversation}
-                  terminalName={terminal.name}
-                  program={terminal.process}
-                  agent={terminal.state === "running" ? terminal.agent : undefined}
-                  compact={view !== "focus"}
-                  links={messageLinks}
-                  draft={draft}
-                  onDraft={(text) => commands.setChatDraft(terminalId, text)}
-                  replyTo={replyTo}
-                  onReplyTo={(to) => commands.setChatReply(chatContext, terminalId, to)}
-                  sending={sending}
-                  shells={shells}
-                  shellTails={shellTails}
-                  onOpenShell={onOpenShell}
-                  attachments={attachments}
-                  imageNote={imageNote}
-                  onRestore={(words, images) =>
-                    commands.restoreChat(chatContext, terminalId, words, images)
-                  }
-                  onAttach={
-                    conversations!.uploadImage
-                      ? (files, selection) =>
-                          commands.attachChatImages(terminalKey, files, selection)
-                      : undefined
-                  }
-                  onDetach={(id) => commands.removeChatImage(chatContext, terminalId, id)}
-                  onImage={onImage}
-                  onSend={(text, to, images) => commands.sendChat(terminalKey, text, to, images)}
-                  // Words queued behind the stopped turn, the agent's and the chat's, come back
-                  // to the box, to send again.
-                  onInterrupt={() => commands.stopChat(terminalKey)}
-                  onClearBox={(seen) => commands.clearBox(terminalKey, seen)}
-                  onAnswer={(request, answer) =>
-                    conversations!.answer(terminalKey, request, answer)
-                  }
-                  onWordsLost={(words) => commands.appendChatDraft(chatContext, terminalId, words)}
-                  onAnswerInTerminal={() => commands.showTerminal(terminalId)}
-                  focusInput={wanted}
-                  onInputFocused={onInputFocused}
-                  refused={conversations!.refused}
-                  onPassing={(state) => commands.setChatPassing(terminalId, state)}
-                  onLeftMenu={() => commands.setChatDraft(terminalId, "", chatContext)}
-                  onKeys={
-                    conversations!.keys && ((keys) => conversations!.keys!(terminalKey, keys))
-                  }
-                />
+                  picturedAs={`chat:${view}:${chatContext}/${terminalId}`}
+                >
+                  <ChatWithPeers
+                    conversation={conversation}
+                    terminalName={terminal.name}
+                    program={terminal.process}
+                    agent={terminal.state === "running" ? terminal.agent : undefined}
+                    compact={view !== "focus"}
+                    links={messageLinks}
+                    draft={draft}
+                    onDraft={(text) => commands.setChatDraft(terminalId, text)}
+                    replyTo={replyTo}
+                    onReplyTo={(to) => commands.setChatReply(chatContext, terminalId, to)}
+                    sending={sending}
+                    shells={shells}
+                    shellTails={shellTails}
+                    onOpenShell={onOpenShell}
+                    attachments={attachments}
+                    imageNote={imageNote}
+                    onRestore={(words, images) =>
+                      commands.restoreChat(chatContext, terminalId, words, images)
+                    }
+                    onAttach={
+                      conversations!.uploadImage
+                        ? (files, selection) =>
+                            commands.attachChatImages(terminalKey, files, selection)
+                        : undefined
+                    }
+                    onDetach={(id) => commands.removeChatImage(chatContext, terminalId, id)}
+                    onImage={onImage}
+                    onSend={(text, to, images) => commands.sendChat(terminalKey, text, to, images)}
+                    // Words queued behind the stopped turn, the agent's and the chat's, come back
+                    // to the box, to send again.
+                    onInterrupt={() => commands.stopChat(terminalKey)}
+                    onClearBox={(seen) => commands.clearBox(terminalKey, seen)}
+                    onAnswer={(request, answer) =>
+                      conversations!.answer(terminalKey, request, answer)
+                    }
+                    onWordsLost={(words) =>
+                      commands.appendChatDraft(chatContext, terminalId, words)
+                    }
+                    onAnswerInTerminal={() => commands.showTerminal(terminalId)}
+                    focusInput={wanted}
+                    onInputFocused={onInputFocused}
+                    refused={conversations!.refused}
+                    onPassing={(state) => commands.setChatPassing(terminalId, state)}
+                    onLeftMenu={() => commands.setChatDraft(terminalId, "", chatContext)}
+                    onKeys={
+                      conversations!.keys && ((keys) => conversations!.keys!(terminalKey, keys))
+                    }
+                  />
+                </ChatTurn>
               </Shown>
             </div>
           )}

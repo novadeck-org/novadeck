@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useRef } from "react"
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type RefObject,
+} from "react"
 
 // A companion pane coming back into sight stands in for what it shows until its turn (see
 // ./pane-turns): where the app can picture its own page, as the desktop app can, it stands
@@ -7,7 +15,10 @@ import { createContext, useCallback, useContext, useEffect, useRef } from "react
 // `leftMs` after the pointer or focus leaves it, and every `freshenMs`, each only once what
 // it shows has changed since, as told by its DOM changing, a scroll in it, its size, the
 // page's look, or the pointer or focus leaving it (which a hover or focus ring showed).
-// Pictures are taken one at a time, so panes a view shows at once don't all ask together.
+// Pictures are taken one at a time, so panes a view shows at once don't all ask together. They
+// are kept by key, a few dozen at most, so what remounts (a chat, as its view comes back) finds
+// its own again; one whose content the caller can name (a chat's conversation) is taken only
+// once that has settled, and shows only while it is still what the picture shows.
 
 // A picture of a pane: what it showed, decoded, ready to draw at once, and the size it was
 // laid out at then, in CSS pixels, and the page's look then (see `pageLook`), as it shows
@@ -17,6 +28,8 @@ export type PanePicture = {
   readonly width: number
   readonly height: number
   readonly look: string
+  // What it showed, as the caller names it (see `usePanePicture`'s `mark`), where it does.
+  readonly mark?: string | undefined
 }
 
 // A part of the page in CSS pixels of its viewport.
@@ -37,6 +50,9 @@ export type PanePictures = {
   // A picture of `element` as it's drawn now; undefined where it isn't wholly in view,
   // uncovered, or none comes.
   readonly take: (element: HTMLElement) => Promise<PanePicture | undefined>
+  // The picture kept by `key`, and keeping one there.
+  readonly kept: (key: string) => PanePicture | undefined
+  readonly keep: (key: string, picture: PanePicture) => void
 }
 
 // Outside the workspace, and where the page can't picture itself (a browser), none are taken.
@@ -48,6 +64,8 @@ export const firstMs = 1_000
 export const freshenMs = 5_000
 /** How soon after the pointer leaves a pane its picture is freshened. */
 export const leftMs = 300
+/** How many pictures are kept, the latest kept or shown last to go. */
+export const keptMost = 32
 
 // The demo's debug panel has panes pictured as sketches of their layout while the page's
 // root carries this, where the page can't picture itself, so the picture can be looked at.
@@ -191,6 +209,8 @@ export const createPanePictures = (shoot: Shoot | undefined): PanePictures => {
   }
   // The picture under way, which the next waits for.
   let last: Promise<unknown> = Promise.resolve()
+  // By key, the one kept or shown longest ago first.
+  const kept = new Map<string, PanePicture>()
   return {
     can: () => shoot !== undefined || sketched(),
     take: (element) => {
@@ -198,25 +218,46 @@ export const createPanePictures = (shoot: Shoot | undefined): PanePictures => {
       last = next.catch(() => undefined)
       return next
     },
+    kept: (key) => {
+      const picture = kept.get(key)
+      if (picture === undefined) return undefined
+      kept.delete(key)
+      kept.set(key, picture)
+      return picture
+    },
+    keep: (key, picture) => {
+      kept.delete(key)
+      kept.set(key, picture)
+      for (const old of kept.keys()) {
+        if (kept.size <= keptMost) break
+        kept.delete(old)
+      }
+    },
   }
 }
 
 /**
  * Keeps a picture of the pane drawn in `element` while it's `live` (built, laid out and in
- * sight), for what it shows as `key`. Returns the latest picture of what it shows now, if
- * any: one of anything else it showed doesn't count.
+ * sight), for what it shows as `key`. Returns the latest picture kept by `key`, if any: one
+ * kept by any other doesn't count. Where `mark` names what it shows (a word that changes as
+ * that does), a picture is taken only once that holds still from one freshen to the next, and
+ * counts only while it still names it.
  */
 export const usePanePicture = (
   element: HTMLElement | null,
   live: boolean,
   key: string | undefined,
+  mark?: () => string,
 ): (() => PanePicture | undefined) => {
   const pictures = useContext(PanePicturesContext)
-  const kept = useRef<{ readonly key: string; readonly picture: PanePicture } | undefined>(
-    undefined,
-  )
+  const named = useRef(mark)
+  useLayoutEffect(() => {
+    named.current = mark
+  })
   useEffect(() => {
     if (!live || !element || key === undefined || !pictures?.can()) return
+    // What it showed at the last freshen, where it's named: a picture waits until it holds.
+    let lastMark = named.current?.()
     // Whether what it shows changed since its last picture. Told once, it stops listening
     // until the next picture, so a busy pane costs a call per picture, not one per change.
     let changed = true
@@ -252,6 +293,10 @@ export const usePanePicture = (
         : undefined
     const take = (): void => {
       if (!changed || taking || document.visibilityState === "hidden") return
+      const marked = named.current?.()
+      const settled = marked === lastMark
+      lastMark = marked
+      if (!settled) return
       changed = false
       taking = true
       sized = false
@@ -260,7 +305,7 @@ export const usePanePicture = (
         (picture) => {
           taking = false
           if (gone) return
-          if (picture) kept.current = { key, picture }
+          if (picture) pictures.keep(key, { ...picture, mark: marked })
           // None came, as when it was covered: tried again on the next freshen.
           else change()
         },
@@ -302,7 +347,51 @@ export const usePanePicture = (
     }
   }, [pictures, element, live, key])
   return useCallback(() => {
-    const picture = kept.current
-    return picture !== undefined && picture.key === key ? picture.picture : undefined
-  }, [key])
+    const picture = key === undefined ? undefined : pictures?.kept(key)
+    if (picture === undefined) return undefined
+    return named.current === undefined || picture.mark === named.current() ? picture : undefined
+  }, [pictures, key])
+}
+
+// How far, in CSS pixels, a pane may be from the size its picture was taken at for the
+// picture to stand in: a rounding's worth.
+const pictureFitPx = 1
+
+/**
+ * Shows `picture()` in the stand-in the returned ref is put on, over what it holds, where there is one taken in
+ * the page's look now and at the size of what the stand-in stands in for (its parent): put in
+ * before the frame draws, decoded already, so the frame shows it, and taken out again if that
+ * changes size while it stands in. The stand-in carries data-pictured while it shows one.
+ */
+export const useStandInPicture = <Element extends HTMLElement>(
+  picture: () => PanePicture | undefined,
+): RefObject<Element | null> => {
+  const element = useRef<Element>(null)
+  useLayoutEffect(() => {
+    const standIn = element.current
+    const sheet = standIn?.parentElement
+    const shown = picture()
+    if (!standIn || !sheet || !shown || shown.look !== pageLook()) return
+    const { image } = shown
+    image.className = "pane-stand-in-picture"
+    image.setAttribute("aria-hidden", "true")
+    const fit = (): void => {
+      const fits =
+        Math.abs(sheet.offsetWidth - shown.width) <= pictureFitPx &&
+        Math.abs(sheet.offsetHeight - shown.height) <= pictureFitPx
+      if (fits && image.parentElement !== standIn) standIn.append(image)
+      if (!fits) image.remove()
+      if (fits) standIn.dataset.pictured = "true"
+      else delete standIn.dataset.pictured
+    }
+    fit()
+    const resized = typeof ResizeObserver === "function" ? new ResizeObserver(fit) : undefined
+    resized?.observe(sheet)
+    return () => {
+      resized?.disconnect()
+      image.remove()
+      delete standIn.dataset.pictured
+    }
+  }, [picture])
+  return element
 }
