@@ -1,8 +1,11 @@
 // PROBE: which launch words let a harness run Novadeck's own MCP tools without asking, with
-// nothing in its settings allowing them. Per harness, each case starts it with its words (bare
-// first, which must ask), has the model call `describe`, and records whether the call ran or
-// the harness asked, with the screen. Runs only with NOVADECK_E2E_PROBES=1, by path; with
-// PROBE_OUT set it writes $PROBE_OUT/<agent>.tools-unasked.probe.json.
+// nothing in its settings allowing them. Per harness, each case starts it past Novadeck's shim,
+// which would add its own allow (an empty NOVADECK_SHIMS, with what else the shim adds that
+// Novadeck needs), with the case's words (bare first, which must ask), has the model call
+// `describe`, and records whether the call ran or the harness asked, with the screen. One more
+// for Antigravity goes through its shim and records where an "always allow" the person picks
+// is saved while `--settings` holds the session's rules. Runs only with NOVADECK_E2E_PROBES=1,
+// by path; with PROBE_OUT set it writes $PROBE_OUT/<agent>.<case>.tools-unasked.probe.json.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
@@ -22,7 +25,7 @@ type Case = {
   readonly words: (run: E2E) => string
   /** The prompt is on the command line, not typed. */
   readonly positional?: true
-  /** Leaves the seed's allow of Novadeck's tools in its settings. */
+  /** Allows Novadeck's tools in the harness's own settings first. */
   readonly seeded?: true
   /** Changes the harness's settings first. */
   readonly prepare?: (run: E2E) => void
@@ -156,23 +159,36 @@ const cases: { readonly [agent in AgentName]: readonly Case[] } = {
 
 const slug = (label: string): string => label.replace(/[^a-z0-9]+/gi, "-")
 
-/** Takes the seed's allow of Novadeck's tools away, so only the launch words can allow them. */
-const unseed = (run: E2E, agent: AgentName): void => {
-  const edit = (path: string, change: (text: string) => string): void =>
-    writeFileSync(path, change(readFileSync(path, "utf8")))
+/** Allows Novadeck's tools in the harness's own settings, as a person may have. */
+const seedAllow = (run: E2E, agent: AgentName): void => {
   const home = run.sandbox.home
+  const allowIn = (path: string, rule: string): void => {
+    const settings = JSON.parse(readFileSync(path, "utf8")) as {
+      permissions?: { allow?: string[] }
+    }
+    const permissions = settings.permissions ?? {}
+    writeFileSync(
+      path,
+      JSON.stringify({
+        ...settings,
+        permissions: { ...permissions, allow: [...(permissions.allow ?? []), rule] },
+      }),
+    )
+  }
   if (agent === "claude")
-    edit(join(home, ".claude", "settings.json"), (text) =>
-      text.replace(/"mcp__plugin_novadeck_novadeck",?/, ""),
-    )
-  if (agent === "codex")
-    edit(join(home, ".codex", "config.toml"), (text) =>
-      text.replace(/^default_tools_approval_mode\s*=.*$/m, ""),
-    )
+    allowIn(join(home, ".claude", "settings.json"), "mcp__plugin_novadeck_novadeck")
   if (agent === "agy")
-    edit(join(home, ".gemini", "antigravity-cli", "settings.json"), (text) =>
-      text.replace(/"mcp\(novadeck_novadeck\/\*\)",?/, ""),
-    )
+    allowIn(join(home, ".gemini", "antigravity-cli", "settings.json"), "mcp(novadeck_novadeck/*)")
+}
+
+/**
+ * What starts a harness past Novadeck's shim, and what else of the shim's it needs: Codex's
+ * session in its terminal and the title that says its prompt is up (harnesses/codex/src/shim.ts).
+ */
+const past: { readonly [agent in AgentName]: string } = {
+  claude: "NOVADECK_SHIMS= claude",
+  codex: `NOVADECK_SHIMS= codex --no-daemon -c "tui.terminal_title=['status','thread-id']"`,
+  agy: "NOVADECK_SHIMS= agy",
 }
 
 for (const setup of setups) {
@@ -185,7 +201,7 @@ for (const setup of setups) {
       const only = process.env.PROBE_CASES?.split(",")
       for (const probe of cases[agent].filter((one) => !only || only.includes(slug(one.label))))
         it(probe.label, async ({ e2e: run }) => {
-          if (!probe.seeded) unseed(run, agent)
+          if (probe.seeded) seedAllow(run, agent)
           probe.prepare?.(run)
           const found: Record<string, unknown> = { case: probe.label }
           run.model.use(
@@ -202,7 +218,7 @@ for (const setup of setups) {
             ),
           )
           const words = probe.words(run)
-          found.command = `${agent} ${words}`.trim()
+          found.command = `${past[agent]} ${words}`.trim()
           const terminal = await run.deck.open(found.command as string)
           await terminal.reached("ready", { timeoutMs: 60_000 })
           // Claude Code offers to keep auto mode as the default before its prompt.
@@ -232,3 +248,75 @@ for (const setup of setups) {
     },
   )
 }
+
+// Antigravity through its shim, the person's own rule in settings.json: they pick "always
+// allow" on a command, persisted. Where does it go: their settings.json (with Novadeck's rule
+// too?), or the shim's file? And the next launch's file holds what?
+const antigravity = setups.find((setup) => setup.agent === "agy")
+describe.skipIf(
+  !supported || process.env.NOVADECK_E2E_PROBES === undefined || antigravity === undefined,
+)("probe: an always-allow Antigravity saves while the shim's --settings holds its rules", () => {
+  const setup = antigravity!
+  const it = e2e(setup)
+  it("records the person's settings and the shim's file after a persisted allow", async ({
+    e2e: run,
+  }) => {
+    const settings = join(run.sandbox.home, ".gemini", "antigravity-cli", "settings.json")
+    const before = JSON.parse(readFileSync(settings, "utf8")) as Record<string, unknown>
+    writeFileSync(
+      settings,
+      JSON.stringify({ ...before, permissions: { allow: ["command(echo kept)"] } }),
+    )
+    const found: Record<string, unknown> = { before: readFileSync(settings, "utf8") }
+    run.model.use(
+      own((call) =>
+        asked(call, "Run the echo") && result(call) === undefined
+          ? {
+              calls: [
+                {
+                  name: "run_command",
+                  input: {
+                    CommandLine: "echo persisted",
+                    WaitMsBeforeAsync: 5000,
+                    toolSummary: "Echo",
+                  },
+                },
+              ],
+            }
+          : undefined,
+      ),
+      own((call) => (result(call) !== undefined ? { text: "Ran it." } : undefined)),
+    )
+    const terminal = await run.deck.open("agy")
+    await terminal.reached("ready", { timeoutMs: 60_000 })
+    await prompted(terminal, setup)
+    const file = (id: string): string => join(run.deck.shell.allow, `${id}.json`)
+    found.passed = readFileSync(file(terminal.id), "utf8")
+    await terminal.submit("Run the echo")
+    found.dialog = await terminal.until(/Yes, run command/, 30_000)
+    // Its third choice persists the rule to settings.json, picked by its number alone.
+    await terminal.settled()
+    terminal.press("3")
+    try {
+      await terminal.until("Ran it.", 30_000)
+      found.ran = true
+    } catch {
+      found.ran = false
+    }
+    found.screen = await terminal.screen()
+    found.after = readFileSync(settings, "utf8")
+    found.passedAfter = readFileSync(file(terminal.id), "utf8")
+    // The next launch, in another terminal.
+    const next = await run.deck.open("agy")
+    await next.reached("ready", { timeoutMs: 60_000 })
+    found.nextPassed = readFileSync(file(next.id), "utf8")
+    if (out) {
+      mkdirSync(out, { recursive: true })
+      writeFileSync(
+        join(out, "agy.persisted.tools-unasked.probe.json"),
+        JSON.stringify(found, null, 2),
+      )
+    }
+    expect(found).toBeDefined()
+  })
+})

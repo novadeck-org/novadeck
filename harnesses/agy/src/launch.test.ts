@@ -76,3 +76,12 @@ describe("the flags a resumed Antigravity keeps", () => {
     ])
   })
 })
+
+describe("what the shim adds to let Novadeck's tools run", () => {
+  it("is never kept, so each launch and resume gets it afresh from the shim", () => {
+    expect(agy.launch.kept!(["--settings", "/x/allow/terminal.json", "--mode", "plan"])).toEqual([
+      "--mode",
+      "plan",
+    ])
+  })
+})

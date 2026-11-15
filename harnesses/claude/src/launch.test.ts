@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { claude } from "./index.js"
+import { allowNovadeck } from "./shim.js"
 
 const { kept, resume } = claude.launch
 
@@ -126,6 +127,16 @@ describe("the flags a resumed Claude Code keeps", () => {
       "claude",
       "--resume",
       "s-1",
+    ])
+  })
+})
+
+describe("what the shim adds to let Novadeck's tools run", () => {
+  it("is never kept, so each launch and resume gets it afresh from the shim", () => {
+    const status = ["--settings", "/x/plugins/claude/statusline.json"]
+    expect(claude.launch.kept!([...status, allowNovadeck, "--model", "opus"])).toEqual([
+      "--model",
+      "opus",
     ])
   })
 })

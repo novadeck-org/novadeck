@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { codex } from "./index.js"
+import { approveNovadeck } from "./shim.js"
 
 const { kept, resume } = codex.launch
 
@@ -113,5 +114,14 @@ describe("the flags a resumed Codex keeps", () => {
     const bare = ["codex", "resume", "-c", "tui.resume_cwd=session", "s-1"]
     expect(resume!("s-1", {}, kept!(["-s", "read-only"]))).toEqual(bare)
     expect(resume!("s-1")).toEqual(bare)
+  })
+})
+
+describe("what the shim adds to let Novadeck's tools run", () => {
+  it("is never kept, so each launch and resume gets it afresh from the shim", () => {
+    expect(codex.launch.kept!(["--no-daemon", "-c", approveNovadeck, "-m", "gpt-5"])).toEqual([
+      "--model",
+      "gpt-5",
+    ])
   })
 })

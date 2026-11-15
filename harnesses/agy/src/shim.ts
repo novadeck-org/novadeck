@@ -9,12 +9,14 @@ import { cmdAdd, posixAdd } from "@novadeck/harness-core/shim-root"
  * and resume the shim has Novadeck's relay read their list, never writing it, and write it
  * with this rule added to a file of Novadeck's own, one per terminal in `allowFolder`, which
  * it passes; where their list can't be read it passes nothing, and asks as before. Probed
- * 2026-11-15 (1.5.3 and 1.5.7, e2e/probes/tools-unasked.e2e.ts), with no setting allowing
+ * 2026-11-15 (1.5.7 and 1.5.9, e2e/probes/tools-unasked.e2e.ts), with no setting allowing
  * them: a bare session asked before `describe`; with this rule in `--settings` it ran unasked,
  * in plan mode too; with the rule in settings.json and another `--settings` allow list, it
  * asked; with only a `deny` in `--settings` the settings.json allow held; of two `--settings`,
  * the last held. A PreToolUse hook answering "allow" still asked, and `permissionOverrides`
- * only named the asked tool otherwise.
+ * only named the asked tool otherwise. A command the person then always allowed, persisted,
+ * went to their settings.json alone (`command(echo)` beside their own rule, Novadeck's not
+ * written there), the shim's file left as it was, and the next launch passed it on.
  */
 export const allowNovadeck = "mcp(novadeck_novadeck/*)"
 
@@ -108,11 +110,14 @@ for novadeck_arg in "$@"; do
     *) break ;;
   esac
 done
-# The person's allow rules with Novadeck's added, read afresh: nothing where they can't be read.
-novadeck_dir=$(dirname "$0")/..
-novadeck_settings=$novadeck_dir/${allowFolder}/$NOVADECK_TERMINAL_ID.json
-"$novadeck_dir/novadeck-relay" allow "\${HOME:-}/.gemini/antigravity-cli/settings.json" '${allowNovadeck}' "$novadeck_settings" >/dev/null 2>&1 ||
-  novadeck_settings=
+# The person's allow rules with Novadeck's added, read afresh: nothing where they can't be read,
+# nor without a home to read them in. The file's path is whole, as agy may change its folder.
+novadeck_settings=
+if [ -n "\${HOME:-}" ] && novadeck_dir=$(cd "$(dirname "$0")/.." && pwd); then
+  novadeck_settings=$novadeck_dir/${allowFolder}/$NOVADECK_TERMINAL_ID.json
+  "$novadeck_dir/novadeck-relay" allow "$HOME/.gemini/antigravity-cli/settings.json" '${allowNovadeck}' "$novadeck_settings" >/dev/null 2>&1 ||
+    novadeck_settings=
+fi
 exec "$novadeck_real" \${novadeck_add:+"$novadeck_add"} \${novadeck_settings:+--settings "$novadeck_settings"} "$@"
 `
 

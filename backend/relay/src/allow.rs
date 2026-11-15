@@ -12,26 +12,24 @@ use serde_json::{Value, json};
 
 /// The settings to pass: the person's `permissions.allow` from `settings` (the file's text,
 /// or None where there is no file) with `rule` after them, unless it is there already. None
-/// where the person's rules can't be read: the file isn't JSON, or its `allow` isn't a list,
-/// as passing any list then would replace rules the harness may still read its own way.
+/// where the person's rules can't be read: the file isn't a JSON object (a byte order mark
+/// ahead of it aside), or its `permissions` isn't one, or its `allow` isn't a list, as passing
+/// any list then would replace rules the harness may still read its own way.
 pub fn merged(settings: Option<&str>, rule: &str) -> Option<Value> {
     let parsed: Value = match settings {
-        Some(text) => serde_json::from_str(text).ok()?,
+        Some(text) => serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()?,
         None => json!({}),
     };
-    let allow = match parsed
-        .get("permissions")
-        .and_then(|permissions| permissions.get("allow"))
-    {
+    let permissions = match parsed.as_object()?.get("permissions") {
+        None | Some(Value::Null) => None,
+        Some(Value::Object(permissions)) => Some(permissions),
+        Some(_) => return None,
+    };
+    let mut rules = match permissions.and_then(|permissions| permissions.get("allow")) {
         None | Some(Value::Null) => Vec::new(),
         Some(Value::Array(rules)) => rules.clone(),
         Some(_) => return None,
     };
-    // Anything else than an object holds no rules the harness would read.
-    if !parsed.is_object() {
-        return None;
-    }
-    let mut rules = allow;
     if !rules.iter().any(|one| one.as_str() == Some(rule)) {
         rules.push(Value::String(rule.to_owned()));
     }
@@ -101,6 +99,17 @@ mod tests {
     }
 
     #[test]
+    fn reads_the_persons_rules_behind_a_byte_order_mark() {
+        assert_eq!(
+            merged(
+                Some("\u{feff}{\"permissions\":{\"allow\":[\"command(ls)\"]}}"),
+                RULE
+            ),
+            Some(json!({ "permissions": { "allow": ["command(ls)", RULE] } }))
+        );
+    }
+
+    #[test]
     fn keeps_a_rule_the_person_has_once() {
         let settings = format!(r#"{{"permissions":{{"allow":["{RULE}"]}}}}"#);
         assert_eq!(
@@ -117,6 +126,7 @@ mod tests {
             None
         );
         assert_eq!(merged(Some("[]"), RULE), None);
+        assert_eq!(merged(Some(r#"{"permissions":5}"#), RULE), None);
     }
 
     #[test]

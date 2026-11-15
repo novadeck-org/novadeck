@@ -134,6 +134,25 @@ describe("the Windows shims", () => {
   })
 })
 
+describe("the allow rules Antigravity's launches took", () => {
+  it("go only as the runner first writes its files, never under sessions still running", async ({
+    resources,
+  }) => {
+    const directory = mkdtempSync(join(tmpdir(), "novadeck-allow-"))
+    resources.defer(() => rmSync(directory, { recursive: true, force: true }))
+    const first = await installShellFiles(directory, { platform: "linux", fresh: true })
+    mkdirSync(first.allow, { recursive: true })
+    const taken = join(first.allow, "00000000-0000-4000-8000-000000000001.json")
+    writeFileSync(taken, "{}")
+    // Written again, as when Codex connects: a running session may read its file again.
+    await installShellFiles(directory, { platform: "linux" })
+    expect(existsSync(taken)).toBe(true)
+    // A runner's next start, before any of its shells.
+    await installShellFiles(directory, { platform: "linux", fresh: true })
+    expect(existsSync(taken)).toBe(false)
+  })
+})
+
 describe("installing the relay", () => {
   it("puts the running copy back on Windows when the new one can't take its place", async () => {
     const { files, ops } = memory(

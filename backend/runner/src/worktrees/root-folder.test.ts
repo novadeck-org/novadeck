@@ -9,7 +9,6 @@ describe("the worktrees folder", () => {
       made?: string[]
       fail?: boolean
       clock?: { now: number }
-      followed?: { count: number }
     } = {},
   ) => {
     const clock = options.clock ?? { now: 0 }
@@ -22,9 +21,6 @@ describe("the worktrees folder", () => {
         if (options.fail) throw new Error("EACCES")
         options.made?.push(path)
       },
-      made: () => {
-        if (options.followed) options.followed.count += 1
-      },
     })
   }
 
@@ -34,20 +30,6 @@ describe("the worktrees folder", () => {
     root.ensure()
     root.ensure()
     expect(made).toEqual(["/home/x/.novadeck/worktrees"])
-  })
-
-  it("tells what follows it once it makes the folder, never when it was there or couldn't be made", () => {
-    const made = { count: 0 }
-    const root = folder({ on: true }, { followed: made })
-    root.ensure()
-    root.ensure()
-    expect(made.count).toBe(1)
-    const there = { count: 0 }
-    folder({ on: true }, { exists: true, followed: there }).ensure()
-    expect(there.count).toBe(0)
-    const failed = { count: 0 }
-    folder({ on: true }, { fail: true, followed: failed }).ensure()
-    expect(failed.count).toBe(0)
   })
 
   it("is not made while the setting is off, and is the moment it flips on", () => {

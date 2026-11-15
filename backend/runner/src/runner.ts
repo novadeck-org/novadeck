@@ -161,6 +161,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
           ...(options.relay !== undefined && { relay: options.relay }),
           // Whether Codex is connected is known only once these are written (see below).
           pwsh: "kept",
+          fresh: true,
         }).catch((error: unknown) => {
           log.error("shell.integration-unavailable", "Novadeck shell integration is unavailable", {
             err: error,

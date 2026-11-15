@@ -65,8 +65,7 @@ const it = base.extend<{ shim: Fixture }>({
     await use({
       worktrees,
       settings,
-      // As the shim names it, from its own folder.
-      allow: ["--settings", `${paths.bin}/../allow/${terminal}.json`],
+      allow: ["--settings", file],
       passed: () => JSON.parse(readFileSync(file, "utf8")) as unknown,
       bin: paths.bin,
       real,
@@ -112,6 +111,9 @@ describe.skipIf(process.platform === "win32")("agy shim on Linux and macOS", () 
   }) => {
     writeFileSync(shim.settings, "{ not json")
     expect(shim.run(["hi"])).toEqual(["hi"])
+    // Nor without a home, where their settings aren't known.
+    writeFileSync(shim.settings, "{}")
+    expect(shim.run(["hi"], { HOME: "" })).toEqual(["hi"])
   })
 
   it("opens the folder to a session once it exists, passing every argument on", ({ shim }) => {
