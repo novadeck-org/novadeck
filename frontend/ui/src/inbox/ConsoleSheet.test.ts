@@ -230,7 +230,12 @@ const mount = (
   }: { failing?: boolean; open?: number; conversations?: Pick<Conversations, "conversation"> } = {},
 ) => {
   const revealed: string[] = []
-  const state = createStore<InboxState>({ ...emptyInbox, items: inboxRows })
+  // The list puts the row added last first; these rows are given oldest first, as they were
+  // added, so the one with the greater `at` is listed below.
+  const state = createStore<InboxState>({
+    ...emptyInbox,
+    items: inboxRows.map((row) => ({ ...row, at: 1000 - row.at })),
+  })
   const sent: InboxAnswer[] = []
   const inbox: Inbox = {
     state,
@@ -244,7 +249,6 @@ const mount = (
       state.update((current) => ({ ...current, answering: { [id]: true } }))
     },
     see: () => {},
-    readAll: () => {},
   }
   const page = createElement(
     InboxProvider,
@@ -256,8 +260,13 @@ const mount = (
     conversations ? createElement(AgentContextProvider, { conversations }, page) : page,
   )
   mounted = view
+  // The nth of the rows as given, whatever place the list puts it in.
   const openRow = (at: number): void =>
-    act(() => view.container.querySelectorAll<HTMLElement>(".inbox-row-select")[at]!.click())
+    act(() =>
+      view.container
+        .querySelector<HTMLElement>(`[data-inbox-row="${inboxRows[at]!.id}"] .inbox-row-select`)!
+        .click(),
+    )
   openRow(open)
   const rows = () =>
     Array.from(document.querySelectorAll<HTMLElement>(".inbox-sheet .request-option"))
@@ -1003,7 +1012,7 @@ describe("The Console sheet", () => {
       const inbox = mount([asked(options, { hard: "It sets the schema." })])
 
       expect(text(".console-tag")).toBe("Question")
-      expect(sheet()?.dataset.tone).toBe("urgent")
+      expect(sheet()?.dataset.tint).toBe("attention")
       expect(text(".request-hard")).toBe("Hard to undo: It sets the schema.")
       inbox.key("2", inbox.listed())
       expect(inbox.sent).toEqual([])
@@ -2062,7 +2071,7 @@ describe("The Console sheet", () => {
   })
 
   context("for an update", () => {
-    it("marks it read, or reads it and shows the terminal for a follow-up", async () => {
+    it("is read as it opens, and leaves the terminal to go to", async () => {
       const inbox = mount([
         {
           id: "u",
@@ -2075,7 +2084,7 @@ describe("The Console sheet", () => {
         },
       ])
       expect(text(".console-tag")).toBe("Update")
-      inbox.press("Give @wren a follow-up")
+      inbox.press("Go to terminal")
 
       expect(inbox.sent).toEqual([{ kind: "update", action: "read" }])
       expect(inbox.revealed).toEqual(["t-wren"])

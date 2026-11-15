@@ -10,7 +10,7 @@ import { nextFrame, render } from "@novadeck/test-kit/render"
 import { act, createElement, useLayoutEffect } from "react"
 
 import { context, describe, expect, it } from "../test"
-import { HeldPill, InboxClear, InboxCount, InboxList } from "./InboxList"
+import { HeldPill, InboxCount, InboxList } from "./InboxList"
 import { InboxProvider, useInboxContext, type InboxContextValue } from "./InboxProvider"
 import { InboxSheet } from "./InboxSheet"
 
@@ -103,7 +103,6 @@ const mount = (
         ...current,
         items: current.items.map((row) => (row.id === id ? { ...row, seen: true } : row)),
       })),
-    readAll: () => {},
     ...(dismissing
       ? {
           dismiss: (id: string) =>
@@ -112,11 +111,6 @@ const mount = (
               items: current.items.map((row) =>
                 row.id === id ? { ...row, settled: { how: "dismissed", at: 99 } } : row,
               ),
-            })),
-          clear: (ids: readonly string[]) =>
-            state.update((current) => ({
-              ...current,
-              items: current.items.filter((row) => !ids.includes(row.id)),
             })),
         }
       : {}),
@@ -145,7 +139,6 @@ const mount = (
         { id: "inbox-panel" },
         snoozing ? createElement("span", { className: "count" }, createElement(InboxCount)) : null,
         createElement(HeldPill),
-        createElement(InboxClear),
         createElement(InboxList),
       ),
       createElement(InboxSheet, { active: true }),
@@ -247,9 +240,8 @@ describe("The Inbox's list", () => {
       const inbox = mount([permission("a", 1)])
       inbox.arrive(permission("b", 2))
 
-      expect(inbox.subjects()).toEqual(
-        ["Run `a`?", "Run `b`?"].map((each) => each.replaceAll("`", "")),
-      )
+      // The row added last is first.
+      expect(inbox.subjects()).toEqual(["Run b?", "Run a?"])
       expect(inbox.pill()).toBeNull()
       await nextFrame()
       inbox.view.unmount()
@@ -298,7 +290,7 @@ describe("The Inbox's list", () => {
 
   context("when moving with j and k", () => {
     it("opens the row below and above, within the list", async () => {
-      const inbox = mount([permission("a", 1), permission("b", 2), permission("c", 3)])
+      const inbox = mount([permission("a", 3), permission("b", 2), permission("c", 1)])
       inbox.open("a")
       await nextFrame()
       const current = (): string | null =>
@@ -327,7 +319,7 @@ describe("The Inbox's list", () => {
 
   context("when moving with the left and right arrows", () => {
     it("opens the item after and before from the sheet, and keeps the keyboard there", async () => {
-      const inbox = mount([permission("a", 1), permission("b", 2), permission("c", 3)])
+      const inbox = mount([permission("a", 3), permission("b", 2), permission("c", 1)])
       inbox.open("a")
       await nextFrame()
       const current = (): string | null =>
@@ -393,22 +385,27 @@ describe("The Inbox's list", () => {
     })
   })
 
-  context("when updates follow what asks", () => {
-    it("marks the updates as asking nothing, with a line above the first", async () => {
+  context("when updates sit among what asks", () => {
+    it("marks the updates as asking nothing, and draws no line anywhere", async () => {
       const inbox = mount([told("u1", 1), permission("a", 2), told("u2", 3)])
 
-      expect(inbox.subjects()).toEqual(["Run a?", "u1", "u2"])
-      expect(inbox.row("a").dataset).toMatchObject({ needs: "true", updatesStart: "false" })
-      expect(inbox.row("u1").dataset).toMatchObject({ needs: "false", updatesStart: "true" })
-      expect(inbox.row("u2").dataset).toMatchObject({ needs: "false", updatesStart: "false" })
+      // The row added last is first, whatever it asks.
+      expect(inbox.subjects()).toEqual(["u2", "Run a?", "u1"])
+      expect(inbox.row("a").dataset.needs).toBe("true")
+      expect(inbox.row("u1").dataset.needs).toBe("false")
+      expect(inbox.row("u2").dataset.needs).toBe("false")
+      expect(
+        inbox.view.container.querySelector("[data-updates-start], [data-settled-start]"),
+      ).toBeNull()
       await nextFrame()
       inbox.view.unmount()
     })
 
-    it("draws no line when only updates wait", async () => {
-      const inbox = mount([told("u1", 1), told("u2", 2)])
+    it("offers no Mark all read or Clear settled", async () => {
+      const inbox = mount([told("u1", 1), agentAsk("b", 2, { how: "replied", at: 5 })], false, true)
 
-      expect(inbox.row("u1").dataset.updatesStart).toBe("false")
+      expect(inbox.view.container.querySelector('[aria-label="Mark all read"]')).toBeNull()
+      expect(inbox.view.container.querySelector('[aria-label="Clear settled"]')).toBeNull()
       await nextFrame()
       inbox.view.unmount()
     })
@@ -432,22 +429,20 @@ describe("The Inbox's list", () => {
       without.view.unmount()
     })
 
-    it("settles the row in place on the button, and the count and Clear follow", async () => {
-      const inbox = mount([agentAsk("a", 1), agentAsk("b", 2), told("u", 3)], false, true)
-      expect(inbox.view.container.querySelector('[aria-label="Clear settled"]')).toBeNull()
+    it("resolves the row in place on the button, and the count follows", async () => {
+      const inbox = mount([agentAsk("a", 3), agentAsk("b", 2), told("u", 1)], false, true)
       act(() => dismissButton(inbox, "a")!.click())
 
       expect(inbox.subjects()).toEqual(["a", "b", "u"])
       expect(inbox.row("a").dataset).toMatchObject({ settled: "dismissed", needs: "false" })
       expect(inbox.row("a").querySelector(".inbox-row-extra")?.textContent).toBe("· Dismissed")
       expect(dismissButton(inbox, "a")).toBeNull()
-      expect(inbox.view.container.querySelector('[aria-label="Clear settled"]')).not.toBeNull()
       await nextFrame()
       inbox.view.unmount()
     })
 
-    it("settles on Delete, and the keyboard goes on to the next row", async () => {
-      const inbox = mount([agentAsk("a", 1), agentAsk("b", 2)], false, true)
+    it("resolves on Delete, and the keyboard goes on to the next row", async () => {
+      const inbox = mount([agentAsk("a", 2), agentAsk("b", 1)], false, true)
       const select = (id: string): HTMLElement =>
         inbox.row(id).querySelector<HTMLElement>(".inbox-row-select")!
       select("a").focus()
@@ -463,14 +458,18 @@ describe("The Inbox's list", () => {
       inbox.view.unmount()
     })
 
-    it("opens no sheet once settled, and j and k skip it", async () => {
+    it("opens a resolved row's sheet to read, and j and k skip it", async () => {
       const inbox = mount(
-        [agentAsk("a", 1), agentAsk("b", 2, { how: "withdrawn", at: 5 }), agentAsk("c", 3)],
+        [agentAsk("a", 3), agentAsk("b", 2, { how: "replied", at: 5 }), agentAsk("c", 1)],
         false,
         true,
       )
       inbox.open("b")
-      expect(document.querySelector(".inbox-sheet")).toBeNull()
+      expect(document.querySelector(".inbox-sheet")?.getAttribute("data-state")).toBe("settled")
+      expect(document.querySelector(".inbox-sheet .request-options")).toBeNull()
+      expect(document.querySelector(".inbox-sheet .request-note")?.textContent).toBe(
+        "You wrote to @moth in its terminal, so this ask is closed.",
+      )
       inbox.open("a")
       inbox.press("j")
 
@@ -479,8 +478,8 @@ describe("The Inbox's list", () => {
       inbox.view.unmount()
     })
 
-    it("keeps the sheet of an ask that settles open, saying so in place of its answers", async () => {
-      const inbox = mount([agentAsk("a", 1), agentAsk("b", 2)], false, true)
+    it("keeps the sheet of an ask that resolves open, saying so in place of its answers", async () => {
+      const inbox = mount([agentAsk("a", 2), agentAsk("b", 1)], false, true)
       inbox.open("a")
       expect(document.querySelector(".inbox-sheet .request-options")).not.toBeNull()
       act(() => dismissButton(inbox, "a")!.click())
@@ -495,46 +494,30 @@ describe("The Inbox's list", () => {
       expect(inbox.row("b").dataset.selected).toBe("true")
       inbox.view.unmount()
     })
-
-    it("clears every settled ask", async () => {
-      const inbox = mount(
-        [agentAsk("a", 1), agentAsk("b", 2, { how: "replied", at: 5 })],
-        false,
-        true,
-      )
-      expect(inbox.row("b").dataset.settledStart).toBe("true")
-      act(() =>
-        inbox.view.container.querySelector<HTMLElement>('[aria-label="Clear settled"]')!.click(),
-      )
-
-      expect(inbox.subjects()).toEqual(["a"])
-      await nextFrame()
-      inbox.view.unmount()
-    })
   })
 
   context("where the backend keeps an order", () => {
     it("moves a row that asks a place with Alt and an arrow, and keeps the new order", async () => {
       const inbox = mount(
-        [permission("a", 1), permission("b", 2), told("u", 0)],
+        [permission("a", 3), permission("b", 2), told("u", 1)],
         false,
         false,
         true,
       )
       inbox.step("a", "ArrowDown")
 
-      expect(inbox.order.getSnapshot()).toEqual(["b@2", "a@1"])
+      expect(inbox.order.getSnapshot()).toEqual(["b@2", "a@3"])
       expect(inbox.subjects()).toEqual(["Run b?", "Run a?", "u"])
-      // The last row that asks goes no further: the updates below it never move.
+      // The last row that asks goes no further: the update below it never moves.
       inbox.step("a", "ArrowDown")
-      expect(inbox.order.getSnapshot()).toEqual(["b@2", "a@1"])
+      expect(inbox.order.getSnapshot()).toEqual(["b@2", "a@3"])
       expect(inbox.row("u").querySelector(".inbox-row-select")?.ariaKeyShortcuts).toBeNull()
       await nextFrame()
       inbox.view.unmount()
     })
 
     it("puts what comes after ahead of a row put off", async () => {
-      const inbox = mount([permission("a", 1), permission("b", 2)], false, false, true)
+      const inbox = mount([permission("a", 2), permission("b", 1)], false, false, true)
       inbox.step("a", "ArrowDown")
       inbox.arrive(permission("c", 3))
 
@@ -546,7 +529,7 @@ describe("The Inbox's list", () => {
 
   context("where the backend keeps no order", () => {
     it("moves no row", async () => {
-      const inbox = mount([permission("a", 1), permission("b", 2)])
+      const inbox = mount([permission("a", 2), permission("b", 1)])
       inbox.step("a", "ArrowDown")
 
       expect(inbox.subjects()).toEqual(["Run a?", "Run b?"])
@@ -698,7 +681,7 @@ describe("The Inbox's list", () => {
       })
 
     it("snoozes a row with S: it keeps its place, says so, and stops counting", async () => {
-      const inbox = mount([permission("a", 1), permission("b", 2)], false, false, true, true)
+      const inbox = mount([permission("a", 2), permission("b", 1)], false, false, true, true)
       expect(count(inbox)).toBe("2 waiting")
       keyOn(inbox.row("a").querySelector(".inbox-row-select")!, "s")
 
@@ -749,7 +732,7 @@ describe("The Inbox's list", () => {
 
     it("is stepped past by the arrows from an open sheet", async () => {
       const inbox = mount(
-        [permission("a", 1), permission("b", 2), permission("c", 3)],
+        [permission("a", 3), permission("b", 2), permission("c", 1)],
         false,
         false,
         false,

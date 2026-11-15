@@ -10,18 +10,14 @@ import {
   type InboxBinding,
   type InboxContent,
   type InboxRow,
-  type AskSettled,
   type InboxState,
+  type Settled,
+  type SettledHow,
   type InboxTurn,
 } from "@novadeck/core/inbox"
+import { answerLine, createInboxHistory } from "@novadeck/core/inbox/history"
 import { dialogMs, inboxRows, type Asked, type WrittenEntry } from "@novadeck/core/inbox/rows"
-import {
-  answerRow,
-  createInboxTracker,
-  isTurnRow,
-  keepInbox,
-  keyOf,
-} from "@novadeck/core/inbox/tracker"
+import { answerRow, createInboxTracker, keepInbox, keyOf } from "@novadeck/core/inbox/tracker"
 import { noMessages, type InboxHistory, type Messages } from "@novadeck/core/messages"
 import { createStore, type Store } from "@novadeck/core/store"
 import { terminalKeyId } from "@novadeck/core/terminals/registry"
@@ -33,7 +29,7 @@ import { terminalOf, terminalsOf } from "./workspace"
 
 // The demo's Inbox: what its agents wait on, built as the runner's is (`createDemoInbox`),
 // and the hardcoded rows below on the sample terminals, which the Inbox demo shows and the
-// debug panel adds, answered for a moment and then gone.
+// debug panel adds, answered for a moment and then resolved, kept as history.
 
 // How long an answered row stays, marked answering, before it goes.
 export const answerMs = 600
@@ -45,12 +41,12 @@ export type DemoInbox = Inbox & {
   readonly empty: () => void
   // The next answer fails instead of taking, so the sheet shows why.
   readonly failNext: (reason?: string) => void
-  // An ask leaves: "withdrawn" by its agent stays as a settled row, "gone" (its session
-  // ended) is removed.
+  // An ask leaves: "withdrawn" by its agent leaves the Inbox, as the runner's does; "gone" (its
+  // session ended) stays as a resolved row.
   readonly resolve: (id: string, outcome: "withdrawn" | "gone") => void
   // The person wrote to the terminal's agent: its open asks from before are withdrawn, as
   // the runner withdraws them at the person's own prompt: those made before they sent it.
-  // They stay as settled rows, replied.
+  // They stay as resolved rows, replied.
   readonly withdrawAsks: (key: TerminalKey, before: number) => void
   readonly dropReplyNext: () => void
   // The terminal's agent called `done`: its report becomes an Update once the terminal is
@@ -139,8 +135,32 @@ const merged = (own: readonly InboxRow[], derived: readonly InboxRow[]): InboxRo
   )
   return ordered([
     ...own,
-    ...derived.filter((each) => each.kind !== "request" || !taken.has(each.source.terminalId)),
+    ...derived.filter(
+      (each) => each.settled || each.kind !== "request" || !taken.has(each.source.terminalId),
+    ),
   ])
+}
+
+// What the person's answer to one of the demo's own rows made of it: how it ended, and with
+// what words.
+const resolution = (found: InboxRow, answer: InboxAnswer): Pick<Settled, "how" | "answer"> => {
+  if (found.kind === "request" && answer.kind === "request")
+    return { how: "answered", answer: answerLine(found.request, answer.answer) }
+  if (found.kind === "held" && answer.kind === "held")
+    return { how: answer.action === "release" ? "released" : "stopped" }
+  if (found.kind === "ask" && answer.kind === "ask") {
+    const { shape } = found.ask
+    const picked =
+      answer.answer.type === "reply" && answer.answer.option !== null && shape.type === "options"
+        ? shape.options[answer.answer.option]?.label
+        : answer.answer.type === "done" && shape.type === "action"
+          ? shape.doneLabel
+          : undefined
+    const words = answer.answer.type === "reply" ? answer.answer.text.trim() : ""
+    return { how: "answered", answer: [picked, words].filter(Boolean).join(": ") }
+  }
+  if (found.kind === "update") return { how: "read" }
+  return { how: "worked" }
 }
 
 // The demo's Inbox, built as the runner's is once the app binds it (core's `inboxRows`):
@@ -194,6 +214,8 @@ export const createDemoInbox = (
     readonly at: number
     readonly subject: string
     readonly body: string
+    // Once read: it stays, as the runner's does.
+    readonly settled?: Settled
   }[] = []
   const readTurns = (ids: readonly string[]): void => {
     for (const id of ids) {
@@ -201,8 +223,13 @@ export const createDemoInbox = (
       if (row?.kind === "update") record(row, { kind: "update", action: "read" })
     }
     dropTurns((row) => ids.includes(row.id))
-    if (doneEntries.some(({ id }) => ids.includes(id))) {
-      doneEntries = doneEntries.filter(({ id }) => !ids.includes(id))
+    if (doneEntries.some(({ id, settled }) => !settled && ids.includes(id))) {
+      const at = Date.now()
+      doneEntries = doneEntries.map((entry) =>
+        !entry.settled && ids.includes(entry.id)
+          ? { ...entry, settled: { how: "read", at } }
+          : entry,
+      )
       recompute()
     }
   }
@@ -214,9 +241,26 @@ export const createDemoInbox = (
   const ownRow = (id: string): InboxRow | undefined =>
     own.getSnapshot().items.find((each) => each.id === id)
 
-  // An ask of the demo's own is no longer open, kept in the Messages history as `outcome`:
-  // settled in place, or removed where its session ended.
-  const settle = (id: string, how: AskSettled["how"] | "gone"): void => {
+  // A row of the demo's own is no longer open: it stays as a resolved row, saying how it ended.
+  const resolve = (id: string, how: SettledHow, answer?: string): void => {
+    change((current) => ({
+      ...current,
+      items: current.items.map((each) =>
+        each.id === id
+          ? {
+              ...each,
+              stopped: false,
+              settled: { how, at: Date.now(), ...(answer ? { answer } : {}) },
+            }
+          : each,
+      ),
+      failed: withoutKey(current.failed, id),
+    }))
+  }
+
+  // An ask of the demo's own is no longer open, kept in the Messages history as `outcome`: its
+  // agent's withdrawal takes it out of the Inbox, the rest keep it as a resolved row.
+  const settle = (id: string, how: "dismissed" | "withdrawn" | "replied" | "gone"): void => {
     const found = ownRow(id)
     if (found?.kind !== "ask" || found.settled) return
     record(
@@ -224,19 +268,18 @@ export const createDemoInbox = (
       undefined,
       how === "gone" ? "gone" : how === "dismissed" ? "dismissed" : "withdrawn",
     )
-    change((current) => ({
-      ...current,
-      items:
-        how === "gone"
-          ? current.items.filter((each) => each.id !== id)
-          : current.items.map((each) =>
-              each.id === id ? { ...each, stopped: false, settled: { how, at: Date.now() } } : each,
-            ),
-      failed: withoutKey(current.failed, id),
-    }))
+    if (how === "withdrawn")
+      return change((current) => ({
+        ...current,
+        items: current.items.filter((each) => each.id !== id),
+        failed: withoutKey(current.failed, id),
+      }))
+    resolve(id, how === "gone" ? "ended" : how)
   }
 
   let binding: InboxBinding | null = null
+  // What ended among the agents' rows, kept for as long as the page is.
+  const history = createInboxHistory({ save: () => {} })
   // What was seen, answered or failed among the agents' rows.
   const tracker = createInboxTracker({ settleMs, changed: () => recompute() })
   // When the demo first saw each request, which is when it started waiting.
@@ -296,14 +339,20 @@ export const createDemoInbox = (
         handle: entry.handle,
         at: entry.at,
         content: { kind: "done", subject: entry.subject, body: entry.body },
+        ...(entry.settled ? { settled: entry.settled } : {}),
       })),
       requests,
       now: at,
       // The demo's messages wait for no idle agent long.
       longHoldMs: null,
     })
-    const view = tracker.view(found)
+    const resolved = history.view(found, {
+      workspace,
+      messages: sources.messages?.state.getSnapshot() ?? noMessages,
+    })
+    const view = tracker.view(resolved.rows)
     derived.update((current) => keepInbox(current, view))
+    if (resolved.read.length > 0) readTurns(resolved.read)
     // A request whose dialog is unread shows anyway once it has waited long enough.
     tracker.wake(
       Object.values(requests)
@@ -324,10 +373,18 @@ export const createDemoInbox = (
     const { conversations, messages } = sources
     const { workspace } = binding
     answerRow(tracker, target, given, {
-      request: (key, { request }, answer) =>
-        conversations.answer(key, request.id.slice(scoped(key, "").length), answer),
-      release: (thread) => messages?.release(thread),
-      stop: (thread) => messages?.stop(thread),
+      request: (key, { request }, answer) => {
+        history.note(target.id, "answered", answerLine(request, answer))
+        return conversations.answer(key, request.id.slice(scoped(key, "").length), answer)
+      },
+      release: (thread) => {
+        history.note(target.id, "released")
+        messages?.release(thread)
+      },
+      stop: (thread) => {
+        history.note(target.id, "stopped")
+        messages?.stop(thread)
+      },
       read: readTurns,
       forget: readTurns,
       send: (key, text, options) => conversations.send(key, text, options),
@@ -424,8 +481,17 @@ export const createDemoInbox = (
       if (undelivered) dropping = false
       setTimeout(() => {
         record(found, answer, undelivered ? "undelivered" : undefined)
+        const { how, answer: words } = resolution(found, answer)
         change((current) => ({
-          items: current.items.filter((each) => each.id !== id),
+          items: current.items.map((each) =>
+            each.id === id
+              ? {
+                  ...each,
+                  stopped: false,
+                  settled: { how, at: Date.now(), ...(words ? { answer: words } : {}) },
+                }
+              : each,
+          ),
           answering: withoutKey(current.answering, id) as Record<string, true>,
           failed: current.failed,
         }))
@@ -458,23 +524,8 @@ export const createDemoInbox = (
           : current,
       )
     },
-    readAll: () => {
-      for (const each of own.getSnapshot().items)
-        if (each.kind === "update") record(each, { kind: "update", action: "read" })
-      change((current) => ({
-        ...current,
-        items: current.items.filter((each) => each.kind !== "update"),
-      }))
-      // The done reports, and the failed turns that no longer stop their agent; what does
-      // stays.
-      const shown = derived
-        .getSnapshot()
-        .items.filter((each) => each.kind === "update" || (isTurnRow(each) && !each.stopped))
-        .map((each) => each.id)
-      if (shown.length > 0) readTurns(shown)
-    },
     add: (added) => {
-      record(added)
+      if (!added.settled) record(added)
       change((current) => ({
         ...current,
         items: [...current.items.filter((each) => each.id !== added.id), added],
@@ -496,15 +547,6 @@ export const createDemoInbox = (
     arrange: (keys) => {
       const listed = new Set(state.getSnapshot().items.map(rowKey))
       order.update(() => keys.filter((key) => listed.has(key)))
-    },
-    clear: (ids) => {
-      const gone = new Set(ids)
-      change((current) => ({
-        ...current,
-        items: current.items.filter(
-          (each) => !(gone.has(each.id) && each.kind === "ask" && each.settled),
-        ),
-      }))
     },
     withdrawAsks: (key, before) => {
       for (const each of own.getSnapshot().items)

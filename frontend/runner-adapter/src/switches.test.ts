@@ -1,5 +1,5 @@
-import { maxSnoozes } from "@novadeck/core/inbox"
-import { maxInboxOrder } from "@novadeck/protocol"
+import { maxResolved, maxSnoozes } from "@novadeck/core/inbox"
+import { maxInboxOrder, maxInboxResolved } from "@novadeck/protocol"
 import type { ForgeIntegration } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
 
@@ -226,6 +226,10 @@ describe("the Inbox's order and snoozes", () => {
 
   it("keep as many snoozes as the runner takes", () => {
     expect(maxSnoozes).toBe(maxInboxOrder)
+  })
+
+  it("list as many resolved rows as the runner keeps for them", () => {
+    expect(maxResolved).toBe(maxInboxResolved)
   })
 
   it("aren't offered where the runner keeps none", () => {

@@ -2,7 +2,8 @@
    rows, and the sheet that opens beside the one the person picks.
 
    The panel (`.inbox-panel`, data-sheet="open" | "closed") holds a `.inbox-list` of
-   `.inbox-row`s, each an item (the item recipe) with a `.inbox-row-select` button and its
+   `.inbox-row`s, the newest first, open rows and resolved ones together, with no line between
+   them. A row is an item (the item recipe) with a `.inbox-row-select` button and its
    parts: `.inbox-row-icon`, `.inbox-row-subject`,
    `.inbox-row-wait` and `.inbox-row-meta`,
    and, on an open Novadeck ask, a `.inbox-row-dismiss` button (an icon button) beside the select
@@ -10,26 +11,24 @@
    with no hover) and the wait time hides meanwhile. The meta
    holds the `.inbox-row-project` and its `.inbox-row-extra`s (one is
    data-extra="draft"). A row says its type in data-type="unblock" | "ask" | "trouble" |
-   "update", how it asks in data-urgency="urgent" | "waiting" | "quiet" | "answered", data-seen,
-   data-needs while it asks something of the person and isn't answered, data-updates-start on
-   the row after the last that asks (the updates' line), data-dismissable while its dismiss
+   "update", what its icon's colour says in data-tint="attention" | "note" | "danger" |
+   "success" | "ink" | "muted" (muted only once it is resolved), data-seen, data-needs while it
+   asks something of the person and isn't resolved, data-dismissable while its dismiss
    button shows, data-dragging="true" on a row that asks while it is dragged to a new place,
    data-snoozable while its snooze button (`.inbox-row-snooze`, an icon button) shows,
    data-snoozed="true" on a snoozed row (its snooze button, which brings it back, then has the
-   dismiss button's place, and it has no dismiss button), data-settled="dismissed" | "withdrawn" | "replied" on an ask that no longer
-   waits (it stays, struck through unless replied, its wait time the age since it settled, and
-   opens no sheet), data-settled-start on the first of the settled asks that end the list (their
-   line, as the updates' line; a row that settles while the panel is on screen keeps its place
-   and the list regroups when the panel is shown again), data-arrived while it has just joined the list, and, being
-   an item, data-selected for the one whose sheet is open. A row that asks keeps its colour
-   until it is answered, opened or not. While a sheet is
-   open the updates step back. The header's
-   `.inbox-held` pill says rows wait to join; Clear (an icon button in the panel's header) removes
-   the settled asks; an empty panel shows `.inbox-empty`.
+   dismiss button's place, and it has no dismiss button), data-settled="answered" | "terminal" |
+   "dismissed" | "replied" | "released" | "stopped" | "worked" | "delivered" | "read" | "gone" |
+   "ended" on a row that is resolved (its icon and subject gray, its wait time the age since it
+   resolved, and how it ended on its second line), data-arrived while it has just joined the
+   list, and, being an item, data-selected for the one whose sheet is open. A row that asks
+   keeps its subject bright until it is resolved, opened or not (an update's too). While a sheet is open what
+   asks nothing steps back. The header's `.inbox-held` pill says rows wait to join; an empty
+   panel shows `.inbox-empty`.
 
-   The sheet is the sheet recipe's card holding an `.inbox-sheet` (data-type, data-tone=
-   "urgent" | "waiting" | "quiet", data-state="asking" | "answered" | "settled"): its
-   `.inbox-sheet-head` (a `.console-tag` with the kind's word, data-tone; `.console-crumb` with
+   The sheet is the sheet recipe's card holding an `.inbox-sheet` (data-type, data-tint as the
+   row's, data-state="asking" | "answered" | "settled"): its
+   `.inbox-sheet-head` (a `.console-tag` with the kind's word, data-tint; `.console-crumb` with
    the project and the `.inbox-sheet-title`; the handle chip; Show terminal and close), the
    `.console-receipt` of the answer it moved on from (data-failed where that didn't arrive),
    and a scrolling `.inbox-sheet-scroll.console-page`. On a phone it is an `.inbox-fullscreen`
@@ -38,18 +37,20 @@
    agent's latest steps, the chat's `.chat-thread` with its prompt row and its tool lines, then
    the card, @novadeck/requests' (requests.css): a request's is the chat's own card, and the
    Inbox's own kinds are drawn in the same frame, with its menu, and the error of an answer
-   that didn't take under it (`.request-error`).
+   that didn't take under it (`.request-error`). A resolved row's card is read-only: what it
+   was, and how it ended, in gray.
 
    Tokens, each optional (its fallback in brackets):
-   --inbox-urgent-fg (danger-fg), --inbox-waiting-fg (warning-fg), --inbox-quiet-fg (muted),
-   --inbox-answered-fg (success-fg): a row's icon and wait, and the sheet's tag and receipt.
+   --inbox-attention-fg (warning-fg), --inbox-note-fg (note-fg), --inbox-danger-fg (danger-fg),
+   --inbox-success-fg (success-fg), --inbox-ink-fg (ink), --inbox-muted-fg (muted): a row's
+   icon and wait, and the sheet's tag and receipt; the icon of a kind never changes, only its
+   colour with what it wants, and gray (muted) once resolved.
    --inbox-row-radius (radius-panel), --inbox-row-lifted-shadow (shadow-panel): the rows,
-   and the one whose sheet is open, lifted. --inbox-dim-opacity (0.4): the updates while
-   a sheet is open; under the pointer they come back to --inbox-dim-hover-opacity (0.8).
-   --inbox-rule-color (line): the line above the updates and the settled asks.
-   --inbox-settled-fg (muted), --inbox-settled-line-color (line-strong): a settled ask's icon,
-   subject and wait, and the strike through the subject.
-   --inbox-settled-icon-opacity (0.55): a settled ask's icon.
+   and the one whose sheet is open, lifted. --inbox-dim-opacity (0.4): the rows that ask
+   nothing while a sheet is open; under the pointer they come back to
+   --inbox-dim-hover-opacity (0.8).
+   --inbox-resolved-fg (muted): a resolved row's subject and wait.
+   --inbox-resolved-icon-opacity (0.55): a resolved row's icon.
    --inbox-arrived-bg (the strong colour at 14%): a row that has just joined the list.
    --inbox-draft-fg (danger-fg): the word "Draft".
    --inbox-snoozed-bg (the ink at 6%), --inbox-snoozed-bar-color (muted),
@@ -62,7 +63,7 @@
 /* ---- The panel and its rows ---- */
 .inbox-row {
   --_radius: var(--inbox-row-radius, var(--radius-panel));
-  --_fg: var(--inbox-quiet-fg, var(--color-muted));
+  --_fg: var(--inbox-muted-fg, var(--color-muted));
   border-radius: var(--_radius);
   transition:
     background-color var(--motion-feedback) var(--ease-interface),
@@ -70,17 +71,23 @@
     box-shadow var(--motion-feedback) var(--ease-interface),
     opacity var(--motion-state) var(--ease-interface);
 }
-.inbox-row[data-urgency="urgent"] {
-  --_fg: var(--inbox-urgent-fg, var(--color-danger-fg));
+.inbox-row[data-tint="attention"] {
+  --_fg: var(--inbox-attention-fg, var(--color-warning-fg));
 }
-.inbox-row[data-urgency="waiting"] {
-  --_fg: var(--inbox-waiting-fg, var(--color-warning-fg));
+.inbox-row[data-tint="note"] {
+  --_fg: var(--inbox-note-fg, var(--color-note-fg));
 }
-.inbox-row[data-urgency="answered"] {
-  --_fg: var(--inbox-answered-fg, var(--color-success-fg));
+.inbox-row[data-tint="danger"] {
+  --_fg: var(--inbox-danger-fg, var(--color-danger-fg));
+}
+.inbox-row[data-tint="success"] {
+  --_fg: var(--inbox-success-fg, var(--color-success-fg));
+}
+.inbox-row[data-tint="ink"] {
+  --_fg: var(--inbox-ink-fg, var(--color-ink));
 }
 .inbox-row[data-settled] {
-  --_fg: var(--inbox-settled-fg, var(--color-muted));
+  --_fg: var(--inbox-resolved-fg, var(--color-muted));
 }
 /* The open row is lifted out of the list its sheet comes from. */
 .item.inbox-row[data-selected="true"] {
@@ -117,22 +124,6 @@
     );
   }
 }
-/* A line under the last row that asks, above the updates, so gray has a place of its own. */
-.inbox-row[data-updates-start="true"],
-.inbox-row[data-settled-start="true"] {
-  margin-top: 9px;
-}
-.inbox-row[data-updates-start="true"]::after,
-.inbox-row[data-settled-start="true"]::after {
-  content: "";
-  position: absolute;
-  top: -6px;
-  right: 6px;
-  left: 6px;
-  height: var(--border-width);
-  background-color: var(--inbox-rule-color, var(--color-line));
-  pointer-events: none;
-}
 .inbox-row-select {
   display: grid;
   grid-template-columns: 14px minmax(0, 1fr) auto;
@@ -163,9 +154,8 @@
   line-clamp: 3;
   color: var(--color-muted);
 }
-/* What asks is bright until it is answered, opened or not. Gray is for updates and answered
-   rows. */
-.inbox-row[data-needs="true"] .inbox-row-subject {
+/* An open row is bright until it is resolved, opened or not: gray is for resolved rows. */
+.inbox-row:not([data-settled]) .inbox-row-subject {
   color: var(--color-ink);
 }
 .inbox-row[data-selected="true"] .inbox-row-subject {
@@ -182,21 +172,13 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-/* A settled ask: no longer bright, struck through unless its agent was answered in the terminal. */
+/* A resolved row: gray, its icon faded, and it opens its sheet to read. */
 .inbox-row[data-settled] .inbox-row-subject {
-  color: var(--inbox-settled-fg, var(--color-muted));
+  color: var(--inbox-resolved-fg, var(--color-muted));
   font-weight: 400;
 }
-.inbox-row[data-settled="dismissed"] .inbox-row-subject,
-.inbox-row[data-settled="withdrawn"] .inbox-row-subject {
-  text-decoration: line-through;
-  text-decoration-color: var(--inbox-settled-line-color, var(--color-line-strong));
-}
 .inbox-row[data-settled] .inbox-row-icon {
-  opacity: var(--inbox-settled-icon-opacity, 0.55);
-}
-.inbox-row[data-settled] .inbox-row-select {
-  cursor: default;
+  opacity: var(--inbox-resolved-icon-opacity, 0.55);
 }
 /* The dismiss button takes the wait time's place while the row is hovered or has focus. */
 .inbox-row-dismiss {
@@ -295,7 +277,7 @@
   min-width: 0;
   gap: 4px;
   margin-top: 5px;
-  color: var(--inbox-quiet-fg, var(--color-muted));
+  color: var(--inbox-muted-fg, var(--color-muted));
   line-height: 16px;
 }
 .inbox-row-project {
@@ -345,7 +327,7 @@
   gap: 8px;
   margin: auto;
   padding: 40px 16px;
-  color: var(--inbox-quiet-fg, var(--color-muted));
+  color: var(--inbox-muted-fg, var(--color-muted));
   text-align: center;
 }
 .inbox-empty h3 {
@@ -372,7 +354,7 @@
 }
 
 .inbox-sheet {
-  --_tone: var(--inbox-waiting-fg, var(--color-warning-fg));
+  --_tone: var(--inbox-attention-fg, var(--color-warning-fg));
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
@@ -383,11 +365,20 @@
   border-radius: inherit;
   user-select: text;
 }
-.inbox-sheet[data-tone="urgent"] {
-  --_tone: var(--inbox-urgent-fg, var(--color-danger-fg));
+.inbox-sheet[data-tint="note"] {
+  --_tone: var(--inbox-note-fg, var(--color-note-fg));
 }
-.inbox-sheet[data-tone="quiet"] {
-  --_tone: var(--inbox-quiet-fg, var(--color-muted));
+.inbox-sheet[data-tint="danger"] {
+  --_tone: var(--inbox-danger-fg, var(--color-danger-fg));
+}
+.inbox-sheet[data-tint="success"] {
+  --_tone: var(--inbox-success-fg, var(--color-success-fg));
+}
+.inbox-sheet[data-tint="ink"] {
+  --_tone: var(--inbox-ink-fg, var(--color-ink));
+}
+.inbox-sheet[data-tint="muted"] {
+  --_tone: var(--inbox-muted-fg, var(--color-muted));
 }
 .inbox-sheet-head {
   display: flex;
@@ -437,7 +428,7 @@
   text-transform: uppercase;
   white-space: nowrap;
 }
-.console-tag[data-tone="quiet"] {
+.console-tag[data-tint="muted"] {
   background-color: var(--color-soft);
 }
 .console-crumb {
@@ -492,11 +483,11 @@
   animation: console-receipt 3s var(--ease-interface) forwards;
 }
 .console-receipt svg {
-  color: var(--inbox-answered-fg, var(--color-success-fg));
+  color: var(--inbox-success-fg, var(--color-success-fg));
 }
 .console-receipt[data-failed="true"] {
   justify-content: space-between;
-  color: var(--inbox-urgent-fg, var(--color-danger-fg));
+  color: var(--inbox-danger-fg, var(--color-danger-fg));
   animation: none;
 }
 @keyframes console-receipt {

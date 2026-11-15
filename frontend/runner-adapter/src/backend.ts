@@ -25,7 +25,9 @@ import type {
 } from "@novadeck/core/types"
 import {
   busyShells,
+  maxInboxHistoryLength,
   maxInboxOrder,
+  maxInboxResolved,
   maxInboxRowIdLength,
   type AgentName,
   type AgentIntegration,
@@ -175,6 +177,9 @@ export type RunnerBackendOptions = {
   // The Inbox's rows the person snoozed, as the runner said at startup; none can be snoozed
   // when absent.
   readonly inboxSnoozed?: readonly string[]
+  // The Inbox's rows that ended and the runner can't tell of, as the runner kept them; none
+  // when absent.
+  readonly inboxHistory?: readonly string[]
   // The page's theme, which its terminals draw in; tests pass `noTheme`.
   readonly theme: ThemeSource
 }
@@ -1419,8 +1424,30 @@ export const runnerBackend = (
       stop: messages.stop,
     },
     messages.state,
-    { track },
+    {
+      track,
+      history: options.inboxHistory ?? [],
+      saveHistory: (rows) => {
+        // A row too long for the runner to keep is not kept, whatever the rest are.
+        const kept = rows.filter((row) => row.length <= maxInboxHistoryLength)
+        void track(runner.settings.set({ inboxHistory: kept.slice(-maxInboxResolved) })).catch(
+          () => {},
+        )
+      },
+    },
   )
+  // The chat answers a dialog too: the Inbox row it resolves says what with.
+  const answeringChat: typeof conversations = {
+    ...conversations,
+    answer: (key, requestId, answer) => {
+      const request = conversations
+        .conversation(key)
+        .getSnapshot()
+        .requests.find((each) => each.id === requestId)
+      if (request) inbox.answered(requestId, request, answer)
+      return conversations.answer(key, requestId, answer)
+    },
+  }
   // The person's order of the Inbox's rows and their snoozes: shown at once, kept by the
   // runner (`fitted`).
   const inboxOrder = options.inboxOrder && createStore(options.inboxOrder)
@@ -1934,7 +1961,7 @@ export const runnerBackend = (
       inOrder: items.inOrder,
     }),
     messages,
-    conversations,
+    conversations: answeringChat,
     inbox: snoozable(
       inboxOrder
         ? {

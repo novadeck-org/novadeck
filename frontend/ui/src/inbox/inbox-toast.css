@@ -3,7 +3,7 @@
    right edge on the workspace window's.
 
    The content is an `.inbox-toast` (data-type="unblock" | "ask" | "trouble" | "update",
-   data-tone="urgent" | "waiting" | "quiet"), a grid of the type's `.inbox-toast-icon`;
+   data-tint="attention" | "note" | "danger" | "success" | "ink" | "muted"), a grid of the type's `.inbox-toast-icon`;
    a `.inbox-toast-head` of the handle chip (or Novadeck's mark) and `.inbox-toast-said`;
    the `.inbox-toast-age`; the `.inbox-toast-subject` (data-command="true" for a command,
    set in mono after a muted "$ "); and an `.inbox-toast-foot` with the terminal's
@@ -11,8 +11,9 @@
    does.
 
    Tokens, each optional (its fallback in brackets):
-   --inbox-urgent-fg (danger-fg), --inbox-waiting-fg (warning-fg), --inbox-quiet-fg (muted):
-   the icon, as the Inbox's rows have it.
+   --inbox-attention-fg (warning-fg), --inbox-note-fg (note-fg), --inbox-danger-fg (danger-fg),
+   --inbox-success-fg (success-fg), --inbox-ink-fg (ink), --inbox-muted-fg (muted): the icon,
+   as the Inbox's rows have it.
    --inbox-toast-window-inset (12px): the workspace window's margin from the app's right
    edge, which the stack's right edge keeps. --inbox-toast-top (7px): its top from the
    app's top edge, below the visitor build's strip (`--visitor-bar-offset`, set by it). */
@@ -38,14 +39,23 @@
   line-height: 19px;
   text-align: left;
 }
-.inbox-toast[data-tone="urgent"] {
-  --_fg: var(--inbox-urgent-fg, var(--color-danger-fg));
+.inbox-toast[data-tint="attention"] {
+  --_fg: var(--inbox-attention-fg, var(--color-warning-fg));
 }
-.inbox-toast[data-tone="waiting"] {
-  --_fg: var(--inbox-waiting-fg, var(--color-warning-fg));
+.inbox-toast[data-tint="note"] {
+  --_fg: var(--inbox-note-fg, var(--color-note-fg));
 }
-.inbox-toast[data-tone="quiet"] {
-  --_fg: var(--inbox-quiet-fg, var(--color-muted));
+.inbox-toast[data-tint="danger"] {
+  --_fg: var(--inbox-danger-fg, var(--color-danger-fg));
+}
+.inbox-toast[data-tint="success"] {
+  --_fg: var(--inbox-success-fg, var(--color-success-fg));
+}
+.inbox-toast[data-tint="ink"] {
+  --_fg: var(--inbox-ink-fg, var(--color-ink));
+}
+.inbox-toast[data-tint="muted"] {
+  --_fg: var(--inbox-muted-fg, var(--color-muted));
 }
 .inbox-toast-icon {
   display: grid;

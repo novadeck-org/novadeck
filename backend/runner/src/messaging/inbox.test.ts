@@ -34,6 +34,9 @@ import { personSender, retentionMs, wrap, type Message } from "./messages.js"
 import { Messaging } from "./messaging.js"
 import { memoryMessages, type MessageRecords } from "./records.js"
 
+// What waits on the person: the entries the Inbox lists that are still open.
+const openOf = (inbox: Pick<Inbox, "list">) => inbox.list().filter((each) => !each.settled)
+
 const identity = {
   terminalId: randomUUID(),
   projectId: randomUUID(),
@@ -166,8 +169,8 @@ describe("Inbox asks and updates", () => {
       id,
       withdrawn: true,
     })
-    // It stays listed, settled by its agent's withdrawal.
-    expect(inbox.list()).toMatchObject([{ id, settled: { how: "withdrawn", at: 123 } }])
+    // Its agent withdrew it, so it leaves the Inbox.
+    expect(inbox.list()).toEqual([])
   })
 
   it("refuses secrets, forged identities, malformed shapes and recommendations outside the offered options", () => {
@@ -190,7 +193,7 @@ describe("Inbox asks and updates", () => {
     const { inbox, messaging, create } = setup()
     const id = create()
     inbox.answer(id, { type: "reply", option: 1, text: "Please use this." })
-    expect(inbox.list()).toEqual([])
+    expect(openOf(inbox)).toEqual([])
     const listing = inbox.history(
       identity.terminalId,
       messaging.list(identity.terminalId, identity.handle),
@@ -251,12 +254,13 @@ describe("Inbox asks and updates", () => {
     const id = create()
     bind("replacement")
     inbox.reconcile(identity.terminalId)
-    expect(inbox.list()).toEqual([])
+    expect(openOf(inbox)).toEqual([])
     expect(() => inbox.answer(id, { type: "reply", option: null, text: "No" })).toThrow(/no longer/)
     const second = create()
     messaging.unregister(identity.terminalId)
     inbox.reconcile(identity.terminalId)
-    expect(inbox.list()).toEqual([])
+    // Both stay listed, resolved: their session ended.
+    expect(inbox.list().map(({ settled }) => settled?.how)).toEqual(["ended", "ended"])
     expect(() => inbox.answer(second, { type: "done" })).toThrow(/no longer/)
     messaging.close()
   })
@@ -267,7 +271,7 @@ describe("Inbox asks and updates", () => {
     inbox.call(identity.terminalId, "tell", { subject: "Ready", body: "Tests pass." })
     inbox.call(identity.terminalId, "tell", { subject: "More", body: "Docs too." })
     inbox.read(inbox.list().map((each) => each.id))
-    expect(inbox.list().map((each) => each.id)).toEqual([id])
+    expect(openOf(inbox).map((each) => each.id)).toEqual([id])
   })
 
   it("shows action instructions without running them and accepts done or words, but no option index", () => {
@@ -323,7 +327,7 @@ describe("Inbox asks and updates", () => {
     resources.defer(() => reopened.close())
     const next = setup(reopened, reopened)
     resources.defer(() => next.messaging.close())
-    expect(next.inbox.list()).toEqual([])
+    expect(openOf(next.inbox)).toEqual([])
     const history = next.inbox.history(
       identity.terminalId,
       next.messaging.list(identity.terminalId, identity.handle),
@@ -342,7 +346,7 @@ describe("Inbox asks and updates", () => {
     expect((await a.next()).value?.[0]?.id).toBe(id)
     expect((await b.next()).value?.[0]?.id).toBe(id)
     inbox.call(identity.terminalId, "ask", { withdraw: id })
-    expect((await a.next()).value).toMatchObject([{ id, settled: { how: "withdrawn" } }])
+    expect((await a.next()).value).toEqual([])
     inbox.close()
     expect((await a.next()).done).toBe(true)
     expect((await b.next()).done).toBe(true)
@@ -372,7 +376,7 @@ describe("Inbox persistence and identity", () => {
     expect(next.inbox.list().map((each) => each.id)).toEqual([id])
     next.bind("replacement")
     next.inbox.reconcile(identity.terminalId)
-    expect(next.inbox.list()).toEqual([])
+    expect(openOf(next.inbox)).toEqual([])
     expect(reopened.entries()[0]?.state).toBe("gone")
   })
 
@@ -562,7 +566,7 @@ describe("unread tell lifetimes", () => {
     inbox.reconcile(identity.terminalId)
     expect(inbox.list()).toHaveLength(2)
     inbox.read([sent.id])
-    expect(inbox.list().map((each) => each.id)).toEqual([second.id])
+    expect(openOf(inbox).map((each) => each.id)).toEqual([second.id])
     forget()
     expect(inbox.list()).toEqual([])
     expect(records.entries().find((each) => each.id === second.id)?.state).toBe("gone")
@@ -600,7 +604,7 @@ describe("done entries", () => {
       { id: old.id, content: { kind: "tell" } },
     ])
     next.inbox.read([sent.id])
-    expect(next.inbox.list().map((each) => each.id)).toEqual([old.id])
+    expect(openOf(next.inbox).map((each) => each.id)).toEqual([old.id])
     expect(reopened.entries().find((each) => each.id === sent.id)?.state).toBe("read")
     const history = next.inbox.history(
       identity.terminalId,
@@ -797,7 +801,7 @@ describe("Inbox creation limits", () => {
     })
     run.bind("replacement")
     run.inbox.reconcile(identity.terminalId)
-    expect(run.inbox.list()).toHaveLength(50)
+    expect(openOf(run.inbox)).toHaveLength(50)
     expect(run.inbox.call(identity.terminalId, "ask", entry).ok).toBe(true)
   })
 
@@ -953,7 +957,7 @@ describe("Inbox creation limits", () => {
       }
       run.messaging.rooted(identity.terminalId, [correction])
       run.inbox.rooted(identity.terminalId, [correction])
-      expect(run.inbox.list().map((each) => each.id)).toEqual(originals)
+      expect(openOf(run.inbox).map((each) => each.id)).toEqual(originals)
       expect(records.entries().find((each) => each.id === temporary)?.state).toBe("gone")
       expect(run.inbox.call(identity.terminalId, "ask", entry)).toMatchObject({
         ok: false,
@@ -1002,7 +1006,7 @@ describe("Inbox creation limits", () => {
     }
     run.messaging.rooted(identity.terminalId, [correction])
     run.inbox.rooted(identity.terminalId, [correction])
-    expect(new Set(run.inbox.list().map((each) => each.id))).toEqual(
+    expect(new Set(openOf(run.inbox).map((each) => each.id))).toEqual(
       new Set([...originals, oldest, middle]),
     )
     expect(records.entries().find((each) => each.id === newest)).toMatchObject({
@@ -1077,7 +1081,7 @@ describe("Inbox creation limits", () => {
         run.create()
         clock.advance()
       }
-      expect(run.inbox.list()).toHaveLength(50)
+      expect(openOf(run.inbox)).toHaveLength(50)
       expect(records.entries().filter((each) => each.state === "open")).toHaveLength(50)
       expect(records.entries().length).toBeLessThanOrEqual(maxResolvedEntries + 50)
     }
@@ -1725,7 +1729,7 @@ describe("Inbox asks over a record failure", () => {
     const id = run.create()
     failing = true
     expect(run.inbox.call(identity.terminalId, "ask", { withdraw: id }).ok).toBe(true)
-    expect(run.inbox.list()).toMatchObject([{ id, settled: { how: "withdrawn" } }])
+    expect(run.inbox.list()).toEqual([])
   })
 
   it("skips a stored row it can't read, so the rest of the asks list", ({ resources }) => {
@@ -1808,7 +1812,7 @@ describe("Inbox asks whose session does not come back after a restart", () => {
     resources.defer(next.stop)
     clock.advance(1_001)
     next.inbox.prune()
-    expect(next.inbox.list()).toEqual([])
+    expect(openOf(next.inbox)).toEqual([])
     expect(state(next, id)).toBe("gone")
     next.bind(identity.sessionId)
     next.inbox.reconcile(identity.terminalId)
@@ -1827,7 +1831,7 @@ describe("Inbox asks whose session does not come back after a restart", () => {
     next.inbox.prune()
     next.bind("replacement")
     next.inbox.reconcile(identity.terminalId)
-    expect(next.inbox.list()).toEqual([])
+    expect(openOf(next.inbox)).toEqual([])
     expect(state(next, id)).toBe("gone")
   })
 
@@ -1841,7 +1845,7 @@ describe("Inbox asks whose session does not come back after a restart", () => {
     run.inbox.reconcile(identity.terminalId)
     run.bind(identity.sessionId)
     run.inbox.reconcile(identity.terminalId)
-    expect(run.inbox.list()).toEqual([])
+    expect(openOf(run.inbox)).toEqual([])
     expect(
       run.inbox
         .history(identity.terminalId, run.messaging.list(identity.terminalId, identity.handle))
@@ -1914,7 +1918,10 @@ describe("asks the person's own prompt withdraws", () => {
     create({ ...entry, subject: "Which one?" })
     time.now = 1_500
     expect(withdrawBefore(inbox, identity.terminalId, 1_500)).toContain('"Which one?"')
-    expect(inbox.list()).toMatchObject([{ settled: { how: "replied" } }])
+    expect(inbox.list()).toMatchObject([
+      { settled: { how: "replied" } },
+      { id: answered, settled: { how: "answered", answer: expect.stringContaining("Green") } },
+    ])
     const messages = inbox
       .history(identity.terminalId, messaging.list(identity.terminalId, identity.handle))
       .threads.flatMap((thread) => thread.messages)
@@ -2061,13 +2068,18 @@ describe("asks the person dismisses", () => {
     expect(() => inbox.dismiss(answered)).toThrow(expect.objectContaining({ code: "NOT_FOUND" }))
   })
 
-  it("lists settled asks only while their terminal exists, and answered ones never", () => {
-    const { inbox, create, forget } = clocked()
+  it("lists resolved asks, an answered one with its answer, only while their terminal exists", () => {
+    const { inbox, create, forget, time } = clocked()
     const dismissed = create()
     const answered = create()
     inbox.dismiss(dismissed)
+    time.now = 2_000
     inbox.answer(answered, { type: "reply", option: 0, text: "Blue" })
-    expect(inbox.list().map(({ id }) => id)).toEqual([dismissed])
+    expect(inbox.list().map(({ id, settled }) => [id, settled?.how])).toEqual([
+      [answered, "answered"],
+      [dismissed, "dismissed"],
+    ])
+    expect(inbox.list().find(({ id }) => id === answered)?.settled?.answer).toMatch(/: Blue$/)
     forget()
     expect(inbox.list()).toEqual([])
   })
@@ -2129,21 +2141,19 @@ describe("asks the person dismisses", () => {
     expect(inbox.call(identity.terminalId, "ask", { withdraw: withdrawn }).ok).toBe(false)
   })
 
-  it("clears settled asks only, from the listing and not from the history", () => {
+  it("lists no ask its agent withdrew, though the history keeps it", () => {
     const { inbox, create, messaging } = clocked()
     const dismissed = create()
     const open = create()
     const withdrawn = create()
     inbox.dismiss(dismissed)
     inbox.call(identity.terminalId, "ask", { withdraw: withdrawn })
-    const tell = inbox.call(identity.terminalId, "tell", { subject: "PR", body: "Opened." })
-    inbox.clear([dismissed, withdrawn, open, "unknown", tell.ok ? tell.id : ""])
     expect(
       inbox
         .list()
         .map(({ id }) => id)
         .toSorted(),
-    ).toEqual([open, tell.ok ? tell.id : ""].toSorted())
+    ).toEqual([dismissed, open].toSorted())
     const states = inbox
       .history(identity.terminalId, messaging.list(identity.terminalId, identity.handle))
       .threads.flatMap((thread) => thread.messages)
@@ -2151,6 +2161,19 @@ describe("asks the person dismisses", () => {
       .map(({ inboxState }) => inboxState)
     expect(states).toContain("dismissed")
     expect(states).toContain("withdrawn")
+  })
+
+  it("lists only the latest ten resolved entries, tells and asks together", () => {
+    const { inbox, create, time } = clocked()
+    for (let index = 0; index < 12; index += 1) {
+      time.now += 7_000
+      const id = create()
+      time.now += 1
+      inbox.dismiss(id)
+    }
+    const listed = inbox.list()
+    expect(listed).toHaveLength(10)
+    expect(listed.every(({ settled }) => settled?.how === "dismissed")).toBe(true)
   })
 
   it("tells the corrected session of a dismissal made under a guessed one", ({ resources }) => {

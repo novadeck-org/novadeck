@@ -107,7 +107,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         if (agent === "agy") await agyStarted(tui)
         else await tui.first()
         const asking = () =>
-          tui.manager.inboxEntries().filter(({ content }) => content.kind === "ask")
+          tui.manager
+            .inboxEntries()
+            .filter(({ content, settled }) => content.kind === "ask" && !settled)
         await expect.poll(asking, { timeout: 10_000 }).toHaveLength(1)
         await expect.poll(tui.delivery, { timeout: 10_000 }).toBe("settled")
         const turns = tui.received().length
@@ -1221,11 +1223,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         else await tui.first()
         const reported = () => tui.manager.get(tui.idle.id).reported?.subject
         await expect.poll(reported, { timeout: 10_000 }).toBe("Shipped it")
-        // Reading the entry leaves the Inbox, not the report that stands.
+        // Reading the entry resolves it, which keeps it listed, not the report that stands.
         const entries = tui.manager.inboxEntries().filter(({ content }) => content.kind === "done")
         expect(entries).toHaveLength(1)
         tui.manager.readTells(entries.map(({ id }) => id))
-        expect(tui.manager.inboxEntries()).toEqual([])
+        expect(tui.manager.inboxEntries().filter(({ settled }) => !settled)).toEqual([])
+        expect(tui.manager.inboxEntries()).toMatchObject([{ settled: { how: "read" } }])
         expect(reported()).toBe("Shipped it")
         // The person writes to it in its terminal: more to do.
         const turns = tui.received().length

@@ -14,8 +14,9 @@ import { viewing, type UiState, type UiStore } from "./ui-store"
 // unresolved: quietly (no toast or OS ping) once they looked at it for `readDwellMs`, as they
 // saw it there, and ringing as any row does after a shorter look. An
 // update (a done report or a tell) is read once its terminal has been looked at for a moment
-// (`readDwellMs`), whether it landed or not: seeing the terminal is seeing it. A read that
-// fails lands the update instead. On a phone, while the Inbox list covers the screen, no
+// (`readDwellMs`), whether it landed or not: seeing the terminal is seeing it, and it lands as
+// resolved, in the history. A read that fails lands the update instead. A row that resolves
+// while it is held back lands as resolved too: nothing is dropped, and it is no news. On a phone, while the Inbox list covers the screen, no
 // terminal is looked at. Anything else that landed
 // stays: selecting a terminal doesn't take back a row the person must still answer. A row
 // the person asks to open by its id (`reveal`) always lands too, as Answer in a terminal's
@@ -113,9 +114,8 @@ export const landInbox = (
   // key: the updates read by being seen, which never land, the held rows viewed long enough
   // to land quietly, and the reads under way.
   const landed = new Set<string>()
-  // The open asks the rule held back, which then settled unseen: they never land.
+  // The open rows the rule holds back.
   const held = new Set<string>()
-  const clearing = new Set<string>()
   const kept = new Set<string>()
   const read = new Set<string>()
   const quiet = new Set<string>()
@@ -137,7 +137,6 @@ export const landInbox = (
     const ids = new Set(state.items.map((row) => row.id))
     for (const id of landed) if (!ids.has(id)) landed.delete(id)
     for (const id of held) if (!ids.has(id) || landed.has(id)) held.delete(id)
-    for (const id of clearing) if (!ids.has(id)) clearing.delete(id)
     for (const id of kept) if (!ids.has(id)) kept.delete(id)
     for (const set of [read, quiet, reading, ripe])
       for (const key of set) if (!standing.has(key)) set.delete(key)
@@ -148,7 +147,6 @@ export const landInbox = (
       }
     const rows: InboxRow[] = []
     const toRead: InboxRow[] = []
-    const toClear: string[] = []
     const stillDwelling = new Set<string>()
     for (const row of state.items) {
       const key = rowKey(row)
@@ -158,6 +156,12 @@ export const landInbox = (
         looking.id === source.terminalId &&
         looking.context === `${source.projectId}/${source.workspaceSessionId}`
       if (!here) kept.delete(row.id)
+      // A resolved row lands as it is: history, whatever the person looks at, news to no one.
+      if (row.settled) {
+        held.delete(row.id)
+        rows.push(row)
+        continue
+      }
       if (read.has(key)) {
         // A read that failed, or that left the row standing once it settled, mustn't hide
         // it for good: it lands, to be read by hand.
@@ -170,20 +174,6 @@ export const landInbox = (
           if (state.answering[row.id]) reading.add(key)
           continue
         }
-      }
-      // A settled row only stays: one held back that settled unseen is dropped, not shown as
-      // news, and cleared so it doesn't come back. Any other settled row shows at once.
-      if (row.settled) {
-        if (held.has(row.id)) {
-          if (!clearing.has(row.id)) {
-            clearing.add(row.id)
-            toClear.push(row.id)
-          }
-          continue
-        }
-        landed.add(row.id)
-        rows.push(row)
-        continue
       }
       const { act, hold } = decideRow({
         kind: row.kind,
@@ -234,7 +224,6 @@ export const landInbox = (
         ? current
         : { ...state, items: rows },
     )
-    if (running && toClear.length > 0) raw.clear?.(toClear)
     if (running) for (const row of toRead) raw.answer(row.id, { kind: "update", action: "read" })
   }
   const sync = (): void => {

@@ -1,4 +1,4 @@
-import type { ChatAnswer } from "@novadeck/core/conversation"
+import type { ChatAnswer, ChatRequest } from "@novadeck/core/conversation"
 import {
   emptyInbox,
   type Inbox,
@@ -10,15 +10,15 @@ import {
   type InboxState,
   type InboxTurn,
 } from "@novadeck/core/inbox"
-import { dialogMs, inboxRows, type Asked, type WrittenEntry } from "@novadeck/core/inbox/rows"
 import {
-  answerFailure,
-  answerRow,
-  createInboxTracker,
-  isTurnRow,
-  keepInbox,
-  keyOf,
-} from "@novadeck/core/inbox/tracker"
+  answerLine,
+  createInboxHistory,
+  keptRow,
+  parseHistory,
+  type InboxHistory,
+} from "@novadeck/core/inbox/history"
+import { dialogMs, inboxRows, type Asked, type WrittenEntry } from "@novadeck/core/inbox/rows"
+import { answerRow, createInboxTracker, keepInbox, keyOf } from "@novadeck/core/inbox/tracker"
 import type { MessagesState } from "@novadeck/core/messages"
 import { createStore, type Store } from "@novadeck/core/store"
 import type { TerminalKey, TerminalMetadata, Workspace } from "@novadeck/core/types"
@@ -38,7 +38,7 @@ export const detailGraceMs = 5000
 export const retryMs = 1000
 const retryCapMs = 10_000
 const replyTrackingLimit = 1000
-// As many ids as the runner takes in one `read` or `clear`.
+// As many ids as the runner takes in one `read`.
 const idsPerCall = 1000
 const batchesOf = (ids: readonly string[]): string[][] =>
   Array.from({ length: Math.ceil(ids.length / idsPerCall) }, (_, index) =>
@@ -55,7 +55,6 @@ export type InboxStreams = {
     readonly answer: (id: string, answer: AskAnswer) => Promise<void>
     readonly read: (ids: readonly string[]) => Promise<void>
     readonly dismiss: (id: string) => Promise<void>
-    readonly clear: (ids: readonly string[]) => Promise<void>
   }
   readonly detail: (terminalId: string) => AsyncIterableIterator<AgentDetail, undefined>
   readonly answer: (key: TerminalKey, request: string, answer: ChatAnswer) => Promise<void>
@@ -74,6 +73,9 @@ export type RunnerInbox = Inbox & {
   readonly bind: NonNullable<Inbox["bind"]>
   readonly turns: NonNullable<Inbox["turns"]>
   readonly readFinishes: NonNullable<Inbox["readFinishes"]>
+  // Says what the person answered a dialog with, which a chat answers too, for the row it
+  // resolves.
+  readonly answered: (requestId: string, request: ChatRequest, answer: ChatAnswer) => void
   // Ends every stream it opened; the backend is stopping.
   readonly end: () => void
   // Opens them again, for the binding there is; the backend started again after `end`.
@@ -131,13 +133,27 @@ export const createRunnerInbox = (
     now = Date.now,
     // Keeps a call the backend waits for before it stops, as its other calls are.
     track = (work) => work,
+    // The resolved rows it made, as the runner kept them (`JSON` each), and how it keeps them.
+    history: savedRows = [],
+    saveHistory = () => {},
   }: {
     now?: () => number
     track?: <T>(work: Promise<T>) => Promise<T>
+    history?: readonly string[]
+    saveHistory?: (rows: readonly string[]) => void
   } = {},
 ): RunnerInbox => {
   const state = createStore<InboxState>(emptyInbox)
+  // What it kept of the rows that ended, which the runner can't tell of, and how each ended.
+  const endings: InboxHistory = createInboxHistory({
+    saved: parseHistory(savedRows),
+    save: (rows) => saveHistory(rows.map(keptRow)),
+    now,
+  })
   let binding: InboxBinding | null = null
+  // Whether the runner's entries are listed now: until they are again, a row of theirs that
+  // is missing has not ended.
+  let streaming = false
   // Asks and tells, as the runner last listed them, and its finished turns (undefined until
   // the first listing, and after the listing ended for good).
   let entries: readonly NotATurn[] = []
@@ -155,6 +171,7 @@ export const createRunnerInbox = (
   const stopEntries = (): void => {
     const stream = entriesStream
     entriesStream = undefined
+    streaming = false
     entries = []
     forgetTurns()
     void stream?.return?.()?.catch?.(() => {})
@@ -349,7 +366,14 @@ export const createRunnerInbox = (
       now: at,
       longHoldMs,
     })
-    const { items, answering, failed: shown } = tracker.view(found)
+    const resolved = endings.view(
+      found,
+      { workspace, messages: messages.getSnapshot() },
+      streaming && listed !== undefined,
+    )
+    // The failed turns whose agent moved on are resolved: their stored rows are read.
+    if (resolved.read.length > 0) hide(resolved.read)
+    const { items, answering, failed: shown } = tracker.view(resolved.rows)
 
     // A held thread's release or stop is tracked with the messages, so a pane's counts too.
     const { releasing, failed: refused } = messages.getSnapshot()
@@ -416,6 +440,7 @@ export const createRunnerInbox = (
         for await (const snapshot of stream) {
           if (entriesStream !== stream || binding !== next || ended) return
           try {
+            streaming = true
             entries = snapshot.filter(notATurn)
             listed = snapshot.flatMap((entry) => turnOf(entry) ?? [])
             const held = new Set(listed.map(({ id }) => id))
@@ -432,6 +457,7 @@ export const createRunnerInbox = (
       }
       if (entriesStream !== stream) return
       entriesStream = undefined
+      streaming = false
       entries = []
       forgetTurns()
       recompute()
@@ -450,7 +476,7 @@ export const createRunnerInbox = (
 
   const answer = (id: string, given: InboxAnswer): void => {
     const item = find(id)
-    // A settled ask is no longer the agent's to be answered.
+    // A resolved row is no longer the agent's to be answered.
     if (!item || item.settled || !binding || state.getSnapshot().answering[id]) return
     const key = keyOf(item)
     if (item.kind === "ask" && given.kind === "ask") {
@@ -472,9 +498,21 @@ export const createRunnerInbox = (
     )
       return tracker.call(id, () => streams.inbox.read([id]))
     answerRow(tracker, item, given, {
-      request: (_, { request }, chat) => streams.answer(key, request.id, chat),
-      release: (thread) => streams.release(thread),
-      stop: (thread) => streams.stop(thread),
+      request: (_, { request }, chat) => {
+        endings.note(id, "answered", answerLine(request, chat))
+        return streams.answer(key, request.id, chat).catch((error: unknown) => {
+          endings.forget(id)
+          throw error
+        })
+      },
+      release: (thread) => {
+        endings.note(id, "released")
+        streams.release(thread)
+      },
+      stop: (thread) => {
+        endings.note(id, "stopped")
+        streams.stop(thread)
+      },
       read: (ids) => {
         for (const each of ids) tracker.call(each, () => streams.inbox.read([each]))
       },
@@ -492,6 +530,9 @@ export const createRunnerInbox = (
       if (find(id)) tracker.see(id)
     },
     turns,
+    answered: (requestId, request, chat) => {
+      endings.note(`request:${requestId}`, "answered", answerLine(request, chat))
+    },
     readFinishes: (finishes: readonly InboxFinish[]) => {
       if (!listed) return
       const wanted = new Set(finishes.map(({ context, terminalId }) => `${context}/${terminalId}`))
@@ -515,40 +556,6 @@ export const createRunnerInbox = (
       )
         return
       tracker.call(id, () => streams.inbox.dismiss(id), { silent: true })
-    },
-    clear: (ids) => {
-      const settled = new Set(
-        state
-          .getSnapshot()
-          .items.filter((item) => item.kind === "ask" && item.settled)
-          .map((item) => item.id),
-      )
-      const wanted = ids.filter((id) => settled.has(id))
-      if (wanted.length === 0) return
-      const live = tracker.guard()
-      for (const batch of batchesOf(wanted)) {
-        track(Promise.resolve().then(() => streams.inbox.clear(batch))).catch((error: unknown) => {
-          if (!live()) return
-          for (const id of batch) tracker.fail(id, answerFailure(error))
-        })
-      }
-    },
-    readAll: () => {
-      // The updates and the failed rows that only inform, as shown.
-      const ids = state
-        .getSnapshot()
-        .items.filter((item) => item.kind === "update" || (isTurnRow(item) && !item.stopped))
-        .map(({ id }) => id)
-      if (ids.length === 0) return
-      tracker.submit(ids)
-      recompute()
-      const live = tracker.guard()
-      for (const batch of batchesOf(ids)) {
-        track(Promise.resolve().then(() => streams.inbox.read(batch))).catch((error: unknown) => {
-          if (!live()) return
-          for (const id of batch) tracker.fail(id, answerFailure(error))
-        })
-      }
     },
     bind: (next) => {
       binding = next

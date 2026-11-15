@@ -148,6 +148,7 @@ export const scripted = ({
   forges,
   inboxOrder,
   inboxSnoozed,
+  inboxHistory,
   feedback,
   feedbackCalls = {},
   requests = channel<never>().iterator,
@@ -185,6 +186,7 @@ export const scripted = ({
   // The Inbox's order and snoozes as the runner keeps them; none kept where absent.
   inboxOrder?: readonly string[]
   inboxSnoozed?: readonly string[]
+  inboxHistory?: readonly string[]
   // The app's feedback, where it has one.
   feedback?: Backend["feedback"]
   // How the runner answers `feedback.settle` and `feedback.ask` (they take by default).
@@ -237,7 +239,6 @@ export const scripted = ({
       answer: unused,
       read: async () => {},
       dismiss: unused,
-      clear: unused,
     },
     agents: {
       list: listAgents as never,
@@ -356,6 +357,7 @@ export const scripted = ({
     welcomed: false,
     ...(inboxOrder ? { inboxOrder } : {}),
     ...(inboxSnoozed ? { inboxSnoozed } : {}),
+    ...(inboxHistory ? { inboxHistory } : {}),
     ...(feedback ? { feedback } : {}),
   })
   let workspace = workspaceFromSeed(created.backend.seed, {

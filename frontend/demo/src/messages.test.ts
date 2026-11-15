@@ -2,7 +2,7 @@ import { messageBadge, type MessageParty } from "@novadeck/core/messages"
 import { terminalKeyPath } from "@novadeck/core/types"
 import { afterEach, vi } from "vitest"
 
-import { createDemoInbox } from "./inbox"
+import { answerMs, createDemoInbox } from "./inbox"
 import { demoInboxIds, demoInboxRows } from "./inbox/fixtures"
 import { checkoutMessages, createDemoMessages, partyOf, rungMs } from "./messages"
 import { demoTerminalId } from "./samples"
@@ -213,10 +213,13 @@ it("keeps an undelivered reply and its ask's outcome in history", () => {
   }
 })
 
-it("marks told history read when updates are read together", () => {
+it("marks told history read when an update is read", () => {
   const messages = createDemoMessages([])
   const inbox = createDemoInbox(Date.now(), undefined, messages.record)
-  inbox.readAll()
+  vi.useFakeTimers()
+  inbox.answer(demoInboxIds.told, { kind: "update", action: "read" })
+  vi.advanceTimersByTime(answerMs)
+  vi.useRealTimers()
   const history = Object.values(messages.state.getSnapshot().terminals).flatMap(
     (terminalMessages) => terminalMessages.threads.flatMap((thread) => thread.messages),
   )

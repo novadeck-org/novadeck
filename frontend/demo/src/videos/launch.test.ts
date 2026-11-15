@@ -39,7 +39,9 @@ const open = () => {
     const found = terminals().find((each) => each.id === key(number).terminalId)
     return found?.state === "running" ? found.agent : undefined
   }
-  const rows = (): readonly InboxRow[] => inbox.state.getSnapshot().items
+  // What is still open; the rows that resolved stay beside them, as the Inbox's history.
+  const rows = (): readonly InboxRow[] =>
+    inbox.state.getSnapshot().items.filter((each) => !each.settled)
   return { backend, store, inbox, cues, terminals, agent, rows, turns }
 }
 
@@ -540,7 +542,8 @@ describe("the launch demo", () => {
     ).toEqual([
       { state: "delivered", text: "The storefront calls v2, on port 8787. v1 is retired." },
     ])
-    expect(rows()).toMatchObject([{ kind: "ask", settled: { how: "withdrawn" } }])
+    // Its agent withdrew the ask, so the row leaves the Inbox.
+    expect(rows()).toEqual([])
     expect(agent(launch.asking)).toMatchObject({ working: true })
   })
 
@@ -556,9 +559,7 @@ describe("the launch demo", () => {
     expect(agent(1)).toMatchObject({ lastTurn: { outcome: "completed" } })
     // The lead answers, the ask is withdrawn, and both end.
     await vi.advanceTimersByTimeAsync(8000)
-    expect(rows().find((row) => row.kind === "ask")).toMatchObject({
-      settled: { how: "withdrawn" },
-    })
+    expect(rows().find((row) => row.kind === "ask")).toBeUndefined()
     for (const number of [launch.asking, launch.lead])
       expect(agent(number)).toMatchObject({ working: false, lastTurn: { outcome: "completed" } })
     // The cart endpoint reported to its lead as it finished.

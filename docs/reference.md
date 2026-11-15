@@ -358,19 +358,33 @@ can do, such as a sign-in, access or a key); an Ask ("?"), a question from the h
 sent through the agent's `ask` tool; Trouble, a failed turn, a usage limit or messages held
 long; and an Update, an agent's `done` report or a `tell`. Click a
 row to read it and answer in place, or reveal its terminal. An `ask` returns immediately so
-the agent can keep working; your answer reaches that exact agent session later as a message. Its
-ask clears when answered, withdrawn by the agent, or its session ends; an update clears when
-marked read. Asks, tells, done reports and your replies remain in that terminal's Messages
-pane, in the conversation **You**. A turn that ends without a `done` call or an ask makes no row; its tab
+the agent can keep working; your answer reaches that exact agent session later as a message.
+
+Every row is open, resolved or withdrawn, and only a withdrawn one disappears: an ask its own
+agent withdrew. Everything else that ends stays, as history, in gray, saying how it ended: an
+ask answered here (with your answer), dismissed, or replied to by you writing in its terminal; a
+tell or `done` report once you opened it or looked at its terminal; a dialog answered here, in
+the chat (with your answer) or in the terminal, or gone unanswered, as when its turn was
+interrupted; a held message once you released it or stopped its thread; a failed turn or a usage
+limit once the agent works again, a failed turn too once you read it; messages held long once they
+are delivered; and any of them once its agent session ends or its terminal closes. A resolved
+row opens as a read-only card, with no controls that change anything. The list is one list, the
+row added last first, open and resolved rows together, with no lines between them; of the resolved
+rows only the ten that resolved last are listed, whatever their kind. Messages keeps its own,
+longer history. A turn that ends without a `done` call or an ask makes no row; its tab
 marks it (see above). A failed turn is a stored row that stays, across a reload and a runner
-restart, until you read it (viewing its terminal reads it, or mark it read), and clears with
-its terminal; it is trouble that counts only while it is the agent's latest end and the agent
-isn't working, and an older one is a plain update with Mark read. A dialog or held messages
-clear once answered or released, here or in the terminal. The bell, and Zen's dock, show a dot
-toned by the most pressing item; how many wait on you is in its tooltip and the Inbox's
-header. Updates, older failures and tells are not counted. A
-usage limit is a state, not a stored row: it stays until the agent's next turn, so Continue is
-there after the reset.
+restart, until the agent works again or you read it (viewing its terminal reads it); it is
+trouble that counts only while it is the agent's latest end and the agent isn't working. Asks,
+tells, done reports and your replies also remain in that terminal's Messages pane, in the
+conversation **You**.
+
+Each kind has one icon, and its colour says what it wants of you: amber for what waits on you (a
+permission dialog, a plan approval, a question, an ask with options or for an action, a held
+message), the note colour for a usage limit or messages held long, red for a failed turn, green
+for a `done` report, plain for a `tell`, and gray once resolved. The bell, and Zen's dock, show a
+dot toned by the most pressing item; how many wait on you is in its tooltip and the Inbox's
+header. Updates and resolved rows are not counted. A usage limit is a state, not a stored row:
+it stays until the agent's next turn, so Continue is there after the reset.
 
 One rule decides when an item lands in the list: what concerns the terminal you are looking at
 (the selected one, while Novadeck has your focus, in every view) doesn't land while you look,
@@ -378,20 +392,20 @@ since the agent is right there. If it is still unresolved when you look away it 
 looked at it for about a second, it lands quietly, counted on the bell but with no toast or
 system ping, because you saw it where it happened; looked at for less, it lands and rings as any
 item does. An update (a `done` report or a `tell`) is read once you have looked at its terminal
-for about a second, whether it already landed or not; a glance while passing reads nothing, and
-an update that arrived while you looked lands when you look away. This second applies to Inbox updates and quiet landings only: the tab's
+for about a second, whether it already landed or not, and lands as resolved; a glance while
+passing reads nothing, and an update that arrived while you looked lands when you look away. A
+row that resolves while it is held back lands too, as resolved: nothing is dropped. This second applies to Inbox updates and quiet landings only: the tab's
 unread marks of replies and failed turns clear as soon as you look. On a narrow window, while
 the Inbox list covers the screen, no terminal counts as looked at, for either. Opening an item
 by its id, as Answer in Messages or a click on a notification does, lands it at once, even while
 its read is under way. If a read fails, the update lands so you can read it by hand. The tabs and windows read the Inbox's raw items,
 so their "!" and "?" show at once, before the list lists them.
 
-The rows that ask something of you keep the Inbox's own order (most pressing first, then the
-longest waiting) until you drag one: they drag among each other into your order, or move a
-place with Alt+↑/↓ on the focused row, while updates and settled asks stay below. Your order
-is kept across a restart; a row that arrives later goes ahead of the rows you placed that are
-as urgent as it or less, so one you put off stays below what comes after. Next, after an
-answer, follows your order. With a card open, ← and → open the card before and after it (as j
+The rows that ask something of you keep the Inbox's own order (the row added last first) until
+you drag one: they drag among each other into your order, or move a place with Alt+↑/↓ on the
+focused row, while updates and resolved rows keep their places. Your order is kept across a
+restart; a row that arrives later goes ahead of the rows you placed, so one you put off stays
+below what comes after. Next, after an answer, follows your order. With a card open, ← and → open the card before and after it (as j
 and k do), not in a text field, and not on a list row, where → goes into the card.
 
 To set one aside without answering it, snooze it: **S** on the row or in its open card, or the

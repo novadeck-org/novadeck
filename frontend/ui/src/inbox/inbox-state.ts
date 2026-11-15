@@ -1,11 +1,4 @@
-import {
-  inboxType,
-  ordered,
-  rowKey,
-  urgency,
-  type InboxRow,
-  type InboxState,
-} from "@novadeck/core/inbox"
+import { inboxType, ordered, rowKey, type InboxRow, type InboxState } from "@novadeck/core/inbox"
 
 // Which row the person has open, and what the list shows meanwhile. While a sheet is
 // open the list neither reorders nor grows: rows that arrive are held, counted by the
@@ -19,13 +12,13 @@ export type InboxView = {
   // until the Inbox has shown its first rows, so what it starts with arrives silently.
   readonly known: readonly string[] | null
   // The list's order, as it was when the sheet opened: while one is open nothing moves,
-  // however a row's urgency changes. Empty while none is open.
+  // whatever happens to a row. Empty while none is open.
   readonly order: readonly string[]
   // The ids that just joined the list, to be marked for a moment.
   readonly arrived: readonly string[]
-  // While the Inbox's panel is on screen: each row that asks, as it last was before it settled,
-  // by id. A row that settles meanwhile is placed by that copy, so it keeps its place until the
-  // panel is shown again. Empty while the panel is hidden.
+  // While the Inbox's panel is on screen: each row that asks, as it last was before it
+  // resolved, by id. A row that resolves meanwhile is placed by that copy, so it keeps its place
+  // until the panel is shown again. Empty while the panel is hidden.
   readonly base: Readonly<Record<string, InboxRow>>
 }
 
@@ -36,29 +29,26 @@ const idsOf = (rows: readonly InboxRow[]): string[] => rows.map(({ id }) => id)
 const same = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((id, index) => id === b[index])
 
-// The rows that ask, in the order the person dragged them into (`arranged`, their keys): each
-// they placed keeps its place among the others they placed, and one that came since goes
-// ahead of the first placed row as urgent as it or less, so what is new is seen before what
-// they put off. Every other row keeps its place in `list`, the Inbox's order.
+// The open rows, in the order the person dragged them into (`arranged`, their keys): each they
+// placed keeps its place among the others they placed, and the rows that came since, the
+// newest first, go ahead of them, so what is new is seen before what they put off. Every
+// other row (the resolved ones) keeps its place in `list`, the Inbox's order, and the open rows
+// fill the places the open rows had.
 export const arrange = (list: readonly InboxRow[], arranged: readonly string[]): InboxRow[] => {
   if (arranged.length === 0) return [...list]
   const rank = new Map(arranged.map((key, index) => [key, index]))
   const placed = (row: InboxRow): boolean => rank.has(rowKey(row))
   const asking = list.filter(asks)
-  const result = asking
-    .filter(placed)
-    .toSorted((a, b) => rank.get(rowKey(a))! - rank.get(rowKey(b))!)
-  for (const row of asking) {
-    if (placed(row)) continue
-    const at = result.findIndex((other) => placed(other) && urgency(other) >= urgency(row))
-    result.splice(at < 0 ? result.length : at, 0, row)
-  }
+  const result = [
+    ...asking.filter((row) => !placed(row)),
+    ...asking.filter(placed).toSorted((a, b) => rank.get(rowKey(a))! - rank.get(rowKey(b))!),
+  ]
   let next = 0
   return list.map((row) => (asks(row) ? result[next++]! : row))
 }
 
-// The Inbox's order, the rows that ask as the person arranged them, except that a row which
-// settled while the panel was on screen is ranked as it was before, so it stays where it was.
+// The Inbox's order, the open rows as the person arranged them, except that a row which
+// resolved while the panel was on screen is ranked as it was before, so it stays where it was.
 const listed = (
   view: InboxView,
   rows: readonly InboxRow[],
@@ -72,7 +62,7 @@ const listed = (
   ).flatMap(({ id }) => byId.get(id) ?? [])
 }
 
-// The rows the list shows, in the Inbox's order with the rows that ask as the person
+// The rows the list shows, in the Inbox's order with the open rows as the person
 // `arranged` them, or while a sheet is open in the order it opened with. `ghosts` are rows
 // the person answered that the backend has since dropped: they keep their place, answered,
 // until the sheet closes.
@@ -99,13 +89,17 @@ export const held = (view: InboxView, rows: readonly InboxRow[]): InboxRow[] =>
 
 // With no sheet open, the list shows everything: what is new since it last looked is
 // marked as arrived. Where a sheet is open the view stays as it is.
-// `active` says the panel is on screen, whose settled rows then keep their place.
+// `active` says the panel is on screen, whose resolved rows then keep their place.
 export const settle = (view: InboxView, rows: readonly InboxRow[], active = false): InboxView => {
   const base = based(view.base, rows, active)
   if (base !== view.base) return settle({ ...view, base }, rows, active)
   if (view.open !== null) return view
   const ids = idsOf(rows)
-  const arrived = view.known === null ? [] : ids.filter((id) => !view.known?.includes(id))
+  // A row that joins already resolved is history, not news.
+  const arrived =
+    view.known === null
+      ? []
+      : rows.filter((row) => !row.settled && !view.known?.includes(row.id)).map(({ id }) => id)
   if (view.known !== null && same(view.known, ids) && arrived.length === 0) return view
   return { ...view, known: ids, arrived: arrived.length > 0 ? arrived : view.arrived }
 }
@@ -198,9 +192,9 @@ export const rearranged = (view: InboxView, ids: readonly string[]): InboxView =
 export const clearArrived = (view: InboxView): InboxView =>
   view.arrived.length === 0 ? view : { ...view, arrived: [] }
 
-// What the person is asked for next: the first row as they `arranged` them, else the most
-// urgent, that is not an update (which asks nothing of them now) nor snoozed, other than
-// `from` and those whose answer is on its way.
+// What the person is asked for next: the first row as they `arranged` them, else the newest,
+// that is not an update (which asks nothing of them now) nor snoozed, other than `from` and
+// those whose answer is on its way.
 export const nextRow = (
   rows: readonly InboxRow[],
   from: string | null,
@@ -213,8 +207,7 @@ export const nextRow = (
       !state.answering[row.id] &&
       !row.settled &&
       !row.snoozed &&
-      inboxType(row) !== "update" &&
-      !informing(row),
+      inboxType(row) !== "update",
   )
 
 // The row `step` rows from `from` in the list (1 down, -1 up), within its ends; the
@@ -228,45 +221,12 @@ export const stepFrom = (
   return shown[Math.max(0, Math.min(shown.length - 1, at + step))]
 }
 
-// A stored failed turn that is no longer the agent's current end: it only informs, ranks with
-// updates, and is read, not answered.
-export const informing = (row: InboxRow): boolean =>
-  row.kind === "trouble" && row.trouble.type === "failed" && !!row.trouble.stored && !row.stopped
-
-// Whether a row asks something of the person: anything but an update, a failed turn that
-// only informs, or an ask that has settled. A snoozed one still asks: it keeps its place
-// among the rest, and drags with them.
-export const asks = (row: InboxRow): boolean =>
-  !row.settled && inboxType(row) !== "update" && !informing(row)
+// Whether a row asks something of the person: an open row but an update. A snoozed one still
+// asks: it keeps its place among the rest, and drags with them.
+export const asks = (row: InboxRow): boolean => !row.settled && inboxType(row) !== "update"
 
 // Whether a row asks something of the person now: one that asks and isn't snoozed.
 export const needs = (row: InboxRow): boolean => asks(row) && !row.snoozed
 
-// Which row the line above the updates goes on, from whether each row asks, in the list's
-// order: the one after the last that asks, or -1 where none asks or nothing follows. Updates
-// rank last, but while a sheet is open the order stays as it opened, so a row that has since
-// stopped asking keeps its place above the line.
-export const updatesStart = (asking: readonly boolean[]): number => {
-  const last = asking.lastIndexOf(true)
-  return last >= 0 && last < asking.length - 1 ? last + 1 : -1
-}
-
-// Which row the line above the settled asks goes on, from whether each row is settled, in the
-// list's order: the first of the run of settled rows that ends the list, or -1 where none does
-// or nothing precedes them. A row that settles while the panel is on screen keeps its place, so
-// it only counts once the rows below it are settled too.
-export const settledStart = (settled: readonly boolean[]): number => {
-  let start = settled.length
-  while (start > 0 && settled[start - 1]) start--
-  return start > 0 && start < settled.length ? start : -1
-}
-
 // What the rail's badge counts: everything that asks something of the person.
 export const needing = (rows: readonly InboxRow[]): InboxRow[] => rows.filter(needs)
-
-// Whether any ask has settled, for Clear to offer itself.
-export const hasSettled = (rows: readonly InboxRow[]): boolean => rows.some((row) => row.settled)
-
-// Whether Mark all read has anything to read: an update, or a failed turn that only informs.
-export const hasUpdates = (rows: readonly InboxRow[]): boolean =>
-  rows.some((row) => inboxType(row) === "update" || informing(row))

@@ -4,6 +4,10 @@ import { z } from "zod"
 // of them and their snoozes keep.
 export const maxInboxOrder = 200
 export const maxInboxRowIdLength = 200
+// How many resolved rows the Inbox lists, the latest, and how long one of them, as the runner
+// keeps it for the app (`inboxHistory`), runs at most.
+export const maxInboxResolved = 10
+export const maxInboxHistoryLength = 65_536
 
 // The longest an idle agent may wait before it is stopped, in minutes: a week.
 export const maxHibernateMinutes = 7 * 24 * 60
@@ -22,6 +26,10 @@ export const runnerSettings = z.strictObject({
   // The Inbox's rows the person snoozed, each by its id and when it began (`<id>@<at>`), the
   // latest last; empty until they snooze one.
   inboxSnoozed: z.array(z.string().min(1).max(maxInboxRowIdLength)).max(maxInboxOrder),
+  // The Inbox's rows the app made resolved itself (a dialog answered, a held message released,
+  // a usage limit over), as JSON, the latest last, which the runner can't tell of: kept so
+  // they come back after a restart. Empty until a row resolves.
+  inboxHistory: z.array(z.string().min(1).max(maxInboxHistoryLength)).max(maxInboxResolved),
   // After how many idle minutes a terminal's agent is stopped, its session resting until a
   // message or a look wakes it; null for never.
   hibernateAfterMinutes: z.number().int().min(1).max(maxHibernateMinutes).nullable(),

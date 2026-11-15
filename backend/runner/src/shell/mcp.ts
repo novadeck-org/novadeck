@@ -1228,7 +1228,7 @@ const tell: Tool<{ readonly id: string }> = {
   name: "tell",
   description:
     "Tell the user something through Novadeck's Inbox: a one-line subject and Markdown body. " +
-    "It appears as an Update they can mark read, without badging the bell. It suits a " +
+    "It appears as an Update they read by opening it, without badging the bell. It suits a " +
     "milestone they'd want to hear of while they're elsewhere: a pull request opened, its " +
     "checks passed or failed, a merge, or that you now wait on someone else; not each step. " +
     "With a lead, tell all the same, and send it that too. Use ask when you need an answer. Asks, updates and " +
@@ -1250,7 +1250,7 @@ const done: Tool<{ readonly id: string }> = {
   description:
     "Report to the user through Novadeck's Inbox that the task you were given is finished: " +
     "a one-line subject and a Markdown body with your own short report. It appears as an " +
-    "Update they can mark read. Call it once the task is finished, not when you answer a " +
+    "Update they read by opening it. Call it once the task is finished, not when you answer a " +
     "question or finish a step. With a lead, call done all the same, and send it your report too. " +
     "Use ask when you need an answer. Reports stay in Messages.",
   inputSchema: {

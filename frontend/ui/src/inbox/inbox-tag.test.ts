@@ -59,38 +59,39 @@ describe("A sheet's kind tag", () => {
     ).toMatchObject({ word: "Your move", type: "unblock" })
   })
 
-  it("names each kind of trouble, red only for what stopped on a failure", () => {
+  it("names each kind of trouble, with what its colour says", () => {
     expect(tagOf(trouble({ type: "failed", error: null }))).toMatchObject({
       word: "Error",
-      tone: "urgent",
+      tint: "danger",
     })
     expect(
       tagOf(trouble({ type: "limit", minutes: 300, resetsAt: 0, autoResume: null, evidence: [] })),
-    ).toMatchObject({ word: "Limit", tone: "waiting" })
+    ).toMatchObject({ word: "Limit", tint: "note" })
     expect(tagOf(trouble({ type: "stuck", summary: "", evidence: [], nudge: "" })).word).toBe(
       "Stuck",
     )
     expect(tagOf(trouble({ type: "waits", waits: null, count: 2 }))).toMatchObject({
       word: "Undelivered",
-      tone: "waiting",
+      tint: "note",
     })
   })
 
-  it("is red for an ask whose answer is hard to undo, and never guesses one for a permission", () => {
-    expect(tagOf(ask({ type: "text" }, "It drops the table.")).tone).toBe("urgent")
-    expect(tagOf(ask({ type: "text" })).tone).toBe("waiting")
-    expect(tagOf(request("permission", "Bash")).tone).toBe("waiting")
+  it("tints what waits on the person the same, hard to undo or not", () => {
+    expect(tagOf(ask({ type: "text" }, "It drops the table.")).tint).toBe("attention")
+    expect(tagOf(ask({ type: "text" })).tint).toBe("attention")
+    expect(tagOf(request("permission", "Bash")).tint).toBe("attention")
   })
 
-  it("says how a settled ask settled, quietly", () => {
-    const settled = (how: "withdrawn" | "dismissed" | "replied") =>
+  it("says how a resolved row ended, in gray", () => {
+    const resolved = (how: "answered" | "dismissed" | "replied" | "ended") =>
       tagOf({ ...ask({ type: "text" }), settled: { how, at: 1 } })
-    expect(settled("withdrawn")).toMatchObject({ word: "Withdrawn", tone: "quiet" })
-    expect(settled("dismissed")).toMatchObject({ word: "Dismissed", tone: "quiet" })
-    expect(settled("replied")).toMatchObject({ word: "Replied", tone: "quiet" })
+    expect(resolved("answered")).toMatchObject({ word: "Answered", tint: "muted" })
+    expect(resolved("dismissed")).toMatchObject({ word: "Dismissed", tint: "muted" })
+    expect(resolved("replied")).toMatchObject({ word: "Replied", tint: "muted" })
+    expect(resolved("ended")).toMatchObject({ word: "Ended", tint: "muted" })
   })
 
-  it("is quiet for an update", () => {
+  it("tints a done report green and what an agent told you plain", () => {
     expect(
       tagOf({
         ...base,
@@ -98,6 +99,14 @@ describe("A sheet's kind tag", () => {
         kind: "update",
         update: { type: "done", subject: "s", body: "" },
       }),
-    ).toMatchObject({ word: "Update", type: "update", tone: "quiet" })
+    ).toMatchObject({ word: "Update", type: "update", tint: "success" })
+    expect(
+      tagOf({
+        ...base,
+        stopped: false,
+        kind: "update",
+        update: { type: "told", subject: "s", body: "" },
+      }).tint,
+    ).toBe("ink")
   })
 })

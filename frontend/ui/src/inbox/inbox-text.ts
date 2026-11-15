@@ -1,6 +1,6 @@
 import type { ChatDialog, ChatRequest } from "@novadeck/core/conversation"
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
-import { inboxType, type InboxRow, type InboxSource, type Trouble } from "@novadeck/core/inbox"
+import type { InboxRow, InboxSource, SettledHow, Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsBehind } from "@novadeck/core/messages"
 
 // What the Inbox says about a row, in words: pure, so the rows and the sheet read the
@@ -177,16 +177,52 @@ export const labelOf = (row: InboxRow): string => {
 export const fromNovadeck = (row: InboxRow): boolean =>
   row.kind === "trouble" || row.kind === "held"
 
-// The tone of a row's mark, by how it asks for the person: trouble that stopped the
-// agent (urgent), anything that stopped it (waiting), anything else (quiet).
-export type Tone = "urgent" | "waiting" | "quiet"
-export const toneOf = (row: InboxRow): Tone => {
-  if (!row.stopped) return "quiet"
-  // A limit that waits for the person waits, as do messages held for an idle agent: neither
-  // has failed.
-  const waits =
-    row.kind === "trouble" && (row.trouble.type === "limit" || row.trouble.type === "waits")
-  return inboxType(row) === "trouble" && !waits ? "urgent" : "waiting"
+// How a resolved row ended, as its row's second line says it, and as the sheet's tag does.
+export const endedWords: Readonly<Record<SettledHow, string>> = {
+  answered: "Answered",
+  terminal: "Answered in the terminal",
+  dismissed: "Dismissed",
+  replied: "Replied in the terminal",
+  released: "Released",
+  stopped: "Stopped",
+  worked: "Worked on",
+  delivered: "Delivered",
+  read: "Read",
+  gone: "Ended unanswered",
+  ended: "Session ended",
+}
+
+// A resolved row's one line, in the sheet where its menu was: what the person did, or why it
+// asked nothing more, with the words they answered with.
+export const endedLine = (row: InboxRow): string | null => {
+  const { settled } = row
+  if (!settled) return null
+  const who = `@${row.source.handle}`
+  const thing = row.kind === "ask" ? "ask" : "request"
+  switch (settled.how) {
+    case "answered":
+      return settled.answer ? `You answered: ${settled.answer}` : `You answered ${who}'s ${thing}.`
+    case "terminal":
+      return `You answered ${who}'s ${thing} in its terminal.`
+    case "dismissed":
+      return `You dismissed this ask; ${who} was told.`
+    case "replied":
+      return `You wrote to ${who} in its terminal, so this ask is closed.`
+    case "released":
+      return "You released this message."
+    case "stopped":
+      return "You stopped this thread."
+    case "worked":
+      return `${who} is working again.`
+    case "delivered":
+      return `${who} got its messages.`
+    case "read":
+      return "Read."
+    case "gone":
+      return `${who} no longer waits on this, and nothing answered it: its turn was interrupted.`
+    case "ended":
+      return `${who}'s agent session ended, or its terminal closed.`
+  }
 }
 
 // The agent's words for a limit's window: "usage" where its length is unknown (0), and

@@ -6,7 +6,7 @@ import { ArrowRightLeft, Eye, Folder, Terminal, type LucideIcon } from "lucide-r
 import { useEffect, useMemo } from "react"
 
 import { focusSheetSoon } from "./inbox-dom"
-import { icons } from "./inbox-icons"
+import { iconOf } from "./inbox-icons"
 import { waitLabel } from "./inbox-text"
 import { useInboxContext } from "./InboxProvider"
 import { toastText, type ToastText } from "./toast-text"
@@ -107,7 +107,7 @@ const MovedCard = ({ moved }: { readonly moved: MovedToast }): React.JSX.Element
   </div>
 )
 
-// One toast: the type's icon in its tone; who wants what, and how long ago; the ask, a
+// One toast: the kind's icon in its tint; who wants what, and how long ago; the ask, a
 // command in mono; and where it comes from, the terminal at the left and the project at the
 // right edge, which is never cut.
 const ToastCard = ({
@@ -117,7 +117,7 @@ const ToastCard = ({
   readonly text: ToastText
   readonly Icon: LucideIcon
 }): React.JSX.Element => (
-  <div className="inbox-toast" data-type={text.type} data-tone={text.tone}>
+  <div className="inbox-toast" data-type={text.type} data-tint={text.tint}>
     <span className="inbox-toast-icon" aria-hidden="true">
       <Icon size={15} strokeWidth={1.6} />
     </span>
@@ -149,14 +149,14 @@ const InboxToast = ({
   readonly now: number
 }): React.JSX.Element => {
   const text = toastText(row, now)
-  return <ToastCard text={text} Icon={icons[text.type]} />
+  return <ToastCard text={text} Icon={iconOf(row)} />
 }
 
 // What a toast says of what an agent wants to show on a terminal the person isn't on, in
 // the Inbox toasts' words: quiet, like the updates it sits among.
 const showText = (waiting: ShowWaiting, now: number): ToastText => ({
   type: "update",
-  tone: "quiet",
+  tint: "muted",
   handle: waiting.handle,
   novadeck: false,
   said: "wants to show you",

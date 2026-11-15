@@ -4,11 +4,11 @@ import type { AgentName } from "../harnesses"
 import {
   ordered,
   type AgentAsk,
-  type AskSettled,
   type InboxContent,
   type InboxRow,
   type InboxSource,
   type InboxTurn,
+  type Settled,
 } from "../inbox"
 import {
   waitingFor,
@@ -58,8 +58,8 @@ export type WrittenEntry = {
     | { readonly kind: "ask"; readonly ask: AgentAsk }
     | { readonly kind: "tell"; readonly subject: string; readonly body: string }
     | { readonly kind: "done"; readonly subject: string; readonly body: string }
-  // Only on an ask that is no longer open.
-  readonly settled?: AskSettled | undefined
+  // Only on an entry that is no longer open.
+  readonly settled?: Settled | undefined
 }
 
 export type InboxInputs = {
@@ -262,8 +262,8 @@ const candidates = (
   return found
 }
 
-// Every row the Inbox now holds, the longest waiting among the most urgent first: each of a
-// terminal's rows, and each thread held for release.
+// Every row the Inbox now holds, the newest first: each of a terminal's rows, each thread held
+// for release, and the entries the runner lists resolved.
 export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
   const where = whereOf(inputs.workspace)
   const all = where.flatMap((here) => candidates(inputs, here))

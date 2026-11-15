@@ -121,16 +121,22 @@ export const createInboxTracker = ({
   return {
     view: (found) => {
       const ids = new Set(found.map((row) => row.id))
-      for (const id of seen) if (!ids.has(id)) seen.delete(id)
+      // A resolved row has nothing left to be seen for.
+      const open = new Set(found.filter((row) => !row.settled).map((row) => row.id))
+      for (const id of seen) if (!open.has(id)) seen.delete(id)
       for (const id of submitted) if (!ids.has(id) && !inFlight.has(id)) submitted.delete(id)
-      // A dismissed ask that the backend now lists settled has taken: it no longer answers.
+      // A row the backend now lists resolved has taken its answer: it no longer answers.
       for (const row of found) if (row.settled && !inFlight.has(row.id)) submitted.delete(row.id)
       const rows = found.map((row) => (seen.has(row.id) ? { ...row, seen: true } : row))
       const answering: Record<string, true> = Object.fromEntries(
         [...inFlight].map((id) => [id, true]),
       )
+      // A resolved row has nothing on its way, though what it was said it was answered.
       for (const row of rows)
-        if (submitted.has(row.id) || (row.kind === "request" && row.request.answered))
+        if (
+          !row.settled &&
+          (submitted.has(row.id) || (row.kind === "request" && row.request.answered))
+        )
           answering[row.id] = true
       return { items: rows, answering, failed: Object.fromEntries(failed) }
     },
@@ -236,7 +242,7 @@ export type InboxActions = {
 // released or stopped, a finish read, trouble by continuing, stopping or nudging the agent
 // (a nudge interrupts it first if it works, except on a stored failed row, which is nudged
 // only while it is the agent's current end and the agent rests, never interrupting, and
-// read once the nudge is sent; a failed row that is no longer current is only read). An
+// read once the nudge is sent). An
 // answer of another kind fails; the kinds a backend answers itself (an ask, a told or done
 // update) it handles before this.
 export const answerRow = (
@@ -264,11 +270,6 @@ export const answerRow = (
   if (row.kind === "trouble" && given.kind === "trouble") {
     const { action } = given
     const settles = { settles: true }
-    if (action.type === "read") {
-      if (!isTurnRow(row)) return tracker.fail(id, "That answer isn't for this item.")
-      tracker.forgive(id)
-      return actions.read([id])
-    }
     if (action.type === "continue")
       return tracker.call(id, () => actions.send(key, "continue", { automatic: true }), settles)
     if (action.type === "stop") return tracker.call(id, () => actions.interrupt(key), settles)
@@ -277,7 +278,7 @@ export const answerRow = (
       const sent = action.own ? undefined : { automatic: true as const }
       if (isTurnRow(row)) {
         if (!row.stopped || !terminal || agentWorking(terminal))
-          return tracker.fail(id, "That agent has moved on. Mark it read.")
+          return tracker.fail(id, "That agent has moved on.")
         return tracker.call(
           id,
           async () => {

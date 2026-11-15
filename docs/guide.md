@@ -67,9 +67,14 @@ Plans show in full before you approve them.
 If you're looking elsewhere in Novadeck, a toast pops up. If you're in another app, you get a
 system notification.
 
-![A done report in the Inbox: Inventory sync is done, with Mark read and Give @volt a follow-up.](assets/guide/done.webp)
+![A done report in the Inbox: Inventory sync is done, with Go to terminal.](assets/guide/done.webp)
 
-When an agent finishes, its short report waits here too.
+When an agent finishes, its short report waits here too. Opening it reads it.
+
+Nothing you have dealt with disappears: an answered question, a dismissed one, a message you
+released, a report you read all stay in the list in gray, saying how they ended, newest first,
+and open as read-only cards. The list keeps the last ten of those; only a question an agent
+withdrew itself leaves.
 
 ## Teams
 

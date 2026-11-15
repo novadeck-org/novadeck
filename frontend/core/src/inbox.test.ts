@@ -6,7 +6,6 @@ import {
   ordered,
   terminalDone,
   terminalNeed,
-  urgency,
   withSnoozes,
   emptyInbox,
   noInbox,
@@ -55,10 +54,6 @@ const held: InboxContent = {
 const ask: InboxContent = {
   kind: "ask",
   ask: { subject: "s", body: "b", details: null, hardToUndo: null, shape: { type: "text" } },
-}
-const limit: InboxContent = {
-  kind: "trouble",
-  trouble: { type: "limit", minutes: 300, resetsAt: 0, autoResume: false, evidence: [] },
 }
 const failed: InboxContent = { kind: "trouble", trouble: { type: "failed", error: null } }
 const told: InboxContent = { kind: "update", update: { type: "told", subject: "s", body: "b" } }
@@ -159,52 +154,50 @@ describe("what a terminal needs and has done", () => {
   })
 })
 
-describe("urgency", () => {
-  it("ranks stopping trouble, other stops, asks that go on, handled trouble, then updates and failed turns that only inform", () => {
-    expect(urgency(row("a", failed, true))).toBe(0)
-    expect(urgency(row("b", held, true))).toBe(1)
-    expect(urgency(row("c", ask, true))).toBe(1)
-    expect(urgency(row("d", ask, false))).toBe(2)
-    expect(urgency(row("e", failed, false))).toBe(4)
-    expect(urgency(row("g", limit, true))).toBe(1)
-    expect(urgency(row("h", limit, false))).toBe(3)
-    expect(urgency(row("f", told, false))).toBe(4)
-  })
-
-  it("keeps an update last even when the agent is stopped", () => {
-    expect(urgency(row("f", told, true))).toBe(4)
-  })
-})
-
 describe("ordered", () => {
-  it("sorts by urgency, then the longest waiting first", () => {
+  const settled = (id: string, at: number, resolvedAt: number): InboxRow => ({
+    ...row(id, ask, true, at),
+    settled: { how: "dismissed", at: resolvedAt },
+  })
+
+  it("puts the row added last first, whatever it asks", () => {
     const rows = [
       row("update", told, false, 1),
       row("late", held, true, 20),
       row("trouble", failed, true, 30),
       row("early", ask, true, 10),
     ]
-    expect(ordered(rows).map((each) => each.id)).toEqual(["trouble", "early", "late", "update"])
+    expect(ordered(rows).map((each) => each.id)).toEqual(["trouble", "late", "early", "update"])
   })
 
-  it("puts settled asks after everything, the latest settled first", () => {
-    const settled = (id: string, at: number) => ({
-      ...row(id, ask, true, 1),
-      settled: { how: "dismissed" as const, at },
-    })
+  it("mixes open and resolved rows by when each was added", () => {
     const rows = [
-      settled("s1", 100),
-      row("update", told, false, 1),
-      settled("s2", 200),
-      row("trouble", failed, true, 30),
+      settled("s1", 100, 500),
+      row("open", ask, true, 200),
+      settled("s2", 300, 400),
+      row("older", failed, true, 50),
     ]
-    expect(ordered(rows).map((each) => each.id)).toEqual(["trouble", "update", "s2", "s1"])
+    expect(ordered(rows).map((each) => each.id)).toEqual(["s2", "open", "s1", "older"])
+  })
+
+  it("lists only the ten resolved rows that resolved last, and every open one", () => {
+    const resolved = Array.from({ length: 12 }, (_, index) =>
+      settled(`s${index}`, 1000 + index, 2000 + index),
+    )
+    const rows = [...resolved, row("a", ask, true, 1), row("b", failed, true, 2)]
+    const listed = ordered(rows).map((each) => each.id)
+    expect(listed).toHaveLength(12)
+    expect(listed).toContain("a")
+    expect(listed).toContain("b")
+    expect(listed).not.toContain("s0")
+    expect(listed).not.toContain("s1")
+    expect(listed).toContain("s2")
   })
 
   it("leaves its input as it was", () => {
-    const rows = [row("b", told, false, 2), row("a", failed, true, 1)]
+    const rows = [row("a", failed, true, 1), row("b", told, false, 2)]
     ordered(rows)
-    expect(rows.map((each) => each.id)).toEqual(["b", "a"])
+    expect(rows.map((each) => each.id)).toEqual(["a", "b"])
   })
 })
 

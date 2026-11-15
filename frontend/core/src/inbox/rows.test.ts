@@ -750,14 +750,14 @@ describe("The Inbox's rows", () => {
         agentTerminal(1, { working: false }),
         agentTerminal(2, { working: false, attention: { kind: "permission", count: 1 } }, "codex"),
       )
-      const [row] = inboxRows(
+      const rows = inboxRows(
         inputs(asking, {
           messages: heldFor([waiting()], "asking"),
           requests: { "02": [asked("r1", 0)] },
           now: at,
         }),
       )
-      expect(row).toMatchObject({ kind: "request" })
+      expect(rows.map(({ kind }) => kind).toSorted()).toEqual(["request", "trouble"])
     })
   })
 
@@ -788,7 +788,7 @@ describe("The Inbox's rows", () => {
       expect(rows.map((row) => row.id)).toEqual(["trouble:01:100", "held:th1"])
     })
 
-    it("shows every held thread, the longest waiting first", () => {
+    it("shows every held thread, the newest first", () => {
       const both = workspaceOf(
         agentTerminal(1, { working: false }),
         agentTerminal(2, { working: false }, "codex"),
@@ -809,14 +809,14 @@ describe("The Inbox's rows", () => {
       }
 
       expect(inboxRows(inputs(both, { messages })).map((row) => row.id)).toEqual([
-        "held:older",
         "held:newer",
+        "held:older",
       ])
     })
   })
 
   describe("the whole list", () => {
-    it("orders by urgency, then by how long each waited", () => {
+    it("orders the newest first", () => {
       const workspace = workspaceOf(
         agentTerminal(1, { working: false, lastTurn: turn({ at: 10, reply: "a" }) }),
         agentTerminal(2, { working: true, attention: { kind: "permission", count: 1 } }),
@@ -830,7 +830,7 @@ describe("The Inbox's rows", () => {
         }),
       )
 
-      expect(rows.map((row) => row.id)).toEqual(["trouble:03:5", "request:r1"])
+      expect(rows.map((row) => row.id)).toEqual(["request:r1", "trouble:03:5"])
     })
 
     it("holds nothing for a terminal that runs no agent, and nothing for completed turns", () => {
@@ -854,8 +854,13 @@ describe("The Inbox's rows", () => {
 
   describe("an entry", () => {
     const attention: AgentStatus = { working: true, attention: { kind: "permission", count: 1 } }
-    const told = (id = "told-1"): WrittenEntry =>
-      entry({ id, content: { kind: "tell", subject: "Preview ready", body: "Open the preview." } })
+    const told = (id = "told-1", at = 4000, settled?: WrittenEntry["settled"]): WrittenEntry =>
+      entry({
+        id,
+        at,
+        content: { kind: "tell", subject: "Preview ready", body: "Open the preview." },
+        ...(settled && { settled }),
+      })
 
     it("derives whether an ask waits from the agent's current working state", () => {
       for (const agent of ["claude", "codex", "agy"] as const) {
@@ -896,15 +901,23 @@ describe("The Inbox's rows", () => {
       expect(inboxRows(inputs(workspaceOf(), { entries: [settled] }))).toEqual([])
     })
 
-    it("lists settled asks after everything else, the latest settled first", () => {
+    it("lists resolved entries with the rest, the newest first by when each was added", () => {
       const entries = [
-        entry({ id: "old", settled: { how: "withdrawn", at: 6000 } }),
-        entry({ id: "new", settled: { how: "replied", at: 9000 } }),
-        told("told"),
-        entry({ id: "open" }),
+        entry({ id: "old", at: 1000, settled: { how: "dismissed", at: 6000 } }),
+        entry({ id: "new", at: 4000, settled: { how: "replied", at: 9000 } }),
+        told("told", 2000),
+        entry({ id: "open", at: 3000 }),
       ]
       const rows = inboxRows(inputs(workspaceOf(agentTerminal(1, { working: false })), { entries }))
-      expect(rows.map(({ id }) => id)).toEqual(["open", "told", "new", "old"])
+      expect(rows.map(({ id }) => id)).toEqual(["new", "open", "told", "old"])
+    })
+
+    it("lists a read tell as resolved", () => {
+      const entries = [told("read", 2000, { how: "read", at: 3000 })]
+      const [row] = inboxRows(
+        inputs(workspaceOf(agentTerminal(1, { working: false })), { entries }),
+      )
+      expect(row?.settled).toEqual({ how: "read", at: 3000 })
     })
 
     it("keeps an unread tell after its agent exits, with its original attribution", () => {
@@ -964,7 +977,7 @@ describe("The Inbox's rows", () => {
       expect(rows.map(({ id }) => id).toSorted()).toEqual(["entry-1", "request:question"])
     })
 
-    it("lists two tells from one terminal, the newer beside the older", () => {
+    it("lists two tells from one terminal, the newer first", () => {
       const rows = inboxRows(
         inputs(workspaceOf(agentTerminal(1, { working: false })), {
           entries: [
@@ -973,7 +986,7 @@ describe("The Inbox's rows", () => {
           ],
         }),
       )
-      expect(rows.map(({ id }) => id)).toEqual(["opened", "merged"])
+      expect(rows.map(({ id }) => id)).toEqual(["merged", "opened"])
     })
 
     it("lists an ask beside the tells of the same terminal, and not its completed turn", () => {

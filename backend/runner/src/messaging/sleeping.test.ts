@@ -395,7 +395,8 @@ describe("a sleeper's Inbox", () => {
     const { run, inbox, id } = restarted(resources)
     run.messaging.rest("B", here, "fox", null, { agent: "claude", sessionId: "another" })
     inbox.reconcile("B")
-    expect(inbox.list().map((entry) => entry.id)).not.toContain(id)
+    // It ended with its session: listed, resolved, and no longer answerable.
+    expect(inbox.list().find((entry) => entry.id === id)?.settled?.how).toBe("ended")
   })
 })
 

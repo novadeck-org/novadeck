@@ -63,7 +63,7 @@ describe("the Chirp demo", () => {
     inbox.bind!({ workspace: store })
     // Her agents are all at work: no finish is stored for the Inbox to list.
     expect(inbox.turns?.getSnapshot()).toEqual([])
-    const items = inbox.state.getSnapshot().items
+    const items = inbox.state.getSnapshot().items.filter((each) => !each.settled)
     expect(items).toHaveLength(1)
     const [item] = items
     expect(item).toMatchObject({
@@ -77,7 +77,7 @@ describe("the Chirp demo", () => {
       answer: { type: "choice", dialog: item.request.dialog.id, option: "1" },
     })
     await vi.advanceTimersByTimeAsync(answerMs + answeredMs + 100)
-    expect(inbox.state.getSnapshot().items).toEqual([])
+    expect(inbox.state.getSnapshot().items.filter((each) => !each.settled)).toEqual([])
     const answered = terminal(chirpWaiting)
     expect(answered?.state === "running" && answered.agent?.attention).toBeFalsy()
   })

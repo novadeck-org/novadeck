@@ -365,6 +365,11 @@ await runner.inbox.answer(actionAskId, { type: "done" })
 await runner.inbox.read(updateIds)
 ```
 
+Listed entries are the open ones, and the ten that resolved last (an ask answered, dismissed or
+replied to, a tell or done read, either ended with its session): those carry `settled`, with
+`how`, `at` and, on an answered ask, the person's `answer` as a line. An ask its agent
+withdrew isn't listed.
+
 An entry includes its id, terminal, project and workspace session ids, exact agent
 session, handle, creation time and `content`: `{ kind: "ask", ask }` or
 `{ kind: "tell", subject, body }` or `{ kind: "done", subject, body }` (a tell's fields, and
@@ -1778,11 +1783,14 @@ one from an earlier runner.
   the plans its bar mirrored of the earlier one go; moved ones stay.
 
 - `settings.get()` and
-  `settings.set({ transcripts?, welcomed?, inboxOrder?, inboxSnoozed?, hibernateAfterMinutes?, worktrees? })`
+  `settings.set({ transcripts?, welcomed?, inboxOrder?, inboxSnoozed?, inboxHistory?, hibernateAfterMinutes?, worktrees? })`
   read and change whether transcripts are kept (unless turned off; turning them off forgets
   every saved transcript), whether the person has seen the first-run choice of agents, the
   Inbox rows that ask in the order the person dragged them into, and the rows they snoozed
-  (each `<row id>@<when it began>`, at most 200 of each, and 200 characters), and after how
+  (each `<row id>@<when it began>`, at most 200 of each, and 200 characters), the Inbox's rows
+  that ended and the runner can't tell of itself (a dialog answered, a held message released, a
+  usage limit over) as the app made them resolved, each a JSON string, the latest ten, so they
+  come back after a restart, and after how
   many idle minutes an agent is stopped to rest as a sleeper (30 by default, at most a week,
   `null` for never; see "Idle agents rest" in agent-messaging.md), and whether agents may
   open git worktrees through Novadeck's tools (off until the person turns it on, in

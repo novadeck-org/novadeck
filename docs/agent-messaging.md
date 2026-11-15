@@ -795,8 +795,9 @@ person's own submission, as delivery judges it (see [What counts](#what-counts):
 a doorbell ring, a turn the harness or the agent started, and the first prompt an
 agent's command line gave never count), Novadeck withdraws that agent session's open asks
 made before the person submitted it, in every harness, once the agent has been told (below):
-the same `withdrawn` state as the agent's own withdrawal, so the row leaves the Inbox, and its
-toast or OS notification clears with it, and Messages shows it withdrawn. Tells, done rows and turn rows stay, and
+the `withdrawn` state with its own cause, `replied`: unlike the agent's own withdrawal, whose row
+leaves the Inbox, this row stays there, resolved and gray ("Replied in the terminal"); its toast
+or OS notification clears, and Messages shows it withdrawn. Tells, done rows and turn rows stay, and
 so does an ask the agent makes during the new turn. The same prompt's hook answer carries a
 short automatic notice that names the withdrawn asks' subjects (shortened and quoted) and
 says they are closed and can no longer be answered in the Inbox, to read the person's message
@@ -868,8 +869,12 @@ limit window, and leaves when the agent works again.
 
 The runner's `inbox_entries` table keeps these lifetimes and their Messages history. Every
 entry is bound to the terminal, project, workspace session and exact agent session.
-An ask clears when answered, withdrawn (by the agent, or by Novadeck at the person's own
-prompt in its terminal) or its agent session ends. A runner restart
+An ask is open until it is answered, dismissed, withdrawn (by the agent, or by Novadeck at the
+person's own prompt in its terminal) or its agent session ends. Of these only an ask its agent
+withdrew leaves the Inbox: the others stay in its list as resolved rows (`settled`: `answered`
+with the person's answer, `dismissed`, `replied`, `ended`), as does a tell or `done` once read
+(`read`). The runner lists the ten of them that resolved last, across the Inbox, with its open
+entries; its own history above, for the Messages pane, stays as long as it was. A runner restart
 keeps pending asks for the resumed session; one whose terminal has had no agent bound for
 two minutes after the runner starts ends as `gone`, and reopens, with its id and time, if
 that session binds after all; one whose terminal binds another session ends for good at

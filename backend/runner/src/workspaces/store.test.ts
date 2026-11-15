@@ -3082,6 +3082,7 @@ describe("saved terminals", () => {
       welcomed: false,
       inboxOrder: [],
       inboxSnoozed: [],
+      inboxHistory: [],
       hibernateAfterMinutes: 60,
       worktrees: false,
     })
@@ -3092,6 +3093,7 @@ describe("saved terminals", () => {
       welcomed: true,
       inboxOrder: [],
       inboxSnoozed: [],
+      inboxHistory: [],
       hibernateAfterMinutes: 60,
       worktrees: false,
     })
@@ -3139,6 +3141,20 @@ describe("saved terminals", () => {
     expect(workspace.settings.runner().inboxOrder).toEqual([])
     workspace.settings.saveRunner({ inboxSnoozed: ["a1b2"] })
     expect(workspace.settings.runner().inboxSnoozed).toEqual(["a1b2"])
+  })
+
+  it("keep the Inbox's resolved rows, and read none that can't be read", ({ kept }) => {
+    const workspace = kept()
+    expect(workspace.settings.runner().inboxHistory).toEqual([])
+    const rows = ['{"id":"request:r1"}', '{"id":"held:t1"}']
+    workspace.settings.saveRunner({ inboxHistory: rows })
+    expect(workspace.settings.runner().inboxHistory).toEqual(rows)
+    // More than the Inbox lists is more than a client may have saved.
+    const database = workspace["database"]
+    database.exec(
+      `UPDATE settings SET value = '${JSON.stringify(Array.from({ length: 11 }, () => "{}"))}' WHERE key = 'inboxHistory'`,
+    )
+    expect(workspace.settings.runner().inboxHistory).toEqual([])
   })
 })
 
@@ -3232,6 +3248,7 @@ describe("the messages", () => {
       welcomed: false,
       inboxOrder: [],
       inboxSnoozed: [],
+      inboxHistory: [],
       hibernateAfterMinutes: 60,
       worktrees: false,
     })

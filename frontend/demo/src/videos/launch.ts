@@ -897,7 +897,7 @@ export type LaunchCues = {
   // A teammate asks the person what only its lead knows, and messages the lead the same
   // question at once. The ask shows as an Inbox row; the idle lead, rung awake, works and
   // answers: the answer is sent about 8 s after the cue and lands about 0.8 s later, which is
-  // when the teammate acts on it and withdraws its ask: the row stays, settled, "Withdrawn". The person types nothing.
+  // when the teammate acts on it and withdraws its ask: the row leaves the Inbox. The person types nothing.
   readonly teammateAsks: () => void
   // A teammate ends its turn with its done report (a done mark and an Update row) and sends the
   // same report to its lead, as a message: the lead is rung.

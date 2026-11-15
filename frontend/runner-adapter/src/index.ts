@@ -155,6 +155,7 @@ export const connectRunnerBackend = async (
         welcomed,
         inboxOrder,
         inboxSnoozed,
+        inboxHistory,
         hibernateAfterMinutes,
         worktrees,
       },
@@ -185,6 +186,7 @@ export const connectRunnerBackend = async (
           welcomed,
           inboxOrder,
           inboxSnoozed,
+          inboxHistory,
           hibernateAfterMinutes,
           worktrees,
         })

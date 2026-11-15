@@ -262,15 +262,15 @@ describe("A sheet's menu of its own", () => {
       trouble,
     })
 
-    it("asks a failed agent at rest to fix it, saying what it sends, and reads a stored one", () => {
+    it("asks a failed agent at rest to fix it, saying what it sends, and leaves a stored one that has moved on to resolve itself", () => {
       const { rows } = menuOf(troubled({ type: "failed", error: "x", stored: true }), 0)
-      expect(labels(rows)).toEqual(["Ask it to fix", "Mark read", "Go to terminal"])
+      expect(labels(rows)).toEqual(["Ask it to fix", "Go to terminal"])
       expect(rows[0]!).toMatchObject({
         effect: "Sends: “Your last turn ended in an error. Look at what went wrong and fix it.”",
       })
       expect(
         labels(menuOf(troubled({ type: "failed", error: "x", stored: true }, false), 0).rows),
-      ).toEqual(["Mark read", "Go to terminal"])
+      ).toEqual(["Go to terminal"])
     })
 
     it("offers Continue only once a limit has reset, and the switch only where Novadeck can resume", () => {

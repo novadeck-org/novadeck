@@ -166,7 +166,9 @@ export {
 export {
   defaultHibernateMinutes,
   maxHibernateMinutes,
+  maxInboxHistoryLength,
   maxInboxOrder,
+  maxInboxResolved,
   maxInboxRowIdLength,
   runnerSettings,
   type RunnerSettings,

@@ -42,18 +42,25 @@ describe("the turn entry on the wire", () => {
   })
 })
 
-describe("a settled ask on the wire", () => {
+describe("a resolved entry on the wire", () => {
   const ask = {
     kind: "ask" as const,
     ask: { subject: "S", body: "B", details: null, hardToUndo: null, shape: { type: "text" } },
   }
-  it("takes how and when it ended, and refuses other causes and keys", () => {
-    for (const how of ["dismissed", "withdrawn", "replied"])
+  it("takes how and when it ended, and what it was answered with, and refuses other causes and keys", () => {
+    for (const how of ["answered", "dismissed", "replied", "read", "ended"])
       expect(inboxEntry.safeParse({ ...base, content: ask, settled: { how, at: 2 } }).success).toBe(
         true,
       )
+    expect(
+      inboxEntry.safeParse({
+        ...base,
+        content: ask,
+        settled: { how: "answered", at: 2, answer: "Blue" },
+      }).success,
+    ).toBe(true)
     for (const settled of [
-      { how: "answered", at: 2 },
+      { how: "withdrawn", at: 2 },
       { how: "dismissed" },
       { how: "dismissed", at: 2, extra: 1 },
     ])

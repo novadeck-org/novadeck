@@ -50,7 +50,8 @@ const terminalOf = (terminals: Terminals, turn: InboxTurn): TerminalMetadata | u
 type DoneEntry = Extract<InboxRow, { kind: "update" }>
 const doneEntries = (rows: readonly InboxRow[]): DoneEntry[] =>
   rows.filter(
-    (row): row is DoneEntry => row.kind === "update" && row.update.type === "done" && !row.seen,
+    (row): row is DoneEntry =>
+      row.kind === "update" && row.update.type === "done" && !row.seen && !row.settled,
   )
 
 const entryContext = (row: InboxRow): string =>

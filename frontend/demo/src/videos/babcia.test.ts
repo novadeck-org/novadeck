@@ -43,7 +43,9 @@ const open = () => {
     const found = terminal(number)
     return found?.state === "running" ? found.agent : undefined
   }
-  const rows = (): readonly InboxRow[] => inbox.state.getSnapshot().items
+  // What is still open; the rows that resolved stay beside them, as the Inbox's history.
+  const rows = (): readonly InboxRow[] =>
+    inbox.state.getSnapshot().items.filter((each) => !each.settled)
   return { backend, store, inbox, cues, terminals, terminal, agent, rows }
 }
 
@@ -822,7 +824,7 @@ describe("the Babcia demo", () => {
     it("asks politely a moment after No, while its turn carries on, and works on after Yes", async () => {
       const { cues, inbox, rows, agent } = open()
       cues.manners()
-      inbox.answer(rows()[0]!.id, pick("No"))
+      inbox.answer(rows().find((row) => row.kind !== "update")!.id, pick("No"))
       // Answered, then delivered; the polite ask waits for the delivery and its delay.
       await vi.advanceTimersByTimeAsync(inboxAnswerMs + deliveryMs + politeAfterMs - 100)
       expect(rows()).toEqual([])
@@ -833,7 +835,7 @@ describe("the Babcia demo", () => {
         ask: { shape: { type: "options", options: [{ label: "Yes" }, { label: "No" }] } },
       })
       expect(agent(babcia.manners)).toMatchObject({ working: true })
-      inbox.answer(rows()[0]!.id, pick("Yes"))
+      inbox.answer(rows().find((row) => row.kind !== "update")!.id, pick("Yes"))
       await vi.advanceTimersByTimeAsync(10_000)
       expect(rows()).toEqual([])
       expect(agent(babcia.manners)).toMatchObject({ working: true })
@@ -843,15 +845,15 @@ describe("the Babcia demo", () => {
     it("asks once more only after a No to the first, and waits for words after a No to the second", async () => {
       const first = open()
       first.cues.manners()
-      first.inbox.answer(first.rows()[0]!.id, pick("Yes"))
+      first.inbox.answer(first.rows().find((row) => row.kind !== "update")!.id, pick("Yes"))
       await vi.advanceTimersByTimeAsync(10_000)
       expect(first.rows()).toEqual([])
       expect(first.agent(babcia.manners)).toMatchObject({ working: true })
       const second = open()
       second.cues.manners()
-      second.inbox.answer(second.rows()[0]!.id, pick("No"))
+      second.inbox.answer(second.rows().find((row) => row.kind !== "update")!.id, pick("No"))
       await vi.advanceTimersByTimeAsync(inboxAnswerMs + deliveryMs + politeAfterMs + 100)
-      second.inbox.answer(second.rows()[0]!.id, pick("No"))
+      second.inbox.answer(second.rows().find((row) => row.kind !== "update")!.id, pick("No"))
       await vi.advanceTimersByTimeAsync(10_000)
       expect(second.rows()).toEqual([])
       second.cues.finishAll()
@@ -865,7 +867,7 @@ describe("the Babcia demo", () => {
       cues.finishAll()
       await vi.advanceTimersByTimeAsync(5000)
       expect(agent(babcia.manners)?.lastTurn).toBeUndefined()
-      inbox.answer(rows()[0]!.id, pick("No"))
+      inbox.answer(rows().find((row) => row.kind !== "update")!.id, pick("No"))
       await vi.advanceTimersByTimeAsync(inboxAnswerMs + deliveryMs + 100)
       cues.finishAll()
       await vi.advanceTimersByTimeAsync(500)
@@ -887,7 +889,7 @@ describe("the Babcia demo", () => {
     it("does not ask again if the person took the agent some other way meanwhile", async () => {
       const { cues, inbox, rows, backend } = open()
       cues.manners()
-      inbox.answer(rows()[0]!.id, pick("No"))
+      inbox.answer(rows().find((row) => row.kind !== "update")!.id, pick("No"))
       await vi.advanceTimersByTimeAsync(inboxAnswerMs + deliveryMs + 100)
       await backend.conversations!.interrupt(key(babcia.manners))
       await vi.advanceTimersByTimeAsync(10_000)

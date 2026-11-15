@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react"
 
 import { ConsoleSheet, type SheetContentProps } from "./ConsoleSheet"
 import { nextRowButton, rowOf, sheetControls } from "./inbox-dom"
-import { icons } from "./inbox-icons"
+import { iconKey, icons, tintOf } from "./inbox-icons"
 import { asks } from "./inbox-state"
 import { tagOf } from "./inbox-tag"
 import { useInboxContext, type Receipt } from "./InboxProvider"
@@ -20,12 +20,12 @@ const workspace = (): HTMLElement | null => document.querySelector<HTMLElement>(
 // What the workspace behind the sheet is, which steps back while it is read.
 const behind = (): HTMLElement | null => document.querySelector<HTMLElement>(".workspace-main-pane")
 
-// The kind of message, before any of it is read: the row's icon and tone, and one word.
+// The kind of message, before any of it is read: the row's icon and tint, and one word.
 const KindTag = ({ row }: { readonly row: InboxRow }): React.JSX.Element => {
   const tag = tagOf(row)
-  const Icon = icons[tag.type]
+  const Icon = icons[iconKey(row)]
   return (
-    <span className="console-tag" data-tone={tag.tone}>
+    <span className="console-tag" data-tint={tag.tint}>
       <Icon size={12} strokeWidth={2} aria-hidden />
       {tag.word}
     </span>
@@ -83,7 +83,7 @@ const SheetBody = ({ row }: { readonly row: InboxRow }): React.JSX.Element => {
     <div
       className="inbox-sheet console"
       data-type={inboxType(row)}
-      data-tone={tagOf(row).tone}
+      data-tint={tintOf(row)}
       data-state={row.settled ? "settled" : confirmed ? "answered" : "asking"}
       // Tab leaves the sheet the way it came: back to its row from the first control, and on
       // to the row after it from the last, so keyboard focus never falls out to the workspace.

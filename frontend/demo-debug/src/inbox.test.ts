@@ -86,7 +86,7 @@ describe("the debug panel's Inbox group", () => {
     const inbox = createDemoInbox(1, [])
     const notes: string[] = []
     // Lifecycle controls and variants change or add rows rather than adding a kind.
-    const kinds = inboxGroups(inbox, seed)[0]!.actions.length - 17
+    const kinds = inboxGroups(inbox, seed)[0]!.actions.length - 22
     for (let each = 0; each < kinds; each += 1) run(inbox, "A new row arrives", notes)
     expect(inbox.state.getSnapshot().items).toHaveLength(kinds)
     run(inbox, "A new row arrives", notes)
@@ -171,19 +171,78 @@ describe("the debug panel's Inbox group", () => {
     expect(inbox.state.getSnapshot().answering).toEqual({})
   })
 
-  it("makes withdrawn and ended asks reachable as retained history", () => {
+  it("makes withdrawn and ended asks reachable, the first leaving and the second kept resolved", () => {
     const outcomes: string[] = []
     const inbox = createDemoInbox(1, [], (_, __, outcome) => {
       if (outcome) outcomes.push(outcome)
     })
     run(inbox, "Ask withdrawn")
-    // The withdrawn ask stays as a settled row; the ended session's is gone.
-    expect(inbox.state.getSnapshot().items).toMatchObject([
-      { id: demoInboxIds.preview, settled: { how: "withdrawn" } },
-    ])
+    // The withdrawn ask leaves the Inbox, as its agent's withdrawal does; the ended session's
+    // stays, resolved, saying so.
+    expect(inbox.state.getSnapshot().items).toEqual([])
     run(inbox, "Ask session ended")
     expect(outcomes).toEqual(["withdrawn", "gone"])
-    expect(inbox.state.getSnapshot().items).toEqual([])
+    expect(inbox.state.getSnapshot().items).toMatchObject([
+      { id: demoInboxIds.preview, settled: { how: "ended" } },
+    ])
+  })
+
+  it("makes a resolved row of every kind reachable, in four groups", () => {
+    const inbox = createDemoInbox(1, [])
+    for (const label of [
+      "Resolved dialogs",
+      "Resolved asks",
+      "Resolved updates",
+      "Resolved Novadeck rows",
+    ])
+      run(inbox, label)
+    const hows = inbox.state
+      .getSnapshot()
+      .items.map((row) => row.settled?.how)
+      .filter((how) => how !== undefined)
+    // Only the ten that resolved last are listed, of seventeen.
+    expect(hows).toHaveLength(10)
+    for (const row of inbox.state.getSnapshot().items) expect(row.stopped).toBe(false)
+  })
+
+  it("lists every way a row ends once the seventeen are added", () => {
+    const inbox = createDemoInbox(1, [])
+    run(inbox, "Seventeen resolved rows")
+    const items = inbox.state.getSnapshot().items
+    expect(items).toHaveLength(10)
+    // Newest first by when each was added, none of them open.
+    expect(items.map(({ at }) => at)).toEqual(items.map(({ at }) => at).toSorted((a, b) => b - a))
+    expect(items.every((row) => row.settled !== undefined)).toBe(true)
+  })
+
+  it("resolves each group's rows with how they ended and what was answered", () => {
+    for (const [label, hows] of [
+      ["Resolved dialogs", ["answered", "answered", "terminal", "gone"]],
+      ["Resolved asks", ["answered", "dismissed", "replied", "answered", "ended"]],
+      ["Resolved updates", ["read", "read"]],
+      [
+        "Resolved Novadeck rows",
+        ["released", "stopped", "worked", "worked", "delivered", "worked"],
+      ],
+    ] as const) {
+      const inbox = createDemoInbox(1, [])
+      run(inbox, label)
+      expect(
+        inbox.state
+          .getSnapshot()
+          .items.toSorted((a, b) => a.at - b.at)
+          .map((row) => row.settled?.how),
+        label,
+      ).toEqual(hows)
+    }
+    const dialogs = createDemoInbox(1, [])
+    run(dialogs, "Resolved dialogs")
+    expect(
+      dialogs.state
+        .getSnapshot()
+        .items.find((row) => row.kind === "request" && row.settled?.how === "answered")?.settled
+        ?.answer,
+    ).toBeDefined()
   })
 
   it("leaves an ask replied in its terminal as a settled row", () => {

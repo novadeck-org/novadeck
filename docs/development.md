@@ -513,9 +513,16 @@ App:
   the next answer to any row fail, so its sheet shows why and keeps the row and draft for retry. Ask, Tell and Your reply
   also appear in the terminal's Messages pane, in the conversation You; replies show queued and delivered states.
   "Stale next answer" makes the next answer report that the ask is no longer available,
-  keeping the draft. "Ask withdrawn" and "Ask session ended" remove the sample preview ask
-  and keep its outcome in Messages; with the preview ask's sheet open, "Ask withdrawn" leaves
-  the sheet open, tagged Withdrawn, saying so in place of its answers. "Next reply not delivered" queues the next reply, then
+  keeping the draft. "Ask withdrawn" removes the sample preview ask from the Inbox, as its
+  agent's withdrawal does, and keeps its outcome in Messages; "Ask session ended" keeps it as a
+  resolved row, tagged Ended, saying so in place of its answers, and so does "Ask replied in
+  terminal" (Replied). "Resolved dialogs", "Resolved asks", "Resolved updates" and "Resolved
+  Novadeck rows" add the resolved rows of every way a row ends (answered with the words of the
+  answer, answered in the terminal, gone unanswered, dismissed, replied, ended, read, released,
+  stopped, and trouble the agent worked past or messages delivered), each opening as a
+  read-only card in gray; "Seventeen resolved rows" adds all of them at once, to see that the
+  list holds only the ten that resolved last. Answering any open row resolves it in place the
+  same way. "Next reply not delivered" queues the next reply, then
   shows the delivery failure in its Inbox receipt (on the sheet the Inbox moved on to, with
   Back to it) and Messages history. A box for your own words says when it is over 4,096
   characters, and won't send until it isn't. Pausing messages between agents leaves
@@ -954,7 +961,7 @@ folder of `frontend/ui/src/`:
 | `frontend/core/src/items/companion-bar.ts`                      | A bar as the person arranged it: order, hidden plans and Messages, the open tab.                                               |
 | `frontend/core/src/messages.ts`                                 | The contract for agents' messages: threads, states, the pause, and a tab's count.                                              |
 | `frontend/core/src/conversation.ts`                             | The contract for an agent's conversation: transcript items, requests, the port.                                                |
-| `frontend/core/src/inbox.ts`                                    | The contract for the Inbox: rows by source, their type and urgency, answers, the port.                                         |
+| `frontend/core/src/inbox.ts`                                    | The contract for the Inbox: rows by source, their type, how they ended, answers, the port.                                     |
 | `frontend/core/src/source.ts`                                   | The contract for the Source panel: a project's folders, listed one at a time, and what its agents changed.                     |
 | `frontend/core/src/conversation/picks.ts`                       | What the person has picked and written for a dialog's questions, and the answer it makes.                                      |
 | `frontend/core/src/conversation/turns.ts`                       | A conversation grouped into blocks, the turn's status.                                                                         |

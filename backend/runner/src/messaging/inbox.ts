@@ -9,6 +9,7 @@ import {
   isAgentName,
   maxAskOptions,
   maxCommandLines,
+  maxInboxResolved,
   unsafeInLine,
   type AgentAsk,
   type AgentName,
@@ -45,20 +46,21 @@ import {
 
 const log = logs.for("inbox")
 
-// Resolved entries stay as the Messages pane's history. Only open entries reach Inbox.
+// Resolved entries stay as the Messages pane's history, and the latest few of them are listed
+// to the Inbox, resolved, as its own (`Inbox.list`).
 export type StoredEntry = InboxEntry & {
   readonly state: "open" | "answered" | "read" | "withdrawn" | "gone"
   readonly settledAt?: number
   /**
    * How a withdrawn ask ended: the person dismissed it, its agent withdrew it, or the
-   * person's reply in the terminal did. Such an ask stays listed, settled; one withdrawn
-   * before this was recorded has no cause and is not listed.
+   * person's reply in the terminal did. Only an ask its agent withdrew is not listed to the
+   * Inbox, as one withdrawn before this was recorded, which has no cause.
    */
   readonly cause?: "dismissed" | "withdrawn" | "replied"
   /** Ended for want of its session after a restart, not by a different one: it reopens if it binds. */
   readonly lapsed?: true
-  /** A settled ask the person cleared from the Inbox: gone from the listing, still in history. */
-  readonly cleared?: true
+  /** What the person answered an ask with: the option they chose, and the words they wrote. */
+  readonly answer?: string
 }
 export type InboxRecords = {
   entries(): readonly StoredEntry[]
@@ -557,24 +559,38 @@ export class Inbox {
             : exists(each.terminalId)),
       )
       .map(({ state: _state, ...entry }) => entry)
-    const settled = [...this.entries.values()]
-      .filter(
-        (each) =>
-          each.state === "withdrawn" &&
-          each.cause !== undefined &&
-          !each.cleared &&
-          each.content.kind === "ask" &&
-          exists(each.terminalId),
-      )
-      .map(({ state: _state, cause, settledAt, lapsed: _lapsed, cleared: _cleared, ...entry }) => ({
-        ...entry,
-        settled: { how: cause!, at: settledAt ?? entry.at },
-      }))
-    return [...open, ...settled]
+    // The latest resolved asks and tells, as the Inbox lists them as its history: all but an
+    // ask its agent withdrew, whose row is gone.
+    const resolved = [...this.entries.values()]
+      .flatMap((each) => {
+        const how = this.resolution(each)
+        return how && exists(each.terminalId) ? [{ entry: each, how }] : []
+      })
+      .toSorted((a, b) => (b.entry.settledAt ?? b.entry.at) - (a.entry.settledAt ?? a.entry.at))
+      .slice(0, maxInboxResolved)
+      .map(({ entry, how }) => {
+        const { state: _state, cause: _cause, settledAt, lapsed: _lapsed, answer, ...rest } = entry
+        return {
+          ...rest,
+          settled: { how, at: settledAt ?? entry.at, ...(answer !== undefined && { answer }) },
+        }
+      })
+    return [...open, ...resolved]
+  }
+
+  /** How a resolved ask, tell or done ended as the Inbox says it; none for what it doesn't list. */
+  private resolution(entry: StoredEntry): NonNullable<InboxEntry["settled"]>["how"] | undefined {
+    if (entry.content.kind === "turn") return undefined
+    if (entry.state === "answered") return "answered"
+    if (entry.state === "read") return "read"
+    if (entry.state === "gone") return "ended"
+    if (entry.state === "withdrawn" && (entry.cause === "dismissed" || entry.cause === "replied"))
+      return entry.cause
+    return undefined
   }
 
   /**
-   * The person dismisses an open ask without answering it: it stays listed, settled, and
+   * The person dismisses an open ask without answering it: it stays listed, resolved, and
    * its agent is told at its next hook (see `dismissed`). Anything but an open ask of the
    * terminal's bound session is NOT_FOUND.
    */
@@ -602,31 +618,6 @@ export class Inbox {
         asks: [note],
       })
     this.maintain(entry.terminalId)
-  }
-
-  /**
-   * Takes settled asks out of the listing; any other id, or an unknown one, is skipped. They
-   * stay in the terminal's history until the usual retention drops them.
-   */
-  clear(ids: readonly string[]): void {
-    if (this.closed) throw new DomainError("CLOSING")
-    const settled = [...new Set(ids)]
-      .map((id) => this.entries.get(id))
-      .filter(
-        (entry): entry is StoredEntry =>
-          entry?.state === "withdrawn" &&
-          entry.cause !== undefined &&
-          !entry.cleared &&
-          entry.content.kind === "ask",
-      )
-    if (settled.length === 0) return
-    // One save and one listing for the lot, as a read of many.
-    const cleared = settled.map((entry) => ({ ...entry, cleared: true as const }))
-    this.save(() => this.records.saveEntries(cleared))
-    for (const entry of cleared) this.keep(entry)
-    for (const terminalId of new Set(cleared.map((entry) => entry.terminalId)))
-      this.host.changed(terminalId)
-    this.publish()
   }
 
   /**
@@ -686,7 +677,13 @@ export class Inbox {
       if (!text && !label)
         throw new DomainError("ANSWER_FAILED", "Write an answer or choose an option.")
     }
-    const answered: StoredEntry = { ...entry, state: "answered", settledAt: this.now() }
+    const words = [choice.option ?? choice.action, text].filter(Boolean).join(": ")
+    const answered: StoredEntry = {
+      ...entry,
+      state: "answered",
+      settledAt: this.now(),
+      ...(words && { answer: words }),
+    }
     this.host.reply(
       entry.terminalId,
       entry.id,

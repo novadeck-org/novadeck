@@ -127,6 +127,17 @@ describe("The Inbox's answer tracker", () => {
 
       expect(tracker.view([answered]).answering).toEqual({ [request.id]: true })
     })
+
+    it("shows nothing on its way for a row that is resolved, whatever it was before", () => {
+      const { tracker } = setup()
+      const resolved = {
+        ...request,
+        request: { ...request.request, answered: true },
+        settled: { how: "answered" as const, at: 5 },
+      }
+
+      expect(tracker.view([resolved]).answering).toEqual({})
+    })
   })
 
   describe("an answer", () => {
@@ -506,19 +517,6 @@ describe("Answering a row", () => {
 
         expect(done.send).not.toHaveBeenCalled()
         expect(done.forget).not.toHaveBeenCalled()
-      })
-
-      it("is marked read by its id, current or not, but a derived failed row is not", () => {
-        const { tracker } = setup()
-        const done = actions()
-        answerRow(tracker, row(false), { kind: "trouble", action: { type: "read" } }, done)
-        expect(done.read).toHaveBeenCalledWith(["row-1"])
-
-        answerRow(tracker, row(true), { kind: "trouble", action: { type: "read" } }, done)
-        expect(done.read).toHaveBeenCalledTimes(2)
-
-        answerRow(tracker, trouble, { kind: "trouble", action: { type: "read" } }, done)
-        expect(done.read).toHaveBeenCalledTimes(2)
       })
     })
 

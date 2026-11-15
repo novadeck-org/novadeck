@@ -7,6 +7,8 @@ import {
   demoInboxRowsAll,
   demoLongCommand,
   demoPlanStates,
+  demoResolved,
+  demoResolvedRows,
 } from "@novadeck/demo/inbox/fixtures"
 
 import type { DemoActionGroup } from "./types"
@@ -119,6 +121,35 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
     label: "Done report",
     name: "done",
     hint: "Update row with an agent's done report: its subject and a Markdown body",
+  },
+]
+
+// The resolved rows the Inbox keeps as history: one action for each group, adding a row for
+// each way a row of it ends. Each opens as a read-only card, in gray, saying how it ended.
+const resolvedGroups: readonly {
+  readonly label: string
+  readonly hint: string
+  readonly group: keyof typeof demoResolved
+}[] = [
+  {
+    label: "Resolved dialogs",
+    group: "dialogs",
+    hint: "Four resolved rows for what a harness asked: a permission and a plan answered here, with the answer on the card, a question answered in the terminal, and a dialog that ended unanswered",
+  },
+  {
+    label: "Resolved asks",
+    group: "asks",
+    hint: "Five resolved rows for what agents asked: answered with an option, dismissed, replied to in the terminal, a login done, and an ask whose session ended",
+  },
+  {
+    label: "Resolved updates",
+    group: "updates",
+    hint: "Two resolved rows for what an agent told you and a done report, both read",
+  },
+  {
+    label: "Resolved Novadeck rows",
+    group: "novadeck",
+    hint: "Six resolved rows for what Novadeck noticed: a held message released and another stopped, a usage limit and a failed turn once the agent worked again, messages delivered, and a stuck agent that moved on",
   },
 ]
 
@@ -334,8 +365,8 @@ export const inboxGroups = (
           label: outcome === "withdrawn" ? "Ask withdrawn" : "Ask session ended",
           hint:
             outcome === "withdrawn"
-              ? "Leaves the sample preview ask as a settled row, withdrawn; its Messages record says Withdrawn. With its sheet open, the sheet stays and says it was withdrawn"
-              : "Removes the sample preview ask; its Messages record says Agent session ended",
+              ? "Takes the sample preview ask out of the Inbox, as its agent withdrawing it does; its Messages record says Withdrawn"
+              : "Leaves the sample preview ask as a resolved row, ended: its agent session is over; its Messages record says Agent session ended. With its sheet open, the sheet stays and says so",
           run: () => {
             const row = fresh(demoInboxIds.preview)
             if (!row) return
@@ -345,7 +376,7 @@ export const inboxGroups = (
         })),
         {
           label: "Ask replied in terminal",
-          hint: "Leaves the sample preview ask as a settled row, replied: the person wrote to its agent",
+          hint: "Leaves the sample preview ask as a resolved row, replied: the person wrote to its agent",
           run: () => {
             const row = fresh(demoInboxIds.preview)
             if (!row) return
@@ -377,6 +408,22 @@ export const inboxGroups = (
             const row = next && fresh(demoInboxIds[next.name])
             if (!row) return note("Every kind is in the Inbox already.")
             inbox.add(row)
+          },
+        },
+        ...resolvedGroups.map(({ label, hint, group }) => ({
+          label,
+          hint,
+          run: () => {
+            for (const row of demoResolvedRows(Date.now(), demoResolved[group])) inbox.add(row)
+          },
+        })),
+        {
+          label: "Seventeen resolved rows",
+          hint: "A resolved row of every kind at once: the list holds only the ten that resolved last, open rows apart, newest first with no lines between",
+          run: () => {
+            const now = Date.now()
+            for (const group of Object.values(demoResolved))
+              for (const row of demoResolvedRows(now, group)) inbox.add(row)
           },
         },
         {

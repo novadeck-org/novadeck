@@ -1,6 +1,7 @@
 import { afterEach } from "vitest"
 import { page, userEvent } from "vitest/browser"
 
+import { desktopWindow } from "../support/backend"
 import { openConversation, openMessages } from "../support/messages"
 import {
   expectStaysAbsent,
@@ -112,14 +113,52 @@ describe("The agents demo's Inbox", () => {
 })
 
 describe("The Inbox's list", () => {
-  it("lists one row for each entry, trouble that stopped an agent first", async () => {
+  it("lists one row for each entry, the newest first, with no lines between them", async () => {
     await openInbox()
     await lookAway()
 
     await expect.element(rows()).toHaveLength(settledRows)
     await expect
-      .element(rows().first())
+      .element(rows().filter({ hasText: "Seems stuck" }))
       .toMatchTextContent(/Seems stuck: the same failure 3 times[\s\S]*7m[\s\S]*api-service/)
+    // Newest first: the held message (3m) before the stuck agent (7m) before the login (11m).
+    const order = (): string[] =>
+      Array.from(document.querySelectorAll("[data-inbox-row]")).map(
+        (each) => each.textContent ?? "",
+      )
+    const at = (words: string): number => order().findIndex((each) => each.includes(words))
+    expect(at("Release a held message")).toBeLessThan(at("Seems stuck"))
+    expect(at("Seems stuck")).toBeLessThan(at("vercel login"))
+    // Open and resolved rows share the list, and nothing divides them.
+    expect(
+      document.querySelector("[data-updates-start], [data-settled-start], .inbox-rule"),
+    ).toBeNull()
+  })
+
+  it("draws each kind with its own icon, tinted by what it wants of the person", async () => {
+    await openInbox()
+    await lookAway()
+    const tint = (words: string): string | null =>
+      rows().filter({ hasText: words }).element().getAttribute("data-tint")
+
+    expect(tint("Run pnpm add")).toBe("attention")
+    expect(tint("Release a held message")).toBe("attention")
+    expect(tint("Hit Claude")).toBe("note")
+    expect(tint("Seems stuck")).toBe("danger")
+    expect(tint("Search index rebuilt")).toBe("success")
+    expect(tint("Heads-up")).toBe("ink")
+    // One icon per kind: the permission and the plan differ, and so do a question and a login.
+    const icon = (words: string): string =>
+      rows()
+        .filter({ hasText: words })
+        .element()
+        .querySelector(".inbox-row-icon svg")!
+        .getAttribute("class") ?? ""
+    expect(icon("Run pnpm add")).toContain("shield-question")
+    expect(icon("Release a held message")).toContain("message-square-lock")
+    expect(icon("Hit Claude")).toContain("gauge")
+    expect(icon("Search index rebuilt")).toContain("flag")
+    expect(icon("Could you run vercel login")).toContain("square-terminal")
   })
 
   it("says how long an agent has waited only for one that stopped", async () => {
@@ -234,8 +273,8 @@ describe("An Inbox entry's sheet", () => {
       await expect.element(sheet("Tests")).toBeVisible()
       await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
 
-      // One row up the list, past the permission for the edit.
-      await userEvent.keyboard("k")
+      // One row down the list, the permission for the edit.
+      await userEvent.keyboard("j")
       await expect.element(sheet("Runtime")).toBeVisible()
     })
 
@@ -282,14 +321,15 @@ describe("An Inbox entry's sheet", () => {
 
     it("lets Tab go on past the last row, closing the sheet, rather than looping", async () => {
       await openInbox()
-      await row("Heads-up").click()
-      row("Heads-up").element().focus()
+      // The oldest row is the last, and opening a report reads it, which leaves it listed.
+      await row("Search index rebuilt").click()
+      row("Search index rebuilt").element().focus()
       await userEvent.tab()
       await userEvent.tab()
       await userEvent.tab()
 
       await expect.element(page.getByRole("dialog")).not.toBeInTheDocument()
-      await expect.element(row("Heads-up")).not.toHaveFocus()
+      await expect.element(row("Search index rebuilt")).not.toHaveFocus()
     })
 
     it("follows its row in the tab order, and gives focus back to it", async () => {
@@ -331,13 +371,15 @@ describe("An Inbox entry's sheet", () => {
       await row("Run pnpm add").click()
       await press(sheet("Checkout review"), "Yes, proceed")
 
-      // The most urgent that remains: trouble that stopped an agent.
-      await expect.element(sheet("Runtime")).toBeVisible()
+      // The sheet moves on to what is newest that still waits, with the receipt.
       await expect.element(confirmation()).toMatchTextContent("Allowed @crow's command.")
-      // The backend has dropped it; the row stays where it was until the sheet closes.
-      await expect.poll(() => row("Run pnpm add").query()).not.toBeNull()
+      await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
+      // The answered row stays where it was, resolved, with the answer.
+      const answered = rows().filter({ hasText: "Run pnpm add" })
+      await expect.element(answered).toHaveAttribute("data-settled", "answered")
       await userEvent.keyboard("{Escape}")
-      await expect.element(row("Run pnpm add")).not.toBeInTheDocument()
+      await expect.element(answered).toHaveAttribute("data-settled", "answered")
+      await expect.element(answered).toMatchTextContent("Answered")
     })
 
     it("answers at once on a number pressed on its row", async () => {
@@ -582,33 +624,73 @@ describe("An Inbox entry's sheet", () => {
   })
 
   context("when an agent reports it is done", () => {
-    it("shows its report, and marks it read", async () => {
+    it("shows its report, which opening reads, and it stays listed as read", async () => {
       await openInbox()
       await row("Search index rebuilt").click()
       const open = page.getByRole("dialog")
 
-      await expect.element(open).toMatchTextContent(/^Update/)
       await expect.element(open).toMatchTextContent("Rebuilt the index for all 412 pages")
-      await press(open, "Mark read")
-
-      await expect.element(confirmation()).toMatchTextContent(/^Marked @\w+'s update read\.$/)
+      // Nothing to mark: opening it read it, and it is history now, in gray.
+      await expect.element(open.getByRole("button", { name: "Mark read" })).not.toBeInTheDocument()
+      await expect
+        .element(rows().filter({ hasText: "Search index rebuilt" }))
+        .toHaveAttribute("data-settled", "read")
+      await expect.element(open).toMatchTextContent(/^Read/)
     })
   })
 })
 
-describe("Marking updates read", () => {
-  it("reads every update and leaves what waits on the person", async () => {
+describe("The Inbox's history", () => {
+  const dismissButton = (subject: string) =>
+    page.getByRole("button", { name: new RegExp(`^Dismiss: .*${subject}`) })
+
+  it("offers no Mark all read and no Clear settled", async () => {
     await openInbox()
     await lookAway()
-    // Its late arrivals are in before the reading.
-    await expect.element(rows()).toHaveLength(settledRows)
-    await page.getByRole("button", { name: "Mark all read" }).click()
+    await rows().filter({ hasText: "webhooks" }).hover()
+    await dismissButton("webhooks").click()
 
-    // The updates read, what waits on the person (12, with the preview ask) stays.
-    await expect.element(rows()).toHaveLength(12)
     await expect
       .element(page.getByRole("button", { name: "Mark all read" }))
       .not.toBeInTheDocument()
+    await expect
+      .element(page.getByRole("button", { name: "Clear settled" }))
+      .not.toBeInTheDocument()
+  })
+
+  it("lists only the ten resolved rows that resolved last, in gray, and counts none", async () => {
+    await openWorkspace(`${inbox}&desktop=on`)
+    desktopWindow.arriveResolved()
+    await sidebarPanel("Inbox").click()
+
+    // Seventeen resolved, ten listed, each of them gray and none of them counted.
+    await expect
+      .poll(() => document.querySelectorAll("[data-inbox-row][data-settled]").length)
+      .toBe(10)
+    expect(
+      document.querySelectorAll("[data-inbox-row][data-settled]:not([data-tint='muted'])"),
+    ).toHaveLength(0)
+    expect(sidebarPanel("Inbox").element().getAttribute("aria-label")).not.toContain("27")
+  })
+
+  it("opens a resolved row as a read-only card in gray, saying how it ended", async () => {
+    await openInbox()
+    await lookAway()
+    await rows().filter({ hasText: "Could you run vercel login" }).hover()
+    await row("Could you run vercel login").click()
+    await press(page.getByRole("dialog"), "I've logged in")
+    await expect.element(confirmation()).toMatchTextContent(/^Told @\w+ it's done\.$/)
+    await userEvent.keyboard("{Escape}")
+
+    await row("Could you run vercel login").click()
+    const open = page.getByRole("dialog")
+    await expect
+      .poll(() => document.querySelector(".inbox-sheet")?.getAttribute("data-state"))
+      .toBe("settled")
+    await expect.element(open).toMatchTextContent("You answered: I've logged in")
+    await expect.element(open.getByRole("group", { name: "Answers" })).not.toBeInTheDocument()
+    await expect.element(open.getByRole("button", { name: "Snooze" })).not.toBeInTheDocument()
+    await expect.element(open.getByRole("button", { name: "Copy command" })).toBeVisible()
   })
 })
 
@@ -616,7 +698,7 @@ describe("Dismissing an ask", () => {
   const dismissButton = (subject: string) =>
     page.getByRole("button", { name: new RegExp(`^Dismiss: .*${subject}`) })
 
-  it("settles the row in place: it counts no more, stays struck through, and opens nothing", async () => {
+  it("resolves the row in place: it counts no more, stays gray, and opens its sheet to read", async () => {
     await openInbox()
     await lookAway()
     await expect.element(rows()).toHaveLength(settledRows)
@@ -631,12 +713,12 @@ describe("Dismissing an ask", () => {
 
     await expect.element(rows()).toHaveLength(settledRows)
     await expect.element(sidebarPanel("Inbox")).toHaveAccessibleName("Inbox, 11 waiting")
-    const settled = rows().filter({ hasText: "webhooks" })
-    await expect.element(settled).toMatchTextContent("Dismissed")
-    await expect.element(settled).toHaveAttribute("data-settled", "dismissed")
+    const resolved = rows().filter({ hasText: "webhooks" })
+    await expect.element(resolved).toMatchTextContent("Dismissed")
+    await expect.element(resolved).toHaveAttribute("data-settled", "dismissed")
     await expect.element(dismissButton("webhooks")).not.toBeInTheDocument()
-    await row("webhooks").click({ force: true })
-    await expectStaysAbsent(page.getByRole("dialog"))
+    await row("webhooks").click()
+    await expect.element(page.getByRole("dialog")).toMatchTextContent("You dismissed this ask")
   })
 
   it("dismisses on Delete, with the keyboard on to the next row", async () => {
@@ -654,30 +736,22 @@ describe("Dismissing an ask", () => {
     await expect.element(sidebarPanel("Inbox")).toHaveAccessibleName("Inbox, 11 waiting")
   })
 
-  it("goes below the updates when the panel is opened again, and Clear removes it", async () => {
+  it("stays where it was in the list when the panel is opened again", async () => {
     await openInbox()
     await lookAway()
     await expect.element(rows()).toHaveLength(settledRows)
-    await rows().filter({ hasText: "webhooks" }).hover()
-    await dismissButton("webhooks").click()
     const order = (): string[] =>
       Array.from(document.querySelectorAll("[data-inbox-row]")).map(
         (each) => each.textContent ?? "",
       )
-    expect(order().findIndex((each) => each.includes("webhooks"))).toBeLessThan(settledRows - 1)
+    const before = order().findIndex((each) => each.includes("webhooks"))
+    await rows().filter({ hasText: "webhooks" }).hover()
+    await dismissButton("webhooks").click()
+    expect(order().findIndex((each) => each.includes("webhooks"))).toBe(before)
 
     await sidebarPanel("Terminals").click()
     await sidebarPanel("Inbox").click()
-    await expect
-      .poll(() => order().findIndex((each) => each.includes("webhooks")))
-      .toBe(settledRows - 1)
-    await expect.element(rows().last()).toHaveAttribute("data-settled-start", "true")
-
-    await page.getByRole("button", { name: "Clear settled" }).click()
-    await expect.element(rows()).toHaveLength(settledRows - 1)
-    await expect
-      .element(page.getByRole("button", { name: "Clear settled" }))
-      .not.toBeInTheDocument()
+    await expect.poll(() => order().findIndex((each) => each.includes("webhooks"))).toBe(before)
   })
 })
 

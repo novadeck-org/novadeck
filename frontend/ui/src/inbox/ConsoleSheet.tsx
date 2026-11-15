@@ -28,7 +28,7 @@ import {
   type OwnRow,
 } from "./console-menu"
 import { rowOf } from "./inbox-dom"
-import { agentName, limitWindow } from "./inbox-text"
+import { agentName, endedLine, limitWindow, subjectOf } from "./inbox-text"
 import { noDraft, useInboxContext, type Sent } from "./InboxProvider"
 import { usePlanAnswered, usePlanText } from "./plan-text"
 import { Disclosure, Failure, Text } from "./sheet-parts"
@@ -339,15 +339,6 @@ const Thing = ({ row, now }: { readonly row: OwnRow; readonly now: number }) => 
   }
 }
 
-// How a settled ask ended, said once in place of its menu.
-const settledLine = (row: InboxRow): string | null => {
-  if (!row.settled) return null
-  const who = `@${row.source.handle}`
-  if (row.settled.how === "withdrawn") return `${who} withdrew this ask. Nothing to answer.`
-  if (row.settled.how === "dismissed") return `You dismissed this ask; ${who} was told.`
-  return `You wrote to ${who} in its terminal, so this ask is settled.`
-}
-
 // Option details as the cursor reaches them.
 const detailsOf = (details: Extract<MenuRow, { type: "answer" }>["details"]): ReactNode =>
   details && (
@@ -464,7 +455,8 @@ const OwnMenu = ({
   )
 }
 
-// A card of the Inbox's own kinds, in the frame of a request's.
+// A card of the Inbox's own kinds, in the frame of a request's. Resolved, it has no menu: it
+// says how it ended in its place.
 const OwnCard = ({
   props,
   row,
@@ -502,21 +494,37 @@ const OwnCard = ({
   )
 }
 
-// What a request's card says once it was answered, opened again: the receipt, in its frame.
-const AnsweredRequest = ({
+// What a request's card says once it is over, opened again: what it asked and how it ended, in
+// its frame, with nothing to answer.
+const ResolvedRequest = ({
+  row,
   request,
   note,
 }: {
+  readonly row: InboxRow
   readonly request: ChatRequest
   readonly note: string
-}): React.JSX.Element => (
-  <RequestFrame kind={request.kind} label={`Answered: ${request.tool}`} title="Answered">
-    {request.subject && <p className="request-subject">{request.subject}</p>}
-    <p className="request-note" role="status">
-      {note}
-    </p>
-  </RequestFrame>
-)
+}): React.JSX.Element => {
+  const { dialog } = request
+  // What the person answered says "Answered"; anything else that ended it, "Resolved".
+  const title = !row.settled || row.settled.how === "answered" ? "Answered" : "Resolved"
+  return (
+    <RequestFrame kind={request.kind} label={`${title}: ${request.tool}`} title={title}>
+      <p className="request-subject">{request.subject ?? subjectOf(row)}</p>
+      {dialog?.type === "choices" && dialog.detail && <Detail text={dialog.detail} label="Asked" />}
+      {dialog?.type === "questions" &&
+        dialog.questions.map((question) => (
+          <p className="request-prose" key={question.id}>
+            {question.question}
+          </p>
+        ))}
+      {dialog?.type === "form" && <p className="request-prose">{dialog.message}</p>}
+      <p className="request-note" role="status">
+        {note}
+      </p>
+    </RequestFrame>
+  )
+}
 
 // Where the card stands on the page, where it is drawn.
 const cardTopIn = (page: HTMLElement | null): number | undefined =>
@@ -526,8 +534,9 @@ const cardTopIn = (page: HTMLElement | null): number | undefined =>
 export const ConsoleSheet = (props: SheetContentProps): React.JSX.Element => {
   const { row, failed, sent } = props
   const { receipt } = useInboxContext()
-  // An answered row opened again says what its answer did, in place of its menu.
-  const settled = settledLine(row) ?? sent?.note ?? null
+  // A resolved row, or an answered one opened again, says how it ended or what its answer did,
+  // in place of its menu.
+  const settled = endedLine(row) ?? sent?.note ?? null
   // Whether the Inbox moved on to it from another's answer.
   const arrived = receipt !== null && receipt.from !== row.id
   const handle = useRef<MenuHandle | null>(null)
@@ -582,15 +591,22 @@ export const ConsoleSheet = (props: SheetContentProps): React.JSX.Element => {
         event.stopPropagation()
       }}
     >
-      <Context row={row} moved={moved} />
+      {!row.settled && <Context row={row} moved={moved} />}
       {row.kind === "request" ? (
-        sent ? (
-          <AnsweredRequest request={row.request} note={sent.note} />
+        settled ? (
+          <ResolvedRequest row={row} request={row.request} note={settled} />
         ) : (
           <RequestSheet props={props} request={row.request} handle={handle} arrived={arrived} />
         )
       ) : (
-        <OwnCard props={props} row={row} settled={settled} handle={handle} arrived={arrived} />
+        <OwnCard
+          // Opening an update reads it, which is no answer to wait on: its follow-up stays on offer.
+          props={row.kind === "update" ? { ...props, answering: false } : props}
+          row={row}
+          settled={settled}
+          handle={handle}
+          arrived={arrived}
+        />
       )}
       <Failure message={failed} />
     </div>

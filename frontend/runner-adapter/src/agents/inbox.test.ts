@@ -185,7 +185,12 @@ const settle = () => vi.advanceTimersByTimeAsync(0)
 beforeEach(() => vi.useFakeTimers({ now: 10_000 }))
 afterEach(() => vi.useRealTimers())
 
-const setup = (workspace: Workspace, unread: Marks = {}, messages: MessagesState = noMessages) => {
+const setup = (
+  workspace: Workspace,
+  unread: Marks = {},
+  messages: MessagesState = noMessages,
+  options: Parameters<typeof createRunnerInbox>[2] = {},
+) => {
   const details: ReturnType<typeof channel<AgentDetail>>[] = []
   const feed = channel<InboxEntry[]>()
   // What the runner lists: the asks and tells a test pushes, and the turn rows its marks
@@ -196,6 +201,7 @@ const setup = (workspace: Workspace, unread: Marks = {}, messages: MessagesState
   const entries = {
     stream: feed.iterator,
     returned: feed.returned,
+    end: feed.end,
     push: (list: InboxEntry[]) => {
       others = list
       publish()
@@ -206,7 +212,6 @@ const setup = (workspace: Workspace, unread: Marks = {}, messages: MessagesState
       watch: vi.fn<InboxStreams["inbox"]["watch"]>(() => feed.iterator),
       answer: vi.fn<InboxStreams["inbox"]["answer"]>(async () => {}),
       dismiss: vi.fn<InboxStreams["inbox"]["dismiss"]>(async () => {}),
-      clear: vi.fn<InboxStreams["inbox"]["clear"]>(async () => {}),
       read: vi.fn<InboxStreams["inbox"]["read"]>(async (ids) => {
         const gone = ({ id, content }: InboxEntry) => content.kind === "turn" && ids.includes(id)
         if (!rows.some(gone) && !others.some(gone)) return
@@ -241,11 +246,16 @@ const setup = (workspace: Workspace, unread: Marks = {}, messages: MessagesState
     }))
   streams.release.mockImplementation(releasing)
   streams.stop.mockImplementation(releasing)
-  const inbox = createRunnerInbox(streams, messagesStore)
+  const inbox = createRunnerInbox(streams, messagesStore, options)
   const binding: InboxBinding = { workspace: workspaceStore }
   if (Object.keys(unread).length > 0) marks(unread)
   const stop = inbox.bind(binding)
-  const ids = () => inbox.state.getSnapshot().items.map((item) => item.id)
+  // The rows that are still open; the resolved ones stay listed beside them, as history.
+  const ids = () =>
+    inbox.state
+      .getSnapshot()
+      .items.filter((item) => !item.settled)
+      .map((item) => item.id)
   return {
     inbox,
     streams,
@@ -450,6 +460,72 @@ describe("The runner's Inbox", () => {
     })
   })
 
+  describe("history", () => {
+    const waiting = () => workspaceOf(agentTerminal(1, attention))
+    const withRequest = async (options: Parameters<typeof setup>[3] = {}) => {
+      const set = setup(waiting(), {}, noMessages, options)
+      set.entries.push([])
+      set.details[0]!.push(detailOf(asked("r1", 9000)))
+      await settle()
+      return set
+    }
+
+    it("keeps a dialog answered here as a resolved row, with the person's answer, and saves it", async () => {
+      const saveHistory = vi.fn<(rows: readonly string[]) => void>()
+      const { inbox, workspaceStore } = await withRequest({ saveHistory })
+      inbox.answer("request:r1", {
+        kind: "request",
+        answer: { type: "choice", dialog: "d1", option: "yes", text: "go on" },
+      })
+      workspaceStore.update(() => workspaceOf(agentTerminal(1, { working: true })))
+      await settle()
+      expect(inbox.state.getSnapshot().items).toMatchObject([
+        { id: "request:r1", stopped: false, settled: { how: "answered", answer: "Yes: go on" } },
+      ])
+      expect(inbox.state.getSnapshot().answering).toEqual({})
+      expect(saveHistory).toHaveBeenCalledOnce()
+      expect(JSON.parse(saveHistory.mock.calls[0]![0][0]!)).toMatchObject({ id: "request:r1" })
+    })
+
+    it("keeps a dialog the person answered in the terminal, and one that ended unanswered", async () => {
+      const first = await withRequest()
+      first.workspaceStore.update(() => workspaceOf(agentTerminal(1, { working: true })))
+      await settle()
+      expect(first.inbox.state.getSnapshot().items[0]?.settled).toMatchObject({ how: "terminal" })
+      const second = await withRequest()
+      second.workspaceStore.update(() => workspaceOf(agentTerminal(1)))
+      await settle()
+      expect(second.inbox.state.getSnapshot().items[0]?.settled).toMatchObject({ how: "gone" })
+    })
+
+    it("brings back what the runner kept, and drops what it can't read", async () => {
+      const saveHistory = vi.fn<(rows: readonly string[]) => void>()
+      const first = await withRequest({ saveHistory })
+      first.workspaceStore.update(() => workspaceOf(agentTerminal(1)))
+      await settle()
+      const kept = saveHistory.mock.calls[0]![0]
+      const next = setup(workspaceOf(agentTerminal(1)), {}, noMessages, {
+        history: [...kept, "not json"],
+      })
+      next.entries.push([])
+      await settle()
+      expect(next.inbox.state.getSnapshot().items).toMatchObject([
+        { id: "request:r1", settled: { how: "gone" } },
+      ])
+    })
+
+    it("does not take a row to have ended while the runner's entries are out", async () => {
+      const { entries, inbox } = setup(workspaceOf(agentTerminal(1)))
+      entries.push([entry()])
+      await settle()
+      expect(inbox.state.getSnapshot().items).toHaveLength(1)
+      entries.end()
+      await settle()
+      // Its row is gone with its listing, not resolved.
+      expect(inbox.state.getSnapshot().items).toEqual([])
+    })
+  })
+
   describe("answering", () => {
     const waiting = () => workspaceOf(agentTerminal(1, attention))
     const withRequest = async () => {
@@ -579,14 +655,14 @@ describe("The runner's Inbox", () => {
       expect(inbox.state.getSnapshot().answering).toEqual({})
     })
 
-    it("reads a failed row by its id, current or not", async () => {
+    it("resolves a failed turn that is no longer the agent's current end, and reads its stored row", async () => {
       const ws = workspaceOf(
         agentTerminal(1, {
           working: false,
           lastTurn: turn({ outcome: "failed", at: 200, error: "x" }),
         }),
       )
-      const { inbox, streams, entries, marks, ids } = setup(ws, { "p/s": { "01": "failed" } })
+      const { inbox, streams, entries } = setup(ws, { "p/s": { "01": "failed" } })
       await settle()
       const older = {
         ...turnEntriesOf(ws, { "p/s": { "01": "failed" } })[0]!,
@@ -595,54 +671,17 @@ describe("The runner's Inbox", () => {
       }
       entries.push([older])
       await settle()
-      expect(ids().toSorted()).toEqual(["old-row", "trouble:01:200"])
-
-      inbox.answer("old-row", { kind: "trouble", action: { type: "read" } })
-      inbox.answer("trouble:01:200", { kind: "trouble", action: { type: "read" } })
-      await settle()
-
-      expect(streams.inbox.read.mock.calls.map(([batch]) => batch)).toEqual([
-        ["old-row"],
-        ["trouble:01:200"],
-      ])
-      void marks
-    })
-
-    it("reads every update and failed row that only informs, leaving what waits on the person", async () => {
-      const waiting = workspaceOf(
-        agentTerminal(1, { working: false }),
-        agentTerminal(2, {
-          working: false,
-          lastTurn: turn({ outcome: "failed", at: 200, error: "x" }),
-        }),
-      )
-      const { inbox, streams, entries, ids } = setup(waiting, { "p/s": { "02": "failed" } })
-      await settle()
-      entries.push([
-        report("done-1"),
-        told("told-1"),
-        {
-          ...turnEntriesOf(waiting, { "p/s": { "02": "failed" } })[0]!,
-          id: "old-row",
-          at: 50,
-        },
-      ])
-      await settle()
-      inbox.readAll()
-      await settle()
-
-      expect(streams.inbox.read).toHaveBeenCalledOnce()
-      expect(streams.inbox.read.mock.calls[0]![0].toSorted()).toEqual([
-        "done-1",
-        "old-row",
-        "told-1",
-      ])
-      // What was submitted stays, answering, until the runner drops it; what waits stays too.
-      expect(ids().toSorted()).toEqual(["done-1", "told-1", "trouble:02:200"])
-      expect(Object.keys(inbox.state.getSnapshot().answering).toSorted()).toEqual([
-        "done-1",
-        "told-1",
-      ])
+      expect(
+        inbox.state
+          .getSnapshot()
+          .items.map(({ id }) => id)
+          .toSorted(),
+      ).toEqual(["old-row", "trouble:01:200"])
+      const rows = inbox.state.getSnapshot().items
+      // The current one waits; the old one ended when its agent went on.
+      expect(rows.find(({ id }) => id === "trouble:01:200")?.settled).toBeUndefined()
+      expect(rows.find(({ id }) => id === "old-row")?.settled).toMatchObject({ how: "worked" })
+      expect(streams.inbox.read.mock.calls.map(([batch]) => batch)).toEqual([["old-row"]])
     })
 
     it("marks an item seen, here only, until it goes", async () => {
@@ -653,7 +692,8 @@ describe("The runner's Inbox", () => {
       const seen = () =>
         inbox.state
           .getSnapshot()
-          .items.toSorted((a, b) => a.id.localeCompare(b.id))
+          .items.filter((item) => !item.settled)
+          .toSorted((a, b) => a.id.localeCompare(b.id))
           .map((item) => item.seen)
       expect(seen()).toEqual([true, false])
 
@@ -929,7 +969,7 @@ describe("Inbox entries", () => {
     expect(ids().toSorted()).toEqual(["entry-1", "told-1"])
     entries.push([told()])
     await settle()
-    expect(inbox.state.getSnapshot().items[0]).toMatchObject({
+    expect(inbox.state.getSnapshot().items.find(({ id }) => id === "told-1")).toMatchObject({
       kind: "update",
       update: { type: "told" },
     })
@@ -945,26 +985,11 @@ describe("Inbox entries", () => {
     expect(ids().toSorted()).toEqual(["new-ask", "told-1"])
     entries.push([told()])
     await settle()
-    expect(inbox.state.getSnapshot().items[0]).toMatchObject({
+    expect(inbox.state.getSnapshot().items.find(({ id }) => id === "told-1")).toMatchObject({
       id: "told-1",
       source: { agent: "claude" },
     })
     inbox.answer("told-1", { kind: "update", action: "read" })
-    expect(streams.inbox.read).toHaveBeenCalledExactlyOnceWith(["told-1"])
-  })
-
-  it("reads a tell after its agent exited through mark all read", async () => {
-    const exited: TerminalMetadata = {
-      ...agentTerminal(1),
-      state: "exited",
-      exitCode: 0,
-      signal: null,
-    }
-    const { entries, inbox, streams } = setup(workspaceOf(exited))
-    entries.push([told()])
-    await settle()
-    inbox.readAll()
-    await settle()
     expect(streams.inbox.read).toHaveBeenCalledExactlyOnceWith(["told-1"])
   })
 
@@ -995,7 +1020,9 @@ describe("Inbox entries", () => {
   })
 
   it("keeps an ask pending beside trouble while its answer is unresolved", async () => {
-    const { entries, inbox, streams, marks, workspaceStore } = setup(workspaceOf(agentTerminal(1)))
+    const { entries, inbox, streams, marks, workspaceStore, ids } = setup(
+      workspaceOf(agentTerminal(1)),
+    )
     entries.push([entry()])
     await settle()
     let accepted: (() => void) | undefined
@@ -1023,7 +1050,7 @@ describe("Inbox entries", () => {
     expect(inbox.state.getSnapshot().answering["entry-1"]).toBe(true)
     marks({})
     await settle()
-    expect(inbox.state.getSnapshot().items.map(({ id }) => id)).toEqual(["entry-1"])
+    expect(ids()).toEqual(["entry-1"])
     expect(inbox.state.getSnapshot().answering["entry-1"]).toBe(true)
     accepted!()
     await settle()
@@ -1281,44 +1308,8 @@ describe("Inbox entries", () => {
     ])
     inbox.answer("done-1", { kind: "update", action: "read" })
     expect(streams.inbox.read).toHaveBeenCalledExactlyOnceWith(["done-1"])
-    inbox.readAll()
     await settle()
     expect(ids()).toEqual(["done-1"])
-  })
-
-  it("reads a worker's done under its running lead when everything is read, as the person's", async () => {
-    const worker: TerminalMetadata = { ...agentTerminal(2, { working: false }), ledBy: "01" }
-    const { entries, inbox, streams, ids } = setup(workspaceOf(agentTerminal(1), worker))
-    entries.push([
-      entry({
-        id: "worker-done",
-        terminalId: "02",
-        handle: "fox",
-        content: { kind: "done", subject: "s", body: "b" },
-      }),
-      told(),
-    ])
-    await settle()
-    expect(ids()).toEqual(["worker-done", "told-1"])
-    inbox.readAll()
-    await settle()
-    expect(streams.inbox.read).toHaveBeenCalledExactlyOnceWith(["worker-done", "told-1"])
-  })
-
-  it("reads all known tells in batches, beside the more urgent ask", async () => {
-    const { entries, inbox, streams, ids } = setup(workspaceOf(agentTerminal(1)))
-    const tells = Array.from({ length: 1001 }, (_, index) => told(`tell-${index}`))
-    entries.push([entry(), ...tells])
-    await settle()
-    expect(ids()).toHaveLength(1002)
-    expect(ids()[0]).toBe("entry-1")
-    inbox.readAll()
-    await settle()
-    expect(streams.inbox.read.mock.calls.map(([batch]) => batch.length)).toEqual([1000, 1])
-    expect(streams.inbox.answer).not.toHaveBeenCalled()
-    // Submitted tells stay listed, answering, until the runner drops them.
-    expect(ids()).toHaveLength(1002)
-    expect(ids()).toContain("entry-1")
   })
 })
 
@@ -1336,8 +1327,9 @@ describe("Dismissing an ask", () => {
     expect(inbox.state.getSnapshot().answering).toEqual({ "entry-1": true })
     entries.push([settledEntry()])
     await settle()
-    expect(ids()).toEqual(["entry-1"])
+    expect(ids()).toEqual([])
     expect(inbox.state.getSnapshot().items[0]).toMatchObject({
+      id: "entry-1",
       kind: "ask",
       stopped: false,
       settled: { how: "dismissed", at: 9000 },
@@ -1372,27 +1364,6 @@ describe("Dismissing an ask", () => {
     await settle()
     for (const id of ["entry-1", "told-1", "nope"]) inbox.dismiss!(id)
     expect(streams.inbox.dismiss).not.toHaveBeenCalled()
-  })
-
-  it("clears settled asks in batches of a thousand, and no open ask or update", async () => {
-    const { entries, inbox, streams } = setup(workspaceOf(agentTerminal(1)))
-    const settled = Array.from({ length: 1001 }, (_, index) => settledEntry(`old-${index}`))
-    entries.push([entry({ id: "open" }), told(), ...settled])
-    await settle()
-    inbox.clear!(["open", "told-1", "unknown", ...settled.map(({ id }) => id)])
-    await settle()
-    expect(streams.inbox.clear.mock.calls.map(([batch]) => batch.length)).toEqual([1000, 1])
-    expect(streams.inbox.clear.mock.calls.flat(2)).not.toContain("open")
-  })
-
-  it("surfaces a failed clear on the rows it was for", async () => {
-    const { entries, inbox, streams } = setup(workspaceOf(agentTerminal(1)))
-    entries.push([settledEntry()])
-    await settle()
-    streams.inbox.clear.mockRejectedValueOnce(new Error("down"))
-    inbox.clear!(["entry-1"])
-    await settle()
-    expect(inbox.state.getSnapshot().failed["entry-1"]).toBeTruthy()
   })
 })
 
@@ -1435,7 +1406,6 @@ describe("Turn rows", () => {
         answer: async () => {},
         read: async () => {},
         dismiss: async () => {},
-        clear: async () => {},
       },
       detail: () => channel<AgentDetail>().iterator,
       answer: async () => {},
@@ -1566,7 +1536,7 @@ describe("Turn rows", () => {
     expect(streams.inbox.read).toHaveBeenCalledTimes(2)
   })
 
-  it("shows a row of a terminal without a handle, and reads it with mark all read", async () => {
+  it("shows a row of a terminal without a handle, and reads it once it is resolved", async () => {
     const bare: TerminalMetadata = {
       ...agentTerminal(1, { working: false, lastTurn: turn({ reply: "a" }) }),
     }
@@ -1575,10 +1545,10 @@ describe("Turn rows", () => {
     const { inbox, streams, entries, ids } = setup(ws2)
     entries.push([{ ...turnEntriesOf(ws2, failed)[0]!, handle: "", id: "old-row", at: 50 }])
     await settle()
-    expect(ids()).toEqual(["old-row"])
-
-    inbox.readAll()
-    await settle()
+    expect(ids()).toEqual([])
+    expect(inbox.state.getSnapshot().items).toMatchObject([
+      { id: "old-row", settled: { how: "worked" } },
+    ])
     expect(streams.inbox.read).toHaveBeenCalledExactlyOnceWith(["old-row"])
   })
 })

@@ -364,7 +364,6 @@ export const createRouter = (options: {
       answer: api.inbox.answer.handler(({ input }) => terminals.answerAsk(input.id, input.answer)),
       read: api.inbox.read.handler(({ input }) => terminals.readTells(input.ids)),
       dismiss: api.inbox.dismiss.handler(({ input }) => terminals.dismissAsk(input.id)),
-      clear: api.inbox.clear.handler(({ input }) => terminals.clearAsks(input.ids)),
     },
     feedback: {
       watch: api.feedback.watch.handler(({ signal }) => feedback.watch(signal)),

@@ -38,7 +38,7 @@ describe("A toast's words", () => {
       said: "wants to run a command",
       command: "pnpm typecheck",
       type: "unblock",
-      tone: "waiting",
+      tint: "attention",
       age: "now",
       title: "Typecheck sweep",
       project: "novadeck",
@@ -66,7 +66,7 @@ describe("A toast's words", () => {
       novadeck: true,
       said: "Novadeck noticed",
       type: "trouble",
-      tone: "urgent",
+      tint: "danger",
       subject: "Its turn ended in an error",
     })
   })

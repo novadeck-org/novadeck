@@ -623,17 +623,15 @@ export type Runner = {
     /** Answers an agent's ask with the person's answer. */
     answer(id: string, answer: AskAnswer): Promise<void>
     /**
-     * Marks entries read: a tell stays as history, a finished turn is removed, an ask is not
-     * touched. Unknown ids are skipped.
+     * Marks entries read: a tell stays listed, resolved, a finished turn is removed, an ask is
+     * not touched. Unknown ids are skipped.
      */
     read(ids: readonly string[]): Promise<void>
     /**
-     * Dismisses an open ask without answering it: it stays listed, settled, and its agent is
+     * Dismisses an open ask without answering it: it stays listed, resolved, and its agent is
      * told. Rejects with `NOT_FOUND` for one that isn't an open ask.
      */
     dismiss(id: string): Promise<void>
-    /** Removes settled asks; unknown ids, and any entry that isn't a settled ask, are skipped. */
-    clear(ids: readonly string[]): Promise<void>
   }
   readonly feedback: {
     /** The agents' feedback drafts waiting for the app, oldest first, then again on each change. */
@@ -933,7 +931,6 @@ export const connectRunner = async (
       answer: (id, answer) => call((client) => client.inbox.answer({ id, answer })),
       read: (ids) => call((client) => client.inbox.read({ ids: [...ids] })),
       dismiss: (id) => call((client) => client.inbox.dismiss({ id })),
-      clear: (ids) => call((client) => client.inbox.clear({ ids: [...ids] })),
     },
     feedback: {
       watch: () =>

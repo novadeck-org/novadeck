@@ -551,7 +551,6 @@ const createWaitingActions = (
           .filter((row) => panelAsks.has(row.id) && !row.settled && !answering[row.id])
           .map((row) => row.id)
         for (const id of asks) own.resolve(id, "withdrawn")
-        own.clear?.(asks)
         for (const id of asks) panelAsks.delete(id)
       }
       const agents = noisyAgents(workspace())

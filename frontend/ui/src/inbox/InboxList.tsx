@@ -12,20 +12,13 @@ import { inboxType, rowKey, type InboxRow, type InboxState } from "@novadeck/cor
 import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { Bell, BellOff, CheckCheck, CircleCheck, ListX, LoaderCircle, X } from "lucide-react"
+import { Bell, BellOff, LoaderCircle, X } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { focusSheet, focusSheetSoon, nextRowButton, rowOf } from "./inbox-dom"
-import { icons, typeWords } from "./inbox-icons"
-import {
-  asks as asking,
-  hasSettled,
-  hasUpdates,
-  needing,
-  settledStart,
-  updatesStart,
-} from "./inbox-state"
-import { readLabel, resumesLabel, subjectOf, toneOf, waitLabel } from "./inbox-text"
+import { iconKey, icons, tintOf, typeWords } from "./inbox-icons"
+import { asks as asking, needing } from "./inbox-state"
+import { endedWords, readLabel, resumesLabel, subjectOf, waitLabel } from "./inbox-text"
 import { started, useInboxContext } from "./InboxProvider"
 import { Text } from "./sheet-parts"
 
@@ -57,12 +50,11 @@ const cursor = Cursor.configure({ cursor: "grabbing" })
 // the arrows moving it one place.
 type Drag = { readonly index: number; readonly onStep: (by: -1 | 1) => void }
 
-// One row, for triage only: the type's icon tinted by how urgent it is, the subject, how
-// long the agent has waited if it stopped, and under it the project and what is extra. A row
-// that asks something stays bright until it is answered, opened or not. `first` marks the row
-// after the last that asks, where the updates' line goes; `settledFirst` the first of the settled
-// asks that end the list, where theirs goes. A settled ask (dismissed, withdrawn or answered in
-// its terminal) stays, struck through, and opens nothing; an open Novadeck ask can be dismissed.
+// One row, for triage only: the kind's icon tinted by what it wants of the person, the subject,
+// how long the agent has waited if it stopped, and under it the project and what is extra. A row
+// that asks something stays bright until it is answered, opened or not. A resolved row stays as
+// history, in gray, with how it ended under its subject, and opens its sheet to read; an open
+// Novadeck ask can be dismissed.
 // A row that asks drags among the others that do, into the person's order (`drag`), and can
 // be snoozed (S): it keeps its place, marked, its bell-off where its wait shows, and there its
 // unsnooze button instead of a dismiss button.
@@ -70,16 +62,12 @@ const Row = ({
   row,
   place,
   asks,
-  first,
-  settledFirst,
   drag,
 }: {
   readonly row: InboxRow
   // Its place in the list, which keeps a row that doesn't drag where it is.
   readonly place: number
   readonly asks: boolean
-  readonly first: boolean
-  readonly settledFirst: boolean
   readonly drag?: Drag | undefined
 }): React.JSX.Element => {
   // One component whether it drags or not, so a row that starts or stops dragging (an answer
@@ -102,9 +90,10 @@ const Row = ({
   const { settled } = row
   const type = inboxType(row)
   const pending = Boolean(state.answering[row.id])
+  // Answered here and gone from the backend's rows, which keeps it until its sheet closes.
   const answered = answeredIn(row, state, ghosts)
   const answering = pending || answered
-  const Icon = pending ? LoaderCircle : answered ? CircleCheck : icons[type]
+  const Icon = pending ? LoaderCircle : icons[iconKey(row)]
   const current = view.open === row.id
   const snoozable = snooze !== undefined && asking(row) && !answering
   const snoozed = Boolean(row.snoozed) && !answering
@@ -120,7 +109,7 @@ const Row = ({
   const subject = subjectOf(row).replaceAll("`", "")
   const toggleSnooze = (): void => snooze?.(row, !row.snoozed)
   const extras = settled
-    ? [settledWords[settled.how]]
+    ? [endedWords[settled.how]]
     : [
         snoozed ? "Snoozed" : null,
         started(drafts[rowKey(row)]) && !answering ? "Draft" : null,
@@ -134,11 +123,9 @@ const Row = ({
       className="item inbox-row"
       data-inbox-row={row.id}
       data-type={type}
-      data-urgency={settled ? "quiet" : answered ? "answered" : toneOf(row)}
+      data-tint={answered ? "muted" : tintOf(row)}
       data-seen={row.seen}
       data-needs={asks}
-      data-updates-start={first}
-      data-settled-start={settledFirst}
       data-settled={settled?.how}
       data-dismissable={dismissable}
       data-snoozable={snoozable}
@@ -156,12 +143,10 @@ const Row = ({
           undefined
         }
         aria-label={`${typeWords[type]}: ${subject}, ${row.source.projectName}${
-          settled ? `, ${settledWords[settled.how].toLowerCase()}` : snoozed ? ", snoozed" : ""
+          settled ? `, ${endedWords[settled.how].toLowerCase()}` : snoozed ? ", snoozed" : ""
         }`}
         aria-current={current ? "true" : undefined}
-        aria-disabled={settled ? "true" : undefined}
         onClick={(event) => {
-          if (settled) return
           // Pressed again, the open row closes its sheet.
           if (current) return close()
           open(row.id)
@@ -297,12 +282,6 @@ const Row = ({
   )
 }
 
-const settledWords = {
-  dismissed: "Dismissed",
-  withdrawn: "Withdrawn",
-  replied: "Replied in terminal",
-} as const
-
 // Beside the title: how many wait on the person, as the rail's bell says, while any do. It reads
 // the Inbox itself, so a change in what waits re-renders it and not the sidebar.
 export const InboxCount = (): string | null => {
@@ -319,42 +298,6 @@ export const HeldPill = (): React.JSX.Element | null => {
     <button type="button" className="inbox-held text-caption" onClick={showHeld}>
       {held.length} new · show
     </button>
-  )
-}
-
-// Beside the close button: reads every update, and leaves what waits on the person.
-export const InboxMarkAll = (): React.JSX.Element | null => {
-  const { state, readAll } = useInboxContext()
-  if (!hasUpdates(state.items)) return null
-  return (
-    <Tooltip content="Mark all read">
-      <button
-        className="icon-button dim quiet size-7"
-        type="button"
-        aria-label="Mark all read"
-        onClick={readAll}
-      >
-        <CheckCheck size={14} strokeWidth={1.6} />
-      </button>
-    </Tooltip>
-  )
-}
-
-// Beside Mark all read while any ask has settled: removes the settled asks from the list.
-export const InboxClear = (): React.JSX.Element | null => {
-  const { state, clear } = useInboxContext()
-  if (!clear || !hasSettled(state.items)) return null
-  return (
-    <Tooltip content="Clear settled">
-      <button
-        className="icon-button dim quiet size-7"
-        type="button"
-        aria-label="Clear settled"
-        onClick={clear}
-      >
-        <ListX size={14} strokeWidth={1.6} />
-      </button>
-    </Tooltip>
   )
 }
 
@@ -386,7 +329,7 @@ export const InboxList = (): React.JSX.Element => {
   const placements = shown.map((row) => ({
     row,
     asks: asking(row) && !answeredIn(row, state, ghosts),
-    // A row that settled in place among the asks keeps its place with them.
+    // A row that resolved in place among the asks keeps its place with them.
     placed: row.settled !== undefined && needsBefore(view.base[row.id]),
   }))
   // The rows that drag: those that ask, until the person answers them, where the backend
@@ -406,7 +349,7 @@ export const InboxList = (): React.JSX.Element => {
       `${moving ? `${subjectOf(moving).replaceAll("`", "")}: m` : "M"}oved to ${at + 1} of ${dragged.length}`,
     )
     // The rows that ask and are still there, one answered meanwhile among them, and one that
-    // settled in place, which keeps it.
+    // resolved in place, which keeps it.
     const live = new Set(state.items.map((row) => row.id))
     const kept = new Set(
       placements
@@ -433,12 +376,6 @@ export const InboxList = (): React.JSX.Element => {
   const [drags, setDrags] = useState(0)
   // Where a row went, for assistive technology, which dnd-kit's own markup would have said.
   const [moved, setMoved] = useState("")
-  const settledAt = settledStart(shown.map((row) => row.settled !== undefined))
-  const updates = updatesStart(
-    placements
-      .slice(0, settledAt < 0 ? placements.length : settledAt)
-      .map(({ asks, placed }) => asks || placed),
-  )
   return (
     <div
       className="inbox-panel flex min-h-0 min-w-0 w-full flex-1 flex-col"
@@ -488,8 +425,6 @@ export const InboxList = (): React.JSX.Element => {
                   row={row}
                   place={index}
                   asks={asks}
-                  first={index === updates}
-                  settledFirst={index === settledAt}
                   drag={
                     place < 0
                       ? undefined

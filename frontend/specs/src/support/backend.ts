@@ -23,7 +23,7 @@ import { createDemoUpdates } from "@novadeck/demo-debug/desktop/updates"
 import { addressParams } from "@novadeck/demo/address"
 import { demoTurns } from "@novadeck/demo/agents/turns"
 import { isDemoInbox } from "@novadeck/demo/inbox"
-import { demoInboxRowsAll } from "@novadeck/demo/inbox/fixtures"
+import { demoInboxRowsAll, demoResolved, demoResolvedRows } from "@novadeck/demo/inbox/fixtures"
 import { createShowcaseDemo } from "@novadeck/demo/showcase/demo"
 import { createDemo } from "@novadeck/demo/variants"
 import { babciaCuesOf, type BabciaCues } from "@novadeck/demo/videos/babcia"
@@ -335,6 +335,14 @@ export const desktopWindow = {
   notices: (): string[] => desktops.flatMap((each) => each.shown.map((notice) => notice.title)),
   /** The demo's Inbox rows (by fixture id) join it now, in the order given, waiting from now. */
   arrive: (...ids: readonly string[]): void => arriving(ids),
+  /** A resolved row of every way a row ends (the debug panel's 17) joins it now. */
+  arriveResolved: (): void => {
+    const now = Date.now()
+    for (const each of desktops)
+      if (isDemoInbox(each.inbox))
+        for (const group of Object.values(demoResolved))
+          for (const row of demoResolvedRows(now, group)) each.inbox.add(row)
+  },
   /** A demo Inbox row (by fixture id) joins it now as `agent`'s, for a harness the demo's own
    * rows don't come from. */
   arriveAs: (id: string, agent: InboxSource["agent"]): void =>
@@ -342,7 +350,13 @@ export const desktopWindow = {
   /** The ids of the rows the page's backend Inbox holds, whether or not it lists them (the
    * first window is the page's: StrictMode's second is dropped and never answered). */
   rowIds: (): string[] => desktops[0]?.inbox?.state.getSnapshot().items.map((row) => row.id) ?? [],
-  /** The ids of the asks the page's backend Inbox holds settled (dismissed, withdrawn or replied). */
+  // The ids of the rows that are still open: those that resolved stay, as history.
+  openRowIds: (): string[] =>
+    desktops[0]?.inbox?.state
+      .getSnapshot()
+      .items.filter((row) => !row.settled)
+      .map((row) => row.id) ?? [],
+  /** The ids of the rows the page's backend Inbox holds resolved, as history. */
   settledIds: (): string[] =>
     desktops[0]?.inbox?.state
       .getSnapshot()

@@ -92,12 +92,15 @@ export const askAnswer = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("done") }),
 ])
 
-// How an ask ended without an answer from the Inbox, and when: the person dismissed it there,
-// its agent withdrew it, or the person wrote to the agent in its terminal, which withdrew it.
-// The runner keeps listing such an ask, settled, until the person clears it or it expires.
-const askSettled = z.strictObject({
-  how: z.enum(["dismissed", "withdrawn", "replied"]),
+// How an entry ended, and when: an ask answered in the Inbox (`answer` is what the person
+// chose or wrote), dismissed there, or replied to by the person writing in its terminal; a
+// tell or done read; any of them ended with its agent session or terminal. The runner keeps
+// listing such an entry, resolved, as the Inbox's history; an ask its own agent withdrew is
+// not listed.
+const entrySettled = z.strictObject({
+  how: z.enum(["answered", "dismissed", "replied", "read", "ended"]),
   at: z.number(),
+  answer: z.string().max(inboxTextLimits.markdown).optional(),
 })
 
 export const inboxEntry = z.strictObject({
@@ -124,8 +127,8 @@ export const inboxEntry = z.strictObject({
       files: turnFiles,
     }),
   ]),
-  // Only on an ask that is no longer open (see `askSettled`).
-  settled: askSettled.optional(),
+  // Only on an entry that is no longer open (see `entrySettled`).
+  settled: entrySettled.optional(),
 })
 
 export type AgentAsk = z.infer<typeof agentAsk>

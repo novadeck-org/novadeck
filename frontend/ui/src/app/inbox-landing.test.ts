@@ -84,13 +84,10 @@ const setup = (initiallyWide = true) => {
   ui.update((state) => ({ ...state, pageFocused: true }))
   const state = createStore<InboxState>(emptyInbox)
   const answers: [string, InboxAnswer][] = []
-  const cleared: string[][] = []
   const raw: Inbox = {
     state,
-    clear: (ids) => void cleared.push([...ids]),
     answer: (id, answer) => void answers.push([id, answer]),
     see: () => {},
-    readAll: () => {},
   }
   const { inbox, start, reveal } = landInbox(raw, workspace, ui, {
     is: () => wide,
@@ -106,7 +103,6 @@ const setup = (initiallyWide = true) => {
     restart: start,
     reveal,
     answers,
-    cleared,
     set: (items: InboxRow[]) => void state.update((current) => ({ ...current, items })),
     patch: (patch: Partial<InboxState>) =>
       void state.update((current) => ({ ...current, ...patch })),
@@ -177,27 +173,25 @@ describe("the landing rule", () => {
       stop()
     })
 
-    it("never lands once it settled unseen, is cleared once, and a landed one stays settled", () => {
-      const { set, select, ids, cleared, stop } = setup()
+    it("lands as resolved once it resolved unseen, and a landed one stays resolved", () => {
+      const { set, select, ids, stop } = setup()
       const settled = { how: "replied" as const, at: 2 }
       set([ask("a", "01"), ask("b", "02")])
       set([
         { ...ask("a", "01"), settled },
         { ...ask("b", "02"), settled },
       ])
-      expect(ids()).toEqual(["b"])
-      expect(cleared).toEqual([["a"]])
+      // Nothing is dropped: the row held back enters the history as resolved.
+      expect(ids()).toEqual(["a", "b"])
       select("02")
-      expect(ids()).toEqual(["b"])
-      expect(cleared).toEqual([["a"]])
+      expect(ids()).toEqual(["a", "b"])
       stop()
     })
 
     it("shows a settled row at once, even where its terminal is viewed", () => {
-      const { set, ids, cleared, stop } = setup()
+      const { set, ids, stop } = setup()
       set([{ ...ask("a", "01"), settled: { how: "dismissed", at: 2 } }])
       expect(ids()).toEqual(["a"])
-      expect(cleared).toEqual([])
       stop()
     })
 
@@ -231,6 +225,17 @@ describe("the landing rule", () => {
       expect(ids()).toEqual([])
       vi.advanceTimersByTime(readDwellMs * 3)
       expect(answers).toHaveLength(1)
+      stop()
+    })
+
+    it("lands as a resolved row once its read went through, as history", () => {
+      const { set, ids, inbox, stop } = setup()
+      set([done("d", "01")])
+      vi.advanceTimersByTime(readDwellMs)
+      expect(ids()).toEqual([])
+      set([{ ...done("d", "01"), settled: { how: "read", at: Date.now() } }])
+      expect(ids()).toEqual(["d"])
+      expect(inbox.state.getSnapshot().items[0]?.settled).toMatchObject({ how: "read" })
       stop()
     })
 

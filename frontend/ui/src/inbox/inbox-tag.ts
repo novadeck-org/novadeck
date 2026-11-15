@@ -1,9 +1,10 @@
-import { inboxType, type InboxRow, type InboxType } from "@novadeck/core/inbox"
+import { inboxType, type InboxRow, type InboxType, type SettledHow } from "@novadeck/core/inbox"
 
-import { actionOf, toneOf, type Tone } from "./inbox-text"
+import { tintOf, type Tint } from "./inbox-icons"
+import { actionOf } from "./inbox-text"
 
 // The word that leads a sheet's head, so what kind of message it is reads before any of it:
-// with the row's own icon (by `type`) and tone. Pure, so the words read apart from the markup.
+// with the row's own icon and tint. Pure, so the words read apart from the markup.
 
 export type TagWord =
   | "Command"
@@ -18,17 +19,31 @@ export type TagWord =
   | "Stuck"
   | "Undelivered"
   | "Update"
-  | "Withdrawn"
+  | "Answered"
   | "Dismissed"
   | "Replied"
+  | "Released"
+  | "Stopped"
+  | "Resolved"
+  | "Delivered"
+  | "Read"
+  | "Ended"
 
-export type Tag = { readonly word: TagWord; readonly type: InboxType; readonly tone: Tone }
+export type Tag = { readonly word: TagWord; readonly type: InboxType; readonly tint: Tint }
 
 const settledWords = {
-  withdrawn: "Withdrawn",
+  answered: "Answered",
+  terminal: "Answered",
   dismissed: "Dismissed",
   replied: "Replied",
-} as const satisfies Record<NonNullable<InboxRow["settled"]>["how"], TagWord>
+  released: "Released",
+  stopped: "Stopped",
+  worked: "Resolved",
+  delivered: "Delivered",
+  read: "Read",
+  gone: "Ended",
+  ended: "Ended",
+} as const satisfies Record<SettledHow, TagWord>
 
 const wordOf = (row: InboxRow): TagWord => {
   switch (row.kind) {
@@ -54,13 +69,9 @@ const wordOf = (row: InboxRow): TagWord => {
   }
 }
 
-// A settled ask asks nothing, and says how it settled: its agent withdrew it, the person
-// dismissed it, or wrote to its agent in the terminal. An agent's ask whose
-// answer it says is hard to take back is red; a permission carries no such flag, so none is
-// guessed at.
+// A resolved row asks nothing, and says how it ended, in gray.
 export const tagOf = (row: InboxRow): Tag => {
   const type = inboxType(row)
-  if (row.settled) return { word: settledWords[row.settled.how], type, tone: "quiet" }
-  const hard = row.kind === "ask" && row.ask.hardToUndo !== null
-  return { word: wordOf(row), type, tone: hard ? "urgent" : toneOf(row) }
+  if (row.settled) return { word: settledWords[row.settled.how], type, tint: tintOf(row) }
+  return { word: wordOf(row), type, tint: tintOf(row) }
 }

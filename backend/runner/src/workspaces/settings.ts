@@ -47,6 +47,17 @@ const inboxRowsOf = (text: string | undefined): string[] => {
   }
 }
 
+// The Inbox's resolved rows the app kept, or none where they can't be read.
+const inboxHistoryOf = (text: string | undefined): string[] => {
+  if (text === undefined) return []
+  try {
+    const history = runnerSettings.shape.inboxHistory.safeParse(JSON.parse(text))
+    return history.success ? history.data : []
+  } catch {
+    return []
+  }
+}
+
 // How long idle agents wait before they are stopped: the default until chosen, none when the
 // person turned it off (saved as `null`), or what can't be read.
 const hibernateOf = (text: string | undefined): RunnerSettings["hibernateAfterMinutes"] => {
@@ -130,6 +141,7 @@ export class Settings {
       welcomed: saved.get("welcomed") === "true",
       inboxOrder: inboxRowsOf(saved.get("inboxOrder")),
       inboxSnoozed: inboxRowsOf(saved.get("inboxSnoozed")),
+      inboxHistory: inboxHistoryOf(saved.get("inboxHistory")),
       hibernateAfterMinutes: hibernateOf(saved.get("hibernateAfterMinutes")),
       worktrees: saved.get("worktrees") === "true",
     }

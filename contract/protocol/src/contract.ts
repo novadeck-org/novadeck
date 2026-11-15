@@ -715,14 +715,12 @@ export const contract = {
     list: procedure.input(z.void()).output(z.array(inboxEntry)),
     watch: procedure.input(z.void()).output(eventIterator(z.array(inboxEntry))),
     answer: procedure.input(z.strictObject({ id, answer: askAnswer })).output(z.void()),
-    // Marks entries read: a tell stays as history, a finished turn is removed, an ask is
+    // Marks entries read: a tell stays listed, resolved, a finished turn is removed, an ask is
     // not touched. Unknown ids are skipped.
     read: procedure.input(z.strictObject({ ids: z.array(id).max(1000) })).output(z.void()),
-    // The person dismisses an open ask without answering it: it stays listed, settled, and its
+    // The person dismisses an open ask without answering it: it stays listed, resolved, and its
     // agent is told at its next hook. One that isn't an open ask is NOT_FOUND.
     dismiss: procedure.input(z.strictObject({ id })).output(z.void()),
-    // Removes settled asks. Unknown ids, and any entry that isn't a settled ask, are skipped.
-    clear: procedure.input(z.strictObject({ ids: z.array(id).max(1000) })).output(z.void()),
   },
   // Agents' feedback drafts for the people building Novadeck (see `feedbackDraft`): the app
   // shows each in its feedback card for the person to send or discard.

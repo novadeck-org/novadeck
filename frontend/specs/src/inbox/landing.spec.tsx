@@ -107,15 +107,15 @@ describe("The landing rule", () => {
   })
 
   context("when an agent reports it is done to the terminal the person looks at", () => {
-    it("reads it by being seen, so it never lands, however they look away", async () => {
+    it("reads it by being seen, so it lands as history and never as news, however they look away", async () => {
       await open(docs)
 
       desktopWindow.arrive(demoInboxIds.done)
       // It isn't read by the arrival itself, only once the person has looked at the terminal
-      // for a moment; then the backend has it read, and it was never a row.
-      expect(desktopWindow.rowIds()).toContain(demoInboxIds.done)
+      // for a moment; then the backend has it read, and it stays only as a resolved row.
+      expect(desktopWindow.openRowIds()).toContain(demoInboxIds.done)
       await expect
-        .poll(() => desktopWindow.rowIds(), { timeout: 5_000 })
+        .poll(() => desktopWindow.openRowIds(), { timeout: 5_000 })
         .not.toContain(demoInboxIds.done)
 
       await page
@@ -123,14 +123,8 @@ describe("The landing rule", () => {
         .first()
         .click()
       await sidebarPanel("Inbox").click()
-      await expect.element(inboxRow("Search index rebuilt")).not.toBeInTheDocument()
-      await expectStaysAbsent(
-        {
-          shown: () => inboxRow("Search index rebuilt").query() !== null,
-          name: "the report's row",
-        },
-        { ms: 1_500 },
-      )
+      await expect.element(inboxRow("Search index rebuilt")).toHaveAccessibleName(/read$/)
+      await expect.element(bell()).not.toBeInTheDocument()
     })
   })
 })

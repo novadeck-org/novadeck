@@ -121,7 +121,7 @@ describe("finished turns in Inbox", () => {
     expect(run.changed).not.toHaveBeenCalled()
   })
 
-  it("reads turns and tells in one batch: turns go, tells stay as history, one listing", async () => {
+  it("reads turns and tells in one batch: turns go, tells stay listed as resolved, one listing", async () => {
     const records = memoryInbox()
     const removed = vi.spyOn(records, "removeEntries")
     const savedMany = vi.spyOn(records, "saveEntries")
@@ -137,7 +137,8 @@ describe("finished turns in Inbox", () => {
     savedMany.mockClear()
     const listing = watch.next()
     run.inbox.read(ids)
-    expect((await listing).value).toEqual([])
+    // The tell stays listed, resolved.
+    expect((await listing).value).toMatchObject([{ id: told.id, settled: { how: "read" } }])
     expect(removed).toHaveBeenCalledTimes(1)
     expect(savedMany).toHaveBeenCalledTimes(1)
     expect(records.entries().filter((entry) => entry.content.kind === "tell")).toMatchObject([

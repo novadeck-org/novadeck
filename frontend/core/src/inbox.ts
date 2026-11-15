@@ -6,7 +6,9 @@ import type { TerminalKey, Workspace } from "./types"
 
 // The Inbox: everything across the workspace that an agent, or Novadeck about an agent,
 // puts in front of the person, each as its own row. The person reads and answers it
-// there, without going to the terminal. Each row comes from one of five sources, and the UI
+// there, without going to the terminal. A row is open while it waits for them, and resolved
+// once it ended: it stays then, with how it ended (`Settled`), as the Inbox's history. Only an
+// ask its own agent withdrew leaves it. Each row comes from one of five sources, and the UI
 // presents it as one of four types:
 // - `request`: a prompt the agent's harness shows and Novadeck reads from its screen
 //   (`ChatRequest`, as the chat view has it). A permission or plan is an Unblock, a
@@ -132,26 +134,45 @@ export type InboxContent =
   | { readonly kind: "trouble"; readonly trouble: Trouble }
   | { readonly kind: "update"; readonly update: Update }
 
-// How an agent's ask ended without an answer from the Inbox, and when: the person dismissed
-// it, its agent withdrew it, or the person wrote to the agent in its terminal.
-export type AskSettled = {
-  readonly how: "dismissed" | "withdrawn" | "replied"
+// How a row ended, and when. An agent's ask was `answered` (here, with its `answer`),
+// `dismissed` by the person, or `replied` to by them writing in the terminal; a request the
+// harness shows was `answered` (here or in the chat, with its `answer` where it is known), or
+// `terminal` (answered in the terminal), or went `gone` unanswered, as when its turn was
+// interrupted; a held message was `released` or `stopped`; trouble ended as the agent
+// `worked` again, or messages waiting were `delivered`; a tell, a done report or a failed turn
+// was `read`; and any row `ended` with its agent session or its terminal.
+export type SettledHow =
+  | "answered"
+  | "terminal"
+  | "dismissed"
+  | "replied"
+  | "released"
+  | "stopped"
+  | "worked"
+  | "delivered"
+  | "read"
+  | "gone"
+  | "ended"
+export type Settled = {
+  readonly how: SettledHow
   readonly at: number
+  // What the person answered with, as a line, where they did.
+  readonly answer?: string | undefined
 }
 
 // One row. `at` is when it started waiting, in epoch milliseconds. `stopped` whether the
 // agent waits on the person (a gate, an ask after which it ended its turn, a stuck or
-// failed agent) rather than working on. `seen` once the person opened it. `settled` only on
-// an ask that no longer waits (see `AskSettled`): it stays listed until the person clears it.
+// failed agent) rather than working on. `seen` once the person opened it. `settled` only on a
+// row that is resolved (see `Settled`): it asks nothing, and shows as history.
 export type InboxRow = InboxContent & {
   readonly id: string
   readonly source: InboxSource
   readonly at: number
   readonly stopped: boolean
   readonly seen: boolean
-  readonly settled?: AskSettled
+  readonly settled?: Settled
   // Set aside by the person until they bring it back: it keeps its place, and asks nothing
-  // of them meanwhile. Only on a row that asks, where the backend keeps snoozes.
+  // of them meanwhile. Only on an open row that asks, where the backend keeps snoozes.
   readonly snoozed?: true
 }
 
@@ -169,7 +190,8 @@ export const inboxType = (row: InboxContent): InboxType => {
 // The person's answer to a row, by its source: a dialog's answer as the chat sends it;
 // a held thread released or stopped; an ask's option and/or words, or its
 // action done; a stuck agent nudged with these words or stopped, auto-resume at a limit
-// turned on or off, or the agent continued once the limit has reset; an update read.
+// turned on or off, or the agent continued once the limit has reset; an update read, which
+// opening it in the Inbox does.
 export type InboxAnswer =
   | { readonly kind: "request"; readonly answer: ChatAnswer }
   | { readonly kind: "held"; readonly action: "release" | "stop" }
@@ -188,12 +210,10 @@ export type InboxAnswer =
         // A limit that has reset: sends `continue` as the agent's next prompt, with no interrupt.
         | { readonly type: "continue" }
         | { readonly type: "auto-resume"; readonly on: boolean }
-        // A failed turn that is no longer current, read.
-        | { readonly type: "read" }
     }
   | { readonly kind: "update"; readonly action: "read" }
 
-// Every row, waiting ones first by how long they waited. `answering` the rows whose
+// Every row, the newest first (`ordered`). `answering` the rows whose
 // answer is on its way, until the backend drops them; `failed` why an answer didn't take.
 export type InboxState = {
   readonly items: readonly InboxRow[]
@@ -239,13 +259,9 @@ export type Inbox = {
   readonly answer: (id: string, answer: InboxAnswer) => void
   // Marks a row opened.
   readonly see: (id: string) => void
-  // Reads every update, leaving everything that waits on the person.
-  readonly readAll: () => void
-  // Optional. Dismisses an agent's open ask without answering it: it stays, settled, and its
+  // Optional. Dismisses an agent's open ask without answering it: it stays, resolved, and its
   // agent is told. Absent where asks can't be dismissed.
   readonly dismiss?: (id: string) => void
-  // Optional. Removes these settled asks.
-  readonly clear?: (ids: readonly string[]) => void
   // Optional. The rows that ask, by `rowKey`, in the order the person dragged them into, and
   // how that order is kept, which forgets rows no longer listed; empty until they drag one.
   // Absent where the backend keeps none, and the rows keep the Inbox's own order.
@@ -264,32 +280,23 @@ export type Inbox = {
   readonly readFinishes?: (finishes: readonly InboxFinish[]) => void
 }
 
-// How urgent a row is, most urgent first: trouble that stopped the agent, then
-// anything else that stopped it (a limit that waits for the person among them), then what
-// asks while the agent works on, then trouble that handles itself (a limit Novadeck
-// resumes from) or that only holds its messages (whose own question, if any, comes first),
-// then updates, and with
-// them a failed turn that is no longer the agent's current end (not `stopped`), which only
-// informs.
-export const urgency = (row: InboxRow): number => {
-  const type = inboxType(row)
-  if (type === "update") return 4
-  if (row.kind === "trouble" && row.trouble.type === "waits") return 3
-  if (type === "trouble") {
-    if (!row.stopped) return row.kind === "trouble" && row.trouble.type === "failed" ? 4 : 3
-    return row.kind === "trouble" && row.trouble.type === "limit" ? 1 : 0
-  }
-  return row.stopped ? 1 : 2
-}
+// How many resolved rows the Inbox lists: the latest to resolve, across all of it. The
+// runner keeps its own history longer, for the Messages pane.
+export const maxResolved = 10
 
-// The Inbox's order: by urgency, then the longest waiting first; settled asks after all of it.
-export const ordered = (rows: readonly InboxRow[]): InboxRow[] =>
-  rows.toSorted((a, b) => {
-    // Settled asks come last, the latest settled first.
-    if (a.settled || b.settled)
-      return a.settled && b.settled ? b.settled.at - a.settled.at : a.settled ? 1 : -1
-    return urgency(a) - urgency(b) || a.at - b.at
-  })
+// The Inbox's order: the row added last first, open and resolved rows together; of the
+// resolved ones only the `maxResolved` that resolved last.
+export const ordered = (rows: readonly InboxRow[]): InboxRow[] => {
+  const resolved = new Set(
+    rows
+      .filter((row) => row.settled)
+      .toSorted((a, b) => b.settled!.at - a.settled!.at)
+      .slice(0, maxResolved),
+  )
+  return rows
+    .filter((row) => !row.settled || resolved.has(row))
+    .toSorted((a, b) => b.at - a.at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+}
 
 // The row an entry in a terminal's messages waits in: the one it came from, by id, as the
 // runner lists an entry as `m-` and its row's id without dashes.
@@ -374,7 +381,6 @@ export const noInbox: Inbox = {
   state: createStore(emptyInbox),
   answer: () => {},
   see: () => {},
-  readAll: () => {},
 }
 
 export const atTerminal = (row: InboxRow, at: TerminalKey): boolean =>
@@ -384,7 +390,7 @@ export const atTerminal = (row: InboxRow, at: TerminalKey): boolean =>
 
 // What a terminal needs of the person, for its tab's mark: "unblock" for any Unblock row
 // or a limit past its reset that Novadeck won't resume from; otherwise "ask" for any Ask;
-// otherwise nothing. Trouble, updates, settled asks and what the person snoozed don't count.
+// otherwise nothing. Trouble, updates, resolved rows and what the person snoozed don't count.
 // Takes every row, as the backend lists them: the landing rule hides rows from the Inbox,
 // never from the marks.
 export const terminalNeed = (
@@ -420,5 +426,9 @@ export const nextLimitReset = (rows: readonly InboxRow[], now: number): number |
 export const terminalDone = (rows: readonly InboxRow[], at: TerminalKey): boolean =>
   rows.some(
     (row) =>
-      atTerminal(row, at) && !row.seen && row.kind === "update" && row.update.type === "done",
+      atTerminal(row, at) &&
+      !row.seen &&
+      !row.settled &&
+      row.kind === "update" &&
+      row.update.type === "done",
   )

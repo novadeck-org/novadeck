@@ -7,7 +7,7 @@ import type { Work, WorkClosing } from "@novadeck/core/works"
 import { Plus } from "lucide-react"
 import type { ComponentProps } from "react"
 
-import { HeldPill, InboxClear, InboxCount, InboxList, InboxMarkAll } from "../inbox/InboxList"
+import { HeldPill, InboxCount, InboxList } from "../inbox/InboxList"
 import { shortcutBindings } from "../interaction/shortcuts"
 import { sessionGlance, type SessionMark } from "../projects/session-marks"
 import { ChangesPanel } from "../sidebar/ChangesPanel"
@@ -228,12 +228,6 @@ export const WorkspaceSidebar = ({
       titleExtra={<HeldPill />}
       active={sidebarPanel === "inbox"}
       onClose={onHide}
-      actions={
-        <>
-          <InboxClear />
-          <InboxMarkAll />
-        </>
-      }
     >
       <InboxList />
     </SidebarPanel>

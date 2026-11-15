@@ -318,7 +318,6 @@ export const scriptedRunner = ({
       answer: api.inbox.answer.handler(unplayed("inbox.answer")),
       read: api.inbox.read.handler(unplayed("inbox.read")),
       dismiss: api.inbox.dismiss.handler(unplayed("inbox.dismiss")),
-      clear: api.inbox.clear.handler(unplayed("inbox.clear")),
     },
     feedback: {
       watch: api.feedback.watch.handler(idle),
@@ -357,6 +356,7 @@ export const scriptedRunner = ({
         welcomed: true,
         inboxOrder: [],
         inboxSnoozed: [],
+        inboxHistory: [],
         hibernateAfterMinutes: 60,
         worktrees: false,
       })),

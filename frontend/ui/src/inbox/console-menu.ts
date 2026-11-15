@@ -189,21 +189,16 @@ const troubleMenu = (row: InboxRow, trouble: Trouble, now: number): Menu => {
   switch (trouble.type) {
     case "failed":
       return {
-        rows: [
-          ...(row.stopped
-            ? [
-                troubleRow(
-                  "Ask it to fix",
-                  { type: "nudge", text: fix },
-                  `Asked @${handle} to fix it.`,
-                  `Sends: “${fix}”`,
-                ),
-              ]
-            : []),
-          ...(trouble.stored
-            ? [troubleRow("Mark read", { type: "read" }, `Marked @${handle}'s error read.`)]
-            : []),
-        ],
+        rows: row.stopped
+          ? [
+              troubleRow(
+                "Ask it to fix",
+                { type: "nudge", text: fix },
+                `Asked @${handle} to fix it.`,
+                `Sends: “${fix}”`,
+              ),
+            ]
+          : [],
         hard: false,
       }
     case "stuck":
@@ -299,30 +294,8 @@ const answersOf = (row: OwnRow, now: number): Menu => {
     case "trouble":
       return troubleMenu(row, row.trouble, now)
     case "update":
-      return {
-        rows: [
-          {
-            type: "answer",
-            label: "Mark read",
-            effect: null,
-            pick: false,
-            details: null,
-            answer: { kind: "update", action: "read" },
-            receipt: `Marked @${row.source.handle}'s update read.`,
-          },
-          {
-            type: "answer",
-            label: `Give @${row.source.handle} a follow-up`,
-            effect: "Marks it read and shows its terminal.",
-            pick: false,
-            details: null,
-            answer: { kind: "update", action: "read" },
-            receipt: `Marked @${row.source.handle}'s update read.`,
-            reveal: true,
-          },
-        ],
-        hard: false,
-      }
+      // Opening it read it: all that is left to do is to answer in the terminal.
+      return { rows: [], hard: false }
   }
 }
 

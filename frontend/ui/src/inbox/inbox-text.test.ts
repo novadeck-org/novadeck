@@ -4,13 +4,14 @@ import { describe, expect, it } from "../test"
 import {
   clock,
   codeParts,
+  endedLine,
+  endedWords,
   labelOf,
   limitWindow,
   readLabel,
   recommended,
   resumesLabel,
   subjectOf,
-  toneOf,
   waitLabel,
 } from "./inbox-text"
 
@@ -200,8 +201,42 @@ describe("An Inbox row's subject", () => {
     ).toBe(
       `2 messages for @${base.source.handle} wait behind an idle agent Novadeck can't wake yet`,
     )
-    // It waits on the person, but nothing failed.
-    expect(toneOf(held(3, "draft"))).toBe("waiting")
+  })
+})
+
+describe("How a resolved row ended", () => {
+  it("says it in a line, with what the person answered", () => {
+    const ask: InboxRow = {
+      ...base,
+      kind: "ask",
+      ask: { subject: "s", body: "", details: null, hardToUndo: null, shape: { type: "text" } },
+    }
+    const ended = (settled: NonNullable<InboxRow["settled"]>): InboxRow => ({ ...ask, settled })
+    expect(endedLine(ended({ how: "answered", at: 1, answer: "Green" }))).toBe(
+      "You answered: Green",
+    )
+    expect(endedLine(ended({ how: "dismissed", at: 1 }))).toBe(
+      "You dismissed this ask; @moth was told.",
+    )
+    expect(endedLine(ended({ how: "ended", at: 1 }))).toContain("session ended")
+    expect(endedLine(ask)).toBeNull()
+  })
+
+  it("has a short phrase for every way a row ends", () => {
+    expect(Object.keys(endedWords).toSorted()).toEqual([
+      "answered",
+      "delivered",
+      "dismissed",
+      "ended",
+      "gone",
+      "read",
+      "released",
+      "replied",
+      "stopped",
+      "terminal",
+      "worked",
+    ])
+    expect(endedWords.terminal).toBe("Answered in the terminal")
   })
 })
 

@@ -210,9 +210,12 @@ for (const setup of setups) {
       ).toBe(true)
       run.deck.terminals.readTells([told.id])
       // The agent's finished turn is an entry too, stored once it rests: not what is asked here.
-      const waiting = () =>
+      const listed = () =>
         run.deck.terminals.inboxEntries().filter((each) => each.content.kind !== "turn")
+      const waiting = () => listed().filter((each) => !each.settled)
       expect(waiting().map((each) => each.id)).toEqual([ask.id])
+      // The tell stays listed, read: the Inbox keeps what resolved as its history.
+      expect(listed().find((each) => each.id === told.id)?.settled).toMatchObject({ how: "read" })
       const mark = terminal.mark()
       // This is the same runner operation that the authenticated UI's inbox.answer calls.
       // Their words hold what the line must carry safely: @ and $, and letters past ASCII.
@@ -225,6 +228,10 @@ for (const setup of setups) {
         run.deck.terminals.answerAsk(ask.id, { type: "reply", option: null, text: "Again" }),
       ).toThrow(/no longer/)
       expect(waiting()).toEqual([])
+      expect(listed().find((each) => each.id === ask.id)?.settled).toMatchObject({
+        how: "answered",
+        answer: "Green: Use green, please: zażółć, @flint, $5.",
+      })
       await terminal.until("I received your Inbox answer: green.")
       await through(terminal, ["settled"], { after: mark })
       const received = await run.model.waitFor((call) => !call.side && delivered(call, "you"))

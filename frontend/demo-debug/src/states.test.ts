@@ -922,7 +922,7 @@ const waitingRows = (rows: readonly InboxRow[]): readonly InboxRow[] =>
       ),
   )
 const updateRows = (rows: readonly InboxRow[]): readonly InboxRow[] =>
-  rows.filter((row) => inboxType(row) === "update")
+  rows.filter((row) => !row.settled && inboxType(row) === "update")
 
 describe("demo states over the real agents", () => {
   beforeEach(() => vi.useFakeTimers())
@@ -1028,9 +1028,14 @@ describe("demo states over the real agents", () => {
       expect(kept?.kind, each.id).toBe(each.kind)
       expect(kept?.settled, each.id).toEqual(each.settled)
     }
-    expect(rows().filter((row) => row.id.startsWith("entry:demo-done-"))).toEqual([])
+    // The done reports are read, which keeps them as resolved rows.
+    expect(rows().filter((row) => row.id.startsWith("entry:demo-done-") && !row.settled)).toEqual(
+      [],
+    )
     expect(
-      rows().filter((row) => row.kind === "ask" && !own.some((each) => each.id === row.id)),
+      rows().filter(
+        (row) => row.kind === "ask" && !row.settled && !own.some((each) => each.id === row.id),
+      ),
     ).toEqual([])
   })
 
