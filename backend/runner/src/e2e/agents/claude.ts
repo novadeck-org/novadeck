@@ -14,8 +14,9 @@ const marker = "novadeck-e2e-background-work"
 
 /**
  * Claude Code against the fake model: its own config folder in the sandbox, seeded past
- * onboarding, the theme picker, folder trust and the custom API key's approval, with
- * Novadeck's MCP tools allowed so a `send` asks nothing. Its permission mode is the
+ * onboarding, the theme picker, folder trust and the custom API key's approval. Nothing
+ * here allows Novadeck's MCP tools: Novadeck's shim does, as for anyone's session in its
+ * shells, so a `send` asks nothing only through it. Its permission mode is the
  * manual one, auto mode turned off: 2.1.287 defaults to auto mode, whose classifier
  * decides what asks, and shows a notice about its billing through a gateway, or with
  * `defaultMode` alone an offer to make it the default, either of which waits on Enter.
@@ -264,7 +265,7 @@ export const claude: AgentSetup = {
       JSON.stringify({
         permissions: {
           // Its own print mode, so `shell` runs a nested Claude Code unasked.
-          allow: ["mcp__plugin_novadeck_novadeck", "Bash(claude -p:*)"],
+          allow: ["Bash(claude -p:*)"],
           defaultMode: "default",
           disableAutoMode: "disable",
         },

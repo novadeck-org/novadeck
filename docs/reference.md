@@ -603,6 +603,13 @@ Antigravity through cmd, which can't run your own Antigravity status line after 
 Novadeck leaves yours as it is, and knows Antigravity's prompt is up only once you have
 sent it something.
 
+Agents in Novadeck's terminals run Novadeck's own tools (`ask`, `send`, `open_agent` and the
+rest) without asking you first, however they started: typed, opened by an agent or the app,
+or resumed. The same shims allow them for that launch alone, and change none of your
+settings: Claude Code gets `--allowed-tools=mcp__plugin_novadeck_novadeck`, and Codex an
+override that approves the tools of Novadeck's server. Claude Code's plan mode still asks
+before each of them, as it does whatever its rules allow.
+
 Uninstalling from Preferences disconnects the agents you connected first. Removing
 Novadeck any other way (the script's `--uninstall`, a Homebrew uninstall, deleting the app)
 does not remove plugins you left connected: switch agents off first, or remove the

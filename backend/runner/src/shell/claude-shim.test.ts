@@ -12,6 +12,9 @@ import { pipedPrompt, quotedPrompts, splitPrompt } from "./shim-prompts.test-sup
 
 const windows = process.platform === "win32"
 
+// What lets a session run Novadeck's own tools without asking (harnesses/claude/src/shim.ts).
+const allow = "--allowed-tools=mcp__plugin_novadeck_novadeck"
+
 type Fixture = {
   root: string
   run: (args: string[], env?: NodeJS.ProcessEnv, cwd?: string) => string[]
@@ -117,15 +120,16 @@ describe("claude shim", { timeout: 60_000 }, () => {
       shim.run(["hi"], {
         PATH: [shim.bin, other.bin, shim.real, process.env.PATH].join(delimiter),
       }),
-    ).toEqual(["--settings", settings, "hi"])
+    ).toEqual(["--settings", settings, allow, "hi"])
   })
 
   it("runs a session with Novadeck's status line, passing every argument on", ({ shim }) => {
     const settings = expect.stringMatching(/plugins[/\\]claude[/\\]statusline\.json$/)
-    expect(shim.run([])).toEqual(["--settings", settings])
+    expect(shim.run([])).toEqual(["--settings", settings, allow])
     expect(shim.run(["--model", "haiku", "fix a b", "$x"])).toEqual([
       "--settings",
       settings,
+      allow,
       "--model",
       "haiku",
       "fix a b",
@@ -139,11 +143,12 @@ describe("claude shim", { timeout: 60_000 }, () => {
     const settings = expect.stringMatching(/statusline\.json$/)
     mkdirSync(shim.worktrees)
     const add = `--add-dir=${shim.worktrees}`
-    expect(shim.run([])).toEqual(["--settings", settings, add])
+    expect(shim.run([])).toEqual(["--settings", settings, add, allow])
     expect(shim.run(["--model", "haiku", "fix a b"])).toEqual([
       "--settings",
       settings,
       add,
+      allow,
       "--model",
       "haiku",
       "fix a b",
@@ -153,6 +158,7 @@ describe("claude shim", { timeout: 60_000 }, () => {
       "--settings",
       settings,
       add,
+      allow,
       "--add-dir",
       "x",
       "y",
@@ -168,14 +174,14 @@ describe("claude shim", { timeout: 60_000 }, () => {
     ])
   })
 
-  it("opens the folder to a session even without the status line, and leaves commands alone", ({
+  it("opens the folder and allows Novadeck's tools even without the status line, and leaves commands alone", ({
     shim,
   }) => {
     shim.remove()
-    expect(shim.run(["hi"])).toEqual(["hi"])
+    expect(shim.run(["hi"])).toEqual([allow, "hi"])
     mkdirSync(shim.worktrees)
     const add = `--add-dir=${shim.worktrees}`
-    expect(shim.run(["hi"])).toEqual([add, "hi"])
+    expect(shim.run(["hi"])).toEqual([add, allow, "hi"])
     expect(shim.run(["mcp", "list"])).toEqual(["mcp", "list"])
     expect(shim.run(["--model", "haiku", "update"], { NOVADECK_SHIMS: "codex" })).toEqual([
       "--model",
@@ -235,6 +241,7 @@ describe("claude shim", { timeout: 60_000 }, () => {
     expect(shim.run(["-n", "update", "bump deps"])).toEqual([
       "--settings",
       settings,
+      allow,
       "-n",
       "update",
       "bump deps",
@@ -242,6 +249,7 @@ describe("claude shim", { timeout: 60_000 }, () => {
     expect(shim.run(["--agent", "agents", "--model", "haiku", "fix it"])).toEqual([
       "--settings",
       settings,
+      allow,
       "--agent",
       "agents",
       "--model",
@@ -255,9 +263,9 @@ describe("claude shim", { timeout: 60_000 }, () => {
       "mcp",
       "list",
     ])
-    expect(shim.run(["-n"])).toEqual(["--settings", settings, "-n"])
+    expect(shim.run(["-n"])).toEqual(["--settings", settings, allow, "-n"])
     // Its commands go by their case, as Claude Code's own reading does.
-    expect(shim.run(["MCP"])).toEqual(["--settings", settings, "MCP"])
+    expect(shim.run(["MCP"])).toEqual(["--settings", settings, allow, "MCP"])
   })
 
   it("reads an option's list of values as values, up to the next option", ({ shim }) => {
@@ -279,7 +287,7 @@ describe("claude shim", { timeout: 60_000 }, () => {
       ["--add-dir", 'a "b c" d', "mcp"],
       ["--add-dir", 'he said "hi', "mcp"],
     ])
-      expect(shim.run(args)).toEqual(["--settings", settings, ...args])
+      expect(shim.run(args)).toEqual(["--settings", settings, allow, ...args])
     // The next option ends it, so a command after that is still one.
     for (const args of [
       ["--add-dir", "a", "--verbose", "mcp", "list"],
@@ -303,6 +311,7 @@ describe("claude shim", { timeout: 60_000 }, () => {
     expect(shim.run([prompt])).toEqual([
       "--settings",
       expect.stringMatching(/statusline\.json$/),
+      allow,
       prompt,
     ])
   })
@@ -320,7 +329,7 @@ describe("claude shim", { timeout: 60_000 }, () => {
   it("hands on a word that cmd's own commands take as a request for their help", ({ shim }) => {
     const settings = expect.stringMatching(/statusline\.json$/)
     for (const args of [["/?"], ["--add-dir", "a", "/?"], ["--verbose", "/?", "mcp"]])
-      expect(shim.run(args)).toEqual(["--settings", settings, ...args])
+      expect(shim.run(args)).toEqual(["--settings", settings, allow, ...args])
   })
 
   it.runIf(windows)("takes a prompt cmd splits first as the real claude does alone", ({ shim }) => {
@@ -330,6 +339,7 @@ describe("claude shim", { timeout: 60_000 }, () => {
     expect(through.received).toEqual([
       "--settings",
       expect.stringMatching(/statusline\.json$/),
+      allow,
       ...(alone.received ?? []),
     ])
     expect(through.result.status).toBe(alone.result.status)
@@ -357,6 +367,7 @@ describe("claude shim", { timeout: 60_000 }, () => {
       expect(shim.run(["hi"], {}, repo)).toEqual([
         "--settings",
         expect.stringMatching(/statusline\.json$/),
+        allow,
         "hi",
       ])
       expect(existsSync(marker)).toBe(false)
@@ -368,7 +379,26 @@ describe("claude shim", { timeout: 60_000 }, () => {
   }) => {
     expect(shim.run(["hi"], { NOVADECK_TERMINAL_ID: "" })).toEqual(["hi"])
     expect(shim.run(["hi"], { NOVADECK_SHIMS: "codex" })).toEqual(["hi"])
-    shim.remove()
-    expect(shim.run(["hi"])).toEqual(["hi"])
+  })
+
+  it("allows Novadeck's tools afresh at a resume, whatever the person passed", ({ shim }) => {
+    const settings = expect.stringMatching(/statusline\.json$/)
+    expect(shim.run(["--resume", "abc"])).toEqual([
+      "--settings",
+      settings,
+      allow,
+      "--resume",
+      "abc",
+    ])
+    // The person's own rules go on beside Novadeck's, as Claude Code adds them up.
+    expect(shim.run(["--allowed-tools", "Bash", "--resume", "abc"])).toEqual([
+      "--settings",
+      settings,
+      allow,
+      "--allowed-tools",
+      "Bash",
+      "--resume",
+      "abc",
+    ])
   })
 })

@@ -9,7 +9,9 @@ import { titleSetting } from "./title.js"
 // Novadeck's shells run it through this shim, which adds --no-daemon so the session and
 // its hook run in the terminal. `codex agents` and --remote need the server, so they go
 // unchanged, as does anything outside Novadeck's shells. It also names its terminal
-// title's items, so the title tells Novadeck once its prompt shows (`title.ts`). And it passes
+// title's items, so the title tells Novadeck once its prompt shows (`title.ts`), and lets the
+// session run Novadeck's own tools without asking (`approveNovadeck`), fresh at every start
+// and resume. And it passes
 // --add-dir for the folder where agents' worktrees live, once that exists, which Codex adds to
 // its writable roots; the option goes ahead of any command (`resume` and `exec` take it too).
 // Codex writes what its commands print nowhere Novadeck can read while they run, so where the
@@ -17,6 +19,18 @@ import { titleSetting } from "./title.js"
 // Novadeck's capture (backend/runner/src/shell/capture.ts): on Linux and macOS through the
 // environment their shell starts with (BASH_ENV, ZDOTDIR, with the person's own passed on), on
 // Windows through Novadeck's PowerShell first on PATH, as Codex finds its shell there.
+
+/**
+ * What lets a session run Novadeck's own tools without asking, a word for `-c`: its plugin's
+ * server approves its tools by default, for this launch alone, written to no file. The key is
+ * dotted bare, as the app server's `config/batchWrite` takes it. Probed 2026-11-15 (0.167.0 and
+ * 0.169.0, e2e/probes/tools-unasked.e2e.ts), with no setting approving them: a bare session
+ * asked before `describe`; with this it ran unasked, with `--sandbox read-only` too; with the
+ * key's plugin in TOML's quotes (`plugins."novadeck@novadeck"`) it still asked. It is one plain
+ * word, as the title's is, so every shell passes it whole.
+ */
+export const approveNovadeck =
+  "plugins.novadeck@novadeck.mcp_servers.novadeck.default_tools_approval_mode=approve"
 
 /** The setting giving Codex's commands `name` as `value`, a word for `-c`. */
 const commandsGet = (name: string, value: string): string =>
@@ -45,8 +59,8 @@ fi`
 export const posixShim = (root?: string, capture?: Machine["capture"]): string => `#!/bin/sh
 ${header("#", "shim for codex")}
 # Runs the real codex with --no-daemon, so its hooks can tell Novadeck which session runs
-# in this terminal, with a title that tells Novadeck once its prompt shows, and with access to
-# the folder where agents' worktrees live.
+# in this terminal, with a title that tells Novadeck once its prompt shows, with Novadeck's
+# own tools approved, and with access to the folder where agents' worktrees live.
 ${posixAdd(root)}
 novadeck_real=
 novadeck_ifs=$IFS
@@ -80,7 +94,7 @@ for novadeck_arg in "$@"; do
     --no-daemon) novadeck_daemon= ;;
   esac
 done${capture ? posixCapture(capture) : ""}
-exec "$novadeck_real" \${novadeck_daemon:+"$novadeck_daemon"} \${novadeck_add:+"$novadeck_add"} -c "${titleSetting}" "$@"
+exec "$novadeck_real" \${novadeck_daemon:+"$novadeck_daemon"} \${novadeck_add:+"$novadeck_add"} -c "${titleSetting}" -c ${approveNovadeck} "$@"
 `
 
 // `where` lists matches in PATH order, including this shim, and on npm installs an
@@ -110,8 +124,8 @@ export const cmdShim = (root?: string, pwshShimDir?: string): string => {
   return `@echo off
 ${header("rem", "shim for codex")}
 rem Runs the real codex with --no-daemon, so its hooks can tell Novadeck which session
-rem runs in this terminal, with a title that tells Novadeck once its prompt shows, and with
-rem access to the folder where agents' worktrees live.
+rem runs in this terminal, with a title that tells Novadeck once its prompt shows, with
+rem Novadeck's own tools approved, and with access to the folder where agents' worktrees live.
 setlocal
 set "novadeck_real="
 for /f "delims=" %%i in ('where $PATH:codex 2^>nul') do call :consider "%%~fi"
@@ -135,11 +149,11 @@ if /i "%novadeck_arg%"=="--no-daemon" goto titled
 goto words
 :session
 set "novadeck_arg="
-${launchLine(`--no-daemon %novadeck_add% -c "${titleSetting}"`, pwshShimDir, "session")}
+${launchLine(`--no-daemon %novadeck_add% -c "${titleSetting}" -c ${approveNovadeck}`, pwshShimDir, "session")}
 exit /b %ERRORLEVEL%
 rem Already without the shared server: only the title is added.
 :titled
-${launchLine(`%novadeck_add% -c "${titleSetting}"`, pwshShimDir, "titled")}
+${launchLine(`%novadeck_add% -c "${titleSetting}" -c ${approveNovadeck}`, pwshShimDir, "titled")}
 exit /b %ERRORLEVEL%
 :plain
 "%novadeck_real%" %*

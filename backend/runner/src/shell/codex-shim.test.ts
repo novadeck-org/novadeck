@@ -9,6 +9,9 @@ import { pipedPrompt, quotedPrompts, splitPrompt } from "./shim-prompts.test-sup
 
 const windows = process.platform === "win32"
 
+// What lets a session run Novadeck's own tools without asking (harnesses/codex/src/shim.ts).
+const approve = "plugins.novadeck@novadeck.mcp_servers.novadeck.default_tools_approval_mode=approve"
+
 type Fixture = {
   readonly root: string
   readonly run: (args: string[], env?: NodeJS.ProcessEnv, cwd?: string) => string[]
@@ -129,7 +132,7 @@ for (const pwsh of [false, true])
       shim,
     }) => {
       const args = windows ? ["resume", "abc", "two words"] : ["resume", "abc", "a b", "", "$x"]
-      const ours = ["--no-daemon", "-c", "tui.terminal_title=['status','thread-id']"]
+      const ours = ["--no-daemon", "-c", "tui.terminal_title=['status','thread-id']", "-c", approve]
       expect(shim.run(args)).toEqual([...ours, ...args])
       expect(shim.run([])).toEqual(ours)
     })
@@ -138,20 +141,39 @@ for (const pwsh of [false, true])
       shim,
     }) => {
       const title = "tui.terminal_title=['status','thread-id']"
-      expect(shim.run(["exec", "hi"])).toEqual(["--no-daemon", "-c", title, "exec", "hi"])
+      expect(shim.run(["exec", "hi"])).toEqual([
+        "--no-daemon",
+        "-c",
+        title,
+        "-c",
+        approve,
+        "exec",
+        "hi",
+      ])
       mkdirSync(shim.worktrees)
       const add = `--add-dir=${shim.worktrees}`
-      expect(shim.run([])).toEqual(["--no-daemon", add, "-c", title])
+      expect(shim.run([])).toEqual(["--no-daemon", add, "-c", title, "-c", approve])
       expect(shim.run(["resume", "abc"])).toEqual([
         "--no-daemon",
         add,
         "-c",
         title,
+        "-c",
+        approve,
         "resume",
         "abc",
       ])
-      expect(shim.run(["exec", "hi"])).toEqual(["--no-daemon", add, "-c", title, "exec", "hi"])
-      expect(shim.run(["--no-daemon"])).toEqual([add, "-c", title, "--no-daemon"])
+      expect(shim.run(["exec", "hi"])).toEqual([
+        "--no-daemon",
+        add,
+        "-c",
+        title,
+        "-c",
+        approve,
+        "exec",
+        "hi",
+      ])
+      expect(shim.run(["--no-daemon"])).toEqual([add, "-c", title, "-c", approve, "--no-daemon"])
       // What needs the shared server stays as it was.
       expect(shim.run(["agents"])).toEqual(["agents"])
       expect(shim.run(["--remote", "ws://host"])).toEqual(["--remote", "ws://host"])
@@ -167,6 +189,8 @@ for (const pwsh of [false, true])
       expect(shim.run(["--no-daemon"])).toEqual([
         "-c",
         "tui.terminal_title=['status','thread-id']",
+        "-c",
+        approve,
         "--no-daemon",
       ])
       expect(shim.run(["exec", "hi"], { NOVADECK_TERMINAL_ID: "" })).toEqual(["exec", "hi"])
@@ -186,6 +210,8 @@ for (const pwsh of [false, true])
           "--no-daemon",
           "-c",
           "tui.terminal_title=['status','thread-id']",
+          "-c",
+          approve,
           "-c",
           set("BASH_ENV", shell.capture.bashEnv),
           "-c",
@@ -211,6 +237,8 @@ for (const pwsh of [false, true])
           "--no-daemon",
           "-c",
           "tui.terminal_title=['status','thread-id']",
+          "-c",
+          approve,
           "exec",
           "hi",
         ])
@@ -218,7 +246,7 @@ for (const pwsh of [false, true])
     )
 
     it("reads each word of a line with quotes in it", ({ shim }) => {
-      const title = ["-c", "tui.terminal_title=['status','thread-id']"]
+      const title = ["-c", "tui.terminal_title=['status','thread-id']", "-c", approve]
       expect(shim.run(["", "agents"])).toEqual(["", "agents"])
       expect(shim.run(["agents", "/?"])).toEqual(["agents", "/?"])
       expect(shim.run(["agents", 'he said "hi'])).toEqual(["agents", 'he said "hi'])
@@ -239,6 +267,8 @@ for (const pwsh of [false, true])
         "--no-daemon",
         "-c",
         "tui.terminal_title=['status','thread-id']",
+        "-c",
+        approve,
         prompt,
       ])
     })
@@ -254,6 +284,8 @@ for (const pwsh of [false, true])
         "--no-daemon",
         "-c",
         "tui.terminal_title=['status','thread-id']",
+        "-c",
+        approve,
         "/?",
       ])
     })
@@ -268,6 +300,8 @@ for (const pwsh of [false, true])
           "--no-daemon",
           "-c",
           "tui.terminal_title=['status','thread-id']",
+          "-c",
+          approve,
           ...(alone.received ?? []),
         ])
         expect(through.result.status).toBe(alone.result.status)
@@ -297,6 +331,8 @@ for (const pwsh of [false, true])
           "--no-daemon",
           "-c",
           "tui.terminal_title=['status','thread-id']",
+          "-c",
+          approve,
           "exec",
           "hi",
         ])

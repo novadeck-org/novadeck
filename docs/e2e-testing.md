@@ -1056,8 +1056,8 @@ transcript says.
   characters), and trusts the project unless seeded `folderTrusted: false`. Seeded
   `popup: true`, it also names an account (`oauthAccount`) with a billing admin's roles,
   for whom Claude Code warns of a session's cost.
-  `settings.json` allows Novadeck's MCP tools (`mcp__plugin_novadeck_novadeck`) and its
-  own print mode (`Bash(claude -p:*)`, for `shell`), and sets the manual permission mode with auto mode off (`defaultMode: "default"`,
+  `settings.json` allows its own print mode (`Bash(claude -p:*)`, for `shell`), and nothing
+  of Novadeck's: Novadeck's shim allows its MCP tools, as in anyone's session. It sets the manual permission mode with auto mode off (`defaultMode: "default"`,
   `disableAutoMode: "disable"`): 2.1.287 defaults to auto mode, where a classifier
   decides what asks, and shows a notice about its billing through a gateway, or with
   `defaultMode` alone an offer to make auto mode the default, each waiting on Enter.
@@ -1147,7 +1147,8 @@ transcript says.
   its prompt only then. Once the plugin is connected, `connected` starts the pinned
   `codex app-server` and makes the calls its "Hooks need review" screen makes:
   `hooks/list` for each hook's current hash, then `config/batchWrite` to record them
-  as trusted, and to let Novadeck's MCP tools run without asking. It copies the hashes
+  as trusted. Nothing approves Novadeck's MCP tools there: Novadeck's shim does, as in
+  anyone's session. It copies the hashes
   rather than computing them, so it holds as long as that protocol does, which Novadeck's
   own trust check relies on too.
 - **Its model catalog.** `model_catalog_json` points at a `models.json` in its home that

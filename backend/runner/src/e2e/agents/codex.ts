@@ -553,14 +553,13 @@ type Listed = {
 
 /**
  * Trusts its hooks in the project, Novadeck's and any a seed registered, as a person does in
- * Codex's "Hooks need review"
- * screen, and lets its MCP tools run without asking, through the same app-server calls
- * that screen makes: `hooks/list` for each hook's current hash, then `config/batchWrite`
- * recording it as trusted. Codex runs a plugin's hooks only once trusted, and Novadeck
- * counts its prompt only then, asking the same `hooks/list`. Run once Novadeck's plugin
- * is connected, as the hashes are of the hooks it installed. With `hooks` false only the
- * MCP tools are let run, and the hooks wait for review, as a person who never trusted
- * them leaves them.
+ * Codex's "Hooks need review" screen, through the same app-server calls that screen makes:
+ * `hooks/list` for each hook's current hash, then `config/batchWrite` recording it as
+ * trusted. Codex runs a plugin's hooks only once trusted, and Novadeck counts its prompt only
+ * then, asking the same `hooks/list`. Run once Novadeck's plugin is connected, as the hashes
+ * are of the hooks it installed. With `hooks` false the hooks wait for review, as a person
+ * who never trusted them leaves them. Nothing here approves Novadeck's MCP tools: Novadeck's
+ * shim does, as for anyone's session in its shells.
  */
 const trustHooks = async (
   sandbox: Sandbox,
@@ -590,26 +589,18 @@ const trustHooksOnce = async (
     const all = (listed.data ?? []).flatMap((entry) => entry.hooks ?? [])
     if (!all.some((hook) => hook.pluginId === "novadeck@novadeck"))
       throw new Error("Codex lists none of Novadeck's hooks")
-    await server.request("config/batchWrite", {
-      edits: [
-        ...(hooks
-          ? [
-              {
-                keyPath: "hooks.state",
-                value: Object.fromEntries(
-                  all.map((hook) => [hook.key, { trusted_hash: hook.currentHash }]),
-                ),
-                mergeStrategy: "upsert",
-              },
-            ]
-          : []),
-        {
-          keyPath: "plugins.novadeck@novadeck.mcp_servers.novadeck.default_tools_approval_mode",
-          value: "approve",
-          mergeStrategy: "upsert",
-        },
-      ],
-    })
+    if (hooks)
+      await server.request("config/batchWrite", {
+        edits: [
+          {
+            keyPath: "hooks.state",
+            value: Object.fromEntries(
+              all.map((hook) => [hook.key, { trusted_hash: hook.currentHash }]),
+            ),
+            mergeStrategy: "upsert",
+          },
+        ],
+      })
     const after = await list()
     if (trustedIn(after) !== hooks)
       throw new Error(

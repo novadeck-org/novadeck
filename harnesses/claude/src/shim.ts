@@ -80,16 +80,28 @@ export const many = [
   "--tools",
 ]
 
+/**
+ * What lets a session run Novadeck's own tools without asking: a rule naming its plugin's
+ * server, which covers every tool of it, added to the session's rules from the command line
+ * and to no file. Probed 2026-11-15 (2.1.316 and 2.1.325, e2e/probes/tools-unasked.e2e.ts),
+ * with no setting allowing them: a bare session asked before `describe`; with this it ran
+ * unasked in the default, acceptEdits and auto modes, beside the person's own
+ * `--allowed-tools Bash`, and before a prompt on the command line, as the `=` form takes the
+ * one value. Plan mode asked all the same, as it does with the rule in settings.json.
+ */
+export const allowNovadeck = "--allowed-tools=mcp__plugin_novadeck_novadeck"
+
 // While Claude Code is connected, Novadeck's shells run it through this shim, which adds
 // Novadeck's settings: a status line that tells Novadeck the session's rate limits and
 // context, then shows the person's own status line. It also passes --add-dir for the folder
 // where agents' worktrees live, once that exists, so the session may write there as in its
-// own folder; it never passes a second --settings, which would replace the first.
-// Its other commands, and anything outside Novadeck's shells, run unchanged.
+// own folder, and lets the session run Novadeck's own tools without asking (`allowNovadeck`),
+// fresh at every start and resume; it never passes a second --settings, which would replace
+// the first. Its other commands, and anything outside Novadeck's shells, run unchanged.
 export const posixShim = (root?: string): string => `#!/bin/sh
 ${header("#", "shim for claude")}
-# Runs the real claude with Novadeck's status line, which passes on the person's own, and with
-# access to the folder where agents' worktrees live.
+# Runs the real claude with Novadeck's status line, which passes on the person's own, with
+# access to the folder where agents' worktrees live, and with Novadeck's own tools allowed.
 ${posixAdd(root)}
 novadeck_real=
 novadeck_ifs=$IFS
@@ -116,7 +128,6 @@ fi
 case " \${NOVADECK_SHIMS:-} " in *" claude "*) ;; *) exec "$novadeck_real" "$@" ;; esac
 novadeck_settings=$(dirname "$0")/../plugins/claude/statusline.json
 [ -f "$novadeck_settings" ] || novadeck_settings=
-[ -n "$novadeck_settings$novadeck_add" ] || exec "$novadeck_real" "$@"
 novadeck_value=
 novadeck_list=
 for novadeck_arg in "$@"; do
@@ -138,7 +149,7 @@ for novadeck_arg in "$@"; do
     *) break ;;
   esac
 done
-exec "$novadeck_real" \${novadeck_settings:+--settings "$novadeck_settings"} \${novadeck_add:+"$novadeck_add"} "$@"
+exec "$novadeck_real" \${novadeck_settings:+--settings "$novadeck_settings"} \${novadeck_add:+"$novadeck_add"} ${allowNovadeck} "$@"
 `
 
 // The same on Windows, as Codex's (`harnesses/codex/src/shim.ts`): `where` lists matches in PATH
@@ -158,8 +169,8 @@ exec "$novadeck_real" \${novadeck_settings:+--settings "$novadeck_settings"} \${
 // an error, and a `%` could uncover a `&`. `shift` leaves `%*` as it was, for the line that runs it.
 export const cmdShim = (root?: string): string => `@echo off
 ${header("rem", "shim for claude")}
-rem Runs the real claude with Novadeck's status line, which passes on the person's own, and with
-rem access to the folder where agents' worktrees live.
+rem Runs the real claude with Novadeck's status line, which passes on the person's own, with
+rem access to the folder where agents' worktrees live, and with Novadeck's own tools allowed.
 setlocal
 set "novadeck_real="
 for /f "delims=" %%i in ('where $PATH:claude 2^>nul') do call :consider "%%~fi"
@@ -174,7 +185,6 @@ ${cmdAdd(root)}
 set "novadeck_settings=%~dp0..\\plugins\\claude\\statusline.json"
 set "novadeck_with="
 if exist "%novadeck_settings%" set novadeck_with=--settings "%novadeck_settings%"
-if not defined novadeck_with if not defined novadeck_add goto plain
 rem The first word that isn't an option or an option's value may be another command.
 :command
 set novadeck_arg=""%1
@@ -219,7 +229,7 @@ shift
 goto more
 :session
 set "novadeck_arg="
-"%novadeck_real%" %novadeck_with% %novadeck_add% %*
+"%novadeck_real%" %novadeck_with% %novadeck_add% ${allowNovadeck} %*
 exit /b %ERRORLEVEL%
 :plain
 "%novadeck_real%" %*

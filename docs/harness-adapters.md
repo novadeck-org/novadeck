@@ -735,6 +735,22 @@ Novadeck writes nothing to a harness's config. The `=` form matters: Claude Code
   subcommands (`agy --help`) unchanged. On Windows its cmd shim also adds it, with or
   without the cmd.exe pass-through's folder on PATH, and passes every command the flag.
 
+The shims also let a session run Novadeck's own MCP tools without asking, for that launch
+alone and through no file. Every way a session starts goes through them: typed, `open_agent`'s
+line (`taskCommand`), the app's own launches and every resume are command lines run in a
+Novadeck shell. So the allow is added afresh at each start and resume, and never rides along as
+a kept flag (`LaunchProfile.kept`), which a resume's `forgets` would drop. Both are probed in
+`e2e/probes/tools-unasked.e2e.ts`, and the e2e seeds allow nothing, so every scenario's
+Novadeck call goes through the shim.
+
+- **Claude Code** gets `--allowed-tools=mcp__plugin_novadeck_novadeck` (`allowNovadeck`),
+  which names the plugin's server and so covers each of its tools. It adds to the person's own
+  `--allowed-tools`, and in the `=` form it takes one value, so a prompt after it stays the
+  prompt. Plan mode asks all the same, as it does for a rule in settings.json.
+- **Codex** gets `-c plugins.novadeck@novadeck.mcp_servers.novadeck.default_tools_approval_mode=approve`
+  (`approveNovadeck`), beside its title's `-c`. The key's plugin goes bare: in TOML's quotes it
+  still asked.
+
 ## Screen readers
 
 Two adapter fields read a harness's TUI off the screen, and shared code knows no marker,
