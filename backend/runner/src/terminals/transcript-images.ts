@@ -9,7 +9,7 @@ import { maxTranscriptImageBytes, type TranscriptImageResult } from "@novadeck/p
 import { secret } from "../companions/secrets.js"
 import { DomainError } from "../errors.js"
 import { harnesses } from "../harnesses/registry.js"
-import type { Record } from "./record.js"
+import { conversationOf, type ConversationRecord } from "./conversation.js"
 import { holds } from "./transcripts.js"
 
 // How much of a file one backward read takes while it looks for the start of a line.
@@ -143,23 +143,29 @@ const saved = async (file: string, folder: string | undefined): Promise<Transcri
  * `sessionId`, a line that is no longer there or holds no such image is NOT_FOUND.
  */
 export const transcriptImage = async (
-  record: Pick<Record, "bound" | "transcript">,
+  record: ConversationRecord,
   {
     sessionId,
     offset,
     index,
   }: { readonly sessionId: string; readonly offset: number; readonly index: number },
 ): Promise<TranscriptImageResult> => {
-  const { bound, transcript: root } = record
-  const source = bound && harnesses[bound.binding.agent].transcripts
-  if (!bound || !source || !root || bound.binding.sessionId !== sessionId)
+  const conversation = conversationOf(record)
+  const source = conversation && harnesses[conversation.binding.agent].transcripts
+  if (
+    !conversation ||
+    !source ||
+    !conversation.transcript ||
+    conversation.binding.sessionId !== sessionId
+  )
     throw new DomainError("NOT_FOUND")
-  const path = await source.locate(root, bound.binding.sessionId, null)
-  if (!path || !holds(record.bound?.binding, bound.binding)) throw new DomainError("NOT_FOUND")
+  const { binding, transcript } = conversation
+  const path = await source.locate(transcript, binding.sessionId, null)
+  if (!path || !holds(conversationOf(record)?.binding, binding)) throw new DomainError("NOT_FOUND")
   const line = await lineEndingAt(path, offset)
   const image: ImageSource | undefined = line === undefined ? undefined : source.images(line)[index]
   if (!image) throw new DomainError("NOT_FOUND")
   return "base64" in image
     ? inline(image.base64)
-    : saved(image.file, source.imageFolder?.(path, bound.binding.sessionId))
+    : saved(image.file, source.imageFolder?.(path, binding.sessionId))
 }

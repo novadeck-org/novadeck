@@ -10,6 +10,7 @@ import type { Binding } from "../harnesses/bindings.js"
 import { actorOf } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
 import { logs } from "../log.js"
+import { conversationOf, type ConversationRecord } from "./conversation.js"
 import type { Record } from "./record.js"
 
 const log = logs.for("chat")
@@ -68,11 +69,15 @@ export const lastStep = async (
  * the root's alone, as only the root's turn is the person's to interrupt.
  */
 export const interruptionsOf =
-  (record: Pick<Record, "bound" | "interruptions">, native: string | null) =>
+  (
+    record: Pick<Record, "bound" | "interruptions"> & Partial<ConversationRecord>,
+    native: string | null,
+  ) =>
   (): readonly Interruption[] =>
     native === null
       ? (record.interruptions ?? []).filter(
-          (each) => each.sessionId === record.bound?.binding.sessionId,
+          (each) =>
+            each.sessionId === conversationOf({ transcript: null, ...record })?.binding.sessionId,
         )
       : []
 
@@ -130,7 +135,7 @@ export type Reading = {
 
 /** The reading of an actor's transcript for a terminal's chat, by the actor's native id. */
 export const readingOf = (
-  record: Pick<Record, "bound" | "interruptions">,
+  record: Pick<Record, "bound" | "interruptions"> & Partial<ConversationRecord>,
   native: string | null,
 ): Reading => ({
   interruptions: interruptionsOf(record, native),
@@ -309,12 +314,14 @@ export const followTranscript = async function* (
   actor: string,
   signal?: AbortSignal,
 ): AsyncGenerator<TranscriptChange> {
-  const { bound, transcript: root } = record
-  const source = bound && harnesses[bound.binding.agent].transcripts
-  const native = bound && actorOf(bound.binding, bound.activity, actor)
-  if (!bound || !source || !root || native === undefined) throw new DomainError("NOT_FOUND")
-  const path = await source.locate(root, bound.binding.sessionId, native)
-  if (!path || !holds(record.bound?.binding, bound.binding)) throw new DomainError("NOT_FOUND")
+  const conversation = conversationOf(record)
+  const source = conversation && harnesses[conversation.binding.agent].transcripts
+  const native = conversation && actorOf(conversation.binding, conversation.activity, actor)
+  if (!conversation || !source || !conversation.transcript || native === undefined)
+    throw new DomainError("NOT_FOUND")
+  const { binding, transcript } = conversation
+  const path = await source.locate(transcript, binding.sessionId, native)
+  if (!path || !holds(conversationOf(record)?.binding, binding)) throw new DomainError("NOT_FOUND")
   const reader = new AbortController()
   record.sourceReaders.add(reader)
   const abort = () => reader.abort()
@@ -322,6 +329,15 @@ export const followTranscript = async function* (
   if (signal?.aborted) reader.abort()
   try {
     yield* transcriptChanges(path, source, reader.signal, readingOf(record, native))
+    // Binding the resumed session restarts its readers. Tell the client to read again even
+    // when its detail's session and root stayed the same through that first hook.
+    const current = conversationOf(record)?.binding
+    if (
+      !signal?.aborted &&
+      current?.agent === binding.agent &&
+      current.sessionId === binding.sessionId
+    )
+      throw new DomainError("NOT_FOUND")
   } finally {
     signal?.removeEventListener("abort", abort)
     reader.abort()

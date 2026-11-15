@@ -174,6 +174,8 @@ export type Record = {
   nudges: Nudges
   /** The agent its shell was opened or restarted to run, until one binds or its startup ends. */
   expecting: AgentName | null
+  /** The latest foreground-verified prompt's thread, before its first hook binds. */
+  conversationPrompt?: { readonly agent: AgentName; readonly prefix: string | null } | undefined
   /** Which screen that agent last said it was at before its first session, and in which report. */
   startupScreen?: { readonly screen: StartupScreen; readonly seq: number } | undefined
   /** Unsaved changes to what restores it: its directory, program, prompts. */

@@ -117,6 +117,40 @@ const agy = (uri: string) => ({
 })
 
 describe("a prompt image of a bound session", () => {
+  for (const agent of ["claude", "codex", "agy"] as const) {
+    it(`reads ${agent}'s saved prompt image while the session resumes before its first hook`, async ({
+      place,
+    }) => {
+      const uploads = join(place.folder, "brain", session, ".user_uploaded")
+      mkdirSync(uploads, { recursive: true })
+      const imagePath = join(uploads, "saved.png")
+      writeFileSync(imagePath, png)
+      const lines =
+        agent === "claude"
+          ? [claude(png.toString("base64"))]
+          : agent === "codex"
+            ? [codex(`data:image/png;base64,${png.toString("base64")}`)]
+            : [agy(imagePath)]
+      const path = place.write(agent, lines)
+      const [image] = await listed(agent, path)
+      const record = {
+        bound: null,
+        transcript: null,
+        agents: { [agent]: { sessionId: session, seq: 1, transcript: path } },
+        resumeClaim: `${agent}:${session}`,
+        startupRuns: true,
+        expecting: agent,
+      }
+      expect(
+        await ask(record, { sessionId: session, offset: image!.offset, index: image!.index }),
+      ).toMatchObject({ state: "ready" })
+      record.startupRuns = false
+      await expect(
+        ask(record, { sessionId: session, offset: image!.offset, index: image!.index }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    })
+  }
+
   it("is found again in Claude Code's transcript, by the offset its item carries", async ({
     place,
   }) => {
