@@ -20,6 +20,11 @@ const listing = { cap: 4 * 1024 * 1024 }
 
 /** `git worktree add` may check out a big repository: past the helper's usual 5 seconds. */
 export const addMs = 60_000
+/**
+ * What a git run a close or an open can't do without may take: a loaded Windows machine takes
+ * past the helper's usual 5 seconds for a `rev-parse`, and a close refused for it stays refused.
+ */
+const patient = { ...small, ms: addMs }
 
 /** What git printed as one trimmed line; undefined when it failed or printed none. */
 const line = (run: Run): string | undefined => (run.ok ? run.out.trim() || undefined : undefined)
@@ -84,11 +89,11 @@ export const validBranch = async (folder: string, name: string): Promise<boolean
 
 /** The commit a branch points at, or undefined without one. */
 export const branchTip = async (folder: string, branch: string): Promise<string | undefined> =>
-  line(await git(folder, ["rev-parse", "--verify", "-q", `refs/heads/${branch}^{commit}`], small))
+  line(await git(folder, ["rev-parse", "--verify", "-q", `refs/heads/${branch}^{commit}`], patient))
 
 /** The commit a revision names, or undefined. */
 export const commitAt = async (folder: string, revision: string): Promise<string | undefined> =>
-  line(await git(folder, ["rev-parse", "--verify", "-q", `${revision}^{commit}`], small))
+  line(await git(folder, ["rev-parse", "--verify", "-q", `${revision}^{commit}`], patient))
 
 export type Entry = {
   readonly path: string
@@ -100,7 +105,7 @@ export type Entry = {
 
 /** The repository's worktrees as git lists them, the main checkout first. */
 export const entriesOf = async (folder: string): Promise<readonly Entry[] | undefined> => {
-  const run = await git(folder, ["worktree", "list", "--porcelain"], listing)
+  const run = await git(folder, ["worktree", "list", "--porcelain"], { ...listing, ms: addMs })
   if (!run.ok) return undefined
   return run.out
     .split(/\n\n+/)
@@ -200,7 +205,7 @@ const mergedInto = async (folder: string, ref: string, main: Main): Promise<bool
 
 /** Whether the worktree has submodules checked out, whose commits a removal would lose. */
 export const hasSubmodules = async (path: string): Promise<boolean | undefined> => {
-  const run = await git(path, ["submodule", "status"], listing)
+  const run = await git(path, ["submodule", "status"], { ...listing, ms: addMs })
   if (!run.ok) return undefined
   return run.out.split("\n").some((each) => each !== "" && !each.startsWith("-"))
 }
@@ -304,7 +309,7 @@ export const keepStrayHead = async (
   const tip = await branchTip(path, branch)
   const held = async (ref: string | undefined): Promise<boolean | null> => {
     if (ref === undefined) return false
-    const run = await git(path, ["merge-base", "--is-ancestor", head, ref], small)
+    const run = await git(path, ["merge-base", "--is-ancestor", head, ref], patient)
     if (run.ok) return true
     return run.kind === "exit" && run.status === 1 ? false : null
   }
@@ -340,39 +345,39 @@ const samePath = (a: string, b: string): boolean => {
   return process.platform === "win32" ? left.toLowerCase() === right.toLowerCase() : left === right
 }
 
-/** The repository's own entries for the worktree at `path`: none once git forgot it. */
-const listingsOf = async (commonDirectory: string, path: string): Promise<string[]> => {
+export const forgetEntry = async (commonDirectory: string, path: string): Promise<void> => {
   const parent = join(commonDirectory, "worktrees")
   const names = await readdir(parent).catch((): string[] => [])
-  const found: string[] = []
   for (const name of names) {
     const entry = join(parent, name)
     // eslint-disable-next-line no-await-in-loop -- A few entries, read one at a time.
     const gitdir = await readFile(join(entry, "gitdir"), "utf8").catch(() => undefined)
-    if (gitdir !== undefined && samePath(gitdir.trim().replace(/[\\/]\.git$/, ""), path))
-      found.push(entry)
-  }
-  return found
-}
-
-export const forgetEntry = async (commonDirectory: string, path: string): Promise<void> => {
-  for (const entry of await listingsOf(commonDirectory, path))
-    // eslint-disable-next-line no-await-in-loop -- A few entries, one at a time.
-    if (!(await stat(join(entry, "locked")).catch(() => undefined)))
+    if (gitdir === undefined) continue
+    const where = gitdir.trim().replace(/[\\/]\.git$/, "")
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    if (samePath(where, path) && !(await stat(join(entry, "locked")).catch(() => undefined)))
       // eslint-disable-next-line no-await-in-loop -- As above.
       await rm(entry, { recursive: true, force: true })
+  }
 }
 
 /**
  * Finishes a `git worktree remove` that stopped partway, as one does on Windows when a file in
- * the folder is still held for a moment (a virus scan, a process just ended): git forgets the
- * worktree before it deletes the folder, and goes on doing so whatever the folder does, so
- * what is left of a folder git no longer lists was git's to delete, and goes now, retried while
- * a file is held. True once the folder is gone; false, with nothing touched, while git still
- * lists the worktree (it refused before deleting anything).
+ * the folder is still held for a moment (a virus scan, a process just ended): git deletes the
+ * folder, then its own record of the worktree even where the folder wouldn't go, so what is
+ * left of a folder git no longer lists was git's to delete, and goes now, retried while a file
+ * is held. Git's own listing (`home` is the repository's main folder) says so, compared by real
+ * path as `take` compares; where git can't list its worktrees, or still lists this one (it
+ * refused before deleting anything), nothing is touched. True once the folder is gone.
  */
-export const finishRemoval = async (commonDirectory: string, path: string): Promise<boolean> => {
-  if ((await listingsOf(commonDirectory, path)).length > 0) return false
+export const finishRemoval = async (home: string, path: string): Promise<boolean> => {
+  const entries = await entriesOf(home)
+  if (entries === undefined) return false
+  const real = await realpath(path).catch(() => path)
+  for (const entry of entries)
+    // eslint-disable-next-line no-await-in-loop -- A few worktrees, one at a time.
+    if (samePath(await realpath(entry.path).catch(() => entry.path), real)) return false
+  // Its error is no news: whether the folder is gone is what counts.
   await rm(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }).catch(
     () => undefined,
   )

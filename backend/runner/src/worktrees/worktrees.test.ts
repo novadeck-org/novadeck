@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { basename, join } from "node:path"
 
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
@@ -379,8 +379,10 @@ describe("closing a worktree", () => {
     const first = f.worktrees.closeAt(a.path, false)
     // Asked behind the first, which has removed the row by then.
     const second = f.worktrees.closeAt(a.path, false)
-    expect(await first).toMatchObject({ ok: true, branchDeleted: true })
-    expect(await second).toMatchObject({ ok: true, already: true })
+    // Each with its whole answer on failure, a refusal's reason too, which a match leaves out.
+    const [closed, again] = [await first, await second]
+    expect(closed, JSON.stringify(closed)).toMatchObject({ ok: true, branchDeleted: true })
+    expect(again, JSON.stringify(again)).toMatchObject({ ok: true, already: true })
   })
 
   it("lets a guard keep a worktree at the moment of removal, inside the queue", async ({
@@ -721,10 +723,14 @@ describe.skipIf(partway)("a removal git stopped partway", () => {
     // Git forgot it, and left part of its folder.
     expect(existsSync(held)).toBe(true)
     expect(git(f.repo, "worktree", "list", "--porcelain")).not.toContain(asGit(a.path))
-    const { commonDir } = f.store.worktree(a.path)!
-    await expect(finishRemoval(commonDir, b.path)).resolves.toBe(false)
+    // One git still lists stays, under another spelling of its path too.
+    await expect(finishRemoval(f.repo, b.path)).resolves.toBe(false)
+    await expect(finishRemoval(f.repo, join(b.path, "..", basename(b.path)))).resolves.toBe(false)
     expect(existsSync(b.path)).toBe(true)
-    await expect(finishRemoval(commonDir, a.path)).resolves.toBe(true)
+    // Where git can't list its worktrees, nothing is touched.
+    await expect(finishRemoval(f.other, a.path)).resolves.toBe(false)
+    expect(existsSync(held)).toBe(true)
+    await expect(finishRemoval(f.repo, a.path)).resolves.toBe(true)
     expect(existsSync(a.path)).toBe(false)
   })
 })

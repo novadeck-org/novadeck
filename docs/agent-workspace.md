@@ -736,9 +736,11 @@ with every safety check again at that time:
     branch goes only if Novadeck created it and the main branch holds all of it. A worktree
     whose status git couldn't read, or that has submodules, is never removed, forced or not.
     The row goes last. A `git worktree remove` that stops partway (on Windows, a file in the
-    folder still held for a moment) has forgotten the worktree before deleting its folder, so
-    where git no longer lists it, Novadeck deletes what is left (`finishRemoval`, retried while a
-    file is held) and the close goes on; where git still lists it, the close is refused.
+    folder still held for a moment) deletes git's record of the worktree even where the folder
+    wouldn't go, so where git's own listing no longer has it, Novadeck deletes what is left
+    (`finishRemoval`, retried while a file is held) and the close goes on; where git still lists
+    it, or can't list its worktrees, nothing is touched and the close is refused. The git runs a
+    close needs wait up to a minute, as a loaded Windows machine takes past 5 seconds for some.
     Every `path` may be a folder inside the worktree. Only a worktree of
     the project's repositories, and not locked, is adopted.
   - **At the runner's start** every row is checked: a folder that is gone is pruned from its
