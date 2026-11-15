@@ -31,9 +31,16 @@ const promptedDelays = 6
 /**
  * For how many delays a session's prompt is looked at once it binds, for a harness whose
  * prompt can say it isn't signed in (Claude Code's footer draws with the prompt), and after
- * that only while it says so.
+ * that only while it says so, or did lately (`signedOutLingerMs`).
  */
 const signedOutDelays = 3
+
+/**
+ * How long a prompt that said it isn't signed in is still looked at once it no longer does:
+ * Claude Code's `/login` covers its footer while the person signs in, and they may leave it
+ * with Escape, or their sign-in fail, back at the prompt that says so again.
+ */
+const signedOutLingerMs = 10 * 60_000
 
 /**
  * What a screen says of the agent expected there: its own `box`, which it takes prompts in;
@@ -70,10 +77,15 @@ export type Track = {
   readonly prompted: boolean
   /** Which screen its text says it is, where its harness tells (`Harness.heldScreen`). */
   readonly screen?: StartupScreen | undefined
-  /** Whether its harness was asked if Novadeck's hooks run, once its box stood a delay. */
-  readonly asked?: boolean | undefined
+  /**
+   * When its harness was last asked whether Novadeck's hooks run, once its box stood a delay;
+   * asked again a delay later while it couldn't answer.
+   */
+  readonly asked?: number | undefined
   /** Since when a session was seen bound there, for the looks at its prompt. */
   readonly bound?: number | undefined
+  /** When the bound session's prompt last said it isn't signed in. */
+  readonly signedOut?: number | undefined
 }
 
 export const freshTrack = (now: number): Track => ({
@@ -133,8 +145,9 @@ export type StartupHost<R extends WatchedRecord> = {
     /**
      * The expected agent's own box stood a delay with no session bound: whether Novadeck's
      * hooks run for it there is asked, which marks it in `untrustedAgent` where they don't.
+     * Whether its harness answered: one that couldn't is asked again a delay later.
      */
-    readonly boxStood: (record: R, agent: AgentName) => Promise<void>
+    readonly boxStood: (record: R, agent: AgentName) => Promise<boolean>
   }
   readonly screen: (terminalId: string) => Promise<ScreenText | undefined>
   /** The terminal's summary changed. */
@@ -177,6 +190,8 @@ export class StartupWatch<R extends WatchedRecord> {
   private looking = false
   /** By terminal and run: a restart's new shell starts over. */
   private tracks = new Map<string, Track>()
+  /** The tracks whose harness answered whether Novadeck's hooks run there. */
+  private answered = new Set<string>()
   private readonly schedule = coalesced(
     () => this.tick(),
     "Novadeck's startup watch failed:",
@@ -200,6 +215,7 @@ export class StartupWatch<R extends WatchedRecord> {
   stop(): void {
     this.pause()
     this.tracks.clear()
+    this.answered.clear()
   }
 
   private pause(): void {
@@ -225,19 +241,25 @@ export class StartupWatch<R extends WatchedRecord> {
           // eslint-disable-next-line no-await-in-loop -- One terminal's screen at a time.
           const track = await this.look(key, id, agent)
           if (track) tracks.set(key, track)
-          if (track?.asked && !known?.asked)
+          if (track?.asked !== undefined && track.asked !== known?.asked)
             this.host
               .shown()
               .boxStood(record, agent)
-              .catch((error: unknown) => {
-                console.error("Novadeck couldn't ask whether its hooks run:", error)
-              })
+              .then(
+                (answered) => {
+                  if (answered && this.tracks.has(key)) this.answered.add(key)
+                },
+                (error: unknown) => {
+                  console.error("Novadeck couldn't ask whether its hooks run:", error)
+                },
+              )
           // A session bound during the look: nothing here may mark it again.
           if (this.host.messaging().expected(id) === agent && !record.bound)
             this.show(record, agent, track?.held === true, track?.screen)
         }
       }
       this.tracks = tracks
+      for (const key of this.answered) if (!tracks.has(key)) this.answered.delete(key)
       this.settle()
     } finally {
       this.looking = false
@@ -272,31 +294,45 @@ export class StartupWatch<R extends WatchedRecord> {
     const track = this.tracks.get(key) ?? freshTrack(now)
     const look = lookAt(screen, harness.box)
     const next = nextTrack(track, look, screen.rows.join("\n"), now, this.delayMs)
+    // Its box stood a delay: its hooks may be off, which nothing but its harness tells.
+    // Asked once it answers, else again each delay, until the watch leaves it alone.
+    const due =
+      next.box !== null &&
+      now - next.box >= this.delayMs &&
+      !this.answered.has(key) &&
+      (next.asked === undefined || now - next.asked >= this.delayMs)
     return {
       ...next,
       screen: look === "screen" ? harness.heldScreen?.(screen.rows) : undefined,
-      // Its box stood a delay: its hooks may be off, which nothing but its harness tells.
-      asked: next.asked || (next.box !== null && now - next.box >= this.delayMs),
+      asked: due ? now : next.asked,
     }
   }
 
-  // Whether a bound session's prompt is still looked at: for a while once it binds, and for
-  // as long as it says it isn't signed in.
+  // Whether a bound session's prompt is still looked at: for a while once it binds, for as
+  // long as it says it isn't signed in, and for a while after it last did.
   private looksBound(record: R, track: Track | undefined): boolean {
     const { bound } = record
     if (!bound || !harnesses[bound.binding.agent].signedOut) return false
-    if (record.signedOut === bound.binding) return true
-    return track?.bound === undefined || this.now() - track.bound < this.delayMs * signedOutDelays
+    if (record.signedOut === bound.binding || track?.bound === undefined) return true
+    const now = this.now()
+    if (track.signedOut !== undefined && now - track.signedOut < signedOutLingerMs) return true
+    return now - track.bound < this.delayMs * signedOutDelays
   }
 
   private async lookBound(record: R, known: Track | undefined): Promise<Track> {
-    const track = { ...(known ?? freshTrack(this.now())), bound: known?.bound ?? this.now() }
+    let track: Track = {
+      ...(known ?? freshTrack(this.now())),
+      bound: known?.bound ?? this.now(),
+    }
     const { bound } = record
     const signedOut = bound && harnesses[bound.binding.agent].signedOut
     if (bound && signedOut && this.looksBound(record, track)) {
       const screen = await this.host.screen(record.summary.id)
-      if (screen && record.bound === bound)
-        record.signedOut = signedOut(screen.rows) ? bound.binding : undefined
+      if (screen && record.bound === bound) {
+        const says = signedOut(screen.rows)
+        record.signedOut = says ? bound.binding : undefined
+        if (says) track = { ...track, signedOut: this.now() }
+      }
     }
     this.show(record, null, false)
     return track

@@ -988,6 +988,11 @@ export const createDemoStates = (
           (key, { dispatch }) => dispatch(atStartupScreen(key, "agy", "sign-in")),
         ),
         setting(
+          "Signed out at its prompt",
+          "Claude Code bound at its prompt, whose footer says it isn't signed in: the need mark, the chat gives way",
+          (key, { dispatch }) => dispatch(atStartupScreen(key, "claude", "sign-in")),
+        ),
+        setting(
           "Hooks not trusted",
           "Codex at its hooks review, or its prompt with them skipped: the need mark, the words to trust them",
           (key, { dispatch }) => dispatch(atStartupScreen(key, "codex", "hooks")),

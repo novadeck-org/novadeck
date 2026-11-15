@@ -491,6 +491,11 @@ describe("demo states", () => {
       expect(terminalNote(terminal("04")!, { need: undefined }, undefined).text).toBe(
         "Waiting for you to sign in, in its terminal",
       )
+      run("Signed out at its prompt")
+      expect(terminal("04")).toMatchObject({ process: "claude" })
+      expect(terminalNote(terminal("04")!, { need: undefined }, undefined).text).toBe(
+        "Waiting for you to sign in, in its terminal",
+      )
       run("Hooks not trusted")
       expect(terminalNote(terminal("04")!, { need: undefined }, undefined)).toMatchObject({
         need: "unblock",

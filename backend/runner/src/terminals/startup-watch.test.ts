@@ -180,6 +180,7 @@ describe("the startup watch", () => {
     let changed: number
     let hooksOff: AgentName | undefined
     let stood: AgentName[]
+    let answers: boolean
     const record: {
       summary: WatchedRecord["summary"]
       terminal: { run: number }
@@ -205,6 +206,7 @@ describe("the startup watch", () => {
           shown: () => ({
             boxStood: async (_record, agent) => {
               stood.push(agent)
+              return answers
             },
           }),
           screen: screenNow,
@@ -235,6 +237,7 @@ describe("the startup watch", () => {
       drawn = shown(["Trust this folder?"])
       hooksOff = undefined
       stood = []
+      answers = true
       record.summary = { ...record.summary, startup: null }
       record.terminal = { run: 1 }
       record.startupScreen = undefined
@@ -359,6 +362,21 @@ describe("the startup watch", () => {
       expect(record.summary.startup).toBeNull()
     })
 
+    it("asks again each delay while its harness can't answer, until it does", async () => {
+      expected = "claude"
+      drawn = claudeScreens.prompt
+      answers = false
+      await pass(7000)
+      expect(stood).toEqual(["claude"])
+      await pass(5000)
+      expect(stood).toEqual(["claude", "claude"])
+      answers = true
+      await pass(5000)
+      expect(stood).toEqual(["claude", "claude", "claude"])
+      await pass(10_000)
+      expect(stood).toEqual(["claude", "claude", "claude"])
+    })
+
     it("marks an agent whose hooks are off at its prompt, until they no longer are", async () => {
       expected = "claude"
       drawn = claudeScreens.prompt
@@ -401,6 +419,19 @@ describe("the startup watch", () => {
         await pass(2000)
         expect(record.summary.startup).toBeNull()
         expect(changed).toBe(2)
+      })
+
+      it("marks it again where it says so once more, after its footer was covered", async () => {
+        drawn = signedOut
+        await pass(20_000)
+        expect(record.summary.startup).toEqual({ agent: "claude", screen: "sign-in" })
+        // Its /login dialog covers the footer, and the person leaves it with Escape.
+        drawn = shown(["  Select login method:", "  ❯ 1. Claude account with subscription"])
+        await pass(2000)
+        expect(record.summary.startup).toBeNull()
+        drawn = signedOut
+        await pass(2000)
+        expect(record.summary.startup).toEqual({ agent: "claude", screen: "sign-in" })
       })
 
       it("looks at a signed-in prompt only a while after it binds", async () => {

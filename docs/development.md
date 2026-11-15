@@ -358,7 +358,8 @@ Agents:
   a failed turn) stay. "Every state at once" has Shells, one failed and Many shells.
 - **Agent fixtures:** what no turn produces: an unheard agent (of the chosen harness, in
   place of whatever ran, whose hooks say nothing), an agent held at its startup screen (of the
-  chosen harness) or Antigravity at its sign-in screen, before its first session, Codex held
+  chosen harness) or Antigravity at its sign-in screen, before its first session, Claude Code
+  bound at its prompt that says it isn't signed in ("Signed out at its prompt"), Codex held
   by its untrusted hooks ("Hooks not trusted") or the chosen harness with Novadeck's hooks off
   in the person's settings ("Hooks off in settings"), and context and limits, with a model's own weekly windows beside the account's ("Fable", "Third-party") or not, or tokens alone, in the tooltip, status and the footer's subscriptions; those set
   only the usage of the selected terminal's agent, so a turn, request or queued prompt stays.

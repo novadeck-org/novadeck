@@ -210,13 +210,16 @@ export class Shown {
    * watch sees it. Where no title or report tells its prompt shows (Claude Code with its
    * hooks off says nothing at all), its harness is asked whether Novadeck's hooks run there,
    * and one whose hooks don't is marked untrusted, as at a prompt shown. A late answer marks
-   * no terminal the agent has left, nor one a session bound in meanwhile.
+   * no terminal the agent has left, nor one a session bound in meanwhile. Whether its harness
+   * answered (or a session bound, which tells as much): false where it couldn't be asked.
    */
-  async boxStood(record: Record, agent: AgentName): Promise<void> {
+  async boxStood(record: Record, agent: AgentName): Promise<boolean> {
     const child = record.terminal.pty
     const found = await this.harnessIn(record, child, agent)
-    if (!found || record.bound) return
-    if ((await this.promptTrust(record, agent, found.where)) !== "untrusted") return
+    if (record.bound) return true
+    if (!found) return false
+    const trust = await this.promptTrust(record, agent, found.where)
+    if (trust !== "untrusted") return trust === "counts" || !!record.bound
     await this.host.queue(
       record.summary.id,
       async () => {
@@ -227,6 +230,7 @@ export class Shown {
       },
       undefined,
     )
+    return true
   }
 
   /**

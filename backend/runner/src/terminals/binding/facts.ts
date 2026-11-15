@@ -688,8 +688,16 @@ export class Bindings {
     const agent = bound?.binding.agent ?? null
     const ready = this.readyOf(record)
     // Its prompt or a session ends a startup screen at once, not at the watch's next look,
-    // but for a session whose prompt says it isn't signed in.
-    const startup = bound || ready ? startupOf(record, undefined, null) : record.summary.startup
+    // but for a session whose prompt says it isn't signed in; a session that ends takes that
+    // mark with it.
+    const signedOutEnded = !bound && record.signedOut !== undefined
+    if (signedOutEnded) record.signedOut = undefined
+    const startup =
+      bound || ready
+        ? startupOf(record, undefined, null)
+        : signedOutEnded
+          ? null
+          : record.summary.startup
     const activity = bound ? activitySummary(bound.activity) : null
     // Before the early return below: an Escape that settles changes nothing the summary shows.
     this.ends.sight(record, activity)
