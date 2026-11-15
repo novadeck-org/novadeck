@@ -5,9 +5,10 @@ import type { AgentStatus } from "@novadeck/core/types"
 import { render } from "@novadeck/test-kit/render"
 import { Shown } from "@novadeck/toolkit/shown"
 import { act, createElement } from "react"
+import { afterEach, beforeEach, vi } from "vitest"
 
 import { ChatView } from "./ChatView"
-import { useHeldSnapshot } from "./held"
+import { holdAfterMs, Holding, useHeldSnapshot } from "./held"
 import { describe, expect, it } from "./test"
 
 // A store that counts who listens to it.
@@ -28,7 +29,7 @@ const counted = (value: number) => {
   }
 }
 
-// What reads the store, in sight or not, noting each value it draws.
+// What reads the store in a chat that holds or not, noting each value it draws.
 const reader = (source: ReturnType<typeof counted>, shown: boolean) => {
   const drawn: number[] = []
   const Reader = (): null => {
@@ -36,12 +37,12 @@ const reader = (source: ReturnType<typeof counted>, shown: boolean) => {
     return null
   }
   const element = (inSight: boolean) =>
-    createElement(Shown, { value: inSight }, createElement(Reader))
+    createElement(Holding, { value: !inSight }, createElement(Reader))
   const { rerender } = render(element(shown))
   return { drawn, show: (inSight: boolean) => rerender(element(inSight)) }
 }
 
-describe("a store read out of sight", () => {
+describe("a store read in a chat that holds", () => {
   it("is followed while in sight", () => {
     const source = counted(1)
     const { drawn } = reader(source, true)
@@ -80,6 +81,8 @@ describe("a store read out of sight", () => {
     show(false)
     expect(drawn.at(-1)).toBe(1)
     expect(source.listening()).toBe(0)
+    show(true)
+    expect(drawn.at(-1)).toBe(2)
   })
 })
 
@@ -103,6 +106,9 @@ const said = (id: string, text: string): ChatItem => ({
 const working: AgentStatus = { working: true } as AgentStatus
 
 describe("a chat out of sight", () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
   // The chat of an agent, in sight or not, and what it's handed of its agent's status.
   const open = (shown: boolean) => {
     const conversation = createStore<Conversation>({
@@ -151,10 +157,7 @@ describe("a chat out of sight", () => {
   const text = (container: HTMLElement) => container.querySelector(".chat-thread")?.textContent
   const workingLine = (container: HTMLElement) =>
     container.querySelector(".chat-running[data-working]")
-
-  it("draws nothing its agent says meanwhile, and all of it once back in sight", () => {
-    const { container, conversation, show } = open(true)
-    show(false)
+  const more = (conversation: ReturnType<typeof open>["conversation"]) =>
     act(
       () =>
         void conversation.update((now) => ({
@@ -162,6 +165,24 @@ describe("a chat out of sight", () => {
           items: [...now.items, said("s:1", "More words")],
         })),
     )
+  // Out of sight long enough to hold.
+  const leave = (show: (inSight: boolean) => void) => {
+    show(false)
+    act(() => void vi.advanceTimersByTime(holdAfterMs))
+  }
+
+  it("keeps drawing a while after it leaves sight, as what the person did there finishes", () => {
+    const { container, conversation, show } = open(true)
+    show(false)
+    act(() => void vi.advanceTimersByTime(holdAfterMs - 1))
+    more(conversation)
+    expect(text(container)).toContain("More words")
+  })
+
+  it("draws nothing its agent says meanwhile, and all of it once back in sight", () => {
+    const { container, conversation, show } = open(true)
+    leave(show)
+    more(conversation)
     expect(text(container)).toContain("First words")
     expect(text(container)).not.toContain("More words")
     show(true)
@@ -170,15 +191,19 @@ describe("a chat out of sight", () => {
 
   it("draws nothing of what the app hands it as its agent works until back in sight", () => {
     const { container, show } = open(true)
-    show(false)
+    leave(show)
     show(false, working)
     expect(workingLine(container)).toBeNull()
     show(true, working)
     expect(workingLine(container)).not.toBeNull()
   })
 
-  it("shows what its conversation holds as it mounts out of sight", () => {
-    const { container } = open(false)
+  it("holds at once as it mounts out of sight, showing what its conversation held then", () => {
+    const { container, conversation, show } = open(false)
     expect(text(container)).toContain("First words")
+    more(conversation)
+    expect(text(container)).not.toContain("More words")
+    show(true)
+    expect(text(container)).toContain("More words")
   })
 })

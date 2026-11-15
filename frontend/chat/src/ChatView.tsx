@@ -19,7 +19,6 @@ import type { Store } from "@novadeck/core/store"
 import type { AgentStatus } from "@novadeck/core/types"
 import { useMounted } from "@novadeck/requests/use-mounted"
 import type { Mention } from "@novadeck/toolkit/mentions"
-import { useShown } from "@novadeck/toolkit/shown"
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import type { Attachment } from "./attachments"
@@ -29,7 +28,7 @@ import { composerMode } from "./composer-mode"
 import { joinDraft } from "./drafts"
 import { useEchoes } from "./echoes"
 import { Fact, Since } from "./Fact"
-import { useHeldSnapshot } from "./held"
+import { Holding, useHeldSnapshot, useHolds } from "./held"
 import { promptsOf, type SentShell } from "./history"
 import { Hold } from "./Hold"
 import { markPhase, type WindowPhase } from "./mark-phase"
@@ -914,7 +913,7 @@ const sameProps = (before: ChatViewProps, after: ChatViewProps): boolean => {
 
 // The chat as it last drew while it's out of sight: what the app hands it as its agent works (its
 // status, the window's phase, the peers' looks) draws it again only once it's back. Its stores
-// hold on their own (see ./held), as the sight it's told of by context reaches it all the same.
+// hold on their own (see ./held), as whether it holds reaches it by context all the same.
 const Held = memo(
   ({ held: _held, ...props }: ChatViewProps & { readonly held: boolean }): React.JSX.Element => (
     <ChatBody {...props} />
@@ -922,6 +921,11 @@ const Held = memo(
   ({ held: _before, ...before }, { held, ...after }) => held || sameProps(before, after),
 )
 
-export const ChatView = (props: ChatViewProps): React.JSX.Element => (
-  <Held {...props} held={!useShown()} />
-)
+export const ChatView = (props: ChatViewProps): React.JSX.Element => {
+  const holds = useHolds()
+  return (
+    <Holding value={holds}>
+      <Held {...props} held={holds} />
+    </Holding>
+  )
+}
