@@ -204,10 +204,11 @@
   --_deal-y: -70px;
   --_depth: 7;
   z-index: 5;
-  top: 146px;
+  /* Above the zoom control in the stage's corner, over only the foot of Claude's card. */
+  top: 134px;
   left: 3%;
   width: 46%;
-  height: 78px;
+  height: 74px;
   transform: rotate(-2deg);
 }
 .welcome-terminal.server {
@@ -265,6 +266,10 @@
 .welcome-stage[data-view="grid"] .welcome-zoom,
 .welcome-stage[data-view="focus"] .welcome-zoom {
   opacity: 0;
+}
+/* A Grid tile has no room for the prompt waiting under Claude's checks. */
+.welcome-stage[data-view="grid"] .welcome-cursor {
+  visibility: hidden;
 }
 .welcome-stage[data-view="focus"] .welcome-terminal.agent {
   top: 31px;
