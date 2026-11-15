@@ -1,5 +1,5 @@
-/* The welcome-preview recipe: a miniature workspace in the welcome dialog. Three
-   terminals (`.welcome-terminal`, as `.agent`, `.review` and `.server`) lie on a
+/* The welcome-preview recipe: a miniature workspace in the welcome dialog. Four
+   terminals (`.welcome-terminal`, as `.agent`, `.review`, `.agy` and `.server`) lie on a
    dotted `.welcome-stage`, laid out by the stage's data-view="focus" | "grid" |
    "canvas"; buttons under it (`.segment`s, see segmented.css) switch the layout. Each
    terminal has a title bar (`.welcome-terminal-bar`) with a `.welcome-status`, and
@@ -190,6 +190,17 @@
   height: 132px;
   transform: rotate(3deg);
 }
+.welcome-terminal.agy {
+  --_deal-x: 120px;
+  --_deal-y: -70px;
+  --_depth: 7;
+  z-index: 5;
+  top: 142px;
+  left: 15%;
+  width: 31%;
+  height: 80px;
+  transform: rotate(-2deg);
+}
 .welcome-terminal.server {
   --_deal-x: -90px;
   --_deal-y: -62px;
@@ -211,19 +222,25 @@
 .welcome-stage[data-view="grid"] .welcome-terminal.agent {
   top: 31px;
   left: 3%;
-  width: 51%;
-  height: calc(100% - 46px);
+  width: 45%;
+  height: calc(50% - 26px);
 }
 .welcome-stage[data-view="grid"] .welcome-terminal.review {
   top: 31px;
-  left: 56%;
-  width: 41%;
+  left: 52%;
+  width: 45%;
+  height: calc(50% - 26px);
+}
+.welcome-stage[data-view="grid"] .welcome-terminal.agy {
+  top: calc(50% + 11px);
+  left: 3%;
+  width: 45%;
   height: calc(50% - 26px);
 }
 .welcome-stage[data-view="grid"] .welcome-terminal.server {
   top: calc(50% + 11px);
-  left: 56%;
-  width: 41%;
+  left: 52%;
+  width: 45%;
   height: calc(50% - 26px);
 }
 .welcome-stage[data-view="grid"] .welcome-code {
@@ -245,7 +262,7 @@
   font-size: 10px;
   gap: 9px;
 }
-.welcome-stage[data-view="focus"] .welcome-terminal:is(.review, .server) {
+.welcome-stage[data-view="focus"] .welcome-terminal:is(.review, .agy, .server) {
   opacity: 0;
   transform: translateX(60px) scale(0.9);
 }
@@ -264,6 +281,9 @@
   .welcome-terminal.server {
     top: 114px;
   }
+  .welcome-terminal.agy {
+    top: 118px;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -272,6 +292,9 @@
   }
   .welcome-terminal.server {
     animation-delay: 650ms;
+  }
+  .welcome-terminal.agy {
+    animation-delay: 980ms;
   }
   .welcome-terminal.agent {
     animation-delay: 760ms;
