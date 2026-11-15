@@ -173,8 +173,6 @@ export const demoBackend = (
     },
     hibernation: { after: hibernateAfter, set: (minutes) => hibernateAfter.update(() => minutes) },
     worktrees: { enabled: worktrees, set: (enabled) => worktrees.update(() => enabled) },
-    // Offered wherever the worktrees are, as one Experimental feature beside the other.
-    forges: createDemoForges(),
     agents: {
       state: agents,
       set: (agent, connected) =>
@@ -673,8 +671,10 @@ const plainBackend = (
   // Launch's agents print more as the video goes on, so its screens come from the demo itself.
   const launch = variant === "launch" ? createLaunch(turns, now) : undefined
   // Every agent takes a prompt, works a moment, and finishes, however it is sent; the
-  // seeds and the debug panel drive the same turns.
-  const backend = demoBackend(createDemoEngine(), {
+  // seeds and the debug panel drive the same turns. The forges are offered here, beside the
+  // worktrees, as one Experimental feature beside the other: not in `demoBackend`, so the
+  // visitor's and the showcase's demos, which have no Experimental tab, don't carry them.
+  const shell = demoBackend(createDemoEngine(), {
     welcome:
       variant === "welcome" ||
       (import.meta.env.DEV && import.meta.env.VITE_WELCOME_PREVIEW === "true"),
@@ -687,6 +687,7 @@ const plainBackend = (
           ? { terminals: { ...terminals, introOf: launch.introOf } }
           : terminals && { terminals }),
   })
+  const backend: Backend = { ...shell, forges: createDemoForges() }
   turns.telemetry.update(() =>
     variant === "plain" ||
     variant === "welcome" ||

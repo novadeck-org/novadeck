@@ -3,7 +3,7 @@ import { workspaceFromSeed } from "@novadeck/core/seed"
 import { activeProject, activeSession } from "@novadeck/core/state"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { demoForgeInstallers, demoSignIn } from "../forges"
+import { createDemoForges, demoForgeInstallers, demoSignIn } from "../forges"
 import { demoBackend } from "../index"
 import { createDemoEngine } from "../terminals/engine"
 import { context, describe, expect, it } from "../test"
@@ -15,7 +15,11 @@ afterEach(() => vi.useRealTimers())
 // A demo backend whose Antigravity is not installed, started, with what it dispatches.
 const started = () => {
   const installs = createDemoInstalls()
-  const backend = installs.wrap(demoBackend(createDemoEngine()))
+  // With forges, as the agents demo offers them beside `demoBackend`'s own.
+  const backend = installs.wrap({
+    ...demoBackend(createDemoEngine()),
+    forges: createDemoForges(),
+  })
   const workspace = workspaceFromSeed(backend.seed, {
     view: "grid",
     windowedView: "grid",
