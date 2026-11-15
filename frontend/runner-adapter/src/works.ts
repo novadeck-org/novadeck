@@ -1,5 +1,12 @@
 import { createStore } from "@novadeck/core/store"
-import { read, type Work, type Works, type WorksState } from "@novadeck/core/works"
+import {
+  madeOne,
+  read,
+  type Work,
+  type Works,
+  type WorksMade,
+  type WorksState,
+} from "@novadeck/core/works"
 import { hasCode, type Runner } from "@novadeck/runner-client"
 
 import { consume } from "./streams"
@@ -23,12 +30,12 @@ export const createRunnerWorks = (
   track: <T>(work: Promise<T>) => Promise<T> = (work) => work,
 ): RunnerWorks => {
   const state = createStore<WorksState>({ works: [], synced: false, reported: false })
-  // The worktrees made since the backend began, counted for as long as it lives: the stream
-  // carries one small event per worktree and the runner reads no git for it.
-  const made = createStore(0)
+  // The worktrees made since the backend began, counted by project for as long as it lives: the
+  // stream carries one small event per worktree and the runner reads no git for it.
+  const made = createStore<WorksMade>(new Map())
   const madeStream = calls.made()
-  void consume(madeStream, () => {
-    made.update((count) => count + 1)
+  void consume(madeStream, ({ projectId }) => {
+    made.update((counts) => madeOne(counts, projectId))
   })
   // By root.
   const held = new Map<string, Work>()

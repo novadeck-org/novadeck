@@ -7,39 +7,39 @@ import { context, describe, expect, it } from "../test"
 // The plain demo's storefront has seven works, each a tracked worktree: Checkout implementation
 // and Tests in conflict with each other (and the first with main); ones with no owner, Build's,
 // Checkout review's (its agent is working in it), a second of Build's just made, which differs
-// from nothing, and a third whose work was merged. The panel lists the works of every project,
-// so those of api-service, docs-site and design-system come with them: eleven in all.
+// from nothing, and a third whose work was merged. The panel lists only the open project's works,
+// so those of api-service (two), docs-site and design-system stay out of it.
 const storefront = "/projects/storefront/sessions/initial/focus?panel=changes"
+const apiService = "/projects/api-service/sessions/initial/focus?panel=changes"
 const showcase = "/projects/studio/sessions/initial/focus?demo=showcase&panel=changes"
 
 const list = () => page.getByRole("list", { name: "Changes" })
 const rows = () => list().getByRole("button", { name: /^(?!Close the |Preview )/ })
-// A row's accessible label starts as `Title, branch, in project,`; the project is the storefront
-// unless said otherwise.
-const named = (title: string, branch = "", project = "storefront") =>
-  new RegExp(`^${title}, ${branch === "" ? "[^,]*" : branch}, in ${project},`)
-const row = (title: string, branch = "", project = "storefront") =>
-  list().getByRole("button", { name: named(title, branch, project) })
+// A row's accessible label starts as `Title, branch,`.
+const named = (title: string, branch = "") =>
+  new RegExp(`^${title}, ${branch === "" ? "[^,]*" : branch},`)
+const row = (title: string, branch = "") =>
+  list().getByRole("button", { name: named(title, branch) })
 const labels = () =>
   rows()
     .elements()
     .map((element) => element.getAttribute("aria-label"))
-const itemOf = (title: string, branch = "", project = "storefront") =>
+const itemOf = (title: string, branch = "") =>
   list()
     .getByRole("listitem")
-    .filter({ has: page.getByRole("button", { name: named(title, branch, project) }) })
-const cross = (title: string, branch: string, project = "storefront") =>
-  itemOf(title, branch, project).getByRole("button", { name: /^Close the / })
+    .filter({ has: page.getByRole("button", { name: named(title, branch) }) })
+const cross = (title: string, branch: string) =>
+  itemOf(title, branch).getByRole("button", { name: /^Close the / })
 const dialog = () => page.getByRole("alertdialog", { name: "Close this worktree?" })
 
 describe("The Changes panel", () => {
   context("when the backend reports works", () => {
-    it("has a rail button and counts every project's works", async () => {
+    it("has a rail button and counts the open project's works", async () => {
       await openWorkspace(storefront)
 
       await expect.element(sidebarPanel("Changes")).toBeChecked()
       await expect.element(sidebar()).toHaveAccessibleName("Changes")
-      await expect.element(page.getByRole("heading", { name: "Changes 11" })).toBeVisible()
+      await expect.element(page.getByRole("heading", { name: "Changes 7" })).toBeVisible()
     })
 
     it("lists them first come, first served, whatever has been read", async () => {
@@ -47,17 +47,13 @@ describe("The Changes panel", () => {
 
       await expect.element(rows().first()).toBeVisible()
       expect(labels()).toEqual([
-        "Build, agent/build-lint, in storefront, 0 files changed, merged",
-        "No owner, agent/promo-banner, in storefront, 1 file changed, 18 lines added, 2 removed",
-        "Build, agent/build, in storefront, 2 files changed, 11 lines added, 5 removed",
-        "Checkout implementation, agent/checkout-implementation, in design-system, 3 files changed, 68 lines added, 22 removed",
-        "Checkout review, agent/checkout-review, in storefront, 1 file changed, 6 lines added, 2 removed",
-        "Tests, agent/tests, in docs-site, 1 file changed, 22 lines added, 9 removed",
-        "Checkout implementation, agent/checkout-implementation, in api-service, 2 files changed, 92 lines added, 11 removed",
-        "Checkout implementation, agent/checkout-implementation, in storefront, 5 files changed, 324 lines added, 56 removed, conflicts with main, Tests",
-        "Tests, agent/tests, in storefront, 2 files changed, 85 lines added, 18 removed, conflicts with Checkout implementation",
-        "Tests, agent/tests, in api-service, 1 file changed, 47 lines added, 5 removed",
-        "Build, agent/build-cache, in storefront, 0 files changed",
+        "Build, agent/build-lint, 0 files changed, merged",
+        "No owner, agent/promo-banner, 1 file changed, 18 lines added, 2 removed",
+        "Build, agent/build, 2 files changed, 11 lines added, 5 removed",
+        "Checkout review, agent/checkout-review, 1 file changed, 6 lines added, 2 removed",
+        "Checkout implementation, agent/checkout-implementation, 5 files changed, 324 lines added, 56 removed, conflicts with main, Tests",
+        "Tests, agent/tests, 2 files changed, 85 lines added, 18 removed, conflicts with Checkout implementation",
+        "Build, agent/build-cache, 0 files changed",
       ])
     })
 
@@ -80,11 +76,15 @@ describe("The Changes panel", () => {
       await expect.element(itemOf("Build", "agent/build-cache")).not.toHaveAttribute("data-merged")
     })
 
-    it("names the project of each row, and shows another project's work too", async () => {
-      await openWorkspace(storefront)
+    it("lists another project's works once that project is open, and names no project", async () => {
+      await openWorkspace(apiService)
 
-      await expect.element(itemOf("Tests", "agent/tests").getByText("storefront")).toBeVisible()
-      await expect.element(page.getByText("docs-site").first()).toBeVisible()
+      await expect.element(page.getByRole("heading", { name: "Changes 2" })).toBeVisible()
+      expect(labels()).toEqual([
+        "Checkout implementation, agent/checkout-implementation, 2 files changed, 92 lines added, 11 removed",
+        "Tests, agent/tests, 1 file changed, 47 lines added, 5 removed",
+      ])
+      await expect.element(list().getByText("api-service")).not.toBeInTheDocument()
     })
 
     it("marks a work in conflict, and names what it conflicts with", async () => {
@@ -112,19 +112,8 @@ describe("The Changes panel", () => {
         .toBeVisible()
     })
 
-    it("goes to another project's work, selecting its owner there", async () => {
+    it("keeps the clicked worktree selected among its owner's others", async () => {
       await openWorkspace(storefront)
-
-      await row("Checkout implementation", "agent/checkout-implementation", "api-service").click()
-
-      await expect.element(page.getByRole("heading", { name: "Changes 11" })).toBeVisible()
-      await expect
-        .element(itemOf("Checkout implementation", "", "api-service"))
-        .toHaveAttribute("data-selected", "true")
-    })
-
-    it("keeps the clicked worktree selected across the switch to its owner's project", async () => {
-      await openWorkspace("/projects/api-service/sessions/initial/focus?panel=changes")
 
       await row("Build", "agent/build-cache").click()
 
@@ -137,7 +126,7 @@ describe("The Changes panel", () => {
     it("opens the work as a changes item on the terminal's bar where the backend can show it", async () => {
       await openWorkspace(showcase)
 
-      await row("Build Studio", "", "studio").click()
+      await row("Build Studio").click()
 
       await expect
         .poll(() => taskbarIcons("Build Studio").some((label) => label.startsWith("Changes")))
@@ -168,7 +157,7 @@ describe("The Changes panel", () => {
       await dialog().getByRole("button", { name: "Close worktree" }).click()
 
       await expect.element(row("Tests")).not.toBeInTheDocument()
-      await expect.element(page.getByRole("heading", { name: "Changes 10" })).toBeVisible()
+      await expect.element(page.getByRole("heading", { name: "Changes 6" })).toBeVisible()
     })
 
     it("closes a worktree that differs from nothing at once", async () => {

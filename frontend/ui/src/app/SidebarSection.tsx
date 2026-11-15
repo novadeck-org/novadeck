@@ -5,7 +5,7 @@ import { orderedTiles } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
 import type { WorkspaceSession } from "@novadeck/core/types"
-import type { Work } from "@novadeck/core/works"
+import type { Work, WorksState } from "@novadeck/core/works"
 import { memo, useCallback, useMemo, useSyncExternalStore } from "react"
 
 import { useDesktop } from "../shell/desktop"
@@ -118,8 +118,14 @@ export const SidebarSection = memo((): React.JSX.Element => {
   // The Changes panel shows where the backend reports the terminals' work, while agent
   // worktrees are on; see `useChangesShown`.
   const worksFeed = useChangesShown() ? backend.works : undefined
-  // Every project's works: the panel lists them all, naming each row's project.
+  // Every project's works, for the Source panel and previews to pick the open project's from.
   const allWorks = useStoreSelector(worksFeed?.state ?? noWorks, (state) => state.works, sameWorks)
+  // The open project's works: the Changes panel lists only these.
+  const ofProject = useCallback(
+    (state: WorksState) => state.works.filter((work) => work.projectId === projectId),
+    [projectId],
+  )
+  const projectWorks = useStoreSelector(worksFeed?.state ?? noWorks, ofProject, sameWorks)
   // The terminals of every session of the project that may own its worktrees, by id.
   const owners = useWorkspaceState(
     (workspace) => ownersOf(activeProject(workspace)!.history),
@@ -223,11 +229,6 @@ export const SidebarSection = memo((): React.JSX.Element => {
       ),
     sameHandles,
   )
-  const projectNames = useWorkspaceState(
-    (workspace) =>
-      new Map(workspace.projects.map((project) => [project.id, project.name] as const)),
-    sameHandles,
-  )
   const selectedId = useWorkspaceState((workspace) => currentState(workspace).selected)
   const { revealTerminal, openBarTab } = commands
   // A work is shown on the bar of the terminal the panel names (its owner's, or the selected
@@ -236,21 +237,18 @@ export const SidebarSection = memo((): React.JSX.Element => {
     async (work: Work, terminalId: string | undefined): Promise<void> => {
       if (!worksFeed) return
       if (terminalId === undefined) return
-      // The owner may be in another project; any other terminal is the selected one's.
-      revealTerminal(terminalId, terminalId === work.terminalId ? work.projectId : projectId)
+      revealTerminal(terminalId, projectId)
       const itemId = await worksFeed.show(work.root, terminalId)
       if (itemId !== null) openBarTab(terminalId, itemIdOf(itemId))
     },
     [worksFeed, revealTerminal, openBarTab, projectId],
   )
-  // A file of a work, opened in the project window as a preview: only a file of the open project
-  // that main has (the window shows main's checkout, which it can only point at).
+  // A file of a work, opened in the project window as a preview: only a file that main has (the
+  // window shows main's checkout, which it can only point at).
   const inOpenProject = useCallback(
     (work: Work, path: string): string | undefined =>
-      work.folder === undefined || work.projectId !== projectId
-        ? undefined
-        : projectPath(work.folder, path),
-    [projectId],
+      work.folder === undefined ? undefined : projectPath(work.folder, path),
+    [],
   )
   const canOpenWorkFile = useCallback(
     (work: Work, path: string): boolean => inOpenProject(work, path) !== undefined,
@@ -273,11 +271,10 @@ export const SidebarSection = memo((): React.JSX.Element => {
     () =>
       worksFeed
         ? {
-            works: allWorks,
+            works: projectWorks,
             reported: worksReported,
             watch: worksFeed.watch,
             titles,
-            projects: projectNames,
             selectedId,
             onSelect: showWork,
             canOpenFile: canOpenWorkFile,
@@ -287,10 +284,9 @@ export const SidebarSection = memo((): React.JSX.Element => {
         : undefined,
     [
       worksFeed,
-      allWorks,
+      projectWorks,
       worksReported,
       titles,
-      projectNames,
       selectedId,
       showWork,
       canOpenWorkFile,

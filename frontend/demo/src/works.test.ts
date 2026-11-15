@@ -172,7 +172,7 @@ describe("the demo's works", () => {
 
   it("counts a worktree as made when it is made, not when it changes or closes", async () => {
     const works = createDemoWorks([])
-    const made = () => works.made.getSnapshot()
+    const made = () => works.made.getSnapshot().get(at.projectId) ?? 0
     works.gain(at, 10)
     expect(made()).toBe(1)
     works.gain(at, 5)

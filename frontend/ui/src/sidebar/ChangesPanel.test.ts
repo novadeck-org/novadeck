@@ -62,10 +62,8 @@ const show = (
     // The titles of terminals still open; every owner's by default.
     open?: readonly string[]
     selectedId?: string
-    // The projects' names by id; the one project of the works' by default.
-    projects?: ReadonlyMap<string, string>
-    // The open project, whose files open as previews; the one project of the works' by default.
-    openProject?: string
+    // Whether a work's files open as previews (main has them); they do by default.
+    canOpen?: boolean
     // Whether the backend has reported the works yet; it has by default.
     reported?: boolean
   } = {},
@@ -89,13 +87,12 @@ const show = (
             : [],
         ),
       ),
-      projects: options.projects ?? new Map([["p", "Storefront"]]),
       selectedId: options.selectedId,
       active: true,
       watching: true,
       onClose: () => {},
       onSelect,
-      canOpenFile: (each: Work) => each.projectId === (options.openProject ?? "p"),
+      canOpenFile: () => options.canOpen ?? true,
       onOpenFile,
       onCloseWork,
     }),
@@ -181,8 +178,8 @@ describe("the Changes panel's rows", () => {
     expect(row("b").dataset.merged).toBe("true")
   })
 
-  it("offers no preview of the files of another project's work", () => {
-    const { row } = show([work("a")], { openProject: "elsewhere" })
+  it("offers no preview of files it can't open", () => {
+    const { row } = show([work("a")], { canOpen: false })
     expect(row("a").querySelector(".changes-file-open")).toBeNull()
   })
 
@@ -292,33 +289,6 @@ describe("a merged work's row", () => {
     expect(row("c").dataset.conflict).toBeUndefined()
     expect(label(page)).toContain("merged")
     expect(label(page)).not.toContain("conflicts with main")
-  })
-})
-
-describe("the projects of the rows", () => {
-  const projects = new Map([
-    ["p", "Storefront"],
-    ["q", "Api"],
-  ])
-
-  it("names each row's project beside its branch where the panel lists several", () => {
-    const { row } = show([work("a"), work("b", { projectId: "q" })], { projects })
-    expect(row("a").querySelector(".changes-project")?.textContent).toBe("Storefront")
-    expect(row("b").querySelector(".changes-project")?.textContent).toBe("Api")
-  })
-
-  it("names none while the panel lists one project", () => {
-    const { row } = show([work("a")])
-    expect(row("a").querySelector(".changes-project")).toBeNull()
-  })
-
-  it("shows another project's work on its owner's bar", () => {
-    const { row, onSelect } = show([work("a"), work("b", { projectId: "q" })], { projects })
-    act(() => row("b").querySelector<HTMLButtonElement>(".sidebar-item-select")!.click())
-    expect(onSelect).toHaveBeenCalledWith(
-      expect.objectContaining({ root: "/w/b", projectId: "q" }),
-      "t-b",
-    )
   })
 })
 

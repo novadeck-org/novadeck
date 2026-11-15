@@ -124,19 +124,10 @@ const busyTip = "Its agent is working in this worktree. Close it once the turn e
 const closeTip = (row: ChangeRow): string =>
   row.close === "busy" ? busyTip : `Close the ${row.branch} worktree`
 
-// The row's project (where the panel lists more than one) and branch, on its detail line.
+// The row's branch, on its detail line.
 const BranchLine = ({ row }: { row: ChangeRow }): React.JSX.Element => (
   <>
     <span aria-hidden className="terminal-glyph inline-block w-[1ch] shrink-0 text-center" />
-    {row.project !== undefined && (
-      <>
-        <span className="changes-project min-w-0 max-w-[45%] shrink-0 truncate" title={row.project}>
-          {row.project}
-        </span>
-        {/* Outside the name, so a cut name keeps it. */}
-        <span className="changes-sep shrink-0">·</span>
-      </>
-    )}
     <span className="changes-branch min-w-0 truncate" title={row.branch}>
       {row.branch}
     </span>
@@ -201,7 +192,6 @@ const ChangeItem = ({
   const label = [
     row.title,
     row.branch,
-    row.project === undefined ? undefined : `in ${row.project}`,
     files,
     linesWords(work),
     row.conflictWords?.replace(/^C/, "c"),
@@ -306,9 +296,9 @@ const closeBar = ({ row }: Asking): React.JSX.Element => (
   </SubjectBar>
 )
 
-// The sidebar's Changes panel: every project's works, each a git worktree Novadeck tracks,
+// The sidebar's Changes panel: the open project's works, each a git worktree Novadeck tracks,
 // against main, drawn as the Terminals panel's tabs and named by the terminal that owns it (or
-// "No owner"), with its project where there are several. First come, first served. A merged
+// "No owner"). First come, first served. A merged
 // work (its changes already in main) has a green merge icon, which wins over a conflict; a
 // conflicting one a red icon. A click
 // shows the work on its owner's bar. The × asks the runner to close the worktree, which says what it holds when the
@@ -318,7 +308,6 @@ export const ChangesPanel = ({
   reported,
   watch,
   titles,
-  projects,
   selectedId,
   active,
   watching,
@@ -328,6 +317,7 @@ export const ChangesPanel = ({
   onOpenFile,
   onCloseWork,
 }: {
+  // The open project's works.
   works: readonly Work[]
   // The backend has reported every work at least once. Until then the panel lists what it has
   // and says neither how many nor that there are none: an empty list may only be unread.
@@ -336,8 +326,6 @@ export const ChangesPanel = ({
   watch: () => () => void
   // Each terminal's title, by id, in every project.
   titles: ReadonlyMap<string, string>
-  // Each project's name, by id.
-  projects: ReadonlyMap<string, string>
   // The selected terminal, where a work with no owner is shown.
   selectedId: string | undefined
   active: boolean
@@ -347,7 +335,7 @@ export const ChangesPanel = ({
   // Shows a work on the bar of the terminal named (its owner, or where it has none, or its
   // owner is closed, the selected one); rejects with why it can't.
   onSelect: (work: Work, on: string | undefined) => Promise<void>
-  // Whether a file of a work can be opened so: it is in the open project.
+  // Whether a file of a work can be opened so: main has it.
   canOpenFile: (work: Work, path: string) => boolean
   // Opens a file of a work in the project window, as a preview of what the works merge to.
   onOpenFile: (work: Work, path: string) => void
@@ -360,7 +348,7 @@ export const ChangesPanel = ({
   const [asking, setAsking] = useState<Asking | null>(null)
   const [refusal, setRefusal] = useState<{ title: string; text: string } | null>(null)
   useEffect(() => (watching ? watch() : undefined), [watching, watch])
-  const rows = useMemo(() => changeRows(works, titles, projects), [works, titles, projects])
+  const rows = useMemo(() => changeRows(works, titles), [works, titles])
   const selected = selectedRoot(works, selectedId, last)
   // Asks the runner to close the worktree. Unforced, it may answer with what the worktree holds,
   // which the person confirms before it is asked again with force: nothing is forced unasked.
@@ -418,8 +406,8 @@ export const ChangesPanel = ({
           <div className="changes-empty">
             <h3 className="text-body">No worktrees</h3>
             <p className="text-control">
-              When an agent opens or takes a git worktree, it shows up here with its branch, and you
-              can close it.
+              When an agent opens or takes a git worktree in this project, it shows up here with its
+              branch, and you can close it.
             </p>
           </div>
         )

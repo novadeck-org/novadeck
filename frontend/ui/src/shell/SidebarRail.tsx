@@ -93,6 +93,10 @@ const modifiers = [
   }),
 ]
 
+// How many worktrees were made in a project, and which: the open one.
+export type WorksMadeIn = { readonly count: number; readonly projectId: string }
+const noneMadeIn: WorksMadeIn = { count: 0, projectId: "" }
+
 // The rail's toggles for the sidebar's panels, in the order the person left them: dragged
 // along the rail, or with Alt and the up and down arrows, a toggle moves among the others,
 // and `onOrder` tells the new order, which is the caller's to keep.
@@ -106,7 +110,7 @@ export const SidebarRail = ({
   bellRings,
   historyDrops = 0,
   lastDrop,
-  worksMade = 0,
+  worksMade,
   sessionsAsk,
   hasSource = false,
   hasHistory = false,
@@ -128,8 +132,9 @@ export const SidebarRail = ({
   // and, in words, the one that landed last, which its tooltip names for a while.
   historyDrops?: number
   lastDrop?: string | undefined
-  // How many worktrees the backend began tracking, which the Changes toggle's dot flares for.
-  worksMade?: number
+  // How many worktrees the backend began tracking in the open project, which the Changes
+  // toggle's dot flares for; another project's count is not news, so a switch flares nothing.
+  worksMade?: WorksMadeIn
   // What the sessions other than the open one ask of the person, in words, while any does: the
   // Sessions toggle's dot, name and tooltip.
   sessionsAsk?: string | undefined
@@ -198,7 +203,7 @@ export const SidebarRail = ({
             badge={id === "inbox" ? badge : undefined}
             bellRings={bellRings}
             drops={id === "history" ? { count: historyDrops, last: lastDrop } : undefined}
-            flares={id === "changes" ? worksMade : undefined}
+            flares={id === "changes" ? (worksMade ?? noneMadeIn) : undefined}
             sessionsAsk={id === "sessions" ? sessionsAsk : undefined}
             dragging={dragging}
             focusRequest={focusRequest}
@@ -245,8 +250,9 @@ const RailToggle = ({
   bellRings: number
   // On the History toggle, how many closed terminals landed there and the last one, in words.
   drops: { count: number; last: string | undefined } | undefined
-  // On the Changes toggle, how many worktrees were made, which its dot flares for.
-  flares: number | undefined
+  // On the Changes toggle, how many worktrees were made in the open project, which its dot
+  // flares for.
+  flares: WorksMadeIn | undefined
   // What the other sessions ask of the person, on the Sessions toggle.
   sessionsAsk: string | undefined
   // Some toggle is being dragged, which leaves no tooltip open.
@@ -318,7 +324,8 @@ const RailToggle = ({
       {badge && <BellDot rings={bellRings} />}
       {sessionsAsk && <BellDot rings={0} />}
       {drops && !open && <FlareDot drops={drops.count} />}
-      {flares !== undefined && !open && <FlareDot drops={flares} />}
+      {/* A dot of its own for each project, so the count it finds at a switch is old news. */}
+      {flares !== undefined && !open && <FlareDot key={flares.projectId} drops={flares.count} />}
     </ToggleGroupItem>
   )
 }

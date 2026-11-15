@@ -2,8 +2,7 @@
    `.terminal-tab` of tabs.css, so its size, name line, detail line and the unfold of its rows
    are the tab's own), and this adds what differs. Parts: `.changes-row`, `.changes-size` (the
    work's `+N −N`, in the tab's item marks' place), `.changes-file` (a file's name, wherever it is),
-   `.changes-project`, `.changes-sep` and `.changes-branch` (the row's project, where there are
-   several, the dot after it, and branch), `.changes-refusal`, `.changes-kept`,
+   `.changes-branch` (the row's branch), `.changes-refusal`, `.changes-kept`,
    `.changes-branches` and `.changes-trail` (a file's lines, right-aligned in its row),
    `.changes-empty`, `.changes-pr` (the work's pull request: "#812" after its state's glyph, a
    link to its page, data-state its state, at the end of the row's detail line beside the ×).
@@ -107,9 +106,7 @@ a.changes-pr:focus-visible {
   text-decoration: underline;
 }
 
-/* The detail line holds the project and branch, which stay while the files unfold under it. */
-.changes-project,
-.changes-sep,
+/* The detail line holds the branch, which stays while the files unfold under it. */
 .changes-branch {
   color: var(--color-muted);
 }

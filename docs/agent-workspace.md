@@ -509,8 +509,9 @@ with every safety check again at that time:
   worktree is too). It is
   measured as before: the working tree against main by an in-memory `merge-tree`, with what is unread
   and what conflicts with main or another work (named by root, and its owner if it has one). A row
-  shows the owner terminal's title, or "No owner", the branch and, with several projects, the project;
-  the panel lists every project's worktrees, and a click switches to the owner's project and
+  shows the owner terminal's title, or "No owner", and the branch; the panel lists only the open
+  project's worktrees (the runner reports every project's, and the UI keeps those whose
+  `projectId` is the open project's), and a click
   shows the work as a changes item on the owner's bar (a work with no owner, on the selected terminal's:
   `works.show({ root, terminalId })`). `working` says the owner's agent is mid-turn in this very
   worktree (its activity is working, or a shell command runs, and its current checkout is the
@@ -541,10 +542,11 @@ with every safety check again at that time:
   runner removes by itself drop out of the list like one the person closed.
 
   The Changes toggle flares the History toggle's dot and ring once for every worktree the runner
-  starts tracking (an agent's `open_worktree`, or `take_worktree` adopting one; not a worktree
-  changing hands). The panel's feed is followed only while it shows, so a separate stream,
+  starts tracking in the open project (an agent's `open_worktree`, or `take_worktree` adopting one;
+  not a worktree changing hands); a switch to another project flares nothing for the worktrees
+  made there before. The panel's feed is followed only while it shows, so a separate stream,
   `works.made`, carries one event per new worktree for the backend's whole life, without
-  replaying any and without reading git; the adapter counts them (`Works.made`).
+  replaying any and without reading git; the adapter counts them by project (`Works.made`).
 
   The files the person read are kept in the same memory file (`works.json`), each by its object
   as the change listed it (all zeros for a file deleted): `companions.changeRead` marks one,

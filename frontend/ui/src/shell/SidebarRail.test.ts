@@ -109,7 +109,7 @@ describe("the rail's History dot", () => {
 })
 
 describe("the rail's Changes dot", () => {
-  const changesRail = (worksMade: number, open = false, mobile = false) =>
+  const changesRail = (count: number, open = false, mobile = false, projectId = "p") =>
     createElement(SidebarRail, {
       mobile,
       sidebarVisible: open,
@@ -119,7 +119,7 @@ describe("the rail's Changes dot", () => {
       bellRings: 0,
       hasChanges: true,
       hasHistory: true,
-      worksMade,
+      worksMade: { count, projectId },
       toggleSidebar: () => {},
     })
 
@@ -137,6 +137,18 @@ describe("the rail's Changes dot", () => {
     expect(dot()).toBeNull()
     rerender(changesRail(6))
     expect(dot()).toBeNull()
+  })
+
+  it("flares for nothing at a switch to a project that made worktrees, then for its next", () => {
+    const { container, rerender, unmount } = render(changesRail(1))
+    unmounts.push(unmount)
+    const dot = () => container.querySelector("#changes-toggle .flare-dot")
+    rerender(changesRail(4, false, false, "q"))
+    expect(dot()).toBeNull()
+    rerender(changesRail(1))
+    expect(dot()).toBeNull()
+    rerender(changesRail(2))
+    expect(dot()).not.toBeNull()
   })
 
   it("flares afresh for a worktree made while another plays, on the phone's rail too", () => {

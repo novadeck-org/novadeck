@@ -1,8 +1,8 @@
 import type { PullRequest } from "@novadeck/core/forges"
 import type { Work, WorkFile } from "@novadeck/core/works"
 
-// The Changes panel's rows, from every project's works (one per tracked worktree, keyed by its
-// root): which come first, what each row says and which files it lists. The component only
+// The Changes panel's rows, from the open project's works (one per tracked worktree, keyed by
+// its root): which come first, what each row says and which files it lists. The component only
 // draws them.
 
 // How many rows the selected work unfolds under its line before the last counts the rest.
@@ -52,8 +52,6 @@ export type ChangeRow = {
   readonly work: Work
   // The owner terminal's title, or "No owner".
   readonly title: string
-  // The name of the project the work belongs to, where the panel lists more than one.
-  readonly project: string | undefined
   // The branch, or "detached".
   readonly branch: string
   readonly close: CloseMode
@@ -111,7 +109,7 @@ export const branchViews = (
   return rows
 }
 
-// Whether the owner is a terminal still open (in any project), which has a bar to show a work on.
+// Whether the owner is a terminal still open, which has a bar to show a work on.
 export const ownerOpen = (
   terminalId: string | null,
   titles: ReadonlyMap<string, string>,
@@ -183,7 +181,6 @@ export const orderedWorks = (works: readonly Work[]): readonly Work[] =>
 export const changeRows = (
   works: readonly Work[],
   titles: ReadonlyMap<string, string>,
-  projects: ReadonlyMap<string, string> = new Map(),
   now = Date.now(),
 ): readonly ChangeRow[] =>
   orderedWorks(works).map((work) => {
@@ -192,7 +189,6 @@ export const changeRows = (
     return {
       work,
       title: ownerTitle(work.terminalId, titles),
-      project: projects.size > 1 ? projects.get(work.projectId) : undefined,
       branch: work.branch ?? "detached",
       close: closeMode(work),
       conflict: words !== undefined,

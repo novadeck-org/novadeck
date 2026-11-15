@@ -306,9 +306,9 @@ Terminals:
   "No owner" (click it to show it on the selected terminal's bar). Owner working in it and Owner
   done dim and restore the × (hover it for why). Worktrees not read yet empties the panel for 3 s,
   with no count and no empty state, as before the runner first reports the worktrees. Refuse the
-  next close shows the refusal above the list. Close every worktree closes the selected project's, leaving other projects' rows; with Agent
-  worktrees off in Preferences > Experimental (the demo starts with it off) the empty state, once
-  every project's are gone, points there. New worktree adds another clean worktree to the selected
+  next close shows the refusal above the list. Close every worktree closes the selected project's (Changes lists only the open project's, so
+  switching projects shows the others' still there); with Agent worktrees off in Preferences >
+  Experimental (the demo starts with it off) the empty state points there. New worktree adds another clean worktree to the selected
   terminal's, and the Changes toggle in the rail flares the History toggle's dot and ring for a
   moment (close Changes first: it shows nothing while Changes is open); any first change that makes a
   terminal's worktree flares it too. "Every state in Changes"

@@ -3,13 +3,15 @@ import type { Backend, TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import { createStore, type Store } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
-import type {
-  Work,
-  WorkConflict,
-  WorkFile,
-  Works,
-  WorkPreview,
-  WorksState,
+import {
+  madeOne,
+  type Work,
+  type WorkConflict,
+  type WorkFile,
+  type Works,
+  type WorksMade,
+  type WorkPreview,
+  type WorksState,
 } from "@novadeck/core/works"
 
 import type { DemoTurns } from "./agents/turns"
@@ -372,7 +374,7 @@ export type DemoWorksControl = {
   readonly worksOf: (projectId: string) => readonly Work[]
 }
 
-export type DemoWorks = Works & DemoWorksControl & { readonly made: Store<number> }
+export type DemoWorks = Works & DemoWorksControl & { readonly made: Store<WorksMade> }
 
 export const isDemoWorks = (works: Backend["works"]): works is DemoWorks =>
   works !== undefined && "conflictBetween" in works && "gain" in works && "spread" in works
@@ -413,8 +415,9 @@ export const createDemoWorks = (
 ): DemoWorks => {
   const { now = Date.now, show, preview, mark } = options
   const state = createStore<WorksState>({ works: initial, synced: true, reported: true })
-  // How many worktrees were made since the demo began, which the Changes toggle flares for.
-  const made = createStore(0)
+  // How many worktrees were made since the demo began, by project, which the Changes toggle
+  // flares for while their project is open.
+  const made = createStore<WorksMade>(new Map())
   // How many extra worktrees the debug panel made, to name each one apart.
   let extras = 0
   let refuse = false
@@ -453,7 +456,7 @@ export const createDemoWorks = (
       conflicts: [],
     }
     state.update((current) => ({ ...current, works: [...current.works, fresh] }))
-    made.update((count) => count + 1)
+    made.update((counts) => madeOne(counts, at.projectId))
     return fresh
   }
   const touchFile = (

@@ -121,10 +121,10 @@ describe("the debug panel's Changes group", () => {
 
   it("makes another worktree each time, counting each as made", () => {
     const { run, works } = setup([])
-    expect(works.made.getSnapshot()).toBe(0)
+    expect(works.made.getSnapshot().size).toBe(0)
     run("New worktree", 1)
     run("New worktree", 1)
-    expect(works.made.getSnapshot()).toBe(2)
+    expect([...works.made.getSnapshot().values()]).toEqual([2])
     const roots = works.state.getSnapshot().works.map((each) => each.root)
     expect(new Set(roots).size).toBe(2)
     for (const each of works.state.getSnapshot().works)

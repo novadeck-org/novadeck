@@ -182,7 +182,7 @@ export const worksGroups = (works: Backend["works"]): readonly DemoActionGroup[]
             },
             {
               label: "Close every worktree",
-              hint: "Open Changes: the project's rows go, those of other projects stay; with every project's gone the list is empty, saying when an agent opens a worktree it shows up here",
+              hint: "Open Changes: the project's rows go and the list is empty, saying when an agent opens a worktree in this project it shows up here; other projects keep theirs",
               run: ({ selected }) => {
                 const key = selected()
                 if (key) works.removeAll(key.projectId)

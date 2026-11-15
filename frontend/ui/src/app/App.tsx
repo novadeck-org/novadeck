@@ -2,9 +2,11 @@ import { allTeams, leadChain, litTeams, sameLitTeams, sameTeams } from "@novadec
 import type { Backend, BackendSelection, CreateBackend, TerminalKey } from "@novadeck/core/port"
 import { activeProject } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
+import type { WorksMade } from "@novadeck/core/works"
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -205,8 +207,7 @@ const TeamWireSection = ({
 }
 
 // What a backend without worktrees made: none.
-const noneMade = createStore(0)
-const countOf = (count: number): number => count
+const noneMade = createStore<WorksMade>(new Map())
 
 // The rail and the Zen dock read the bell's badge and rings themselves, so an unread change that
 // leaves them as they were re-renders neither them nor the app around them.
@@ -220,6 +221,10 @@ const RailWithBadge = (
   const marks = useSessionMarks()
   const lastDrop = useUiState((state) => state.lastDrop)
   const openId = useWorkspaceState((workspace) => activeProject(workspace)!.activeSessionId)
+  const projectId = useWorkspaceState((workspace) => workspace.activeProjectId)
+  const madeIn = useCallback((counts: WorksMade) => counts.get(projectId) ?? 0, [projectId])
+  const made = useStoreSelector(backend.works?.made ?? noneMade, madeIn)
+  const worksMade = useMemo(() => ({ count: made, projectId }), [made, projectId])
   return (
     <SidebarRail
       {...props}
@@ -228,7 +233,7 @@ const RailWithBadge = (
       historyDrops={useUiState((state) => state.historyDrops)}
       lastDrop={lastDrop ? dropWords(lastDrop) : undefined}
       sessionsAsk={elsewhereSessionsText(marks, openId)}
-      worksMade={useStoreSelector(backend.works?.made ?? noneMade, countOf)}
+      worksMade={worksMade}
     />
   )
 }

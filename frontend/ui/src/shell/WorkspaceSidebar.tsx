@@ -60,9 +60,9 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
         onConnect: (agent: AgentName) => void
       }
     | undefined
-  // Where the backend reports each tracked worktree's work against main: every project's works,
-  // the terminals' titles by id and the projects' names, the selected terminal, what a row's
-  // click does and what its × does. Left out, there is no Changes panel.
+  // Where the backend reports each tracked worktree's work against main: the open project's
+  // works, the terminals' titles by id, the selected terminal, what a row's click does and what
+  // its × does. Left out, there is no Changes panel.
   changes:
     | {
         works: readonly Work[]
@@ -71,7 +71,6 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
         // Follows the works until the returned release is called.
         watch: () => () => void
         titles: ReadonlyMap<string, string>
-        projects: ReadonlyMap<string, string>
         selectedId: string | undefined
         onSelect: (work: Work, on: string | undefined) => Promise<void>
         // Whether a file of a work can be opened so: it is in the open project.

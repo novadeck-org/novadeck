@@ -74,20 +74,6 @@ describe("the Changes panel's rows", () => {
     expect(row?.work).toMatchObject({ added: 9, removed: 3 })
   })
 
-  it("names the project of a row only where the panel lists more than one", () => {
-    const rows = changeRows(
-      [work("a", 1, { projectId: "p" }), work("b", 2, { projectId: "q" })],
-      new Map(),
-      new Map([
-        ["p", "Storefront"],
-        ["q", "Api"],
-      ]),
-    )
-    expect(rows.map((row) => row.project)).toEqual(["Storefront", "Api"])
-    const alone = changeRows([work("a", 1)], new Map(), new Map([["p", "Storefront"]]))
-    expect(alone[0]?.project).toBeUndefined()
-  })
-
   it("marks a merged work, which wins over a conflict", () => {
     const rows = changeRows(
       [
@@ -258,7 +244,6 @@ describe("how old main is", () => {
   it("is on the row of a work fetched, and not on one that never was", () => {
     const rows = changeRows(
       [work("a", 1, { fetchedAt: now - 3 * minute }), work("b", 2)],
-      new Map(),
       new Map(),
       now,
     )

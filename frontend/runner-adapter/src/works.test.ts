@@ -1,3 +1,4 @@
+import type { WorksMade } from "@novadeck/core/works"
 import type { Work, WorkClosing, WorkMade, WorkPreview } from "@novadeck/protocol"
 import type { WorkWatchItem } from "@novadeck/runner-client"
 import { WireError } from "@novadeck/wire"
@@ -324,9 +325,9 @@ describe("looking at and showing a work", () => {
 })
 
 describe("Worktrees made, as the runner reports them", () => {
-  const newOne = (n: number): WorkMade => ({ root: root(n), projectId: "p" })
-  const count = (works: { made?: { getSnapshot: () => number } | undefined }) =>
-    works.made!.getSnapshot()
+  const newOne = (n: number, projectId = "p"): WorkMade => ({ root: root(n), projectId })
+  const count = (works: { made?: { getSnapshot: () => WorksMade } | undefined }, projectId = "p") =>
+    works.made!.getSnapshot().get(projectId) ?? 0
 
   it("counts each one, whether or not the works are watched", async () => {
     const { works, made, release } = followed()
@@ -336,6 +337,16 @@ describe("Worktrees made, as the runner reports them", () => {
     made.push(newOne(2))
     await vi.waitFor(() => expect(count(works)).toBe(2))
     expect(works.state.getSnapshot().works).toEqual([])
+  })
+
+  it("counts them by project", async () => {
+    const { works, made } = followed()
+    made.push(newOne(1))
+    made.push(newOne(2, "q"))
+    made.push(newOne(3, "q"))
+    await vi.waitFor(() => expect(count(works, "q")).toBe(2))
+    expect(count(works, "p")).toBe(1)
+    expect(count(works, "r")).toBe(0)
   })
 
   it("lets go of the stream for good with the backend", () => {
