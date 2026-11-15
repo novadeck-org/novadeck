@@ -2,8 +2,8 @@ import type { DemoInstalls } from "@novadeck/demo/agents/installs"
 
 import type { DemoActionGroup, DemoStates } from "./types"
 
-// Installing an agent from the welcome dialog: its Install button, the installer running in
-// a terminal of its own, and one that fails.
+// Installing an agent from the welcome dialog or Preferences: its Install button, the installer
+// running in a terminal of its own, and one that fails.
 export const installGroups = (
   installs: DemoInstalls,
   states: Pick<DemoStates, "openWelcomeBare">,
@@ -14,7 +14,7 @@ export const installGroups = (
     actions: [
       {
         label: "Nothing installed",
-        hint: "Welcome dialog, Claude Code, Codex and Antigravity each with Install and its command",
+        hint: "Welcome dialog, Claude Code, Codex and Antigravity each with Install and its command; Preferences' Agents offer the same",
         run: () => {
           installs.reset()
           states.openWelcomeBare()

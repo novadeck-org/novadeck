@@ -148,7 +148,7 @@ describe("An agent that is not installed, in Preferences", () => {
     await expectSelected("Install Antigravity")
     await openPreferences()
     const installing = preferencesDialog().getByRole("button", { name: "Installing Antigravity" })
-    await expect.element(installing).toBeDisabled()
+    await expect.element(installing).toHaveAttribute("aria-disabled", "true")
     await expect.element(installing).toHaveTextContent("Installing…")
   })
 })

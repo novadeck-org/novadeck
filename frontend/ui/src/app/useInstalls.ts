@@ -75,6 +75,10 @@ export const useInstalls = (
   const terminals = useWorkspaceState((state) => terminalsOf(state, ids), sameTerminals)
   // Installs whose end is being dealt with, so a later render does not deal with one twice.
   const ending = useRef(new Set<string>())
+  // The agents of those, which still read as installing until they are connected: their
+  // installer is done, but the look that finds them may take a while.
+  const [connecting] = useState(() => createStore<ReadonlySet<AgentName>>(new Set()))
+  const settling = useSyncExternalStore(connecting.subscribe, connecting.getSnapshot)
 
   const start = useCallback(
     (agent: AgentName, command: string) => {
@@ -100,16 +104,27 @@ export const useInstalls = (
       if (result.step === "gone" || !terminal || !agents || ending.current.has(install.terminalId))
         continue
       ending.current.add(install.terminalId)
+      connecting.update((agentsNow) => new Set(agentsNow).add(install.agent))
       void connectInstalled(agents, install.agent)
         .then((outcome) => {
           if (outcome !== "ready") return
           startInstalled(commands, install, terminal.directory)
         })
-        .finally(() => ending.current.delete(install.terminalId))
+        .finally(() => {
+          ending.current.delete(install.terminalId)
+          connecting.update((agentsNow) => {
+            const left = new Set(agentsNow)
+            left.delete(install.agent)
+            return left
+          })
+        })
     }
     if (changed) installs.update(() => next)
-  }, [pending, terminals, agents, commands, installs])
+  }, [pending, terminals, agents, commands, installs, connecting])
 
-  const installing = useMemo(() => new Set(pending.map((install) => install.agent)), [pending])
+  const installing = useMemo(
+    () => new Set([...pending.map((install) => install.agent), ...settling]),
+    [pending, settling],
+  )
   return useMemo(() => ({ install: start, installing }), [start, installing])
 }

@@ -112,14 +112,14 @@ const InstallRow = ({
   readonly onInstall: () => void
 }): React.JSX.Element => (
   <li className={settingRowClasses}>
-    <div className="flex min-w-0 flex-col gap-1">
+    {/* It takes the row's width, so the command shows as much as fits. */}
+    <div className="flex min-w-0 flex-1 flex-col gap-1">
       <span id={`agent-${agent}`}>{label}</span>
       <span id={`agent-${agent}-note`} className="settings-note text-control leading-5">
         {running ? "Installing in a terminal of its own." : "Not installed. Install runs"}
-        {/* A long one is cut to the row; the title and the description reading it out
-          hold all of it. */}
+        {/* Whole, wrapping where it must, so nothing it will do is hidden. */}
         {!running && (
-          <code className="settings-installer mt-0.5 block truncate" title={command}>
+          <code className="settings-installer mt-0.5 block [overflow-wrap:anywhere]">
             {command}
           </code>
         )}
@@ -132,9 +132,12 @@ const InstallRow = ({
       aria-describedby={`agent-${agent}-note`}
       // Focused from a row that needs this agent, as a switch is.
       data-agent-install
-      disabled={running}
+      // Still focusable while its installer runs, as a pending switch is, and announced so.
+      aria-disabled={running || undefined}
       aria-busy={running || undefined}
-      onClick={onInstall}
+      onClick={() => {
+        if (!running) onInstall()
+      }}
     >
       {running ? "Installing…" : "Install"}
     </button>

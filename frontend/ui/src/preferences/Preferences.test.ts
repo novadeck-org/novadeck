@@ -276,7 +276,9 @@ describe("an agent that is not installed, in Preferences", () => {
     })
 
     expect(install()?.textContent).toBe("Installing…")
-    expect(install()?.disabled).toBe(true)
+    // Still in the tab order, as a pending switch is.
+    expect(install()?.getAttribute("aria-disabled")).toBe("true")
+    expect(install()?.disabled).toBe(false)
     install()?.click()
     expect(asked).toBe(0)
   })

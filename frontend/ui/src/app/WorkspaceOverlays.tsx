@@ -446,8 +446,10 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
                 agents: {
                   list: agents.list,
                   onChange: backend.agents.set,
-                  // Preferences closes, for the person to watch the installer in its terminal.
+                  // Preferences closes, for the person to watch the installer in its terminal;
+                  // pressed as it is already closing, the install starts at once.
                   onInstall: (agent: AgentName, command: string) => {
+                    if (!settings) return install(agent, command)
                     queuedInstall.current = { agent, command }
                     closeDialog()
                   },
