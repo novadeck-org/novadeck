@@ -1,6 +1,7 @@
 import { page } from "vitest/browser"
 
 import { taskbarIcons } from "../support/companions"
+import { workspaceSwitcher } from "../support/sessions"
 import { expectSelected, openWorkspace, sidebar, sidebarPanel } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
@@ -85,6 +86,21 @@ describe("The Changes panel", () => {
         "Tests, agent/tests, 1 file changed, 47 lines added, 5 removed",
       ])
       await expect.element(list().getByText("api-service")).not.toBeInTheDocument()
+    })
+
+    it("switches its list with the project, while it shows", async () => {
+      await openWorkspace(storefront)
+      await expect.element(page.getByRole("heading", { name: "Changes 7" })).toBeVisible()
+
+      await workspaceSwitcher().click()
+      await page
+        .getByRole("dialog", { name: "Switch workspace" })
+        .getByRole("button", { name: /^api-service / })
+        .click()
+
+      await expect.element(page.getByRole("heading", { name: "Changes 2" })).toBeVisible()
+      await expect.element(row("Tests", "agent/tests")).toBeVisible()
+      await expect.element(row("Build")).not.toBeInTheDocument()
     })
 
     it("marks a work in conflict, and names what it conflicts with", async () => {

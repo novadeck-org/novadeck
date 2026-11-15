@@ -289,12 +289,11 @@ Terminals:
   exited from keep their handles on their tabs; its other plain shells show none. Also a
   burst of 30, a quick failure, a spawn failure and the terminal limit.
 - **Changes:** acts on the selected terminal's first worktree in the Changes panel, which lists the
-  worktrees of every project, naming each row's project beside its branch (every demo seeds a few
-  from its own terminals, in several projects: one in conflict with main, two with each other, one
+  open project's worktrees (every demo seeds a few from its own terminals, in several projects, so
+  switching projects switches the list: one in conflict with main, two with each other, one
   merged; the plain demos' storefront also has one with no owner, one just made and one its owner is
   working in; a demo agent that starts a turn gains lines in the first worktree it owns and holds its
-  × disabled until the turn ends; clicking another project's row switches to that project and
-  selects its owner). New lines make a worktree at a terminal's first change; Many files changed
+  × disabled until the turn ends). New lines make a worktree at a terminal's first change; Many files changed
   gives the unfolded row its "+N more"; the conflict actions turn the icon and the file names red,
   with what it conflicts with on hover; Work merged empties the row (a worktree with no files
   stays, and its × closes it at once) and gives it the green merge icon and "Merged" on hover;
@@ -306,9 +305,9 @@ Terminals:
   "No owner" (click it to show it on the selected terminal's bar). Owner working in it and Owner
   done dim and restore the × (hover it for why). Worktrees not read yet empties the panel for 3 s,
   with no count and no empty state, as before the runner first reports the worktrees. Refuse the
-  next close shows the refusal above the list. Close every worktree closes the selected project's (Changes lists only the open project's, so
-  switching projects shows the others' still there); with Agent worktrees off in Preferences >
-  Experimental (the demo starts with it off) the empty state points there. New worktree adds another clean worktree to the selected
+  next close shows the refusal above the list. Close every worktree closes the selected project's, leaving the list empty with
+  what appears there; other projects keep theirs. The demo starts with Agent worktrees off
+  (Preferences > Experimental), which hides Changes until it is turned on. New worktree adds another clean worktree to the selected
   terminal's, and the Changes toggle in the rail flares the History toggle's dot and ring for a
   moment (close Changes first: it shows nothing while Changes is open); any first change that makes a
   terminal's worktree flares it too. "Every state in Changes"

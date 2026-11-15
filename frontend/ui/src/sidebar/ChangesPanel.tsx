@@ -346,9 +346,22 @@ export const ChangesPanel = ({
   const [last, setLast] = useState<{ root: string; on: string | undefined } | undefined>()
   // What the dialog asks about, and what went wrong last, as one line under a name.
   const [asking, setAsking] = useState<Asking | null>(null)
-  const [refusal, setRefusal] = useState<{ title: string; text: string } | null>(null)
+  const [refusal, setRefusal] = useState<{
+    root: string
+    title: string
+    text: string
+  } | null>(null)
   useEffect(() => (watching ? watch() : undefined), [watching, watch])
   const rows = useMemo(() => changeRows(works, titles), [works, titles])
+  // Both go with their row: once another project is open, or the worktree closed meanwhile,
+  // they would name a row the list no longer has. Settled as the works change, during render.
+  const [seen, setSeen] = useState(works)
+  if (seen !== works) {
+    setSeen(works)
+    const listed = (root: string): boolean => works.some((work) => work.root === root)
+    if (refusal && !listed(refusal.root)) setRefusal(null)
+    if (asking && !listed(asking.row.work.root)) setAsking(null)
+  }
   const selected = selectedRoot(works, selectedId, last)
   // Asks the runner to close the worktree. Unforced, it may answer with what the worktree holds,
   // which the person confirms before it is asked again with force: nothing is forced unasked.
@@ -362,6 +375,7 @@ export const ChangesPanel = ({
         // Closed already (by an agent, meanwhile): nothing is left to close.
         if ((error as { code?: unknown } | null)?.code === "NOT_FOUND") return
         setRefusal({
+          root: row.work.root,
           title: named(row),
           text: `stays: ${error instanceof Error ? error.message : "Novadeck could not close it."}`,
         })
@@ -374,6 +388,7 @@ export const ChangesPanel = ({
     setLast({ root: work.root, on })
     onSelect(work, on).catch((error: unknown) =>
       setRefusal({
+        root: work.root,
         title: named(row),
         text: `can't be shown: ${error instanceof Error ? error.message : "Novadeck could not show it."}`,
       }),

@@ -75,35 +75,37 @@ const show = (
   const onCloseWork = vi.fn<(root: string, force: boolean) => Promise<WorkClosing>>(
     options.close ?? (async () => ({ closed: true, branchDeleted: false })),
   )
-  const page = render(
-    createElement(ChangesPanel, {
-      works,
-      reported: options.reported ?? true,
-      watch: () => () => {},
-      titles: new Map(
-        works.flatMap((each) =>
-          each.terminalId && (options.open ?? [each.terminalId]).includes(each.terminalId)
-            ? [[each.terminalId, `Title ${each.terminalId}`] as const]
-            : [],
-        ),
+  const props = {
+    works,
+    reported: options.reported ?? true,
+    watch: () => () => {},
+    titles: new Map(
+      works.flatMap((each) =>
+        each.terminalId && (options.open ?? [each.terminalId]).includes(each.terminalId)
+          ? [[each.terminalId, `Title ${each.terminalId}`] as const]
+          : [],
       ),
-      selectedId: options.selectedId,
-      active: true,
-      watching: true,
-      onClose: () => {},
-      onSelect,
-      canOpenFile: () => options.canOpen ?? true,
-      onOpenFile,
-      onCloseWork,
-    }),
-  )
+    ),
+    selectedId: options.selectedId,
+    active: true,
+    watching: true,
+    onClose: () => {},
+    onSelect,
+    canOpenFile: () => options.canOpen ?? true,
+    onOpenFile,
+    onCloseWork,
+  }
+  const page = render(createElement(ChangesPanel, props))
   mounted.push(page)
+  // The panel again with other works, as another project's, or after a worktree closed.
+  const listing = (next: readonly Work[]) =>
+    page.rerender(createElement(ChangesPanel, { ...props, works: next }))
   const rows = () => [...page.container.querySelectorAll<HTMLElement>("[data-changes-row]")]
   const row = (name: string) =>
     page.container.querySelector<HTMLElement>(`[data-changes-row="/w/${name}"]`)!
   const cross = (name: string) =>
     row(name).querySelector<HTMLButtonElement>(".sidebar-item-actions button")!
-  return { page, rows, row, cross, onSelect, onOpenFile, onCloseWork }
+  return { page, rows, row, cross, listing, onSelect, onOpenFile, onCloseWork }
 }
 
 const dialog = () => document.querySelector<HTMLElement>("[role=alertdialog]")
@@ -380,6 +382,26 @@ describe("the × on a row", () => {
     expect(alert.textContent).toContain("Novadeck couldn't read git status, so it stays.")
     act(() => alert.querySelector("button")!.click())
     expect(page.container.querySelector("[role=alert]")).toBeNull()
+  })
+
+  it("lets a refusal and a question go with their row, as when another project opens", async () => {
+    const { cross, page, listing } = show([clean("a")], {
+      close: () => Promise.reject(new Error("Novadeck couldn't read git status, so it stays.")),
+    })
+    act(() => cross("a").click())
+    await eventually(() => expect(page.container.querySelector("[role=alert]")).not.toBeNull())
+    listing([work("b", { projectId: "q" })])
+    expect(page.container.querySelector("[role=alert]")).toBeNull()
+    listing([clean("a")])
+    expect(page.container.querySelector("[role=alert]")).toBeNull()
+
+    const asked = show([work("c")], {
+      close: async () => ({ closed: false, holds: "1 commit the main branch doesn't have" }),
+    })
+    act(() => asked.cross("c").click())
+    await eventually(() => expect(dialog()).not.toBeNull())
+    asked.listing([work("d", { projectId: "q" })])
+    await eventually(() => expect(dialog()).toBeNull())
   })
 })
 
