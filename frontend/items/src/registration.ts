@@ -52,10 +52,10 @@ export type ItemRegistration<K extends ItemKind = ItemKind> = {
   // Set when the kind's body reads as a document in a window of its own: the window frames
   // it, as the pane does, under this label.
   readonly windowLabel?: string
-  // Set when the kind's body rests on its own while out of sight, as a page goes to its
-  // picture, and must stay mounted for what it holds live (a page's sign-in windows): a
-  // pane out of sight keeps it built.
-  readonly restsItself?: boolean
+  // Set when a pane out of sight a while keeps the kind's body built rather than letting it
+  // go: a page rests as its picture on its own and may hold a sign-in window open; a plan's
+  // editor, closing, tidies the file (empty notes go), which only the person should cause.
+  readonly staysBuilt?: boolean
 }
 
 // Every kind has its registration, so a kind core adds without one fails to compile here.

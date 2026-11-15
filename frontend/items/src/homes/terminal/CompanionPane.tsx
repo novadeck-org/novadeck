@@ -1,3 +1,4 @@
+import { kindRules } from "@novadeck/core/items"
 import type { WorkspaceTarget } from "@novadeck/core/types"
 import { Shown, useShown } from "@novadeck/toolkit/shown"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
@@ -441,12 +442,23 @@ export const CompanionPane = ({
   first?: boolean
 }): React.JSX.Element => {
   // Its turn, each time it comes into sight; picking another tab while it's in sight
-  // waits for none. Out of sight a while, what it shows goes, except a page, which rests
-  // as its picture on its own and may hold a sign-in open.
+  // waits for none. Out of sight a while, what it shows goes, except a kind that stays
+  // built (a page, a plan).
+  const item = member?.kind === "item" ? member.item : undefined
   const turn = usePaneTurn(
     first,
     member !== undefined && !leaving,
-    !(member?.kind === "item" && registrationOf(member.item).restsItself),
+    !item || !registrationOf(item).staysBuilt,
+  )
+  // While it isn't built, its item is followed all the same, so it shows at once when built
+  // again rather than loading: what it held stays, only its view goes.
+  const followed =
+    item !== undefined && !turn.built && !leaving && kindRules[item.kind].follow !== "always"
+      ? item.id
+      : undefined
+  useEffect(
+    () => (followed === undefined ? undefined : itemStore.watch(target, followed)),
+    [itemStore, target, followed],
   )
   // What it shows is shown once laid out: not while it stands in, as messages aren't
   // seen and a page doesn't wake behind the stand-in.

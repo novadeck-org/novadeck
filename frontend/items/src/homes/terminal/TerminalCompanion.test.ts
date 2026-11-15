@@ -311,6 +311,24 @@ describe("a pane in the workspace", () => {
       expect(built(container)).not.toBeNull()
     })
 
+    it("keeps following what it held, so it shows at once when built again", () => {
+      const { turns, step } = stepped()
+      let following = 0
+      const companions: Companions = {
+        ...emptyCompanions(),
+        follow: () => {
+          following += 1
+          return () => void (following -= 1)
+        },
+      }
+      const { onScreen } = renderTerminal(opened(hero.id, hero), undefined, companions, { turns })
+      step()
+      onScreen(false)
+      // Past its rest, and long past the while the store keeps what nothing shows.
+      act(() => vi.advanceTimersByTime(restMs * 3))
+      expect(following).toBe(1)
+    })
+
     it("keeps a page, which rests as its picture on its own", () => {
       const { turns, step } = stepped()
       const { container, onScreen } = renderTerminal(

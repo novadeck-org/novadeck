@@ -13,5 +13,5 @@ export const page = {
   look: artifactLook,
   Thumb: artifactThumb("page", PageThumb),
   View: artifactView("page", PageViewer),
-  restsItself: true,
+  staysBuilt: true,
 } satisfies ItemRegistration<"page">

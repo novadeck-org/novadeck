@@ -24,4 +24,5 @@ export const plan = {
   View: PlanTab,
   // In a window of its own it reads inside the same frame as in the pane.
   windowLabel: "Plan",
+  staysBuilt: true,
 } satisfies ItemRegistration<"plan">

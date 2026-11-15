@@ -23,8 +23,6 @@ const party = (handle: string): MessageParty =>
     : { kind: "agent", terminalId: ids[handle]!, handle, agent: null }
 
 let sequence = 0
-// Each handle's terminal, counted.
-let terminals = 0
 const message = (
   from: string,
   to: string,
@@ -70,14 +68,19 @@ const mount = (
     paused = false,
     seenAt = 0,
     shown = true,
-    terminal = `project/initial/${++terminals}`,
-  }: { paused?: boolean; seenAt?: number; shown?: boolean; terminal?: string } = {},
+    kept = { open: null },
+  }: {
+    paused?: boolean
+    seenAt?: number
+    shown?: boolean
+    // Where the terminal's messages were left, as the session keeps it.
+    kept?: { open: string | null }
+  } = {},
 ) => {
   const did = { goTo: [] as string[], answer: [] as string[], seen: [] as [string, number][] }
   const handle: MessagesHandle = {
-    // A terminal of its own each time unless given, so no conversation one test opened
-    // stays open.
-    terminal,
+    lastOpen: () => kept.open,
+    keepOpen: (conversation) => void (kept.open = conversation),
     threads: { terminalId: "01", handle: "moth", agent: true, threads },
     paused,
     pending: false,
@@ -191,14 +194,34 @@ describe("an open conversation", () => {
     })
 
     it("opens where it was left once built again, as after its pane let it go", () => {
-      const first = mount(threads, { terminal: "project/initial/kept" })
+      const kept = { open: null }
+      const first = mount(threads, { kept })
       first.open("03")
       first.view.unmount()
-      const again = mount(threads, { terminal: "project/initial/kept" })
+      const again = mount(threads, { kept })
       expect(again.$(".message-chat-name")?.textContent).toBe("Tests@owl")
       act(() => again.$(".message-back")!.click())
       again.view.unmount()
-      expect(mount(threads, { terminal: "project/initial/kept" }).rows()).toHaveLength(1)
+      expect(mount(threads, { kept }).rows()).toHaveLength(1)
+    })
+
+    it("takes focus to its Back only when the person opens it, not when built again", () => {
+      const kept = { open: null }
+      const first = mount(threads, { kept })
+      first.open("03")
+      expect(document.activeElement).toBe(first.$(".message-back"))
+      first.view.unmount()
+      const input = document.body.appendChild(document.createElement("input"))
+      input.focus()
+      mount(threads, { kept })
+      expect(document.activeElement).toBe(input)
+      input.remove()
+    })
+
+    it("forgets one left open that's gone from the list", () => {
+      const kept = { open: "09" as string | null }
+      mount(threads, { kept })
+      expect(kept.open).toBeNull()
     })
 
     it("goes to the other agent's terminal, and back to the list onto its row", () => {
