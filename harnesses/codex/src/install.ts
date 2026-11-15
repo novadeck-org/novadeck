@@ -1,4 +1,4 @@
-import { join, win32 } from "node:path"
+import { posix, win32 } from "node:path"
 
 import type { Harness } from "@novadeck/harness-core/harness"
 import { scriptInstaller } from "@novadeck/harness-core/installer"
@@ -18,7 +18,8 @@ export const installer: Harness["installer"] = (platform) =>
  */
 export const fallbacks: NonNullable<Harness["fallbacks"]> = ({ env, home, platform }) => {
   const custom = env.CODEX_INSTALL_DIR
-  if (platform !== "win32") return [join(custom || join(home, ".local", "bin"), "codex")]
+  if (platform !== "win32")
+    return [posix.join(custom || posix.join(home, ".local", "bin"), "codex")]
   const local = env.LOCALAPPDATA || win32.join(home, "AppData", "Local")
   return [
     win32.join(custom || win32.join(local, "Programs", "OpenAI", "Codex", "bin"), "codex.exe"),

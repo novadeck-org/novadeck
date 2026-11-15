@@ -1,4 +1,4 @@
-import { join, win32 } from "node:path"
+import { posix, win32 } from "node:path"
 
 import type { Harness } from "@novadeck/harness-core/harness"
 import { scriptInstaller } from "@novadeck/harness-core/installer"
@@ -25,4 +25,4 @@ export const fallbacks: NonNullable<Harness["fallbacks"]> = ({ env, home, platfo
           "agy.exe",
         ),
       ]
-    : [join(home, ".local", "bin", "agy")]
+    : [posix.join(home, ".local", "bin", "agy")]

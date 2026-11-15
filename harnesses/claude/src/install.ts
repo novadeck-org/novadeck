@@ -1,4 +1,4 @@
-import { join, win32 } from "node:path"
+import { posix, win32 } from "node:path"
 
 import type { Harness } from "@novadeck/harness-core/harness"
 import { scriptInstaller } from "@novadeck/harness-core/installer"
@@ -19,4 +19,4 @@ export const installer: Harness["installer"] = (platform) =>
 export const fallbacks: NonNullable<Harness["fallbacks"]> = ({ home, platform }) =>
   platform === "win32"
     ? [win32.join(home, ".local", "bin", "claude.exe")]
-    : [join(home, ".local", "bin", "claude"), join(home, ".claude", "local", "claude")]
+    : [posix.join(home, ".local", "bin", "claude"), posix.join(home, ".claude", "local", "claude")]
