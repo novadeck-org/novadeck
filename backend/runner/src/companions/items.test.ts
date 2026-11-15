@@ -1445,6 +1445,32 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     })
   })
 
+  it("is one item per linked worktree, each named by its branch, waiting unopened", async ({
+    fixture,
+  }) => {
+    const { git, place } = repository(fixture)
+    const trees = ["one", "two"].map((name) => {
+      // The same folder name for both, as Novadeck's worktrees of one repository have.
+      const tree = join(fixture.directory, name, "work")
+      git("worktree", "add", "--quiet", "-b", `task/${name}`, tree)
+      return tree
+    })
+    for (const tree of trees)
+      // eslint-disable-next-line no-await-in-loop -- One after the other, as an agent opens them.
+      await expect(fixture.items.show(place, { changes: { path: tree } })).resolves.toMatchObject({
+        ok: true,
+        opened: false,
+      })
+    expect(fixture.items.bar(place.terminalId)).toMatchObject([
+      { kind: "changes", name: "Changes · work · task/one", openAsked: false },
+      { kind: "changes", name: "Changes · work · task/two", openAsked: false },
+    ])
+    // A detached worktree has no branch to go by.
+    git("-C", trees[1]!, "checkout", "--quiet", "--detach")
+    await fixture.items.show(place, { changes: { path: trees[1]! } })
+    expect(fixture.items.bar(place.terminalId)[1]).toMatchObject({ name: "Changes · work" })
+  })
+
   it("gives one file's diff for a selection of layers, and refuses an item that is no change", async ({
     fixture,
   }) => {
@@ -1546,7 +1572,7 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     expect(await fixture.items.show(outside, { changes: { path: "wt" } })).toMatchObject({
       ok: true,
       kind: "changes",
-      name: "Changes · wt",
+      name: "Changes · wt · other",
     })
     const item = fixture.items.bar(place.terminalId)[0]
     expect(folder(item?.path ?? "")).toBe(folder(tree))

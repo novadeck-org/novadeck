@@ -249,6 +249,23 @@ export const repositoryOf = async (
   return failure("failed", reasonOf(top, "open this folder's repository"))
 }
 
+/**
+ * The branch a linked worktree at `root` (a repository's top) has checked out; undefined for a
+ * repository's main checkout, a detached HEAD, or where git can't say. Linked worktrees of one
+ * repository share their folder's name, so their changes items go by it as well.
+ */
+export const worktreeBranch = async (root: string): Promise<string | undefined> => {
+  const read = await git(
+    root,
+    ["rev-parse", "--absolute-git-dir", "--git-common-dir", "--abbrev-ref", "HEAD"],
+    { cap: 64 * 1024 },
+  )
+  if (!read.ok) return undefined
+  const [own, common, branch] = read.out.split("\n").map((line) => line.trim())
+  if (!own || !common || !branch || branch === "HEAD") return undefined
+  return samePlace(own, resolve(root, common)) ? undefined : branch
+}
+
 /** Whether two paths name one folder; Windows folds case. */
 export const samePlace = (a: string, b: string): boolean =>
   process.platform === "win32"

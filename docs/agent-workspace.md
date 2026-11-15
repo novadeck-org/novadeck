@@ -464,7 +464,8 @@ with every safety check again at that time:
   `merge-tree --write-tree`) a merge is diffed from its first parent and its layer has
   `firstParent` set, which the list says. Before the first commit it has no layers.
   It is one item per repository on a bar, keyed `changes:<repository root>` (folded to lower
-  case on Windows) and named "Changes · <folder>"
+  case on Windows) and named "Changes · <folder>", or "Changes · <folder> · <branch>" for a
+  linked worktree on a branch (worktrees of one repository share their folder's name),
   unless a title is given; showing it again updates it. Its detail counts the files the change
   as a whole differs from main by and their lines (the net, not its layers added up), and follows each read the pane triggers. The content
   (`companions.content`) is each layer's files with their counts, and the whole change's own list of files (the net), not their diffs; for every layer selected the pane reads that list, and for one layer that layer's own files: it is read
@@ -704,6 +705,13 @@ with every safety check again at that time:
     and `core.longpaths` on Windows, after `git check-ref-format --branch`. It answers the path,
     the branch and the paths of AGENTS.md, CLAUDE.md and GEMINI.md at the worktree's top, and
     tells the agent to read them, as no harness loads them from an added folder.
+  - **A worktree's changes wait on its owner's bar** from the moment it is tracked: each time
+    `open_worktree` makes one or `take_worktree` adopts one (the service's `onMade`, not a
+    worktree changing hands), the runner shows it as a changes item there, as the agent's own
+    show, marked new and not opened (`worktrees/changes-shown.ts`), while agent worktrees are on.
+    Each worktree is its own repository top, so its own item: an agent in several worktrees
+    gets several, which stack under one icon on the bar like any kind's items. The agent's own
+    `show { changes: { path } }` later updates that item, with `open` when it is done.
   - **`take_worktree({ path })`** records a linked worktree some other tool made, as adopted;
     takes one with no owner, or whose owner terminal exists neither live nor in History, at
     once; and, for one another existing terminal owns, asks the person (a `take` approval

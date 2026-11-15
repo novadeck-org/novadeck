@@ -25,7 +25,7 @@ import { logs } from "../log.js"
 import { agentLabel } from "../messaging/messages.js"
 import { mention } from "../terminals/handles.js"
 import { tail } from "../text.js"
-import { displayed, repositoryOf, samePlace } from "./changes.js"
+import { displayed, repositoryOf, samePlace, worktreeBranch } from "./changes.js"
 import {
   hashOf,
   loadFile,
@@ -1102,7 +1102,9 @@ export class CompanionItems {
       // As the agent left it, not as a snapshot of a moment ago.
       const read = await this.layers.read(root.root, true)
       if (!read.ok) return read
-      const { name, detail } = read.change
+      const { detail } = read.change
+      const branch = request.title === undefined ? await worktreeBranch(root.root) : undefined
+      const name = branch === undefined ? read.change.name : `${read.change.name} · ${branch}`
       return {
         ok: true,
         tooLarge: false,
