@@ -11,6 +11,7 @@ import {
   commitAt,
   deleteBranch,
   entriesOf,
+  finishRemoval,
   forgetEntry,
   hasSubmodules,
   heldByMain,
@@ -612,7 +613,7 @@ export class Worktrees {
         return refused("Novadeck couldn't keep the uncommitted files, so the worktree stays.")
     }
     const removed = await removeFolder(home, row.path, force)
-    if (!removed.ok && existsSync(row.path))
+    if (!removed.ok && existsSync(row.path) && !(await finishRemoval(row.commonDir, row.path)))
       return refused(`git couldn't remove the worktree: ${said(removed)}.`)
     let branchDeleted = false
     const { main } = standing

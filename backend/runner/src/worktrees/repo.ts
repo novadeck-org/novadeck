@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs"
 import { mkdtemp, readdir, readFile, realpath, rm, stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, dirname, join, resolve } from "node:path"
@@ -339,20 +340,43 @@ const samePath = (a: string, b: string): boolean => {
   return process.platform === "win32" ? left.toLowerCase() === right.toLowerCase() : left === right
 }
 
-export const forgetEntry = async (commonDirectory: string, path: string): Promise<void> => {
+/** The repository's own entries for the worktree at `path`: none once git forgot it. */
+const listingsOf = async (commonDirectory: string, path: string): Promise<string[]> => {
   const parent = join(commonDirectory, "worktrees")
   const names = await readdir(parent).catch((): string[] => [])
+  const found: string[] = []
   for (const name of names) {
     const entry = join(parent, name)
     // eslint-disable-next-line no-await-in-loop -- A few entries, read one at a time.
     const gitdir = await readFile(join(entry, "gitdir"), "utf8").catch(() => undefined)
-    if (gitdir === undefined) continue
-    const where = gitdir.trim().replace(/[\\/]\.git$/, "")
-    // eslint-disable-next-line no-await-in-loop -- As above.
-    if (samePath(where, path) && !(await stat(join(entry, "locked")).catch(() => undefined)))
+    if (gitdir !== undefined && samePath(gitdir.trim().replace(/[\\/]\.git$/, ""), path))
+      found.push(entry)
+  }
+  return found
+}
+
+export const forgetEntry = async (commonDirectory: string, path: string): Promise<void> => {
+  for (const entry of await listingsOf(commonDirectory, path))
+    // eslint-disable-next-line no-await-in-loop -- A few entries, one at a time.
+    if (!(await stat(join(entry, "locked")).catch(() => undefined)))
       // eslint-disable-next-line no-await-in-loop -- As above.
       await rm(entry, { recursive: true, force: true })
-  }
+}
+
+/**
+ * Finishes a `git worktree remove` that stopped partway, as one does on Windows when a file in
+ * the folder is still held for a moment (a virus scan, a process just ended): git forgets the
+ * worktree before it deletes the folder, and goes on doing so whatever the folder does, so
+ * what is left of a folder git no longer lists was git's to delete, and goes now, retried while
+ * a file is held. True once the folder is gone; false, with nothing touched, while git still
+ * lists the worktree (it refused before deleting anything).
+ */
+export const finishRemoval = async (commonDirectory: string, path: string): Promise<boolean> => {
+  if ((await listingsOf(commonDirectory, path)).length > 0) return false
+  await rm(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }).catch(
+    () => undefined,
+  )
+  return !existsSync(path)
 }
 
 /** Deletes a branch whose commits the main branch holds; false where it wasn't deleted. */

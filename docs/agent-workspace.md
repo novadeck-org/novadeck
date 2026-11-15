@@ -735,7 +735,11 @@ with every safety check again at that time:
     detached HEAD or a stopped rebase reaches at `…-head-<sha>`, then removes the folder. The
     branch goes only if Novadeck created it and the main branch holds all of it. A worktree
     whose status git couldn't read, or that has submodules, is never removed, forced or not.
-    The row goes last. Every `path` may be a folder inside the worktree. Only a worktree of
+    The row goes last. A `git worktree remove` that stops partway (on Windows, a file in the
+    folder still held for a moment) has forgotten the worktree before deleting its folder, so
+    where git no longer lists it, Novadeck deletes what is left (`finishRemoval`, retried while a
+    file is held) and the close goes on; where git still lists it, the close is refused.
+    Every `path` may be a folder inside the worktree. Only a worktree of
     the project's repositories, and not locked, is adopted.
   - **At the runner's start** every row is checked: a folder that is gone is pruned from its
     repository and its row deleted, an owner that exists neither live nor in History leaves

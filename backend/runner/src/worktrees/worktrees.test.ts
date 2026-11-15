@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -14,6 +15,7 @@ import { join } from "node:path"
 
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
+import { finishRemoval } from "./repo.js"
 import { Worktrees, folderName } from "./worktrees.js"
 
 const git = (cwd: string, ...args: string[]) =>
@@ -691,6 +693,39 @@ describe("removing a project", () => {
     expect(git(f.repo, "show", `${ref}:loose.txt`)).toBe("keep me")
     expect(f.store.worktreesOfProject(f.project)).toEqual([])
     expect(readFileSync(join(f.repo, "a.txt"), "utf8")).toBe("a\n")
+  })
+})
+
+// A folder it can't write keeps git from deleting what is in it, as a file Windows still holds
+// does there; root, and Windows itself, delete it all the same.
+const partway = process.platform === "win32" || process.getuid?.() === 0
+
+describe.skipIf(partway)("a removal git stopped partway", () => {
+  it("deletes what is left once git has forgotten the worktree, and nothing while it hasn't", async ({
+    fx: f,
+  }) => {
+    const a = await open(f, "partway")
+    const b = await open(f, "listed")
+    if (!a.ok || !b.ok) throw new Error("open")
+    const held = join(a.path, "held")
+    mkdirSync(held)
+    writeFileSync(join(held, "file.txt"), "held\n")
+    git(a.path, "add", "-A")
+    git(a.path, "commit", "-q", "-m", "held")
+    chmodSync(held, 0o555)
+    try {
+      expect(() => git(f.repo, "worktree", "remove", a.path)).toThrow()
+    } finally {
+      chmodSync(held, 0o755)
+    }
+    // Git forgot it, and left part of its folder.
+    expect(existsSync(held)).toBe(true)
+    expect(git(f.repo, "worktree", "list", "--porcelain")).not.toContain(asGit(a.path))
+    const { commonDir } = f.store.worktree(a.path)!
+    await expect(finishRemoval(commonDir, b.path)).resolves.toBe(false)
+    expect(existsSync(b.path)).toBe(true)
+    await expect(finishRemoval(commonDir, a.path)).resolves.toBe(true)
+    expect(existsSync(a.path)).toBe(false)
   })
 })
 
