@@ -282,7 +282,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const hibernation = useHibernation(backend.hibernation)
   const worktrees = useWorktrees(backend.worktrees)
   const agents = useAgents(backend.agents)
-  const installAgent = useInstalls(backend.agents)
+  const installs = useInstalls(backend.agents)
   const approval = useApproval(backend.approvals)
   const voice = useVoice(backend.voice)
   const murmur = useMurmur(backend.murmur)
@@ -340,6 +340,16 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   useEffect(() => {
     if (settings) refreshAgents?.()
   }, [settings, refreshAgents])
+  // An install asked for in Preferences, which starts once Preferences has closed: closing it
+  // goes back in the history, which would undo the terminal's own step there were it taken first.
+  const queuedInstall = useRef<{ agent: AgentName; command: string }>(undefined)
+  const { install } = installs
+  useEffect(() => {
+    const queued = queuedInstall.current
+    if (!queued || settings) return
+    queuedInstall.current = undefined
+    install(queued.agent, queued.command)
+  }, [settings, install])
   return (
     <>
       {backend.agents && (
@@ -347,7 +357,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           open={agents.welcome}
           agents={agents.list}
           onChange={backend.agents.set}
-          onInstall={installAgent}
+          onInstall={installs.install}
           transcripts={transcripts}
           onDone={backend.agents.finishWelcome}
         />
@@ -432,7 +442,18 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           {...(backend.openLogs ? { logs: backend.openLogs } : {})}
           {...(uninstall ? { uninstall } : {})}
           {...(backend.agents
-            ? { agents: { list: agents.list, onChange: backend.agents.set } }
+            ? {
+                agents: {
+                  list: agents.list,
+                  onChange: backend.agents.set,
+                  // Preferences closes, for the person to watch the installer in its terminal.
+                  onInstall: (agent: AgentName, command: string) => {
+                    queuedInstall.current = { agent, command }
+                    closeDialog()
+                  },
+                  installing: installs.installing,
+                },
+              }
             : {})}
         />
       </Suspense>

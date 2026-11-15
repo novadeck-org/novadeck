@@ -232,3 +232,77 @@ describe("coming from a row that needs an agent connected", () => {
     expect(done).toBe(1)
   })
 })
+
+describe("an agent that is not installed, in Preferences", () => {
+  const command = "curl -fsSL https://claude.ai/install.sh | bash"
+  const missing = {
+    agent: "claude" as const,
+    available: false,
+    connected: false,
+    busy: false,
+    installer: command,
+  }
+  const install = (): HTMLButtonElement | null =>
+    document.querySelector<HTMLButtonElement>("button[data-agent-install]")
+
+  it("offers Install with its command in place of its switch", async () => {
+    const asked: [string, string][] = []
+    await show({
+      tab: "general",
+      agents: {
+        list: [missing],
+        onChange: () => {},
+        onInstall: (agent, given) => asked.push([agent, given]),
+      },
+    })
+
+    expect(install()?.getAttribute("aria-label")).toBe("Install Claude Code")
+    expect(document.getElementById("agent-claude-note")?.textContent).toContain(command)
+    expect(document.querySelector('ul[aria-label="Agents"] [role=switch]')).toBeNull()
+    install()?.click()
+    expect(asked).toEqual([["claude", command]])
+  })
+
+  it("reads as installing, and takes no clicks, while its installer runs", async () => {
+    let asked = 0
+    await show({
+      tab: "general",
+      agents: {
+        list: [missing],
+        onChange: () => {},
+        onInstall: () => asked++,
+        installing: new Set(["claude"]),
+      },
+    })
+
+    expect(install()?.textContent).toBe("Installing…")
+    expect(install()?.disabled).toBe(true)
+    install()?.click()
+    expect(asked).toBe(0)
+  })
+
+  it("keeps a disabled switch where nothing can install it", async () => {
+    await show({ tab: "general", agents: { list: [missing], onChange: () => {} } })
+
+    expect(install()).toBeNull()
+    expect(
+      document.querySelector('ul[aria-label="Agents"] [role=switch]')?.hasAttribute("disabled"),
+    ).toBe(true)
+    expect(document.getElementById("agent-claude-note")?.textContent).toBe("Not installed")
+  })
+
+  it("is focused by its Install from a row that needs it connected", async () => {
+    await show({
+      tab: "general",
+      agents: { list: [missing], onChange: () => {}, onInstall: () => {} },
+      focusAgent: "claude",
+      onFocusedAgent: () => {},
+    })
+    await Array.from({ length: 8 }).reduce<Promise<void>>(
+      (frames) => frames.then(nextFrame),
+      Promise.resolve(),
+    )
+
+    expect(document.activeElement).toBe(install())
+  })
+})

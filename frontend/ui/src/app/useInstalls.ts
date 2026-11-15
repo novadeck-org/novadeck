@@ -2,7 +2,7 @@ import type { AgentName } from "@novadeck/core/harnesses"
 import type { Backend } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 
 import { agentLabels } from "../preferences/agent-switches"
 import {
@@ -56,7 +56,11 @@ const sameTerminals = (
  */
 export const useInstalls = (
   agents: Backend["agents"],
-): ((agent: AgentName, command: string) => void) => {
+): {
+  readonly install: (agent: AgentName, command: string) => void
+  // The agents whose installer runs now, until each one's end has been dealt with.
+  readonly installing: ReadonlySet<AgentName>
+} => {
   const { commands } = useWorkspaceServices()
   // The installs under way: a store of their own, which an effect may change as it follows them.
   // Kept in session storage, so a reload while one runs follows it again: one whose terminal
@@ -106,5 +110,6 @@ export const useInstalls = (
     if (changed) installs.update(() => next)
   }, [pending, terminals, agents, commands, installs])
 
-  return start
+  const installing = useMemo(() => new Set(pending.map((install) => install.agent)), [pending])
+  return useMemo(() => ({ install: start, installing }), [start, installing])
 }

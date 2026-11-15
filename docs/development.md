@@ -588,8 +588,9 @@ App:
   terminals attaching over about 3 s; "Welcome dialog" opens the first-run dialog for
   connecting agents again (no reboot); "App error" makes a view throw as it draws, for the
   crash screen that stands in for the app, whose Reload boots the demo again.
-- **Agent installs:** an agent that isn't installed offers Install in the welcome dialog, with the
-  command it will run, and the demo plays what the runner does: a terminal titled "Install ..."
+- **Agent installs:** an agent that isn't installed offers Install in the welcome dialog and in
+  Preferences' Agents (which reads "Installing…" while its installer runs), with the command it
+  will run, and the demo plays what the runner does: a terminal titled "Install ..."
   that shows the installer and is busy for 2.5 s, then the agent shows installed, is connected,
   and starts in a terminal of its own. "Nothing installed" opens the dialog with Claude Code, Codex
   and Antigravity each offering Install; "Hold next install" keeps the next one running until

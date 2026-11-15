@@ -13,6 +13,9 @@ const installButton = (name: "Claude Code" | "Codex" | "Antigravity"): Locator =
 const agentSwitch = (name: "Claude Code" | "Codex" | "Antigravity"): Locator =>
   preferencesDialog().getByRole("switch", { name })
 
+const preferencesInstall = (name: "Claude Code" | "Codex" | "Antigravity"): Locator =>
+  preferencesDialog().getByRole("button", { name: `Install ${name}` })
+
 afterEach(() => sessionStorage.removeItem("novadeck.installs"))
 
 // The demo's install takes a few seconds to end.
@@ -71,8 +74,9 @@ describe("An agent that is not installed, in the welcome dialog", () => {
       expect(terminalTabNames()).not.toContain("agy")
       await expectSelected("Install Antigravity")
       await openPreferences()
-      await expect.element(agentSwitch("Antigravity")).toHaveAttribute("aria-checked", "false")
-      await expect.element(preferencesDialog().getByText("Not installed")).toBeVisible()
+      // Still not installed, Preferences offers to install it again.
+      await expect.element(preferencesInstall("Antigravity")).toBeEnabled()
+      expect(agentSwitch("Antigravity").query()).toBeNull()
     })
 
     it("waits for an install that is still running", async () => {
@@ -108,5 +112,43 @@ describe("An agent that is not installed, in the welcome dialog", () => {
       await expect.poll(() => sessionStorage.getItem("novadeck.installs")).toBeNull()
       expect(terminalTabNames()).not.toContain("claude")
     })
+  })
+})
+
+describe("An agent that is not installed, in Preferences", () => {
+  it("offers to install it, with the command that will run, in place of its switch", async () => {
+    await openWorkspace("/?demo=plain")
+    await openPreferences()
+    await expect
+      .element(preferencesInstall("Antigravity"))
+      .toHaveAccessibleDescription(
+        /Not installed\. Install runs curl -fsSL https:\/\/antigravity\.google\/cli\/install\.sh \| bash/,
+      )
+    expect(agentSwitch("Antigravity").query()).toBeNull()
+    await expect.element(agentSwitch("Codex")).toBeVisible()
+  })
+
+  it("closes Preferences, installs in a terminal, then connects the agent and starts it", async () => {
+    await openWorkspace("/?demo=plain")
+    await openPreferences()
+    await preferencesInstall("Antigravity").click()
+    await expect.element(preferencesDialog()).not.toBeInTheDocument()
+    await expectSelected("Install Antigravity")
+
+    await expect.poll(terminalTabNames, installTime).toContain("agy")
+    await expectSelected("agy")
+    await openPreferences()
+    await expect.element(agentSwitch("Antigravity")).toHaveAttribute("aria-checked", "true")
+  })
+
+  it("reads as installing while its installer runs", async () => {
+    await openWorkspace("/?demo=plain&agentInstall=held")
+    await openPreferences()
+    await preferencesInstall("Antigravity").click()
+    await expectSelected("Install Antigravity")
+    await openPreferences()
+    const installing = preferencesDialog().getByRole("button", { name: "Installing Antigravity" })
+    await expect.element(installing).toBeDisabled()
+    await expect.element(installing).toHaveTextContent("Installing…")
   })
 })

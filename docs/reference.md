@@ -515,8 +515,12 @@ agent.
   transcripts, on. A chosen agent's preview terminal shows it connected.
   “Let’s build something” applies those choices; skipping, Escape, or clicking outside
   dismisses the dialog without connecting agents or changing transcripts. The preview is illustrative and
-  starts no terminals. Preferences offers the same agents as immediate switches;
-  an agent that is not installed cannot be selected. Connecting installs a small Novadeck plugin into
+  starts no terminals. Preferences offers the same agents as immediate switches.
+  An agent that is not installed offers Install instead, in both places, with the command
+  it runs: its vendor's official installer, in a terminal of the workspace (Preferences
+  closes for it). Once the installer ends, Novadeck connects the agent and starts it in a
+  terminal of its own, for you to sign in; while it runs, Preferences shows the agent as
+  installing. Connecting installs a small Novadeck plugin into
   it with the agent's own plugin commands (`claude plugin`, `codex plugin`,
   `agy plugin`, from a local marketplace or folder in Novadeck's data directory);
   turning it off uninstalls it. The plugin holds a single hook that tells the Novadeck

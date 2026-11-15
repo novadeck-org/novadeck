@@ -12,6 +12,8 @@
    after the first under a hairline. `.settings-fieldset`: a fieldset that draws no box.
    `.settings-command`: a command to run or a path to read, in the mono face, selected
    whole by one click, breaking at spaces only.
+   `.settings-installer`: the command an agent's installer runs, in small mono, shown
+   under the agent's name in the welcome and in Preferences.
    `.settings-range`: a slider in the strong fill, muted when disabled.
    `.choice-card`: a choice drawn as a card that is checked or not, muted at rest, with
    an optional `.choice-card-tile` holding its icon, which takes the brand tile once
@@ -81,6 +83,15 @@
   overflow-x: auto;
   white-space: pre-wrap;
   user-select: all;
+}
+
+/* The command an agent's installer runs, shown whole under its name and cut to its row:
+   its unbroken run takes the width it is given, never widening what holds it. */
+.settings-installer {
+  contain: inline-size;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1rem;
 }
 
 .card.settings-card {

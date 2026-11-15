@@ -55,12 +55,13 @@ const sectionDescriptionClasses = "settings-description m-0 mt-1.5 text-control 
 const panelClasses =
   "preferences-panel col-start-1 row-start-1 flex flex-col gap-6 px-6 py-5 data-[state=open]:visible data-[state=open]:opacity-100 data-[state=closed]:invisible data-[state=closed]:pointer-events-none data-[state=closed]:opacity-0 max-[480px]:px-4"
 
-// The switch of an agent in the Agents section, where the page has it.
+// The switch of an agent in the Agents section, or its Install where it isn't installed, where
+// the page has it.
 const agentSwitch = (agent: AgentName): HTMLElement | null =>
   document
     .getElementById(`agent-${agent}`)
     ?.closest("li")
-    ?.querySelector<HTMLElement>("[role=switch]") ?? null
+    ?.querySelector<HTMLElement>("[role=switch], [data-agent-install]") ?? null
 
 // A titled group of settings; the title names the region unless a label is given.
 const Section = ({
@@ -186,6 +187,10 @@ export const Preferences = ({
   agents?: {
     readonly list: readonly AgentSwitch[]
     readonly onChange: (agent: AgentSwitch["agent"], connected: boolean) => void
+    // Runs the installer of an agent that isn't here; absent where none can run.
+    readonly onInstall?: ((agent: AgentSwitch["agent"], command: string) => void) | undefined
+    // The agents whose installer runs now.
+    readonly installing?: ReadonlySet<AgentSwitch["agent"]> | undefined
   }
   // Voice input, as the backend has it; absent where it has none.
   voice?: VoiceAddon
@@ -622,7 +627,14 @@ export const Preferences = ({
             </Section>
             {(agents || hibernation) && (
               <Section title="Agents" {...(agents ? { description: agentsExplanation } : {})}>
-                {agents && <AgentSwitches agents={agents.list} onChange={agents.onChange} />}
+                {agents && (
+                  <AgentSwitches
+                    agents={agents.list}
+                    onChange={agents.onChange}
+                    onInstall={agents.onInstall}
+                    installing={agents.installing}
+                  />
+                )}
                 {hibernation && (
                   <div className={settingsCardClasses}>
                     <Select
