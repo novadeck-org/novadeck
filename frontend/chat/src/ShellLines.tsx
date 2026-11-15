@@ -1,8 +1,9 @@
 import { shellStateOf } from "@novadeck/core/agents/shells"
 import type { AgentShell } from "@novadeck/core/types"
-import { useEffect, useSyncExternalStore } from "react"
+import { useEffect } from "react"
 
 import { Fact, Since } from "./Fact"
+import { useHeldSnapshot } from "./held"
 
 // The shells that have a line, oldest first: those that still run, and those that failed,
 // which stay until the agent forgets them. A shell that ended quietly has none.
@@ -22,14 +23,15 @@ const noTails: Readonly<Record<string, string>> = {}
 const noSubscribe = (): (() => void) => () => {}
 const noSnapshot = (): Readonly<Record<string, string>> => noTails
 
-// The last lines of the shells' output, followed only while a listed shell has an output file.
+// The last lines of the shells' output, followed only while a listed shell has an output file,
+// and held out of sight (see ./held).
 const useTails = (
   source: ShellTailsSource | undefined,
   shells: readonly AgentShell[],
 ): Readonly<Record<string, string>> => {
   const watching = shells.some(({ output }) => output !== undefined)
   useEffect(() => (source && watching ? source.watch() : undefined), [source, watching])
-  return useSyncExternalStore(source?.subscribe ?? noSubscribe, source?.snapshot ?? noSnapshot)
+  return useHeldSnapshot(source?.subscribe ?? noSubscribe, source?.snapshot ?? noSnapshot)
 }
 
 // From this many shells on, the lines fold into one.

@@ -19,15 +19,8 @@ import type { Store } from "@novadeck/core/store"
 import type { AgentStatus } from "@novadeck/core/types"
 import { useMounted } from "@novadeck/requests/use-mounted"
 import type { Mention } from "@novadeck/toolkit/mentions"
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react"
+import { useShown } from "@novadeck/toolkit/shown"
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import type { Attachment } from "./attachments"
 import { blockAt, sentBubbles, type SentBubble } from "./bubbles"
@@ -36,6 +29,7 @@ import { composerMode } from "./composer-mode"
 import { joinDraft } from "./drafts"
 import { useEchoes } from "./echoes"
 import { Fact, Since } from "./Fact"
+import { useHeldSnapshot } from "./held"
 import { promptsOf, type SentShell } from "./history"
 import { Hold } from "./Hold"
 import { markPhase, type WindowPhase } from "./mark-phase"
@@ -88,8 +82,8 @@ const bottomSlack = 32
 
 // The agent's conversation, drawn as a chat over its terminal: the transcript, what waits
 // on the person, the agent's state, and a box that types into the agent. It fills the
-// element that holds it.
-export const ChatView = ({
+// element that holds it. Out of sight (see ./held), it draws nothing as its agent works.
+const ChatBody = ({
   conversation,
   terminalName,
   program,
@@ -215,7 +209,7 @@ export const ChatView = ({
     slice,
     box,
     doorbell,
-  } = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot)
+  } = useHeldSnapshot(conversation.subscribe, conversation.getSnapshot)
   const name = agentName(harness ?? program)
   const blocks = useMemo(
     () => groupItems(wentItems(items, prompts), doorbell.delivered),
@@ -907,3 +901,27 @@ export const ChatView = ({
     </SliceKeys.Provider>
   )
 }
+
+export type ChatViewProps = Parameters<typeof ChatBody>[0]
+
+// Whether two sets of props are the same, each prop by identity, as `memo` tells.
+const sameProps = (before: ChatViewProps, after: ChatViewProps): boolean => {
+  const keys = Object.keys(after) as (keyof ChatViewProps)[]
+  return (
+    keys.length === Object.keys(before).length && keys.every((key) => before[key] === after[key])
+  )
+}
+
+// The chat as it last drew while it's out of sight: what the app hands it as its agent works (its
+// status, the window's phase, the peers' looks) draws it again only once it's back. Its stores
+// hold on their own (see ./held), as the sight it's told of by context reaches it all the same.
+const Held = memo(
+  ({ held: _held, ...props }: ChatViewProps & { readonly held: boolean }): React.JSX.Element => (
+    <ChatBody {...props} />
+  ),
+  ({ held: _before, ...before }, { held, ...after }) => held || sameProps(before, after),
+)
+
+export const ChatView = (props: ChatViewProps): React.JSX.Element => (
+  <Held {...props} held={!useShown()} />
+)

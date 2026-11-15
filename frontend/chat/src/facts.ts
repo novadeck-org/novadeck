@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react"
+import { useHeldSnapshot } from "./held"
 
 // The facts at a row's right edge: a time of day, a span, how long ago. All from the record's
 // own times (`at`, epoch milliseconds), which a harness may not give: where there is none, there is
@@ -23,7 +23,7 @@ export const timeOfDay = (at: number): string =>
   new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 
 // Whole seconds of now, one clock for every running fact on the page: it ticks only while one
-// shows.
+// shows, and holds for a chat out of sight (see ./held).
 const listeners = new Set<() => void>()
 let timer: ReturnType<typeof setInterval> | undefined
 let now = Date.now()
@@ -44,4 +44,5 @@ const subscribe = (listener: () => void): (() => void) => {
     }
   }
 }
-export const useNow = (): number => useSyncExternalStore(subscribe, () => now)
+const nowOf = (): number => now
+export const useNow = (): number => useHeldSnapshot(subscribe, nowOf)

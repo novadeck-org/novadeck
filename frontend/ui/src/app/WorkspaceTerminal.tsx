@@ -26,6 +26,7 @@ import { ProjectWindow } from "@novadeck/items/ProjectWindow"
 import { shellTailsOf } from "@novadeck/items/shells"
 import { TerminalCompanion } from "@novadeck/items/TerminalCompanion"
 import { UndockedWindow } from "@novadeck/items/UndockedWindow"
+import { Shown, useShown } from "@novadeck/toolkit/shown"
 import {
   memo,
   useCallback,
@@ -385,6 +386,9 @@ export const WorkspaceTerminal = memo(
       [conversation, commands, chatContext, terminalId],
     )
     const wanted = keyboardFocus?.view === view && active && onScreen
+    // The chat draws nothing as its agent works while out of sight: its terminal kept hidden by
+    // Focus, or its tile off screen (chat's held.ts).
+    const chatInSight = useShown() && onScreen
     const chatHost = useRef<HTMLDivElement>(null)
     useChatTakesFocus(chatHost, conversation !== undefined, active && onScreen)
     const withChat = (content: ReactNode): ReactNode =>
@@ -399,48 +403,55 @@ export const WorkspaceTerminal = memo(
               className="chat-pane absolute inset-0 z-10 nodrag nopan nowheel"
               data-workspace-chat=""
             >
-              <ChatWithPeers
-                conversation={conversation}
-                terminalName={terminal.name}
-                program={terminal.process}
-                agent={terminal.state === "running" ? terminal.agent : undefined}
-                compact={view !== "focus"}
-                links={messageLinks}
-                draft={draft}
-                onDraft={(text) => commands.setChatDraft(terminalId, text)}
-                replyTo={replyTo}
-                onReplyTo={(to) => commands.setChatReply(chatContext, terminalId, to)}
-                sending={sending}
-                shells={shells}
-                shellTails={shellTails}
-                onOpenShell={onOpenShell}
-                attachments={attachments}
-                imageNote={imageNote}
-                onRestore={(words, images) =>
-                  commands.restoreChat(chatContext, terminalId, words, images)
-                }
-                onAttach={
-                  conversations!.uploadImage
-                    ? (files, selection) => commands.attachChatImages(terminalKey, files, selection)
-                    : undefined
-                }
-                onDetach={(id) => commands.removeChatImage(chatContext, terminalId, id)}
-                onImage={onImage}
-                onSend={(text, to, images) => commands.sendChat(terminalKey, text, to, images)}
-                // Words queued behind the stopped turn, the agent's and the chat's, come back
-                // to the box, to send again.
-                onInterrupt={() => commands.stopChat(terminalKey)}
-                onClearBox={(seen) => commands.clearBox(terminalKey, seen)}
-                onAnswer={(request, answer) => conversations!.answer(terminalKey, request, answer)}
-                onWordsLost={(words) => commands.appendChatDraft(chatContext, terminalId, words)}
-                onAnswerInTerminal={() => commands.showTerminal(terminalId)}
-                focusInput={wanted}
-                onInputFocused={onInputFocused}
-                refused={conversations!.refused}
-                onPassing={(state) => commands.setChatPassing(terminalId, state)}
-                onLeftMenu={() => commands.setChatDraft(terminalId, "", chatContext)}
-                onKeys={conversations!.keys && ((keys) => conversations!.keys!(terminalKey, keys))}
-              />
+              <Shown value={chatInSight}>
+                <ChatWithPeers
+                  conversation={conversation}
+                  terminalName={terminal.name}
+                  program={terminal.process}
+                  agent={terminal.state === "running" ? terminal.agent : undefined}
+                  compact={view !== "focus"}
+                  links={messageLinks}
+                  draft={draft}
+                  onDraft={(text) => commands.setChatDraft(terminalId, text)}
+                  replyTo={replyTo}
+                  onReplyTo={(to) => commands.setChatReply(chatContext, terminalId, to)}
+                  sending={sending}
+                  shells={shells}
+                  shellTails={shellTails}
+                  onOpenShell={onOpenShell}
+                  attachments={attachments}
+                  imageNote={imageNote}
+                  onRestore={(words, images) =>
+                    commands.restoreChat(chatContext, terminalId, words, images)
+                  }
+                  onAttach={
+                    conversations!.uploadImage
+                      ? (files, selection) =>
+                          commands.attachChatImages(terminalKey, files, selection)
+                      : undefined
+                  }
+                  onDetach={(id) => commands.removeChatImage(chatContext, terminalId, id)}
+                  onImage={onImage}
+                  onSend={(text, to, images) => commands.sendChat(terminalKey, text, to, images)}
+                  // Words queued behind the stopped turn, the agent's and the chat's, come back
+                  // to the box, to send again.
+                  onInterrupt={() => commands.stopChat(terminalKey)}
+                  onClearBox={(seen) => commands.clearBox(terminalKey, seen)}
+                  onAnswer={(request, answer) =>
+                    conversations!.answer(terminalKey, request, answer)
+                  }
+                  onWordsLost={(words) => commands.appendChatDraft(chatContext, terminalId, words)}
+                  onAnswerInTerminal={() => commands.showTerminal(terminalId)}
+                  focusInput={wanted}
+                  onInputFocused={onInputFocused}
+                  refused={conversations!.refused}
+                  onPassing={(state) => commands.setChatPassing(terminalId, state)}
+                  onLeftMenu={() => commands.setChatDraft(terminalId, "", chatContext)}
+                  onKeys={
+                    conversations!.keys && ((keys) => conversations!.keys!(terminalKey, keys))
+                  }
+                />
+              </Shown>
             </div>
           )}
           {/* Keep the emulator's high-z-index scrollbar beneath the chat overlay. */}
