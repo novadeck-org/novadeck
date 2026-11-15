@@ -422,10 +422,8 @@ export const createHarnesses = (
      * says where it is; that spawns their login shell, so only the look after an install
      * asks for it.
      */
-    list: async (options?: {
-      readonly fresh?: boolean | undefined
-    }): Promise<AgentIntegration[]> => {
-      const install = await installs(options?.fresh === true && !closing.signal.aborted)
+    list: async (look?: { readonly fresh?: boolean | undefined }): Promise<AgentIntegration[]> => {
+      const install = await installs(look?.fresh === true && !closing.signal.aborted)
       if (!install) return agents.map((agent) => ({ agent, available: false, connected: false }))
       return Promise.all(agents.map((agent) => state(harnesses[agent], install(agent))))
     },

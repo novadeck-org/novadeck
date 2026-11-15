@@ -807,7 +807,7 @@ export const connectRunner = async (
         attachTerminal(connection, terminalId, mode),
     },
     agents: {
-      list: (options) => call((client) => client.agents.list(options)),
+      list: (look) => call((client) => client.agents.list(look)),
       detail: (terminalId) =>
         followRestarting(connection, (client, signal) =>
           client.agents.detail({ terminalId }, { signal }),

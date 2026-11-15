@@ -43,6 +43,31 @@ export const startedIn = (started: Started, start: () => Terminal): Terminal => 
   }
 }
 
+/**
+ * `env` with each of `folders` last on its PATH, unless PATH has it: Windows' names have no
+ * case and may end in a separator, so there "C:\\Tools\\" and "c:\\tools" are one folder.
+ */
+export const withFolders = (
+  env: NodeJS.ProcessEnv,
+  folders: readonly string[],
+  platform: NodeJS.Platform,
+): NodeJS.ProcessEnv => {
+  const windows = platform === "win32"
+  const separator = windows ? ";" : ":"
+  const same = (folder: string): string =>
+    windows ? folder.replace(/[\\/]+$/, "").toLowerCase() : folder
+  const key = pathKey(env)
+  const have = new Set((env[key] ?? "").split(separator).map(same))
+  const added: string[] = []
+  for (const folder of folders)
+    if (!have.has(same(folder))) {
+      have.add(same(folder))
+      added.push(folder)
+    }
+  if (added.length === 0) return env
+  return { ...env, [key]: [env[key], ...added].filter(Boolean).join(separator) }
+}
+
 export type LauncherOptions = {
   readonly shell: string
   readonly shellArgs: readonly string[] | undefined
@@ -154,10 +179,7 @@ export class Launcher {
     const env = this.options.freshPath
       ? await refreshPath(this.options.env, { relay: this.options.relay })
       : this.options.env
-    const folders = await this.programFolders(env)
-    if (folders.length === 0) return env
-    const key = pathKey(env)
-    return { ...env, [key]: [env[key], ...folders].filter(Boolean).join(delimiter) }
+    return withFolders(env, await this.programFolders(env), process.platform)
   }
 
   /**
@@ -178,9 +200,7 @@ export class Launcher {
         }
       }),
     )
-    return [...new Set(found.filter((folder) => folder !== undefined))].filter(
-      (folder) => !(env[pathKey(env)] ?? "").split(delimiter).includes(folder),
-    )
+    return found.filter((folder) => folder !== undefined)
   }
 
   /** The shell's program, a name found on the PATH the new shell gets, as `environment`. */

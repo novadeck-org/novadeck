@@ -4,7 +4,7 @@ import { delimiter, join } from "node:path"
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { Launcher } from "./launching.js"
+import { Launcher, withFolders } from "./launching.js"
 
 const posix = process.platform !== "win32"
 
@@ -56,5 +56,28 @@ describe.skipIf(!posix)("the environment a new shell starts from", () => {
       ["/usr/bin", join(home, ".local", "bin")].join(delimiter),
     ).environment()
     expect(kept.PATH).toBe(["/usr/bin", join(home, ".local", "bin")].join(delimiter))
+  })
+})
+
+describe("putting folders last on a PATH", () => {
+  it("leaves a Windows PATH that has the folder alone, whatever its case or trailing separator", () => {
+    for (const have of [
+      "C:\\Tools;C:\\Users\\a\\.local\\bin",
+      "c:\\users\\A\\.LOCAL\\bin\\;C:\\Tools",
+    ]) {
+      const env = { Path: have }
+      expect(withFolders(env, ["C:\\Users\\a\\.local\\bin"], "win32")).toBe(env)
+    }
+  })
+
+  it("adds a Windows folder PATH lacks, once, after the rest, under PATH's own spelling", () => {
+    const env = withFolders({ Path: "C:\\Tools" }, ["D:\\agy\\bin", "d:\\AGY\\bin\\"], "win32")
+    expect(env).toEqual({ Path: "C:\\Tools;D:\\agy\\bin" })
+  })
+
+  it("compares POSIX folders as they are written", () => {
+    expect(withFolders({ PATH: "/usr/bin:/Home/a/bin" }, ["/home/a/bin"], "linux")).toEqual({
+      PATH: "/usr/bin:/Home/a/bin:/home/a/bin",
+    })
   })
 })
