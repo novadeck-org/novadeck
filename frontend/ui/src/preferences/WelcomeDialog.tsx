@@ -100,10 +100,7 @@ const ChoiceCard = ({
             Not installed. Install runs
             {/* Whole, so nothing it will do is hidden; a long one is cut to the card, and
               the title and the description reading it out hold all of it. */}
-            <code
-              className="mt-0.5 block truncate font-mono text-[11px] leading-4"
-              title={installable.command}
-            >
+            <code className="welcome-command mt-0.5 block truncate" title={installable.command}>
               {installable.command}
             </code>
           </span>
