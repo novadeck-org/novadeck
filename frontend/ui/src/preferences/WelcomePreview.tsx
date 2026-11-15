@@ -192,7 +192,7 @@ export const WelcomePreview = ({
         <div className="welcome-terminal agy">
           <div className={barClasses}>
             <AntigravityIcon size={13} />
-            <span>Another way in</span>
+            <span>Planner</span>
             <Status connected={connected.agy} />
           </div>
           <div className={codeClasses}>

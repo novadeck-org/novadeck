@@ -106,6 +106,15 @@
     transform 650ms var(--ease-interface),
     translate 500ms cubic-bezier(0.16, 1, 0.3, 1);
 }
+/* A title bar keeps its icon and status whole; a long title gives way to them. */
+.welcome-terminal-bar > svg {
+  flex: none;
+}
+.welcome-terminal-bar > span:not(.welcome-status) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .welcome-terminal-bar {
   border-bottom: var(--border-width) solid
     var(--welcome-terminal-bar-border-color, var(--color-line));
@@ -173,10 +182,10 @@
   --_deal-y: 4px;
   --_depth: 5;
   z-index: 3;
-  top: 38px;
-  left: 5%;
+  top: 14px;
+  left: 4%;
   width: 58%;
-  height: 158px;
+  height: 124px;
   transform: rotate(-3deg);
 }
 .welcome-terminal.review {
@@ -195,10 +204,10 @@
   --_deal-y: -70px;
   --_depth: 7;
   z-index: 5;
-  top: 142px;
-  left: 15%;
-  width: 31%;
-  height: 80px;
+  top: 146px;
+  left: 3%;
+  width: 46%;
+  height: 78px;
   transform: rotate(-2deg);
 }
 .welcome-terminal.server {
@@ -207,12 +216,17 @@
   --_depth: 9;
   z-index: 4;
   top: 132px;
-  left: 48%;
+  left: 52%;
   width: 44%;
   height: 91px;
   transform: rotate(1deg);
 }
 
+/* Four cards share the Canvas stage, so their output sits tighter. */
+.welcome-stage[data-view="canvas"] .welcome-code {
+  gap: 4px;
+  padding: 10px;
+}
 .welcome-stage[data-view="grid"] .welcome-terminal,
 .welcome-stage[data-view="focus"] .welcome-terminal {
   --_depth: 0;
@@ -223,30 +237,30 @@
   top: 31px;
   left: 3%;
   width: 45%;
-  height: calc(50% - 26px);
+  height: calc(50% - 21px);
 }
 .welcome-stage[data-view="grid"] .welcome-terminal.review {
   top: 31px;
   left: 52%;
   width: 45%;
-  height: calc(50% - 26px);
+  height: calc(50% - 21px);
 }
 .welcome-stage[data-view="grid"] .welcome-terminal.agy {
-  top: calc(50% + 11px);
+  top: calc(50% + 18px);
   left: 3%;
   width: 45%;
-  height: calc(50% - 26px);
+  height: calc(50% - 33px);
 }
 .welcome-stage[data-view="grid"] .welcome-terminal.server {
-  top: calc(50% + 11px);
+  top: calc(50% + 18px);
   left: 52%;
   width: 45%;
-  height: calc(50% - 26px);
+  height: calc(50% - 33px);
 }
 .welcome-stage[data-view="grid"] .welcome-code {
   font-size: 7px;
-  gap: 5px;
-  padding: 8px;
+  gap: 3px;
+  padding: 7px;
 }
 .welcome-stage[data-view="grid"] .welcome-zoom,
 .welcome-stage[data-view="focus"] .welcome-zoom {
@@ -274,15 +288,19 @@
 
 @media (max-width: 819px) {
   .welcome-stage {
-    height: 215px;
+    height: 232px;
     max-width: 470px;
     margin-inline: auto;
   }
   .welcome-terminal.server {
     top: 114px;
   }
+  .welcome-terminal.agent {
+    top: 8px;
+  }
   .welcome-terminal.agy {
-    top: 118px;
+    top: 134px;
+    height: 72px;
   }
 }
 

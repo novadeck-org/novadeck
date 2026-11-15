@@ -32,20 +32,20 @@ const terminal = (name: string): Element | undefined =>
 describe("the welcome dialog's preview", () => {
   it("shows a terminal for Antigravity beside Claude Code's and Codex's", () => {
     show({ claude: false, codex: false, agy: false })
-    expect(terminal("Another way in")?.classList.contains("agy")).toBe(true)
+    expect(terminal("Planner")?.classList.contains("agy")).toBe(true)
     expect(document.querySelectorAll(".welcome-terminal")).toHaveLength(4)
   })
 
   it("marks each agent's terminal connected when it is chosen, Antigravity's too", () => {
     show({ claude: false, codex: false, agy: true })
-    expect(terminal("Another way in")?.querySelector("[data-connected]")).not.toBeNull()
-    expect(terminal("Another way in")?.querySelector(".welcome-scan")).not.toBeNull()
+    expect(terminal("Planner")?.querySelector("[data-connected]")).not.toBeNull()
+    expect(terminal("Planner")?.querySelector(".welcome-scan")).not.toBeNull()
     expect(terminal("Build something great")?.querySelector("[data-connected]")).toBeNull()
     expect(terminal("A fresh perspective")?.querySelector("[data-connected]")).toBeNull()
   })
 
   it("shows Antigravity not connected when it is not chosen", () => {
     show({ claude: true, codex: true, agy: false })
-    expect(terminal("Another way in")?.querySelector("[data-connected]")).toBeNull()
+    expect(terminal("Planner")?.querySelector("[data-connected]")).toBeNull()
   })
 })
