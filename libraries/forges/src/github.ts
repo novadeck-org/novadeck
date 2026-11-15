@@ -8,8 +8,14 @@ const defaultHost = "github.com"
 const signIn = (host: string): string => `gh auth login --hostname ${host}`
 const refresh = (host: string): string => `gh auth refresh --hostname ${host} --scopes repo`
 
+// GitHub Enterprise Cloud with data residency (`<name>.ghe.com`) serves its API on `api.`, as
+// github.com does; GitHub Enterprise Server serves it under `/api`.
 const graphql = (host: string): string =>
-  host === defaultHost ? "https://api.github.com/graphql" : `https://${host}/api/graphql`
+  host === defaultHost
+    ? "https://api.github.com/graphql"
+    : host.endsWith(".ghe.com")
+      ? `https://api.${host}/graphql`
+      : `https://${host}/api/graphql`
 
 const repository = (remote: Remote, hosts: readonly string[] = []): Repository | undefined => {
   const [owner, name] = remote.path

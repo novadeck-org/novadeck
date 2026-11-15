@@ -206,6 +206,18 @@ describe("github", () => {
       expect(called).toBe(true)
     })
 
+    it("asks a data-residency host's API on its api. name", async () => {
+      let called = false
+      server.use(
+        http.post("https://api.octo.ghe.com/graphql", () => {
+          called = true
+          return HttpResponse.json({ data: { repository: { p0: { nodes: [] } } } })
+        }),
+      )
+      await find(["a"], { ...repo, host: "octo.ghe.com" })
+      expect(called).toBe(true)
+    })
+
     it("answers an empty map for an unknown repository", async () => {
       server.use(
         http.post("https://api.github.com/graphql", () =>

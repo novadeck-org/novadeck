@@ -1,12 +1,31 @@
 import { choose, time, type Candidate } from "./choose.js"
-import { failure, parse } from "./cli.js"
+import { failure, offline, parse } from "./cli.js"
 import type { Forge, Problem, PullRequest, Remote, Repository, Run, Token } from "./forge.js"
 import { headers, pooled, record, send } from "./http.js"
 
 const defaultHost = "dev.azure.com"
 const resource = "499b84ac-1321-427f-aa17-267ca6975798"
 
-const signIn = (): string => "az login"
+// Many who use only Azure DevOps have no Azure subscription, which a plain `az login` refuses.
+const signIn = (): string => "az login --allow-no-subscriptions"
+
+const tenantId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const noTenant = "00000000-0000-0000-0000-000000000000"
+
+/**
+ * A token `az` handed out that the organization turns away is most often from another tenant
+ * than the organization's (TF400813), which a plain sign-in doesn't mend. Azure DevOps names the
+ * organization's tenant in `X-VSS-ResourceTenant`; signing in to that one does.
+ */
+const unauthorized = (answered: Headers): Problem | undefined => {
+  const tenant = (answered.get("x-vss-resourcetenant") ?? "")
+    .split(",")
+    .map((each) => each.trim().toLowerCase())
+    .find((each) => tenantId.test(each) && each !== noTenant)
+  return tenant === undefined
+    ? undefined
+    : { kind: "refused", fix: `${signIn()} --tenant ${tenant}` }
+}
 
 const suffix = ".visualstudio.com"
 
@@ -66,7 +85,11 @@ const expiry = (body: Record<string, unknown>): number | undefined => {
 
 const token = async (run: Run, _host: string): Promise<Token | Problem> => {
   const ran = await run("az", ["account", "get-access-token", "--resource", resource, "-o", "json"])
-  if (!ran.ok) return failure(ran, () => ({ kind: "signed-out", fix: signIn() }))
+  // A token past its hour is renewed over the network, so this fails offline too.
+  if (!ran.ok)
+    return failure(ran, (said) =>
+      offline(said) ? { kind: "unreachable" } : { kind: "signed-out", fix: signIn() },
+    )
   const body = record(parse(ran.out))
   const value = body?.["accessToken"]
   if (body === undefined || typeof value !== "string" || value === "") {
@@ -116,7 +139,7 @@ const pullRequests: Forge["pullRequests"] = async (fetch, auth, repo, branches) 
       `${base}?searchCriteria.sourceRefName=${encodeURIComponent(`refs/heads/${branch}`)}&searchCriteria.status=all&$top=20&api-version=7.1`,
       // An expired token is answered with a redirect or a 203 sign-in page, not a 401.
       { headers: headers(auth.value), redirect: "manual" },
-      { signIn: signIn() },
+      { signIn: signIn(), unauthorized },
     ),
   }))
   const found = new Map<string, PullRequest>()

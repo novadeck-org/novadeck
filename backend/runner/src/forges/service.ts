@@ -67,7 +67,7 @@ export type ForgesOptions = {
   readonly fetch?: Fetch
   /** Where a program is, by its absolute path; its PATH's, by default. */
   readonly find?: (program: string) => string | undefined
-  /** A repository's origin URL; `git config --get remote.origin.url`, by default. */
+  /** A repository's origin URL, its `insteadOf` rewrites applied; `git remote get-url origin`, by default. */
   readonly remote?: (commonDir: string) => Promise<string | undefined>
   readonly platform?: NodeJS.Platform
   readonly now?: () => number
@@ -112,6 +112,11 @@ export class Forges {
   /** Tokens, by forge and host; only in memory. */
   private readonly held = new Map<string, Token>()
   private readonly asking = new Map<string, Promise<Token | Problem>>()
+  /**
+   * The token each host last turned away, by forge and host; only in memory. The tool handing
+   * out that same token again says nothing new of the sign-in.
+   */
+  private readonly turnedAway = new Map<string, string>()
   /** Where each host stands, from the last token attempt or lookup. */
   private readonly hosts = new Map<string, ForgeHost>()
   /** Origin remotes by repository, read once. */
@@ -181,9 +186,11 @@ export class Forges {
       this.remotes.clear()
       this.signed.clear()
       this.held.clear()
+      this.turnedAway.clear()
       this.hosts.clear()
-      // A sign-in or an install since may mend what backed off: look again.
-      this.looks.clear()
+      // A sign-in or an install since may mend what backed off: look again, keeping what was
+      // found meanwhile, so the marks don't blink.
+      for (const each of this.looks.values()) each.nextAt = each.blockedUntil = each.failures = 0
       void this.tick()
     }
     const enabled = this.options.enabled()
@@ -231,10 +238,11 @@ export class Forges {
   // What a forge's switching off or on leaves behind: its looks, tokens and hosts.
   private forget(name: ForgeName): void {
     for (const [dir, look] of this.looks) if (look.forge === name) this.looks.delete(dir)
-    for (const key of [...this.held.keys(), ...this.hosts.keys()])
+    for (const key of [...this.held.keys(), ...this.hosts.keys(), ...this.turnedAway.keys()])
       if (key.startsWith(`${name}\0`)) {
         this.held.delete(key)
         this.hosts.delete(key)
+        this.turnedAway.delete(key)
       }
     this.signed.delete(name)
   }
@@ -267,9 +275,17 @@ export class Forges {
     if (enabled && available) {
       const wanted = claimed.length > 0 ? [...new Set(claimed)] : [forge.defaultHost]
       await Promise.all(
-        wanted.map((host) =>
-          this.hosts.has(hostKey(name, host)) ? undefined : this.tokenOf(name, host),
-        ),
+        wanted.map((host) => {
+          const key = hostKey(name, host)
+          const state = this.hosts.get(key)?.state
+          if (state === undefined) return this.tokenOf(name, host)
+          // Signed in since, maybe in the person's own terminal: the tool is asked again.
+          if (state === "signed-out") {
+            this.held.delete(key)
+            return this.tokenOf(name, host)
+          }
+          return undefined
+        }),
       )
       for (const host of wanted) {
         const state = this.hosts.get(hostKey(name, host))
@@ -383,32 +399,45 @@ export class Forges {
     branches: readonly string[],
   ): Promise<ReadonlyMap<string, PullRequest> | Problem> {
     const forge = this.forges[claim.forge]
-    const ask = async (): Promise<ReadonlyMap<string, PullRequest> | Problem> => {
+    const key = hostKey(claim.forge, claim.host)
+    type Asked = {
+      readonly found: ReadonlyMap<string, PullRequest> | Problem
+      /** The token the forge was asked with; absent where the tool gave none. */
+      readonly token?: Token
+    }
+    const ask = async (): Promise<Asked> => {
       const token = await this.tokenOf(claim.forge, claim.host)
-      if (isProblem(token)) return token
+      if (isProblem(token)) return { found: token }
       try {
-        return await forge.pullRequests(this.fetch, token, claim, branches)
+        return { found: await forge.pullRequests(this.fetch, token, claim, branches), token }
       } catch (error) {
-        return {
-          kind: "unknown",
-          said: error instanceof Error ? error.message : String(error),
-        }
+        const said = error instanceof Error ? error.message : String(error)
+        return { found: { kind: "unknown", said }, token }
       }
     }
-    let found = await ask()
-    // A token the host turned away (revoked, rotated, 401) is dropped and asked for once more.
-    if (isProblem(found) && (found.kind === "refused" || found.kind === "signed-out")) {
-      this.held.delete(hostKey(claim.forge, claim.host))
-      found = await ask()
+    // The host turned the token away (revoked, rotated, another tenant's: a 401 or a refusal).
+    const turnedAway = (asked: Asked): boolean => {
+      if (asked.token === undefined || !isProblem(asked.found)) return false
+      if (asked.found.kind !== "refused" && asked.found.kind !== "signed-out") return false
+      if (this.options.enabled().includes(claim.forge)) this.turnedAway.set(key, asked.token.value)
+      return true
     }
+    let asked = await ask()
+    // A token turned away is dropped and asked for once more; a tool that gives none (it is
+    // signed out) isn't asked twice.
+    if (turnedAway(asked)) {
+      this.held.delete(key)
+      asked = await ask()
+      turnedAway(asked)
+    }
+    const { found } = asked
     if (isProblem(found)) {
       if (found.kind === "refused" || found.kind === "signed-out")
         this.noteHost(claim.forge, claim.host, found)
-    } else if (this.options.enabled().includes(claim.forge))
-      this.hosts.set(hostKey(claim.forge, claim.host), {
-        host: claim.host,
-        state: "signed-in",
-      })
+    } else if (this.options.enabled().includes(claim.forge)) {
+      this.turnedAway.delete(key)
+      this.hosts.set(key, { host: claim.host, state: "signed-in" })
+    }
     return found
   }
 
@@ -430,7 +459,9 @@ export class Forges {
         if (isProblem(got)) this.noteHost(name, host, got)
         else if (this.options.enabled().includes(name)) {
           this.held.set(key, got)
-          this.noteHost(name, host, "ok")
+          // The token the host last turned away, handed out again, is no sign-in: a look that
+          // backed off for it keeps backing off.
+          if (this.turnedAway.get(key) !== got.value) this.noteHost(name, host, "ok")
         }
         return got
       })
@@ -529,9 +560,10 @@ export class Forges {
 
 const hostKey = (name: ForgeName, host: string): string => `${name}\0${host}`
 
-// The repository's origin, as its git config says; undefined where there is none.
+// The repository's origin, its `insteadOf` rewrites applied (`gh:owner/repo` is the URL they
+// make of it); undefined where there is none.
 const originOf = async (commonDir: string): Promise<string | undefined> => {
-  const found = await git(homeOf(commonDir), ["config", "--get", "remote.origin.url"], {
+  const found = await git(homeOf(commonDir), ["remote", "get-url", "origin"], {
     cap: 4096,
   })
   const url = found.ok ? found.out.trim() : ""

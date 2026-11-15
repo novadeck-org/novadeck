@@ -468,6 +468,70 @@ describe("the forges service", () => {
     expect(forges.pullRequest(dirs.a, "feature")).toEqual(open)
   })
 
+  it("keeps what it found through a fresh list, so the marks don't blink", async () => {
+    const { forges, state } = setup({ enabled: ["github"] })
+    await forges.tick()
+    // No pass looks again meanwhile: what shows is what the list kept.
+    state.watching = false
+    await forges.list({ fresh: true })
+    expect(forges.pullRequest(dirs.a, "feature")).toEqual(open)
+  })
+
+  it("keeps backing off when the tool hands out again the token the host turned away", async () => {
+    const twoOnGitHub: Record<string, string> = {
+      [dirs.a]: "https://github.com/o/a.git",
+      [dirs.b]: "https://github.com/o/b.git",
+    }
+    const { forges, fakes, state } = setup({
+      enabled: ["github"],
+      remote: async (commonDir) => twoOnGitHub[commonDir],
+    })
+    await forges.tick()
+    // Revoked on the host, while `gh` still hands it out.
+    fakes.github.answer = () => ({ kind: "signed-out", fix: "gh auth login --hostname github.com" })
+    state.now += every
+    await forges.tick()
+    const looked = fakes.github.lookups.length
+    // A minute of ticks: neither repository's look sets the other's going again.
+    for (let tick = 0; tick < 12; tick += 1) {
+      state.now += 5000
+      // eslint-disable-next-line no-await-in-loop -- One tick after another.
+      await forges.tick()
+    }
+    expect(fakes.github.lookups).toHaveLength(looked)
+    // Each failure doubles the wait: not looked at 10 min on, but 20 min on.
+    state.now += 2 * every
+    await forges.tick()
+    const second = fakes.github.lookups.length
+    expect(second).toBeGreaterThan(looked)
+    state.now += 2 * every
+    await forges.tick()
+    expect(fakes.github.lookups).toHaveLength(second)
+    expect(forges.pullRequest(dirs.a, "feature")).toEqual(open)
+  })
+
+  it("asks a signed-out tool once a look, not again to retry", async () => {
+    const { forges, fakes } = setup({ enabled: ["github"] })
+    fakes.github.token = () => ({ kind: "signed-out", fix: "gh auth login --hostname github.com" })
+    await forges.tick()
+    expect(fakes.github.tokens).toHaveLength(1)
+    expect(fakes.github.lookups).toHaveLength(0)
+  })
+
+  it("sees a sign-in made in the person's own terminal when it lists, and looks again", async () => {
+    const { forges, fakes, state } = setup({ enabled: ["github"] })
+    fakes.github.token = () => ({ kind: "signed-out", fix: "gh auth login --hostname github.com" })
+    await forges.tick()
+    expect(forges.pullRequest(dirs.a, "feature")).toBeUndefined()
+    // `gh auth login`, run outside Novadeck; then Preferences opens.
+    fakes.github.token = () => ({ value: "new" })
+    state.now += 1000
+    const [github] = await forges.list()
+    expect(github?.hosts).toEqual([{ host: "github.com", state: "signed-in" }])
+    await forges.tick()
+    expect(forges.pullRequest(dirs.a, "feature")).toEqual(open)
+  })
+
   it("waits at least a minute for a rate limit whose time has already passed", async () => {
     const { forges, fakes, state } = setup({ enabled: ["github"] })
     fakes.github.answer = () => ({ kind: "limited", until: state.now - 1000 })
@@ -493,11 +557,14 @@ describe("the forges service", () => {
     expect(github?.hosts).toEqual([])
   })
 
-  it("reads a repository's origin from its git config", async ({ resources }) => {
+  it("reads a repository's origin from git, its insteadOf rewrite applied", async ({
+    resources,
+  }) => {
     const folder = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-forges-test-")))
     resources.defer(() => rmSync(folder, { recursive: true, force: true }))
     execFileSync("git", ["init", "-q", folder])
-    execFileSync("git", ["-C", folder, "remote", "add", "origin", "https://github.com/o/r.git"])
+    execFileSync("git", ["-C", folder, "config", "url.https://github.com/.insteadOf", "gh:"])
+    execFileSync("git", ["-C", folder, "remote", "add", "origin", "gh:o/r.git"])
     const { fakes } = setup()
     // No `remote` option: the default reader.
     const own = new Forges({

@@ -116,11 +116,18 @@ describe("azure", () => {
       ).toEqual({ value: "eyJ" })
     })
     it("is signed out when az fails or answers nothing usable", async () => {
-      const fix = { kind: "signed-out", fix: "az login" }
+      const fix = { kind: "signed-out", fix: "az login --allow-no-subscriptions" }
       expect(
         await azure.token(scripted({ [line]: exit("Please run 'az login'") }).run, "x"),
       ).toEqual(fix)
       expect(await azure.token(scripted({ [line]: ok("not json") }).run, "x")).toEqual(fix)
+    })
+    it("is unreachable, not signed out, when renewing the token fails offline", async () => {
+      const said =
+        "ERROR: HTTPSConnectionPool(host='login.microsoftonline.com', port=443): Max retries exceeded with url: /organizations/oauth2/v2.0/token (Caused by NewConnectionError('Failed to establish a new connection: [Errno -3] Temporary failure in name resolution'))"
+      expect(await azure.token(scripted({ [line]: exit(said) }).run, "x")).toEqual({
+        kind: "unreachable",
+      })
     })
     it("is missing without az and unreachable on a timeout", async () => {
       expect(await azure.token(scripted({ [line]: missing }).run, "x")).toEqual({ kind: "missing" })
@@ -205,9 +212,33 @@ describe("azure", () => {
     })
     it("is signed out on 401, and on a 203 sign-in page", async () => {
       status(401)
-      expect(await find(["a"])).toEqual({ kind: "signed-out", fix: "az login" })
+      expect(await find(["a"])).toEqual({
+        kind: "signed-out",
+        fix: "az login --allow-no-subscriptions",
+      })
       server.use(http.get(url, () => new HttpResponse("<html>sign in</html>", { status: 203 })))
-      expect(await find(["a"])).toEqual({ kind: "signed-out", fix: "az login" })
+      expect(await find(["a"])).toEqual({
+        kind: "signed-out",
+        fix: "az login --allow-no-subscriptions",
+      })
+    })
+    it("is refused on 401 naming the organization's tenant, with a sign-in to it", async () => {
+      const tenant = "3F1C9A52-7D4E-4B8A-9C61-2E5D8F0A7B13"
+      status(401, { "x-vss-resourcetenant": tenant })
+      expect(await find(["a"])).toEqual({
+        kind: "refused",
+        fix: "az login --allow-no-subscriptions --tenant 3f1c9a52-7d4e-4b8a-9c61-2e5d8f0a7b13",
+      })
+    })
+    it("is signed out on 401 naming no tenant, or none it can use", async () => {
+      for (const named of ["00000000-0000-0000-0000-000000000000", "x; rm -rf ~", ""]) {
+        status(401, { "x-vss-resourcetenant": named })
+        // eslint-disable-next-line no-await-in-loop -- One answer set up at a time.
+        expect(await find(["a"])).toEqual({
+          kind: "signed-out",
+          fix: "az login --allow-no-subscriptions",
+        })
+      }
     })
     it("is refused on 403", async () => {
       status(403)

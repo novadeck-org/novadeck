@@ -115,6 +115,14 @@ describe("gitlab", () => {
       expect(answer).toEqual({ kind: "signed-out", fix })
       expect(JSON.stringify(answer)).not.toContain("glpat-secret")
     })
+    it("is unreachable, not signed out, when the status fails offline", async () => {
+      const offline = scripted({
+        [status]: exit(
+          "gitlab.com\n  x gitlab.com: api call failed: GET https://gitlab.com/api/v4/user: dial tcp: lookup gitlab.com: no such host\n",
+        ),
+      })
+      expect(await gitlab.token(offline.run, "gitlab.com")).toEqual({ kind: "unreachable" })
+    })
     it("is missing without glab and unreachable on a timeout", async () => {
       expect(await gitlab.token(scripted({ [status]: missing }).run, "gitlab.com")).toEqual({
         kind: "missing",

@@ -1,5 +1,5 @@
 import { choose, time, type Candidate } from "./choose.js"
-import { failure, parse } from "./cli.js"
+import { failure, offline, parse } from "./cli.js"
 import type { Forge, Problem, PullRequest, Ran, Remote, Repository, Run, Token } from "./forge.js"
 import { headers, pooled, record, send } from "./http.js"
 
@@ -64,7 +64,9 @@ const shownToken = (text: string): string | undefined => {
 const token = async (run: Run, host: string): Promise<Token | Problem> => {
   const signedOut: Problem = { kind: "signed-out", fix: signIn(host) }
   const status = await run("glab", ["auth", "status", "--hostname", host, "--show-token"])
-  if (!status.ok) return failure(status, () => signedOut)
+  // The status asks the host, so it fails offline too: that is no sign-out.
+  if (!status.ok)
+    return failure(status, (said) => (offline(said) ? { kind: "unreachable" } : signedOut))
   const shown = shownToken(textOf(status))
   if (shown !== undefined) return { value: shown }
   // A glab that shows no token line keeps it in its config.

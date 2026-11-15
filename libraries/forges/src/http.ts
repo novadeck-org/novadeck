@@ -23,14 +23,23 @@ const limitedBy403 = (headers: Headers): boolean =>
   headers.get("ratelimit-remaining") === "0"
 
 /** A failing status as a Problem; undefined for a 404, which is no answer rather than a failure. */
+export type Fixes = {
+  readonly signIn: string
+  readonly refused?: string | undefined
+  /** A 401 read more closely by the forge, from its headers; undefined answers signed out. */
+  readonly unauthorized?: ((headers: Headers) => Problem | undefined) | undefined
+}
+
 export const problemOf = (
   response: Response,
-  fixes: { readonly signIn: string; readonly refused?: string | undefined },
+  fixes: Fixes,
   now: number = Date.now(),
 ): Problem | undefined => {
   const { status, headers } = response
   if (status === 404) return undefined
-  if (status === 401 || status === 203 || (status >= 300 && status < 400))
+  if (status === 401)
+    return fixes.unauthorized?.(headers) ?? { kind: "signed-out", fix: fixes.signIn }
+  if (status === 203 || (status >= 300 && status < 400))
     return { kind: "signed-out", fix: fixes.signIn }
   if (status === 429) return { kind: "limited", until: until(headers, now) }
   if (status === 403) {
@@ -46,7 +55,7 @@ export const send = async (
   fetch: Fetch,
   url: string,
   init: RequestInit,
-  fixes: { readonly signIn: string; readonly refused?: string | undefined },
+  fixes: Fixes,
 ): Promise<Answer> => {
   let response: Response
   try {

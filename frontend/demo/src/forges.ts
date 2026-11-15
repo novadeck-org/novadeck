@@ -24,14 +24,14 @@ const hostOf: Readonly<Record<ForgeName, string>> = {
 export const demoSignIn: Readonly<Record<ForgeName, string>> = {
   github: "gh auth login --hostname github.com",
   gitlab: "glab auth login --hostname gitlab.com",
-  azure: "az login",
+  azure: "az login --allow-no-subscriptions",
 }
 
 // What mends a token a host refused.
 export const demoRefresh: Readonly<Record<ForgeName, string>> = {
   github: "gh auth refresh --hostname github.com",
   gitlab: "glab auth login --hostname gitlab.com",
-  azure: "az login",
+  azure: "az login --allow-no-subscriptions --tenant 3f1c9a52-7d4e-4b8a-9c61-2e5d8f0a7b13",
 }
 
 const host = (forge: ForgeName, state: ForgeHost["state"]): ForgeHost => ({
