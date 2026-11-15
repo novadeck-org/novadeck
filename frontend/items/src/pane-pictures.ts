@@ -4,15 +4,19 @@ import { createContext, useCallback, useContext, useEffect, useRef } from "react
 // ./pane-turns): where the app can picture its own page, as the desktop app can, it stands
 // in as a picture of itself as it was last drawn, rather than as its icon and name. While a
 // pane is built and in sight, its picture is kept fresh: `firstMs` after it's laid out,
-// `leftMs` after the pointer leaves it, and every `freshenMs`, each only once what it shows
-// has changed since, as told by its DOM changing, a scroll in it or its size.
+// `leftMs` after the pointer or focus leaves it, and every `freshenMs`, each only once what
+// it shows has changed since, as told by its DOM changing, a scroll in it, its size, the
+// page's look, or the pointer or focus leaving it (which a hover or focus ring showed).
+// Pictures are taken one at a time, so panes a view shows at once don't all ask together.
 
 // A picture of a pane: what it showed, decoded, ready to draw at once, and the size it was
-// laid out at then, in CSS pixels, as it shows only where the pane is that size again.
+// laid out at then, in CSS pixels, and the page's look then (see `pageLook`), as it shows
+// only where the pane is that size again, in that look.
 export type PanePicture = {
   readonly image: HTMLImageElement
   readonly width: number
   readonly height: number
+  readonly look: string
 }
 
 // A part of the page in CSS pixels of its viewport.
@@ -52,13 +56,52 @@ export const sketchedAttribute = "data-pane-pictures-sketched"
 const sketched = (): boolean =>
   typeof document !== "undefined" && document.documentElement.hasAttribute(sketchedAttribute)
 
-// Whether `element`, drawn at `rect`, is wholly in the window and nothing covers it: at its
-// middle and near each corner, what's on top is it or in it, as no dialog, menu or Canvas
-// tile is over it.
+// What on the page's root changes how every pane looks: its theme, scheme and ligatures.
+const lookAttributes = ["data-theme", "data-scheme", "data-ligatures"]
+
+/** The page's look now, as a picture of a pane was taken in and shows only in. */
+export const pageLook = (): string =>
+  lookAttributes.map((name) => document.documentElement.getAttribute(name) ?? "").join(" ")
+
+// What floats over the page outside a pane, from a portal: a menu, a tooltip, a dialog, a
+// list that drops down, or any positioned popup.
+const floating =
+  '[role="menu"], [role="tooltip"], [role="dialog"], [role="alertdialog"], [role="listbox"], ' +
+  '[data-part="positioner"]'
+
+// Whether something floating outside `element` overlaps `rect`, where it's drawn.
+const overlaid = (element: HTMLElement, rect: DOMRect): boolean =>
+  [...document.querySelectorAll(floating)].some((each) => {
+    if (element.contains(each)) return false
+    const box = each.getBoundingClientRect()
+    return (
+      box.width > 0 &&
+      box.height > 0 &&
+      box.left < rect.right &&
+      box.right > rect.left &&
+      box.top < rect.bottom &&
+      box.bottom > rect.top
+    )
+  })
+
+// Whether `element` is still drawn at `rect`: a pan or a scroll meanwhile moved it.
+const stayed = (element: HTMLElement, rect: DOMRect): boolean => {
+  const now = element.getBoundingClientRect()
+  return (
+    Math.abs(now.left - rect.left) <= 1 &&
+    Math.abs(now.top - rect.top) <= 1 &&
+    Math.abs(now.width - rect.width) <= 1 &&
+    Math.abs(now.height - rect.height) <= 1
+  )
+}
+// Whether `element`, drawn at `rect`, is wholly in the window and nothing covers it: nothing
+// floating overlaps it, and at its middle and near each corner, what's on top is it or in
+// it, as no Canvas tile is over it.
 const uncovered = (element: HTMLElement, rect: DOMRect): boolean => {
   if (rect.width < 1 || rect.height < 1) return false
   if (rect.left < 0 || rect.top < 0) return false
   if (rect.right > window.innerWidth || rect.bottom > window.innerHeight) return false
+  if (overlaid(element, rect)) return false
   const inset = Math.min(4, rect.width / 4, rect.height / 4)
   const points: readonly (readonly [number, number])[] = [
     [rect.left + rect.width / 2, rect.top + rect.height / 2],
@@ -127,23 +170,36 @@ const decoded = async (src: string): Promise<HTMLImageElement | undefined> => {
  * Pictures of panes, taken with `shoot` where the page can picture itself, else, while the
  * demo's debug panel asks, sketched (see `sketchedAttribute`).
  */
-export const createPanePictures = (shoot: Shoot | undefined): PanePictures => ({
-  can: () => shoot !== undefined || sketched(),
-  take: async (element) => {
+export const createPanePictures = (shoot: Shoot | undefined): PanePictures => {
+  const take = async (element: HTMLElement): Promise<PanePicture | undefined> => {
+    if (!element.isConnected) return undefined
     const rect = element.getBoundingClientRect()
     if (!uncovered(element, rect)) return undefined
     // The size it's laid out at, whatever scales it as it's drawn.
     const width = element.offsetWidth
     const height = element.offsetHeight
+    const look = pageLook()
     const src = shoot
       ? await shoot({ x: rect.left, y: rect.top, width: rect.width, height: rect.height })
       : sketched()
         ? sketch(element, rect, width, height)
         : undefined
-    const image = src === undefined ? undefined : await decoded(src)
-    return image && { image, width, height }
-  },
-})
+    // Moved while it was taken, it's a picture of somewhere else.
+    if (src === undefined || !stayed(element, rect)) return undefined
+    const image = await decoded(src)
+    return image && { image, width, height, look }
+  }
+  // The picture under way, which the next waits for.
+  let last: Promise<unknown> = Promise.resolve()
+  return {
+    can: () => shoot !== undefined || sketched(),
+    take: (element) => {
+      const next = last.then(() => take(element))
+      last = next.catch(() => undefined)
+      return next
+    },
+  }
+}
 
 /**
  * Keeps a picture of the pane drawn in `element` while it's `live` (built, laid out and in
@@ -167,6 +223,7 @@ export const usePanePicture = (
     let taking = false
     let gone = false
     const watch = (): void => {
+      looked.observe(document.documentElement, { attributeFilter: lookAttributes })
       observer.observe(element, {
         subtree: true,
         childList: true,
@@ -179,9 +236,11 @@ export const usePanePicture = (
       if (changed) return
       changed = true
       observer.disconnect()
+      looked.disconnect()
       resized?.disconnect()
     }
     const observer = new MutationObserver(change)
+    const looked = new MutationObserver(change)
     // A size observer tells of the size it has at once, which is no change.
     let sized = false
     const resized =
@@ -212,21 +271,31 @@ export const usePanePicture = (
       )
     }
     const scrolled = (): void => change()
+    // Left, it shows no hover or focus ring the last picture may have.
     let left: ReturnType<typeof setTimeout> | undefined
-    const leave = (): void => {
+    const leave = (event: Event): void => {
+      if (
+        event.type === "focusout" &&
+        element.contains((event as FocusEvent).relatedTarget as Node)
+      )
+        return
+      change()
       clearTimeout(left)
       left = setTimeout(take, leftMs)
     }
     element.addEventListener("scroll", scrolled, { capture: true, passive: true })
     element.addEventListener("pointerleave", leave)
+    element.addEventListener("focusout", leave)
     const first = setTimeout(take, firstMs)
     const every = setInterval(take, freshenMs)
     return () => {
       gone = true
       observer.disconnect()
+      looked.disconnect()
       resized?.disconnect()
       element.removeEventListener("scroll", scrolled, { capture: true })
       element.removeEventListener("pointerleave", leave)
+      element.removeEventListener("focusout", leave)
       clearTimeout(first)
       clearTimeout(left)
       clearInterval(every)

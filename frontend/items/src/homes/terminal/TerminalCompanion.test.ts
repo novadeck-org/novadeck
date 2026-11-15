@@ -27,7 +27,7 @@ import { act, createElement, useSyncExternalStore, type ComponentProps } from "r
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { createDragSession, DragSessionContext } from "../../bar/drag-session"
-import { firstMs, PanePicturesContext, type PanePictures } from "../../pane-pictures"
+import { firstMs, pageLook, PanePicturesContext, type PanePictures } from "../../pane-pictures"
 import {
   createPaneTurns,
   PaneTurnsContext,
@@ -370,7 +370,7 @@ describe("a pane in the workspace", () => {
           taken.push(element)
           const image = document.createElement("img")
           image.src = "data:image/jpeg;base64,AAAA"
-          return { image, ...size }
+          return { image, ...size, look: pageLook() }
         },
       }
       return { pictures, taken }
@@ -411,6 +411,26 @@ describe("a pane in the workspace", () => {
       expect(standIn(container)).not.toBeNull()
       expect(picture(container)).toBeNull()
       expect(standIn(container)?.hasAttribute("data-pictured")).toBe(false)
+    })
+
+    it("stands in as its icon and name where the page's look changed since its picture", async () => {
+      const { turns, step } = stepped()
+      const { pictures } = picturing()
+      const { container, onScreen } = renderTerminal(opened(hero.id, hero), undefined, undefined, {
+        turns,
+        pictures,
+      })
+      step()
+      await act(async () => void vi.advanceTimersByTime(firstMs))
+      onScreen(false)
+      document.documentElement.dataset.theme = "other"
+      try {
+        onScreen(true)
+        expect(standIn(container)).not.toBeNull()
+        expect(picture(container)).toBeNull()
+      } finally {
+        delete document.documentElement.dataset.theme
+      }
     })
 
     it("doesn't stand in as a picture of something else it showed", async () => {

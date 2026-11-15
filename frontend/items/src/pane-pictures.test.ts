@@ -7,6 +7,7 @@ import {
   firstMs,
   freshenMs,
   leftMs,
+  pageLook,
   PanePicturesContext,
   sketchedAttribute,
   usePanePicture,
@@ -63,6 +64,7 @@ describe("a picture of a pane", () => {
     expect(asked).toEqual([{ x: 10, y: 20, width: 150, height: 100 }])
     expect(picture?.image.getAttribute("src")).toBe("data:image/jpeg;base64,AAAA")
     expect([picture?.width, picture?.height]).toEqual([300, 200])
+    expect(picture?.look).toBe(pageLook())
   })
 
   it("is none where it isn't wholly in the window", async () => {
@@ -84,6 +86,53 @@ describe("a picture of a pane", () => {
       await createPanePictures(shoot).take(drawn(undefined, { covered: true })),
     ).toBeUndefined()
     expect(shoot).not.toHaveBeenCalled()
+  })
+
+  it("is none where a menu or tooltip floats over it from outside", async () => {
+    const shoot = vi.fn<Shoot>(async () => "data:image/jpeg;base64,AAAA")
+    const element = drawn()
+    const menu = document.createElement("div")
+    menu.setAttribute("role", "menu")
+    document.body.append(menu)
+    const box = { left: 250, top: 150, width: 120, height: 90, right: 370, bottom: 240 }
+    vi.spyOn(menu, "getBoundingClientRect").mockReturnValue({
+      ...box,
+      x: box.left,
+      y: box.top,
+      toJSON: () => box,
+    })
+    expect(await createPanePictures(shoot).take(element)).toBeUndefined()
+    expect(shoot).not.toHaveBeenCalled()
+  })
+
+  it("is none where it moved while it was taken, as a pan moves it", async () => {
+    const element = drawn()
+    const pictures = createPanePictures(async () => {
+      vi.mocked(element.getBoundingClientRect).mockReturnValue({
+        ...element.getBoundingClientRect(),
+        left: 60,
+        x: 60,
+      })
+      return "data:image/jpeg;base64,AAAA"
+    })
+    expect(await pictures.take(element)).toBeUndefined()
+  })
+
+  it("is taken one at a time", async () => {
+    const shots: ((src: string) => void)[] = []
+    const pictures = createPanePictures(
+      () => new Promise<string | undefined>((resolve) => shots.push(resolve)),
+    )
+    const element = drawn()
+    const first = pictures.take(element)
+    const second = pictures.take(element)
+    await Promise.resolve()
+    expect(shots).toHaveLength(1)
+    shots[0]!("data:image/jpeg;base64,AAAA")
+    await first
+    await vi.waitFor(() => expect(shots).toHaveLength(2))
+    shots[1]!("data:image/jpeg;base64,BBBB")
+    expect((await second)?.image.getAttribute("src")).toBe("data:image/jpeg;base64,BBBB")
   })
 
   it("is none where the app gives none", async () => {
@@ -122,7 +171,7 @@ describe("keeping a pane's picture", () => {
         taken.push(element)
         const image = document.createElement("img")
         image.alt = String(taken.length)
-        return { image, width: 1, height: 1 }
+        return { image, width: 1, height: 1, look: "" }
       },
     }
     return { pictures, taken }
@@ -173,16 +222,46 @@ describe("keeping a pane's picture", () => {
     expect(latest()).toBe("2")
   })
 
-  it("takes it again a moment after the pointer leaves, where it changed", async () => {
+  it("takes it again a moment after the pointer leaves, which a hover showed", async () => {
     const { pictures, taken } = noting()
     const { element } = pane(pictures)
     await pass(firstMs)
     element.dispatchEvent(new Event("pointerleave"))
+    await pass(leftMs - 1)
+    expect(taken).toHaveLength(1)
+    await pass(1)
+    expect(taken).toHaveLength(2)
+  })
+
+  it("takes it again a moment after focus leaves it, but not as focus moves inside it", async () => {
+    const { pictures, taken } = noting()
+    const { element } = pane(pictures)
+    await pass(firstMs)
+    const inside = element.querySelector("p")!
+    element.dispatchEvent(new FocusEvent("focusout", { relatedTarget: inside }))
     await pass(leftMs)
     expect(taken).toHaveLength(1)
-    element.dispatchEvent(new Event("scroll"))
-    element.dispatchEvent(new Event("pointerleave"))
+    element.dispatchEvent(new FocusEvent("focusout", { relatedTarget: null }))
     await pass(leftMs)
+    expect(taken).toHaveLength(2)
+  })
+
+  it("takes it again in the page's new look", async () => {
+    const { pictures, taken } = noting()
+    pane(pictures)
+    await pass(firstMs)
+    document.documentElement.dataset.scheme = "dark"
+    await pass(freshenMs)
+    delete document.documentElement.dataset.scheme
+    expect(taken).toHaveLength(2)
+  })
+
+  it("takes it again where it scrolled", async () => {
+    const { pictures, taken } = noting()
+    const { element } = pane(pictures)
+    await pass(firstMs)
+    element.querySelector("p")!.dispatchEvent(new Event("scroll"))
+    await pass(freshenMs)
     expect(taken).toHaveLength(2)
   })
 

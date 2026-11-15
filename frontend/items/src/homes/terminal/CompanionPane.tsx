@@ -7,7 +7,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 
 import { AwakeContext, useWakeful } from "../../awake"
 import { isNew, isSecret, type BarMember, type BehindGroup } from "../../bar/bar"
-import { usePanePicture, type PanePicture } from "../../pane-pictures"
+import { pageLook, usePanePicture, type PanePicture } from "../../pane-pictures"
 import { usePaneTurn } from "../../pane-turns"
 import type { LookContext } from "../../registration"
 import { registrationOf, stackNames } from "../../registry"
@@ -135,8 +135,8 @@ const Sheet = ({
 const pictureFitPx = 1
 
 // What stands in for what the pane shows until its turn: a picture of it as it was last
-// drawn, where there is one taken at the size the pane is now (see ../../pane-pictures),
-// else its icon and name, as its tab has.
+// drawn, where there is one taken at the size the pane is now, in the page's look now (see
+// ../../pane-pictures), else its icon and name, as its tab has.
 const StandIn = ({
   member,
   plans,
@@ -148,22 +148,30 @@ const StandIn = ({
 }): React.JSX.Element => {
   const { icon: Icon, name } = memberLook(member, { plans })
   const element = useRef<HTMLDivElement>(null)
-  // Put in before the frame draws, decoded already, so the frame shows it.
+  // Put in before the frame draws, decoded already, so the frame shows it; taken out again
+  // if the pane's size changes while it waits.
   useLayoutEffect(() => {
     const standIn = element.current
     const sheet = standIn?.parentElement
     const shown = picture()
-    if (!standIn || !sheet || !shown) return
-    const fits =
-      Math.abs(sheet.offsetWidth - shown.width) <= pictureFitPx &&
-      Math.abs(sheet.offsetHeight - shown.height) <= pictureFitPx
-    if (!fits) return
+    if (!standIn || !sheet || !shown || shown.look !== pageLook()) return
     const { image } = shown
     image.className = "pane-stand-in-picture"
     image.setAttribute("aria-hidden", "true")
-    standIn.append(image)
-    standIn.dataset.pictured = "true"
+    const fit = (): void => {
+      const fits =
+        Math.abs(sheet.offsetWidth - shown.width) <= pictureFitPx &&
+        Math.abs(sheet.offsetHeight - shown.height) <= pictureFitPx
+      if (fits && image.parentElement !== standIn) standIn.append(image)
+      if (!fits) image.remove()
+      if (fits) standIn.dataset.pictured = "true"
+      else delete standIn.dataset.pictured
+    }
+    fit()
+    const resized = typeof ResizeObserver === "function" ? new ResizeObserver(fit) : undefined
+    resized?.observe(sheet)
     return () => {
+      resized?.disconnect()
       image.remove()
       delete standIn.dataset.pictured
     }
