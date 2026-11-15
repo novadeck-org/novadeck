@@ -15,7 +15,21 @@ import { claudeHello, openssl, standIn } from "./stand-in.js"
 // `TerminalSummary.startup` says (docs/agent-messaging.md, "Startup screens"): its sign-in
 // screen, or its prompt saying it isn't signed in, and Novadeck's hooks not running for it,
 // untrusted (Codex) or off in the person's own settings (Claude Code, Antigravity). Each
-// harness has both; the way the person gets there differs, as each case says.
+// harness has both; the way the person gets there differs, as each case says. Each holds
+// alike where Novadeck opened the agent and where the person typed it in a plain shell.
+
+/** How the agent starts: Novadeck opens it, or the person types it in a shell of its own. */
+const launches = ["opened", "typed"] as const
+type Launch = (typeof launches)[number]
+
+const launch = async (run: E2E, how: Launch, command: string): Promise<DeckTerminal> => {
+  if (how === "opened") return run.deck.open(command)
+  const terminal = await run.deck.open()
+  await terminal.submit(command)
+  return terminal
+}
+
+const typed = (how: Launch): string => (how === "typed" ? ", typed in its shell" : "")
 
 /**
  * A program named after `agent`, so Novadeck expects it, that starts the agent on PATH with
@@ -86,35 +100,36 @@ const hooksOff: { readonly [agent in AgentName]: (run: E2E) => Promise<void> } =
 
 for (const setup of setups) {
   describe.skipIf(!supported)(`${setup.name}, Novadeck's hooks off`, () => {
-    e2e.seeded({ hooksTrusted: false }, setup)(
-      "reads as held by them at its prompt, and at its review where it has one",
-      async ({ e2e: run }) => {
-        await hooksOff[setup.agent](run)
-        const t = await run.deck.open(setup.agent)
-        const review = setup.trust?.hooks
-        if (review) {
-          await t.until(review.shows, 60_000)
-          await held(t, "its hooks review to count")
+    for (const how of launches)
+      e2e.seeded({ hooksTrusted: false }, setup)(
+        `reads as held by them at its prompt, and at its review where it has one${typed(how)}`,
+        async ({ e2e: run }) => {
+          await hooksOff[setup.agent](run)
+          const t = await launch(run, how, setup.agent)
+          const review = setup.trust?.hooks
+          if (review) {
+            await t.until(review.shows, 60_000)
+            await held(t, "its hooks review to count")
+            expect(t.summary().startup).toEqual({ agent: setup.agent, screen: "hooks" })
+            await skip(t, review)
+          }
+          // Its own prompt, with nothing of Novadeck's running for it.
+          await prompted(t, setup)
+          await t.poll(
+            () => (t.summary().startup?.screen === "hooks" ? true : undefined),
+            "its hooks to be found off at its prompt",
+            60_000,
+          )
+          expect(t.summary()).toMatchObject({
+            agent: null,
+            ready: null,
+            startup: { agent: setup.agent, screen: "hooks" },
+          })
+          // It stays so: nothing binds there.
+          await sleep(3000)
           expect(t.summary().startup).toEqual({ agent: setup.agent, screen: "hooks" })
-          await skip(t, review)
-        }
-        // Its own prompt, with nothing of Novadeck's running for it.
-        await prompted(t, setup)
-        await t.poll(
-          () => (t.summary().startup?.screen === "hooks" ? true : undefined),
-          "its hooks to be found off at its prompt",
-          60_000,
-        )
-        expect(t.summary()).toMatchObject({
-          agent: null,
-          ready: null,
-          startup: { agent: setup.agent, screen: "hooks" },
-        })
-        // It stays so: nothing binds there.
-        await sleep(3000)
-        expect(t.summary().startup).toEqual({ agent: setup.agent, screen: "hooks" })
-      },
-    )
+        },
+      )
 
     if (setup.agent === "claude")
       e2e(setup)(
@@ -135,7 +150,7 @@ for (const setup of setups) {
   })
 
   describe.skipIf(!supported)(`${setup.name}, signed out`, () => {
-    signedOut[setup.agent](setup)
+    for (const how of launches) signedOut[setup.agent](setup, how)
   })
 }
 
@@ -159,12 +174,16 @@ const skip = async (
  * Each harness without a login: the screen it signs in at, and Claude Code's prompt, which
  * says it isn't signed in once its onboarding is done.
  */
-const signedOut: { readonly [agent in AgentName]: (setup: AgentSetup) => void } = {
-  claude: (setup) => {
+const signedOut: {
+  readonly [agent in AgentName]: (setup: AgentSetup, how: Launch) => void
+} = {
+  claude: (setup, how) => {
     e2e(setup)(
-      "reads its prompt saying it isn't signed in as waiting to sign in",
+      `reads its prompt saying it isn't signed in as waiting to sign in${typed(how)}`,
       async ({ e2e: run }) => {
-        const t = await run.deck.open(
+        const t = await launch(
+          run,
+          how,
           await wrapped(run.sandbox.root, "claude", { ANTHROPIC_API_KEY: null }),
         )
         await t.until(/Not logged in · Run \/login/, 60_000)
@@ -179,9 +198,12 @@ const signedOut: { readonly [agent in AgentName]: (setup: AgentSetup) => void } 
 
     // Its sign-in screen comes only at a first run, past a connectivity check the sandbox
     // refuses: a stand-in answers it, under a scratch authority only this Claude Code trusts.
-    gated(e2e(setup), openssl() ? undefined : "no openssl here to make the stand-in's certificate")(
-      "names its sign-in screen at a first run",
-      async ({ e2e: run }) => {
+    // Opened only: typed, it is the same screen the same watch names.
+    if (how === "opened")
+      gated(
+        e2e(setup),
+        openssl() ? undefined : "no openssl here to make the stand-in's certificate",
+      )("names its sign-in screen at a first run", async ({ e2e: run }) => {
         await merge(join(run.sandbox.home, ".claude", ".claude.json"), (state) => {
           delete state.hasCompletedOnboarding
           delete state.lastOnboardingVersion
@@ -205,14 +227,13 @@ const signedOut: { readonly [agent in AgentName]: (setup: AgentSetup) => void } 
         } finally {
           hello.close()
         }
-      },
-    )
+      })
   },
   // Without an OpenAI login, in a home of its own that names the fake model as its ChatGPT
   // backend, and keeps the sandbox's empty copy of the curated plugins: without one, Codex
   // fetches an archive of them from chatgpt.com, which the fake model's proxy refuses.
-  codex: (setup) => {
-    e2e(setup)("names its sign-in screen", async ({ e2e: run }) => {
+  codex: (setup, how) => {
+    e2e(setup)(`names its sign-in screen${typed(how)}`, async ({ e2e: run }) => {
       const home = join(run.sandbox.home, ".codex-bare")
       await mkdir(home, { recursive: true })
       await writeFile(
@@ -221,7 +242,9 @@ const signedOut: { readonly [agent in AgentName]: (setup: AgentSetup) => void } 
           'check_for_update_on_startup = false\ncli_auth_credentials_store = "file"\n',
       )
       await cp(join(run.sandbox.home, ".codex", ".tmp"), join(home, ".tmp"), { recursive: true })
-      const t = await run.deck.open(
+      const t = await launch(
+        run,
+        how,
         await wrapped(run.sandbox.root, "codex", { OPENAI_API_KEY: null, CODEX_HOME: home }),
       )
       await t.until(/Sign in with ChatGPT/, 60_000)
@@ -230,15 +253,17 @@ const signedOut: { readonly [agent in AgentName]: (setup: AgentSetup) => void } 
     })
   },
   // Its status line says `authenticating` behind its login screen, and its text says so too.
-  agy: (setup) => {
-    e2e(setup)("names its sign-in screen", async ({ e2e: run }) => {
+  agy: (setup, how) => {
+    e2e(setup)(`names its sign-in screen${typed(how)}`, async ({ e2e: run }) => {
       await merge(
         join(run.sandbox.home, ".gemini", "antigravity-cli", "settings.json"),
         (settings) => {
           delete settings.modelProvider
         },
       )
-      const t = await run.deck.open(
+      const t = await launch(
+        run,
+        how,
         await wrapped(run.sandbox.root, "agy", { GEMINI_API_KEY: null }),
       )
       await t.until(/Select login method/, 60_000)

@@ -396,6 +396,49 @@ describe("the startup watch", () => {
       expect(vi.getTimerCount()).toBe(0)
     })
 
+    describe("an agent the person typed in its shell", () => {
+      beforeEach(() => {
+        expected = null
+        record.summary = {
+          ...record.summary,
+          process: { name: "claude", argv: ["claude"] },
+        } as WatchedRecord["summary"]
+      })
+      afterEach(() => {
+        record.summary = { ...record.summary, process: null }
+      })
+
+      it("is asked whether its hooks run, and marked where they don't, until it leaves", async () => {
+        drawn = claudeScreens.prompt
+        await pass(8000)
+        expect(stood).toEqual(["claude"])
+        hooksOff = "claude"
+        await pass(1000)
+        expect(record.summary.startup).toEqual({ agent: "claude", screen: "hooks" })
+        // It exits back to the shell.
+        record.summary = { ...record.summary, process: null }
+        hooksOff = undefined
+        await pass(1000)
+        expect(record.summary.startup).toBeNull()
+        expect(vi.getTimerCount()).toBe(0)
+      })
+
+      it("wakes the resting watch once its summary changes", async () => {
+        record.summary = { ...record.summary, process: null }
+        expected = null
+        await pass(2000)
+        expect(vi.getTimerCount()).toBe(0)
+        record.summary = {
+          ...record.summary,
+          process: { name: "claude", argv: ["claude"] },
+        } as WatchedRecord["summary"]
+        drawn = claudeScreens.prompt
+        watch.noticed(record)
+        await pass(8000)
+        expect(stood).toEqual(["claude"])
+      })
+    })
+
     describe("a bound session", () => {
       const binding = { agent: "claude", sessionId: "s" } as NonNullable<
         WatchedRecord["bound"]
@@ -432,6 +475,24 @@ describe("the startup watch", () => {
         drawn = signedOut
         await pass(2000)
         expect(record.summary.startup).toEqual({ agent: "claude", screen: "sign-in" })
+      })
+
+      it("wakes the resting watch for a session that binds, as one typed in its shell", async () => {
+        record.bound = null
+        expected = null
+        await pass(2000)
+        expect(vi.getTimerCount()).toBe(0)
+        record.bound = { binding } as NonNullable<WatchedRecord["bound"]>
+        drawn = signedOut
+        watch.noticed(record)
+        await pass(2000)
+        expect(record.summary.startup).toEqual({ agent: "claude", screen: "sign-in" })
+        // Once past its looks, a signed-in session wakes nothing.
+        drawn = signedIn
+        await pass(60_000 * 11)
+        expect(vi.getTimerCount()).toBe(0)
+        watch.noticed(record)
+        expect(vi.getTimerCount()).toBe(0)
       })
 
       it("looks at a signed-in prompt only a while after it binds", async () => {

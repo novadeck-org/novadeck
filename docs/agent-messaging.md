@@ -2458,9 +2458,13 @@ the new terminal's Messages view, like any other message.
 An agent can stop at a screen of its own before its first session: folder trust, an update,
 a hooks review, sign-in, onboarding, a resume picker. No harness reports anything Novadeck
 binds on there, so nothing but the screen tells that from a slow start. `StartupWatch`
-(`terminals/startup-watch.ts`) looks once a second at each terminal expecting an agent, while
-no session bound and its prompt never showed, and counts a screen as holding the agent when
-all of these stand for 5 s (15 s on Windows, which starts agents far slower):
+(`terminals/startup-watch.ts`) looks once a second at each terminal expecting an agent, or
+whose foreground program is one the person typed in its shell (the sampler's `programOf`),
+while no session bound and its prompt never showed, and counts a screen as holding the agent
+when all of these stand for 5 s (15 s on Windows, which starts agents far slower). It rests
+while there is nothing to look at, and every summary change wakes it where one now needs it
+(`noticed`): an agent typed in a shell, a session that bound, an agent found with its hooks
+off.
 
 - Bracketed paste is on. A startup command runs before the shell's line editor turns that on
   (fish 3, whose line editor has it on already, turns it off for the command), so the agent has taken
@@ -2549,7 +2553,7 @@ tooltip, and the chat view gives way to the screen. It raises no Inbox row: no
 request stands behind it.
 
 Chat also leaves the terminal visible until the agent's prompt or session is known, even
-when no startup watch follows it (as for an agent typed into an ordinary shell). A foreground
+before the startup watch has named its screen (as for an agent typed into an ordinary shell). A foreground
 process name alone doesn't make chat ready. The chat preference and draft stay kept, and
 chat appears once its prompt is recognized or its conversation is bound to a session. Hooks
 may stay silent; a process with neither readiness signal keeps showing its terminal.

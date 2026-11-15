@@ -1,11 +1,17 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
-import type { AgentName, StartupScreen, TerminalSummary } from "@novadeck/protocol"
+import {
+  isAgentName,
+  type AgentName,
+  type StartupScreen,
+  type TerminalSummary,
+} from "@novadeck/protocol"
 import type { Terminal } from "@novadeck/terminal/host"
 import type { BoxProfile } from "@novadeck/tui-input/box"
 
 import { harnesses } from "../harnesses/registry.js"
 import { coalesced } from "./coalesce.js"
 import type { Record } from "./record.js"
+import { programOf } from "./sampling.js"
 
 /** What the watch reads of a terminal's record, and what it keeps there. */
 export type WatchedRecord = Pick<Record, "summary" | "startupScreen" | "bound" | "signedOut"> & {
@@ -132,6 +138,15 @@ export const nextTrack = (
 
 const trackKey = ({ summary, terminal }: WatchedRecord): string => `${summary.id}/${terminal.run}`
 
+/**
+ * The agent a terminal's foreground program is, with no session bound: one the person typed
+ * in its shell, which Novadeck didn't launch and so expects nowhere.
+ */
+const typedAgent = ({ bound, summary }: WatchedRecord): AgentName | undefined => {
+  const program = !bound && summary.process ? programOf(summary.process) : undefined
+  return isAgentName(program) ? program : undefined
+}
+
 export type StartupHost<R extends WatchedRecord> = {
   readonly stopping: () => boolean
   readonly records: () => Iterable<R>
@@ -178,12 +193,12 @@ export const startupOf = (
 }
 
 /**
- * Tells which terminals an agent is expected in are held at one of its own screens for the
- * person, as a folder-trust, update, sign-in or onboarding screen, where no harness reports
- * anything Novadeck binds on; which hold an agent whose hooks Novadeck found off, asking the
- * harness once its own box has stood a while; and which hold a bound session whose prompt says
- * it isn't signed in. It looks only while one is expected, a session just bound, or a mark
- * stands.
+ * Tells which terminals an agent is expected in, or was typed in by the person, are held at
+ * one of its own screens for the person, as a folder-trust, update, sign-in or onboarding
+ * screen, where no harness reports anything Novadeck binds on; which hold an agent whose hooks
+ * Novadeck found off, asking the harness once its own box has stood a while; and which hold a
+ * bound session whose prompt says it isn't signed in. It looks only while one is expected or
+ * typed, a session just bound, or a mark stands; a summary that changes (`noticed`) wakes it.
  */
 export class StartupWatch<R extends WatchedRecord> {
   private timer: ReturnType<typeof setInterval> | undefined
@@ -204,6 +219,22 @@ export class StartupWatch<R extends WatchedRecord> {
     private readonly delayMs = startupDelayMs(process.platform),
     private readonly now: () => number = Date.now,
   ) {}
+
+  /**
+   * A terminal's summary changed: the watch looks again where that may need it, as at an
+   * agent the person typed in its shell, a session that bound, or an agent found with its
+   * hooks off.
+   */
+  noticed(record: R): void {
+    if (this.timer || this.host.stopping()) return
+    const track = this.tracks.get(trackKey(record))
+    const wanted = record.bound
+      ? this.looksBound(record, track)
+      : (this.agentIn(record) !== undefined && !track?.prompted) ||
+        (this.host.messaging().untrustedAgent(record.summary.id) !== undefined &&
+          record.summary.startup?.screen !== "hooks")
+    if (wanted) this.start()
+  }
 
   /** An agent is expected in some terminal. */
   start(): void {
@@ -231,7 +262,7 @@ export class StartupWatch<R extends WatchedRecord> {
       for (const record of this.host.records()) {
         const { id } = record.summary
         const key = trackKey(record)
-        const agent = this.host.messaging().expected(id)
+        const agent = this.agentIn(record)
         const known = this.tracks.get(key)
         if (record.bound) {
           // eslint-disable-next-line no-await-in-loop -- One terminal's screen at a time.
@@ -254,7 +285,7 @@ export class StartupWatch<R extends WatchedRecord> {
                 },
               )
           // A session bound during the look: nothing here may mark it again.
-          if (this.host.messaging().expected(id) === agent && !record.bound)
+          if (this.agentIn(record) === agent && !record.bound)
             this.show(record, agent, track?.held === true, track?.screen)
         }
       }
@@ -275,11 +306,17 @@ export class StartupWatch<R extends WatchedRecord> {
     for (const record of this.host.records()) {
       const track = this.tracks.get(trackKey(record))
       if (record.bound) looking ||= this.looksBound(record, track)
-      else if (!this.host.messaging().expected(record.summary.id)) this.show(record, null, false)
+      else if (!this.agentIn(record)) this.show(record, null, false)
       else if (!track?.prompted) looking = true
       if (record.summary.startup) looking = true
     }
     if (!looking) this.pause()
+  }
+
+  // The agent the watch looks for in a terminal: the one Novadeck expects there, else one the
+  // person typed in its shell.
+  private agentIn(record: R): AgentName | undefined {
+    return this.host.messaging().expected(record.summary.id) ?? typedAgent(record)
   }
 
   private async look(

@@ -70,6 +70,7 @@ import { noNudges } from "./nudges.js"
 import { OpenRequests } from "./opens.js"
 import type { TerminalOptions } from "./options.js"
 import { TerminalPeers } from "./peers-host.js"
+import { PendingOwners } from "./pending-owners.js"
 import type { Record } from "./record.js"
 import { createTranscriptRedactor } from "./redaction.js"
 import { reportKeeps } from "./report-keeps.js"
@@ -146,7 +147,7 @@ export class Terminals {
     () => this.records.values(),
     () => this.trees,
   )
-  private readonly pendingOwners = new Map<string, Set<{ released: boolean }>>()
+  private readonly pendingOwners = new PendingOwners()
   /** Agents' requests for a new terminal, on their way to the client. */
   private readonly opens = new OpenRequests()
   /** Agents' requests to close a terminal, on their way to the client that asks the person. */
@@ -773,7 +774,7 @@ export class Terminals {
     this.available(input.id)
     const place = this.host.reserve(input.id)
     const created = this.sleepers.creates(input.id)
-    const pending = this.pending(ownerId)
+    const pending = this.pendingOwners.add(ownerId)
     // An agent's request this answers: read now, as it may stop waiting meanwhile.
     const opener =
       input.requestId === undefined
@@ -961,7 +962,7 @@ export class Terminals {
     } finally {
       place.done()
       created()
-      this.complete(ownerId, pending)
+      this.pendingOwners.complete(ownerId, pending)
     }
   }
 
@@ -1180,7 +1181,7 @@ export class Terminals {
       )
         throw new DomainError("TERMINAL_NOT_FOUND")
     }
-    const pending = this.pending(ownerId)
+    const pending = this.pendingOwners.add(ownerId)
     try {
       return await this.host.restart(input.terminalId, ownerId, {
         check,
@@ -1268,7 +1269,7 @@ export class Terminals {
         },
       })
     } finally {
-      this.complete(ownerId, pending)
+      this.pendingOwners.complete(ownerId, pending)
     }
   }
 
@@ -1464,7 +1465,7 @@ export class Terminals {
     const record = this.record(input.terminalId)
     // An agent being stopped to rest is not attached to: it is a sleeper in a moment.
     if (record.hibernating) throw new DomainError("TERMINAL_NOT_FOUND")
-    const pending = this.pending(ownerId)
+    const pending = this.pendingOwners.add(ownerId)
     const { terminalId } = input
     record.attachedAt = Date.now()
     try {
@@ -1487,7 +1488,7 @@ export class Terminals {
           : { ...event, terminalId }
     } finally {
       record.attachedAt = Date.now()
-      this.complete(ownerId, pending)
+      this.pendingOwners.complete(ownerId, pending)
     }
   }
 
@@ -1677,7 +1678,7 @@ export class Terminals {
   }
 
   release(ownerId: string): void {
-    for (const pending of this.pendingOwners.get(ownerId) ?? []) pending.released = true
+    this.pendingOwners.release(ownerId)
     this.host.release(ownerId)
     this.streams.release(ownerId)
     this.opens.release(ownerId)
@@ -1739,6 +1740,7 @@ export class Terminals {
   private announce(record: Record): void {
     markBusy(record)
     this.shellCommands.changed(record)
+    this.startups.noticed(record)
     // A closed terminal's watchers already heard it is gone; its exit must not add it back.
     // One stopped to rest is told once it has, as a sleeper (see `Hibernation`).
     if (!record.closed && !record.hibernating) this.streams.changed(() => summaryOf(record))
@@ -1747,20 +1749,6 @@ export class Terminals {
       this.history.judge(record)
       this.history.observe(record)
     }
-  }
-
-  private pending(ownerId: string): { released: boolean } {
-    const pending = { released: false }
-    const entries = this.pendingOwners.get(ownerId) ?? new Set<{ released: boolean }>()
-    entries.add(pending)
-    this.pendingOwners.set(ownerId, entries)
-    return pending
-  }
-
-  private complete(ownerId: string, pending: { released: boolean }): void {
-    const entries = this.pendingOwners.get(ownerId)
-    entries?.delete(pending)
-    if (entries?.size === 0) this.pendingOwners.delete(ownerId)
   }
 
   private control(id: string, ownerId: string): Record {

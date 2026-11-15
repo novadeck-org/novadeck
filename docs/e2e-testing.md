@@ -405,7 +405,7 @@ harness inside an agent's turn in `nested.e2e.ts`, the person forking a session 
 terminal or in place in `forks.e2e.ts`, the person clearing the conversation
 or leaving the agent for another in `lifecycle.e2e.ts`, and the person's controls over
 a running agent and untrusted seeds in `controls.e2e.ts`, what holds each harness before
-Novadeck can reach it (signed out, its hooks off) in `startup.e2e.ts`, and the chat view's way to an agent
+Novadeck can reach it (signed out, its hooks off) in `startup.e2e.ts`, each both opened by Novadeck and typed by the person in a plain shell, and the chat view's way to an agent
 (`agents.prompt` and `agents.interrupt`) in `chat.e2e.ts`, answering the agent's requests
 from the chat (`agents.answer`) in `answers.e2e.ts`, the tool calls each harness makes, as the
 chat's transcript shows them, in `transcripts.e2e.ts`, each written once and run for
