@@ -621,10 +621,12 @@ App:
   it stays on through the demo's boots and reloads in this tab.
 - **Pane turns:** "Hold panes' turns" keeps every companion pane coming into sight (a view
   switch, a pan, a terminal picked in Focus) on its stand-in, its icon and name, in place of what
-  it holds, until pressed again; panes otherwise build one a frame (`frontend/items/src/pane-turns.ts`).
-  "Sketch panes' pictures" has each pane in sight a second pictured as a sketch of its layout,
+  it holds, and every chat a view builds on its terminal's name, until pressed again; panes and
+  chats otherwise build one a frame (`frontend/items/src/pane-turns.ts`, `frontend/ui/src/app/chat-turn.tsx`).
+  "Sketch panes' pictures" has each pane or chat in sight a second pictured as a sketch of its layout,
   where the desktop app takes a picture of it (`frontend/items/src/pane-pictures.ts`): with turns
-  held too, a pane coming back at the size it was pictured shows that in place of its icon and name.
+  held too, a pane coming back at the size it was pictured, or a chat its view shows again with
+  nothing new in its conversation, shows that in place of its name.
 - **Portable:** boot again as a portable copy, which never updates itself and is the way to
   install the app that does. Its corner card, the update bar's size and place, comes up by
   itself once per boot and then only from the footer chip, which Escape or × folds it back

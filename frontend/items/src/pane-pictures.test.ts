@@ -6,6 +6,7 @@ import {
   createPanePictures,
   firstMs,
   freshenMs,
+  keptMost,
   leftMs,
   pageLook,
   PanePicturesContext,
@@ -180,17 +181,22 @@ describe("keeping a pane's picture", () => {
   }
 
   // A pane, live or not, showing `key`; `latest` is its picture now.
-  const pane = (pictures: PanePictures | undefined, live = true, key = "a") => {
+  const pane = (
+    pictures: PanePictures | undefined,
+    live = true,
+    key = "a",
+    mark?: () => string,
+  ) => {
     let latest: () => PanePicture | undefined = () => undefined
     let set: (next: { live: boolean; key: string }) => void = () => {}
     const Pane = (): React.JSX.Element => {
       const [state, setState] = useState({ live, key })
       set = setState
       const [element, setElement] = useState<HTMLElement | null>(null)
-      latest = usePanePicture(element, state.live, state.key)
+      latest = usePanePicture(element, state.live, state.key, mark)
       return createElement("div", { ref: setElement }, createElement("p", null, "text"))
     }
-    const { container } = render(
+    const { container, unmount } = render(
       createElement(PanePicturesContext, { value: pictures }, createElement(Pane)),
     )
     const element = container.firstElementChild as HTMLElement
@@ -198,9 +204,59 @@ describe("keeping a pane's picture", () => {
       element,
       latest: () => latest()?.image.alt,
       set: (next: { live: boolean; key: string }) => act(() => set(next)),
+      unmount,
     }
   }
   const pass = (ms: number) => act(async () => void (await vi.advanceTimersByTimeAsync(ms)))
+
+  it("finds its picture again as it mounts again with the same key", async () => {
+    const { pictures } = noting()
+    const before = pane(pictures)
+    await pass(firstMs)
+    before.unmount()
+    expect(pane(pictures, false).latest()).toBe("1")
+    expect(pane(pictures, false, "b").latest()).toBeUndefined()
+  })
+
+  context("where what it shows is named", () => {
+    it("takes it only once that holds still from one freshen to the next", async () => {
+      const { pictures, taken } = noting()
+      let named = "one"
+      pane(pictures, true, "a", () => named)
+      named = "two"
+      await pass(firstMs)
+      expect(taken).toEqual([])
+      await pass(freshenMs)
+      expect(taken).toHaveLength(1)
+    })
+
+    it("counts it only while that's still what it shows", async () => {
+      const { pictures } = noting()
+      let named = "one"
+      const { latest } = pane(pictures, true, "a", () => named)
+      await pass(firstMs)
+      expect(latest()).toBe("1")
+      named = "two"
+      expect(latest()).toBeUndefined()
+    })
+  })
+
+  it("keeps a few dozen, the one kept or shown longest ago going first", () => {
+    const pictures = createPanePictures(undefined)
+    const picture = (alt: string): PanePicture => {
+      const image = document.createElement("img")
+      image.alt = alt
+      return { image, width: 1, height: 1, look: "" }
+    }
+    for (let at = 0; at <= keptMost; at++) {
+      pictures.keep(String(at), picture(String(at)))
+      // The first is shown as the others come, so it stays.
+      if (at === 1) pictures.kept("0")
+    }
+    expect(pictures.kept("0")?.image.alt).toBe("0")
+    expect(pictures.kept("1")).toBeUndefined()
+    expect(pictures.kept(String(keptMost))?.image.alt).toBe(String(keptMost))
+  })
 
   it("takes one a moment after the pane is laid out", async () => {
     const { pictures, taken } = noting()
