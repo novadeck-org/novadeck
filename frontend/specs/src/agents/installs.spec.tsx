@@ -1,3 +1,4 @@
+import { afterEach } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
 import { openPreferences, preferencesDialog } from "../support/keyboard"
@@ -11,6 +12,8 @@ const installButton = (name: "Claude Code" | "Codex" | "Antigravity"): Locator =
 
 const agentSwitch = (name: "Claude Code" | "Codex" | "Antigravity"): Locator =>
   preferencesDialog().getByRole("switch", { name })
+
+afterEach(() => sessionStorage.removeItem("novadeck.installs"))
 
 // The demo's install takes a few seconds to end.
 const installTime = { timeout: 10_000 }
@@ -78,6 +81,32 @@ describe("An agent that is not installed, in the welcome dialog", () => {
       await expectSelected("Install Antigravity")
       await new Promise((resolve) => setTimeout(resolve, 4_000))
       expect(terminalTabNames()).not.toContain("agy")
+    })
+  })
+
+  context("when the page is reloaded while an installer runs", () => {
+    // What the window kept in its session storage: Claude Code's installer, ended, in a
+    // terminal the demo opens with.
+    const kept = (terminalId: string) =>
+      sessionStorage.setItem(
+        "novadeck.installs",
+        JSON.stringify([{ agent: "claude", terminalId, ran: true }]),
+      )
+
+    it("follows it again: connects the agent and starts it", async () => {
+      kept("storefront-initial-01")
+      await openWorkspace("/?demo=plain")
+      await expect.poll(terminalTabNames, installTime).toContain("claude")
+      await expectSelected("claude")
+      await openPreferences()
+      await expect.element(agentSwitch("Claude Code")).toHaveAttribute("aria-checked", "true")
+    })
+
+    it("drops one whose terminal is gone, starting nothing", async () => {
+      kept("storefront-initial-99")
+      await openWorkspace("/?demo=plain")
+      await expect.poll(() => sessionStorage.getItem("novadeck.installs")).toBeNull()
+      expect(terminalTabNames()).not.toContain("claude")
     })
   })
 })

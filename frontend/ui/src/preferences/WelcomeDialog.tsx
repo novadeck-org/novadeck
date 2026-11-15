@@ -261,7 +261,9 @@ const WelcomeForm = ({
                     name="agents"
                     value={toggle.agent}
                     checked={choices[toggle.agent]}
-                    disabled={toggle.busy || (!toggle.available && !installerOf(toggle))}
+                    disabled={
+                      toggle.busy || (!toggle.available && !(installerOf(toggle) && onInstall))
+                    }
                     installable={
                       installerOf(toggle) && onInstall
                         ? {

@@ -7,6 +7,9 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { agentLabels } from "../preferences/agent-switches"
 import {
   connectInstalled,
+  readInstalls,
+  startInstalled,
+  writeInstalls,
   stepInstall,
   type InstallTerminal,
   type PendingInstall,
@@ -56,7 +59,13 @@ export const useInstalls = (
 ): ((agent: AgentName, command: string) => void) => {
   const { commands } = useWorkspaceServices()
   // The installs under way: a store of their own, which an effect may change as it follows them.
-  const [installs] = useState(() => createStore<readonly PendingInstall[]>([]))
+  // Kept in session storage, so a reload while one runs follows it again: one whose terminal
+  // is gone then ends as any does, unfinished.
+  const [installs] = useState(() => {
+    const store = createStore(readInstalls())
+    store.subscribe(() => writeInstalls(store.getSnapshot()))
+    return store
+  })
   const pending = useSyncExternalStore(installs.subscribe, installs.getSnapshot)
   const ids = pending.map((install) => install.terminalId)
   const terminals = useWorkspaceState((state) => terminalsOf(state, ids), sameTerminals)
@@ -90,14 +99,7 @@ export const useInstalls = (
       void connectInstalled(agents, install.agent)
         .then((outcome) => {
           if (outcome !== "ready") return
-          // Beside the installer's terminal, in its folder, which the shell may have left.
-          commands.openRequested({
-            from: install.terminalId,
-            directory: terminal.directory,
-            command: install.agent,
-            focus: true,
-            answer: () => {},
-          })
+          startInstalled(commands, install, terminal.directory)
         })
         .finally(() => ending.current.delete(install.terminalId))
     }

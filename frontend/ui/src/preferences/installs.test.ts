@@ -1,8 +1,15 @@
-import type { AgentConnection, Backend } from "@novadeck/core/port"
+import type { AgentConnection, Backend, TerminalRequest } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { connectInstalled, stepInstall, type PendingInstall } from "./installs"
+import {
+  connectInstalled,
+  readInstalls,
+  startInstalled,
+  stepInstall,
+  writeInstalls,
+  type PendingInstall,
+} from "./installs"
 
 const pending: PendingInstall = { agent: "claude", terminalId: "03", ran: false }
 
@@ -96,5 +103,99 @@ describe("a finished install", () => {
     )
     expect(await connectInstalled(agents, "claude")).toBe("unconnected")
     expect(agents.state.getSnapshot()[0]).toMatchObject({ error: "denied" })
+  })
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  sessionStorage.clear()
+})
+
+describe("the installs under way, kept for a reload", () => {
+  it("are read back as they were written, and none is kept once there are none", () => {
+    const installs: PendingInstall[] = [
+      { agent: "claude", terminalId: "03", ran: true },
+      { agent: "agy", terminalId: "04", ran: false },
+    ]
+    writeInstalls(installs)
+    expect(readInstalls()).toEqual(installs)
+    writeInstalls([])
+    expect(readInstalls()).toEqual([])
+    expect(sessionStorage.length).toBe(0)
+  })
+
+  it("leave out what is not an install, and read as none from broken storage", () => {
+    sessionStorage.setItem(
+      "novadeck.installs",
+      JSON.stringify([
+        { agent: "claude", terminalId: "03", ran: true },
+        { agent: "vim", terminalId: "04", ran: true },
+        { agent: "codex", terminalId: 5, ran: true },
+        "x",
+      ]),
+    )
+    expect(readInstalls()).toEqual([{ agent: "claude", terminalId: "03", ran: true }])
+    sessionStorage.setItem("novadeck.installs", "{ not json")
+    expect(readInstalls()).toEqual([])
+  })
+
+  it("work without storage", () => {
+    vi.stubGlobal("sessionStorage", {
+      getItem: () => {
+        throw new Error("blocked")
+      },
+      setItem: () => {
+        throw new Error("blocked")
+      },
+      removeItem: () => {
+        throw new Error("blocked")
+      },
+    })
+    expect(readInstalls()).toEqual([])
+    expect(() => writeInstalls([pending])).not.toThrow()
+  })
+})
+
+describe("starting an installed agent", () => {
+  const install: PendingInstall = { agent: "agy", terminalId: "03", ran: true }
+
+  it("opens it beside the installer's terminal, in its folder, in view", () => {
+    const requests: TerminalRequest[] = []
+    const added: unknown[] = []
+    startInstalled(
+      {
+        openRequested: (request) => {
+          requests.push(request)
+          request.answer({ terminalId: "08" })
+        },
+        add: (options) => {
+          added.push(options)
+          return "09"
+        },
+      },
+      install,
+      "~/app",
+    )
+    expect(requests).toMatchObject([
+      { from: "03", directory: "~/app", command: "agy", focus: true },
+    ])
+    expect(added).toEqual([])
+  })
+
+  it("opens it in the project on screen where the installer's terminal closed meanwhile", () => {
+    const added: unknown[] = []
+    startInstalled(
+      {
+        openRequested: (request) =>
+          request.answer({ reason: "The terminal that asked isn't open in Novadeck." }),
+        add: (options) => {
+          added.push(options)
+          return "09"
+        },
+      },
+      install,
+      "~/app",
+    )
+    expect(added).toEqual([{ command: "agy" }])
   })
 })

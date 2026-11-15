@@ -1,5 +1,5 @@
-import type { AgentName } from "@novadeck/core/harnesses"
-import type { Backend } from "@novadeck/core/port"
+import { harnesses, type AgentName } from "@novadeck/core/harnesses"
+import type { Backend, TerminalRequest } from "@novadeck/core/port"
 
 // An agent's installer running in a terminal of its own: the terminal, and whether it was seen
 // working, which is what tells its end from its start (a new terminal reads idle until its
@@ -60,4 +60,60 @@ export const connectInstalled = async (
     })
   }
   return entry()?.connected ? "ready" : "unconnected"
+}
+
+// Where the installs under way are kept, in this window's session storage: a reload or a
+// remount while an installer runs finds them again, as its terminal survives it.
+const storageKey = "novadeck.installs"
+
+const isPending = (value: unknown): value is PendingInstall => {
+  if (typeof value !== "object" || value === null) return false
+  const { agent, terminalId, ran } = value as Record<string, unknown>
+  return (
+    typeof agent === "string" &&
+    harnesses.some(({ id }) => id === agent) &&
+    typeof terminalId === "string" &&
+    typeof ran === "boolean"
+  )
+}
+
+export const readInstalls = (): readonly PendingInstall[] => {
+  try {
+    const stored: unknown = JSON.parse(sessionStorage.getItem(storageKey) ?? "[]")
+    return Array.isArray(stored) ? stored.filter(isPending) : []
+  } catch {
+    return []
+  }
+}
+
+export const writeInstalls = (installs: readonly PendingInstall[]): void => {
+  try {
+    if (installs.length === 0) sessionStorage.removeItem(storageKey)
+    else sessionStorage.setItem(storageKey, JSON.stringify(installs))
+  } catch {
+    // Without storage, an install under way is not found again after a reload.
+  }
+}
+
+type Starting = {
+  readonly openRequested: (request: TerminalRequest) => void
+  readonly add: (options?: { readonly command?: string }) => string
+}
+
+// Starts the agent for the person to sign in: beside the installer's terminal, in its folder.
+// Where that terminal closed meanwhile, in a terminal of the project on screen instead.
+export const startInstalled = (
+  commands: Starting,
+  install: PendingInstall,
+  directory: string,
+): void => {
+  commands.openRequested({
+    from: install.terminalId,
+    directory,
+    command: install.agent,
+    focus: true,
+    answer: (result) => {
+      if ("reason" in result) commands.add({ command: install.agent })
+    },
+  })
 }
