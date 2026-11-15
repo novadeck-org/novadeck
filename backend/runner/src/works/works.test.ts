@@ -13,8 +13,9 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
 import type { PullRequest, Work, WorkMade } from "@novadeck/protocol"
-import { afterEach, vi } from "vitest"
+import { afterEach, beforeEach, vi } from "vitest"
 
+import { timing } from "../checkouts/git.js"
 import { Snapshots } from "../checkouts/snapshots.js"
 import { DomainError } from "../errors.js"
 import { describe, expect, it as base } from "../test.js"
@@ -120,6 +121,25 @@ type Where = {
 // A watch tells `synced` without the checkouts not read within 1.5 s, which three can take on a
 // loaded Windows runner. The tests wait for every one, as `current` counts on.
 const everything = 60_000
+
+// A read slower than `timing.slowMs` puts the next one off four times as long (`waitAfter`), as a
+// big repository's should be. These tests read a repository of two files and check what each
+// pass tells, but on a loaded Windows runner even that read is some twenty git runs, over a
+// second, and the next pass would come seconds past what a test waits: each follows the last.
+const slowMs = timing.slowMs
+beforeEach(() => {
+  timing.slowMs = everything
+})
+afterEach(() => {
+  timing.slowMs = slowMs
+})
+
+/**
+ * How long a test waits for a change to be told: many passes of a loaded Windows runner (about
+ * 0.8 s each there, more under load), and short of a test's own 20 s, so a change never told
+ * fails on what was seen.
+ */
+const told = 10_000
 
 // Snapshots as the runner makes them (beside the memory where there is one), each taken afresh:
 // a test reads right after an edit. Closed after each test, after its works.
@@ -595,9 +615,9 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
       for await (const change of works.watch("owner", stop.signal))
         if (change.type === "changed") seen.push(change.work.files.map((f) => f.status).join())
     })()
-    await vi.waitFor(() => expect(seen.at(-1)).toBe("modified"))
+    await vi.waitFor(() => expect(seen.at(-1)).toBe("modified"), { timeout: told, interval: 20 })
     main.git("rm", "--quiet", "-f", "b.txt")
-    await vi.waitFor(() => expect(seen.at(-1)).toBe("deleted"))
+    await vi.waitFor(() => expect(seen.at(-1)).toBe("deleted"), { timeout: told, interval: 20 })
   })
 
   it("places the project's folder in the repository: the same folder, above it, inside it, or neither", async ({
@@ -1025,7 +1045,7 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
         seen.push(change.type === "changed" ? `changed ${change.work.added}` : change.type)
     })()
     const until = async (text: string) => {
-      const deadline = Date.now() + 5_000
+      const deadline = Date.now() + told
       while (!seen.includes(text) && Date.now() < deadline)
         // eslint-disable-next-line no-await-in-loop -- Polls the stream's progress.
         await new Promise((resolve) => setTimeout(resolve, 20))
