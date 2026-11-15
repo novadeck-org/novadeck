@@ -42,6 +42,22 @@ describe("the pull requests a changes item reads", () => {
     expect(pullRequestsOf({ works, forges })?.state).toBe(works.state)
   })
 
+  it("are looked for while a forge is switched on", () => {
+    const { works, forges, turn } = setup(false)
+    const { on } = pullRequestsOf({ works, forges })!
+    const seen: boolean[] = []
+    on.subscribe(() => seen.push(on.getSnapshot()))
+    expect(on.getSnapshot()).toBe(false)
+    turn(true)
+    turn(false)
+    expect(seen).toEqual([true, false])
+  })
+
+  it("are what the works say where the backend has no forges", () => {
+    const { works } = setup(false)
+    expect(pullRequestsOf({ works })!.on.getSnapshot()).toBe(true)
+  })
+
   it("are none where the backend has no works", () => {
     expect(pullRequestsOf({})).toBeUndefined()
   })

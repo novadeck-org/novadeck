@@ -34,7 +34,7 @@ const PullRequestLink = ({ pull }: { pull: PullRequest }): React.JSX.Element | n
     <OpenInBrowser
       url={pull.url}
       className="changes-pull"
-      label={`PR #${pull.number}, ${stateWords[pull.state]}, opens in your browser`}
+      label={`PR #${pull.number}, ${stateWords[pull.state]}, opens in browser`}
     >
       PR #{pull.number}
     </OpenInBrowser>
@@ -137,10 +137,15 @@ export const ChangesViewer = ({
     <>
       <ArtifactMeta
         actions={
-          <>
-            {pull && <PullRequestLink pull={pull} />}
-            {actions}
-          </>
+          pull ? (
+            // Beside the actions as a page's Open in browser is beside its buttons.
+            <span className="changes-head-end">
+              <PullRequestLink pull={pull} />
+              {actions}
+            </span>
+          ) : (
+            actions
+          )
         }
       >
         <code className="artifact-meta-name" title={item.name}>

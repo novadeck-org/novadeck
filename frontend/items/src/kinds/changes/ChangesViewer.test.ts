@@ -10,6 +10,7 @@ import { workspaceReducer } from "@novadeck/core/state"
 import { createStore, createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
+import { Shown } from "@novadeck/toolkit/shown"
 import { act, createElement } from "react"
 import { afterEach, beforeEach } from "vitest"
 
@@ -119,6 +120,7 @@ const show = (
   diffs: Record<string, ChangeFileDiff> = { "src/auth/cookies.ts": cookieDiff },
   withDiffs = true,
   pulls?: PullRequests,
+  shown = true,
 ) => {
   const asked: { path: string; layers: readonly string[] }[] = []
   // The files the pane told the backend were read.
@@ -152,7 +154,8 @@ const show = (
   unmounts.push(itemStore.connect())
   const pane = () => {
     const view = createElement(registration.View, { item, itemStore, target, actions: undefined })
-    return pulls ? createElement(PullRequestsContext, { value: pulls }, view) : view
+    const kept = createElement(Shown, { value: shown }, view)
+    return pulls ? createElement(PullRequestsContext, { value: pulls }, kept) : kept
   }
   const rendered = render(pane())
   unmounts.push(rendered.unmount)
@@ -249,8 +252,11 @@ const worksWith = (pull: PullRequest | undefined) => {
     reported: true,
   })
   const follows = { asked: 0, released: 0 }
+  // Whether a forge is on.
+  const on = createStore(true)
   const pulls: PullRequests = {
     state,
+    on,
     follow: () => {
       follows.asked += 1
       return () => {
@@ -265,7 +271,11 @@ const worksWith = (pull: PullRequest | undefined) => {
         works: [{ ...work, ...(next && { pullRequest: next }) }],
       }))
     })
-  return { pulls, follows, set }
+  const turn = (next: boolean) =>
+    act(() => {
+      on.update(() => next)
+    })
+  return { pulls, follows, set, turn }
 }
 const pullRequest: PullRequest = {
   number: 812,
@@ -284,7 +294,7 @@ describe("a change beside a terminal", () => {
       expect(link.classList.contains("artifact-open")).toBe(true)
       expect(link.href).toBe(pullRequest.url)
       expect(link.target).toBe("_blank")
-      expect(link.getAttribute("aria-label")).toBe("PR #812, open, opens in your browser")
+      expect(link.getAttribute("aria-label")).toBe("PR #812, open, opens in browser")
       // While it shows, the item has the backend follow the works.
       expect(follows).toEqual({ asked: 1, released: 0 })
     })
@@ -294,7 +304,7 @@ describe("a change beside a terminal", () => {
       const { container, unmount } = show(change(), undefined, true, pulls)
       const link = () => container.querySelector<HTMLAnchorElement>("a.changes-pull")
       await set({ ...pullRequest, state: "merged" })
-      expect(link()?.getAttribute("aria-label")).toBe("PR #812, merged, opens in your browser")
+      expect(link()?.getAttribute("aria-label")).toBe("PR #812, merged, opens in browser")
       await set(undefined)
       expect(link()).toBeNull()
       unmount()
@@ -311,6 +321,24 @@ describe("a change beside a terminal", () => {
         worksWith({ ...pullRequest, url: "javascript:alert(1)" }).pulls,
       )
       expect(odd.container.querySelector(".changes-pull")).toBeNull()
+    })
+
+    it("has the backend follow nothing while it is kept out of sight", () => {
+      const { pulls, follows } = worksWith(pullRequest)
+      const { container } = show(change(), undefined, true, pulls, false)
+      // What the works said is still shown, for when it comes back into sight.
+      expect(container.querySelector("a.changes-pull")?.textContent).toBe("PR #812")
+      expect(follows).toEqual({ asked: 0, released: 0 })
+    })
+
+    it("links none while every forge is off, what the works said being stale", async () => {
+      const { pulls, turn } = worksWith(pullRequest)
+      const { container } = show(change(), undefined, true, pulls)
+      const link = () => container.querySelector("a.changes-pull")
+      await turn(false)
+      expect(link()).toBeNull()
+      await turn(true)
+      expect(link()?.textContent).toBe("PR #812")
     })
 
     it("links none outside the workspace, where there are no works", () => {

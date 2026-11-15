@@ -1,6 +1,7 @@
 import type { PullRequest } from "@novadeck/core/forges"
 import type { Store } from "@novadeck/core/store"
 import type { Work, WorksState } from "@novadeck/core/works"
+import { useShown } from "@novadeck/toolkit/shown"
 import {
   createContext,
   useCallback,
@@ -16,6 +17,9 @@ import {
 
 export type PullRequests = {
   readonly state: Store<WorksState>
+  // Whether pull requests are looked for now (a forge is on): while none is, the works' last word
+  // on them is stale and no link shows.
+  readonly on: Store<boolean>
   // Has the backend follow the works while an item asks, where that finds pull requests (a forge
   // is on); returns the release.
   readonly follow: () => () => void
@@ -38,11 +42,17 @@ export const samePullRequest = (a: PullRequest | undefined, b: PullRequest | und
     a.title === b.title)
 
 const nothing = (): (() => void) => () => {}
+const off = (): boolean => false
 
-/** The pull request of the work at `root`, kept fresh while the item shows. */
+/**
+ * The pull request of the work at `root`, kept fresh while the item is on screen: one kept mounted
+ * out of sight, as Focus keeps the terminals it last showed, has the backend follow nothing.
+ */
 export const usePullRequest = (root: string): PullRequest | undefined => {
   const pulls = useContext(PullRequestsContext)
-  useEffect(() => pulls?.follow(), [pulls])
+  const shown = useShown()
+  useEffect(() => (shown ? pulls?.follow() : undefined), [pulls, shown])
+  const on = useSyncExternalStore(pulls?.on.subscribe ?? nothing, pulls?.on.getSnapshot ?? off)
   // The last answer, kept while an equal one comes, so the item draws again only on a change.
   const last = useRef<PullRequest | undefined>(undefined)
   const read = useCallback(() => {
@@ -50,5 +60,6 @@ export const usePullRequest = (root: string): PullRequest | undefined => {
     if (!samePullRequest(last.current, next)) last.current = next
     return last.current
   }, [pulls, root])
-  return useSyncExternalStore(pulls?.state.subscribe ?? nothing, read)
+  const pull = useSyncExternalStore(pulls?.state.subscribe ?? nothing, read)
+  return on ? pull : undefined
 }

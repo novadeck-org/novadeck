@@ -27,7 +27,14 @@
    --changes-remove-fg (success-fg, danger-fg): its bar, sign, number and counts; a changed
    token is that ink at 24%. --changes-rail-fg (strong): the selection's rail.
    --pane-bg (paper): the ground of every view. */
-/* The 26px link on the header's 22px line, centred on it. */
+/* The link and the actions, 4px apart as on a page's bar; the 26px link on the header's 22px
+   line, centred on it. */
+.changes-head-end {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
 .artifact-meta .changes-pull {
   margin-block: -2px;
 }
