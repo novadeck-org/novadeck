@@ -156,7 +156,7 @@ export const scripted = ({
   saveSettings?: () => Promise<void>
   connect?: (agent: string, connected: boolean) => Promise<unknown>
   // What the runner says of its agents when asked again (`agents.list`).
-  listAgents?: () => Promise<readonly unknown[]>
+  listAgents?: (options?: { fresh?: boolean }) => Promise<readonly unknown[]>
   // What the shown session's terminals hold as the runner lists it.
   companions?: ListedCompanions
   // How the runner answers each change to an item or window, by the call's name.

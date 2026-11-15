@@ -162,6 +162,22 @@ describe("the agent switches", () => {
     app.stop()
   })
 
+  it("asks for a fresh look only when told to", async () => {
+    const asked: unknown[] = []
+    const app = scripted({
+      shown: [],
+      listAgents: async (options) => {
+        asked.push(options)
+        return []
+      },
+    })
+    const agents = app.backend.agents!
+    await agents.refresh()
+    await agents.refresh({ fresh: true })
+    expect(asked).toEqual([undefined, { fresh: true }])
+    app.stop()
+  })
+
   it("keep what is shown when the runner cannot be asked again", async () => {
     const app = scripted({
       shown: [],

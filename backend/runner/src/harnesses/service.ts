@@ -273,15 +273,22 @@ export const createHarnesses = (
   let latest: NodeJS.ProcessEnv | undefined
   // The same with the tools' variables as the shell has them, for `environment` alone.
   let person: NodeJS.ProcessEnv | undefined
-  const lookUp = () =>
-    (options.login === false
-      ? Promise.resolve(base)
-      : loginEnvironment(base, platform, relay, closing.signal, options.loginTimeoutMs ?? 10_000)
-    ).then((found) => {
-      person = found
-      latest = forAgents(found, base)
-      return latest
-    })
+  // The lookup under way, which callers that ask meanwhile share: one shell answers them all.
+  let looking: Promise<NodeJS.ProcessEnv> | undefined
+  const lookUp = (): Promise<NodeJS.ProcessEnv> =>
+    (looking ??= (
+      options.login === false
+        ? Promise.resolve(base)
+        : loginEnvironment(base, platform, relay, closing.signal, options.loginTimeoutMs ?? 10_000)
+    )
+      .then((found) => {
+        person = found
+        latest = forAgents(found, base)
+        return latest
+      })
+      .finally(() => {
+        looking = undefined
+      }))
   void lookUp()
   // Where each harness lives, once the shell files say where its plugin is.
   const installs = async (fresh = false) => {
@@ -410,20 +417,17 @@ export const createHarnesses = (
       return shimmed.filter((_, index) => connected[index])
     },
     /**
-     * Where each agent stands. While one is missing the login environment is read afresh,
-     * so a program the person has just installed shows once their PATH says where it is;
-     * with every agent installed it is the one already read, and no shell starts.
+     * Where each agent stands, by the login environment already read. With `fresh` it is
+     * read again first, so a program the person has just installed shows once their PATH
+     * says where it is; that spawns their login shell, so only the look after an install
+     * asks for it.
      */
-    list: async (): Promise<AgentIntegration[]> => {
-      const install = await installs()
+    list: async (options?: {
+      readonly fresh?: boolean | undefined
+    }): Promise<AgentIntegration[]> => {
+      const install = await installs(options?.fresh === true && !closing.signal.aborted)
       if (!install) return agents.map((agent) => ({ agent, available: false, connected: false }))
-      const found = await Promise.all(
-        agents.map((agent) => state(harnesses[agent], install(agent))),
-      )
-      if (found.every(({ available }) => available) || closing.signal.aborted) return found
-      const fresh = await installs(true)
-      if (!fresh) return found
-      return Promise.all(agents.map((agent) => state(harnesses[agent], fresh(agent))))
+      return Promise.all(agents.map((agent) => state(harnesses[agent], install(agent))))
     },
     /** Installs or removes Novadeck's plugin in the agent; resolves to where it stands after. */
     set: (agent: AgentName, connected: boolean): Promise<AgentIntegration> => {

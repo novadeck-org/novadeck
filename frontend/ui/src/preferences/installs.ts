@@ -45,7 +45,7 @@ export const connectInstalled = async (
   agent: AgentName,
 ): Promise<InstallResult> => {
   const entry = () => agents.state.getSnapshot().find((each) => each.agent === agent)
-  await agents.refresh()
+  await agents.refresh({ fresh: true })
   if (!entry()?.available) return "missing"
   if (!entry()?.connected) {
     agents.set(agent, true)

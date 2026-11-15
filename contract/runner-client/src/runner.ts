@@ -320,7 +320,11 @@ export type Runner = {
     ): Promise<AttachedTerminal>
   }
   readonly agents: {
-    list(): Promise<AgentIntegration[]>
+    /**
+     * Where each agent stands. With `fresh` the runner reads the person's login environment
+     * again first (it spawns their shell), for the look after an install.
+     */
+    list(options?: { readonly fresh?: boolean }): Promise<AgentIntegration[]>
     /**
      * Follows what the agent in a terminal does, in detail: a snapshot, then another on
      * each change, across reconnections, with a fresh one when the stream is opened again. It
@@ -803,7 +807,7 @@ export const connectRunner = async (
         attachTerminal(connection, terminalId, mode),
     },
     agents: {
-      list: () => call((client) => client.agents.list()),
+      list: (options) => call((client) => client.agents.list(options)),
       detail: (terminalId) =>
         followRestarting(connection, (client, signal) =>
           client.agents.detail({ terminalId }, { signal }),

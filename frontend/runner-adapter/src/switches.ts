@@ -65,8 +65,8 @@ export const runnerSwitches = (
         })),
     )
   }
-  const refreshAgents = (): Promise<void> =>
-    track(runner.agents.list()).then(
+  const refreshAgents = (options?: { readonly fresh?: boolean }): Promise<void> =>
+    track(runner.agents.list(options?.fresh ? { fresh: true } : undefined)).then(
       (list) => {
         agents.update((current) =>
           list.map((found) => {

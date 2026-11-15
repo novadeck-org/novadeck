@@ -222,7 +222,7 @@ export const createRouter = (options: {
       resetTitle: api.terminals.resetTitle.handler(({ input }) => terminals.resetTitle(input)),
     },
     agents: {
-      list: api.agents.list.handler(() => agents.list()),
+      list: api.agents.list.handler(({ input }) => agents.list(input)),
       detail: api.agents.detail.handler(({ input, signal }) =>
         terminals.detail(input.terminalId, signal),
       ),

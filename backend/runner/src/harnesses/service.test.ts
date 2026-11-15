@@ -257,29 +257,32 @@ describe("agents Novadeck can connect", () => {
   })
 
   it.skipIf(windows)(
-    "read the login environment afresh while an agent is missing, and not once all are there",
+    "start no login shell to list, even while an agent is missing, unless asked for a fresh look",
     async ({ fixture }) => {
       const shell = join(fixture.home, "login-shell")
       const count = join(fixture.root, "logins")
-      writeFileSync(shell, `#!/bin/sh\necho x >> "${count}"\necho __NOVADECK_ENV__\nenv\n`, {
-        mode: 0o755,
-      })
+      // Slow enough that the fresh looks below overlap.
+      writeFileSync(
+        shell,
+        `#!/bin/sh\necho x >> "${count}"\nsleep 0.3\necho __NOVADECK_ENV__\nenv\n`,
+        { mode: 0o755 },
+      )
       const logins = () =>
         existsSync(count) ? readFileSync(count, "utf8").trim().split("\n").length : 0
       const agents = createHarnesses(() => Promise.resolve(fixture.paths), {
         home: fixture.home,
         env: fixture.environment({ ...withoutAgents, SHELL: shell }),
       })
+      // The one lookup made at start.
+      await vi.waitFor(() => expect(logins()).toBe(1))
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      expect((await agents.list())[2]).toMatchObject({ available: false })
       await agents.list()
-      const first = logins()
-      // One agent missing: each list asks the login shell again.
-      await agents.list()
-      expect(logins()).toBeGreaterThan(first)
-      installed(fixture.home, "claude", "codex", "agy")
-      await agents.list()
-      const settled = logins()
-      await agents.list()
-      expect(logins()).toBe(settled)
+      await agents.list({ fresh: false })
+      expect(logins()).toBe(1)
+      // A fresh look reads it again, and looks asked for together share one shell.
+      await Promise.all([agents.list({ fresh: true }), agents.list({ fresh: true })])
+      expect(logins()).toBe(2)
     },
   )
 

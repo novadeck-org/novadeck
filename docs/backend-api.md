@@ -876,9 +876,9 @@ one from an earlier runner.
   Novadeck's plugin is installed into it, read from the agent's own configuration. For an
   agent that is not installed it also gives `installer`, the one-line command that installs
   it on the runner's platform, which a client opens a terminal with (`terminals.create`'s
-  `command`) when the person asks. While one agent is missing, each list reads the login
-  shell's environment afresh, so a program just installed shows; with all installed it uses
-  the one already read. A new shell's PATH gets last the folder of each agent found only where its installer puts it (as macOS' PATH lacks `~/.local/bin`), so typing the agent's name starts it, through Novadeck's shim once connected.
+  `command`) when the person asks. A list uses the login shell's environment already read and
+  starts no shell; `agents.list({ fresh: true })` reads it again first (the look after an
+  install, so a program just installed shows), and fresh looks asked for together share one read. A new shell's PATH gets last the folder of each agent found only where its installer puts it (as macOS' PATH lacks `~/.local/bin`), so typing the agent's name starts it, through Novadeck's shim once connected.
   `agents.set({ agent, connected })` installs or removes the plugin with the agent's
   own commands (`claude plugin marketplace add` + `plugin install`, `codex plugin
   marketplace add` + `plugin add`, `agy plugin install`, and their removals). They run

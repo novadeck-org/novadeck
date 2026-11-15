@@ -337,7 +337,12 @@ export const contract = {
   },
   // Agents whose sessions resume once Novadeck's plugin is installed into them.
   agents: {
-    list: procedure.input(z.void()).output(z.array(agentIntegration)),
+    // Where each agent stands. With `fresh` the runner reads the person's login environment
+    // again first, as the look after an install needs, so a program just installed shows;
+    // without it the environment already read is used, and no shell starts.
+    list: procedure
+      .input(z.strictObject({ fresh: z.boolean().optional() }).optional())
+      .output(z.array(agentIntegration)),
     // What the agent in a terminal does, in more detail than its summary: a snapshot, then
     // another on each change. It follows the terminal from agent to agent, and ends when
     // the terminal is closed. An unknown terminal is TERMINAL_NOT_FOUND.

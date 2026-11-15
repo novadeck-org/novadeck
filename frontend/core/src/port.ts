@@ -315,8 +315,10 @@ export type BackendFields = {
     // Connects or disconnects the agent; the state shows the change as it goes.
     readonly set: (agent: AgentName, connected: boolean) => void
     // Looks again at which agents are installed and connected; resolves once the state
-    // shows what it found (also where it found nothing new, or could not look).
-    readonly refresh: () => Promise<void>
+    // shows what it found (also where it found nothing new, or could not look). With `fresh`
+    // the backend reads the person's login environment again first, which spawns a shell:
+    // for the look after an install, so a program just installed shows.
+    readonly refresh: (options?: { readonly fresh?: boolean }) => Promise<void>
     // Whether to offer connecting them when the app opens for the first time.
     readonly welcome: Store<boolean>
     readonly finishWelcome: () => void
