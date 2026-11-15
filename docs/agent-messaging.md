@@ -2459,8 +2459,10 @@ An agent can stop at a screen of its own before its first session: folder trust,
 a hooks review, sign-in, onboarding, a resume picker. No harness reports anything Novadeck
 binds on there, so nothing but the screen tells that from a slow start. `StartupWatch`
 (`terminals/startup-watch.ts`) looks once a second at each terminal expecting an agent, or
-whose foreground program is one the person typed in its shell (the sampler's `programOf`),
-while no session bound and its prompt never showed, and counts a screen as holding the agent
+whose foreground program is one the person typed in its shell (the sampler's `programOf`;
+Windows names no foreground program, and macOS none that isn't named after its agent, as
+Claude Code's installer names it by its version, so a typed agent there is found only once its
+session binds), while no session bound and its prompt never showed, and counts a screen as holding the agent
 when all of these stand for 5 s (15 s on Windows, which starts agents far slower). It rests
 while there is nothing to look at, and every summary change wakes it where one now needs it
 (`noticed`): an agent typed in a shell, a session that bound, an agent found with its hooks
