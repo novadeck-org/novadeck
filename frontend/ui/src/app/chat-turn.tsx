@@ -1,6 +1,6 @@
 import type { Conversation } from "@novadeck/core/conversation"
 import type { Store } from "@novadeck/core/store"
-import { usePanePicture, useStandInPicture } from "@novadeck/items/pane-pictures"
+import { usePanePicture, useStandInPicture, type PanePicture } from "@novadeck/items/pane-pictures"
 import { usePaneTurn } from "@novadeck/items/pane-turns"
 import { Shown, useShown } from "@novadeck/toolkit/shown"
 import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react"
@@ -100,7 +100,7 @@ const ChatStandIn = ({
   picture,
 }: {
   readonly name: string
-  readonly picture: ReturnType<typeof usePanePicture>
+  readonly picture: () => PanePicture | undefined
 }): React.JSX.Element => {
   const element = useStandInPicture<HTMLDivElement>(picture)
   return (
