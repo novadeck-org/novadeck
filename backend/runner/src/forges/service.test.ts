@@ -532,6 +532,68 @@ describe("the forges service", () => {
     expect(forges.pullRequest(dirs.a, "feature")).toEqual(open)
   })
 
+  it("sees a refused token mended in the person's own terminal when it lists, and looks again", async () => {
+    const { forges, fakes, state } = setup({ enabled: ["github"] })
+    fakes.github.answer = () => ({ kind: "refused", fix: "gh auth refresh -s repo" })
+    await forges.tick()
+    expect((await forges.list({ cached: true }))[0]?.hosts).toEqual([
+      { host: "github.com", state: "refused", fix: "gh auth refresh -s repo" },
+    ])
+    // Listing again with the same token says nothing new.
+    expect((await forges.list())[0]?.hosts[0]?.state).toBe("refused")
+    // `gh auth refresh -s repo`, run outside Novadeck: a new token, which the host takes.
+    fakes.github.token = () => ({ value: "mended" })
+    fakes.github.answer = () => new Map([["feature", open]])
+    state.now += 1000
+    expect((await forges.list())[0]?.hosts).toEqual([{ host: "github.com", state: "signed-in" }])
+    await forges.tick()
+    expect(forges.pullRequest(dirs.a, "feature")).toEqual(open)
+  })
+
+  it("says a host turned the token away still, after a fresh list whose tool gives it again", async () => {
+    const { forges, fakes } = setup({ enabled: ["github"] })
+    fakes.github.answer = () => ({ kind: "signed-out", fix: "gh auth login --hostname github.com" })
+    await forges.tick()
+    // A Sign in the person cancelled: the terminal ends and the list is asked afresh.
+    const [github] = await forges.list({ fresh: true })
+    expect(github?.hosts).toEqual([
+      { host: "github.com", state: "signed-out", fix: "gh auth login --hostname github.com" },
+    ])
+  })
+
+  it("reads an origin again in a while, one added since or one whose read failed", async () => {
+    let origin: string | undefined
+    let reads = 0
+    const { forges, state } = setup({
+      enabled: ["github"],
+      repositories: [{ commonDir: dirs.a, branches: ["feature"], fetchedAt: 1 }],
+      remote: async () => {
+        reads += 1
+        if (reads === 2) throw new Error("git broke")
+        return origin
+      },
+    })
+    await forges.tick()
+    expect(forges.pullRequest(dirs.a, "feature")).toBeUndefined()
+    state.now += every
+    await forges.tick()
+    expect(reads).toBe(2)
+    // `git remote add origin`, meanwhile.
+    origin = "https://github.com/o/r.git"
+    state.now += every
+    await forges.tick()
+    expect(forges.pullRequest(dirs.a, "feature")).toEqual(open)
+  })
+
+  it("keeps what it found when a forge is switched as it already was", async () => {
+    const { forges, state } = setup({ enabled: ["github"] })
+    await forges.tick()
+    // No pass looks again meanwhile: what shows is what the switch kept.
+    state.watching = false
+    await forges.set("github", true)
+    expect(forges.pullRequest(dirs.a, "feature")).toEqual(open)
+  })
+
   it("waits at least a minute for a rate limit whose time has already passed", async () => {
     const { forges, fakes, state } = setup({ enabled: ["github"] })
     fakes.github.answer = () => ({ kind: "limited", until: state.now - 1000 })

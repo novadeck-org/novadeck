@@ -136,7 +136,7 @@ describe("the Changes panel's rows", () => {
     const { row, onSelect } = show([work("a", { pullRequest }), work("b")])
     const link = row("a").querySelector<HTMLAnchorElement>("a.changes-pr")!
     expect(link.textContent).toBe("Draft #812")
-    expect(link.getAttribute("aria-label")).toBe("Pull request #812, draft, opens in browser")
+    expect(link.getAttribute("aria-label")).toBe("Draft #812, pull request, opens in browser")
     expect(link.href).toBe(pullRequest.url)
     expect(link.target).toBe("_blank")
     expect(link.rel).toBe("noopener noreferrer")

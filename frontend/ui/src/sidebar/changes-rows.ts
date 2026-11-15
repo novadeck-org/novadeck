@@ -29,7 +29,8 @@ export type BranchView =
 export type CloseMode = "close" | "busy"
 
 // A work's pull request as its row's mark shows it: "Draft #812", the words a screen reader gets
-// ("Pull request #812, draft, opens in browser") and the page it opens; none for an address that
+// ("Draft #812, pull request, opens in browser": its visible words first, so voice control finds
+// it) and the page it opens; none for an address that
 // is not a web page.
 export type PullMark = {
   readonly state: PullRequest["state"]
@@ -50,7 +51,7 @@ export const pullMark = ({ number, state, url }: PullRequest): PullMark => {
   return {
     state,
     text: `${stateWords[state]} #${number}`,
-    label: `Pull request #${number}, ${state}${web ? ", opens in browser" : ""}`,
+    label: `${stateWords[state]} #${number}, pull request${web ? ", opens in browser" : ""}`,
     url: web ? url : undefined,
   }
 }

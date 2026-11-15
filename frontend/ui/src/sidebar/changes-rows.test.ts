@@ -279,7 +279,7 @@ describe("a row's pull request mark", () => {
     expect(pullMark(request("draft"))).toEqual({
       state: "draft",
       text: "Draft #812",
-      label: "Pull request #812, draft, opens in browser",
+      label: "Draft #812, pull request, opens in browser",
       url: "https://github.com/acme/shop/pull/812",
     })
     expect(
@@ -290,7 +290,7 @@ describe("a row's pull request mark", () => {
   it("opens only a web page", () => {
     const mark = pullMark({ ...request("open"), url: "javascript:alert(1)" })
     expect(mark.url).toBeUndefined()
-    expect(mark.label).toBe("Pull request #812, open")
+    expect(mark.label).toBe("Open #812, pull request")
   })
 
   it("is on the row of a work that has one, beside its git-based merged state", () => {

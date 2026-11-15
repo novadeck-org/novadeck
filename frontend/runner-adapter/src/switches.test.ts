@@ -311,4 +311,36 @@ describe("the forge switches", () => {
     expect(forges.state.getSnapshot()).toEqual([{ ...github, busy: false }])
     app.stop()
   })
+
+  it("never let a list asked before a switch undo it", async () => {
+    let answer: (list: ForgeIntegration[]) => void = () => {}
+    const app = scripted({
+      shown: [],
+      forges: [{ ...github, enabled: true }],
+      // The list waits on a slow tool; the switch answers at once.
+      listForges: () =>
+        new Promise((resolve) => {
+          answer = resolve
+        }),
+      switchForge: async (forge, enabled) => ({ ...github, forge, enabled }),
+    })
+    const forges = app.backend.forges!
+    const listed = forges.refresh()
+    forges.set("github", false)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(forges.state.getSnapshot()[0]).toMatchObject({ enabled: false, busy: false })
+    // What the runner said before the switch lands last.
+    answer([{ ...github, enabled: true }])
+    await listed
+    expect(forges.state.getSnapshot()[0]).toMatchObject({ enabled: false, busy: false })
+    // A list asked after it is shown.
+    const later = forges.refresh()
+    answer([{ ...github, enabled: false, hosts: [{ host: "github.com", state: "signed-in" }] }])
+    await later
+    expect(forges.state.getSnapshot()[0]?.hosts).toEqual([
+      { host: "github.com", state: "signed-in" },
+    ])
+    app.stop()
+  })
 })

@@ -51,9 +51,12 @@ export const runnerSwitches = (
   const welcome = createStore(welcomed === false)
   const updateForge = (forge: ForgeName, next: (current: ForgeConnection) => ForgeConnection) =>
     forges.update((list) => list.map((item) => (item.forge === forge ? next(item) : item)))
+  // How many switches each forge has had, so a list asked before one never undoes it.
+  const forgeSwitched = new Map<ForgeName, number>()
   const switchForge = (forge: ForgeName, enabled: boolean): void => {
     const calls = runner.forges
     if (!calls) return
+    forgeSwitched.set(forge, (forgeSwitched.get(forge) ?? 0) + 1)
     updateForge(forge, (current) => ({
       ...current,
       busy: true,
@@ -72,13 +75,15 @@ export const runnerSwitches = (
   const refreshForges = (options?: { readonly fresh?: boolean }): Promise<void> => {
     const calls = runner.forges
     if (!calls) return Promise.resolve()
+    const asked = new Map(forgeSwitched)
     return track(calls.list(options?.fresh ? { fresh: true } : undefined)).then(
       (list) => {
         forges.update((current) =>
           list.map((found) => {
             const shown = current.find((item) => item.forge === found.forge)
-            // A change under way reports its own result.
-            return shown?.busy ? shown : { ...found, busy: false }
+            // A change under way, or one made since the list was asked, reports its own result.
+            const since = forgeSwitched.get(found.forge) !== asked.get(found.forge)
+            return shown && (shown.busy || since) ? shown : { ...found, busy: false }
           }),
         )
       },

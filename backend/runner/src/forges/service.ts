@@ -12,6 +12,7 @@ import {
   type Token,
 } from "@novadeck/forges"
 import {
+  forgeLimits,
   forgeName,
   type ForgeHost,
   type ForgeIntegration,
@@ -119,8 +120,11 @@ export class Forges {
   private readonly turnedAway = new Map<string, string>()
   /** Where each host stands, from the last token attempt or lookup. */
   private readonly hosts = new Map<string, ForgeHost>()
-  /** Origin remotes by repository, read once. */
-  private readonly remotes = new Map<string, Promise<Remote | undefined>>()
+  /** Origin remotes by repository, and when each was read: read again every `every`. */
+  private readonly remotes = new Map<
+    string,
+    { readonly at: number; readonly found: Promise<Remote | undefined> }
+  >()
   /** The hosts each forge's tool is signed in to, and when that was asked. */
   private readonly signed = new Map<ForgeName, { at: number; hosts: Promise<readonly string[]> }>()
   private running: Promise<void> | undefined
@@ -185,9 +189,9 @@ export class Forges {
       )
       this.remotes.clear()
       this.signed.clear()
+      // Each tool is asked again. Where each host stood stays, so a token the host turned away
+      // is not taken for a sign-in; a host signed out or refused is asked again below.
       this.held.clear()
-      this.turnedAway.clear()
-      this.hosts.clear()
       // A sign-in or an install since may mend what backed off: look again, keeping what was
       // found meanwhile, so the marks don't blink.
       for (const each of this.looks.values()) each.nextAt = each.blockedUntil = each.failures = 0
@@ -212,7 +216,8 @@ export class Forges {
     const now = this.options.enabled()
     const next = order.filter((each) => (each === name ? enabled : now.includes(each)))
     this.options.save(next)
-    this.forget(name)
+    // Switched as it already was, what it found stands.
+    if (now.includes(name) !== enabled) this.forget(name)
     if (enabled) void this.tick()
     return (await this.list()).find((each) => each.forge === name)!
   }
@@ -256,7 +261,9 @@ export class Forges {
       : installerFor(name, this.platform, this.find("brew") !== undefined)
     const hosts =
       enabled && available
-        ? [...this.hosts].flatMap(([key, host]) => (key.startsWith(`${name}\0`) ? [host] : []))
+        ? [...this.hosts]
+            .flatMap(([key, host]) => (key.startsWith(`${name}\0`) ? [host] : []))
+            .slice(0, forgeLimits.hosts)
         : []
     return { forge: name, available, enabled, ...(installer && { installer }), hosts }
   }
@@ -273,14 +280,18 @@ export class Forges {
       : installerFor(name, this.platform, this.find("brew") !== undefined)
     const hosts: ForgeHost[] = []
     if (enabled && available) {
-      const wanted = claimed.length > 0 ? [...new Set(claimed)] : [forge.defaultHost]
+      const wanted = (claimed.length > 0 ? [...new Set(claimed)] : [forge.defaultHost]).slice(
+        0,
+        forgeLimits.hosts,
+      )
       await Promise.all(
         wanted.map((host) => {
           const key = hostKey(name, host)
           const state = this.hosts.get(key)?.state
           if (state === undefined) return this.tokenOf(name, host)
-          // Signed in since, maybe in the person's own terminal: the tool is asked again.
-          if (state === "signed-out") {
+          // Signed in or mended since, maybe in the person's own terminal: the tool is asked
+          // again, and a token other than the one turned away counts as signed in.
+          if (state === "signed-out" || state === "refused") {
             this.held.delete(key)
             return this.tokenOf(name, host)
           }
@@ -309,6 +320,7 @@ export class Forges {
     const known = new Set(facts.map((each) => each.commonDir))
     for (const [dir, look] of this.looks)
       if (!known.has(dir) || !among.includes(look.forge)) this.looks.delete(dir)
+    for (const dir of this.remotes.keys()) if (!known.has(dir)) this.remotes.delete(dir)
     if (among.length === 0) return
     for (const repository of facts) {
       if (this.ending.signal.aborted) return
@@ -477,11 +489,12 @@ export class Forges {
     if (!this.options.enabled().includes(name)) return
     const key = hostKey(name, host)
     if (got === "ok") {
+      // Only a token other than the one the host turned away gets here (`tokenOf`), so a
+      // refused host is mended as a signed-out one is.
       const before = this.hosts.get(key)?.state
-      if (before === "refused") return
       this.hosts.set(key, { host, state: "signed-in" })
       // Signed in since it was not: what backed off for it is looked at again.
-      if (before === "signed-out") {
+      if (before === "signed-out" || before === "refused") {
         for (const look of this.looks.values())
           if (look.forge === name) look.nextAt = look.blockedUntil = look.failures = 0
         void this.tick()
@@ -502,13 +515,20 @@ export class Forges {
   }
 
   private remoteOf(commonDir: string): Promise<Remote | undefined> {
-    let found = this.remotes.get(commonDir)
-    if (!found) {
-      found = (this.options.remote ?? originOf)(commonDir).then((url) =>
-        url === undefined ? undefined : parseRemote(url),
-      )
-      this.remotes.set(commonDir, found)
-    }
+    const known = this.remotes.get(commonDir)
+    // An origin added or moved since, or a read that failed, is read again in a while.
+    if (known && this.now() - known.at < this.every) return known.found
+    const found = (this.options.remote ?? originOf)(commonDir).then(
+      (url) => (url === undefined ? undefined : parseRemote(url)),
+      // A reader that throws is no origin, this time: it never stops the pass.
+      (error: unknown) => {
+        log.debug("forges.remote-failed", "Novadeck could not read a repository's origin", {
+          err: error,
+        })
+        return undefined
+      },
+    )
+    this.remotes.set(commonDir, { at: this.now(), found })
     return found
   }
 
