@@ -428,7 +428,9 @@ describe("Connecting agents", () => {
       await expect.element(welcome()).toBeVisible()
       await expect.element(agentChoice(welcome(), "Claude Code")).toBeChecked()
       await expect.element(agentChoice(welcome(), "Codex")).toBeChecked()
-      await expect.element(agentChoice(welcome(), "Antigravity")).not.toBeChecked()
+      await expect
+        .element(welcome().getByRole("button", { name: "Install Antigravity" }))
+        .toBeVisible()
       await agentChoice(welcome(), "Codex").click()
       await welcome().getByRole("button", { name: "Let’s build something" }).click()
       await expect.element(welcome()).not.toBeInTheDocument()
