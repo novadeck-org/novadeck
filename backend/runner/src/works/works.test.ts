@@ -19,7 +19,7 @@ import { timing } from "../checkouts/git.js"
 import { Snapshots } from "../checkouts/snapshots.js"
 import { DomainError } from "../errors.js"
 import { describe, expect, it as base } from "../test.js"
-import { Works, type Removal, type Tracked } from "./works.js"
+import { nextWake, Works, type Removal, type Tracked } from "./works.js"
 
 const hasGit = (() => {
   try {
@@ -231,6 +231,24 @@ const current = async (works: Works): Promise<Map<string, Work>> => {
   }
   return found
 }
+
+describe("when the works' poll passes next", () => {
+  it("is `every` from now where no checkout is due sooner", () => {
+    expect(nextWake(1_000, 3_000, [9_000])).toBe(4_000)
+    expect(nextWake(1_000, 3_000, [])).toBe(4_000)
+  })
+
+  it("is as the first checkout comes due, not at the next whole step", () => {
+    // Read slowly at 0 for 1 s: due 4 s after, between two of the poll's steps.
+    expect(nextWake(4_000, 3_000, [5_000, 9_000])).toBe(5_000)
+  })
+
+  it("leaves a checkout due already for the pass every `every`, rather than waking at once", () => {
+    // Asked to be read again (a merge that couldn't be told), or not read since it came due.
+    expect(nextWake(5_000, 3_000, [0, 1_000, 5_000])).toBe(8_000)
+    expect(nextWake(5_000, 3_000, [0, 6_000])).toBe(6_000)
+  })
+})
 
 describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
   it("waits for the very first read before it says synced, and later ones only so long", async ({
@@ -1062,6 +1080,107 @@ describe.skipIf(!hasGit)("the works of tracked worktrees", () => {
     stop.abort()
     await done
     expect(seen).toEqual(["changed 0", "synced", "changed 1", "changed 3", "removed"])
+  })
+
+  // Three reads, each wait after one four times as long as it: some eleven reads' time, which is
+  // 9 s on a loaded Windows runner.
+  it(
+    "reads a slow checkout less often, four times as long as its read took",
+    {
+      timeout: 40_000,
+    },
+    async ({ fixture, resources }) => {
+      const { main } = fixture
+      main.write("b.txt", "x\n")
+      // Every read is slow here, as a big repository's is.
+      timing.slowMs = 0
+      // Each read's first and last git run: a pass starts by asking who works where.
+      const reads: { start: number; end: number }[] = []
+      let passing = false
+      const before = timing.saw
+      timing.saw = () => {
+        const at = performance.now()
+        const last = reads.at(-1)
+        if (passing || !last) reads.push({ start: at, end: at })
+        else last.end = at
+        passing = false
+      }
+      resources.defer(() => {
+        timing.saw = before
+      })
+      const works = new Works({
+        tracked: () => [tracked({ terminalId: terminal(1), root: main.root })],
+        presences: async () => {
+          passing = true
+          return []
+        },
+        show: async () => "item",
+        remove: async () => ({ ok: true, branchDeleted: false }),
+        everyMs: 20,
+        firstMs: everything,
+        snapshots: snapshotsFor(),
+      })
+      resources.defer(() => works.close())
+      const stop = new AbortController()
+      resources.defer(() => stop.abort())
+      void (async () => {
+        for await (const _ of works.watch("owner", stop.signal));
+      })()
+      await vi.waitFor(() => expect(reads.length).toBeGreaterThanOrEqual(3), {
+        timeout: 30_000,
+        interval: 20,
+      })
+      stop.abort()
+      // Read again no sooner than its wait after the read, which outlasts the read four times.
+      for (const [at, read] of reads.slice(0, 2).entries())
+        expect(reads[at + 1]!.start - read.start).toBeGreaterThanOrEqual(
+          4 * (read.end - read.start),
+        )
+    },
+  )
+
+  it("reads a checkout on every pass it is due, though the poll's timer comes before the clock", async ({
+    fixture,
+    resources,
+  }) => {
+    const { main } = fixture
+    // Each pass, with the git runs it made.
+    const passes: number[] = []
+    const before = timing.saw
+    timing.saw = () => {
+      if (passes.length > 0) passes[passes.length - 1]! += 1
+    }
+    resources.defer(() => {
+      timing.saw = before
+    })
+    const start = Date.now()
+    const works = new Works({
+      tracked: () => [tracked({ terminalId: terminal(1), root: main.root })],
+      presences: async () => {
+        passes.push(0)
+        return []
+      },
+      show: async () => "item",
+      remove: async () => ({ ok: true, branchDeleted: false }),
+      everyMs: 200,
+      firstMs: everything,
+      // Half as fast as the timers: each wake comes before its checkout is due by this clock, as
+      // a timer firing early does, and the checkout it woke for is read all the same.
+      now: () => start + (Date.now() - start) / 2,
+      snapshots: snapshotsFor(),
+    })
+    resources.defer(() => works.close())
+    const stop = new AbortController()
+    resources.defer(() => stop.abort())
+    void (async () => {
+      for await (const _ of works.watch("owner", stop.signal));
+    })()
+    await vi.waitFor(() => expect(passes.length).toBeGreaterThanOrEqual(6), {
+      timeout: told,
+      interval: 20,
+    })
+    stop.abort()
+    expect(passes.slice(0, 5).filter((gits) => gits === 0)).toEqual([])
   })
 
   it("remembers when it first saw a work and what was read, across runs", async ({

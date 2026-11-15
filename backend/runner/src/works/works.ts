@@ -228,6 +228,16 @@ type RootState = {
   nextAt: number
 }
 
+/**
+ * When the works' poll passes next, from `now`, given when each tracked checkout is due again:
+ * as the first one comes due, and `every` after `now` at the latest, as a pass also tells who
+ * works where and which worktrees are tracked. One due already (never read, or asked to be read
+ * again, as after a merge that couldn't be told) waits for that pass, as it always has: waking
+ * for it at once would read it over and over.
+ */
+export const nextWake = (now: number, every: number, dues: readonly number[]): number =>
+  Math.min(now + every, ...dues.filter((nextAt) => nextAt > now))
+
 /** How many checkouts that are no tracked worktree are remembered (those a changes item read). */
 const keptAbandoned = 32
 /** How many new pairs of works are merged in one pass. */
@@ -236,9 +246,9 @@ const pairsPerPass = 24
 /**
  * The works: each tracked worktree against the repository's main branch, as the Changes panel
  * lists it, whoever owns it (or no one) and whether or not agent worktrees are on. A worktree
- * is read every few seconds while someone watches (longer after a slow read), by taking its
- * working tree as a tree of git's own without touching the person's index, and merging that in
- * memory into main. A work is keyed by its worktree's root.
+ * is read every few seconds while someone watches (longer after a slow read, and as soon as that
+ * wait is over), by taking its working tree as a tree of git's own without touching the person's
+ * index, and merging that in memory into main. A work is keyed by its worktree's root.
  */
 export class Works {
   private readonly watchers = new Map<KeyedChanges<string, WorkChange>, string>()
@@ -631,10 +641,19 @@ export class Works {
     void (async () => {
       try {
         while (!loop.signal.aborted) {
+          const now = this.now()
+          const at = nextWake(
+            now,
+            this.every,
+            this.options.tracked().flatMap(({ root }) => {
+              const nextAt = this.roots.get(root)?.nextAt
+              return nextAt === undefined ? [] : [nextAt]
+            }),
+          )
           // eslint-disable-next-line no-await-in-loop -- One pass after another.
-          await sleep(this.every, undefined, { signal: loop.signal })
+          await sleep(at - now, undefined, { signal: loop.signal })
           // eslint-disable-next-line no-await-in-loop -- One pass after another.
-          await this.scan()
+          await this.scan(false, at)
         }
       } catch (error) {
         if (!loop.signal.aborted)
@@ -650,9 +669,13 @@ export class Works {
     return this.loop !== undefined && !this.loop.signal.aborted
   }
 
-  /** Reads the checkouts that are due, or all of them where `afresh`. */
-  private scan(afresh = false): Promise<void> {
-    return this.exclusive(() => this.pass(afresh ? "all" : new Set())).catch(() => {})
+  /**
+   * Reads the checkouts that are due, or all of them where `afresh`; due by `wokeFor` too, the time
+   * the poll woke for, as a timer may fire a moment before its time: a checkout due a millisecond
+   * later would otherwise wait for the pass after.
+   */
+  private scan(afresh = false, wokeFor?: number): Promise<void> {
+    return this.exclusive(() => this.pass(afresh ? "all" : new Set(), wokeFor)).catch(() => {})
   }
 
   /** Runs one thing at a time: a pass, or a look, which sets the watermark between passes. */
@@ -664,15 +687,18 @@ export class Works {
     return next
   }
 
-  /** One pass: reads the worktrees that are due (and those in `force`), then tells the works. */
-  private async pass(force: ReadonlySet<string> | "all"): Promise<void> {
+  /**
+   * One pass: reads the worktrees that are due (by `wokeFor`, where the poll woke for a time, and
+   * those in `force`), then tells the works.
+   */
+  private async pass(force: ReadonlySet<string> | "all", wokeFor?: number): Promise<void> {
     await this.loaded
     const tracked = this.options.tracked()
     const presences = await this.options.presences()
-    const now = this.now()
+    const by = Math.max(this.now(), wokeFor ?? -Infinity)
     const due = tracked.filter(({ root }) => {
       const state = this.roots.get(root)
-      return force === "all" || force.has(root) || !state || now >= state.nextAt
+      return force === "all" || force.has(root) || !state || by >= state.nextAt
     })
     // A few at a time: a repository of many files takes a while, and the others wait on it.
     for (let at = 0; at < due.length; at += 4)
