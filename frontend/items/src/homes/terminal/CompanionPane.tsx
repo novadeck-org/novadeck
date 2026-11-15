@@ -482,7 +482,8 @@ export const CompanionPane = ({
   // A picture of what it shows, kept while it's laid out in sight, to stand in for it
   // while it waits its turn again; never of a kind drawn outside the page.
   const [sheet, setSheet] = useState<HTMLElement | null>(null)
-  // Kept by this pane alone: one remounting starts with none.
+  // Kept by this pane alone, for what it shows now: one remounting starts with none, and one
+  // showing another tab lets the last one's go.
   const mount = useId()
   const picture = usePanePicture(
     sheet,
@@ -492,6 +493,8 @@ export const CompanionPane = ({
       !leaving &&
       !(item && registrationOf(item).drawnElsewhere),
     member && `${mount}:${member.key}`,
+    undefined,
+    true,
   )
   // A new top comes forward when it was behind, and over what was shown when it's new;
   // another tab of the same icon just shows.

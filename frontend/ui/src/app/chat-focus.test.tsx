@@ -51,7 +51,7 @@ describe("A terminal's chat coming over its screen", () => {
     await vi.waitFor(() => expect(document.activeElement).toBe(page.field("box")))
   })
 
-  it("leaves focus be where its box takes too long to come", () => {
+  it("leaves focus be where its box takes too long to come", async () => {
     vi.useFakeTimers()
     try {
       const page = host(false)
@@ -59,6 +59,8 @@ describe("A terminal's chat coming over its screen", () => {
       page.show(true, true, false)
       act(() => void vi.advanceTimersByTime(boxWaitMs))
       page.show(true, true, true)
+      // What the page's observers hear comes after the render.
+      await act(async () => {})
       expect(document.activeElement).not.toBe(page.field("box"))
     } finally {
       vi.useRealTimers()

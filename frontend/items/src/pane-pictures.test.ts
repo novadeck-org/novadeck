@@ -218,6 +218,27 @@ describe("keeping a pane's picture", () => {
     expect(pane(pictures, false, "b").latest()).toBeUndefined()
   })
 
+  it("lets its own picture go as what it shows changes or it unmounts", async () => {
+    const { pictures } = noting()
+    const Own = ({ keyed }: { readonly keyed: string }): React.JSX.Element => {
+      const [element, setElement] = useState<HTMLElement | null>(null)
+      usePanePicture(element, true, keyed, undefined, true)
+      return createElement("div", { ref: setElement })
+    }
+    const page = render(
+      createElement(PanePicturesContext, { value: pictures }, createElement(Own, { keyed: "a" })),
+    )
+    await pass(firstMs)
+    expect(pictures.kept("a")).toBeDefined()
+    page.rerender(
+      createElement(PanePicturesContext, { value: pictures }, createElement(Own, { keyed: "b" })),
+    )
+    expect(pictures.kept("a")).toBeUndefined()
+    await pass(firstMs)
+    page.unmount()
+    expect(pictures.kept("b")).toBeUndefined()
+  })
+
   context("where what it shows is named", () => {
     it("takes it only once that holds still from one freshen to the next", async () => {
       const { pictures, taken } = noting()

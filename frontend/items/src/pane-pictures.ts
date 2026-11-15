@@ -53,6 +53,8 @@ export type PanePictures = {
   // The picture kept by `key`, and keeping one there.
   readonly kept: (key: string) => PanePicture | undefined
   readonly keep: (key: string, picture: PanePicture) => void
+  // Lets the picture kept by `key` go.
+  readonly forget: (key: string) => void
 }
 
 // Outside the workspace, and where the page can't picture itself (a browser), none are taken.
@@ -225,6 +227,7 @@ export const createPanePictures = (shoot: Shoot | undefined): PanePictures => {
       kept.set(key, picture)
       return picture
     },
+    forget: (key) => void kept.delete(key),
     keep: (key, picture) => {
       kept.delete(key)
       kept.set(key, picture)
@@ -241,15 +244,21 @@ export const createPanePictures = (shoot: Shoot | undefined): PanePictures => {
  * sight), for what it shows as `key`. Returns the latest picture kept by `key`, if any: one
  * kept by any other doesn't count. Where `mark` names what it shows (a word that changes as
  * that does), a picture is taken only once that holds still from one freshen to the next, and
- * counts only while it still names it.
+ * counts only while it still names it. One `own` to this caller (a pane's, which no remount
+ * finds again) goes as the key changes or the caller unmounts.
  */
 export const usePanePicture = (
   element: HTMLElement | null,
   live: boolean,
   key: string | undefined,
   mark?: () => string,
+  own = false,
 ): (() => PanePicture | undefined) => {
   const pictures = useContext(PanePicturesContext)
+  useEffect(
+    () => (own && pictures && key !== undefined ? () => pictures.forget(key) : undefined),
+    [own, pictures, key],
+  )
   const named = useRef(mark)
   useLayoutEffect(() => {
     named.current = mark

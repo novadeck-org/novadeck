@@ -80,12 +80,20 @@ describe("a chat in its turn", () => {
     turns: ReturnType<typeof stepped>["turns"],
     pictures: PanePictures = picturing(),
     inSight = true,
+    { atOnce = false, drawn = "" }: { atOnce?: boolean; drawn?: string } = {},
   ) => {
     const element = (shown: boolean) => (
       <PaneTurnsContext value={turns}>
         <PanePicturesContext value={pictures}>
           <Shown value={shown}>
-            <ChatTurn first name="T" conversation={conversation} picturedAs="chat:grid:T">
+            <ChatTurn
+              first
+              name="T"
+              conversation={conversation}
+              picturedAs="chat:grid:T"
+              drawn={drawn}
+              atOnce={atOnce}
+            >
               <Chat />
             </ChatTurn>
           </Shown>
@@ -111,6 +119,33 @@ describe("a chat in its turn", () => {
     step()
     expect(standIn(container)).toBeNull()
     expect(chat(container)?.dataset.inSight).toBe("true")
+  })
+
+  it("builds at once where it comes over a screen already in sight", () => {
+    const { turns, step } = stepped()
+    const { container, show } = open(turns, undefined, true, { atOnce: true })
+    expect(standIn(container)).toBeNull()
+    expect(chat(container)?.dataset.inSight).toBe("true")
+    step()
+    show(false)
+    show(true)
+    // Back into sight, it waits its turn all the same.
+    expect(chat(container)?.dataset.inSight).toBe("false")
+    step()
+    expect(chat(container)?.dataset.inSight).toBe("true")
+  })
+
+  it("stands in as its name where what the app draws in it changed since its picture", async () => {
+    const pictures = picturing()
+    const first = stepped()
+    const before = open(first.turns, pictures, true, { drawn: "a draft" })
+    first.step()
+    await act(async () => void (await vi.advanceTimersByTimeAsync(firstMs)))
+    before.unmount()
+
+    const again = open(stepped().turns, pictures, true, { drawn: "" })
+    expect(standIn(again.container)).not.toBeNull()
+    expect(picture(again.container)).toBeNull()
   })
 
   it("comes back into sight as it was, and is told it's in sight in its turn", () => {

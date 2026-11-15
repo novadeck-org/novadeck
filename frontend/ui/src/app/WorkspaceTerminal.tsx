@@ -31,6 +31,7 @@ import {
   memo,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useSyncExternalStore,
@@ -390,6 +391,12 @@ export const WorkspaceTerminal = memo(
     // The chat draws nothing as its agent works while out of sight: its terminal kept hidden by
     // Focus, or its tile off screen (chat's held.ts).
     const chatInSight = useShown() && onScreen
+    // Whether the window was laid out before now: a chat coming over a screen already in sight
+    // builds at once (see ./chat-turn).
+    const laidOut = useRef(false)
+    useEffect(() => {
+      laidOut.current = true
+    }, [])
     const chatHost = useRef<HTMLDivElement>(null)
     useChatTakesFocus(chatHost, conversation !== undefined, active && onScreen)
     const withChat = (content: ReactNode): ReactNode =>
@@ -410,6 +417,14 @@ export const WorkspaceTerminal = memo(
                   name={terminal.name}
                   conversation={conversation}
                   picturedAs={`chat:${view}:${chatContext}/${terminalId}`}
+                  drawn={[
+                    draft,
+                    replyTo === null ? "" : JSON.stringify(replyTo),
+                    sending.map((send) => send.phase).join(","),
+                    attachments.length,
+                    shells.length,
+                  ].join("\n")}
+                  atOnce={laidOut.current && chatInSight}
                 >
                   <ChatWithPeers
                     conversation={conversation}
