@@ -1203,9 +1203,9 @@ transcript says.
   credential and `GOOGLE_GEMINI_BASE_URL` pointing at the fake model. The Code Assist
   route stays untested.
 - **Seeding.** `~/.gemini/antigravity-cli/settings.json` in the sandbox marks
-  onboarding complete, trusts the project, picks the Gemini provider and allows
-  Novadeck's MCP tools (`mcp(novadeck_novadeck/*)`) and its own print mode
-  (`command(agy -p)`, for `shell`) to run without asking. Its shell tool, `run_command`,
+  onboarding complete, trusts the project, picks the Gemini provider and allows its own
+  print mode (`command(agy -p)`, for `shell`) to run without asking. Nothing of Novadeck's:
+  its shim passes those rules with Novadeck's MCP tools added, as in anyone's session. Its shell tool, `run_command`,
   runs `agy -p '<prompt>'`, waiting up to 30 s before leaving it to run on; the nested
   Antigravity's hooks report a conversation of its own. `/fork` at its prompt says
   "Forked conversation." and how to go back (`/resume <parent>`); its status line names

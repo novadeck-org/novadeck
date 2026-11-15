@@ -731,15 +731,15 @@ Novadeck writes nothing to a harness's config. The `=` form matters: Claude Code
   `plugin`, ...) run unchanged.
 - **Codex** adds it ahead of any command: the interactive session, `resume` and `exec` take it.
   `codex agents` and `--remote` run unchanged.
-- **Antigravity** has a Linux and macOS shim, which does nothing else, and leaves its own
-  subcommands (`agy --help`) unchanged. On Windows its cmd shim also adds it, with or
-  without the cmd.exe pass-through's folder on PATH, and passes every command the flag.
+- **Antigravity** leaves its own subcommands (`agy --help`) unchanged on Linux and macOS. On
+  Windows its cmd shim adds it with or without the cmd.exe pass-through's folder on PATH, and
+  passes every command the flag.
 
 The shims also let a session run Novadeck's own MCP tools without asking, for that launch
-alone and through no file. Every way a session starts goes through them: typed, `open_agent`'s
+alone, writing none of the person's files. Every way a session starts goes through them: typed, `open_agent`'s
 line (`taskCommand`), the app's own launches and every resume are command lines run in a
 Novadeck shell. So the allow is added afresh at each start and resume, and never rides along as
-a kept flag (`LaunchProfile.kept`), which a resume's `forgets` would drop. Both are probed in
+a kept flag (`LaunchProfile.kept`), which a resume's `forgets` would drop. Each is probed in
 `e2e/probes/tools-unasked.e2e.ts`, and the e2e seeds allow nothing, so every scenario's
 Novadeck call goes through the shim.
 
@@ -750,6 +750,18 @@ Novadeck call goes through the shim.
 - **Codex** gets `-c plugins.novadeck@novadeck.mcp_servers.novadeck.default_tools_approval_mode=approve`
   (`approveNovadeck`), beside its title's `-c`. The key's plugin goes bare: in TOML's quotes it
   still asked.
+- **Antigravity** gets `--settings <file>` holding `permissions.allow`: the person's own rules
+  from `~/.gemini/antigravity-cli/settings.json` (`%USERPROFILE%` on Windows) with
+  `mcp(novadeck_novadeck/*)` (`allowNovadeck`) added. A list given there replaces theirs for the
+  session instead of adding to it, so it must carry theirs; their `deny` and the rest stay theirs.
+  At each launch the shim runs `novadeck-relay allow <settings.json> <rule> <file>`, which reads
+  their file, never writing it, and writes `allow/<terminal id>.json` in the shell files (emptied
+  as the runner starts), exiting non-zero where their file isn't JSON or its list isn't a list:
+  then nothing is passed, and Novadeck's tools ask as before. A rule they persist mid-session
+  reaches the next launch; a `--settings` they pass themselves replaces Novadeck's. Neither a
+  PreToolUse answer of "allow" nor its `permissionOverrides` keeps the dialog away. For it, the
+  Windows shim is there whenever Antigravity is connected, no longer only beside the worktrees
+  folder.
 
 ## Screen readers
 

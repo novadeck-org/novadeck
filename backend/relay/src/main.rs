@@ -7,6 +7,7 @@
 //! On Windows it also reads for the runner what it would otherwise start PowerShell or
 //! taskkill for: the registry's environment, and a terminal's process tree, which it ends.
 
+mod allow;
 mod ancestors;
 mod endpoint;
 mod hook;
@@ -46,6 +47,7 @@ pub fn epoch_ms() -> Option<f64> {
 
 const USAGE: &str = "usage: novadeck-relay mcp <server-version> <protocol-version>...
        novadeck-relay hook [--config <relay.json>] [--<option> <value>]... <agent> [event]
+       novadeck-relay allow <settings.json> <rule> <file>
        novadeck-relay --version
        novadeck-relay environment                    (Windows)
        novadeck-relay tree <pid>[:<started-ms>]...   (Windows)
@@ -87,6 +89,15 @@ fn main() -> ExitCode {
             let event = rest.get(1).map_or("", String::as_str);
             hook::run(agent, event, &config);
             ExitCode::SUCCESS
+        }
+        // A shim's: writes the person's allow rules with Novadeck's added to `file`, or fails,
+        // and the shim passes no settings.
+        Some((mode, [settings, rule, file])) if mode == "allow" => {
+            if allow::write(Path::new(settings), rule, Path::new(file)) {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            }
         }
         Some((mode, rest)) if mode == "mcp" => match rest.split_first() {
             Some((server, versions)) if !versions.is_empty() => {

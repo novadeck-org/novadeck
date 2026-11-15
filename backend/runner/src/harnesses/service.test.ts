@@ -25,7 +25,6 @@ import type { ShellPaths } from "../shell/scripts.js"
 import { describe, expect, it as base } from "../test.js"
 import type { Resources } from "../testing/resources.js"
 import { WorkspaceStore } from "../workspaces/store.js"
-import { worktreesRoot } from "../worktrees/root.js"
 import { harnesses } from "./registry.js"
 import { createHarnesses } from "./service.js"
 
@@ -333,7 +332,7 @@ describe("agents Novadeck can connect", () => {
     expect(statusLine()).toBeUndefined()
   })
 
-  it("names Antigravity among the shimmed agents on Windows only with the cmd.exe pass-through installed", async ({
+  it("names Antigravity among the shimmed agents on Windows, with the cmd.exe pass-through or not", async ({
     fixture,
   }) => {
     installed(fixture.home, "agy")
@@ -345,9 +344,7 @@ describe("agents Novadeck can connect", () => {
         platform: "win32",
       })
     expect(await onWindows("C:\\NOVADE~1\\shell\\agy-cmd").shims()).toEqual(["agy"])
-    // Without the pass-through its shim is a batch file only for the worktrees folder.
-    expect(await onWindows().shims()).toEqual([])
-    mkdirSync(worktreesRoot(fixture.home), { recursive: true })
+    // Every session takes Novadeck's tools through it.
     expect(await onWindows().shims()).toEqual(["agy"])
   })
 

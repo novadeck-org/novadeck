@@ -1,7 +1,17 @@
 import { spawnSync, type SpawnSyncReturns } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
+
+import { relayPath } from "@novadeck/relay"
 
 import { describe, expect, it as base } from "../test.js"
 import { shellFiles, shellPaths } from "./scripts.js"
@@ -10,6 +20,12 @@ import { pipedPrompt, quotedPrompts, splitPrompt } from "./shim-prompts.test-sup
 type Fixture = {
   readonly shim: string
   readonly real: string
+  /** Installs the relay beside the shim, as the runner does. */
+  readonly relay: () => void
+  /** The person's Antigravity settings, in the shim's USERPROFILE. */
+  readonly settings: string
+  /** Novadeck's file of allow rules, as the shim names it. */
+  readonly allow: string
   readonly launch: (
     program: string,
     args: string[],
@@ -32,6 +48,9 @@ const it = base.extend<{ fixture: Fixture }>({
     mkdirSync(paths.bin, { recursive: true })
     mkdirSync(real)
     writeFileSync(written.path, written.content)
+    const profile = join(root, "profile")
+    mkdirSync(join(profile, ".gemini", "antigravity-cli"), { recursive: true })
+    const terminal = "00000000-0000-4000-8000-000000000001"
     const log = join(root, "args.json")
     const recorder = join(root, "record.cjs")
     writeFileSync(
@@ -45,7 +64,8 @@ const it = base.extend<{ fixture: Fixture }>({
         env: {
           ...process.env,
           PATH: [paths.bin, real, process.env.PATH].join(delimiter),
-          NOVADECK_TERMINAL_ID: "00000000-0000-4000-8000-000000000001",
+          USERPROFILE: profile,
+          NOVADECK_TERMINAL_ID: terminal,
           NOVADECK_SHIMS: "agy",
         },
         encoding: "utf8",
@@ -56,7 +76,14 @@ const it = base.extend<{ fixture: Fixture }>({
         received: existsSync(log) ? (JSON.parse(readFileSync(log, "utf8")) as string[]) : undefined,
       }
     }
-    await use({ shim: written.path, real, launch })
+    await use({
+      shim: written.path,
+      real,
+      relay: () => copyFileSync(relayPath, paths.relay),
+      settings: join(profile, ".gemini", "antigravity-cli", "settings.json"),
+      allow: `${paths.bin}\\..\\allow\\${terminal}.json`,
+      launch,
+    })
   },
 })
 
@@ -67,6 +94,23 @@ describe.runIf(process.platform === "win32")("agy shim", { timeout: 60_000 }, ()
     expect(result.stdout).toBe("")
     expect(result.status).toBe(0)
     expect(received).toEqual([prompt])
+  })
+
+  it("passes the person's allow rules with Novadeck's tools added, through the relay beside it", ({
+    fixture,
+  }) => {
+    fixture.relay()
+    writeFileSync(fixture.settings, JSON.stringify({ permissions: { allow: ["command(dir)"] } }))
+    const { result, received } = fixture.launch(fixture.shim, ["fix a b"])
+    expect(result.stderr).toBe("")
+    expect(result.status).toBe(0)
+    expect(received).toEqual(["--settings", fixture.allow, "fix a b"])
+    expect(JSON.parse(readFileSync(fixture.allow, "utf8"))).toEqual({
+      permissions: { allow: ["command(dir)", "mcp(novadeck_novadeck/*)"] },
+    })
+    // Settings it can't read: none passed, so none of the person's rules is lost.
+    writeFileSync(fixture.settings, "{ not json")
+    expect(fixture.launch(fixture.shim, ["fix a b"]).received).toEqual(["fix a b"])
   })
 
   // Help that printed would also page at a console, and wait there for a key.

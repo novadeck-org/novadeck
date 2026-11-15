@@ -72,9 +72,7 @@ export type InstallOptions = {
  * moment reads the old or the new file.
  *
  * It is also how the shell files are rewritten on demand: it is safe to call again, and
- * changes only what differs. Antigravity's Windows shim exists only while the worktrees
- * folder does, so whoever first creates that folder calls this right after (the runner's
- * `rewriteShellFiles`), and the next shell finds the shim.
+ * changes only what differs.
  */
 export const installShellFiles = async (
   directory: string,
@@ -158,7 +156,9 @@ export const installShellFiles = async (
     // eslint-disable-next-line no-await-in-loop -- As above; held a moment on Windows, tried again.
     await settled(() => rename(temporary, file.path))
   }
-  // A resume command left by a runner that stopped before its shell took it is stale.
+  // A resume command left by a runner that stopped before its shell took it is stale, and so
+  // are the allow rules launches before took (Antigravity's shim, harnesses/agy/src/shim.ts).
+  await rm(paths.allow, { recursive: true, force: true })
   await rm(paths.resume, { recursive: true, force: true })
   await mkdir(paths.resume, { recursive: true, mode: 0o700 })
   return {

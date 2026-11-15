@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs"
 import { join } from "node:path"
 
 import type { Launchers, Machine, Start } from "@novadeck/harness-core/harness"
@@ -38,6 +37,11 @@ export type ShellPaths = ShellScriptPaths & {
   readonly plugins: { readonly [agent in AgentName]: string }
   /** Where a fresh shell finds the command that resumes its agent, one file per shell. */
   readonly resume: string
+  /**
+   * Where Antigravity's shim has the relay write the allow rules a launch passes, one file
+   * per terminal, named as `allowFolder` (harnesses/agy/src/shim.ts) names it, beside `bin`.
+   */
+  readonly allow: string
   /** The hook's launcher, which connected agents' plugins run. */
   readonly hook: string
   /** The MCP server's launcher, which connected agents' plugins start. */
@@ -69,6 +73,7 @@ export const shellPaths = (directory: string, platform = process.platform): Shel
     agents.map((agent) => [agent, join(directory, "plugins", harnesses[agent].plugin)]),
   ) as ShellPaths["plugins"],
   resume: join(directory, "resume"),
+  allow: join(directory, "allow"),
   hook: join(directory, platform === "win32" ? "hook.cmd" : "hook"),
   mcp: join(directory, platform === "win32" ? "mcp.cmd" : "mcp"),
   relay: join(directory, platform === "win32" ? "novadeck-relay.exe" : "novadeck-relay"),
@@ -257,7 +262,6 @@ export const shellFiles = (
   const root = given.worktreesRoot ?? worktreesRoot()
   const machine: Machine = {
     worktreesRoot: root,
-    worktreesPresent: existsSync(root),
     // Windows' commands capture through the PowerShell pass-through instead.
     ...(platform !== "win32" && {
       capture: { bashEnv: paths.capture.bashEnv, zdotdir: paths.capture.zdotdir },

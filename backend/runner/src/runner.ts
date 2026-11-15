@@ -167,11 +167,9 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
           })
           return undefined
         })
-  // Writes the shell files again, changing only what differs: for whoever first creates the
-  // worktrees folder, so that Antigravity's Windows shim, written only while it exists, is
-  // there for the next shell. Resolves once they are written; fails if they can't be.
-  // Also once Codex is connected or disconnected: on Windows its commands capture through
-  // Novadeck's PowerShell, which is installed only while it is connected.
+  // Writes the shell files again, changing only what differs, once Codex is connected or
+  // disconnected: on Windows its commands capture through Novadeck's PowerShell, which is
+  // installed only while it is connected. Resolves once they are written; fails if they can't be.
   // One writing at a time, as two would share their files' temporary names.
   let rewriting = Promise.resolve()
   const rewriteShellFiles = (): Promise<void> => {
@@ -322,16 +320,6 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   })
   const rootFolder = new RootFolder({
     enabled: () => store.settings.runner().worktrees,
-    // Antigravity's Windows shim is written only while the folder exists: write the shell
-    // files again once it is made, after the first writing so the two never overlap.
-    made: () =>
-      void shellFiles
-        .then(() => rewriteShellFiles())
-        .catch((error: unknown) =>
-          log.error("worktrees.shims-failed", "Novadeck could not rewrite its shims", {
-            err: error,
-          }),
-        ),
   })
   rootFolder.ensure()
   const terminals = new Terminals({

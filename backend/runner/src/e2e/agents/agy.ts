@@ -235,20 +235,18 @@ export const agy: AgentSetup = {
                 ...(seed?.trustedInside ?? []).map((name) => join(sandbox.project, name)),
               ],
         modelProvider: "gemini",
-        // Novadeck's MCP tools run without asking, so a `send` needs no approval (its
-        // plugin's server is namespaced after the plugin).
-        // Its own print mode too, so `shell` runs a nested Antigravity unasked. On Windows
+        // Nothing of Novadeck's: its shim passes these rules with Novadeck's MCP tools
+        // added, as for anyone's session, so a `send` asks nothing only through it.
+        // Its own print mode, so `shell` runs a nested Antigravity unasked. On Windows
         // a command rule allows only the command it names whole, not those it begins
         // (probed 2026-10-10, 1.2.14), so there each nested run is named.
         permissions: {
-          allow: [
-            "mcp(novadeck_novadeck/*)",
-            ...(process.platform === "win32"
+          allow:
+            process.platform === "win32"
               ? [...Object.values(nestedRuns).map(nested), ...(seed?.commands ?? [])].map(
                   (command) => `command(${command})`,
                 )
-              : ["command(agy -p)"]),
-          ],
+              : ["command(agy -p)"],
         },
       }),
     )

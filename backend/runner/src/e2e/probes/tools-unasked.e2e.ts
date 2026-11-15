@@ -124,6 +124,20 @@ const cases: { readonly [agent in AgentName]: readonly Case[] } = {
       seeded: true,
     },
     {
+      label: "--settings deny only, seeded",
+      words: (run) => {
+        const path = join(run.sandbox.root, "agy-deny.json")
+        writeFileSync(path, JSON.stringify({ permissions: { deny: ["command(echo zzz)"] } }))
+        return `--settings ${path}`
+      },
+      seeded: true,
+    },
+    {
+      label: "--settings other key only, seeded",
+      words: () => `--settings '${JSON.stringify({ pickerGrouping: "flat" })}'`,
+      seeded: true,
+    },
+    {
       label: "--settings ours then the person's unrelated",
       words: (run) =>
         `--settings ${agySettings(run, ["mcp(novadeck_novadeck/*)"])} --settings ${agySettings(run, ["command(echo a)", "command(echo b)"])}`,

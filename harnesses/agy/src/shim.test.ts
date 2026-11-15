@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { agy } from "./index.js"
-import { makeCmdShim, posixShim } from "./shim.js"
+import { allowFolder, allowNovadeck, makeCmdShim, posixShim } from "./shim.js"
 
 const dir = "C:\\NOVADE~1\\shell\\agy-cmd"
 const shim = makeCmdShim({ cmdShimDir: dir })
@@ -26,9 +26,19 @@ describe("the Windows shim", () => {
     expect(lines.indexOf(":plain")).toBeGreaterThan(prepend)
   })
 
-  it("runs agy as it was given, with no option of its own", () => {
-    expect(shim).toContain('"%novadeck_real%" %*')
-    expect(shim).not.toMatch(/--settings|NOVADECK_NARROW/)
+  it("runs agy as it was given outside a session of Novadeck's", () => {
+    expect(shim).toContain(':plain\n"%novadeck_real%" %*')
+    expect(shim).not.toMatch(/NOVADECK_NARROW/)
+  })
+
+  it("passes the person's allow rules with Novadeck's tools added, only where the relay wrote them", () => {
+    expect(shim).toContain(
+      `set "novadeck_settings=%~dp0..\\${allowFolder}\\%NOVADECK_TERMINAL_ID%.json"`,
+    )
+    expect(shim).toContain(
+      `"%~dp0..\\novadeck-relay.exe" allow "%USERPROFILE%\\.gemini\\antigravity-cli\\settings.json" "${allowNovadeck}" "%novadeck_settings%" >nul 2>nul && set novadeck_with=--settings "%novadeck_settings%"`,
+    )
+    expect(shim).toContain('"%novadeck_real%" %novadeck_add% %novadeck_with% %*')
   })
 
   it("skips another Novadeck's shim, which would call this one back", () => {
@@ -37,14 +47,11 @@ describe("the Windows shim", () => {
 })
 
 describe("where Antigravity gets a shim", () => {
-  it("is always on Linux and macOS, and on Windows only where it is needed", () => {
+  it("is always there, as every session takes Novadeck's tools through it", () => {
     expect(agy.shims("win32", { cmdPrints: true, cmdShimDir: dir })).toEqual([
       { path: "agy.cmd", content: shim },
     ])
-    // A batch file in place of agy.exe only where it is needed.
-    expect(agy.shims("win32")).toEqual([])
-    expect(agy.shims("win32", { worktreesRoot: "C:\\w", worktreesPresent: false })).toEqual([])
-    const plain = agy.shims("win32", { worktreesRoot: "C:\\w", worktreesPresent: true })
+    const plain = agy.shims("win32", { worktreesRoot: "C:\\w" })
     expect(plain.map((file) => file.path)).toEqual(["agy.cmd"])
     expect(plain[0]?.content).not.toContain('set "PATH=')
     for (const platform of ["linux", "darwin"] as const)
@@ -58,7 +65,7 @@ describe("where Antigravity gets a shim", () => {
     expect(cmd).toContain(
       'if exist "%novadeck_root%\\" set novadeck_add=--add-dir="%novadeck_root%"',
     )
-    expect(cmd).toContain('"%novadeck_real%" %novadeck_add% %*')
+    expect(cmd).toContain('"%novadeck_real%" %novadeck_add% %novadeck_with% %*')
     const posix = posixShim("/home/it's/.novadeck/worktrees")
     expect(posix).toContain(`novadeck_root='/home/it'\\''s/.novadeck/worktrees'`)
     expect(posix).toContain('[ -d "$novadeck_root" ]')

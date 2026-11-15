@@ -8,6 +8,12 @@ import { installShellFiles } from "./install.js"
 
 type Fixture = {
   readonly worktrees: string
+  /** The person's Antigravity settings, in the shim's home. */
+  readonly settings: string
+  /** What the shim passes Antigravity as its own settings: `--settings` and Novadeck's file. */
+  readonly allow: readonly string[]
+  /** That file's settings. */
+  readonly passed: () => unknown
   readonly bin: string
   readonly real: string
   readonly run: (args: string[], env?: NodeJS.ProcessEnv, path?: string[]) => string[]
@@ -21,6 +27,11 @@ const it = base.extend<{ shim: Fixture }>({
     resources.defer(() => rmSync(root, { recursive: true, force: true }))
     const worktrees = join(root, "worktrees")
     const paths = await installShellFiles(join(root, "shell"), { worktrees, platform: "linux" })
+    const home = join(root, "home")
+    const settings = join(home, ".gemini", "antigravity-cli", "settings.json")
+    mkdirSync(join(home, ".gemini", "antigravity-cli"), { recursive: true })
+    const terminal = "00000000-0000-4000-8000-000000000001"
+    const file = join(paths.allow, `${terminal}.json`)
     const real = join(root, "real")
     mkdirSync(real)
     const log = join(root, "args.json")
@@ -38,7 +49,8 @@ const it = base.extend<{ shim: Fixture }>({
         env: {
           ...process.env,
           PATH: [...path, process.env.PATH].join(delimiter),
-          NOVADECK_TERMINAL_ID: "00000000-0000-4000-8000-000000000001",
+          HOME: home,
+          NOVADECK_TERMINAL_ID: terminal,
           NOVADECK_SHIMS: "claude agy",
           ...env,
         },
@@ -50,28 +62,77 @@ const it = base.extend<{ shim: Fixture }>({
       if (!existsSync(log)) throw new Error("agy never ran")
       return JSON.parse(readFileSync(log, "utf8")) as string[]
     }
-    await use({ worktrees, bin: paths.bin, real, run })
+    await use({
+      worktrees,
+      settings,
+      // As the shim names it, from its own folder.
+      allow: ["--settings", `${paths.bin}/../allow/${terminal}.json`],
+      passed: () => JSON.parse(readFileSync(file, "utf8")) as unknown,
+      bin: paths.bin,
+      real,
+      run,
+    })
   },
 })
 
 describe.skipIf(process.platform === "win32")("agy shim on Linux and macOS", () => {
-  it("runs agy as it was given while the folder of agents' worktrees is missing", ({ shim }) => {
-    expect(shim.run(["-i", "fix a b", "$x"])).toEqual(["-i", "fix a b", "$x"])
+  it("runs a session with Novadeck's tools allowed while the folder of agents' worktrees is missing", ({
+    shim,
+  }) => {
+    expect(shim.run(["-i", "fix a b", "$x"])).toEqual([...shim.allow, "-i", "fix a b", "$x"])
+    expect(shim.passed()).toEqual({ permissions: { allow: ["mcp(novadeck_novadeck/*)"] } })
+  })
+
+  it("passes the person's own allow rules on with Novadeck's, afresh at each launch, and writes none of theirs", ({
+    shim,
+  }) => {
+    const theirs = JSON.stringify({
+      permissions: { allow: ["command(ls)"], deny: ["command(rm)"] },
+      trustedWorkspaces: ["/x"],
+    })
+    writeFileSync(shim.settings, theirs)
+    expect(shim.run(["--conversation", "abc"])).toEqual([...shim.allow, "--conversation", "abc"])
+    expect(shim.passed()).toEqual({
+      permissions: { allow: ["command(ls)", "mcp(novadeck_novadeck/*)"] },
+    })
+    expect(readFileSync(shim.settings, "utf8")).toBe(theirs)
+    // A rule they added since, at the next launch.
+    writeFileSync(
+      shim.settings,
+      JSON.stringify({ permissions: { allow: ["command(ls)", "command(pwd)"] } }),
+    )
+    shim.run([])
+    expect(shim.passed()).toEqual({
+      permissions: { allow: ["command(ls)", "command(pwd)", "mcp(novadeck_novadeck/*)"] },
+    })
+  })
+
+  it("passes no settings where the person's can't be read, so none of their rules is lost", ({
+    shim,
+  }) => {
+    writeFileSync(shim.settings, "{ not json")
+    expect(shim.run(["hi"])).toEqual(["hi"])
   })
 
   it("opens the folder to a session once it exists, passing every argument on", ({ shim }) => {
     mkdirSync(shim.worktrees)
     const add = `--add-dir=${shim.worktrees}`
-    expect(shim.run([])).toEqual([add])
+    expect(shim.run([])).toEqual([add, ...shim.allow])
     expect(shim.run(["--model", "x", "fix a b", "", "$x"])).toEqual([
       add,
+      ...shim.allow,
       "--model",
       "x",
       "fix a b",
       "",
       "$x",
     ])
-    expect(shim.run(["--conversation", "abc"])).toEqual([add, "--conversation", "abc"])
+    expect(shim.run(["--conversation", "abc"])).toEqual([
+      add,
+      ...shim.allow,
+      "--conversation",
+      "abc",
+    ])
   })
 
   it("leaves agy's commands alone, and reads an option's value as a value", ({ shim }) => {
@@ -79,7 +140,13 @@ describe.skipIf(process.platform === "win32")("agy shim on Linux and macOS", () 
     const add = `--add-dir=${shim.worktrees}`
     expect(shim.run(["mcp", "list"])).toEqual(["mcp", "list"])
     expect(shim.run(["--log-file", "f", "models"])).toEqual(["--log-file", "f", "models"])
-    expect(shim.run(["--project", "models", "hi"])).toEqual([add, "--project", "models", "hi"])
+    expect(shim.run(["--project", "models", "hi"])).toEqual([
+      add,
+      ...shim.allow,
+      "--project",
+      "models",
+      "hi",
+    ])
   })
 
   it("runs outside Novadeck's shells, and while Antigravity is not connected, unchanged", ({
@@ -99,6 +166,7 @@ describe.skipIf(process.platform === "win32")("agy shim on Linux and macOS", () 
     mkdirSync(shim.worktrees)
     expect(shim.run(["hi"], {}, [shim.bin, other.bin, shim.real])).toEqual([
       `--add-dir=${shim.worktrees}`,
+      ...shim.allow,
       "hi",
     ])
   })

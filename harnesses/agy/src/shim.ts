@@ -1,6 +1,29 @@
 import { header } from "@novadeck/harness-core/header"
 import { cmdAdd, posixAdd } from "@novadeck/harness-core/shim-root"
 
+/**
+ * The rule that lets a session run Novadeck's own tools without asking: its plugin's server,
+ * every tool of it. Antigravity takes a session's own settings from `--settings` alone, and a
+ * `permissions.allow` there replaces the person's from settings.json for the session instead
+ * of adding to it; their other permissions (`deny` and the rest) stay theirs. So at each start
+ * and resume the shim has Novadeck's relay read their list, never writing it, and write it
+ * with this rule added to a file of Novadeck's own, one per terminal in `allowFolder`, which
+ * it passes; where their list can't be read it passes nothing, and asks as before. Probed
+ * 2026-11-15 (1.5.3 and 1.5.7, e2e/probes/tools-unasked.e2e.ts), with no setting allowing
+ * them: a bare session asked before `describe`; with this rule in `--settings` it ran unasked,
+ * in plan mode too; with the rule in settings.json and another `--settings` allow list, it
+ * asked; with only a `deny` in `--settings` the settings.json allow held; of two `--settings`,
+ * the last held. A PreToolUse hook answering "allow" still asked, and `permissionOverrides`
+ * only named the asked tool otherwise.
+ */
+export const allowNovadeck = "mcp(novadeck_novadeck/*)"
+
+/**
+ * The folder in Novadeck's shell files, beside the shims' own, where the relay writes the rules
+ * a launch passes, as `<terminal id>.json`; the runner empties it as it starts.
+ */
+export const allowFolder = "allow"
+
 // Antigravity's commands other than a session (`agy --help`, 1.5.3), and its options that take a
 // value: the word after one is its value, never a command, to the shims and to the runner's
 // reading of a command line.
@@ -41,11 +64,13 @@ export const valued = [
 
 // On Linux and macOS, while Antigravity is connected, Novadeck's shells run it through this
 // shim, which passes --add-dir for the folder where agents' worktrees live, once that exists,
-// so a session may write there as in its own folder, under the person's own permission mode.
+// so a session may write there as in its own folder, under the person's own permission mode,
+// and the person's allow rules with Novadeck's own tools added (`allowNovadeck`).
 // Its commands, and anything outside Novadeck's shells, run unchanged.
 export const posixShim = (root?: string): string => `#!/bin/sh
 ${header("#", "shim for agy")}
-# Runs the real agy with access to the folder where agents' worktrees live.
+# Runs the real agy with access to the folder where agents' worktrees live, and with
+# Novadeck's own tools allowed beside the person's own rules.
 ${posixAdd(root)}
 novadeck_real=
 novadeck_ifs=$IFS
@@ -70,7 +95,6 @@ if [ -z "$novadeck_real" ]; then
 fi
 [ -n "\${NOVADECK_TERMINAL_ID:-}" ] || exec "$novadeck_real" "$@"
 case " \${NOVADECK_SHIMS:-} " in *" agy "*) ;; *) exec "$novadeck_real" "$@" ;; esac
-[ -n "$novadeck_add" ] || exec "$novadeck_real" "$@"
 novadeck_value=
 for novadeck_arg in "$@"; do
   if [ -n "$novadeck_value" ]; then
@@ -84,7 +108,12 @@ for novadeck_arg in "$@"; do
     *) break ;;
   esac
 done
-exec "$novadeck_real" "$novadeck_add" "$@"
+# The person's allow rules with Novadeck's added, read afresh: nothing where they can't be read.
+novadeck_dir=$(dirname "$0")/..
+novadeck_settings=$novadeck_dir/${allowFolder}/$NOVADECK_TERMINAL_ID.json
+"$novadeck_dir/novadeck-relay" allow "\${HOME:-}/.gemini/antigravity-cli/settings.json" '${allowNovadeck}' "$novadeck_settings" >/dev/null 2>&1 ||
+  novadeck_settings=
+exec "$novadeck_real" \${novadeck_add:+"$novadeck_add"} \${novadeck_settings:+--settings "$novadeck_settings"} "$@"
 `
 
 // Where cmd's AutoRun prints, Antigravity's hooks (which it runs as "cmd /c <command>" through
@@ -101,8 +130,11 @@ exec "$novadeck_real" "$novadeck_add" "$@"
 // where a cloned repo's `agy.cmd` would be taken for the real one. The folder goes on PATH
 // only inside a Novadeck terminal that names this shim (NOVADECK_TERMINAL_ID and
 // NOVADECK_SHIMS), and under `setlocal`, so the terminal's shell keeps its PATH. Where cmd's
-// AutoRun prints no output of its own there is no folder to put first, and the shim only passes
-// --add-dir for the folder where agents' worktrees live, once that exists, as the other shims do.
+// AutoRun prints no output of its own there is no folder to put first. Either way it passes
+// --add-dir for the folder where agents' worktrees live, once that exists, as the other shims do,
+// and the person's allow rules with Novadeck's own tools added, as the POSIX shim does: in a
+// file, as cmd would read the quotes of JSON, which the relay writes and says it did by its exit
+// code, so nothing it prints is read back through cmd.
 export const makeCmdShim = ({
   cmdShimDir,
   root,
@@ -111,8 +143,9 @@ export const makeCmdShim = ({
   readonly root?: string | undefined
 }): string => `@echo off
 ${header("rem", "shim for agy")}
-rem Runs the real agy with access to the folder where agents' worktrees live, and with Novadeck's
-rem cmd.exe pass-through first on PATH, for agy alone.
+rem Runs the real agy with access to the folder where agents' worktrees live, with Novadeck's own
+rem tools allowed beside the person's own rules, and with Novadeck's cmd.exe pass-through first
+rem on PATH, for agy alone.
 setlocal
 set "novadeck_real="
 for /f "delims=" %%i in ('where $PATH:agy 2^>nul') do call :consider "%%~fi"
@@ -124,7 +157,10 @@ if not defined NOVADECK_TERMINAL_ID goto plain
 rem Only while Antigravity is connected: Novadeck's shells name the harnesses whose shims apply.
 echo " %NOVADECK_SHIMS% " | findstr /c:" agy " >nul || goto plain
 ${cmdAdd(root)}${cmdShimDir === undefined ? "" : `\nset "PATH=${cmdShimDir};%PATH%"`}
-"%novadeck_real%" %novadeck_add% %*
+set "novadeck_settings=%~dp0..\\${allowFolder}\\%NOVADECK_TERMINAL_ID%.json"
+set "novadeck_with="
+"%~dp0..\\novadeck-relay.exe" allow "%USERPROFILE%\\.gemini\\antigravity-cli\\settings.json" "${allowNovadeck}" "%novadeck_settings%" >nul 2>nul && set novadeck_with=--settings "%novadeck_settings%"
+"%novadeck_real%" %novadeck_add% %novadeck_with% %*
 exit /b %ERRORLEVEL%
 :plain
 "%novadeck_real%" %*

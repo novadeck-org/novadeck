@@ -51,6 +51,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         new RegExp(
           [
             String.raw`codex args: --no-daemon -c tui\.terminal_title=\['status','thread-id'\]`,
+            // Novadeck's own tools approved for the session (harnesses/codex/src/shim.ts).
+            String.raw`-c plugins\.novadeck@novadeck\.mcp_servers\.novadeck\.default_tools_approval_mode=approve`,
             String.raw`-c shell_environment_policy\.set\.BASH_ENV=\S+/capture/bash-env`,
             String.raw`-c shell_environment_policy\.set\.ZDOTDIR=\S+/capture/zsh`,
             String.raw`-c shell_environment_policy\.set\.NOVADECK_CAPTURE=\S+/novadeck-capture-\d+/${on.id}`,

@@ -606,9 +606,12 @@ sent it something.
 Agents in Novadeck's terminals run Novadeck's own tools (`ask`, `send`, `open_agent` and the
 rest) without asking you first, however they started: typed, opened by an agent or the app,
 or resumed. The same shims allow them for that launch alone, and change none of your
-settings: Claude Code gets `--allowed-tools=mcp__plugin_novadeck_novadeck`, and Codex an
-override that approves the tools of Novadeck's server. Claude Code's plan mode still asks
-before each of them, as it does whatever its rules allow.
+settings: Claude Code gets `--allowed-tools=mcp__plugin_novadeck_novadeck`, Codex an
+override that approves the tools of Novadeck's server, and Antigravity `--settings` with your
+own allow rules from its settings.json and Novadeck's added (Antigravity would otherwise drop
+yours for that session; Novadeck only reads the file). A rule you save in a session counts in
+Antigravity from its next launch, and a `--settings` you pass yourself replaces Novadeck's.
+Claude Code's plan mode still asks before each of them, as it does whatever its rules allow.
 
 Uninstalling from Preferences disconnects the agents you connected first. Removing
 Novadeck any other way (the script's `--uninstall`, a Homebrew uninstall, deleting the app)
