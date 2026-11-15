@@ -40,6 +40,12 @@ const statusLine = (file: string) =>
   (JSON.parse(readFileSync(file, "utf8")) as { statusLine?: { command?: string } }).statusLine
 
 describe("Antigravity's settings, as Novadeck writes them", () => {
+  it("are written where Antigravity has never run, and its home is not there yet", async () => {
+    rmSync(join(root, ".gemini"), { recursive: true })
+    await statusLineSettings.apply(install)
+    expect(statusLine(settings)?.command).toBe(statusLineCommand(undefined))
+  })
+
   it.skipIf(process.platform === "win32")(
     "write through a link to the file it names, which keeps the link",
     async () => {

@@ -588,6 +588,14 @@ App:
   terminals attaching over about 3 s; "Welcome dialog" opens the first-run dialog for
   connecting agents again (no reboot); "App error" makes a view throw as it draws, for the
   crash screen that stands in for the app, whose Reload boots the demo again.
+- **Agent installs:** an agent that isn't installed offers Install in the welcome dialog, with the
+  command it will run, and the demo plays what the runner does: a terminal titled "Install ..."
+  that shows the installer and is busy for 2.5 s, then the agent shows installed, is connected,
+  and starts in a terminal of its own. "Nothing installed" opens the dialog with Claude Code, Codex
+  and Antigravity each offering Install; "Hold next install" keeps the next one running until
+  "Finish held install"; "Fail next install" ends the next in a network error in its terminal and
+  leaves the agent not installed (nothing starts). The address does the same for a spec:
+  `&agentInstall=held` holds the first install, `&agentInstall=fails` fails it.
 - **Boot failures:** each fails the first attempt as the runner would, so a transient one
   retries on its own and the others wait for Retry (an incompatible runner, or a workspace
   a newer Novadeck has used, only for Quit). Each hint carries the error code, so the search

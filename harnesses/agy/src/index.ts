@@ -15,6 +15,7 @@ import { conversation, conversations } from "./conversation.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { antigravityHome } from "./home.js"
+import { fallbacks, installer } from "./install.js"
 import { followHolds } from "./listing.js"
 import { models } from "./models.js"
 import {
@@ -142,6 +143,8 @@ export const agy = {
   id: "agy",
   // Antigravity installs a plugin folder, which its name must match.
   plugin: join("agy", pluginId),
+  installer,
+  fallbacks,
   conversation,
   conversations,
   home: antigravityHome,

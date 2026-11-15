@@ -870,9 +870,15 @@ one from an earlier runner.
   the agent reported no session, a session another terminal is running or resumed and
   has not closed, and a shell without the integration.
 - `agents.list()` answers, for `claude`, `codex` and `agy`, whether the agent is
-  installed where the runner runs (its home: `CLAUDE_CONFIG_DIR` or `~/.claude`,
-  `CODEX_HOME` or `~/.codex`, `~/.gemini/antigravity-cli`) and whether Novadeck's plugin
-  is installed into it, read from the agent's own configuration.
+  installed where the runner runs (its home exists: `CLAUDE_CONFIG_DIR` or `~/.claude`,
+  `CODEX_HOME` or `~/.codex`, `~/.gemini/antigravity-cli`; or its program is found, on
+  PATH or where its installer puts it, so one installed and never run counts) and whether
+  Novadeck's plugin is installed into it, read from the agent's own configuration. For an
+  agent that is not installed it also gives `installer`, the one-line command that installs
+  it on the runner's platform, which a client opens a terminal with (`terminals.create`'s
+  `command`) when the person asks. While one agent is missing, each list reads the login
+  shell's environment afresh, so a program just installed shows; with all installed it uses
+  the one already read. A new shell's PATH gets last the folder of each agent found only where its installer puts it (as macOS' PATH lacks `~/.local/bin`), so typing the agent's name starts it, through Novadeck's shim once connected.
   `agents.set({ agent, connected })` installs or removes the plugin with the agent's
   own commands (`claude plugin marketplace add` + `plugin install`, `codex plugin
   marketplace add` + `plugin add`, `agy plugin install`, and their removals). They run

@@ -573,7 +573,13 @@ export const createDemoStates = (
   verbs: DemoAgentVerbs,
   inbox: () => Inbox | undefined = () => undefined,
 ): DemoStates => {
-  const { agents, openWelcome, failNext: failAgents, limitAntigravity } = createDemoAgents()
+  const {
+    agents,
+    openWelcome,
+    openWelcomeBare,
+    failNext: failAgents,
+    limitAntigravity,
+  } = createDemoAgents()
   const { notices, Notices } = createDemoNotices()
   const updateControls = createDemoUpdates(undefined, pageUpdateChannel)
   const { updates, offer, whatsNew } = updateControls
@@ -1043,6 +1049,7 @@ export const createDemoStates = (
     groups,
     agents,
     openWelcome,
+    openWelcomeBare,
     notices,
     updates,
     whatsNew,

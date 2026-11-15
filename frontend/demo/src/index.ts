@@ -25,6 +25,7 @@ import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./addons/mu
 import { createDemoVoice, heldVoiceTiming, requestedVoice } from "./addons/voice"
 import { addressParams } from "./address"
 import { createDemoChat } from "./agents/chat"
+import { createDemoInstalls, missingAgent } from "./agents/installs"
 import type { DemoAgentLink } from "./agents/link"
 import { withShellItems } from "./agents/shell-items"
 import { agentTranscripts, type DemoTranscript } from "./agents/transcripts"
@@ -67,7 +68,7 @@ import { directoryOf, itemsOf, sessionOf, terminalOf } from "./workspace"
 const sampleAgents: readonly AgentConnection[] = [
   { agent: "claude", available: true, connected: false, busy: false },
   { agent: "codex", available: true, connected: false, busy: false },
-  { agent: "agy", available: false, connected: false, busy: false },
+  missingAgent("agy"),
 ]
 
 // A session by its full address: every sample project's session shares one ID.
@@ -177,7 +178,7 @@ export const demoBackend = (
         agents.update((list) =>
           list.map((item) => (item.agent === agent ? { ...item, connected } : item)),
         ),
-      refresh: () => {},
+      refresh: () => Promise.resolve(),
       welcome: welcomeOpen,
       finishWelcome: () => welcomeOpen.update(() => false),
     },
@@ -798,14 +799,22 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
   const params = addressParams()
   const demo = params.get("demo")
   const turnMs = Number(params.get("turnMs"))
-  const backend = withMoves(
-    withShellItems(
-      plainDemo(
-        demo === "agents" || demo === "messages" || demo === "inbox" || demo === "welcome"
-          ? demo
-          : "plain",
-        terminals,
-        turnMs > 0 ? turnMs : undefined,
+  const installs = createDemoInstalls()
+  // What a spec that watches an install asks for: `&agentInstall=held` keeps the first install
+  // running, `&agentInstall=fails` ends it in an error.
+  const install = params.get("agentInstall")
+  if (install === "held") installs.holdNext()
+  if (install === "fails") installs.failNext()
+  const backend = installs.wrap(
+    withMoves(
+      withShellItems(
+        plainDemo(
+          demo === "agents" || demo === "messages" || demo === "inbox" || demo === "welcome"
+            ? demo
+            : "plain",
+          terminals,
+          turnMs > 0 ? turnMs : undefined,
+        ),
       ),
     ),
   )

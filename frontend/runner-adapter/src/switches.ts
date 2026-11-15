@@ -65,19 +65,19 @@ export const runnerSwitches = (
         })),
     )
   }
-  const refreshAgents = (): void => {
-    void track(runner.agents.list()).then(
-      (list) =>
+  const refreshAgents = (): Promise<void> =>
+    track(runner.agents.list()).then(
+      (list) => {
         agents.update((current) =>
           list.map((found) => {
             const shown = current.find((item) => item.agent === found.agent)
             // A change under way reports its own result.
             return shown?.busy ? shown : { ...found, busy: false }
           }),
-        ),
+        )
+      },
       () => {},
     )
-  }
   return {
     ...(kept !== undefined
       ? {

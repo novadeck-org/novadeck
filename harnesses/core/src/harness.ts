@@ -69,9 +69,18 @@ export type Harness = {
   readonly id: AgentName
   /** Where Novadeck keeps its plugin, under the plugins directory. */
   readonly plugin: string
-  /** Where its installer puts the program when it is not on PATH. */
-  readonly fallback?: (home: string) => string
-  /** Its own home, whose presence says it is installed. */
+  /**
+   * Where its installers put the program when it is not on PATH, as the one a person has
+   * had longest first: a freshly installed program is found there before the person's PATH
+   * catches up.
+   */
+  readonly fallbacks?: (install: Install) => readonly string[]
+  /**
+   * The one-line command that installs it on `platform`, which Novadeck's terminal runs
+   * for the person, so it works in any shell Novadeck starts there (see `installer.ts`).
+   */
+  readonly installer: (platform: NodeJS.Platform) => string
+  /** Its own home, whose presence says it has run here; the program's own says it is installed. */
   readonly home: (install: Install) => string
   /**
    * The folders under which it keeps the plans it writes as files, beside any in a

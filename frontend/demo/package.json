@@ -10,6 +10,7 @@
     "./addons/murmur": "./src/addons/murmur.ts",
     "./addons/voice": "./src/addons/voice.ts",
     "./address": "./src/address.ts",
+    "./agents/installs": "./src/agents/installs.ts",
     "./agents/link": "./src/agents/link.ts",
     "./agents/turns": "./src/agents/turns.ts",
     "./feedback": "./src/feedback.ts",

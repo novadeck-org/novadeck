@@ -1,10 +1,19 @@
 import { randomUUID } from "node:crypto"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
 import { MessageChannel } from "node:worker_threads"
 
 import { agy } from "@novadeck/harness-agy/index"
+import { startupCommand } from "@novadeck/protocol"
 import { connectRunner } from "@novadeck/runner-client"
 import { messagePort } from "@novadeck/wire/client"
 import { servePort } from "@novadeck/wire/server"
@@ -17,6 +26,7 @@ import { describe, expect, it as base } from "../test.js"
 import type { Resources } from "../testing/resources.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import { worktreesRoot } from "../worktrees/root.js"
+import { harnesses } from "./registry.js"
 import { createHarnesses } from "./service.js"
 
 const windows = process.platform === "win32"
@@ -144,6 +154,17 @@ const it = base.extend<{ fixture: Fixture }>({
 const hookEvents = (path: string) =>
   Object.keys((JSON.parse(readFileSync(path, "utf8")) as { novadeck: object }).novadeck)
 
+// A PATH with none of the stand-in agents on it: their programs are not installed.
+const withoutAgents = { PATH: "/usr/bin:/bin" }
+
+// What list says of an agent that is not installed: where its installer is run from.
+const missing = (agent: string) => ({
+  agent,
+  available: false,
+  connected: false,
+  installer: expect.any(String) as unknown as string,
+})
+
 const installed = (home: string, ...agents: string[]) => {
   const homes = { claude: [".claude"], codex: [".codex"], agy: [".gemini", "antigravity-cli"] }
   for (const agent of agents)
@@ -177,14 +198,90 @@ const heldShell = (fixture: Fixture, resources: Resources) => {
 }
 
 describe("agents Novadeck can connect", () => {
-  it("are available only where their own home exists", async ({ fixture }) => {
+  it("are available where their own home exists, or their program is found", async ({
+    fixture,
+  }) => {
     installed(fixture.home, "codex")
-    expect(await fixture.agents().list()).toEqual([
-      { agent: "claude", available: false, connected: false },
+    expect(await fixture.agents(withoutAgents).list()).toEqual([
+      missing("claude"),
       { agent: "codex", available: true, connected: false },
-      { agent: "agy", available: false, connected: false },
+      missing("agy"),
+    ])
+    // Installed and never run: no home yet, but the program is on PATH.
+    expect(await fixture.agents().list()).toEqual([
+      { agent: "claude", available: true, connected: false },
+      { agent: "codex", available: true, connected: false },
+      { agent: "agy", available: true, connected: false },
     ])
   })
+
+  it("name the command that installs each one that is missing, and none once it is there", async ({
+    fixture,
+  }) => {
+    installed(fixture.home, "claude")
+    const [claude, codex, antigravity] = await fixture.agents(withoutAgents).list()
+    expect(claude).not.toHaveProperty("installer")
+    expect(codex?.installer).toBe(harnesses.codex.installer(process.platform))
+    expect(antigravity?.installer).toBe(harnesses.agy.installer(process.platform))
+    // The line a terminal is opened with passes the protocol's rule for one.
+    for (const agent of [codex, antigravity])
+      expect(startupCommand.safeParse(agent?.installer).success).toBe(true)
+  })
+
+  it.skipIf(windows)(
+    "find a program its installer put beside PATH, before the person's PATH knows it",
+    async ({ fixture }) => {
+      const agents = fixture.agents(withoutAgents)
+      expect((await agents.list())[2]).toMatchObject({ agent: "agy", available: false })
+      // As `curl … | bash` leaves Antigravity, in the home's own bin.
+      mkdirSync(join(fixture.home, ".local", "bin"), { recursive: true })
+      copyFileSync(join(fixture.bin, "agy"), join(fixture.home, ".local", "bin", "agy"))
+      expect((await agents.list())[2]).toEqual({ agent: "agy", available: true, connected: false })
+      // Connecting runs it from there too.
+      expect(await agents.set("agy", true)).toMatchObject({ available: true, connected: true })
+    },
+  )
+
+  it("connect an agent that is installed but has never run, so has no home yet", async ({
+    fixture,
+  }) => {
+    const agents = fixture.agents()
+    for (const agent of ["claude", "codex", "agy"] as const)
+      // eslint-disable-next-line no-await-in-loop -- Each connects in its turn, as the runner's queue has them.
+      expect(await agents.set(agent, true)).toMatchObject({
+        agent,
+        available: true,
+        connected: true,
+      })
+    expect(fixture.calls()).toContainEqual(["codex", "plugin", "add", "novadeck@novadeck"])
+  })
+
+  it.skipIf(windows)(
+    "read the login environment afresh while an agent is missing, and not once all are there",
+    async ({ fixture }) => {
+      const shell = join(fixture.home, "login-shell")
+      const count = join(fixture.root, "logins")
+      writeFileSync(shell, `#!/bin/sh\necho x >> "${count}"\necho __NOVADECK_ENV__\nenv\n`, {
+        mode: 0o755,
+      })
+      const logins = () =>
+        existsSync(count) ? readFileSync(count, "utf8").trim().split("\n").length : 0
+      const agents = createHarnesses(() => Promise.resolve(fixture.paths), {
+        home: fixture.home,
+        env: fixture.environment({ ...withoutAgents, SHELL: shell }),
+      })
+      await agents.list()
+      const first = logins()
+      // One agent missing: each list asks the login shell again.
+      await agents.list()
+      expect(logins()).toBeGreaterThan(first)
+      installed(fixture.home, "claude", "codex", "agy")
+      await agents.list()
+      const settled = logins()
+      await agents.list()
+      expect(logins()).toBe(settled)
+    },
+  )
 
   it("connect Claude Code through its own plugin commands, from Novadeck's marketplace", async ({
     fixture,
@@ -214,7 +311,7 @@ describe("agents Novadeck can connect", () => {
     await agents.set("codex", true)
     await agents.set("agy", true)
     expect(await agents.list()).toEqual([
-      { agent: "claude", available: false, connected: false },
+      { agent: "claude", available: true, connected: false },
       { agent: "codex", available: true, connected: true },
       { agent: "agy", available: true, connected: true },
     ])
@@ -637,7 +734,7 @@ describe("agents Novadeck can connect", () => {
       code: "AGENT_SETUP_FAILED",
       message: expect.stringContaining("something went wrong"),
     })
-    await expect(fixture.agents().set("codex", true)).rejects.toMatchObject({
+    await expect(fixture.agents(withoutAgents).set("codex", true)).rejects.toMatchObject({
       code: "AGENT_SETUP_FAILED",
     })
   })
@@ -734,7 +831,7 @@ describe.skipIf(windows)("resuming an agent's saved session", () => {
   it("lists none for an agent that isn't installed, or whose list can't be read", async ({
     fixture,
   }) => {
-    const agents = fixture.agents()
+    const agents = fixture.agents(withoutAgents)
     expect(await agents.models("claude")).toEqual([])
     mkdirSync(join(fixture.home, ".codex"), { recursive: true })
     writeFileSync(join(fixture.home, ".codex", "models_cache.json"), "{ not json")

@@ -130,6 +130,49 @@ describe("the agent switches", () => {
     app.stop()
   })
 
+  it("look again at the agents, and say when what the runner found is shown", async () => {
+    const installer = "curl -fsSL https://antigravity.google/cli/install.sh | bash"
+    let found = [
+      { agent: "claude", available: true, connected: false },
+      { agent: "agy", available: false, connected: false, installer },
+    ]
+    const app = scripted({ shown: [], listAgents: async () => found })
+    const agents = app.backend.agents!
+    // What the runner said at startup, with the command that installs what is missing.
+    await agents.refresh()
+    expect(agents.state.getSnapshot()[1]).toEqual({
+      agent: "agy",
+      available: false,
+      connected: false,
+      installer,
+      busy: false,
+    })
+    // Installed since: the runner's list no longer names an installer.
+    found = [
+      { agent: "claude", available: true, connected: false },
+      { agent: "agy", available: true, connected: false },
+    ]
+    await agents.refresh()
+    expect(agents.state.getSnapshot()[1]).toEqual({
+      agent: "agy",
+      available: true,
+      connected: false,
+      busy: false,
+    })
+    app.stop()
+  })
+
+  it("keep what is shown when the runner cannot be asked again", async () => {
+    const app = scripted({
+      shown: [],
+      listAgents: () => Promise.reject(new WireError("DISCONNECTED")),
+    })
+    const agents = app.backend.agents!
+    await expect(agents.refresh()).resolves.toBeUndefined()
+    expect(agents.state.getSnapshot()[1]).toMatchObject({ agent: "agy", available: false })
+    app.stop()
+  })
+
   it("offer the welcome dialog until it is done, which the runner remembers", async () => {
     const app = scripted({ shown: [] })
     const agents = app.backend.agents!

@@ -3,6 +3,7 @@ import type { WorkspaceAction } from "@novadeck/core/state"
 import { createTerminalRegistry, terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
+import { installedBy, installOutcome, installReply } from "../agents/installs"
 import { demoAgent, mockReply, type DemoAgent } from "../samples"
 import { emptyLine, type Line } from "../screen/line-editor"
 import { terminalsOf } from "../workspace"
@@ -72,6 +73,22 @@ const empty: DemoTerminalSnapshot = {
   cleared: false,
 }
 
+// What a terminal opened to install an agent shows: its installer, run at its first prompt, and
+// what it printed.
+const installEntries = (key: TerminalKey, terminal: TerminalMetadata): readonly Entry[] => {
+  const agent = installedBy(terminal.command)
+  const outcome = installOutcome(key)
+  return agent && outcome
+    ? [
+        {
+          id: crypto.randomUUID(),
+          command: terminal.command,
+          reply: installReply(agent, outcome),
+        },
+      ]
+    : []
+}
+
 // Command lines and transcripts for the demo's simulated terminals.
 export const createDemoEngine = (): DemoEngine => {
   const listeners = new Map<string, Set<() => void>>()
@@ -81,8 +98,13 @@ export const createDemoEngine = (): DemoEngine => {
   const registry = createTerminalRegistry<{ snapshot: DemoTerminalSnapshot }>({
     // Created terminals start blank instead of showing the sample transcript, but one an agent
     // opened (with its agent started in it) shows its own opening.
-    open: (_key, terminal, created) => ({
-      snapshot: { ...empty, opening: openingOf(terminal), cleared: created && !terminal.openedBy },
+    open: (key, terminal, created) => ({
+      snapshot: {
+        ...empty,
+        opening: openingOf(terminal),
+        cleared: created && !terminal.openedBy,
+        entries: installEntries(key, terminal),
+      },
     }),
     close: (_entry, key) => publish(key),
   })

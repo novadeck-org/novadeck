@@ -8,6 +8,8 @@ export type AgentSwitch = {
   readonly busy: boolean
   readonly error?: string
   readonly limited?: "own-status-line" | undefined
+  // The command that installs it, while it is not `available`.
+  readonly installer?: string | undefined
 }
 
 export const agentLabels = Object.fromEntries(

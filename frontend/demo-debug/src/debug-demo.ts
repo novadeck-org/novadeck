@@ -13,6 +13,7 @@ import type { Workspace } from "@novadeck/core/types"
 import { demoTerminalsLife } from "@novadeck/demo"
 import { isDemoMurmur } from "@novadeck/demo/addons/murmur"
 import { isDemoVoice } from "@novadeck/demo/addons/voice"
+import { createDemoInstalls } from "@novadeck/demo/agents/installs"
 import { demoTurns } from "@novadeck/demo/agents/turns"
 import { isDemoFeedback } from "@novadeck/demo/feedback"
 import { isDemoInbox } from "@novadeck/demo/inbox"
@@ -34,6 +35,7 @@ import { doorbellGroups } from "./doorbell"
 import { feedbackGroups } from "./feedback"
 import { historyGroups } from "./history"
 import { inboxGroups } from "./inbox"
+import { installGroups } from "./installs"
 import { launchGroups } from "./launch"
 import { messageGroups } from "./messages"
 import { murmurGroups } from "./murmur"
@@ -202,7 +204,8 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
   }
 
   const { worktrees: offered, ...withoutWorktrees } = inner
-  const backend: Backend = {
+  const installs = createDemoInstalls()
+  const backend: Backend = installs.wrap({
     ...withoutWorktrees,
     ...(launch.worktrees && offered ? { worktrees: offered } : {}),
     commit: (workspace, actions) => {
@@ -257,7 +260,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     pickDirectory: states.pickDirectory,
     ...(inner.moveTerminal ? { moveTerminal: states.moveTerminal(inner.moveTerminal) } : {}),
     ...(inner.conversations ? { conversations: states.chat(inner.conversations) } : {}),
-  }
+  })
   panels.set(
     backend,
     createDebugPanel({
@@ -267,6 +270,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
         ...states,
         groups: [
           ...states.groups,
+          ...installGroups(installs, states),
           updatesGroup(launch, states.updateControls),
           ...approvalGroups(approvals, () => latest),
           ...inboxGroups(isDemoInbox(inner.inbox) ? inner.inbox : undefined, inner.seed),
